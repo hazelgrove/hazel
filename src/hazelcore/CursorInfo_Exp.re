@@ -651,9 +651,9 @@ and ana_cursor_info_zblock =
     : option(CursorInfo.t) =>
   switch (ty) {
   | ModeSwitch => syn_cursor_info_zblock(~steps, ctx, zblock)
-  | _ => ana_cursor_info_zblock'(~steps, ctx, zblock, ty)
+  | _ => ana_cursor_info_zblock_internal(~steps, ctx, zblock, ty)
   }
-and ana_cursor_info_zblock' =
+and ana_cursor_info_zblock_internal =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
@@ -732,9 +732,9 @@ and ana_cursor_info_zopseq =
     : option(CursorInfo.t) =>
   switch (ty) {
   | ModeSwitch => syn_cursor_info_zopseq(~steps, ctx, zopseq)
-  | _ => ana_cursor_info_zopseq'(~steps, ctx, zopseq, ty)
+  | _ => ana_cursor_info_zopseq_internal(~steps, ctx, zopseq, ty)
   }
-and ana_cursor_info_zopseq' =
+and ana_cursor_info_zopseq_internal =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,
@@ -800,9 +800,9 @@ and ana_cursor_info_skel =
     : option(CursorInfo.t) =>
   switch (ty) {
   | ModeSwitch => syn_cursor_info_skel(~steps, ctx, skel, zseq)
-  | _ => ana_cursor_info_skel'(~steps, ctx, skel, zseq, ty)
+  | _ => ana_cursor_info_skel_internal(~steps, ctx, skel, zseq, ty)
   }
-and ana_cursor_info_skel' =
+and ana_cursor_info_skel_internal =
     // steps of whole opseq
     (
       ~steps: CursorPath.steps,
@@ -901,9 +901,9 @@ and ana_cursor_info_zoperand =
     : option(CursorInfo.t) =>
   switch (ty) {
   | ModeSwitch => syn_cursor_info_zoperand(~steps, ctx, zoperand)
-  | _ => ana_cursor_info_zoperand'(~steps, ctx, zoperand, ty)
+  | _ => ana_cursor_info_zoperand_internal(~steps, ctx, zoperand, ty)
   }
-and ana_cursor_info_zoperand' =
+and ana_cursor_info_zoperand_internal =
     (
       ~steps: CursorPath.steps,
       ctx: Contexts.t,

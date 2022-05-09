@@ -340,7 +340,7 @@ let mk_syn_text =
   };
 };
 
-let mk_ana_text' =
+let mk_ana_text_internal =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
@@ -379,7 +379,7 @@ let mk_ana_text' =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      print_endline("consistent: mk_ana_text'");
+      print_endline("consistent: mk_ana_text_internal");
       print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
       print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
       if (HTyp.consistent(ty, ty')) {
@@ -403,7 +403,7 @@ let mk_ana_text =
   switch (ty) {
   | ModeSwitch =>
     syn_success_to_ana(mk_syn_text(ctx, u_gen, caret_index, text))
-  | _ => mk_ana_text'(ctx, u_gen, caret_index, text, ty)
+  | _ => mk_ana_text_internal(ctx, u_gen, caret_index, text, ty)
   };
 
 //TBD
@@ -454,7 +454,7 @@ let syn_split_text =
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
   };
 };
-let ana_split_text' =
+let ana_split_text_internal =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
@@ -508,7 +508,7 @@ let ana_split_text =
   switch (ty) {
   | ModeSwitch =>
     syn_success_to_ana(syn_split_text(ctx, u_gen, caret_index, sop, text))
-  | _ => ana_split_text'(ctx, u_gen, caret_index, sop, text, ty)
+  | _ => ana_split_text_internal(ctx, u_gen, caret_index, sop, text, ty)
   };
 
 let rec syn_move =
@@ -568,7 +568,7 @@ let rec syn_move =
     )
   };
 
-let rec ana_move' =
+let rec ana_move_internal =
         (
           ctx: Contexts.t,
           a: Action.t,
@@ -636,7 +636,7 @@ and ana_move =
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
   | ModeSwitch => syn_success_to_ana(syn_move(ctx, a, (ze, ty, u_gen)))
-  | _ => ana_move'(ctx, a, (ze, u_gen), ty)
+  | _ => ana_move_internal(ctx, a, (ze, u_gen), ty)
   };
 
 let rec syn_perform =
@@ -2266,7 +2266,7 @@ and ana_perform_rules =
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
-and ana_perform' =
+and ana_perform_internal =
     (
       ctx: Contexts.t,
       a: Action.t,
@@ -2274,7 +2274,7 @@ and ana_perform' =
       ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  print_endline("ana_perform' CALL ana_perform_block");
+  print_endline("ana_perform_internal CALL ana_perform_block");
   print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
@@ -2312,9 +2312,9 @@ and ana_perform =
     | CursorEscaped(s) => CursorEscaped(s)
     | Succeeded((zexp, _, u_gen)) => Succeeded((zexp, u_gen))
     }
-  | _ => ana_perform'(ctx, a, (ze, u_gen), ty)
+  | _ => ana_perform_internal(ctx, a, (ze, u_gen), ty)
   }
-and ana_perform_block' =
+and ana_perform_block_internal =
     (
       ctx: Contexts.t,
       a: Action.t,
@@ -2466,7 +2466,7 @@ and ana_perform_block' =
         | LetLineZP(_)
         | LetLineZE(_) => Failed
         | ExpLineZ(zopseq) =>
-          print_endline("ana_perform_block' CALL ana_perform_opseq");
+          print_endline("ana_perform_block_internal CALL ana_perform_opseq");
           print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
@@ -2536,9 +2536,9 @@ and ana_perform_block =
   switch (ty) {
   | ModeSwitch =>
     syn_success_to_ana(syn_perform_block(ctx, a, (zblock, ty, u_gen)))
-  | _ => ana_perform_block'(ctx, a, (zblock, u_gen), ty)
+  | _ => ana_perform_block_internal(ctx, a, (zblock, u_gen), ty)
   }
-and ana_perform_opseq' =
+and ana_perform_opseq_internal =
     (
       ctx: Contexts.t,
       a: Action.t,
@@ -2796,7 +2796,7 @@ and ana_perform_opseq' =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    print_endline("ana_perform_opseq' CALL ana_perform_operand");
+    print_endline("ana_perform_opseq_internal CALL ana_perform_operand");
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
 
@@ -2892,9 +2892,9 @@ and ana_perform_opseq =
   switch (ty) {
   | ModeSwitch =>
     syn_success_to_ana(syn_perform_opseq(ctx, a, (zopseq, ty, u_gen)))
-  | _ => ana_perform_opseq'(ctx, a, (zopseq, u_gen), ty)
+  | _ => ana_perform_opseq_internal(ctx, a, (zopseq, u_gen), ty)
   }
-and ana_perform_operand' =
+and ana_perform_operand_internal =
     (
       ctx: Contexts.t,
       a: Action.t,
@@ -3039,7 +3039,7 @@ and ana_perform_operand' =
     }
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
-    print_endline("ana_perform_operand' 1");
+    print_endline("ana_perform_operand_internal 1");
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     ana_insert_text(ctx, u_gen, (0, s), "", ty);
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
@@ -3413,7 +3413,7 @@ and ana_perform_operand =
   switch (ty) {
   | ModeSwitch =>
     syn_success_to_ana(syn_perform_operand(ctx, a, (zoperand, ty, u_gen)))
-  | _ => ana_perform_operand'(ctx, a, (zoperand, u_gen), ty)
+  | _ => ana_perform_operand_internal(ctx, a, (zoperand, u_gen), ty)
   }
 and ana_perform_subsume =
     (

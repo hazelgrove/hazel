@@ -493,9 +493,9 @@ and ana_elab_block =
     : ElaborationResult.t =>
   switch (ty) {
   | ModeSwitch => syn_elab_block(ctx, delta, block)
-  | _ => ana_elab_block'(ctx, delta, block, ty)
+  | _ => ana_elab_block_internal(ctx, delta, block, ty)
   }
-and ana_elab_block' =
+and ana_elab_block_internal =
     (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
@@ -515,9 +515,9 @@ and ana_elab_opseq =
     : ElaborationResult.t =>
   switch (ty) {
   | ModeSwitch => syn_elab_opseq(ctx, delta, opseq)
-  | _ => ana_elab_opseq'(ctx, delta, opseq, ty)
+  | _ => ana_elab_opseq_internal(ctx, delta, opseq, ty)
   }
-and ana_elab_opseq' =
+and ana_elab_opseq_internal =
     (
       ctx: Contexts.t,
       delta: Delta.t,
@@ -631,9 +631,9 @@ and ana_elab_skel =
     : ElaborationResult.t =>
   switch (ty) {
   | ModeSwitch => syn_elab_skel(ctx, delta, skel, seq)
-  | _ => ana_elab_skel'(ctx, delta, skel, seq, ty)
+  | _ => ana_elab_skel_internal(ctx, delta, skel, seq, ty)
   }
-and ana_elab_skel' =
+and ana_elab_skel_internal =
     (
       ctx: Contexts.t,
       delta: Delta.t,
@@ -716,9 +716,9 @@ and ana_elab_operand =
     : ElaborationResult.t =>
   switch (ty) {
   | ModeSwitch => syn_elab_operand(ctx, delta, operand)
-  | _ => ana_elab_operand'(ctx, delta, operand, ty)
+  | _ => ana_elab_operand_internal(ctx, delta, operand, ty)
   }
-and ana_elab_operand' =
+and ana_elab_operand_internal =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
