@@ -2273,7 +2273,9 @@ and ana_perform' =
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
     )
-    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
+  print_endline("ana_perform' CALL ana_perform_block");
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2293,7 +2295,8 @@ and ana_perform' =
     let new_ze =
       ZExp.ZBlock.wrap(FunZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
-  }
+  };
+}
 and ana_perform =
     (
       ctx: Contexts.t,
@@ -2463,6 +2466,8 @@ and ana_perform_block' =
         | LetLineZP(_)
         | LetLineZE(_) => Failed
         | ExpLineZ(zopseq) =>
+          print_endline("ana_perform_block' CALL ana_perform_opseq");
+          print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
           | CursorEscaped(side) =>
@@ -2483,7 +2488,7 @@ and ana_perform_block' =
           | Succeeded(AnaDone(((inner_prefix, zline, suffix), u_gen))) =>
             let new_ze = (prefix @ inner_prefix, zline, suffix);
             Succeeded(AnaDone((new_ze, u_gen)));
-          }
+          };
         }
       | [_, ..._] =>
         switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
@@ -2791,7 +2796,9 @@ and ana_perform_opseq' =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
+    print_endline("ana_perform_opseq' CALL ana_perform_operand");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -3032,7 +3039,9 @@ and ana_perform_operand' =
     }
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
-    ana_insert_text(ctx, u_gen, (0, s), "", ty)
+    print_endline("ana_perform_operand' 1");
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    ana_insert_text(ctx, u_gen, (0, s), "", ty);
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
