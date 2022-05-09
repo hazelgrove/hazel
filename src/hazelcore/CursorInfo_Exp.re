@@ -308,7 +308,8 @@ and syn_cursor_info_line =
     }
   | LetLineZP(zp, def) =>
     let p = ZPat.erase(zp);
-    let* (ty_p, _) = Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable);
+    let* (ty_p, _) =
+      Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
     let* _ = Statics_Exp.ana(def_ctx, def, ty_p);
     let* ty_def = Statics_Exp.syn(def_ctx, def);
@@ -331,7 +332,8 @@ and syn_cursor_info_line =
       }
     };
   | LetLineZE(p, zdef) =>
-    let* (ty_p, _) = Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable);
+    let* (ty_p, _) =
+      Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, ZExp.erase(zdef));
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);

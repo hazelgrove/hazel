@@ -27,35 +27,42 @@ let rec syn_elab =
           ctx: Contexts.t,
           delta: Delta.t,
           p: UHPat.t,
-          ~moded: Statics_Pat.moded,
+          ~pattern_var_mode: Statics_Pat.pattern_var_mode,
         )
         : ElaborationResult.t =>
-  syn_elab_opseq(ctx, delta, p, ~moded)
+  syn_elab_opseq(ctx, delta, p, ~pattern_var_mode)
 and syn_elab_opseq =
     (
       ctx: Contexts.t,
       delta: Delta.t,
       OpSeq(skel, seq): UHPat.opseq,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
-  syn_elab_skel(ctx, delta, skel, seq, ~moded)
+  syn_elab_skel(ctx, delta, skel, seq, ~pattern_var_mode)
 and syn_elab_skel =
     (
       ctx: Contexts.t,
       delta: Delta.t,
       skel: UHPat.skel,
       seq: UHPat.seq,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
   switch (skel) {
   | Placeholder(n) =>
-    syn_elab_operand(ctx, delta, seq |> Seq.nth_operand(n), ~moded)
+    syn_elab_operand(
+      ctx,
+      delta,
+      seq |> Seq.nth_operand(n),
+      ~pattern_var_mode,
+    )
   | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
   | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-    switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq, ~moded)) {
+    switch (
+      syn_elab_skel(ctx, delta, skel_not_in_hole, seq, ~pattern_var_mode)
+    ) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
@@ -77,13 +84,13 @@ and syn_elab_skel =
     switch (UHPat.get_tuple_elements(skel)) {
     | [skel1, skel2, ...tail] =>
       let%bind (dp1, ty1, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel1, seq, ~moded);
+        syn_elab_skel(ctx, delta, skel1, seq, ~pattern_var_mode);
       let%bind (dp2, ty2, ctx, delta) =
-        syn_elab_skel(ctx, delta, skel2, seq, ~moded);
+        syn_elab_skel(ctx, delta, skel2, seq, ~pattern_var_mode);
       tail
       |> ListUtil.map_with_accumulator_opt(
            ((dp_acc, ctx, delta), skel) => {
-             syn_elab_skel(ctx, delta, skel, seq, ~moded)
+             syn_elab_skel(ctx, delta, skel, seq, ~pattern_var_mode)
              |> ElaborationResult.to_option
              |> Option.map(((dp, ty, ctx, delta)) =>
                   ((DHPat.Pair(dp_acc, dp), ctx, delta), ty)
@@ -103,10 +110,10 @@ and syn_elab_skel =
       )
     }
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (syn_elab_skel(ctx, delta, skel1, seq, ~moded)) {
+    switch (syn_elab_skel(ctx, delta, skel1, seq, ~pattern_var_mode)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _, ctx, delta) =>
-      switch (syn_elab_skel(ctx, delta, skel2, seq, ~moded)) {
+      switch (syn_elab_skel(ctx, delta, skel2, seq, ~pattern_var_mode)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
@@ -114,11 +121,11 @@ and syn_elab_skel =
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (syn_elab_skel(ctx, delta, skel1, seq, ~moded)) {
+    switch (syn_elab_skel(ctx, delta, skel1, seq, ~pattern_var_mode)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, ty1, ctx, delta) =>
       let ty = HTyp.List(ty1);
-      switch (ana_elab_skel(ctx, delta, skel2, seq, ty, ~moded)) {
+      switch (ana_elab_skel(ctx, delta, skel2, seq, ty, ~pattern_var_mode)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _, ctx, delta) =>
         let dp = DHPat.Cons(dp1, dp2);
@@ -131,7 +138,7 @@ and syn_elab_operand =
       ctx: Contexts.t,
       delta: Delta.t,
       operand: UHPat.operand,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
   switch (operand) {
@@ -143,7 +150,7 @@ and syn_elab_operand =
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
-    switch (syn_elab_operand(ctx, delta, operand', ~moded)) {
+    switch (syn_elab_operand(ctx, delta, operand', ~pattern_var_mode)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
@@ -185,7 +192,7 @@ and syn_elab_operand =
     Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let ty =
-      switch (moded) {
+      switch (pattern_var_mode) {
       | ModedVariable => HTyp.Unknown(SynPatternVar)
       | UnknownVariable => Unknown(Internal)
       };
@@ -204,9 +211,9 @@ and syn_elab_operand =
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | ListNil(NotInHole) =>
     Elaborates(ListNil, List(Unknown(Internal)), ctx, delta)
-  | Parenthesized(p1) => syn_elab(ctx, delta, p1, ~moded)
+  | Parenthesized(p1) => syn_elab(ctx, delta, p1, ~pattern_var_mode)
   | Inj(NotInHole, side, p) =>
-    switch (syn_elab(ctx, delta, p, ~moded)) {
+    switch (syn_elab(ctx, delta, p, ~pattern_var_mode)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, ty1, ctx, delta) =>
       let dp = DHPat.Inj(side, dp1);
@@ -218,7 +225,7 @@ and syn_elab_operand =
       Elaborates(dp, ty, ctx, delta);
     }
   | TypeAnn(_, p1, ty1) =>
-    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1), ~moded)
+    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1), ~pattern_var_mode)
   }
 and ana_elab =
     (
@@ -226,17 +233,17 @@ and ana_elab =
       delta: Delta.t,
       p: UHPat.t,
       ty: HTyp.t,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
-  ana_elab_opseq(ctx, delta, p, ty, ~moded)
+  ana_elab_opseq(ctx, delta, p, ty, ~pattern_var_mode)
 and ana_elab_opseq =
     (
       ctx: Contexts.t,
       delta: Delta.t,
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t => {
   // handle n-tuples
@@ -251,7 +258,9 @@ and ana_elab_opseq =
            switch (acc) {
            | None => None
            | Some((rev_dps, ctx, delta)) =>
-             switch (ana_elab_skel(ctx, delta, skel, seq, ty, ~moded)) {
+             switch (
+               ana_elab_skel(ctx, delta, skel, seq, ty, ~pattern_var_mode)
+             ) {
              | DoesNotElaborate => None
              | Elaborates(dp, _, ctx, delta) =>
                Some(([dp, ...rev_dps], ctx, delta))
@@ -279,7 +288,9 @@ and ana_elab_opseq =
              switch (acc) {
              | None => None
              | Some((rev_dps, ctx, delta)) =>
-               switch (syn_elab_skel(ctx, delta, skel, seq, ~moded)) {
+               switch (
+                 syn_elab_skel(ctx, delta, skel, seq, ~pattern_var_mode)
+               ) {
                | DoesNotElaborate => None
                | Elaborates(dp, _, ctx, delta) =>
                  Some(([dp, ...rev_dps], ctx, delta))
@@ -305,7 +316,7 @@ and ana_elab_opseq =
             ctx,
             delta,
             opseq |> UHPat.set_err_status_opseq(NotInHole),
-            ~moded,
+            ~pattern_var_mode,
           )
         ) {
         | DoesNotElaborate => DoesNotElaborate
@@ -326,7 +337,7 @@ and ana_elab_skel =
       skel: UHPat.skel,
       seq: UHPat.seq,
       ty: HTyp.t,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
   switch (skel) {
@@ -336,10 +347,12 @@ and ana_elab_skel =
     DoesNotElaborate
   | Placeholder(n) =>
     let pn = seq |> Seq.nth_operand(n);
-    ana_elab_operand(ctx, delta, pn, ty, ~moded);
+    ana_elab_operand(ctx, delta, pn, ty, ~pattern_var_mode);
   | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-    switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq, ~moded)) {
+    switch (
+      syn_elab_skel(ctx, delta, skel_not_in_hole, seq, ~pattern_var_mode)
+    ) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
@@ -348,11 +361,27 @@ and ana_elab_skel =
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (ana_elab_skel(ctx, delta, skel1, seq, Unknown(Internal), ~moded)) {
+    switch (
+      ana_elab_skel(
+        ctx,
+        delta,
+        skel1,
+        seq,
+        Unknown(Internal),
+        ~pattern_var_mode,
+      )
+    ) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _ty1, ctx, delta) =>
       switch (
-        ana_elab_skel(ctx, delta, skel2, seq, Unknown(Internal), ~moded)
+        ana_elab_skel(
+          ctx,
+          delta,
+          skel2,
+          seq,
+          Unknown(Internal),
+          ~pattern_var_mode,
+        )
       ) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _ty2, ctx, delta) =>
@@ -364,11 +393,15 @@ and ana_elab_skel =
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
-      switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt, ~moded)) {
+      switch (
+        ana_elab_skel(ctx, delta, skel1, seq, ty_elt, ~pattern_var_mode)
+      ) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp1, _, ctx, delta) =>
         let ty_list = HTyp.List(ty_elt);
-        switch (ana_elab_skel(ctx, delta, skel2, seq, ty_list, ~moded)) {
+        switch (
+          ana_elab_skel(ctx, delta, skel2, seq, ty_list, ~pattern_var_mode)
+        ) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(dp2, _, ctx, delta) =>
           let dp = DHPat.Cons(dp1, dp2);
@@ -383,7 +416,7 @@ and ana_elab_operand =
       delta: Delta.t,
       operand: UHPat.operand,
       ty: HTyp.t,
-      ~moded: Statics_Pat.moded,
+      ~pattern_var_mode: Statics_Pat.pattern_var_mode,
     )
     : ElaborationResult.t =>
   switch (operand) {
@@ -396,7 +429,7 @@ and ana_elab_operand =
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
-    switch (syn_elab_operand(ctx, delta, operand', ~moded)) {
+    switch (syn_elab_operand(ctx, delta, operand', ~pattern_var_mode)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _, ctx, delta) =>
       let dp = DHPat.NonEmptyHole(reason, u, 0, dp1);
@@ -427,19 +460,20 @@ and ana_elab_operand =
   | InvalidText(_, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand, ~moded)
+  | BoolLit(NotInHole, _) =>
+    syn_elab_operand(ctx, delta, operand, ~pattern_var_mode)
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) => Elaborates(ListNil, HTyp.List(ty_elt), ctx, delta)
     }
-  | Parenthesized(p) => ana_elab(ctx, delta, p, ty, ~moded)
+  | Parenthesized(p) => ana_elab(ctx, delta, p, ty, ~pattern_var_mode)
   | Inj(NotInHole, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => DoesNotElaborate
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);
-      switch (ana_elab(ctx, delta, p1, ty1, ~moded)) {
+      switch (ana_elab(ctx, delta, p1, ty1, ~pattern_var_mode)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp1, ty1, ctx, delta) =>
         let ty =
@@ -450,7 +484,8 @@ and ana_elab_operand =
         Elaborates(Inj(side, dp1), ty, ctx, delta);
       };
     }
-  | TypeAnn(NotInHole, op, _) => ana_elab_operand(ctx, delta, op, ty, ~moded)
+  | TypeAnn(NotInHole, op, _) =>
+    ana_elab_operand(ctx, delta, op, ty, ~pattern_var_mode)
   };
 
 let rec renumber_result_only =

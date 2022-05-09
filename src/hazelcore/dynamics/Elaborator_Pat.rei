@@ -7,11 +7,22 @@ module ElaborationResult: {
 module Let_syntax = ElaborationResult;
 
 let syn_elab:
-  (Contexts.t, Delta.t, UHPat.t, ~moded: Statics_Pat.moded) =>
+  (
+    Contexts.t,
+    Delta.t,
+    UHPat.t,
+    ~pattern_var_mode: Statics_Pat.pattern_var_mode
+  ) =>
   ElaborationResult.t;
 
 let ana_elab:
-  (Contexts.t, Delta.t, UHPat.t, HTyp.t, ~moded: Statics_Pat.moded) =>
+  (
+    Contexts.t,
+    Delta.t,
+    UHPat.t,
+    HTyp.t,
+    ~pattern_var_mode: Statics_Pat.pattern_var_mode
+  ) =>
   ElaborationResult.t;
 
 let renumber_result_only:

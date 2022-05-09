@@ -10,7 +10,7 @@ let recursive_let_id =
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
       [ExpLine(OpSeq(_, S(Fun(_), E)))],
     ) =>
-    switch (Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable)) {
+    switch (Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable)) {
     | None => None
     | Some((ty_p, _)) => Option.map(_ => x, HTyp.matched_arrow(ty_p))
     }
@@ -23,7 +23,7 @@ let extend_let_def_ctx =
   switch (recursive_let_id(ctx, p, def)) {
   | None => ctx
   | Some(id) =>
-    switch (Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable)) {
+    switch (Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable)) {
     | None => ctx
     | Some((ty_p, _)) => Contexts.extend_gamma(ctx, (id, ty_p))
     }
@@ -64,7 +64,8 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     let+ _ = syn_opseq(ctx, opseq);
     ctx;
   | LetLine(p, def) =>
-    let* (ty_p, _) = Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable);
+    let* (ty_p, _) =
+      Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let* _ = ana(def_ctx, def, ty_p);
     let* ty_def = syn(def_ctx, def);

@@ -74,7 +74,7 @@ and syn_elab_line =
   | EmptyLine
   | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
   | LetLine(p, def) =>
-    switch (Statics_Pat.syn_moded(ctx, p, ~moded=ModedVariable)) {
+    switch (Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable)) {
     | None => LinesDoNotElaborate
     | Some((ty_p, _)) =>
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
@@ -97,7 +97,13 @@ and syn_elab_line =
           };
         let d1 = DHExp.cast(d1, ty_def, ty_p);
         switch (
-          Elaborator_Pat.ana_elab(ctx, delta, p, ty_def, ~moded=ModedVariable)
+          Elaborator_Pat.ana_elab(
+            ctx,
+            delta,
+            p,
+            ty_def,
+            ~pattern_var_mode=ModedVariable,
+          )
         ) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
@@ -377,7 +383,14 @@ and syn_elab_operand =
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
-    switch (Elaborator_Pat.syn_elab(ctx, delta, p, ~moded=UnknownVariable)) {
+    switch (
+      Elaborator_Pat.syn_elab(
+        ctx,
+        delta,
+        p,
+        ~pattern_var_mode=UnknownVariable,
+      )
+    ) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
@@ -454,7 +467,13 @@ and syn_elab_rule =
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
   switch (
-    Elaborator_Pat.ana_elab(ctx, delta, p, ty_scrut, ~moded=UnknownVariable)
+    Elaborator_Pat.ana_elab(
+      ctx,
+      delta,
+      p,
+      ty_scrut,
+      ~pattern_var_mode=UnknownVariable,
+    )
   ) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
@@ -773,7 +792,7 @@ and ana_elab_operand' =
             delta,
             p,
             ty1_ann,
-            ~moded=UnknownVariable,
+            ~pattern_var_mode=UnknownVariable,
           )
         ) {
         | DoesNotElaborate => DoesNotElaborate
@@ -870,7 +889,13 @@ and ana_elab_rule =
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
   switch (
-    Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty, ~moded=UnknownVariable)
+    Elaborator_Pat.ana_elab(
+      ctx,
+      delta,
+      p,
+      pat_ty,
+      ~pattern_var_mode=UnknownVariable,
+    )
   ) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
