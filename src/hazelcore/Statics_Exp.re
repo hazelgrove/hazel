@@ -191,7 +191,7 @@ and syn_rule =
 }
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
-and ana_block' =
+and ana_block_internal =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* ctx = syn_lines(ctx, leading);
@@ -203,9 +203,9 @@ and ana_block =
   | ModeSwitch =>
     let+ _ = syn_block(ctx, block);
     ();
-  | _ => ana_block'(ctx, block, ty)
+  | _ => ana_block_internal(ctx, block, ty)
   }
-and ana_opseq' =
+and ana_opseq_internal =
     (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) => {
   switch (tuple_zip(skel, ty)) {
@@ -232,7 +232,7 @@ and ana_opseq =
   | ModeSwitch =>
     let+ _ = syn_opseq(ctx, opseq);
     ();
-  | _ => ana_opseq'(ctx, opseq, ty)
+  | _ => ana_opseq_internal(ctx, opseq, ty)
   }
 and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
@@ -241,9 +241,9 @@ and ana_skel =
   | ModeSwitch =>
     let+ _ = syn_skel(ctx, skel, seq);
     ();
-  | _ => ana_skel'(ctx, skel, seq, ty)
+  | _ => ana_skel_internal(ctx, skel, seq, ty)
   }
-and ana_skel' =
+and ana_skel_internal =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
   switch (skel) {
@@ -282,9 +282,9 @@ and ana_operand =
   | ModeSwitch =>
     let+ _ = syn_operand(ctx, operand);
     ();
-  | _ => ana_operand'(ctx, operand, ty)
+  | _ => ana_operand_internal(ctx, operand, ty)
   }
-and ana_operand' =
+and ana_operand_internal =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
   switch (operand) {
   /* in hole */
@@ -434,9 +434,9 @@ and ana_nth_type_mode =
     : option(Statics.type_mode) =>
   switch (ty) {
   | ModeSwitch => syn_nth_type_mode(ctx, n, opseq)
-  | _ => ana_nth_type_mode''(ctx, n, opseq, ty)
+  | _ => ana_nth_type_mode_internal(ctx, n, opseq, ty)
   }
-and ana_nth_type_mode'' =
+and ana_nth_type_mode_internal =
     (
       ctx: Contexts.t,
       n: int,
@@ -457,7 +457,7 @@ and ana_nth_type_mode'' =
          );
     ana_nth_type_mode'(ctx, n, nskel, seq, nty);
   }
-and ana_nth_type_mode''' =
+and ana_nth_type_mode_interal' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics.type_mode) => {
   let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
@@ -502,7 +502,7 @@ and ana_nth_type_mode' =
     : option(Statics.type_mode) =>
   switch (ty) {
   | ModeSwitch => syn_nth_type_mode'(ctx, n, skel, seq)
-  | _ => ana_nth_type_mode'''(ctx, n, skel, seq, ty)
+  | _ => ana_nth_type_mode_interal'(ctx, n, skel, seq, ty)
   };
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
