@@ -699,6 +699,9 @@ and ana_elab_skel' =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty', delta) =>
       print_endline("consistent: ana_elab_skel");
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
+      print_endline("ty is (Prod (ModeSwitch ModeSwitch))");
       if (HTyp.consistent(ty, ty')) {
         Elaborates(d, ty', delta);
       } else {
