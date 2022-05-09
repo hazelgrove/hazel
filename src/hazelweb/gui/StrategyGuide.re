@@ -66,6 +66,7 @@ let lit_msg = (ty: HTyp.t) => {
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
   switch (ty) {
+  | ModeSwitch
   | Unknown(_) => [
       int_lit,
       float_lit,

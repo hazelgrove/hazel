@@ -207,7 +207,7 @@ let rec mk_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-  if (HTyp.eq(t1, t2) || t2 == Unknown(SynPatternVar)) {
+  if (HTyp.eq(t1, t2) || t2 == ModeSwitch) {
     d;
   } else {
     Cast(d, t1, t2);

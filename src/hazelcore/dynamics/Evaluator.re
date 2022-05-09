@@ -16,6 +16,7 @@ let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
 let ground_cases_of = (ty: HTyp.t): ground_cases =>
   switch (ty) {
+  | ModeSwitch
   | Unknown(_) => Hole
   | Bool
   | Int

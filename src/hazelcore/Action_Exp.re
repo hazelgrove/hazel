@@ -398,7 +398,7 @@ let mk_ana_text =
     )
     : ActionOutcome.t(_) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     syn_success_to_ana(mk_syn_text(ctx, u_gen, caret_index, text))
   | _ => mk_ana_text'(ctx, u_gen, caret_index, text, ty)
   };
@@ -503,7 +503,7 @@ let ana_split_text =
     )
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     syn_success_to_ana(syn_split_text(ctx, u_gen, caret_index, sop, text))
   | _ => ana_split_text'(ctx, u_gen, caret_index, sop, text, ty)
   };
@@ -632,8 +632,7 @@ and ana_move =
     )
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
-    syn_success_to_ana(syn_move(ctx, a, (ze, ty, u_gen)))
+  | ModeSwitch => syn_success_to_ana(syn_move(ctx, a, (ze, ty, u_gen)))
   | _ => ana_move'(ctx, a, (ze, u_gen), ty)
   };
 
@@ -2301,7 +2300,7 @@ and ana_perform =
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     switch (syn_perform(ctx, a, (ze, ty, u_gen))) {
     | Failed => Failed
     | CursorEscaped(s) => CursorEscaped(s)
@@ -2527,7 +2526,7 @@ and ana_perform_block =
     )
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     syn_success_to_ana(syn_perform_block(ctx, a, (zblock, ty, u_gen)))
   | _ => ana_perform_block'(ctx, a, (zblock, u_gen), ty)
   }
@@ -2881,7 +2880,7 @@ and ana_perform_opseq =
     )
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     syn_success_to_ana(syn_perform_opseq(ctx, a, (zopseq, ty, u_gen)))
   | _ => ana_perform_opseq'(ctx, a, (zopseq, u_gen), ty)
   }
@@ -3400,7 +3399,7 @@ and ana_perform_operand =
     )
     : ActionOutcome.t(ana_success) =>
   switch (ty) {
-  | Unknown(SynPatternVar) =>
+  | ModeSwitch =>
     syn_success_to_ana(syn_perform_operand(ctx, a, (zoperand, ty, u_gen)))
   | _ => ana_perform_operand'(ctx, a, (zoperand, u_gen), ty)
   }

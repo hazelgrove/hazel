@@ -652,7 +652,7 @@ and ana_cursor_info_zblock =
     )
     : option(CursorInfo.t) =>
   switch (ty) {
-  | Unknown(SynPatternVar) => syn_cursor_info_zblock(~steps, ctx, zblock)
+  | ModeSwitch => syn_cursor_info_zblock(~steps, ctx, zblock)
   | _ => ana_cursor_info_zblock'(~steps, ctx, zblock, ty)
   }
 and ana_cursor_info_zblock' =
@@ -733,7 +733,7 @@ and ana_cursor_info_zopseq =
     )
     : option(CursorInfo.t) =>
   switch (ty) {
-  | Unknown(SynPatternVar) => syn_cursor_info_zopseq(~steps, ctx, zopseq)
+  | ModeSwitch => syn_cursor_info_zopseq(~steps, ctx, zopseq)
   | _ => ana_cursor_info_zopseq'(~steps, ctx, zopseq, ty)
   }
 and ana_cursor_info_zopseq' =
@@ -801,7 +801,7 @@ and ana_cursor_info_skel =
     )
     : option(CursorInfo.t) =>
   switch (ty) {
-  | Unknown(SynPatternVar) => syn_cursor_info_skel(~steps, ctx, skel, zseq)
+  | ModeSwitch => syn_cursor_info_skel(~steps, ctx, skel, zseq)
   | _ => ana_cursor_info_skel'(~steps, ctx, skel, zseq, ty)
   }
 and ana_cursor_info_skel' =
@@ -902,7 +902,7 @@ and ana_cursor_info_zoperand =
     )
     : option(CursorInfo.t) =>
   switch (ty) {
-  | Unknown(SynPatternVar) => syn_cursor_info_zoperand(~steps, ctx, zoperand)
+  | ModeSwitch => syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | _ => ana_cursor_info_zoperand'(~steps, ctx, zoperand, ty)
   }
 and ana_cursor_info_zoperand' =

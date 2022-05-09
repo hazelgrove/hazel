@@ -94,9 +94,9 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(SynPatternVar)));
+    let ctx = Contexts.extend_gamma(ctx, (x, ModeSwitch));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.Unknown(SynPatternVar), ctx, u_gen));
+    Succeeded((zp, HTyp.ModeSwitch, ctx, u_gen));
   };
 };
 

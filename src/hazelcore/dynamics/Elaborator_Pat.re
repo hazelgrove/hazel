@@ -193,7 +193,7 @@ and syn_elab_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     let ty =
       switch (pattern_var_mode) {
-      | ModedVariable => HTyp.Unknown(SynPatternVar)
+      | ModedVariable => HTyp.ModeSwitch
       | UnknownVariable => Unknown(Internal)
       };
     let ctx = Contexts.extend_gamma(ctx, (x, Unknown(Internal)));

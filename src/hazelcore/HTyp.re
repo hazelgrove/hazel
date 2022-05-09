@@ -3,12 +3,12 @@ open Sexplib.Std;
 [@deriving sexp]
 type unknown_type_provenance =
   | TypHole
-  | SynPatternVar
   | Internal;
 
 /* types with holes */
 [@deriving sexp]
 type t =
+  | ModeSwitch
   | Unknown(unknown_type_provenance)
   | Int
   | Float
@@ -29,10 +29,11 @@ let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_const = Operators_Typ.precedence_const;
 let precedence = (ty: t): int =>
   switch (ty) {
+  | ModeSwitch
+  | Unknown(_)
   | Int
   | Float
   | Bool
-  | Unknown(_)
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -49,12 +50,12 @@ let eq = (==);
 let rec consistent = (x, y) =>
   switch (x, y) {
   //TODO(andrew): this throws immediately
-  | (Unknown(SynPatternVar), _)
-  | (_, Unknown(SynPatternVar)) =>
-    print_endline("HTyp.consistent SynPatternVar");
+  | (ModeSwitch, _)
+  | (_, ModeSwitch) =>
+    print_endline("HTyp.consistent ModeSwitch");
     print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
     print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(y)));
-    failwith("HTyp.consistent: SynPatternVar");
+    failwith("HTyp.consistent: ModeSwitch");
   | (Unknown(_), _)
   | (_, Unknown(_)) => true
   | (Int, Int) => true
@@ -120,12 +121,12 @@ let matched_list =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Unknown(_)) =>
+  | (_, Unknown(_) | ModeSwitch) =>
     switch (j) {
     | GLB => Some(Unknown(Internal))
     | LUB => Some(ty1)
     }
-  | (Unknown(_), _) =>
+  | (Unknown(_) | ModeSwitch, _) =>
     switch (j) {
     | GLB => Some(Unknown(Internal))
     | LUB => Some(ty2)
