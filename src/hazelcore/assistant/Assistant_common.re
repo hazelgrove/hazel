@@ -13,7 +13,7 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
   print_endline("consistent: extract_vars");
   ctx
   |> Contexts.gamma
-  |> VarMap.filter(((_, ty: HTyp.t)) => HTyp.consistent(ty, typ));
+  |> VarMap.filter(((_, ty: HTyp.t)) => {HTyp.consistent(ty, typ)});
 };
 
 /**

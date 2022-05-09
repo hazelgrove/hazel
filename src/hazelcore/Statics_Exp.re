@@ -1265,7 +1265,10 @@ and ana_fix_holes_operand' =
   | BoolLit(_, _) =>
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    print_endline("consistent: ana_fix_holes_operand");
+    print_endline(
+      "consistent: ana_fix_holes_operand Hole/Invalid/Var/Float/Bool",
+    );
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
     if (HTyp.consistent(ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
@@ -1321,7 +1324,7 @@ and ana_fix_holes_operand' =
     | None =>
       let (e', ty', u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-      print_endline("consistent: ana_fix_holes_operand 2");
+      print_endline("consistent: ana_fix_holes_operand Inj");
       if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {
@@ -1357,17 +1360,17 @@ and ana_fix_holes_operand' =
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
-  print_endline("AHHHHHHHHHHHH!");
-  print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
-  print_endline(
-    Sexplib.Sexp.to_string_hum(
-      Sexplib.Std.sexp_of_option(
-        HTyp.sexp_of_t,
-        syn(extend_let_def_ctx(ctx, p, def), def),
+  /*print_endline("AHHHHHHHHHHHH!");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(def)));
+    print_endline(
+      Sexplib.Sexp.to_string_hum(
+        Sexplib.Std.sexp_of_option(
+          HTyp.sexp_of_t,
+          syn(extend_let_def_ctx(ctx, p, def), def),
+        ),
       ),
-    ),
-  );
-  print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));
+    );
+    print_endline(Sexplib.Sexp.to_string_hum(UHPat.sexp_of_t(p)));*/
   def
   |> syn(extend_let_def_ctx(ctx, p, def))
   |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))

@@ -701,6 +701,7 @@ and ana_elab_skel' =
       print_endline("consistent: ana_elab_skel");
       print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
       print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
+      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_seq(seq)));
       print_endline("ty is (Prod (ModeSwitch ModeSwitch))");
       if (HTyp.consistent(ty, ty')) {
         Elaborates(d, ty', delta);

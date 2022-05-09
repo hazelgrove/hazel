@@ -379,12 +379,15 @@ let mk_ana_text' =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
+      print_endline("consistent: mk_ana_text'");
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
       if (HTyp.consistent(ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
-      }
+      };
     }
   };
 };
@@ -3421,11 +3424,12 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
+      print_endline("consistent: ana_perform_subsume");
       if (HTyp.consistent(ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
-      }
+      };
     }
   };

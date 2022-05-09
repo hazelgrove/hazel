@@ -5,14 +5,15 @@ type pattern_var_mode =
   | ModedVariable
   | UnknownVariable;
 
-let opt_snd = Option.map(((a, _)) => a);
-
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
 let rec syn = syn_internal(~pattern_var_mode=UnknownVariable)
 and syn_moded = (ctx: Contexts.t, p: UHPat.t): option(HTyp.t) =>
-  opt_snd(syn_internal(ctx, p, ~pattern_var_mode=ModedVariable))
+  Option.map(
+    ((a, _)) => a,
+    syn_internal(ctx, p, ~pattern_var_mode=ModedVariable),
+  )
 and syn_internal =
     (ctx: Contexts.t, p: UHPat.t, ~pattern_var_mode: pattern_var_mode)
     : option((HTyp.t, Contexts.t)) =>
