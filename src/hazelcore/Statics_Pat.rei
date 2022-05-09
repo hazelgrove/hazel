@@ -21,9 +21,7 @@ let ana_nth_type_mode:
  * produces a new context with bindings introduced by `p` (if possible)
  */
 let syn: (Contexts.t, UHPat.t) => option((HTyp.t, Contexts.t));
-let syn_moded:
-  (Contexts.t, UHPat.t, ~pattern_var_mode: pattern_var_mode) =>
-  option((HTyp.t, Contexts.t));
+let syn_moded: (Contexts.t, UHPat.t) => option(HTyp.t);
 let syn_opseq: (Contexts.t, UHPat.opseq) => option((HTyp.t, Contexts.t));
 let syn_skel:
   (Contexts.t, UHPat.skel, UHPat.seq) => option((HTyp.t, Contexts.t));

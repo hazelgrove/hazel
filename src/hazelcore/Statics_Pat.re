@@ -5,32 +5,29 @@ type pattern_var_mode =
   | ModedVariable
   | UnknownVariable;
 
+let opt_snd = Option.map(((a, _)) => a);
+
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
-let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
-  syn_moded(ctx, p, ~pattern_var_mode=UnknownVariable)
-and syn_moded =
+let rec syn = syn_internal(~pattern_var_mode=UnknownVariable)
+and syn_moded = (ctx: Contexts.t, p: UHPat.t): option(HTyp.t) =>
+  opt_snd(syn_internal(ctx, p, ~pattern_var_mode=ModedVariable))
+and syn_internal =
     (ctx: Contexts.t, p: UHPat.t, ~pattern_var_mode: pattern_var_mode)
-    : option((HTyp.t, Contexts.t)) => {
-  syn_opseq_moded(ctx, p, ~pattern_var_mode: pattern_var_mode);
-}
-and syn_opseq =
-    (ctx: Contexts.t, opseq: UHPat.opseq): option((HTyp.t, Contexts.t)) =>
-  syn_opseq_moded(ctx, opseq, ~pattern_var_mode=UnknownVariable)
-and syn_opseq_moded =
+    : option((HTyp.t, Contexts.t)) =>
+  syn_opseq_internal(ctx, p, ~pattern_var_mode: pattern_var_mode)
+and syn_opseq = syn_opseq_internal(~pattern_var_mode=UnknownVariable)
+and syn_opseq_internal =
     (
       ctx: Contexts.t,
       OpSeq(skel, seq): UHPat.opseq,
       ~pattern_var_mode: pattern_var_mode,
     )
     : option((HTyp.t, Contexts.t)) =>
-  syn_skel_moded(ctx, skel, seq, ~pattern_var_mode)
-and syn_skel =
-    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq)
-    : option((HTyp.t, Contexts.t)) =>
-  syn_skel_moded(ctx, skel, seq, ~pattern_var_mode=UnknownVariable)
-and syn_skel_moded =
+  syn_skel_internal(ctx, skel, seq, ~pattern_var_mode)
+and syn_skel = syn_skel_internal(~pattern_var_mode=UnknownVariable)
+and syn_skel_internal =
     (
       ctx: Contexts.t,
       skel: UHPat.skel,
@@ -41,25 +38,25 @@ and syn_skel_moded =
   switch (skel) {
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
-    syn_operand_moded(ctx, pn, ~pattern_var_mode);
+    syn_operand_internal(ctx, pn, ~pattern_var_mode);
   | BinOp(InHole(_), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ (_, ctx) =
-      syn_skel_moded(ctx, skel_not_in_hole, seq, ~pattern_var_mode);
+      syn_skel_internal(ctx, skel_not_in_hole, seq, ~pattern_var_mode);
     (HTyp.Unknown(Internal), ctx);
   | BinOp(NotInHole, Comma, _, _) =>
     skel
     |> UHPat.get_tuple_elements
     |> ListUtil.map_with_accumulator_opt(
          (ctx, skel) =>
-           syn_skel_moded(ctx, skel, seq, ~pattern_var_mode)
+           syn_skel_internal(ctx, skel, seq, ~pattern_var_mode)
            |> Option.map(TupleUtil.swap),
          ctx,
        )
     |> Option.map(((ctx, tys)) => (HTyp.Prod(tys), ctx))
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let* ctx =
-      ana_skel_moded(
+      ana_skel_internal(
         ctx,
         skel1,
         seq,
@@ -67,7 +64,7 @@ and syn_skel_moded =
         ~pattern_var_mode,
       );
     let+ ctx =
-      ana_skel_moded(
+      ana_skel_internal(
         ctx,
         skel2,
         seq,
@@ -76,15 +73,13 @@ and syn_skel_moded =
       );
     (HTyp.Unknown(Internal), ctx);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* (ty1, ctx) = syn_skel_moded(ctx, skel1, seq, ~pattern_var_mode);
+    let* (ty1, ctx) = syn_skel_internal(ctx, skel1, seq, ~pattern_var_mode);
     let ty = HTyp.List(ty1);
-    let+ ctx = ana_skel_moded(ctx, skel2, seq, ty, ~pattern_var_mode);
+    let+ ctx = ana_skel_internal(ctx, skel2, seq, ty, ~pattern_var_mode);
     (ty, ctx);
   }
-and syn_operand =
-    (ctx: Contexts.t, operand: UHPat.operand): option((HTyp.t, Contexts.t)) =>
-  syn_operand_moded(ctx, operand, ~pattern_var_mode=UnknownVariable)
-and syn_operand_moded =
+and syn_operand = syn_operand_internal(~pattern_var_mode=UnknownVariable)
+and syn_operand_internal =
     (
       ctx: Contexts.t,
       operand: UHPat.operand,
@@ -104,7 +99,7 @@ and syn_operand_moded =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-    let+ (_, gamma) = syn_operand_moded(ctx, operand', ~pattern_var_mode);
+    let+ (_, gamma) = syn_operand_internal(ctx, operand', ~pattern_var_mode);
     (HTyp.Unknown(Internal), gamma);
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -119,36 +114,32 @@ and syn_operand_moded =
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ModeSwitch, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
-    let ty =
-      switch (pattern_var_mode) {
-      | ModedVariable => HTyp.ModeSwitch
-      | UnknownVariable => Unknown(Internal)
-      };
-    Var.check_valid(
-      x,
-      Some((ty, Contexts.extend_gamma(ctx, (x, Unknown(Internal))))),
-    );
+    switch (pattern_var_mode) {
+    | ModedVariable => Some((ModeSwitch, ctx))
+    | UnknownVariable =>
+      let ty = HTyp.Unknown(Internal);
+      Var.check_valid(x, Some((ty, Contexts.extend_gamma(ctx, (x, ty)))));
+    }
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
   | ListNil(NotInHole) => Some((List(Unknown(Internal)), ctx))
   | Inj(NotInHole, inj_side, p1) =>
-    let+ (ty1, ctx) = syn_moded(ctx, p1, ~pattern_var_mode);
+    let+ (ty1, ctx) = syn_internal(ctx, p1, ~pattern_var_mode);
     let ty =
       switch (inj_side) {
       | L => HTyp.Sum(ty1, Unknown(Internal))
       | R => HTyp.Sum(Unknown(Internal), ty1)
       };
     (ty, ctx);
-  | Parenthesized(p) => syn_moded(ctx, p, ~pattern_var_mode)
+  | Parenthesized(p) => syn_internal(ctx, p, ~pattern_var_mode)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    let+ op_ctx = ana_operand_moded(ctx, op, ty_ann, ~pattern_var_mode);
+    let+ op_ctx = ana_operand_internal(ctx, op, ty_ann, ~pattern_var_mode);
     (ty_ann, op_ctx);
   }
-and ana = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
-  ana_moded(ctx, p, ty, ~pattern_var_mode=UnknownVariable)
-and ana_moded =
+and ana = ana_internal(~pattern_var_mode=UnknownVariable)
+and ana_internal =
     (
       ctx: Contexts.t,
       p: UHPat.t,
@@ -156,11 +147,9 @@ and ana_moded =
       ~pattern_var_mode: pattern_var_mode,
     )
     : option(Contexts.t) =>
-  ana_opseq_moded(ctx, p, ty, ~pattern_var_mode)
-and ana_opseq =
-    (ctx: Contexts.t, opseq: UHPat.opseq, ty: HTyp.t): option(Contexts.t) =>
-  ana_opseq_moded(ctx, opseq, ty, ~pattern_var_mode=UnknownVariable)
-and ana_opseq_moded =
+  ana_opseq_internal(ctx, p, ty, ~pattern_var_mode)
+and ana_opseq = ana_opseq_internal(~pattern_var_mode=UnknownVariable)
+and ana_opseq_internal =
     (
       ctx: Contexts.t,
       OpSeq(skel, seq) as opseq: UHPat.opseq,
@@ -174,7 +163,7 @@ and ana_opseq_moded =
     | (InHole(TypeInconsistent, _), [_])
     | (InHole(WrongLength, _), _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
-      let+ (_, ctx') = syn_opseq_moded(ctx, opseq', ~pattern_var_mode);
+      let+ (_, ctx') = syn_opseq_internal(ctx, opseq', ~pattern_var_mode);
       ctx';
     | _ => None
     }
@@ -183,16 +172,13 @@ and ana_opseq_moded =
     |> List.fold_left(
          (acc: option(Contexts.t), (skel, ty)) => {
            let* ctx = acc;
-           ana_skel_moded(ctx, skel, seq, ty, ~pattern_var_mode);
+           ana_skel_internal(ctx, skel, seq, ty, ~pattern_var_mode);
          },
          Some(ctx),
        )
   }
-and ana_skel =
-    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
-    : option(Contexts.t) =>
-  ana_skel_moded(ctx, skel, seq, ty, ~pattern_var_mode=UnknownVariable)
-and ana_skel_moded =
+and ana_skel = ana_skel_internal(~pattern_var_mode=UnknownVariable)
+and ana_skel_internal =
     (
       ctx: Contexts.t,
       skel: UHPat.skel,
@@ -207,22 +193,22 @@ and ana_skel_moded =
     failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
-    ana_operand_moded(ctx, pn, ty, ~pattern_var_mode);
+    ana_operand_internal(ctx, pn, ty, ~pattern_var_mode);
   | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ (_, ctx) =
-      syn_skel_moded(ctx, skel_not_in_hole, seq, ~pattern_var_mode);
+      syn_skel_internal(ctx, skel_not_in_hole, seq, ~pattern_var_mode);
     ctx;
   | BinOp(NotInHole, Space, skel1, skel2) =>
     let* ctx =
-      ana_skel_moded(
+      ana_skel_internal(
         ctx,
         skel1,
         seq,
         HTyp.Unknown(Internal),
         ~pattern_var_mode,
       );
-    ana_skel_moded(
+    ana_skel_internal(
       ctx,
       skel2,
       seq,
@@ -231,13 +217,11 @@ and ana_skel_moded =
     );
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     let* ty_elt = HTyp.matched_list(ty);
-    let* ctx = ana_skel_moded(ctx, skel1, seq, ty_elt, ~pattern_var_mode);
-    ana_skel_moded(ctx, skel2, seq, HTyp.List(ty_elt), ~pattern_var_mode);
+    let* ctx = ana_skel_internal(ctx, skel1, seq, ty_elt, ~pattern_var_mode);
+    ana_skel_internal(ctx, skel2, seq, HTyp.List(ty_elt), ~pattern_var_mode);
   }
-and ana_operand =
-    (ctx: Contexts.t, operand: UHPat.operand, ty: HTyp.t): option(Contexts.t) =>
-  ana_operand_moded(ctx, operand, ty, ~pattern_var_mode=UnknownVariable)
-and ana_operand_moded =
+and ana_operand = ana_operand_internal(~pattern_var_mode=UnknownVariable)
+and ana_operand_internal =
     (
       ctx: Contexts.t,
       operand: UHPat.operand,
@@ -258,7 +242,7 @@ and ana_operand_moded =
   | TypeAnn(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _) =>
     let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-    let+ (_, ctx) = syn_operand_moded(ctx, operand', ~pattern_var_mode);
+    let+ (_, ctx) = syn_operand_internal(ctx, operand', ~pattern_var_mode);
     ctx;
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -278,7 +262,7 @@ and ana_operand_moded =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
-    let* (ty', ctx') = syn_operand_moded(ctx, operand, ~pattern_var_mode);
+    let* (ty', ctx') = syn_operand_internal(ctx, operand, ~pattern_var_mode);
     print_endline("consistent: PAT ana_operand");
     HTyp.consistent(ty, ty') ? Some(ctx') : None;
   | ListNil(NotInHole) =>
@@ -287,13 +271,13 @@ and ana_operand_moded =
   | Inj(NotInHole, side, p1) =>
     let* (tyL, tyR) = HTyp.matched_sum(ty);
     let ty1 = InjSide.pick(side, tyL, tyR);
-    ana_moded(ctx, p1, ty1, ~pattern_var_mode);
-  | Parenthesized(p) => ana_moded(ctx, p, ty, ~pattern_var_mode)
+    ana_internal(ctx, p1, ty1, ~pattern_var_mode);
+  | Parenthesized(p) => ana_internal(ctx, p, ty, ~pattern_var_mode)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     print_endline("consistent: PAT ana_operand 2");
     HTyp.consistent(ty, ty_ann)
-      ? ana_operand_moded(ctx, op, ty_ann, ~pattern_var_mode) : None;
+      ? ana_operand_internal(ctx, op, ty_ann, ~pattern_var_mode) : None;
   };
 
 let rec syn_nth_type_mode =

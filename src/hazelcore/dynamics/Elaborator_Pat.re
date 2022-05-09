@@ -191,13 +191,14 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ty =
-      switch (pattern_var_mode) {
-      | ModedVariable => HTyp.ModeSwitch
-      | UnknownVariable => Unknown(Internal)
-      };
-    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(Internal)));
-    Elaborates(Var(x), ty, ctx, delta);
+    //TODO(andrew): does this need to be in elab?
+    switch (pattern_var_mode) {
+    | ModedVariable => Elaborates(Var(x), ModeSwitch, ctx, delta)
+    | UnknownVariable =>
+      let ty = HTyp.Unknown(Internal);
+      let ctx = Contexts.extend_gamma(ctx, (x, ty));
+      Elaborates(Var(x), ty, ctx, delta);
+    }
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, ctx, delta)

@@ -1126,9 +1126,9 @@ and syn_perform_line =
       Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
     }
   | (_, LetLineZE(p, zdef)) =>
-    switch (Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable)) {
+    switch (Statics_Pat.syn_moded(ctx, p)) {
     | None => Failed
-    | Some((ty_p, _)) =>
+    | Some(ty_p) =>
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, ZExp.erase(zdef));
       switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
       | Failed => Failed

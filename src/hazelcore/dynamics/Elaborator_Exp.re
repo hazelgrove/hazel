@@ -74,9 +74,9 @@ and syn_elab_line =
   | EmptyLine
   | CommentLine(_) => LinesElaborate(d => d, ctx, delta)
   | LetLine(p, def) =>
-    switch (Statics_Pat.syn_moded(ctx, p, ~pattern_var_mode=ModedVariable)) {
+    switch (Statics_Pat.syn_moded(ctx, p)) {
     | None => LinesDoNotElaborate
-    | Some((ty_p, _)) =>
+    | Some(ty_p) =>
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_elab(def_ctx, delta, def, ty_p)) {
       | DoesNotElaborate => LinesDoNotElaborate
