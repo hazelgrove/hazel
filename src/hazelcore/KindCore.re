@@ -1,30 +1,37 @@
 [@deriving sexp]
-type t('i) =
+type t('idx) =
   | KHole
   | T
-  | Singleton(HTypSyntax.t('i));
+  | Singleton(HTypSyntax.t('idx));
 
-let canonical_type: t('i) => HTypSyntax.t('i) =
+let equal = (k: t('idx), k': t('idx)) =>
+  switch (k, k') {
+  | (Singleton(ty), Singleton(ty')) => HTypSyntax.equal(ty, ty')
+  | _ => k == k'
+  };
+
+let canonical_type: t('idx) => HTypSyntax.t('idx) =
   fun
   | KHole
   | T => HTypSyntax.Hole
   | Singleton(ty) => ty;
 
-let increment_indices = (k: t('i)): t('i) =>
+let increment_indices = (k: t('idx)): t('idx) =>
   switch (k) {
   | KHole
   | T => k
   | Singleton(ty) => Singleton(HTypSyntax.increment_indices(ty))
   };
 
-let decrement_indices = (k: t('i)): t('i) =>
+let decrement_indices = (k: t('idx)): t('idx) =>
   switch (k) {
   | KHole
   | T => k
   | Singleton(ty) => Singleton(HTypSyntax.decrement_indices(ty))
   };
 
-let subst_tyvar = (k: t('i), i: Index.t('i), ty: HTypSyntax.t('i)): t('i) =>
+let subst_tyvar =
+    (k: t('idx), i: Index.t('idx), ty: HTypSyntax.t('idx)): t('idx) =>
   switch (k) {
   | KHole
   | T => k

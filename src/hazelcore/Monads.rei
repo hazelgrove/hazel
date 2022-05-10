@@ -14,12 +14,13 @@ module type MONAD_BASIC = {
   let map: MapDefinition.t((t('a), 'a => 'b) => t('b));
 };
 
-// Use `includ Monads.Make` with a MONAD_BASIC to get a MONAD
+// Use `include Monads.Make` with a MONAD_BASIC to get a MONAD
 // See ActionOutcome.re{i} for an example
 module type MONAD = {
   include MONAD_BASIC;
   let map: (t('a), 'a => 'b) => t('b);
   let zip: (t('a), t('b)) => t(('a, 'b));
+  let sequence: list(t('a)) => t(list('a));
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
@@ -28,3 +29,26 @@ module type MONAD = {
 };
 
 module Make: (M: MONAD_BASIC) => MONAD with type t('a) := M.t('a);
+
+module type STATE_MONAD_BASIC = {
+  type state;
+  include MONAD_BASIC with type t('result) = state => ('result, state);
+};
+
+module type STATE_MONAD = {
+  include STATE_MONAD_BASIC;
+  include MONAD with type t('result) = state => ('result, state);
+
+  let run: (t('result), state) => ('result, state);
+  let eval: (t('result), state) => 'result;
+  let exec: (t('result), state) => state;
+
+  let get: t(state);
+  let put: state => t(unit);
+};
+
+module State: {
+  module Make:
+    (M: STATE_MONAD_BASIC) =>
+     STATE_MONAD with type state = M.state and type t('result) = M.t('result);
+};

@@ -14,6 +14,8 @@ type t('idx) =
   | Prod(list(t('idx)))
   | List(t('idx));
 
+let equal: (t('idx), t('idx)) => bool = (==);
+
 let rec increment_indices: t('idx) => t('idx) =
   fun
   | TyVar(i, name) => TyVar(Index.increment(i), name)
