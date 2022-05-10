@@ -33,11 +33,9 @@ and comp =
   | BinOp(bin_op, imm, imm)
   | Ap(Var.t, list(imm))
   | Lam(list(Var.t), expr)
-  | ListNil(HTyp.t)
   | Cons(imm, imm)
   | Inj(HTyp.t, InjSide.t, imm)
   | Pair(imm, imm)
-  | Triv
 and expr =
   | Let(IHPat.t, comp, expr)
   | LetRec(IHPat.t, comp, expr)
