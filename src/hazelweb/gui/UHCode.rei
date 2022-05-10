@@ -14,6 +14,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
     ~explanations: CodeExplanationSettings.t,
+    ~doc_study: DocumentationStudySettings.t,
     ~cursor_inspector: CursorInspectorModel.t,
     Program.t
   ) =>

@@ -275,6 +275,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~explanations: CodeExplanationSettings.t,
+      ~doc_study: DocumentationStudySettings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
     )
@@ -294,6 +295,7 @@ let view =
           Program.get_decoration_paths(
             program,
             explanations.highlight_summary,
+            ~settings=doc_study,
           );
         decoration_views(~font_metrics, dpaths, l);
       };

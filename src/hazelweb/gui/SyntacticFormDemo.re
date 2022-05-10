@@ -3,7 +3,7 @@ open Virtual_dom.Vdom;
 let syntactic_form_view =
     (
       ~settings: Settings.t,
-      ~level=0,
+      ~level: int,
       explanation_info: ExplanationInfo.explanation_info,
     )
     : Node.t => {
@@ -43,10 +43,12 @@ let syntactic_form_view =
 let view =
     (
       ~settings: Settings.t,
-      ~level=0,
+      ~inject: ModelAction.t => Event.t,
+      level: int,
       explanation_info: ExplanationInfo.explanation_info,
     )
     : Node.t => {
+  print_endline(string_of_int(level));
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation", "syntactic_form"])],
@@ -81,7 +83,17 @@ let view =
                   Attr.type_("range"),
                   Attr.min(1.0),
                   Attr.max(3.0),
-                  Attr.value("2"),
+                  Attr.value(string_of_int(level)),
+                  Attr.on_change((_, id) => {
+                    print_endline(id);
+                    inject(
+                      UpdateDocumentationStudySettings(
+                        DocumentationStudySettings.Toggle_Syntactic_Form_Level(
+                          int_of_string(id),
+                        ),
+                      ),
+                    );
+                  }),
                 ],
                 [
                   Node.option(

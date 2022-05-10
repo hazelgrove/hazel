@@ -6,7 +6,6 @@ let logo_panel =
     [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
     [text("Hazel")],
   );
-
 let branch_panel =
   span(
     [Attr.classes(["branch-panel"])],
@@ -107,13 +106,12 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
           if (model.doc_study.is_demo) {
             SyntacticFormDemo.view(
               ~settings,
-              explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
+              ~inject,
+              model.doc_study.example_level,
+              explanation_info,
             );
           } else {
-            SyntacticForm.view(
-              ~settings,
-              explanation_info /* TODO: Ardi - Anything you need to pass to this view */,
-            );
+            SyntacticForm.view(~settings, explanation_info);
           },
       ),
       (
@@ -126,7 +124,12 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
           if (model.doc_study.is_demo) {
             CodeExplanationDemo.view(explanation_info);
           } else {
-            CodeExplanation.view(sample_exaplanations);
+            CodeExplanation.view(
+              ~settings=model.doc_study,
+              ~inject,
+              sample_exaplanations,
+              model.doc_study.hovered_over,
+            );
           },
       ),
       (

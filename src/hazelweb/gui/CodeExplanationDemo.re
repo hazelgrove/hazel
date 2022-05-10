@@ -15,7 +15,10 @@ let get_msg =
 let view =
     (~level=0, explanation_info: ExplanationInfo.explanation_info): Node.t => {
   let (msg, _) =
-    CodeSummary.build_msg(get_msg(~level, explanation_info), false);
+    CodeExplanation_common.build_msg(
+      get_msg(~level, explanation_info),
+      false,
+    );
   let explanation_view = {
     Node.div([Attr.classes(["the-explanation"])], [Node.div([], msg)]);
   };

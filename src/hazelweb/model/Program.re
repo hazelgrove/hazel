@@ -63,7 +63,12 @@ let get_cursor_info = (program: t) => {
 };
 
 let get_decoration_paths =
-    (program: t, show_explanation_highlight: bool): UHDecorationPaths.t => {
+    (
+      program: t,
+      show_explanation_highlight: bool,
+      ~settings: DocumentationStudySettings.t,
+    )
+    : UHDecorationPaths.t => {
   let current_term =
     if (program.is_focused) {
       let (steps, _) = get_path(program);
@@ -135,7 +140,28 @@ let get_decoration_paths =
     } else {
       [];
     };
-  List.concat([err_holes, var_uses, current_term, explanations]);
+  let study_explanation = {
+    let color_map = CodeExplanation.get_mapping(~settings);
+    List.map(
+      ((steps, color)) =>
+        List.map(
+          steps => (steps, UHDecorationShape.ExplanationElems(color)),
+          TermPath.mk_cursor_path_steps(
+            (steps, get_cursor_info(program).cursor_term),
+            get_steps(program),
+          ),
+        ),
+      ColorSteps.to_list(color_map),
+    )
+    |> List.flatten;
+  };
+  List.concat([
+    err_holes,
+    var_uses,
+    current_term,
+    explanations,
+    study_explanation,
+  ]);
 };
 
 let rec renumber_result_only =

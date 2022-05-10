@@ -134,7 +134,7 @@ let prompts: list(t) = [
     explanation: [
       {
         id: "explanation_1",
-        expression: "In the body `x + y`, the first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2` of the definition tuple.",
+        expression: "In the body [x + y](2), the first pattern [x](0 0) will be bound to the first element [1](1 0) and the second pattern [y](0 1) will be bound to the second element [2](1 1) of the definition tuple.",
         rank: (-1),
       },
       {

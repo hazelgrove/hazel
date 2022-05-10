@@ -9,6 +9,7 @@ open ViewUtil;
 let view = (~inject, model: Model.t) => {
   let settings = model.settings;
   let explanations = model.explanations;
+  let doc_study = model.doc_study;
   let cursor_inspector = model.cursor_inspector;
   let performance = settings.performance;
   TimeUtil.measure_time(
@@ -30,6 +31,7 @@ let view = (~inject, model: Model.t) => {
                 ~font_metrics=model.font_metrics,
                 ~settings,
                 ~explanations,
+                ~doc_study,
                 ~cursor_inspector,
                 program,
               ),

@@ -32,7 +32,8 @@ let get_steps: t => CursorPath.steps;
 exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
-let get_decoration_paths: (t, bool) => UHDecorationPaths.t;
+let get_decoration_paths:
+  (t, bool, ~settings: DocumentationStudySettings.t) => UHDecorationPaths.t;
 
 /**
  * Raised when edit state does not elaborate
