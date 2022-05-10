@@ -129,13 +129,12 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      print_endline("consistent: mk_ana_text PAT");
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
         Succeeded((zp, ctx, u_gen));
-      };
+      }
     }
   | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
@@ -1485,7 +1484,6 @@ and ana_perform_operand =
       let (new_op, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
       let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-      print_endline("consistent: ana_perform_operand PAT");
       if (HTyp.consistent(ty, ty')) {
         Succeeded((new_zopseq, ctx, u_gen));
       } else {
@@ -1498,13 +1496,12 @@ and ana_perform_operand =
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      print_endline("consistent: ana_perform_operand PAT");
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
         Succeeded((zp, ctx, u_gen));
-      };
+      }
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };

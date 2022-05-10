@@ -698,16 +698,11 @@ and ana_elab_skel_internal =
     switch (syn_elab_skel(ctx, delta, skel, seq)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d, ty', delta) =>
-      print_endline("consistent: ana_elab_skel");
-      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
-      print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_seq(seq)));
-      print_endline("ty is (Prod (ModeSwitch ModeSwitch))");
       if (HTyp.consistent(ty, ty')) {
         Elaborates(d, ty', delta);
       } else {
         DoesNotElaborate;
-      };
+      }
     }
   };
 }
@@ -786,7 +781,6 @@ and ana_elab_operand_internal =
         | None => ty1_given
         | Some((ty_p, _)) => ty_p
         };
-      print_endline("consistent: ana_elab_operand");
       switch (HTyp.consistent(ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>

@@ -88,7 +88,6 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    print_endline("consistent: syn_branch_clause_msg");
     if (HTyp.consistent(ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
@@ -99,7 +98,7 @@ let syn_branch_clause_msg =
         join_type_inconsistent_msg,
         HTypCode.view(~diff_steps=got_diff, got_ty),
       ];
-    };
+    }
   | _ => other(typed)
   };
 };
@@ -624,12 +623,11 @@ let view =
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        print_endline("consistent: CursorInspector view");
         if (HTyp.consistent(ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;
-        };
+        }
       | (InconsistentBranchTys(_), _) => TypeInconsistency
       | _ => get_err_state_b(typed)
       }

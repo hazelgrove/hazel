@@ -264,7 +264,6 @@ and ana_operand_internal =
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     let* (ty', ctx') = syn_operand_internal(ctx, operand, ~pattern_var_mode);
-    print_endline("consistent: PAT ana_operand");
     HTyp.consistent(ty, ty') ? Some(ctx') : None;
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
@@ -276,7 +275,6 @@ and ana_operand_internal =
   | Parenthesized(p) => ana_internal(ctx, p, ty, ~pattern_var_mode)
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    print_endline("consistent: PAT ana_operand 2");
     HTyp.consistent(ty, ty_ann)
       ? ana_operand_internal(ctx, op, ty_ann, ~pattern_var_mode) : None;
   };
@@ -911,7 +909,6 @@ and ana_fix_holes_operand_internal =
         ~renumber_empty_holes,
         operand,
       );
-    print_endline("consistent: PAT ana_fix_holes_operand");
     if (HTyp.consistent(ty, ty')) {
       (UHPat.set_err_status_operand(NotInHole, operand'), ctx, u_gen);
     } else {
@@ -968,7 +965,6 @@ and ana_fix_holes_operand_internal =
     }
   | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
-    print_endline("consistent: PAT ana_fix_holes_operand");
     if (HTyp.consistent(ty, ty_ann)) {
       let (op, ctx, u_gen) =
         ana_fix_holes_operand_internal(

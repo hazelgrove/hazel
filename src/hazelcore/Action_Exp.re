@@ -379,15 +379,12 @@ let mk_ana_text_internal =
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty', u_gen))) =>
-      print_endline("consistent: mk_ana_text_internal");
-      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-      print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
       if (HTyp.consistent(ty, ty')) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
-      };
+      }
     }
   };
 };
@@ -2274,8 +2271,6 @@ and ana_perform_internal =
       ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  print_endline("ana_perform_internal CALL ana_perform_block");
-  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   switch (ana_perform_block(ctx, a, (ze, u_gen), ty)) {
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
@@ -2466,8 +2461,6 @@ and ana_perform_block_internal =
         | LetLineZP(_)
         | LetLineZE(_) => Failed
         | ExpLineZ(zopseq) =>
-          print_endline("ana_perform_block_internal CALL ana_perform_opseq");
-          print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
           switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
           | Failed => Failed
           | CursorEscaped(side) =>
@@ -2488,7 +2481,7 @@ and ana_perform_block_internal =
           | Succeeded(AnaDone(((inner_prefix, zline, suffix), u_gen))) =>
             let new_ze = (prefix @ inner_prefix, zline, suffix);
             Succeeded(AnaDone((new_ze, u_gen)));
-          };
+          }
         }
       | [_, ..._] =>
         switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
@@ -2796,9 +2789,7 @@ and ana_perform_opseq_internal =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    print_endline("ana_perform_opseq_internal CALL ana_perform_operand");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    ana_perform_operand(ctx, a, (zoperand, u_gen), ty);
+    ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
 
   | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -3039,9 +3030,7 @@ and ana_perform_operand_internal =
     }
 
   | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
-    print_endline("ana_perform_operand_internal 1");
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    ana_insert_text(ctx, u_gen, (0, s), "", ty);
+    ana_insert_text(ctx, u_gen, (0, s), "", ty)
   | (Construct(SChar(s)), CursorE(OnText(j), InvalidText(_, t))) =>
     ana_insert_text(ctx, u_gen, (j, s), t, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
@@ -3433,12 +3422,11 @@ and ana_perform_subsume =
     | CursorEscaped(_) => Failed
     | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
     | Succeeded(SynDone((ze, ty1, u_gen))) =>
-      print_endline("consistent: ana_perform_subsume");
       if (HTyp.consistent(ty, ty1)) {
         Succeeded(AnaDone((ze, u_gen)));
       } else {
         let (ze, u_gen) = ze |> ZExp.mk_inconsistent(u_gen);
         Succeeded(AnaDone((ze, u_gen)));
-      };
+      }
     }
   };

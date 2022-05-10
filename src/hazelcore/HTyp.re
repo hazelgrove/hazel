@@ -76,12 +76,11 @@ let rec consistent_all = (types: list(t)): bool =>
   switch (types) {
   | [] => true
   | [hd, ...tl] =>
-    print_endline("consistent: consistent_all");
     if (List.exists(inconsistent(hd), tl)) {
       false;
     } else {
       consistent_all(tl);
-    };
+    }
   };
 
 /* matched arrow types */
@@ -161,7 +160,6 @@ let join_all = (j: join, types: list(t)): option(t) => {
   | [] => None
   | [hd] => Some(hd)
   | [hd, ...tl] =>
-    print_endline("consistent: join_all");
     if (!consistent_all(types)) {
       None;
     } else {
@@ -174,7 +172,7 @@ let join_all = (j: join, types: list(t)): option(t) => {
         Some(hd),
         tl,
       );
-    };
+    }
   };
 };
 

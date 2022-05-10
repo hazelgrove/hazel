@@ -10,7 +10,6 @@ type mode =
  * Return a VarCtx.t
  */
 let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  print_endline("consistent: extract_vars");
   ctx
   |> Contexts.gamma
   |> VarMap.filter(((_, ty: HTyp.t)) => {HTyp.consistent(ty, typ)});
@@ -20,7 +19,6 @@ let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    * Filter the variables that are functions that have the correct resulting type
    */
 let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  print_endline("consistent: fun_vars");
   let rec compatible_funs = right_ty =>
     if (HTyp.consistent(right_ty, typ)) {
       true;
@@ -86,12 +84,11 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      print_endline("consistent: get_types_and_mode");
       if (HTyp.consistent(ty, got_ty)) {
         (Some(Unknown(Internal)), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
-      };
+      }
     | _ => get_types_and_mode(typed)
     }
   | SynInconsistentBranchesArrow(_, _)
