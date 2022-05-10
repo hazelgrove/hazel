@@ -49,17 +49,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  //TODO(andrew): this throws immediately
-  | (ModeSwitch, _)
-  | (_, ModeSwitch) =>
-    print_endline("HTyp.consistent ModeSwitch");
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(x)));
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(y)));
-    //print_endline("syn_perform_opseq' CALL ana_perform_operand");
-    //print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    failwith("HTyp.consistent: ModeSwitch");
-  | (Unknown(_), _)
-  | (_, Unknown(_)) => true
+  | (Unknown(_) | ModeSwitch, _)
+  | (_, Unknown(_) | ModeSwitch) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true

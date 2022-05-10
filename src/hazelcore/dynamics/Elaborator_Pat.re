@@ -191,7 +191,6 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    //TODO(andrew): does this need to be in elab?
     switch (pattern_var_mode) {
     | ModedVariable => Elaborates(Var(x), ModeSwitch, ctx, delta)
     | UnknownVariable =>
