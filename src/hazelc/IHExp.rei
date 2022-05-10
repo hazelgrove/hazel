@@ -1,33 +1,27 @@
-module BinBoolOp: {
-  [@deriving sexp]
-  type t =
-    | And
-    | Or;
-};
+[@deriving sexp]
+type bin_bool_op =
+  | And
+  | Or;
 
-module BinIntOp: {
-  [@deriving sexp]
-  type t =
-    | Minus
-    | Plus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals;
-};
+[@deriving sexp]
+type bin_int_op =
+  | Minus
+  | Plus
+  | Times
+  | Divide
+  | LessThan
+  | GreaterThan
+  | Equals;
 
-module BinFloatOp: {
-  [@deriving sexp]
-  type t =
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FGreaterThan
-    | FEquals;
-};
+[@deriving sexp]
+type bin_float_op =
+  | FPlus
+  | FMinus
+  | FTimes
+  | FDivide
+  | FLessThan
+  | FGreaterThan
+  | FEquals;
 
 [@deriving sexp]
 type t =
@@ -51,9 +45,9 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | BinBoolOp(BinBoolOp.t, t, t)
-  | BinIntOp(BinIntOp.t, t, t)
-  | BinFloatOp(BinFloatOp.t, t, t)
+  | BinBoolOp(bin_bool_op, t, t)
+  | BinIntOp(bin_int_op, t, t)
+  | BinFloatOp(bin_float_op, t, t)
   | ListNil(HTyp.t)
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
