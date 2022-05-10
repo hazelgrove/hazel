@@ -159,7 +159,7 @@ let build_msg =
                 );
               highlight(d, path, mapping);
             } else {
-              (Node.div([], d), mapping);
+              (Node.span([], d), mapping);
             };
           (List.append(msg, [inner_msg]), mapping);
         | _ =>
