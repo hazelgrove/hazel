@@ -2,115 +2,148 @@ open Format;
 
 exception NotImplemented(string);
 
-let rec translate_exp = (d: IHExp.t, counter: int) => {
+type bind =
+  | BSeq(Anf.comp)
+  | BLet(Var.t, Anf.rec_flag, Anf.comp);
+
+let rec translate_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
+and translate_exp =
+    (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
-  | BoundVar(v) => (v, Comp(Imm(Var(v))))
-  // | Let(dp, d1, d2) =>
-  //   let (v1, prog) = translate_exp(d1, prog);
-  //   let stmt1 = Printf.sprintf("let %s = %s", translate_pat(dp), v1);
-  //   let prog = Program.add_statement(prog, stmt1);
-  //   let (v2, prog) = translate_exp(d2, prog);
-  //   (v2, prog);
-  // | Lam(dp, _, d1) =>
-  //   let (rval, iprog) = translate_exp(d1, Program.empty);
-  //   let iprog = Program.add_statement(iprog, rval);
-  //   let exp =
-  //     sprintf("(%s) => {%s}", translate_pat(dp), Program.to_string(iprog));
-  //   Program.assign_tmp_var(prog, exp);
-  // // // TODO: Do this without copying Evaluator.subst_var?
-  // | LetRec(var, _, dp, d1, dlet) =>
-  //   let (rval, iprog) = translate_exp(d1, Program.empty);
-  //   let iprog = Program.add_statement(iprog, rval);
-  //   let letstmt =
-  //     Printf.sprintf(
-  //       "let rec %s = (%s) => {%s}",
-  //       var,
-  //       translate_pat(dp),
-  //       Program.to_string(iprog),
-  //     );
-  //   let prog = Program.add_statement(prog, letstmt);
-  //   let (vlet, prog) = translate_exp(dlet, prog);
-  //   (vlet, prog);
-  | Ap(d1, d2) =>
-    let (v1, prog) = translate_exp(d1, counter);
-    let (v2, prog) = translate_exp(d2, prog);
-    let exp = sprintf("%s(%s)", v1, v2);
-    Program.assign_tmp_var(prog, exp);
-  | ApBuiltin(func, args) =>
-    let map_func = ((vlist, prog), arg) => {
-      let (v1, prog) = translate_exp(arg, prog);
-      (vlist @ [v1], prog);
-    };
-    let (vlist, prog) = List.fold_left(map_func, ([], prog), args);
-    let exp = sprintf("%s(%s)", func, String.concat(", ", vlist)); // TODO: Not checking `func` is correct
-    Program.assign_tmp_var(prog, exp);
-  | BoolLit(b) => (b ? "true" : "false", prog)
-  | IntLit(i) => (sprintf("%d", i), prog)
-  | FloatLit(f) => (sprintf("%f", f), prog)
+  | BoundVar(var) => (translate_var(var), [], t_gen)
+
+  | Ap(fn, arg) =>
+    let (fn, fn_binds, t_gen) = translate_exp(fn, t_gen);
+    let (arg, arg_binds, t_gen) = translate_exp(arg, t_gen);
+
+    let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      fn_binds
+      @ arg_binds
+      @ [BLet(ap_tmp, NoRec, {comp_kind: CAp(fn, [arg])})];
+
+    ({imm_kind: IVar(ap_tmp)}, binds, t_gen);
+
+  // TODO: Transform DHExp.ApBuiltin into IHExp.Ap at above level? Need to
+  // ensure no name conflicts.
+  | ApBuiltin(name, args) =>
+    let (args, binds, t_gen) =
+      List.fold_left(
+        ((args, binds, t_gen), arg) => {
+          let (arg, new_binds, t_gen) = translate_exp(arg, t_gen);
+          (args @ [arg], binds @ new_binds, t_gen);
+        },
+        ([], [], t_gen),
+        args,
+      );
+
+    let name = translate_var(name);
+
+    let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      binds @ [BLet(ap_tmp, NoRec, {comp_kind: CAp(name, args)})];
+    (name, binds, t_gen);
+
+  | BoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
+
+  | IntLit(i) => ({imm_kind: IConst(ConstInt(i))}, [], t_gen)
+
+  | FloatLit(f) => ({imm_kind: IConst(ConstFloat(f))}, [], t_gen)
+
+  | ListNil(_) => ({imm_kind: IConst(ConstNil)}, [], t_gen)
+
+  | Triv => ({imm_kind: IConst(ConstTriv)}, [], t_gen)
+
   | BinBoolOp(op, d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let (v2, prog) = translate_exp(d2, prog);
-    let exp =
+    let op: Anf.bin_op =
       switch (op) {
-      | And => sprintf("Hazel.and(%s, %s)", v1, v2)
-      | Or => sprintf("Hazel.or(%s, %s)", v1, v2)
+      | And => OpAnd
+      | Or => OpOr
       };
-    Program.assign_tmp_var(prog, exp);
+    translate_bin_op(op, d1, d2, t_gen);
+
   | BinIntOp(op, d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let (v2, prog) = translate_exp(d2, prog);
-    let exp =
+    let op: Anf.bin_op =
       switch (op) {
-      | Plus => sprintf("Hazel.add(%s, %s)", v1, v2)
-      | _ => sprintf("Hazel.add(%s, %s)", v1, v2) //This is wrong
+      | Plus => OpPlus
+      | Minus => OpMinus
+      | Times => OpTimes
+      | Divide => OpDivide
+      | LessThan => OpLessThan
+      | GreaterThan => OpGreaterThan
+      | Equals => OpEquals
       };
-    Program.assign_tmp_var(prog, exp);
-//   | BinFloatOp(op, d1, d2) =>
-//     sprintf(
-//       "(%s %s %s)",
-//       translate_exp(d1),
-//       translate_float_op(op),
-//       translate_exp(d2),
-//     )
+    translate_bin_op(op, d1, d2, t_gen);
+
+  | BinFloatOp(op, d1, d2) =>
+    let op: Anf.bin_op =
+      switch (op) {
+      | FPlus => OpFPlus
+      | FMinus => OpFMinus
+      | FTimes => OpFTimes
+      | FDivide => OpFDivide
+      | FLessThan => OpFLessThan
+      | FGreaterThan => OpFGreaterThan
+      | FEquals => OpFEquals
+      };
+    translate_bin_op(op, d1, d2, t_gen);
+
   | Pair(d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let (v2, prog) = translate_exp(d2, prog);
-    let exp = sprintf("(%s, %s)", v1, v2);
-    Program.assign_tmp_var(prog, exp);
-  | ConsistentCase(Case(d1, lr, _)) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let rules = lr |> List.map(translate_rule) |> String.concat("");
-    let exp = sprintf("match (%s){\n%s}", v1, rules);
-    Program.assign_tmp_var(prog, exp);
-  | ListNil(_) => ("[]", prog)
+    let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
+    let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+
+    let (pair_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      v1_binds
+      @ v2_binds
+      @ [BLet(pair_tmp, NoRec, {comp_kind: CPair(v1, v2)})];
+
+    (translate_var(pair_tmp), binds, t_gen);
+
   | Cons(d1, d2) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let (v2, prog) = translate_exp(d2, prog);
-    let exp = sprintf("[%s, ...%s]", v1, v2);
-    Program.assign_tmp_var(prog, exp);
+    let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
+    let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+
+    let (cons_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      v1_binds
+      @ v2_binds
+      @ [BLet(cons_tmp, NoRec, {comp_kind: CCons(v1, v2)})];
+
+    (translate_var(cons_tmp), binds, t_gen);
+
   | Inj(_, side, d1) =>
-    let (v1, prog) = translate_exp(d1, prog);
-    let exp =
+    let (v1, binds, t_gen) = translate_exp(d1, t_gen);
+    let side: Anf.inj_side =
       switch (side) {
-      | L => sprintf("L(%s)", v1)
-      | R => sprintf("R(%s)", v1)
+      | L => InjL
+      | R => InjR
       };
-    Program.assign_tmp_var(prog, exp);
-  | Triv => ("void", prog)
-  | EmptyHole(metavar, _, _) =>
-    let exp = sprintf("Hazel.buildEmptyHole(%d)", metavar);
-    Program.assign_tmp_var(prog, exp);
-  // | NonEmptyHole(_)
-  // | Keyword(_)
-  // | FreeVar(_)
-  // | InvalidText(_)
-  // | InconsistentBranches(_)
-  // | Cast(_)
-  // | FailedCast(_)
-  // | InvalidOperation(_) => raise(NotImplemented)
+
+    let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      binds @ [BLet(inj_tmp, NoRec, {comp_kind: CInj(side, v1)})];
+
+    (translate_var(inj_tmp), binds, t_gen);
+
   | _ => raise(NotImplemented("expressions"))
   };
 }
+
+and translate_bin_op =
+    (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {
+  let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
+  let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+
+  let (tmp, t_gen) = TmpVarGen.next(t_gen);
+  let binds =
+    v1_binds
+    @ v2_binds
+    @ [BLet(tmp, NoRec, {comp_kind: CBinOp(op, v1, v2)})];
+
+  (translate_var(tmp), binds, t_gen);
+}
+
 and translate_rule = (r: IHExp.rule) => {
   let Rule(dp, d0) = r;
   let (vret, iprog) = translate_exp(d0, Program.empty);

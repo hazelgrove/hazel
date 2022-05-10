@@ -2,43 +2,70 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type bin_op =
-  | And
-  | Or
-  | Plus
-  | Minus
-  | Times
-  | Divide
-  | LessThan
-  | GreaterThan
-  | Equals
-  | FPlus
-  | FMinus
-  | FTimes
-  | FDivide
-  | FLessThan
-  | FGreaterThan
-  | FEquals;
+  | OpAnd
+  | OpOr
+  | OpPlus
+  | OpMinus
+  | OpTimes
+  | OpDivide
+  | OpLessThan
+  | OpGreaterThan
+  | OpEquals
+  | OpFPlus
+  | OpFMinus
+  | OpFTimes
+  | OpFDivide
+  | OpFLessThan
+  | OpFGreaterThan
+  | OpFEquals;
 
 [@deriving sexp]
-type imm =
-  | IntLit(int)
-  | FloatLit(float)
-  | BoolLit(bool)
-  | ListNil
-  | Triv
-  | List(list(imm))
-  | Var(Var.t)
-and comp =
-  | Imm(imm)
-  | BinOp(bin_op, imm, imm)
-  | Ap(Var.t, list(imm))
-  | Lam(list(Var.t), expr)
-  | Cons(imm, imm)
-  | Inj(HTyp.t, InjSide.t, imm)
-  | Pair(imm, imm)
-and expr =
-  | Let(IHPat.t, comp, expr)
-  | LetRec(IHPat.t, comp, expr)
-  | Seq(comp, expr)
-  | Comp(comp)
-and prog = {body: expr};
+type constant =
+  | ConstInt(int)
+  | ConstFloat(float)
+  | ConstBool(bool)
+  | ConstNil
+  | ConstTriv
+
+[@deriving sexp]
+and imm = {imm_kind}
+
+[@deriving sexp]
+and imm_kind =
+  | IConst(constant)
+  | IList(list(imm))
+  | IVar(Var.t)
+  | IBuiltin(Var.t)
+
+[@deriving sexp]
+and comp = {comp_kind}
+
+[@deriving sexp]
+and comp_kind =
+  | CImm(imm)
+  | CBinOp(bin_op, imm, imm)
+  | CAp(imm, list(imm))
+  | CLam(list(Var.t), prog)
+  | CCons(imm, imm)
+  | CPair(imm, imm)
+  | CInj(inj_side, imm)
+
+[@deriving sexp]
+and inj_side =
+  | InjL
+  | InjR
+
+[@deriving sexp]
+and stmt = {stmt_kind}
+
+[@deriving sexp]
+and stmt_kind =
+  | SLet(Var.t, rec_flag, comp, stmt)
+
+[@deriving sexp]
+and rec_flag =
+  | NoRec
+  | Rec
+
+[@deriving sexp]
+and prog = (list(stmt), comp);
