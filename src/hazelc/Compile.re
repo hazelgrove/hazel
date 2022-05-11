@@ -58,7 +58,9 @@ type state =
   | Parsed(UHExp.t)
   | Elaborated(DHExp.t)
   | Transformed(IHExp.t)
-  | Grainized(string)
+  | Linearized(Anf.prog)
+  | Grainized(GrainIR.prog)
+  | Printed(string)
   | Wasmized(string);
 
 [@deriving sexp]
@@ -91,16 +93,17 @@ let parse = source => {
     };
   lexbuf |> Parsing.ast_of_lexbuf;
 };
-let elaborate = Elaborator_Exp.elab(Contexts.initial, Delta.empty);
-let transform = Transform.transform;
 
-let grainize = (~opts=default_opts, d) =>
-  if (opts.exp_only) {
-    // TODO: Fix this
-    Translate.translate(d);
-  } else {
-    Translate.translate(d);
-  };
+let elaborate = (~_opts=default_opts) =>
+  Elaborator_Exp.elab(Contexts.initial, Delta.empty);
+
+let transform = (~_opts=default_opts) => Transform.transform;
+
+let linearize = (~_opts=default_opts) => Translate.translate;
+
+let grainize = (~_opts=default_opts) => GrainCodegen.codegen;
+
+let print = (~_opts=default_opts) => GrainPrint.print;
 
 let wasmize = (~opts=default_opts, path, g) => {
   let write_temporary = contents => {
@@ -135,8 +138,10 @@ let next = (~opts=default_opts, path, state) => {
     | DoesNotElaborate => Error(ElaborateError)
     }
   | Elaborated(d) => Ok(Transformed(transform(d)))
-  | Transformed(u) => Ok(Grainized(grainize(u)))
-  | Grainized(g) =>
+  | Transformed(u) => Ok(Linearized(linearize(u)))
+  | Linearized(a) => Ok(Grainized(grainize(a)))
+  | Grainized(g) => Ok(Printed(print(g)))
+  | Printed(g) =>
     wasmize(~opts, path, g)
     |> Result.map(() => Wasmized(path))
     |> Result.map_error(() => GrainError)
@@ -183,9 +188,19 @@ let stop_after_transformed =
   | Transformed(_) => Stop
   | state => Continue(state);
 
+let stop_after_linearized =
+  fun
+  | Linearized(_) => Stop
+  | state => Continue(state);
+
 let stop_after_grainized =
   fun
   | Grainized(_) => Stop
+  | state => Continue(state);
+
+let stop_after_printed =
+  fun
+  | Printed(_) => Stop
   | state => Continue(state);
 
 let stop_after_wasmized =
@@ -199,7 +214,7 @@ let compile_grain = (~opts=default_opts, path, source) => {
   switch (resume(~opts, ~hook=stop_after_grainized, path, Source(source))) {
   | Ok(state) =>
     switch (state) {
-    | Grainized(g) => Ok(g)
+    | Printed(g) => Ok(g)
     | _ => raise(BadState)
     }
   | Error(err) => Error(err)

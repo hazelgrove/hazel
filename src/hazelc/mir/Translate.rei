@@ -1,3 +1,1 @@
-exception NotImplemented(string);
-
-// let translate: IHExp.t => Anf.prog;
+let translate: IHExp.t => Anf.prog;

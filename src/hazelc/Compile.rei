@@ -19,7 +19,9 @@ type state =
   | Parsed(UHExp.t)
   | Elaborated(DHExp.t)
   | Transformed(IHExp.t)
-  | Grainized(string)
+  | Linearized(Anf.prog)
+  | Grainized(GrainIR.prog)
+  | Printed(string)
   | Wasmized(string);
 
 [@deriving sexp]
@@ -45,7 +47,9 @@ let resume:
 let stop_after_parsed: state => resume_action;
 let stop_after_elaborated: state => resume_action;
 let stop_after_transformed: state => resume_action;
+let stop_after_linearized: state => resume_action;
 let stop_after_grainized: state => resume_action;
+let stop_after_printed: state => resume_action;
 let stop_after_wasmized: state => resume_action;
 
 let compile_grain:

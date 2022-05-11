@@ -20,42 +20,37 @@ module Consts = {
   let pat_triv = "void";
 };
 
-/*
-   Raise a CodegenError.Exception.
- */
-let codegen_raise = err => raise(GrainPrintError.Exception(err));
+let print_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
+let print_lines = ss => ss |> String.concat("\n");
+let print_sep = (delim, ss) => ss |> String.concat(delim);
+let print_comma_sep = print_sep(", ");
 
-let codegen_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
-let codegen_lines = ss => ss |> String.concat("\n");
-let codegen_sep = (delim, ss) => ss |> String.concat(delim);
-let codegen_comma_sep = codegen_sep(", ");
+let rec print = ((tb, b): GrainIR.prog) =>
+  [print_top_block(tb), print_block_nowrap(b)] |> print_lines
 
-let rec codegen = ((tb, b): GrainIR.program) =>
-  [codegen_top_block(tb), codegen_block_nowrap(b)] |> codegen_lines
-
-and codegen_top_block = (tb: GrainIR.top_block) => {
-  tb |> List.map(codegen_top_statement) |> codegen_lines;
+and print_top_block = (tb: GrainIR.top_block) => {
+  tb |> List.map(print_top_statement) |> print_lines;
 }
 
-and codegen_top_statement = (tstmt: GrainIR.top_statement) =>
+and print_top_statement = (tstmt: GrainIR.top_statement) =>
   switch (tstmt) {
-  | Import(name, path) => codegen_import(name, path)
-  | Decl(decl) => codegen_decl(decl)
+  | Import(name, path) => print_import(name, path)
+  | Decl(decl) => print_decl(decl)
   }
 
-and codegen_import = (name: Var.t, path: string) =>
+and print_import = (name: Var.t, path: string) =>
   // TODO: Relative import?
   sprintf("import %s from \"%s\"", name, path)
 
-and codegen_decl = (decl: GrainIR.decl) =>
+and print_decl = (decl: GrainIR.decl) =>
   switch (decl) {
-  | Enum(en) => codegen_enum(en)
+  | Enum(en) => print_enum(en)
   }
 
-and codegen_enum = ({name, type_vars, variants}: GrainIR.enum) => {
+and print_enum = ({name, type_vars, variants}: GrainIR.enum) => {
   let type_vars =
     List.length(type_vars) == 0
-      ? "" : type_vars |> codegen_comma_sep |> sprintf("<%s>");
+      ? "" : type_vars |> print_comma_sep |> sprintf("<%s>");
   let variants =
     variants
     |> List.map((variant: GrainIR.enum_variant) =>
@@ -63,58 +58,61 @@ and codegen_enum = ({name, type_vars, variants}: GrainIR.enum) => {
            variant.ctor;
          } else {
            variant.params
-           |> codegen_comma_sep
+           |> print_comma_sep
            |> sprintf("%s(%s)", variant.ctor);
          }
        )
-    |> codegen_comma_sep;
+    |> print_comma_sep;
 
   sprintf("enum %s%s { %s }", name, type_vars, variants);
 }
 
-and codegen_block_nowrap = (b: GrainIR.block) => {
-  b |> List.map(codegen_statement) |> codegen_lines;
+and print_block_nowrap = (b: GrainIR.block) => {
+  b |> List.map(print_statement) |> print_lines;
 }
-and codegen_block = (b: GrainIR.block) => {
-  let s = codegen_block_nowrap(b);
+and print_block = (b: GrainIR.block) => {
+  let s = print_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
-and codegen_statement = (stmt: GrainIR.statement) =>
+and print_statement = (stmt: GrainIR.statement) =>
   switch (stmt) {
   | Let(params, e) =>
-    let params = codegen_params(params);
-    let e = codegen_expr(e);
+    let params = print_params(params);
+    let e = print_expr(e);
     sprintf("let %s = %s", params, e);
   | LetRec(params, e) =>
-    let params = codegen_params(params);
-    let e = codegen_expr(e);
+    let params = print_params(params);
+    let e = print_expr(e);
     sprintf("let rec %s = %s", params, e);
-  | Expr(e) => codegen_expr(e)
+  | Expr(e) => print_expr(e)
   }
 
-and codegen_expr = (e: GrainIR.expr) =>
+and print_expr = (e: GrainIR.expr) =>
   switch (e) {
   | BoolLit(b) => b ? Consts.truelit : Consts.falselit
   | IntLit(n) => string_of_int(n)
   // TODO: NaN?
   | FloatLit(f) => string_of_float(f)
-  | BinOp(op, e1, e2) => codegen_bin_op(op, e1, e2)
+  | BinOp(op, e1, e2) => print_bin_op(op, e1, e2)
   | List(es) =>
-    let es = es |> List.map(codegen_expr) |> String.concat(", ");
+    let es = es |> List.map(print_expr) |> String.concat(", ");
     sprintf("[%s]", es);
   | Triv => Consts.voidlit
-  | Var(var) => codegen_var(var)
-  | Lam(params, e') => codegen_lam(params, e')
-  | Ap(lam, args) => codegen_ap(lam, args)
-  | Ctor(ctor, args) => codegen_ctor(ctor, args)
-  | Match(scrut, rules) => codegen_match(scrut, rules)
-  | Block(b) => codegen_block(b)
+  | Cons(e1, e2) => print_cons(e1, e2)
+  | Tuple(els) => print_tuple(els)
+  | Var(var) => print_var(var)
+  | Lam(params, e') => print_lam(params, e')
+  | Ap(lam, args) => print_ap(lam, args)
+  | Ctor(ctor, args) => print_ctor(ctor, args)
+  | Match(scrut, rules) => print_match(scrut, rules)
+  | Block(b) => print_block(b)
   }
-and codegen_args = (args: GrainIR.args) =>
-  args |> List.map(codegen_expr) |> codegen_comma_sep
 
-and codegen_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
+and print_args = (args: GrainIR.args) =>
+  args |> List.map(print_expr) |> print_comma_sep
+
+and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
   let op =
     switch (op) {
     | And => Consts.prim_and_op
@@ -134,47 +132,58 @@ and codegen_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) =>
     | FGreaterThan => Consts.prim_greater_than_op
     | FEquals => Consts.prim_equals_op
     };
-  let e1 = codegen_expr(e1);
-  let e2 = codegen_expr(e2);
-  sprintf("%s %s %s", e1, op, e2);
+  let e1 = print_expr(e1);
+  let e2 = print_expr(e2);
+  print_infix(e1, op, e2);
 }
 
-and codegen_var = (var: Var.t) => var
-and codegen_params = (ps: GrainIR.params) => ps |> String.concat(", ")
+and print_cons = (e1: GrainIR.expr, e2: GrainIR.expr) => {
+  let e1 = print_expr(e1);
+  let e2 = print_expr(e2);
+  sprintf("[%s, ...%s]", e1, e2);
+}
 
-and codegen_lam = (params: GrainIR.params, e': GrainIR.expr) => {
-  let params = codegen_params(params);
-  let e' = codegen_expr(e');
+and print_tuple = (els: list(GrainIR.expr)) => {
+  let els = els |> List.map(print_expr) |> print_comma_sep;
+  sprintf("(%s)", els);
+}
+
+and print_var = (var: Var.t) => var
+and print_params = (ps: GrainIR.params) => ps |> String.concat(", ")
+
+and print_lam = (params: GrainIR.params, e': GrainIR.expr) => {
+  let params = print_params(params);
+  let e' = print_expr(e');
   sprintf("(%s) => { %s }", params, e');
 }
 
-and codegen_ap = (lam: GrainIR.expr, args: GrainIR.args) => {
-  let lam = codegen_expr(lam);
-  let args = codegen_args(args);
+and print_ap = (lam: GrainIR.expr, args: GrainIR.args) => {
+  let lam = print_expr(lam);
+  let args = print_args(args);
   sprintf("%s(%s)", lam, args);
 }
 
-and codegen_ctor = (ctor: Var.t, args: GrainIR.args) => {
-  let ctor = codegen_var(ctor);
-  let args = codegen_args(args);
+and print_ctor = (ctor: Var.t, args: GrainIR.args) => {
+  let ctor = print_var(ctor);
+  let args = print_args(args);
   sprintf("%s(%s)", ctor, args);
 }
 
-and codegen_match = (scrut: GrainIR.expr, rules: list(GrainIR.rule)) => {
-  let scrut = codegen_expr(scrut);
-  let rules = rules |> List.map(codegen_rule) |> codegen_comma_sep;
+and print_match = (scrut: GrainIR.expr, rules: list(GrainIR.rule)) => {
+  let scrut = print_expr(scrut);
+  let rules = rules |> List.map(print_rule) |> print_comma_sep;
   sprintf("match (%s) { %s }", scrut, rules);
 }
-and codegen_rule = (rule: GrainIR.rule) => {
+and print_rule = (rule: GrainIR.rule) => {
   switch (rule) {
   | Rule(p, rhs) =>
-    let p = codegen_pat(p);
-    let rhs = codegen_expr(rhs);
+    let p = print_pat(p);
+    let rhs = print_expr(rhs);
     sprintf("%s => %s", p, rhs);
   };
 }
 
-and codegen_pat = (p: GrainIR.pat) => {
+and print_pat = (p: GrainIR.pat) => {
   switch (p) {
   | Wild => Consts.pat_wild
   // TODO: Check if var conflicts with a keyword?
@@ -186,12 +195,12 @@ and codegen_pat = (p: GrainIR.pat) => {
   | Triv => Consts.pat_triv
   // TODO: Optimize this?
   | Cons(p1, p2) =>
-    let p1 = codegen_pat(p1);
-    let p2 = codegen_pat(p2);
+    let p1 = print_pat(p1);
+    let p2 = print_pat(p2);
     sprintf("[%s, ...%s]", p1, p2);
   | Pair(p1, p2) =>
-    let p1 = codegen_pat(p1);
-    let p2 = codegen_pat(p2);
+    let p1 = print_pat(p1);
+    let p2 = print_pat(p2);
     sprintf("(%s, %s)", p1, p2);
   };
 };

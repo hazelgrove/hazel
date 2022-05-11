@@ -80,6 +80,8 @@ and expr =
   | BinOp(bin_op, expr, expr)
   | List(list(expr))
   | Triv
+  | Cons(expr, expr)
+  | Tuple(list(expr))
   | Var(Var.t)
   | Lam(params, expr)
   | Ap(expr, args)
@@ -99,4 +101,4 @@ module Block = {
 };
 
 [@deriving sexp]
-type program = (top_block, block);
+type prog = (top_block, block);

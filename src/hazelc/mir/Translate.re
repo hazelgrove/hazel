@@ -1,12 +1,10 @@
-open Format;
-
-exception NotImplemented(string);
+exception NotImplemented;
 
 type bind =
-  | BSeq(Anf.comp)
   | BLet(Var.t, Anf.rec_flag, Anf.comp);
 
 let rec translate_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
+
 and translate_exp =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
@@ -89,122 +87,69 @@ and translate_exp =
     translate_bin_op(op, d1, d2, t_gen);
 
   | Pair(d1, d2) =>
-    let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
-    let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+    let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
+    let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
 
     let (pair_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      v1_binds
-      @ v2_binds
-      @ [BLet(pair_tmp, NoRec, {comp_kind: CPair(v1, v2)})];
+      i1_binds
+      @ i2_binds
+      @ [BLet(pair_tmp, NoRec, {comp_kind: CPair(i1, i2)})];
 
     (translate_var(pair_tmp), binds, t_gen);
 
   | Cons(d1, d2) =>
-    let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
-    let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+    let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
+    let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
 
     let (cons_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      v1_binds
-      @ v2_binds
-      @ [BLet(cons_tmp, NoRec, {comp_kind: CCons(v1, v2)})];
+      i1_binds
+      @ i2_binds
+      @ [BLet(cons_tmp, NoRec, {comp_kind: CCons(i1, i2)})];
 
     (translate_var(cons_tmp), binds, t_gen);
 
-  | Inj(_, side, d1) =>
-    let (v1, binds, t_gen) = translate_exp(d1, t_gen);
+  | Inj(_, side, d) =>
+    let (i, binds, t_gen) = translate_exp(d, t_gen);
     let side: Anf.inj_side =
       switch (side) {
-      | L => InjL
-      | R => InjR
+      | L => CInjL
+      | R => CInjR
       };
 
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
-    let binds =
-      binds @ [BLet(inj_tmp, NoRec, {comp_kind: CInj(side, v1)})];
+    let binds = binds @ [BLet(inj_tmp, NoRec, {comp_kind: CInj(side, i)})];
 
     (translate_var(inj_tmp), binds, t_gen);
 
-  | _ => raise(NotImplemented("expressions"))
+  | _ => raise(NotImplemented)
   };
 }
 
 and translate_bin_op =
     (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {
-  let (v1, v1_binds, t_gen) = translate_exp(d1, t_gen);
-  let (v2, v2_binds, t_gen) = translate_exp(d2, t_gen);
+  let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
+  let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
 
   let (tmp, t_gen) = TmpVarGen.next(t_gen);
   let binds =
-    v1_binds
-    @ v2_binds
-    @ [BLet(tmp, NoRec, {comp_kind: CBinOp(op, v1, v2)})];
+    i1_binds
+    @ i2_binds
+    @ [BLet(tmp, NoRec, {comp_kind: CBinOp(op, i1, i2)})];
 
   (translate_var(tmp), binds, t_gen);
-}
+};
 
-and translate_rule = (r: IHExp.rule) => {
-  let Rule(dp, d0) = r;
-  let (vret, iprog) = translate_exp(d0, Program.empty);
-  sprintf(
-    "%s => {%s\n%s}\n",
-    translate_pat(dp),
-    Program.to_string(iprog),
-    vret,
-  );
-}
-and translate_pat = (dp: IHPat.t) => {
-  switch (dp) {
-  | EmptyHole(_)
-  | NonEmptyHole(_)
-  | Keyword(_)
-  | InvalidText(_)
-  | Inj(_)
-  | Triv
-  | Ap(_) => raise(NotImplemented("patterns"))
-  | ListNil => "[]"
-  | Cons(dp1, dp2) =>
-    sprintf("[%s, ...%s]", translate_pat(dp1), translate_pat(dp2))
-  | Wild => "_"
-  | Var(v) => v
-  | IntLit(i) => sprintf("%i", i)
-  | FloatLit(f) => sprintf("%f", f)
-  | BoolLit(b) => b ? "true" : "false"
-  | Pair(dp1, dp2) =>
-    sprintf("(%s, %s)", translate_pat(dp1), translate_pat(dp2))
+let translate_bind = (bn: bind): Anf.stmt => {
+  switch (bn) {
+  | BLet(var, rec_flag, c) => {stmt_kind: SLet(var, rec_flag, c)}
   };
 };
-// and translate_bool_op = (op: IHExp.BinBoolOp.t) => {
-//   switch (op) {
-//   | And => "&&"
-//   | Or => "||"
-//   };
-// }
-// and translate_int_op = (op: IHExp.BinIntOp.t) => {
-//   switch (op) {
-//   | Minus => "-"
-//   | Plus => "+"
-//   | Times => "*"
-//   | Divide => "/"
-//   | LessThan => "<"
-//   | GreaterThan => ">"
-//   | Equals => "=="
-//   };
-// }
-// and translate_float_op = (op: IHExp.BinFloatOp.t) => {
-//   switch (op) {
-//   | FPlus => "+"
-//   | FMinus => "-"
-//   | FTimes => "*"
-//   | FDivide => "/"
-//   | FLessThan => "<"
-//   | FGreaterThan => ">"
-//   | FEquals => "=="
-//   };
-// };
 
-let translate = (d: IHExp.t) => {
-  let (vret, prog) = translate_exp(d, Program.top_empty);
-  sprintf("%s\n%s", Program.to_string(prog), vret);
+let translate = (d: IHExp.t): Anf.prog => {
+  let (i, binds, _) = translate_exp(d, TmpVarGen.init);
+  let stmts = binds |> List.map(translate_bind);
+
+  {prog_body: (stmts, {comp_kind: CImm(i)})};
 };

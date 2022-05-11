@@ -33,9 +33,7 @@ and imm = {imm_kind}
 [@deriving sexp]
 and imm_kind =
   | IConst(constant)
-  | IList(list(imm))
   | IVar(Var.t)
-  | IBuiltin(Var.t)
 
 [@deriving sexp]
 and comp = {comp_kind}
@@ -52,15 +50,15 @@ and comp_kind =
 
 [@deriving sexp]
 and inj_side =
-  | InjL
-  | InjR
+  | CInjL
+  | CInjR
 
 [@deriving sexp]
 and stmt = {stmt_kind}
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(Var.t, rec_flag, comp, stmt)
+  | SLet(Var.t, rec_flag, comp)
 
 [@deriving sexp]
 and rec_flag =
@@ -68,4 +66,7 @@ and rec_flag =
   | Rec
 
 [@deriving sexp]
-and prog = (list(stmt), comp);
+and prog = {prog_body}
+
+[@deriving sexp]
+and prog_body = (list(stmt), comp);
