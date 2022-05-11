@@ -27,3 +27,5 @@ type t = {
 
 let prompts: list(t);
 let print_to_console: list(t) => string;
+let update_explanation_rank: (t, int, int) => t;
+let update_example_rank: (t, int, int) => t;

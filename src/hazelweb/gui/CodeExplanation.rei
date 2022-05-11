@@ -7,7 +7,6 @@ let view:
   (
     ~settings: DocumentationStudySettings.t,
     ~inject: ModelAction.t => Event.t,
-    list(Prompt.explain),
-    int
+    list(Prompt.explain)
   ) =>
   Vdom.Node.t;

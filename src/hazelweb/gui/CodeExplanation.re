@@ -1,11 +1,10 @@
 open Virtual_dom.Vdom;
 open Prompt;
 
-let rank_selection_handler = (x, id) => {
+let rank_selection_handler = (index, new_rank) => {
   // update_chosen_rank
-  let printing: string = String.concat(" ", [id, x]);
-  print_endline(printing);
-  Event.Many([]);
+  
+  Event.Many([Model.update(prompts, index, new_rank)]);
 };
 
 let a_single_example_expression =
@@ -48,8 +47,8 @@ let a_single_example_expression =
         Node.select(
           [
             Attr.name(example_id),
-            Attr.on_change((_, xx) =>
-              rank_selection_handler(xx, example_id)
+            Attr.on_change((_, new_rank) =>
+              rank_selection_handler(index, new_rank)
             ),
           ],
           CodeExplanation_common.rank_list(1 + ranking_out_of),
@@ -100,7 +99,6 @@ let view =
       ~settings: DocumentationStudySettings.t,
       ~inject: ModelAction.t => Event.t,
       explanations: list(Prompt.explain),
-      hovered_over: int,
     )
     : Node.t => {
   let explanation_view = {
@@ -117,7 +115,6 @@ let view =
       Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
         [
-          Node.text(string_of_int(hovered_over)),
           Node.div(
             [],
             [

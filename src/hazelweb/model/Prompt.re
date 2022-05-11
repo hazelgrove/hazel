@@ -162,3 +162,32 @@ let prompts: list(t) = [
     ],
   },
 ];
+
+// given a prompt and an explanation index, updates the rank
+// Same function but for examples
+let update_explanation_rank = (prompt, index, rank) => {
+  let new_explanations =
+    List.mapi(
+      (idx, explanation) =>
+        if (idx == index) {
+          {...explanation, rank};
+        } else {
+          explanation;
+        },
+      prompt.explanation,
+    );
+  {...prompt, explanation: new_explanations};
+};
+let update_example_rank = (prompt, index, rank) => {
+  let new_examples =
+    List.mapi(
+      (idx, example) =>
+        if (idx == index) {
+          {...example, rankz: rank};
+        } else {
+          example;
+        },
+      prompt.examples,
+    );
+  {...prompt, examples: new_examples};
+};
