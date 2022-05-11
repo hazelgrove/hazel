@@ -211,7 +211,7 @@ let stop_after_wasmized =
 exception BadState;
 
 let compile_grain = (~opts=default_opts, path, source) => {
-  switch (resume(~opts, ~hook=stop_after_grainized, path, Source(source))) {
+  switch (resume(~opts, ~hook=stop_after_printed, path, Source(source))) {
   | Ok(state) =>
     switch (state) {
     | Printed(g) => Ok(g)

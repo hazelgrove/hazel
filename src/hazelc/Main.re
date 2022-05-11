@@ -24,7 +24,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       grain: None,
       includes: None,
       wat: Some(action == Wat),
-      optimize: Some(optimize),
+      optimize,
       debug: Some(debug),
     },
   };
@@ -118,7 +118,11 @@ let optimize = {
   };
 
   let doc = "Set optimization level";
-  Arg.(value & opt(optimize_arg, 0) & info(["O"], ~docv="LEVEL", ~doc));
+  Arg.(
+    value
+    & opt(some(optimize_arg), None)
+    & info(["O"], ~docv="LEVEL", ~doc)
+  );
 };
 
 let debug = {
