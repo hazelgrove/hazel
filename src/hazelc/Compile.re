@@ -99,7 +99,7 @@ let elaborate = (~_opts=default_opts) =>
 
 let transform = (~_opts=default_opts) => Transform.transform;
 
-let linearize = (~_opts=default_opts) => Translate.translate;
+let linearize = (~_opts=default_opts) => Linearize.linearize;
 
 let grainize = (~_opts=default_opts) => GrainCodegen.codegen;
 

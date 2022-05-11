@@ -3,16 +3,16 @@ exception NotImplemented;
 type bind =
   | BLet(Var.t, Anf.rec_flag, Anf.comp);
 
-let rec translate_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
+let rec linearize_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
 
-and translate_exp =
+and linearize_exp =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
-  | BoundVar(var) => (translate_var(var), [], t_gen)
+  | BoundVar(var) => (linearize_var(var), [], t_gen)
 
   | Ap(fn, arg) =>
-    let (fn, fn_binds, t_gen) = translate_exp(fn, t_gen);
-    let (arg, arg_binds, t_gen) = translate_exp(arg, t_gen);
+    let (fn, fn_binds, t_gen) = linearize_exp(fn, t_gen);
+    let (arg, arg_binds, t_gen) = linearize_exp(arg, t_gen);
 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
@@ -28,14 +28,14 @@ and translate_exp =
     let (args, binds, t_gen) =
       List.fold_left(
         ((args, binds, t_gen), arg) => {
-          let (arg, new_binds, t_gen) = translate_exp(arg, t_gen);
+          let (arg, new_binds, t_gen) = linearize_exp(arg, t_gen);
           (args @ [arg], binds @ new_binds, t_gen);
         },
         ([], [], t_gen),
         args,
       );
 
-    let name = translate_var(name);
+    let name = linearize_var(name);
 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
@@ -58,7 +58,7 @@ and translate_exp =
       | And => OpAnd
       | Or => OpOr
       };
-    translate_bin_op(op, d1, d2, t_gen);
+    linearize_bin_op(op, d1, d2, t_gen);
 
   | BinIntOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -71,7 +71,7 @@ and translate_exp =
       | GreaterThan => OpGreaterThan
       | Equals => OpEquals
       };
-    translate_bin_op(op, d1, d2, t_gen);
+    linearize_bin_op(op, d1, d2, t_gen);
 
   | BinFloatOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -84,11 +84,11 @@ and translate_exp =
       | FGreaterThan => OpFGreaterThan
       | FEquals => OpFEquals
       };
-    translate_bin_op(op, d1, d2, t_gen);
+    linearize_bin_op(op, d1, d2, t_gen);
 
   | Pair(d1, d2) =>
-    let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
-    let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
+    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
 
     let (pair_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
@@ -96,11 +96,11 @@ and translate_exp =
       @ i2_binds
       @ [BLet(pair_tmp, NoRec, {comp_kind: CPair(i1, i2)})];
 
-    (translate_var(pair_tmp), binds, t_gen);
+    (linearize_var(pair_tmp), binds, t_gen);
 
   | Cons(d1, d2) =>
-    let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
-    let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
+    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
 
     let (cons_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
@@ -108,10 +108,10 @@ and translate_exp =
       @ i2_binds
       @ [BLet(cons_tmp, NoRec, {comp_kind: CCons(i1, i2)})];
 
-    (translate_var(cons_tmp), binds, t_gen);
+    (linearize_var(cons_tmp), binds, t_gen);
 
   | Inj(_, side, d) =>
-    let (i, binds, t_gen) = translate_exp(d, t_gen);
+    let (i, binds, t_gen) = linearize_exp(d, t_gen);
     let side: Anf.inj_side =
       switch (side) {
       | L => CInjL
@@ -121,16 +121,16 @@ and translate_exp =
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds = binds @ [BLet(inj_tmp, NoRec, {comp_kind: CInj(side, i)})];
 
-    (translate_var(inj_tmp), binds, t_gen);
+    (linearize_var(inj_tmp), binds, t_gen);
 
   | _ => raise(NotImplemented)
   };
 }
 
-and translate_bin_op =
+and linearize_bin_op =
     (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {
-  let (i1, i1_binds, t_gen) = translate_exp(d1, t_gen);
-  let (i2, i2_binds, t_gen) = translate_exp(d2, t_gen);
+  let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
+  let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
 
   let (tmp, t_gen) = TmpVarGen.next(t_gen);
   let binds =
@@ -138,18 +138,18 @@ and translate_bin_op =
     @ i2_binds
     @ [BLet(tmp, NoRec, {comp_kind: CBinOp(op, i1, i2)})];
 
-  (translate_var(tmp), binds, t_gen);
+  (linearize_var(tmp), binds, t_gen);
 };
 
-let translate_bind = (bn: bind): Anf.stmt => {
+let convert_bind = (bn: bind): Anf.stmt => {
   switch (bn) {
   | BLet(var, rec_flag, c) => {stmt_kind: SLet(var, rec_flag, c)}
   };
 };
 
-let translate = (d: IHExp.t): Anf.prog => {
-  let (i, binds, _) = translate_exp(d, TmpVarGen.init);
-  let stmts = binds |> List.map(translate_bind);
+let linearize = (d: IHExp.t): Anf.prog => {
+  let (i, binds, _) = linearize_exp(d, TmpVarGen.init);
+  let stmts = binds |> List.map(convert_bind);
 
   {prog_body: (stmts, {comp_kind: CImm(i)})};
 };
