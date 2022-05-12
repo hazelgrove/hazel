@@ -1,5 +1,8 @@
 [@deriving sexp]
 type action =
+  | DHExp
+  | IHExp
+  | Anf
   | Grain
   | Wasm
   | Wat;
@@ -9,11 +12,16 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     switch (out) {
     | Some(out) => out
     | None =>
-      switch (action) {
-      | Grain => "a.gr"
-      | Wasm => "a.wasm"
-      | Wat => "a.wat"
-      }
+      let ext =
+        switch (action) {
+        | DHExp => "hz.dhexp"
+        | IHExp => "hz.ihexp"
+        | Anf => "hz.anf"
+        | Grain => "gr"
+        | Wasm => "wasm"
+        | Wat => "wat"
+        };
+      "a." ++ ext;
     };
 
   let source = List.hd(sources);
@@ -29,22 +37,51 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     },
   };
 
+  let write_out = output => {
+    let out_file = open_out(out);
+    Printf.fprintf(out_file, "%s", output);
+    close_out(out_file);
+    Ok();
+  };
+
   let res =
     switch (action) {
+    | DHExp =>
+      let res =
+        Compile.compile_dhexp(~opts, out, SourceChannel(source_file));
+      switch (res) {
+      | Ok(d) =>
+        let output = d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+        write_out(output);
+      | Error(err) => Error(err)
+      };
+    | IHExp =>
+      let res =
+        Compile.compile_ihexp(~opts, out, SourceChannel(source_file));
+      switch (res) {
+      | Ok(d) =>
+        let output = d |> IHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+        write_out(output);
+      | Error(err) => Error(err)
+      };
+    | Anf =>
+      let res = Compile.compile_anf(~opts, out, SourceChannel(source_file));
+      switch (res) {
+      | Ok(d) =>
+        let output = d |> Anf.sexp_of_prog |> Sexplib.Sexp.to_string_hum;
+        write_out(output);
+      | Error(err) => Error(err)
+      };
     | Grain =>
       let res =
         Compile.compile_grain(~opts, out, SourceChannel(source_file));
       switch (res) {
-      | Ok(output) =>
-        let out_file = open_out(out);
-        Printf.fprintf(out_file, "%s", output);
-        close_out(out_file);
-        Ok();
+      | Ok(output) => write_out(output)
       | Error(err) => Error(err)
       };
     | Wasm
     | Wat =>
-      let res = Compile.compile(~opts, out, SourceChannel(source_file));
+      let res = Compile.compile_wasm(~opts, out, SourceChannel(source_file));
       switch (res) {
       | Ok(_) => Ok()
       | Error(err) => Error(err)
@@ -80,6 +117,18 @@ let out = {
 };
 
 let action = {
+  let dhexp = {
+    let doc = "Emit DHExp sexp.";
+    (DHExp, Arg.info(["dhexp"], ~doc));
+  };
+  let ihexp = {
+    let doc = "Emit IHExp sexp.";
+    (IHExp, Arg.info(["ihexp"], ~doc));
+  };
+  let anf = {
+    let doc = "Emit Anf sexp.";
+    (Anf, Arg.info(["anf"], ~doc));
+  };
   let grain = {
     let doc = "Emit Grain code.";
     (Grain, Arg.info(["grain"], ~doc));
@@ -92,7 +141,7 @@ let action = {
     let doc = "Emit WebAssembly text.";
     (Wat, Arg.info(["wat"], ~doc));
   };
-  Arg.(last & vflag_all([Wasm], [grain, wasm, wat]));
+  Arg.(last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, wasm, wat]));
 };
 
 let verbose = {

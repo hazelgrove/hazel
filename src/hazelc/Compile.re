@@ -156,16 +156,16 @@ type resume_action =
 
 let rec resume = (~opts=default_opts, ~hook=?, path, state) => {
   switch (next(~opts, path, state)) {
-  | Ok(next_state) =>
+  | Ok(state) =>
     switch (hook) {
-    | Some(hookf) =>
-      switch (hookf(next_state)) {
-      | Continue(state) => resume(~opts, ~hook?, path, state)
-      | Stop => Ok(next_state)
+    | Some(hook) =>
+      switch (hook(state)) {
+      | Continue(state) => resume(~opts, ~hook, path, state)
+      | Stop => Ok(state)
       }
     | None =>
-      switch (next_state) {
-      | Wasmized(_) => Ok(next_state)
+      switch (state) {
+      | Wasmized(_) => Ok(state)
       | _ => resume(~opts, ~hook?, path, state)
       }
     }
@@ -210,6 +210,39 @@ let stop_after_wasmized =
 
 exception BadState;
 
+let compile_dhexp = (~opts=default_opts, path, source) => {
+  switch (resume(~opts, ~hook=stop_after_elaborated, path, Source(source))) {
+  | Ok(state) =>
+    switch (state) {
+    | Elaborated(d) => Ok(d)
+    | _ => raise(BadState)
+    }
+  | Error(err) => Error(err)
+  };
+};
+
+let compile_ihexp = (~opts=default_opts, path, source) => {
+  switch (resume(~opts, ~hook=stop_after_transformed, path, Source(source))) {
+  | Ok(state) =>
+    switch (state) {
+    | Transformed(d) => Ok(d)
+    | _ => raise(BadState)
+    }
+  | Error(err) => Error(err)
+  };
+};
+
+let compile_anf = (~opts=default_opts, path, source) => {
+  switch (resume(~opts, ~hook=stop_after_linearized, path, Source(source))) {
+  | Ok(state) =>
+    switch (state) {
+    | Linearized(d) => Ok(d)
+    | _ => raise(BadState)
+    }
+  | Error(err) => Error(err)
+  };
+};
+
 let compile_grain = (~opts=default_opts, path, source) => {
   switch (resume(~opts, ~hook=stop_after_printed, path, Source(source))) {
   | Ok(state) =>
@@ -221,7 +254,7 @@ let compile_grain = (~opts=default_opts, path, source) => {
   };
 };
 
-let compile = (~opts=default_opts, path, source) => {
+let compile_wasm = (~opts=default_opts, path, source) => {
   switch (resume(~opts, ~hook=stop_after_wasmized, path, Source(source))) {
   | Ok(state) =>
     switch (state) {

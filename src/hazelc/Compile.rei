@@ -52,6 +52,13 @@ let stop_after_grainized: state => resume_action;
 let stop_after_printed: state => resume_action;
 let stop_after_wasmized: state => resume_action;
 
+let compile_dhexp:
+  (~opts: opts=?, string, source) => result(DHExp.t, next_error);
+let compile_ihexp:
+  (~opts: opts=?, string, source) => result(IHExp.t, next_error);
+let compile_anf:
+  (~opts: opts=?, string, source) => result(Anf.prog, next_error);
 let compile_grain:
   (~opts: opts=?, string, source) => result(string, next_error);
-let compile: (~opts: opts=?, string, source) => result(string, next_error);
+let compile_wasm:
+  (~opts: opts=?, string, source) => result(string, next_error);
