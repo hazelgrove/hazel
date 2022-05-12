@@ -1,7 +1,7 @@
 exception NotImplemented;
 
 type bind =
-  | BLet(Var.t, Anf.rec_flag, Anf.comp);
+  | BLet(Anf.pat, Anf.rec_flag, Anf.comp);
 
 let rec linearize_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
 
@@ -9,6 +9,15 @@ and linearize_exp =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
   | BoundVar(var) => (linearize_var(var), [], t_gen)
+
+  | Let(dp, d1, d2) =>
+    let (p, t_gen) = linearize_pat(dp, t_gen);
+    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
+
+    let binds =
+      i1_binds @ [BLet(p, NoRec, {comp_kind: CImm(i1)})] @ i2_binds;
+    (i2, binds, t_gen);
 
   | Ap(fn, arg) =>
     let (fn, fn_binds, t_gen) = linearize_exp(fn, t_gen);
@@ -18,7 +27,7 @@ and linearize_exp =
     let binds =
       fn_binds
       @ arg_binds
-      @ [BLet(ap_tmp, NoRec, {comp_kind: CAp(fn, [arg])})];
+      @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(fn, [arg])})];
 
     ({imm_kind: IVar(ap_tmp)}, binds, t_gen);
 
@@ -39,7 +48,7 @@ and linearize_exp =
 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      binds @ [BLet(ap_tmp, NoRec, {comp_kind: CAp(name, args)})];
+      binds @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(name, args)})];
     (name, binds, t_gen);
 
   | BoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
@@ -94,7 +103,7 @@ and linearize_exp =
     let binds =
       i1_binds
       @ i2_binds
-      @ [BLet(pair_tmp, NoRec, {comp_kind: CPair(i1, i2)})];
+      @ [BLet(PVar(pair_tmp), NoRec, {comp_kind: CPair(i1, i2)})];
 
     (linearize_var(pair_tmp), binds, t_gen);
 
@@ -106,20 +115,17 @@ and linearize_exp =
     let binds =
       i1_binds
       @ i2_binds
-      @ [BLet(cons_tmp, NoRec, {comp_kind: CCons(i1, i2)})];
+      @ [BLet(PVar(cons_tmp), NoRec, {comp_kind: CCons(i1, i2)})];
 
     (linearize_var(cons_tmp), binds, t_gen);
 
   | Inj(_, side, d) =>
     let (i, binds, t_gen) = linearize_exp(d, t_gen);
-    let side: Anf.inj_side =
-      switch (side) {
-      | L => CInjL
-      | R => CInjR
-      };
+    let side = linearize_inj_side(side);
 
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
-    let binds = binds @ [BLet(inj_tmp, NoRec, {comp_kind: CInj(side, i)})];
+    let binds =
+      binds @ [BLet(PVar(inj_tmp), NoRec, {comp_kind: CInj(side, i)})];
 
     (linearize_var(inj_tmp), binds, t_gen);
 
@@ -136,14 +142,50 @@ and linearize_bin_op =
   let binds =
     i1_binds
     @ i2_binds
-    @ [BLet(tmp, NoRec, {comp_kind: CBinOp(op, i1, i2)})];
+    @ [BLet(PVar(tmp), NoRec, {comp_kind: CBinOp(op, i1, i2)})];
 
   (linearize_var(tmp), binds, t_gen);
+}
+
+and linearize_pat = (p: IHPat.t, t_gen: TmpVarGen.t): (Anf.pat, TmpVarGen.t) => {
+  switch (p) {
+  | Wild => (PWild, t_gen)
+  | Var(x) => (PVar(x), t_gen)
+  | IntLit(i) => (PInt(i), t_gen)
+  | FloatLit(f) => (PFloat(f), t_gen)
+  | BoolLit(b) => (PBool(b), t_gen)
+  | Inj(side, p) =>
+    let side = linearize_inj_side(side);
+    let (p, t_gen) = linearize_pat(p, t_gen);
+    (PInj(side, p), t_gen);
+  | ListNil => (PNil, t_gen)
+  | Cons(p1, p2) =>
+    let (p1, t_gen) = linearize_pat(p1, t_gen);
+    let (p2, t_gen) = linearize_pat(p2, t_gen);
+    (PCons(p1, p2), t_gen);
+  | Pair(p1, p2) =>
+    let (p1, t_gen) = linearize_pat(p1, t_gen);
+    let (p2, t_gen) = linearize_pat(p2, t_gen);
+    (PPair(p1, p2), t_gen);
+  | Triv => (PTriv, t_gen)
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | Keyword(_)
+  | InvalidText(_)
+  | Ap(_) => raise(NotImplemented)
+  };
+}
+
+and linearize_inj_side = (side: InjSide.t): Anf.inj_side => {
+  switch (side) {
+  | L => CInjL
+  | R => CInjR
+  };
 };
 
 let convert_bind = (bn: bind): Anf.stmt => {
   switch (bn) {
-  | BLet(var, rec_flag, c) => {stmt_kind: SLet(PVar(var), rec_flag, c)}
+  | BLet(p, rec_flag, c) => {stmt_kind: SLet(p, rec_flag, c)}
   };
 };
 
