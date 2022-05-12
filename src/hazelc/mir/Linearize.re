@@ -3,7 +3,21 @@ exception NotImplemented;
 type bind =
   | BLet(Anf.pat, Anf.rec_flag, Anf.comp);
 
+let convert_bind = (bn: bind): Anf.stmt => {
+  switch (bn) {
+  | BLet(p, rec_flag, c) => {stmt_kind: SLet(p, rec_flag, c)}
+  };
+};
+
 let rec linearize_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
+
+and linearize_prog =
+    (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.prog, TmpVarGen.t) => {
+  let (i, binds, t_gen) = linearize_exp(d, t_gen);
+  let stmts = binds |> List.map(convert_bind);
+
+  ({prog_body: (stmts, {comp_kind: CImm(i)})}, t_gen);
+}
 
 and linearize_exp =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
@@ -18,6 +32,16 @@ and linearize_exp =
     let binds =
       i1_binds @ [BLet(p, NoRec, {comp_kind: CImm(i1)})] @ i2_binds;
     (i2, binds, t_gen);
+
+  | Lam(dp, _, body) =>
+    let (p, t_gen) = linearize_pat(dp, t_gen);
+    let (body, t_gen) = linearize_prog(body, t_gen);
+
+    let lam: Anf.comp = {comp_kind: CLam([p], body)};
+    let (lam_tmp, t_gen) = TmpVarGen.next(t_gen);
+
+    let binds = [BLet(PVar(lam_tmp), NoRec, lam)];
+    ({imm_kind: IVar(lam_tmp)}, binds, t_gen);
 
   | Ap(fn, arg) =>
     let (fn, fn_binds, t_gen) = linearize_exp(fn, t_gen);
@@ -183,15 +207,7 @@ and linearize_inj_side = (side: InjSide.t): Anf.inj_side => {
   };
 };
 
-let convert_bind = (bn: bind): Anf.stmt => {
-  switch (bn) {
-  | BLet(p, rec_flag, c) => {stmt_kind: SLet(p, rec_flag, c)}
-  };
-};
-
 let linearize = (d: IHExp.t): Anf.prog => {
-  let (i, binds, _) = linearize_exp(d, TmpVarGen.init);
-  let stmts = binds |> List.map(convert_bind);
-
-  {prog_body: (stmts, {comp_kind: CImm(i)})};
+  let (prog, _) = linearize_prog(d, TmpVarGen.init);
+  prog;
 };
