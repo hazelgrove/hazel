@@ -61,6 +61,13 @@ and comp_kind =
   | CPair(imm, imm)
   | CInj(inj_side, imm)
   | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(comp))
+  | CNonEmptyHole(
+      ErrStatus.HoleReason.t,
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t_(comp),
+      imm,
+    )
 
 [@deriving sexp]
 and inj_side =

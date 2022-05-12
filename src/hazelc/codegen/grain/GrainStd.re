@@ -26,6 +26,15 @@ module Hazel = {
            let name = "Ast";
          });
 
+    module HoleReason = {
+      let name = ident("HoleReason");
+      let type_inconsistent = ident("TypeInconsistent");
+      let wrong_length = ident("WrongLength");
+    };
+
     let empty_hole = (u, i, sigma) => mk_ctor("EmptyHole", [u, i, sigma]);
+
+    let non_empty_hole = (reason, u, i, sigma, e) =>
+      mk_ctor("NonEmptyHole", [reason, u, i, sigma, e]);
   };
 };

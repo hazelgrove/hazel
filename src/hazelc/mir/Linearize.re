@@ -154,17 +154,7 @@ and linearize_exp =
     (linearize_var(inj_tmp), binds, t_gen);
 
   | EmptyHole(u, i, sigma) =>
-    let (sigma, binds, t_gen): (VarMap.t_(Anf.comp), _, _) =
-      List.fold_left(
-        ((sigma, binds, t_gen), (x, d)) => {
-          let (d, new_binds, t_gen) = linearize_exp(d, t_gen);
-          let sigma =
-            VarMap.extend(sigma, (x, {comp_kind: CImm(d)}: Anf.comp));
-          (sigma, binds @ new_binds, t_gen);
-        },
-        ([], [], t_gen),
-        sigma,
-      );
+    let (sigma, binds, t_gen) = linearize_sigma(sigma, t_gen);
 
     let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
@@ -175,9 +165,41 @@ and linearize_exp =
 
     (linearize_var(hole_tmp), binds, t_gen);
 
+  | NonEmptyHole(reason, u, i, sigma, d') =>
+    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, t_gen);
+    let (d', d'_binds, t_gen) = linearize_exp(d', t_gen);
+
+    let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      sigma_binds
+      @ d'_binds
+      @ [
+        BLet(
+          PVar(hole_tmp),
+          NoRec,
+          {comp_kind: CNonEmptyHole(reason, u, i, sigma, d')},
+        ),
+      ];
+
+    (linearize_var(hole_tmp), binds, t_gen);
+
   | _ => raise(NotImplemented)
   };
 }
+
+and linearize_sigma =
+    (sigma: VarMap.t_(IHExp.t), t_gen: TmpVarGen.t)
+    : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
+  List.fold_left(
+    ((sigma, binds, t_gen), (x, d)) => {
+      let (d, new_binds, t_gen) = linearize_exp(d, t_gen);
+      let sigma =
+        VarMap.extend(sigma, (x, {comp_kind: CImm(d)}: Anf.comp));
+      (sigma, binds @ new_binds, t_gen);
+    },
+    ([], [], t_gen),
+    sigma,
+  )
 
 and linearize_bin_op =
     (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {

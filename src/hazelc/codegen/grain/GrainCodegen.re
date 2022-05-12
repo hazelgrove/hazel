@@ -1,3 +1,5 @@
+module HazelStd = GrainStd.Hazel;
+
 let injl_ctor = "L";
 let injr_ctor = "R";
 
@@ -31,6 +33,8 @@ and codegen_comp = (c: Anf.comp): GrainIR.expr => {
     let ctor = codegen_inj_side(side);
     ECtor(ctor, [codegen_imm(i)]);
   | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma)
+  | CNonEmptyHole(reason, u, i, sigma, im) =>
+    codegen_non_empty_hole(reason, u, i, sigma, im)
   };
 }
 
@@ -96,6 +100,13 @@ and codegen_inj_side = (side: Anf.inj_side): Var.t => {
   };
 }
 
+and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): GrainIR.expr =>
+  HazelStd.Ast.(
+    switch (reason) {
+    | TypeInconsistent => EVar(HoleReason.type_inconsistent)
+    | WrongLength => EVar(HoleReason.wrong_length)
+    }
+  )
 and codegen_meta_var = (u: MetaVar.t): GrainIR.expr => EIntLit(u)
 and codegen_meta_var_inst = (i: MetaVarInst.t): GrainIR.expr => EIntLit(i)
 and codegen_sigma = (sigma: VarMap.t_(Anf.comp)): GrainIR.expr => {
@@ -113,7 +124,17 @@ and codegen_empty_hole = (u, i, sigma): GrainIR.expr => {
   let i = codegen_meta_var_inst(i);
   let sigma = codegen_sigma(sigma);
 
-  GrainStd.Hazel.Ast.empty_hole(u, i, sigma);
+  HazelStd.Ast.empty_hole(u, i, sigma);
+}
+
+and codegen_non_empty_hole = (reason, u, i, sigma, im): GrainIR.expr => {
+  let reason = codegen_hole_reason(reason);
+  let u = codegen_meta_var(u);
+  let i = codegen_meta_var_inst(i);
+  let sigma = codegen_sigma(sigma);
+  let e = codegen_imm(im);
+
+  HazelStd.Ast.non_empty_hole(reason, u, i, sigma, e);
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {

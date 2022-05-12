@@ -1,5 +1,6 @@
 open Sexplib.Std;
 
+// TODO: Separate variants for ops on indet forms.
 [@deriving sexp]
 type bin_bool_op =
   | And
