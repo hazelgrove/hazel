@@ -20,7 +20,20 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type constant =
+type pat =
+  | PWild
+  | PVar(Var.t)
+  | PInt(int)
+  | PFloat(float)
+  | PBool(bool)
+  | PNil
+  | PInj(inj_side, pat)
+  | PCons(pat, pat)
+  | PPair(pat, pat)
+  | PTriv
+
+[@deriving sexp]
+and constant =
   | ConstInt(int)
   | ConstFloat(float)
   | ConstBool(bool)
@@ -43,7 +56,7 @@ and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
   | CAp(imm, list(imm))
-  | CLam(list(Var.t), prog)
+  | CLam(list(pat), prog)
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
@@ -58,7 +71,7 @@ and stmt = {stmt_kind}
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(Var.t, rec_flag, comp)
+  | SLet(pat, rec_flag, comp)
 
 [@deriving sexp]
 and rec_flag =

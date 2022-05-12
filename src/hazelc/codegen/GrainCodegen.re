@@ -9,8 +9,8 @@ let rec codegen_prog = ({prog_body: (stmts, c)}: Anf.prog): GrainIR.block => {
 
 and codegen_stmt = (stmt: Anf.stmt): GrainIR.stmt => {
   switch (stmt.stmt_kind) {
-  | SLet(p, NoRec, c) => SLet([PVar(p)], codegen_comp(c))
-  | SLet(p, Rec, c) => SLetRec([PVar(p)], codegen_comp(c))
+  | SLet(p, NoRec, c) => SLet([codegen_pat(p)], codegen_comp(c))
+  | SLet(p, Rec, c) => SLetRec([codegen_pat(p)], codegen_comp(c))
   };
 }
 
@@ -23,7 +23,7 @@ and codegen_comp = (c: Anf.comp): GrainIR.expr => {
     let args = args |> List.map(codegen_imm);
     EAp(codegen_imm(fn), args);
   | CLam(params, body) =>
-    let params = params |> List.map(param => GrainIR.PVar(param));
+    let params = params |> List.map(codegen_pat);
     ELam(params, EBlock(codegen_prog(body)));
   | CCons(i1, i2) => ECons(codegen_imm(i1), codegen_imm(i2))
   | CPair(i1, i2) => ETuple([codegen_imm(i1), codegen_imm(i2)])
@@ -71,20 +71,20 @@ and codegen_const = (const: Anf.constant): GrainIR.expr => {
   };
 }
 
-/* and codegen_pat = (p: Anf.pat): GrainIR.pat => { */
-/* switch (p) { */
-/* | PWild => PWild */
-/* | PVar(var) => PVar(var) */
-/* | PInt(i) => PInt(i) */
-/* | PFloat(f) => PFloat(f) */
-/* | PBool(b) => PBool(b) */
-/* | PNil => PNil */
-/* | PInj(side, p) => PCtor(codegen_inj_side(side), [codegen_pat(p)]) */
-/* | PCons(p1, p2) => PCons(codegen_pat(p1), codegen_pat(p2)) */
-/* | PPair(p1, p2) => PTuple([codegen_pat(p1), codegen_pat(p2)]) */
-/* | PTriv => PTriv */
-/* }; */
-/* } */
+and codegen_pat = (p: Anf.pat): GrainIR.pat => {
+  switch (p) {
+  | PWild => PWild
+  | PVar(var) => PVar(var)
+  | PInt(i) => PInt(i)
+  | PFloat(f) => PFloat(f)
+  | PBool(b) => PBool(b)
+  | PNil => PNil
+  | PInj(side, p) => PCtor(codegen_inj_side(side), [codegen_pat(p)])
+  | PCons(p1, p2) => PCons(codegen_pat(p1), codegen_pat(p2))
+  | PPair(p1, p2) => PTuple([codegen_pat(p1), codegen_pat(p2)])
+  | PTriv => PTriv
+  };
+}
 
 and codegen_inj_side = (side: Anf.inj_side): Var.t => {
   switch (side) {

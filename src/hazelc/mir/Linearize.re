@@ -143,7 +143,7 @@ and linearize_bin_op =
 
 let convert_bind = (bn: bind): Anf.stmt => {
   switch (bn) {
-  | BLet(var, rec_flag, c) => {stmt_kind: SLet(var, rec_flag, c)}
+  | BLet(var, rec_flag, c) => {stmt_kind: SLet(PVar(var), rec_flag, c)}
   };
 };
 
