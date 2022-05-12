@@ -49,19 +49,20 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type params = list(Var.t)
+type params = list(pat)
 
 [@deriving sexp]
 and pat =
   | PWild
   | PVar(Var.t)
-  | PIntLit(int)
-  | PFloatLit(float)
-  | PBoolLit(bool)
-  | PListNil
+  | PInt(int)
+  | PFloat(float)
+  | PBool(bool)
+  | PNil
   | PCons(pat, pat)
-  | PPair(pat, pat)
+  | PTuple(list(pat))
   | PTriv
+  | PCtor(Var.t, list(pat))
 
 [@deriving sexp]
 and block = list(stmt)

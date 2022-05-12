@@ -149,7 +149,8 @@ and print_tuple = (els: list(GrainIR.expr)) => {
 }
 
 and print_var = (var: Var.t) => var
-and print_params = (ps: GrainIR.params) => ps |> String.concat(", ")
+and print_params = (ps: GrainIR.params) =>
+  ps |> List.map(print_pat) |> String.concat(", ")
 
 and print_lam = (params: GrainIR.params, e': GrainIR.expr) => {
   let params = print_params(params);
@@ -188,19 +189,21 @@ and print_pat = (p: GrainIR.pat) => {
   | PWild => Consts.pat_wild
   // TODO: Check if var conflicts with a keyword?
   | PVar(var) => var
-  | PIntLit(i) => string_of_int(i)
-  | PFloatLit(f) => string_of_float(f)
-  | PBoolLit(b) => string_of_bool(b)
-  | PListNil => Consts.pat_list_nil
+  | PInt(i) => string_of_int(i)
+  | PFloat(f) => string_of_float(f)
+  | PBool(b) => string_of_bool(b)
+  | PNil => Consts.pat_list_nil
   | PTriv => Consts.pat_triv
   // TODO: Optimize this?
   | PCons(p1, p2) =>
     let p1 = print_pat(p1);
     let p2 = print_pat(p2);
     sprintf("[%s, ...%s]", p1, p2);
-  | PPair(p1, p2) =>
-    let p1 = print_pat(p1);
-    let p2 = print_pat(p2);
-    sprintf("(%s, %s)", p1, p2);
+  | PTuple(ps) =>
+    let ps = ps |> List.map(print_pat) |> print_comma_sep;
+    sprintf("(%s)", ps);
+  | PCtor(ctor, ps) =>
+    let ps = ps |> List.map(print_pat) |> print_comma_sep;
+    sprintf("%s(%s)", ctor, ps);
   };
 };
