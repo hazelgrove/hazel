@@ -1,19 +1,16 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type params = list(Var.t);
+type top_block = list(top_stmt)
 
 [@deriving sexp]
-type top_block = list(top_statement)
-
-[@deriving sexp]
-and top_statement =
-  | Import(Var.t, string)
-  | Decl(decl)
+and top_stmt =
+  | TSImport(Var.t, string)
+  | TSDecl(decl)
 
 [@deriving sexp]
 and decl =
-  | Enum(enum)
+  | DEnum(enum)
 
 [@deriving sexp]
 and enum = {
@@ -25,7 +22,7 @@ and enum = {
 [@deriving sexp]
 and enum_variant = {
   ctor: Var.t,
-  params,
+  params: list(Var.t),
 };
 
 module TopBlock = {
@@ -34,67 +31,70 @@ module TopBlock = {
 
 [@deriving sexp]
 type bin_op =
-  | And
-  | Or
-  | Plus
-  | Minus
-  | Times
-  | Divide
-  | LessThan
-  | GreaterThan
-  | Equals
-  | FPlus
-  | FMinus
-  | FTimes
-  | FDivide
-  | FLessThan
-  | FGreaterThan
-  | FEquals;
+  | OpAnd
+  | OpOr
+  | OpPlus
+  | OpMinus
+  | OpTimes
+  | OpDivide
+  | OpLessThan
+  | OpGreaterThan
+  | OpEquals
+  | OpFPlus
+  | OpFMinus
+  | OpFTimes
+  | OpFDivide
+  | OpFLessThan
+  | OpFGreaterThan
+  | OpFEquals;
 
 [@deriving sexp]
-type pat =
-  | Wild
-  | Var(Var.t)
-  | IntLit(int)
-  | FloatLit(float)
-  | BoolLit(bool)
-  | ListNil
-  | Cons(pat, pat)
-  | Pair(pat, pat)
-  | Triv;
+type params = list(Var.t)
 
 [@deriving sexp]
-type block = list(statement)
+and pat =
+  | PWild
+  | PVar(Var.t)
+  | PIntLit(int)
+  | PFloatLit(float)
+  | PBoolLit(bool)
+  | PListNil
+  | PCons(pat, pat)
+  | PPair(pat, pat)
+  | PTriv
 
 [@deriving sexp]
-and statement =
-  | Let(params, expr)
-  | LetRec(params, expr)
-  | Expr(expr)
+and block = list(stmt)
+
+[@deriving sexp]
+and stmt =
+  | SLet(params, expr)
+  | SLetRec(params, expr)
+  | SExpr(expr)
 
 [@deriving sexp]
 and expr =
-  | BoolLit(bool)
-  | IntLit(int)
-  | FloatLit(float)
-  | BinOp(bin_op, expr, expr)
-  | List(list(expr))
-  | Triv
-  | Cons(expr, expr)
-  | Tuple(list(expr))
-  | Var(Var.t)
-  | Lam(params, expr)
-  | Ap(expr, args)
-  | Ctor(Var.t, args)
-  | Match(expr, list(rule))
-  | Block(block)
+  | EBoolLit(bool)
+  | EIntLit(int)
+  | EFloatLit(float)
+  | EBinOp(bin_op, expr, expr)
+  | EList(list(expr))
+  | ETriv
+  | ECons(expr, expr)
+  | ETuple(list(expr))
+  | EVar(Var.t)
+  | ELam(params, expr)
+  | EAp(expr, args)
+  | ECtor(Var.t, args)
+  | EMatch(expr, list(rule))
+  | EBlock(block)
 
 [@deriving sexp]
 and args = list(expr)
 
 [@deriving sexp]
 and rule =
-  | Rule(pat, expr);
+  | RRule(pat, expr);
 
 module Block = {
   let join = bs => List.concat(bs);

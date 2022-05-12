@@ -32,10 +32,10 @@ and print_top_block = (tb: GrainIR.top_block) => {
   tb |> List.map(print_top_statement) |> print_lines;
 }
 
-and print_top_statement = (tstmt: GrainIR.top_statement) =>
+and print_top_statement = (tstmt: GrainIR.top_stmt) =>
   switch (tstmt) {
-  | Import(name, path) => print_import(name, path)
-  | Decl(decl) => print_decl(decl)
+  | TSImport(name, path) => print_import(name, path)
+  | TSDecl(decl) => print_decl(decl)
   }
 
 and print_import = (name: Var.t, path: string) =>
@@ -44,7 +44,7 @@ and print_import = (name: Var.t, path: string) =>
 
 and print_decl = (decl: GrainIR.decl) =>
   switch (decl) {
-  | Enum(en) => print_enum(en)
+  | DEnum(en) => print_enum(en)
   }
 
 and print_enum = ({name, type_vars, variants}: GrainIR.enum) => {
@@ -75,38 +75,38 @@ and print_block = (b: GrainIR.block) => {
   sprintf("{ %s }", s);
 }
 
-and print_statement = (stmt: GrainIR.statement) =>
+and print_statement = (stmt: GrainIR.stmt) =>
   switch (stmt) {
-  | Let(params, e) =>
+  | SLet(params, e) =>
     let params = print_params(params);
     let e = print_expr(e);
     sprintf("let %s = %s", params, e);
-  | LetRec(params, e) =>
+  | SLetRec(params, e) =>
     let params = print_params(params);
     let e = print_expr(e);
     sprintf("let rec %s = %s", params, e);
-  | Expr(e) => print_expr(e)
+  | SExpr(e) => print_expr(e)
   }
 
 and print_expr = (e: GrainIR.expr) =>
   switch (e) {
-  | BoolLit(b) => b ? Consts.truelit : Consts.falselit
-  | IntLit(n) => string_of_int(n)
+  | EBoolLit(b) => b ? Consts.truelit : Consts.falselit
+  | EIntLit(n) => string_of_int(n)
   // TODO: NaN?
-  | FloatLit(f) => string_of_float(f)
-  | BinOp(op, e1, e2) => print_bin_op(op, e1, e2)
-  | List(es) =>
+  | EFloatLit(f) => string_of_float(f)
+  | EBinOp(op, e1, e2) => print_bin_op(op, e1, e2)
+  | EList(es) =>
     let es = es |> List.map(print_expr) |> String.concat(", ");
     sprintf("[%s]", es);
-  | Triv => Consts.voidlit
-  | Cons(e1, e2) => print_cons(e1, e2)
-  | Tuple(els) => print_tuple(els)
-  | Var(var) => print_var(var)
-  | Lam(params, e') => print_lam(params, e')
-  | Ap(lam, args) => print_ap(lam, args)
-  | Ctor(ctor, args) => print_ctor(ctor, args)
-  | Match(scrut, rules) => print_match(scrut, rules)
-  | Block(b) => print_block(b)
+  | ETriv => Consts.voidlit
+  | ECons(e1, e2) => print_cons(e1, e2)
+  | ETuple(els) => print_tuple(els)
+  | EVar(var) => print_var(var)
+  | ELam(params, e') => print_lam(params, e')
+  | EAp(lam, args) => print_ap(lam, args)
+  | ECtor(ctor, args) => print_ctor(ctor, args)
+  | EMatch(scrut, rules) => print_match(scrut, rules)
+  | EBlock(b) => print_block(b)
   }
 
 and print_args = (args: GrainIR.args) =>
@@ -115,22 +115,22 @@ and print_args = (args: GrainIR.args) =>
 and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
   let op =
     switch (op) {
-    | And => Consts.prim_and_op
-    | Or => Consts.prim_or_op
-    | Plus => Consts.prim_plus_op
-    | Minus => Consts.prim_minus_op
-    | Times => Consts.prim_times_op
-    | Divide => Consts.prim_divide_op
-    | LessThan => Consts.prim_less_than_op
-    | GreaterThan => Consts.prim_greater_than_op
-    | Equals => Consts.prim_equals_op
-    | FPlus => Consts.prim_plus_op
-    | FMinus => Consts.prim_minus_op
-    | FTimes => Consts.prim_times_op
-    | FDivide => Consts.prim_divide_op
-    | FLessThan => Consts.prim_less_than_op
-    | FGreaterThan => Consts.prim_greater_than_op
-    | FEquals => Consts.prim_equals_op
+    | OpAnd => Consts.prim_and_op
+    | OpOr => Consts.prim_or_op
+    | OpPlus => Consts.prim_plus_op
+    | OpMinus => Consts.prim_minus_op
+    | OpTimes => Consts.prim_times_op
+    | OpDivide => Consts.prim_divide_op
+    | OpLessThan => Consts.prim_less_than_op
+    | OpGreaterThan => Consts.prim_greater_than_op
+    | OpEquals => Consts.prim_equals_op
+    | OpFPlus => Consts.prim_plus_op
+    | OpFMinus => Consts.prim_minus_op
+    | OpFTimes => Consts.prim_times_op
+    | OpFDivide => Consts.prim_divide_op
+    | OpFLessThan => Consts.prim_less_than_op
+    | OpFGreaterThan => Consts.prim_greater_than_op
+    | OpFEquals => Consts.prim_equals_op
     };
   let e1 = print_expr(e1);
   let e2 = print_expr(e2);
@@ -176,7 +176,7 @@ and print_match = (scrut: GrainIR.expr, rules: list(GrainIR.rule)) => {
 }
 and print_rule = (rule: GrainIR.rule) => {
   switch (rule) {
-  | Rule(p, rhs) =>
+  | RRule(p, rhs) =>
     let p = print_pat(p);
     let rhs = print_expr(rhs);
     sprintf("%s => %s", p, rhs);
@@ -185,20 +185,20 @@ and print_rule = (rule: GrainIR.rule) => {
 
 and print_pat = (p: GrainIR.pat) => {
   switch (p) {
-  | Wild => Consts.pat_wild
+  | PWild => Consts.pat_wild
   // TODO: Check if var conflicts with a keyword?
-  | Var(var) => var
-  | IntLit(i) => string_of_int(i)
-  | FloatLit(f) => string_of_float(f)
-  | BoolLit(b) => string_of_bool(b)
-  | ListNil => Consts.pat_list_nil
-  | Triv => Consts.pat_triv
+  | PVar(var) => var
+  | PIntLit(i) => string_of_int(i)
+  | PFloatLit(f) => string_of_float(f)
+  | PBoolLit(b) => string_of_bool(b)
+  | PListNil => Consts.pat_list_nil
+  | PTriv => Consts.pat_triv
   // TODO: Optimize this?
-  | Cons(p1, p2) =>
+  | PCons(p1, p2) =>
     let p1 = print_pat(p1);
     let p2 = print_pat(p2);
     sprintf("[%s, ...%s]", p1, p2);
-  | Pair(p1, p2) =>
+  | PPair(p1, p2) =>
     let p1 = print_pat(p1);
     let p2 = print_pat(p2);
     sprintf("(%s, %s)", p1, p2);
