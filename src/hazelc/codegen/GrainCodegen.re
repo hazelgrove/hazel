@@ -30,6 +30,7 @@ and codegen_comp = (c: Anf.comp): GrainIR.expr => {
   | CInj(side, i) =>
     let ctor = codegen_inj_side(side);
     ECtor(ctor, [codegen_imm(i)]);
+  | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma)
   };
 }
 
@@ -57,9 +58,11 @@ and codegen_op = (op: Anf.bin_op): GrainIR.bin_op => {
 and codegen_imm = (i: Anf.imm): GrainIR.expr => {
   switch (i.imm_kind) {
   | IConst(const) => codegen_const(const)
-  | IVar(var) => EVar(var)
+  | IVar(x) => codegen_var(x)
   };
 }
+
+and codegen_var = (x: Var.t): GrainIR.expr => EVar(x)
 
 and codegen_const = (const: Anf.constant): GrainIR.expr => {
   switch (const) {
@@ -91,6 +94,26 @@ and codegen_inj_side = (side: Anf.inj_side): Var.t => {
   | CInjL => injl_ctor
   | CInjR => injr_ctor
   };
+}
+
+and codegen_meta_var = (u: MetaVar.t): GrainIR.expr => EIntLit(u)
+and codegen_meta_var_inst = (i: MetaVarInst.t): GrainIR.expr => EIntLit(i)
+and codegen_sigma = (sigma: VarMap.t_(Anf.comp)): GrainIR.expr => {
+  let sigma =
+    sigma
+    |> List.map(((x, c)) =>
+         GrainIR.ETuple([GrainIR.EStringLit(x), codegen_comp(c)])
+       );
+
+  GrainIR.EList(sigma) |> GrainStd.Map.from_list;
+}
+
+and codegen_empty_hole = (u, i, sigma): GrainIR.expr => {
+  let u = codegen_meta_var(u);
+  let i = codegen_meta_var_inst(i);
+  let sigma = codegen_sigma(sigma);
+
+  GrainStd.Hazel.Ast.empty_hole(u, i, sigma);
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {

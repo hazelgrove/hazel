@@ -60,6 +60,7 @@ and comp_kind =
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(comp))
 
 [@deriving sexp]
 and inj_side =

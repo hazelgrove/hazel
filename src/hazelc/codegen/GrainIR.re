@@ -78,6 +78,7 @@ and expr =
   | EBoolLit(bool)
   | EIntLit(int)
   | EFloatLit(float)
+  | EStringLit(string)
   | EBinOp(bin_op, expr, expr)
   | EList(list(expr))
   | ETriv

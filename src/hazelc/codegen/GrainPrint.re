@@ -21,12 +21,20 @@ module Consts = {
 };
 
 let print_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
+let print_surround = (s1, o, s2) => sprintf("%s%s%s", s1, o, s2);
 let print_lines = ss => ss |> String.concat("\n");
 let print_sep = (delim, ss) => ss |> String.concat(delim);
 let print_comma_sep = print_sep(", ");
 
-let rec print = ((tb, b): GrainIR.prog) =>
-  [print_top_block(tb), print_block_nowrap(b)] |> print_lines
+let rec print = ((tb, b): GrainIR.prog) => {
+  let tb = print_top_block(tb);
+  let b = print_block_nowrap(b);
+  if (tb != "") {
+    [tb, b] |> print_lines;
+  } else {
+    [b] |> print_lines;
+  };
+}
 
 and print_top_block = (tb: GrainIR.top_block) => {
   tb |> List.map(print_top_statement) |> print_lines;
@@ -94,6 +102,7 @@ and print_expr = (e: GrainIR.expr) =>
   | EIntLit(n) => string_of_int(n)
   // TODO: NaN?
   | EFloatLit(f) => string_of_float(f)
+  | EStringLit(s) => print_string(s)
   | EBinOp(op, e1, e2) => print_bin_op(op, e1, e2)
   | EList(es) =>
     let es = es |> List.map(print_expr) |> String.concat(", ");
@@ -108,6 +117,8 @@ and print_expr = (e: GrainIR.expr) =>
   | EMatch(scrut, rules) => print_match(scrut, rules)
   | EBlock(b) => print_block(b)
   }
+
+and print_string = (s: string) => print_surround("\"", s, "\"")
 
 and print_args = (args: GrainIR.args) =>
   args |> List.map(print_expr) |> print_comma_sep

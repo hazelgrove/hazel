@@ -153,6 +153,28 @@ and linearize_exp =
 
     (linearize_var(inj_tmp), binds, t_gen);
 
+  | EmptyHole(u, i, sigma) =>
+    let (sigma, binds, t_gen): (VarMap.t_(Anf.comp), _, _) =
+      List.fold_left(
+        ((sigma, binds, t_gen), (x, d)) => {
+          let (d, new_binds, t_gen) = linearize_exp(d, t_gen);
+          let sigma =
+            VarMap.extend(sigma, (x, {comp_kind: CImm(d)}: Anf.comp));
+          (sigma, binds @ new_binds, t_gen);
+        },
+        ([], [], t_gen),
+        sigma,
+      );
+
+    let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      binds
+      @ [
+        BLet(PVar(hole_tmp), NoRec, {comp_kind: CEmptyHole(u, i, sigma)}),
+      ];
+
+    (linearize_var(hole_tmp), binds, t_gen);
+
   | _ => raise(NotImplemented)
   };
 }
