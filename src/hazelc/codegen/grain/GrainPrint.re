@@ -30,7 +30,7 @@ let rec print = ((tb, b): GrainIR.prog) => {
   let tb = print_top_block(tb);
   let b = print_block_nowrap(b);
   if (tb != "") {
-    [tb, b] |> print_lines;
+    [tb, "", b] |> print_lines;
   } else {
     [b] |> print_lines;
   };
@@ -46,9 +46,15 @@ and print_top_statement = (tstmt: GrainIR.top_stmt) =>
   | TSDecl(decl) => print_decl(decl)
   }
 
-and print_import = (name: Var.t, path: string) =>
-  // TODO: Relative import?
-  sprintf("import %s from \"%s\"", name, path)
+and print_import = (name: Var.t, path: GrainIR.import_path) => {
+  let path =
+    switch (path) {
+    | ImportStd(path) => path
+    // TODO: Pass lib base path as argument.
+    | ImportRel(path) => sprintf("./%s", path)
+    };
+  sprintf("import %s from \"%s\"", name, path);
+}
 
 and print_decl = (decl: GrainIR.decl) =>
   switch (decl) {

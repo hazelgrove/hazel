@@ -5,8 +5,13 @@ type top_block = list(top_stmt)
 
 [@deriving sexp]
 and top_stmt =
-  | TSImport(Var.t, string)
+  | TSImport(Var.t, import_path)
   | TSDecl(decl)
+
+[@deriving sexp]
+and import_path =
+  | ImportStd(string)
+  | ImportRel(string)
 
 [@deriving sexp]
 and decl =

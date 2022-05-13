@@ -1,0 +1,4 @@
+export enum Sum<t> {
+  L(t),
+  R(t),
+}
