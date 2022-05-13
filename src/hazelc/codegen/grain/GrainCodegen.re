@@ -37,9 +37,9 @@ let codegen_fold = (codegen_f, xs, imports: Imports.t) => {
 };
 
 let rec codegen_prog =
-        ({prog_body: (stmts, c)}: Anf.prog, imports: Imports.t)
+        ({prog_body: (body, c)}: Anf.prog, imports: Imports.t)
         : (GrainIR.block, Imports.t) => {
-  let (stmts, imports) = codegen_fold(codegen_stmt, stmts, imports);
+  let (stmts, imports) = codegen_fold(codegen_stmt, body, imports);
   let (c, imports) = codegen_comp(c, imports);
   (stmts @ [SExpr(c)], imports);
 }
@@ -62,13 +62,13 @@ and codegen_stmt =
 and codegen_comp =
     (c: Anf.comp, imports: Imports.t): (GrainIR.expr, Imports.t) => {
   switch (c.comp_kind) {
-  | CImm(i) => codegen_imm(i, imports)
+  | CImm(im) => codegen_imm(im, imports)
 
-  | CBinOp(op, i1, i2) =>
+  | CBinOp(op, im1, im2) =>
     let (op, imports) = codegen_op(op, imports);
-    let (i1, imports) = codegen_imm(i1, imports);
-    let (i2, imports) = codegen_imm(i2, imports);
-    (EBinOp(op, i1, i2), imports);
+    let (im1, imports) = codegen_imm(im1, imports);
+    let (im2, imports) = codegen_imm(im2, imports);
+    (EBinOp(op, im1, im2), imports);
 
   | CAp(fn, args) =>
     let (fn, imports) = codegen_imm(fn, imports);
@@ -80,27 +80,27 @@ and codegen_comp =
     let (body, imports) = codegen_prog(body, imports);
     (ELam(params, EBlock(body)), imports);
 
-  | CCons(i1, i2) =>
-    let (i1, imports) = codegen_imm(i1, imports);
-    let (i2, imports) = codegen_imm(i2, imports);
-    (ECons(i1, i2), imports);
+  | CCons(im1, im2) =>
+    let (im1, imports) = codegen_imm(im1, imports);
+    let (im2, imports) = codegen_imm(im2, imports);
+    (ECons(im1, im2), imports);
 
-  | CPair(i1, i2) =>
-    let (i1, imports) = codegen_imm(i1, imports);
-    let (i2, imports) = codegen_imm(i2, imports);
-    (ETuple([i1, i2]), imports);
+  | CPair(im1, im2) =>
+    let (im1, imports) = codegen_imm(im1, imports);
+    let (im2, imports) = codegen_imm(im2, imports);
+    (ETuple([im1, im2]), imports);
 
-  | CInj(side, i) =>
+  | CInj(side, im) =>
     let (ctor, imports) = codegen_inj_side(side, imports);
-    let (i, imports) = codegen_imm(i, imports);
-    (ctor(i), imports);
+    let (im, imports) = codegen_imm(im, imports);
+    (ctor(im), imports);
 
   | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma, imports)
 
   | CNonEmptyHole(reason, u, i, sigma, im) =>
     codegen_non_empty_hole(reason, u, i, sigma, im, imports)
 
-  | CCast(i, t1, t2) => codegen_cast(i, t1, t2, imports)
+  | CCast(im, t1, t2) => codegen_cast(im, t1, t2, imports)
   };
 }
 
@@ -128,18 +128,18 @@ and codegen_op =
   (op, imports);
 }
 
-and codegen_imm = (i: Anf.imm, imports: Imports.t): (GrainIR.expr, Imports.t) => {
-  switch (i.imm_kind) {
+and codegen_imm =
+    (im: Anf.imm, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+  switch (im.imm_kind) {
   | IConst(const) => codegen_const(const, imports)
 
   | IVar(x) => codegen_var(x, imports)
   };
 }
 
-and codegen_var = (x: Var.t, imports: Imports.t): (GrainIR.expr, Imports.t) => (
-  EVar(x),
-  imports,
-)
+and codegen_var = (x: Var.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+  (EVar(x), imports);
+}
 
 and codegen_const =
     (const: Anf.constant, imports: Imports.t): (GrainIR.expr, Imports.t) => {
@@ -157,8 +157,8 @@ and codegen_const =
 and codegen_pat = (p: Anf.pat, imports: Imports.t): (GrainIR.pat, Imports.t) => {
   switch (p) {
   | PWild => (PWild, imports)
-  | PVar(var) => (PVar(var), imports)
-  | PInt(i) => (PInt(i), imports)
+  | PVar(x) => (PVar(x), imports)
+  | PInt(n) => (PInt(n), imports)
   | PFloat(f) => (PFloat(f), imports)
   | PBool(b) => (PBool(b), imports)
   | PNil => (PNil, imports)
@@ -219,15 +219,13 @@ and codegen_hole_reason =
   (EVar(reason), imports);
 }
 and codegen_meta_var =
-    (u: MetaVar.t, imports: Imports.t): (GrainIR.expr, Imports.t) => (
-  EIntLit(u),
-  imports,
-)
+    (u: MetaVar.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+  (EIntLit(u), imports);
+}
 and codegen_meta_var_inst =
-    (i: MetaVarInst.t, imports: Imports.t): (GrainIR.expr, Imports.t) => (
-  EIntLit(i),
-  imports,
-)
+    (i: MetaVarInst.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+  (EIntLit(i), imports);
+}
 and codegen_sigma =
     (sigma: VarMap.t_(Anf.comp), imports: Imports.t)
     : (GrainIR.expr, Imports.t) => {
@@ -270,13 +268,13 @@ and codegen_non_empty_hole =
 }
 
 and codegen_cast =
-    (i: Anf.imm, t1: HTyp.t, t2: HTyp.t, imports: Imports.t)
+    (im: Anf.imm, t1: HTyp.t, t2: HTyp.t, imports: Imports.t)
     : (GrainIR.expr, Imports.t) => {
-  let (i, imports) = codegen_imm(i, imports);
+  let (im, imports) = codegen_imm(im, imports);
   let (t1, imports) = codegen_htyp(t1, imports);
   let (t2, imports) = codegen_htyp(t2, imports);
 
-  HazelStd.Rt.(Ast.cast(i, t1, t2), Imports.add_hole_imports(imports));
+  HazelStd.Rt.(Ast.cast(im, t1, t2), Imports.add_hole_imports(imports));
 }
 
 and codegen_htyp = (t: HTyp.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {

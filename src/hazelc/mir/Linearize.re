@@ -9,29 +9,29 @@ let convert_bind = (bn: bind): Anf.stmt => {
   };
 };
 
-let rec linearize_var = (var: Var.t): Anf.imm => {imm_kind: IVar(var)}
+let rec linearize_var = (x: Var.t): Anf.imm => {imm_kind: IVar(x)}
 
 and linearize_prog =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.prog, TmpVarGen.t) => {
-  let (i, binds, t_gen) = linearize_exp(d, t_gen);
-  let stmts = binds |> List.map(convert_bind);
+  let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
+  let body = im_binds |> List.map(convert_bind);
 
-  ({prog_body: (stmts, {comp_kind: CImm(i)})}, t_gen);
+  ({prog_body: (body, {comp_kind: CImm(im)})}, t_gen);
 }
 
 and linearize_exp =
     (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
-  | BoundVar(var) => (linearize_var(var), [], t_gen)
+  | BoundVar(x) => (linearize_var(x), [], t_gen)
 
   | Let(dp, d1, d2) =>
     let (p, t_gen) = linearize_pat(dp, t_gen);
-    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
-    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
     let binds =
-      i1_binds @ [BLet(p, NoRec, {comp_kind: CImm(i1)})] @ i2_binds;
-    (i2, binds, t_gen);
+      im1_binds @ [BLet(p, NoRec, {comp_kind: CImm(im1)})] @ im2_binds;
+    (im2, binds, t_gen);
 
   | Lam(dp, _, body) =>
     let (p, t_gen) = linearize_pat(dp, t_gen);
@@ -58,11 +58,11 @@ and linearize_exp =
   // TODO: Transform DHExp.ApBuiltin into IHExp.Ap at above level? Need to
   // ensure no name conflicts.
   | ApBuiltin(name, args) =>
-    let (args, binds, t_gen) =
+    let (args, args_binds, t_gen) =
       List.fold_left(
-        ((args, binds, t_gen), arg) => {
+        ((args, args_binds, t_gen), arg) => {
           let (arg, new_binds, t_gen) = linearize_exp(arg, t_gen);
-          (args @ [arg], binds @ new_binds, t_gen);
+          (args @ [arg], args_binds @ new_binds, t_gen);
         },
         ([], [], t_gen),
         args,
@@ -72,7 +72,8 @@ and linearize_exp =
 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      binds @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(name, args)})];
+      args_binds
+      @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(name, args)})];
     (name, binds, t_gen);
 
   | BoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
@@ -120,45 +121,45 @@ and linearize_exp =
     linearize_bin_op(op, d1, d2, t_gen);
 
   | Pair(d1, d2) =>
-    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
-    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
     let (pair_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      i1_binds
-      @ i2_binds
-      @ [BLet(PVar(pair_tmp), NoRec, {comp_kind: CPair(i1, i2)})];
+      im1_binds
+      @ im2_binds
+      @ [BLet(PVar(pair_tmp), NoRec, {comp_kind: CPair(im1, im2)})];
 
     (linearize_var(pair_tmp), binds, t_gen);
 
   | Cons(d1, d2) =>
-    let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
-    let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
     let (cons_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      i1_binds
-      @ i2_binds
-      @ [BLet(PVar(cons_tmp), NoRec, {comp_kind: CCons(i1, i2)})];
+      im1_binds
+      @ im2_binds
+      @ [BLet(PVar(cons_tmp), NoRec, {comp_kind: CCons(im1, im2)})];
 
     (linearize_var(cons_tmp), binds, t_gen);
 
   | Inj(_, side, d) =>
-    let (i, binds, t_gen) = linearize_exp(d, t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
     let side = linearize_inj_side(side);
 
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      binds @ [BLet(PVar(inj_tmp), NoRec, {comp_kind: CInj(side, i)})];
+      im_binds @ [BLet(PVar(inj_tmp), NoRec, {comp_kind: CInj(side, im)})];
 
     (linearize_var(inj_tmp), binds, t_gen);
 
   | EmptyHole(u, i, sigma) =>
-    let (sigma, binds, t_gen) = linearize_sigma(sigma, t_gen);
+    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, t_gen);
 
     let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      binds
+      sigma_binds
       @ [
         BLet(PVar(hole_tmp), NoRec, {comp_kind: CEmptyHole(u, i, sigma)}),
       ];
@@ -167,29 +168,29 @@ and linearize_exp =
 
   | NonEmptyHole(reason, u, i, sigma, d') =>
     let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, t_gen);
-    let (d', d'_binds, t_gen) = linearize_exp(d', t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d', t_gen);
 
     let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       sigma_binds
-      @ d'_binds
+      @ im_binds
       @ [
         BLet(
           PVar(hole_tmp),
           NoRec,
-          {comp_kind: CNonEmptyHole(reason, u, i, sigma, d')},
+          {comp_kind: CNonEmptyHole(reason, u, i, sigma, im)},
         ),
       ];
 
     (linearize_var(hole_tmp), binds, t_gen);
 
   | Cast(d', t1, t2) =>
-    let (d', d'_binds, t_gen) = linearize_exp(d', t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d', t_gen);
 
     let (cast_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      d'_binds
-      @ [BLet(PVar(cast_tmp), NoRec, {comp_kind: CCast(d', t1, t2)})];
+      im_binds
+      @ [BLet(PVar(cast_tmp), NoRec, {comp_kind: CCast(im, t1, t2)})];
 
     (linearize_var(cast_tmp), binds, t_gen);
 
@@ -201,11 +202,11 @@ and linearize_sigma =
     (sigma: VarMap.t_(IHExp.t), t_gen: TmpVarGen.t)
     : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
   List.fold_left(
-    ((sigma, binds, t_gen), (x, d)) => {
-      let (d, new_binds, t_gen) = linearize_exp(d, t_gen);
+    ((sigma, sigma_binds, t_gen), (x, d)) => {
+      let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
       let sigma =
-        VarMap.extend(sigma, (x, {comp_kind: CImm(d)}: Anf.comp));
-      (sigma, binds @ new_binds, t_gen);
+        VarMap.extend(sigma, (x, {comp_kind: CImm(im)}: Anf.comp));
+      (sigma, sigma_binds @ im_binds, t_gen);
     },
     ([], [], t_gen),
     sigma,
@@ -213,16 +214,16 @@ and linearize_sigma =
 
 and linearize_bin_op =
     (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {
-  let (i1, i1_binds, t_gen) = linearize_exp(d1, t_gen);
-  let (i2, i2_binds, t_gen) = linearize_exp(d2, t_gen);
+  let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
+  let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
-  let (tmp, t_gen) = TmpVarGen.next(t_gen);
+  let (bin_tmp, t_gen) = TmpVarGen.next(t_gen);
   let binds =
-    i1_binds
-    @ i2_binds
-    @ [BLet(PVar(tmp), NoRec, {comp_kind: CBinOp(op, i1, i2)})];
+    im1_binds
+    @ im2_binds
+    @ [BLet(PVar(bin_tmp), NoRec, {comp_kind: CBinOp(op, im1, im2)})];
 
-  (linearize_var(tmp), binds, t_gen);
+  (linearize_var(bin_tmp), binds, t_gen);
 }
 
 and linearize_pat = (p: IHPat.t, t_gen: TmpVarGen.t): (Anf.pat, TmpVarGen.t) => {
