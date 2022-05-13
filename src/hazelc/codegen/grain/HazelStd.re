@@ -23,6 +23,15 @@ module Rt = {
       mk_ctor("NonEmptyHole", [reason, u, i, sigma, e]);
   };
 
+  module AstSexp = {
+    include Inner({
+      let name = "AstSexp";
+      let path = mk_path("ast_sexp");
+    });
+
+    let sexp_of_ast = ast => mk_ap(ident("sexpOfAst"), [ast]);
+  };
+
   module Sum = {
     include Inner({
       let name = "Sum";

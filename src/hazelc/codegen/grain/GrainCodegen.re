@@ -242,7 +242,10 @@ and codegen_empty_hole = (u, i, sigma, imports): (GrainIR.expr, Imports.t) => {
   let (i, imports) = codegen_meta_var_inst(i, imports);
   let (sigma, imports) = codegen_sigma(sigma, imports);
 
-  (HazelStd.Rt.Ast.empty_hole(u, i, sigma), imports);
+  HazelStd.Rt.(
+    Ast.empty_hole(u, i, sigma),
+    Imports.union(Imports.of_list([Ast.import, AstSexp.import]), imports),
+  );
 }
 
 and codegen_non_empty_hole =
@@ -253,7 +256,10 @@ and codegen_non_empty_hole =
   let (sigma, imports) = codegen_sigma(sigma, imports);
   let (e, imports) = codegen_imm(im, imports);
 
-  (HazelStd.Rt.Ast.non_empty_hole(reason, u, i, sigma, e), imports);
+  HazelStd.Rt.(
+    Ast.non_empty_hole(reason, u, i, sigma, e),
+    Imports.union(Imports.of_list([Ast.import, AstSexp.import]), imports),
+  );
 };
 
 let codegen_imports = (imports: Imports.t): GrainIR.top_block => {
@@ -263,7 +269,7 @@ let codegen_imports = (imports: Imports.t): GrainIR.top_block => {
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {
-  // TODO: Add necessary top-level statments.
+  // TODO: Generate code to print final result
   let (b, imports) = codegen_prog(prog, Imports.empty);
   let tb = codegen_imports(imports);
 

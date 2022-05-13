@@ -1,0 +1,68 @@
+import Ast from "./ast"
+
+import Sexp from "../../sexplib/sexp.gr"
+import * from "../../sexplib/sexpconv.gr"
+
+export let sexpOfVar = sexpOfString
+
+export let sexpOfHoleReason = reason =>
+  match (reason) {
+    Ast.TypeInconsistent => Sexp.Atom("TypeInconsistent"),
+    Ast.WrongLength => Sexp.Atom("WrongLength"),
+  }
+
+export let sexpOfMetaVar = sexpOfNumber
+export let sexpOfMetaVarInst = sexpOfNumber
+
+export let sexpOfHTyp = t =>
+  match (t) {
+    Hole => Sexp.Atom("Hole"),
+    Int => Sexp.Atom("Int"),
+    Float => Sexp.Atom("Float"),
+    Bool => Sexp.Atom("Bool"),
+    Arrow(t1, t2) => Sexp.List("Arrow", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Sum(t1, t2) => Sexp.List("Sum", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Pair(t1, t2) => Sexp.List("Pair", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    List(t) => Sexp.List("List", [sexpOfHTyp(t)]),
+  }
+
+export let sexpOfBinBoolOp = op =>
+  match (op) {
+    And => Sexp.Atom("And"),
+    Or => Sexp.Atom("Or"),
+  }
+
+export let rec sexpOfAst = ast =>
+  match (ast) {
+    EmptyHole(u, i, sigma) =>
+      Sexp.List(
+        "EmptyHole",
+        [
+          sexpOfNumber(u),
+          sexpOfNumber(i),
+          sexpOfMap(sexpOfVar, sexpOfAst, sigma),
+        ]
+      ),
+    NonEmptyHole(reason, u, i, sigma, ast) =>
+      Sexp.List(
+        "NonEmptyHole",
+        [
+          sexpOfHoleReason(reason),
+          sexpOfMetaVar(u),
+          sexpOfMetaVarInst(i),
+          sexpOfMap(sexpOfVar, sexpOfAst, sigma),
+          sexpOfAst(ast),
+        ]
+      ),
+    Cast(ast, t1, t2) =>
+      Sexp.List("Cast", [sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    FailedCast(ast, t1, t2) =>
+      Sexp.List("FailedCast", [sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Ap(fn, arg) => Sexp.List("Ap", [sexpOfAst(fn), sexpOfAst(arg)]),
+    BoolLit(b) => Sexp.List("BoolLit", [sexpOfBool(b)]),
+    BinBoolOp(op, ast1, ast2) =>
+      Sexp.List(
+        "BinBoolOp",
+        [sexpOfBinBoolOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
+      ),
+  }
