@@ -2623,12 +2623,6 @@ and ana_perform_opseq =
         // safe because pattern guard
         ty |> HTyp.get_prod_elements |> List.hd,
       );
-    // print_endline(
-    //   "first_seq = "
-    //   ++ Sexplib.Sexp.to_string(
-    //        Seq.sexp_of_t(UHExp.sexp_of_operand, UHExp.sexp_of_operator, seq),
-    //      ),
-    // );
     let (ZOpSeq(_, new_zseq), u_gen) =
       complete_tuple(
         u_gen,
@@ -2662,7 +2656,6 @@ and ana_perform_opseq =
           |> ListUtil.sublist(~lo=0, first_seq_length),
         ),
       );
-    print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_seq(first_seq)));
     let (zopseq, u_gen) =
       complete_tuple(
         u_gen,
@@ -2671,18 +2664,6 @@ and ana_perform_opseq =
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,
       );
-    print_endline(
-      "After complete_tuple = "
-      ++ Sexplib.Sexp.to_string(
-           ZOpSeq.sexp_of_t(
-             UHExp.sexp_of_operand,
-             UHExp.sexp_of_operator,
-             ZExp.sexp_of_zoperand,
-             ZExp.sexp_of_zoperator,
-             zopseq,
-           ),
-         ),
-    );
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
@@ -3082,22 +3063,17 @@ and ana_perform_operand =
 
   | (Construct(SParenthesized), CursorE(_, operand))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    print_endline(Sexplib.Sexp.to_string(UHExp.sexp_of_operand(operand)));
     // the operand wrapped by the hole
     let operand_inside_hole =
       UHExp.set_err_status_operand(NotInHole, operand);
     let operand =
       switch (Statics_Exp.syn_operand(ctx, operand_inside_hole)) {
       | Some(first_seq_ty) =>
-        print_endline(
-          "first_seq_ty: "
-          ++ Sexplib.Sexp.to_string(HTyp.sexp_of_t(first_seq_ty)),
-        );
         if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
           operand_inside_hole;
         } else {
           operand;
-        };
+        }
       | None => operand
       };
     let (zopseq, u_gen) =

@@ -1077,7 +1077,6 @@ and ana_perform_opseq =
           |> ListUtil.sublist(~lo=0, first_seq_length),
         ),
       );
-    print_endline(Sexplib.Sexp.to_string(UHPat.sexp_of_seq(first_seq)));
     let (zopseq, u_gen) =
       complete_tuple(
         u_gen,
@@ -1086,18 +1085,6 @@ and ana_perform_opseq =
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,
       );
-    print_endline(
-      "After complete_tuple = "
-      ++ Sexplib.Sexp.to_string(
-           ZOpSeq.sexp_of_t(
-             UHPat.sexp_of_operand,
-             UHPat.sexp_of_operator,
-             ZPat.sexp_of_zoperand,
-             ZPat.sexp_of_zoperator,
-             zopseq,
-           ),
-         ),
-    );
     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
     mk_ana_result(ctx, u_gen, new_zp, ty);
 
@@ -1404,15 +1391,11 @@ and ana_perform_operand =
     let operand =
       switch (Statics_Pat.syn_operand(ctx, operand_inside_hole)) {
       | Some((first_seq_ty, _)) =>
-        print_endline(
-          "first_seq_ty: "
-          ++ Sexplib.Sexp.to_string(HTyp.sexp_of_t(first_seq_ty)),
-        );
         if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
           operand_inside_hole;
         } else {
           operand;
-        };
+        }
       | None => operand
       };
     let (zopseq, u_gen) =

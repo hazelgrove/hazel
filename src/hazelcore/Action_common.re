@@ -324,11 +324,6 @@ let complete_tuple_ =
         fun
         | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
       );
-    print_endline("first_seq_length = " ++ string_of_int(first_seq_length));
-    print_endline(
-      "length of new_holes = " ++ string_of_int(List.length(new_holes)),
-    );
-    print_endline("is_after_zopseq = " ++ string_of_bool(is_after_zopseq));
 
     let new_zopseq =
       if (triggered_by_paren) {
