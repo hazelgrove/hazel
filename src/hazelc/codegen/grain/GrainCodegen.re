@@ -23,6 +23,9 @@ module Imports = {
 
   let add_hole_imports = (imports: t): t =>
     HazelStd.Rt.(union(of_list([Ast.import, AstSexp.import]), imports));
+
+  let add_sum_imports = (imports: t): t =>
+    HazelStd.Rt.(add(Sum.import, imports));
 };
 
 let codegen_fold = (codegen_f, xs, imports: Imports.t) => {
@@ -191,7 +194,7 @@ and codegen_inj_side =
     | CInjR => HazelStd.Rt.Sum.inj_r
     };
 
-  (side, Imports.add(HazelStd.Rt.Sum.import, imports));
+  (side, Imports.add_sum_imports(imports));
 }
 
 and codegen_inj_side_pat =
@@ -203,7 +206,7 @@ and codegen_inj_side_pat =
     | CInjR => HazelStd.Rt.Sum.inj_r_pat
     };
 
-  (side, Imports.add(HazelStd.Rt.Ast.import, imports));
+  (side, Imports.add_sum_imports(imports));
 }
 
 and codegen_hole_reason =
