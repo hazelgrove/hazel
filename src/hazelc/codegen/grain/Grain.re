@@ -112,8 +112,7 @@ module Run = {
 
   let run = (~opts, ropts) => {
     let cmd =
-      Opts.use_subcmd(opts, "compile")
-      |> Opts.use_args(args_list(opts, ropts));
+      Opts.use_subcmd(opts, "run") |> Opts.use_args(args_list(opts, ropts));
 
     let stdout = Unix.open_process_in(cmd);
     let stdout_lines = input_lines(stdout);
