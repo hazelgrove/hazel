@@ -21,94 +21,90 @@ module Import = {
 module Imports = {
   include Set.Make(Import);
 
-  let add_hole_imports = (imports: t): t =>
-    HazelStd.Rt.(union(of_list([Ast.import, AstSexp.import]), imports));
+  let add_hole_imports = imps =>
+    HazelStd.Rt.(union(of_list([Ast.import, AstSexp.import]), imps));
 
-  let add_sum_imports = (imports: t): t =>
-    HazelStd.Rt.(add(Sum.import, imports));
+  let add_sum_imports = imps => HazelStd.Rt.(add(Sum.import, imps));
 };
 
-let codegen_fold = (codegen_f, xs, imports: Imports.t) => {
+let codegen_fold = (codegen_f, xs, imps) => {
   List.fold_left(
-    ((xs, imports), x) => {
-      let (x, imports) = codegen_f(x, imports);
-      (xs @ [x], imports);
+    ((xs, imps), x) => {
+      let (x, imps) = codegen_f(x, imps);
+      (xs @ [x], imps);
     },
-    ([], imports),
+    ([], imps),
     xs,
   );
 };
 
 let rec codegen_prog =
-        ({prog_body: (body, c)}: Anf.prog, imports: Imports.t)
+        ({prog_body: (body, c)}: Anf.prog, imps)
         : (GrainIR.block, Imports.t) => {
-  let (stmts, imports) = codegen_fold(codegen_stmt, body, imports);
-  let (c, imports) = codegen_comp(c, imports);
-  (stmts @ [SExpr(c)], imports);
+  let (stmts, imps) = codegen_fold(codegen_stmt, body, imps);
+  let (c, imps) = codegen_comp(c, imps);
+  (stmts @ [SExpr(c)], imps);
 }
 
-and codegen_stmt =
-    (stmt: Anf.stmt, imports: Imports.t): (GrainIR.stmt, Imports.t) => {
+and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
   switch (stmt.stmt_kind) {
   | SLet(p, NoRec, c) =>
-    let (p, imports) = codegen_pat(p, imports);
-    let (c, imports) = codegen_comp(c, imports);
-    (SLet([p], c), imports);
+    let (p, imps) = codegen_pat(p, imps);
+    let (c, imps) = codegen_comp(c, imps);
+    (SLet([p], c), imps);
 
   | SLet(p, Rec, c) =>
-    let (p, imports) = codegen_pat(p, imports);
-    let (c, imports) = codegen_comp(c, imports);
-    (SLetRec([p], c), imports);
+    let (p, imps) = codegen_pat(p, imps);
+    let (c, imps) = codegen_comp(c, imps);
+    (SLetRec([p], c), imps);
   };
 }
 
-and codegen_comp =
-    (c: Anf.comp, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   switch (c.comp_kind) {
-  | CImm(im) => codegen_imm(im, imports)
+  | CImm(im) => codegen_imm(im, imps)
 
   | CBinOp(op, im1, im2) =>
-    let (op, imports) = codegen_op(op, imports);
-    let (im1, imports) = codegen_imm(im1, imports);
-    let (im2, imports) = codegen_imm(im2, imports);
-    (EBinOp(op, im1, im2), imports);
+    let (op, imps) = codegen_op(op, imps);
+    let (im1, imps) = codegen_imm(im1, imps);
+    let (im2, imps) = codegen_imm(im2, imps);
+    (EBinOp(op, im1, im2), imps);
 
   | CAp(fn, args) =>
-    let (fn, imports) = codegen_imm(fn, imports);
-    let (args, imports) = codegen_fold(codegen_imm, args, imports);
-    (EAp(fn, args), imports);
+    let (fn, imps) = codegen_imm(fn, imps);
+    let (args, imps) = codegen_fold(codegen_imm, args, imps);
+    (EAp(fn, args), imps);
 
   | CLam(params, body) =>
-    let (params, imports) = codegen_fold(codegen_pat, params, imports);
-    let (body, imports) = codegen_prog(body, imports);
-    (ELam(params, EBlock(body)), imports);
+    let (params, imps) = codegen_fold(codegen_pat, params, imps);
+    let (body, imps) = codegen_prog(body, imps);
+    (ELam(params, EBlock(body)), imps);
 
   | CCons(im1, im2) =>
-    let (im1, imports) = codegen_imm(im1, imports);
-    let (im2, imports) = codegen_imm(im2, imports);
-    (ECons(im1, im2), imports);
+    let (im1, imps) = codegen_imm(im1, imps);
+    let (im2, imps) = codegen_imm(im2, imps);
+    (ECons(im1, im2), imps);
 
   | CPair(im1, im2) =>
-    let (im1, imports) = codegen_imm(im1, imports);
-    let (im2, imports) = codegen_imm(im2, imports);
-    (ETuple([im1, im2]), imports);
+    let (im1, imps) = codegen_imm(im1, imps);
+    let (im2, imps) = codegen_imm(im2, imps);
+    (ETuple([im1, im2]), imps);
 
   | CInj(side, im) =>
-    let (ctor, imports) = codegen_inj_side(side, imports);
-    let (im, imports) = codegen_imm(im, imports);
-    (ctor(im), imports);
+    let (ctor, imps) = codegen_inj_side(side, imps);
+    let (im, imps) = codegen_imm(im, imps);
+    (ctor(im), imps);
 
-  | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma, imports)
+  | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma, imps)
 
   | CNonEmptyHole(reason, u, i, sigma, im) =>
-    codegen_non_empty_hole(reason, u, i, sigma, im, imports)
+    codegen_non_empty_hole(reason, u, i, sigma, im, imps)
 
-  | CCast(im, t1, t2) => codegen_cast(im, t1, t2, imports)
+  | CCast(im, t1, t2) => codegen_cast(im, t1, t2, imps)
   };
 }
 
-and codegen_op =
-    (op: Anf.bin_op, imports: Imports.t): (GrainIR.bin_op, Imports.t) => {
+and codegen_op = (op: Anf.bin_op, imps): (GrainIR.bin_op, Imports.t) => {
   let op: GrainIR.bin_op =
     switch (op) {
     | OpAnd => OpAnd
@@ -128,24 +124,22 @@ and codegen_op =
     | OpFGreaterThan => OpFGreaterThan
     | OpFEquals => OpFEquals
     };
-  (op, imports);
+  (op, imps);
 }
 
-and codegen_imm =
-    (im: Anf.imm, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+and codegen_imm = (im: Anf.imm, imps): (GrainIR.expr, Imports.t) => {
   switch (im.imm_kind) {
-  | IConst(const) => codegen_const(const, imports)
+  | IConst(const) => codegen_const(const, imps)
 
-  | IVar(x) => codegen_var(x, imports)
+  | IVar(x) => codegen_var(x, imps)
   };
 }
 
-and codegen_var = (x: Var.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
-  (EVar(x), imports);
+and codegen_var = (x: Var.t, imps): (GrainIR.expr, Imports.t) => {
+  (EVar(x), imps);
 }
 
-and codegen_const =
-    (const: Anf.constant, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
   let const: GrainIR.expr =
     switch (const) {
     | ConstInt(n) => EIntLit(n)
@@ -154,64 +148,61 @@ and codegen_const =
     | ConstNil => EList([])
     | ConstTriv => ETriv
     };
-  (const, imports);
+  (const, imps);
 }
 
-and codegen_pat = (p: Anf.pat, imports: Imports.t): (GrainIR.pat, Imports.t) => {
+and codegen_pat = (p: Anf.pat, imps): (GrainIR.pat, Imports.t) => {
   switch (p) {
-  | PWild => (PWild, imports)
-  | PVar(x) => (PVar(x), imports)
-  | PInt(n) => (PInt(n), imports)
-  | PFloat(f) => (PFloat(f), imports)
-  | PBool(b) => (PBool(b), imports)
-  | PNil => (PNil, imports)
+  | PWild => (PWild, imps)
+  | PVar(x) => (PVar(x), imps)
+  | PInt(n) => (PInt(n), imps)
+  | PFloat(f) => (PFloat(f), imps)
+  | PBool(b) => (PBool(b), imps)
+  | PNil => (PNil, imps)
 
   | PInj(side, p) =>
-    let (ctor, imports) = codegen_inj_side_pat(side, imports);
-    let (p, imports) = codegen_pat(p, imports);
-    (ctor(p), imports);
+    let (ctor, imps) = codegen_inj_side_pat(side, imps);
+    let (p, imps) = codegen_pat(p, imps);
+    (ctor(p), imps);
 
   | PCons(p1, p2) =>
-    let (p1, imports) = codegen_pat(p1, imports);
-    let (p2, imports) = codegen_pat(p2, imports);
-    (PCons(p1, p2), imports);
+    let (p1, imps) = codegen_pat(p1, imps);
+    let (p2, imps) = codegen_pat(p2, imps);
+    (PCons(p1, p2), imps);
 
   | PPair(p1, p2) =>
-    let (p1, imports) = codegen_pat(p1, imports);
-    let (p2, imports) = codegen_pat(p2, imports);
-    (PTuple([p1, p2]), imports);
+    let (p1, imps) = codegen_pat(p1, imps);
+    let (p2, imps) = codegen_pat(p2, imps);
+    (PTuple([p1, p2]), imps);
 
-  | PTriv => (PTriv, imports)
+  | PTriv => (PTriv, imps)
   };
 }
 
 and codegen_inj_side =
-    (side: Anf.inj_side, imports: Imports.t)
-    : (GrainIR.expr => GrainIR.expr, Imports.t) => {
+    (side: Anf.inj_side, imps): (GrainIR.expr => GrainIR.expr, Imports.t) => {
   let side =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l
     | CInjR => HazelStd.Rt.Sum.inj_r
     };
 
-  (side, Imports.add_sum_imports(imports));
+  (side, Imports.add_sum_imports(imps));
 }
 
 and codegen_inj_side_pat =
-    (side: Anf.inj_side, imports: Imports.t)
-    : (GrainIR.pat => GrainIR.pat, Imports.t) => {
+    (side: Anf.inj_side, imps): (GrainIR.pat => GrainIR.pat, Imports.t) => {
   let side =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l_pat
     | CInjR => HazelStd.Rt.Sum.inj_r_pat
     };
 
-  (side, Imports.add_sum_imports(imports));
+  (side, Imports.add_sum_imports(imps));
 }
 
 and codegen_hole_reason =
-    (reason: ErrStatus.HoleReason.t, imports: Imports.t)
-    : (GrainIR.expr, Imports.t) => {
+    (reason: ErrStatus.HoleReason.t, imps): (GrainIR.expr, Imports.t) => {
   let reason =
     HazelStd.Rt.Ast.(
       switch (reason) {
@@ -219,105 +210,99 @@ and codegen_hole_reason =
       | WrongLength => HoleReason.wrong_length
       }
     );
-  (EVar(reason), imports);
+  (EVar(reason), imps);
 }
-and codegen_meta_var =
-    (u: MetaVar.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
-  (EIntLit(u), imports);
+and codegen_meta_var = (u: MetaVar.t, imps): (GrainIR.expr, Imports.t) => {
+  (EIntLit(u), imps);
 }
 and codegen_meta_var_inst =
-    (i: MetaVarInst.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
-  (EIntLit(i), imports);
+    (i: MetaVarInst.t, imps): (GrainIR.expr, Imports.t) => {
+  (EIntLit(i), imps);
 }
 and codegen_sigma =
-    (sigma: VarMap.t_(Anf.comp), imports: Imports.t)
-    : (GrainIR.expr, Imports.t) => {
-  let (sigma, imports) =
+    (sigma: VarMap.t_(Anf.comp), imps): (GrainIR.expr, Imports.t) => {
+  let (sigma, imps) =
     codegen_fold(
-      ((x, c), imports) => {
-        let (c, imports) = codegen_comp(c, imports);
-        (GrainIR.ETuple([GrainIR.EStringLit(x), c]), imports);
+      ((x, c), imps) => {
+        let (c, imps) = codegen_comp(c, imps);
+        (GrainIR.ETuple([GrainIR.EStringLit(x), c]), imps);
       },
       sigma,
-      imports,
+      imps,
     );
 
-  (GrainIR.EList(sigma) |> GrainStd.Map.from_list, imports);
+  (GrainIR.EList(sigma) |> GrainStd.Map.from_list, imps);
 }
 
-and codegen_empty_hole = (u, i, sigma, imports): (GrainIR.expr, Imports.t) => {
-  let (u, imports) = codegen_meta_var(u, imports);
-  let (i, imports) = codegen_meta_var_inst(i, imports);
-  let (sigma, imports) = codegen_sigma(sigma, imports);
+and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
+  let (u, imps) = codegen_meta_var(u, imps);
+  let (i, imps) = codegen_meta_var_inst(i, imps);
+  let (sigma, imps) = codegen_sigma(sigma, imps);
 
-  HazelStd.Rt.(
-    Ast.empty_hole(u, i, sigma),
-    Imports.add_hole_imports(imports),
-  );
+  HazelStd.Rt.(Ast.empty_hole(u, i, sigma), Imports.add_hole_imports(imps));
 }
 
 and codegen_non_empty_hole =
-    (reason, u, i, sigma, im, imports): (GrainIR.expr, Imports.t) => {
-  let (reason, imports) = codegen_hole_reason(reason, imports);
-  let (u, imports) = codegen_meta_var(u, imports);
-  let (i, imports) = codegen_meta_var_inst(i, imports);
-  let (sigma, imports) = codegen_sigma(sigma, imports);
-  let (e, imports) = codegen_imm(im, imports);
+    (reason, u, i, sigma, im, imps): (GrainIR.expr, Imports.t) => {
+  let (reason, imps) = codegen_hole_reason(reason, imps);
+  let (u, imps) = codegen_meta_var(u, imps);
+  let (i, imps) = codegen_meta_var_inst(i, imps);
+  let (sigma, imps) = codegen_sigma(sigma, imps);
+  let (e, imps) = codegen_imm(im, imps);
 
   HazelStd.Rt.(
     Ast.non_empty_hole(reason, u, i, sigma, e),
-    Imports.add_hole_imports(imports),
+    Imports.add_hole_imports(imps),
   );
 }
 
 and codegen_cast =
-    (im: Anf.imm, t1: HTyp.t, t2: HTyp.t, imports: Imports.t)
-    : (GrainIR.expr, Imports.t) => {
-  let (im, imports) = codegen_imm(im, imports);
-  let (t1, imports) = codegen_htyp(t1, imports);
-  let (t2, imports) = codegen_htyp(t2, imports);
+    (im: Anf.imm, t1: HTyp.t, t2: HTyp.t, imps): (GrainIR.expr, Imports.t) => {
+  let (im, imps) = codegen_imm(im, imps);
+  let (t1, imps) = codegen_htyp(t1, imps);
+  let (t2, imps) = codegen_htyp(t2, imps);
 
-  HazelStd.Rt.(Ast.cast(im, t1, t2), Imports.add_hole_imports(imports));
+  HazelStd.Rt.(Ast.cast(im, t1, t2), Imports.add_hole_imports(imps));
 }
 
-and codegen_htyp = (t: HTyp.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+and codegen_htyp = (t: HTyp.t, imps): (GrainIR.expr, Imports.t) => {
   HazelStd.Rt.(
     switch (t) {
-    | Hole => (Ast.HTyp.hole, imports)
-    | Int => (Ast.HTyp.int, imports)
-    | Float => (Ast.HTyp.float, imports)
-    | Bool => (Ast.HTyp.bool, imports)
+    | Hole => (Ast.HTyp.hole, imps)
+    | Int => (Ast.HTyp.int, imps)
+    | Float => (Ast.HTyp.float, imps)
+    | Bool => (Ast.HTyp.bool, imps)
 
     | Arrow(t1, t2) =>
-      let (t1, imports) = codegen_htyp(t1, imports);
-      let (t2, imports) = codegen_htyp(t2, imports);
-      (Ast.HTyp.arrow(t1, t2), imports);
+      let (t1, imps) = codegen_htyp(t1, imps);
+      let (t2, imps) = codegen_htyp(t2, imps);
+      (Ast.HTyp.arrow(t1, t2), imps);
 
     | Sum(t1, t2) =>
-      let (t1, imports) = codegen_htyp(t1, imports);
-      let (t2, imports) = codegen_htyp(t2, imports);
-      (Ast.HTyp.sum(t1, t2), imports);
+      let (t1, imps) = codegen_htyp(t1, imps);
+      let (t2, imps) = codegen_htyp(t2, imps);
+      (Ast.HTyp.sum(t1, t2), imps);
     | Prod(ts) =>
-      let (ts, imports) = codegen_fold(codegen_htyp, ts, imports);
-      (Ast.HTyp.prod(ts), imports);
+      let (ts, imps) = codegen_fold(codegen_htyp, ts, imps);
+      (Ast.HTyp.prod(ts), imps);
 
     | List(t) =>
-      let (t, imports) = codegen_htyp(t, imports);
-      (Ast.HTyp.list(t), imports);
+      let (t, imps) = codegen_htyp(t, imps);
+      (Ast.HTyp.list(t), imps);
     }
   );
 };
 
-let codegen_imports = (imports: Imports.t): GrainIR.top_block => {
-  imports
+let codegen_imps = (imps): GrainIR.top_block => {
+  imps
   |> Imports.elements
   |> List.map(((x, path)) => GrainIR.TSImport(x, path));
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {
   // TODO: Generate code to print final result
-  let (b, imports) = codegen_prog(prog, Imports.empty);
-  let tb = codegen_imports(imports);
+  let (b, imps) = codegen_prog(prog, Imports.empty);
+  let tb = codegen_imps(imps);
 
   (tb, b);
 };

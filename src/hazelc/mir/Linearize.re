@@ -11,16 +11,14 @@ let convert_bind = (bn: bind): Anf.stmt => {
 
 let rec linearize_var = (x: Var.t): Anf.imm => {imm_kind: IVar(x)}
 
-and linearize_prog =
-    (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.prog, TmpVarGen.t) => {
+and linearize_prog = (d: IHExp.t, t_gen): (Anf.prog, TmpVarGen.t) => {
   let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
   let body = im_binds |> List.map(convert_bind);
 
   ({prog_body: (body, {comp_kind: CImm(im)})}, t_gen);
 }
 
-and linearize_exp =
-    (d: IHExp.t, t_gen: TmpVarGen.t): (Anf.imm, list(bind), TmpVarGen.t) => {
+and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d) {
   | BoundVar(x) => (linearize_var(x), [], t_gen)
 
@@ -199,7 +197,7 @@ and linearize_exp =
 }
 
 and linearize_sigma =
-    (sigma: VarMap.t_(IHExp.t), t_gen: TmpVarGen.t)
+    (sigma: VarMap.t_(IHExp.t), t_gen)
     : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
   List.fold_left(
     ((sigma, sigma_binds, t_gen), (x, d)) => {
@@ -212,8 +210,7 @@ and linearize_sigma =
     sigma,
   )
 
-and linearize_bin_op =
-    (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen: TmpVarGen.t) => {
+and linearize_bin_op = (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen) => {
   let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
   let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
@@ -226,7 +223,7 @@ and linearize_bin_op =
   (linearize_var(bin_tmp), binds, t_gen);
 }
 
-and linearize_pat = (p: IHPat.t, t_gen: TmpVarGen.t): (Anf.pat, TmpVarGen.t) => {
+and linearize_pat = (p: IHPat.t, t_gen): (Anf.pat, TmpVarGen.t) => {
   switch (p) {
   | Wild => (PWild, t_gen)
   | Var(x) => (PVar(x), t_gen)
