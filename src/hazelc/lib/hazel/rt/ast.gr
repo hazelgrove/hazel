@@ -1,0 +1,38 @@
+import Map from "map"
+
+export type Var = String
+export type VarMap<v> = Map.Map<Var, v>
+
+export type MetaVar = Number
+export type MetaVarInst = Number
+
+export enum HoleReason {
+  TypeInconsistent,
+  WrongLength,
+}
+
+export enum HTyp {
+  Hole,
+  Int,
+  Float,
+  Bool,
+  Arrow(HTyp, HTyp),
+  Sum(HTyp, HTyp),
+  Prod(List<HTyp>),
+  List(HTyp),
+}
+
+export enum BinBoolOp {
+  And,
+  Or,
+}
+
+export enum Ast {
+  EmptyHole(MetaVar, MetaVarInst, VarMap<Ast>),
+  NonEmptyHole(HoleReason, MetaVar, MetaVarInst, VarMap<Ast>, Ast),
+  Cast(Ast, HTyp, HTyp),
+  FailedCast(Ast, HTyp, HTyp),
+  Ap(Ast, Ast),
+  BoolLit(Bool),
+  BinBoolOp(BinBoolOp, Ast, Ast),
+}
