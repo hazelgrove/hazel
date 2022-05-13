@@ -300,9 +300,26 @@ let codegen_imps = (imps): GrainIR.top_block => {
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {
-  // TODO: Generate code to print final result
   let (b, imps) = codegen_prog(prog, Imports.empty);
   let tb = codegen_imps(imps);
+
+  // TODO: This is a stopgap solution
+  let rec last = xs =>
+    switch (xs) {
+    | [] => None
+    | [x] => Some(x)
+    | [_, ...xs] => last(xs)
+    };
+
+  let b =
+    switch (last(b)) {
+    | Some(stmt) =>
+      switch (stmt) {
+      | SExpr(e) => b @ [SExpr(EAp(EVar("print"), [e]))]
+      | _ => b
+      }
+    | None => b
+    };
 
   (tb, b);
 };
