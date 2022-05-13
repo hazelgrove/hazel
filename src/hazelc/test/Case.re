@@ -39,8 +39,7 @@ let compile = (exp, outpath) => {
 exception BadState;
 
 let test = ((exp, expect)) => {
-  // TODO: Use temporary file
-  let outpath = "a.wasm";
+  let outpath = Filename.temp_file("hazel", "a.wasm");
 
   let res =
     switch (compile(exp, outpath)) {
