@@ -40,10 +40,10 @@ let codegen_fold = (codegen_f, xs, imps) => {
 
 let rec codegen_prog =
         ({prog_body: (body, c)}: Anf.prog, imps)
-        : (GrainIR.block, Imports.t) => {
+        : (GrainIR.block, GrainIR.expr, Imports.t) => {
   let (stmts, imps) = codegen_fold(codegen_stmt, body, imps);
   let (c, imps) = codegen_comp(c, imps);
-  (stmts @ [SExpr(c)], imps);
+  (stmts, c, imps);
 }
 
 and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
@@ -77,7 +77,8 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
 
   | CLam(params, body) =>
     let (params, imps) = codegen_fold(codegen_pat, params, imps);
-    let (body, imps) = codegen_prog(body, imps);
+    let (body, c, imps) = codegen_prog(body, imps);
+    let body = body @ [SExpr(c)];
     (ELam(params, EBlock(body)), imps);
 
   | CCons(im1, im2) =>
@@ -300,26 +301,11 @@ let codegen_imps = (imps): GrainIR.top_block => {
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {
-  let (b, imps) = codegen_prog(prog, Imports.empty);
+  let (body, c, imps) = codegen_prog(prog, Imports.empty);
   let tb = codegen_imps(imps);
 
   // TODO: This is a stopgap solution
-  let rec last = xs =>
-    switch (xs) {
-    | [] => None
-    | [x] => Some(x)
-    | [_, ...xs] => last(xs)
-    };
-
-  let b =
-    switch (last(b)) {
-    | Some(stmt) =>
-      switch (stmt) {
-      | SExpr(e) => b @ [SExpr(EAp(EVar("print"), [e]))]
-      | _ => b
-      }
-    | None => b
-    };
+  let b = body @ [SExpr(EAp(EVar("print"), [c]))];
 
   (tb, b);
 };
