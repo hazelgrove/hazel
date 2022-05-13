@@ -3,12 +3,12 @@ open Sexplib.Std;
 [@deriving sexp]
 type unknown_type_provenance =
   | TypHole
+  | ModeSwitch
   | Internal;
 
 /* types with holes */
 [@deriving sexp]
 type t =
-  | ModeSwitch
   | Unknown(unknown_type_provenance)
   | Int
   | Float
@@ -29,7 +29,7 @@ let precedence_Sum = Operators_Typ.precedence(Sum);
 let precedence_const = Operators_Typ.precedence_const;
 let precedence = (ty: t): int =>
   switch (ty) {
-  | ModeSwitch
+  | Unknown(ModeSwitch)
   | Unknown(_)
   | Int
   | Float
@@ -49,8 +49,8 @@ let eq = (==);
 /* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Unknown(_) | ModeSwitch, _)
-  | (_, Unknown(_) | ModeSwitch) => true
+  | (Unknown(_), _)
+  | (_, Unknown(_)) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
@@ -113,12 +113,12 @@ let matched_list =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Unknown(_) | ModeSwitch) =>
+  | (_, Unknown(_)) =>
     switch (j) {
     | GLB => Some(Unknown(Internal))
     | LUB => Some(ty1)
     }
-  | (Unknown(_) | ModeSwitch, _) =>
+  | (Unknown(_), _) =>
     switch (j) {
     | GLB => Some(Unknown(Internal))
     | LUB => Some(ty2)

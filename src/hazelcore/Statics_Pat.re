@@ -113,10 +113,11 @@ and syn_operand_internal =
   /* not in hole */
   | Wild(NotInHole) => Some((Unknown(Internal), ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((ModeSwitch, ctx))
+  | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
+    Some((Unknown(ModeSwitch), ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_var_mode) {
-    | ModedVariable => Some((ModeSwitch, ctx))
+    | ModedVariable => Some((Unknown(ModeSwitch), ctx))
     | UnknownVariable =>
       let ty = HTyp.Unknown(Internal);
       Var.check_valid(x, Some((ty, Contexts.extend_gamma(ctx, (x, ty)))));
@@ -571,8 +572,8 @@ and syn_fix_holes_operand =
       u_gen,
     )
   | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ModeSwitch));
-    (operand_nih, ModeSwitch, ctx, u_gen);
+    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(ModeSwitch)));
+    (operand_nih, Unknown(ModeSwitch), ctx, u_gen);
   | IntLit(_, _) => (operand_nih, Int, ctx, u_gen)
   | FloatLit(_, _) => (operand_nih, Float, ctx, u_gen)
   | BoolLit(_, _) => (operand_nih, Bool, ctx, u_gen)

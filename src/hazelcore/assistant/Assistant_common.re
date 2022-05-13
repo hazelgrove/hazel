@@ -157,7 +157,7 @@ let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
  */
 let type_to_str = (ty: HTyp.t) => {
   switch (ty) {
-  | ModeSwitch
+  | Unknown(ModeSwitch)
   | Unknown(_) => "a"
   | Int => "an Integer"
   | Float => "a Float"

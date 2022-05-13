@@ -200,7 +200,7 @@ and ana_block_internal =
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let+ _ = syn_block(ctx, block);
     ();
   | _ => ana_block_internal(ctx, block, ty)
@@ -229,7 +229,7 @@ and ana_opseq_internal =
 and ana_opseq =
     (ctx: Contexts.t, opseq: UHExp.opseq, ty: HTyp.t): option(unit) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let+ _ = syn_opseq(ctx, opseq);
     ();
   | _ => ana_opseq_internal(ctx, opseq, ty)
@@ -238,7 +238,7 @@ and ana_skel =
     (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let+ _ = syn_skel(ctx, skel, seq);
     ();
   | _ => ana_skel_internal(ctx, skel, seq, ty)
@@ -278,7 +278,7 @@ and ana_skel_internal =
 and ana_operand =
     (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let+ _ = syn_operand(ctx, operand);
     ();
   | _ => ana_operand_internal(ctx, operand, ty)
@@ -431,7 +431,7 @@ and ana_nth_type_mode =
     (ctx: Contexts.t, n: int, opseq: UHExp.opseq, ty: HTyp.t)
     : option(Statics.type_mode) =>
   switch (ty) {
-  | ModeSwitch => syn_nth_type_mode(ctx, n, opseq)
+  | Unknown(ModeSwitch) => syn_nth_type_mode(ctx, n, opseq)
   | _ => ana_nth_type_mode_internal(ctx, n, opseq, ty)
   }
 and ana_nth_type_mode_internal =
@@ -499,7 +499,7 @@ and ana_nth_type_mode' =
     (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics.type_mode) =>
   switch (ty) {
-  | ModeSwitch => syn_nth_type_mode'(ctx, n, skel, seq)
+  | Unknown(ModeSwitch) => syn_nth_type_mode'(ctx, n, skel, seq)
   | _ => ana_nth_type_mode_interal'(ctx, n, skel, seq, ty)
   };
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
@@ -968,7 +968,7 @@ and ana_fix_holes_block =
     )
     : (UHExp.block, MetaVarGen.t) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let (block, _, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
     (block, u_gen);
@@ -1007,7 +1007,7 @@ and ana_fix_holes_opseq =
     )
     : (UHExp.opseq, MetaVarGen.t) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let (opseq, _, u_gen) =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, opseq);
     (opseq, u_gen);
@@ -1113,7 +1113,7 @@ and ana_fix_holes_skel =
     )
     : (UHExp.skel, UHExp.seq, MetaVarGen.t) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let (skel, seq, _, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
     (skel, seq, u_gen);
@@ -1220,7 +1220,7 @@ and ana_fix_holes_operand =
     )
     : (UHExp.operand, MetaVarGen.t) =>
   switch (ty) {
-  | ModeSwitch =>
+  | Unknown(ModeSwitch) =>
     let (operand, _, u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     (operand, u_gen);

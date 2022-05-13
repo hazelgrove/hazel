@@ -11,8 +11,8 @@ let rec mk =
   let diff_subtypes = (subtype_step, (ty1, ty2)) =>
     TupleUtil.map2(List.map(List.cons(subtype_step)), mk(ty1, ty2));
   switch (ty1, ty2) {
-  | (Unknown(_) | ModeSwitch, _)
-  | (_, Unknown(_) | ModeSwitch)
+  | (Unknown(_), _)
+  | (_, Unknown(_))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])

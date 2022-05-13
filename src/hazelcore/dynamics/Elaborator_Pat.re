@@ -192,7 +192,7 @@ and syn_elab_operand =
     Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_var_mode) {
-    | ModedVariable => Elaborates(Var(x), ModeSwitch, ctx, delta)
+    | ModedVariable => Elaborates(Var(x), Unknown(ModeSwitch), ctx, delta)
     | UnknownVariable =>
       let ty = HTyp.Unknown(Internal);
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
