@@ -22,7 +22,7 @@ export let sexpOfHTyp = t =>
     Bool => Sexp.Atom("Bool"),
     Arrow(t1, t2) => Sexp.List("Arrow", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
     Sum(t1, t2) => Sexp.List("Sum", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
-    Pair(t1, t2) => Sexp.List("Pair", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Prod(ts) => Sexp.List("Prod", List.map(t => sexpOfTyp(t), ts)),
     List(t) => Sexp.List("List", [sexpOfHTyp(t)]),
   }
 

@@ -68,6 +68,7 @@ and comp_kind =
       VarMap.t_(comp),
       imm,
     )
+  | CCast(imm, HTyp.t, HTyp.t)
 
 [@deriving sexp]
 and inj_side =

@@ -183,6 +183,16 @@ and linearize_exp =
 
     (linearize_var(hole_tmp), binds, t_gen);
 
+  | Cast(d', t1, t2) =>
+    let (d', d'_binds, t_gen) = linearize_exp(d', t_gen);
+
+    let (cast_tmp, t_gen) = TmpVarGen.next(t_gen);
+    let binds =
+      d'_binds
+      @ [BLet(PVar(cast_tmp), NoRec, {comp_kind: CCast(d', t1, t2)})];
+
+    (linearize_var(cast_tmp), binds, t_gen);
+
   | _ => raise(NotImplemented)
   };
 }

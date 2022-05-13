@@ -12,6 +12,10 @@ module Inner = (X: InnerMeta) => {
     args => EAp(EVar(ident(x)), args);
   };
 
+  let mk_var = (x: Var.t): GrainIR.expr => {
+    EVar(ident(x));
+  };
+
   let mk_ctor = (x: Var.t): (list(GrainIR.expr) => GrainIR.expr) => {
     args => ECtor(ident(x), args);
   };

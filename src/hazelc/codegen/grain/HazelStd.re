@@ -11,6 +11,19 @@ module Rt = {
       let path = mk_path("ast");
     });
 
+    module HTyp = {
+      let name = ident("HTyp");
+
+      let hole = mk_var("Hole");
+      let int = mk_var("Int");
+      let float = mk_var("Float");
+      let bool = mk_var("Bool");
+      let arrow = (t1, t2) => mk_ctor("Arrow", [t1, t2]);
+      let sum = (t1, t2) => mk_ctor("Sum", [t1, t2]);
+      let prod = ts => mk_ctor("Prod", ts);
+      let list = t => mk_ctor("List", [t]);
+    };
+
     module HoleReason = {
       let name = ident("HoleReason");
       let type_inconsistent = ident("TypeInconsistent");
@@ -21,6 +34,8 @@ module Rt = {
 
     let non_empty_hole = (reason, u, i, sigma, e) =>
       mk_ctor("NonEmptyHole", [reason, u, i, sigma, e]);
+
+    let cast = (e, t1, t2) => mk_ctor("Cast", [e, t1, t2]);
   };
 
   module AstSexp = {

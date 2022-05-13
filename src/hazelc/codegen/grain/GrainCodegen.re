@@ -18,7 +18,12 @@ module Import = {
     };
 };
 
-module Imports = Set.Make(Import);
+module Imports = {
+  include Set.Make(Import);
+
+  let add_hole_imports = (imports: t): t =>
+    HazelStd.Rt.(union(of_list([Ast.import, AstSexp.import]), imports));
+};
 
 let codegen_fold = (codegen_f, xs, imports: Imports.t) => {
   List.fold_left(
@@ -94,6 +99,8 @@ and codegen_comp =
 
   | CNonEmptyHole(reason, u, i, sigma, im) =>
     codegen_non_empty_hole(reason, u, i, sigma, im, imports)
+
+  | CCast(i, t1, t2) => codegen_cast(i, t1, t2, imports)
   };
 }
 
@@ -244,7 +251,7 @@ and codegen_empty_hole = (u, i, sigma, imports): (GrainIR.expr, Imports.t) => {
 
   HazelStd.Rt.(
     Ast.empty_hole(u, i, sigma),
-    Imports.union(Imports.of_list([Ast.import, AstSexp.import]), imports),
+    Imports.add_hole_imports(imports),
   );
 }
 
@@ -258,7 +265,45 @@ and codegen_non_empty_hole =
 
   HazelStd.Rt.(
     Ast.non_empty_hole(reason, u, i, sigma, e),
-    Imports.union(Imports.of_list([Ast.import, AstSexp.import]), imports),
+    Imports.add_hole_imports(imports),
+  );
+}
+
+and codegen_cast =
+    (i: Anf.imm, t1: HTyp.t, t2: HTyp.t, imports: Imports.t)
+    : (GrainIR.expr, Imports.t) => {
+  let (i, imports) = codegen_imm(i, imports);
+  let (t1, imports) = codegen_htyp(t1, imports);
+  let (t2, imports) = codegen_htyp(t2, imports);
+
+  HazelStd.Rt.(Ast.cast(i, t1, t2), Imports.add_hole_imports(imports));
+}
+
+and codegen_htyp = (t: HTyp.t, imports: Imports.t): (GrainIR.expr, Imports.t) => {
+  HazelStd.Rt.(
+    switch (t) {
+    | Hole => (Ast.HTyp.hole, imports)
+    | Int => (Ast.HTyp.int, imports)
+    | Float => (Ast.HTyp.float, imports)
+    | Bool => (Ast.HTyp.bool, imports)
+
+    | Arrow(t1, t2) =>
+      let (t1, imports) = codegen_htyp(t1, imports);
+      let (t2, imports) = codegen_htyp(t2, imports);
+      (Ast.HTyp.arrow(t1, t2), imports);
+
+    | Sum(t1, t2) =>
+      let (t1, imports) = codegen_htyp(t1, imports);
+      let (t2, imports) = codegen_htyp(t2, imports);
+      (Ast.HTyp.sum(t1, t2), imports);
+    | Prod(ts) =>
+      let (ts, imports) = codegen_fold(codegen_htyp, ts, imports);
+      (Ast.HTyp.prod(ts), imports);
+
+    | List(t) =>
+      let (t, imports) = codegen_htyp(t, imports);
+      (Ast.HTyp.list(t), imports);
+    }
   );
 };
 

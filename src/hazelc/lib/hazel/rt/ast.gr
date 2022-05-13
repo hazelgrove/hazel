@@ -18,7 +18,7 @@ export enum HTyp {
   Bool,
   Arrow(HTyp, HTyp),
   Sum(HTyp, HTyp),
-  Pair(HTyp, HTyp),
+  Prod(List<HTyp>),
   List(HTyp),
 }
 
