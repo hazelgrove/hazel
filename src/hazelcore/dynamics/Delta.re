@@ -13,35 +13,29 @@ let empty: t = (MetaVarMap.empty: t);
 
 let union = (d1, d2) => MetaVarMap.union((_, a, _) => Some(a), d1, d2);
 
-let subst_tyvar = (delta: t, i: Index.Abs.t, ty: HTyp.t): t =>
-  IntMap.bindings(delta)
-  |> List.map(((u, hole)) =>
-       switch (hole) {
-       | Hole.Expression(ty_u, ctx) => (
-           u,
-           Hole.Expression(
-             HTyp.subst(ty_u, i, ty),
-             Contexts.subst_tyvar(ctx, i, ty),
-           ),
-         )
-       | Pattern(ty_u, ctx) => (u, Pattern(ty_u, ctx))
-       | Type => (u, Type)
-       }
-     )
-  |> List.to_seq
-  |> IntMap.of_seq;
-
-let eliminate_tyvars = (delta: t, tyvars: list((TyVar.t, Kind.t))): t =>
+let subst_tyvars = (delta: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
   MetaVarMap.map(
     fun
     | Hole.Expression(ty, ctx) => {
-        let ty = HTyp.eliminate_tyvars(ty, tyvars);
-        let ctx = Contexts.eliminate_tyvars(ctx, tyvars);
+        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let tyvars =
+          List.map(((idx, ty)) => (idx, HTyp.unsafe(ty)), tyvars);
+        let ctx =
+          switch (Contexts.remove_tyvars(ctx, tyvars)) {
+          | Some(ctx) => ctx
+          | None => ctx
+          };
         Hole.Expression(ty, ctx);
       }
     | Pattern(ty, ctx) => {
-        let ty = HTyp.eliminate_tyvars(ty, tyvars);
-        let ctx = Contexts.eliminate_tyvars(ctx, tyvars);
+        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let tyvars =
+          List.map(((idx, ty)) => (idx, HTyp.unsafe(ty)), tyvars);
+        let ctx =
+          switch (Contexts.remove_tyvars(ctx, tyvars)) {
+          | Some(ctx) => ctx
+          | None => ctx
+          };
         Pattern(ty, ctx);
       }
     | Type as t => t,

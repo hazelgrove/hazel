@@ -8,30 +8,40 @@ type mode =
  * Extract from the context the variables that are consistent with the type that
  * we are looking for.
  */
-let extract_vars = (ctx: Contexts.t, ty: HTyp.t): VarMap.t(HTyp.t) =>
+let extract_vars = (ctx: Contexts.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
   Contexts.vars(ctx)
-  |> VarMap.filter(((_, ty_x)) => Contexts.consistent(ctx, ty_x, ty));
+  |> List.filter_map(((_, x, ty_x)) =>
+       if (HTyp.consistent(ctx, HTyp.of_unsafe(ty_x), ty)) {
+         Some((x, HTyp.of_unsafe(ty_x)));
+       } else {
+         None;
+       }
+     );
 
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
-let fun_vars = (ctx: Contexts.t, ty: HTyp.t) => {
+let fun_vars = (ctx: Contexts.t, ty: HTyp.t): list((Var.t, HTyp.t)) => {
   let rec compatible_funs = (right_ty: HTyp.t) =>
-    if (Contexts.consistent(ctx, right_ty, ty)) {
+    if (HTyp.consistent(ctx, right_ty, ty)) {
       true;
     } else {
-      switch (Contexts.head_normalize(ctx, right_ty)) {
+      switch (HTyp.head_normalize(ctx, right_ty)) {
       | Arrow(_, right_ty) => compatible_funs(right_ty)
       | _ => false
       };
     };
-  let can_extract = ((_, ty: HTyp.t)) => {
-    switch (Contexts.head_normalize(ctx, ty)) {
+  let can_extract = ((_, _, ty: HTypSyntax.t(Index.absolute))) => {
+    switch (HTyp.head_normalize(ctx, HTyp.of_unsafe(ty))) {
     | Arrow(_, ty2) => compatible_funs(ty2)
     | _ => false
     };
   };
-  Contexts.vars(ctx) |> VarMap.filter(can_extract);
+  Contexts.vars(ctx)
+  |> List.filter_map(
+       ((_, x: Var.t, ty: HTypSyntax.t(Index.absolute)) as var) =>
+       can_extract(var) ? Some((x, HTyp.of_unsafe(ty))) : None
+     );
 };
 
 /**
@@ -73,7 +83,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynBranchClause(join, typed, _, ctx) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (Contexts.consistent(ctx, ty, got_ty)) {
+      if (HTyp.consistent(ctx, ty, got_ty)) {
         (Some(HTyp.hole), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);

@@ -6,11 +6,10 @@ let wrap = (ty: HTyp.t): t => (Contexts.initial, ty);
 let many = (ctx: Contexts.t, tys: list(HTyp.t)): list(t) =>
   List.map(ty => (ctx, ty), tys);
 
-let normalize = ((ctx, ty): t): HTyp.normalized =>
-  Contexts.normalize(ctx, ty);
+let normalize = ((ctx, ty): t): HTyp.normalized => HTyp.normalize(ctx, ty);
 
 let head_normalize = ((ctx, ty): t): HTyp.head_normalized =>
-  Contexts.head_normalize(ctx, ty);
+  HTyp.head_normalize(ctx, ty);
 
 let equivalent = (dty1: t, dty2: t): bool =>
   HTyp.normalized_equivalent(normalize(dty1), normalize(dty2));

@@ -251,7 +251,7 @@ and ana_cursor_info_zopseq =
   // but we want all comma operators in an opseq to
   // show the complete product type
   let seq = zseq |> ZPat.erase_zseq;
-  let ty_h = Contexts.head_normalize(ctx, ty);
+  let ty_h = HTyp.head_normalize(ctx, ty);
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -402,7 +402,7 @@ and ana_cursor_info_skel =
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (Contexts.matched_list(ctx, ty)) {
+      switch (HTyp.matched_list(ctx, ty)) {
       | None => None
       | Some(ty_elt) =>
         switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
@@ -554,7 +554,7 @@ and ana_cursor_info_zoperand =
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand)
   | InjZ(NotInHole, position, zbody) =>
-    switch (Contexts.matched_sum(ctx, ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty_body = InjSide.pick(position, tyL, tyR);

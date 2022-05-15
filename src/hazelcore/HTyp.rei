@@ -57,25 +57,25 @@ let precedence_Arrow: int;
 let precedence_Sum: int;
 let precedence: t => int;
 
-let normalize: (TyCtx.t, t) => normalized;
-let head_normalize: (TyCtx.t, t) => head_normalized;
+let normalize: (Contexts.t, t) => normalized;
+let head_normalize: (Contexts.t, t) => head_normalized;
 let normalized_consistent: (normalized, normalized) => bool;
 let normalized_equivalent: (normalized, normalized) => bool;
 
-let consistent: (TyCtx.t, t, t) => bool;
-let equivalent: (TyCtx.t, t, t) => bool;
+let consistent: (Contexts.t, t, t) => bool;
+let equivalent: (Contexts.t, t, t) => bool;
 
 let get_prod_elements: head_normalized => list(t);
 let get_prod_arity: head_normalized => int;
 
-let matched_arrow: (TyCtx.t, t) => option((t, t));
-let matched_sum: (TyCtx.t, t) => option((t, t));
-let matched_list: (TyCtx.t, t) => option(t);
+let matched_arrow: (Contexts.t, t) => option((t, t));
+let matched_sum: (Contexts.t, t) => option((t, t));
+let matched_list: (Contexts.t, t) => option(t);
 
 let complete: t => bool;
 
-let join: (TyCtx.t, join, t, t) => option(t);
-let join_all: (TyCtx.t, join, list(t)) => option(t);
+let join: (Contexts.t, join, t, t) => option(t);
+let join_all: (Contexts.t, join, list(t)) => option(t);
 
 [@deriving sexp]
 type ground_cases =
@@ -90,5 +90,4 @@ let grounded_List: ground_cases;
 
 let ground_cases_of: normalized => ground_cases;
 
-let subst: (t, Index.Abs.t, t) => t;
-let eliminate_tyvars: (t, list((TyVar.t, KindCore.t(Index.absolute)))) => t;
+let subst_tyvars: (t, list((Index.Abs.t, t))) => t;

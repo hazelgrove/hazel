@@ -20,7 +20,7 @@ let read_with_tyvar =
     : option((Contexts.t, UHExp.t, MetaVarGen.t)) => {
   open OptUtil.Syntax;
   let ctx = Contexts.initial;
-  let ctx = Contexts.push_tyvar(ctx, name, Kind.singleton(ty));
+  let ctx = Contexts.add_tyvar(ctx, name, Kind.singleton(ty));
   // let+ e = UHExpTest.read(ctx, text);
   let+ e = UHExpTest.read(text);
   let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int);
@@ -54,7 +54,7 @@ let test_tyvar_actions =
             Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)),
           );
         };
-        Contexts.equivalent(ctx, ty, t);
+        HTyp.equivalent(ctx, ty, t);
       | Error(_) => None
       };
     }

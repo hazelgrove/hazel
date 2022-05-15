@@ -94,7 +94,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.hole, ctx, u_gen));
   | Var(x) =>
-    let ctx = Contexts.bind_var(ctx, x, HTyp.hole);
+    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.hole, ctx, u_gen));
   };
@@ -129,7 +129,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (Contexts.consistent(ctx, ty, ty')) {
+      if (HTyp.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);
@@ -142,7 +142,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
-    let ctx = Contexts.bind_var(ctx, x, ty);
+    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   };
@@ -941,7 +941,7 @@ and ana_perform_opseq =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = Contexts.head_normalize(ctx, ty);
+  let ty_h = HTyp.head_normalize(ctx, ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1152,7 +1152,7 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  let ty_h = Contexts.head_normalize(ctx, ty);
+  let ty_h = HTyp.head_normalize(ctx, ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1349,7 +1349,7 @@ and ana_perform_operand =
     mk_ana_result(ctx, u_gen, new_zp, ty);
 
   | (Construct(SInj(side)), CursorP(_)) =>
-    switch (Contexts.matched_sum(ctx, ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, u_gen) =
@@ -1442,7 +1442,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (Contexts.matched_sum(ctx, ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | None => Failed
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
@@ -1500,7 +1500,7 @@ and ana_perform_operand =
         let (new_op, ctx, u_gen) =
           Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
         let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-        if (Contexts.consistent(ctx, ty, ty')) {
+        if (HTyp.consistent(ctx, ty, ty')) {
           Succeeded((new_zopseq, ctx, u_gen));
         } else {
           let (new_zopseq, u_gen) =
@@ -1514,7 +1514,7 @@ and ana_perform_operand =
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (Contexts.consistent(ctx, ty, ty')) {
+      if (HTyp.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
         let (zp, u_gen) = zp |> ZPat.mk_inconsistent(u_gen);

@@ -41,7 +41,7 @@ let text_operand =
       (TyVar(InHole(Unbound, u), name), ctx, u_gen);
     | Some(i) =>
       let kind = Kind.singleton(HTyp.tyvar(i, name));
-      let ctx = Contexts.push_tyvar(ctx, name, kind);
+      let ctx = Contexts.add_tyvar(ctx, name, kind);
       (TyVar(NotInTyVarHole(i), name), ctx, u_gen);
     }
   };

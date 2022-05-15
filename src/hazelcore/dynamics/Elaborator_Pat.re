@@ -139,7 +139,7 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), HTyp.hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.bind_var(ctx, x, HTyp.hole);
+    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
     Elaborates(Var(x), HTyp.hole, ctx, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
@@ -185,7 +185,7 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t => {
-  let ty_h = Contexts.head_normalize(ctx, ty);
+  let ty_h = HTyp.head_normalize(ctx, ty);
   // handle n-tuples
   switch (Statics_Pat.tuple_zip(skel, ty_h)) {
   | Some(skel_tys) =>
@@ -301,7 +301,7 @@ and ana_elab_skel =
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    switch (Contexts.matched_list(ctx, ty)) {
+    switch (HTyp.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
       switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
@@ -353,7 +353,7 @@ and ana_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.bind_var(ctx, x, ty);
+    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)
@@ -361,13 +361,13 @@ and ana_elab_operand =
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
   | ListNil(NotInHole) =>
-    switch (Contexts.matched_list(ctx, ty)) {
+    switch (HTyp.matched_list(ctx, ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) => Elaborates(ListNil, HTyp.list(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
   | Inj(NotInHole, side, p1) =>
-    switch (Contexts.matched_sum(ctx, ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((tyL, tyR)) =>
       let ty1 = InjSide.pick(side, tyL, tyR);

@@ -36,7 +36,7 @@ and syn_fix_holes_operand =
     switch (Contexts.tyvar_kind(ctx, i)) {
     | Some(k)
         when
-          Contexts.tyvar_name(ctx, i) == Some(name)
+          Contexts.tyvar(ctx, i) == Some(name)
           && Kind.consistent_subkind(ctx, k', k) => (
         operand,
         k',

@@ -3,8 +3,8 @@ open Sexplib.Std;
 /* types with holes */
 [@deriving sexp]
 type t('idx) =
-  | TyVar(Index.t('idx), string)
-  | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, string)
+  | TyVar(Index.t('idx), TyVar.t)
+  | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
   | Hole
   | Int
   | Float

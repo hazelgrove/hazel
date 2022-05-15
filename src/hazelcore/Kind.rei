@@ -10,4 +10,4 @@ let consistent_subkind: (Contexts.t, t, t) => bool;
 
 let canonical_type: t => HTyp.t;
 
-let eliminate_tyvars: (t, list((TyVar.t, t))) => t;
+let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;

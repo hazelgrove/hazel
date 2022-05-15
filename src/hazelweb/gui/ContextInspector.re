@@ -97,8 +97,8 @@ let view =
       )
     };
 
-  let context_entry = (sigma, (x, ty)) => {
-    let static_info = static_info((x, ty));
+  let context_entry = (sigma, (_, x, ty)) => {
+    let static_info = static_info((x, HTyp.of_unsafe(ty)));
     let children =
       switch (dynamic_info(sigma, x)) {
       | Some(dynamic_info) => [static_info, dynamic_info]
@@ -309,25 +309,24 @@ let view =
 
   let context_view = {
     let ctx = program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
-    let gamma = Contexts.vars(ctx);
     let sigma =
       if (settings.evaluate) {
         let (_, hii, _) = program |> Program.get_result;
         switch (selected_instance) {
-        | None => Environment.id_env(gamma)
+        | None => Environment.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
-            Environment.id_env(gamma);
+            Environment.id_env(ctx);
           | Some((sigma, _)) => sigma
           }
         };
       } else {
-        Environment.id_env(gamma);
+        Environment.id_env(ctx);
       };
-    switch (VarMap.to_list(gamma)) {
+    switch (Contexts.vars(ctx)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
@@ -338,10 +337,10 @@ let view =
           ),
         ],
       )
-    | ctx_lst =>
+    | vars =>
       Node.div(
         [Attr.classes(["the-context"])],
-        List.map(context_entry(sigma), ctx_lst),
+        List.map(context_entry(sigma), vars),
       )
     };
   };
@@ -353,9 +352,8 @@ let view =
     if (settings.evaluate) {
       let ctx =
         program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
-      let gamma = Contexts.vars(ctx);
       let (_, hii, _) = program |> Program.get_result;
-      if (VarMap.is_empty(gamma)) {
+      if (List.length(Contexts.vars(ctx)) == 0) {
         Node.div([], []);
       } else {
         let children =

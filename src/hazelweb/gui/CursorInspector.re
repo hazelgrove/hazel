@@ -70,8 +70,8 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
 
 let pat_ana_subsumed_msg =
     (ctx, expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (Contexts.equivalent(ctx, expected_ty, got_ty)
-      || Contexts.equivalent(ctx, got_ty, HTyp.hole)) {
+  if (HTyp.equivalent(ctx, expected_ty, got_ty)
+      || HTyp.equivalent(ctx, got_ty, HTyp.hole)) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -90,7 +90,7 @@ let syn_branch_clause_msg =
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (Contexts.consistent(ctx, ty, got_ty)) {
+    if (HTyp.consistent(ctx, ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
@@ -682,7 +682,7 @@ let view =
     | SynBranchClause(join, typed, _, ctx) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (Contexts.consistent(ctx, ty, got_ty)) {
+        if (HTyp.consistent(ctx, ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;
