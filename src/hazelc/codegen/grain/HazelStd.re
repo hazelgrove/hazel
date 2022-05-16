@@ -44,7 +44,37 @@ module Rt = {
       let path = mk_path("ast_sexp");
     });
 
-    let sexp_of_ast = ast => mk_ap(ident("sexpOfAst"), [ast]);
+    let sexp_of_ast = ast => mk_ap("sexpOfAst", [ast]);
+  };
+
+  module AstOps = {
+    include Inner({
+      let name = "AstOps";
+      let path = mk_path("ast_ops");
+    });
+
+    let indet_and = (ast1, ast2) => mk_ap("and", [ast1, ast2]);
+    let indet_or = (ast1, ast2) => mk_ap("or", [ast1, ast2]);
+
+    let indet_plus = (ast1, ast2) => mk_ap("plus", [ast1, ast2]);
+    let indet_minus = (ast1, ast2) => mk_ap("minus", [ast1, ast2]);
+    let indet_times = (ast1, ast2) => mk_ap("times", [ast1, ast2]);
+    let indet_divide = (ast1, ast2) => mk_ap("divide", [ast1, ast2]);
+
+    let indet_less_than = (ast1, ast2) => mk_ap("lessThan", [ast1, ast2]);
+    let indet_greater_than = (ast1, ast2) =>
+      mk_ap("greaterThan", [ast1, ast2]);
+    let indet_equals = (ast1, ast2) => mk_ap("equals", [ast1, ast2]);
+
+    let indet_fplus = (ast1, ast2) => mk_ap("fplus", [ast1, ast2]);
+    let indet_fminus = (ast1, ast2) => mk_ap("fminus", [ast1, ast2]);
+    let indet_ftimes = (ast1, ast2) => mk_ap("ftimes", [ast1, ast2]);
+    let indet_fdivide = (ast1, ast2) => mk_ap("fdivide", [ast1, ast2]);
+
+    let indet_fless_than = (ast1, ast2) => mk_ap("flessThan", [ast1, ast2]);
+    let indet_fgreater_than = (ast1, ast2) =>
+      mk_ap("fgreaterThan", [ast1, ast2]);
+    let indet_fequals = (ast1, ast2) => mk_ap("fequals", [ast1, ast2]);
   };
 
   module Sum = {

@@ -22,7 +22,9 @@ module Imports = {
   include Set.Make(Import);
 
   let add_hole_imports = imps =>
-    HazelStd.Rt.(union(of_list([Ast.import, AstSexp.import]), imps));
+    HazelStd.Rt.(
+      union(of_list([Ast.import, AstSexp.import, AstOps.import]), imps)
+    );
 
   let add_sum_imports = imps => HazelStd.Rt.(add(Sum.import, imps));
 };
@@ -64,11 +66,7 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   switch (c.comp_kind) {
   | CImm(im) => codegen_imm(im, imps)
 
-  | CBinOp(op, im1, im2) =>
-    let (op, imps) = codegen_op(op, imps);
-    let (e1, imps) = codegen_imm(im1, imps);
-    let (e2, imps) = codegen_imm(im2, imps);
-    (EBinOp(op, e1, e2), imps);
+  | CBinOp(op, im1, im2) => codegen_bin_op(op, im1, im2, c.comp_indet, imps)
 
   | CAp(fn, args) =>
     let (fn', imps) = codegen_imm(fn, imps);
@@ -127,6 +125,46 @@ and codegen_op = (op: Anf.bin_op, imps): (GrainIR.bin_op, Imports.t) => {
     };
   (op, imps);
 }
+
+and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
+  let op =
+    HazelStd.Rt.(
+      switch (op) {
+      | OpAnd => AstOps.indet_and
+      | OpOr => AstOps.indet_or
+      | OpPlus => AstOps.indet_plus
+      | OpMinus => AstOps.indet_minus
+      | OpTimes => AstOps.indet_times
+      | OpDivide => AstOps.indet_divide
+      | OpLessThan => AstOps.indet_less_than
+      | OpGreaterThan => AstOps.indet_greater_than
+      | OpEquals => AstOps.indet_equals
+      | OpFPlus => AstOps.indet_fplus
+      | OpFMinus => AstOps.indet_fminus
+      | OpFTimes => AstOps.indet_ftimes
+      | OpFDivide => AstOps.indet_fdivide
+      | OpFLessThan => AstOps.indet_fless_than
+      | OpFGreaterThan => AstOps.indet_fgreater_than
+      | OpFEquals => AstOps.indet_fequals
+      }
+    );
+  (op, imps);
+}
+
+and codegen_bin_op =
+    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Hir.has_indet, imps)
+    : (GrainIR.expr, Imports.t) =>
+  if (!indet) {
+    let (op, imps) = codegen_op(op, imps);
+    let (e1, imps) = codegen_imm(im1, imps);
+    let (e2, imps) = codegen_imm(im2, imps);
+    (EBinOp(op, e1, e2), imps);
+  } else {
+    let (op, imps) = codegen_bin_op_indet(op, imps);
+    let (e1, imps) = codegen_imm(im1, imps);
+    let (e2, imps) = codegen_imm(im2, imps);
+    (op(e1, e2), imps);
+  }
 
 and codegen_imm = (im: Anf.imm, imps): (GrainIR.expr, Imports.t) => {
   switch (im.imm_kind) {
