@@ -37,7 +37,7 @@ and constant =
   | ConstInt(int)
   | ConstFloat(float)
   | ConstBool(bool)
-  | ConstNil
+  | ConstNil(HTyp.t)
   | ConstTriv
 
 [@deriving sexp]

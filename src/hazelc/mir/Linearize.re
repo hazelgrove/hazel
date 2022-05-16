@@ -80,7 +80,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
   | FloatLit(f) => ({imm_kind: IConst(ConstFloat(f))}, [], t_gen)
 
-  | ListNil(_) => ({imm_kind: IConst(ConstNil)}, [], t_gen)
+  | ListNil(ty) => ({imm_kind: IConst(ConstNil(ty))}, [], t_gen)
 
   | Triv => ({imm_kind: IConst(ConstTriv)}, [], t_gen)
 

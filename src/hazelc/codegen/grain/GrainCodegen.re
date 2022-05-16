@@ -146,7 +146,7 @@ and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
     | ConstInt(n) => EIntLit(n)
     | ConstFloat(f) => EFloatLit(f)
     | ConstBool(b) => EBoolLit(b)
-    | ConstNil => EList([])
+    | ConstNil(_) => EList([])
     | ConstTriv => ETriv
     };
   (const, imps);
