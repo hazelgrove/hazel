@@ -20,7 +20,10 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type pat =
+type pat = {pat_kind}
+
+[@deriving sexp]
+and pat_kind = 
   | PWild
   | PVar(Var.t)
   | PInt(int)

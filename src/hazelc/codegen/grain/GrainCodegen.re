@@ -153,7 +153,7 @@ and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
 }
 
 and codegen_pat = (p: Anf.pat, imps): (GrainIR.pat, Imports.t) => {
-  switch (p) {
+  switch (p.pat_kind) {
   | PWild => (PWild, imps)
   | PVar(x) => (PVar(x), imps)
   | PInt(n) => (PInt(n), imps)

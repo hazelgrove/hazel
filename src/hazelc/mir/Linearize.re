@@ -38,7 +38,7 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let lam: Anf.comp = {comp_kind: CLam([p], body)};
     let (lam_tmp, t_gen) = TmpVarGen.next(t_gen);
 
-    let binds = [BLet(PVar(lam_tmp), NoRec, lam)];
+    let binds = [BLet({pat_kind: PVar(lam_tmp)}, NoRec, lam)];
     ({imm_kind: IVar(lam_tmp)}, binds, t_gen);
 
   | EAp(fn, arg) =>
@@ -49,7 +49,13 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       fn_binds
       @ arg_binds
-      @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(fn, [arg])})];
+      @ [
+        BLet(
+          {pat_kind: PVar(ap_tmp)},
+          NoRec,
+          {comp_kind: CAp(fn, [arg])},
+        ),
+      ];
 
     ({imm_kind: IVar(ap_tmp)}, binds, t_gen);
 
@@ -71,7 +77,13 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       args_binds
-      @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(name, args)})];
+      @ [
+        BLet(
+          {pat_kind: PVar(ap_tmp)},
+          NoRec,
+          {comp_kind: CAp(name, args)},
+        ),
+      ];
     (name, binds, t_gen);
 
   | EBoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
@@ -126,7 +138,13 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       im1_binds
       @ im2_binds
-      @ [BLet(PVar(pair_tmp), NoRec, {comp_kind: CPair(im1, im2)})];
+      @ [
+        BLet(
+          {pat_kind: PVar(pair_tmp)},
+          NoRec,
+          {comp_kind: CPair(im1, im2)},
+        ),
+      ];
 
     (linearize_var(pair_tmp), binds, t_gen);
 
@@ -138,7 +156,13 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       im1_binds
       @ im2_binds
-      @ [BLet(PVar(cons_tmp), NoRec, {comp_kind: CCons(im1, im2)})];
+      @ [
+        BLet(
+          {pat_kind: PVar(cons_tmp)},
+          NoRec,
+          {comp_kind: CCons(im1, im2)},
+        ),
+      ];
 
     (linearize_var(cons_tmp), binds, t_gen);
 
@@ -148,7 +172,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
 
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
-      im_binds @ [BLet(PVar(inj_tmp), NoRec, {comp_kind: CInj(side, im)})];
+      im_binds
+      @ [
+        BLet(
+          {pat_kind: PVar(inj_tmp)},
+          NoRec,
+          {comp_kind: CInj(side, im)},
+        ),
+      ];
 
     (linearize_var(inj_tmp), binds, t_gen);
 
@@ -159,7 +190,11 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       sigma_binds
       @ [
-        BLet(PVar(hole_tmp), NoRec, {comp_kind: CEmptyHole(u, i, sigma)}),
+        BLet(
+          {pat_kind: PVar(hole_tmp)},
+          NoRec,
+          {comp_kind: CEmptyHole(u, i, sigma)},
+        ),
       ];
 
     (linearize_var(hole_tmp), binds, t_gen);
@@ -174,7 +209,7 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
       @ im_binds
       @ [
         BLet(
-          PVar(hole_tmp),
+          {pat_kind: PVar(hole_tmp)},
           NoRec,
           {comp_kind: CNonEmptyHole(reason, u, i, sigma, im)},
         ),
@@ -188,7 +223,13 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (cast_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       im_binds
-      @ [BLet(PVar(cast_tmp), NoRec, {comp_kind: CCast(im, t1, t2)})];
+      @ [
+        BLet(
+          {pat_kind: PVar(cast_tmp)},
+          NoRec,
+          {comp_kind: CCast(im, t1, t2)},
+        ),
+      ];
 
     (linearize_var(cast_tmp), binds, t_gen);
 
@@ -218,32 +259,38 @@ and linearize_bin_op = (op: Anf.bin_op, d1: Hir.expr, d2: Hir.expr, t_gen) => {
   let binds =
     im1_binds
     @ im2_binds
-    @ [BLet(PVar(bin_tmp), NoRec, {comp_kind: CBinOp(op, im1, im2)})];
+    @ [
+      BLet(
+        {pat_kind: PVar(bin_tmp)},
+        NoRec,
+        {comp_kind: CBinOp(op, im1, im2)},
+      ),
+    ];
 
   (linearize_var(bin_tmp), binds, t_gen);
 }
 
 and linearize_pat = (p: Hir.pat, t_gen): (Anf.pat, TmpVarGen.t) => {
   switch (p.pat_kind) {
-  | PWild => (PWild, t_gen)
-  | PVar(x) => (PVar(x), t_gen)
-  | PIntLit(i) => (PInt(i), t_gen)
-  | PFloatLit(f) => (PFloat(f), t_gen)
-  | PBoolLit(b) => (PBool(b), t_gen)
+  | PWild => ({pat_kind: PWild}, t_gen)
+  | PVar(x) => ({pat_kind: PVar(x)}, t_gen)
+  | PIntLit(i) => ({pat_kind: PInt(i)}, t_gen)
+  | PFloatLit(f) => ({pat_kind: PFloat(f)}, t_gen)
+  | PBoolLit(b) => ({pat_kind: PBool(b)}, t_gen)
   | PInj(side, p) =>
     let side = linearize_inj_side(side);
     let (p, t_gen) = linearize_pat(p, t_gen);
-    (PInj(side, p), t_gen);
-  | PListNil => (PNil, t_gen)
+    ({pat_kind: PInj(side, p)}, t_gen);
+  | PListNil => ({pat_kind: PNil}, t_gen)
   | PCons(p1, p2) =>
     let (p1, t_gen) = linearize_pat(p1, t_gen);
     let (p2, t_gen) = linearize_pat(p2, t_gen);
-    (PCons(p1, p2), t_gen);
+    ({pat_kind: PCons(p1, p2)}, t_gen);
   | PPair(p1, p2) =>
     let (p1, t_gen) = linearize_pat(p1, t_gen);
     let (p2, t_gen) = linearize_pat(p2, t_gen);
-    (PPair(p1, p2), t_gen);
-  | PTriv => (PTriv, t_gen)
+    ({pat_kind: PPair(p1, p2)}, t_gen);
+  | PTriv => ({pat_kind: PTriv}, t_gen)
   | PEmptyHole(_)
   | PNonEmptyHole(_)
   | PKeyword(_)
