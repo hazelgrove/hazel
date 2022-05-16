@@ -19,6 +19,6 @@ export let or = (x : Number, y : Number) => {
     } else {
         let x = builder(x)
         let y = builder(y)
-        buildBinBoolOpAnd(x, y)
+        buildBinBoolOpOr(x, y)
     }
 }
