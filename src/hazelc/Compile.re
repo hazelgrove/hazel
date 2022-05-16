@@ -57,7 +57,7 @@ type state =
   | Source(source)
   | Parsed(UHExp.t)
   | Elaborated(DHExp.t)
-  | Transformed(IHExp.t)
+  | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Grainized(GrainIR.prog)
   | Printed(string)

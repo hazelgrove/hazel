@@ -18,7 +18,7 @@ type state =
   | Source(source)
   | Parsed(UHExp.t)
   | Elaborated(DHExp.t)
-  | Transformed(IHExp.t)
+  | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Grainized(GrainIR.prog)
   | Printed(string)
@@ -55,7 +55,7 @@ let stop_after_wasmized: state => resume_action;
 let compile_dhexp:
   (~opts: opts=?, string, source) => result(DHExp.t, next_error);
 let compile_ihexp:
-  (~opts: opts=?, string, source) => result(IHExp.t, next_error);
+  (~opts: opts=?, string, source) => result(Hir.expr, next_error);
 let compile_anf:
   (~opts: opts=?, string, source) => result(Anf.prog, next_error);
 let compile_grain:

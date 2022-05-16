@@ -60,7 +60,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
         Compile.compile_ihexp(~opts, out, SourceChannel(source_file));
       switch (res) {
       | Ok(d) =>
-        let output = d |> IHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+        let output = d |> Hir.sexp_of_expr |> Sexplib.Sexp.to_string_hum;
         write_out(output);
       | Error(err) => Error(err)
       };
@@ -94,7 +94,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     switch (err) {
     | ParseError(err) => print_endline(err)
     | ElaborateError => print_endline("elaboration error")
-    | GrainError => print_endline("grain error")
+    | GrainError => ()
     }
   };
 };

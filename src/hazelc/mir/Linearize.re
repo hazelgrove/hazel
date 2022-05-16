@@ -11,18 +11,18 @@ let convert_bind = (bn: bind): Anf.stmt => {
 
 let rec linearize_var = (x: Var.t): Anf.imm => {imm_kind: IVar(x)}
 
-and linearize_prog = (d: IHExp.t, t_gen): (Anf.prog, TmpVarGen.t) => {
+and linearize_prog = (d: Hir.expr, t_gen): (Anf.prog, TmpVarGen.t) => {
   let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
   let body = im_binds |> List.map(convert_bind);
 
   ({prog_body: (body, {comp_kind: CImm(im)})}, t_gen);
 }
 
-and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
-  switch (d) {
-  | BoundVar(x) => (linearize_var(x), [], t_gen)
+and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
+  switch (d.expr_kind) {
+  | EBoundVar(x) => (linearize_var(x), [], t_gen)
 
-  | Let(dp, d1, d2) =>
+  | ELet(dp, d1, d2) =>
     let (p, t_gen) = linearize_pat(dp, t_gen);
     let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
@@ -31,7 +31,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
       im1_binds @ [BLet(p, NoRec, {comp_kind: CImm(im1)})] @ im2_binds;
     (im2, binds, t_gen);
 
-  | Lam(dp, _, body) =>
+  | ELam(dp, _, body) =>
     let (p, t_gen) = linearize_pat(dp, t_gen);
     let (body, t_gen) = linearize_prog(body, t_gen);
 
@@ -41,7 +41,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
     let binds = [BLet(PVar(lam_tmp), NoRec, lam)];
     ({imm_kind: IVar(lam_tmp)}, binds, t_gen);
 
-  | Ap(fn, arg) =>
+  | EAp(fn, arg) =>
     let (fn, fn_binds, t_gen) = linearize_exp(fn, t_gen);
     let (arg, arg_binds, t_gen) = linearize_exp(arg, t_gen);
 
@@ -55,7 +55,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
   // TODO: Transform DHExp.ApBuiltin into IHExp.Ap at above level? Need to
   // ensure no name conflicts.
-  | ApBuiltin(name, args) =>
+  | EApBuiltin(name, args) =>
     let (args, args_binds, t_gen) =
       List.fold_left(
         ((args, args_binds, t_gen), arg) => {
@@ -74,51 +74,51 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
       @ [BLet(PVar(ap_tmp), NoRec, {comp_kind: CAp(name, args)})];
     (name, binds, t_gen);
 
-  | BoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
+  | EBoolLit(b) => ({imm_kind: IConst(ConstBool(b))}, [], t_gen)
 
-  | IntLit(i) => ({imm_kind: IConst(ConstInt(i))}, [], t_gen)
+  | EIntLit(i) => ({imm_kind: IConst(ConstInt(i))}, [], t_gen)
 
-  | FloatLit(f) => ({imm_kind: IConst(ConstFloat(f))}, [], t_gen)
+  | EFloatLit(f) => ({imm_kind: IConst(ConstFloat(f))}, [], t_gen)
 
-  | ListNil(ty) => ({imm_kind: IConst(ConstNil(ty))}, [], t_gen)
+  | EListNil(ty) => ({imm_kind: IConst(ConstNil(ty))}, [], t_gen)
 
-  | Triv => ({imm_kind: IConst(ConstTriv)}, [], t_gen)
+  | ETriv => ({imm_kind: IConst(ConstTriv)}, [], t_gen)
 
-  | BinBoolOp(op, d1, d2) =>
+  | EBinBoolOp(op, d1, d2) =>
     let op: Anf.bin_op =
       switch (op) {
-      | And => OpAnd
-      | Or => OpOr
+      | OpAnd => OpAnd
+      | OpOr => OpOr
       };
     linearize_bin_op(op, d1, d2, t_gen);
 
-  | BinIntOp(op, d1, d2) =>
+  | EBinIntOp(op, d1, d2) =>
     let op: Anf.bin_op =
       switch (op) {
-      | Plus => OpPlus
-      | Minus => OpMinus
-      | Times => OpTimes
-      | Divide => OpDivide
-      | LessThan => OpLessThan
-      | GreaterThan => OpGreaterThan
-      | Equals => OpEquals
+      | OpPlus => OpPlus
+      | OpMinus => OpMinus
+      | OpTimes => OpTimes
+      | OpDivide => OpDivide
+      | OpLessThan => OpLessThan
+      | OpGreaterThan => OpGreaterThan
+      | OpEquals => OpEquals
       };
     linearize_bin_op(op, d1, d2, t_gen);
 
-  | BinFloatOp(op, d1, d2) =>
+  | EBinFloatOp(op, d1, d2) =>
     let op: Anf.bin_op =
       switch (op) {
-      | FPlus => OpFPlus
-      | FMinus => OpFMinus
-      | FTimes => OpFTimes
-      | FDivide => OpFDivide
-      | FLessThan => OpFLessThan
-      | FGreaterThan => OpFGreaterThan
-      | FEquals => OpFEquals
+      | OpFPlus => OpFPlus
+      | OpFMinus => OpFMinus
+      | OpFTimes => OpFTimes
+      | OpFDivide => OpFDivide
+      | OpFLessThan => OpFLessThan
+      | OpFGreaterThan => OpFGreaterThan
+      | OpFEquals => OpFEquals
       };
     linearize_bin_op(op, d1, d2, t_gen);
 
-  | Pair(d1, d2) =>
+  | EPair(d1, d2) =>
     let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
@@ -130,7 +130,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
     (linearize_var(pair_tmp), binds, t_gen);
 
-  | Cons(d1, d2) =>
+  | ECons(d1, d2) =>
     let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
@@ -142,7 +142,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
     (linearize_var(cons_tmp), binds, t_gen);
 
-  | Inj(_, side, d) =>
+  | EInj(_, side, d) =>
     let (im, im_binds, t_gen) = linearize_exp(d, t_gen);
     let side = linearize_inj_side(side);
 
@@ -152,7 +152,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
     (linearize_var(inj_tmp), binds, t_gen);
 
-  | EmptyHole(u, i, sigma) =>
+  | EEmptyHole(u, i, sigma) =>
     let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, t_gen);
 
     let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
@@ -164,7 +164,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
     (linearize_var(hole_tmp), binds, t_gen);
 
-  | NonEmptyHole(reason, u, i, sigma, d') =>
+  | ENonEmptyHole(reason, u, i, sigma, d') =>
     let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, t_gen);
     let (im, im_binds, t_gen) = linearize_exp(d', t_gen);
 
@@ -182,7 +182,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 
     (linearize_var(hole_tmp), binds, t_gen);
 
-  | Cast(d', t1, t2) =>
+  | ECast(d', t1, t2) =>
     let (im, im_binds, t_gen) = linearize_exp(d', t_gen);
 
     let (cast_tmp, t_gen) = TmpVarGen.next(t_gen);
@@ -197,7 +197,7 @@ and linearize_exp = (d: IHExp.t, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
 }
 
 and linearize_sigma =
-    (sigma: VarMap.t_(IHExp.t), t_gen)
+    (sigma: VarMap.t_(Hir.expr), t_gen)
     : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
   List.fold_left(
     ((sigma, sigma_binds, t_gen), (x, d)) => {
@@ -210,7 +210,7 @@ and linearize_sigma =
     sigma,
   )
 
-and linearize_bin_op = (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen) => {
+and linearize_bin_op = (op: Anf.bin_op, d1: Hir.expr, d2: Hir.expr, t_gen) => {
   let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
   let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
@@ -223,32 +223,32 @@ and linearize_bin_op = (op: Anf.bin_op, d1: IHExp.t, d2: IHExp.t, t_gen) => {
   (linearize_var(bin_tmp), binds, t_gen);
 }
 
-and linearize_pat = (p: IHPat.t, t_gen): (Anf.pat, TmpVarGen.t) => {
-  switch (p) {
-  | Wild => (PWild, t_gen)
-  | Var(x) => (PVar(x), t_gen)
-  | IntLit(i) => (PInt(i), t_gen)
-  | FloatLit(f) => (PFloat(f), t_gen)
-  | BoolLit(b) => (PBool(b), t_gen)
-  | Inj(side, p) =>
+and linearize_pat = (p: Hir.pat, t_gen): (Anf.pat, TmpVarGen.t) => {
+  switch (p.pat_kind) {
+  | PWild => (PWild, t_gen)
+  | PVar(x) => (PVar(x), t_gen)
+  | PIntLit(i) => (PInt(i), t_gen)
+  | PFloatLit(f) => (PFloat(f), t_gen)
+  | PBoolLit(b) => (PBool(b), t_gen)
+  | PInj(side, p) =>
     let side = linearize_inj_side(side);
     let (p, t_gen) = linearize_pat(p, t_gen);
     (PInj(side, p), t_gen);
-  | ListNil => (PNil, t_gen)
-  | Cons(p1, p2) =>
+  | PListNil => (PNil, t_gen)
+  | PCons(p1, p2) =>
     let (p1, t_gen) = linearize_pat(p1, t_gen);
     let (p2, t_gen) = linearize_pat(p2, t_gen);
     (PCons(p1, p2), t_gen);
-  | Pair(p1, p2) =>
+  | PPair(p1, p2) =>
     let (p1, t_gen) = linearize_pat(p1, t_gen);
     let (p2, t_gen) = linearize_pat(p2, t_gen);
     (PPair(p1, p2), t_gen);
-  | Triv => (PTriv, t_gen)
-  | EmptyHole(_)
-  | NonEmptyHole(_)
-  | Keyword(_)
-  | InvalidText(_)
-  | Ap(_) => raise(NotImplemented)
+  | PTriv => (PTriv, t_gen)
+  | PEmptyHole(_)
+  | PNonEmptyHole(_)
+  | PKeyword(_)
+  | PInvalidText(_)
+  | PAp(_) => raise(NotImplemented)
   };
 }
 
@@ -259,7 +259,7 @@ and linearize_inj_side = (side: InjSide.t): Anf.inj_side => {
   };
 };
 
-let linearize = (d: IHExp.t): Anf.prog => {
+let linearize = (d: Hir.expr): Anf.prog => {
   let (prog, _) = linearize_prog(d, TmpVarGen.init);
   prog;
 };

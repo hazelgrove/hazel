@@ -1,1 +1,1 @@
-let transform: DHExp.t => IHExp.t;
+let transform: DHExp.t => Hir.expr;

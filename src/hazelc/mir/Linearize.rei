@@ -1,1 +1,1 @@
-let linearize: IHExp.t => Anf.prog;
+let linearize: Hir.expr => Anf.prog;
