@@ -160,7 +160,10 @@ let rec head_normalize = (ctx: Contexts.t, ty: t): head_normalized =>
 /*
  Replaces every singleton-kinded type variable with a normalized type.
  */
-let rec normalize = (ctx: Contexts.t, ty: t): normalized =>
+let rec normalize = (ctx: Contexts.t, ty: t): normalized => {
+  print_endline("HTYP normalize");
+  print_endline(Sexplib.Sexp.to_string_hum(sexp_of_t(ty)));
+  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
   switch (ty) {
   | TyVar(i, _) =>
     switch (Contexts.tyvar_kind(ctx, i)) {
@@ -181,6 +184,7 @@ let rec normalize = (ctx: Contexts.t, ty: t): normalized =>
   | Prod(tys) => Prod(List.map(normalize(ctx), tys))
   | List(ty1) => List(normalize(ctx, ty1))
   };
+};
 
 let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
   switch (ty, ty') {
@@ -376,6 +380,8 @@ let ground_cases_of = (ty: normalized): ground_cases =>
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
+
+/* let shift_indices = HTypSyntax.shift_indices; */
 
 let subst_tyvars = (ty: t, tyvars: list((Index.Abs.t, t))): t =>
   List.fold_left(

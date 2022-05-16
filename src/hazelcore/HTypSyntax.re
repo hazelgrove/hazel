@@ -34,12 +34,35 @@ let rec decrement_indices: t('idx) => t('idx) =
   | List(t) => List(decrement_indices(t))
   | Prod(lst) => Prod(List.map(decrement_indices, lst));
 
-/* decrements indices that aren't the target */
-let rec subst = (ty: t('idx), i: Index.t('idx), new_ty: t('idx)): t('idx) => {
-  let go = ty1 => subst(ty1, i, new_ty);
+let rec shift_indices = (~above: int, ~amount: int, ty: t('idx)): t('idx) =>
   switch (ty) {
-  | TyVar(i', name) =>
-    Index.equal(i, i') ? new_ty : TyVar(Index.decrement(i'), name)
+  | TyVar(idx, t) => TyVar(Index.shift(~above, ~amount, idx), t)
+  | TyVarHole(_)
+  | Hole
+  | Bool
+  | Int
+  | Float => ty
+  | Arrow(ty1, ty2) =>
+    Arrow(
+      shift_indices(~above, ~amount, ty1),
+      shift_indices(~above, ~amount, ty2),
+    )
+  | Sum(tyL, tyR) =>
+    Sum(
+      shift_indices(~above, ~amount, tyL),
+      shift_indices(~above, ~amount, tyR),
+    )
+  | Prod(tys) => Prod(List.map(shift_indices(~above, ~amount), tys))
+  | List(ty1) => List(shift_indices(~above, ~amount, ty1))
+  };
+
+/* decrements indices that aren't the target */
+let rec subst =
+        (ty: t('idx), idx: Index.t('idx), new_ty: t('idx)): t('idx) => {
+  let go = ty1 => subst(ty1, idx, new_ty);
+  switch (ty) {
+  | TyVar(idx', t) =>
+    Index.equal(idx, idx') ? new_ty : TyVar(Index.decrement(idx'), t)
   | TyVarHole(_)
   | Hole
   | Int

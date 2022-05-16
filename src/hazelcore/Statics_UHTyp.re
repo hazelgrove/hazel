@@ -31,12 +31,12 @@ and syn_fix_holes_operand =
     : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
   switch (operand) {
   | Hole => (Hole, KindCore.KHole, u_gen)
-  | TyVar(NotInTyVarHole(i), name) =>
-    let k' = Kind.singleton(HTyp.tyvar(i, name));
-    switch (Contexts.tyvar_kind(ctx, i)) {
+  | TyVar(NotInTyVarHole(idx), t) =>
+    let k' = Kind.singleton(HTyp.tyvar(idx, t));
+    switch (Contexts.tyvar_kind(ctx, idx)) {
     | Some(k)
         when
-          Contexts.tyvar(ctx, i) == Some(name)
+          Contexts.tyvar(ctx, idx) == Some(t)
           && Kind.consistent_subkind(ctx, k', k) => (
         operand,
         k',
@@ -45,33 +45,33 @@ and syn_fix_holes_operand =
     | Some(_)
     | None =>
       let reason: TyVarErrStatus.HoleReason.t =
-        if (TyVar.reserved_word(name)) {
+        if (TyVar.reserved_word(t)) {
           Reserved;
-        } else if (TyVar.valid_name(name)) {
+        } else if (TyVar.valid_name(t)) {
           Unbound;
         } else {
           InvalidName;
         };
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      let ty = UHTyp.TyVar(InHole(reason, u), name);
-      (ty, KindCore.Singleton(TyVarHole(reason, u, name)), u_gen);
+      let ty = UHTyp.TyVar(InHole(reason, u), t);
+      (ty, KindCore.Singleton(TyVarHole(reason, u, t)), u_gen);
     };
-  | TyVar(InHole(_, u), name) =>
-    if (TyVar.reserved_word(name)) {
-      let ty = UHTyp.TyVar(InHole(Reserved, u), name);
-      (ty, KindCore.Singleton(TyVarHole(Reserved, u, name)), u_gen);
-    } else if (TyVar.valid_name(name)) {
-      switch (Contexts.tyvar_index(ctx, name)) {
+  | TyVar(InHole(_, u), t) =>
+    if (TyVar.reserved_word(t)) {
+      let ty = UHTyp.TyVar(InHole(Reserved, u), t);
+      (ty, KindCore.Singleton(TyVarHole(Reserved, u, t)), u_gen);
+    } else if (TyVar.valid_name(t)) {
+      switch (Contexts.tyvar_index(ctx, t)) {
       | None =>
-        let ty = UHTyp.TyVar(InHole(Unbound, u), name);
-        (ty, KindCore.Singleton(TyVarHole(Unbound, u, name)), u_gen);
+        let ty = UHTyp.TyVar(InHole(Unbound, u), t);
+        (ty, KindCore.Singleton(TyVarHole(Unbound, u, t)), u_gen);
       | Some(i) =>
-        let ty = UHTyp.TyVar(NotInTyVarHole(i), name);
-        (ty, KindCore.Singleton(TyVar(i, name)), u_gen);
+        let ty = UHTyp.TyVar(NotInTyVarHole(i), t);
+        (ty, KindCore.Singleton(TyVar(i, t)), u_gen);
       };
     } else {
-      let ty = UHTyp.TyVar(InHole(InvalidName, u), name);
-      (ty, KindCore.Singleton(TyVarHole(InvalidName, u, name)), u_gen);
+      let ty = UHTyp.TyVar(InHole(InvalidName, u), t);
+      (ty, KindCore.Singleton(TyVarHole(InvalidName, u, t)), u_gen);
     }
   | Unit
   | Int

@@ -30,6 +30,13 @@ let decrement_indices = (k: t('idx)): t('idx) =>
   | Singleton(ty) => Singleton(HTypSyntax.decrement_indices(ty))
   };
 
+let shift_indices = (~above: int, ~amount: int, k: t('idx)): t('idx) =>
+  switch (k) {
+  | KHole
+  | T => k
+  | Singleton(ty) => Singleton(HTypSyntax.shift_indices(~above, ~amount, ty))
+  };
+
 let subst_tyvar =
     (k: t('idx), i: Index.t('idx), ty: HTypSyntax.t('idx)): t('idx) =>
   switch (k) {

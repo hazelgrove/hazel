@@ -9,6 +9,8 @@ let equal: (t('pos), t('pos)) => bool;
 let increment: t('pos) => t('pos);
 let decrement: t('pos) => t('pos);
 
+let shift: (~above: int, ~amount: int, t('idx)) => t('idx);
+
 [@deriving sexp]
 [@sexp.opaque]
 type absolute;

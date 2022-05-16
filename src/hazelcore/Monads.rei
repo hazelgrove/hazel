@@ -21,10 +21,109 @@ module type MONAD = {
   let map: (t('a), 'a => 'b) => t('b);
   let zip: (t('a), t('b)) => t(('a, 'b));
   let sequence: list(t('a)) => t(list('a));
+  let skip: (t('a), t('b)) => t('b);
+  let liftM: ('a => 'b, t('a)) => t('b);
+  let ap: (t('a => 'b), t('a)) => t('b);
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
     let (and+): (t('a), t('b)) => t(('a, 'b));
+  };
+
+  // a terse notation for defining monadic operations
+  //
+  // $  sequence
+  // @  bind
+  // ^  apply (low, right)
+  // +  apply (mid, left)
+  // %  compose
+  // ** apply (high, left)
+  //
+  // . ordinary value
+  // - ordinary function
+  // + lifted value
+  // ~ lifted function
+  // > lifting function
+  module Infix: {
+    /* sequence lifted value and lifted value */
+    let ($++): (t('a), t('b)) => t('b);
+
+    /* sequence lifted value and ordinary value */
+    let ($+.): (t('a), 'b) => t('b);
+
+    /* sequence ordinary value and lifted value */
+    let ($.+): ('a, t('b)) => t('b);
+
+    /* sequence ordinary value and ordinary value */
+    let ($..): ('a, 'b) => t('b);
+
+    /* bind lifted value */
+    let (@+>): (t('a), 'a => t('b)) => t('b);
+    let (@>+): ('a => t('b), t('a)) => t('b);
+
+    /* bind ordinary value */
+    let (@.>): ('a, 'a => t('b)) => t('b);
+    let (@>.): ('a => t('b), 'a) => t('b);
+
+    /* apply lifted function to lifted value (low, right) */
+    let (^~+): (t('a => 'b), t('a)) => t('b);
+    let (^+~): (t('a), t('a => 'b)) => t('b);
+
+    /* apply lifted function to ordinary value (low, right) */
+    let (^~.): (t('a => 'b), 'a) => t('b);
+    let (^.~): ('a, t('a => 'b)) => t('b);
+
+    /* apply ordinary function to lifted value (low, right) */
+    let (^-+): ('a => 'b, t('a)) => t('b);
+    let (^+-): (t('a), 'a => 'b) => t('b);
+
+    /* apply ordinary function to ordinary value (low, right) */
+    let (^-.): ('a => 'b, 'a) => t('b);
+    let (^.-): ('a, 'a => 'b) => t('b);
+
+    /* apply lifted function to lifted value (mid, left) */
+    let (+~+): (t('a => 'b), t('a)) => t('b);
+    let (++~): (t('a), t('a => 'b)) => t('b);
+
+    /* apply lifted function to ordinary value (mid, left) */
+    let (+~.): (t('a => 'b), 'a) => t('b);
+    let (+.~): ('a, t('a => 'b)) => t('b);
+
+    /* apply ordinary function to lifted value (mid, left) */
+    let (+-+): ('a => 'b, t('a)) => t('b);
+    let (++-): (t('a), 'a => 'b) => t('b);
+
+    /* apply ordinary function to ordinary value (mid, left) */
+    let (+-.): ('a => 'b, 'a) => t('b);
+    let (+.-): ('a, 'a => 'b) => t('b);
+
+    /* compose ordinary function with ordinary function */
+    let (%--): ('b => 'c, 'a => 'b, t('a)) => t('c);
+
+    /* compose ordinary function with lifted function */
+    let (%-~): ('b => 'c, t('a => 'b), t('a)) => t('c);
+
+    /* compose lifted function with ordinary function */
+    let (%~-): (t('b => 'c), 'a => 'b, t('a)) => t('c);
+
+    /* compose lifted function with lifted function */
+    let (%~~): (t('b => 'c), t('a => 'b), t('a)) => t('c);
+
+    /* apply lifted function to lifted value (high, left) */
+    let ( **~+ ): (t('a => 'b), t('a)) => t('b);
+    let ( **+~ ): (t('a), t('a => 'b)) => t('b);
+
+    /* apply lifted function to ordinary value (high, left) */
+    let ( **~. ): (t('a => 'b), 'a) => t('b);
+    let ( **.~ ): ('a, t('a => 'b)) => t('b);
+
+    /* apply ordinary function to lifted value (high, left) */
+    let ( **-+ ): ('a => 'b, t('a)) => t('b);
+    let ( **+- ): (t('a), 'a => 'b) => t('b);
+
+    /* apply ordinary function to ordinary value (high, left) */
+    let ( **-. ): ('a => 'b, 'a) => t('b);
+    let ( **.- ): ('a, 'a => 'b) => t('b);
   };
 };
 
@@ -43,7 +142,7 @@ module type STATE_MONAD = {
   let eval: (t('result), state) => 'result;
   let exec: (t('result), state) => state;
 
-  let get: t(state);
+  let get: unit => t(state);
   let put: state => t(unit);
 };
 

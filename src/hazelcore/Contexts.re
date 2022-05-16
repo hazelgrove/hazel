@@ -84,7 +84,7 @@ let tyvar_kind = (ctx: t, idx: index): option(kind) =>
   };
 
 let add_tyvar = (ctx: t, t: TyVar.t, k: kind): t => [
-  TyVarBinding(t, KindCore.to_rel(k)),
+  TyVarBinding(t, KindCore.to_rel(~offset=1, k)),
   ...ctx,
 ];
 
@@ -100,12 +100,14 @@ let rec remove_tyvar = (ctx: t, idx: index, ty: htyp): option(t) => {
       | (0, [VarBinding(_) as binding, ...ctx']) =>
         let+ ctx' = remove_tyvar(ctx', idx, ty);
         [binding, ...ctx'];
-      | (_, [TyVarBinding(_) as binding, ...ctx']) =>
+      | (_, [TyVarBinding(t, k), ...ctx']) =>
+        let k = KindCore.shift_indices(~above=i, ~amount=-1, k);
         let+ ctx' = remove_tyvar(ctx', Index.decrement(idx), ty);
-        [binding, ...ctx'];
-      | (_, [VarBinding(_) as binding, ...ctx']) =>
+        [TyVarBinding(t, k), ...ctx'];
+      | (_, [VarBinding(x, ty_x), ...ctx']) =>
+        let ty_x = HTypSyntax.shift_indices(~above=i, ~amount=-1, ty_x);
         let+ ctx' = remove_tyvar(ctx', idx, ty);
-        [binding, ...ctx'];
+        [VarBinding(x, ty_x), ...ctx'];
       | (_, []) => None
       }
     );
@@ -177,6 +179,6 @@ let var_type = (ctx: t, x: Var.t): option(htyp) => {
 };
 
 let add_var = (ctx: t, x: Var.t, ty: htyp): t => [
-  VarBinding(x, HTypSyntax.to_rel(ty)),
+  VarBinding(x, HTypSyntax.to_rel(~offset=1, ty)),
   ...ctx,
 ];

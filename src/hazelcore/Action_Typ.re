@@ -32,17 +32,17 @@ let text_operand =
   | Float => (Float, ctx, u_gen)
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let name = ExpandingKeyword.to_string(kw);
-    (TyVar(InHole(Reserved, u), name), ctx, u_gen);
-  | TyVar(name) =>
-    switch (Contexts.tyvar_index(ctx, name)) {
+    let t = ExpandingKeyword.to_string(kw);
+    (TyVar(InHole(Reserved, u), t), ctx, u_gen);
+  | TyVar(t) =>
+    switch (Contexts.tyvar_index(ctx, t)) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (TyVar(InHole(Unbound, u), name), ctx, u_gen);
-    | Some(i) =>
-      let kind = Kind.singleton(HTyp.tyvar(i, name));
-      let ctx = Contexts.add_tyvar(ctx, name, kind);
-      (TyVar(NotInTyVarHole(i), name), ctx, u_gen);
+      (TyVar(InHole(Unbound, u), t), ctx, u_gen);
+    | Some(idx) =>
+      let k = Kind.singleton(HTyp.tyvar(idx, t));
+      let ctx = Contexts.add_tyvar(ctx, t, k);
+      (TyVar(NotInTyVarHole(idx), t), ctx, u_gen);
     }
   };
 

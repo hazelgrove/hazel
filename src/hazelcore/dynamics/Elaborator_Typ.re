@@ -54,9 +54,9 @@ and syn_elab_operand =
   let const = (ty: HTyp.t) => Some((ty, Kind.singleton(ty), delta));
   switch (operand) {
   | Hole => Some((HTyp.hole, KindCore.KHole, delta))
-  | TyVar(NotInTyVarHole(i), name) => const(HTyp.tyvar(i, name))
-  | TyVar(InHole(reason, u), name) =>
-    let ty = HTyp.tyvarhole(reason, u, name);
+  | TyVar(NotInTyVarHole(idx), t) => const(HTyp.tyvar(idx, t))
+  | TyVar(InHole(reason, u), t) =>
+    let ty = HTyp.tyvarhole(reason, u, t);
     Some((ty, KindCore.KHole, Delta.add(u, Delta.Hole.Type, delta)));
   | Unit => const(HTyp.product([]))
   | Int => const(HTyp.int)
