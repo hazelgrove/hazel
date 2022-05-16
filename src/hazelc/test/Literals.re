@@ -9,4 +9,4 @@ let%test "int 5" = test((Str("5"), Pass("5")));
 let%test "unit" = test((DH(Triv), Pass("void")));
 
 let%test "list nil" = test((Str("[]"), Pass("[]")));
-let%test "list cons" = test((Str("true::[]"), Pass("[true, ...[]")));
+let%test "list cons" = test((Str("true::[]"), Pass("[true]")));
