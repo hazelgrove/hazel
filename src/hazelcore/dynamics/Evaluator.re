@@ -1,35 +1,3 @@
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
-
-let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
-let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
-let grounded_Prod = length =>
-  NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp.Hole)));
-let grounded_List = NotGroundOrHole(List(Hole));
-
-let ground_cases_of = (ty: HTyp.t): ground_cases =>
-  switch (ty) {
-  | Hole => Hole
-  | Bool
-  | Int
-  | Float
-  | Arrow(Hole, Hole)
-  | Sum(Hole, Hole)
-  | List(Hole) => Ground
-  | Prod(tys) =>
-    if (List.for_all(HTyp.eq(HTyp.Hole), tys)) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
-  | Arrow(_, _) => grounded_Arrow
-  | Sum(_, _) => grounded_Sum
-  | List(_) => grounded_List
-  };
-
 type match_result =
   | Matches(Environment.t)
   | DoesNotMatch
@@ -678,15 +646,15 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1)) {
     | BoxedValue(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
-      | (Ground, Ground) =>
+      switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
+      | (GHole, GHole) => result
+      | (GGround, GGround) =>
         /* if two types are ground and consistent, then they are eq */
         result
-      | (Ground, Hole) =>
+      | (GGround, GHole) =>
         /* can't remove the cast or do anything else here, so we're done */
         BoxedValue(Cast(d1', ty, ty'))
-      | (Hole, Ground) =>
+      | (GHole, GGround) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
         | Cast(d1'', ty'', Hole) =>
@@ -699,19 +667,19 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
           raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
         }
-      | (Hole, NotGroundOrHole(ty'_grounded)) =>
+      | (GHole, GNotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
         evaluate(d');
-      | (NotGroundOrHole(ty_grounded), Hole) =>
+      | (GNotGroundOrHole(ty_grounded), GHole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
+      | (GGround, GNotGroundOrHole(_))
+      | (GNotGroundOrHole(_), GGround) =>
         /* can't do anything when casting between diseq, non-hole types */
         BoxedValue(Cast(d1', ty, ty'))
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+      | (GNotGroundOrHole(_), GNotGroundOrHole(_)) =>
         /* they might be eq in this case, so remove cast if so */
         if (HTyp.eq(ty, ty')) {
           result;
@@ -720,15 +688,15 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
         }
       }
     | Indet(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
-      | (Ground, Ground) =>
+      switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
+      | (GHole, GHole) => result
+      | (GGround, GGround) =>
         /* if two types are ground and consistent, then they are eq */
         result
-      | (Ground, Hole) =>
+      | (GGround, GHole) =>
         /* can't remove the cast or do anything else here, so we're done */
         Indet(Cast(d1', ty, ty'))
-      | (Hole, Ground) =>
+      | (GHole, GGround) =>
         switch (d1') {
         | Cast(d1'', ty'', Hole) =>
           if (HTyp.eq(ty'', ty')) {
@@ -738,19 +706,19 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
           }
         | _ => Indet(Cast(d1', ty, ty'))
         }
-      | (Hole, NotGroundOrHole(ty'_grounded)) =>
+      | (GHole, GNotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
         evaluate(d');
-      | (NotGroundOrHole(ty_grounded), Hole) =>
+      | (GNotGroundOrHole(ty_grounded), GHole) =>
         /* ITGround rule */
         let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
         evaluate(d');
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
+      | (GGround, GNotGroundOrHole(_))
+      | (GNotGroundOrHole(_), GGround) =>
         /* can't do anything when casting between diseq, non-hole types */
         Indet(Cast(d1', ty, ty'))
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+      | (GNotGroundOrHole(_), GNotGroundOrHole(_)) =>
         /* it might be eq in this case, so remove cast if so */
         if (HTyp.eq(ty, ty')) {
           result;

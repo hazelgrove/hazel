@@ -36,3 +36,12 @@ let complete: t => bool;
 
 let join: (join, t, t) => option(t);
 let join_all: (join, list(t)) => option(t);
+
+[@deriving sexp]
+type ground_cases =
+  | GHole
+  | GGround
+  | GNotGroundOrHole(t) /* the argument is the corresponding ground type */;
+
+let ground_cases_of: t => ground_cases;
+let is_ground: t => bool;
