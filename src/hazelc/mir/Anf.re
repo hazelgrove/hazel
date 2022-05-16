@@ -20,10 +20,13 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type pat = {pat_kind}
+type pat = {
+  pat_kind,
+  pat_indet: Hir.has_indet,
+}
 
 [@deriving sexp]
-and pat_kind = 
+and pat_kind =
   | PWild
   | PVar(Var.t)
   | PInt(int)
@@ -44,7 +47,10 @@ and constant =
   | ConstTriv
 
 [@deriving sexp]
-and imm = {imm_kind}
+and imm = {
+  imm_kind,
+  imm_indet: Hir.has_indet,
+}
 
 [@deriving sexp]
 and imm_kind =
@@ -52,7 +58,10 @@ and imm_kind =
   | IVar(Var.t)
 
 [@deriving sexp]
-and comp = {comp_kind}
+and comp = {
+  comp_kind,
+  comp_indet: Hir.has_indet,
+}
 
 [@deriving sexp]
 and comp_kind =
@@ -79,7 +88,10 @@ and inj_side =
   | CInjR
 
 [@deriving sexp]
-and stmt = {stmt_kind}
+and stmt = {
+  stmt_kind,
+  stmt_indet: Hir.has_indet,
+}
 
 [@deriving sexp]
 and stmt_kind =
@@ -91,7 +103,10 @@ and rec_flag =
   | Rec
 
 [@deriving sexp]
-and prog = {prog_body}
+and prog = {
+  prog_body,
+  prog_indet: Hir.has_indet,
+}
 
 [@deriving sexp]
 and prog_body = (list(stmt), comp);
