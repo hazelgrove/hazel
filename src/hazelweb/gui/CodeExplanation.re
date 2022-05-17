@@ -17,6 +17,18 @@ let rank_selection_handler = (~inject, index, new_rank) => {
   ]);
 };
 
+let text_box_handler = (~inject, new_text) => {
+  // update_chosen_rank
+  Event.Many([
+    inject(
+      ModelAction.UpdateDocumentationStudySettings(
+        DocumentationStudySettings.Update_Prompt_Text(Explanation, new_text),
+      ),
+    ),
+    inject(FocusCell),
+  ]);
+};
+
 let a_single_example_expression =
     (
       ~settings: DocumentationStudySettings.t,
@@ -147,8 +159,13 @@ let view =
                 [Attr.classes(["right-panel-textarea-div"])],
                 [
                   Node.textarea(
-                    [Attr.classes(["right-panel-textarea"])],
-                    [Node.text("If none of the above please explain why")],
+                    [
+                      Attr.classes(["right-panel-textarea"]),
+                      Attr.on_change((_, new_rank) =>
+                        text_box_handler(~inject, new_rank)
+                      ),
+                    ],
+                    [Node.text("If none of the above please explain what")],
                   ),
                 ],
               ),

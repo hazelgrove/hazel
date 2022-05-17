@@ -26,7 +26,8 @@ type update =
   | Set_Prompt(int)
   | Toggle_Syntactic_Form_Level(int)
   | Toggle_Explanation_Hovered_over(int)
-  | Update_Prompt(prompt_piece, int, int);
+  | Update_Prompt(prompt_piece, int, int)
+  | Update_Prompt_Text(prompt_piece, string);
 
 let apply_update = (u: update, settings: t) =>
   switch (u) {
@@ -56,6 +57,31 @@ let apply_update = (u: update, settings: t) =>
         );
       {...settings, prompts: new_prompts};
     }
+
+  | Update_Prompt_Text(prompt_piece, text) =>
+    // Function that takes a list of prompts and updates the nth one
+    switch (settings.prompt) {
+    | None => settings
+    | Some(prompt_index) =>
+      let current_prompt = List.nth(settings.prompts, prompt_index);
+      let new_prompt =
+        switch (prompt_piece) {
+        | Explanation => Prompt.update_explanation_text(current_prompt, text)
+        | Example => Prompt.update_example_text(current_prompt, text) // Call Prompt.update... on the current prompt and then call update_nth
+        };
+      let new_prompts =
+        List.mapi(
+          (idx, prompt) =>
+            if (idx == prompt_index) {
+              new_prompt;
+            } else {
+              prompt;
+            },
+          settings.prompts,
+        );
+      {...settings, prompts: new_prompts};
+    }
+
   | Toggle_Syntactic_Form_Level(l) => {...settings, example_level: l}
   | Toggle_Explanation_Hovered_over(l) => {...settings, hovered_over: l}
   };

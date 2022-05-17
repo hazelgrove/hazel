@@ -19,6 +19,7 @@ type update =
   | Set_Prompt(int)
   | Toggle_Syntactic_Form_Level(int)
   | Toggle_Explanation_Hovered_over(int)
-  | Update_Prompt(prompt_piece, int, int);
+  | Update_Prompt(prompt_piece, int, int)
+  | Update_Prompt_Text(prompt_piece, string);
 
 let apply_update: (update, t) => t;

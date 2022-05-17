@@ -25,6 +25,18 @@ open Prompt;
  };
  */
 
+let text_box_handler = (~inject, new_text) => {
+  // update_chosen_rank
+  Event.Many([
+    inject(
+      ModelAction.UpdateDocumentationStudySettings(
+        DocumentationStudySettings.Update_Prompt_Text(Example, new_text),
+      ),
+    ),
+    inject(FocusCell),
+  ]);
+};
+
 let rank_selection_handler = (inject, x, id) => {
   // update_chosen_rank
   let printing: string = String.concat(" ", [id, x]);
@@ -200,7 +212,12 @@ let view =
                 [Attr.classes(["right-panel-textarea-div"])],
                 [
                   Node.textarea(
-                    [Attr.classes(["right-panel-textarea"])],
+                    [
+                      Attr.classes(["right-panel-textarea"]),
+                      Attr.on_change((_, new_rank) =>
+                        text_box_handler(~inject, new_rank)
+                      ),
+                    ],
                     [Node.text("If none of the above please explain why")],
                   ),
                 ],

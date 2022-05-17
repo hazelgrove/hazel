@@ -30,6 +30,8 @@ type t = {
   prompt_message: string,
   explanation: list(explain),
   examples: list(quest),
+  explanation_text_box: string,
+  example_text_box: string,
 };
 
 // TODO - Ardi - This how to create a prompt
@@ -144,6 +146,9 @@ let prompts: list(t) = [
         rank: (-1),
       },
     ],
+
+    explanation_text_box: "textbox text 1",
+
     examples: [
       {
         idz: "example_1",
@@ -160,6 +165,7 @@ let prompts: list(t) = [
         result: DHExp.IntLit(99),
       },
     ],
+    example_text_box: "textbox text 1",
   },
 ];
 
@@ -190,4 +196,12 @@ let update_example_rank = (prompt, index, rank) => {
       prompt.examples,
     );
   {...prompt, examples: new_examples};
+};
+
+let update_explanation_text = (prompt, text) => {
+  {...prompt, explanation_text_box: text};
+};
+
+let update_example_text = (prompt, text) => {
+  {...prompt, example_text_box: text};
 };

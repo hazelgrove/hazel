@@ -23,9 +23,13 @@ type t = {
   prompt_message: string,
   explanation: list(explain),
   examples: list(quest),
+  explanation_text_box: string,
+  example_text_box: string,
 };
 
 let prompts: list(t);
 let print_to_console: list(t) => string;
 let update_explanation_rank: (t, int, int) => t;
 let update_example_rank: (t, int, int) => t;
+let update_explanation_text: (t, string) => t;
+let update_example_text: (t, string) => t;
