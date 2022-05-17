@@ -68,11 +68,23 @@ let view =
   };
 
   Node.div(
-    [Attr.classes(["panel", "context-inspector-panel"])],
+    [
+      Attr.classes([
+        "panel",
+        "context-inspector-panel",
+        "syntactic-form-panel",
+      ]),
+    ],
     [
       Panel.view_of_main_title_bar("Syntactic Form"),
       Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
+        [
+          Attr.classes([
+            "panel-body",
+            "context-inspector-body",
+            "syntactic-form-panel-body",
+          ]),
+        ],
         [
           explanation_view,
           Node.div(
