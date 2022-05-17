@@ -14,6 +14,7 @@ and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | TypVar(ErrStatus.t, UHTyp.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
