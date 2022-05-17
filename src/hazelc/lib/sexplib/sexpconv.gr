@@ -23,6 +23,7 @@ export let ofSexpError = (conv, what, sexp) =>
 
 export let sexpOfVoid = v => Sexp.List([])
 export let sexpOfBool = b => Sexp.Atom(toString(b))
+export let sexpOfNumber = n => Sexp.Atom(toString(n))
 export let sexpOfInt = n => Sexp.Atom(toString(n))
 export let sexpOfFloat = f => Sexp.Atom(toString(f))
 export let sexpOfString = s => Sexp.Atom(s)
@@ -51,7 +52,7 @@ export let sexpOfList = (sexpOfA, lst) =>
   Sexp.List(List.reverse(revMap(sexpOfA, lst)))
 
 export let sexpOfMap = (sexpOfKey, sexpOfVal, map) => {
-  let coll = (k, v, acc) => [Sexp.List([sexpOfKey(k), sexpOfVal(v)]), ...acc]
+  let coll = (acc, k, v) => [Sexp.List([sexpOfKey(k), sexpOfVal(v)]), ...acc]
   Sexp.List(Map.reduce(coll, [], map))
 }
 
