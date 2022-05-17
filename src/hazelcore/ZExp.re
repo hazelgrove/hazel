@@ -68,6 +68,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   /* outer nodes - text */
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
+  /* TODO (typ-app): |@|[UHTyp]| */
+  | TypVar(_, _) => CursorPosition.delim_cursors(2)
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
@@ -137,6 +139,7 @@ and is_before_zoperand =
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Fun(_))
   | CursorE(cursor, Inj(_))
+  | CursorE(cursor, TypVar(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_)
@@ -217,6 +220,7 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Fun(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, TypVar(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -261,6 +265,7 @@ and is_outer_zoperand =
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
   | CursorE(_, Fun(_))
+  | CursorE(_, TypVar(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_)) => true
@@ -300,6 +305,7 @@ and place_before_operand = operand =>
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Fun(_)
   | Inj(_)
+  | TypVar(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   };
@@ -339,6 +345,7 @@ and place_after_operand = operand =>
   | Fun(_) => CursorE(OnDelim(2, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
+  | TypVar(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
@@ -629,7 +636,8 @@ and move_cursor_left_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
-  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_) | TypVar(_)) =>
+    None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
@@ -826,7 +834,8 @@ and move_cursor_right_zoperand =
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
+      TypVar(_),
     ) =>
     // invalid cursor position
     None
