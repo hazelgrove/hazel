@@ -1,6 +1,5 @@
 exception FixFError;
 
-
 let rec transform_exp = (d: DHExp.t): Hir.expr => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
@@ -25,7 +24,8 @@ let rec transform_exp = (d: DHExp.t): Hir.expr => {
     {expr_kind: EInvalidText(u, i, sigma, text), expr_indet: true};
 
   // TODO: I think we need to lookup context here to determine indet or not?
-  | BoundVar(x) => {expr_kind: EBoundVar(x), expr_indet: false}
+  // Assume possibly indet for now just to be safe.
+  | BoundVar(x) => {expr_kind: EBoundVar(x), expr_indet: true}
 
   | Let(Var(_), FixF(x, ty, Lam(dp, _, d3)), dlet) =>
     let dp = transform_pat(dp);
