@@ -1,13 +1,13 @@
 exception NotImplemented;
 
 type bind =
-  | BLet(Anf.pat, Anf.rec_flag, Anf.comp);
+  | BLet(Anf.pat, Anf.rec_flag, Anf.comp, Hir.has_indet);
 
 let convert_bind = (bn: bind): Anf.stmt => {
   switch (bn) {
-  | BLet(p, rec_flag, c) => {
+  | BLet(p, rec_flag, c, indet) => {
       stmt_kind: SLet(p, rec_flag, c),
-      stmt_indet: p.pat_indet || c.comp_indet,
+      stmt_indet: indet,
     }
   };
 };
@@ -33,11 +33,21 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (im1, im1_binds, t_gen) = linearize_exp(d1, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, t_gen);
 
+    let {imm_kind: im2_kind, imm_indet: _}: Anf.imm = im2;
+
     let binds =
       im1_binds
-      @ [BLet(p, NoRec, {comp_kind: CImm(im1), comp_indet: d.expr_indet})]
+      @ [
+        BLet(
+          p,
+          NoRec,
+          {comp_kind: CImm(im1), comp_indet: d.expr_indet},
+          d.expr_indet,
+        ),
+      ]
       @ im2_binds;
-    (im2, binds, t_gen);
+
+    ({imm_kind: im2_kind, imm_indet: d.expr_indet}, binds, t_gen);
 
   | ELam(dp, _, body) =>
     let (p, t_gen) = linearize_pat(dp, t_gen);
@@ -50,7 +60,12 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (lam_tmp, t_gen) = TmpVarGen.next(t_gen);
 
     let binds = [
-      BLet({pat_kind: PVar(lam_tmp), pat_indet: false}, NoRec, lam),
+      BLet(
+        {pat_kind: PVar(lam_tmp), pat_indet: false},
+        NoRec,
+        lam,
+        d.expr_indet,
+      ),
     ];
     ({imm_kind: IVar(lam_tmp), imm_indet: lam.comp_indet}, binds, t_gen);
 
@@ -66,7 +81,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       fn_binds
       @ arg_binds
-      @ [BLet({pat_kind: PVar(ap_tmp), pat_indet: false}, NoRec, ap)];
+      @ [
+        BLet(
+          {pat_kind: PVar(ap_tmp), pat_indet: false},
+          NoRec,
+          ap,
+          ap.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(ap_tmp), imm_indet: ap.comp_indet}, binds, t_gen);
 
@@ -90,7 +112,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (ap_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       args_binds
-      @ [BLet({pat_kind: PVar(ap_tmp), pat_indet: false}, NoRec, ap)];
+      @ [
+        BLet(
+          {pat_kind: PVar(ap_tmp), pat_indet: false},
+          NoRec,
+          ap,
+          ap.comp_indet,
+        ),
+      ];
     ({imm_kind: IVar(ap_tmp), imm_indet: ap.comp_indet}, binds, t_gen);
 
   | EBoolLit(b) => (
@@ -169,7 +198,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       im1_binds
       @ im2_binds
-      @ [BLet({pat_kind: PVar(pair_tmp), pat_indet: false}, NoRec, pair)];
+      @ [
+        BLet(
+          {pat_kind: PVar(pair_tmp), pat_indet: false},
+          NoRec,
+          pair,
+          pair.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(pair_tmp), imm_indet: pair.comp_indet}, binds, t_gen);
 
@@ -185,7 +221,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       im1_binds
       @ im2_binds
-      @ [BLet({pat_kind: PVar(cons_tmp), pat_indet: false}, NoRec, cons)];
+      @ [
+        BLet(
+          {pat_kind: PVar(cons_tmp), pat_indet: false},
+          NoRec,
+          cons,
+          cons.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(cons_tmp), imm_indet: cons.comp_indet}, binds, t_gen);
 
@@ -200,7 +243,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (inj_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       im_binds
-      @ [BLet({pat_kind: PVar(inj_tmp), pat_indet: false}, NoRec, inj)];
+      @ [
+        BLet(
+          {pat_kind: PVar(inj_tmp), pat_indet: false},
+          NoRec,
+          inj,
+          inj.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(inj_tmp), imm_indet: inj.comp_indet}, binds, t_gen);
 
@@ -214,7 +264,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (hole_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       sigma_binds
-      @ [BLet({pat_kind: PVar(hole_tmp), pat_indet: false}, NoRec, hole)];
+      @ [
+        BLet(
+          {pat_kind: PVar(hole_tmp), pat_indet: false},
+          NoRec,
+          hole,
+          hole.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(hole_tmp), imm_indet: hole.comp_indet}, binds, t_gen);
 
@@ -230,7 +287,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let binds =
       sigma_binds
       @ im_binds
-      @ [BLet({pat_kind: PVar(hole_tmp), pat_indet: false}, NoRec, hole)];
+      @ [
+        BLet(
+          {pat_kind: PVar(hole_tmp), pat_indet: false},
+          NoRec,
+          hole,
+          hole.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(hole_tmp), imm_indet: hole.comp_indet}, binds, t_gen);
 
@@ -244,7 +308,14 @@ and linearize_exp = (d: Hir.expr, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => 
     let (cast_tmp, t_gen) = TmpVarGen.next(t_gen);
     let binds =
       im_binds
-      @ [BLet({pat_kind: PVar(cast_tmp), pat_indet: false}, NoRec, cast)];
+      @ [
+        BLet(
+          {pat_kind: PVar(cast_tmp), pat_indet: false},
+          NoRec,
+          cast,
+          cast.comp_indet,
+        ),
+      ];
 
     ({imm_kind: IVar(cast_tmp), imm_indet: cast.comp_indet}, binds, t_gen);
 
@@ -279,7 +350,14 @@ and linearize_bin_op =
   let binds =
     im1_binds
     @ im2_binds
-    @ [BLet({pat_kind: PVar(bin_tmp), pat_indet: false}, NoRec, bin)];
+    @ [
+      BLet(
+        {pat_kind: PVar(bin_tmp), pat_indet: false},
+        NoRec,
+        bin,
+        bin.comp_indet,
+      ),
+    ];
 
   ({imm_kind: IVar(bin_tmp), imm_indet: bin.comp_indet}, binds, t_gen);
 }
