@@ -1,10 +1,19 @@
 open Virtual_dom.Vdom;
 open Prompt;
 
-let rank_selection_handler = (index, new_rank) => {
+let rank_selection_handler = (~inject, index, new_rank) => {
   // update_chosen_rank
-  
-  Event.Many([Model.update(prompts, index, new_rank)]);
+  Event.Many([
+    inject(
+      ModelAction.UpdateDocumentationStudySettings(
+        DocumentationStudySettings.Update_Prompt(
+          Explanation,
+          index,
+          new_rank,
+        ),
+      ),
+    ),
+  ]);
 };
 
 let a_single_example_expression =
@@ -48,7 +57,7 @@ let a_single_example_expression =
           [
             Attr.name(example_id),
             Attr.on_change((_, new_rank) =>
-              rank_selection_handler(index, new_rank)
+              rank_selection_handler(~inject, index, int_of_string(new_rank))
             ),
           ],
           CodeExplanation_common.rank_list(1 + ranking_out_of),
@@ -88,7 +97,9 @@ let get_mapping = (~settings: DocumentationStudySettings.t): ColorSteps.t => {
   | ((-1), _)
   | (_, None) => ColorSteps.empty
   | (index, Some(prompt)) =>
-    let example_body = List.nth(prompt.explanation, index).expression;
+    let example_body =
+      List.nth(List.nth(settings.prompts, prompt).explanation, index).
+        expression;
     let (_, mapping) = CodeExplanation_common.build_msg(example_body, true);
     mapping;
   };

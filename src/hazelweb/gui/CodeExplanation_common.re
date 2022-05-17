@@ -127,7 +127,7 @@ let print_markdown = doc => {
 let build_msg =
     (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
-  print_markdown(omd);
+  //print_markdown(omd);
   let rec translate =
           (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
     List.fold_left(

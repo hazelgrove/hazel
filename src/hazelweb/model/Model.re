@@ -125,6 +125,17 @@ let get_cardstacks = model => model.cardstacks;
 let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
 let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
   let new_cardstacks = f(model |> get_cardstacks);
+  // TODO: Hannah - Maybe a better way to update this?
+  let doc_study =
+    if (!model.doc_study.is_demo) {
+      {
+        ...model.doc_study,
+        prompt: Some(ZList.prefix_length(new_cardstacks) - 1),
+      };
+    } else {
+      {...model.doc_study, prompt: None};
+    };
+  let model = {...model, doc_study};
   model |> put_cardstacks(new_cardstacks);
 };
 
