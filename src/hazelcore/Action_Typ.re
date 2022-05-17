@@ -430,6 +430,7 @@ and perform_operand =
     | (
         Construct(
           SAnn | SLet | STyAlias | SLine | SFun | SListNil | SInj(_) | SCase |
+          STypApp |
           SCommentLine,
         ) |
         SwapUp |

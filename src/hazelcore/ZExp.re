@@ -16,6 +16,8 @@ and zoperand =
   | ParenthesizedZ(t)
   | FunZP(ErrStatus.t, ZPat.t, UHExp.t)
   | FunZE(ErrStatus.t, UHPat.t, t)
+  | TypAppZE(ErrStatus.t, t, UHTyp.t)
+  | TypAppZT(ErrStatus.t, UHExp.t, ZTyp.t)
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
@@ -41,6 +43,9 @@ let line_can_be_swapped = (line: zline): bool =>
   | LetLineZE(_)
   | TyAliasLineT(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZE(_), _)))
+  // TODO (typ-app):
+  | ExpLineZ(ZOpSeq(_, ZOperand(TypAppZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(TypAppZT(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
@@ -85,6 +90,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(1)
       @ CursorPosition.delim_cursors_k(2);
     }
+  | TypApp(_, _, _) => CursorPosition.delim_cursors(1) //   (   @   )
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2);
@@ -152,9 +158,12 @@ and is_before_zoperand =
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
+  | TypAppZE(_, ze, _) => is_before(ze)
   | ParenthesizedZ(_)
   | FunZP(_)
   | FunZE(_)
+  | CursorE(_, TypApp(_))
+  | TypAppZT(_)
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_) => false;
@@ -236,8 +245,11 @@ and is_after_zoperand =
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
+  | TypAppZT(_, _, zty) => ZTyp.is_after(zty)
   | FunZP(_)
   | FunZE(_)
+  | CursorE(_, TypApp(_)) => false
+  | TypAppZE(_)
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_) => false;
@@ -280,12 +292,15 @@ and is_outer_zoperand =
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
   | CursorE(_, Fun(_))
+  | CursorE(_, TypApp(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | FunZP(_)
   | FunZE(_)
+  | TypAppZE(_)
+  | TypAppZT(_)
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_) => false;
@@ -318,6 +333,7 @@ and place_before_operand = operand =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
+  | TypApp(err, e, ty) => TypAppZE(err, place_before(e), ty)
   | Fun(_)
   | Inj(_)
   | Case(_)
@@ -358,8 +374,9 @@ and place_after_operand = operand =>
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Fun(_) => CursorE(OnDelim(2, After), operand)
-  | Case(_) => CursorE(OnDelim(1, After), operand)
+  | TypApp(err, e, ty) => TypAppZT(err, e, ZTyp.place_after(ty))
   | Inj(_) => CursorE(OnDelim(1, After), operand)
+  | Case(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
@@ -450,6 +467,8 @@ and erase_zoperand =
   | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
   | FunZP(err, zp, body) => Fun(err, ZPat.erase(zp), body)
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
+  | TypAppZE(err, ze, ty) => TypApp(err, erase(ze), ty)
+  | TypAppZT(err, e, zty) => TypApp(err, e, ZTyp.erase(zty))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
@@ -501,6 +520,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | ParenthesizedZ(zbody) => ParenthesizedZ(set_err_status(err, zbody))
   | FunZP(_, zp, body) => FunZP(err, zp, body)
   | FunZE(_, p, zbody) => FunZE(err, p, zbody)
+  | TypAppZE(_, ze, ty) => TypAppZE(err, ze, ty)
+  | TypAppZT(_, e, zty) => TypAppZT(err, e, zty)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
   | CaseZE(_, zscrut, rules) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
@@ -538,6 +559,8 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* already in hole */
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
+  | TypAppZE(InHole(TypeInconsistent, _), _, _)
+  | TypAppZT(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
@@ -547,6 +570,8 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* not in hole */
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
+  | TypAppZE(NotInHole | InHole(WrongLength, _), _, _)
+  | TypAppZT(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -676,15 +701,18 @@ and move_cursor_left_zoperand =
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
-  | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
-    // _k == 1
-    Some(InjZ(err, side, place_after(body)))
   | CursorE(OnDelim(k, Before), Fun(err, arg, body)) =>
     switch (k) {
     | 1 => Some(FunZP(err, ZPat.place_after(arg), body))
     | 2 => Some(FunZE(err, arg, place_after(body)))
     | _ => None
     }
+  | CursorE(OnDelim(_k, Before), TypApp(err, e, ty)) =>
+    // _k == 0
+    Some(TypAppZE(err, place_after(e), ty))
+  | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
+    // _k == 1
+    Some(InjZ(err, side, place_after(body)))
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
     // _k == 1
     switch (List.rev(rules)) {
@@ -710,12 +738,6 @@ and move_cursor_left_zoperand =
     | None =>
       Some(CursorE(OnDelim(0, After), Parenthesized(erase(zbody))))
     }
-  | InjZ(err, side, zbody) =>
-    switch (move_cursor_left(zbody)) {
-    | Some(zbody) => Some(InjZ(err, side, zbody))
-    | None =>
-      Some(CursorE(OnDelim(0, After), Inj(err, side, erase(zbody))))
-    }
   | FunZP(err, zarg, body) =>
     switch (ZPat.move_cursor_left(zarg)) {
     | Some(zarg) => Some(FunZP(err, zarg, body))
@@ -727,6 +749,23 @@ and move_cursor_left_zoperand =
     | Some(zbody) => Some(FunZE(err, arg, zbody))
     | None =>
       Some(CursorE(OnDelim(1, After), Fun(err, arg, erase(zbody))))
+    }
+  | TypAppZE(err, ze, ty) =>
+    switch (move_cursor_left(ze)) {
+    | Some(ze) => Some(TypAppZE(err, ze, ty))
+    | None => None
+    }
+  | TypAppZT(err, e, zty) =>
+    switch (ZTyp.move_cursor_left(zty)) {
+    | Some(zty) => Some(TypAppZT(err, e, zty))
+    | None =>
+      Some(CursorE(OnDelim(0, After), TypApp(err, e, ZTyp.erase(zty))))
+    }
+  | InjZ(err, side, zbody) =>
+    switch (move_cursor_left(zbody)) {
+    | Some(zbody) => Some(InjZ(err, side, zbody))
+    | None =>
+      Some(CursorE(OnDelim(0, After), Inj(err, side, erase(zbody))))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_left(zscrut)) {
@@ -874,15 +913,18 @@ and move_cursor_right_zoperand =
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
-  | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
-    // _k == 0
-    Some(InjZ(err, side, place_before(body)))
   | CursorE(OnDelim(k, After), Fun(err, arg, body)) =>
     switch (k) {
     | 0 => Some(FunZP(err, ZPat.place_before(arg), body))
     | 1 => Some(FunZE(err, arg, place_before(body)))
     | _ => None // invalid cursor position
     }
+  | CursorE(OnDelim(_k, After), TypApp(err, e, ty)) =>
+    // _k == 0
+    Some(TypAppZT(err, e, ZTyp.place_before(ty)))
+  | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
+    // _k == 0
+    Some(InjZ(err, side, place_before(body)))
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
@@ -898,12 +940,6 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorE(OnDelim(1, Before), Parenthesized(erase(zbody))))
     }
-  | InjZ(err, side, zbody) =>
-    switch (move_cursor_right(zbody)) {
-    | Some(zbody) => Some(InjZ(err, side, zbody))
-    | None =>
-      Some(CursorE(OnDelim(1, Before), Inj(err, side, erase(zbody))))
-    }
   | FunZP(err, zarg, body) =>
     switch (ZPat.move_cursor_right(zarg)) {
     | Some(zarg) => Some(FunZP(err, zarg, body))
@@ -915,6 +951,23 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorE(OnDelim(2, Before), Fun(err, arg, erase(zbody))))
     | Some(zbody) => Some(FunZE(err, arg, zbody))
+    }
+  | TypAppZE(err, ze, ty) =>
+    switch (move_cursor_right(ze)) {
+    | Some(ze) => Some(TypAppZE(err, ze, ty))
+    | None =>
+      Some(CursorE(OnDelim(0, Before), TypApp(err, erase(ze), ty)))
+    }
+  | TypAppZT(err, e, zty) =>
+    switch (ZTyp.move_cursor_right(zty)) {
+    | Some(zty) => Some(TypAppZT(err, e, zty))
+    | None => None
+    }
+  | InjZ(err, side, zbody) =>
+    switch (move_cursor_right(zbody)) {
+    | Some(zbody) => Some(InjZ(err, side, zbody))
+    | None =>
+      Some(CursorE(OnDelim(1, Before), Inj(err, side, erase(zbody))))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_right(zscrut)) {
@@ -998,8 +1051,10 @@ and cursor_on_EmptyHole_zoperand =
   fun
   | CursorE(_, EmptyHole(u)) => Some(u)
   | CursorE(_)
-  | FunZP(_) => None
+  | FunZP(_)
+  | TypAppZT(_) => None
   | FunZE(_, _, ze)
+  | TypAppZE(_, ze, _)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)

@@ -27,6 +27,7 @@ let left_bracket: t;
 let right_brace: t;
 let right_square_bracket: t;
 let equals: t;
+let at_sign: t;
 let pound: t;
 let plus: t;
 let minus: t;

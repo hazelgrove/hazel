@@ -204,6 +204,16 @@ module Make = (Memo: Memo.S) => {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
             UHDoc_common.mk_Fun(p, body);
+          | TypApp(_, e, ty) =>
+            let e = mk_child(~memoize, ~enforce_inline, ~child_step=0, e);
+            let ty =
+              UHDoc_Typ.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=1,
+                ty,
+              );
+            UHDoc_common.mk_TypApp(e, ty);
           | Inj(_, inj_side, body) =>
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);

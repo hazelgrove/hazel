@@ -506,6 +506,7 @@ let get_new_action_group =
       | SFun
       | SListNil
       | SInj(_)
+      | STypApp
       | SLet
       | STyAlias
       | SCase => Some(ConstructEdit(shape))

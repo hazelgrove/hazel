@@ -34,6 +34,7 @@ type shape =
   | SLine
   | SCase
   | STyAlias
+  | STypApp
   | SOp(operator_shape);
 
 [@deriving sexp]

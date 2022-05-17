@@ -1634,7 +1634,7 @@ and syn_perform_operand =
         ) |
         CursorE(
           OnText(_) | OnOp(_),
-          EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
+          EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) | TypApp(_) |
           Parenthesized(_),
         ),
       ) =>
@@ -1722,6 +1722,11 @@ and syn_perform_operand =
         u_gen,
       ))
       |> wrap_in_SynDone;
+
+    /* x @<| Int   ==>   x| */
+    | (Backspace, CursorE(OnDelim(_k, After), TypApp(_, e, _ty))) =>
+      let new_ze = ZExp.place_after(e);
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
 
     | (
         Backspace,
@@ -1865,6 +1870,17 @@ and syn_perform_operand =
           FunZP(NotInHole, ZOpSeq.wrap(zhole), UHExp.Block.wrap(operand)),
         );
       Succeeded(SynDone((new_ze, HTyp.arrow(HTyp.hole(), ty), u_gen)));
+
+    | (Construct(STypApp), CursorE(_, operand)) =>
+      let new_ze = {
+        UHExp.typapp(
+          operand |> UHExp.Block.wrap,
+          HTyp.hole() |> UHTyp.contract,
+        )
+        |> ZExp.place_after_operand
+        |> ZExp.ZBlock.wrap;
+      };
+      Succeeded(SynDone((new_ze, HTyp.hole(), u_gen)));
 
     | (Construct(SCloseParens), InjZ(err, side, zblock))
         when ZExp.is_after_zblock(zblock) =>
@@ -2046,6 +2062,49 @@ and syn_perform_operand =
             Succeeded(SynDone((new_ze, new_ty, u_gen)));
           }
         }
+      }
+
+    // TODO (typ-app):
+    | (_, TypAppZE(err, ze, ty_arg)) =>
+      switch (syn_perform(ctx, a, (ze, ty, u_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded((ze, ty, u_gen)) =>
+        // Todo: Static_Exp.syn_hole
+        let new_ze = ZExp.TypAppZE(err, ze, ty_arg) |> ZExp.ZBlock.wrap;
+        Succeeded(SynDone((new_ze, ty, u_gen)));
+      }
+    | (_, TypAppZT(err, e, zty_arg)) =>
+      switch (Action_Typ.perform(a, zty_arg)) {
+      | Failed when ZTyp.is_after(zty_arg) =>
+        syn_perform_operand(
+          ctx,
+          a,
+          (
+            CursorE(
+              CursorPosition.OnDelim(0, After),
+              zoperand |> ZExp.erase_zoperand,
+            ),
+            ty,
+            u_gen,
+          ),
+        )
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, u_gen),
+        )
+      | Succeeded(zty_arg) =>
+        let new_ze = ZExp.TypAppZT(err, e, zty_arg) |> ZExp.ZBlock.wrap;
+        // TODO: Static_Exp.syn_hole
+        Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
       }
 
     | (_, InjZ(_, side, zbody)) =>
@@ -3193,7 +3252,7 @@ and ana_perform_operand =
           ) |
           CursorE(
             OnText(_) | OnOp(_),
-            EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
+            EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) | TypApp(_) |
             Parenthesized(_),
           ),
         ) =>
@@ -3277,6 +3336,13 @@ and ana_perform_operand =
             ZExp.ZBlock.wrap(FunZP(NotInHole, ZPat.place_after(p), body));
           Succeeded(AnaDone((new_ze, u_gen)));
         }
+
+      /* x @<| Int   ==>   x| */
+      | (Backspace, CursorE(OnDelim(_k, After), TypApp(_, e, _ty))) =>
+        let new_ze = ZExp.place_after(e);
+        let (ze, _, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
+        Succeeded(AnaDone((ze, u_gen)));
+
       | (
           Backspace,
           CursorE(
@@ -3577,7 +3643,7 @@ and ana_perform_operand =
         Succeeded(AnaDone((new_ze, u_gen)));
       | (Construct(SLine), CursorE(_)) => Failed
 
-      | (Construct(SListNil), _) =>
+      | (Construct(SListNil | STypApp), _) =>
         ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
 
       /* Invalid Swap actions */
@@ -3641,6 +3707,13 @@ and ana_perform_operand =
             }
           }
         }
+
+      // TODO (typ-app):
+      | (_, TypAppZE(_, _ze, _ty_arg)) =>
+        ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+      | (_, TypAppZT(_, _e, _zty_arg)) =>
+        ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
+
       | (_, InjZ(_, side, zbody)) =>
         switch (HTyp.matched_sum(ctx, ty)) {
         | None => Failed

@@ -398,6 +398,10 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
       ],
     ),
     section(
+      "Polymorphic Functions",
+      [combo(AtSign, simple("Apply type argument"))],
+    ),
+    section(
       "Tuples",
       [
         combo(Comma, simple("Create a tuple")),
@@ -492,6 +496,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SDivide)) => Added
   | Construct(SOp(SLessThan)) => Added
   | Construct(SOp(SSpace)) => Added
+  | Construct(STypApp) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added

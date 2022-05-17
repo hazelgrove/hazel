@@ -3,4 +3,5 @@ module Delim = {
   let colon_Fun = ":";
   let open_Fun = "{";
   let close_Fun = "}";
+  let sym_TypApp = "@";
 };

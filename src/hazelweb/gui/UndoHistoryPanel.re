@@ -111,6 +111,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         )
       )
     | ListNil(_) => indicate_words_view("empty list")
+    | TypApp(_) => indicate_words_view("type application")
     | Fun(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
@@ -338,6 +339,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | SList
     | SListNil
+    | STypApp
     | SLine
     | SCommentLine
     | SAnn

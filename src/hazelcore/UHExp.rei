@@ -20,6 +20,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -50,6 +51,8 @@ let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
+
+let typapp: (~err: ErrStatus.t=?, t, UHTyp.t) => operand;
 
 module Line: {
   let prune_empty_hole: line => line;

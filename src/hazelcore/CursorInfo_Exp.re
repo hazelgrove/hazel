@@ -2,6 +2,21 @@ open OptUtil.Syntax;
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
+// Debug..
+let print_step = steps =>
+  if (List.length(steps) == 0) {
+    print_endline("[follow] steps is empty");
+  } else {
+    print_endline(
+      "[follow] steps = "
+      ++ List.fold_left(
+           (string, item) => string ++ string_of_int(item) ++ ",",
+           "",
+           steps,
+         ),
+    );
+  };
+
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
 }
@@ -24,6 +39,8 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | TypAppZE(_, zexp, _) => extract_cursor_term(zexp)
+  | TypAppZT(_, _, zty) => CursorInfo_Typ.extract_cursor_term(zty)
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
@@ -86,6 +103,8 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | TypAppZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | TypAppZT(_, _, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
 and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
@@ -136,8 +155,10 @@ and get_outer_zrules_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => outer_zrules
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
-  | FunZP(_) => outer_zrules
+  | FunZP(_)
+  | TypAppZT(_) => outer_zrules
   | FunZE(_, _, zexp)
+  | TypAppZE(_, zexp, _)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
@@ -550,6 +571,11 @@ and syn_cursor_info_zoperand =
     (~steps: CursorPath.steps, ctx: Context.t, zoperand: ZExp.zoperand)
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
+  // Debug..
+  zoperand
+  |> ZExp.sexp_of_zoperand
+  |> Sexplib.Sexp.to_string
+  |> (s => "zoperand" ++ s |> print_endline);
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
@@ -585,6 +611,15 @@ and syn_cursor_info_zoperand =
   | FunZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
+  | TypAppZE(_, ze, _ty) =>
+    print_endline("typappze");
+    print_step(steps);
+    syn_cursor_info(~steps=steps @ [0], ctx, ze);
+  | TypAppZT(_, _e, zty) =>
+    print_endline("typappzt");
+    print_step(steps);
+    // TODO (typ-app): cursor_info
+    zty |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
@@ -896,6 +931,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Fun(InHole(TypeInconsistent, _), _, _)
+    | TypApp(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | Var(InHole(WrongLength, _), _, _)
@@ -904,6 +940,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Fun(InHole(WrongLength, _), _, _)
+    | TypApp(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
@@ -956,6 +993,13 @@ and ana_cursor_info_zoperand =
         ctx,
         cursor_term,
       );
+
+    | TypApp(NotInHole, _, _) =>
+      switch (Statics_Exp.syn_operand(ctx, e)) {
+      | None => None
+      | Some(ty') =>
+        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+      }
     /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
@@ -973,11 +1017,15 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
+  | TypAppZE(InHole(WrongLength, _), _, _)
+  | TypAppZT(InHole(WrongLength, _), _, _)
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TypAppZE(InHole(TypeInconsistent, _), _, _)
+  | TypAppZT(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | FunZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ctx, ty);
@@ -995,7 +1043,6 @@ and ana_cursor_info_zoperand =
       uses |> deferred_ci;
     | CursorOnDeferredTyVarPat(_) => failwith("deferred impossible")
     };
-
   | FunZE(NotInHole, p, zbody) =>
     let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ctx, ty);
     switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
@@ -1003,6 +1050,10 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
+  | TypAppZE(NotInHole, ze, _ty) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, ze, ty)
+  | TypAppZT(NotInHole, _e, zty) =>
+    zty |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | None => None
