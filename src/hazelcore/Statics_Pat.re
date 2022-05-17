@@ -427,9 +427,11 @@ and syn_fix_holes_operand =
       };
     (p, ty, ctx, u_gen);
   | TypeAnn(_, op, ann) =>
+    print_endline("--- STATICS_PAT syn_fix_holes_operand ---");
     let (ann, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ann);
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
     | Some((ty_ann, _, _)) =>
+      print_endline("KKK");
       if (HTyp.complete(ty_ann)) {
         let (op, ctx, u_gen) =
           ana_fix_holes_operand(
@@ -443,8 +445,9 @@ and syn_fix_holes_operand =
       } else {
         let (ann, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ann);
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
-      }
+      };
     | None =>
+      print_endline("JJJ"g);
       let (op, ty, ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -730,13 +733,17 @@ and ana_fix_holes_operand =
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, u_gen);
     }
   | TypeAnn(err, op, ann) =>
+    print_endline("--- STATICS_PAT ana_fix_holes_operand ---");
+    /* print_endline(Sexplib.Sexp.to_string_hum( */
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
     | Some((ty_ann, _, _)) when HTyp.consistent(ctx, ty, ty_ann) =>
+      print_endline("MMM");
       let (op, ctx, u_gen) =
         ana_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op, ty_ann);
       (TypeAnn(NotInHole, op, ann), ctx, u_gen);
     | Some(_)
     | None =>
+      print_endline("LLL");
       let (op, _, _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -748,7 +755,7 @@ and ana_fix_holes_operand =
         ctx,
         u_gen,
       );
-    }
+    };
   };
 };
 

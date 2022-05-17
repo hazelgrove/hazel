@@ -101,15 +101,20 @@ let mk_syn_text =
         ),
       );
     Succeeded((zty, u_gen));
-  | Some(TyVar(name)) =>
+  | Some(TyVar(t)) =>
     let (status: TyVarErrStatus.t, u_gen) =
-      switch (Contexts.tyvar_index(ctx, name)) {
+      switch (Contexts.tyvar_index(ctx, t)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (InHole(Unbound, u), u_gen);
-      | Some(i) => (NotInTyVarHole(i), u_gen)
+      | Some(idx) =>
+        print_endline(
+          "AAA " ++ t ++ ":" ++ Int.to_string(Index.Abs.to_int(idx)),
+        );
+        print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+        (NotInTyVarHole(idx), u_gen);
       };
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, name)));
+    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
     Succeeded((zty, u_gen));
   };
 };

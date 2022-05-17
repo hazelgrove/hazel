@@ -1483,6 +1483,10 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
+    print_endline("--- ACTION_PAT ana_perform_operand ---");
+    print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_t(zann)));
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -1494,21 +1498,39 @@ and ana_perform_operand =
         ty,
       )
     | Succeeded((zann, ctx, u_gen)) =>
+      print_endline("BBB");
       switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
       | None => Failed
       | Some((ty', _, _)) =>
-        let (new_op, ctx, u_gen) =
-          Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
-        let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-        if (HTyp.consistent(ctx, ty, ty')) {
-          Succeeded((new_zopseq, ctx, u_gen));
-        } else {
-          let (new_zopseq, u_gen) =
-            new_zopseq |> ZPat.mk_inconsistent(u_gen);
-          Succeeded((new_zopseq, ctx, u_gen));
+        print_endline("CCC");
+        switch (UHPat.get_var_name(op)) {
+        | None => Failed
+        | Some(x) =>
+          print_endline("DDD");
+          let new_ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty'));
+          switch (Contexts.var_type(new_ctx, x)) {
+          | None => Failed
+          | Some(ty') =>
+            let ty': HTyp.t = HTyp.of_unsafe(ty');
+            print_endline("EEE");
+            print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
+            print_endline(
+              Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(new_ctx)),
+            );
+            let (new_op, ctx, u_gen) =
+              Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
+            let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+            if (HTyp.consistent(ctx, ty, ty')) {
+              Succeeded((new_zopseq, ctx, u_gen));
+            } else {
+              let (new_zopseq, u_gen) =
+                new_zopseq |> ZPat.mk_inconsistent(u_gen);
+              Succeeded((new_zopseq, ctx, u_gen));
+            };
+          };
         };
-      }
-    }
+      };
+    };
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {

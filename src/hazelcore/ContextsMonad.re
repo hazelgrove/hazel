@@ -17,11 +17,11 @@ include T;
 include Monads.State.Make(T);
 open Infix;
 
-let increment_indices: t(unit) =
-  ctx => put(Contexts.increment_indices(ctx), ctx);
+/* let increment_indices: t(unit) = */
+/*   ctx => put(Contexts.increment_indices(ctx), ctx); */
 
-let decrement_indices: t(unit) =
-  ctx => put(Contexts.decrement_indices(ctx), ctx);
+/* let decrement_indices: t(unit) = */
+/*   ctx => put(Contexts.decrement_indices(ctx), ctx); */
 
 type kind = KindCore.t(Index.absolute);
 type htyp = HTypSyntax.t(Index.absolute);

@@ -14,11 +14,9 @@ let shift = (~above: int, ~amount: int, i: t('idx)): t('idx) =>
   i >= above ? i + amount : i;
 
 [@deriving sexp]
-[@sexp.opaque]
 type absolute;
 
 [@deriving sexp]
-[@sexp.opaque]
 type relative;
 
 module Abs = {

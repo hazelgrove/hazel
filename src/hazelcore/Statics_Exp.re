@@ -492,8 +492,12 @@ let rec syn_fix_holes =
           ~renumber_empty_holes=false,
           e: UHExp.t,
         )
-        : (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e)
+        : (UHExp.t, HTyp.t, MetaVarGen.t) => {
+  print_endline("--- STATICS_EXP syn_fix_holes ---");
+  print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
+  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+  syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e);
+}
 and syn_fix_holes_block =
     (
       ctx: Contexts.t,
@@ -504,15 +508,19 @@ and syn_fix_holes_block =
     : (UHExp.block, HTyp.t, MetaVarGen.t) =>
   switch (block |> UHExp.Block.split_conclusion) {
   | None =>
+    print_endline("VVV");
     let (leading, _ctx, u_gen) =
       syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, block);
     let (conclusion, u_gen) = u_gen |> UHExp.new_EmptyHole;
     (leading @ [UHExp.ExpLine(conclusion |> OpSeq.wrap)], HTyp.hole, u_gen);
   | Some((leading, conclusion)) =>
+    print_endline("UUU");
     let (leading, ctx, u_gen) =
       syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, leading);
+    print_endline("TTT");
     let (conclusion, ty, u_gen) =
       syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, conclusion);
+    print_endline("SSS");
     (leading @ [UHExp.ExpLine(conclusion)], ty, u_gen);
   }
 and syn_fix_holes_lines =
@@ -583,6 +591,11 @@ and syn_fix_holes_opseq =
       OpSeq(skel, seq): UHExp.opseq,
     )
     : (UHExp.opseq, HTyp.t, MetaVarGen.t) => {
+  print_endline("--- STATICS_EXP syn_fix_holes_opseq ---");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+  );
+  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
   let (skel, seq, ty, u_gen) =
     syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
   (OpSeq(skel, seq), ty, u_gen);
@@ -706,6 +719,12 @@ and syn_fix_holes_skel =
   | BinOp(_, Space, skel1, skel2) =>
     let (skel1, seq, ty1, u_gen) =
       syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel1, seq);
+    print_endline("--- STATICS_EXP syn_fix_holes_skel ---");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+    );
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty1)));
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (HTyp.matched_arrow(ctx, ty1)) {
     | Some((ty2, ty)) =>
       let (skel2, seq, u_gen) =
@@ -780,13 +799,18 @@ and syn_fix_holes_operand =
     }
   | InvalidText(_) => (e, HTyp.hole, u_gen)
   | Var(_, var_err_status, x) =>
+    print_endline("--- STATICS_EXP syn_fix_holes_operand ---");
+    print_endline(x);
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Contexts.var_type(ctx, x)) {
-    | Some(ty) => (
-        UHExp.Var(NotInHole, NotInVarHole, x),
-        HTyp.of_unsafe(ty),
-        u_gen,
-      )
+    | Some(ty) =>
+      print_endline("FFF");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(HTyp.of_unsafe(ty))),
+      );
+      (UHExp.Var(NotInHole, NotInVarHole, x), HTyp.of_unsafe(ty), u_gen);
     | None =>
+      print_endline("GGG");
       switch (var_err_status) {
       | InVarHole(_, _) => (e_nih, HTyp.hole, u_gen)
       | NotInVarHole =>
@@ -797,8 +821,8 @@ and syn_fix_holes_operand =
           | None => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), HTyp.hole, u_gen);
-      }
-    }
+      };
+    };
   | IntLit(_, _) => (e_nih, HTyp.int, u_gen)
   | FloatLit(_, _) => (e_nih, HTyp.float, u_gen)
   | BoolLit(_, _) => (e_nih, HTyp.bool, u_gen)
@@ -934,8 +958,13 @@ and ana_fix_holes =
       e: UHExp.t,
       ty: HTyp.t,
     )
-    : (UHExp.t, MetaVarGen.t) =>
-  ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty)
+    : (UHExp.t, MetaVarGen.t) => {
+  print_endline("--- STATICS_EXP ana_fix_holes ---");
+  print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+  ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty);
+}
 and ana_fix_holes_block =
     (
       ctx: Contexts.t,
@@ -967,6 +996,11 @@ and ana_fix_holes_opseq =
       ty: HTyp.t,
     )
     : (UHExp.opseq, MetaVarGen.t) => {
+  print_endline("--- STATICS_EXP ana_fix_holes_opseq ---");
+  print_endline(
+    Sexplib.Sexp.to_string_hum(UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+  );
+  print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
   let ty_h = HTyp.head_normalize(ctx, ty);
   // handle n-tuples
   switch (tuple_zip(skel, ty_h)) {
@@ -1146,7 +1180,7 @@ and ana_fix_holes_operand =
       e: UHExp.operand,
       ty: HTyp.t,
     )
-    : (UHExp.operand, MetaVarGen.t) =>
+    : (UHExp.operand, MetaVarGen.t) => {
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1160,6 +1194,10 @@ and ana_fix_holes_operand =
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) =>
+    print_endline("--- STATICS_EXP ana_fix_holes_operand ---");
+    print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ctx, ty, ty')) {
@@ -1240,7 +1278,8 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-  }
+  };
+}
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
   /* precondition: (p)attern and (def)inition have consistent types */

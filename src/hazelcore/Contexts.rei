@@ -3,8 +3,8 @@ type t;
 
 let initial: t;
 
-let increment_indices: t => t;
-let decrement_indices: t => t;
+/* let increment_indices: t => t; */
+/* let decrement_indices: t => t; */
 
 type kind := KindCore.t(Index.absolute);
 type htyp := HTypSyntax.t(Index.absolute);
@@ -28,3 +28,8 @@ let var: (t, index) => option(Var.t);
 let var_index: (t, Var.t) => option(index);
 let var_type: (t, Var.t) => option(htyp);
 let add_var: (t, Var.t, htyp) => t;
+
+/* context-sensitive relations */
+
+/* let equivalent_types: (t, htyp, htyp) => bool; */
+/* let equivalent_kinds: (t, kind, kind) => bool; */
