@@ -37,12 +37,24 @@ let text_box_handler = (~inject, new_text) => {
   ]);
 };
 
-let rank_selection_handler = (inject, x, id) => {
+let rank_selection_handler = (inject, index, new_rank) => {
   // update_chosen_rank
-  let printing: string = String.concat(" ", [id, x]);
-  print_endline(printing);
-  Event.Many([inject(ModelAction.FocusCell)]);
+  Event.Many([
+    inject(
+      ModelAction.UpdateDocumentationStudySettings(
+        DocumentationStudySettings.Update_Prompt(Example, index, new_rank),
+      ),
+    ),
+    inject(FocusCell),
+  ]);
 };
+
+// let rank_selection_handler = (inject, x, id) => {
+//   // update_chosen_rank
+//   let printing: string = String.concat(" ", [id, x]);
+//   print_endline(printing);
+//   Event.Many([inject(ModelAction.FocusCell)]);
+// };
 
 // let update_chosen_rank = (u: update, settings: t) =>
 //   switch (u) {
@@ -75,6 +87,7 @@ let a_single_example_expression_ =
       example_body: Node.t,
       ranking_out_of: int,
       result: Node.t,
+      index: int,
     ) => {
   [
     Node.div(
@@ -88,8 +101,8 @@ let a_single_example_expression_ =
           [
             Attr.name(example_id),
             Attr.style(Css_gen.create(~field="float", ~value="left-block")),
-            Attr.on_change((_, xx) =>
-              rank_selection_handler(inject, xx, example_id)
+            Attr.on_change((_, new_rank) =>
+              rank_selection_handler(inject, index, int_of_string(new_rank))
             ),
           ],
           CodeExplanation_common.rank_list(1 + ranking_out_of),
@@ -138,8 +151,8 @@ let display_examples =
       examples_list_: list(quest),
     ) => {
   List.flatten(
-    List.map(
-      e =>
+    List.mapi(
+      (index, e) =>
         a_single_example_expression_(
           ~inject,
           e.idz,
@@ -155,6 +168,7 @@ let display_examples =
             ~pos,
             e.result,
           ),
+          index,
         ),
       examples_list_,
     ),
