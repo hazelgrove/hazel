@@ -104,6 +104,7 @@ and follow_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
+    | TypVar(_, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -271,6 +272,7 @@ and of_steps_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
+    | TypVar(_, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -411,6 +413,10 @@ and holes_operand =
     ]
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
+  | TypVar(err, ty) =>
+    hs
+    |> CursorPath_Typ.holes(ty, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
@@ -583,6 +589,19 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(_k, _), TypVar(err, _ty)) =>
+    /* TODO (typ-app): */
+    switch (err) {
+    | NotInHole => CursorPath_common.no_holes
+    | InHole(_, _u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorE(_, TypVar(_err, _ty)) =>
+    /* TODO (typ-app): */
+    failwith("UnReachable")
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
