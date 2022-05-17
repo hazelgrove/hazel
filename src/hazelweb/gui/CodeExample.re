@@ -25,11 +25,11 @@ open Prompt;
  };
  */
 
-let rank_selection_handler = (x, id) => {
+let rank_selection_handler = (inject, x, id) => {
   // update_chosen_rank
   let printing: string = String.concat(" ", [id, x]);
   print_endline(printing);
-  Event.Many([]);
+  Event.Many([inject(ModelAction.FocusCell)]);
 };
 
 // let update_chosen_rank = (u: update, settings: t) =>
@@ -57,6 +57,7 @@ let rank_selection_handler = (x, id) => {
 // TODO make sure this is of type exampleExpression
 let a_single_example_expression_ =
     (
+      ~inject,
       example_id: string,
       caption: string,
       example_body: Node.t,
@@ -76,7 +77,7 @@ let a_single_example_expression_ =
             Attr.name(example_id),
             Attr.style(Css_gen.create(~field="float", ~value="left-block")),
             Attr.on_change((_, xx) =>
-              rank_selection_handler(xx, example_id)
+              rank_selection_handler(inject, xx, example_id)
             ),
           ],
           CodeExplanation_common.rank_list(1 + ranking_out_of),
@@ -128,6 +129,7 @@ let display_examples =
     List.map(
       e =>
         a_single_example_expression_(
+          ~inject,
           e.idz,
           e.caption,
           UHCode.basic_view(~settings, ~width, e.expressionz),

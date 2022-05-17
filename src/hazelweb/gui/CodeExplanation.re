@@ -13,6 +13,7 @@ let rank_selection_handler = (~inject, index, new_rank) => {
         ),
       ),
     ),
+    inject(FocusCell),
   ]);
 };
 
@@ -36,20 +37,28 @@ let a_single_example_expression =
         Attr.name("question_wrapper"),
         Attr.class_("question_wrapper"),
         Attr.on_mouseenter(_ => {
-          inject(
-            ModelAction.UpdateDocumentationStudySettings(
-              DocumentationStudySettings.Toggle_Explanation_Hovered_over(
-                index,
+          Event.Many([
+            inject(
+              ModelAction.UpdateDocumentationStudySettings(
+                DocumentationStudySettings.Toggle_Explanation_Hovered_over(
+                  index,
+                ),
               ),
             ),
-          )
+            inject(FocusCell),
+          ])
         }),
         Attr.on_mouseleave(_ => {
-          inject(
-            ModelAction.UpdateDocumentationStudySettings(
-              DocumentationStudySettings.Toggle_Explanation_Hovered_over(-1),
+          Event.Many([
+            inject(
+              ModelAction.UpdateDocumentationStudySettings(
+                DocumentationStudySettings.Toggle_Explanation_Hovered_over(
+                  -1,
+                ),
+              ),
             ),
-          )
+            inject(FocusCell),
+          ])
         }),
       ],
       [
