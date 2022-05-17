@@ -17,7 +17,7 @@ type source =
 type state =
   | Source(source)
   | Parsed(UHExp.t)
-  | Elaborated(DHExp.t)
+  | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Grainized(GrainIR.prog)

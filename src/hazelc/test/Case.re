@@ -29,7 +29,7 @@ let compile = (exp, outpath) => {
   switch (exp) {
   | Str(s) => Compile.resume(~opts, outpath, Source(SourceString(s)))
   | UH(e) => Compile.resume(~opts, outpath, Parsed(e))
-  | DH(d) => Compile.resume(~opts, outpath, Elaborated(d))
+  | DH(d) => Compile.resume(~opts, outpath, Elaborated(Contexts.initial, d))
   };
 };
 

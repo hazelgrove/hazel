@@ -56,7 +56,7 @@ let source_of_sexp = sexp => {
 type state =
   | Source(source)
   | Parsed(UHExp.t)
-  | Elaborated(DHExp.t)
+  | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Grainized(GrainIR.prog)
@@ -94,10 +94,15 @@ let parse = source => {
   lexbuf |> Parsing.ast_of_lexbuf;
 };
 
-let elaborate = (~_opts=default_opts) =>
-  Elaborator_Exp.elab(Contexts.initial, Delta.empty);
+let elaborate = (~_opts=default_opts, e: UHExp.t) => {
+  let ctx = Contexts.initial;
+  (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
+};
 
-let transform = (~_opts=default_opts) => Transform.transform;
+let transform = (~_opts=default_opts, ctx: Contexts.t) => {
+  let ctx = Contexts.gamma(ctx) |> VarMap.map(((_, ty)) => (ty, false));
+  Transform.transform(ctx);
+};
 
 let linearize = (~_opts=default_opts) => Linearize.linearize;
 
@@ -134,10 +139,10 @@ let next = (~opts=default_opts, path, state) => {
     |> Result.map_error(err => ParseError(err))
   | Parsed(e) =>
     switch (elaborate(e)) {
-    | Elaborates(d, _ty, _delta) => Ok(Elaborated(d))
-    | DoesNotElaborate => Error(ElaborateError)
+    | (ctx, Elaborates(d, _ty, _delta)) => Ok(Elaborated(ctx, d))
+    | (_, DoesNotElaborate) => Error(ElaborateError)
     }
-  | Elaborated(d) => Ok(Transformed(transform(d)))
+  | Elaborated(ctx, d) => Ok(Transformed(transform(ctx, d)))
   | Transformed(u) => Ok(Linearized(linearize(u)))
   | Linearized(a) => Ok(Grainized(grainize(a)))
   | Grainized(g) => Ok(Printed(print(g)))
@@ -214,7 +219,7 @@ let compile_dhexp = (~opts=default_opts, path, source) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, path, Source(source))) {
   | Ok(state) =>
     switch (state) {
-    | Elaborated(d) => Ok(d)
+    | Elaborated(_, d) => Ok(d)
     | _ => raise(BadState)
     }
   | Error(err) => Error(err)

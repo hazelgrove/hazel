@@ -31,12 +31,14 @@ type has_indet = bool;
 [@deriving sexp]
 type expr = {
   expr_kind,
+  expr_ty: HTyp.t,
   expr_indet: has_indet,
 }
 
 [@deriving sexp]
 and case = {
   case_kind,
+  case_ty: HTyp.t,
   case_indet: has_indet,
 }
 
@@ -47,6 +49,7 @@ and case_kind =
 [@deriving sexp]
 and rule = {
   rule_kind,
+  rule_ty: HTyp.t,
   rule_indet: has_indet,
 }
 
