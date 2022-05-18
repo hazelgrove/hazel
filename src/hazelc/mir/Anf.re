@@ -1,3 +1,6 @@
+/*
+   This module defines a linearized intermediate representation.
+ */
 open Sexplib.Std;
 
 [@deriving sexp]
