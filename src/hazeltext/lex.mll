@@ -76,6 +76,8 @@ rule read =
   | ">." { FGREATER }
   | "<" { LESSER }
   | "<." { FLESSER }
+  | "&&" { AND }
+  | "||" { OR }
   | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }

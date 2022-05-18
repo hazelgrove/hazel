@@ -136,3 +136,5 @@ let%test "block within case" =
 
 let%test "case in function position" =
   test_parse "case true\n    | true => fun f {f+1}\n   end 2"
+
+let%test "and, or" = test_parse "((a && b || c) && d || e) && (f || g)"

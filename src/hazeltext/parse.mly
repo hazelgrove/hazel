@@ -53,6 +53,7 @@
   let mk_empty_list = UHExp.listnil ()
 %}
 
+%token AND
 %token ARROW
 %token BAR
 %token CASE
@@ -90,6 +91,7 @@
 %token LPAREN
 %token MINUS
 %token MULT
+%token OR
 %token PLUS
 %token RBRACE
 %token RBRACK
@@ -99,6 +101,8 @@
 %token TRUE
 %token WILD
 
+%right OR
+%right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
@@ -232,4 +236,6 @@ expr_:
   | EQUALEQUAL { Operators_Exp.Equals }
   | FEQUALEQUAL { Operators_Exp.FEquals }
   | COMMA { Operators_Exp.Comma }
+  | AND { Operators_Exp.And }
+  | OR { Operators_Exp.Or }
 ;
