@@ -27,9 +27,9 @@ let add_var: (t, Var.t, htyp) => t;
 /*
 
    do this first:
-   
+
    KindSystem.re (contexts, htyp, kind)
-   
+
    HTyp.re: include KindSystem.HTyp
    Kind.re:
    Contexts.re:

@@ -110,59 +110,59 @@ let meet = ((x: bool, y: bool)): bool => x && y;
 
 // TODO: (eric) make sure there are no unbound type variables in anything exported from Context
 
-/* The initial context has no bindings. */
-let%test _ =
-  Contexts.initial |> 
+/* /\* The initial context has no bindings. *\/ */
+/* let%test _ = */
+/*   Contexts.initial |>  */
 
-// [(a, k)]
-// ~> tyvars=[(0, a, k)]
-//      vars=[]
-let%test _ =
-  Contexts.initial
-  |> exec(add_tyvar("a", k))
-  |> pairing(Contexts.tyvars, Contexts.vars)
-  |> product(test_tyvars([(0, "a", k)]), test_vars([]))
-  |> meet;
+/* // [(a, k)] */
+/* // ~> tyvars=[(0, a, k)] */
+/* //      vars=[] */
+/* let%test _ = */
+/*   Contexts.initial */
+/*   |> exec(add_tyvar("a", k)) */
+/*   |> pairing(Contexts.tyvars, Contexts.vars) */
+/*   |> product(test_tyvars([(0, "a", k)]), test_vars([])) */
+/*   |> meet; */
 
-// [(x, a), (a, k)]
-// ~> tyvars=[(0, a, k)]
-//      vars=[(0, x, a:0)]
-let%test _ =
-  ContextsMonad.Infix.(
-    Contexts.initial
-    |> exec(add_tyvar("a", k) $++ add_var("x", tyvar(0, "a")))
-    |> pairing(Contexts.tyvars, Contexts.vars)
-    |> product(
-         test_tyvars([(0, "a", k)]),
-         test_vars([(0, "x", tyvar(0, "a"))]),
-       )
-    |> meet
-  );
+/* // [(x, a), (a, k)] */
+/* // ~> tyvars=[(0, a, k)] */
+/* //      vars=[(0, x, a:0)] */
+/* let%test _ = */
+/*   ContextsMonad.Infix.( */
+/*     Contexts.initial */
+/*     |> exec(add_tyvar("a", k) $++ add_var("x", tyvar(0, "a"))) */
+/*     |> pairing(Contexts.tyvars, Contexts.vars) */
+/*     |> product( */
+/*          test_tyvars([(0, "a", k)]), */
+/*          test_vars([(0, "x", tyvar(0, "a"))]), */
+/*        ) */
+/*     |> meet */
+/*   ); */
 
 /*
 
- [(a, k)]
- ~> (x : a#0) [(x, a#0), (a, k)]
+  [(a, k)]
+  ~> (x : a#0) [(x, a#0), (a, k)]
 
- [(y, ty), (a, k)]
- ~> (x : a#1) [(x, a#1), (y, ty), (a, k)]
+  [(y, ty), (a, k)]
+  ~> (x : a#1) [(x, a#1), (y, ty), (a, k)]
 
- [(b, k), (a, k)]
- ~> (x : a#1) [(x, a#1), (b, k), (a, k)]
+  [(b, k), (a, k)]
+  ~> (x : a#1) [(x, a#1), (b, k), (a, k)]
 
- [(b, k), (a, k)]
- ~> (x : b#0) [(x, b#0), (b, k), (a, k)]
+  [(b, k), (a, k)]
+  ~> (x : b#0) [(x, b#0), (b, k), (a, k)]
 
-  [b x:a0 a]  -->  x : a|0+1+1=2|
-i= 0 1    2
+   [b x:a0 a]  -->  x : a|0+1+1=2|
+ i= 0 1    2
 
-  [y:? b x:a0 a]  -->  x : a|0+2+1=3|
-i= 0   1 2    3
+   [y:? b x:a0 a]  -->  x : a|0+2+1=3|
+ i= 0   1 2    3
 
-  [c b x:a0 a]  -->  x : a|0+2+1=3|
-i= 0 1 2    3
-   
- */
+   [c b x:a0 a]  -->  x : a|0+2+1=3|
+ i= 0 1 2    3
+
+  */
 
 // [(b, k), (x, a), (a, k)]
 // ~> tyvars=[(0, b, k), (1, a, k)]
