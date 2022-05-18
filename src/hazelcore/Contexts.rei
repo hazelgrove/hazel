@@ -3,9 +3,6 @@ type t;
 
 let initial: t;
 
-/* let increment_indices: t => t; */
-/* let decrement_indices: t => t; */
-
 type kind := KindCore.t(Index.absolute);
 type htyp := HTypSyntax.t(Index.absolute);
 type index := Index.Abs.t;
@@ -17,8 +14,6 @@ let tyvar: (t, index) => option(TyVar.t);
 let tyvar_index: (t, TyVar.t) => option(index);
 let tyvar_kind: (t, index) => option(kind);
 let add_tyvar: (t, TyVar.t, kind) => t;
-let remove_tyvar: (t, index, htyp) => option(t);
-let remove_tyvars: (t, list((index, htyp))) => option(t);
 let diff_tyvars: (t, t) => list((index, htyp));
 
 /* Expression Variables */
@@ -29,7 +24,15 @@ let var_index: (t, Var.t) => option(index);
 let var_type: (t, Var.t) => option(htyp);
 let add_var: (t, Var.t, htyp) => t;
 
-/* context-sensitive relations */
+/*
 
-/* let equivalent_types: (t, htyp, htyp) => bool; */
-/* let equivalent_kinds: (t, kind, kind) => bool; */
+   do this first:
+   
+   KindSystem.re (contexts, htyp, kind)
+   
+   HTyp.re: include KindSystem.HTyp
+   Kind.re:
+   Contexts.re:
+
+   then redo indices and local tyvar stuff
+ */

@@ -43,18 +43,18 @@ let tyvar_kind = (idx: index): t(option(kind)) =>
 let add_tyvar = (x: TyVar.t, k: kind): t(unit) =>
   put @>+ Contexts.add_tyvar +-+ get() +~. x +~. k;
 
-let remove_tyvar = (idx: index, ty: htyp): t(bool) =>
-  Contexts.remove_tyvar
-  +-+ get()
-  +~. idx
-  +~. ty
-  @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true);
+/* let remove_tyvar = (idx: index, ty: htyp): t(bool) => */
+/*   Contexts.remove_tyvar */
+/*   +-+ get() */
+/*   +~. idx */
+/*   +~. ty */
+/*   @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true); */
 
-let remove_tyvars = (tyvars: list((index, htyp))): t(bool) =>
-  Contexts.remove_tyvars
-  +-+ get()
-  +~. tyvars
-  @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true);
+/* let remove_tyvars = (tyvars: list((index, htyp))): t(bool) => */
+/*   Contexts.remove_tyvars */
+/*   +-+ get() */
+/*   +~. tyvars */
+/*   @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true); */
 
 let diff_tyvars = (new_ctx: Contexts.t): t(list((index, htyp))) =>
   Contexts.diff_tyvars(new_ctx) +-+ get();

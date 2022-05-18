@@ -1,6 +1,6 @@
 open ContextsMonad;
 
-let verbose = false;
+let verbose = true;
 
 let test_vars =
     (
@@ -106,10 +106,13 @@ let product = (f: 'a => 'b, g: 'c => 'd, (x: 'a, y: 'c)): ('b, 'd) => (
 let meet = ((x: bool, y: bool)): bool => x && y;
 
 // TODO: (eric) implement index shifting at type abstraction boundaries
-
 // [("a", Singleton(Rec.@0 + @1)), -1-]
 
 // TODO: (eric) make sure there are no unbound type variables in anything exported from Context
+
+/* The initial context has no bindings. */
+let%test _ =
+  Contexts.initial |> 
 
 // [(a, k)]
 // ~> tyvars=[(0, a, k)]
@@ -122,23 +125,48 @@ let%test _ =
   |> meet;
 
 // [(x, a), (a, k)]
-// ~> tyvars=[(1, a, k)]
-//      vars=[(0, x, a)]
+// ~> tyvars=[(0, a, k)]
+//      vars=[(0, x, a:0)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
     |> exec(add_tyvar("a", k) $++ add_var("x", tyvar(0, "a")))
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(1, "a", k)]),
-         test_vars([(0, "x", tyvar(1, "a"))]),
+         test_tyvars([(0, "a", k)]),
+         test_vars([(0, "x", tyvar(0, "a"))]),
        )
     |> meet
   );
 
+/*
+
+ [(a, k)]
+ ~> (x : a#0) [(x, a#0), (a, k)]
+
+ [(y, ty), (a, k)]
+ ~> (x : a#1) [(x, a#1), (y, ty), (a, k)]
+
+ [(b, k), (a, k)]
+ ~> (x : a#1) [(x, a#1), (b, k), (a, k)]
+
+ [(b, k), (a, k)]
+ ~> (x : b#0) [(x, b#0), (b, k), (a, k)]
+
+  [b x:a0 a]  -->  x : a|0+1+1=2|
+i= 0 1    2
+
+  [y:? b x:a0 a]  -->  x : a|0+2+1=3|
+i= 0   1 2    3
+
+  [c b x:a0 a]  -->  x : a|0+2+1=3|
+i= 0 1 2    3
+   
+ */
+
 // [(b, k), (x, a), (a, k)]
-// ~> tyvars=[(0, b, k), (2, a, k)]
-//      vars=[(1, x, a)]
+// ~> tyvars=[(0, b, k), (1, a, k)]
+//      vars=[(0, x, a:1)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -149,15 +177,15 @@ let%test _ =
        )
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(0, "b", k), (2, "a", k)]),
-         test_vars([(1, "x", tyvar(2, "a"))]),
+         test_tyvars([(0, "b", k), (1, "a", k)]),
+         test_vars([(0, "x", tyvar(1, "a"))]),
        )
     |> meet
   );
 
 // [(y, b), (b, k), (x, a), (a, k)]
-// ~> tyvars=[(1, b, k), (3, a, k)]
-//      vars=[(0, y, b), (2, x, a)]
+// ~> tyvars=[(0, b, k), (1, a, k)]
+//      vars=[(0, y, b:0), (1, x, a:1)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -169,15 +197,15 @@ let%test _ =
        )
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(1, "b", k), (3, "a", k)]),
-         test_vars([(0, "y", tyvar(1, "b")), (2, "x", tyvar(3, "a"))]),
+         test_tyvars([(0, "b", k), (1, "a", k)]),
+         test_vars([(0, "y", tyvar(0, "b")), (1, "x", tyvar(1, "a"))]),
        )
     |> meet
   );
 
 // [(y, a), (b, k), (x, a), (a, k)]
-// ~> tyvars=[(1, b, k), (3, a, k)]
-//      vars=[(0, y, a), (2, x, a)]
+// ~> tyvars=[(0, b, k), (1, a, k)]
+//      vars=[(0, y, a:1), (1, x, a:1]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -185,19 +213,19 @@ let%test _ =
          add_tyvar("a", k)
          $++ add_var("x", tyvar(0, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(2, "a")),
+         $++ add_var("y", tyvar(1, "a")),
        )
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(1, "b", k), (3, "a", k)]),
-         test_vars([(0, "y", tyvar(3, "a")), (2, "x", tyvar(3, "a"))]),
+         test_tyvars([(0, "b", k), (1, "a", k)]),
+         test_vars([(0, "y", tyvar(1, "a")), (1, "x", tyvar(1, "a"))]),
        )
     |> meet
   );
 
 // [(z, a), (c, k), (y, a), (b, k), (x, a), (a, k)]
-// ~> tyvars=[(1, c, k), (3, b, k), (5, a, k)]
-//      vars=[(0, z, a), (2, y, a), (4, x, a)]
+// ~> tyvars=[(0, c, k), (1, b, k), (2, a, k)]
+//      vars=[(0, z, a:2), (1, y, a:2), (2, x, a:2)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -205,25 +233,25 @@ let%test _ =
          add_tyvar("a", k)
          $++ add_var("x", tyvar(0, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(2, "a"))
+         $++ add_var("y", tyvar(1, "a"))
          $++ add_tyvar("c", k)
-         $++ add_var("z", tyvar(4, "a")),
+         $++ add_var("z", tyvar(2, "a")),
        )
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(1, "c", k), (3, "b", k), (5, "a", k)]),
+         test_tyvars([(0, "c", k), (1, "b", k), (2, "a", k)]),
          test_vars([
-           (0, "z", tyvar(5, "a")),
-           (2, "y", tyvar(5, "a")),
-           (4, "x", tyvar(5, "a")),
+           (0, "z", tyvar(2, "a")),
+           (1, "y", tyvar(2, "a")),
+           (2, "x", tyvar(2, "a")),
          ]),
        )
     |> meet
   );
 
 // [(z, c), (c, k), (y, b), (b, k), (x, a), (a, k)]
-// ~> tyvars=[(1, c, k), (3, b, k), (5, a, k)]
-//      vars=[(0, z, c), (2, y, b), (4, x, a)]
+// ~> tyvars=[(0, c, k), (1, b, k), (2, a, k)]
+//      vars=[(0, z, c:0), (1, y, b:1), (2, x, a:2)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -237,11 +265,11 @@ let%test _ =
        )
     |> pairing(Contexts.tyvars, Contexts.vars)
     |> product(
-         test_tyvars([(1, "c", k), (3, "b", k), (5, "a", k)]),
+         test_tyvars([(0, "c", k), (1, "b", k), (2, "a", k)]),
          test_vars([
-           (0, "z", tyvar(1, "c")),
-           (2, "y", tyvar(3, "b")),
-           (4, "x", tyvar(5, "a")),
+           (0, "z", tyvar(0, "c")),
+           (1, "y", tyvar(1, "b")),
+           (2, "x", tyvar(2, "a")),
          ]),
        )
     |> meet
@@ -258,7 +286,7 @@ let%test _ =
   );
 
 // [(b, S(a)), (a, k)]
-// ~> tyvars=[(0, b, S(a)), (1, a, k)]
+// ~> tyvars=[(0, b, S(a:1)), (1, a, k)]
 let%test _ =
   ContextsMonad.Infix.(
     Contexts.initial
@@ -270,17 +298,68 @@ let%test _ =
     |> test_tyvars([(0, "b", Kind.singleton(tyvar(1, "a"))), (1, "a", k)])
   );
 
-// [(c, S(a)), (b, k), (a, k)]  -->  [(c, S(a)), (a, k)]
-// ~> tyvars=[(0, c, S(a)), (1, a, k)]
-let%test _ =
-  ContextsMonad.Infix.(
-    Contexts.initial
-    |> exec(
-         add_tyvar("a", k)
-         $++ add_tyvar("b", k)
-         $++ add_tyvar("c", Kind.singleton(tyvar(1, "a")))
-         $++ remove_tyvar(Index.Abs.of_int(1), HTyp.unsafe(HTyp.hole)),
-       )
-    |> Contexts.tyvars
-    |> test_tyvars([(0, "c", Kind.singleton(tyvar(1, "a"))), (1, "a", k)])
-  );
+/* // [(c, S(a)), (b, k), (a, k)]  -->  [(c, S(a)), (a, k)] */
+/* // ~> tyvars=[(0, c, S(a:1)), (1, a, k)] */
+/* let%test _ = */
+/*   ContextsMonad.Infix.( */
+/*     Contexts.initial */
+/*     |> exec( */
+/*          add_tyvar("a", k) */
+/*          $++ add_tyvar("b", k) */
+/*          $++ add_tyvar("c", Kind.singleton(tyvar(1, "a"))) */
+/*          $++ remove_tyvar(Index.Abs.of_int(1), HTyp.unsafe(HTyp.hole)), */
+/*        ) */
+/*     |> Contexts.tyvars */
+/*     |> test_tyvars([(0, "c", Kind.singleton(tyvar(1, "a"))), (1, "a", k)]) */
+/*   ); */
+
+/* // [(c, S(b)), (b, k), (a, k)]  -->  [(c, ty_k), (a, k)] */
+/* // ~> tyvars=[(0, c, ty_k), (1, a, k)] */
+/* let%test _ = */
+/*   ContextsMonad.Infix.( */
+/*     Contexts.initial */
+/*     |> exec( */
+/*          add_tyvar("a", k) */
+/*          $++ add_tyvar("b", k) */
+/*          $++ add_tyvar("c", Kind.singleton(tyvar(0, "b"))) */
+/*          $++ remove_tyvar(Index.Abs.of_int(1), HTyp.unsafe(HTyp.hole)), */
+/*        ) */
+/*     |> Contexts.tyvars */
+/*     |> test_tyvars([(0, "c", Kind.singleton(HTyp.int)), (1, "a", k)]) */
+/*   ); */
+
+/* // [(x, S(a)), (a, k)]  -->  [(x, ty_k)] */
+/* // ~> tyvars=[] */
+/* //      vars=[(0, x, ty_k)] */
+/* let%test _ = */
+/*   ContextsMonad.Infix.( */
+/*     Contexts.initial */
+/*     |> exec( */
+/*          add_tyvar("a", k) */
+/*          $++ add_var("x", tyvar(0, "a")) */
+/*          $++ remove_tyvar(Index.Abs.of_int(0), HTyp.unsafe(HTyp.hole)), */
+/*        ) */
+/*     |> pairing(Contexts.tyvars, Contexts.vars) */
+/*     |> product(test_tyvars([]), test_vars([(0, "x", HTyp.hole)])) */
+/*     |> meet */
+/*   ); */
+
+/* // [(x, a), (b, k), (a, k)]  -->  [(x, a), (a, k)] */
+/* // ~> tyvars=[(0, a, k)]] */
+/* //      vars=[(0, x, a:0)] */
+/* let%test _ = */
+/*   ContextsMonad.Infix.( */
+/*     Contexts.initial */
+/*     |> exec( */
+/*          add_tyvar("a", k) */
+/*          $++ add_tyvar("b", k) */
+/*          $++ add_var("x", tyvar(1, "a")) */
+/*          $++ remove_tyvar(Index.Abs.of_int(0), HTyp.unsafe(HTyp.hole)), */
+/*        ) */
+/*     |> pairing(Contexts.tyvars, Contexts.vars) */
+/*     |> product( */
+/*          test_tyvars([(0, "a", k)]), */
+/*          test_vars([(0, "x", tyvar(0, "a"))]), */
+/*        ) */
+/*     |> meet */
+/*   ); */

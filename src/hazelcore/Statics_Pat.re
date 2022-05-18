@@ -447,7 +447,7 @@ and syn_fix_holes_operand =
         (UHPat.TypeAnn(NotInHole, op, ann), ty_ann, ctx, u_gen);
       };
     | None =>
-      print_endline("JJJ"g);
+      print_endline("JJJ");
       let (op, ty, ctx, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, op);
       let (u, u_gen) = MetaVarGen.next(u_gen);

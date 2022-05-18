@@ -358,16 +358,23 @@ and syn_elab_operand =
     Elaborates(ListNil((ctx, elt_ty)), HTyp.list(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
+    print_endline("--- ELABORATOR_EXP syn_elab_operand ---");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
+    );
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
+      print_endline("III");
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
+        print_endline("HHH");
         let d = DHExp.Fun(dp, (ctx, ty1), d1);
         Elaborates(d, HTyp.arrow(ty1, ty2), delta);
-      }
-    }
+      };
+    };
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -689,9 +696,16 @@ and ana_elab_operand =
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
   | Fun(NotInHole, p, body) =>
+    print_endline("--- ELABORATOR_EXP ana_elab_operand ---");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
+    );
+    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
     switch (HTyp.matched_arrow(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
+      print_endline("GGG!");
       let ty1_ann =
         switch (Statics_Pat.syn(ctx, p)) {
         | None => ty1_given
@@ -700,19 +714,27 @@ and ana_elab_operand =
       switch (HTyp.consistent(ctx, ty1_ann, ty1_given)) {
       | false => DoesNotElaborate
       | true =>
+        print_endline("FFF!");
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1_ann)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(dp, ty1p, ctx, delta) =>
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
+            print_endline("EEE!");
             let ty = HTyp.arrow(ty1p, ty2);
             let d = DHExp.Fun(dp, (ctx, ty1p), d1);
+            print_endline(">>>");
+            print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+            print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+            print_endline(
+              Sexplib.Sexp.to_string_hum(Delta.sexp_of_t(delta)),
+            );
             Elaborates(d, ty, delta);
           }
-        }
+        };
       };
-    }
+    };
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | None => DoesNotElaborate

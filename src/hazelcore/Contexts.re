@@ -46,6 +46,19 @@ let first_tyvar_binding =
   go(0, ctx);
 };
 
+/* let tyvars = (ctx: t): list((index, TyVar.t, kind)) => { */
+/*   let rec go = (i, n, ctx) => */
+/*     switch (ctx) { */
+/*     | [TyVarBinding(t, k), ...ctx] => [ */
+/*         (Index.Abs.of_int(i), t, KindCore.to_abs(~offset=n, k)), */
+/*         ...go(i + 1, n, ctx), */
+/*       ] */
+/*     | [VarBinding(_), ...ctx] => go(i + 1, n, ctx) */
+/*     | [] => [] */
+/*     }; */
+/*   go(0, 0, ctx); */
+/* }; */
+
 let tyvars = (ctx: t): list((index, TyVar.t, kind)) =>
   ctx
   |> List.filter_map(
@@ -54,7 +67,7 @@ let tyvars = (ctx: t): list((index, TyVar.t, kind)) =>
        | VarBinding(_) => None,
      )
   |> List.mapi((i, (t, k)) =>
-       (Index.Abs.of_int(i), t, KindCore.to_abs(~offset=i, k))
+       (Index.Abs.of_int(i), t, KindCore.to_abs(~offset=i + 1, k))
      );
 
 let tyvar = (ctx: t, idx: index): option(TyVar.t) => {
@@ -77,59 +90,85 @@ let tyvar_kind = (ctx: t, idx: index): option(kind) => {
 };
 
 let add_tyvar = (ctx: t, t: TyVar.t, k: kind): t => [
-  TyVarBinding(t, KindCore.to_rel(~offset=1, k)),
+  TyVarBinding(t, KindCore.to_rel(k)),
   ...ctx,
 ];
 
-/* assumes idx does not occur in ty */
-let remove_tyvar = (ctx: t, idx: index, ty: htyp): option(t) => {
-  open OptUtil.Syntax;
-  let i = Index.Abs.to_int(idx);
-  let rec go = (j, ctx) =>
-    if (i < 0 || j > i) {
-      None; /* index out of bounds */
-    } else if (j == i) {
-      /* drop the i-th tyvar binding and leave the rest alone */
-      switch (ctx) {
-      | [TyVarBinding(_), ...ctx'] => Some(ctx')
-      | [VarBinding(_) as binding, ...ctx'] =>
-        let+ ctx' = go(j, ctx');
-        [binding, ...ctx'];
-      | [] => None
-      };
-    } else {
-      let offset = i - j;
-      switch (ctx) {
-      | [TyVarBinding(t, k), ...ctx'] =>
-        let+ ctx' = go(j + 1, ctx');
-        let ty = HTypSyntax.to_rel(~offset, ty);
-        /* remove from preceding bindings */
-        let k = KindCore.subst_tyvar(k, Index.Rel.of_int(offset), ty);
-        /* decrement uses of following bindings */
-        let k = KindCore.shift_indices(~above=offset, ~amount=-1, k);
-        [TyVarBinding(t, k), ...ctx'];
-      | [VarBinding(x, ty_x), ...ctx'] =>
-        let+ ctx' = go(j + 1, ctx');
-        let ty = HTypSyntax.to_rel(~offset, ty);
-        let ty_x = HTypSyntax.subst(ty_x, Index.Rel.of_int(offset), ty);
-        let ty_x = HTypSyntax.shift_indices(~above=offset, ~amount=-1, ty_x);
-        [VarBinding(x, ty_x), ...ctx'];
-      | [] => None
-      };
-    };
-  go(0, ctx);
-};
+/* /\* assumes idx does not occur in ty *\/ */
+/* let remove_tyvar = (ctx: t, idx: index, ty: htyp): option(t) => { */
+/*   open OptUtil.Syntax; */
+/*   let i = Index.Abs.to_int(idx); */
+/*   let rec go = (n, ctx) => { */
+/*     /\* let ty = HTypSyntax.to_rel(~offset=- n, ty); *\/ */
+/*     switch (ctx) { */
+/*     | [TyVarBinding(_), ...ctx'] => */
+/*       let+ ctx' = go(n, ctx'); */
+/*       if (n < i) { */
+/*         let k = k |> eliminate_tyvar_in_kind |> decrement_tyvar_uses_in_kind; */
+/*         [TyVarBinding(t, k), ...ctx']; */
+/*       } else { */
+/*         ctx'; */
+/*       }; */
+/*     | [VarBinding(x, ty_x), ...ctx'] => */
+/*       let+ ctx' = go(n, ctx'); */
+/*       let ty_x = */
+/*         n <= i */
+/*           ? ty_x |> eliminate_tyvar_in_htyp |> decrement_tyvar_uses_in_htyp */
+/*           : ty_x; */
+/*       [VarBinding(x, ty_x), ...ctx']; */
+/*     | [] => None */
+/*     }; */
+/*   }; */
+/*   go(0, ctx); */
+/* }; */
 
-let remove_tyvars = (ctx: t, tyvars: list((index, htyp))): option(t) =>
-  List.fold_left(
-    (ctx_opt, (idx, ty)) => {
-      open OptUtil.Syntax;
-      let* ctx = ctx_opt;
-      remove_tyvar(ctx, idx, ty);
-    },
-    Some(ctx),
-    tyvars,
-  );
+/* let remove_tyvar = (ctx: t, idx: index, ty: htyp): option(t) => { */
+/*   open OptUtil.Syntax; */
+/*   let i = Index.Abs.to_int(idx); */
+/*   let rec go = (j, ctx) => */
+/*     if (i < 0 || j > i) { */
+/*       None; /\* index out of bounds *\/ */
+/*     } else if (j == i) { */
+/*       /\* drop the i-th tyvar binding and leave the rest alone *\/ */
+/*       switch (ctx) { */
+/*       | [TyVarBinding(_), ...ctx'] => Some(ctx') */
+/*       | [VarBinding(_) as binding, ...ctx'] => */
+/*         let+ ctx' = go(j, ctx'); */
+/*         [binding, ...ctx']; */
+/*       | [] => None */
+/*       }; */
+/*     } else { */
+/*       let i_rel = i - j - 1; */
+/*       let ty = HTypSyntax.to_rel(~offset=i_rel, ty); */
+/*       switch (ctx) { */
+/*       | [TyVarBinding(t, k), ...ctx'] => */
+/*         let+ ctx' = go(j + 1, ctx'); */
+/*         /\* remove from preceding bindings *\/ */
+/*         let k = KindCore.subst_tyvar(k, Index.Rel.of_int(i - j), ty); */
+/*         /\* decrement uses of following bindings *\/ */
+/*         let k = KindCore.shift_indices(~above=offset, ~amount=-1, k); */
+/*         [TyVarBinding(t, k), ...ctx']; */
+/*       | [VarBinding(x, ty_x), ...ctx'] => */
+/*         let+ ctx' = go(j + 1, ctx'); */
+/*         let ty_x = HTypSyntax.subst(ty_x, Index.Rel.of_int(offset), ty); */
+/*         let ty_x = HTypSyntax.shift_indices(~above=offset, ~amount=-1, ty_x); */
+/*         [VarBinding(x, ty_x), ...ctx']; */
+/*       | [] => None */
+/*       }; */
+/*     }; */
+/*   go(0, ctx); */
+/* }; */
+
+/* let remove_tyvars = (ctx: t, tyvars: list((index, htyp))): option(t) => */
+/*   List.fold_left( */
+/*     (ctx_opt, (idx, ty)) => { */
+/*       open OptUtil.Syntax; */
+/*       let* ctx = ctx_opt; */
+/*       remove_tyvar(ctx, idx, ty); */
+/*     }, */
+/*     Some(ctx), */
+/*     tyvars, */
+/*   ); */
 
 let diff_tyvars = (new_ctx: t, old_ctx: t): list((index, htyp)) => {
   let new_tyvars = tyvars(new_ctx);
@@ -153,16 +192,18 @@ let nth_var_binding =
   go(0, n, ctx);
 };
 
-let vars = (ctx: t): list((index, Var.t, htyp)) =>
-  ctx
-  |> List.filter_map(
-       fun
-       | VarBinding(x, ty) => Some((x, ty))
-       | TyVarBinding(_) => None,
-     )
-  |> List.mapi((i, (x, ty)) =>
-       (Index.Abs.of_int(i), x, HTypSyntax.to_abs(~offset=i, ty))
-     );
+let vars = (ctx: t): list((index, Var.t, htyp)) => {
+  let rec go = (i, n, ctx) =>
+    switch (ctx) {
+    | [TyVarBinding(_), ...ctx] => go(i, n + 1, ctx)
+    | [VarBinding(x, ty), ...ctx] => [
+        (Index.Abs.of_int(i), x, HTypSyntax.to_abs(~offset=n, ty)),
+        ...go(i + 1, n, ctx),
+      ]
+    | [] => []
+    };
+  go(0, 0, ctx);
+};
 
 let var = (ctx: t, idx: index): option(Var.t) => {
   open OptUtil.Syntax;
