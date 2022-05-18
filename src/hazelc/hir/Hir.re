@@ -1,3 +1,7 @@
+/*
+   This module defines the high-level intermediate representation, which has an
+   expression form.
+ */
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -25,6 +29,10 @@ type bin_float_op =
   | OpFGreaterThan
   | OpFEquals;
 
+/*
+   Flag indicating whether or not an expression has a possibly indeterminate
+   subexpression.
+ */
 [@deriving sexp]
 type has_indet = bool;
 
@@ -34,27 +42,6 @@ type expr = {
   expr_ty: HTyp.t,
   expr_indet: has_indet,
 }
-
-[@deriving sexp]
-and case = {
-  case_kind,
-  case_ty: HTyp.t,
-  case_indet: has_indet,
-}
-
-[@deriving sexp]
-and case_kind =
-  | ECase(expr, list(rule), int)
-
-[@deriving sexp]
-and rule = {
-  rule_kind,
-  rule_ty: HTyp.t,
-  rule_indet: has_indet,
-}
-
-and rule_kind =
-  | ERule(pat, expr)
 
 [@deriving sexp]
 and expr_kind =
@@ -93,6 +80,28 @@ and expr_kind =
   | EInvalidOperation(expr, InvalidOperationError.t)
 
 [@deriving sexp]
+and case = {
+  case_kind,
+  case_ty: HTyp.t,
+  case_indet: has_indet,
+}
+
+[@deriving sexp]
+and case_kind =
+  | ECase(expr, list(rule), int)
+
+[@deriving sexp]
+and rule = {
+  rule_kind,
+  rule_ty: HTyp.t,
+  rule_indet: has_indet,
+}
+
+[@deriving sexp]
+and rule_kind =
+  | ERule(pat, expr)
+
+[@deriving sexp]
 and pat = {
   pat_kind,
   pat_indet: has_indet,
@@ -102,9 +111,9 @@ and pat = {
 and pat_kind =
   | PEmptyHole(MetaVar.t, MetaVarInst.t)
   | PNonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, pat)
-  | PWild
   | PKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | PInvalidText(MetaVar.t, MetaVarInst.t, string)
+  | PWild
   | PVar(Var.t)
   | PIntLit(int)
   | PFloatLit(float)

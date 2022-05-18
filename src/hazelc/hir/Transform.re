@@ -2,6 +2,10 @@ exception FixFError;
 exception FreeVarError;
 exception WrongTypeError;
 
+/*
+   Througout the transformation process, we maintain a context mapping
+   variables to types and the presence of indetermine subexpressions.
+ */
 [@deriving sexp]
 type context = VarMap.t_((HTyp.t, Hir.has_indet));
 
@@ -71,23 +75,23 @@ let rec transform_exp = (ctx: context, d: DHExp.t): Hir.expr => {
   | FixF(_) => raise(FixFError)
 
   | Lam(dp, dp_ty, body) =>
-    // Can't assume anything about indet-ness of argument when called.
+    // TODO: Can't assume anything about indet-ness of argument when called?
     let (dp, body_ctx) = transform_pat(ctx, dp, dp_ty, true);
-    let d3 = transform_exp(body_ctx, body);
+    let body = transform_exp(body_ctx, body);
     {
-      expr_kind: ELam(dp, dp_ty, d3),
-      expr_ty: Arrow(dp_ty, d3.expr_ty),
-      expr_indet: dp.pat_indet || d3.expr_indet,
+      expr_kind: ELam(dp, dp_ty, body),
+      expr_ty: Arrow(dp_ty, body.expr_ty),
+      expr_indet: dp.pat_indet || body.expr_indet,
     };
 
-  | Ap(d1, d2) =>
-    let d1 = transform_exp(ctx, d1);
-    let d2 = transform_exp(ctx, d2);
-    switch (d1.expr_ty) {
-    | Arrow(ty, ty') when HTyp.eq(ty, d2.expr_ty) => {
-        expr_kind: EAp(d1, d2),
+  | Ap(fn, arg) =>
+    let fn = transform_exp(ctx, fn);
+    let arg = transform_exp(ctx, arg);
+    switch (fn.expr_ty) {
+    | Arrow(ty, ty') when HTyp.eq(ty, arg.expr_ty) => {
+        expr_kind: EAp(fn, arg),
         expr_ty: ty',
-        expr_indet: d1.expr_indet || d2.expr_indet,
+        expr_indet: fn.expr_indet || arg.expr_indet,
       }
     | _ => raise(WrongTypeError)
     };

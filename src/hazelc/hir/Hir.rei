@@ -100,9 +100,9 @@ and pat = {
 and pat_kind =
   | PEmptyHole(MetaVar.t, MetaVarInst.t)
   | PNonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, pat)
-  | PWild
   | PKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | PInvalidText(MetaVar.t, MetaVarInst.t, string)
+  | PWild
   | PVar(Var.t)
   | PIntLit(int)
   | PFloatLit(float)
