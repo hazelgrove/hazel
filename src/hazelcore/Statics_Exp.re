@@ -102,6 +102,7 @@ and syn_skel =
     and+ _ = ana_skel(ctx, skel2, seq, Float);
     HTyp.Bool;
   | BinOp(NotInHole, Space, skel1, skel2) =>
+    // TODO (typ-app): Handle TypFun and TypArg separate from normal functions
     let* ty1 = syn_skel(ctx, skel1, seq);
     let* (ty2, ty) = HTyp.matched_arrow(ty1);
     let+ _ = ana_skel(ctx, skel2, seq, ty2);
@@ -178,6 +179,8 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
+  /* TypArg should never be synthesized. It is handled at a high level. */
+  | TypArg(_, _) => None;
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -308,6 +311,8 @@ and ana_operand =
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
+  /* TypArg should never be analyzed. It is handled at a high level. */
+  | TypArg(_, _) => None
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
