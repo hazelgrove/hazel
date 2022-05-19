@@ -33,7 +33,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
     }
 
   | FixF(_) => raise(FixFError)
-  | Let(Var(_), FixF(x, ty, Lam(dp, _, d3)), body) =>
+  | Let(Var(_), FixF(x, ty, Fun(dp, _, d3)), body) =>
     // TODO: Not really sure if any of this recursive function handling is right...
     let (dp, ctx') = transform_pat(ctx, dp, ty);
     let (d3, _) = transform_exp(ctx', d3);
@@ -46,7 +46,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
     let (body, body_ty) = transform_exp(body_ctx, body);
     ({expr_kind: ELet(dp, d', body)}, body_ty);
 
-  | Lam(dp, dp_ty, body) =>
+  | Fun(dp, dp_ty, body) =>
     // TODO: Can't assume anything about indet-ness of argument when called?
     let (dp, body_ctx) = transform_pat(ctx, dp, dp_ty);
     let (body, body_ty) = transform_exp(body_ctx, body);
@@ -257,7 +257,7 @@ and transform_pat =
 
   | Var(x) =>
     let gamma' = VarMap.extend(Contexts.gamma(ctx), (x, ty));
-    ({pat_kind: PVar(x)}, (gamma', Contexts.palette_ctx(ctx)));
+    ({pat_kind: PVar(x)}, gamma');
 
   | IntLit(i) => ({pat_kind: PIntLit(i)}, ctx)
 
