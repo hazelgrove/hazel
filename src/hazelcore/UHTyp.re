@@ -59,7 +59,7 @@ let contract = (ty: HTyp.t): t => {
     )
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
-      switch (HTyp.unsafe(ty)) {
+      switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
       | TyVar(idx, t) => Seq.wrap(TyVar(NotInTyVarHole(idx), t))
       | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
@@ -70,8 +70,8 @@ let contract = (ty: HTyp.t): t => {
         mk_seq_operand(
           HTyp.precedence_Arrow,
           Operators_Typ.Arrow,
-          HTyp.of_unsafe(ty1),
-          HTyp.of_unsafe(ty2),
+          HTyp.of_syntax(ty1),
+          HTyp.of_syntax(ty2),
         )
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
@@ -79,30 +79,30 @@ let contract = (ty: HTyp.t): t => {
         |> List.map(elementType =>
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(HTyp.of_unsafe(elementType))
+                 HTyp.precedence(HTyp.of_syntax(elementType))
                  > HTyp.precedence_Prod,
-               HTyp.of_unsafe(elementType),
+               HTyp.of_syntax(elementType),
              )
            )
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(HTyp.of_unsafe(head)) > HTyp.precedence_Prod,
-               HTyp.of_unsafe(head),
+                 HTyp.precedence(HTyp.of_syntax(head)) > HTyp.precedence_Prod,
+               HTyp.of_syntax(head),
              ),
            )
       | Sum(ty1, ty2) =>
         mk_seq_operand(
           HTyp.precedence_Sum,
           Sum,
-          HTyp.of_unsafe(ty1),
-          HTyp.of_unsafe(ty2),
+          HTyp.of_syntax(ty1),
+          HTyp.of_syntax(ty2),
         )
       | List(ty1) =>
         Seq.wrap(
           List(
-            HTyp.of_unsafe(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
+            HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
           ),
         )
       };

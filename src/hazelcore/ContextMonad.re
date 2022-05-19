@@ -17,19 +17,15 @@ include T;
 include Monads.State.Make(T);
 open Infix;
 
-type kind = KindCore.t(Index.absolute);
-type htyp = HTypSyntax.t(Index.absolute);
-type index = Index.Abs.t;
-
 /* Type Variables */
 
 let tyvars: t(list((Index.Abs.t, TyVar.t, Kind.t))) =
   Context.tyvars +-+ get();
 
-let tyvar = (idx: index): t(option(TyVar.t)) =>
+let tyvar = (idx: Index.Abs.t): t(option(TyVar.t)) =>
   Context.tyvar +-+ get() +~. idx;
 
-let tyvar_index = (t: TyVar.t): t(option(index)) =>
+let tyvar_index = (t: TyVar.t): t(option(Index.Abs.t)) =>
   Context.tyvar_index +-+ get() +~. t;
 
 let tyvar_kind = (idx: Index.Abs.t): t(option(Kind.t)) =>

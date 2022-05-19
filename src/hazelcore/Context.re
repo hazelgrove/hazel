@@ -1,5 +1,8 @@
 /* module HTyp = KindSystem.HTyp; */
-include KindSystem.Context;
+open KindSystem.Context;
+
+[@deriving sexp]
+type t = KindSystem.Context.t;
 
 let initial: t = [];
 
@@ -27,6 +30,8 @@ let tyvar_index = (ctx: t, t: TyVar.t): option(Index.Abs.t) => {
   let+ (i, _, _) = first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
   Index.Abs.of_int(i);
 };
+
+let tyvar_kind: (t, Index.Abs.t) => option(Kind.t) = KindSystem.Context.tyvar_kind;
 
 let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
   TyVarBinding(t, KindSystem.Kind.to_rel(k)),

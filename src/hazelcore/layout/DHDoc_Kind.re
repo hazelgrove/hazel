@@ -2,12 +2,12 @@ open Pretty.Doc;
 
 let mk = (k: Kind.t, ~enforce_inline: bool): DHDoc.t => {
   switch (k) {
-  | KHole => text("KHole")
-  | T => text("Ty")
-  | Singleton(ty) =>
+  | Hole => text("Hole")
+  | Type => text("Type")
+  | S(ty) =>
     hcats([
       text("S("),
-      DHDoc_Typ.mk(~enforce_inline, HTyp.of_unsafe(ty)),
+      DHDoc_Typ.mk(~enforce_inline, HTyp.of_syntax(ty)),
       text(")"),
     ])
   };

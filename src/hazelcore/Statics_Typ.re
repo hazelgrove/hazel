@@ -1,46 +1,46 @@
 let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
-  switch (HTyp.unsafe(ty)) {
-  | TyVar(i, _) => Context.tyvar_kind(ctx, i)
+  switch (HTyp.to_syntax(ty)) {
   | Hole
   | TyVarHole(_)
   | Int
   | Float
-  | Bool => Some(Kind.singleton(ty))
+  | Bool => Some(Kind.singleton(HTyp.to_syntax(ty)))
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) =>
     open OptUtil.Syntax;
-    let* () = ana(ctx, HTyp.of_unsafe(ty1), KindCore.T);
-    let+ () = ana(ctx, HTyp.of_unsafe(ty2), KindCore.T);
-    Kind.singleton(ty);
+    let* () = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
+    let+ () = ana(ctx, HTyp.of_syntax(ty2), Kind.Type);
+    Kind.singleton(HTyp.to_syntax(ty));
   | Prod(tys) =>
     open OptUtil.Syntax;
     let+ () =
       List.fold_left(
         (opt, ty) =>
-          Option.bind(opt, _ => ana(ctx, HTyp.of_unsafe(ty), KindCore.T)),
+          Option.bind(opt, _ => ana(ctx, HTyp.of_syntax(ty), Kind.Type)),
         Some(),
         tys,
       );
-    Kind.singleton(ty);
+    Kind.singleton(HTyp.to_syntax(ty));
   | List(ty1) =>
     open OptUtil.Syntax;
-    let+ _ = ana(ctx, HTyp.of_unsafe(ty1), KindCore.T);
-    Kind.singleton(ty);
+    let+ _ = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
+    Kind.singleton(HTyp.to_syntax(ty));
+  | TyVar(i, _) => Context.tyvar_kind(ctx, i)
   }
 
 and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(unit) =>
-  switch (HTyp.unsafe(ty)) {
+  switch (HTyp.to_syntax(ty)) {
   | Hole
   | TyVarHole(_) => Some()
   // subsumption
   | Sum(_)
   | Prod(_)
-  | TyVar(_)
   | Arrow(_)
   | Int
   | Float
   | Bool
-  | List(_) =>
+  | List(_)
+  | TyVar(_) =>
     open OptUtil.Syntax;
     let* k' = syn(ctx, ty);
     Kind.consistent_subkind(ctx, k', k) ? Some() : None;

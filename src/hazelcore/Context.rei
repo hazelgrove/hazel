@@ -5,7 +5,7 @@
 
 /** A typing context. */
 [@deriving sexp]
-type t;
+type t = pri KindSystem.Context.t;
 
 /** The initial typing context. */
 let initial: t;

@@ -1,10 +1,11 @@
 module HTyp = KindSystem.HTyp;
 module Context = KindSystem.Context;
 
-module Syntax = KindSystem.Kind;
+[@deriving sexp]
+type s('idx) = KindSystem.Kind.t('idx) = | Hole | Type | S(HTyp.t('idx));
 
 [@deriving sexp]
-type t = Syntax.abs;
+type t = s(Index.absolute);
 
 let to_htyp: t => HTyp.abs = KindSystem.Kind.to_htyp;
 

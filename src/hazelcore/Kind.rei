@@ -8,14 +8,14 @@
 module HTyp := KindSystem.HTyp;
 module Context := KindSystem.Context;
 
-/** ASTs for [Kind]s. */
-module Syntax = KindSystem.Kind;
+[@deriving sexp]
+type s('idx) = KindSystem.Kind.t('idx) = | Hole | Type | S(HTyp.t('idx));
 
 /** A [Kind]. */
 [@deriving sexp]
-type t = Syntax.abs;
+type t = s(Index.absolute);
 
-/** Produces the most general [HTyp] of the given [Kind]. */
+/** Produces the most general [HTyp] belonging to the given [Kind]. */
 let to_htyp: t => HTyp.abs;
 
 /** Constructs a singleton [Kind] with the given underlying type. */
