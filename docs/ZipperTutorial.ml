@@ -17,6 +17,10 @@
 type ast =
   | Atom
   | Bin of ast * ast
+ (* Examples:
+    A single node: Atom 
+    A tree with two leaves: (Bin (Atom, Atom))
+    A tree with three leaves: (Bin (Atom, (Bin (Atom, Atom)))) *)
 
 (* A zippered representation of the above AST. In general, the zippered
    version of a recursive ADT will have n variants for every n-ary
@@ -30,6 +34,10 @@ type zast =
  | Cursor of ast
  | BinL of zast * ast
  | BinR of ast * zast
+ (* Examples:
+    A single node, selected: (Cursor Atom)
+    Two-leaf tree, with the root selected: (Cursor (Bin (Atom, Atom)))
+    Two-leaf tree, with the right left selected: (BinR (Atom, (Cursor Atom))) *)
 
  (* Simplified local movement actions on the zippered AST, representing either moving
     the cursor up towards the root, or down the left or right branch of a Bin *)
@@ -76,3 +84,13 @@ let update : action -> zast -> zast = failwith "TODO"
    respectively. Then you need to write a 'run' function: an indefinite loop which
    (1) converts user keyboard input to an action, (2) feeds that action to update,
    (3) passes the result to view, and (4) prints the output to the console *)
+
+(* For some slightly more real-world examples:
+
+   (1) HZ is the original version of Hazel. You can see its zipper type in the ZExp module here:
+   https://github.com/hazelgrove/HZ/blob/2ec8a4ce37a3c1f6f6cacb2fc3a2421ae3126090/src/hz_semantics.ml#L188
+
+   The zipper structure for expressions in Hazel is the top data structure here:
+   https://github.com/hazelgrove/hazel/blob/dev/src/hazelcore/ZExp.re
+
+*)
