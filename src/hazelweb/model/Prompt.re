@@ -142,7 +142,7 @@ let prompts: list(t) = [
       },
       {
         id: "explanation_2",
-        expression: "Bind the definition `(1, 2)` to the pattern `(x, y)` and evaluate the body `x + y`.\n - The first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2`.",
+        expression: "Bind the definition [(1, 2)](1) to the pattern [(x, y)](0) and evaluate the body [x + y](2).\n - The first pattern `x` will be bound to the first element `1` and the second pattern `y` will be bound to the second element `2`.",
 
         rank: (-1),
       },
@@ -156,14 +156,14 @@ let prompts: list(t) = [
         expressionz: lambda_with_tuple_ex_1,
         caption: "test caption",
         rankz: (-1),
-        result: DHExp.IntLit(99),
+        result: DHExp.IntLit(1),
       },
       {
         idz: "example_2",
         expressionz: lambda_with_tuple_ex_2,
         caption: "test caption",
         rankz: (-1),
-        result: DHExp.IntLit(99),
+        result: DHExp.IntLit(2),
       },
     ],
     example_text_box: "textbox text 1",
