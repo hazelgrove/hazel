@@ -1,7 +1,7 @@
 [@deriving sexp]
 type action =
   | DHExp
-  | IHExp
+  | Hir
   | Anf
   | Grain
   | Wasm
@@ -15,7 +15,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       let ext =
         switch (action) {
         | DHExp => "hz.dhexp"
-        | IHExp => "hz.ihexp"
+        | Hir => "hz.ihexp"
         | Anf => "hz.anf"
         | Grain => "gr"
         | Wasm => "wasm"
@@ -55,7 +55,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
         write_out(output);
       | Error(err) => Error(err)
       };
-    | IHExp =>
+    | Hir =>
       let res =
         Compile.compile_ihexp(~opts, out, SourceChannel(source_file));
       switch (res) {
@@ -122,8 +122,8 @@ let action = {
     (DHExp, Arg.info(["dhexp"], ~doc));
   };
   let ihexp = {
-    let doc = "Emit IHExp sexp.";
-    (IHExp, Arg.info(["ihexp"], ~doc));
+    let doc = "Emit Hir sexp.";
+    (Hir, Arg.info(["hir"], ~doc));
   };
   let anf = {
     let doc = "Emit Anf sexp.";
