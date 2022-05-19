@@ -13,7 +13,7 @@ let init = {
   is_demo: true,
   prompt: None,
   prompts: Prompt.prompts,
-  example_level: 0,
+  example_level: 1,
   hovered_over: (-1),
 };
 

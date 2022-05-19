@@ -5,19 +5,43 @@ let get_msg =
   switch (explanation_info) {
   | ExpBinOperator(Plus, _l, _r) =>
     switch (level) {
-    | 0 => "Integer addition of the left operand to the right operand"
-    | _ => "Integer addition of the left operand to the right operand"
+    | 1 => "Integer addition of the [left operand](0) to the [right operand](1)"
+    | 2 => "Integer addition of the [left operand](0) to the right operand. The right operand is the result of integer multiplication of its [left operand](0 0) with its [right operand](0 1)."
+    | _ => "Integer addition of the [left integer](0) to the right operand. The right operand is the result of integer multiplication of its [left integer](0 0) with its [right integer](0 1)."
     }
+  | ExpBinOperator(Times, _, _) =>
+    switch (level) {
+    | 1 => "Integer multiplication of the [left operand](0) to the [right operand](1)"
+    | _ => "Integer multiplicaiton of the [left integer](0) to the [right integer](1)"
+    }
+  | ExpBaseOperand(IntLit(_, _i)) => "Integer literal"
   | _ => "Not supported"
   };
 };
 
+let get_mapping =
+    (
+      ~settings: DocumentationStudySettings.t,
+      explanation_info: ExplanationInfo.explanation_info,
+    )
+    : ColorSteps.t =>
+  if (settings.is_demo) {
+    let (_, mapping) =
+      CodeExplanation_common.build_msg(
+        get_msg(~level=settings.example_level, explanation_info),
+        true,
+      );
+    mapping;
+  } else {
+    ColorSteps.empty;
+  };
+
 let view =
-    (~level=0, explanation_info: ExplanationInfo.explanation_info): Node.t => {
+    (~level, explanation_info: ExplanationInfo.explanation_info): Node.t => {
   let (msg, _) =
     CodeExplanation_common.build_msg(
       get_msg(~level, explanation_info),
-      false,
+      true,
     );
   let explanation_view = {
     Node.div([Attr.classes(["the-explanation"])], [Node.div([], msg)]);

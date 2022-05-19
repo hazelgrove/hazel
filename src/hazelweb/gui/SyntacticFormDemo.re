@@ -11,10 +11,23 @@ let syntactic_form_view =
   | ExpBinOperator(Plus, _l, _r) =>
     let exp =
       switch (level) {
-      | 0 =>
+      | 1 =>
         UHExp.(
           Block.wrap'(
             Seq.mk(var("<exp1>"), [(Operators_Exp.Plus, var("<exp2>"))])
+            |> mk_OpSeq,
+          )
+        )
+      | 2 =>
+        UHExp.(
+          Block.wrap'(
+            Seq.mk(
+              var("<exp1>"),
+              [
+                (Operators_Exp.Plus, var("<exp2>")),
+                (Operators_Exp.Times, var("<exp3>")),
+              ],
+            )
             |> mk_OpSeq,
           )
         )
@@ -36,6 +49,37 @@ let syntactic_form_view =
       [Attr.classes(["code"])],
       [UHCode.basic_view(~settings, ~width=30, exp)],
     );
+  | ExpBinOperator(Times, _l, _r) =>
+    let exp =
+      switch (level) {
+      | 1 =>
+        UHExp.(
+          Block.wrap'(
+            Seq.mk(var("<exp1>"), [(Operators_Exp.Times, var("<exp2>"))])
+            |> mk_OpSeq,
+          )
+        )
+      | _ =>
+        UHExp.(
+          Block.wrap'(
+            Seq.mk(var("<lit1>"), [(Operators_Exp.Times, var("<lit2>"))])
+            |> mk_OpSeq,
+          )
+        )
+      };
+    Node.span(
+      [Attr.classes(["code"])],
+      [UHCode.basic_view(~settings, ~width=30, exp)],
+    );
+  | ExpBaseOperand(IntLit(_)) =>
+    let exp =
+      switch (level) {
+      | _ => UHExp.(Block.wrap(var("<int_lit>")))
+      };
+    Node.span(
+      [Attr.classes(["code"])],
+      [UHCode.basic_view(~settings, ~width=30, exp)],
+    );
   | _ => Node.text("Not supported")
   };
 };
@@ -43,8 +87,9 @@ let syntactic_form_view =
 let syntactic_max_level_ =
     (explanation_info: ExplanationInfo.explanation_info): int => {
   switch (explanation_info) {
-  | LetLine(CommaOperator(_pats, _type), _def, _start_index, _body) => 5
-  | _ => 2
+  | ExpBinOperator(Plus, _l, _r) => 3
+  | ExpBinOperator(Times, _l, _r) => 2
+  | _ => 1
   };
 };
 

@@ -60,7 +60,7 @@ let init = (): t => {
       cur_elt_id: 0,
     };
   };
-  let explanations: CodeExplanationSettings.t = {highlight_summary: false};
+  let explanations: CodeExplanationSettings.t = {highlight_summary: true};
   let settings = Settings.init;
   let cursor_inspector = CursorInspectorModel.init;
   let doc_study = DocumentationStudySettings.init;
@@ -126,16 +126,25 @@ let put_cardstacks = (cardstacks, model) => {...model, cardstacks};
 let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
   let new_cardstacks = f(model |> get_cardstacks);
   // TODO: Hannah - Maybe a better way to update this?
-  let doc_study =
+  let (doc_study, highlight) =
     if (!model.doc_study.is_demo) {
-      {
-        ...model.doc_study,
-        prompt: Some(ZList.prefix_length(new_cardstacks) - 1),
-      };
+      (
+        {
+          ...model.doc_study,
+          prompt: Some(ZList.prefix_length(new_cardstacks) - 1),
+        },
+        true,
+      );
     } else {
-      {...model.doc_study, prompt: None};
+      ({...model.doc_study, prompt: None}, false);
     };
-  let model = {...model, doc_study};
+  let model = {
+    ...model,
+    explanations: {
+      highlight_summary: highlight,
+    },
+    doc_study,
+  };
   model |> put_cardstacks(new_cardstacks);
 };
 

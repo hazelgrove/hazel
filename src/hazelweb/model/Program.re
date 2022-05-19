@@ -155,12 +155,33 @@ let get_decoration_paths =
     )
     |> List.flatten;
   };
+  let demo_explanation = {
+    let explanation_info =
+      ExplanationInfo.mk_explanation_info(
+        get_cursor_info(program).cursor_term,
+      );
+    let color_map =
+      CodeExplanationDemo.get_mapping(~settings, explanation_info);
+    List.map(
+      ((steps, color)) =>
+        List.map(
+          steps => (steps, UHDecorationShape.ExplanationElems(color)),
+          TermPath.mk_cursor_path_steps(
+            (steps, get_cursor_info(program).cursor_term),
+            get_steps(program),
+          ),
+        ),
+      ColorSteps.to_list(color_map),
+    )
+    |> List.flatten;
+  };
   List.concat([
     err_holes,
     var_uses,
     current_term,
     explanations,
     study_explanation,
+    demo_explanation,
   ]);
 };
 

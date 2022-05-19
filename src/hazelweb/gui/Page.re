@@ -128,7 +128,10 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ),
         () =>
           if (model.doc_study.is_demo) {
-            CodeExplanationDemo.view(explanation_info);
+            CodeExplanationDemo.view(
+              ~level=model.doc_study.example_level,
+              explanation_info,
+            );
           } else {
             CodeExplanation.view(
               ~settings=model.doc_study,
@@ -143,7 +146,12 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
         () =>
           if (model.doc_study.is_demo) {
-            CodeExampleDemo.view(~settings, explanation_info);
+            CodeExampleDemo.view(
+              ~inject,
+              ~settings,
+              ~font_metrics=model.font_metrics,
+              explanation_info,
+            );
           } else {
             CodeExample.view(
               ~inject,
