@@ -154,7 +154,7 @@ let optimize = {
     let parse = s =>
       try({
         let n = int_of_string(s);
-        if (n < 3) {
+        if (n >= 0 && n < 3) {
           Ok(n);
         } else {
           Error(`Msg("invalid optimization level"));
