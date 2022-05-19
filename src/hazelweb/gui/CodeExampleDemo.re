@@ -115,11 +115,16 @@ let view =
           [
             example_body,
             Node.div(
-              [Attr.class_("example_result")],
+              [Attr.classes(["example_result", "example_explanation_demo"])],
               [Node.div([], [Node.text("Result: ")]), result],
             ),
             Node.div(
-              [Attr.class_("example_explanation")],
+              [
+                Attr.classes([
+                  "example_explanation",
+                  "example_explanation_demo",
+                ]),
+              ],
               [Node.text("Explanation: "), Node.text(caption)],
             ),
           ],

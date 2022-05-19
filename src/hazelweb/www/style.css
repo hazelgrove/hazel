@@ -1683,9 +1683,13 @@ h1 {
 }
 
 .example_explanation{
-  color: #073f24;;
+  color: #073f24;
   font-weight: 800;
   padding-left: 30px;
+}
+
+.example_explanation_demo{
+  padding-left: 0px !important;
 }
 
 .right-panel-textarea{
