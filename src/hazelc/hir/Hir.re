@@ -5,6 +5,9 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type has_indet = bool;
+
+[@deriving sexp]
 type bin_bool_op =
   | OpAnd
   | OpOr;
@@ -29,22 +32,12 @@ type bin_float_op =
   | OpFGreaterThan
   | OpFEquals;
 
-/*
-   Flag indicating whether or not an expression has a possibly indeterminate
-   subexpression.
- */
 [@deriving sexp]
-type has_indet = bool;
-
-[@deriving sexp]
-type expr = {
-  expr_kind,
-  expr_ty: HTyp.t,
-  expr_indet: has_indet,
-}
+type expr = {expr_kind}
 
 [@deriving sexp]
 and expr_kind =
+  /* Holes */
   | EEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(expr))
   | ENonEmptyHole(
       ErrStatus.HoleReason.t,
@@ -56,71 +49,72 @@ and expr_kind =
   | EKeyword(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), ExpandingKeyword.t)
   | EFreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), Var.t)
   | EInvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), string)
-  | EBoundVar(Var.t)
+  | EInvalidOperation(expr, InvalidOperationError.t)
+  /* Casts */
+  | ECast(expr, HTyp.t, HTyp.t)
+  | EFailedCast(expr, HTyp.t, HTyp.t)
+  /* Case */
+  | EConsistentCase(case)
+  | EInconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), case)
+  /* Let bindings */
   | ELet(pat, expr, expr)
   | ELetRec(Var.t, HTyp.t, pat, expr, expr)
+  /* Lambda */
   | ELam(pat, HTyp.t, expr)
+  /* Application */
   | EAp(expr, expr)
   | EApBuiltin(Var.t, list(expr))
-  | EBoolLit(bool)
-  | EIntLit(int)
-  | EFloatLit(float)
+  /* Binary operations */
   | EBinBoolOp(bin_bool_op, expr, expr)
   | EBinIntOp(bin_int_op, expr, expr)
   | EBinFloatOp(bin_float_op, expr, expr)
-  | EListNil(HTyp.t)
-  | ECons(expr, expr)
-  | EInj(HTyp.t, InjSide.t, expr)
+  /* Pair */
   | EPair(expr, expr)
+  /* Cons */
+  | ECons(expr, expr)
+  /* Sum injection */
+  | EInj(HTyp.t, InjSide.t, expr)
+  /* Immediate expressions; we can deduce the type and indet-ness of these trivially. */
+  | EBoundVar(HTyp.t, Var.t)
+  | EBoolLit(bool)
+  | EIntLit(int)
+  | EFloatLit(float)
+  | ENil(HTyp.t)
   | ETriv
-  | EConsistentCase(case)
-  | EInconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), case)
-  | ECast(expr, HTyp.t, HTyp.t)
-  | EFailedCast(expr, HTyp.t, HTyp.t)
-  | EInvalidOperation(expr, InvalidOperationError.t)
 
 [@deriving sexp]
-and case = {
-  case_kind,
-  case_ty: HTyp.t,
-  case_indet: has_indet,
-}
+and case = {case_kind}
 
 [@deriving sexp]
 and case_kind =
   | ECase(expr, list(rule), int)
 
 [@deriving sexp]
-and rule = {
-  rule_kind,
-  rule_ty: HTyp.t,
-  rule_indet: has_indet,
-}
+and rule = {rule_kind}
 
 [@deriving sexp]
 and rule_kind =
   | ERule(pat, expr)
 
 [@deriving sexp]
-and pat = {
-  pat_kind,
-  pat_indet: has_indet,
-}
+and pat = {pat_kind}
 
 [@deriving sexp]
 and pat_kind =
+  /* Holes */
   | PEmptyHole(MetaVar.t, MetaVarInst.t)
   | PNonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, pat)
   | PKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | PInvalidText(MetaVar.t, MetaVarInst.t, string)
+  /* Non-holes */
+  | PAp(pat, pat)
+  | PPair(pat, pat)
+  | PCons(pat, pat)
+  | PInj(InjSide.t, pat)
   | PWild
   | PVar(Var.t)
   | PIntLit(int)
   | PFloatLit(float)
   | PBoolLit(bool)
-  | PInj(InjSide.t, pat)
-  | PListNil
-  | PCons(pat, pat)
-  | PPair(pat, pat)
-  | PTriv
-  | PAp(pat, pat);
+  | PNil
+  | PTriv;

@@ -99,10 +99,8 @@ let elaborate = (~_opts=default_opts, e: UHExp.t) => {
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform = (~_opts=default_opts, ctx: Contexts.t) => {
-  let ctx = Contexts.gamma(ctx) |> VarMap.map(((_, ty)) => (ty, false));
+let transform = (~_opts=default_opts, ctx: Contexts.t) =>
   Transform.transform(ctx);
-};
 
 let linearize = (~_opts=default_opts) => Linearize.linearize;
 

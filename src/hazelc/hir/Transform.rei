@@ -1,4 +1,1 @@
-[@deriving sexp]
-type context = VarMap.t_((HTyp.t, Hir.has_indet));
-
-let transform: (context, DHExp.t) => Hir.expr;
+let transform: (Contexts.t, DHExp.t) => Hir.expr;

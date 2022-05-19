@@ -23,9 +23,12 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
+type has_indet = bool;
+
+[@deriving sexp]
 type pat = {
   pat_kind,
-  pat_indet: Hir.has_indet,
+  pat_indet: has_indet,
 }
 
 [@deriving sexp]
@@ -52,7 +55,8 @@ and constant =
 [@deriving sexp]
 and imm = {
   imm_kind,
-  imm_indet: Hir.has_indet,
+  imm_ty: HTyp.t,
+  imm_indet: has_indet,
 }
 
 [@deriving sexp]
@@ -63,7 +67,8 @@ and imm_kind =
 [@deriving sexp]
 and comp = {
   comp_kind,
-  comp_indet: Hir.has_indet,
+  comp_ty: HTyp.t,
+  comp_indet: has_indet,
 }
 
 [@deriving sexp]
@@ -93,7 +98,7 @@ and inj_side =
 [@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_indet: Hir.has_indet,
+  stmt_indet: has_indet,
 }
 
 [@deriving sexp]
@@ -108,8 +113,33 @@ and rec_flag =
 [@deriving sexp]
 and prog = {
   prog_body,
-  prog_indet: Hir.has_indet,
+  prog_ty: HTyp.t,
+  prog_indet: has_indet,
 }
 
 [@deriving sexp]
 and prog_body = (list(stmt), comp);
+
+module Imm = {
+  let mk_var = (x: Var.t, c: comp): imm => {
+    imm_kind: IVar(x),
+    imm_ty: c.comp_ty,
+    imm_indet: c.comp_indet,
+  };
+};
+
+module Comp = {
+  let mk_imm = (im: imm): comp => {
+    comp_kind: CImm(im),
+    comp_ty: im.imm_ty,
+    comp_indet: im.imm_indet,
+  };
+};
+
+module Prog = {
+  let mk = (body: list(stmt), c: comp): prog => {
+    prog_body: (body, c),
+    prog_ty: c.comp_ty,
+    prog_indet: c.comp_indet,
+  };
+};
