@@ -32,6 +32,7 @@ type t = {
   examples: list(quest),
   explanation_text_box: string,
   example_text_box: string,
+  syntactic_form_level: int,
 };
 
 // TODO - Ardi - This how to create a prompt
@@ -166,6 +167,7 @@ let prompts: list(t) = [
       },
     ],
     example_text_box: "textbox text 1",
+    syntactic_form_level: 2,
   },
 ];
 

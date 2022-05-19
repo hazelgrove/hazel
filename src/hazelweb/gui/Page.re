@@ -83,6 +83,8 @@ let sample_examples: list(Prompt.quest) =
   List.nth(Prompt.prompts, 0).examples;
 let sample_exaplanations: list(Prompt.explain) =
   List.nth(Prompt.prompts, 0).explanation;
+let syntactic_form_level_: int =
+  List.nth(Prompt.prompts, 0).syntactic_form_level;
 
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
@@ -106,12 +108,16 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
           if (model.doc_study.is_demo) {
             SyntacticFormDemo.view(
               ~settings,
-              ~inject,
               model.doc_study.example_level,
               explanation_info,
+              syntactic_form_level_,
             );
           } else {
-            SyntacticForm.view(~settings, explanation_info);
+            SyntacticForm.view(
+              ~settings,
+              explanation_info,
+              syntactic_form_level_,
+            );
           },
       ),
       (

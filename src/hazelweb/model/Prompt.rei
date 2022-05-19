@@ -25,6 +25,7 @@ type t = {
   examples: list(quest),
   explanation_text_box: string,
   example_text_box: string,
+  syntactic_form_level: int,
 };
 
 let prompts: list(t);

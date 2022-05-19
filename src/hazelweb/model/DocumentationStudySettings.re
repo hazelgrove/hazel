@@ -1,4 +1,6 @@
 open Sexplib.Std;
+module Js = Js_of_ocaml.Js;
+
 type t = {
   is_demo: bool,
   prompt: option(int),
@@ -20,6 +22,22 @@ type prompt_piece =
   | Explanation
   | Example;
 
+let print_time_and_prompt_to_console = prompts => {
+  // type timestamp = {
+  //   year: int,
+  //   month: int,
+  //   day: int,
+  //   hours: int,
+  //   minutes: int,
+  //   seconds: int,
+  //   milliseconds: int,
+  // };
+
+  let time_: Update.timestamp = Update.get_current_timestamp();
+  print_endline(string_of_int(time_.year));
+  Prompt.print_to_console(prompts) |> Js.string |> JSUtil.log;
+};
+
 [@deriving sexp]
 type update =
   | Set_Demo(bool)
@@ -34,6 +52,8 @@ let apply_update = (u: update, settings: t) =>
   | Set_Demo(b) => {...settings, is_demo: b}
   | Set_Prompt(p) => {...settings, prompt: Some(p)}
   | Update_Prompt(prompt_piece, index, rank) =>
+    let temp_prompts = settings.prompts;
+    print_time_and_prompt_to_console(temp_prompts);
     // Function that takes a list of prompts and updates the nth one
     switch (settings.prompt) {
     | None => settings
@@ -56,7 +76,7 @@ let apply_update = (u: update, settings: t) =>
           settings.prompts,
         );
       {...settings, prompts: new_prompts};
-    }
+    };
 
   | Update_Prompt_Text(prompt_piece, text) =>
     // Function that takes a list of prompts and updates the nth one
@@ -85,3 +105,6 @@ let apply_update = (u: update, settings: t) =>
   | Toggle_Syntactic_Form_Level(l) => {...settings, example_level: l}
   | Toggle_Explanation_Hovered_over(l) => {...settings, hovered_over: l}
   };
+
+//TODO fire this
+//

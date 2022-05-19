@@ -40,12 +40,49 @@ let syntactic_form_view =
   };
 };
 
+let syntactic_max_level_ =
+    (explanation_info: ExplanationInfo.explanation_info): int => {
+  switch (explanation_info) {
+  | LetLine(CommaOperator(_pats, _type), _def, _start_index, _body) => 5
+  | _ => 2
+  };
+};
+
+let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
+  Node.div(
+    [Attr.classes(["slider-wrapper"])],
+    [
+      Node.input(
+        [
+          Attr.type_("range"),
+          Attr.min(1.0),
+          Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
+          Attr.value(string_of_int(syntactic_form_level)),
+        ],
+        List.init(syntactic_max_level_(explanation_info), index =>
+          Node.option(
+            [Attr.value(string_of_int(index))],
+            [Node.text(string_of_float(float_of_int(index)))],
+          )
+        ),
+      ),
+      Node.div(
+        [],
+        [
+          Node.div([], [Node.text("less specific")]),
+          Node.div([], [Node.text("more specific")]),
+        ],
+      ),
+    ],
+  );
+};
+
 let view =
     (
       ~settings: Settings.t,
-      ~inject: ModelAction.t => Event.t,
       level: int,
       explanation_info: ExplanationInfo.explanation_info,
+      syntactic_form_level_: int,
     )
     : Node.t => {
   print_endline(string_of_int(level));
@@ -87,45 +124,7 @@ let view =
         ],
         [
           explanation_view,
-          Node.div(
-            [Attr.classes(["slider-wrapper"])],
-            [
-              Node.input(
-                [
-                  Attr.type_("range"),
-                  Attr.min(1.0),
-                  Attr.max(3.0),
-                  Attr.value(string_of_int(level)),
-                  Attr.on_change((_, id) => {
-                    print_endline(id);
-                    inject(
-                      UpdateDocumentationStudySettings(
-                        DocumentationStudySettings.Toggle_Syntactic_Form_Level(
-                          int_of_string(id),
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-                [
-                  Node.option(
-                    [Attr.value("1")],
-                    [Node.label([], [Node.text("1.0")])],
-                  ),
-                  Node.option([Attr.value("2")], [Node.text("2.0")]),
-                  Node.option([Attr.value("3")], [Node.text("3.0")]),
-                ],
-              ),
-              Node.div(
-                [],
-                [
-                  Node.div([], [Node.text("less specific")]),
-                  Node.div([], [Node.text("default")]),
-                  Node.div([], [Node.text("more specific")]),
-                ],
-              ),
-            ],
-          ),
+          generate_selector(explanation_info, syntactic_form_level_),
         ],
       ),
     ],

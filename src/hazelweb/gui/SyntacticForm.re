@@ -37,10 +37,54 @@ let syntactic_form_view =
   };
 };
 
+let syntactic_max_level_ =
+    (explanation_info: ExplanationInfo.explanation_info): int => {
+  switch (explanation_info) {
+  | LetLine(CommaOperator(_pats, _type), _def, _start_index, _body) => 5
+  | _ => 2
+  };
+};
+
+let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
+  Node.div(
+    [Attr.classes(["slider-wrapper"])],
+    [
+      Node.input(
+        [
+          Attr.type_("range"),
+          Attr.min(1.0),
+          Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
+          Attr.value(string_of_int(syntactic_form_level)),
+          Attr.disabled,
+        ],
+        List.init(syntactic_max_level_(explanation_info), index =>
+          Node.option(
+            [Attr.value(string_of_int(index))],
+            [Node.text(string_of_float(float_of_int(index)))],
+          )
+        ),
+      ),
+      // [
+      //   Node.option([Attr.value("1")], [Node.text("1.0")]),
+      //   Node.option([Attr.value("2")], [Node.text("2.0")]),
+      //   Node.option([Attr.value("3")], [Node.text("3.0")]),
+      // ],
+      Node.div(
+        [],
+        [
+          Node.div([], [Node.text("less specific")]),
+          Node.div([], [Node.text("more specific")]),
+        ],
+      ),
+    ],
+  );
+};
+
 let view =
     (
       ~settings: Settings.t,
       explanation_info: ExplanationInfo.explanation_info,
+      syntactic_form_level: int,
     )
     : Node.t => {
   let explanation_view = {
@@ -75,36 +119,7 @@ let view =
         ],
         [
           explanation_view,
-          Node.div(
-            [Attr.classes(["slider-wrapper"])],
-            [
-              Node.input(
-                [
-                  Attr.type_("range"),
-                  Attr.min(1.0),
-                  Attr.max(3.0),
-                  Attr.value(string_of_int(2)),
-                  Attr.disabled,
-                ],
-                [
-                  Node.option(
-                    [Attr.value("1")],
-                    [Node.label([], [Node.text("1.0")])],
-                  ),
-                  Node.option([Attr.value("2")], [Node.text("2.0")]),
-                  Node.option([Attr.value("3")], [Node.text("3.0")]),
-                ],
-              ),
-              Node.div(
-                [],
-                [
-                  Node.div([], [Node.text("less specific")]),
-                  Node.div([], [Node.text("default")]),
-                  Node.div([], [Node.text("more specific")]),
-                ],
-              ),
-            ],
-          ),
+          generate_selector(explanation_info, syntactic_form_level),
         ],
       ),
     ],
