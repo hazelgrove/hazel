@@ -480,7 +480,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added
-  | Construct(SLam) => Added
+  | Construct(SFun) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added
   | Construct(SOp(STimes)) => Added
@@ -504,8 +504,6 @@ let _check_actions = (a: Action.t) =>
   | MoveLeft => Added
   | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_)) => failwith("Unimplemented")
-  | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };
