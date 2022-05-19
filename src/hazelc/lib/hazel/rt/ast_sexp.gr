@@ -1,7 +1,9 @@
+import List from "list"
+
 import Ast from "./ast"
 
-import Sexp from "../../sexplib/sexp.gr"
-import * from "../../sexplib/sexpconv.gr"
+import Sexp from "../../sexplib/sexp"
+import * from "../../sexplib/sexpconv"
 
 export let sexpOfVar = sexpOfString
 
@@ -14,39 +16,39 @@ export let sexpOfHoleReason = reason =>
 export let sexpOfMetaVar = sexpOfNumber
 export let sexpOfMetaVarInst = sexpOfNumber
 
-export let sexpOfHTyp = t =>
+export let rec sexpOfHTyp = t =>
   match (t) {
-    Hole => Sexp.Atom("Hole"),
-    Int => Sexp.Atom("Int"),
-    Float => Sexp.Atom("Float"),
-    Bool => Sexp.Atom("Bool"),
-    Arrow(t1, t2) => Sexp.List("Arrow", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
-    Sum(t1, t2) => Sexp.List("Sum", [sexpOfHTyp(t1), sexpOfHTyp(t2)]),
-    Prod(ts) => Sexp.List("Prod", List.map(t => sexpOfTyp(t), ts)),
-    List(t) => Sexp.List("List", [sexpOfHTyp(t)]),
+    Ast.Hole => Sexp.Atom("Hole"),
+    Ast.Int => Sexp.Atom("Int"),
+    Ast.Float => Sexp.Atom("Float"),
+    Ast.Bool => Sexp.Atom("Bool"),
+    Ast.Arrow(t1, t2) => Sexp.List([Sexp.Atom("Arrow"), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Ast.Sum(t1, t2) => Sexp.List([Sexp.Atom("Sum"), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Ast.Prod(ts) => Sexp.List([Sexp.Atom("Prod"), ...List.map(t => sexpOfHTyp(t), ts)]),
+    Ast.List(t) => Sexp.List([Sexp.Atom("List"), sexpOfHTyp(t)]),
   }
 
 export let sexpOfBinBoolOp = op =>
   match (op) {
-    And => Sexp.Atom("And"),
-    Or => Sexp.Atom("Or"),
+    Ast.And => Sexp.Atom("And"),
+    Ast.Or => Sexp.Atom("Or"),
   }
 
 export let rec sexpOfAst = ast =>
   match (ast) {
-    EmptyHole(u, i, sigma) =>
+    Ast.EmptyHole(u, i, sigma) =>
       Sexp.List(
-        "EmptyHole",
         [
+          Sexp.Atom("EmptyHole"),
           sexpOfNumber(u),
           sexpOfNumber(i),
           sexpOfMap(sexpOfVar, sexpOfAst, sigma),
         ]
       ),
-    NonEmptyHole(reason, u, i, sigma, ast) =>
+    Ast.NonEmptyHole(reason, u, i, sigma, ast) =>
       Sexp.List(
-        "NonEmptyHole",
         [
+          Sexp.Atom("NonEmptyHole"),
           sexpOfHoleReason(reason),
           sexpOfMetaVar(u),
           sexpOfMetaVarInst(i),
@@ -54,15 +56,14 @@ export let rec sexpOfAst = ast =>
           sexpOfAst(ast),
         ]
       ),
-    Cast(ast, t1, t2) =>
-      Sexp.List("Cast", [sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
-    FailedCast(ast, t1, t2) =>
-      Sexp.List("FailedCast", [sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
-    Ap(fn, arg) => Sexp.List("Ap", [sexpOfAst(fn), sexpOfAst(arg)]),
-    BoolLit(b) => Sexp.List("BoolLit", [sexpOfBool(b)]),
-    BinBoolOp(op, ast1, ast2) =>
+    Ast.Cast(ast, t1, t2) =>
+      Sexp.List([Sexp.Atom("Cast"), sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Ast.FailedCast(ast, t1, t2) =>
+      Sexp.List([Sexp.Atom("FailedCast"), sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
+    Ast.Ap(fn, arg) => Sexp.List([Sexp.Atom("Ap"), sexpOfAst(fn), sexpOfAst(arg)]),
+    Ast.BoolLit(b) => Sexp.List([Sexp.Atom("BoolLit"), sexpOfBool(b)]),
+    Ast.BinBoolOp(op, ast1, ast2) =>
       Sexp.List(
-        "BinBoolOp",
-        [sexpOfBinBoolOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
+        [Sexp.Atom("BinBoolOp"), sexpOfBinBoolOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
       ),
   }
