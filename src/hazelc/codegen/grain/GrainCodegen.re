@@ -21,12 +21,18 @@ module Import = {
 module Imports = {
   include Set.Make(Import);
 
-  let add_hole_imports = imps =>
-    HazelStd.Rt.(
-      union(of_list([Ast.import, AstSexp.import, AstOps.import]), imps)
-    );
+  let hole_imports =
+    HazelStd.Rt.[
+      Ast.import,
+      AstSexp.import,
+      AstMk.import,
+      AstOps.import,
+      AstPrint.import,
+    ];
+  let sum_imports = HazelStd.Rt.[Sum.import];
 
-  let add_sum_imports = imps => HazelStd.Rt.(add(Sum.import, imps));
+  let add_hole_imports = union(of_list(hole_imports));
+  let add_sum_imports = union(of_list(sum_imports));
 };
 
 let codegen_fold = (codegen_f, xs, imps) => {
@@ -270,7 +276,10 @@ and codegen_sigma =
       imps,
     );
 
-  (GrainIR.EList(sigma') |> GrainStd.Map.from_list, imps);
+  (
+    GrainIR.EList(sigma') |> GrainStd.Map.from_list,
+    Imports.add(GrainStd.Map.import, imps),
+  );
 }
 
 and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
@@ -345,8 +354,15 @@ let codegen = (prog: Anf.prog): GrainIR.prog => {
   let (body, c, imps) = codegen_prog(prog, Imports.empty);
   let tb = codegen_imps(imps);
 
-  // TODO: This is a stopgap solution
-  let b = body @ [SExpr(EAp(EVar("print"), [c]))];
+  // TODO: Clean this up.
+  let print_ap =
+    if (prog.prog_indet) {
+      HazelStd.Rt.AstPrint.print(c);
+    } else {
+      EAp(EVar("print"), [c]);
+    };
+
+  let b = body @ [SExpr(print_ap)];
 
   (tb, b);
 };

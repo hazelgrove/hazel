@@ -77,6 +77,26 @@ module Rt = {
     let indet_fequals = (ast1, ast2) => mk_ap("fequals", [ast1, ast2]);
   };
 
+  module AstPrint = {
+    include Inner({
+      let name = "AstPrint";
+      let path = mk_path("ast_print");
+    });
+
+    let print = v => mk_ap("print", [v]);
+  };
+
+  module AstMk = {
+    include Inner({
+      let name = "AstMk";
+      let path = mk_path("ast_mk");
+    });
+
+    let mk_empty_hole = v => mk_ap("mkEmptyHole", [v]);
+
+    let mk_bool_lit = v => mk_ap("mkBoolLit", [v]);
+  };
+
   module Sum = {
     include Inner({
       let name = "Sum";
