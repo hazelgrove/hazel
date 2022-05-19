@@ -48,50 +48,61 @@
     let pat = UHPat.mk_OpSeq pat in
     UHExp.Rule(pat, expr)
 
-  let mk_case expr rules =
-    let e = UHExp.case expr rules in
-    Seq.wrap e
+  let mk_case expr rules = UHExp.case expr rules
 
-  let mk_empty_list =
-    Seq.wrap (UHExp.listnil ())
+  let mk_empty_list = UHExp.listnil ()
 %}
 
-%token LET
-%token IN
-%token <string> INT
-%token <string> FLOAT
-%token TRUE FALSE
-%token PLUS MINUS
-%token MULT DIV
-%token FPLUS FMINUS
-%token FMULT FDIV
+%token AND
+%token ARROW
+%token BAR
+%token CASE
 %token COLON
 %token COLONCOLON
-%token SEMICOLON
+%token COMMA
+%token <string> COMMENT
+%token DIV
+%token EMPTY
+%token EMPTY_HOLE
+%token END
+%token EOF
 %token EQUAL
 %token EQUALEQUAL
+%token FALSE
+%token FDIV
 %token FEQUALEQUAL
-%token GREATER LESSER
-%token FGREATER FLESSER
-%token PERIOD
-%token COMMA
-%token INJL INJR
-%token EOF
+%token FGREATER
+%token FLESSER
+%token <string> FLOAT
+%token FMINUS
+%token FMULT
+%token FPLUS
+%token GREATER
 %token <string> IDENT
-%token LPAREN RPAREN
-%token LBRACE RBRACE
-%token LBRACK RBRACK
-%token EMPTY_HOLE
-%token LAMBDA
-%token WILD
-%token CASE
-%token BAR
-%token ARROW
+%token IN
+%token INJL
+%token INJR
+%token <string> INT
+%token FUN
+%token LBRACE
+%token LBRACK
+%token LESSER
+%token LET
+%token LPAREN
+%token MINUS
+%token MULT
+%token OR
+%token PLUS
+%token RBRACE
+%token RBRACK
+%token RPAREN
+%token SEMICOLON
 %token TARROW
-%token END
-%token <string> COMMENT
-%token EMPTY
+%token TRUE
+%token WILD
 
+%right OR
+%right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
@@ -110,13 +121,18 @@ main:
 ;
 
 block:
-  | exp_line { [$1] }
+  exp_line { [$1] }
   | line block { $1::$2 }
   | exp_line SEMICOLON block { $1::$3 }
 ;
 
-let_binding:
-  LET pat EQUAL block IN { mk_let_line $2 $4 }
+%inline exp_line:
+  expr { UHExp.ExpLine (UHExp.mk_OpSeq $1) }
+
+line:
+  COMMENT { UHExp.CommentLine $1 }
+  | EMPTY { UHExp.EmptyLine }
+  | LET pat EQUAL block IN { mk_let_line $2 $4 }
 ;
 
 typ:
@@ -125,17 +141,9 @@ typ:
 ;
 
 typ_:
-  atomic_type { $1 }
   | LPAREN typ RPAREN { mk_typ_paren $2 }
   | LBRACK typ RBRACK { mk_typ_list $2 }
-;
-
-typ_annotation:
-  pat_ COLON typ { mk_typ_ann $1 $3 }
-;
-
-atomic_type:
-  IDENT {
+  | IDENT {
     match $1 with
     | "Int" -> UHTyp.Int
     | "Bool" -> UHTyp.Bool
@@ -154,7 +162,7 @@ atomic_type:
 pat:
   pat COLONCOLON pat { mk_binop $1 Operators_Pat.Cons $3 }
   | pat COMMA pat { mk_binop $1 Operators_Pat.Comma $3 }
-  | typ_annotation { $1 }
+  | pat_ COLON typ { mk_typ_ann $1 $3 }
   | pat_ { Seq.wrap $1 }
 ;
 
@@ -167,40 +175,26 @@ pat_:
       let (it, _) = UHPat.new_InvalidText 0 $1 in
       it
   }
-  | EMPTY_HOLE { UHPat.EmptyHole 0 }
-  | pat_constant { $1 }
   | LBRACK RBRACK { UHPat.listnil () }
-  | WILD { UHPat.wild () }
-;
-
-pat_constant:
-  INT { UHPat.intlit $1 }
+  | EMPTY_HOLE { UHPat.EmptyHole 0 }
+  | INT { UHPat.intlit $1 }
   | FLOAT { UHPat.floatlit $1 }
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
-;
-
-exp_line:
-  expr { UHExp.ExpLine (UHExp.mk_OpSeq $1) }
-
-line:
-  COMMENT { UHExp.CommentLine $1 }
-  | EMPTY { UHExp.EmptyLine }
-  | let_binding { $1 }
+  | WILD { UHPat.wild () }
 ;
 
 expr:
-  simple_expr { Seq.wrap $1 }
-  | CASE block rule+ END { mk_case $2 $3 }
-  | simple_expr simple_expr+ { mk_application $1 $2 }
+  expr_ expr_+ { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
-  | LBRACK RBRACK { mk_empty_list }
+  | expr_ { Seq.wrap $1 }
 ;
 
-simple_expr:
-  LPAREN block RPAREN { UHExp.Parenthesized($2) }
-  | constant { $1 }
+expr_:
+  LBRACK RBRACK { mk_empty_list }
+  | CASE block rule+ END { mk_case $2 $3 }
+  | LPAREN block RPAREN { UHExp.Parenthesized($2) }
   | IDENT {
     if Var.is_valid $1 then
       UHExp.var $1
@@ -212,17 +206,17 @@ simple_expr:
       let (it, _) = UHExp.new_InvalidText 0 "_" in
       it
   }
-  | EMPTY_HOLE { UHExp.EmptyHole 0 }
-  | fn { $1 }
+  | FUN pat LBRACE block RBRACE { mk_fn $2 $4 }
   | INJL LPAREN block RPAREN { mk_inj_l $3 }
   | INJR LPAREN block RPAREN { mk_inj_r $3 }
+  | EMPTY_HOLE { UHExp.EmptyHole 0 }
+  | INT { UHExp.intlit $1 }
+  | FLOAT { UHExp.floatlit $1 }
+  | TRUE { UHExp.boollit true }
+  | FALSE { UHExp.boollit false }
 ;
 
-fn:
-  LAMBDA pat PERIOD LBRACE block RBRACE { mk_fn $2 $5 }
-;
-
-rule:
+%inline rule:
   BAR pat ARROW block { mk_rule $2 $4 }
 ;
 
@@ -242,11 +236,6 @@ rule:
   | EQUALEQUAL { Operators_Exp.Equals }
   | FEQUALEQUAL { Operators_Exp.FEquals }
   | COMMA { Operators_Exp.Comma }
-;
-
-constant:
-  INT { UHExp.intlit $1 }
-  | FLOAT { UHExp.floatlit $1 }
-  | TRUE { UHExp.boollit true }
-  | FALSE { UHExp.boollit false }
+  | AND { Operators_Exp.And }
+  | OR { Operators_Exp.Or }
 ;

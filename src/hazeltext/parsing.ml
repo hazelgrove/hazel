@@ -46,3 +46,5 @@ let ast_of_lexbuf l =
       Error
         (Printf.sprintf "ERROR on line %d, column %d. %s" line col tok_string)
   | SyntaxError (None, _) -> Error "Unknown Error"
+
+let ast_of_string str = Lexing.from_string str |> ast_of_lexbuf

@@ -4,8 +4,7 @@ module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
 let parse text : UHExp.block option =
-  let lexbuf = Lexing.from_string text in
-  match Parsing.ast_of_lexbuf lexbuf with Ok ast -> Some ast | Error _ -> None
+  match Parsing.ast_of_string text with Ok ast -> Some ast | Error _ -> None
 
 let test_parse text : bool =
   (*Get the first AST*)
@@ -32,7 +31,7 @@ let test_incorrect text = test_parse text = false
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
-let%test "basic lambda" = test_parse "\\f.{f}"
+let%test "basic lambda" = test_parse "fun f {f}"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
@@ -45,7 +44,7 @@ let%test "mult" =
   test_parse
     "\n\
     \    let mult : [Int] -> Int =\n\
-    \      \\list.{\n\
+    \      fun list {\n\
     \        case list\n\
     \        | hd::[] => hd\n\
     \        | hd::md::[] => hd * md\n\
@@ -59,8 +58,8 @@ let%test "map" =
   test_parse
     "\n\
     \  let map : (Int -> Int) -> [Int] -> [Int] =\n\
-    \      \\f.{\n\
-    \        \\xs.{\n\
+    \      fun f {\n\
+    \        fun xs {\n\
     \          case xs\n\
     \          | [] => []\n\
     \          | y::ys => (f y)::(map f ys)\n\
@@ -73,7 +72,7 @@ let%test "case type annot" =
   test_parse
     "\n\
     \  let a =\n\
-    \    \\f.{\n\
+    \    fun f {\n\
     \      case f\n\
     \       | 1 : Int => 1\n\
     \       | 2 => 2\n\
@@ -83,7 +82,7 @@ let%test "case type annot" =
 
 let%test "pat type annotation" =
   test_parse
-    "let c = λa : Int, b : Float.{1, true} in\n\
+    "let c = fun a : Int, b : Float {1, true} in\n\
      let d : (Int), (Bool), e : Float = c (2, 1.0), 2.0 in\n\
      let d : (Int, Bool), e : Float = c (2, 1.0), 2.0 in\n\
      (d, e)"
@@ -103,7 +102,7 @@ let%test "exp shapes" =
     \  | _ => 1\n\
     \  end\n\
      in\n\
-     let e = \\x.{x+1} in\n\
+     let e = fun x {x+1} in\n\
      (e, 'x3, ?)"
 
 let%test "float ops" =
@@ -134,3 +133,8 @@ let%test "block within case" =
      | 5 => true\n\
      | _ => false\n\
      end"
+
+let%test "case in function position" =
+  test_parse "case true\n    | true => fun f {f+1}\n   end 2"
+
+let%test "and, or" = test_parse "((a && b || c) && d || e) && (f || g)"

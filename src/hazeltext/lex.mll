@@ -9,6 +9,7 @@ let _ =
       "in", IN;
       "case", CASE;
       "end", END;
+      "fun", FUN;
       "true", TRUE;
       "false", FALSE;
       "NaN", FLOAT ("NaN");
@@ -75,7 +76,8 @@ rule read =
   | ">." { FGREATER }
   | "<" { LESSER }
   | "<." { FLESSER }
-  | "." { PERIOD }
+  | "&&" { AND }
+  | "||" { OR }
   | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }
@@ -87,8 +89,6 @@ rule read =
   | "[" { LBRACK }
   | "]" { RBRACK }
   | "?" { EMPTY_HOLE }
-  | "\\" { LAMBDA }
-  | "λ" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
   | "->" { TARROW }

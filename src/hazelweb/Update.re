@@ -130,10 +130,7 @@ let apply_action =
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
-      | Import(ast) =>
-        let (ast, _, _) =
-          Statics_Exp.syn_fix_holes(Contexts.initial, MetaVarGen.init, ast);
-        Model.import_uhexp(model, ast);
+      | Import(ast) => Model.import_uhexp(model, ast)
       | ToggleTextEditorPopup => Model.toggle_text_editor_popup(model)
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
