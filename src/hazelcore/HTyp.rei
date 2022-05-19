@@ -2,16 +2,25 @@
 
    [HTyp]s are types that may have holes in them.
  */
+module Context := KindSystem.Context;
 
 /** ASTs for [HTyp]s. */
 module Syntax = KindSystem.HTyp;
 
-/** An opaque [HTyp] value.
+/* HTyp */
 
-   Ensures all indices are absolutely positioned.
+/** An (ordinary, opaque) [HTyp].
+
+   In general, use this form of [HTyp] unless there is a good reason not to.
+
+   Values of this type cannot be pattern matched against directly. Whenever
+   possible, use the operations on opaque [HTyp]s provided below to ensure
+   consistent handling of indices.
  */
 [@deriving sexp]
 type t;
+
+/* HTyp Conversions */
 
 /** Pruduces a brief description of an [HTyp]. */
 let to_string: t => string;
@@ -19,10 +28,25 @@ let to_string: t => string;
 /** Produces the underlying AST of an [HTyp]. */
 let to_syntax: t => Syntax.abs;
 
-/** Produces an [HTyp] with a given underlying AST. */
+/** Produces an [HTyp] with the given underlying AST. */
 let of_syntax: Syntax.abs => t;
 
-//** Structural equality of underlying ASTs. */
+/* HTyp Constructors */
+
+let tyvar: (Index.Abs.t, TyVar.t) => t;
+let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
+let hole: t;
+let int: t;
+let float: t;
+let bool: t;
+let arrow: (t, t) => t;
+let sum: (t, t) => t;
+let product: list(t) => t;
+let list: t => t;
+
+/* Properties of HTyp */
+
+/** Structural equality of underlying ASTs. */
 let equal: (t, t) => bool;
 
 /** Context-sensitive type consistency.
@@ -37,7 +61,7 @@ let equal: (t, t) => bool;
    - If both are type variables of kind [S], their underlying types are
      consistent.
  */
-let consistent: (Contexts.t, t, t) => bool;
+let consistent: (Context.t, t, t) => bool;
 
 /** Context-sensitive type equivalence.
 
@@ -47,39 +71,120 @@ let consistent: (Contexts.t, t, t) => bool;
    - If one is a type variable hole, the other is a type variable hole with the
      same id.
  */
-let equivalent: (Contexts.t, t, t) => bool;
+let equivalent: (Context.t, t, t) => bool;
 
-/** A normalized [HTyp].
+/* HTyp Constructor Precedence */
 
-   Normalized [HTyp]s do not contain type variables of kind [S].
+let precedence_Prod: int;
+let precedence_Arrow: int;
+let precedence_Sum: int;
+let precedence: t => int;
+
+/** An [HTyp] is complete when it has no holes. */
+let complete: t => bool;
+
+/* HTyp Value Predicates */
+
+let is_hole: t => bool;
+
+/* Matched Type Constructors */
+
+let matched_arrow: (Context.t, t) => option((t, t));
+let matched_sum: (Context.t, t) => option((t, t));
+let matched_list: (Context.t, t) => option(t);
+
+/* Type Variables */
+
+let is_tyvar: t => bool;
+
+let tyvar_index: t => option(Index.Abs.t);
+let tyvar_name: t => option(TyVar.t);
+
+/** Type variable substitution.
+
+   Given a list of pairs of type variable indices and [HTyp]s, replaces each
+   type variable with its paired type.
  */
-/* type normalized = Syntax.abs; */
-type normalized;
+let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+
+/* Joins */
+
+type join =
+  | /** holes win */
+    GLB
+  | /** holes lose */
+    LUB;
+
+let join: (Context.t, join, t, t) => option(t);
+let join_all: (Context.t, join, list(t)) => option(t);
+
+/* HTyp Normalization */
+
+/**
+   Normalized [HTyp]s contain no type variables of kind [S]. Since they contain
+   no bound type variables, and therefore contain no bound indices, they are
+   safe to pattern match against directly.
+ */
+
+/** A normalized [HTyp]. */
+type normalized = Syntax.abs;
 
 /** Normalizes an [HTyp].
 
    Replaces every type variable of kind [S] with its (recursively normalized)
    underlying type.
  */
-let normalize: (Contexts.t, t) => normalized;
+let normalize: (Context.t, t) => normalized;
 
-/** Promotes a normalized [HTyp] to an ordinary [HTyp].  */
+/** Coerces a normalized [HTyp] to an [HTyp]. */
 let of_normalized: normalized => t;
 
-/** Type consistency for normalized [HTyp]s. */
+/** Normalized [HTyp] consistency.
+
+   WARNING: This function assumes all type variables are of kind [Hole] or
+   [HTyp].
+ */
 let normalized_consistent: (normalized, normalized) => bool;
 
-/** Type equivalence for normalized [HTyp]s. */
+/** Normalized [HTyp] equivalence.
+
+   WARNING: This function assumes all type variables are of kind [Hole] or
+   [HTyp].
+ */
 let normalized_equivalent: (normalized, normalized) => bool;
 
-/** A partial syntax for [HTyp]s that are not type variables of kind [S].
+/* Ground Cases */
 
-   Head-normalized [HTyp]s are "shallow" ASTs. They are like ASTs whose
-   immediate children are ordinary [HTyp]s instead of AST nodes.
+[@deriving sexp]
+type ground_cases =
+  | Hole
+  | Ground
+  | NotGroundOrHole(normalized) /* the argument is the corresponding ground type */;
 
-   This function is used by matched type constructors (see below) to pattern
-   match on the underlying type of a type variable of kind [S].
-*/
+let grounded_Arrow: ground_cases;
+let grounded_Sum: ground_cases;
+let grounded_Prod: int => ground_cases;
+let grounded_List: ground_cases;
+
+let ground_cases_of: normalized => ground_cases;
+
+/* HTyp Head-Normalization */
+
+/**
+   Head-normalized [HTyp]s are [HTyp]s that may contain type variables of any
+   kind, but that are not themselves type variables of kind [S]. Since any bound
+   indices would have to be contained by subterms, the outermost AST node of a
+   head-normalized [HTyp] is safe to pattern match against directly.
+ */
+
+/** A "shallow" AST for [HTyp]s that are not type variables of kind [S].
+
+   Head-normalized [HTyp]s are ASTs whose immediate children are ordinary
+   [HTyp]s instead of AST nodes.
+
+   This function is used by matched type constructors (see above) to convert
+    a type variable of kind [S] to its underlying .
+ */
 type head_normalized =
   | Hole
   | Int
@@ -97,85 +202,12 @@ type head_normalized =
    If the [HTyp] is a type variable of kind [S], returns its (recursively
    head-normalized) underlying type. Otherwise, returns the [HTyp] unmodified.
  */
-let head_normalize: (Contexts.t, t) => head_normalized;
+let head_normalize: (Context.t, t) => head_normalized;
 
-/** Promotes a head-normalized [HTyp] to an ordinary [HTyp]. */
+/** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
 let of_head_normalized: head_normalized => t;
 
-/** {1 [HTyp] Constructors} */
-
-let tyvar: (Index.Abs.t, TyVar.t) => t;
-let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
-let hole: t;
-let int: t;
-let float: t;
-let bool: t;
-let arrow: (t, t) => t;
-let sum: (t, t) => t;
-let product: list(t) => t;
-let list: t => t;
-
-/** {1 General [HTyp] Properties} */
-
-let is_hole: t => bool;
-
-/** An [HTyp] is complete when it does not contain any holes. */
-let complete: t => bool;
-
-/** {1 [HTyp] Operator Precedence} */
-
-let precedence_Prod: int;
-let precedence_Arrow: int;
-let precedence_Sum: int;
-let precedence: t => int;
-
-/** {1 Product Type Helpers} */
+/** Product Types */
 
 let get_prod_elements: head_normalized => list(t);
 let get_prod_arity: head_normalized => int;
-
-/** {1 Type Variable Helpers} */
-
-let is_tyvar: t => bool;
-
-let tyvar_index: t => option(Index.Abs.t);
-let tyvar_name: t => option(TyVar.t);
-
-/** Type variable substitution.
-
-   Given a list of pairs of type variable indices and [HTyp]s, replaces each
-   type variable with its paired type.
- */
-let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
-
-/** {1 Matched Types} */
-
-let matched_arrow: (Contexts.t, t) => option((t, t));
-let matched_sum: (Contexts.t, t) => option((t, t));
-let matched_list: (Contexts.t, t) => option(t);
-
-/** {1 Joins} */
-
-type join =
-  | /** holes win */
-    GLB
-  | /** holes lose */
-    LUB;
-
-let join: (Contexts.t, join, t, t) => option(t);
-let join_all: (Contexts.t, join, list(t)) => option(t);
-
-/** {1 Ground Cases} */
-
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(normalized) /* the argument is the corresponding ground type */;
-
-let grounded_Arrow: ground_cases;
-let grounded_Sum: ground_cases;
-let grounded_Prod: int => ground_cases;
-let grounded_List: ground_cases;
-
-let ground_cases_of: normalized => ground_cases;
