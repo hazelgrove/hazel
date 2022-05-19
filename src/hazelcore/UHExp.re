@@ -16,7 +16,7 @@ and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | TypApp(ErrStatus.t, UHTyp.t)
+  | TypArg(ErrStatus.t, UHTyp.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
@@ -177,7 +177,7 @@ and get_err_status_operand =
   | EmptyHole(_) => NotInHole
   | InvalidText(_, _) => NotInHole
   | Var(err, _, _)
-  | TypApp(err, _)
+  | TypArg(err, _)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
@@ -202,7 +202,7 @@ and set_err_status_operand = (err, operand) =>
   | EmptyHole(_) => operand
   | InvalidText(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
-  | TypApp(_, ty) => TypApp(err, ty)
+  | TypArg(_, ty) => TypArg(err, ty)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
@@ -230,7 +230,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | EmptyHole(_)
   | InvalidText(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
-  | TypApp(InHole(TypeInconsistent, _), _)
+  | TypArg(InHole(TypeInconsistent, _), _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
@@ -243,7 +243,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
     )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | TypApp(NotInHole | InHole(WrongLength, _), _)
+  | TypArg(NotInHole | InHole(WrongLength, _), _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
@@ -314,8 +314,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
-  | TypApp(InHole(_), _) => false
-  | TypApp(NotInHole, _) => true
+  | TypArg(InHole(_), _) => false
+  | TypArg(NotInHole, _) => true
   | IntLit(InHole(_), _) => false
   | IntLit(NotInHole, _) => true
   | FloatLit(InHole(_), _) => false
