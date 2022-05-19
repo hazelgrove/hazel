@@ -1,0 +1,14 @@
+import Ast from "./ast"
+import AstUtil from "./ast_util"
+import AstSexp from "./ast_sexp"
+
+import Sexp from "../../sexplib/sexp"
+
+export let print = v => 
+  if (AstUtil.isIndet(v)) {
+    let ast = AstUtil.toAst(v)
+    print(Sexp.toString(AstSexp.sexpOfAst(ast)))
+  } else {
+    print(v)
+  }
+
