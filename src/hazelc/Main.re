@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type action =
   | DHExp
@@ -6,6 +8,20 @@ type action =
   | Grain
   | Wasm
   | Wat;
+
+let prefix = "hazelc";
+
+[@deriving sexp]
+type error =
+  | ParseError(string)
+  | ElaborateError
+  | GrainError;
+
+let error_from_next_error = (err: Compile.next_error) =>
+  switch (err) {
+  | ParseError(err) => ParseError(err)
+  | ElaborateError => ElaborateError
+  };
 
 let hazelc = (action, sources, out, _verbose, optimize, debug) => {
   let out =
@@ -37,7 +53,9 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     },
   };
 
-  let write_out = output => {
+  let grain_output = Filename.temp_file(prefix, "a.gr");
+
+  let write_output = output => {
     let out_file = open_out(out);
     Printf.fprintf(out_file, "%s", output);
     close_out(out_file);
@@ -48,43 +66,60 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     switch (action) {
     | DHExp =>
       let res =
-        Compile.compile_dhexp(~opts, out, SourceChannel(source_file));
+        Compile.resume_until_dhexp(
+          ~opts,
+          Source(SourceChannel(source_file)),
+        );
       switch (res) {
       | Ok(d) =>
         let output = d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-        write_out(output);
-      | Error(err) => Error(err)
+        write_output(output);
+      | Error(err) => Error(error_from_next_error(err))
       };
+
     | Hir =>
       let res =
-        Compile.compile_ihexp(~opts, out, SourceChannel(source_file));
+        Compile.resume_until_hir(~opts, Source(SourceChannel(source_file)));
       switch (res) {
       | Ok(d) =>
         let output = d |> Hir.sexp_of_expr |> Sexplib.Sexp.to_string_hum;
-        write_out(output);
-      | Error(err) => Error(err)
+        write_output(output);
+      | Error(err) => Error(error_from_next_error(err))
       };
+
     | Anf =>
-      let res = Compile.compile_anf(~opts, out, SourceChannel(source_file));
+      let res =
+        Compile.resume_until_anf(~opts, Source(SourceChannel(source_file)));
       switch (res) {
       | Ok(d) =>
         let output = d |> Anf.sexp_of_prog |> Sexplib.Sexp.to_string_hum;
-        write_out(output);
-      | Error(err) => Error(err)
+        write_output(output);
+      | Error(err) => Error(error_from_next_error(err))
       };
+
     | Grain =>
       let res =
-        Compile.compile_grain(~opts, out, SourceChannel(source_file));
+        Compile.resume_until_grain_text(
+          ~opts,
+          Source(SourceChannel(source_file)),
+        );
       switch (res) {
-      | Ok(output) => write_out(output)
-      | Error(err) => Error(err)
+      | Ok(output) => write_output(output)
+      | Error(err) => Error(error_from_next_error(err))
       };
+
     | Wasm
     | Wat =>
-      let res = Compile.compile_wasm(~opts, out, SourceChannel(source_file));
-      switch (res) {
-      | Ok(_) => Ok()
-      | Error(err) => Error(err)
+      let g =
+        Compile.resume_until_grain_text(
+          ~opts,
+          Source(SourceChannel(source_file)),
+        );
+      switch (g) {
+      | Ok(g) =>
+        Compile.wasmize_next(grain_output, out, g)
+        |> Result.map_error(() => GrainError)
+      | Error(err) => Error(error_from_next_error(err))
       };
     };
 
