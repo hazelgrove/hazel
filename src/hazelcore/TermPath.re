@@ -32,15 +32,14 @@ let rec mk_cursor_path_steps =
     | TypOperand(_, operand) => [
         mk_cursor_path_steps_typoperand(operand, steps),
       ]
-    | ExpOperator(_, operator, operator_index, opseq) => [
-        mk_cursor_path_steps_expoperator(
-          ~step_sibling=true,
-          operator,
-          operator_index,
-          opseq,
-          steps,
-        ),
-      ]
+    | ExpOperator(_, operator, operator_index, opseq) =>
+      mk_cursor_path_steps_expoperator(
+        ~step_sibling=true,
+        operator,
+        operator_index,
+        opseq,
+        steps,
+      )
     | PatOperator(_, operator, _operator_index, opseq) => [
         mk_cursor_path_steps_patoperator(
           ~step_sibling=true,
@@ -84,6 +83,10 @@ and mk_cursor_path_steps_expoperand =
     (operand: UHExp.operand, term_path_steps: list(ChildIndex.t))
     : list(CursorPath.steps) => {
   print_endline("In mk_cursor_path_steps_expoperand");
+  print_endline(
+    "Steps to term: "
+    ++ Sexp.to_string(CursorPath.sexp_of_steps(term_path_steps)),
+  );
   switch (operand, term_path_steps) {
   | (EmptyHole(_), [])
   | (InvalidText(_), [])
@@ -166,17 +169,37 @@ and mk_cursor_path_steps_expline =
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       cons_all(n, mk_cursor_path_steps_expoperand(pn, term_path_steps));
-    | BinOp(_, _, operator, _, _) => [
-        mk_cursor_path_steps_expoperator(
-          ~step_sibling=false,
-          operator,
-          -1,
-          opseq,
-          term_path_steps,
-        ),
-      ]
+    | BinOp(_, _, operator, _, _) =>
+      mk_cursor_path_steps_expoperator(
+        ~step_sibling=false,
+        operator,
+        -1,
+        opseq,
+        term_path_steps,
+      )
     }
   | _ => failwith("Doesn't work for this case - Exp Line")
+  };
+}
+and mk_cursor_path_steps_expopseq =
+    (
+      OpSeq(skel, seq) as opseq: UHExp.opseq,
+      term_path_steps: list(ChildIndex.t),
+    )
+    : list(CursorPath.steps) => {
+  print_endline("In mk_cursor_path_steps_expopseq");
+  switch (skel) {
+  | Placeholder(n) =>
+    let pn = Seq.nth_operand(n, seq);
+    cons_all(n, mk_cursor_path_steps_expoperand(pn, term_path_steps));
+  | BinOp(_, _, operator, _, _) =>
+    mk_cursor_path_steps_expoperator(
+      ~step_sibling=false,
+      operator,
+      -1,
+      opseq,
+      term_path_steps,
+    )
   };
 }
 and mk_cursor_path_steps_exprule =
@@ -194,17 +217,20 @@ and mk_cursor_path_steps_expoperator =
       ~step_sibling: bool,
       operator: UHExp.operator,
       _operator_index: int,
-      OpSeq(skel, _seq): UHExp.opseq,
+      OpSeq(skel, seq): UHExp.opseq,
       steps: list(ChildIndex.t),
     )
-    : CursorPath.steps => {
+    : list(CursorPath.steps) => {
   print_endline("In mk_cursor_path_steps_expoperator");
+  print_endline(
+    "Steps to term: " ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+  );
   switch (operator, steps) {
   | (Comma, [n, ..._]) =>
     let tuple_element = List.nth(UHExp.get_tuple_elements(skel), n);
     let element_step = Skel.get_root_num(tuple_element);
-    step_sibling ? [(-1), element_step] : [element_step];
-  | (_binop, [n, ..._]) =>
+    step_sibling ? [[(-1), element_step]] : [[element_step]];
+  | (_binop, [n]) =>
     print_endline(
       "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
     );
@@ -217,7 +243,27 @@ and mk_cursor_path_steps_expoperator =
         )
       };
     let child_step = n == 0 ? left : right;
-    step_sibling ? [(-1), child_step] : [child_step];
+    step_sibling ? [[(-1), child_step]] : [[child_step]];
+  | (_binop, [n, ...rest]) =>
+    print_endline(
+      "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
+    );
+    let (left_opseq, right_opseq) =
+      switch (skel) {
+      | Placeholder(_) => failwith("Can I reach here?")
+      | BinOp(index, _, _, skel1, skel2) =>
+        let (OpSeq(_, seq1), OpSeq(_, seq2)) =
+          OpSeq.get_sub_parts_binop(index, UHExp.mk_OpSeq, seq);
+        // Indices of the original skel need to be preserved
+        let opseq1: UHExp.opseq = OpSeq(skel1, seq1);
+        let opseq2: UHExp.opseq = OpSeq(skel2, seq2);
+        (opseq1, opseq2);
+      };
+    let child_steps =
+      n == 0
+        ? mk_cursor_path_steps_expopseq(left_opseq, rest)
+        : mk_cursor_path_steps_expopseq(right_opseq, rest);
+    step_sibling ? cons_all(-1, child_steps) : child_steps;
   | _ => failwith("Doesn't work for this case - Exp Operator")
   };
 }

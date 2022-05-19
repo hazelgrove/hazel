@@ -6,8 +6,8 @@ let get_msg =
   | ExpBinOperator(Plus, _l, _r) =>
     switch (level) {
     | 1 => "Integer addition of the [left operand](0) to the [right operand](1)"
-    | 2 => "Integer addition of the [left operand](0) to the right operand. The right operand is the result of integer multiplication of its [left operand](0 0) with its [right operand](0 1)."
-    | _ => "Integer addition of the [left integer](0) to the right operand. The right operand is the result of integer multiplication of its [left integer](0 0) with its [right integer](0 1)."
+    | 2 => "Integer addition of the [left operand](0) to the right operand. The right operand is the result of integer multiplication of its [left operand](1 0) with its [right operand](1 1)."
+    | _ => "Integer addition of the [left integer](0) to the right operand. The right operand is the result of integer multiplication of its [left integer](1 0) with its [right integer](1 1)."
     }
   | ExpBinOperator(Times, _, _) =>
     switch (level) {

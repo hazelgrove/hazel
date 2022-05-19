@@ -111,13 +111,16 @@ let generate_selector =
           Attr.value(string_of_int(syntactic_form_level)),
           Attr.on_change((_, id) => {
             print_endline(id);
-            inject(
-              UpdateDocumentationStudySettings(
-                DocumentationStudySettings.Toggle_Syntactic_Form_Level(
-                  int_of_string(id),
+            Event.Many([
+              inject(
+                UpdateDocumentationStudySettings(
+                  DocumentationStudySettings.Toggle_Syntactic_Form_Level(
+                    int_of_string(id),
+                  ),
                 ),
               ),
-            );
+              inject(ModelAction.FocusCell),
+            ]);
           }),
         ],
         List.init(syntactic_max_level_(explanation_info), index =>

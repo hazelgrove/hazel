@@ -105,7 +105,7 @@ let get_decoration_paths =
     | _ => []
     };
   let explanations =
-    if (show_explanation_highlight) {
+    if (show_explanation_highlight && !settings.is_demo) {
       let explanation_info =
         ExplanationInfo.mk_explanation_info(
           get_cursor_info(program).cursor_term,
@@ -131,7 +131,7 @@ let get_decoration_paths =
         List.map(
           ((steps, _)) =>
             print_endline(
-              "Decoration Steps: "
+              "Explanation Decoration Steps: "
               ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
             ),
           explanations,
@@ -162,18 +162,35 @@ let get_decoration_paths =
       );
     let color_map =
       CodeExplanationDemo.get_mapping(~settings, explanation_info);
-    List.map(
-      ((steps, color)) =>
-        List.map(
-          steps => (steps, UHDecorationShape.ExplanationElems(color)),
-          TermPath.mk_cursor_path_steps(
-            (steps, get_cursor_info(program).cursor_term),
-            get_steps(program),
+    let decorations =
+      List.map(
+        ((steps, color)) =>
+          List.map(
+            steps => (steps, UHDecorationShape.ExplanationElems(color)),
+            TermPath.mk_cursor_path_steps(
+              (steps, get_cursor_info(program).cursor_term),
+              get_steps(program),
+            ),
           ),
-        ),
-      ColorSteps.to_list(color_map),
-    )
-    |> List.flatten;
+        ColorSteps.to_list(color_map),
+      )
+      |> List.flatten;
+    /*let _ =
+      List.map(
+        ((steps, shape)) => {
+          print_endline(
+            " Demo Decoration Steps: "
+            ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+          );
+          switch (shape) {
+          | UHDecorationShape.ExplanationElems(color) =>
+            print_endline("Color: " ++ color)
+          | _ => ()
+          };
+        },
+        decorations,
+      );*/
+    decorations;
   };
   List.concat([
     err_holes,
