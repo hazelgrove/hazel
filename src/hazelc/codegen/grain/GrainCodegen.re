@@ -1,38 +1,41 @@
-module Import = {
-  type t = (Var.t, GrainIR.import_path);
-
-  let compare = ((x, path), (x', path')) =>
-    switch (String.compare(x, x')) {
-    | 0 =>
-      GrainIR.(
-        switch (path, path') {
-        | (ImportStd(path), ImportStd(path')) =>
-          String.compare(path, path')
-        | (ImportRel(path), ImportRel(path')) =>
-          String.compare(path, path')
-        | (ImportStd(_), ImportRel(_)) => (-1)
-        | (ImportRel(_), ImportStd(_)) => 1
-        }
-      )
-    | c => c
-    };
-};
-
 module Imports = {
-  include Set.Make(Import);
+  type t = {
+    indet: bool,
+    sum: bool,
+  };
 
-  let hole_imports =
-    HazelStd.Rt.[
-      Ast.import,
-      AstSexp.import,
-      AstMk.import,
-      AstOps.import,
-      AstPrint.import,
-    ];
-  let sum_imports = HazelStd.Rt.[Sum.import];
+  let default = {indet: false, sum: false};
+  let with_indet = imps => {...imps, indet: true};
+  let with_sum = imps => {...imps, sum: true};
 
-  let add_hole_imports = union(of_list(hole_imports));
-  let add_sum_imports = union(of_list(sum_imports));
+  let codegen = imps => {
+    open HazelStd.Rt;
+
+    let add = (flag, imps', imps) =>
+      if (flag) {
+        imps' @ imps;
+      } else {
+        imps;
+      };
+    let {indet, sum}: t = imps;
+
+    let imps =
+      []
+      |> add(
+           indet,
+           [
+             Ast.import,
+             AstMk.import,
+             AstOps.import,
+             AstPrint.import,
+             AstSexp.import,
+             GrainStd.Map.import,
+           ],
+         )
+      |> add(sum, [Sum.import]);
+
+    imps |> List.map(((x, path)) => GrainIR.TSImport(x, path));
+  };
 };
 
 let codegen_fold = (codegen_f, xs, imps) => {
@@ -154,7 +157,7 @@ and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
       | OpFEquals => AstOps.indet_fequals
       }
     );
-  (op, imps);
+  (op, Imports.with_indet(imps));
 }
 
 and codegen_bin_op =
@@ -232,7 +235,7 @@ and codegen_inj_side =
     | CInjR => HazelStd.Rt.Sum.inj_r
     };
 
-  (side, Imports.add_sum_imports(imps));
+  (side, Imports.with_sum(imps));
 }
 
 and codegen_inj_side_pat =
@@ -243,7 +246,7 @@ and codegen_inj_side_pat =
     | CInjR => HazelStd.Rt.Sum.inj_r_pat
     };
 
-  (side', Imports.add_sum_imports(imps));
+  (side', Imports.with_sum(imps));
 }
 
 and codegen_hole_reason =
@@ -276,10 +279,7 @@ and codegen_sigma =
       imps,
     );
 
-  (
-    GrainIR.EList(sigma') |> GrainStd.Map.from_list,
-    Imports.add(GrainStd.Map.import, imps),
-  );
+  (GrainIR.EList(sigma') |> GrainStd.Map.from_list, imps);
 }
 
 and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
@@ -287,10 +287,7 @@ and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
   let (i', imps) = codegen_meta_var_inst(i, imps);
   let (sigma', imps) = codegen_sigma(sigma, imps);
 
-  HazelStd.Rt.(
-    Ast.empty_hole(u', i', sigma'),
-    Imports.add_hole_imports(imps),
-  );
+  HazelStd.Rt.(Ast.empty_hole(u', i', sigma'), Imports.with_indet(imps));
 }
 
 and codegen_non_empty_hole =
@@ -303,56 +300,50 @@ and codegen_non_empty_hole =
 
   HazelStd.Rt.(
     Ast.non_empty_hole(reason', u', i', sigma', e'),
-    Imports.add_hole_imports(imps),
+    Imports.with_indet(imps),
   );
 }
 
 and codegen_cast =
     (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t, imps): (GrainIR.expr, Imports.t) => {
+  let rec codegen_htyp = (t: HTyp.t): GrainIR.expr => {
+    HazelStd.Rt.(
+      switch (t) {
+      | Hole => Ast.HTyp.hole
+      | Int => Ast.HTyp.int
+      | Float => Ast.HTyp.float
+      | Bool => Ast.HTyp.bool
+
+      | Arrow(ty1, ty2) =>
+        let ty1' = codegen_htyp(ty1);
+        let ty2' = codegen_htyp(ty2);
+        Ast.HTyp.arrow(ty1', ty2');
+
+      | Sum(ty1, ty2) =>
+        let ty1' = codegen_htyp(ty1);
+        let ty2' = codegen_htyp(ty2);
+        Ast.HTyp.sum(ty1', ty2');
+      | Prod(tys) =>
+        let tys' = tys |> List.map(codegen_htyp);
+        Ast.HTyp.prod(tys');
+
+      | List(ty) =>
+        let ty' = codegen_htyp(ty);
+        Ast.HTyp.list(ty');
+      }
+    );
+  };
+
   let (e, imps) = codegen_imm(im, imps);
-  let (ty1', imps) = codegen_htyp(ty1, imps);
-  let (ty2', imps) = codegen_htyp(ty2, imps);
+  let ty1' = codegen_htyp(ty1);
+  let ty2' = codegen_htyp(ty2);
 
-  HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.add_hole_imports(imps));
-}
-
-and codegen_htyp = (t: HTyp.t, imps): (GrainIR.expr, Imports.t) => {
-  HazelStd.Rt.(
-    switch (t) {
-    | Hole => (Ast.HTyp.hole, imps)
-    | Int => (Ast.HTyp.int, imps)
-    | Float => (Ast.HTyp.float, imps)
-    | Bool => (Ast.HTyp.bool, imps)
-
-    | Arrow(ty1, ty2) =>
-      let (ty1', imps) = codegen_htyp(ty1, imps);
-      let (ty2', imps) = codegen_htyp(ty2, imps);
-      (Ast.HTyp.arrow(ty1', ty2'), imps);
-
-    | Sum(ty1, ty2) =>
-      let (ty1', imps) = codegen_htyp(ty1, imps);
-      let (ty2', imps) = codegen_htyp(ty2, imps);
-      (Ast.HTyp.sum(ty1', ty2'), imps);
-    | Prod(tys) =>
-      let (tys', imps) = codegen_fold(codegen_htyp, tys, imps);
-      (Ast.HTyp.prod(tys'), imps);
-
-    | List(ty) =>
-      let (ty', imps) = codegen_htyp(ty, imps);
-      (Ast.HTyp.list(ty'), imps);
-    }
-  );
-};
-
-let codegen_imps = (imps): GrainIR.top_block => {
-  imps
-  |> Imports.elements
-  |> List.map(((x, path)) => GrainIR.TSImport(x, path));
+  HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.with_indet(imps));
 };
 
 let codegen = (prog: Anf.prog): GrainIR.prog => {
-  let (body, c, imps) = codegen_prog(prog, Imports.empty);
-  let tb = codegen_imps(imps);
+  let (body, c, imps) = codegen_prog(prog, Imports.default);
+  let tb = Imports.codegen(imps);
 
   // TODO: Clean this up.
   let print_ap =
