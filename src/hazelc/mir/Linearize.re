@@ -34,7 +34,7 @@ let convert_bind = (bn: bind): Anf.stmt => {
 
 /* We maintain a mapping from variables to indet-ness during the linearization
  * process. */
-type indet_context = VarMap.t_(Anf.has_indet);
+type indet_context = VarMap.t_((Var.t, Anf.has_indet));
 
 let rec linearize_prog = (d: Hir.expr, ictx, t_gen): (Anf.prog, TmpVarGen.t) => {
   let (im, im_binds, t_gen) = linearize_exp(d, ictx, t_gen);
@@ -48,14 +48,13 @@ and linearize_exp =
     (d: Hir.expr, ictx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d.expr_kind) {
   | EBoundVar(ty, x) =>
-    switch (VarMap.lookup(ictx, x)) {
-    | Some(x_indet) => (
-        {imm_kind: IVar(x), imm_ty: ty, imm_indet: x_indet},
-        [],
-        t_gen,
-      )
-    | None => raise(Exception(FreeBoundVar(x)))
-    }
+    let (x', x_indet) =
+      switch (VarMap.lookup(ictx, x)) {
+      | Some((x', x_indet)) => (x', x_indet)
+      | None => raise(Exception(FreeBoundVar(x)))
+      };
+
+    ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: x_indet}, [], t_gen);
 
   | ELet(dp, d1, d2) =>
     let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
@@ -327,8 +326,9 @@ and linearize_pat_hole =
   | PVar(x) =>
     // Mark x as indet whenever the matchee is indet or the pattern is inside a
     // pattern hole.
-    let ictx = VarMap.extend(ictx, (x, d_indet || in_hole));
-    ({pat_kind: PVar(x), pat_indet: false}, ictx, t_gen);
+    let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
+    let ictx = VarMap.extend(ictx, (x, (x', d_indet || in_hole)));
+    ({pat_kind: PVar(x'), pat_indet: false}, ictx, t_gen);
 
   | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: false}, ictx, t_gen)
 
