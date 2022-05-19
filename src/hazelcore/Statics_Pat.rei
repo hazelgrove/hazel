@@ -1,3 +1,10 @@
+/**
+ * The pattern_var_mode flag, threaded through pattern analysis/synthesis,
+ * determines whether variable synthesis produces the Unknown(ModeSwitch)
+ * or Unknown(Internal) types. This is used to implement ths seperate
+ * _moded pattern synthesis judgement which is used for LetLine statics
+ * in order to support both annotated and unannotated subpatterns.
+ */
 [@deriving sexp]
 type pattern_var_mode =
   | ModedVariable
