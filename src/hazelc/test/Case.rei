@@ -1,3 +1,3 @@
-let test: (string, string) => bool;
+let test: (string, string) => unit;
 
-let test_with_eval: string => bool;
+let test_with_eval: string => unit;
