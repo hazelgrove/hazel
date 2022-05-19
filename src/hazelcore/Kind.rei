@@ -15,23 +15,13 @@ module Syntax = KindSystem.Kind;
 [@deriving sexp]
 type t = Syntax.abs;
 
-/** Produces the underlying AST of a [Kind]. */
-let to_syntax: t => Syntax.abs;
-
-/** Produces a [Kind] with the given AST. */
-let of_syntax: Syntax.abs => t;
-
-/** Produces the most general [HTyp] of a [Kind]. */
+/** Produces the most general [HTyp] of the given [Kind]. */
 let to_htyp: t => HTyp.abs;
 
-let hole: t;
-let htyp: t;
+/** Constructs a singleton [Kind] with the given underlying type. */
 let singleton: HTyp.abs => t;
 
 /* Properties of Kind */
-
-/** Structural equality of underlying ASTs. */
-let equal: (t, t) => bool;
 
 /** Subkind Consistency.
 

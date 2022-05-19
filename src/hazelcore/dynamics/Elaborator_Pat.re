@@ -1,6 +1,6 @@
 module ElaborationResult = {
   type t =
-    | Elaborates(DHPat.t, HTyp.t, Contexts.t, Delta.t)
+    | Elaborates(DHPat.t, HTyp.t, Context.t, Delta.t)
     | DoesNotElaborate;
 
   let to_option =
@@ -13,7 +13,7 @@ module ElaborationResult = {
     | None => DoesNotElaborate
     | Some((pat, ty, ctx, delta)) => Elaborates(pat, ty, ctx, delta);
 
-  let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Contexts.t, Delta.t)) => t): t =>
+  let bind = (x: t, ~f: ((DHPat.t, HTyp.t, Context.t, Delta.t)) => t): t =>
     switch (x) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty, ctx, delta) => f((dp, ty, ctx, delta))
@@ -23,14 +23,14 @@ module ElaborationResult = {
 module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
-        (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): ElaborationResult.t =>
+        (ctx: Context.t, delta: Delta.t, p: UHPat.t): ElaborationResult.t =>
   syn_elab_opseq(ctx, delta, p)
 and syn_elab_opseq =
-    (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
+    (ctx: Context.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
     : ElaborationResult.t =>
   syn_elab_skel(ctx, delta, skel, seq)
 and syn_elab_skel =
-    (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
+    (ctx: Context.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
     : ElaborationResult.t =>
   switch (skel) {
   | Placeholder(n) => syn_elab_operand(ctx, delta, seq |> Seq.nth_operand(n))
@@ -99,7 +99,7 @@ and syn_elab_skel =
     }
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand)
+    (ctx: Context.t, delta: Delta.t, operand: UHPat.operand)
     : ElaborationResult.t =>
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
@@ -139,7 +139,7 @@ and syn_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), HTyp.hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
+    let ctx = Context.add_var(ctx, x, HTyp.hole);
     Elaborates(Var(x), HTyp.hole, ctx, delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
@@ -174,12 +174,12 @@ and syn_elab_operand =
     }
   }
 and ana_elab =
-    (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
+    (ctx: Context.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
     : ElaborationResult.t =>
   ana_elab_opseq(ctx, delta, p, ty)
 and ana_elab_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       OpSeq(skel, seq) as opseq: UHPat.opseq,
       ty: HTyp.t,
@@ -192,7 +192,7 @@ and ana_elab_opseq =
     skel_tys
     |> List.fold_left(
          (
-           acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+           acc: option((list(DHPat.t), Context.t, Delta.t)),
            (skel: UHPat.skel, ty: HTyp.t),
          ) =>
            switch (acc) {
@@ -220,7 +220,7 @@ and ana_elab_opseq =
       |> UHPat.get_tuple_elements
       |> List.fold_left(
            (
-             acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+             acc: option((list(DHPat.t), Context.t, Delta.t)),
              skel: UHPat.skel,
            ) =>
              switch (acc) {
@@ -265,7 +265,7 @@ and ana_elab_opseq =
 }
 and ana_elab_skel =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       skel: UHPat.skel,
       seq: UHPat.seq,
@@ -318,7 +318,7 @@ and ana_elab_skel =
     }
   }
 and ana_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
+    (ctx: Context.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
@@ -353,7 +353,7 @@ and ana_elab_operand =
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty));
+    let ctx = Context.add_var(ctx, x, HTyp.unsafe(ty));
     Elaborates(Var(x), ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, ty, ctx, delta)
   | InvalidText(_, _)

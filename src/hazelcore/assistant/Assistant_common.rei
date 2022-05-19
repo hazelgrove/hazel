@@ -4,9 +4,9 @@ type mode =
   | Synthetic
   | UnknownMode;
 
-let extract_vars: (Contexts.t, HTyp.t) => list((Var.t, HTyp.t));
+let extract_vars: (Context.t, HTyp.t) => list((Var.t, HTyp.t));
 
-let fun_vars: (Contexts.t, HTyp.t) => VarMap.t(HTyp.t);
+let fun_vars: (Context.t, HTyp.t) => VarMap.t(HTyp.t);
 
 let get_type: CursorInfo.t => option(HTyp.t);
 

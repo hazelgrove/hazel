@@ -24,8 +24,8 @@ let shape_of_operator = (op: UHTyp.operator): Action.operator_shape =>
   };
 
 let text_operand =
-    (ctx: Contexts.t, shape: TyTextShape.t, u_gen: MetaVarGen.t)
-    : (UHTyp.operand, Contexts.t, MetaVarGen.t) =>
+    (ctx: Context.t, shape: TyTextShape.t, u_gen: MetaVarGen.t)
+    : (UHTyp.operand, Context.t, MetaVarGen.t) =>
   switch (shape) {
   | Int => (Int, ctx, u_gen)
   | Bool => (Bool, ctx, u_gen)
@@ -35,13 +35,13 @@ let text_operand =
     let t = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(Reserved, u), t), ctx, u_gen);
   | TyVar(t) =>
-    switch (Contexts.tyvar_index(ctx, t)) {
+    switch (Context.tyvar_index(ctx, t)) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (TyVar(InHole(Unbound, u), t), ctx, u_gen);
     | Some(idx) =>
       let k = Kind.singleton(HTyp.tyvar(idx, t));
-      let ctx = Contexts.add_tyvar(ctx, t, k);
+      let ctx = Context.add_tyvar(ctx, t, k);
       (TyVar(NotInTyVarHole(idx), t), ctx, u_gen);
     }
   };
@@ -69,7 +69,7 @@ let construct_operator =
 };
 
 let mk_syn_text =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+    (ctx: Context.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_string(text)) {
@@ -103,7 +103,7 @@ let mk_syn_text =
     Succeeded((zty, u_gen));
   | Some(TyVar(t)) =>
     let (status: TyVarErrStatus.t, u_gen) =
-      switch (Contexts.tyvar_index(ctx, t)) {
+      switch (Context.tyvar_index(ctx, t)) {
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (InHole(Unbound, u), u_gen);
@@ -111,7 +111,7 @@ let mk_syn_text =
         print_endline(
           "AAA " ++ t ++ ":" ++ Int.to_string(Index.Abs.to_int(idx)),
         );
-        print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+        print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
         (NotInTyVarHole(idx), u_gen);
       };
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
@@ -179,13 +179,13 @@ let delete_text = Action_common.syn_delete_text_(~mk_syn_text);
 
 let split_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       sop: Action.operator_shape,
       text: string,
     )
-    : option((ZTyp.t, Contexts.t, MetaVarGen.t)) => {
+    : option((ZTyp.t, Context.t, MetaVarGen.t)) => {
   let (l, r) = StringUtil.split_string(caret_index, text);
   switch (
     TyTextShape.of_string(l),
@@ -206,17 +206,17 @@ let split_text =
 };
 
 let rec perform =
-        (ctx: Contexts.t, a: Action.t, zty: ZTyp.t, u_gen: MetaVarGen.t)
-        : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
+        (ctx: Context.t, a: Action.t, zty: ZTyp.t, u_gen: MetaVarGen.t)
+        : ActionOutcome.t((ZTyp.t, Context.t, MetaVarGen.t)) =>
   perform_opseq(ctx, a, zty, u_gen)
 and perform_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq,
       u_gen: MetaVarGen.t,
     )
-    : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, Context.t, MetaVarGen.t)) =>
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
@@ -344,12 +344,12 @@ and perform_opseq =
   }
 and perform_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       a: Action.t,
       zoperand: ZTyp.zoperand,
       u_gen: MetaVarGen.t,
     )
-    : ActionOutcome.t((ZTyp.t, Contexts.t, MetaVarGen.t)) =>
+    : ActionOutcome.t((ZTyp.t, Context.t, MetaVarGen.t)) =>
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (

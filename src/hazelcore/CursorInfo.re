@@ -11,7 +11,7 @@ type join_of_branches =
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
-  | AnaAnnotatedFun(Contexts.t, HTyp.t, HTyp.t)
+  | AnaAnnotatedFun(Context.t, HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple of the wrong length
@@ -33,7 +33,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(Contexts.t, HTyp.t, HTyp.t)
+  | AnaSubsumed(Context.t, HTyp.t, HTyp.t)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -75,7 +75,7 @@ type typed =
         // index of the branch
         int,
         // all (type and expression) variables bound during elaboration
-        Contexts.t,
+        Context.t,
       )
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
@@ -102,7 +102,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(Contexts.t, HTyp.t, HTyp.t)
+  | PatAnaSubsumed(Context.t, HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
@@ -142,7 +142,7 @@ type parent_info =
 type t = {
   cursor_term,
   typed,
-  ctx: Contexts.t,
+  ctx: Context.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
   tyuses: option(UsageAnalysis.uses_list),

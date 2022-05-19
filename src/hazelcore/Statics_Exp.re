@@ -4,7 +4,7 @@ let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
 let recursive_let_id =
-    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): option(Var.t) => {
+    (ctx: Context.t, p: UHPat.t, def: UHExp.t): option(Var.t) => {
   switch (p, def) {
   | (
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
@@ -18,14 +18,13 @@ let recursive_let_id =
   };
 };
 
-let extend_let_def_ctx =
-    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+let extend_let_def_ctx = (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t => {
   switch (recursive_let_id(ctx, p, def)) {
   | None => ctx
   | Some(id) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => ctx
-    | Some((ty_p, _)) => Contexts.add_var(ctx, id, HTyp.unsafe(ty_p))
+    | Some((ty_p, _)) => Context.add_var(ctx, id, HTyp.unsafe(ty_p))
     }
   };
 };
@@ -38,29 +37,28 @@ let joined_pattern_type = (ctx, rules) => {
   HTyp.join_all(ctx, LUB, tys);
 };
 
-let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
+let rec syn = (ctx: Context.t, e: UHExp.t): option(HTyp.t) =>
   syn_block(ctx, e)
-and syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) => {
+and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* new_ctx = syn_lines(ctx, leading);
   let+ ty = syn_opseq(new_ctx, conclusion);
   let tyvars =
-    Contexts.diff_tyvars(new_ctx, ctx)
+    Context.diff_tyvars(new_ctx, ctx)
     |> List.map(((idx, ty)) => (idx, HTyp.of_unsafe(ty)));
   HTyp.subst_tyvars(ty, tyvars);
 }
-and syn_lines =
-    (ctx: Contexts.t, lines: list(UHExp.line)): option(Contexts.t) => {
+and syn_lines = (ctx: Context.t, lines: list(UHExp.line)): option(Context.t) => {
   lines
   |> List.fold_left(
-       (opt_ctx: option(Contexts.t), line: UHExp.line) => {
+       (opt_ctx: option(Context.t), line: UHExp.line) => {
          let* ctx = opt_ctx;
          syn_line(ctx, line);
        },
        Some(ctx),
      );
 }
-and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
+and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
   switch (line) {
   | EmptyLine
   | CommentLine(_) => Some(ctx)
@@ -77,10 +75,10 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     Statics_TPat.matches(ctx, p, ty, kind);
   }
 and syn_opseq =
-    (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
+    (ctx: Context.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
   syn_skel(ctx, skel, seq)
 and syn_skel =
-    (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq): option(HTyp.t) =>
+    (ctx: Context.t, skel: UHExp.skel, seq: UHExp.seq): option(HTyp.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
@@ -126,7 +124,7 @@ and syn_skel =
     let+ _ = ana_skel(ctx, skel2, seq, ty);
     ty;
   }
-and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
+and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some(HTyp.hole)
@@ -167,7 +165,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     correct_rule_types ? Some(HTyp.hole) : None;
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) =>
-    Contexts.var_type(ctx, x) |> Option.map(HTyp.of_unsafe)
+    Context.var_type(ctx, x) |> Option.map(HTyp.of_unsafe)
   | Var(NotInHole, InVarHole(_), _) => Some(HTyp.hole)
   | IntLit(NotInHole, _) => Some(HTyp.int)
   | FloatLit(NotInHole, _) => Some(HTyp.float)
@@ -189,7 +187,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Parenthesized(body) => syn(ctx, body)
   }
 and syn_rules =
-    (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
+    (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
   let* clause_types =
     List.fold_left(
       (types_opt, r) => {
@@ -203,21 +201,21 @@ and syn_rules =
   HTyp.join_all(ctx, GLB, clause_types);
 }
 and syn_rule =
-    (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
+    (ctx: Context.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
   let Rule(p, clause) = rule;
   let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
   syn(ctx, clause);
 }
-and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
+and ana = (ctx: Context.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
 and ana_block =
-    (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
+    (ctx: Context.t, block: UHExp.block, ty: HTyp.t): option(unit) => {
   let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
   let* new_ctx = syn_lines(ctx, leading);
   ana_opseq(new_ctx, conclusion, ty);
 }
 and ana_opseq =
-    (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
+    (ctx: Context.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) => {
   let ty_h = HTyp.head_normalize(ctx, ty);
   switch (tuple_zip(skel, ty_h)) {
@@ -239,7 +237,7 @@ and ana_opseq =
   };
 }
 and ana_skel =
-    (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
+    (ctx: Context.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
   switch (skel) {
   | BinOp(_, Comma, _, _)
@@ -271,7 +269,7 @@ and ana_skel =
     HTyp.consistent(ctx, ty, ty') ? Some() : None;
   }
 and ana_operand =
-    (ctx: Contexts.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
+    (ctx: Context.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
   switch (operand) {
   /* in hole */
   | EmptyHole(_) => Some()
@@ -322,7 +320,7 @@ and ana_operand =
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
-    (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
+    (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(unit) =>
   List.fold_left(
     (b, r) => {
@@ -334,7 +332,7 @@ and ana_rules =
   )
 and ana_rule =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       Rule(p, clause): UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
@@ -348,11 +346,11 @@ and ana_rule =
  * Get type mode of nth operand of an opseq in synthetic position
  */
 let rec syn_nth_type_mode =
-        (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
+        (ctx: Context.t, n: int, OpSeq(skel, seq): UHExp.opseq)
         : option(Statics.type_mode) =>
   syn_nth_type_mode'(ctx, n, skel, seq)
 and syn_nth_type_mode' =
-    (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
+    (ctx: Context.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
     : option(Statics.type_mode) => {
   let ana_go = (skel, ty) => ana_nth_type_mode'(ctx, n, skel, seq, ty);
   let rec go = (skel: UHExp.skel) =>
@@ -420,7 +418,7 @@ and syn_nth_type_mode' =
  */
 and ana_nth_type_mode =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       n: int,
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
@@ -441,7 +439,7 @@ and ana_nth_type_mode =
   };
 }
 and ana_nth_type_mode' =
-    (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
+    (ctx: Context.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics.type_mode) => {
   let syn_go = skel => syn_nth_type_mode'(ctx, n, skel, seq);
   let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
@@ -487,7 +485,7 @@ and ana_nth_type_mode' =
  */
 let rec syn_fix_holes =
         (
-          ctx: Contexts.t,
+          ctx: Context.t,
           u_gen: MetaVarGen.t,
           ~renumber_empty_holes=false,
           e: UHExp.t,
@@ -495,12 +493,12 @@ let rec syn_fix_holes =
         : (UHExp.t, HTyp.t, MetaVarGen.t) => {
   print_endline("--- STATICS_EXP syn_fix_holes ---");
   print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
-  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+  print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
   syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e);
 }
 and syn_fix_holes_block =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       block: UHExp.block,
@@ -525,19 +523,19 @@ and syn_fix_holes_block =
   }
 and syn_fix_holes_lines =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       lines: list(UHExp.line),
     )
-    : (list(UHExp.line), Contexts.t, MetaVarGen.t) => {
+    : (list(UHExp.line), Context.t, MetaVarGen.t) => {
   let (rev_fixed_lines, ctx, u_gen) =
     lines
     |> List.fold_left(
          (
            (fixed_lines, ctx, u_gen): (
              list(UHExp.line),
-             Contexts.t,
+             Context.t,
              MetaVarGen.t,
            ),
            line: UHExp.line,
@@ -552,12 +550,12 @@ and syn_fix_holes_lines =
 }
 and syn_fix_holes_line =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       line: UHExp.line,
     )
-    : (UHExp.line, Contexts.t, MetaVarGen.t) =>
+    : (UHExp.line, Context.t, MetaVarGen.t) =>
   switch (line) {
   | ExpLine(e) =>
     let (e, _, u_gen) =
@@ -585,7 +583,7 @@ and syn_fix_holes_line =
   }
 and syn_fix_holes_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       OpSeq(skel, seq): UHExp.opseq,
@@ -595,14 +593,14 @@ and syn_fix_holes_opseq =
   print_endline(
     Sexplib.Sexp.to_string_hum(UHExp.sexp_of_opseq(OpSeq(skel, seq))),
   );
-  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+  print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
   let (skel, seq, ty, u_gen) =
     syn_fix_holes_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
   (OpSeq(skel, seq), ty, u_gen);
 }
 and syn_fix_holes_skel =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHExp.skel,
@@ -724,7 +722,7 @@ and syn_fix_holes_skel =
       Sexplib.Sexp.to_string_hum(UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     );
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty1)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     switch (HTyp.matched_arrow(ctx, ty1)) {
     | Some((ty2, ty)) =>
       let (skel2, seq, u_gen) =
@@ -782,7 +780,7 @@ and syn_fix_holes_skel =
   }
 and syn_fix_holes_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       e: UHExp.operand,
@@ -801,8 +799,8 @@ and syn_fix_holes_operand =
   | Var(_, var_err_status, x) =>
     print_endline("--- STATICS_EXP syn_fix_holes_operand ---");
     print_endline(x);
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
-    switch (Contexts.var_type(ctx, x)) {
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
+    switch (Context.var_type(ctx, x)) {
     | Some(ty) =>
       print_endline("FFF");
       print_endline(
@@ -869,7 +867,7 @@ and syn_fix_holes_operand =
 }
 and syn_fix_holes_rules =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       rules: UHExp.rules,
@@ -891,7 +889,7 @@ and syn_fix_holes_rules =
 }
 and syn_fix_holes_rule =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       rule: UHExp.rule,
@@ -907,7 +905,7 @@ and syn_fix_holes_rule =
 }
 and ana_fix_holes_rules =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       rules: UHExp.rules,
@@ -936,7 +934,7 @@ and ana_fix_holes_rules =
 }
 and ana_fix_holes_rule =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       Rule(p, clause): UHExp.rule,
@@ -952,7 +950,7 @@ and ana_fix_holes_rule =
 }
 and ana_fix_holes =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       e: UHExp.t,
@@ -962,12 +960,12 @@ and ana_fix_holes =
   print_endline("--- STATICS_EXP ana_fix_holes ---");
   print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_t(e)));
   print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-  print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+  print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
   ana_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, e, ty);
 }
 and ana_fix_holes_block =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       block: UHExp.block,
@@ -989,7 +987,7 @@ and ana_fix_holes_block =
   }
 and ana_fix_holes_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       OpSeq(skel, seq) as opseq: UHExp.opseq,
@@ -1084,7 +1082,7 @@ and ana_fix_holes_opseq =
 }
 and ana_fix_holes_skel =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHExp.skel,
@@ -1174,7 +1172,7 @@ and ana_fix_holes_skel =
   }
 and ana_fix_holes_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       e: UHExp.operand,
@@ -1196,7 +1194,7 @@ and ana_fix_holes_operand =
   | BoolLit(_, _) =>
     print_endline("--- STATICS_EXP ana_fix_holes_operand ---");
     print_endline(Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(e)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     let (e, ty', u_gen) =
       syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1281,7 +1279,7 @@ and ana_fix_holes_operand =
   };
 }
 and extend_let_body_ctx =
-    (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
+    (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t => {
   /* precondition: (p)attern and (def)inition have consistent types */
   def
   |> syn(extend_let_def_ctx(ctx, p, def))
@@ -1291,7 +1289,7 @@ and extend_let_body_ctx =
 };
 
 let syn_fix_holes_z =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+    (ctx: Context.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, ZExp.erase(ze));
@@ -1307,8 +1305,8 @@ let syn_fix_holes_z =
 };
 
 let syn_fix_holes_zlines =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
-    : (ZExp.zblock, Contexts.t, MetaVarGen.t) => {
+    (ctx: Context.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
+    : (ZExp.zblock, Context.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_zblock(zlines);
   let (lines, ctx, u_gen) =
     syn_fix_holes_lines(ctx, u_gen, ZExp.erase_zblock(zlines));
@@ -1324,12 +1322,7 @@ let syn_fix_holes_zlines =
 };
 
 let syn_fix_holes_zrules =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      zrules: ZExp.zrules,
-      pat_ty: HTyp.t,
-    )
+    (ctx: Context.t, u_gen: MetaVarGen.t, zrules: ZExp.zrules, pat_ty: HTyp.t)
     : (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t) => {
   let path = CursorPath_Exp.of_zrules(zrules);
   let rules = ZExp.erase_zrules(zrules);
@@ -1347,7 +1340,7 @@ let syn_fix_holes_zrules =
 };
 
 let ana_fix_holes_z =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
+    (ctx: Context.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, u_gen) = ana_fix_holes(ctx, u_gen, ZExp.erase(ze), ty);
@@ -1364,11 +1357,11 @@ let ana_fix_holes_z =
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
-    (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, MetaVarGen.t) =>
+    (ctx: Context.t, e: UHExp.t): (UHExp.t, HTyp.t, MetaVarGen.t) =>
   syn_fix_holes(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
 
 let fix_and_renumber_holes_z =
-    (ctx: Contexts.t, ze: ZExp.t): Statics.edit_state => {
+    (ctx: Context.t, ze: ZExp.t): Statics.edit_state => {
   let path = CursorPath_Exp.of_z(ze);
   let (e, ty, u_gen) = fix_and_renumber_holes(ctx, ZExp.erase(ze));
   let ze =

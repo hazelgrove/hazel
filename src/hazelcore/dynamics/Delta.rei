@@ -1,7 +1,7 @@
 module Hole: {
   type t =
-    | Expression(HTyp.t, Contexts.t)
-    | Pattern(HTyp.t, Contexts.t)
+    | Expression(HTyp.t, Context.t)
+    | Pattern(HTyp.t, Context.t)
     | Type;
 };
 

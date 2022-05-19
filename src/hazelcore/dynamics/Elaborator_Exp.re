@@ -1,5 +1,5 @@
 type elab_result_lines =
-  | LinesElaborate(DHExp.t => DHExp.t, Contexts.t, Delta.t)
+  | LinesElaborate(DHExp.t => DHExp.t, Context.t, Delta.t)
   | LinesDoNotElaborate;
 
 module ElaborationResult = {
@@ -27,10 +27,10 @@ module ElaborationResult = {
 module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
-        (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
+        (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
   syn_elab_block(ctx, delta, e)
 and syn_elab_block =
-    (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
+    (ctx: Context.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
   | None => DoesNotElaborate
   | Some((leading, conclusion)) =>
@@ -41,7 +41,7 @@ and syn_elab_block =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) =>
         let tyvars =
-          Contexts.diff_tyvars(new_ctx, ctx)
+          Context.diff_tyvars(new_ctx, ctx)
           |> List.map(((idx, ty)) => (idx, HTyp.of_unsafe(ty)));
         let ty = HTyp.subst_tyvars(ty, tyvars);
         Elaborates(prelude(d), ty, delta);
@@ -49,7 +49,7 @@ and syn_elab_block =
     }
   }
 and syn_elab_lines =
-    (ctx: Contexts.t, delta: Delta.t, lines: list(UHExp.line))
+    (ctx: Context.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
   switch (lines) {
   | [] => LinesElaborate(d => d, ctx, delta)
@@ -65,7 +65,7 @@ and syn_elab_lines =
     }
   }
 and syn_elab_line =
-    (ctx: Contexts.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
+    (ctx: Context.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
@@ -113,11 +113,11 @@ and syn_elab_line =
     }
   }
 and syn_elab_opseq =
-    (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
+    (ctx: Context.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
     : ElaborationResult.t =>
   syn_elab_skel(ctx, delta, skel, seq)
 and syn_elab_skel =
-    (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel, seq: UHExp.seq)
+    (ctx: Context.t, delta: Delta.t, skel: UHExp.skel, seq: UHExp.seq)
     : ElaborationResult.t =>
   switch (skel) {
   | Placeholder(n) =>
@@ -205,8 +205,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.int)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, (ctx, ty1), (Contexts.initial, HTyp.int));
-        let dc2 = DHExp.cast(d2, (ctx, ty2), (Contexts.initial, HTyp.int));
+        let dc1 = DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.int));
+        let dc2 = DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.int));
         switch (DHExp.BinIntOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -223,10 +223,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.float)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 =
-          DHExp.cast(d1, (ctx, ty1), (Contexts.initial, HTyp.float));
-        let dc2 =
-          DHExp.cast(d2, (ctx, ty2), (Contexts.initial, HTyp.float));
+        let dc1 = DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.float));
+        let dc2 = DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.float));
         switch (DHExp.BinFloatOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some((op, ty)) =>
@@ -242,8 +240,8 @@ and syn_elab_skel =
       switch (ana_elab_skel(ctx, delta, skel2, seq, HTyp.bool)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d2, ty2, delta) =>
-        let dc1 = DHExp.cast(d1, (ctx, ty1), (Contexts.initial, HTyp.bool));
-        let dc2 = DHExp.cast(d2, (ctx, ty2), (Contexts.initial, HTyp.bool));
+        let dc1 = DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.bool));
+        let dc2 = DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.bool));
         switch (DHExp.BinBoolOp.of_op(op)) {
         | None => DoesNotElaborate
         | Some(op) =>
@@ -254,7 +252,7 @@ and syn_elab_skel =
     }
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
+    (ctx: Context.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
   switch (operand) {
   /* in hole */
@@ -328,7 +326,7 @@ and syn_elab_operand =
     let delta = MetaVarMap.add(u, Delta.Hole.Expression(ty, ctx), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
-    switch (Contexts.var_type(ctx, x)) {
+    switch (Context.var_type(ctx, x)) {
     | Some(ty) => Elaborates(BoundVar(x), HTyp.of_unsafe(ty), delta)
     | None => DoesNotElaborate
     }
@@ -362,7 +360,7 @@ and syn_elab_operand =
     print_endline(
       Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
     );
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
@@ -400,12 +398,7 @@ and syn_elab_operand =
     }
   }
 and syn_elab_rules =
-    (
-      ctx: Contexts.t,
-      delta: Delta.t,
-      rules: list(UHExp.rule),
-      pat_ty: HTyp.t,
-    )
+    (ctx: Context.t, delta: Delta.t, rules: list(UHExp.rule), pat_ty: HTyp.t)
     : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
   switch (Statics_Exp.syn_rules(ctx, rules, pat_ty)) {
   | None => None
@@ -433,7 +426,7 @@ and syn_elab_rules =
   }
 and syn_elab_rule =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       r: UHExp.rule,
       pat_ty: HTyp.t,
@@ -455,11 +448,11 @@ and syn_elab_rule =
   };
 }
 and ana_elab =
-    (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
+    (ctx: Context.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
     : ElaborationResult.t =>
   ana_elab_block(ctx, delta, e, ty)
 and ana_elab_block =
-    (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
+    (ctx: Context.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
   | None => DoesNotElaborate
@@ -475,7 +468,7 @@ and ana_elab_block =
   }
 and ana_elab_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       OpSeq(skel, seq) as opseq: UHExp.opseq,
       ty: HTyp.t,
@@ -575,7 +568,7 @@ and ana_elab_opseq =
 }
 and ana_elab_skel =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       skel: UHExp.skel,
       seq: UHExp.seq,
@@ -644,7 +637,7 @@ and ana_elab_skel =
     }
   }
 and ana_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
+    (ctx: Context.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
   /* in hole */
@@ -701,7 +694,7 @@ and ana_elab_operand =
       Sexplib.Sexp.to_string_hum(UHExp.sexp_of_operand(operand)),
     );
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     switch (HTyp.matched_arrow(ctx, ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
@@ -783,7 +776,7 @@ and ana_elab_operand =
   }
 and ana_elab_rules =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       rules: list(UHExp.rule),
       pat_ty: HTyp.t,
@@ -807,7 +800,7 @@ and ana_elab_rules =
      )
 and ana_elab_rule =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       delta: Delta.t,
       r: UHExp.rule,
       pat_ty: HTyp.t,
@@ -837,7 +830,7 @@ let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
     Builtins.forms,
   );
 
-let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
+let elab = (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
   switch (syn_elab(ctx, delta, e)) {
   | Elaborates(d, ty, delta) =>
     let d' = elab_wrap_builtins(d);

@@ -10,7 +10,7 @@ let rec get_prod_elements: UHTyp.skel => list(UHTyp.skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let rec syn_elab: (Contexts.t, Delta.t, UHTyp.t) => ElaborationResult.t =
+let rec syn_elab: (Context.t, Delta.t, UHTyp.t) => ElaborationResult.t =
   (ctx, delta) =>
     fun
     | OpSeq(skel, seq) => syn_elab_skel(ctx, delta, skel, seq)
@@ -49,7 +49,7 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
     (ty, Kind.singleton(ty), Delta.union(delta1, delta2));
   }
 and syn_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHTyp.operand)
+    (ctx: Context.t, delta: Delta.t, operand: UHTyp.operand)
     : ElaborationResult.t => {
   let const = (ty: HTyp.t) => Some((ty, Kind.singleton(ty), delta));
   switch (operand) {
@@ -70,7 +70,7 @@ and syn_elab_operand =
   };
 }
 
-and ana_elab: (Contexts.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
+and ana_elab: (Context.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
   (ctx, delta, opseq, k) =>
     switch (opseq) {
     | OpSeq(skel, seq) => ana_elab_skel(ctx, delta, skel, seq, k)
@@ -85,7 +85,7 @@ and ana_elab_skel = (ctx, delta, skel, seq, k): ElaborationResult.t =>
     Kind.consistent_subkind(ctx, k', k) ? Some((ty, k', delta)) : None;
   }
 and ana_elab_operand =
-    (ctx: Contexts.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
+    (ctx: Context.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
     : ElaborationResult.t => {
   switch (operand) {
   | Hole => Some((HTyp.hole, KindCore.KHole, delta))

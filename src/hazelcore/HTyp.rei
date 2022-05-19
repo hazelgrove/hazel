@@ -33,8 +33,6 @@ let of_syntax: Syntax.abs => t;
 
 /* HTyp Constructors */
 
-let tyvar: (Index.Abs.t, TyVar.t) => t;
-let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
 let hole: t;
 let int: t;
 let float: t;
@@ -43,6 +41,13 @@ let arrow: (t, t) => t;
 let sum: (t, t) => t;
 let product: list(t) => t;
 let list: t => t;
+let tyvar: (Index.Abs.t, TyVar.t) => t;
+let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
+
+/* HTyp Value Predicates */
+
+let is_hole: t => bool;
+let is_tyvar: t => bool;
 
 /* Properties of HTyp */
 
@@ -73,19 +78,15 @@ let consistent: (Context.t, t, t) => bool;
  */
 let equivalent: (Context.t, t, t) => bool;
 
+/** An [HTyp] is complete when it has no holes. */
+let complete: t => bool;
+
 /* HTyp Constructor Precedence */
 
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;
 let precedence: t => int;
-
-/** An [HTyp] is complete when it has no holes. */
-let complete: t => bool;
-
-/* HTyp Value Predicates */
-
-let is_hole: t => bool;
 
 /* Matched Type Constructors */
 
@@ -95,16 +96,11 @@ let matched_list: (Context.t, t) => option(t);
 
 /* Type Variables */
 
-let is_tyvar: t => bool;
-
 let tyvar_index: t => option(Index.Abs.t);
 let tyvar_name: t => option(TyVar.t);
 
-/** Type variable substitution.
-
-   Given a list of pairs of type variable indices and [HTyp]s, replaces each
-   type variable with its paired type.
- */
+/** Type variable substitution.  */
+let subst_tyvar: (t, Index.Abs.t, t) => t;
 let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
 
 /* Joins */
@@ -129,6 +125,9 @@ let join_all: (Context.t, join, list(t)) => option(t);
 /** A normalized [HTyp]. */
 type normalized = Syntax.abs;
 
+/** Coerces a normalized [HTyp] to an ordinary [HTyp]. */
+let of_normalized: normalized => t;
+
 /** Normalizes an [HTyp].
 
    Replaces every type variable of kind [S] with its (recursively normalized)
@@ -136,8 +135,7 @@ type normalized = Syntax.abs;
  */
 let normalize: (Context.t, t) => normalized;
 
-/** Coerces a normalized [HTyp] to an [HTyp]. */
-let of_normalized: normalized => t;
+/* Properties of Normalized HTyp */
 
 /** Normalized [HTyp] consistency.
 
@@ -197,6 +195,9 @@ type head_normalized =
   | TyVar(Index.Abs.t, TyVar.t)
   | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
+/** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
+let of_head_normalized: head_normalized => t;
+
 /** Head-normalizes an [HTyp].
 
    If the [HTyp] is a type variable of kind [S], returns its (recursively
@@ -204,10 +205,7 @@ type head_normalized =
  */
 let head_normalize: (Context.t, t) => head_normalized;
 
-/** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
-let of_head_normalized: head_normalized => t;
-
-/** Product Types */
+/* Product Types */
 
 let get_prod_elements: head_normalized => list(t);
 let get_prod_arity: head_normalized => int;

@@ -1,9 +1,9 @@
 [@deriving sexp]
-type t = (Contexts.t, HTyp.t);
+type t = (Context.t, HTyp.t);
 
-let wrap = (ty: HTyp.t): t => (Contexts.initial, ty);
+let wrap = (ty: HTyp.t): t => (Context.initial, ty);
 
-let many = (ctx: Contexts.t, tys: list(HTyp.t)): list(t) =>
+let many = (ctx: Context.t, tys: list(HTyp.t)): list(t) =>
   List.map(ty => (ctx, ty), tys);
 
 let normalize = ((ctx, ty): t): HTyp.normalized => HTyp.normalize(ctx, ty);

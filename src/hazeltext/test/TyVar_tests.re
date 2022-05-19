@@ -17,10 +17,10 @@ let place_cursor_before_first_hole = (e: UHExp.t): option(ZExp.t) => {
 
 let read_with_tyvar =
     (name: string, ty: HTyp.t, text: string)
-    : option((Contexts.t, UHExp.t, MetaVarGen.t)) => {
+    : option((Context.t, UHExp.t, MetaVarGen.t)) => {
   open OptUtil.Syntax;
-  let ctx = Contexts.initial;
-  let ctx = Contexts.add_tyvar(ctx, name, Kind.singleton(ty));
+  let ctx = Context.initial;
+  let ctx = Context.add_tyvar(ctx, name, Kind.singleton(ty));
   // let+ e = UHExpTest.read(ctx, text);
   let+ e = UHExpTest.read(text);
   let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int);
@@ -42,7 +42,7 @@ let test_tyvar_actions =
       let* ze = place_cursor_before_first_hole(e);
       switch (ZExpTest.eval(actions, (ze, HTyp.hole, u_gen))) {
       | Ok((ze, ty, _)) =>
-        let+ i = Contexts.tyvar_index(ctx, name);
+        let+ i = Context.tyvar_index(ctx, name);
         let t = HTyp.tyvar(i, name);
         if (verbose) {
           Format.printf(

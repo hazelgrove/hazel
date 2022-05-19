@@ -21,7 +21,7 @@ let view =
       if (HTyp.is_tyvar(ty)) {
         open OptUtil.Syntax;
         let* i = HTyp.tyvar_index(ty);
-        let* kind = Contexts.tyvar_kind(ctx, i);
+        let* kind = Context.tyvar_kind(ctx, i);
         switch (kind) {
         | KHole => Some(HTyp.hole)
         | T => None

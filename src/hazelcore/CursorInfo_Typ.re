@@ -51,12 +51,12 @@ and get_zoperand_from_ztyp_operand =
 };
 
 let rec cursor_info =
-        (~steps=[], ctx: Contexts.t, zty: ZTyp.t): option(CursorInfo.t) =>
+        (~steps=[], ctx: Context.t, zty: ZTyp.t): option(CursorInfo.t) =>
   cursor_info_zopseq(~steps, ctx, zty)
 and cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq,
     )
     : option(CursorInfo.t) => {
@@ -81,7 +81,7 @@ and cursor_info_zopseq =
 and cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       skel: UHTyp.skel,
       zseq: ZTyp.zseq,
     )
@@ -119,7 +119,7 @@ and cursor_info_skel =
     };
   }
 and cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZTyp.zoperand)
+    (~steps: CursorPath.steps, ctx: Context.t, zoperand: ZTyp.zoperand)
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_ztyp_operand(zoperand);
   switch (zoperand) {

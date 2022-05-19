@@ -47,8 +47,7 @@ let parse = (text): Result.t(UHExp.block, Failure.t) =>
     {
       let+ e =
         Parsing.ast_of_lexbuf(Lexing.from_string(text)) ||> syntaxerror;
-      let (e, _, _) =
-        Statics_Exp.fix_and_renumber_holes(Contexts.initial, e);
+      let (e, _, _) = Statics_Exp.fix_and_renumber_holes(Context.initial, e);
       e;
     }
   ) {
@@ -71,7 +70,7 @@ let read =
     : Result.t((UHExp.t, Statics.edit_state), Failure.t) => {
   let* e = parse(input);
   let* ze = CursorPath_Exp.follow(path, e) <|| CantFollowPath;
-  Ok((e, Statics_Exp.fix_and_renumber_holes_z(Contexts.initial, ze)));
+  Ok((e, Statics_Exp.fix_and_renumber_holes_z(Context.initial, ze)));
 };
 
 let rec eval =
@@ -82,7 +81,7 @@ let rec eval =
         ) =>
   switch (actions) {
   | [action, ...actions'] =>
-    switch (Action_Exp.syn_perform(Contexts.initial, action, edit_state)) {
+    switch (Action_Exp.syn_perform(Context.initial, action, edit_state)) {
     | Failed => Error(ActionFailed(i, action, ze))
     | CursorEscaped(_) => Error(CursorEscaped(i, action, ze))
     | Succeeded(edit_state) => eval(~i=i + 1, actions', edit_state)

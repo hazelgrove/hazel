@@ -7,7 +7,7 @@ let get_zoperand_from_ztpat =
   Some(ZTPat(ztp));
 
 let cursor_info =
-    (~steps=[], ctx: Contexts.t, ztp: ZTPat.t)
+    (~steps=[], ctx: Context.t, ztp: ZTPat.t)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   let _ = steps;
   let cursor_term = extract_cursor_term(ztp);

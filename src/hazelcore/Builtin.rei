@@ -18,12 +18,12 @@ type t = {
 /*
    Create a built-in function.
  */
-let mk: (Contexts.t, Var.t, HTyp.t, eval) => t;
+let mk: (Context.t, Var.t, HTyp.t, eval) => t;
 
 /*
    Create a built-in constant.
  */
-let mk_zero: (Contexts.t, Var.t, HTyp.t, DHExp.t) => t;
+let mk_zero: (Context.t, Var.t, HTyp.t, DHExp.t) => t;
 
 /*
    Create a built-in function that takes a single argument. The given type
@@ -31,7 +31,7 @@ let mk_zero: (Contexts.t, Var.t, HTyp.t, DHExp.t) => t;
  */
 let mk_one:
   (
-    Contexts.t,
+    Context.t,
     Var.t,
     HTyp.t,
     (Var.t, EvaluatorResult.t) => EvaluatorResult.t
@@ -44,7 +44,7 @@ let mk_one:
  */
 let mk_two:
   (
-    Contexts.t,
+    Context.t,
     Var.t,
     HTyp.t,
     (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t

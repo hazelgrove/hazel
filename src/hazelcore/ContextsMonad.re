@@ -1,5 +1,5 @@
 module T = {
-  type state = Contexts.t;
+  type state = Context.t;
   type t('result) = state => ('result, state);
 
   let return: 'a => t('result) = (x, ctx) => (x, ctx);
@@ -17,59 +17,42 @@ include T;
 include Monads.State.Make(T);
 open Infix;
 
-/* let increment_indices: t(unit) = */
-/*   ctx => put(Contexts.increment_indices(ctx), ctx); */
-
-/* let decrement_indices: t(unit) = */
-/*   ctx => put(Contexts.decrement_indices(ctx), ctx); */
-
 type kind = KindCore.t(Index.absolute);
 type htyp = HTypSyntax.t(Index.absolute);
 type index = Index.Abs.t;
 
 /* Type Variables */
 
-let tyvars: t(list((index, string, kind))) = Contexts.tyvars +-+ get();
+let tyvars: t(list((Index.Abs.t, TyVar.t, Kind.t))) =
+  Context.tyvars +-+ get();
 
 let tyvar = (idx: index): t(option(TyVar.t)) =>
-  Contexts.tyvar +-+ get() +~. idx;
+  Context.tyvar +-+ get() +~. idx;
 
 let tyvar_index = (t: TyVar.t): t(option(index)) =>
-  Contexts.tyvar_index +-+ get() +~. t;
+  Context.tyvar_index +-+ get() +~. t;
 
-let tyvar_kind = (idx: index): t(option(kind)) =>
-  Contexts.tyvar_kind +-+ get() +~. idx;
+let tyvar_kind = (idx: Index.Abs.t): t(option(Kind.t)) =>
+  Context.tyvar_kind +-+ get() +~. idx;
 
-let add_tyvar = (x: TyVar.t, k: kind): t(unit) =>
-  put @>+ Contexts.add_tyvar +-+ get() +~. x +~. k;
+let add_tyvar = (x: TyVar.t, k: Kind.t): t(unit) =>
+  put @>+ Context.add_tyvar +-+ get() +~. x +~. k;
 
-/* let remove_tyvar = (idx: index, ty: htyp): t(bool) => */
-/*   Contexts.remove_tyvar */
-/*   +-+ get() */
-/*   +~. idx */
-/*   +~. ty */
-/*   @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true); */
-
-/* let remove_tyvars = (tyvars: list((index, htyp))): t(bool) => */
-/*   Contexts.remove_tyvars */
-/*   +-+ get() */
-/*   +~. tyvars */
-/*   @+> Option.fold(~none=return(false), ~some=ctx => put(ctx) $+. true); */
-
-let diff_tyvars = (new_ctx: Contexts.t): t(list((index, htyp))) =>
-  Contexts.diff_tyvars(new_ctx) +-+ get();
+let diff_tyvars = (new_ctx: Context.t): t(list((Index.Abs.t, HTyp.t))) =>
+  Context.diff_tyvars(new_ctx) +-+ get();
 
 /* Expression Variables */
 
-let vars: t(list((index, Var.t, htyp))) = Contexts.vars +-+ get();
+let vars: t(list((Index.Abs.t, Var.t, HTyp.t))) = Context.vars +-+ get();
 
-let var = (idx: index): t(option(Var.t)) => Contexts.var +-+ get() +~. idx;
+let var = (idx: Index.Abs.t): t(option(Var.t)) =>
+  Context.var +-+ get() +~. idx;
 
-let var_index = (x: Var.t): t(option(index)) =>
-  Contexts.var_index +-+ get() +~. x;
+let var_index = (x: Var.t): t(option(Index.Abs.t)) =>
+  Context.var_index +-+ get() +~. x;
 
-let var_type = (x: Var.t): t(option(htyp)) =>
-  Contexts.var_type +-+ get() +~. x;
+let var_type = (x: Var.t): t(option(HTyp.t)) =>
+  Context.var_type +-+ get() +~. x;
 
 let add_var = (x: Var.t, ty: HTyp.t): t(unit) =>
-  ctx => put(Contexts.add_var(ctx, x, HTyp.unsafe(ty)), ctx);
+  ctx => put(Context.add_var(ctx, x, ty), ctx);

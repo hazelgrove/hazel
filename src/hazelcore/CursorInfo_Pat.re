@@ -48,13 +48,13 @@ and get_zoperand_from_zpat_operand =
   };
 };
 let rec syn_cursor_info =
-        (~steps=[], ctx: Contexts.t, zp: ZPat.t)
+        (~steps=[], ctx: Context.t, zp: ZPat.t)
         : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   syn_cursor_info_zopseq(~steps, ctx, zp)
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       ZOpSeq(skel, zseq): ZPat.zopseq,
     )
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
@@ -71,7 +71,7 @@ and syn_cursor_info_zopseq =
     // cursor on tuple comma
     skels
     |> List.fold_left(
-         (acc: option((list(HTyp.t), Contexts.t)), skel) =>
+         (acc: option((list(HTyp.t), Context.t)), skel) =>
            switch (acc) {
            | None => None
            | Some((rev_tys, ctx)) =>
@@ -120,7 +120,7 @@ and syn_cursor_info_zopseq =
 and syn_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
     )
@@ -180,7 +180,7 @@ and syn_cursor_info_skel =
   };
 }
 and syn_cursor_info_zoperand =
-    (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZPat.zoperand)
+    (~steps: CursorPath.steps, ctx: Context.t, zoperand: ZPat.zoperand)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zoperand) {
   | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
@@ -232,14 +232,14 @@ and syn_cursor_info_zoperand =
     |> Option.map(x => CursorInfo_common.CursorNotOnDeferredVarPat(x))
   }
 and ana_cursor_info =
-    (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
+    (~steps, ctx: Context.t, zp: ZPat.t, ty: HTyp.t)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) => {
   ana_cursor_info_zopseq(~steps, ctx, zp, ty);
 }
 and ana_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
@@ -331,7 +331,7 @@ and ana_cursor_info_zopseq =
 and ana_cursor_info_skel =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       skel: UHPat.skel,
       zseq: ZPat.zseq,
       ty: HTyp.t,
@@ -421,7 +421,7 @@ and ana_cursor_info_skel =
 and ana_cursor_info_zoperand =
     (
       ~steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Context.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )

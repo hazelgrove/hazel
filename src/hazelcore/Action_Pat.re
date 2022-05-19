@@ -28,30 +28,30 @@ let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   |> Seq.operators
   |> List.exists(op => op == Operators_Pat.Comma);
 
-type syn_success = (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
-type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
+type syn_success = (ZPat.t, HTyp.t, Context.t, MetaVarGen.t);
+type ana_success = (ZPat.t, Context.t, MetaVarGen.t);
 
 let mk_and_syn_fix_ZOpSeq =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
+    (ctx: Context.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
   Statics_Pat.syn_fix_holes_z(ctx, u_gen, zopseq);
 };
 let mk_and_ana_fix_ZOpSeq =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
+    (ctx: Context.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
     : ana_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
   Statics_Pat.ana_fix_holes_z(ctx, u_gen, zopseq, ty);
 };
 
 let mk_syn_result =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
+    (ctx: Context.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : ActionOutcome.t(syn_success) =>
   switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
   | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
   };
 let mk_ana_result =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
+    (ctx: Context.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : ActionOutcome.t(ana_success) =>
   switch (Statics_Pat.ana(ctx, zp |> ZPat.erase, ty)) {
   | None => Failed
@@ -59,7 +59,7 @@ let mk_ana_result =
   };
 
 let mk_syn_text =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+    (ctx: Context.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
@@ -94,7 +94,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, HTyp.hole, ctx, u_gen));
   | Var(x) =>
-    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
+    let ctx = Context.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, HTyp.hole, ctx, u_gen));
   };
@@ -102,7 +102,7 @@ let mk_syn_text =
 
 let mk_ana_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
@@ -142,7 +142,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
-    let ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty));
+    let ctx = Context.add_var(ctx, x, HTyp.unsafe(ty));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   };
@@ -157,7 +157,7 @@ let ana_delete_text = Action_common.ana_delete_text_(~mk_ana_text);
 
 let syn_split_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       sop: Action.operator_shape,
@@ -183,7 +183,7 @@ let syn_split_text =
 };
 let ana_split_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       sop: Action.operator_shape,
@@ -257,7 +257,7 @@ let resurround_z =
   };
 
 let rec syn_move =
-        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
+        (ctx: Context.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
@@ -315,7 +315,7 @@ let rec syn_move =
 
 let rec ana_move =
         (
-          ctx: Contexts.t,
+          ctx: Context.t,
           u_gen: MetaVarGen.t,
           a: Action.t,
           zp: ZPat.t,
@@ -402,12 +402,12 @@ let annotate_last_operand =
 };
 
 let rec syn_perform =
-        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
+        (ctx: Context.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   syn_perform_opseq(ctx, u_gen, a, zp)
 and syn_perform_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
@@ -595,7 +595,7 @@ and syn_perform_opseq =
   }
 and syn_perform_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       a: Action.t,
       zoperand: ZPat.zoperand,
@@ -923,18 +923,12 @@ and syn_perform_operand =
   };
 }
 and ana_perform =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      a: Action.t,
-      zp: ZPat.t,
-      ty: HTyp.t,
-    )
+    (ctx: Context.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t, ty: HTyp.t)
     : ActionOutcome.t(ana_success) =>
   ana_perform_opseq(ctx, u_gen, a, zp, ty)
 and ana_perform_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
@@ -1145,7 +1139,7 @@ and ana_perform_opseq =
 }
 and ana_perform_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       a: Action.t,
       zoperand: ZPat.zoperand,
@@ -1486,7 +1480,7 @@ and ana_perform_operand =
     print_endline("--- ACTION_PAT ana_perform_operand ---");
     print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_t(zann)));
     print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(ctx)));
+    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -1507,15 +1501,15 @@ and ana_perform_operand =
         | None => Failed
         | Some(x) =>
           print_endline("DDD");
-          let new_ctx = Contexts.add_var(ctx, x, HTyp.unsafe(ty'));
-          switch (Contexts.var_type(new_ctx, x)) {
+          let new_ctx = Context.add_var(ctx, x, HTyp.unsafe(ty'));
+          switch (Context.var_type(new_ctx, x)) {
           | None => Failed
           | Some(ty') =>
             let ty': HTyp.t = HTyp.of_unsafe(ty');
             print_endline("EEE");
             print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
             print_endline(
-              Sexplib.Sexp.to_string_hum(Contexts.sexp_of_t(new_ctx)),
+              Sexplib.Sexp.to_string_hum(Context.sexp_of_t(new_ctx)),
             );
             let (new_op, ctx, u_gen) =
               Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');

@@ -33,7 +33,7 @@ type t = {
    )
    )
  */
-let mk_elab = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
+let mk_elab = (ctx: Context.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
   let rec mk_elab_inner =
           (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
     switch (HTyp.unsafe(ty')) {
@@ -53,12 +53,12 @@ let mk_elab = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
   mk_elab_inner(ty, 0, []);
 };
 
-let mk = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t, eval: eval): t => {
+let mk = (ctx: Context.t, ident: Var.t, ty: HTyp.t, eval: eval): t => {
   let elab = mk_elab(ctx, ident, ty);
   {ident, ty, eval, elab};
 };
 
-let mk_zero = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
+let mk_zero = (ctx: Context.t, ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
   let fn = (args, evaluate) => {
     switch (args) {
     | [] => evaluate(v)
@@ -70,7 +70,7 @@ let mk_zero = (ctx: Contexts.t, ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
 
 let mk_one =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       ident: Var.t,
       ty: HTyp.t,
       fn: (Var.t, EvaluatorResult.t) => EvaluatorResult.t,
@@ -90,7 +90,7 @@ let mk_one =
 
 let mk_two =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       ident: Var.t,
       ty: HTyp.t,
       fn: (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t,

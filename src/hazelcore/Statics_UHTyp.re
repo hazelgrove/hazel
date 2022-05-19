@@ -1,5 +1,5 @@
 let rec syn_fix_holes:
-  (Contexts.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
+  (Context.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
   (ctx, u_gen, ty) =>
     switch (ty) {
     | OpSeq(skel, seq) =>
@@ -27,16 +27,16 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
     };
   }
 and syn_fix_holes_operand =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, operand: UHTyp.operand)
+    (ctx: Context.t, u_gen: MetaVarGen.t, operand: UHTyp.operand)
     : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
   switch (operand) {
   | Hole => (Hole, KindCore.KHole, u_gen)
   | TyVar(NotInTyVarHole(idx), t) =>
     let k' = Kind.singleton(HTyp.tyvar(idx, t));
-    switch (Contexts.tyvar_kind(ctx, idx)) {
+    switch (Context.tyvar_kind(ctx, idx)) {
     | Some(k)
         when
-          Contexts.tyvar(ctx, idx) == Some(t)
+          Context.tyvar(ctx, idx) == Some(t)
           && Kind.consistent_subkind(ctx, k', k) => (
         operand,
         k',
@@ -61,7 +61,7 @@ and syn_fix_holes_operand =
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
       (ty, KindCore.Singleton(TyVarHole(Reserved, u, t)), u_gen);
     } else if (TyVar.valid_name(t)) {
-      switch (Contexts.tyvar_index(ctx, t)) {
+      switch (Context.tyvar_index(ctx, t)) {
       | None =>
         let ty = UHTyp.TyVar(InHole(Unbound, u), t);
         (ty, KindCore.Singleton(TyVarHole(Unbound, u, t)), u_gen);
@@ -87,7 +87,7 @@ and syn_fix_holes_operand =
 }
 
 and ana_fix_holes:
-  (Contexts.t, MetaVarGen.t, UHTyp.t, Kind.t) =>
+  (Context.t, MetaVarGen.t, UHTyp.t, Kind.t) =>
   (UHTyp.t, Kind.t, MetaVarGen.t) =
   (tyvars, u_gen, opseq, k) =>
     switch (opseq) {

@@ -1,6 +1,6 @@
-let rec syn = (ctx: Contexts.t, ty: HTyp.t): option(Kind.t) =>
+let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
   switch (HTyp.unsafe(ty)) {
-  | TyVar(i, _) => Contexts.tyvar_kind(ctx, i)
+  | TyVar(i, _) => Context.tyvar_kind(ctx, i)
   | Hole
   | TyVarHole(_)
   | Int
@@ -28,7 +28,7 @@ let rec syn = (ctx: Contexts.t, ty: HTyp.t): option(Kind.t) =>
     Kind.singleton(ty);
   }
 
-and ana = (ctx: Contexts.t, ty: HTyp.t, k: Kind.t): option(unit) =>
+and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(unit) =>
   switch (HTyp.unsafe(ty)) {
   | Hole
   | TyVarHole(_) => Some()

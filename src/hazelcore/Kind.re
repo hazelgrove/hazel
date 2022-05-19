@@ -1,27 +1,32 @@
-include KindCore;
+module HTyp = KindSystem.HTyp;
+module Context = KindSystem.Context;
 
-type t = KindCore.t(Index.absolute);
+module Syntax = KindSystem.Kind;
 
-let singleton = (ty: HTyp.t): t => Singleton(HTyp.unsafe(ty));
+[@deriving sexp]
+type t = Syntax.abs;
 
-let consistent_subkind = (ctx: Contexts.t, k: t, k': t): bool =>
+let to_htyp: t => HTyp.abs = KindSystem.Kind.to_htyp;
+
+let singleton = (ty: HTyp.abs): t => S(ty);
+
+/* Properties of Kind */
+
+let consistent_subkind = (ctx: Context.t, k: t, k': t): bool =>
   switch (k, k') {
-  | (KHole, _)
-  | (_, KHole) => true
-  | (Singleton(_), T) => true
-  | (Singleton(ty), Singleton(ty')) =>
-    HTyp.equivalent(ctx, HTyp.of_unsafe(ty), HTyp.of_unsafe(ty'))
-  | (T, Singleton(_)) => false
-  | (T, T) => true
+  | (Hole, _)
+  | (_, Hole) => true
+  | (S(_), Type) => true
+  | (S(ty), S(ty')) => HTyp.equivalent(ctx, ty, ty')
+  | (Type, S(_)) => false
+  | (Type, Type) => true
   };
 
-let canonical_type = (kind: t): HTyp.t =>
-  KindCore.canonical_type(kind) |> HTyp.of_unsafe;
+/* Operations on [Kind] */
 
-let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
+let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.abs))): t =>
   switch (k) {
-  | KHole
-  | T => k
-  | Singleton(ty) =>
-    Singleton(HTyp.unsafe(HTyp.subst_tyvars(HTyp.of_unsafe(ty), tyvars)))
+  | Hole
+  | Type => k
+  | S(ty) => S(HTyp.subst_tyvars(ty, tyvars))
   };

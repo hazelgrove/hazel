@@ -8,7 +8,7 @@ type mode =
  * Extract from the context the variables that are consistent with the type that
  * we are looking for.
  */
-let extract_vars = (ctx: Contexts.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
+let extract_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
   Contexts.vars(ctx)
   |> List.filter_map(((_, x, ty_x)) =>
        if (HTyp.consistent(ctx, HTyp.of_unsafe(ty_x), ty)) {
@@ -21,7 +21,7 @@ let extract_vars = (ctx: Contexts.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
-let fun_vars = (ctx: Contexts.t, ty: HTyp.t): list((Var.t, HTyp.t)) => {
+let fun_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) => {
   let rec compatible_funs = (right_ty: HTyp.t) =>
     if (HTyp.consistent(ctx, right_ty, ty)) {
       true;

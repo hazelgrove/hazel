@@ -48,8 +48,8 @@ let escape: Side.t => t =
 let syn_insert_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
@@ -64,9 +64,9 @@ let syn_insert_text_ =
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Context.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
@@ -84,8 +84,8 @@ let ana_insert_text_ =
 let syn_backspace_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
@@ -100,9 +100,9 @@ let syn_backspace_text_ =
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Context.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
@@ -119,8 +119,8 @@ let ana_backspace_text_ =
 let syn_delete_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
@@ -135,9 +135,9 @@ let syn_delete_text_ =
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Context.t, MetaVarGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
