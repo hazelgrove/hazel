@@ -89,11 +89,17 @@ let syntactic_max_level_ =
   switch (explanation_info) {
   | ExpBinOperator(Plus, _l, _r) => 3
   | ExpBinOperator(Times, _l, _r) => 2
-  | _ => 1
+  | _ => 2
   };
 };
 
-let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
+let generate_selector =
+    (
+      explanation_info,
+      syntactic_form_level,
+      ~inject: ModelAction.t => Event.t,
+    )
+    : Node.t => {
   Node.div(
     [Attr.classes(["slider-wrapper"])],
     [
@@ -103,6 +109,16 @@ let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
           Attr.min(1.0),
           Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
           Attr.value(string_of_int(syntactic_form_level)),
+          Attr.on_change((_, id) => {
+            print_endline(id);
+            inject(
+              UpdateDocumentationStudySettings(
+                DocumentationStudySettings.Toggle_Syntactic_Form_Level(
+                  int_of_string(id),
+                ),
+              ),
+            );
+          }),
         ],
         List.init(syntactic_max_level_(explanation_info), index =>
           Node.option(
@@ -125,6 +141,7 @@ let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
 let view =
     (
       ~settings: Settings.t,
+      ~inject: ModelAction.t => Event.t,
       level: int,
       explanation_info: ExplanationInfo.explanation_info,
       syntactic_form_level_: int,
@@ -169,7 +186,7 @@ let view =
         ],
         [
           explanation_view,
-          generate_selector(explanation_info, syntactic_form_level_),
+          generate_selector(explanation_info, syntactic_form_level_, ~inject),
         ],
       ),
     ],
