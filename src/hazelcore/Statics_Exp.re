@@ -180,7 +180,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
   /* TypArg should never be synthesized. It is handled at a high level. */
-  | TypArg(_, _) => None;
+  | TypArg(_, _) => None
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -780,6 +780,12 @@ and syn_fix_holes_operand =
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
     };
+  | TypArg(_, _) => (
+      // TODO (typ-app): shouldn't be here in the first place
+      e,
+      Hole,
+      u_gen,
+    )
   | IntLit(_, _) => (e_nih, Int, u_gen)
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
@@ -1137,6 +1143,8 @@ and ana_fix_holes_operand =
     }
   | InvalidText(_) => (e, u_gen)
   | Var(_, _, _)
+  // TODO (typ-app): shouldn't be here in the first place
+  | TypArg(_, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) =>
