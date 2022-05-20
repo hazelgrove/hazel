@@ -20,6 +20,7 @@ let shape_to_string = (shape: shape): string => {
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
+  | STypArg => "type argument"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"
