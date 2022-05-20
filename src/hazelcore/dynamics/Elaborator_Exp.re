@@ -247,6 +247,8 @@ and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
   switch (operand) {
+  /* TypArgs shouln't be elaborated */
+  | TypArg(_, _) => DoesNotElaborate
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
@@ -635,6 +637,8 @@ and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
+  /* TypArgs shouldn't be elaborated */
+  | TypArg(_, _) => DoesNotElaborate
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
