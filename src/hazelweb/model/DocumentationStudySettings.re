@@ -7,6 +7,7 @@ type t = {
   prompts: list(Prompt.t),
   example_level: int,
   hovered_over: int,
+  hovered_over_example: int,
 };
 
 let init = {
@@ -15,6 +16,7 @@ let init = {
   prompts: Prompt.prompts,
   example_level: 1,
   hovered_over: (-1),
+  hovered_over_example: (-1),
 };
 
 [@deriving sexp]
@@ -42,6 +44,7 @@ type update =
   | Set_Prompt(int)
   | Toggle_Syntactic_Form_Level(int)
   | Toggle_Explanation_Hovered_over(int)
+  | Toggle_Example_Hovered_over(int)
   | Update_Prompt(prompt_piece, int, int)
   | Update_Prompt_Text(prompt_piece, string);
 
@@ -102,6 +105,7 @@ let apply_update = (u: update, settings: t) =>
 
   | Toggle_Syntactic_Form_Level(l) => {...settings, example_level: l}
   | Toggle_Explanation_Hovered_over(l) => {...settings, hovered_over: l}
+  | Toggle_Example_Hovered_over(l) => {...settings, hovered_over_example: l}
   };
 
 //TODO fire this

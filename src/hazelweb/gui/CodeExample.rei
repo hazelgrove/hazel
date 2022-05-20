@@ -5,6 +5,7 @@ let view:
     ~inject: ModelAction.t => Ui_event.t,
     ~settings: Settings.t,
     ~font_metrics: FontMetrics.t,
-    list(quest)
+    list(quest),
+    int
   ) =>
   Node.t;

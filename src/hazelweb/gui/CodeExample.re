@@ -88,13 +88,41 @@ let a_single_example_expression_ =
       ranking_out_of: int,
       result: Node.t,
       index: int,
+      hovered_over_example: int,
     ) => {
+  let style_ =
+    if (index == hovered_over_example) {
+      "visible";
+    } else {
+      "hidden";
+    };
+
   [
     Node.div(
       [
         Attr.name("question_wrapper"),
         Attr.class_("question_wrapper"),
         Attr.style(Css_gen.create(~field="float", ~value="left-block")),
+        Attr.on_mouseenter(_ => {
+          Event.Many([
+            inject(
+              ModelAction.UpdateDocumentationStudySettings(
+                DocumentationStudySettings.Toggle_Example_Hovered_over(index),
+              ),
+            ),
+            inject(FocusCell),
+          ])
+        }),
+        Attr.on_mouseleave(_ => {
+          Event.Many([
+            inject(
+              ModelAction.UpdateDocumentationStudySettings(
+                DocumentationStudySettings.Toggle_Example_Hovered_over(-1),
+              ),
+            ),
+            inject(FocusCell),
+          ])
+        }),
       ],
       [
         Node.select(
@@ -109,7 +137,10 @@ let a_single_example_expression_ =
         ),
         example_body,
         Node.div(
-          [Attr.class_("example_result")],
+          [
+            Attr.class_("example_result"),
+            Attr.style(Css_gen.create(~field="visibility", ~value=style_)),
+          ],
           [Node.div([], [Node.text("Result: ")]), result],
         ),
         Node.div(
@@ -149,6 +180,7 @@ let display_examples =
       width,
       pos,
       examples_list_: list(quest),
+      hovered_over_example,
     ) => {
   List.flatten(
     List.mapi(
@@ -169,6 +201,7 @@ let display_examples =
             e.result,
           ),
           index,
+          hovered_over_example,
         ),
       examples_list_,
     ),
@@ -183,6 +216,7 @@ let view =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       example_list: list(Prompt.quest),
+      hovered_over_example: int,
     )
     : Node.t => {
   let explanation_view = {
@@ -199,6 +233,7 @@ let view =
             100,
             0,
             example_list,
+            hovered_over_example,
           ),
         ),
       ],

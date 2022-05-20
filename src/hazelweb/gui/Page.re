@@ -159,6 +159,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~settings,
               ~font_metrics=model.font_metrics,
               sample_examples,
+              model.doc_study.hovered_over_example,
             );
           },
       ),
