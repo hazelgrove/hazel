@@ -57,8 +57,6 @@ let is_tyvar = (ty: t): bool =>
 
 /* Properties of HTyp */
 
-let equal: (t, t) => bool = Syntax.equal;
-
 let equivalent: (Context.t, t, t) => bool = Syntax.equivalent;
 
 let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>

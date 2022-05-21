@@ -51,9 +51,6 @@ let is_tyvar: t => bool;
 
 /* Properties of HTyp */
 
-/** Structural equality of underlying ASTs. */
-let equal: (t, t) => bool;
-
 /** Context-sensitive type consistency.
 
    Two types are consistent when each pair of coinciding subterms satisfies one
