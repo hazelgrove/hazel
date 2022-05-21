@@ -100,36 +100,47 @@ switch (syn_rule(ctx, rule, pat_ty)) {
 ```
 
 And this more general notion of equivalence is precisely what we get by adding
-kinds to the type system! It offers three kinds:
+kinds to the type system! We now offer three kinds:
 
-- `Hole` the unknown kind
-- `Type` the base kind
-- `S(ty)` the singleton kind of all types equivalent to `ty`
+- `Hole` an *unknown kind*, or a "kind hole"
+- `Type` the *base* kind of complete types with no type variables
+- `S(ty)` the *singleton* kind of all types equivalent to `ty`
 
-And then we can bind type variable names to indices in the new typing context,
-like so:
+For example, to bind a new variable `x` to a new type variable `t` of kind
+`Hole`, we first create the binding for `t` and immediately query the updated
+context for the index of the new binding:
 
 ```
 let ctx = Context.add_tyvar(ctx, "t", Kind.Hole);
 let (idx, t, _) = Context.tyvar(ctx, "t");
+```
+
+Then we can use `idx` and `t` to construct a reference to `t` as a value of type
+`HTyp.t` and then bind `x` to it:
+
+```
 let ctx = Context.add_var(ctx, "x", HTyp.tyvar(idx, t));
 ```
 
-And what is `idx`? It's just the (de Bruin) index for the type variable `t` in
-the typing context `ctx`.
+And what is `idx`? It's the de Bruijn index of `t` in `ctx`.
 
 Indices are (typed) references into a typing context. Outside of the typing
-context, indices use absolute positioning, so they are like a generalization of
-integer-based array indices. For example, `HTyp.t` is defined roughly like so:
+context, indices are expected to use absolute positioning, so they are like
+"array indices" into a typing context viewed as an array of bindings.
+
+As a concrete example, `HTyp.t` is defined roughly like this:
 
 ```
 type t = HTyp.Syntax.t(Index.Abs.t);
 ```
 
-and we say `Index.Abs.t` "brands" `HTyp.t` as using absolutely positioned
-indices. Inside the typing context, we use relative positioning. By branding
-types with the type of index they use, we can rely on the (ReasonML) type system
-to ensure we never mix the two.
+where `Index.Abs.t` brands `t` as an instance of `HTyp.Syntax.t` with only
+absolutely positioned indices.
+
+Inside the typing context, we use `Index.Rel.t` to brand types with relatively
+positioned indices. Branding is helpful because it tells the ReasonML type
+checker to enforce a strict separation of types using different index
+positioning schemes.
 
 You may have also noticed that the new code uses constructor functions instead
 of operating directly on constructors of `HTyp.t`. In the new system, `HTyp.t`
@@ -145,16 +156,17 @@ switch (HTyp.Syntax.Int) { ...
 # error on HTyp.Syntax.Int
 ```
 
-To get the underlying constructors of an `HTyp.t`, use `HTyp.to_syntax`:
+To get the underlying (ReasonML) constructors of an `HTyp.t`, use
+`HTyp.to_syntax`:
 
 ```
-switch (HTyp.to_syntax(HTyp.Syntax.Int)) { ...
+switch (HTyp.to_syntax(HTyp.int)) { ...
 ```
 
 and in the other direction:
 
 ```
-let ty = HTyp.of_syntax(HTyp.Syntax.Int)
+let ty = HTyp.of_syntax(HTyp.Syntax.Int);
 ```
 
 There are two other forms of `HTyp` to be aware of: normalized and head-normalized.
@@ -165,7 +177,8 @@ Sometimes (e.g., in the evaluator) we have access to types but no typing context
 
 A head-normalized `HTyp` is a type that is not itself a type variable, but that
 may contain type variables in its subterms. Sometimes it's bad to normalize "too
-far" (e.g., inside `HTyp.matched_arrow`).
+far;" for example, inside `HTyp.matched_arrow` or when displaying types in the
+context inspector.
 
 # New Type System
 

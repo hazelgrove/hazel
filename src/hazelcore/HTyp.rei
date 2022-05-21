@@ -22,7 +22,7 @@ type t;
 
 /* HTyp Conversions */
 
-/** Pruduces a brief description of an [HTyp]. */
+/** Produces a brief description of an [HTyp]. */
 let to_string: t => string;
 
 /** Produces the underlying AST of an [HTyp]. */
