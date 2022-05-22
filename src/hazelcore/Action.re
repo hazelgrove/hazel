@@ -22,16 +22,18 @@ type shape =
   | SCommentLine
   | SList
   | SParenthesized
+  | SCloseParens
+  | SCloseBraces
+  | SCloseSquareBracket
   | SChar(string)
   | SAnn
-  | SLam
+  | SFun
   | SListNil
   | SInj(InjSide.t)
   | SLet
   | SLine
   | SCase
-  | SOp(operator_shape)
-  | SApPalette(PaletteName.t);
+  | SOp(operator_shape);
 
 [@deriving sexp]
 type t =
@@ -40,7 +42,6 @@ type t =
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
   | Construct(shape)

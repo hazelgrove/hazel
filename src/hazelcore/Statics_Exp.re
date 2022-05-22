@@ -8,7 +8,7 @@ let recursive_let_id =
   switch (p, def) {
   | (
       OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
-      [ExpLine(OpSeq(_, S(Lam(_), E)))],
+      [ExpLine(OpSeq(_, S(Fun(_), E)))],
     ) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => None
@@ -128,10 +128,9 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
+  | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.Hole;
@@ -140,10 +139,9 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
     let* pat_ty = syn(ctx, scrut);
     /* Make sure the rule synthesizes the type the rule_types says it does */
@@ -166,7 +164,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
@@ -179,15 +177,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
-  | ApPalette(NotInHole, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    let* palette_defn = PaletteCtx.lookup(palette_ctx, name);
-    let* splice_ctx = ana_splice_map(ctx, SpliceInfo.splice_map(psi));
-    let expansion_ty = palette_defn.expansion_ty;
-    let expand = palette_defn.expand;
-    let expansion = expand(serialized_model);
-    let+ _ = ana(splice_ctx, expansion, expansion_ty);
-    expansion_ty;
   | Parenthesized(body) => syn(ctx, body)
   }
 and syn_rules =
@@ -210,18 +199,6 @@ and syn_rule =
   let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
   syn(ctx, clause);
 }
-and ana_splice_map =
-    (ctx: Contexts.t, splice_map: UHExp.splice_map): option(Contexts.t) =>
-  IntMap.fold(
-    (splice_name, (ty, e), c) => {
-      let+ splice_ctx = c
-      and+ _ = ana(ctx, e, ty);
-      let splice_var = SpliceInfo.var_of_splice_name(splice_name);
-      Contexts.extend_gamma(splice_ctx, (splice_var, ty));
-    },
-    splice_map,
-    Some(Contexts.empty),
-  )
 and ana = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   ana_block(ctx, e, ty)
 and ana_block =
@@ -293,10 +270,9 @@ and ana_operand =
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
+  | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     (); /* this is a consequence of subsumption and hole universality */
@@ -305,10 +281,9 @@ and ana_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) =>
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
   | Case(InconsistentBranches(_, _), _, _) => None
   /* not in hole */
@@ -322,7 +297,7 @@ and ana_operand =
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ty, ty') ? Some() : None;
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
@@ -332,9 +307,6 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
-  | ApPalette(NotInHole, _, _, _) =>
-    let* ty' = syn_operand(ctx, operand);
-    HTyp.consistent(ty, ty') ? Some() : None;
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -796,10 +768,9 @@ and syn_fix_holes_operand =
       | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let reason: VarErrStatus.HoleReason.t =
-          switch (Var.is_let(x), Var.is_case(x)) {
-          | (true, _) => Keyword(Let)
-          | (_, true) => Keyword(Case)
-          | _ => Free
+          switch (ExpandingKeyword.mk(x)) {
+          | Some(t) => Keyword(t)
+          | None => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
@@ -812,12 +783,12 @@ and syn_fix_holes_operand =
     let (block, ty, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, u_gen);
-  | Lam(_, p, body) =>
+  | Fun(_, p, body) =>
     let (p, ty_p, ctx_body, u_gen) =
       Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
     let (body, ty_body, u_gen) =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
-    (Lam(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
+    (Fun(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
   | Inj(_, side, body) =>
     let (body, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -845,26 +816,6 @@ and syn_fix_holes_operand =
         common_type,
         u_gen,
       )
-    };
-  | ApPalette(_, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
-    | None => raise(PaletteCtx.InvalidPaletteHoleName) /* TODO invalid palette name hole */
-    | Some(palette_defn) =>
-      let (splice_map, u_gen) =
-        ana_fix_holes_splice_map(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          SpliceInfo.splice_map(psi),
-        );
-      let psi = SpliceInfo.update_splice_map(psi, splice_map);
-      let expansion_ty = palette_defn.expansion_ty;
-      (
-        ApPalette(NotInHole, name, serialized_model, psi),
-        expansion_ty,
-        u_gen,
-      );
     };
   };
 }
@@ -951,24 +902,6 @@ and ana_fix_holes_rule =
     ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, clause, clause_ty);
   (Rule(p, clause), u_gen);
 }
-and ana_fix_holes_splice_map =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      ~renumber_empty_holes=false,
-      splice_map: UHExp.splice_map,
-    )
-    : (UHExp.splice_map, MetaVarGen.t) =>
-  IntMap.fold(
-    (splice_name, (ty, e), (splice_map, u_gen)) => {
-      let (e, u_gen) =
-        ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, e, ty);
-      let splice_map = splice_map |> IntMap.add(splice_name, (ty, e));
-      (splice_map, u_gen);
-    },
-    splice_map,
-    (splice_map, u_gen),
-  )
 and ana_fix_holes =
     (
       ctx: Contexts.t,
@@ -1221,7 +1154,7 @@ and ana_fix_holes_operand =
     let (body, u_gen) =
       ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, body, ty);
     (Parenthesized(body), u_gen);
-  | Lam(_, p, def) =>
+  | Fun(_, p, def) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>
       let (p, ctx, u_gen) =
@@ -1234,7 +1167,7 @@ and ana_fix_holes_operand =
         );
       let (def, u_gen) =
         ana_fix_holes(ctx, u_gen, ~renumber_empty_holes, def, ty2);
-      (UHExp.Lam(NotInHole, p, def), u_gen);
+      (UHExp.Fun(NotInHole, p, def), u_gen);
     | None =>
       let (e', _, u_gen) =
         syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
@@ -1282,18 +1215,6 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), u_gen);
-  | ApPalette(_, _, _, _) =>
-    let (e', ty', u_gen) =
-      syn_fix_holes_operand(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (
-        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-        u_gen,
-      );
-    };
   }
 and extend_let_body_ctx =
     (ctx: Contexts.t, p: UHPat.t, def: UHExp.t): Contexts.t => {
