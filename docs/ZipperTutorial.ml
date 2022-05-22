@@ -78,7 +78,7 @@ let update : action -> zast -> zast = failwith "TODO"
 
 (* Congrats! You've pretty much made a structured editor. If you want to close the loop,
    two tasks remain. First, you want to be able to actually edit trees. Second, you might
-   want an interface to user the editor interactively. A simple approach here would be to
+   want an interface to use the editor interactively. A simple approach here would be to
    extend the action type with construction actions InsertAtom and InsertBinWithAtoms,
    and extend the update function to replace the cursor term with Atom or Bin(Atom,Atom)
    respectively. Then you need to write a 'run' function: an indefinite loop which
