@@ -32,6 +32,7 @@ type t =
   | Alt_L
   | Alt_R
   | Alt_C
+  | AtSign
   | Pound
   | Ctrl_Space
   | Ctrl_S
@@ -51,6 +52,7 @@ type t =
 
 let get_details =
   fun
+  | AtSign => KeyCombo.at_sign
   | Pound => KeyCombo.pound
   | Escape => KeyCombo.escape
   | Backspace => KeyCombo.backspace
@@ -99,7 +101,9 @@ let get_details =
 
 let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
   let evt_matches = details => KeyCombo.matches(details, evt);
-  if (evt_matches(KeyCombo.pound)) {
+  if (evt_matches(KeyCombo.at_sign)) {
+    Some(AtSign);
+  } else if (evt_matches(KeyCombo.pound)) {
     Some(Pound);
   } else if (evt_matches(KeyCombo.escape)) {
     Some(Escape);

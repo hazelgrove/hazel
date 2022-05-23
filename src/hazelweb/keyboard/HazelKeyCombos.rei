@@ -32,6 +32,7 @@ type t =
   | Alt_L
   | Alt_R
   | Alt_C
+  | AtSign
   | Pound
   | Ctrl_Space
   | Ctrl_S
