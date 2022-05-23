@@ -831,6 +831,8 @@ and ana_cursor_info_zoperand =
   switch (zoperand) {
   | CursorE(_, e) =>
     switch (e) {
+    // TODO (typ-app): Dont know what to do
+    | TypArg(_) => None
     /* in hole */
     | Var(_, InVarHole(Keyword(k), _), _) =>
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
