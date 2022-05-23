@@ -9,10 +9,7 @@ exception BadState;
 type grain_opts = Grain.opts;
 
 [@deriving sexp]
-type opts = {
-  exp_only: bool,
-  grain: grain_opts,
-};
+type opts = {grain: grain_opts};
 
 type source =
   | SourceString(string)
@@ -55,7 +52,6 @@ let source_of_sexp = sexp => {
 };
 
 let default_opts = {
-  exp_only: false,
   grain: {
     grain: None,
     // TODO: Fix this to include Hazel lib files.

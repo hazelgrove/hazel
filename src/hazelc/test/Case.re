@@ -1,7 +1,6 @@
 let temp_prefix = "hazelc_test";
 
 let opts: Compile.opts = {
-  exp_only: true,
   grain: {
     grain: None,
     optimize: None,

@@ -54,7 +54,6 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
 
   // Initialize options.
   let opts: Compile.opts = {
-    exp_only: false,
     grain: {
       grain: None,
       includes: None,

@@ -4,10 +4,7 @@ exception BadState;
 type grain_opts = Grain.opts;
 
 [@deriving sexp]
-type opts = {
-  exp_only: bool,
-  grain: grain_opts,
-};
+type opts = {grain: grain_opts};
 
 [@deriving sexp]
 type source =
