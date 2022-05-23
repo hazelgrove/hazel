@@ -70,6 +70,8 @@ let case =
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
+let typarg = (~err: ErrStatus.t=NotInHole, typ): operand => TypArg(err, typ);
+
 module Line = {
   let prune_empty_hole = (line: line): line =>
     switch (line) {

@@ -51,6 +51,8 @@ let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
+let typarg: (~err: ErrStatus.t=?, UHTyp.t) => operand;
+
 module Line: {
   let prune_empty_hole: line => line;
 
