@@ -29,7 +29,7 @@ type shape =
   | SChar(string)
   | SQuote
   | SAnn
-  | SLam
+  | SFun
   | SListNil
   | SInj(InjSide.t)
   | SLet

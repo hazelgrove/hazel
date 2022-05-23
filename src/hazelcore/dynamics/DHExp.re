@@ -183,7 +183,7 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
   | BoolLit(bool)
@@ -220,7 +220,7 @@ let constructor_string = (d: t): string =>
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
-  | Lam(_, _, _) => "Lam"
+  | Fun(_, _, _) => "Fun"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"

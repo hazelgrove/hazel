@@ -50,6 +50,8 @@ let lit_msg = (ty: HTyp.t) => {
       Node.text("Enter a Function Literal"),
       fill_space,
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.Backslash),
+      Node.text(" or "),
+      example_lit_node("fun "),
     ]);
   let sum_lit =
     option([

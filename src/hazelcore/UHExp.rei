@@ -19,7 +19,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, t)
+  | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Subscript(ErrStatus.t, t, t, t)
