@@ -1,4 +1,5 @@
-import * from "./sexp_conv"
+import Sexp from "./sexp"
+import * from "./sexpconv"
 
 let assertInverse = (a, aOfSexp, sexpOfA) => {
   assert a == aOfSexp(sexpOfA(a))
@@ -13,3 +14,19 @@ assertInverse(10, intOfSexp, sexpOfInt)
 assertInverse("", stringOfSexp, sexpOfString)
 assertInverse("abc", stringOfSexp, sexpOfString)
 assertInverse('a', charOfSexp, sexpOfChar)
+
+let assertString = (a, sexpOfA, expect) => {
+  assert Sexp.toString(sexpOfA(a)) == expect
+}
+
+assertString(true, sexpOfBool, "true")
+assertString(false, sexpOfBool, "false")
+assertString(0, sexpOfInt, "0")
+assertString(5, sexpOfInt, "5")
+assertString(0.1, sexpOfFloat, "0.1")
+assertString(5.5, sexpOfFloat, "5.5")
+assertString('a', sexpOfChar, "a")
+assertString("abc", sexpOfString, "abc")
+assertString("\n", sexpOfString, "\"\\n\"")
+assertString("\\", sexpOfString, "\"\\\\\"")
+assertString([1, 2, 3], sexpOfList(sexpOfInt), "(1 2 3)")
