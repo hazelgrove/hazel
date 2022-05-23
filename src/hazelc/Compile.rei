@@ -6,13 +6,7 @@ type grain_opts = Grain.opts;
 [@deriving sexp]
 type opts = {grain: grain_opts};
 
-[@deriving sexp]
-type source =
-  | SourceString(string)
-  | SourceLexbuf(Lexing.lexbuf)
-  | SourceChannel(in_channel);
-
-let parse_next: (~opts: opts=?, source) => result(UHExp.t, string);
+let parse_next: (~opts: opts=?, Source.t) => result(UHExp.t, string);
 let elaborate_next:
   (~opts: opts=?, UHExp.t) => result((Contexts.t, DHExp.t), unit);
 let transform_next: (~opts: opts=?, Contexts.t, DHExp.t) => Hir.expr;
@@ -24,7 +18,7 @@ let wasmize_next:
 
 [@deriving sexp]
 type state =
-  | Source(source)
+  | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)

@@ -11,46 +11,6 @@ type grain_opts = Grain.opts;
 [@deriving sexp]
 type opts = {grain: grain_opts};
 
-type source =
-  | SourceString(string)
-  | SourceLexbuf(Lexing.lexbuf)
-  | SourceChannel(in_channel);
-
-let sexp_of_source = source => {
-  Sexplib.Sexp.(
-    switch (source) {
-    | SourceString(s) => List([Atom("string"), sexp_of_string(s)])
-    | SourceLexbuf(_) => List([Atom("lexbuf"), Atom("<Lexing.lexbuf>")])
-    | SourceChannel(_) => List([Atom("channel"), Atom("<in_channel>")])
-    }
-  );
-};
-
-let source_of_sexp = sexp => {
-  Sexplib0.(
-    Sexplib.Sexp.(
-      {
-        let of_sexp_error = (what, sexp) =>
-          raise(Sexp.Of_sexp_error(Failure(what), sexp));
-
-        switch (sexp) {
-        | List([Atom("string"), el]) => SourceString(string_of_sexp(el))
-        | List([Atom("lexbuf"), _]) =>
-          of_sexp_error("source_of_sexp: cannot deseralize for lexbuf", sexp)
-        | List([Atom("channel"), _]) =>
-          of_sexp_error(
-            "source_of_sexp: cannot deseralize for in_channel",
-            sexp,
-          )
-        | List(_) =>
-          of_sexp_error("source_of_sexp: list must be (string el)", sexp)
-        | Atom(_) => of_sexp_error("source_of_sexp: list needed", sexp)
-        };
-      }
-    )
-  );
-};
-
 let default_opts = {
   grain: {
     grain: None,
@@ -62,15 +22,8 @@ let default_opts = {
   },
 };
 
-let parse = source => {
-  let lexbuf =
-    switch (source) {
-    | SourceString(s) => s |> Lexing.from_string
-    | SourceLexbuf(lexbuf) => lexbuf
-    | SourceChannel(channel) => channel |> Lexing.from_channel
-    };
-  lexbuf |> Parsing.ast_of_lexbuf;
-};
+let parse = (source: Source.t) =>
+  source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
 
 let elaborate = (e: UHExp.t) => {
   let ctx = Contexts.initial;
@@ -139,7 +92,7 @@ let wasmize_next = (~opts=default_opts, src_path, out_path, g) =>
 
 [@deriving sexp]
 type state =
-  | Source(source)
+  | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
