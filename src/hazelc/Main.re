@@ -1,3 +1,8 @@
+/*
+   Entry point for the command line tool.
+
+   To test easily, run `dune exec src/hazelc/main.exe -- <ARGS>`. Use `--help`.
+ */
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -9,6 +14,7 @@ type action =
   | Wasm
   | Wat;
 
+/* Temporary directory prefix. */
 let prefix = "hazelc";
 
 [@deriving sexp]
@@ -24,6 +30,8 @@ let error_from_next_error = (err: Compile.next_error) =>
   };
 
 let hazelc = (action, sources, out, _verbose, optimize, debug) => {
+  // Use the given output filename, or use "a.{ext}" where {ext} depends on
+  // output kind.
   let out =
     switch (out) {
     | Some(out) => out
@@ -40,8 +48,11 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       "a." ++ ext;
     };
 
+  // Open the source file.
   let source = List.hd(sources);
   let source_file = open_in(source);
+
+  // Initialize options.
   let opts: Compile.opts = {
     exp_only: false,
     grain: {
@@ -53,6 +64,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
     },
   };
 
+  // Use a temporary file for Grain output during compilation.
   let grain_output = Filename.temp_file(prefix, "a.gr");
 
   let write_output = output => {
@@ -123,6 +135,7 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
       };
     };
 
+  // Print error, if any.
   switch (res) {
   | Ok () => ()
   | Error(err) =>
@@ -136,12 +149,14 @@ let hazelc = (action, sources, out, _verbose, optimize, debug) => {
 
 open Cmdliner;
 
+/* Source file argument. */
 let sources = {
   let doc = "Source code file.";
   let docv = "SOURCE";
   Arg.(non_empty & pos_all(non_dir_file, []) & info([], ~docv, ~doc));
 };
 
+/* Output file argument. */
 let out = {
   let doc = "Output file.";
   Arg.(
@@ -151,6 +166,7 @@ let out = {
   );
 };
 
+/* Action flag. */
 let action = {
   let dhexp = {
     let doc = "Emit DHExp sexp.";
@@ -179,11 +195,13 @@ let action = {
   Arg.(last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, wasm, wat]));
 };
 
+/* Verbosity flag. */
 let verbose = {
   let doc = "Enable verbose output.";
   Arg.(value & flag & info(["v", "verbose"], ~doc));
 };
 
+/* Optimization level flag: any integer [0, 3) */
 let optimize = {
   let optimize_arg = {
     let parse = s =>
@@ -209,6 +227,7 @@ let optimize = {
   );
 };
 
+/* Debug flag. */
 let debug = {
   let doc = "Enable debug information.";
   Arg.(value & flag & info(["g", "debug"], ~doc));
