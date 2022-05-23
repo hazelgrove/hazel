@@ -186,7 +186,8 @@ and syn_elab_operand =
       let d = DHPat.UnFloatOp(FNegate, d1);
       Elaborates(d, Float, ctx, delta);
     }
-  | TypeAnn(_, op, _) => syn_elab_operand(ctx, delta, op)
+  | TypeAnn(_, p1, ty1) =>
+    ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1))
   }
 and ana_elab =
     (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)

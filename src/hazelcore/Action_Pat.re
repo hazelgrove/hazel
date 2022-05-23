@@ -381,9 +381,13 @@ let construct_operator_after_zoperand =
 
 let complete_tuple =
   Action_common.complete_tuple_(
+    ~mk_OpSeq=OpSeq.mk(~associate=UHPat.associate),
+    ~holes_opseq=CursorPath_Pat.holes_opseq,
+    ~follow_opseq=CursorPath_Pat.follow_opseq,
     ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
+    ~place_before_opseq=ZPat.place_before_opseq,
+    ~place_before_operand=ZPat.place_before_operand,
     ~comma=Operators_Pat.Comma,
-    ~zcomma=(OnOp(After), Operators_Pat.Comma),
     ~new_EmptyHole=UHPat.new_EmptyHole,
   );
 
@@ -445,7 +449,6 @@ let rec syn_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapUp
   | SwapDown
   | SwapLeft
@@ -509,7 +512,6 @@ let rec ana_move =
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapUp
   | SwapDown
   | SwapLeft
@@ -563,9 +565,6 @@ and syn_perform_opseq =
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
-
-  /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
 
   /* Invalid swap actions */
   | (SwapUp | SwapDown, _) => Failed
@@ -776,9 +775,9 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SList | SLet | SLine | SFun | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
-      UpdateApPalette(_) |
       SwapUp |
       SwapDown,
       CursorP(_),
@@ -989,6 +988,46 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     };
 
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+    )
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    mk_syn_result(
+      ctx,
+      u_gen,
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+    )
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
+
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (os) {
     | SMinus =>
@@ -1034,6 +1073,8 @@ and syn_perform_operand =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
       );
+    let (new_zp, _, ctx, u_gen) =
+      Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
     mk_syn_result(ctx, u_gen, new_zp);
 
   /* Invalid SwapLeft and SwapRight actions */
@@ -1171,14 +1212,13 @@ and syn_perform_operand =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (syn_perform_operand(ctx, u_gen, a, zop)) {
+    switch (ana_perform_operand(ctx, u_gen, a, zop, UHTyp.expand(ann))) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded((ZOpSeq(_, zseq), _, ctx, u_gen)) =>
+    | Succeeded((ZOpSeq(_, zseq), ctx, u_gen)) =>
       let newseq = annotate_last_operand(zseq, ann);
-      let (zpat, ty, ctx, u_gen) = mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq);
-      Succeeded((zpat, ty, ctx, u_gen));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
     switch (Action_Typ.perform(a, zann)) {
@@ -1224,7 +1264,6 @@ and ana_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (UpdateApPalette(_), ZOperator(_)) => Failed
   | (SwapUp | SwapDown, _) => Failed
 
   /* Movement handled at top level */
@@ -1310,11 +1349,15 @@ and ana_perform_opseq =
     };
 
   | (Construct(SOp(SComma)), _)
-      when
-        ZPat.is_after_zopseq(zopseq)
-        && !(zopseq |> has_Comma)
-        && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (opseq, ctx, u_gen) =
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZPat.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length > first_seq_length;
+      } =>
+    let (OpSeq(_, seq), ctx, u_gen) =
       Statics_Pat.ana_fix_holes_opseq(
         ctx,
         u_gen,
@@ -1322,8 +1365,59 @@ and ana_perform_opseq =
         // safe because pattern guard
         ty |> HTyp.get_prod_elements |> List.hd,
       );
-    let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
+    let (new_zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        seq,
+        ty,
+        ~triggered_by_paren=false,
+        ~is_after_zopseq=ZPat.is_after_zopseq(zopseq),
+      );
     Succeeded((new_zopseq, ctx, u_gen));
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZPat.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length >= first_seq_length;
+      } =>
+    let OpSeq(_, first_seq) as opseq = zopseq |> ZPat.erase_zopseq;
+    let first_seq_length = List.length(Seq.operands(first_seq));
+    let (OpSeq(_, first_seq), ctx, u_gen) =
+      Statics_Pat.ana_fix_holes_opseq(
+        ctx,
+        u_gen,
+        opseq,
+        // safe because pattern guard
+        HTyp.Prod(
+          ty
+          |> HTyp.get_prod_elements
+          |> ListUtil.sublist(~lo=0, first_seq_length),
+        ),
+      );
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        first_seq,
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
+    let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+    mk_ana_result(ctx, u_gen, new_zp, ty);
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
+        && ty_length >= 2;
+      } =>
+    let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
+    mk_ana_result(ctx, u_gen, new_zp, ty);
+
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZPat.is_before_zoperand(zoperand)
@@ -1449,43 +1543,14 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SApPalette(_) | SList | SLet | SLine | SLam | SCase | SCommentLine,
+        SList | SLet | SLine | SFun | SCase | SCommentLine |
+        SCloseSquareBracket,
       ) |
-      UpdateApPalette(_) |
       SwapUp |
       SwapDown,
       CursorP(_),
     ) =>
     Failed
-
-  /* switch to synthesis if in a hole */
-  | (_, _) when ZPat.is_inconsistent(ZOpSeq.wrap(zoperand)) =>
-    let err = ZPat.get_err_status_zoperand(zoperand);
-    let zp = ZOpSeq.wrap(zoperand);
-    let zp' = zp |> ZPat.set_err_status(NotInHole);
-    let p' = zp' |> ZPat.erase;
-    switch (Statics_Pat.syn(ctx, p')) {
-    | None => Failed
-    | Some(_) =>
-      switch (syn_perform(ctx, u_gen, a, zp')) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded((zp, ty', ctx, u_gen)) =>
-        if (HTyp.consistent(ty, ty')) {
-          Succeeded((zp, ctx, u_gen));
-        } else if (HTyp.get_prod_arity(ty') != HTyp.get_prod_arity(ty)
-                   && HTyp.get_prod_arity(ty) > 1) {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, WrongLength, u_gen);
-          let new_zp = zp |> ZPat.set_err_status(err);
-          Succeeded((new_zp, ctx, u_gen));
-        } else {
-          let (err, u_gen) =
-            ErrStatus.make_recycled_InHole(err, TypeInconsistent, u_gen);
-          let new_zp = zp |> ZPat.set_err_status(err);
-          Succeeded((new_zp, ctx, u_gen));
-        }
-      }
-    };
 
   /* Movement */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1674,9 +1739,29 @@ and ana_perform_operand =
     ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
-  | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole))
+  | (Construct(SParenthesized), CursorP(_, operand))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, OpSeq.wrap(hole), ty);
+    // the operand wrapped by the hole
+    let operand_inside_hole =
+      UHPat.set_err_status_operand(NotInHole, operand);
+    let operand =
+      switch (Statics_Pat.syn_operand(ctx, operand_inside_hole)) {
+      | Some((first_seq_ty, _)) =>
+        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
+          operand_inside_hole;
+        } else {
+          operand;
+        }
+      | None => operand
+      };
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        Seq.wrap(operand),
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
     mk_ana_result(ctx, u_gen, new_zp, ty);
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -1705,6 +1790,45 @@ and ana_perform_operand =
       Succeeded((zp, ctx, u_gen));
     }
 
+  | (Construct(SCloseBraces), CursorP(_, _)) => Failed
+
+  | (Construct(SCloseParens), InjZ(err, side, zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Inj(err, side, ZPat.erase(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZPat.is_after(zopseq) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnDelim(1, After),
+          Parenthesized(ZPat.erase_zopseq(zopseq)),
+        ),
+      ),
+      ctx,
+      u_gen,
+    ))
+  | (
+      Construct(SCloseParens),
+      CursorP(
+        OnDelim(1, Before),
+        Parenthesized(_) as operand | Inj(_, _, _) as operand,
+      ),
+    ) =>
+    Succeeded((
+      ZOpSeq.wrap(ZPat.CursorP(OnDelim(1, After), operand)),
+      ctx,
+      u_gen,
+    ))
+  | (Construct(SCloseParens), CursorP(_, _)) => Failed
   | (Construct(SOp(os)), CursorP(_)) =>
     switch (os) {
     | SMinus =>

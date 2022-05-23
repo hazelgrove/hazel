@@ -30,7 +30,6 @@ let syn_unop: (Contexts.t, UHExp.unop) => HTyp.t;
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
-let ana_splice_map: (Contexts.t, UHExp.splice_map) => option(Contexts.t);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,

@@ -7,31 +7,41 @@ type zoperand =
 
 let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, exp) =>
+  | ExpOperand(_, exp) =>
     switch (exp) {
     | EmptyHole(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-    | _ => false
+    | BoolLit(_, _)
+    | InvalidText(_) => true
+    | ListNil(_)
+    | Fun(_)
+    | Inj(_)
+    | Case(_)
+    | Parenthesized(_)
+    | UnaryOp(_) => false
     }
-  | Pat(_, pat) =>
+  | PatOperand(_, pat) =>
     switch (pat) {
     | EmptyHole(_)
     | Wild(_)
     | Var(_, _, _)
     | IntLit(_, _)
     | FloatLit(_, _)
-    | BoolLit(_, _) => true
-    | _ => false
+    | BoolLit(_, _)
+    | InvalidText(_) => true
+    | TypeAnn(_)
+    | ListNil(_)
+    | Parenthesized(_)
+    | Inj(_)
+    | UnaryOp(_) => false
     }
-  | Typ(_, _)
+  | TypOperand(_, _)
   | ExpBinop(_, _)
   | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _) => false
+  | PatOperator(_, _)
+  | TypOperator(_, _) => false
   | Line(_, line) =>
     switch (line) {
     | EmptyLine
@@ -45,18 +55,18 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
 
 let is_empty_hole = (cursor_term: cursor_term): bool => {
   switch (cursor_term) {
-  | Exp(_, EmptyHole(_)) => true
-  | Exp(_, _) => false
-  | Pat(_, EmptyHole(_)) => true
-  | Pat(_, _) => false
-  | Typ(_, Hole) => true
-  | Typ(_, _) => false
-  | ExpBinop(_, _)
-  | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
-  | Line(_, _)
-  | Rule(_, _) => false
+  | ExpOperand(_, EmptyHole(_))
+  | TypOperand(_, Hole)
+  | PatOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_)
+  | PatOperand(_)
+  | TypOperand(_)
+  | ExpBinop(_)
+  | ExpUnop(_)
+  | PatOperator(_)
+  | TypOperator(_)
+  | Line(_)
+  | Rule(_) => false
   };
 };
 
@@ -64,25 +74,64 @@ let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
   | Line(_, EmptyLine) => true
   | Line(_, _) => false
-  | Exp(_, _)
-  | Pat(_, _)
-  | Typ(_, _)
+  | ExpOperand(_, _)
+  | PatOperand(_, _)
+  | TypOperand(_, _)
   | ExpBinop(_, _)
   | ExpUnop(_, _)
-  | PatOp(_, _)
-  | TypOp(_, _)
+  | PatOperator(_, _)
+  | TypOperator(_, _)
   | Rule(_, _) => false
   };
 };
 
-let mk = (~uses=?, typed, ctx, cursor_term) => {
+let on_empty_expr_hole: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, EmptyHole(_)) => true
+  | ExpOperand(_)
+  | PatOperand(_)
+  | TypOperand(_)
+  | ExpBinop(_)
+  | ExpUnop(_)
+  | PatOperator(_)
+  | TypOperator(_)
+  | Line(_)
+  | Rule(_) => false;
+
+let on_expr_var: CursorInfo.cursor_term => bool =
+  fun
+  | ExpOperand(_, Var(_)) => true
+  | ExpOperand(_, _) => false
+  | _ => false;
+
+let is_end_keyword =
+    (term: CursorInfo.cursor_term, keyword: ExpandingKeyword.t) =>
+  switch (term) {
+  | ExpOperand(OnText(index), _) =>
+    index == String.length(ExpandingKeyword.to_string(keyword))
+  | _ => false
+  };
+
+let mk = (~uses=?, ~parent_info=NoParentInfo, typed, ctx, cursor_term) => {
   typed,
   ctx,
   uses,
   cursor_term,
+  parent_info,
 };
 
 let get_ctx = ci => ci.ctx;
+
+let set_after_branch_clause = (ci, is_after_branch_clause) => {
+  ...ci,
+  parent_info: is_after_branch_clause ? AfterBranchClause : ci.parent_info,
+};
+
+let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
+  ...ci,
+  parent_info:
+    is_before_empty_hole_line ? BeforeEmptyHoleLine : ci.parent_info,
+};
 
 /*
  * there are cases we can't determine where to find the uses of a variable

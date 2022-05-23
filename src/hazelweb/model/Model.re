@@ -8,6 +8,7 @@ type t = {
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
+  cursor_inspector: CursorInspectorModel.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -33,7 +34,7 @@ let init = (): t => {
       cardstacks_after_action: cardstacks,
       cardstacks_after_move: cardstacks,
       cursor_term_info,
-      previous_action: Init,
+      previous_action: EditAction(Init),
       action_group: Init,
       timestamp,
     };
@@ -53,6 +54,7 @@ let init = (): t => {
     };
   };
   let settings = Settings.init;
+  let cursor_inspector = CursorInspectorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -79,6 +81,7 @@ let init = (): t => {
       },
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
+    cursor_inspector,
   };
 };
 
@@ -160,7 +163,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: Action.t, new_program, model) => {
+let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -223,7 +226,8 @@ let perform_edit_action = (a: Action.t, model: t): t => {
     () => {
       let new_program =
         model |> get_program |> Program.perform_edit_action(a);
-      model |> update_program(a, new_program);
+      let ma = ModelAction.EditAction(a);
+      model |> update_program(ma, new_program);
     },
   );
 };
@@ -233,7 +237,8 @@ let move_via_key = (move_key, model) => {
     model
     |> get_program
     |> Program.move_via_key(~settings=model.settings, move_key);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let move_via_click = (row_col, model) => {
@@ -241,7 +246,8 @@ let move_via_click = (row_col, model) => {
     model
     |> get_program
     |> Program.move_via_click(~settings=model.settings, row_col);
-  model |> update_program(action, new_program);
+  let model_action = ModelAction.EditAction(action);
+  model |> update_program(model_action, new_program);
 };
 
 let select_case_branch =
@@ -249,9 +255,10 @@ let select_case_branch =
   let program = model |> get_program;
   let action = Program.move_to_case_branch(path_to_case, branch_index);
   let new_program = Program.perform_edit_action(action, program);
+  let model_action = ModelAction.EditAction(action);
   model
   |> put_program(new_program)
-  |> update_program(action, new_program)
+  |> update_program(model_action, new_program)
   |> focus_cell;
 };
 

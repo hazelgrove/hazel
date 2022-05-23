@@ -22,17 +22,14 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | Lam(ErrStatus.t, UHPat.t, t)
+  | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
   | UnaryOp(ErrStatus.t, unop, operand)
-  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, t)
-and splice_info = SpliceInfo.t(t)
-and splice_map = SpliceInfo.splice_map(t);
+  | Rule(UHPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(binop);
@@ -62,7 +59,7 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
-  Lam(err, p, body);
+  Fun(err, p, body);
 
 let case =
     (
@@ -186,11 +183,10 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
-  | Lam(err, _, _)
+  | Fun(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _)
-  | UnaryOp(err, _, _)
-  | ApPalette(err, _, _, _) => err
+  | UnaryOp(err, _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -212,18 +208,11 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  | Lam(_, p, def) => Lam(err, p, def)
+  | Fun(_, p, def) => Fun(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
-  | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   | UnaryOp(_, unary_op, child) => UnaryOp(err, unary_op, child)
-  };
-
-let is_inconsistent = operand =>
-  switch (operand |> get_err_status_operand) {
-  | InHole(TypeInconsistent, _) => true
-  | _ => false
   };
 
 /* put e in a new hole, if it is not already in a hole */
@@ -247,18 +236,20 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Lam(InHole(TypeInconsistent, _), _, _)
+  | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | UnaryOp(InHole(TypeInconsistent, _), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
+  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
+      operand,
+      u_gen,
+    )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _)
+  | Fun(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | UnaryOp(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
@@ -266,8 +257,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       InconsistentBranches(_, _),
       _,
       _,
-    )
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
@@ -334,8 +324,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
-  | Lam(InHole(_), _, _) => false
-  | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | Fun(InHole(_), _, _) => false
+  | Fun(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
@@ -345,8 +335,6 @@ and is_complete_operand = (operand: 'operand): bool => {
   | UnaryOp(InHole(_), _, _) => false
   | UnaryOp(NotInHole, _, child) => is_complete_operand(child)
   | Parenthesized(body) => is_complete(body)
-  | ApPalette(InHole(_), _, _, _) => false
-  | ApPalette(NotInHole, _, _, _) => failwith("unimplemented")
   };
 }
 and is_complete = (exp: t): bool => {
