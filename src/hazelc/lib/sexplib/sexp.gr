@@ -1,9 +1,7 @@
 import Buffer from "buffer"
 import Bytes from "bytes"
-import Char from "char"
 import Int32 from "int32"
 import List from "list"
-import String from "string"
 
 export enum Sexp {
   Atom(String),
@@ -29,8 +27,7 @@ export let rec equal = (lhs, rhs) => {
 /* 
    Printing facilities.
  */
-
-let bytesAtNumber = (ix, bytes) => Int32.toNumber(Bytes.getInt8U(ix, bytes))
+let (<=) = Int32.lt
 
 let mustEscape = str => {
   let str = Bytes.fromString(str)
@@ -39,25 +36,24 @@ let mustEscape = str => {
     true
   } else {
     let rec loop = (str, ix) => {
-      match (bytesAtNumber(ix, str)) {
+      match (Bytes.getInt8U(ix, str)) {
         // '"' | '(' | ')' | ';' | '\\' => true
-        34 | 40 | 41 | 59 | 92 =>
-          true,
+                        34l | 40l | 41l | 59l | 92l => true,
 
         // '|' => ix > 0 && str[ix - 1] == '#' || loop(str, ix - 1)
-        124 =>
+        124l =>
           ix > 0 &&
-          (bytesAtNumber(ix - 1, str) == 35 || loop(str, ix - 1)),
+          (Bytes.getInt8U(ix - 1, str) == 35l || loop(str, ix - 1)),
 
         // '#' => ix > 0 && str[ix - 1] == '|' || loop(str, ix - 1)
-        35 =>
+        35l =>
           ix > 0 &&
-          (bytesAtNumber(ix - 1, str) == 124 || loop(str, ix - 1)),
+          (Bytes.getInt8U(ix - 1, str) == 124l || loop(str, ix - 1)),
 
         // '\000' .. '\032' | '\127' .. '\255' => true
         // _ => ix > 0 && loop(str, ix - 1)
         c => {
-          if (000 <= c && c <= 032 || 127 <= c && c <= 255) {
+          if (000l <= c && c <= 032l || 127l <= c && c <= 255l) {
             true
           } else {
             ix > 0 && loop(str, ix - 1)
@@ -75,15 +71,14 @@ let escaped = str => {
 
   let mut n = 0
   for (let mut i = 0; i < Bytes.length(str); i += 1) {
-    n += match (bytesAtNumber(i, str)) {
+    n += match (Bytes.getInt8U(i, str)) {
       // '"' | '\\' | '\n' | '\t' | '\r' | '\b' => 2,
-      34 | 92 | 10 | 9 | 13 | 8 =>
-        2,
+                  34l | 92l | 10l | 9l | 13l | 8l => 2,
 
       // ' ' .. '~' => 1
       // _ => 2
       c => {
-        if (32 <= c && c <= 126) {
+        if (32l <= c && c <= 126l) {
           1
         } else {
           4
@@ -100,68 +95,58 @@ let escaped = str => {
 
     for (let mut i = 0; i < Bytes.length(str); i += 1) {
       let c = Bytes.getInt8U(i, str)
-      match (Int32.toNumber(c)) {
+      match (c) {
         // '"' | '\\' => {
-        34 | 92 => {
-          Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+                34l | 92l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
           n += 1
           Bytes.setInt8(n, c, res)
         },
 
         // '\n' => {
-        10 => {
-          Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+        10l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
           n += 1
-          Bytes.setInt8(n, Int32.fromNumber(110), res) // 'n'
+          Bytes.setInt8(n, 110l, res) // 'n'
         },
 
         // '\t' => {
-        9 => {
-          Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+        9l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
           n += 1
-          Bytes.setInt8(n, Int32.fromNumber(116), res) // 't'
+          Bytes.setInt8(n, 116l, res) // 't'
         },
 
         // '\r' => {
-        13 => {
-          Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+        13l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
           n += 1
-          Bytes.setInt8(n, Int32.fromNumber(114), res) // 'r'
+          Bytes.setInt8(n, 114l, res) // 'r'
         },
 
         // '\b' => {
-        8 => {
-          Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+        8l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
           n += 1
-          Bytes.setInt8(n, Int32.fromNumber(98), res) // 'b'
+          Bytes.setInt8(n, 98l, res) // 'b'
         },
 
         // ' ' .. '~' => ...
-        cc => {
-          if (32 <= cc && cc <= 126) {
+        c => {
+          if (32l <= c && c <= 126l) {
             Bytes.setInt8(n, c, res)
           } else {
-            Bytes.setInt8(n, Int32.fromNumber(92), res) // '\\'
+            Bytes.setInt8(n, 92l, res) // '\\'
             n += 1
-            Bytes.setInt8(n, Int32.fromNumber(48 + cc / 100), res)
-            n += 1
-            Bytes.setInt8(
-              n,
-              Int32.add(
-                Int32.fromNumber(48),
-                Int32.mod(Int32.fromNumber(cc / 10), Int32.fromNumber(10))
-              ),
-              res
-            )
+            Bytes.setInt8(n, Int32.add(48l, Int32.divU(c, 100l)), res)
             n += 1
             Bytes.setInt8(
               n,
-              Int32.add(
-                Int32.fromNumber(48),
-                Int32.mod(c, Int32.fromNumber(10))
-              ),
+              Int32.add(48l, Int32.mod(Int32.divU(c, 10l), 10l)),
               res
             )
+            n += 1
+            Bytes.setInt8(n, Int32.add(48l, Int32.mod(c, 10l)), res)
           }
         },
       }
@@ -176,8 +161,8 @@ let escapeStr = str => {
   let elen = Bytes.length(estr)
   let res = Bytes.make(elen + 2)
   Bytes.move(0, 1, elen, estr, res)
-  Bytes.setInt8(0, Int32.fromNumber(34), res) // '"'
-  Bytes.setInt8(elen + 1, Int32.fromNumber(34), res) // '"'
+  Bytes.setInt8(0, 34l, res) // '"'
+  Bytes.setInt8(elen + 1, 34l, res) // '"'
   Bytes.toString(res)
 }
 
