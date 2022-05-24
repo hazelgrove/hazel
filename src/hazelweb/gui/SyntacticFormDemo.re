@@ -99,47 +99,50 @@ let generate_selector =
       syntactic_form_level,
       ~inject: ModelAction.t => Event.t,
     )
-    : Node.t => {
-  Node.div(
-    [Attr.classes(["slider-wrapper"])],
-    [
-      Node.input(
-        [
-          Attr.type_("range"),
-          Attr.min(1.0),
-          Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
-          Attr.value(string_of_int(syntactic_form_level)),
-          Attr.on_change((_, id) => {
-            print_endline(id);
-            Event.Many([
-              inject(
-                UpdateDocumentationStudySettings(
-                  DocumentationStudySettings.Toggle_Syntactic_Form_Level(
-                    int_of_string(id),
+    : Node.t =>
+  if (syntactic_max_level_(explanation_info) > 2) {
+    Node.div(
+      [Attr.classes(["slider-wrapper"])],
+      [
+        Node.input(
+          [
+            Attr.type_("range"),
+            Attr.min(1.0),
+            Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
+            Attr.value(string_of_int(syntactic_form_level)),
+            Attr.on_change((_, id) => {
+              print_endline(id);
+              Event.Many([
+                inject(
+                  UpdateDocumentationStudySettings(
+                    DocumentationStudySettings.Toggle_Syntactic_Form_Level(
+                      int_of_string(id),
+                    ),
                   ),
                 ),
-              ),
-              inject(ModelAction.FocusCell),
-            ]);
-          }),
-        ],
-        List.init(syntactic_max_level_(explanation_info), index =>
-          Node.option(
-            [Attr.value(string_of_int(index))],
-            [Node.text(string_of_float(float_of_int(index)))],
-          )
+                inject(ModelAction.FocusCell),
+              ]);
+            }),
+          ],
+          List.init(syntactic_max_level_(explanation_info), index =>
+            Node.option(
+              [Attr.value(string_of_int(index))],
+              [Node.text(string_of_float(float_of_int(index)))],
+            )
+          ),
         ),
-      ),
-      Node.div(
-        [],
-        [
-          Node.div([], [Node.text("less specific")]),
-          Node.div([], [Node.text("more specific")]),
-        ],
-      ),
-    ],
-  );
-};
+        Node.div(
+          [],
+          [
+            Node.div([], [Node.text("less specific")]),
+            Node.div([], [Node.text("more specific")]),
+          ],
+        ),
+      ],
+    );
+  } else {
+    Node.text("");
+  };
 
 let view =
     (

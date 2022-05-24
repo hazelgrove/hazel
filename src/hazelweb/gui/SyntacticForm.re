@@ -45,40 +45,38 @@ let syntactic_max_level_ =
   };
 };
 
-let generate_selector = (explanation_info, syntactic_form_level): Node.t => {
-  Node.div(
-    [Attr.classes(["slider-wrapper"])],
-    [
-      Node.input(
-        [
-          Attr.type_("range"),
-          Attr.min(1.0),
-          Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
-          Attr.value(string_of_int(syntactic_form_level)),
-          Attr.disabled,
-        ],
-        List.init(syntactic_max_level_(explanation_info), index =>
-          Node.option(
-            [Attr.value(string_of_int(index))],
-            [Node.text(string_of_float(float_of_int(index)))],
-          )
+let generate_selector = (explanation_info, syntactic_form_level): Node.t =>
+  if (syntactic_max_level_(explanation_info) > 2) {
+    Node.div(
+      [Attr.classes(["slider-wrapper"])],
+      [
+        Node.input(
+          [
+            Attr.type_("range"),
+            Attr.min(1.0),
+            Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
+            Attr.value(string_of_int(syntactic_form_level)),
+            Attr.disabled,
+          ],
+          List.init(syntactic_max_level_(explanation_info), index =>
+            Node.option(
+              [Attr.value(string_of_int(index))],
+              [Node.text(string_of_float(float_of_int(index)))],
+            )
+          ),
         ),
-      ),
-      // [
-      //   Node.option([Attr.value("1")], [Node.text("1.0")]),
-      //   Node.option([Attr.value("2")], [Node.text("2.0")]),
-      //   Node.option([Attr.value("3")], [Node.text("3.0")]),
-      // ],
-      Node.div(
-        [],
-        [
-          Node.div([], [Node.text("less specific")]),
-          Node.div([], [Node.text("more specific")]),
-        ],
-      ),
-    ],
-  );
-};
+        Node.div(
+          [],
+          [
+            Node.div([], [Node.text("less specific")]),
+            Node.div([], [Node.text("more specific")]),
+          ],
+        ),
+      ],
+    );
+  } else {
+    Node.text("");
+  };
 
 let view =
     (
