@@ -44,7 +44,10 @@ let view =
       true,
     );
   let explanation_view = {
-    Node.div([Attr.classes(["the-explanation"])], [Node.div([], msg)]);
+    Node.div(
+      [Attr.classes(["the-explanation", "the-explanation-demo"])],
+      [Node.div([], msg)],
+    );
   };
 
   Node.div(
