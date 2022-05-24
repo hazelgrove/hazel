@@ -152,7 +152,7 @@ export let tripleOfSexp = (aOfSexp, bOfSexp, cOfSexp, sexp) =>
 
 export let listOfSexp = (aOfSexp, sexp) =>
   match (sexp) {
-    Sexp.List(lst) => revMap(aOfSexp, lst),
+    Sexp.List(lst) => List.reverse(revMap(aOfSexp, lst)),
     _ => ofSexpError("listOfSexp", "list needed", sexp),
   }
 
