@@ -38,20 +38,36 @@ module TopBlock = {
 type bin_op =
   | OpAnd
   | OpOr
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpDivide
-  | OpLessThan
-  | OpGreaterThan
   | OpEquals
-  | OpFPlus
-  | OpFMinus
-  | OpFTimes
-  | OpFDivide
-  | OpFLessThan
-  | OpFGreaterThan
-  | OpFEquals;
+  | OpNotEquals
+  | OpI32Plus
+  | OpI32Minus
+  | OpI32Times
+  | OpI32Divide
+  | OpI32LessThan
+  | OpI32GreaterThan
+  | OpI32Equals
+  | OpI64Plus
+  | OpI64Minus
+  | OpI64Times
+  | OpI64Divide
+  | OpI64LessThan
+  | OpI64GreaterThan
+  | OpI64Equals
+  | OpF32Plus
+  | OpF32Minus
+  | OpF32Times
+  | OpF32Divide
+  | OpF32LessThan
+  | OpF32GreaterThan
+  | OpF32Equals
+  | OpF64Plus
+  | OpF64Minus
+  | OpF64Times
+  | OpF64Divide
+  | OpF64LessThan
+  | OpF64GreaterThan
+  | OpF64Equals;
 
 [@deriving sexp]
 type params = list(pat)
@@ -81,8 +97,11 @@ and stmt =
 [@deriving sexp]
 and expr =
   | EBoolLit(bool)
-  | EIntLit(int)
-  | EFloatLit(float)
+  | EInt32Lit(int)
+  | EInt64Lit(int)
+  | EFloat32Lit(float)
+  | EFloat64Lit(float)
+  | ECharLit(char)
   | EStringLit(string)
   | EBinOp(bin_op, expr, expr)
   | EList(list(expr))
