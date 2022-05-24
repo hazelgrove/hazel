@@ -111,8 +111,7 @@ and print_expr = (e: GrainIR.expr) =>
   | EInt64Lit(n) => string_of_int(n) ++ "L"
   // TODO: NaN?
   | EFloat32Lit(f) => string_of_float(f) ++ "f"
-  // FIXME: No such thing as "5.5F"??
-  | EFloat64Lit(f) => string_of_float(f) ++ "F"
+  | EFloat64Lit(f) => string_of_float(f) ++ "d"
   | ECharLit(c) => print_char(c)
   | EStringLit(s) => print_string(s)
   | EBinOp(op, e1, e2) => print_bin_op(op, e1, e2)
