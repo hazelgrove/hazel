@@ -1,3 +1,8 @@
+/*
+   Printing is a relatively straight-foward 1-1 conversion.
+
+   TODO: Pretty-printing for readability of the final result.
+ */
 let sprintf = Printf.sprintf;
 
 module Consts = {
@@ -16,6 +21,7 @@ module Consts = {
   let pat_triv = "void";
 };
 
+/* Some utilities for printing things. */
 let print_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
 let print_surround = (s1, o, s2) => sprintf("%s%s%s", s1, o, s2);
 let print_lines = ss => ss |> String.concat("\n");

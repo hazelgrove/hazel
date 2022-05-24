@@ -24,6 +24,9 @@ module Imports = {
   let with_float32 = imps => {...imps, float32: true};
   /* let with_float64 = imps => {...imps, float64: true}; */
 
+  /*
+     Generate GrainIR from the imports specification.
+   */
   let codegen = imps => {
     open HazelStd.Rt;
 
@@ -133,15 +136,11 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
 }
 
 and codegen_bin_op_non_indet = (op: Anf.bin_op, imps) => {
-  let (op, with_int32, with_float32): (
-    (GrainIR.expr, GrainIR.expr) => GrainIR.expr,
-    bool,
-    bool,
-  ) =
+  let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
-      | OpAnd => (((e1, e2) => EBinOp(OpAnd, e1, e2)), false, false)
-      | OpOr => (((e1, e2) => EBinOp(OpOr, e1, e2)), false, false)
+      | OpAnd => (((e1, e2) => GrainIR.EBinOp(OpAnd, e1, e2)), false, false)
+      | OpOr => (((e1, e2) => GrainIR.EBinOp(OpOr, e1, e2)), false, false)
       | OpPlus => (Int32.add, true, false)
       | OpMinus => (Int32.sub, true, false)
       | OpTimes => (Int32.mul, true, false)
