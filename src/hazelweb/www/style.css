@@ -1751,3 +1751,9 @@ input[type="range"]::-webkit-slider-thumb {
   flex-grow: 0;
 }
 
+.logo_svg_right_sidebar{
+  display:flex;
+  padding:2px;
+}
+
+

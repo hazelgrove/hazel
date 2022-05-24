@@ -74,6 +74,33 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   );
 };
 
+// image examples
+// let set_img = path =>
+//    Vdom.Node.create(
+//      "img",
+//      [
+//        Vdom.Attr.create("src", path),
+//        Vdom.Attr.create("style", "margin-left: -40px; margin-right: -40px;"),
+//      ],
+//      [],
+//    );
+
+//  let set_img_container = (~width, img1, img2, img3) =>
+//    Vdom.Node.div(
+//      [
+//        Vdom.Attr.create(
+//          "style",
+//          "width: "
+//          ++ string_of_int(width)
+//          ++ "%; "
+//          ++ "display: flex; "
+//          ++ "flex-direction: row; "
+//          ++ "justify-content: center;",
+//        ),
+//      ],
+//      [img1, img2, img3],
+//    );
+
 let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
     [ActionPanel.view(~inject, model)]
@@ -100,7 +127,13 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
     [
       (
         model.settings.right_panel.syntactic_form,
-        Node.text("SF"),
+        Node.div(
+          [Attr.class_("logo_svg_right_sidebar")],
+          [
+            // Node.text("SF"),
+            Node.create("img", [Attr.create("src", "imgs/code.svg")], []),
+          ],
+        ),
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_syntactic_form)),
         ),
@@ -123,7 +156,17 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
       ),
       (
         model.settings.right_panel.code_explanation,
-        Node.text("EX"),
+        Node.div(
+          [Attr.class_("logo_svg_right_sidebar")],
+          [
+            // Node.text("EX"),
+            Node.create(
+              "img",
+              [Attr.create("src", "imgs/chat-bubble-question.svg")],
+              [],
+            ),
+          ],
+        ),
         inject(
           ModelAction.UpdateSettings(RightPanel(Toggle_code_explanation)),
         ),
@@ -143,7 +186,17 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
       ),
       (
         model.settings.right_panel.code_example,
-        Node.text("EG"),
+        Node.div(
+          [Attr.class_("logo_svg_right_sidebar")],
+          [
+            // Node.text("EG"),
+            Node.create(
+              "img",
+              [Attr.create("src", "imgs/code-brackets-square.svg")],
+              [],
+            ),
+          ],
+        ),
         inject(ModelAction.UpdateSettings(RightPanel(Toggle_code_example))),
         () =>
           if (model.doc_study.is_demo) {
