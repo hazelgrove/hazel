@@ -1,0 +1,9 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelc_test)
+ (inline_tests
+  (flags (-verbose)))
+ (libraries hazelc)
+ (preprocess
+  (pps ppx_let ppx_inline_test ppx_assert)))
