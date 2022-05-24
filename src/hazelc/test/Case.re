@@ -16,7 +16,7 @@ let compile = s => {
     let src_path = Filename.temp_file(temp_prefix, "a.gr");
     let out_path = Filename.temp_file(temp_prefix, "a.wasm");
 
-    switch (Compile.wasmize_next(~opts, src_path, out_path, g)) {
+    switch (Compile.wasmize(~opts, src_path, out_path, g)) {
     | Ok () => out_path
     | Error () => failwith("wasm compilation failed")
     };

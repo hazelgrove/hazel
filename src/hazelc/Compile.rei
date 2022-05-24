@@ -1,21 +1,25 @@
-exception BadState;
+/*
+   Compiler entry point.
+ */
 
 [@deriving sexp]
 type grain_opts = Grain.opts;
-
 [@deriving sexp]
 type opts = {grain: grain_opts};
 
-let parse_next: (~opts: opts=?, Source.t) => result(UHExp.t, string);
-let elaborate_next:
+let parse: (~opts: opts=?, Source.t) => result(UHExp.t, string);
+let elaborate:
   (~opts: opts=?, UHExp.t) => result((Contexts.t, DHExp.t), unit);
-let transform_next: (~opts: opts=?, Contexts.t, DHExp.t) => Hir.expr;
-let linearize_next: (~opts: opts=?, Hir.expr) => Anf.prog;
-let grainize_next: (~opts: opts=?, Anf.prog) => GrainIR.prog;
-let print_next: (~opts: opts=?, GrainIR.prog) => string;
-let wasmize_next:
-  (~opts: opts=?, string, string, string) => result(unit, unit);
+let transform: (~opts: opts=?, Contexts.t, DHExp.t) => Hir.expr;
+let linearize: (~opts: opts=?, Hir.expr) => Anf.prog;
+let grainize: (~opts: opts=?, Anf.prog) => GrainIR.prog;
+let print: (~opts: opts=?, GrainIR.prog) => string;
 
+let wasmize: (~opts: opts=?, string, string, string) => result(unit, unit);
+
+/*
+   Compiler state.
+ */
 [@deriving sexp]
 type state =
   | Source(Source.t)
@@ -26,20 +30,26 @@ type state =
   | Grainized(GrainIR.prog)
   | Printed(string);
 
+/*
+    Possible errors from calling `next`.
+ */
 [@deriving sexp]
 type next_error =
   | ParseError(string)
   | ElaborateError;
 
 [@deriving sexp]
-type next_result = result(state, next_error);
+type next_result = result(option(state), next_error);
+
+/*
+   Transition to the next compilation state.
+ */
+let next: (~opts: opts=?, state) => next_result;
 
 [@deriving sexp]
 type resume_action =
   | Continue(state)
   | Stop;
-
-let next: (~opts: opts=?, state) => next_result;
 
 let stop_after_parsed: state => resume_action;
 let stop_after_elaborated: state => resume_action;
@@ -48,13 +58,41 @@ let stop_after_linearized: state => resume_action;
 let stop_after_grainized: state => resume_action;
 let stop_after_printed: state => resume_action;
 
+/*
+   Resume from a given state until the last compilation state or `hook` returns
+   `Stop`.
+ */
 let resume:
   (~opts: opts=?, ~hook: state => resume_action=?, state) => next_result;
 
+/*
+   Exception indicative of an error in `resume_until_*`.
+ */
+exception BadState;
+
+/*
+   Resume from a given state until DHExp.
+ */
 let resume_until_dhexp: (~opts: opts=?, state) => result(DHExp.t, next_error);
+
+/*
+   Resume from a given state until Hir.
+ */
 let resume_until_hir: (~opts: opts=?, state) => result(Hir.expr, next_error);
+
+/*
+   Resume from a given state until Anf.
+ */
 let resume_until_anf: (~opts: opts=?, state) => result(Anf.prog, next_error);
+
+/*
+   Resume from a given state until Grain IR.
+ */
 let resume_until_grain:
   (~opts: opts=?, state) => result(GrainIR.prog, next_error);
+
+/*
+   Resume from a given state until textual Grain.
+ */
 let resume_until_grain_text:
   (~opts: opts=?, state) => result(string, next_error);

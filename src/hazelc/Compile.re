@@ -22,23 +22,23 @@ let default_opts = {
   },
 };
 
-let parse = (source: Source.t) =>
+let _parse = (source: Source.t) =>
   source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
 
-let elaborate = (e: UHExp.t) => {
+let _elaborate = (e: UHExp.t) => {
   let ctx = Contexts.initial;
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform = (ctx: Contexts.t) => Transform.transform(ctx);
+let _transform = (ctx: Contexts.t) => Transform.transform(ctx);
 
-let linearize = Linearize.linearize;
+let _linearize = Linearize.linearize;
 
-let grainize = GrainCodegen.codegen;
+let _grainize = GrainCodegen.codegen;
 
-let print = GrainPrint.print;
+let _print = GrainPrint.print;
 
-let wasmize = (~opts=default_opts, src_path, out_path, g) => {
+let _wasmize = (~opts=default_opts, src_path, out_path, g) => {
   let f = open_out(src_path);
   Printf.fprintf(f, "%s\n", g);
   close_out(f);
@@ -54,41 +54,41 @@ let wasmize = (~opts=default_opts, src_path, out_path, g) => {
   };
 };
 
-let parse_next = (~opts=default_opts, source) => {
+let parse = (~opts=default_opts, source) => {
   let _ = opts;
-  parse(source);
+  _parse(source);
 };
 
-let elaborate_next = (~opts=default_opts, e) => {
+let elaborate = (~opts=default_opts, e) => {
   let _ = opts;
-  switch (elaborate(e)) {
+  switch (_elaborate(e)) {
   | (ctx, Elaborates(d, _ty, _delta)) => Ok((ctx, d))
   | (_, DoesNotElaborate) => Error()
   };
 };
 
-let transform_next = (~opts=default_opts, ctx, d) => {
+let transform = (~opts=default_opts, ctx, d) => {
   let _ = opts;
-  transform(ctx, d);
+  _transform(ctx, d);
 };
 
-let linearize_next = (~opts=default_opts, d) => {
+let linearize = (~opts=default_opts, d) => {
   let _ = opts;
-  linearize(d);
+  _linearize(d);
 };
 
-let grainize_next = (~opts=default_opts, a) => {
+let grainize = (~opts=default_opts, a) => {
   let _ = opts;
-  grainize(a);
+  _grainize(a);
 };
 
-let print_next = (~opts=default_opts, g) => {
+let print = (~opts=default_opts, g) => {
   let _ = opts;
-  print(g);
+  _print(g);
 };
 
-let wasmize_next = (~opts=default_opts, src_path, out_path, g) =>
-  wasmize(~opts, src_path, out_path, g);
+let wasmize = (~opts=default_opts, src_path, out_path, g) =>
+  _wasmize(~opts, src_path, out_path, g);
 
 [@deriving sexp]
 type state =
@@ -106,29 +106,29 @@ type next_error =
   | ElaborateError;
 
 [@deriving sexp]
-type next_result = result(state, next_error);
+type next_result = result(option(state), next_error);
 
-let next = (~opts=default_opts, state) => {
+let next = (~opts=default_opts, state): next_result => {
   switch (state) {
   | Source(source) =>
-    parse_next(~opts, source)
-    |> Result.map(e => Parsed(e))
+    parse(~opts, source)
+    |> Result.map(e => Some(Parsed(e)))
     |> Result.map_error(err => ParseError(err))
 
   | Parsed(e) =>
-    elaborate_next(~opts, e)
-    |> Result.map(((ctx, d)) => Elaborated(ctx, d))
+    elaborate(~opts, e)
+    |> Result.map(((ctx, d)) => Some(Elaborated(ctx, d)))
     |> Result.map_error(() => ElaborateError)
 
-  | Elaborated(ctx, d) => Ok(Transformed(transform(ctx, d)))
+  | Elaborated(ctx, d) => Ok(Some(Transformed(transform(~opts, ctx, d))))
 
-  | Transformed(u) => Ok(Linearized(linearize(u)))
+  | Transformed(u) => Ok(Some(Linearized(linearize(~opts, u))))
 
-  | Linearized(a) => Ok(Grainized(grainize(a)))
+  | Linearized(a) => Ok(Some(Grainized(grainize(~opts, a))))
 
-  | Grainized(g) => Ok(Printed(print(g)))
+  | Grainized(g) => Ok(Some(Printed(print(~opts, g))))
 
-  | Printed(g) => Ok(Printed(g))
+  | Printed(_) => Ok(None)
   };
 };
 
@@ -169,66 +169,52 @@ let stop_after_printed =
 
 let rec resume = (~opts=default_opts, ~hook=stop_after_printed, state) => {
   switch (next(~opts, state)) {
-  | Ok(state) =>
+  | Ok(Some(state)) =>
     switch (hook(state)) {
     | Continue(state) => resume(~opts, ~hook, state)
-    | Stop => Ok(state)
+    | Stop => Ok(Some(state))
     }
+  | Ok(None) => Ok(None)
   | Error(err) => Error(err)
   };
 };
 
 let resume_until_dhexp = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Elaborated(_, d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Elaborated(_, d))) => Ok(d)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
 let resume_until_hir = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Transformed(d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Transformed(d))) => Ok(d)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
 let resume_until_anf = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Linearized(d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Linearized(d))) => Ok(d)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
 let resume_until_grain = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_grainized, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Grainized(g) => Ok(g)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Grainized(g))) => Ok(g)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
 let resume_until_grain_text = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_printed, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Printed(g) => Ok(g)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Printed(g))) => Ok(g)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
