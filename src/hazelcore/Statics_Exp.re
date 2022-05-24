@@ -331,8 +331,6 @@ and ana_operand_internal =
     let* _ = ana_rules(ctx, rules, ty_scrut, ty);
     let+ _ = syn_rules(ctx, ty_scrut, rules);
     ();
-  // TODO(andrew): this triggers MissingCursorInfo when adding a concrete type
-  // annotation to a pattern var when bound to a case with inconsistent branches
   | Case(InconsistentBranches(_, Ana), scrut, rules) =>
     let* ty_scrut = syn(ctx, scrut);
     let* _ = ana_rules(ctx, rules, ty_scrut, ty);
@@ -1345,31 +1343,6 @@ and ana_fix_holes_operand' =
       | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
       }
     };
-  // TODO(andrew): this triggers MissingCursorInfo when adding a concrete type
-  // annotation to a pattern var when bound to a case with inconsistent branches
-  /*
-   let common_type = syn_rule_types(rules)
-     let (scrut, ty_scrut, u_gen) =
-       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, scrut);
-     let (_, _, _, common_type) =
-       syn_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty_scrut);
-     let (rules, u_gen) =
-       ana_fix_holes_rules(
-         ctx,
-         u_gen,
-         ~renumber_empty_holes,
-         rules,
-         ty_scrut,
-         ty,
-       );
-
-     switch (common_type) {
-     | None =>
-       let (u, u_gen) = MetaVarGen.next(u_gen);
-       (Case(InconsistentBranches(u, Ana), scrut, rules), u_gen);
-     | Some(_) => (Case(CaseNotInHole, scrut, rules), u_gen)
-     };
-     */
   };
 }
 and extend_let_body_ctx =
