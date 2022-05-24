@@ -57,8 +57,13 @@ let rec string_of_boxed_value = (d: DHExp.t) => {
   switch (d) {
   | BoolLit(b) => string_of_bool(b)
   | IntLit(n) => string_of_int(n)
-  // FIXME: Floats don't play nice (e.g. 0.0 is stringified as "0." but Grain prints "0.0) :(
-  | FloatLit(f) => string_of_float(f)
+  | FloatLit(f) =>
+    // FIXME: Irrational floats will not print the same.
+    if (float_of_int(int_of_float(f)) == f) {
+      Printf.sprintf("%.1f", f);
+    } else {
+      string_of_float(f);
+    }
   | ListNil(_) => "[]"
   | Pair(d1, d2) => string_of_pair(d1, d2)
   | Cons(hd, tl) => string_of_cons(hd, tl)
