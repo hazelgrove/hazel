@@ -40,19 +40,49 @@ let compile_run = exp => {
 let eval = s => {
   let elab = Elaborator_Exp.elab(Contexts.initial, Delta.empty);
 
-  switch (Hazeltext.Parsing.ast_of_string(s)) {
-  | Ok(e) =>
-    switch (elab(e)) {
-    | Elaborates(d, _, _) => d
-    | DoesNotElaborate => failwith("elaboration failed")
-    }
-  | Error(err) => failwith(err)
-  };
+  let d =
+    switch (Hazeltext.Parsing.ast_of_string(s)) {
+    | Ok(e) =>
+      switch (elab(e)) {
+      | Elaborates(d, _, _) => d
+      | DoesNotElaborate => failwith("elaboration failed")
+      }
+    | Error(err) => failwith(err)
+    };
+
+  Evaluator.evaluate(d);
 };
 
-let test = (exp, expect) => {
-  let res = compile_run(exp);
-  Base.([%test_eq: string](res, expect));
+let rec string_of_boxed_value = (d: DHExp.t) => {
+  switch (d) {
+  | BoolLit(b) => string_of_bool(b)
+  | IntLit(n) => string_of_int(n)
+  // FIXME: Floats don't play nice (e.g. 0.0 is stringified as "0." but Grain prints "0.0) :(
+  | FloatLit(f) => string_of_float(f)
+  | ListNil(_) => "[]"
+  | Pair(d1, d2) => string_of_pair(d1, d2)
+  | Cons(hd, tl) => string_of_cons(hd, tl)
+  | Triv => "void"
+  | _ =>
+    failwith("Didn't handle some BoxedValue case in string_of_boxed_value")
+  };
+}
+and string_of_pair = (d1, d2) => {
+  let s1 = string_of_boxed_value(d1);
+  let s2 = string_of_boxed_value(d2);
+  "(" ++ s1 ++ ", " ++ s2 ++ ")";
+}
+and string_of_cons = (hd, tl) => {
+  "[" ++ string_of_boxed_value(hd) ++ string_of_cons_tail(tl) ++ "]";
+}
+and string_of_cons_tail = tl => {
+  switch (tl) {
+  | ListNil(_) => ""
+  | Cons(hd, tl) =>
+    ", " ++ string_of_boxed_value(hd) ++ string_of_cons_tail(tl)
+  | _ =>
+    failwith("Didn't handle some list element case in string_of_cons_tail")
+  };
 };
 
 let test_with_eval = exp => {
@@ -63,17 +93,15 @@ let test_with_eval = exp => {
 
   // Transform evaluation result into an sexp.
   let eval_out =
-    // FIXME: This approach of unwrapping doesn't really work for all
-    // constructs (e.g. when compiler output is a primitive tuple; need to
-    // inspect evaluation result for primitive tuple/cons/etc.)
     switch (eval_res) {
-    | BoolLit(b) => string_of_bool(b)
-    | IntLit(n) => string_of_int(n)
-    | FloatLit(f) => string_of_float(f)
-    | ListNil(_) => "[]"
-    | Triv => "void"
-    | d => d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string
+    | BoxedValue(d) => string_of_boxed_value(d)
+    | Indet(d) => d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string
     };
 
   Base.([%test_eq: string](compile_out, eval_out));
+};
+
+let test = (exp, expect) => {
+  let res = compile_run(exp);
+  Base.([%test_eq: string](res, expect));
 };
