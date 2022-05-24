@@ -102,7 +102,7 @@ and syn_elab_line =
             delta,
             p,
             ty_def,
-            ~pattern_var_mode=ModedVariable,
+            ~pattern_var_syn=ModedVariable,
           )
         ) {
         | DoesNotElaborate => LinesDoNotElaborate
@@ -384,12 +384,7 @@ and syn_elab_operand =
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
     switch (
-      Elaborator_Pat.syn_elab(
-        ctx,
-        delta,
-        p,
-        ~pattern_var_mode=UnknownVariable,
-      )
+      Elaborator_Pat.syn_elab(ctx, delta, p, ~pattern_var_syn=UnknownVariable)
     ) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
@@ -472,7 +467,7 @@ and syn_elab_rule =
       delta,
       p,
       ty_scrut,
-      ~pattern_var_mode=UnknownVariable,
+      ~pattern_var_syn=UnknownVariable,
     )
   ) {
   | DoesNotElaborate => None
@@ -790,7 +785,7 @@ and ana_elab_operand_internal =
             delta,
             p,
             ty1_ann,
-            ~pattern_var_mode=UnknownVariable,
+            ~pattern_var_syn=UnknownVariable,
           )
         ) {
         | DoesNotElaborate => DoesNotElaborate
@@ -892,7 +887,7 @@ and ana_elab_rule =
       delta,
       p,
       pat_ty,
-      ~pattern_var_mode=UnknownVariable,
+      ~pattern_var_syn=UnknownVariable,
     )
   ) {
   | DoesNotElaborate => None

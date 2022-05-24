@@ -11,7 +11,7 @@ let syn_elab:
     Contexts.t,
     Delta.t,
     UHPat.t,
-    ~pattern_var_mode: Statics_Pat.pattern_var_mode
+    ~pattern_var_syn: Statics_Pat.pattern_var_syn
   ) =>
   ElaborationResult.t;
 
@@ -21,7 +21,7 @@ let ana_elab:
     Delta.t,
     UHPat.t,
     HTyp.t,
-    ~pattern_var_mode: Statics_Pat.pattern_var_mode
+    ~pattern_var_syn: Statics_Pat.pattern_var_syn
   ) =>
   ElaborationResult.t;
 
