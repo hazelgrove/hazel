@@ -2,8 +2,7 @@
 
 (library
  (name hazelc_test)
- (inline_tests
-  (flags (-verbose)))
+ (inline_tests)
  (libraries hazelc)
  (preprocess
   (pps ppx_let ppx_inline_test ppx_assert)))
