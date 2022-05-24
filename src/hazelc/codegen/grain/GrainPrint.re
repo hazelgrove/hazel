@@ -131,52 +131,16 @@ and print_string = (s: string) => print_surround("\"", s, "\"")
 and print_args = (args: GrainIR.args) =>
   args |> List.map(print_expr) |> print_comma_sep
 
-and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
-  GrainStd.(
-    switch (op) {
-    | OpAnd =>
-      print_infix(print_expr(e1), Consts.prim_and_op, print_expr(e2))
-    | OpOr => print_infix(print_expr(e1), Consts.prim_or_op, print_expr(e2))
+and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) =>
+  switch (op) {
+  | OpAnd => print_infix(print_expr(e1), Consts.prim_and_op, print_expr(e2))
+  | OpOr => print_infix(print_expr(e1), Consts.prim_or_op, print_expr(e2))
 
-    | OpEquals =>
-      print_infix(print_expr(e1), Consts.prim_equals_op, print_expr(e2))
-    | OpNotEquals =>
-      print_infix(print_expr(e1), Consts.prim_not_equals_op, print_expr(e2))
-
-    | OpI32Plus => print_expr(Int32.add(e1, e2))
-    | OpI32Minus => print_expr(Int32.sub(e1, e2))
-    | OpI32Times => print_expr(Int32.mul(e1, e2))
-    | OpI32Divide => print_expr(Int32.div(e1, e2))
-    | OpI32LessThan => print_expr(Int32.lt(e1, e2))
-    | OpI32GreaterThan => print_expr(Int32.gt(e1, e2))
-    | OpI32Equals => print_expr(Int32.eq(e1, e2))
-
-    | OpI64Plus => print_expr(Int64.add(e1, e2))
-    | OpI64Minus => print_expr(Int64.sub(e1, e2))
-    | OpI64Times => print_expr(Int64.mul(e1, e2))
-    | OpI64Divide => print_expr(Int64.div(e1, e2))
-    | OpI64LessThan => print_expr(Int64.lt(e1, e2))
-    | OpI64GreaterThan => print_expr(Int64.gt(e1, e2))
-    | OpI64Equals => print_expr(Int64.eq(e1, e2))
-
-    | OpF32Plus => print_expr(Float32.add(e1, e2))
-    | OpF32Minus => print_expr(Float32.sub(e1, e2))
-    | OpF32Times => print_expr(Float32.mul(e1, e2))
-    | OpF32Divide => print_expr(Float32.div(e1, e2))
-    | OpF32LessThan => print_expr(Float32.lt(e1, e2))
-    | OpF32GreaterThan => print_expr(Float32.gt(e1, e2))
-    | OpF32Equals => print_expr(Float32.eq(e1, e2))
-
-    | OpF64Plus => print_expr(Float64.add(e1, e2))
-    | OpF64Minus => print_expr(Float64.sub(e1, e2))
-    | OpF64Times => print_expr(Float64.mul(e1, e2))
-    | OpF64Divide => print_expr(Float64.div(e1, e2))
-    | OpF64LessThan => print_expr(Float64.lt(e1, e2))
-    | OpF64GreaterThan => print_expr(Float64.gt(e1, e2))
-    | OpF64Equals => print_expr(Float64.eq(e1, e2))
-    }
-  );
-}
+  | OpEquals =>
+    print_infix(print_expr(e1), Consts.prim_equals_op, print_expr(e2))
+  | OpNotEquals =>
+    print_infix(print_expr(e1), Consts.prim_not_equals_op, print_expr(e2))
+  }
 
 and print_cons = (e1: GrainIR.expr, e2: GrainIR.expr) => {
   let e1 = print_expr(e1);

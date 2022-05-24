@@ -132,25 +132,44 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   };
 }
 
-and codegen_op = (op: Anf.bin_op, imps): (GrainIR.bin_op, Imports.t) => {
-  let op: GrainIR.bin_op =
-    switch (op) {
-    | OpAnd => OpAnd
-    | OpOr => OpOr
-    | OpPlus => OpI32Plus
-    | OpMinus => OpI32Minus
-    | OpTimes => OpI32Times
-    | OpDivide => OpI32Divide
-    | OpLessThan => OpI32LessThan
-    | OpGreaterThan => OpI32GreaterThan
-    | OpEquals => OpI32Equals
-    | OpFPlus => OpF32Plus
-    | OpFMinus => OpF32Minus
-    | OpFTimes => OpF32Times
-    | OpFDivide => OpF32Divide
-    | OpFLessThan => OpF32LessThan
-    | OpFGreaterThan => OpF32GreaterThan
-    | OpFEquals => OpF32Equals
+and codegen_bin_op_non_indet = (op: Anf.bin_op, imps) => {
+  let (op, with_int32, with_float32): (
+    (GrainIR.expr, GrainIR.expr) => GrainIR.expr,
+    bool,
+    bool,
+  ) =
+    GrainStd.(
+      switch (op) {
+      | OpAnd => (((e1, e2) => EBinOp(OpAnd, e1, e2)), false, false)
+      | OpOr => (((e1, e2) => EBinOp(OpOr, e1, e2)), false, false)
+      | OpPlus => (Int32.add, true, false)
+      | OpMinus => (Int32.sub, true, false)
+      | OpTimes => (Int32.mul, true, false)
+      | OpDivide => (Int32.div, true, false)
+      | OpLessThan => (Int32.lt, true, false)
+      | OpGreaterThan => (Int32.gt, true, false)
+      | OpEquals => (Int32.eq, true, false)
+      | OpFPlus => (Float32.add, false, true)
+      | OpFMinus => (Float32.sub, false, true)
+      | OpFTimes => (Float32.mul, false, true)
+      | OpFDivide => (Float32.div, false, true)
+      | OpFLessThan => (Float32.lt, false, true)
+      | OpFGreaterThan => (Float32.gt, false, true)
+      | OpFEquals => (Float32.eq, false, true)
+      }
+    );
+
+  let imps =
+    if (with_int32) {
+      Imports.with_int32(imps);
+    } else {
+      imps;
+    };
+  let imps =
+    if (with_float32) {
+      Imports.with_float32(imps);
+    } else {
+      imps;
     };
   (op, imps);
 }
@@ -182,18 +201,17 @@ and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
 
 and codegen_bin_op =
     (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Hir.has_indet, imps)
-    : (GrainIR.expr, Imports.t) =>
-  if (!indet) {
-    let (op, imps) = codegen_op(op, imps);
-    let (e1, imps) = codegen_imm(im1, imps);
-    let (e2, imps) = codegen_imm(im2, imps);
-    (EBinOp(op, e1, e2), imps);
-  } else {
-    let (op, imps) = codegen_bin_op_indet(op, imps);
-    let (e1, imps) = codegen_imm(im1, imps);
-    let (e2, imps) = codegen_imm(im2, imps);
-    (op(e1, e2), imps);
-  }
+    : (GrainIR.expr, Imports.t) => {
+  let (e1, imps) = codegen_imm(im1, imps);
+  let (e2, imps) = codegen_imm(im2, imps);
+  let (op, imps) =
+    if (!indet) {
+      codegen_bin_op_non_indet(op, imps);
+    } else {
+      codegen_bin_op_indet(op, imps);
+    };
+  (op(e1, e2), imps);
+}
 
 and codegen_imm = (im: Anf.imm, imps): (GrainIR.expr, Imports.t) => {
   switch (im.imm_kind) {

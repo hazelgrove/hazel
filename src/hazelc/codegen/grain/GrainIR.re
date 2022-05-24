@@ -39,35 +39,7 @@ type bin_op =
   | OpAnd
   | OpOr
   | OpEquals
-  | OpNotEquals
-  | OpI32Plus
-  | OpI32Minus
-  | OpI32Times
-  | OpI32Divide
-  | OpI32LessThan
-  | OpI32GreaterThan
-  | OpI32Equals
-  | OpI64Plus
-  | OpI64Minus
-  | OpI64Times
-  | OpI64Divide
-  | OpI64LessThan
-  | OpI64GreaterThan
-  | OpI64Equals
-  | OpF32Plus
-  | OpF32Minus
-  | OpF32Times
-  | OpF32Divide
-  | OpF32LessThan
-  | OpF32GreaterThan
-  | OpF32Equals
-  | OpF64Plus
-  | OpF64Minus
-  | OpF64Times
-  | OpF64Divide
-  | OpF64LessThan
-  | OpF64GreaterThan
-  | OpF64Equals;
+  | OpNotEquals;
 
 [@deriving sexp]
 type params = list(pat)
