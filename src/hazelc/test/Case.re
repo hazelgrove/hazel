@@ -56,10 +56,24 @@ let test = (exp, expect) => {
 };
 
 let test_with_eval = exp => {
-  let res = compile_run(exp);
-  // FIXME: Fully complete program will print literal
-  // FIXME: Sexp implementations will not fully match :(
-  let expect = eval(exp) |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string;
+  // Compile and execute expression.
+  let compile_out = compile_run(exp);
+  // Evaluate expression.
+  let eval_res = eval(exp);
 
-  Base.([%test_eq: string](res, expect));
+  // Transform evaluation result into an sexp.
+  let eval_out =
+    // FIXME: This approach of unwrapping doesn't really work for all
+    // constructs (e.g. when compiler output is a primitive tuple; need to
+    // inspect evaluation result for primitive tuple/cons/etc.)
+    switch (eval_res) {
+    | BoolLit(b) => string_of_bool(b)
+    | IntLit(n) => string_of_int(n)
+    | FloatLit(f) => string_of_float(f)
+    | ListNil(_) => "[]"
+    | Triv => "void"
+    | d => d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string
+    };
+
+  Base.([%test_eq: string](compile_out, eval_out));
 };
