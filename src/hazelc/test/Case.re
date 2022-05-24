@@ -5,7 +5,7 @@ let opts: Compile.opts = {
     grain: None,
     optimize: None,
     includes: None,
-    debug: Some(true),
+    debug: None,
     wat: None,
   },
 };
