@@ -30,6 +30,7 @@ type subscript_error =
   | EndIndexBeforeStart(out_of_bounds_error)
   | EmptyString;
 
+[@deriving sexp]
 type subscript_result =
   | Ok(t)
   | Err(subscript_error);
