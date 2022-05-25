@@ -169,15 +169,15 @@ let builtins: list(Builtin.t) = [
     Arrow(Bool, String),
     Impls.string_of_bool,
   ),
-  Builtin.mk_one("int_of_string", Arrow(Int, String), Impls.int_of_string),
+  Builtin.mk_one("int_of_string", Arrow(String, Int), Impls.int_of_string),
   Builtin.mk_one(
     "float_of_string",
-    Arrow(Float, String),
+    Arrow(String, Float),
     Impls.float_of_string,
   ),
   Builtin.mk_one(
     "bool_of_string",
-    Arrow(Bool, String),
+    Arrow(String, Bool),
     Impls.bool_of_string,
   ),
   Builtin.mk_one("length", Arrow(String, Int), Impls.string_length),
