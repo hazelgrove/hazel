@@ -20,10 +20,10 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | FunZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | CaseZE(_, zexp, _)
   | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
-  | SubscriptZE3(_, _, _, zexp) => extract_cursor_term(zexp)
+  | SubscriptZE3(_, _, _, zexp)
+  | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   };
 }
@@ -83,10 +83,10 @@ and get_zoperand_from_zexp_operand =
   | FunZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | CaseZE(_, zexp, _)
   | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
-  | SubscriptZE3(_, _, _, zexp) => get_zoperand_from_zexp(zexp)
+  | SubscriptZE3(_, _, _, zexp)
+  | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   };
 }
@@ -139,11 +139,10 @@ and get_outer_zrules_from_zexp_operand =
   | FunZP(_) => outer_zrules
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | CaseZE(_, zexp, _)
   | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
-  | SubscriptZE3(_, _, _, zexp) =>
-    get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | SubscriptZE3(_, _, _, zexp)
+  | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   };
 }
@@ -830,9 +829,9 @@ and ana_cursor_info_skel =
         FLessThan |
         FGreaterThan |
         FEquals |
-        SCaret |
         And |
         Or |
+        SCaret |
         Space,
         _,
         _,
@@ -937,6 +936,9 @@ and ana_cursor_info_zoperand =
   | FunZP(InHole(WrongLength, _), _, _)
   | FunZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
+  | SubscriptZE1(InHole(WrongLength, _), _, _, _)
+  | SubscriptZE2(InHole(WrongLength, _), _, _, _)
+  | SubscriptZE3(InHole(WrongLength, _), _, _, _)
   | CaseZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
@@ -947,17 +949,14 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
-  | SubscriptZE1(InHole(WrongLength, _), _, _, _)
-  | SubscriptZE2(InHole(WrongLength, _), _, _, _)
-  | SubscriptZE3(InHole(WrongLength, _), _, _, _)
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | SubscriptZE1(InHole(TypeInconsistent, _), _, _, _)
   | SubscriptZE2(InHole(TypeInconsistent, _), _, _, _)
-  | SubscriptZE3(InHole(TypeInconsistent, _), _, _, _) =>
+  | SubscriptZE3(InHole(TypeInconsistent, _), _, _, _)
+  | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | FunZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);

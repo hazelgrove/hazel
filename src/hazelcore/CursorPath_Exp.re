@@ -22,14 +22,14 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
+  | SubscriptZE1(_, zs, _, _) => cons'(0, of_z(zs))
+  | SubscriptZE2(_, _, zn1, _) => cons'(1, of_z(zn1))
+  | SubscriptZE3(_, _, _, zn2) => cons'(2, of_z(zn2))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
   | CaseZR(_, _, zrules) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | SubscriptZE1(_, zs, _, _) => cons'(0, of_z(zs))
-  | SubscriptZE2(_, _, zn1, _) => cons'(1, of_z(zn1))
-  | SubscriptZE3(_, _, _, zn2) => cons'(2, of_z(zn2))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -140,21 +140,6 @@ and follow_operand =
         |> Option.map(zbody => ZExp.InjZ(err, side, zbody))
       | _ => None
       }
-    | Case(err, scrut, rules) =>
-      switch (x) {
-      | 0 =>
-        scrut
-        |> follow((xs, cursor))
-        |> Option.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
-      | _ =>
-        switch (ZList.split_at(x - 1, rules)) {
-        | None => None
-        | Some(split_rules) =>
-          split_rules
-          |> ZList.optmap_z(follow_rule((xs, cursor)))
-          |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
-        }
-      }
     | Subscript(err, s, n1, n2) =>
       switch (x) {
       | 0 =>
@@ -170,6 +155,21 @@ and follow_operand =
         |> follow((xs, cursor))
         |> Option.map(zn2 => ZExp.SubscriptZE3(err, s, n1, zn2))
       | _ => None
+      }
+    | Case(err, scrut, rules) =>
+      switch (x) {
+      | 0 =>
+        scrut
+        |> follow((xs, cursor))
+        |> Option.map(zscrut => ZExp.CaseZE(err, zscrut, rules))
+      | _ =>
+        switch (ZList.split_at(x - 1, rules)) {
+        | None => None
+        | Some(split_rules) =>
+          split_rules
+          |> ZList.optmap_z(follow_rule((xs, cursor)))
+          |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
+        }
       }
     }
   }
@@ -318,6 +318,13 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(2, path))
       | _ => None
       }
+    | Subscript(_, s, n1, n2) =>
+      switch (x) {
+      | 0 => s |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
+      | 1 => n1 |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
+      | 2 => n2 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
+      | _ => None
+      }
     | Case(_, scrut, rules) =>
       switch (x) {
       | 0 =>
@@ -329,13 +336,6 @@ and of_steps_operand =
           let (_, z, _) = split_rules;
           z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
-      }
-    | Subscript(_, s, n1, n2) =>
-      switch (x) {
-      | 0 => s |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
-      | 1 => n1 |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
-      | 2 => n2 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
-      | _ => None
       }
     }
   }
@@ -452,6 +452,12 @@ and holes_operand =
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
+  | Subscript(err, s, n1, n2) =>
+    hs
+    |> holes(n2, [2, ...rev_steps])
+    |> holes(n1, [1, ...rev_steps])
+    |> holes(s, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
   | Case(err, scrut, rules) =>
     hs
     |> ListUtil.fold_right_i(
@@ -460,12 +466,6 @@ and holes_operand =
        )
     |> holes(scrut, [0, ...rev_steps])
     |> holes_case_err(err, rev_steps)
-  | Subscript(err, s, n1, n2) =>
-    hs
-    |> holes(n2, [2, ...rev_steps])
-    |> holes(n1, [1, ...rev_steps])
-    |> holes(s, [0, ...rev_steps])
-    |> holes_err(err, rev_steps)
   }
 and holes_rule =
     (
@@ -665,6 +665,32 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(k, _), Subscript(err, s, n1, n2)) =>
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, u) =>
+        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
+      };
+    let holes_s = holes(s, [0, ...rev_steps], []);
+    let holes_n1 = holes(n1, [1, ...rev_steps], []);
+    let holes_n2 = holes(n2, [2, ...rev_steps], []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_after=holes_s @ holes_n1 @ holes_n2,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_s @ holes_n1,
+        ~hole_selected,
+        ~holes_after=holes_n2,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
@@ -692,32 +718,6 @@ and holes_zoperand =
         ~holes_before=holes_scrut @ holes_rules,
         ~hole_selected,
         ~holes_after=[],
-        (),
-      )
-    | _ => CursorPath_common.no_holes
-    };
-  | CursorE(OnDelim(k, _), Subscript(err, s, n1, n2)) =>
-    let hole_selected: option(CursorPath.hole_info) =
-      switch (err) {
-      | NotInHole => None
-      | InHole(_, u) =>
-        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
-      };
-    let holes_s = holes(s, [0, ...rev_steps], []);
-    let holes_n1 = holes(n1, [1, ...rev_steps], []);
-    let holes_n2 = holes(n2, [2, ...rev_steps], []);
-    switch (k) {
-    | 0 =>
-      CursorPath_common.mk_zholes(
-        ~hole_selected,
-        ~holes_after=holes_s @ holes_n1 @ holes_n2,
-        (),
-      )
-    | 1 =>
-      CursorPath_common.mk_zholes(
-        ~holes_before=holes_s @ holes_n1,
-        ~hole_selected,
-        ~holes_after=holes_n2,
         (),
       )
     | _ => CursorPath_common.no_holes
