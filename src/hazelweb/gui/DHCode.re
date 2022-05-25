@@ -56,6 +56,18 @@ let view_of_layout =
                  [with_cls("SubscriptOutOfBounds", txt)],
                  ds,
                )
+             | InvalidIntOfString => (
+                 [with_cls("InvalidIntOfString", txt)],
+                 ds,
+               )
+             | InvalidFloatOfString => (
+                 [with_cls("InvalidFloatOfString", txt)],
+                 ds,
+               )
+             | InvalidBoolOfString => (
+                 [with_cls("InvalidBoolOfString", txt)],
+                 ds,
+               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)

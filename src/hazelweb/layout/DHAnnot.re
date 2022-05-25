@@ -17,4 +17,7 @@ type t =
   | CastDecoration
   | InvalidStringEscape
   | DivideByZero
-  | SubscriptOutOfBounds;
+  | SubscriptOutOfBounds
+  | InvalidIntOfString
+  | InvalidFloatOfString
+  | InvalidBoolOfString;

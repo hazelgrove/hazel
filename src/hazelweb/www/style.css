@@ -1136,6 +1136,18 @@ h1 {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
+.DHCode .InvalidIntOfString {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.DHCode .InvalidFloatOfString {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+.DHCode .InvalidBoolOfString {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 .code {
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
