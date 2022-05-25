@@ -245,6 +245,7 @@ and mk_cursor_path_steps_expoperator =
     let child_step = n == 0 ? left : right;
     step_sibling ? [[(-1), child_step]] : [[child_step]];
   | (_binop, [n, ...rest]) =>
+    /* TODO: Hannah - similar changes should probably be made for the other operators (pat & typ)*/
     print_endline(
       "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
     );

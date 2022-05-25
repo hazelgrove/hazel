@@ -144,7 +144,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~inject,
               model.doc_study.example_level,
               explanation_info,
-              syntactic_form_level_,
             );
           } else {
             SyntacticForm.view(
@@ -204,6 +203,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~inject,
               ~settings,
               ~font_metrics=model.font_metrics,
+              ~level=model.doc_study.example_level,
               explanation_info,
             );
           } else {
