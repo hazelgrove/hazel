@@ -130,7 +130,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | R => indicate_words_view("right injection")
       }
     | Case(_, _, _) => code_keywords_view("case")
-    // TODO: Show more info?
     | Subscript(_, _, _, _) => indicate_words_view("subscript")
     | Parenthesized(_) => indicate_words_view("parentheses")
     };

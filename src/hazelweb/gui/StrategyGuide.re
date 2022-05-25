@@ -42,7 +42,7 @@ let lit_msg = (ty: HTyp.t) => {
       Node.text("Enter a String Literal"),
       fill_space,
       Node.text("(e.g. "),
-      example_lit_node(""),
+      example_lit_node("\"abc\""),
       Node.text(")"),
     ]);
   let fun_lit =

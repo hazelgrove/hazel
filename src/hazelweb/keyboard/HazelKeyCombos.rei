@@ -29,7 +29,7 @@ type t =
   | Comma
   | LeftBracket
   | Semicolon
-  | Quote
+  | DoubleQuote
   | Caret
   | Alt_L
   | Alt_R

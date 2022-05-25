@@ -7,7 +7,7 @@ let get_model_action_from_kc =
   let construct = (shape: Action.shape): option(ModelAction.t) =>
     Some(EditAction(Construct(shape)));
 
-  let (cursor_on_type, cursor_on_exp) =
+  let (cursor_on_type, cursor_on_non_hole_exp) =
     switch (cursor_info) {
     | {typed: OnType, _} => (true, false)
     | {cursor_term: ExpOperand(_, operand), _} =>
@@ -49,10 +49,12 @@ let get_model_action_from_kc =
   | Space => construct(SOp(SSpace))
   | Comma => construct(SOp(SComma))
   | LeftBracket when cursor_on_type => construct(SList)
-  | LeftBracket when cursor_on_exp => construct(SSubscript)
+  /* `[` constructs subscript when cursor is on a non-hole expression, nil
+   * otherwise. */
+  | LeftBracket when cursor_on_non_hole_exp => construct(SSubscript)
   | LeftBracket => construct(SListNil)
   | Semicolon => construct(SOp(SCons))
-  | Quote => construct(SQuote)
+  | DoubleQuote => construct(SQuote)
   | Caret => construct(SOp(SCaret))
   | Alt_L => construct(SInj(L))
   | Alt_R => construct(SInj(R))
@@ -109,6 +111,7 @@ let get_model_action =
   ) {
   | (_, _, Some(single_key_in_comment), _) when cursor_on_comment =>
     construct(SChar(JSUtil.single_key_string(single_key_in_comment)))
+  /* When cursor on string literal, send SChar action for any key. */
   | (_, _, _, Some(single_key_in_stringlit)) when cursor_on_stringlit =>
     construct(SChar(JSUtil.single_key_string(single_key_in_stringlit)))
   | (Some(key_combo), _, _, _) =>
