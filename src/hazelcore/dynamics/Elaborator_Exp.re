@@ -373,23 +373,6 @@ and syn_elab_operand =
   | StringLit(NotInHole, s) =>
     let (unescaped, errors) = s |> UnescapedString.from_string;
     Elaborates(StringLit(unescaped, errors), String, delta);
-  | Subscript(NotInHole, s, n1, n2) =>
-    switch (ana_elab(ctx, delta, s, String)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(d1, ty1, delta) =>
-      switch (ana_elab(ctx, delta, n1, Int)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d2, ty2, delta) =>
-        switch (ana_elab(ctx, delta, n2, Int)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d3, ty3, delta) =>
-          let dc1 = DHExp.cast(d1, ty1, String);
-          let dc2 = DHExp.cast(d2, ty2, Int);
-          let dc3 = DHExp.cast(d3, ty3, Int);
-          Elaborates(Subscript(dc1, dc2, dc3), String, delta);
-        }
-      }
-    }
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
@@ -416,6 +399,23 @@ and syn_elab_operand =
         | R => HTyp.Sum(Hole, ty1)
         };
       Elaborates(d, ty, delta);
+    }
+  | Subscript(NotInHole, s, n1, n2) =>
+    switch (ana_elab(ctx, delta, s, String)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      switch (ana_elab(ctx, delta, n1, Int)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(d2, ty2, delta) =>
+        switch (ana_elab(ctx, delta, n2, Int)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d3, ty3, delta) =>
+          let dc1 = DHExp.cast(d1, ty1, String);
+          let dc2 = DHExp.cast(d2, ty2, Int);
+          let dc3 = DHExp.cast(d3, ty3, Int);
+          Elaborates(Subscript(dc1, dc2, dc3), String, delta);
+        }
+      }
     }
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
@@ -788,7 +788,6 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
-
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate

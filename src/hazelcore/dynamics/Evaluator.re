@@ -89,6 +89,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
   | (StringLit(s1, errors1), StringLit(s2, errors2)) =>
+    /* TODO: Not sure what behavior should be when there are errors. */
     switch (errors1, errors2) {
     | ([], []) =>
       if (s1 == s2) {
@@ -701,6 +702,8 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     | BoxedValue(StringLit(s1, errors1) as d1') =>
       switch (evaluate(d2)) {
       | BoxedValue(StringLit(s2, errors2) as d2') =>
+        /* TODO: Behavior when there are errors? Maybe concatenate error lists
+         * and adjust indices? */
         switch (errors1, errors2) {
         | ([], []) => BoxedValue(eval_bin_str_op(op, s1, s2))
         | _ => Indet(BinStrOp(op, d1', d2'))
@@ -724,16 +727,17 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
         | BoxedValue(IntLit(n2)) =>
+          /* TODO: Behavior when there are errors? */
           switch (errors) {
           | [] => BoxedValue(eval_subscript(d, s, n1, n2))
           | _ => Indet(Subscript(d1', d2, d3))
           }
         | BoxedValue(d3') =>
-          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d3')))
+          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d3')))
         | Indet(d3') => Indet(Subscript(d1', d2', d3'))
         }
       | BoxedValue(d2') =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
       | Indet(d2') =>
         switch (evaluate(d3)) {
         | BoxedValue(d3')

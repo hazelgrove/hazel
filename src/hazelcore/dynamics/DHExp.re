@@ -160,8 +160,8 @@ module BinStrOp = {
     | Comma => None
     };
 
-  let to_op = (bfo: t): UHExp.operator =>
-    switch (bfo) {
+  let to_op = (bso: t): UHExp.operator =>
+    switch (bso) {
     | SCaret => SCaret
     };
 };

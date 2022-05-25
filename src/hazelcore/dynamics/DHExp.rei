@@ -42,9 +42,13 @@ module BinFloatOp: {
 };
 
 module BinStrOp: {
+  /**
+   * The type of binary string operators.
+   */
   [@deriving sexp]
   type t =
-    | SCaret;
+    | /** String concatenation operator. */
+      SCaret;
 
   let of_op: UHExp.operator => option((t, HTyp.t));
 
