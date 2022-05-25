@@ -80,7 +80,11 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | StringLit(_, s) => CursorPosition.text_cursors(String.length(s))
+  | StringLit(_, s) =>
+    List.append(
+      CursorPosition.delim_cursors(2),
+      CursorPosition.text_cursors(String.length(s)),
+    )
   /* inner nodes */
   | Fun(_, _, _) => {
       CursorPosition.delim_cursors_k(0)
@@ -302,11 +306,11 @@ and is_outer_zoperand =
   | CursorE(_, EmptyHole(_))
   | CursorE(_, InvalidText(_, _))
   | CursorE(_, ListNil(_))
-  | CursorE(_, StringLit(_))
   | CursorE(_, Var(_))
   | CursorE(_, IntLit(_))
   | CursorE(_, FloatLit(_))
   | CursorE(_, BoolLit(_))
+  | CursorE(_, StringLit(_))
   | CursorE(_, Fun(_))
   | CursorE(_, Inj(_))
   | CursorE(_, Subscript(_))
@@ -694,7 +698,10 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
-  | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
+  | CursorE(OnText(j), e) => {
+      print_endline(string_of_int(j));
+      Some(CursorE(OnText(j - 1), e));
+    }
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
@@ -709,6 +716,13 @@ and move_cursor_left_zoperand =
     | 2 => Some(FunZE(err, arg, place_after(body)))
     | _ => None
     }
+  | CursorE(OnDelim(k, Before), Subscript(err, s, n1, n2)) =>
+    switch (k) {
+    | 0 => Some(SubscriptZE1(err, place_after(s), n1, n2))
+    | 1 => Some(SubscriptZE2(err, s, place_after(n1), n2))
+    | 2 => Some(SubscriptZE3(err, s, n1, place_after(n2)))
+    | _ => None /* Invalid cursor position */
+    }
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
     // _k == 1
     switch (List.rev(rules)) {
@@ -721,14 +735,6 @@ and move_cursor_left_zoperand =
           (List.rev(rev_prefix), place_after_rule(last_rule), []),
         ),
       )
-    }
-  | CursorE(OnDelim(k, Before), Subscript(err, s, n1, n2)) =>
-    if (k == 0) {
-      Some(SubscriptZE1(err, place_after(s), n1, n2));
-    } else if (k == 1) {
-      Some(SubscriptZE2(err, s, place_after(n1), n2));
-    } else {
-      Some(SubscriptZE3(err, s, n1, place_after(n2)));
     }
   | CursorE(
       OnDelim(_),
@@ -899,16 +905,12 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
-  // Move from last char of string
-  /* | CursorE(OnText(j), StringLit(_, s) as operand) */
-  /* when j == String.length(s) => */
-  /* Some(CursorE(OnDelim(1, Before), operand)) */
-  | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
+  | CursorE(OnText(j), e) => {
+      print_endline(string_of_int(j));
+      Some(CursorE(OnText(j + 1), e));
+    }
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
-  // Move to first char of string
-  | CursorE(OnDelim(_zero, After), StringLit(_) as operand) =>
-    Some(CursorE(OnText(0), operand))
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
@@ -921,20 +923,20 @@ and move_cursor_right_zoperand =
     | 1 => Some(FunZE(err, arg, place_before(body)))
     | _ => None // invalid cursor position
     }
+  | CursorE(OnDelim(k, After), Subscript(err, s, n1, n2)) =>
+    switch (k) {
+    | 0 => Some(SubscriptZE2(err, s, place_before(n1), n2))
+    | 1 => Some(SubscriptZE3(err, s, n1, place_before(n2)))
+    | 2 => None
+    | _ => None /* Invalid cursor position */
+    }
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
-  | CursorE(OnDelim(k, After), Subscript(err, s, n1, n2)) =>
-    if (k == 0) {
-      Some(SubscriptZE2(err, s, place_before(n1), n2));
-    } else if (k == 1) {
-      Some(SubscriptZE3(err, s, n1, place_before(n2)));
-    } else {
-      None;
-    }
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
+      StringLit(_),
     ) =>
     // invalid cursor position
     None
@@ -962,6 +964,24 @@ and move_cursor_right_zoperand =
       Some(CursorE(OnDelim(2, Before), Fun(err, arg, erase(zbody))))
     | Some(zbody) => Some(FunZE(err, arg, zbody))
     }
+  | SubscriptZE1(err, zs, n1, n2) =>
+    switch (move_cursor_right(zs)) {
+    | Some(zs) => Some(SubscriptZE1(err, zs, n1, n2))
+    | None =>
+      Some(CursorE(OnDelim(0, Before), Subscript(err, erase(zs), n1, n2)))
+    }
+  | SubscriptZE2(err, s, zn1, n2) =>
+    switch (move_cursor_right(zn1)) {
+    | Some(zn1) => Some(SubscriptZE2(err, s, zn1, n2))
+    | None =>
+      Some(CursorE(OnDelim(1, Before), Subscript(err, s, erase(zn1), n2)))
+    }
+  | SubscriptZE3(err, s, n1, zn2) =>
+    switch (move_cursor_right(zn2)) {
+    | Some(zn2) => Some(SubscriptZE3(err, s, n1, zn2))
+    | None =>
+      Some(CursorE(OnDelim(2, Before), Subscript(err, s, n1, erase(zn2))))
+    }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_right(zscrut)) {
     | Some(zscrut) => Some(CaseZE(err, zscrut, rules))
@@ -983,24 +1003,6 @@ and move_cursor_right_zoperand =
           Case(err, scrut, zrules |> erase_zrules),
         ),
       )
-    }
-  | SubscriptZE1(err, zs, n1, n2) =>
-    switch (move_cursor_right(zs)) {
-    | Some(zs) => Some(SubscriptZE1(err, zs, n1, n2))
-    | None =>
-      Some(CursorE(OnDelim(0, Before), Subscript(err, erase(zs), n1, n2)))
-    }
-  | SubscriptZE2(err, s, zn1, n2) =>
-    switch (move_cursor_right(zn1)) {
-    | Some(zn1) => Some(SubscriptZE2(err, s, zn1, n2))
-    | None =>
-      Some(CursorE(OnDelim(1, Before), Subscript(err, s, erase(zn1), n2)))
-    }
-  | SubscriptZE3(err, s, n1, zn2) =>
-    switch (move_cursor_right(zn2)) {
-    | Some(zn2) => Some(SubscriptZE3(err, s, n1, zn2))
-    | None =>
-      Some(CursorE(OnDelim(2, Before), Subscript(err, s, n1, erase(zn2))))
     }
 and move_cursor_right_zrules =
   fun
