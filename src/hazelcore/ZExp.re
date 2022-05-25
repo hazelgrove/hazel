@@ -80,11 +80,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  | StringLit(_, s) =>
-    List.append(
-      CursorPosition.delim_cursors(2),
-      CursorPosition.text_cursors(String.length(s)),
-    )
+  | StringLit(_, s) => CursorPosition.text_cursors(String.length(s))
   /* inner nodes */
   | Fun(_, _, _) => {
       CursorPosition.delim_cursors_k(0)
@@ -169,8 +165,8 @@ and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
-  | CursorE(cursor, ListNil(_))
-  | CursorE(cursor, StringLit(_)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, StringLit(_))
+  | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, InvalidText(_, _))
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
@@ -313,8 +309,8 @@ and is_outer_zoperand =
   | CursorE(_, BoolLit(_))
   | CursorE(_, Fun(_))
   | CursorE(_, Inj(_))
-  | CursorE(_, Case(_))
   | CursorE(_, Subscript(_))
+  | CursorE(_, Case(_))
   | CursorE(_, Parenthesized(_)) => true
   | ParenthesizedZ(zexp) => is_outer(zexp)
   | FunZP(_)
@@ -484,11 +480,11 @@ and erase_zoperand =
   | FunZP(err, zp, body) => Fun(err, ZPat.erase(zp), body)
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
-  | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
-  | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
   | SubscriptZE1(err, zs, n1, n2) => Subscript(err, erase(zs), n1, n2)
   | SubscriptZE2(err, s, zn1, n2) => Subscript(err, s, erase(zn1), n2)
   | SubscriptZE3(err, s, n1, zn2) => Subscript(err, s, n1, erase(zn2))
+  | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
+  | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
 and erase_zrules =
   fun
   | zrules => ZList.erase(zrules, erase_zrule)
@@ -538,13 +534,13 @@ and set_err_status_zoperand = (err, zoperand) =>
   | FunZP(_, zp, body) => FunZP(err, zp, body)
   | FunZE(_, p, zbody) => FunZE(err, p, zbody)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
+  | SubscriptZE1(_, zs, n1, n2) => SubscriptZE1(err, zs, n1, n2)
+  | SubscriptZE2(_, s, zn1, n2) => SubscriptZE2(err, s, zn1, n2)
+  | SubscriptZE3(_, s, n1, zn2) => SubscriptZE3(err, s, n1, zn2)
   | CaseZE(_, zscrut, rules) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
-  | SubscriptZE1(_, zs, n1, n2) => SubscriptZE1(err, zs, n1, n2)
-  | SubscriptZE2(_, s, zn1, n2) => SubscriptZE2(err, s, zn1, n2)
-  | SubscriptZE3(_, s, n1, zn2) => SubscriptZE3(err, s, n1, zn2)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -590,6 +586,9 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
+  | SubscriptZE1(NotInHole | InHole(WrongLength, _), _, _, _)
+  | SubscriptZE2(NotInHole | InHole(WrongLength, _), _, _, _)
+  | SubscriptZE3(NotInHole | InHole(WrongLength, _), _, _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -601,10 +600,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       InconsistentBranches(_, _),
       _,
       _,
-    )
-  | SubscriptZE1(NotInHole | InHole(WrongLength, _), _, _, _)
-  | SubscriptZE2(NotInHole | InHole(WrongLength, _), _, _, _)
-  | SubscriptZE3(NotInHole | InHole(WrongLength, _), _, _, _) =>
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
@@ -698,14 +694,8 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
-  // Move from first char of string
-  /* | CursorE(OnText(0), StringLit(_, _) as operand) => */
-  /* Some(CursorE(OnDelim(0, After), operand)) */
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
-  // Move to last char of string
-  | CursorE(OnDelim(_one, Before), StringLit(_, s) as operand) =>
-    Some(CursorE(OnText(String.length(s)), operand))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
@@ -742,7 +732,8 @@ and move_cursor_left_zoperand =
     }
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
+      StringLit(_),
     ) =>
     // invalid cursor position
     None
