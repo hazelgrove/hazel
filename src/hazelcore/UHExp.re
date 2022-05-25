@@ -257,13 +257,13 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Fun(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
       _,
       _,
-    )
-  | Subscript(NotInHole | InHole(WrongLength, _), _, _, _) =>
+    ) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));

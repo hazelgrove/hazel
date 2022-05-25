@@ -15,11 +15,11 @@ and zoperand =
   | FunZP(ErrStatus.t, ZPat.t, UHExp.t)
   | FunZE(ErrStatus.t, UHPat.t, t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-  | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
-  | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
   | SubscriptZE1(ErrStatus.t, t, UHExp.t, UHExp.t)
   | SubscriptZE2(ErrStatus.t, UHExp.t, t, UHExp.t)
   | SubscriptZE3(ErrStatus.t, UHExp.t, UHExp.t, t)
+  | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
+  | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
 and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
@@ -41,14 +41,14 @@ let line_can_be_swapped = (line: zline): bool =>
   | LetLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
-  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
   | ExpLineZ(
       ZOpSeq(
         _,
         ZOperand(SubscriptZE1(_) | SubscriptZE2(_) | SubscriptZE3(_), _),
       ),
     )
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
+  | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _))) => false
   };
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
@@ -92,8 +92,8 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(2);
     }
   | Inj(_) => CursorPosition.delim_cursors(2)
-  | Case(_) => CursorPosition.delim_cursors(2)
   | Subscript(_) => CursorPosition.delim_cursors(3)
+  | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2);
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
@@ -123,7 +123,10 @@ module ZBlock = {
   let wrap = (zoperand: zoperand): zblock => wrap'(ZOpSeq.wrap(zoperand));
 };
 
-let rec is_opseq =
+/**
+ * Returns the ZSeq the cursor is on, if any.
+ */
+let rec is_zopseq =
         (ze: t): option(ZSeq.t('operand, 'operator, 'zoperand, 'zoperator)) =>
   ze |> is_opseq_zblock
 and is_opseq_zblock =
@@ -135,12 +138,12 @@ and is_opseq_zline =
   | CursorL(_) => None
   | ExpLineZ(zopseq) => zopseq |> is_opseq_zopseq
   | LetLineZP(_) => None
-  | LetLineZE(_, zdef) => zdef |> is_opseq
+  | LetLineZE(_, zdef) => zdef |> is_zopseq
 and is_opseq_zopseq =
   fun
   | ZOpSeq(_, ZOperand(_, (prefix, _)) as zseq) =>
     switch (prefix) {
-    | Seq.A(Space, _) => Some(zseq)
+    | Seq.A(_, _) => Some(zseq)
     | _ => None
     }
   | ZOpSeq(_, ZOperator(_, _) as zseq) => Some(zseq);
