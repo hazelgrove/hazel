@@ -73,7 +73,7 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
-  let mk_quotation = (~index: int, delim_text: string): t =>
+  let quote_doc = (~index: int, delim_text: string): t =>
     Doc.annot(
       UHAnnot.mk_Token(
         ~len=StringUtil.utf8_length(delim_text),
@@ -82,9 +82,8 @@ module Delim = {
       ),
       Doc.annot(UHAnnot.String, Doc.text(delim_text)),
     );
-
-  let open_StringLit = (): t => mk_quotation(~index=0, "\"");
-  let close_StringLit = (): t => mk_quotation(~index=1, "\"");
+  let open_StringLit = (): t => quote_doc(~index=0, "\"");
+  let close_StringLit = (): t => quote_doc(~index=1, "\"");
 
   let open_List = (): t => mk(~index=0, "[");
   let close_List = (): t => mk(~index=1, "]");
@@ -140,159 +139,11 @@ let annot_InvalidSeq = (s: string): t =>
 
 let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
-let mk_text = (~start_idx=0, s: string): t =>
+let mk_text = (s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(
-      ~shape=Text({start_idx: start_idx}),
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
+    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
     Doc.text(s),
   );
-
-let mk_text_str = (~start_idx=0, s: string): t => {
-  Doc.annot(
-    UHAnnot.mk_Token(
-      ~shape=Text({start_idx: start_idx}),
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
-    Doc.annot(UHAnnot.String, Doc.text(s)),
-  );
-};
-
-let rec mk_text_string_rec = (~start_idx=0, s: string): t =>
-  if (List.length(String.split_on_char('\\', s)) <= 1) {
-    mk_text_str(~start_idx, s);
-  } else if (StringUtil.is_empty(s)) {
-    mk_text_str(~start_idx, "");
-  } else if (String.length(s) == 1) {
-    if (s == "\\") {
-      annot_InvalidSeq(s);
-    } else {
-      mk_text_str(~start_idx, s);
-    };
-  } else {
-    switch (String.sub(s, 0, 1)) {
-    | "\\" =>
-      switch (String.sub(s, 1, 1)) {
-      | "b"
-      | "t"
-      | "r"
-      | "n"
-      | " "
-      | "\\"
-      | "\""
-      | "'" =>
-        Doc.hcat(
-          annot_ValidSeq(String.sub(s, 0, 2)),
-          mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-        )
-      | "o" =>
-        if (String.length(s) >= 5) {
-          let ch1 = s.[2];
-          let ch2 = s.[3];
-          let ch3 = s.[4];
-          if ((ch1 >= '0' && ch1 <= '7')
-              && (ch2 >= '0' && ch2 <= '7')
-              && ch3 >= '0'
-              && ch3 <= '7') {
-            if (ch1 <= '3') {
-              Doc.hcat(
-                annot_ValidSeq(String.sub(s, 0, 5)),
-                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
-              );
-            } else {
-              Doc.hcat(
-                annot_InvalidSeq(String.sub(s, 0, 5)),
-                mk_text_string_rec(String.sub(s, 5, String.length(s) - 5)),
-              );
-            };
-          } else {
-            Doc.hcat(
-              annot_InvalidSeq(String.sub(s, 0, 2)),
-              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-            );
-          };
-        } else {
-          Doc.hcat(
-            annot_InvalidSeq(String.sub(s, 0, 2)),
-            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-          );
-        }
-      | "x" =>
-        if (String.length(s) >= 4) {
-          let ch1 = Char.lowercase_ascii(s.[2]);
-          let ch2 = Char.lowercase_ascii(s.[3]);
-          if ((ch1 >= '0' && ch1 <= '9' || ch1 >= 'a' && ch1 <= 'f')
-              && (ch2 >= '0' && ch2 <= '9' || ch2 >= 'a' && ch2 <= 'f')) {
-            Doc.hcat(
-              annot_ValidSeq(String.sub(s, 0, 4)),
-              mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
-            );
-          } else {
-            Doc.hcat(
-              annot_InvalidSeq(String.sub(s, 0, 2)),
-              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-            );
-          };
-        } else {
-          Doc.hcat(
-            annot_InvalidSeq(String.sub(s, 0, 2)),
-            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-          );
-        }
-      | _ =>
-        let ch1 = s.[1];
-        if (String.length(s) >= 4) {
-          let ch2 = s.[2];
-          let ch3 = s.[3];
-          if ((ch1 >= '0' && ch1 <= '9')
-              && (ch2 >= '0' && ch2 <= '9')
-              && ch3 >= '0'
-              && ch3 <= '9') {
-            if (int_of_string(String.sub(s, 1, 3)) < 256) {
-              Doc.hcat(
-                annot_ValidSeq(String.sub(s, 0, 4)),
-                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
-              );
-            } else {
-              Doc.hcat(
-                annot_InvalidSeq(String.sub(s, 0, 4)),
-                mk_text_string_rec(String.sub(s, 4, String.length(s) - 4)),
-              );
-            };
-          } else {
-            Doc.hcat(
-              annot_InvalidSeq(String.sub(s, 0, 2)),
-              mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-            );
-          };
-        } else {
-          Doc.hcat(
-            annot_InvalidSeq(String.sub(s, 0, 2)),
-            mk_text_string_rec(String.sub(s, 2, String.length(s) - 2)),
-          );
-        };
-      }
-    | _ =>
-      Doc.hcat(
-        mk_text_str(~start_idx, String.sub(s, 0, 1)),
-        mk_text_string_rec(String.sub(s, 1, String.length(s) - 1)),
-      )
-    };
-  };
-
-let mk_text_string = (~start_idx=0, s: string): t => {
-  Doc.annot(
-    UHAnnot.mk_Token(
-      ~shape=Text({start_idx: start_idx}),
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
-    mk_text_string_rec(~start_idx, s),
-  );
-};
 
 let mk_op = (op_text: string): t =>
   Doc.annot(
@@ -489,30 +340,7 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  let lines =
-    s
-    |> String.split_on_char('\n')
-    |> ListUtil.map_with_accumulator(
-         ((start_idx, line_no), line) =>
-           (
-             (start_idx + StringUtil.utf8_length(line) + 1, line_no + 1),
-             if (line_no == 0) {
-               mk_text_string(~start_idx, line);
-             } else {
-               Doc.hcats([
-                 annot_Padding(space_),
-                 mk_text_string(~start_idx, line),
-               ]);
-             },
-           ),
-         (0, 0),
-       )
-    |> snd
-    |> ListUtil.join(Doc.linebreak());
-
-  Doc.(
-    hcats([Delim.open_StringLit(), ...lines] @ [Delim.close_StringLit()])
-  )
+  Doc.hcats([Delim.open_StringLit(), mk_text(s), Delim.close_StringLit()])
   |> annot_Tessera
   |> annot_Operand(~sort);
 };

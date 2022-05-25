@@ -6,7 +6,7 @@ type term_data = {
 
 [@deriving sexp]
 type token_shape =
-  | Text({start_idx: CharIndex.t})
+  | Text
   | Op
   | Delim(DelimIndex.t);
 [@deriving sexp]

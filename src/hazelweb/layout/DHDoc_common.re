@@ -55,6 +55,9 @@ module Delim = {
   let triv = mk("()");
   let wild = mk("_");
 
+  let open_StringLit = mk("\"");
+  let close_StringLit = mk("\"");
+
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
@@ -112,47 +115,61 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
+/* Make Doc of a string literal.
+ *
+ * TODO: Fancy indicators for special escape sequences (\n, \t, etc.)?
+ */
 let mk_StringLit = (s, errors) => {
   let rec mk_with_errors = (s, errors, idx, doc1) =>
     switch (errors) {
+    /* If no remaining errors, concatenate the remainder of the string. */
     | [] =>
       let len = String.length(s);
-      let doc2 = Doc.text(String.sub(s, idx, len - idx));
-      Doc.hcat(doc1, doc2);
+      if (len != 0) {
+        let doc2 = Doc.text(String.sub(s, idx, len - idx));
+        Doc.hcat(doc1, doc2);
+      } else {
+        doc1;
+      };
 
-    | [error, ...tl] =>
+    | [error, ...errors'] =>
       let (doc2, length) =
         switch (error) {
         | StringLitLexer.InvalidEscape({start, length}) =>
-          // Append invalid escape segment.
-          let (doc2, length) = {
-            let seg = String.sub(s, start, length);
-            (
-              Doc.text(seg) |> Doc.annot(DHAnnot.InvalidStringEscape),
-              length,
-            );
-          };
+          /* Get valid segment up until error, if there is one. */
+          let (doc2, length') =
+            if (start > idx) {
+              let seg = String.sub(s, idx, start - idx);
+              (Some(Doc.text(seg)), length + start - idx);
+            } else {
+              (None, length);
+            };
 
-          // Prepend valid segment, if there is one.
-          if (start > idx) {
-            let seg = String.sub(s, idx, start - idx);
-            (Doc.hcat(Doc.text(seg), doc2), length + start - idx);
-          } else {
-            (doc2, length);
-          };
+          /* Append invalid escape segment. */
+          let err_doc = Doc.text(String.sub(s, start, length));
+          let doc2 =
+            doc2
+            |> Option.map(doc2 => Doc.hcat(doc2, err_doc))
+            |> Option.value(~default=err_doc)
+            |> Doc.annot(DHAnnot.InvalidStringEscape);
+          (doc2, length');
         };
 
       let doc1 = Doc.hcat(doc1, doc2);
-      mk_with_errors(s, tl, idx + length, doc1);
+      mk_with_errors(s, errors', idx + length, doc1);
     };
 
-  switch (errors) {
-  | [] => Doc.text("\"" ++ UnescapedString.to_string(s) ++ "\"")
-  | _ =>
-    let s = s |> UnescapedString.to_string;
-    let doc1 = mk_with_errors(s, errors, 0, Doc.text("\""));
-    Doc.hcat(doc1, Doc.text("\""));
-  };
+  let inner =
+    switch (errors) {
+    /* If there no errors, convert to normal string. */
+    | [] => Doc.text(UnescapedString.to_string(s))
+    /* Otherwise, if there are errors, build in segments. */
+    | _ =>
+      let s = s |> UnescapedString.to_string;
+      mk_with_errors(s, errors, 0, Doc.text(""));
+    };
+
+  Doc.hcats([Delim.open_StringLit, inner, Delim.close_StringLit]);
 };
 
 let mk_Inj = (inj_side, padded_child) =>
