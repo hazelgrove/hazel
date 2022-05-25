@@ -69,7 +69,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   /* TODO (typ-app): |@|[UHTyp]| */
-  | TypArg(_, _) => CursorPosition.delim_cursors(2)
+  | TypArg(_, _) => CursorPosition.delim_cursors(1)
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
@@ -210,7 +210,8 @@ and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
-  | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
+  | CursorE(cursor, ListNil(_))
+  | CursorE(cursor, TypArg(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
@@ -220,7 +221,6 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Fun(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
-  | CursorE(cursor, TypArg(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -297,7 +297,8 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_) => CursorE(OnDelim(0, Before), operand)
+  | ListNil(_)
+  | TypArg(_) => CursorE(OnDelim(0, Before), operand)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
@@ -305,7 +306,6 @@ and place_before_operand = operand =>
   | BoolLit(_) => CursorE(OnText(0), operand)
   | Fun(_)
   | Inj(_)
-  | TypArg(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   };
@@ -335,7 +335,8 @@ and place_after_opseq = opseq =>
 and place_after_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-  | ListNil(_) => CursorE(OnDelim(0, After), operand)
+  | ListNil(_)
+  | TypArg(_) => CursorE(OnDelim(0, After), operand)
   | InvalidText(_, t) => CursorE(OnText(String.length(t)), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
   | IntLit(_, n) => CursorE(OnText(String.length(n)), operand)
@@ -345,7 +346,6 @@ and place_after_operand = operand =>
   | Fun(_) => CursorE(OnDelim(2, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
-  | TypArg(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>

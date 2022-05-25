@@ -315,13 +315,12 @@ let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
 // TODO (typ-app): need to render UHTyp.t with "@"
-let mk_TypArg = (~sort: TermSort.t, _ty: UHTyp.t): t => {
-  // let ty_child =
-  //   memoize((~memoize: bool, ~enforce_inline: bool, ty: UHTyp.t) =>
-  //     UHDoc_Typ.mk_child(~memoize, ~enforce_inline, ~child_step=0, ty)
-  //   );
-  Delim.mk(~index=0, "@") |> annot_Tessera |> annot_Operand(~sort);
+let mk_TypArg = (~sort: TermSort.t, ty: formatted_child): t => {
+  let at_sign = Delim.mk(~index=0, "@") |> annot_Tessera;
+  Doc.hcats([at_sign, ty |> pad_left_delimited_open_child])
+  |> annot_Operand(~sort);
 };
+
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
   let close_group = Delim.close_Parenthesized() |> annot_Tessera;
