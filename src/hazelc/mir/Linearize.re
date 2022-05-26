@@ -1,3 +1,4 @@
+[@deriving sexp]
 type error =
   | NotImplemented
   | WrongType
@@ -13,7 +14,7 @@ let mk_bind = (p: Anf.pat, rec_flag: Anf.rec_flag, c: Anf.comp) =>
 
 let mk_bind_var = (x: Var.t, rec_flag: Anf.rec_flag, c: Anf.comp) => (
   Anf.Imm.mk_var(x, c),
-  mk_bind({pat_kind: PVar(x), pat_indet: false}, rec_flag, c),
+  mk_bind({pat_kind: PVar(x), pat_indet: true}, rec_flag, c),
 );
 
 let mk_bind_var_tmp =
@@ -32,9 +33,8 @@ let convert_bind = (bn: bind): Anf.stmt => {
   };
 };
 
-/* We maintain a mapping from variables to indet-ness during the linearization
- * process. */
-type indet_context = VarMap.t_((Var.t, Anf.has_indet));
+/** Context of variable remappings (e.g. x -> t124_x). */
+type var_remapping = VarMap.t_(Var.t);
 
 let rec linearize_prog = (d: Hir.expr, ictx, t_gen): (Anf.prog, TmpVarGen.t) => {
   let (im, im_binds, t_gen) = linearize_exp(d, ictx, t_gen);
@@ -48,17 +48,17 @@ and linearize_exp =
     (d: Hir.expr, ictx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d.expr_kind) {
   | EBoundVar(ty, x) =>
-    let (x', x_indet) =
+    let x' =
       switch (VarMap.lookup(ictx, x)) {
-      | Some((x', x_indet)) => (x', x_indet)
+      | Some(x') => x'
       | None => raise(Exception(FreeBoundVar(x)))
       };
 
-    ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: x_indet}, [], t_gen);
+    ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: true}, [], t_gen);
 
   | ELet(dp, d1, d2) =>
     let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
-    let (p, ictx', t_gen) = linearize_pat(dp, im1.imm_indet, ictx, t_gen);
+    let (p, ictx', t_gen) = linearize_pat(dp, ictx, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, ictx', t_gen);
 
     let binds =
@@ -66,7 +66,7 @@ and linearize_exp =
     (im2, binds, t_gen);
 
   | ELam(dp, dp_ty, body) =>
-    let (p, ictx, t_gen) = linearize_pat(dp, true, ictx, t_gen);
+    let (p, ictx, t_gen) = linearize_pat(dp, ictx, t_gen);
     let (body, t_gen) = linearize_prog(body, ictx, t_gen);
 
     let lam: Anf.comp = {
@@ -98,31 +98,31 @@ and linearize_exp =
     (ap_var, binds, t_gen);
 
   | EBoolLit(b) => (
-      {imm_kind: IConst(ConstBool(b)), imm_ty: Bool, imm_indet: false},
+      {imm_kind: IConst(ConstBool(b)), imm_ty: Bool, imm_indet: true},
       [],
       t_gen,
     )
 
   | EIntLit(i) => (
-      {imm_kind: IConst(ConstInt(i)), imm_ty: Int, imm_indet: false},
+      {imm_kind: IConst(ConstInt(i)), imm_ty: Int, imm_indet: true},
       [],
       t_gen,
     )
 
   | EFloatLit(f) => (
-      {imm_kind: IConst(ConstFloat(f)), imm_ty: Float, imm_indet: false},
+      {imm_kind: IConst(ConstFloat(f)), imm_ty: Float, imm_indet: true},
       [],
       t_gen,
     )
 
   | ENil(ty) => (
-      {imm_kind: IConst(ConstNil(ty)), imm_ty: List(ty), imm_indet: false},
+      {imm_kind: IConst(ConstNil(ty)), imm_ty: List(ty), imm_indet: true},
       [],
       t_gen,
     )
 
   | ETriv => (
-      {imm_kind: IConst(ConstTriv), imm_ty: Prod([]), imm_indet: false},
+      {imm_kind: IConst(ConstTriv), imm_ty: Prod([]), imm_indet: true},
       [],
       t_gen,
     )
@@ -284,20 +284,16 @@ and linearize_bin_op =
  * pattern alone, irrespective of the matchee.
  */
 and linearize_pat =
-    (p: Hir.pat, d_indet: Anf.has_indet, ictx, t_gen)
-    : (Anf.pat, indet_context, TmpVarGen.t) => {
-  linearize_pat_hole(p, d_indet, false, ictx, t_gen);
+    (p: Hir.pat, ictx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
+  linearize_pat_hole(p, ictx, t_gen);
 }
 
 and linearize_pat_hole =
-    (p: Hir.pat, d_indet: Anf.has_indet, in_hole: bool, ictx, t_gen)
-    : (Anf.pat, indet_context, TmpVarGen.t) => {
+    (p: Hir.pat, ictx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
   switch (p.pat_kind) {
   | PPair(p1, p2) =>
-    let (p1, ictx, t_gen) =
-      linearize_pat_hole(p1, d_indet, in_hole, ictx, t_gen);
-    let (p2, ictx, t_gen) =
-      linearize_pat_hole(p2, d_indet, in_hole, ictx, t_gen);
+    let (p1, ictx, t_gen) = linearize_pat_hole(p1, ictx, t_gen);
+    let (p2, ictx, t_gen) = linearize_pat_hole(p2, ictx, t_gen);
     (
       {pat_kind: PPair(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
       ictx,
@@ -305,10 +301,8 @@ and linearize_pat_hole =
     );
 
   | PCons(p1, p2) =>
-    let (p1, ictx, t_gen) =
-      linearize_pat_hole(p1, d_indet, in_hole, ictx, t_gen);
-    let (p2, ictx, t_gen) =
-      linearize_pat_hole(p2, d_indet, in_hole, ictx, t_gen);
+    let (p1, ictx, t_gen) = linearize_pat_hole(p1, ictx, t_gen);
+    let (p2, ictx, t_gen) = linearize_pat_hole(p2, ictx, t_gen);
     (
       {pat_kind: PCons(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
       ictx,
@@ -317,28 +311,27 @@ and linearize_pat_hole =
 
   | PInj(side, p') =>
     let side = linearize_inj_side(side);
-    let (p', ictx, t_gen) =
-      linearize_pat_hole(p', d_indet, in_hole, ictx, t_gen);
+    let (p', ictx, t_gen) = linearize_pat_hole(p', ictx, t_gen);
     ({pat_kind: PInj(side, p'), pat_indet: p'.pat_indet}, ictx, t_gen);
 
-  | PWild => ({pat_kind: PWild, pat_indet: false}, ictx, t_gen)
+  | PWild => ({pat_kind: PWild, pat_indet: true}, ictx, t_gen)
 
   | PVar(x) =>
     // Mark x as indet whenever the matchee is indet or the pattern is inside a
     // pattern hole.
     let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
-    let ictx = VarMap.extend(ictx, (x, (x', d_indet || in_hole)));
-    ({pat_kind: PVar(x'), pat_indet: false}, ictx, t_gen);
+    let ictx = VarMap.extend(ictx, (x, x'));
+    ({pat_kind: PVar(x'), pat_indet: true}, ictx, t_gen);
 
-  | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: false}, ictx, t_gen)
+  | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: true}, ictx, t_gen)
 
-  | PFloatLit(f) => ({pat_kind: PFloat(f), pat_indet: false}, ictx, t_gen)
+  | PFloatLit(f) => ({pat_kind: PFloat(f), pat_indet: true}, ictx, t_gen)
 
-  | PBoolLit(b) => ({pat_kind: PBool(b), pat_indet: false}, ictx, t_gen)
+  | PBoolLit(b) => ({pat_kind: PBool(b), pat_indet: true}, ictx, t_gen)
 
-  | PNil => ({pat_kind: PNil, pat_indet: false}, ictx, t_gen)
+  | PNil => ({pat_kind: PNil, pat_indet: true}, ictx, t_gen)
 
-  | PTriv => ({pat_kind: PTriv, pat_indet: false}, ictx, t_gen)
+  | PTriv => ({pat_kind: PTriv, pat_indet: true}, ictx, t_gen)
 
   | PEmptyHole(_)
   | PNonEmptyHole(_)
