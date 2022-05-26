@@ -1,14 +1,19 @@
-/*
-   Compiler entry point.
+/**
+ * Compiler entry point.
+ *
+ * The compiler consists a number of passes:
+ *
+ *   . Parsing: parsing source into UHExp
+ *   . Elaboration: elaborating into DHExp
+ *   . Transformation: transforming into a high-level IR (hir/Hir.rei); see hir/Transform.rei
+ *   . Linearization: linearizing into a linear, lower-level IR (mir/Anf.rei); see mir/Linearize.rei
+ *   . Optimizeation: optimize the Anf
+ *   . Code generation: generating WebAssembly (currently via Grain); see modules in codegen/grain
  */
 
 [@deriving sexp]
 type opts = {indet_analysis: option(IndetAnalysis.analysis_level)};
 
-[@deriving sexp]
-type grain_opts = Grain.opts;
-
-/* FIXME: Make these functions not take grain_opts. */
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);
 let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
 let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.expr;
@@ -16,6 +21,9 @@ let linearize: (~opts: opts, Hir.expr) => Anf.prog;
 let optimize: (~opts: opts, Anf.prog) => Anf.prog;
 let grainize: (~opts: opts, Anf.prog) => GrainIR.prog;
 let print: (~opts: opts, GrainIR.prog) => string;
+
+[@deriving sexp]
+type grain_opts = Grain.opts;
 
 let wasmize:
   (~opts: grain_opts, string, string, string) => result(unit, unit);
