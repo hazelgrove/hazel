@@ -131,7 +131,10 @@ let map_cardstacks = (f: ZCardstacks.t => ZCardstacks.t, model: t): t => {
       (
         {
           ...model.doc_study,
-          prompt: Some(ZList.prefix_length(new_cardstacks) - 1),
+          prompt:
+            Some(
+              ZList.prefix_length(ZCardstacks.get_z(new_cardstacks).zcards),
+            ),
         },
         true,
       );

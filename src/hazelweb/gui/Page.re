@@ -105,18 +105,20 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
     [ActionPanel.view(~inject, model)]
   );
-// TODO: Use the instance in doc study instead
-let sample_examples: list(Prompt.quest) =
-  List.nth(Prompt.prompts, 0).examples;
-let sample_exaplanations: list(Prompt.explain) =
-  List.nth(Prompt.prompts, 0).explanation;
-let syntactic_form_level_: int =
-  List.nth(Prompt.prompts, 0).syntactic_form_level;
 
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let _program = Model.get_program(model);
   let _selected_instance = Model.get_selected_hole_instance(model);
+  let (examples, explanations, level) =
+    switch (model.doc_study.prompt) {
+    | Some(index) =>
+      let prompt = List.nth(model.doc_study.prompts, index);
+      print_endline("KEY" ++ prompt.key);
+      (prompt.examples, prompt.explanation, prompt.syntactic_form_level);
+    | None => ([], [], 0)
+    };
+  print_endline("LEVEL: " ++ string_of_int(level));
   let explanation_info =
     ExplanationInfo.mk_explanation_info(
       Model.get_cursor_info(model).cursor_term,
@@ -146,11 +148,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               explanation_info,
             );
           } else {
-            SyntacticForm.view(
-              ~settings,
-              explanation_info,
-              syntactic_form_level_,
-            );
+            SyntacticForm.view(~settings, explanation_info, level);
           },
       ),
       (
@@ -179,7 +177,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
             CodeExplanation.view(
               ~settings=model.doc_study,
               ~inject,
-              sample_exaplanations,
+              explanations,
             );
           },
       ),
@@ -211,7 +209,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~inject,
               ~settings,
               ~font_metrics=model.font_metrics,
-              sample_examples,
+              examples,
               model.doc_study.hovered_over_example,
             );
           },

@@ -105,7 +105,7 @@ let get_decoration_paths =
     | _ => []
     };
   let explanations =
-    if (show_explanation_highlight && !settings.is_demo) {
+    if (show_explanation_highlight && !settings.is_study) {
       let explanation_info =
         ExplanationInfo.mk_explanation_info(
           get_cursor_info(program).cursor_term,

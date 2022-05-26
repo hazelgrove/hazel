@@ -190,7 +190,11 @@ and mk_cursor_path_steps_expopseq =
   print_endline("In mk_cursor_path_steps_expopseq");
   switch (skel) {
   | Placeholder(n) =>
-    let pn = Seq.nth_operand(n, seq);
+    // Renumber the skeleton for indexing (original is needed for path construction,
+    // reindexed is needed for getting nth operand)
+    let OpSeq(index_skel, _) = UHExp.mk_OpSeq(seq);
+    let index = Skel.get_root_num(index_skel);
+    let pn = Seq.nth_operand(index, seq);
     cons_all(n, mk_cursor_path_steps_expoperand(pn, term_path_steps));
   | BinOp(_, _, operator, _, _) =>
     mk_cursor_path_steps_expoperator(

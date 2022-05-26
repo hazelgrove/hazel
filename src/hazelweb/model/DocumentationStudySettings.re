@@ -2,6 +2,7 @@ open Sexplib.Std;
 module Js = Js_of_ocaml.Js;
 
 type t = {
+  is_study: bool,
   is_demo: bool,
   prompt: option(int),
   prompts: list(Prompt.t),
@@ -11,6 +12,7 @@ type t = {
 };
 
 let init = {
+  is_study: true,
   is_demo: true,
   prompt: None,
   prompts: Prompt.prompts,

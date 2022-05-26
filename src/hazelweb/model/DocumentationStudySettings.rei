@@ -1,4 +1,5 @@
 type t = {
+  is_study: bool,
   is_demo: bool,
   prompt: option(int),
   prompts: list(Prompt.t),
