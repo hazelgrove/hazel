@@ -111,7 +111,7 @@ let hazelc =
       let g = Compile.resume_until_grain_text(~opts, source);
       switch (g) {
       | Ok(g) =>
-        Compile.wasmize_next(grain_output, output_filename, g)
+        Compile.wasmize(grain_output, output_filename, g)
         |> Result.map_error(() => GrainError)
       | Error(err) => Error(convert_error(err))
       };
