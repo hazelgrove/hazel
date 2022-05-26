@@ -34,7 +34,7 @@ let hazelc =
   // Open the source file.
   let source_filename = List.hd(source_filenames);
   let&i source_file = open_in(source_filename);
-  let source = Compile.Source(SourceChannel(source_file));
+  let source = Compile.Source(File(source_file));
 
   // Use a temporary file for Grain output during compilation.
   let grain_output = Filename.temp_file(prefix, "a.gr");

@@ -11,7 +11,7 @@ let opts: Compile.opts = {
 };
 
 let compile = s => {
-  switch (Compile.resume_until_grain_text(~opts, Source(SourceString(s)))) {
+  switch (Compile.resume_until_grain_text(~opts, Source(Text(s)))) {
   | Ok(g) =>
     let src_path = Filename.temp_file(temp_prefix, "a.gr");
     let out_path = Filename.temp_file(temp_prefix, "a.wasm");
