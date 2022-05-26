@@ -239,7 +239,7 @@ let apply_action =
           |> Model.get_program
           |> Program.get_uhexp
           |> (e => Compile.Parsed(e))
-          |> Compile.resume_until_grain_text(~opts)
+          |> Compile.resume_until_printed(~opts)
           |> Stdlib.Result.map_error(err =>
                err |> Compile.sexp_of_next_error |> Sexplib.Sexp.to_string
              )

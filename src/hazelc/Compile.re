@@ -181,7 +181,7 @@ let rec resume = (~opts, ~hook=stop_after_printed, state) => {
   };
 };
 
-let resume_until_dhexp = (~opts, state) => {
+let resume_until_elaborated = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
   | Ok(Some(Elaborated(_, d))) => Ok(d)
   | Ok(_) => raise(BadState)
@@ -189,7 +189,7 @@ let resume_until_dhexp = (~opts, state) => {
   };
 };
 
-let resume_until_hir = (~opts, state) => {
+let resume_until_transformed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
   | Ok(Some(Transformed(d))) => Ok(d)
   | Ok(_) => raise(BadState)
@@ -197,9 +197,9 @@ let resume_until_hir = (~opts, state) => {
   };
 };
 
-let resume_until_anf = (~opts, state) => {
+let resume_until_linearized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
-  | Ok(Some(Linearized(d))) => Ok(d)
+  | Ok(Some(Linearized(a))) => Ok(a)
   | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
@@ -213,7 +213,7 @@ let resume_until_optimized = (~opts, state) => {
   };
 };
 
-let resume_until_grain = (~opts, state) => {
+let resume_until_grainized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_grainized, state)) {
   | Ok(Some(Grainized(g))) => Ok(g)
   | Ok(_) => raise(BadState)
@@ -221,7 +221,7 @@ let resume_until_grain = (~opts, state) => {
   };
 };
 
-let resume_until_grain_text = (~opts, state) => {
+let resume_until_printed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_printed, state)) {
   | Ok(Some(Printed(g))) => Ok(g)
   | Ok(_) => raise(BadState)

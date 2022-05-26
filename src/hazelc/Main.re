@@ -93,12 +93,12 @@ let hazelc =
   let res =
     switch (action) {
     | DHExp =>
-      Compile.resume_until_dhexp(~opts, source)
+      Compile.resume_until_elaborated(~opts, source)
       |> Result.map(write_sexp_output(DHExp.sexp_of_t))
       |> Result.map_error(convert_error)
 
     | Hir =>
-      Compile.resume_until_hir(~opts, source)
+      Compile.resume_until_transformed(~opts, source)
       |> Result.map(write_sexp_output(Hir.sexp_of_expr))
       |> Result.map_error(convert_error)
 
@@ -108,13 +108,13 @@ let hazelc =
       |> Result.map_error(convert_error)
 
     | Grain =>
-      Compile.resume_until_grain_text(~opts, source)
+      Compile.resume_until_printed(~opts, source)
       |> Result.map(write_output)
       |> Result.map_error(convert_error)
 
     | Wasm
     | Wat =>
-      let g = Compile.resume_until_grain_text(~opts, source);
+      let g = Compile.resume_until_printed(~opts, source);
       switch (g) {
       | Ok(g) =>
         Compile.wasmize(~opts=grain_opts, grain_output, output_filename, g)

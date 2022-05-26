@@ -86,17 +86,20 @@ exception BadState;
 /*
    Resume from a given state until DHExp.
  */
-let resume_until_dhexp: (~opts: opts, state) => result(DHExp.t, next_error);
+let resume_until_elaborated:
+  (~opts: opts, state) => result(DHExp.t, next_error);
 
 /*
    Resume from a given state until Hir.
  */
-let resume_until_hir: (~opts: opts, state) => result(Hir.expr, next_error);
+let resume_until_transformed:
+  (~opts: opts, state) => result(Hir.expr, next_error);
 
 /*
    Resume from a given state until Anf.
  */
-let resume_until_anf: (~opts: opts, state) => result(Anf.prog, next_error);
+let resume_until_linearized:
+  (~opts: opts, state) => result(Anf.prog, next_error);
 
 /*
    Resume from a given state until optimized Anf.
@@ -107,11 +110,10 @@ let resume_until_optimized:
 /*
    Resume from a given state until Grain IR.
  */
-let resume_until_grain:
+let resume_until_grainized:
   (~opts: opts, state) => result(GrainIR.prog, next_error);
 
 /*
    Resume from a given state until textual Grain.
  */
-let resume_until_grain_text:
-  (~opts: opts, state) => result(string, next_error);
+let resume_until_printed: (~opts: opts, state) => result(string, next_error);
