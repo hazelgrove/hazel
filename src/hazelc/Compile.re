@@ -6,25 +6,10 @@ module Parsing = Hazeltext.Parsing;
 exception BadState;
 
 [@deriving sexp]
-type grain_opts = Grain.opts;
+type opts = {indet_analysis: option(IndetAnalysis.analysis_level)};
 
 [@deriving sexp]
-type opts = {
-  indet_analysis: option(IndetAnalysis.analysis_level),
-  grain: grain_opts,
-};
-
-let default_opts = {
-  indet_analysis: Some(Local),
-  grain: {
-    grain: None,
-    // TODO: Fix this to include Hazel lib files.
-    includes: None,
-    optimize: None,
-    debug: None,
-    wat: None,
-  },
-};
+type grain_opts = Grain.opts;
 
 let _parse = (source: Source.t) =>
   source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
@@ -45,28 +30,23 @@ let _grainize = GrainCodegen.codegen;
 
 let _print = GrainPrint.print;
 
-let _wasmize = (~opts=default_opts, src_path, out_path, g) => {
+let _wasmize = (~opts, src_path, out_path, g) => {
   let f = open_out(src_path);
   Printf.fprintf(f, "%s\n", g);
   close_out(f);
 
-  switch (
-    Grain.compile(
-      ~opts=opts.grain,
-      {file: src_path, output: Some(out_path)},
-    )
-  ) {
+  switch (Grain.compile(~opts, {file: src_path, output: Some(out_path)})) {
   | Ok(_) => Ok()
   | Error(_) => Error()
   };
 };
 
-let parse = (~opts=default_opts, source) => {
+let parse = (~opts, source) => {
   let _ = opts;
   _parse(source);
 };
 
-let elaborate = (~opts=default_opts, e) => {
+let elaborate = (~opts, e) => {
   let _ = opts;
   switch (_elaborate(e)) {
   | (ctx, Elaborates(d, _ty, _delta)) => Ok((ctx, d))
@@ -74,34 +54,34 @@ let elaborate = (~opts=default_opts, e) => {
   };
 };
 
-let transform = (~opts=default_opts, ctx, d) => {
+let transform = (~opts, ctx, d) => {
   let _ = opts;
   _transform(ctx, d);
 };
 
-let linearize = (~opts=default_opts, d) => {
+let linearize = (~opts, d) => {
   let _ = opts;
   _linearize(d);
 };
 
-let optimize = (~opts=default_opts, a) => {
+let optimize = (~opts, a) => {
   switch (opts.indet_analysis) {
   | Some(level) => _indet_analyze(level, a)
   | None => a
   };
 };
 
-let grainize = (~opts=default_opts, a) => {
+let grainize = (~opts, a) => {
   let _ = opts;
   _grainize(a);
 };
 
-let print = (~opts=default_opts, g) => {
+let print = (~opts, g) => {
   let _ = opts;
   _print(g);
 };
 
-let wasmize = (~opts=default_opts, src_path, out_path, g) =>
+let wasmize = (~opts, src_path, out_path, g) =>
   _wasmize(~opts, src_path, out_path, g);
 
 [@deriving sexp]
@@ -123,7 +103,7 @@ type next_error =
 [@deriving sexp]
 type next_result = result(option(state), next_error);
 
-let next = (~opts=default_opts, state): next_result => {
+let next = (~opts, state): next_result => {
   switch (state) {
   | Source(source) =>
     parse(~opts, source)
@@ -189,7 +169,7 @@ let stop_after_printed =
   | Printed(_) => Stop
   | state => Continue(state);
 
-let rec resume = (~opts=default_opts, ~hook=stop_after_printed, state) => {
+let rec resume = (~opts, ~hook=stop_after_printed, state) => {
   switch (next(~opts, state)) {
   | Ok(Some(state)) =>
     switch (hook(state)) {
@@ -201,7 +181,7 @@ let rec resume = (~opts=default_opts, ~hook=stop_after_printed, state) => {
   };
 };
 
-let resume_until_dhexp = (~opts=default_opts, state) => {
+let resume_until_dhexp = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
   | Ok(Some(Elaborated(_, d))) => Ok(d)
   | Ok(_) => raise(BadState)
@@ -209,7 +189,7 @@ let resume_until_dhexp = (~opts=default_opts, state) => {
   };
 };
 
-let resume_until_hir = (~opts=default_opts, state) => {
+let resume_until_hir = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
   | Ok(Some(Transformed(d))) => Ok(d)
   | Ok(_) => raise(BadState)
@@ -217,7 +197,7 @@ let resume_until_hir = (~opts=default_opts, state) => {
   };
 };
 
-let resume_until_anf = (~opts=default_opts, state) => {
+let resume_until_anf = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
   | Ok(Some(Linearized(d))) => Ok(d)
   | Ok(_) => raise(BadState)
@@ -225,7 +205,7 @@ let resume_until_anf = (~opts=default_opts, state) => {
   };
 };
 
-let resume_until_optimized = (~opts=default_opts, state) => {
+let resume_until_optimized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_optimized, state)) {
   | Ok(Some(Optimized(a))) => Ok(a)
   | Ok(_) => raise(BadState)
@@ -233,7 +213,7 @@ let resume_until_optimized = (~opts=default_opts, state) => {
   };
 };
 
-let resume_until_grain = (~opts=default_opts, state) => {
+let resume_until_grain = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_grainized, state)) {
   | Ok(Some(Grainized(g))) => Ok(g)
   | Ok(_) => raise(BadState)
@@ -241,7 +221,7 @@ let resume_until_grain = (~opts=default_opts, state) => {
   };
 };
 
-let resume_until_grain_text = (~opts=default_opts, state) => {
+let resume_until_grain_text = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_printed, state)) {
   | Ok(Some(Printed(g))) => Ok(g)
   | Ok(_) => raise(BadState)

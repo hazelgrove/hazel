@@ -1,14 +1,12 @@
 let temp_prefix = "hazelc_test";
 
-let opts: Compile.opts = {
-  indet_analysis: Some(Local),
-  grain: {
-    grain: None,
-    optimize: None,
-    includes: None,
-    debug: None,
-    wat: None,
-  },
+let opts: Compile.opts = {indet_analysis: Some(Local)};
+let grain_opts: Compile.grain_opts = {
+  grain: None,
+  optimize: None,
+  includes: None,
+  debug: None,
+  wat: None,
 };
 
 let compile = s => {
@@ -17,7 +15,7 @@ let compile = s => {
     let src_path = Filename.temp_file(temp_prefix, "a.gr");
     let out_path = Filename.temp_file(temp_prefix, "a.wasm");
 
-    switch (Compile.wasmize(~opts, src_path, out_path, g)) {
+    switch (Compile.wasmize(~opts=grain_opts, src_path, out_path, g)) {
     | Ok () => out_path
     | Error () => failwith("wasm compilation failed")
     };
@@ -32,7 +30,7 @@ let compile = s => {
 
 let compile_run = exp => {
   let out_path = compile(exp);
-  switch (Grain.run(~opts=opts.grain, {wasm: out_path})) {
+  switch (Grain.run(~opts=grain_opts, {wasm: out_path})) {
   | Ok(output) => output
   | Error(_) => failwith("execution failed")
   };

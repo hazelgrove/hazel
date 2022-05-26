@@ -46,15 +46,14 @@ let hazelc =
     | None => Some(IndetAnalysis.Local)
     | Some(_) => None
     };
-  let opts: Compile.opts = {
-    indet_analysis,
-    grain: {
-      grain: None,
-      includes: None,
-      wat: Some(action == Wat),
-      optimize,
-      debug: Some(debug),
-    },
+
+  let opts: Compile.opts = {indet_analysis: indet_analysis};
+  let grain_opts: Compile.grain_opts = {
+    grain: None,
+    includes: None,
+    wat: Some(action == Wat),
+    optimize,
+    debug: Some(debug),
   };
 
   // Use the given output filename, or use "a.{ext}" where {ext} depends on
@@ -118,7 +117,7 @@ let hazelc =
       let g = Compile.resume_until_grain_text(~opts, source);
       switch (g) {
       | Ok(g) =>
-        Compile.wasmize(grain_output, output_filename, g)
+        Compile.wasmize(~opts=grain_opts, grain_output, output_filename, g)
         |> Result.map_error(() => GrainError)
       | Error(err) => Error(convert_error(err))
       };
