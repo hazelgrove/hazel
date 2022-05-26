@@ -247,8 +247,16 @@ and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
   switch (operand) {
-  /* TypArgs shouln't be elaborated */
-  | TypArg(_, _) => DoesNotElaborate
+  /* TODO (typ-app): TypArgs is treated as a dummy hole at this point (dirty work around);
+   * will be changed when switching to Eric's branch.
+   */
+  | TypArg(_, _) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = Environment.id_env(gamma);
+    let d = DHExp.EmptyHole(-1, 0, sigma);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(-1, (Delta.ExpressionHole, ty, gamma), delta);
+    Elaborates(d, ty, delta);
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
@@ -637,8 +645,16 @@ and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
-  /* TypArgs shouldn't be elaborated */
-  | TypArg(_, _) => DoesNotElaborate
+  /* TODO (typ-app): TypArgs is treated as a dummy hole at this point (dirty work around);
+   * will be changed when switching to Eric's branch.
+   */
+  | TypArg(_, _) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = Environment.id_env(gamma);
+    let d = DHExp.EmptyHole(-1, 0, sigma);
+    let ty = HTyp.Hole;
+    let delta = MetaVarMap.add(-1, (Delta.ExpressionHole, ty, gamma), delta);
+    Elaborates(d, ty, delta);
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
