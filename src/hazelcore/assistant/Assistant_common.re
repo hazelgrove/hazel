@@ -9,13 +9,9 @@ type mode =
  * we are looking for.
  */
 let extract_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
-  Contexts.vars(ctx)
+  Context.vars(ctx)
   |> List.filter_map(((_, x, ty_x)) =>
-       if (HTyp.consistent(ctx, HTyp.of_unsafe(ty_x), ty)) {
-         Some((x, HTyp.of_unsafe(ty_x)));
-       } else {
-         None;
-       }
+       HTyp.consistent(ctx, ty_x, ty) ? Some((x, ty_x)) : None
      );
 
 /**
@@ -31,16 +27,15 @@ let fun_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) => {
       | _ => false
       };
     };
-  let can_extract = ((_, _, ty: HTypSyntax.t(Index.absolute))) => {
-    switch (HTyp.head_normalize(ctx, HTyp.of_unsafe(ty))) {
+  let can_extract = ((_, _, ty: HTyp.t)) => {
+    switch (HTyp.head_normalize(ctx, ty)) {
     | Arrow(_, ty2) => compatible_funs(ty2)
     | _ => false
     };
   };
-  Contexts.vars(ctx)
-  |> List.filter_map(
-       ((_, x: Var.t, ty: HTypSyntax.t(Index.absolute)) as var) =>
-       can_extract(var) ? Some((x, HTyp.of_unsafe(ty))) : None
+  Context.vars(ctx)
+  |> List.filter_map(((_, x: Var.t, ty: HTyp.t) as var) =>
+       can_extract(var) ? Some((x, ty)) : None
      );
 };
 
@@ -66,7 +61,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | SynErrorArrow(_, actual)
   | SynMatchingArrow(actual, _) => (
-      Some(HTyp.hole),
+      Some(HTyp.hole()),
       Some(actual),
       Synthetic,
     )
@@ -74,17 +69,17 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(HTyp.hole), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(HTyp.hole()), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(HTyp.hole), Some(HTyp.hole), Synthetic)
+  | SynKeyword(_) => (Some(HTyp.hole()), Some(HTyp.hole()), Synthetic)
 
   | SynBranchClause(join, typed, _, ctx) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(ctx, ty, got_ty)) {
-        (Some(HTyp.hole), Some(got_ty), Synthetic);
+        (Some(HTyp.hole()), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
@@ -92,8 +87,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (
-      Some(HTyp.hole),
-      Some(HTyp.hole),
+      Some(HTyp.hole()),
+      Some(HTyp.hole()),
       Synthetic,
     )
 
@@ -109,15 +104,15 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(HTyp.hole), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (Some(HTyp.hole()), Some(actual), Synthetic)
 
-  | PatSynKeyword(_) => (Some(HTyp.hole), Some(HTyp.hole), Synthetic)
+  | PatSynKeyword(_) => (Some(HTyp.hole()), Some(HTyp.hole()), Synthetic)
 
   | OnTPat(_) => (None, None, UnknownMode)
-  | OnTPatHole => (None, Some(HTyp.hole), UnknownMode)
+  | OnTPatHole => (None, Some(HTyp.hole()), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
-  | TypFree => (None, Some(HTyp.hole), UnknownMode)
+  | TypFree => (None, Some(HTyp.hole()), UnknownMode)
 
   | OnType(_)
   | OnNonLetLine

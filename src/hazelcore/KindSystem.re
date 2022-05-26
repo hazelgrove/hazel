@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-module rec HTyp: {
+module HTyp_syntax: {
   [@deriving sexp]
   type t('idx) =
     | Hole
@@ -13,19 +13,8 @@ module rec HTyp: {
     | List(t('idx))
     | TyVar(Index.t('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
-
-  [@deriving sexp]
-  type rel = t(Index.relative);
-
-  [@deriving sexp]
-  type abs = t(Index.absolute);
-
-  let to_rel: (~offset: int=?, abs) => rel;
-  let to_abs: (~offset: int=?, rel) => abs;
-
-  let equal: (t('idx), t('idx)) => bool;
-  let equivalent: (Context.t, abs, abs) => bool;
-
+  let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
+  let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
   let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
   let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
 } = {
@@ -42,13 +31,8 @@ module rec HTyp: {
     | TyVar(Index.t('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
-  [@deriving sexp]
-  type rel = t(Index.relative);
-
-  [@deriving sexp]
-  type abs = t(Index.absolute);
-
-  let rec to_rel = (~offset: int=0, ty: abs): rel =>
+  let rec to_rel =
+          (~offset: int=0, ty: t(Index.absolute)): t(Index.relative) =>
     switch (ty) {
     | TyVar(i, name) => TyVar(Index.Abs.to_rel(~offset, i), name)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
@@ -62,7 +46,8 @@ module rec HTyp: {
     | List(ty) => List(to_rel(~offset, ty))
     };
 
-  let rec to_abs = (~offset: int=0, ty: rel): abs =>
+  let rec to_abs =
+          (~offset: int=0, ty: t(Index.relative)): t(Index.absolute) =>
     switch (ty) {
     | TyVar(i, name) => TyVar(Index.Rel.to_abs(~offset, i), name)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
@@ -74,38 +59,6 @@ module rec HTyp: {
     | Sum(tyL, tyR) => Sum(to_abs(~offset, tyL), to_abs(~offset, tyR))
     | Prod(tys) => Prod(List.map(to_abs(~offset), tys))
     | List(ty) => List(to_abs(~offset, ty))
-    };
-
-  let equal: (t('idx), t('idx)) => bool = (==);
-
-  let rec equivalent = (ctx: Context.t, ty: abs, ty': abs): bool =>
-    switch (ty, ty') {
-    | (TyVar(i, _), TyVar(i', _)) =>
-      switch (Context.tyvar_kind(ctx, i), Context.tyvar_kind(ctx, i')) {
-      | (Some(k), Some(k')) =>
-        switch (k, k') {
-        | (Hole | Type, Hole | Type) => Index.equal(i, i')
-        | (S(ty1), S(ty1')) => equivalent(ctx, ty1, ty1')
-        | (S(_), _)
-        | (_, S(_)) => false
-        }
-      | (None, _)
-      | (_, None) => false
-      }
-    | (TyVar(_), _) => false
-    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
-    | (TyVarHole(_, _, _), _) => false
-    | (Hole | Int | Float | Bool, _) => ty == ty'
-    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-      equivalent(ctx, ty1, ty1') && equivalent(ctx, ty2, ty2')
-    | (Arrow(_, _), _) => false
-    | (Sum(_, _), _) => false
-    | (Prod(tys1), Prod(tys2)) =>
-      List.for_all2(equivalent(ctx), tys1, tys2)
-    | (Prod(_), _) => false
-    | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
-    | (List(_), _) => false
     };
 
   let rec subst_tyvar =
@@ -132,122 +85,800 @@ module rec HTyp: {
       ty,
       tyvars,
     );
-}
+};
 
-and Kind: {
+module Kind_core: {
   [@deriving sexp]
-  type t('idx) =
+  type s('idx) =
     | Hole
     | Type
-    | S(HTyp.t('idx));
-
-  [@deriving sexp]
-  type rel = t(Index.relative);
-
-  [@deriving sexp]
-  type abs = t(Index.absolute);
-
-  let to_rel: (~offset: int=?, abs) => rel;
-  let to_abs: (~offset: int=?, rel) => abs;
-
-  let to_htyp: t('idx) => HTyp.t('idx);
+    | S(HTyp_syntax.t('idx));
+  let to_rel: (~offset: int=?, s(Index.absolute)) => s(Index.relative);
+  let to_abs: (~offset: int=?, s(Index.relative)) => s(Index.absolute);
 } = {
   [@deriving sexp]
-  type t('idx) =
+  type s('idx) =
     | Hole
     | Type
-    | S(HTyp.t('idx));
+    | S(HTyp_syntax.t('idx));
 
-  [@deriving sexp]
-  type rel = t(Index.relative);
-
-  [@deriving sexp]
-  type abs = t(Index.absolute);
-
-  let to_rel = (~offset: int=0, k: abs): rel =>
+  let to_rel = (~offset: int=0, k: s(Index.absolute)): s(Index.relative) =>
     switch (k) {
     | Hole => Hole
     | Type => Type
-    | S(ty) => S(HTyp.to_rel(~offset, ty))
+    | S(ty) => S(HTyp_syntax.to_rel(~offset, ty))
     };
 
-  let to_abs = (~offset: int=0, k: rel): abs =>
+  let to_abs = (~offset: int=0, k: s(Index.relative)): s(Index.absolute) =>
     switch (k) {
     | Hole => Hole
     | Type => Type
-    | S(ty) => S(HTyp.to_abs(~offset, ty))
+    | S(ty) => S(HTyp_syntax.to_abs(~offset, ty))
     };
+};
 
-  let to_htyp: t('idx) => HTyp.t('idx) =
-    fun
-    | Hole
-    | Type => Hole
-    | S(ty) => ty;
-}
-
-and Context: {
+module rec Context: {
+  [@deriving sexp]
+  type binding;
+  [@deriving sexp]
+  type t = list(binding);
+  let to_list:
+    t =>
+    (
+      list((Var.t, HTyp_syntax.t(Index.relative))),
+      list((TyVar.t, Kind_core.s(Index.relative))),
+    );
+  let tyvars: t => list((Index.Abs.t, TyVar.t, Kind.t));
+  let tyvar: (t, Index.Abs.t) => option(TyVar.t);
+  let tyvar_index: (t, TyVar.t) => option(Index.Abs.t);
+  let tyvar_kind: (t, Index.Abs.t) => option(Kind.t);
+  let add_tyvar: (t, TyVar.t, Kind.t) => t;
+  let diff_tyvars: (t, t) => list((Index.Abs.t, HTyp.t));
+  let vars: t => list((Index.Abs.t, Var.t, HTyp.t));
+  let var: (t, Index.Abs.t) => option(Var.t);
+  let var_index: (t, Var.t) => option(Index.Abs.t);
+  let var_type: (t, Var.t) => option(HTyp.t);
+  let add_var: (t, Var.t, HTyp.t) => t;
+} = {
   [@deriving sexp]
   type binding =
-    | VarBinding(Var.t, HTyp.rel)
-    | TyVarBinding(TyVar.t, Kind.rel);
+    | VarBinding(Var.t, HTyp_syntax.t(Index.relative))
+    | TyVarBinding(TyVar.t, Kind_core.s(Index.relative));
 
   [@deriving sexp]
   type t = list(binding);
 
-  let nth_var_binding: (t, int) => option((int, Var.t, HTyp.rel));
-  let nth_tyvar_binding: (t, int) => option((TyVar.t, Kind.rel));
-  let first_tyvar_binding:
-    (t, (TyVar.t, Kind.rel) => bool) => option((int, TyVar.t, Kind.rel));
+  let to_list =
+      (ctx: t)
+      : (
+          list((Var.t, HTyp_syntax.t(Index.relative))),
+          list((TyVar.t, Kind_core.s(Index.relative))),
+        ) =>
+    List.fold_right(
+      (binding, (vars, tyvars)) =>
+        switch (binding) {
+        | VarBinding(x, ty) => ([(x, ty), ...vars], tyvars)
+        | TyVarBinding(t, k) => (vars, [(t, k), ...tyvars])
+        },
+      ctx,
+      ([], []),
+    );
 
-  let tyvar_kind: (t, Index.Abs.t) => option(Kind.abs);
-} = {
-  [@deriving sexp]
-  type binding =
-    | VarBinding(Var.t, HTyp.rel)
-    | TyVarBinding(TyVar.t, Kind.rel);
-
-  [@deriving sexp]
-  type t = list(binding);
-
-  /* Returns the n-th expression variable bindings of the given context. */
-  let nth_var_binding = (ctx: t, n: int): option((int, Var.t, HTyp.rel)) => {
-    let rec go = (i, n, ctx) =>
-      switch (n, ctx) {
-      | (0, [VarBinding(x, ty), ..._]) => Some((i, x, ty))
-      | (_, [VarBinding(_), ...ctx']) => go(i, n - 1, ctx')
-      | (_, [TyVarBinding(_), ...ctx']) => go(i + 1, n, ctx')
-      | (_, []) => None
-      };
-    go(0, n, ctx);
+  let nth_var_binding =
+      (ctx: t, n: int): option((Var.t, HTyp_syntax.t(Index.relative))) => {
+    open OptUtil.Syntax;
+    let* binding = List.nth_opt(ctx, n);
+    switch (binding) {
+    | VarBinding(x, ty) => Some((x, ty))
+    | TyVarBinding(_) => None
+    };
   };
 
-  /* Returns the n-th type variable binding of the given context. */
-  let rec nth_tyvar_binding = (ctx: t, n: int): option((TyVar.t, Kind.rel)) =>
-    switch (n, ctx) {
-    | (0, [TyVarBinding(t, k), ..._]) => Some((t, k))
-    | (_, [TyVarBinding(_), ...ctx']) => nth_tyvar_binding(ctx', n - 1)
-    | (_, [VarBinding(_), ...ctx']) => nth_tyvar_binding(ctx', n)
-    | (_, []) => None
+  let nth_tyvar_binding =
+      (ctx: t, n: int): option((Var.t, Kind_core.s(Index.relative))) => {
+    open OptUtil.Syntax;
+    let* binding = List.nth_opt(ctx, n);
+    switch (binding) {
+    | TyVarBinding(t, k) => Some((t, k))
+    | VarBinding(_) => None
     };
+  };
 
-  /* Returns the first type variable binding satisfying the given function. */
-  let first_tyvar_binding =
-      (ctx: t, f: (TyVar.t, Kind.t('idx)) => bool)
-      : option((int, TyVar.t, Kind.t('idx))) => {
-    let rec go = (n, ctx) =>
+  let first_var_binding =
+      (ctx: t, f: (Var.t, HTyp_syntax.t(Index.relative)) => bool)
+      : option((int, Var.t, HTyp_syntax.t(Index.relative))) => {
+    let rec go = (i, ctx) =>
       switch (ctx) {
-      | [TyVarBinding(t, k), ...ctx'] =>
-        f(t, k) ? Some((n, t, k)) : go(n + 1, ctx')
-      | [VarBinding(_), ...ctx'] => go(n, ctx')
+      | [VarBinding(x, ty), ...ctx'] =>
+        f(x, ty) ? Some((i, x, ty)) : go(i + 1, ctx')
+      | [TyVarBinding(_), ...ctx'] => go(i + 1, ctx')
       | [] => None
       };
     go(0, ctx);
   };
 
-  let tyvar_kind = (ctx: t, idx: Index.Abs.t): option(Kind.abs) => {
+  let first_tyvar_binding =
+      (ctx: t, f: (TyVar.t, Kind_core.s(Index.relative)) => bool)
+      : option((int, TyVar.t, Kind_core.s(Index.relative))) => {
+    let rec go = (i, ctx) =>
+      switch (ctx) {
+      | [TyVarBinding(t, k), ...ctx'] =>
+        f(t, k) ? Some((i, t, k)) : go(i + 1, ctx')
+      | [VarBinding(_), ...ctx'] => go(i + 1, ctx')
+      | [] => None
+      };
+    go(0, ctx);
+  };
+
+  /* Type Variables */
+
+  let tyvars = (ctx: t): list((Index.Abs.t, TyVar.t, Kind.t)) =>
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.filter_map(
+         fun
+         | (i, TyVarBinding(t, k)) => {
+             let idx = Index.Abs.of_int(i);
+             let k = Kind_core.to_abs(~offset=i + 1, k);
+             Some((idx, t, k));
+           }
+         | (_, VarBinding(_)) => None,
+       );
+
+  let tyvar = (ctx: t, idx: Index.Abs.t): option(TyVar.t) => {
+    open OptUtil.Syntax;
+    let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(idx));
+    t;
+  };
+
+  let tyvar_index = (ctx: t, t: TyVar.t): option(Index.Abs.t) => {
+    open OptUtil.Syntax;
+    let+ (i, _, _) =
+      first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
+    Index.Abs.of_int(i);
+  };
+
+  let tyvar_kind = (ctx: t, idx: Index.Abs.t): option(Kind.t) => {
     open OptUtil.Syntax;
     let i = Index.Abs.to_int(idx);
     let+ (_, k) = nth_tyvar_binding(ctx, i);
-    Kind.to_abs(~offset=i, k);
+    Kind_core.to_abs(~offset=i, k);
   };
+
+  let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
+    TyVarBinding(t, Kind_core.to_rel(~offset=1, k)),
+    ...ctx,
+  ];
+
+  let diff_tyvars = (new_ctx: t, old_ctx: t): list((Index.Abs.t, HTyp.t)) => {
+    let new_tyvars = tyvars(new_ctx);
+    let old_tyvars = tyvars(old_ctx);
+    let n = List.length(new_tyvars) - List.length(old_tyvars);
+    ListUtil.take(new_tyvars, n)
+    |> List.map(((idx, _, k)) => (idx, Kind.to_htyp(k)));
+  };
+
+  /* Expression Variables */
+
+  let vars = (ctx: t): list((Index.Abs.t, Var.t, HTyp.t)) =>
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.filter_map(
+         fun
+         | (i, VarBinding(x, ty)) => {
+             let idx = Index.Abs.of_int(i);
+             let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
+             Some((idx, x, ty));
+           }
+         | (_, TyVarBinding(_)) => None,
+       );
+
+  let var = (ctx: t, idx: Index.Abs.t): option(Var.t) => {
+    open OptUtil.Syntax;
+    let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(idx));
+    x;
+  };
+
+  let var_index = (ctx: t, x: Var.t): option(Index.Abs.t) => {
+    open OptUtil.Syntax;
+    let+ (i, _, _) = first_var_binding(ctx, (x', _) => Var.eq(x, x'));
+    Index.Abs.of_int(i);
+  };
+
+  let var_index_type = (ctx: t, idx: Index.Abs.t): option(HTyp.t) => {
+    open OptUtil.Syntax;
+    let n = Index.Abs.to_int(idx);
+    let+ (_, ty) = nth_var_binding(ctx, n);
+    HTyp.of_syntax(HTyp_syntax.to_abs(~offset=n, ty));
+  };
+
+  let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
+    open OptUtil.Syntax;
+    let* idx = var_index(ctx, x);
+    var_index_type(ctx, idx);
+  };
+
+  let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t => [
+    VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))),
+    ...ctx,
+  ];
+}
+
+and HTyp: {
+  [@deriving sexp]
+  type t;
+
+  let to_string: t => string;
+  let to_syntax: t => HTyp_syntax.t(Index.absolute);
+  let of_syntax: HTyp_syntax.t(Index.absolute) => t;
+
+  let hole: unit => t;
+  let int: unit => t;
+  let float: unit => t;
+  let bool: unit => t;
+  let arrow: (t, t) => t;
+  let sum: (t, t) => t;
+  let product: list(t) => t;
+  let list: t => t;
+  let tyvar: (Index.Abs.t, TyVar.t) => t;
+  let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
+
+  let is_hole: t => bool;
+  let is_tyvar: t => bool;
+
+  let consistent: (Context.t, t, t) => bool;
+  let equivalent: (Context.t, t, t) => bool;
+  let complete: t => bool;
+
+  let precedence_Prod: unit => int;
+  let precedence_Arrow: unit => int;
+  let precedence_Sum: unit => int;
+  let precedence: t => int;
+
+  let matched_arrow: (Context.t, t) => option((t, t));
+  let matched_sum: (Context.t, t) => option((t, t));
+  let matched_list: (Context.t, t) => option(t);
+
+  let tyvar_index: t => option(Index.Abs.t);
+  let tyvar_name: t => option(TyVar.t);
+
+  let subst_tyvar: (t, Index.Abs.t, t) => t;
+  let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+
+  type join =
+    | GLB
+    | LUB;
+
+  let join: (Context.t, join, t, t) => option(t);
+  let join_all: (Context.t, join, list(t)) => option(t);
+
+  type normalized = HTyp_syntax.t(Index.absolute);
+
+  let of_normalized: normalized => t;
+  let normalize: (Context.t, t) => normalized;
+  let normalized_consistent: (normalized, normalized) => bool;
+  let normalized_equivalent: (normalized, normalized) => bool;
+
+  [@deriving sexp]
+  type ground_cases =
+    | Hole
+    | Ground
+    | NotGroundOrHole(normalized) /* the argument is the corresponding ground type */;
+
+  let grounded_Arrow: unit => ground_cases;
+  let grounded_Sum: unit => ground_cases;
+  let grounded_Prod: int => ground_cases;
+  let grounded_List: unit => ground_cases;
+
+  let ground_cases_of: normalized => ground_cases;
+
+  type head_normalized =
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(t, t)
+    | Sum(t, t)
+    | Prod(list(t))
+    | List(t)
+    | TyVar(Index.Abs.t, TyVar.t)
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+
+  let of_head_normalized: head_normalized => t;
+  let head_normalize: (Context.t, t) => head_normalized;
+
+  let get_prod_elements: head_normalized => list(t);
+  let get_prod_arity: head_normalized => int;
+} = {
+  [@deriving sexp]
+  type t = HTyp_syntax.t(Index.absolute);
+
+  let to_string = (ty: t): string => {
+    switch (ty) {
+    | Hole => "a"
+    | Int => "an Integer"
+    | Float => "a Float"
+    | Bool => "a Boolean"
+    | Arrow(_, _) => "a Function"
+    | Sum(_, _) => "a Sum"
+    | Prod(_) => "a Product"
+    | List(_) => "a List"
+    | TyVar(_, name) => "a " ++ name
+    | TyVarHole(_) => "a"
+    };
+  };
+
+  let to_syntax: t => HTyp_syntax.t(Index.absolute) = ty => ty;
+  let of_syntax: HTyp_syntax.t(Index.absolute) => t = ty => ty;
+
+  let hole: unit => t = () => Hole;
+  let int: unit => t = () => Int;
+  let float: unit => t = () => Float;
+  let bool: unit => t = () => Bool;
+  let arrow = (ty1: t, ty2: t): t => Arrow(ty1, ty2);
+  let sum = (tyL: t, tyR: t): t => Sum(tyL, tyR);
+  let product = (tys: list(t)): t => Prod(tys);
+  let list = (ty: t): t => List(ty);
+  let tyvar = (i: Index.Abs.t, name: string): t => TyVar(i, name);
+  let tyvarhole =
+      (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, name: TyVar.t): t =>
+    TyVarHole(reason, u, name);
+
+  let is_hole = (ty: t): bool => ty == Hole;
+
+  let is_tyvar = (ty: t): bool =>
+    switch (ty) {
+    | TyVar(_) => true
+    | _ => false
+    };
+
+  let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
+    switch (ty, ty') {
+    | (TyVar(i, _), TyVar(i', _)) =>
+      Index.equal(i, i')
+      || (
+        switch (Context.tyvar_kind(ctx, i), Context.tyvar_kind(ctx, i')) {
+        | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
+        | (None, _)
+        | (_, None) => false
+        }
+      )
+    | (TyVar(_), _) => false
+    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+    | (TyVarHole(_, _, _), _) => false
+    | (Hole | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      equivalent(ctx, ty1, ty1') && equivalent(ctx, ty2, ty2')
+    | (Arrow(_, _), _) => false
+    | (Sum(_, _), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.for_all2(equivalent(ctx), tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
+    | (List(_), _) => false
+    };
+
+  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
+    switch (ty, ty') {
+    | (TyVar(i, _), TyVar(i', _)) =>
+      switch (Context.tyvar_kind(ctx, i), Context.tyvar_kind(ctx, i')) {
+      | (Some(k), Some(k')) =>
+        consistent(
+          ctx,
+          HTyp.to_syntax(Kind.to_htyp(k)),
+          HTyp.to_syntax(Kind.to_htyp(k')),
+        )
+      | (None, _)
+      | (_, None) => false
+      }
+    | (TyVar(_) | TyVarHole(_) | Hole, _)
+    | (_, TyVar(_) | TyVarHole(_) | Hole) => true
+    | (Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      consistent(ctx, ty1, ty1') && consistent(ctx, ty2, ty2')
+    | (Arrow(_) | Sum(_), _) => false
+    | (Prod(tys), Prod(tys')) => List.for_all2(consistent(ctx), tys, tys')
+    | (Prod(_), _) => false
+    | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
+    | (List(_), _) => false
+    };
+
+  let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
+    !consistent(ctx, ty1, ty2);
+
+  let rec consistent_all = (ctx: Context.t, types: list(t)): bool =>
+    switch (types) {
+    | [] => true
+    | [hd, ...tl] =>
+      !List.exists(inconsistent(ctx, hd), tl) || consistent_all(ctx, tl)
+    };
+
+  /* complete (i.e. does not have any holes) */
+  let rec complete: t => bool =
+    fun
+    | Hole
+    | TyVarHole(_) => false
+    | TyVar(_)
+    | Int
+    | Float
+    | Bool => true
+    | Arrow(ty1, ty2)
+    | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+    | Prod(tys) => tys |> List.for_all(complete)
+    | List(ty) => complete(ty);
+
+  /* HTyp Constructor Precedence */
+
+  let precedence_Prod = () => Operators_Typ.precedence(Prod);
+  let precedence_Arrow = () => Operators_Typ.precedence(Arrow);
+  let precedence_Sum = () => Operators_Typ.precedence(Sum);
+  let precedence_const = () => Operators_Typ.precedence_const;
+  let precedence = (ty: t): int =>
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | Hole
+    | Prod([])
+    | List(_)
+    | TyVar(_)
+    | TyVarHole(_) => precedence_const()
+    | Prod(_) => precedence_Prod()
+    | Sum(_, _) => precedence_Sum()
+    | Arrow(_, _) => precedence_Arrow()
+    };
+
+  /* Type Variables */
+
+  let tyvar_index = (ty: t): option(Index.Abs.t) =>
+    switch (ty) {
+    | TyVar(i, _) => Some(i)
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | List(_) => None
+    };
+
+  let tyvar_name = (ty: t): option(string) =>
+    switch (ty) {
+    | TyVar(_, name) => Some(name)
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | List(_) => None
+    };
+
+  let subst_tyvar: (t, Index.Abs.t, t) => t = HTyp_syntax.subst_tyvar;
+  let subst_tyvars: (t, list((Index.Abs.t, t))) => t = HTyp_syntax.subst_tyvars;
+
+  /* Joins */
+
+  [@deriving sexp]
+  type join =
+    | GLB
+    | LUB;
+
+  let rec join = (ctx: Context.t, j: join, ty1: t, ty2: t): option(t) =>
+    switch (ty1, ty2) {
+    | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+    | (ty, Hole | TyVarHole(_))
+    | (Hole | TyVarHole(_), ty) =>
+      switch (j) {
+      | GLB => Some(Hole)
+      | LUB => Some(ty)
+      }
+    | (TyVar(i, _), _) =>
+      open OptUtil.Syntax;
+      let* k = Context.tyvar_kind(ctx, i);
+      switch (k) {
+      | S(ty) => join(ctx, j, ty, ty2)
+      | Hole => join(ctx, j, Hole, ty2)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 1")
+      };
+    | (_, TyVar(i, _)) =>
+      open OptUtil.Syntax;
+      let* k = Context.tyvar_kind(ctx, i);
+      switch (k) {
+      | S(ty) => join(ctx, j, ty1, ty)
+      | Hole => join(ctx, j, ty1, Hole)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 2")
+      };
+    | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      open OptUtil.Syntax;
+      let* ty1 = join(ctx, j, ty1, ty1');
+      let+ ty2 = join(ctx, j, ty2, ty2');
+      HTyp_syntax.Arrow(ty1, ty2);
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      open OptUtil.Syntax;
+      let* ty1 = join(ctx, j, ty1, ty1');
+      let+ ty2 = join(ctx, j, ty2, ty2');
+      HTyp_syntax.Sum(ty1, ty2);
+    | (Prod(tys1), Prod(tys2)) =>
+      open OptUtil.Syntax;
+      let+ joined_tys =
+        List.map2(join(ctx, j), tys1, tys2) |> OptUtil.sequence;
+      HTyp_syntax.Prod(joined_tys);
+    | (List(ty), List(ty')) =>
+      open OptUtil.Syntax;
+      let+ ty = join(ctx, j, ty, ty');
+      HTyp_syntax.List(ty);
+    | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    };
+
+  let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
+    switch (types) {
+    | [] => None
+    | [hd] => Some(hd)
+    | [hd, ...tl] =>
+      !consistent_all(ctx, types)
+        ? None
+        : List.fold_left(
+            (common_opt, ty) => {
+              open OptUtil.Syntax;
+              let* common_ty = common_opt;
+              join(ctx, j, common_ty, ty);
+            },
+            Some(hd),
+            tl,
+          )
+    };
+
+  /* HTyp Normalization */
+
+  type normalized = HTyp_syntax.t(Index.absolute);
+
+  let of_normalized: normalized => t = t => t;
+
+  /* Replaces every singleton-kinded type variable with a normalized type. */
+  let rec normalize = (ctx: Context.t, ty: t): normalized =>
+    switch (ty) {
+    | TyVar(i, _) =>
+      switch (Context.tyvar_kind(ctx, i)) {
+      | Some(S(ty1)) => normalize(ctx, ty1)
+      | Some(_) => ty
+      | None =>
+        failwith(
+          __LOC__ ++ ": unknown type variable index " ++ Index.to_string(i),
+        )
+      }
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool => ty
+    | Arrow(ty1, ty2) => Arrow(normalize(ctx, ty1), normalize(ctx, ty2))
+    | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
+    | Prod(tys) => Prod(List.map(normalize(ctx), tys))
+    | List(ty1) => List(normalize(ctx, ty1))
+    };
+
+  /* Properties of Normalized HTyp */
+
+  let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
+    switch (ty, ty') {
+    | (TyVar(i, _), TyVar(i', _)) =>
+      // normalization eliminates all type variables of singleton kind, so these
+      // must be of kind Type or KHole
+      Index.equal(i, i')
+    | (TyVar(_) | TyVarHole(_) | Hole, _)
+    | (_, TyVar(_) | TyVarHole(_) | Hole) => true
+    | (Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      normalized_consistent(ty1, ty1') && normalized_consistent(ty2, ty2')
+    | (Arrow(_) | Sum(_), _) => false
+    | (Prod(tys), Prod(tys')) =>
+      List.for_all2(normalized_consistent, tys, tys')
+    | (Prod(_), _) => false
+    | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
+    | (List(_), _) => false
+    };
+
+  let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
+    switch (ty, ty') {
+    | (TyVar(i, _), TyVar(i', _)) => Index.equal(i, i')
+    | (TyVar(_), _) => false
+    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+    | (TyVarHole(_, _, _), _) => false
+    | (Hole | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
+    | (Arrow(_, _), _) => false
+    | (Sum(_, _), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.for_all2(normalized_equivalent, tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
+    | (List(_), _) => false
+    };
+
+  /* Ground Cases */
+
+  [@deriving sexp]
+  type ground_cases =
+    | Hole
+    | Ground
+    | NotGroundOrHole(t) /* the argument is the corresponding ground type */;
+
+  let grounded_Arrow = () => NotGroundOrHole(Arrow(Hole, Hole));
+  let grounded_Sum = () => NotGroundOrHole(Sum(Hole, Hole));
+  let grounded_Prod = length =>
+    NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp_syntax.Hole)));
+  let grounded_List = () => NotGroundOrHole(List(Hole));
+
+  let ground_cases_of = (ty: normalized): ground_cases =>
+    switch (ty) {
+    | TyVarHole(_)
+    | Hole => Hole
+    | Bool
+    | Int
+    | Float
+    | Arrow(Hole, Hole)
+    | Sum(Hole, Hole)
+    | List(Hole) => Ground
+    | TyVar(_) => Ground
+    | Prod(tys) =>
+      let equiv = ty => normalized_equivalent(Hole, ty);
+      List.for_all(equiv, tys) ? Ground : tys |> List.length |> grounded_Prod;
+    | Arrow(_, _) => grounded_Arrow()
+    | Sum(_, _) => grounded_Sum()
+    | List(_) => grounded_List()
+    };
+
+  /* HTyp Head-Normalization */
+
+  type head_normalized =
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(t, t)
+    | Sum(t, t)
+    | Prod(list(t))
+    | List(t)
+    | TyVar(Index.Abs.t, TyVar.t)
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+
+  let of_head_normalized: head_normalized => t =
+    fun
+    | TyVar(i, name) => TyVar(i, name)
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Hole => Hole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+    | Sum(tyL, tyR) => Sum(tyL, tyR)
+    | Prod(tys) => Prod(tys)
+    | List(ty) => List(ty);
+
+  /* Replaces a singleton-kinded type variable with a head-normalized type. */
+  let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
+    switch (ty) {
+    | TyVar(idx, t) =>
+      switch (Context.tyvar_kind(ctx, idx)) {
+      | Some(S(ty1)) => head_normalize(ctx, ty1)
+      | Some(_) => TyVar(idx, t)
+      | None =>
+        failwith(
+          __LOC__ ++ ": unknown type variable index " ++ Index.to_string(idx),
+        )
+      }
+    | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
+    | Hole => Hole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+    | Sum(tyL, tyR) => Sum(tyL, tyR)
+    | Prod(tys) => Prod(tys)
+    | List(ty) => List(ty)
+    };
+
+  /* Matched Type Constructors */
+
+  let matched_arrow = (ctx: Context.t, ty: t): option((t, t)) =>
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((Hole, Hole))
+    | Arrow(ty1, ty2) => Some((ty1, ty2))
+    | _ => None
+    };
+
+  let matched_sum = (ctx: Context.t, ty: t): option((t, t)) =>
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((Hole, Hole))
+    | Sum(tyL, tyR) => Some((tyL, tyR))
+    | _ => None
+    };
+
+  let matched_list = (ctx: Context.t, ty: t): option(t) =>
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some(Hole)
+    | List(ty) => Some(ty)
+    | _ => None
+    };
+
+  /* Product Types */
+
+  let get_prod_elements: head_normalized => list(t) =
+    fun
+    | Prod(tys) => tys
+    | _ as ty => [of_head_normalized(ty)];
+
+  let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
+}
+
+and Kind: {
+  [@deriving sexp]
+  type t = Kind_core.s(Index.absolute);
+  let to_htyp: t => HTyp.t;
+  let singleton: HTyp.t => t;
+  let consistent_subkind: (Context.t, t, t) => bool;
+  let equivalent: (Context.t, t, t) => bool;
+  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;
+} = {
+  open Kind_core;
+
+  [@deriving sexp]
+  type t = s(Index.absolute);
+
+  /* For converting type variables to equivalent [HTyp]s while resolving local
+     type aliases. */
+  let to_htyp: t => HTyp.t =
+    fun
+    | Hole
+    | Type => HTyp.hole()
+    | S(ty) => HTyp.of_syntax(ty);
+
+  let singleton = (ty: HTyp_syntax.t(Index.absolute)): t => S(ty);
+
+  let consistent_subkind = (ctx: Context.t, k: t, k': t): bool =>
+    switch (k, k') {
+    | (Hole, _)
+    | (_, Hole) => true
+    | (S(_), Type) => true
+    | (S(ty), S(ty')) =>
+      HTyp.equivalent(ctx, HTyp.of_syntax(ty), HTyp.of_syntax(ty'))
+    | (Type, S(_)) => false
+    | (Type, Type) => true
+    };
+
+  let equivalent = (ctx: Context.t, k: t, k': t): bool =>
+    switch (k, k') {
+    | (Hole | Type, Hole | Type) => true
+    | (Hole | Type, _) => false
+    | (S(ty1), S(ty1')) =>
+      HTyp.equivalent(ctx, HTyp.of_syntax(ty1), HTyp.of_syntax(ty1'))
+    | (S(_), _) => false
+    };
+
+  let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
+    switch (k) {
+    | Hole
+    | Type => k
+    | S(ty) =>
+      S(HTyp.to_syntax(HTyp.subst_tyvars(HTyp.of_syntax(ty), tyvars)))
+    };
 };

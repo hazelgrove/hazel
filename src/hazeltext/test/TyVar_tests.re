@@ -23,7 +23,7 @@ let read_with_tyvar =
   let ctx = Context.add_tyvar(ctx, name, Kind.singleton(ty));
   // let+ e = UHExpTest.read(ctx, text);
   let+ e = UHExpTest.read(text);
-  let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int);
+  let (line, u_gen) = mk_TyAliasLine(ctx, name, HTyp.int());
   (ctx, [line, ...e], u_gen);
 };
 
@@ -40,7 +40,7 @@ let test_tyvar_actions =
       let text = Format.sprintf("let x : %s = ? in x", name);
       let* (ctx, e, u_gen) = read_with_tyvar(name, ty, text);
       let* ze = place_cursor_before_first_hole(e);
-      switch (ZExpTest.eval(actions, (ze, HTyp.hole, u_gen))) {
+      switch (ZExpTest.eval(actions, (ze, HTyp.hole(), u_gen))) {
       | Ok((ze, ty, _)) =>
         let+ i = Context.tyvar_index(ctx, name);
         let t = HTyp.tyvar(i, name);
@@ -65,4 +65,4 @@ let test_tyvar_actions =
 let test_tyvar_action = (name: string, ty: HTyp.t, a: Action.t): bool =>
   test_tyvar_actions(name, ty, [a]);
 
-// let%test _ = test_tyvar_actions("u", HTyp.int, construct_word("true"));
+// let%test _ = test_tyvar_actions("u", HTyp.int(), construct_word("true"));

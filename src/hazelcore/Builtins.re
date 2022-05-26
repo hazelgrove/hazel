@@ -61,23 +61,23 @@ module Impls = {
 };
 
 let builtins: list(Builtin.t) = [
-  Builtin.mk_zero(Context.initial, "PI", HTyp.float, Impls.pi),
+  Builtin.mk_zero(Context.initial, "PI", HTyp.float(), Impls.pi),
   Builtin.mk_one(
     Context.initial,
     "int_of_float",
-    HTyp.arrow(HTyp.float, HTyp.int),
+    HTyp.arrow(HTyp.float(), HTyp.int()),
     Impls.int_of_float,
   ),
   Builtin.mk_one(
     Context.initial,
     "float_of_int",
-    HTyp.arrow(HTyp.int, HTyp.float),
+    HTyp.arrow(HTyp.int(), HTyp.float()),
     Impls.float_of_int,
   ),
   Builtin.mk_two(
     Context.initial,
     "mod",
-    HTyp.arrow(HTyp.int, HTyp.arrow(HTyp.int, HTyp.int)),
+    HTyp.arrow(HTyp.int(), HTyp.arrow(HTyp.int(), HTyp.int())),
     Impls.int_mod,
   ),
 ];

@@ -68,7 +68,7 @@ let contract = (ty: HTyp.t): t => {
       | Bool => Seq.wrap(Bool)
       | Arrow(ty1, ty2) =>
         mk_seq_operand(
-          HTyp.precedence_Arrow,
+          HTyp.precedence_Arrow(),
           Operators_Typ.Arrow,
           HTyp.of_syntax(ty1),
           HTyp.of_syntax(ty2),
@@ -80,7 +80,7 @@ let contract = (ty: HTyp.t): t => {
              contract_to_seq(
                ~parenthesize=
                  HTyp.precedence(HTyp.of_syntax(elementType))
-                 > HTyp.precedence_Prod,
+                 > HTyp.precedence_Prod(),
                HTyp.of_syntax(elementType),
              )
            )
@@ -88,13 +88,14 @@ let contract = (ty: HTyp.t): t => {
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(HTyp.of_syntax(head)) > HTyp.precedence_Prod,
+                 HTyp.precedence(HTyp.of_syntax(head))
+                 > HTyp.precedence_Prod(),
                HTyp.of_syntax(head),
              ),
            )
       | Sum(ty1, ty2) =>
         mk_seq_operand(
-          HTyp.precedence_Sum,
+          HTyp.precedence_Sum(),
           Sum,
           HTyp.of_syntax(ty1),
           HTyp.of_syntax(ty2),
@@ -139,11 +140,11 @@ and expand_operand =
   fun
   | TyVar(NotInTyVarHole(idx), t) => HTyp.tyvar(idx, t)
   | TyVar(InHole(reason, u), t) => HTyp.tyvarhole(reason, u, t)
-  | Hole => HTyp.hole
+  | Hole => HTyp.hole()
   | Unit => HTyp.product([])
-  | Int => HTyp.int
-  | Float => HTyp.float
-  | Bool => HTyp.bool
+  | Int => HTyp.int()
+  | Float => HTyp.float()
+  | Bool => HTyp.bool()
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => HTyp.list(expand(opseq));
 

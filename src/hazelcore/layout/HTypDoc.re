@@ -70,7 +70,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(
-          HTyp.precedence_Arrow,
+          HTyp.precedence_Arrow(),
           HTyp.of_syntax(ty1),
           HTyp.of_syntax(ty2),
         );
@@ -93,7 +93,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
             HTypAnnot.Step(0),
             mk'(
               ~parenthesize=
-                HTyp.precedence(HTyp.of_syntax(head)) <= HTyp.precedence_Prod,
+                HTyp.precedence(HTyp.of_syntax(head))
+                <= HTyp.precedence_Prod(),
               HTyp.of_syntax(head),
             ),
           ),
@@ -104,7 +105,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
                    mk'(
                      ~parenthesize=
                        HTyp.precedence(HTyp.of_syntax(ty))
-                       <= HTyp.precedence_Prod,
+                       <= HTyp.precedence_Prod(),
                      HTyp.of_syntax(ty),
                    ),
                  ),
@@ -119,7 +120,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Sum(ty1, ty2) =>
       let (d1, d2) =
         mk_right_associative_operands(
-          HTyp.precedence_Sum,
+          HTyp.precedence_Sum(),
           HTyp.of_syntax(ty1),
           HTyp.of_syntax(ty2),
         );

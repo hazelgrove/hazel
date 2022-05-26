@@ -36,13 +36,13 @@ type t = {
 let mk_elab = (ctx: Context.t, ident: Var.t, ty: HTyp.t): DHExp.t => {
   let rec mk_elab_inner =
           (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
-    switch (HTyp.unsafe(ty')) {
+    switch (HTyp.to_syntax(ty')) {
     | Arrow(_, ty'') =>
       let var = "x" ++ string_of_int(n);
       Fun(
         Var(var),
         (ctx, ty'),
-        mk_elab_inner(HTyp.of_unsafe(ty''), n + 1, [var, ...bindings]),
+        mk_elab_inner(HTyp.of_syntax(ty''), n + 1, [var, ...bindings]),
       );
     | _ =>
       let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);

@@ -107,12 +107,7 @@ let mk_syn_text =
       | None =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         (InHole(Unbound, u), u_gen);
-      | Some(idx) =>
-        print_endline(
-          "AAA " ++ t ++ ":" ++ Int.to_string(Index.Abs.to_int(idx)),
-        );
-        print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
-        (NotInTyVarHole(idx), u_gen);
+      | Some(idx) => (NotInTyVarHole(idx), u_gen)
       };
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
     Succeeded((zty, u_gen));

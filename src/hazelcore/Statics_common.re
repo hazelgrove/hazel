@@ -22,7 +22,7 @@ let tuple_zip =
     switch (skels, tys) {
     | ([_], _) => Some([(skel, HTyp.of_head_normalized(ty))])
     | (_, [ty]) when HTyp.is_hole(ty) =>
-      skels |> List.map(skel => (skel, HTyp.hole)) |> Option.some
+      skels |> List.map(skel => (skel, HTyp.hole())) |> Option.some
     | _ => None
     }
   };

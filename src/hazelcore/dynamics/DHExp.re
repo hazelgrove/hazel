@@ -49,13 +49,13 @@ module BinIntOp = {
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | Minus => Some((Minus, HTyp.int))
-    | Plus => Some((Plus, HTyp.int))
-    | Times => Some((Times, HTyp.int))
-    | Divide => Some((Divide, HTyp.int))
-    | LessThan => Some((LessThan, HTyp.bool))
-    | GreaterThan => Some((GreaterThan, HTyp.bool))
-    | Equals => Some((Equals, HTyp.bool))
+    | Minus => Some((Minus, HTyp.int()))
+    | Plus => Some((Plus, HTyp.int()))
+    | Times => Some((Times, HTyp.int()))
+    | Divide => Some((Divide, HTyp.int()))
+    | LessThan => Some((LessThan, HTyp.bool()))
+    | GreaterThan => Some((GreaterThan, HTyp.bool()))
+    | Equals => Some((Equals, HTyp.bool()))
     | FPlus
     | FMinus
     | FTimes
@@ -95,13 +95,13 @@ module BinFloatOp = {
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | FPlus => Some((FPlus, HTyp.float))
-    | FMinus => Some((FMinus, HTyp.float))
-    | FTimes => Some((FTimes, HTyp.float))
-    | FDivide => Some((FDivide, HTyp.float))
-    | FLessThan => Some((FLessThan, HTyp.bool))
-    | FGreaterThan => Some((FGreaterThan, HTyp.bool))
-    | FEquals => Some((FEquals, HTyp.bool))
+    | FPlus => Some((FPlus, HTyp.float()))
+    | FMinus => Some((FMinus, HTyp.float()))
+    | FTimes => Some((FTimes, HTyp.float()))
+    | FDivide => Some((FDivide, HTyp.float()))
+    | FLessThan => Some((FLessThan, HTyp.bool()))
+    | FGreaterThan => Some((FGreaterThan, HTyp.bool()))
+    | FEquals => Some((FEquals, HTyp.bool()))
     | Plus
     | Minus
     | Times

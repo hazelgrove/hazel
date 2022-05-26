@@ -66,24 +66,24 @@ let mk_syn_text =
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.hole, ctx, u_gen));
+      Succeeded((ZOpSeq.wrap(zhole), HTyp.hole(), ctx, u_gen));
     } else {
       let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
-      Succeeded((zp, HTyp.hole, ctx, u_gen));
+      Succeeded((zp, HTyp.hole(), ctx, u_gen));
     }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, HTyp.hole, ctx, u_gen));
+    Succeeded((zp, HTyp.hole(), ctx, u_gen));
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
-    Succeeded((zp, HTyp.int, ctx, u_gen));
+    Succeeded((zp, HTyp.int(), ctx, u_gen));
   | FloatLit(f) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
-    Succeeded((zp, HTyp.float, ctx, u_gen));
+    Succeeded((zp, HTyp.float(), ctx, u_gen));
   | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
-    Succeeded((zp, HTyp.bool, ctx, u_gen));
+    Succeeded((zp, HTyp.bool(), ctx, u_gen));
   | ExpandingKeyword(k) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     let var =
@@ -92,11 +92,11 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.hole, ctx, u_gen));
+    Succeeded((zp, HTyp.hole(), ctx, u_gen));
   | Var(x) =>
-    let ctx = Context.add_var(ctx, x, HTyp.unsafe(HTyp.hole));
+    let ctx = Context.add_var(ctx, x, HTyp.hole());
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.hole, ctx, u_gen));
+    Succeeded((zp, HTyp.hole(), ctx, u_gen));
   };
 };
 
@@ -142,7 +142,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, u_gen));
   | Var(x) =>
-    let ctx = Context.add_var(ctx, x, HTyp.unsafe(ty));
+    let ctx = Context.add_var(ctx, x, ty);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, u_gen));
   };
@@ -647,11 +647,11 @@ and syn_perform_operand =
   | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
-      ? Succeeded((zp, HTyp.hole, ctx, u_gen)) : CursorEscaped(Before);
+      ? Succeeded((zp, HTyp.hole(), ctx, u_gen)) : CursorEscaped(Before);
   | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
-      ? Succeeded((zp, HTyp.hole, ctx, u_gen)) : CursorEscaped(After);
+      ? Succeeded((zp, HTyp.hole(), ctx, u_gen)) : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
@@ -668,7 +668,7 @@ and syn_perform_operand =
   | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
     let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
     let zp = ZOpSeq.wrap(zhole);
-    Succeeded((zp, HTyp.hole, ctx, u_gen));
+    Succeeded((zp, HTyp.hole(), ctx, u_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
@@ -775,7 +775,7 @@ and syn_perform_operand =
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, HTyp.list(HTyp.hole), ctx, u_gen));
+    Succeeded((zp, HTyp.list(HTyp.hole()), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -792,8 +792,8 @@ and syn_perform_operand =
     | Some((body_ty, ctx)) =>
       let ty =
         switch (side) {
-        | L => HTyp.sum(body_ty, HTyp.hole)
-        | R => HTyp.sum(HTyp.hole, body_ty)
+        | L => HTyp.sum(body_ty, HTyp.hole())
+        | R => HTyp.sum(HTyp.hole(), body_ty)
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
@@ -882,8 +882,8 @@ and syn_perform_operand =
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
       let ty =
         switch (side) {
-        | L => HTyp.sum(ty1, HTyp.hole)
-        | R => HTyp.sum(HTyp.hole, ty1)
+        | L => HTyp.sum(ty1, HTyp.hole())
+        | R => HTyp.sum(HTyp.hole(), ty1)
         };
       Succeeded((zp, ty, ctx, u_gen));
     }
@@ -1477,10 +1477,6 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    print_endline("--- ACTION_PAT ana_perform_operand ---");
-    print_endline(Sexplib.Sexp.to_string_hum(ZTyp.sexp_of_t(zann)));
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
-    print_endline(Sexplib.Sexp.to_string_hum(Context.sexp_of_t(ctx)));
     switch (Action_Typ.perform(ctx, a, zann, u_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -1492,25 +1488,17 @@ and ana_perform_operand =
         ty,
       )
     | Succeeded((zann, ctx, u_gen)) =>
-      print_endline("BBB");
       switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
       | None => Failed
       | Some((ty', _, _)) =>
-        print_endline("CCC");
         switch (UHPat.get_var_name(op)) {
         | None => Failed
         | Some(x) =>
-          print_endline("DDD");
-          let new_ctx = Context.add_var(ctx, x, HTyp.unsafe(ty'));
+          let new_ctx = Context.add_var(ctx, x, ty');
           switch (Context.var_type(new_ctx, x)) {
           | None => Failed
           | Some(ty') =>
-            let ty': HTyp.t = HTyp.of_unsafe(ty');
-            print_endline("EEE");
-            print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
-            print_endline(
-              Sexplib.Sexp.to_string_hum(Context.sexp_of_t(new_ctx)),
-            );
+            let ty': HTyp.t = ty';
             let (new_op, ctx, u_gen) =
               Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
             let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
@@ -1522,9 +1510,9 @@ and ana_perform_operand =
               Succeeded((new_zopseq, ctx, u_gen));
             };
           };
-        };
-      };
-    };
+        }
+      }
+    }
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {

@@ -23,9 +23,9 @@ let view =
         let* i = HTyp.tyvar_index(ty);
         let* kind = Context.tyvar_kind(ctx, i);
         switch (kind) {
-        | KHole => Some(HTyp.hole)
-        | T => None
-        | Singleton(ty') => Some(HTyp.of_unsafe(ty'))
+        | Hole => Some(HTyp.hole())
+        | Type => None
+        | S(ty') => Some(HTyp.of_syntax(ty'))
         };
       } else {
         None;
@@ -98,7 +98,7 @@ let view =
     };
 
   let context_entry = (sigma, (_, x, ty)) => {
-    let static_info = static_info((x, HTyp.of_unsafe(ty)));
+    let static_info = static_info((x, ty));
     let children =
       switch (dynamic_info(sigma, x)) {
       | Some(dynamic_info) => [static_info, dynamic_info]
@@ -326,7 +326,7 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
-    switch (Contexts.vars(ctx)) {
+    switch (Context.vars(ctx)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
@@ -353,7 +353,7 @@ let view =
       let ctx =
         program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
       let (_, hii, _) = program |> Program.get_result;
-      if (List.length(Contexts.vars(ctx)) == 0) {
+      if (List.length(Context.vars(ctx)) == 0) {
         Node.div([], []);
       } else {
         let children =

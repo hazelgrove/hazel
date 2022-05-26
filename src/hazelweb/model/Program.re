@@ -53,7 +53,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.initial),
+    CursorInfo_Exp.syn_cursor_info(Context.initial),
   );
 let get_cursor_info = (program: t) => {
   program
@@ -376,7 +376,7 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.elab(Contexts.initial, Delta.empty),
+    Elaborator_Exp.elab(Context.initial, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
@@ -438,20 +438,15 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-  switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
+  switch (Action_Exp.syn_perform(Context.initial, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
-    print_endline("PPP");
-    print_endline(Sexplib.Sexp.to_string_hum(ZExp.sexp_of_t(ze)));
-    print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
-        print_endline("OOO");
         (ze, ty, MetaVarGen.init);
       } else {
-        print_endline("NNN");
         (ze, ty, u_gen);
       };
     program |> put_edit_state(new_edit_state);

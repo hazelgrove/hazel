@@ -15,9 +15,9 @@ and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
     (skel, seq, k, u_gen);
   | BinOp(_, op, skel1, skel2) =>
     let (skel1, seq, _, u_gen) =
-      ana_fix_holes_skel(ctx, u_gen, skel1, seq, KindCore.T);
+      ana_fix_holes_skel(ctx, u_gen, skel1, seq, Kind.Type);
     let (skel2, seq, _, u_gen) =
-      ana_fix_holes_skel(ctx, u_gen, skel2, seq, KindCore.T);
+      ana_fix_holes_skel(ctx, u_gen, skel2, seq, Kind.Type);
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, UHTyp.mk_OpSeq(seq))) {
     | Some((_, k, _)) =>
       let skel = Skel.BinOp(NotInHole, op, skel1, skel2);
@@ -30,7 +30,7 @@ and syn_fix_holes_operand =
     (ctx: Context.t, u_gen: MetaVarGen.t, operand: UHTyp.operand)
     : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
   switch (operand) {
-  | Hole => (Hole, KindCore.KHole, u_gen)
+  | Hole => (Hole, Kind.Hole, u_gen)
   | TyVar(NotInTyVarHole(idx), t) =>
     let k' = Kind.singleton(HTyp.tyvar(idx, t));
     switch (Context.tyvar_kind(ctx, idx)) {
@@ -54,24 +54,24 @@ and syn_fix_holes_operand =
         };
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let ty = UHTyp.TyVar(InHole(reason, u), t);
-      (ty, KindCore.Singleton(TyVarHole(reason, u, t)), u_gen);
+      (ty, Kind.S(TyVarHole(reason, u, t)), u_gen);
     };
   | TyVar(InHole(_, u), t) =>
     if (TyVar.reserved_word(t)) {
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
-      (ty, KindCore.Singleton(TyVarHole(Reserved, u, t)), u_gen);
+      (ty, Kind.S(TyVarHole(Reserved, u, t)), u_gen);
     } else if (TyVar.valid_name(t)) {
       switch (Context.tyvar_index(ctx, t)) {
       | None =>
         let ty = UHTyp.TyVar(InHole(Unbound, u), t);
-        (ty, KindCore.Singleton(TyVarHole(Unbound, u, t)), u_gen);
+        (ty, Kind.S(TyVarHole(Unbound, u, t)), u_gen);
       | Some(i) =>
         let ty = UHTyp.TyVar(NotInTyVarHole(i), t);
-        (ty, KindCore.Singleton(TyVar(i, t)), u_gen);
+        (ty, Kind.S(TyVar(i, t)), u_gen);
       };
     } else {
       let ty = UHTyp.TyVar(InHole(InvalidName, u), t);
-      (ty, KindCore.Singleton(TyVarHole(InvalidName, u, t)), u_gen);
+      (ty, Kind.S(TyVarHole(InvalidName, u, t)), u_gen);
     }
   | Unit
   | Int
@@ -120,7 +120,7 @@ and ana_fix_holes_skel = (tyvars, u_gen, skel, seq, k) =>
   }
 and ana_fix_holes_operand = (tyvars, u_gen, operand, k) => {
   switch (operand) {
-  | UHTyp.Hole => (Hole, KindCore.KHole, u_gen)
+  | UHTyp.Hole => (Hole, Kind.Hole, u_gen)
   | Parenthesized(body) =>
     let (block, k', u_gen) = ana_fix_holes(tyvars, u_gen, body, k);
     if (Kind.consistent_subkind(tyvars, k', k)) {

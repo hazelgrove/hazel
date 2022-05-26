@@ -4,13 +4,13 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
   | TyVarHole(_)
   | Int
   | Float
-  | Bool => Some(Kind.singleton(HTyp.to_syntax(ty)))
+  | Bool => Some(Kind.singleton(ty))
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2) =>
     open OptUtil.Syntax;
     let* () = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
     let+ () = ana(ctx, HTyp.of_syntax(ty2), Kind.Type);
-    Kind.singleton(HTyp.to_syntax(ty));
+    Kind.singleton(ty);
   | Prod(tys) =>
     open OptUtil.Syntax;
     let+ () =
@@ -20,11 +20,11 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
         Some(),
         tys,
       );
-    Kind.singleton(HTyp.to_syntax(ty));
+    Kind.singleton(ty);
   | List(ty1) =>
     open OptUtil.Syntax;
     let+ _ = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
-    Kind.singleton(HTyp.to_syntax(ty));
+    Kind.singleton(ty);
   | TyVar(i, _) => Context.tyvar_kind(ctx, i)
   }
 

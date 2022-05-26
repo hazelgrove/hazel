@@ -157,13 +157,13 @@ and syn_cursor_info_skel =
         "Pat.syn_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(_, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole)) {
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole())) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole())) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole)
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole())
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
@@ -392,13 +392,13 @@ and ana_cursor_info_skel =
         "Pat.ana_cursor_info_skel: expected commas to be handled at opseq level",
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole)) {
+      switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, HTyp.hole())) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole)) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole())) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole)
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole())
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -435,7 +435,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ctx, ty, HTyp.hole),
+            PatAnaSubsumed(ctx, ty, HTyp.hole()),
             ctx,
             cursor_term,
           ),
@@ -503,7 +503,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ctx, ty, HTyp.int),
+            PatAnaSubsumed(ctx, ty, HTyp.int()),
             ctx,
             cursor_term,
           ),
@@ -513,7 +513,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ctx, ty, HTyp.float),
+            PatAnaSubsumed(ctx, ty, HTyp.float()),
             ctx,
             cursor_term,
           ),
@@ -523,7 +523,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ctx, ty, HTyp.bool),
+            PatAnaSubsumed(ctx, ty, HTyp.bool()),
             ctx,
             cursor_term,
           ),

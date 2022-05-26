@@ -124,9 +124,9 @@ and cursor_info_zoperand =
   let cursor_term = extract_from_ztyp_operand(zoperand);
   switch (zoperand) {
   | CursorT(_, Hole) =>
-    Some(CursorInfo_common.mk(OnType(KindCore.KHole), ctx, cursor_term))
+    Some(CursorInfo_common.mk(OnType(Kind.Hole), ctx, cursor_term))
   | CursorT(_, Unit | Int | Float | Bool) =>
-    Some(CursorInfo_common.mk(OnType(KindCore.T), ctx, cursor_term))
+    Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
