@@ -1,5 +1,5 @@
-/*
-   This module defines a linearized intermediate representation.
+/**
+ * This module defines a linearized intermediate representation.
  */
 open Sexplib.Std;
 

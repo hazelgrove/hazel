@@ -8,6 +8,10 @@ type analysis_level =
 [@deriving sexp]
 type opts = {analysis_level};
 
+/**
+ * Context mapping variables to the indet-ness of the expression to which it
+ * refers.
+ */
 [@deriving sexp]
 type indet_context = VarMap.t_(Anf.has_indet);
 
@@ -19,6 +23,7 @@ let rec analyze_prog = (~opts, prog: Anf.prog, ictx): Anf.prog => {
 
   {prog_body: (body, c), prog_ty, prog_indet: c.comp_indet};
 }
+
 and analyze_body =
     (~opts, body: list(Anf.stmt), ictx): (list(Anf.stmt), indet_context) => {
   let (rev_body, ictx) =
@@ -160,6 +165,9 @@ and analyze_pat' =
   let (pat_kind, pat_indet, ictx) =
     switch (pat_kind) {
     | PVar(x) =>
+      /* We mark that the variable x refers to a possibly indeterminate
+       * expression if the matchee is possible indeterminate or we are in a
+       * non-empty pattern hole. */
       let ictx = VarMap.extend(ictx, (x, matchee_indet || in_hole));
       (pat_kind, false, ictx);
     | PWild
