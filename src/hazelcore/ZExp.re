@@ -17,6 +17,7 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
+  | TypArgZ(ErrStatus.t, ZTyp.t)
 and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
@@ -38,6 +39,8 @@ let line_can_be_swapped = (line: zline): bool =>
   | LetLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))
+  // TODO (typ-app): not sure ask Cyrus
+  | ExpLineZ(ZOpSeq(_, ZOperand(TypArgZ(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(CaseZR(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(ParenthesizedZ(_), _))) => false
@@ -147,7 +150,8 @@ and is_before_zoperand =
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_) => false;
+  | CaseZR(_)
+  | TypArgZ(_) => false;
 
 // The following 2 functions are specifically for CommentLines!!
 // Check if the cursor at "OnDelim(After)" in a "CommentLine"
@@ -228,7 +232,8 @@ and is_after_zoperand =
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_) => false;
+  | CaseZR(_)
+  | TypArgZ(_) => false;
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -274,7 +279,8 @@ and is_outer_zoperand =
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_) => false;
+  | CaseZR(_)
+  | TypArgZ(_) => false;
 
 let rec place_before = (e: UHExp.t): t => e |> place_before_block
 and place_before_block =
@@ -434,6 +440,7 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
+  | TypArgZ(err, ty) => TypArg(err, ZTyp.erase(ty))
 and erase_zrules =
   fun
   | zrules => ZList.erase(zrules, erase_zrule)
@@ -487,6 +494,7 @@ and set_err_status_zoperand = (err, zoperand) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
   | CaseZR(_, scrut, zrules) =>
     CaseZR(StandardErrStatus(err), scrut, zrules)
+  | TypArgZ(_, ty) => TypArgZ(err, ty)
   };
 
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -519,6 +527,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* already in hole */
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
+  | TypArgZ(InHole(TypeInconsistent, _), _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
@@ -528,6 +537,7 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
   /* not in hole */
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
+  | TypArgZ(NotInHole | InHole(WrongLength, _), _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -703,6 +713,12 @@ and move_cursor_left_zoperand =
     switch (zrules |> move_cursor_left_zrules) {
     | Some(zrules) => Some(CaseZR(err, scrut, zrules))
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
+    }
+  | TypArgZ(err, zty) =>
+    switch (ZTyp.move_cursor_left(zty)) {
+    | Some(zty) => Some(TypArgZ(err, zty))
+    | None =>
+      Some(CursorE(OnDelim(0, After), TypArg(err, ZTyp.erase(zty))))
     }
 and move_cursor_left_zrules =
   fun
@@ -885,6 +901,11 @@ and move_cursor_right_zoperand =
         ),
       )
     }
+  | TypArgZ(err, zty) =>
+    switch (ZTyp.move_cursor_right(zty)) {
+    | Some(zty) => Some(TypArgZ(err, zty))
+    | None => None
+    }
 and move_cursor_right_zrules =
   fun
   | (prefix, zrule, suffix) =>
@@ -949,6 +970,7 @@ and cursor_on_EmptyHole_zoperand =
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
+  | TypArgZ(_) => None
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)
