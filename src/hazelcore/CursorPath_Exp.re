@@ -27,6 +27,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
+  | TypArgZ(_, zty) => cons'(0, CursorPath_Typ.of_z(zty))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -790,6 +791,22 @@ and holes_zoperand =
       hole_selected,
       holes_after: holes_after @ holes_suffix,
     };
+  | TypArgZ(err, zty) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(zty, [0, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   switch (zrule) {

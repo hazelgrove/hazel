@@ -22,6 +22,7 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+  | TypArgZ(_, zty) => CursorInfo_Typ.extract_cursor_term(zty)
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
@@ -82,6 +83,7 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+  | TypArgZ(_, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
 and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
@@ -130,7 +132,8 @@ and get_outer_zrules_from_zexp_operand =
   switch (zoperand) {
   | CursorE(_, _) => outer_zrules
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
-  | FunZP(_) => outer_zrules
+  | FunZP(_)
+  | TypArgZ(_) => outer_zrules
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
@@ -601,6 +604,12 @@ and syn_cursor_info_zoperand =
         )
       };
     }
+  | TypArgZ(_) =>
+    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
+    | None => None
+    | Some(ty) =>
+      Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
+    }
   };
 }
 and ana_cursor_info =
@@ -921,11 +930,14 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
+  | TypArgZ(InHole(WrongLength, _), _)
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
+  | TypArgZ(InHole(TypeInconsistent, _), _)
+  =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | FunZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
@@ -975,6 +987,8 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+  | TypArgZ(NotInHole, _) =>
+    None
   };
 }
 and syn_cursor_info_rule =
