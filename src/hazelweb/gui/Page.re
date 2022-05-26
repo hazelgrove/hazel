@@ -114,11 +114,9 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
     switch (model.doc_study.prompt) {
     | Some(index) =>
       let prompt = List.nth(model.doc_study.prompts, index);
-      print_endline("KEY" ++ prompt.key);
       (prompt.examples, prompt.explanation, prompt.syntactic_form_level);
     | None => ([], [], 0)
     };
-  print_endline("LEVEL: " ++ string_of_int(level));
   let explanation_info =
     ExplanationInfo.mk_explanation_info(
       Model.get_cursor_info(model).cursor_term,

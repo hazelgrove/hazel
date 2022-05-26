@@ -16,13 +16,13 @@ let rank_list = x => {
     [
       Node.option(
         [Attr.value("not_selected"), Attr.selected],
-        [Node.text("Please rank this option")],
+        [Node.text("- Please rank this option")],
       ),
     ],
     [
       Node.option(
         [Attr.value("None_are_useful")],
-        [Node.text("This is not a useful option")],
+        [Node.text("X - This is not a useful option")],
       ),
     ],
     rank_list1(x),

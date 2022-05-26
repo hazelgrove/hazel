@@ -1657,12 +1657,14 @@ h1 {
 
 .the-explanation select {
   float: left;
-  margin: 5px 5px 0 5px;
+  margin-right: 5px;
+  margin-bottom: 5px;
   width: 30px;
 }
 
 .question_wrapper{
   border-top:  #063f23 1px dashed !important;
+  border-bottom:  #063f23 1px dashed !important;
   padding: 5px;
   font-size: 12px;
 }
@@ -1674,6 +1676,11 @@ h1 {
 
 .syntactic_form {
   padding: 5px;
+}
+
+.right-panel-responses {
+  max-height: 200px;
+  overflow: auto;
 }
 
 .right-panel-prompt{

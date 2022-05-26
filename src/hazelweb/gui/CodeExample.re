@@ -90,11 +90,20 @@ let a_single_example_expression_ =
       index: int,
       hovered_over_example: int,
     ) => {
-  let style_ =
+  let more_info =
     if (index == hovered_over_example) {
-      "visible";
+      [
+        Node.div(
+          [Attr.class_("example_result")],
+          [Node.div([], [Node.text("Result: ")]), result],
+        ),
+        Node.div(
+          [Attr.class_("example_explanation")],
+          [Node.text("Explanation: "), Node.text(caption)],
+        ),
+      ];
     } else {
-      "hidden";
+      [];
     };
 
   [
@@ -136,17 +145,7 @@ let a_single_example_expression_ =
           CodeExplanation_common.rank_list(1 + ranking_out_of),
         ),
         example_body,
-        Node.div(
-          [
-            Attr.class_("example_result"),
-            Attr.style(Css_gen.create(~field="visibility", ~value=style_)),
-          ],
-          [Node.div([], [Node.text("Result: ")]), result],
-        ),
-        Node.div(
-          [Attr.class_("example_explanation")],
-          [Node.text("Explanation: "), Node.text(caption)],
-        ),
+        ...more_info,
       ],
     ),
   ];
@@ -256,18 +255,25 @@ let view =
                 [Attr.classes(["right-panel-prompt"])],
                 [Node.text("Rank the examples below")],
               ),
-              explanation_view,
               Node.div(
-                [Attr.classes(["right-panel-textarea-div"])],
+                [Attr.classes(["right-panel-responses"])],
+                [explanation_view],
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["right-panel-textarea-div"])],
+            [
+              Node.textarea(
                 [
-                  Node.textarea(
-                    [
-                      Attr.classes(["right-panel-textarea"]),
-                      Attr.on_change((_, new_rank) =>
-                        text_box_handler(~inject, new_rank)
-                      ),
-                    ],
-                    [Node.text("If none of the above please explain why")],
+                  Attr.classes(["right-panel-textarea"]),
+                  Attr.on_change((_, new_rank) =>
+                    text_box_handler(~inject, new_rank)
+                  ),
+                ],
+                [
+                  Node.text(
+                    "Please give any other feedback on the above options or other options that you would have preferred",
                   ),
                 ],
               ),

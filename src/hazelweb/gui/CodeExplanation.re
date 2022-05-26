@@ -154,18 +154,25 @@ let view =
                 [Attr.classes(["right-panel-prompt"])],
                 [Node.text("Rank the explanations below")],
               ),
-              explanation_view,
               Node.div(
-                [Attr.classes(["right-panel-textarea-div"])],
+                [Attr.classes(["right-panel-responses"])],
+                [explanation_view],
+              ),
+            ],
+          ),
+          Node.div(
+            [Attr.classes(["right-panel-textarea-div"])],
+            [
+              Node.textarea(
                 [
-                  Node.textarea(
-                    [
-                      Attr.classes(["right-panel-textarea"]),
-                      Attr.on_change((_, new_rank) =>
-                        text_box_handler(~inject, new_rank)
-                      ),
-                    ],
-                    [Node.text("If none of the above please explain what")],
+                  Attr.classes(["right-panel-textarea"]),
+                  Attr.on_change((_, new_rank) =>
+                    text_box_handler(~inject, new_rank)
+                  ),
+                ],
+                [
+                  Node.text(
+                    "Please give any other feedback on the above options or other options that you would have preferred",
                   ),
                 ],
               ),
