@@ -1,10 +1,6 @@
-[@deriving sexp]
-type error =
-  | NotImplemented
-  | WrongType
-  | FreeBoundVar(Var.t);
-
-exception Exception(error);
+exception NotImplemented;
+exception WrongType;
+exception FreeBoundVar(Var.t);
 
 type bind =
   | BLet(Anf.pat, Anf.rec_flag, Anf.comp, Anf.has_indet);
@@ -51,7 +47,7 @@ and linearize_exp =
     let x' =
       switch (VarMap.lookup(ictx, x)) {
       | Some(x') => x'
-      | None => raise(Exception(FreeBoundVar(x)))
+      | None => raise(FreeBoundVar(x))
       };
 
     ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: true}, [], t_gen);
@@ -85,7 +81,7 @@ and linearize_exp =
     let ap_ty =
       switch (fn.imm_ty) {
       | Arrow(_, ty') => ty'
-      | _ => raise(Exception(WrongType))
+      | _ => raise(WrongType)
       };
     let ap: Anf.comp = {
       comp_kind: CAp(fn, [arg]),
@@ -245,7 +241,7 @@ and linearize_exp =
     let binds = im_binds @ [cast_bind];
     (cast_var, binds, t_gen);
 
-  | _ => raise(Exception(NotImplemented))
+  | _ => raise(NotImplemented)
   };
 }
 
@@ -337,7 +333,7 @@ and linearize_pat_hole =
   | PNonEmptyHole(_)
   | PKeyword(_)
   | PInvalidText(_)
-  | PAp(_) => raise(Exception(NotImplemented))
+  | PAp(_) => raise(NotImplemented)
   };
 }
 
