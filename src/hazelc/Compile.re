@@ -9,9 +9,13 @@ exception BadState;
 type grain_opts = Grain.opts;
 
 [@deriving sexp]
-type opts = {grain: grain_opts};
+type opts = {
+  indet_analysis: option(IndetAnalysis.analysis_level),
+  grain: grain_opts,
+};
 
 let default_opts = {
+  indet_analysis: Some(Local),
   grain: {
     grain: None,
     // TODO: Fix this to include Hazel lib files.
@@ -33,6 +37,9 @@ let _elaborate = (e: UHExp.t) => {
 let _transform = (ctx: Contexts.t) => Transform.transform(ctx);
 
 let _linearize = Linearize.linearize;
+
+let _indet_analyze = level =>
+  IndetAnalysis.analyze(~opts={analysis_level: level});
 
 let _grainize = GrainCodegen.codegen;
 
@@ -77,6 +84,13 @@ let linearize = (~opts=default_opts, d) => {
   _linearize(d);
 };
 
+let optimize = (~opts=default_opts, a) => {
+  switch (opts.indet_analysis) {
+  | Some(level) => _indet_analyze(level, a)
+  | None => a
+  };
+};
+
 let grainize = (~opts=default_opts, a) => {
   let _ = opts;
   _grainize(a);
@@ -97,6 +111,7 @@ type state =
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
+  | Optimized(Anf.prog)
   | Grainized(GrainIR.prog)
   | Printed(string);
 
@@ -124,7 +139,9 @@ let next = (~opts=default_opts, state): next_result => {
 
   | Transformed(u) => Ok(Some(Linearized(linearize(~opts, u))))
 
-  | Linearized(a) => Ok(Some(Grainized(grainize(~opts, a))))
+  | Linearized(a) => Ok(Some(Optimized(optimize(~opts, a))))
+
+  | Optimized(a) => Ok(Some(Grainized(grainize(~opts, a))))
 
   | Grainized(g) => Ok(Some(Printed(print(~opts, g))))
 
@@ -155,6 +172,11 @@ let stop_after_transformed =
 let stop_after_linearized =
   fun
   | Linearized(_) => Stop
+  | state => Continue(state);
+
+let stop_after_optimized =
+  fun
+  | Optimized(_) => Stop
   | state => Continue(state);
 
 let stop_after_grainized =
@@ -198,6 +220,14 @@ let resume_until_hir = (~opts=default_opts, state) => {
 let resume_until_anf = (~opts=default_opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
   | Ok(Some(Linearized(d))) => Ok(d)
+  | Ok(_) => raise(BadState)
+  | Error(err) => Error(err)
+  };
+};
+
+let resume_until_optimized = (~opts=default_opts, state) => {
+  switch (resume(~opts, ~hook=stop_after_optimized, state)) {
+  | Ok(Some(Optimized(a))) => Ok(a)
   | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };

@@ -1,6 +1,7 @@
 let temp_prefix = "hazelc_test";
 
 let opts: Compile.opts = {
+  indet_analysis: Some(Local),
   grain: {
     grain: None,
     optimize: None,

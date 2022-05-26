@@ -5,13 +5,18 @@
 [@deriving sexp]
 type grain_opts = Grain.opts;
 [@deriving sexp]
-type opts = {grain: grain_opts};
+type opts = {
+  indet_analysis: option(IndetAnalysis.analysis_level),
+  grain: grain_opts,
+};
 
+/* FIXME: Make these functions not take grain_opts. */
 let parse: (~opts: opts=?, Source.t) => result(UHExp.t, string);
 let elaborate:
   (~opts: opts=?, UHExp.t) => result((Contexts.t, DHExp.t), unit);
 let transform: (~opts: opts=?, Contexts.t, DHExp.t) => Hir.expr;
 let linearize: (~opts: opts=?, Hir.expr) => Anf.prog;
+let optimize: (~opts: opts=?, Anf.prog) => Anf.prog;
 let grainize: (~opts: opts=?, Anf.prog) => GrainIR.prog;
 let print: (~opts: opts=?, GrainIR.prog) => string;
 
@@ -27,6 +32,7 @@ type state =
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
+  | Optimized(Anf.prog)
   | Grainized(GrainIR.prog)
   | Printed(string);
 
@@ -55,6 +61,7 @@ let stop_after_parsed: state => resume_action;
 let stop_after_elaborated: state => resume_action;
 let stop_after_transformed: state => resume_action;
 let stop_after_linearized: state => resume_action;
+let stop_after_optimized: state => resume_action;
 let stop_after_grainized: state => resume_action;
 let stop_after_printed: state => resume_action;
 
@@ -84,6 +91,12 @@ let resume_until_hir: (~opts: opts=?, state) => result(Hir.expr, next_error);
    Resume from a given state until Anf.
  */
 let resume_until_anf: (~opts: opts=?, state) => result(Anf.prog, next_error);
+
+/*
+   Resume from a given state until optimized Anf.
+ */
+let resume_until_optimized:
+  (~opts: opts=?, state) => result(Anf.prog, next_error);
 
 /*
    Resume from a given state until Grain IR.

@@ -40,7 +40,14 @@ let hazelc =
   let grain_output = Filename.temp_file(prefix, "a.gr");
 
   // Initialize options.
+  let indet_analysis =
+    switch (optimize) {
+    | Some(l) when l >= 1 => Some(IndetAnalysis.Local)
+    | None => Some(IndetAnalysis.Local)
+    | Some(_) => None
+    };
   let opts: Compile.opts = {
+    indet_analysis,
     grain: {
       grain: None,
       includes: None,
@@ -97,7 +104,7 @@ let hazelc =
       |> Result.map_error(convert_error)
 
     | Anf =>
-      Compile.resume_until_anf(~opts, source)
+      Compile.resume_until_optimized(~opts, source)
       |> Result.map(write_sexp_output(Anf.sexp_of_prog))
       |> Result.map_error(convert_error)
 
