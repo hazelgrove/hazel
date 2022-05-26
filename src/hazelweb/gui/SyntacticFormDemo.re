@@ -106,7 +106,7 @@ let generate_selector =
             Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
             Attr.value(string_of_int(level)),
             Attr.on_change((_, id) => {
-              print_endline(id);
+              //print_endline(id);
               Event.Many([
                 inject(
                   UpdateDocumentationStudySettings(
@@ -116,7 +116,7 @@ let generate_selector =
                   ),
                 ),
                 inject(ModelAction.FocusCell),
-              ]);
+              ])
             }),
           ],
           List.init(syntactic_max_level_(explanation_info), index =>
@@ -147,7 +147,7 @@ let view =
       explanation_info: ExplanationInfo.explanation_info,
     )
     : Node.t => {
-  print_endline(string_of_int(level));
+  //print_endline(string_of_int(level));
   let explanation_view = {
     Node.div(
       [Attr.classes(["the-explanation", "syntactic_form"])],

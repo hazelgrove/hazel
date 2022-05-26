@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open Sexplib;
+//open Sexplib;
 
 /* Similar to the CursorPath, but TermPaths are paths relative to the tree structure of a program */
 
@@ -14,14 +14,14 @@ let rec mk_cursor_path_steps =
         (term_path: t, steps_to_term: CursorPath.steps)
         : list(CursorPath.steps) => {
   let (steps, cursor_term) = term_path;
-  print_endline(
-    "Term Path: " ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
-  );
-  print_endline(
-    "Steps to term: "
-    ++ Sexp.to_string(CursorPath.sexp_of_steps(steps_to_term)),
-  );
-  print_endline("In mk_cursor_path_steps");
+  /*print_endline(
+      "Term Path: " ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+    );
+    print_endline(
+      "Steps to term: "
+      ++ Sexp.to_string(CursorPath.sexp_of_steps(steps_to_term)),
+    );
+    print_endline("In mk_cursor_path_steps");*/
   let cursor_paths =
     switch (cursor_term) {
     | ExpOperand(_, operand) =>
@@ -61,14 +61,14 @@ let rec mk_cursor_path_steps =
     | Rule(_, rule, _index, _scrut) =>
       mk_cursor_path_steps_exprule(rule, steps)
     };
-  let _ =
+  /*let _ =
     List.map(
       path =>
         print_endline(
           "Cursor Path: " ++ Sexp.to_string(CursorPath.sexp_of_steps(path)),
         ),
       cursor_paths,
-    );
+    );*/
   // Only collapses -1 that are not the first step and when there are not two -1 in a row (would only collapse first one in this case)
   let rec collapse = (steps: list(ChildIndex.t)): list(ChildIndex.t) => {
     switch (steps) {
@@ -82,11 +82,11 @@ let rec mk_cursor_path_steps =
 and mk_cursor_path_steps_expoperand =
     (operand: UHExp.operand, term_path_steps: list(ChildIndex.t))
     : list(CursorPath.steps) => {
-  print_endline("In mk_cursor_path_steps_expoperand");
-  print_endline(
-    "Steps to term: "
-    ++ Sexp.to_string(CursorPath.sexp_of_steps(term_path_steps)),
-  );
+  /*print_endline("In mk_cursor_path_steps_expoperand");
+    print_endline(
+      "Steps to term: "
+      ++ Sexp.to_string(CursorPath.sexp_of_steps(term_path_steps)),
+    );*/
   switch (operand, term_path_steps) {
   | (EmptyHole(_), [])
   | (InvalidText(_), [])
@@ -117,8 +117,8 @@ and mk_cursor_path_steps_expoperand =
 and mk_cursor_path_steps_expblock =
     (block: UHExp.block, term_path_steps: list(ChildIndex.t))
     : list(CursorPath.steps) => {
-  print_endline("In mk_cursor_path_steps_expblock");
-  print_endline(Sexp.to_string(UHExp.sexp_of_block(block)));
+  /*print_endline("In mk_cursor_path_steps_expblock");
+    print_endline(Sexp.to_string(UHExp.sexp_of_block(block)));*/
   switch (block) {
   | [] => [[]]
   | [line] =>
@@ -148,7 +148,7 @@ and mk_cursor_path_steps_expline =
       term_path_steps: list(ChildIndex.t),
     )
     : list(CursorPath.steps) => {
-  print_endline("In mk_cursor_path_steps_expline");
+  //print_endline("In mk_cursor_path_steps_expline");
   switch (line, term_path_steps) {
   | (EmptyLine, [])
   | (CommentLine(_), []) => [[]]
@@ -187,7 +187,7 @@ and mk_cursor_path_steps_expopseq =
       term_path_steps: list(ChildIndex.t),
     )
     : list(CursorPath.steps) => {
-  print_endline("In mk_cursor_path_steps_expopseq");
+  //print_endline("In mk_cursor_path_steps_expopseq");
   switch (skel) {
   | Placeholder(n) =>
     // Renumber the skeleton for indexing (original is needed for path construction,
@@ -225,19 +225,19 @@ and mk_cursor_path_steps_expoperator =
       steps: list(ChildIndex.t),
     )
     : list(CursorPath.steps) => {
-  print_endline("In mk_cursor_path_steps_expoperator");
-  print_endline(
-    "Steps to term: " ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
-  );
+  /*print_endline("In mk_cursor_path_steps_expoperator");
+    print_endline(
+      "Steps to term: " ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
+    );*/
   switch (operator, steps) {
   | (Comma, [n, ..._]) =>
     let tuple_element = List.nth(UHExp.get_tuple_elements(skel), n);
     let element_step = Skel.get_root_num(tuple_element);
     step_sibling ? [[(-1), element_step]] : [[element_step]];
   | (_binop, [n]) =>
-    print_endline(
-      "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
-    );
+    /*print_endline(
+        "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
+      );*/
     let (left, right) =
       switch (skel) {
       | Placeholder(_) => failwith("Can I reach here?")
@@ -250,9 +250,9 @@ and mk_cursor_path_steps_expoperator =
     step_sibling ? [[(-1), child_step]] : [[child_step]];
   | (_binop, [n, ...rest]) =>
     /* TODO: Hannah - similar changes should probably be made for the other operators (pat & typ)*/
-    print_endline(
-      "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
-    );
+    /*print_endline(
+        "Regular Skel: " ++ Sexp.to_string(UHExp.sexp_of_skel(skel)),
+      );*/
     let (left_opseq, right_opseq) =
       switch (skel) {
       | Placeholder(_) => failwith("Can I reach here?")
@@ -275,9 +275,9 @@ and mk_cursor_path_steps_expoperator =
 and mk_cursor_path_steps_patoperand =
     (operand: UHPat.operand, term_path_steps: list(ChildIndex.t))
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_patoperand");
-  print_endline(Sexp.to_string(UHPat.sexp_of_operand(operand)));
-  print_endline(Sexp.to_string(CursorPath.sexp_of_steps(term_path_steps)));
+  //print_endline("In mk_cursor_path_steps_patoperand");
+  //print_endline(Sexp.to_string(UHPat.sexp_of_operand(operand)));
+  //print_endline(Sexp.to_string(CursorPath.sexp_of_steps(term_path_steps)));
   switch (operand, term_path_steps) {
   | (EmptyHole(_), [])
   | (Wild(_), [])
@@ -312,8 +312,8 @@ and mk_cursor_path_steps_patoperator =
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_patoperator");
-  print_endline(Sexp.to_string(UHPat.sexp_of_skel(skel)));
+  //print_endline("In mk_cursor_path_steps_patoperator");
+  //print_endline(Sexp.to_string(UHPat.sexp_of_skel(skel)));
   switch (operator, steps) {
   | (Comma, []) => []
   | (Space, []) => []
@@ -337,7 +337,7 @@ and mk_cursor_path_steps_patopseq =
       term_path_steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_patopseq");
+  //print_endline("In mk_cursor_path_steps_patopseq");
   switch (skel) {
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);
@@ -354,8 +354,8 @@ and mk_cursor_path_steps_patopseq =
 and mk_cursor_path_steps_typoperand =
     (operand: UHTyp.operand, term_path_steps: list(ChildIndex.t))
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_typoperand");
-  print_endline(Sexp.to_string(UHTyp.sexp_of_operand(operand)));
+  //print_endline("In mk_cursor_path_steps_typoperand");
+  //print_endline(Sexp.to_string(UHTyp.sexp_of_operand(operand)));
   switch (operand, term_path_steps) {
   | (Hole, [])
   | (Unit, [])
@@ -378,8 +378,8 @@ and mk_cursor_path_steps_typoperator =
       steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_typoperator");
-  print_endline(Sexp.to_string(UHTyp.sexp_of_skel(skel)));
+  //print_endline("In mk_cursor_path_steps_typoperator");
+  //print_endline(Sexp.to_string(UHTyp.sexp_of_skel(skel)));
   switch (operator, steps) {
   | (Prod, []) => []
   | (_binop, [n, ..._]) =>
@@ -402,7 +402,7 @@ and mk_cursor_path_steps_typopseq =
       term_path_steps: list(ChildIndex.t),
     )
     : CursorPath.steps => {
-  print_endline("In mk_cursor_path_steps_typopseq");
+  //print_endline("In mk_cursor_path_steps_typopseq");
   switch (skel) {
   | Placeholder(n) =>
     let pn = Seq.nth_operand(n, seq);

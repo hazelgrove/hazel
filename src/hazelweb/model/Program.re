@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open Sexplib;
+//open Sexplib;
 
 module Memo = Core_kernel.Memo;
 
@@ -126,8 +126,8 @@ let get_decoration_paths =
         )
         |> List.flatten;
       ColorSteps.pring_color_map(color_map);
-      print_endline(string_of_int(List.length(explanations)));
-      let _ =
+      //print_endline(string_of_int(List.length(explanations)));
+      /*let _ =
         List.map(
           ((steps, _)) =>
             print_endline(
@@ -135,7 +135,7 @@ let get_decoration_paths =
               ++ Sexp.to_string(CursorPath.sexp_of_steps(steps)),
             ),
           explanations,
-        );
+        );*/
       explanations;
     } else {
       [];

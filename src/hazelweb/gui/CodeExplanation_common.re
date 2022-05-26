@@ -136,7 +136,7 @@ let build_msg =
         | Omd.Paragraph(d) => translate(d, mapping)
         | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
         | Ul(items) =>
-          print_endline("IN THE LIST THINGY");
+          //print_endline("IN THE LIST THINGY");
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
