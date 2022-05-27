@@ -1,0 +1,6 @@
+(include_subdirs unqualified)
+
+(executable
+ (name main)
+ (libraries hazelc_test core_bench.inline_benchmarks)
+ (link_flags -linkall))
