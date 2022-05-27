@@ -255,7 +255,7 @@ let view =
             [
               Node.div(
                 [Attr.classes(["right-panel-prompt"])],
-                [Node.text("Rank the examples below")],
+                [Node.text("Rank w.r.t. the code and syntactic form")],
               ),
               Node.div(
                 [Attr.classes(["right-panel-responses"])],
