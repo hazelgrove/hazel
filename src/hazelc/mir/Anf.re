@@ -80,6 +80,7 @@ and comp_kind =
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
+  | CCase(imm, list(rule))
   | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(comp))
   | CNonEmptyHole(
       ErrStatus.HoleReason.t,
@@ -94,6 +95,13 @@ and comp_kind =
 and inj_side =
   | CInjL
   | CInjR
+
+[@deriving sexp]
+and rule = {
+  rule_pat: pat,
+  rule_branch: prog,
+  rule_indet: has_indet,
+}
 
 [@deriving sexp]
 and stmt = {

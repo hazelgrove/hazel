@@ -131,6 +131,11 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
     let (e, imps) = codegen_imm(im, imps);
     (ctor(e), imps);
 
+  | CCase(scrut, rules) =>
+    let (scrut, imps) = codegen_imm(scrut, imps);
+    let (rules, imps) = codegen_rules(rules, imps);
+    (EMatch(scrut, rules), imps);
+
   | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma, imps)
 
   | CNonEmptyHole(reason, u, i, sigma, im) =>
@@ -215,6 +220,19 @@ and codegen_bin_op =
       codegen_bin_op_indet(op, imps);
     };
   (op(e1, e2), imps);
+}
+
+and codegen_rules =
+    (rules: list(Anf.rule), imps): (list(GrainIR.rule), Imports.t) => {
+  codegen_fold(codegen_rule, rules, imps);
+}
+
+and codegen_rule = (rule: Anf.rule, imps): (GrainIR.rule, Imports.t) => {
+  let (pat, imps) = codegen_pat(rule.rule_pat, imps);
+  let (branch_stmts, branch_expr, imps) =
+    codegen_prog(rule.rule_branch, imps);
+  let branch = branch_stmts @ [SExpr(branch_expr)];
+  (RRule(pat, EBlock(branch)), imps);
 }
 
 and codegen_imm = (im: Anf.imm, imps): (GrainIR.expr, Imports.t) => {

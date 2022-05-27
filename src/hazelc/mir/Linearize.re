@@ -204,6 +204,8 @@ and linearize_exp =
     let binds = im_binds @ [inj_bind];
     (inj_var, binds, t_gen);
 
+  | EConsistentCase(case) => linearize_case(case, ictx, t_gen)
+
   | EEmptyHole(u, i, sigma) =>
     let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, ictx, t_gen);
     let hole: Anf.comp = {
@@ -272,6 +274,60 @@ and linearize_bin_op =
   let (bin_var, bin_bind, t_gen) = mk_bind_var_tmp(NoRec, bin, t_gen);
   let binds = im1_binds @ im2_binds @ [bin_bind];
   (bin_var, binds, t_gen);
+}
+
+and linearize_case =
+    (case: Hir.case, ictx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
+  switch (case.case_kind) {
+  | ECase(scrut, rules, _) =>
+    let (scrut_imm, scrut_binds, t_gen) = linearize_exp(scrut, ictx, t_gen);
+    let (rules, t_gen) = linearize_rules(rules, ictx, t_gen);
+
+    let rules_ty = List.hd(rules).rule_branch.prog_ty;
+    let rules_indet =
+      rules |> List.exists((rule: Anf.rule) => rule.rule_indet);
+
+    let case: Anf.comp = {
+      comp_kind: CCase(scrut_imm, rules),
+      comp_ty: rules_ty,
+      comp_indet: scrut_imm.imm_indet || rules_indet,
+    };
+
+    let (case_var, case_bind, t_gen) = mk_bind_var_tmp(NoRec, case, t_gen);
+    let binds = scrut_binds @ [case_bind];
+    (case_var, binds, t_gen);
+  };
+}
+
+and linearize_rules =
+    (rules: list(Hir.rule), ictx, t_gen): (list(Anf.rule), TmpVarGen.t) => {
+  let (rules_rev, t_gen) =
+    rules
+    |> List.fold_left(
+         ((rules, t_gen), rule) => {
+           let (rule, t_gen) = linearize_rule(rule, ictx, t_gen);
+           ([rule, ...rules], t_gen);
+         },
+         ([], t_gen),
+       );
+  (List.rev(rules_rev), t_gen);
+}
+
+and linearize_rule = (rule: Hir.rule, ictx, t_gen): (Anf.rule, TmpVarGen.t) => {
+  switch (rule.rule_kind) {
+  | ERule(p, branch) =>
+    let (p, ictx, t_gen) = linearize_pat(p, ictx, t_gen);
+    let (branch, t_gen) = linearize_prog(branch, ictx, t_gen);
+
+    (
+      {
+        rule_pat: p,
+        rule_branch: branch,
+        rule_indet: p.pat_indet || branch.prog_indet,
+      },
+      t_gen,
+    );
+  };
 }
 
 /* Transform Hir.pat into Anf.pat.

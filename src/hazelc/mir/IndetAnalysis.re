@@ -110,6 +110,15 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
       let im = analyze_imm(~opts, im, ictx);
       (CInj(side, im), im.imm_indet);
 
+    | CCase(scrut, rules) =>
+      let scrut = analyze_imm(~opts, scrut, ictx);
+      let rules = analyze_rules(~opts, scrut, rules, ictx);
+      (
+        CCase(scrut, rules),
+        scrut.imm_indet
+        || List.exists((rule: Anf.rule) => rule.rule_indet, rules),
+      );
+
     | CEmptyHole(u, i, sigma) =>
       let sigma = analyze_sigma(~opts, sigma, ictx);
       (CEmptyHole(u, i, sigma), true);
@@ -124,6 +133,22 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
     };
 
   {comp_kind, comp_ty, comp_indet};
+}
+
+and analyze_rules =
+    (~opts, scrut: Anf.imm, rules: list(Anf.rule), ictx): list(Anf.rule) => {
+  rules |> List.map(rule => analyze_rule(~opts, scrut, rule, ictx));
+}
+
+and analyze_rule = (~opts, scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
+  let {rule_pat, rule_branch, rule_indet: _}: Anf.rule = rule;
+  let (rule_pat, ictx) = analyze_pat(~opts, rule_pat, scrut.imm_indet, ictx);
+  let rule_branch = analyze_prog(~opts, rule_branch, ictx);
+  {
+    rule_pat,
+    rule_branch,
+    rule_indet: rule_pat.pat_indet || rule_branch.prog_indet,
+  };
 }
 
 and analyze_sigma =
