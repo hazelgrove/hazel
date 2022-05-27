@@ -113,7 +113,7 @@ let a_single_example_expression_ =
         Attr.name("question_wrapper"),
         Attr.class_("question_wrapper"),
         Attr.style(Css_gen.create(~field="float", ~value="left-block")),
-        Attr.on_mouseenter(_ => {
+        Attr.on_click(_ => {
           Event.Many([
             inject(
               ModelAction.UpdateDocumentationStudySettings(
