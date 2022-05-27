@@ -162,21 +162,21 @@ let view =
               ),
             ],
           ),
-          Node.div(
-            [Attr.classes(["right-panel-textarea-div"])],
+        ],
+      ),
+      Node.div(
+        [Attr.classes(["right-panel-textarea-div"])],
+        [
+          Node.textarea(
             [
-              Node.textarea(
-                [
-                  Attr.classes(["right-panel-textarea"]),
-                  Attr.on_change((_, new_rank) =>
-                    text_box_handler(~inject, new_rank)
-                  ),
-                ],
-                [
-                  Node.text(
-                    "Please list any other options that you would have preferred",
-                  ),
-                ],
+              Attr.classes(["right-panel-textarea"]),
+              Attr.on_change((_, new_rank) =>
+                text_box_handler(~inject, new_rank)
+              ),
+            ],
+            [
+              Node.text(
+                "Please list any other options that you would have preferred",
               ),
             ],
           ),

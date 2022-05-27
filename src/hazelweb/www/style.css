@@ -369,6 +369,7 @@ body {
 
 #slidable-right-bar-body {
   padding-right: 7px;
+  max-height: 90vh;
 }
 
 #right-bar-body {
@@ -1679,7 +1680,7 @@ h1 {
 }
 
 .right-panel-responses {
-  max-height: 200px;
+  /* max-height: 25vh; */
   overflow: auto;
 }
 
