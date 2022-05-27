@@ -32,8 +32,8 @@ let convert_bind = (bn: bind): Anf.stmt => {
 /** Context of variable remappings (e.g. x -> t124_x). */
 type var_remapping = VarMap.t_(Var.t);
 
-let rec linearize_prog = (d: Hir.expr, ictx, t_gen): (Anf.prog, TmpVarGen.t) => {
-  let (im, im_binds, t_gen) = linearize_exp(d, ictx, t_gen);
+let rec linearize_prog = (d: Hir.expr, vctx, t_gen): (Anf.prog, TmpVarGen.t) => {
+  let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
   let body = im_binds |> List.map(convert_bind);
 
   let c = Anf.Comp.mk_imm(im);
@@ -41,11 +41,11 @@ let rec linearize_prog = (d: Hir.expr, ictx, t_gen): (Anf.prog, TmpVarGen.t) => 
 }
 
 and linearize_exp =
-    (d: Hir.expr, ictx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
+    (d: Hir.expr, vctx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (d.expr_kind) {
   | EBoundVar(ty, x) =>
     let x' =
-      switch (VarMap.lookup(ictx, x)) {
+      switch (VarMap.lookup(vctx, x)) {
       | Some(x') => x'
       | None => raise(FreeBoundVar(x))
       };
@@ -53,17 +53,17 @@ and linearize_exp =
     ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: true}, [], t_gen);
 
   | ELet(dp, d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
-    let (p, ictx', t_gen) = linearize_pat(dp, ictx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, ictx', t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
+    let (p, vctx', t_gen) = linearize_pat(dp, vctx, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx', t_gen);
 
     let binds =
       im1_binds @ [mk_bind(p, NoRec, Anf.Comp.mk_imm(im1))] @ im2_binds;
     (im2, binds, t_gen);
 
   | ELam(dp, dp_ty, body) =>
-    let (p, ictx, t_gen) = linearize_pat(dp, ictx, t_gen);
-    let (body, t_gen) = linearize_prog(body, ictx, t_gen);
+    let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
+    let (body, t_gen) = linearize_prog(body, vctx, t_gen);
 
     let lam: Anf.comp = {
       comp_kind: CLam([p], body),
@@ -75,8 +75,8 @@ and linearize_exp =
     (lam_var, [lam_bind], t_gen);
 
   | EAp(fn, arg) =>
-    let (fn, fn_binds, t_gen) = linearize_exp(fn, ictx, t_gen);
-    let (arg, arg_binds, t_gen) = linearize_exp(arg, ictx, t_gen);
+    let (fn, fn_binds, t_gen) = linearize_exp(fn, vctx, t_gen);
+    let (arg, arg_binds, t_gen) = linearize_exp(arg, vctx, t_gen);
 
     let ap_ty =
       switch (fn.imm_ty) {
@@ -129,7 +129,7 @@ and linearize_exp =
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, HTyp.Bool, d1, d2, ictx, t_gen);
+    linearize_bin_op(op, HTyp.Bool, d1, d2, vctx, t_gen);
 
   | EBinIntOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -142,7 +142,7 @@ and linearize_exp =
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, HTyp.Int, d1, d2, ictx, t_gen);
+    linearize_bin_op(op, HTyp.Int, d1, d2, vctx, t_gen);
 
   | EBinFloatOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -155,11 +155,11 @@ and linearize_exp =
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, HTyp.Float, d1, d2, ictx, t_gen);
+    linearize_bin_op(op, HTyp.Float, d1, d2, vctx, t_gen);
 
   | EPair(d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, ictx, t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
     let pair: Anf.comp = {
       comp_kind: CPair(im1, im2),
       comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
@@ -171,8 +171,8 @@ and linearize_exp =
     (pair_var, binds, t_gen);
 
   | ECons(d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, ictx, t_gen);
+    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
+    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
     let cons: Anf.comp = {
       comp_kind: CCons(im1, im2),
       comp_ty: im2.imm_ty,
@@ -185,7 +185,7 @@ and linearize_exp =
     (cons_var, binds, t_gen);
 
   | EInj(other_ty, side, d) =>
-    let (im, im_binds, t_gen) = linearize_exp(d, ictx, t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
     let side = linearize_inj_side(side);
 
     let inj_ty: HTyp.t =
@@ -204,10 +204,10 @@ and linearize_exp =
     let binds = im_binds @ [inj_bind];
     (inj_var, binds, t_gen);
 
-  | EConsistentCase(case) => linearize_case(case, ictx, t_gen)
+  | EConsistentCase(case) => linearize_case(case, vctx, t_gen)
 
   | EEmptyHole(u, i, sigma) =>
-    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, ictx, t_gen);
+    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, vctx, t_gen);
     let hole: Anf.comp = {
       comp_kind: CEmptyHole(u, i, sigma),
       comp_ty: Hole,
@@ -219,8 +219,8 @@ and linearize_exp =
     (hole_var, binds, t_gen);
 
   | ENonEmptyHole(reason, u, i, sigma, d') =>
-    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, ictx, t_gen);
-    let (im, im_binds, t_gen) = linearize_exp(d', ictx, t_gen);
+    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, vctx, t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
     let hole: Anf.comp = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
       comp_ty: Hole,
@@ -232,7 +232,7 @@ and linearize_exp =
     (hole_var, binds, t_gen);
 
   | ECast(d', ty1, ty2) =>
-    let (im, im_binds, t_gen) = linearize_exp(d', ictx, t_gen);
+    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
     let cast: Anf.comp = {
       comp_kind: CCast(im, ty1, ty2),
       comp_ty: ty2,
@@ -248,11 +248,11 @@ and linearize_exp =
 }
 
 and linearize_sigma =
-    (sigma: VarMap.t_(Hir.expr), ictx, t_gen)
+    (sigma: VarMap.t_(Hir.expr), vctx, t_gen)
     : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
   List.fold_left(
     ((sigma, sigma_binds, t_gen), (x, d)) => {
-      let (im, im_binds, t_gen) = linearize_exp(d, ictx, t_gen);
+      let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
       let c = Anf.Comp.mk_imm(im);
       let sigma = VarMap.extend(sigma, (x, c));
       (sigma, sigma_binds @ im_binds, t_gen);
@@ -262,9 +262,9 @@ and linearize_sigma =
   )
 
 and linearize_bin_op =
-    (op: Anf.bin_op, ty: HTyp.t, d1: Hir.expr, d2: Hir.expr, ictx, t_gen) => {
-  let (im1, im1_binds, t_gen) = linearize_exp(d1, ictx, t_gen);
-  let (im2, im2_binds, t_gen) = linearize_exp(d2, ictx, t_gen);
+    (op: Anf.bin_op, ty: HTyp.t, d1: Hir.expr, d2: Hir.expr, vctx, t_gen) => {
+  let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
+  let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
   let bin: Anf.comp = {
     comp_kind: CBinOp(op, im1, im2),
     comp_ty: ty,
@@ -277,11 +277,11 @@ and linearize_bin_op =
 }
 
 and linearize_case =
-    (case: Hir.case, ictx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
+    (case: Hir.case, vctx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
   switch (case.case_kind) {
   | ECase(scrut, rules, _) =>
-    let (scrut_imm, scrut_binds, t_gen) = linearize_exp(scrut, ictx, t_gen);
-    let (rules, t_gen) = linearize_rules(rules, ictx, t_gen);
+    let (scrut_imm, scrut_binds, t_gen) = linearize_exp(scrut, vctx, t_gen);
+    let (rules, t_gen) = linearize_rules(rules, vctx, t_gen);
 
     let rules_ty = List.hd(rules).rule_branch.prog_ty;
     let rules_indet =
@@ -300,12 +300,12 @@ and linearize_case =
 }
 
 and linearize_rules =
-    (rules: list(Hir.rule), ictx, t_gen): (list(Anf.rule), TmpVarGen.t) => {
+    (rules: list(Hir.rule), vctx, t_gen): (list(Anf.rule), TmpVarGen.t) => {
   let (rules_rev, t_gen) =
     rules
     |> List.fold_left(
          ((rules, t_gen), rule) => {
-           let (rule, t_gen) = linearize_rule(rule, ictx, t_gen);
+           let (rule, t_gen) = linearize_rule(rule, vctx, t_gen);
            ([rule, ...rules], t_gen);
          },
          ([], t_gen),
@@ -313,11 +313,11 @@ and linearize_rules =
   (List.rev(rules_rev), t_gen);
 }
 
-and linearize_rule = (rule: Hir.rule, ictx, t_gen): (Anf.rule, TmpVarGen.t) => {
+and linearize_rule = (rule: Hir.rule, vctx, t_gen): (Anf.rule, TmpVarGen.t) => {
   switch (rule.rule_kind) {
   | ERule(p, branch) =>
-    let (p, ictx, t_gen) = linearize_pat(p, ictx, t_gen);
-    let (branch, t_gen) = linearize_prog(branch, ictx, t_gen);
+    let (p, vctx, t_gen) = linearize_pat(p, vctx, t_gen);
+    let (branch, t_gen) = linearize_prog(branch, vctx, t_gen);
 
     (
       {
@@ -336,54 +336,54 @@ and linearize_rule = (rule: Hir.rule, ictx, t_gen): (Anf.rule, TmpVarGen.t) => {
  * pattern alone, irrespective of the matchee.
  */
 and linearize_pat =
-    (p: Hir.pat, ictx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
-  linearize_pat_hole(p, ictx, t_gen);
+    (p: Hir.pat, vctx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
+  linearize_pat_hole(p, vctx, t_gen);
 }
 
 and linearize_pat_hole =
-    (p: Hir.pat, ictx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
+    (p: Hir.pat, vctx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
   switch (p.pat_kind) {
   | PPair(p1, p2) =>
-    let (p1, ictx, t_gen) = linearize_pat_hole(p1, ictx, t_gen);
-    let (p2, ictx, t_gen) = linearize_pat_hole(p2, ictx, t_gen);
+    let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
+    let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
     (
       {pat_kind: PPair(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
-      ictx,
+      vctx,
       t_gen,
     );
 
   | PCons(p1, p2) =>
-    let (p1, ictx, t_gen) = linearize_pat_hole(p1, ictx, t_gen);
-    let (p2, ictx, t_gen) = linearize_pat_hole(p2, ictx, t_gen);
+    let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
+    let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
     (
       {pat_kind: PCons(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
-      ictx,
+      vctx,
       t_gen,
     );
 
   | PInj(side, p') =>
     let side = linearize_inj_side(side);
-    let (p', ictx, t_gen) = linearize_pat_hole(p', ictx, t_gen);
-    ({pat_kind: PInj(side, p'), pat_indet: p'.pat_indet}, ictx, t_gen);
+    let (p', vctx, t_gen) = linearize_pat_hole(p', vctx, t_gen);
+    ({pat_kind: PInj(side, p'), pat_indet: p'.pat_indet}, vctx, t_gen);
 
-  | PWild => ({pat_kind: PWild, pat_indet: true}, ictx, t_gen)
+  | PWild => ({pat_kind: PWild, pat_indet: true}, vctx, t_gen)
 
   | PVar(x) =>
     // Mark x as indet whenever the matchee is indet or the pattern is inside a
     // pattern hole.
     let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
-    let ictx = VarMap.extend(ictx, (x, x'));
-    ({pat_kind: PVar(x'), pat_indet: true}, ictx, t_gen);
+    let vctx = VarMap.extend(vctx, (x, x'));
+    ({pat_kind: PVar(x'), pat_indet: true}, vctx, t_gen);
 
-  | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: true}, ictx, t_gen)
+  | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: true}, vctx, t_gen)
 
-  | PFloatLit(f) => ({pat_kind: PFloat(f), pat_indet: true}, ictx, t_gen)
+  | PFloatLit(f) => ({pat_kind: PFloat(f), pat_indet: true}, vctx, t_gen)
 
-  | PBoolLit(b) => ({pat_kind: PBool(b), pat_indet: true}, ictx, t_gen)
+  | PBoolLit(b) => ({pat_kind: PBool(b), pat_indet: true}, vctx, t_gen)
 
-  | PNil => ({pat_kind: PNil, pat_indet: true}, ictx, t_gen)
+  | PNil => ({pat_kind: PNil, pat_indet: true}, vctx, t_gen)
 
-  | PTriv => ({pat_kind: PTriv, pat_indet: true}, ictx, t_gen)
+  | PTriv => ({pat_kind: PTriv, pat_indet: true}, vctx, t_gen)
 
   | PEmptyHole(_)
   | PNonEmptyHole(_)
@@ -401,7 +401,7 @@ and linearize_inj_side = (side: InjSide.t): Anf.inj_side => {
 };
 
 let linearize = (d: Hir.expr): Anf.prog => {
-  // TODO: Can't pass empty ictx once builtins are supported.
+  // TODO: Can't pass empty vctx once builtins are supported.
   let (prog, _) = linearize_prog(d, VarMap.empty, TmpVarGen.init);
   prog;
 };
