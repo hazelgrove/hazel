@@ -7,17 +7,18 @@
 /**
  * Analysis level.
  *
- * TODO: Whole-program analysis for lambdas.
+ * TODO: Whole-program analysis (e.g. for lambdas).
  */
 [@deriving sexp]
-type analysis_level =
-  | Local;
+type level =
+  | NoAnalysis
+  | LocalAnalysis;
 
 /**
  * Options for analysis.
  */
 [@deriving sexp]
-type opts = {analysis_level};
+type opts = {level};
 
 /**
  * Perform static analysis and return annotated program.

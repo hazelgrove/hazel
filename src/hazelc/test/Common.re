@@ -2,11 +2,16 @@ module Compile = {
   let temp_prefix = "hazelc_test";
 
   let opts: Compile.opts = {
-    indet_analysis: Some(Local),
+    optimize: {
+      indet_analysis: {
+        level: LocalAnalysis,
+      },
+    },
     codegen: {
       print_final_expr: true,
     },
   };
+
   let grain_opts: Compile.grain_opts = {
     grain: None,
     optimize: None,

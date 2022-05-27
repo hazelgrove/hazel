@@ -25,26 +25,20 @@ type error =
   | ElaborateError
   | GrainError;
 
-let hazelc =
-    (action, source_filenames, output_filename, _verbose, optimize, debug) => {
-  // Open the source file.
-  let source_filename = List.hd(source_filenames);
-  let&i source_file = open_in(source_filename);
-  let source = Compile.Source(File(source_file));
-
-  // Use a temporary file for Grain output during compilation.
-  let grain_output = Filename.temp_file(prefix, "a.gr");
-
-  // Initialize options.
-  let indet_analysis =
+let mk_opts = (action, _verbose, optimize, debug) => {
+  let indet_analysis_level =
     switch (optimize) {
-    | Some(l) when l >= 1 => Some(IndetAnalysis.Local)
-    | None => Some(IndetAnalysis.Local)
-    | Some(_) => None
+    | Some(l) when l >= 1 => IndetAnalysis.LocalAnalysis
+    | None => IndetAnalysis.LocalAnalysis
+    | Some(_) => IndetAnalysis.NoAnalysis
     };
 
   let opts: Compile.opts = {
-    indet_analysis,
+    optimize: {
+      indet_analysis: {
+        level: indet_analysis_level,
+      },
+    },
     codegen: {
       print_final_expr: true,
     },
@@ -56,6 +50,22 @@ let hazelc =
     optimize,
     debug: Some(debug),
   };
+
+  (opts, grain_opts);
+};
+
+let hazelc =
+    (action, source_filenames, output_filename, verbose, optimize, debug) => {
+  // Open the source file.
+  let source_filename = List.hd(source_filenames);
+  let&i source_file = open_in(source_filename);
+  let source = Compile.Source(File(source_file));
+
+  // Use a temporary file for Grain output during compilation.
+  let grain_output = Filename.temp_file(prefix, "a.gr");
+
+  // Initialize options.
+  let (opts, grain_opts) = mk_opts(action, verbose, optimize, debug);
 
   // Use the given output filename, or use "a.{ext}" where {ext} depends on
   // output kind.

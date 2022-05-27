@@ -13,7 +13,7 @@
 
 [@deriving sexp]
 type opts = {
-  indet_analysis: option(IndetAnalysis.analysis_level),
+  optimize: Optimize.opts,
   codegen: GrainCodegen.opts,
 };
 

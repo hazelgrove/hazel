@@ -2,11 +2,12 @@ exception NotImplemented;
 exception FreeBoundVar(Var.t);
 
 [@deriving sexp]
-type analysis_level =
-  | Local;
+type level =
+  | NoAnalysis
+  | LocalAnalysis;
 
 [@deriving sexp]
-type opts = {analysis_level};
+type opts = {level};
 
 /**
  * Context mapping variables to the indet-ness of the expression to which it
@@ -193,4 +194,7 @@ and analyze_pat' =
 };
 
 let analyze = (~opts, prog: Anf.prog): Anf.prog =>
-  analyze_prog(~opts, prog, VarMap.empty);
+  switch (opts.level) {
+  | NoAnalysis => prog
+  | LocalAnalysis => analyze_prog(~opts, prog, VarMap.empty)
+  };

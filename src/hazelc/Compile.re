@@ -7,7 +7,7 @@ exception BadState;
 
 [@deriving sexp]
 type opts = {
-  indet_analysis: option(IndetAnalysis.analysis_level),
+  optimize: Optimize.opts,
   codegen: GrainCodegen.opts,
 };
 
@@ -26,8 +26,7 @@ let _transform = (ctx: Contexts.t) => Transform.transform(ctx);
 
 let _linearize = Linearize.linearize;
 
-let _indet_analyze = level =>
-  IndetAnalysis.analyze(~opts={analysis_level: level});
+let _optimize = opts => Optimize.optimize(~opts);
 
 let _grainize = GrainCodegen.codegen;
 
@@ -67,12 +66,7 @@ let linearize = (~opts, d) => {
   _linearize(d);
 };
 
-let optimize = (~opts, a) => {
-  switch (opts.indet_analysis) {
-  | Some(level) => _indet_analyze(level, a)
-  | None => a
-  };
-};
+let optimize = (~opts, a) => _optimize(opts.optimize, a);
 
 let grainize = (~opts, a) => {
   let _ = opts;

@@ -235,7 +235,11 @@ let apply_action =
           |> JSUtil.log
         | Grain =>
           let opts: Compile.opts = {
-            indet_analysis: Some(Local),
+            optimize: {
+              indet_analysis: {
+                level: LocalAnalysis,
+              },
+            },
             codegen: {
               print_final_expr: false,
             },
