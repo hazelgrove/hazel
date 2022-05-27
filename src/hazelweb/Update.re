@@ -234,7 +234,12 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | Grain =>
-          let opts: Compile.opts = {indet_analysis: Some(Local)};
+          let opts: Compile.opts = {
+            indet_analysis: Some(Local),
+            codegen: {
+              print_final_expr: false,
+            },
+          };
           model
           |> Model.get_program
           |> Program.get_uhexp

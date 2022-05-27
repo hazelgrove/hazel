@@ -43,7 +43,12 @@ let hazelc =
     | Some(_) => None
     };
 
-  let opts: Compile.opts = {indet_analysis: indet_analysis};
+  let opts: Compile.opts = {
+    indet_analysis,
+    codegen: {
+      print_final_expr: true,
+    },
+  };
   let grain_opts: Compile.grain_opts = {
     grain: None,
     includes: None,

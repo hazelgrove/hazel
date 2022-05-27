@@ -1,3 +1,8 @@
+open Sexplib.Std;
+
+[@deriving sexp]
+type opts = {print_final_expr: bool};
+
 module Imports = {
   type t = {
     indet: bool,
@@ -376,19 +381,24 @@ and codegen_cast =
   HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.with_indet(imps));
 };
 
-let codegen = (prog: Anf.prog): GrainIR.prog => {
+let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
   let (body, c, imps) = codegen_prog(prog, Imports.default);
   let tb = Imports.codegen(imps);
 
-  // TODO: Clean this up.
-  let print_ap =
-    if (prog.prog_indet) {
-      HazelStd.Rt.AstPrint.print(c);
+  let b =
+    if (opts.print_final_expr) {
+      /* TODO: Clean this up. */
+      /* FIXME: Probably doesn't work all the time. */
+      let print_ap =
+        if (prog.prog_indet) {
+          HazelStd.Rt.AstPrint.print(c);
+        } else {
+          EAp(EVar("print"), [c]);
+        };
+      body @ [SExpr(print_ap)];
     } else {
-      EAp(EVar("print"), [c]);
+      body @ [SExpr(c)];
     };
-
-  let b = body @ [SExpr(print_ap)];
 
   (tb, b);
 };

@@ -12,7 +12,10 @@
  */
 
 [@deriving sexp]
-type opts = {indet_analysis: option(IndetAnalysis.analysis_level)};
+type opts = {
+  indet_analysis: option(IndetAnalysis.analysis_level),
+  codegen: GrainCodegen.opts,
+};
 
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);
 let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);

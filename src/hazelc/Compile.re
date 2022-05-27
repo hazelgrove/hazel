@@ -6,7 +6,10 @@ module Parsing = Hazeltext.Parsing;
 exception BadState;
 
 [@deriving sexp]
-type opts = {indet_analysis: option(IndetAnalysis.analysis_level)};
+type opts = {
+  indet_analysis: option(IndetAnalysis.analysis_level),
+  codegen: GrainCodegen.opts,
+};
 
 [@deriving sexp]
 type grain_opts = Grain.opts;
@@ -73,7 +76,7 @@ let optimize = (~opts, a) => {
 
 let grainize = (~opts, a) => {
   let _ = opts;
-  _grainize(a);
+  _grainize(~opts=opts.codegen, a);
 };
 
 let print = (~opts, g) => {
