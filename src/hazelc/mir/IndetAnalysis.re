@@ -1,5 +1,5 @@
-exception NotImplemented;
 exception FreeBoundVar(Var.t);
+exception BadLetRec;
 
 [@deriving sexp]
 type level =
@@ -44,13 +44,18 @@ and analyze_stmt = (~opts, stmt: Anf.stmt, ictx): (Anf.stmt, indet_context) => {
   let {stmt_kind, stmt_indet: _}: Anf.stmt = stmt;
   let (stmt_kind, stmt_indet, ictx) =
     switch (stmt_kind) {
-    | SLet(p, NoRec, c) =>
+    | SLet(p, c) =>
       let c = analyze_comp(~opts, c, ictx);
       let (p, ictx) = analyze_pat(~opts, p, c.comp_indet, ictx);
-      (Anf.SLet(p, NoRec, c), p.pat_indet || c.comp_indet, ictx);
+      (Anf.SLet(p, c), p.pat_indet || c.comp_indet, ictx);
 
-    /* TODO: Recursive functions. */
-    | SLet(_p, Rec, _c) => raise(NotImplemented)
+    /* SLetRec rhs can only be a lambda. */
+    | SLetRec(x, {comp_kind: CLam(_, _), comp_ty: _, comp_indet: _} as c) =>
+      let ictx = VarMap.extend(ictx, (x, true));
+      let c = analyze_comp(~opts, c, ictx);
+      (Anf.SLetRec(x, c), c.comp_indet, ictx);
+
+    | SLetRec(_, _) => raise(BadLetRec)
     };
 
   ({stmt_kind, stmt_indet}, ictx);

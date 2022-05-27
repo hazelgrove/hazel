@@ -87,13 +87,14 @@ let rec codegen_prog =
 
 and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
   switch (stmt.stmt_kind) {
-  | SLet(p, NoRec, c) =>
+  | SLet(p, c) =>
     let (p', imps) = codegen_pat(p, imps);
     let (c', imps) = codegen_comp(c, imps);
     (SLet([p'], c'), imps);
 
-  | SLet(p, Rec, c) =>
-    let (p', imps) = codegen_pat(p, imps);
+  | SLetRec(x, c) =>
+    let (p', imps) =
+      codegen_pat({pat_kind: PVar(x), pat_indet: false}, imps);
     let (c', imps) = codegen_comp(c, imps);
     (SLetRec([p'], c'), imps);
   };

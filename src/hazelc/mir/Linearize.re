@@ -3,29 +3,27 @@ exception WrongType;
 exception FreeBoundVar(Var.t);
 
 type bind =
-  | BLet(Anf.pat, Anf.rec_flag, Anf.comp, Anf.has_indet);
+  | BLet(Anf.pat, Anf.comp, Anf.has_indet)
+  | BLetRec(Var.t, Anf.comp, Anf.has_indet);
 
-let mk_bind = (p: Anf.pat, rec_flag: Anf.rec_flag, c: Anf.comp) =>
-  BLet(p, rec_flag, c, p.pat_indet || c.comp_indet);
+let mk_bind = (p: Anf.pat, c: Anf.comp) =>
+  BLet(p, c, p.pat_indet || c.comp_indet);
 
-let mk_bind_var = (x: Var.t, rec_flag: Anf.rec_flag, c: Anf.comp) => (
+let mk_bind_var = (x: Var.t, c: Anf.comp) => (
   Anf.Imm.mk_var(x, c),
-  mk_bind({pat_kind: PVar(x), pat_indet: true}, rec_flag, c),
+  mk_bind({pat_kind: PVar(x), pat_indet: true}, c),
 );
 
-let mk_bind_var_tmp =
-    (rec_flag: Anf.rec_flag, c: Anf.comp, t_gen: TmpVarGen.t) => {
+let mk_bind_var_tmp = (c: Anf.comp, t_gen: TmpVarGen.t) => {
   let (x, t_gen) = TmpVarGen.next(t_gen);
-  let (var, bind) = mk_bind_var(x, rec_flag, c);
+  let (var, bind) = mk_bind_var(x, c);
   (var, bind, t_gen);
 };
 
 let convert_bind = (bn: bind): Anf.stmt => {
   switch (bn) {
-  | BLet(p, rec_flag, c, indet) => {
-      stmt_kind: SLet(p, rec_flag, c),
-      stmt_indet: indet,
-    }
+  | BLet(p, c, indet) => {stmt_kind: SLet(p, c), stmt_indet: indet}
+  | BLetRec(p, c, indet) => {stmt_kind: SLetRec(p, c), stmt_indet: indet}
   };
 };
 
@@ -57,9 +55,25 @@ and linearize_exp =
     let (p, vctx', t_gen) = linearize_pat(dp, vctx, t_gen);
     let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx', t_gen);
 
-    let binds =
-      im1_binds @ [mk_bind(p, NoRec, Anf.Comp.mk_imm(im1))] @ im2_binds;
+    let binds = im1_binds @ [mk_bind(p, Anf.Comp.mk_imm(im1))] @ im2_binds;
     (im2, binds, t_gen);
+
+  | ELetRec(x, dp, dp_ty, body, d') =>
+    let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
+    let vctx = VarMap.extend(vctx, (x, x'));
+
+    let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
+    let (body, t_gen) = linearize_prog(body, vctx, t_gen);
+    let lam: Anf.comp = {
+      comp_kind: CLam([p], body),
+      comp_ty: Arrow(dp_ty, body.prog_ty),
+      comp_indet: p.pat_indet || body.prog_indet,
+    };
+
+    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
+
+    let binds = [BLetRec(x', lam, lam.comp_indet), ...im_binds];
+    (im, binds, t_gen);
 
   | ELam(dp, dp_ty, body) =>
     let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
@@ -71,7 +85,7 @@ and linearize_exp =
       comp_indet: p.pat_indet || body.prog_indet,
     };
 
-    let (lam_var, lam_bind, t_gen) = mk_bind_var_tmp(NoRec, lam, t_gen);
+    let (lam_var, lam_bind, t_gen) = mk_bind_var_tmp(lam, t_gen);
     (lam_var, [lam_bind], t_gen);
 
   | EAp(fn, arg) =>
@@ -89,7 +103,7 @@ and linearize_exp =
       comp_indet: fn.imm_indet || arg.imm_indet,
     };
 
-    let (ap_var, ap_bind, t_gen) = mk_bind_var_tmp(NoRec, ap, t_gen);
+    let (ap_var, ap_bind, t_gen) = mk_bind_var_tmp(ap, t_gen);
     let binds = fn_binds @ arg_binds @ [ap_bind];
     (ap_var, binds, t_gen);
 
@@ -166,7 +180,7 @@ and linearize_exp =
       comp_indet: im1.imm_indet || im2.imm_indet,
     };
 
-    let (pair_var, pair_bind, t_gen) = mk_bind_var_tmp(NoRec, pair, t_gen);
+    let (pair_var, pair_bind, t_gen) = mk_bind_var_tmp(pair, t_gen);
     let binds = im1_binds @ im2_binds @ [pair_bind];
     (pair_var, binds, t_gen);
 
@@ -179,7 +193,7 @@ and linearize_exp =
       comp_indet: im1.imm_indet || im2.imm_indet,
     };
 
-    let (cons_var, cons_bind, t_gen) = mk_bind_var_tmp(NoRec, cons, t_gen);
+    let (cons_var, cons_bind, t_gen) = mk_bind_var_tmp(cons, t_gen);
     let binds = im1_binds @ im2_binds @ [cons_bind];
 
     (cons_var, binds, t_gen);
@@ -200,7 +214,7 @@ and linearize_exp =
       comp_indet: im.imm_indet,
     };
 
-    let (inj_var, inj_bind, t_gen) = mk_bind_var_tmp(NoRec, inj, t_gen);
+    let (inj_var, inj_bind, t_gen) = mk_bind_var_tmp(inj, t_gen);
     let binds = im_binds @ [inj_bind];
     (inj_var, binds, t_gen);
 
@@ -214,7 +228,7 @@ and linearize_exp =
       comp_indet: true,
     };
 
-    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(NoRec, hole, t_gen);
+    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
     let binds = sigma_binds @ [hole_bind];
     (hole_var, binds, t_gen);
 
@@ -227,7 +241,7 @@ and linearize_exp =
       comp_indet: true,
     };
 
-    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(NoRec, hole, t_gen);
+    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
     let binds = sigma_binds @ im_binds @ [hole_bind];
     (hole_var, binds, t_gen);
 
@@ -239,7 +253,7 @@ and linearize_exp =
       comp_indet: true,
     };
 
-    let (cast_var, cast_bind, t_gen) = mk_bind_var_tmp(NoRec, cast, t_gen);
+    let (cast_var, cast_bind, t_gen) = mk_bind_var_tmp(cast, t_gen);
     let binds = im_binds @ [cast_bind];
     (cast_var, binds, t_gen);
 
@@ -271,7 +285,7 @@ and linearize_bin_op =
     comp_indet: im1.imm_indet || im2.imm_indet,
   };
 
-  let (bin_var, bin_bind, t_gen) = mk_bind_var_tmp(NoRec, bin, t_gen);
+  let (bin_var, bin_bind, t_gen) = mk_bind_var_tmp(bin, t_gen);
   let binds = im1_binds @ im2_binds @ [bin_bind];
   (bin_var, binds, t_gen);
 }
@@ -293,7 +307,7 @@ and linearize_case =
       comp_indet: scrut_imm.imm_indet || rules_indet,
     };
 
-    let (case_var, case_bind, t_gen) = mk_bind_var_tmp(NoRec, case, t_gen);
+    let (case_var, case_bind, t_gen) = mk_bind_var_tmp(case, t_gen);
     let binds = scrut_binds @ [case_bind];
     (case_var, binds, t_gen);
   };

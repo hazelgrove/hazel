@@ -58,7 +58,7 @@ and expr_kind =
   | EInconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(expr), case)
   /* Let bindings */
   | ELet(pat, expr, expr)
-  | ELetRec(Var.t, HTyp.t, pat, expr, expr)
+  | ELetRec(Var.t, pat, HTyp.t, expr, expr)
   /* Lambda */
   | ELam(pat, HTyp.t, expr)
   /* Application */

@@ -111,12 +111,8 @@ and stmt = {
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(pat, rec_flag, comp)
-
-[@deriving sexp]
-and rec_flag =
-  | NoRec
-  | Rec
+  | SLet(pat, comp)
+  | SLetRec(Var.t, comp)
 
 [@deriving sexp]
 and prog = {
