@@ -121,6 +121,14 @@ let hazelc =
     | Grain =>
       Compile.resume_until_printed(~opts, source)
       |> Result.map(write_output)
+      |> Result.map(() =>
+           ignore(
+             Grain.Format.format(
+               ~opts=grain_opts,
+               {filename: output_filename},
+             ),
+           )
+         )
       |> Result.map_error(convert_error)
 
     | Wasm

@@ -32,6 +32,16 @@ module Run: {
   let run: (~opts: Opts.t, opts) => run_result;
 };
 
+module Format: {
+  [@deriving sexp]
+  type opts = {filename: string};
+
+  [@deriving sexp]
+  type format_result = result(unit, int);
+
+  let format: (~opts: Opts.t, opts) => format_result;
+};
+
 [@deriving sexp]
 type opts = Opts.t;
 
@@ -46,3 +56,9 @@ type run_opts = Run.opts;
 [@deriving sexp]
 type run_result = Run.run_result;
 let run: (~opts: opts, run_opts) => run_result;
+
+[@deriving sexp]
+type format_opts = Format.opts;
+[@deriving sexp]
+type format_result = Format.format_result;
+let format: (~opts: opts, format_opts) => format_result;

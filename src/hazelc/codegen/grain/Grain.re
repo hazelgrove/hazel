@@ -127,6 +127,31 @@ module Run = {
   };
 };
 
+module Format = {
+  [@deriving sexp]
+  type opts = {filename: string};
+
+  [@deriving sexp]
+  type format_result = result(unit, int);
+
+  let args_list = (_, fopts) => [
+    Opts.use_flag("--in-place", ""),
+    Opts.use_arg(fopts.filename),
+  ];
+
+  let format = (~opts, fopts) => {
+    let cmd =
+      Opts.use_subcmd(opts, "format")
+      |> Opts.use_args(args_list(opts, fopts));
+
+    let code = Sys.command(cmd);
+    switch (code) {
+    | 0 => Ok()
+    | _ => Error(code)
+    };
+  };
+};
+
 [@deriving sexp]
 type opts = Opts.t;
 
@@ -141,3 +166,9 @@ type run_opts = Run.opts;
 [@deriving sexp]
 type run_result = Run.run_result;
 let run = Run.run;
+
+[@deriving sexp]
+type format_opts = Format.opts;
+[@deriving sexp]
+type format_result = Format.format_result;
+let format = Format.format;
