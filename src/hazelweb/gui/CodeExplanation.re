@@ -37,6 +37,7 @@ let a_single_example_expression =
       example_body: string,
       ranking_out_of: int,
       index: int,
+      rank: int,
     ) => {
   let (msg, _) =
     CodeExplanation_common.build_msg(
@@ -81,7 +82,7 @@ let a_single_example_expression =
               rank_selection_handler(~inject, index, int_of_string(new_rank))
             ),
           ],
-          CodeExplanation_common.rank_list(1 + ranking_out_of),
+          CodeExplanation_common.rank_list(1 + ranking_out_of, rank),
         ),
         Node.div([], msg),
       ],
@@ -107,6 +108,7 @@ let render_explanations =
           i.expression,
           List.length(explanations),
           index,
+          i.rank,
         ),
       explanations,
     ),
@@ -172,7 +174,7 @@ let view =
                 ],
                 [
                   Node.text(
-                    "Please give any other feedback on the above options or other options that you would have preferred",
+                    "Please list any other options that you would have preferred",
                   ),
                 ],
               ),

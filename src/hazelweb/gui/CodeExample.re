@@ -89,6 +89,7 @@ let a_single_example_expression_ =
       result: Node.t,
       index: int,
       hovered_over_example: int,
+      rank: int,
     ) => {
   let more_info =
     if (index == hovered_over_example) {
@@ -142,7 +143,7 @@ let a_single_example_expression_ =
               rank_selection_handler(inject, index, int_of_string(new_rank))
             ),
           ],
-          CodeExplanation_common.rank_list(1 + ranking_out_of),
+          CodeExplanation_common.rank_list(1 + ranking_out_of, rank),
         ),
         example_body,
         ...more_info,
@@ -201,6 +202,7 @@ let display_examples =
           ),
           index,
           hovered_over_example,
+          e.rankz,
         ),
       examples_list_,
     ),
@@ -273,7 +275,7 @@ let view =
                 ],
                 [
                   Node.text(
-                    "Please give any other feedback on the above options or other options that you would have preferred",
+                    "Please list any other options that you would have preferred",
                   ),
                 ],
               ),

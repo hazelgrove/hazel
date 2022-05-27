@@ -22,7 +22,7 @@ let syntactic_form_view =
     switch (explanation_info) {
     | LetLine(CommaOperator(_pats, _type), _def, _start_index, _body) =>
       switch (syntactic_form_level) {
-      | 2 =>
+      | 4 =>
         Some(
           UHExp.[
             letline(
@@ -45,7 +45,7 @@ let syntactic_form_view =
             ExpLine(OpSeq.wrap(var("<body>"))),
           ],
         )
-      | 4 =>
+      | 2 =>
         Some(
           UHExp.[
             letline(
@@ -59,7 +59,7 @@ let syntactic_form_view =
       }
     | Lambda(CommaOperator(_pats, _type), _body) =>
       switch (syntactic_form_level) {
-      | 2 =>
+      | 4 =>
         Some(
           UHExp.[
             ExpLine(
@@ -86,7 +86,7 @@ let syntactic_form_view =
             ),
           ],
         )
-      | 4 =>
+      | 2 =>
         Some(
           UHExp.[
             ExpLine(

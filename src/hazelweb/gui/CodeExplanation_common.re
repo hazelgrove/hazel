@@ -1,31 +1,36 @@
 open Virtual_dom.Vdom;
 
 // just draws the ranking
-
-let rank_list1 = x => {
+let selected = (rank, option) =>
+  if (rank == option) {
+    [Attr.selected];
+  } else {
+    [];
+  };
+let rank_list1 = (x, rank) => {
   List.init(x, i =>
     Node.option(
-      [Attr.value(string_of_int(i))],
+      [Attr.value(string_of_int(i)), ...selected(rank, i)],
       [Node.text(string_of_int(i))],
     )
   );
 };
 
-let rank_list = x => {
+let rank_list = (x, rank) => {
   List.flatten([
     [
       Node.option(
-        [Attr.value("not_selected"), Attr.selected],
+        [Attr.value("-1"), ...selected(rank, -1)],
         [Node.text("- Please rank this option")],
       ),
     ],
     [
       Node.option(
-        [Attr.value("None_are_useful")],
+        [Attr.value("-2"), ...selected(rank, -2)],
         [Node.text("X - This is not a useful option")],
       ),
     ],
-    rank_list1(x),
+    rank_list1(x, rank),
   ]);
 };
 

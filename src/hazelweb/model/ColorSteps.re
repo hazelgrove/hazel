@@ -26,12 +26,12 @@ type t = (StepsMap.t(string), int);
    Make sure distinguishable for color blind or greyscale
    - think about related colors for related concepts*/
 let child_colors = [
-  "rgb(122, 153, 182)",
-  "rgb(199, 141, 146)",
-  "rgb(153, 199, 141)",
-  "rgb(235, 164, 84)",
-  "rgb(167, 84, 235)",
-  "rgb(235, 200, 84)",
+  "rgb(180, 211, 240)",
+  "rgb(242, 177, 182)",
+  "rgb(190, 242, 177)",
+  "rgb(252, 186, 111)",
+  "rgb(212, 162, 252)",
+  "rgb(247, 221, 134)",
 ];
 
 let empty = (StepsMap.empty, 0);
