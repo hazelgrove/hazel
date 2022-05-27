@@ -35,9 +35,11 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
   | FixF(_) => raise(FixFError)
   | Let(Var(_), FixF(x, ty, Fun(dp, _, d3)), body) =>
     // TODO: Not really sure if any of this recursive function handling is right...
-    let (dp, ctx') = transform_pat(ctx, dp, ty);
-    let (d3, _) = transform_exp(ctx', d3);
-    let (body, body_ty) = transform_exp(ctx', body);
+    let (dp, ctx) = transform_pat(ctx, dp, ty);
+    let ctx = VarMap.extend(ctx, (x, ty));
+
+    let (d3, _) = transform_exp(ctx, d3);
+    let (body, body_ty) = transform_exp(ctx, body);
     ({expr_kind: ELetRec(x, ty, dp, d3, body)}, body_ty);
 
   | Let(dp, d', body) =>
