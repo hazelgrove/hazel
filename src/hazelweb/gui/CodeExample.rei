@@ -6,6 +6,7 @@ let view:
     ~settings: Settings.t,
     ~font_metrics: FontMetrics.t,
     list(quest),
-    int
+    int,
+    string
   ) =>
   Node.t;

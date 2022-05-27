@@ -133,6 +133,7 @@ let view =
       ~settings: DocumentationStudySettings.t,
       ~inject: ModelAction.t => Event.t,
       explanations: list(Prompt.explain),
+      text_box_text,
     )
     : Node.t => {
   let explanation_view = {
@@ -176,7 +177,11 @@ let view =
             ],
             [
               Node.text(
-                "Please list any other options that you would have preferred",
+                if (text_box_text == "") {
+                  "Please list any other options that you would have preferred";
+                } else {
+                  text_box_text;
+                },
               ),
             ],
           ),

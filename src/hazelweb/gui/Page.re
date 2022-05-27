@@ -110,12 +110,18 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let _program = Model.get_program(model);
   let _selected_instance = Model.get_selected_hole_instance(model);
-  let (examples, explanations, level) =
+  let (examples, explanations, level, example_text_box, explanation_text_box) =
     switch (model.doc_study.prompt) {
     | Some(index) =>
       let prompt = List.nth(model.doc_study.prompts, index);
-      (prompt.examples, prompt.explanation, prompt.syntactic_form_level);
-    | None => ([], [], 0)
+      (
+        prompt.examples,
+        prompt.explanation,
+        prompt.syntactic_form_level,
+        prompt.example_text_box,
+        prompt.explanation_text_box,
+      );
+    | None => ([], [], 0, "", "")
     };
   let explanation_info =
     ExplanationInfo.mk_explanation_info(
@@ -176,6 +182,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~settings=model.doc_study,
               ~inject,
               explanations,
+              explanation_text_box,
             );
           },
       ),
@@ -209,6 +216,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
               ~font_metrics=model.font_metrics,
               examples,
               model.doc_study.hovered_over_example,
+              example_text_box,
             );
           },
       ),

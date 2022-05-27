@@ -1256,7 +1256,7 @@ let prompts: list(t) = [
     explanation: let_with_tuple_explanations,
     explanation_text_box: "",
     examples: let_with_tuple_examples,
-    example_text_box: "",
+    example_text_box: "example test",
     syntactic_form_level: 2,
   },
   {

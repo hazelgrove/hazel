@@ -218,6 +218,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       example_list: list(Prompt.quest),
       hovered_over_example: int,
+      text_box_text: string,
     )
     : Node.t => {
   let explanation_view = {
@@ -277,7 +278,11 @@ let view =
             ],
             [
               Node.text(
-                "Please list any other options that you would have preferred",
+                if (text_box_text == "") {
+                  "Please list any other options that you would have preferred";
+                } else {
+                  text_box_text;
+                },
               ),
             ],
           ),
