@@ -226,8 +226,8 @@ and codegen_var = (x: Var.t, imps): (GrainIR.expr, Imports.t) => {
 
 and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
   switch (const) {
-  | ConstInt(n) => (EInt64Lit(n), Imports.with_int64(imps))
-  | ConstFloat(f) => (EFloat64Lit(f), Imports.with_float64(imps))
+  | ConstInt(n) => (EInt64Lit(n), imps)
+  | ConstFloat(f) => (EFloat64Lit(f), imps)
   | ConstBool(b) => (EBoolLit(b), imps)
   | ConstNil(_) => (EList([]), imps)
   | ConstTriv => (ETriv, imps)
