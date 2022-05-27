@@ -10,8 +10,8 @@ let selected = (rank, option) =>
 let rank_list1 = (x, rank) => {
   List.init(x, i =>
     Node.option(
-      [Attr.value(string_of_int(i)), ...selected(rank, i)],
-      [Node.text(string_of_int(i))],
+      [Attr.value(string_of_int(i + 1)), ...selected(rank, i + 1)],
+      [Node.text(string_of_int(i + 1))],
     )
   );
 };

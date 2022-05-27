@@ -143,7 +143,7 @@ let a_single_example_expression_ =
               rank_selection_handler(inject, index, int_of_string(new_rank))
             ),
           ],
-          CodeExplanation_common.rank_list(1 + ranking_out_of, rank),
+          CodeExplanation_common.rank_list(ranking_out_of, rank),
         ),
         example_body,
         ...more_info,
