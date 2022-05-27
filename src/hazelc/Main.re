@@ -5,6 +5,7 @@
  */
 open Sexplib.Std;
 open Cmdliner;
+open LetOpen.Syntax;
 
 [@deriving sexp]
 type action =
@@ -26,11 +27,6 @@ type error =
 
 let hazelc =
     (action, source_filenames, output_filename, _verbose, optimize, debug) => {
-  let (let&i) = (ch, fn) =>
-    Fun.protect(~finally=() => close_in(ch), () => {fn(ch)});
-  let (let&o) = (ch, fn) =>
-    Fun.protect(~finally=() => close_out(ch), () => {fn(ch)});
-
   // Open the source file.
   let source_filename = List.hd(source_filenames);
   let&i source_file = open_in(source_filename);
