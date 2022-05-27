@@ -14,12 +14,12 @@ and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | TypArg(ErrStatus.t, UHTyp.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -51,7 +51,7 @@ let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
-let typarg: (~err: ErrStatus.t=?, UHTyp.t) => operand;
+let typapp: (~err: ErrStatus.t=?, t, UHTyp.t) => operand;
 
 module Line: {
   let prune_empty_hole: line => line;

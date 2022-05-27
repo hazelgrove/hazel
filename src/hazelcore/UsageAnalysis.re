@@ -68,12 +68,12 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | EmptyHole(_)
   | InvalidText(_)
   | Var(_, InVarHole(_), _)
-  | TypArg(_, _)
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypApp(_, _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []

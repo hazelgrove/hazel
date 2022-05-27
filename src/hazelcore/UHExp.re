@@ -16,12 +16,12 @@ and operand =
   | EmptyHole(MetaVar.t)
   | InvalidText(MetaVar.t, string)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
-  | TypArg(ErrStatus.t, UHTyp.t)
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -70,7 +70,8 @@ let case =
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
-let typarg = (~err: ErrStatus.t=NotInHole, typ): operand => TypArg(err, typ);
+let typapp = (~err: ErrStatus.t=NotInHole, e: t, typ: UHTyp.t): operand =>
+  TypApp(err, e, typ);
 
 module Line = {
   let prune_empty_hole = (line: line): line =>
@@ -179,12 +180,12 @@ and get_err_status_operand =
   | EmptyHole(_) => NotInHole
   | InvalidText(_, _) => NotInHole
   | Var(err, _, _)
-  | TypArg(err, _)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
   | Fun(err, _, _)
+  | TypApp(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
@@ -204,7 +205,7 @@ and set_err_status_operand = (err, operand) =>
   | EmptyHole(_) => operand
   | InvalidText(_, _) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
-  | TypArg(_, ty) => TypArg(err, ty)
+  | TypApp(_, e, ty) => TypApp(err, e, ty)
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
@@ -232,12 +233,12 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | EmptyHole(_)
   | InvalidText(_, _)
   | Var(InHole(TypeInconsistent, _), _, _)
-  | TypArg(InHole(TypeInconsistent, _), _)
   | IntLit(InHole(TypeInconsistent, _), _)
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       operand,
@@ -245,12 +246,12 @@ and mk_inconsistent_operand = (u_gen, operand) =>
     )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | TypArg(NotInHole | InHole(WrongLength, _), _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Fun(NotInHole | InHole(WrongLength, _), _, _)
+  | TypApp(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -316,8 +317,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Var(InHole(_), _, _) => false
   | Var(NotInHole, InVarHole(_), _) => false
   | Var(NotInHole, NotInVarHole, _) => true
-  | TypArg(InHole(_), _) => false
-  | TypArg(NotInHole, _) => true
+  | TypApp(InHole(_), _, _) => false
+  | TypApp(NotInHole, _, _) => true
   | IntLit(InHole(_), _) => false
   | IntLit(NotInHole, _) => true
   | FloatLit(InHole(_), _) => false
