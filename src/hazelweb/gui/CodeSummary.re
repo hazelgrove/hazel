@@ -91,7 +91,7 @@ let let_line_msg =
     }
   };
 };
-let lambda_msg =
+let fun_msg =
     (
       pattern_info: ExplanationInfo.pattern_info,
       body: UHExp.t,
@@ -562,7 +562,7 @@ let summary_msg =
       )
     | ListNil(_) =>
       CodeExplanation_common.build_msg("Empty list `[]`", show_highlight)
-    | Lam(_) => failwith("Explanation info should handle lambdas directly")
+    | Fun(_) => failwith("Explanation info should handle lambdas directly")
     | Inj(_, side, _exp) =>
       let side_str =
         switch (side) {
@@ -610,10 +610,8 @@ let summary_msg =
       );
     | Parenthesized(_) =>
       failwith("Explanation info should handle parentheses directly")
-    | ApPalette(_) => failwith("Not implemented")
     }
-  | Lambda(pattern_info, body) =>
-    lambda_msg(pattern_info, body, show_highlight)
+  | Fun(pattern_info, body) => fun_msg(pattern_info, body, show_highlight)
   | Rule(index, scrutinee, pattern_info, clause) =>
     rule_msg(index, scrutinee, pattern_info, clause, show_highlight)
   | ExpCommaOperator(exps) =>

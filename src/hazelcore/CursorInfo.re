@@ -11,7 +11,7 @@ type join_of_branches =
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
-  | AnaAnnotatedLambda(HTyp.t, HTyp.t)
+  | AnaAnnotatedFun(HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple of the wrong length

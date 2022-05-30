@@ -57,7 +57,7 @@ let syntactic_form_view =
         )
       | _ => None
       }
-    | Lambda(CommaOperator(_pats, _type), _body) =>
+    | Fun(CommaOperator(_pats, _type), _body) =>
       switch (syntactic_form_level) {
       | 4 =>
         Some(
@@ -217,7 +217,7 @@ let syntactic_max_level_ =
     (explanation_info: ExplanationInfo.explanation_info): int => {
   switch (explanation_info) {
   | LetLine(CommaOperator(_pats, _type), _def, _start_index, _body) => 5
-  | Lambda(CommaOperator(_pats, _type), _def) => 5
+  | Fun(CommaOperator(_pats, _type), _def) => 5
   | ExpBaseOperand(Case(_)) => 2
   | ExpBinOperator(Operators_Exp.Space, _, _) => 3
   | _ => 2

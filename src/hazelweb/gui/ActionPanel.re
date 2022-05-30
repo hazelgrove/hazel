@@ -437,7 +437,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+    switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
     | Failed => false
     | CursorEscaped(_)
     | Succeeded(_) => true
@@ -480,7 +480,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added
-  | Construct(SLam) => Added
+  | Construct(SFun) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added
   | Construct(SOp(STimes)) => Added
@@ -504,8 +504,6 @@ let _check_actions = (a: Action.t) =>
   | MoveLeft => Added
   | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_)) => failwith("Unimplemented")
-  | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };

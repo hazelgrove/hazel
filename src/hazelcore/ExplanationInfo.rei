@@ -17,7 +17,7 @@ type explanation_info =
   | Block(UHExp.block, int, UHExp.line)
   | LetLine(pattern_info, UHExp.t, int, UHExp.t)
   | ExpBaseOperand(UHExp.operand)
-  | Lambda(pattern_info, UHExp.t)
+  | Fun(pattern_info, UHExp.t)
   | Rule(int, UHExp.t, pattern_info, UHExp.t)
   | ExpCommaOperator(list(UHExp.opseq))
   | ExpBinOperator(UHExp.operator, UHExp.opseq, UHExp.opseq)

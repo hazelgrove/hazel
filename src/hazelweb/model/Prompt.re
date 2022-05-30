@@ -260,7 +260,7 @@ let curry_fun_app_ex_5 = {
   caption: "First, the function is applied to argument 1, and evaluating the body of the function results in the function fun y {1 + y}.",
   rankz: (-1),
   result:
-    DHExp.Lam(
+    DHExp.Fun(
       DHPat.Var("y"),
       HTyp.Hole,
       DHExp.BinIntOp(Plus, IntLit(1), BoundVar("y")),
