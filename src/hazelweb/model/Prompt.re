@@ -228,7 +228,7 @@ let curry_fun_app_ex_4 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "First, the function incr_or_decr is applied to argument true, and evaluating the body of the function results in the function fun val {case true | true => val + 1 | false => val - 1}. Then, this resulting function is applied to argument 2, and evaluating the body gives case true | true => 2 + 1 | false => 2 - 1. This case expression is then evaluates to 2 + 1 which equals 3.",
+  caption: "First, the function incr_or_decr is applied to argument true, and evaluating the body of the function results in the function fun val {case true | true => val + 1 | false => val - 1}. Then, this resulting function is applied to argument 2, and evaluating the body gives case true | true => 2 + 1 | false => 2 - 1. This case expression then evaluates to 2 + 1 which equals 3.",
   rankz: (-1),
   result: DHExp.IntLit(3),
 };
@@ -767,7 +767,7 @@ let case_ex_3 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "The scrutinee (2, 3) does not match the first pattern (1, 3) because the first element 2 of the tuple does not match 1. The scrutinee does match the second pattern (2, _) because 2 matches the 2 pattern and anything matches the wildcard pattern. Thus, the expression evaluates to the second clause 2.0.",
+  caption: "The scrutinee (2, 3) does not match the first pattern (1, 3) because the first element 2 of the tuple does not match the 1 pattern. The scrutinee does match the second pattern (2, _) because 2 matches the 2 pattern and anything matches the wildcard pattern. Thus, the expression evaluates to the second clause 2.0.",
   rankz: (-1),
   result: DHExp.FloatLit(2.0),
 };
@@ -829,7 +829,7 @@ let case_ex_4 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "The scrutinee (2, true) does not match the first pattern (1, true) because the first element 2 of the tuple does not match 1. The scrutinee does not match the second pattern because the second element true of the tuple does not match false. The scrutinee matches the last pattern because anything matches the wildcard pattern. Thus, the expression evaluates to the last clause 3.0.",
+  caption: "The scrutinee (2, true) does not match the first pattern (1, true) because the first element 2 of the tuple does not match the 1 pattern. The scrutinee does not match the second pattern because the second element true of the tuple does not match the false pattern. The scrutinee matches the last pattern because anything matches the wildcard pattern. Thus, the expression evaluates to the last clause 3.0.",
   rankz: (-1),
   result: DHExp.FloatLit(3.0),
 };
@@ -1192,7 +1192,7 @@ let let_with_tuple_ex_2 = {
         Seq.mk(var("x"), [(Operators_Exp.Times, var("y"))]) |> mk_OpSeq,
       ),
     ],
-  caption: "x is bound to 2 and y is bound to 3 in x + y which evaluates to 2 * 3 which equals 6.",
+  caption: "x is bound to 2 and y is bound to 3 in x * y which evaluates to 2 * 3 which equals 6.",
   rankz: (-1),
   result: DHExp.IntLit(6),
 };
@@ -1260,7 +1260,7 @@ let let_with_tuple_examples = [
 ];
 
 /************* PROMPTS ***************/
-let prompt_msg = "Rank the code explanations and examples on the right for the selected code snippet below. Higher rankings correspond to explanations and examples that would be more beneficial to a programmer who is trying to understand the indicated code form when looking at the specific code snippet. Use the indicated syntactic form as a proxy for what a programmer is trying to understand about the code snippet. Use the free response boxes for the explanations or examples if there are other explanations or examples you think would be more beneficial than those displayed.";
+let prompt_msg = "Rank the code explanations and examples on the right for the selected code snippet below. Higher rankings correspond to explanations and examples that would be more beneficial to a programmer who is trying to understand the indicated syntactic code form when looking at the specific code snippet. Use the indicated syntactic form as a proxy for what a programmer is trying to understand about the code snippet. Use the free response boxes for the explanations or examples if there are other explanations or examples you think would be more beneficial than those given.";
 
 let let_with_tuple_less_specific = {
   key: "let - 1",
