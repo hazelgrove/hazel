@@ -1250,7 +1250,7 @@ let let_with_tuple_examples = [
 ];
 
 /************* PROMPTS ***************/
-let prompt_msg = "Rank the code explanations and examples on the right for the selected code snippet below. Higher rankings correspond more useful explanations and examples. Use the indicated syntactic form as a proxy for what a programmer is trying to understand about the code snippet.";
+let prompt_msg = "Rank the code explanations and examples on the right for the selected code snippet below. Higher rankings correspond to explanations and examples that would be more beneficial to a programmer who is trying to understand the indicated code form when looking at the specific code snippet. Use the indicated syntactic form as a proxy for what a programmer is trying to understand about the code snippet. Use the free response boxes for the explanations or examples if there are other explanations or examples you think would be more beneficial than those displayed.";
 
 let prompts: list(t) = [
   {

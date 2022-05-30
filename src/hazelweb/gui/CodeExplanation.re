@@ -172,7 +172,7 @@ let view =
               Attr.string_property(
                 "value",
                 free_response == ""
-                  ? "Please list any other options that you would have preferred"
+                  ? "Please list any other options that you think would be more beneficial"
                   : free_response,
               ),
               Attr.classes(["right-panel-textarea"]),

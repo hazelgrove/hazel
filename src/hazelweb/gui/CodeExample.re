@@ -240,7 +240,7 @@ let view =
   // TODO implement this top level function to generate and display examples
   let free_response =
     free_response == ""
-      ? "Please list any other options that you would have preferred"
+      ? "Please list any other options that you think would be more beneficial"
       : free_response;
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
