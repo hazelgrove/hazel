@@ -20,7 +20,7 @@ type explanation_info =
   | Block(UHExp.block, int, UHExp.line)
   | LetLine(pattern_info, UHExp.t, int, UHExp.t)
   | ExpBaseOperand(UHExp.operand)
-  | Lambda(pattern_info, UHExp.t)
+  | Fun(pattern_info, UHExp.t)
   | Rule(int, UHExp.t, pattern_info, UHExp.t)
   | ExpCommaOperator(list(UHExp.opseq))
   | ExpBinOperator(UHExp.operator, UHExp.opseq, UHExp.opseq)
@@ -71,7 +71,7 @@ and extract_exp_line_info =
 }
 and extract_exp_operand_info = (exp: UHExp.operand): explanation_info => {
   switch (exp) {
-  | Lam(_, pat, body) => Lambda(extract_pat_opseq_info(pat, None), body)
+  | Fun(_, pat, body) => Fun(extract_pat_opseq_info(pat, None), body)
   | Parenthesized(exp) =>
     switch (exp) {
     | [LetLine(pat, def), ...body] =>
@@ -91,7 +91,6 @@ and extract_exp_operand_info = (exp: UHExp.operand): explanation_info => {
   | BoolLit(_)
   | ListNil(_)
   | Inj(_) => ExpBaseOperand(exp)
-  | ApPalette(_) => failwith("ApPalette not implemented")
   };
 }
 and extract_pat_operand_info = (pat: UHPat.operand): pattern_info => {

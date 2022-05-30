@@ -92,10 +92,10 @@ and mk_cursor_path_steps_expoperand =
   | (FloatLit(_), [])
   | (BoolLit(_), [])
   | (ListNil(_), []) => [[]]
-  | (Lam(_, pat, _), [0, ...pat_path]) => [
+  | (Fun(_, pat, _), [0, ...pat_path]) => [
       [0, ...mk_cursor_path_steps_patopseq(pat, pat_path)],
     ]
-  | (Lam(_, _, _body), [1, ..._body_path]) => [[1]]
+  | (Fun(_, _, _body), [1, ..._body_path]) => [[1]]
   | (Inj(_, _, _exp), [0, ..._]) => [[0]]
   | (Case(_, _scrut, _), [0, ..._]) => [[0]]
   | (Case(_, _, rules), [n1, n2, ..._]) =>
@@ -107,7 +107,6 @@ and mk_cursor_path_steps_expoperand =
     };
   | (Parenthesized(operand), steps) =>
     cons_all(0, mk_cursor_path_steps_expblock(operand, steps))
-  | (ApPalette(_), _) => failwith("Not yet implemented - ApPalette")
   | _ => failwith("Doesn't work for this case - Exp Operand")
   };
 }

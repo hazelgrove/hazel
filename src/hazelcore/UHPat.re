@@ -125,12 +125,6 @@ and set_err_status_operand = (err, operand) =>
   | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
-let is_inconsistent = (p: t): bool =>
-  switch (get_err_status(p)) {
-  | InHole(TypeInconsistent, _) => true
-  | _ => false
-  };
-
 /* put p in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   mk_inconsistent_opseq(u_gen, p)
