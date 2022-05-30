@@ -242,22 +242,20 @@ let view =
     free_response == ""
       ? "Please list any other options that you would have preferred"
       : free_response;
-  print_endline("Free response: " ++ free_response);
-  print_endline(string_of_bool(free_response == ""));
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
     [
       Panel.view_of_main_title_bar("Code Example"),
+      Node.div(
+        [Attr.classes(["right-panel-prompt"])],
+        [Node.text("Rank with respect to the code and syntactic form")],
+      ),
       Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
         [
           Node.div(
             [],
             [
-              Node.div(
-                [Attr.classes(["right-panel-prompt"])],
-                [Node.text("Rank w.r.t. the code and syntactic form")],
-              ),
               Node.div(
                 [Attr.classes(["right-panel-responses"])],
                 [explanation_view],

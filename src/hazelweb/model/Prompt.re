@@ -56,13 +56,11 @@ let curry_fun_app_snippet =
         Parenthesized(
           Block.wrap'(
             Seq.mk(
-              Parenthesized(
-                Block.wrap'(
-                  Seq.mk(var("foo"), [(Operators_Exp.Space, intlit("1"))])
-                  |> UHExp.mk_OpSeq,
-                ),
-              ),
-              [(Operators_Exp.Space, boollit(true))],
+              var("foo"),
+              [
+                (Operators_Exp.Space, intlit("1")),
+                (Operators_Exp.Space, boollit(true)),
+              ],
             )
             |> UHExp.mk_OpSeq,
           ),
@@ -73,25 +71,25 @@ let curry_fun_app_snippet =
 
 let curry_fun_app_expl_1 = {
   id: "explanation_1",
-  expression: "Apply function [`foo 1`](0) to argument [`true`](1).",
+  expression: "Apply *function* [`foo 1`](0) to *argument* [`true`](1).",
   rank: (-1),
 };
 
 let curry_fun_app_expl_2 = {
   id: "explanation_2",
-  expression: "Apply function [`foo`](0 0) to argument [`1`](0 1) and then apply the resulting function to argument [`true`](1).",
+  expression: "Apply *function* [`foo`](0 0) to *argument* [`1`](0 1) and then apply the resulting *function* to *argument* [`true`](1).",
   rank: (-1),
 };
 
 let curry_fun_app_expl_3 = {
   id: "explanation_3",
-  expression: "Apply function [`foo 1`](0) to argument [`true`](1).\n- Function [`foo 1`](0) is the result of applying function `foo` to argument `1`.",
+  expression: "Apply *function* [`foo 1`](0) to *argument* [`true`](1).\n- *Function* [`foo 1`](0) is the result of applying *function* `foo` to *argument* `1`.",
   rank: (-1),
 };
 
 let curry_fun_app_expl_4 = {
   id: "explanation_4",
-  expression: "Apply function [`foo`](0 0) to arguments [`1`](0 1) and [`true`](1).",
+  expression: "Apply *function* [`foo`](0 0) to *arguments* [`1`](0 1) and [`true`](1).",
   rank: (-1),
 };
 
@@ -626,19 +624,19 @@ let case_snippet =
 
 let case_expl_1 = {
   id: "explanation_1",
-  expression: "Consider by the cases of [`x`](0). If [`x`](0) matches: \n- the first pattern [`(1, true)`](1 0), evaluate to the first clause [`1.0`](1 1).\n- the second pattern [`(_, false)`](2 0), evaluate to the second clause [`3.0`](2 1).\n- otherwise, evaluate to the last clause [`5.0`](3 1).",
+  expression: "Consider by the cases of [`x`](0). If [`x`](0) matches: \n- the first *pattern* [`(1, true)`](1 0), evaluate to the first *clause* [`1.0`](1 1).\n- the second *pattern* [`(_, false)`](2 0), evaluate to the second *clause* [`3.0`](2 1).\n- otherwise, evaluate to the last *clause* [`5.0`](3 1).",
   rank: (-1),
 };
 
 let case_expl_2 = {
   id: "explanation_2",
-  expression: "Consider by the cases of [`x`](0). If [`x`](0) matches: \n- the first pattern [`(1, true)`](1 0), evaluate to the first clause [`1.0`](1 1). The first pattern is matched if the first element of [`x`](0) is `1` and the second element is `true`.\n- the second pattern [`(_, false)`](2 0), evaluate to the second clause [`3.0`](2 1). The second pattern is matched for any first element of [`x`](0) if the second element is `false`.\n- otherwise, evaluate to the last clause [`5.0`](3 1). The last pattern is a [wildcard](3 0) pattern which matches any value.",
+  expression: "Consider by the cases of [`x`](0). If [`x`](0) matches: \n- the first *pattern* [`(1, true)`](1 0), evaluate to the first *clause* [`1.0`](1 1). The first *pattern* is matched if the first *element* of [`x`](0) is `1` and the second *element* is `true`.\n- the second *pattern* [`(_, false)`](2 0), evaluate to the second *clause* [`3.0`](2 1). The second *pattern* is matched for any first *element* of [`x`](0) if the second *element* is `false`.\n- otherwise, evaluate to the last *clause* [`5.0`](3 1). The last *pattern* is a [wildcard](3 0) pattern which matches any value.",
   rank: (-1),
 };
 
 let case_expl_3 = {
   id: "explanation_3",
-  expression: "Consider by the cases of [`x`](0). For the first branch with a matching pattern to [`x`](0), evaluate to the clause of that branch.",
+  expression: "Consider by the cases of [`x`](0). For the first branch with a matching *pattern* to [`x`](0), evaluate to the *clause* of that *branch*.",
   rank: (-1),
 };
 
@@ -859,19 +857,19 @@ let lambda_with_tuple_snippet =
 
 let lambda_with_tuple_expl_1 = {
   id: "explanation_1",
-  expression: "A function that takes in two arguments [`x`](0 0) and [`y`](0 1) and returns the result of computing the body [`x * y`](1).",
+  expression: "A *function* that takes in two *arguments* [`x`](0 0) and [`y`](0 1) and returns the result of computing the *body* [`x * y`](1).",
   rank: (-1),
 };
 
 let lambda_with_tuple_expl_2 = {
   id: "explanation_2",
-  expression: "Function literal that returns the value of the body [`x * y`](1) when applied to an argument [`(x, y)`](0).",
+  expression: "*Function* literal that returns the value of the *body* [`x * y`](1) when applied to an *argument* [`(x, y)`](0).",
   rank: (-1),
 };
 
 let lambda_with_tuple_expl_3 = {
   id: "explanation_3",
-  expression: "Function literal that returns the value of the body [`x * y`](1) when applied to an argument tuple containing [`x`](0 0) and [`y`](0 1).",
+  expression: "*Function* literal that returns the value of the *body* [`x * y`](1) when applied to an *argument* tuple containing [`x`](0 0) and [`y`](0 1).",
   rank: (-1),
 };
 
@@ -1079,7 +1077,12 @@ let lambda_with_tuple_ex_5 = {
     ),
   caption: "The function literal fun x {x + 1} is a value. The body is only evaluated when the function is applied to an argument.",
   rankz: (-1),
-  result: DHExp.IntLit(3),
+  result:
+    DHExp.Fun(
+      DHPat.Var("x"),
+      HTyp.Hole,
+      DHExp.BinIntOp(Plus, BoundVar("x"), IntLit(1)),
+    ),
 };
 
 let lambda_with_tuple_explanations = [
@@ -1123,19 +1126,19 @@ let let_with_tuple_snippet =
 
 let let_with_tuple_expl_1 = {
   id: "explanation_1",
-  expression: "Bind the definition [`(1, 2)`](1) to the pattern [`(x, y)`](0) and evaluate the body [`x + y`](2).",
+  expression: "Bind the *definition* [`(1, 2)`](1) to the *pattern* [`(x, y)`](0) and evaluate the *body* [`x + y`](2).",
   rank: (-1),
 };
 
 let let_with_tuple_expl_2 = {
   id: "explanation_2",
-  expression: "In the body [`x + y`](2), the first pattern [`x`](0 0) will be bound to the first element [`1`](1 0) and the second pattern [`y`](0 1) will be bound to the second element [`2`](1 1) of the definition tuple.",
+  expression: "In the *body* [`x + y`](2), the first *pattern* [`x`](0 0) will be bound to the first *element* [`1`](1 0) and the second *pattern* [`y`](0 1) will be bound to the second *element* [`2`](1 1) of the *definition* tuple.",
   rank: (-1),
 };
 
 let let_with_tuple_expl_3 = {
   id: "explanation_3",
-  expression: "In the body [`x + y`](2), the first pattern [`x`](0 0) gets replaced by the first element [`1`](1 0) and the second pattern [`y`](0 1) gets replaced by the second element [`2`](1 1) of the definition tuple.",
+  expression: "In the *body* [`x + y`](2), the first *pattern* [`x`](0 0) gets replaced by the first *element* [`1`](1 0) and the second *pattern* [`y`](0 1) gets replaced by the second *element* [`2`](1 1) of the *definition* tuple.",
   rank: (-1),
 };
 
@@ -1251,7 +1254,7 @@ let prompt_msg = "Rank the code explanations and examples on the right for the s
 
 let prompts: list(t) = [
   {
-    key: "let with tuple - less specific",
+    key: "let - 1",
     program: ZExp.place_before(let_with_tuple_snippet),
     prompt_message: prompt_msg,
     explanation: let_with_tuple_explanations,
@@ -1272,7 +1275,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "let with tuple - more specific",
+    key: "let - 2",
     program: ZExp.place_before(let_with_tuple_snippet),
     prompt_message: prompt_msg,
     explanation: let_with_tuple_explanations,
@@ -1293,7 +1296,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "lambda with tuple - less specific",
+    key: "function - 1",
     program: ZExp.place_before(lambda_with_tuple_snippet),
     prompt_message: prompt_msg,
     explanation: lambda_with_tuple_explanations,
@@ -1314,7 +1317,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "lambda with tuple - more specific",
+    key: "function - 2",
     program: ZExp.place_before(lambda_with_tuple_snippet),
     prompt_message: prompt_msg,
     explanation: lambda_with_tuple_explanations,
@@ -1360,7 +1363,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "tuple function application - less specific",
+    key: "function application 1 - 1",
     program:
       OptUtil.get(
         () => failwith("bad path"),
@@ -1388,7 +1391,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "tuple function application - more specific",
+    key: "function application 1 - 2",
     program:
       OptUtil.get(
         () => failwith("bad path"),
@@ -1416,7 +1419,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "curried function application - less specific",
+    key: "function application 2 - 1",
     program:
       OptUtil.get(
         () => failwith("bad path"),
@@ -1444,7 +1447,7 @@ let prompts: list(t) = [
     ],
   },
   {
-    key: "curried function application - more specific",
+    key: "function application 2 - 2",
     program:
       OptUtil.get(
         () => failwith("bad path"),

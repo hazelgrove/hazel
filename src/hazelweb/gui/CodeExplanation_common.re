@@ -124,10 +124,11 @@ let print_markdown = doc => {
 
 /*
  Markdown like thing:
- highlighty thing : [thing to highlight](int indices)
+ highlighty thing : [thing to highlight](int indices space separated)
  bulleted list: - list item
                 - list item
  code: `code`
+ italics: *word*
  */
 let build_msg =
     (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
@@ -167,6 +168,24 @@ let build_msg =
               (Node.span([], d), mapping);
             };
           (List.append(msg, [inner_msg]), mapping);
+        | Emph(d) =>
+          let (d, mapping) = translate(d, mapping);
+          (
+            List.append(
+              msg,
+              [
+                Node.span(
+                  [
+                    Attr.style(
+                      Css_gen.create(~field="font-style", ~value="italic"),
+                    ),
+                  ],
+                  d,
+                ),
+              ],
+            ),
+            mapping,
+          );
         | _ =>
           print_endline("OTHER");
           (msg, mapping);

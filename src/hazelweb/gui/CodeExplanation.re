@@ -147,15 +147,15 @@ let view =
     [
       Panel.view_of_main_title_bar("Code Explanation"),
       Node.div(
+        [Attr.classes(["right-panel-prompt"])],
+        [Node.text("Rank with respect to the code and syntactic form")],
+      ),
+      Node.div(
         [Attr.classes(["panel-body", "context-inspector-body"])],
         [
           Node.div(
             [],
             [
-              Node.div(
-                [Attr.classes(["right-panel-prompt"])],
-                [Node.text("Rank w.r.t. the code and syntactic form")],
-              ),
               Node.div(
                 [Attr.classes(["right-panel-responses"])],
                 [explanation_view],
