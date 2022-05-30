@@ -112,26 +112,6 @@ let a_single_example_expression_ =
         Attr.name("question_wrapper"),
         Attr.class_("question_wrapper"),
         Attr.style(Css_gen.create(~field="float", ~value="left-block")),
-        Attr.on_click(_ => {
-          Event.Many([
-            inject(
-              ModelAction.UpdateDocumentationStudySettings(
-                DocumentationStudySettings.Toggle_Example_Hovered_over(index),
-              ),
-            ),
-            inject(FocusCell),
-          ])
-        }),
-        Attr.on_mouseleave(_ => {
-          Event.Many([
-            inject(
-              ModelAction.UpdateDocumentationStudySettings(
-                DocumentationStudySettings.Toggle_Example_Hovered_over(-1),
-              ),
-            ),
-            inject(FocusCell),
-          ])
-        }),
       ],
       [
         Node.select(
@@ -144,8 +124,35 @@ let a_single_example_expression_ =
           ],
           CodeExplanation_common.rank_list(ranking_out_of, rank),
         ),
-        example_body,
-        ...more_info,
+        Node.div(
+          [
+            Attr.on_click(_ => {
+              Event.Many([
+                inject(
+                  ModelAction.UpdateDocumentationStudySettings(
+                    DocumentationStudySettings.Toggle_Example_Hovered_over(
+                      index,
+                    ),
+                  ),
+                ),
+                inject(FocusCell),
+              ])
+            }),
+            Attr.on_mouseleave(_ => {
+              Event.Many([
+                inject(
+                  ModelAction.UpdateDocumentationStudySettings(
+                    DocumentationStudySettings.Toggle_Example_Hovered_over(
+                      -1,
+                    ),
+                  ),
+                ),
+                inject(FocusCell),
+              ])
+            }),
+          ],
+          [example_body, ...more_info],
+        ),
       ],
     ),
   ];
