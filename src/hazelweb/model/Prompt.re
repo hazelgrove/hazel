@@ -168,7 +168,7 @@ let curry_fun_app_ex_3 = {
         |> mk_OpSeq,
       )
     ),
-  caption: "First, the function is applied to argument 1, and evaluating the body of the function results in the function fun y {x + y}. Then, this resulting function is applied to argument 2, and evaluating the body gives 1 + 2 which equals 3.",
+  caption: "First, the function is applied to argument 1, and evaluating the body of the function results in the function fun y {1 + y}. Then, this resulting function is applied to argument 2, and evaluating the body gives 1 + 2 which equals 3.",
   rankz: (-1),
   result: DHExp.IntLit(3),
 };
@@ -228,7 +228,7 @@ let curry_fun_app_ex_4 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "First, the function incr_or_decr is applied to argument true, and evaluating the body of the function results in the function fun val {case true | true => val + 1 | false => val - 1}. Then, this resulting function is applied to argument 2, and evaluating the body gives case true | true => val + 1 | false => val - 1. This case expression is then evaluates to 2 + 1 which equals 3.",
+  caption: "First, the function incr_or_decr is applied to argument true, and evaluating the body of the function results in the function fun val {case true | true => val + 1 | false => val - 1}. Then, this resulting function is applied to argument 2, and evaluating the body gives case true | true => 2 + 1 | false => 2 - 1. This case expression is then evaluates to 2 + 1 which equals 3.",
   rankz: (-1),
   result: DHExp.IntLit(3),
 };
@@ -256,7 +256,7 @@ let curry_fun_app_ex_5 = {
         |> mk_OpSeq,
       )
     ),
-  caption: "First, the function is applied to argument 1, and evaluating the body of the function results in the function fun y {1 + y}.",
+  caption: "The function is applied to argument 1, and evaluating the body of the function results in the function fun y {1 + y}.",
   rankz: (-1),
   result:
     DHExp.Fun(
@@ -499,7 +499,7 @@ let tuple_fun_app_ex_3 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "First, the function incr_or_decr is applied to argument (true, 2), and evaluating the body of the function results in case true | true => val + 1 | false => val - 1. This case expression evaluates to 2 + 1 which equals 6.",
+  caption: "First, the function incr_or_decr is applied to argument (true, 2), and evaluating the body of the function results in case true | true => 2 + 1 | false => 2 - 1. This case expression evaluates to 2 + 1 which equals 3.",
   rankz: (-1),
   result: DHExp.IntLit(3),
 };
@@ -720,7 +720,17 @@ let case_ex_3 = {
       ExpLine(
         Seq.wrap(
           case(
-            Block.wrap(UHExp.intlit("2")),
+            Block.wrap(
+              Parenthesized(
+                Block.wrap'(
+                  Seq.mk(
+                    intlit("2"),
+                    [(Operators_Exp.Comma, intlit("3"))],
+                  )
+                  |> mk_OpSeq,
+                ),
+              ),
+            ),
             [
               Rule(
                 UHPat.(
@@ -757,7 +767,7 @@ let case_ex_3 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "The scrutinee (2, 3) does not match the first pattern because the first element of the tuple 2 does not match 1. The scrutinee does match the second pattern (2, _) because 2 matches the 2 pattern and anything matches the wildcard pattern. Thus, the expression evaluates to the second clause 2.0.",
+  caption: "The scrutinee (2, 3) does not match the first pattern (1, 3) because the first element 2 of the tuple does not match 1. The scrutinee does match the second pattern (2, _) because 2 matches the 2 pattern and anything matches the wildcard pattern. Thus, the expression evaluates to the second clause 2.0.",
   rankz: (-1),
   result: DHExp.FloatLit(2.0),
 };
@@ -819,9 +829,9 @@ let case_ex_4 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "The scrutinee (2, true) does not match the first pattern because the first element of the tuple 2 does not match 1. The scrutinee does not match the second pattern because the second element of the tuple true does not match false. The scrutinee matches the last pattern because anything matches the wildcard pattern. Thus, the expression evaluates to the last clause 3.0.",
+  caption: "The scrutinee (2, true) does not match the first pattern (1, true) because the first element 2 of the tuple does not match 1. The scrutinee does not match the second pattern because the second element true of the tuple does not match false. The scrutinee matches the last pattern because anything matches the wildcard pattern. Thus, the expression evaluates to the last clause 3.0.",
   rankz: (-1),
-  result: DHExp.FloatLit(2.0),
+  result: DHExp.FloatLit(3.0),
 };
 
 let case_explanations = [case_expl_1, case_expl_2, case_expl_3];
@@ -943,7 +953,7 @@ let lambda_with_tuple_ex_1 = {
         |> mk_OpSeq,
       ),
     ],
-  caption: "First, the function incr_or_decr is applied to argument (true, 2), and evaluating the body of the function results in case true | true => val + 1 | false => val - 1. This case expression evaluates to 2 + 1 which equals 6.",
+  caption: "First, the function incr_or_decr is applied to argument (true, 2), and evaluating the body of the function results in case true | true => 2 + 1 | false => 2 - 1. This case expression evaluates to 2 + 1 which equals 3.",
   rankz: (-1),
   result: DHExp.IntLit(3),
 };
@@ -1301,7 +1311,7 @@ let let_with_tuple_prompts = [
 ];
 
 let lambda_with_tuple_less_specific = {
-  key: "function - 1",
+  key: "function literal - 1",
   program: ZExp.place_before(lambda_with_tuple_snippet),
   prompt_message: prompt_msg,
   explanation: lambda_with_tuple_explanations,
@@ -1323,7 +1333,7 @@ let lambda_with_tuple_less_specific = {
 };
 
 let lambda_with_tuple_more_specific = {
-  key: "function - 2",
+  key: "function literal - 2",
   program: ZExp.place_before(lambda_with_tuple_snippet),
   prompt_message: prompt_msg,
   explanation: lambda_with_tuple_explanations,

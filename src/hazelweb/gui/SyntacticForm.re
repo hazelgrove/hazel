@@ -234,7 +234,11 @@ let generate_selector = (explanation_info, syntactic_form_level): Node.t =>
             Attr.type_("range"),
             Attr.min(1.0),
             Attr.max(float_of_int(syntactic_max_level_(explanation_info))),
-            Attr.value(string_of_int(syntactic_form_level)),
+            //Attr.value(string_of_int(syntactic_form_level)),
+            Attr.string_property(
+              "value",
+              string_of_int(syntactic_form_level),
+            ),
             Attr.disabled,
           ],
           List.init(syntactic_max_level_(explanation_info), index =>
