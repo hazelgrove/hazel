@@ -235,6 +235,12 @@ module rec Context: {
     open OptUtil.Syntax;
     let+ (i, _, _) =
       first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
+    Log.debug_call(__FUNCTION__);
+    Log.debug_args([
+      ("ctx", Context.sexp_of_t(ctx)),
+      ("t", TyVar.sexp_of_t(t)),
+    ]);
+    Log.debug_result(__FUNCTION__, "i", Sexplib.Std.sexp_of_int(i));
     Index.Abs.of_int(i);
   };
 
@@ -242,11 +248,11 @@ module rec Context: {
     open OptUtil.Syntax;
     let i = Index.Abs.to_int(idx);
     let+ (_, k) = nth_tyvar_binding(ctx, i);
-    Kind_core.to_abs(~offset=i, k);
+    Kind_core.to_abs(~offset=i + 1, k);
   };
 
   let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
-    TyVarBinding(t, Kind_core.to_rel(~offset=1, k)),
+    TyVarBinding(t, Kind_core.to_rel(k)),
     ...ctx,
   ];
 
@@ -287,9 +293,9 @@ module rec Context: {
 
   let var_index_type = (ctx: t, idx: Index.Abs.t): option(HTyp.t) => {
     open OptUtil.Syntax;
-    let n = Index.Abs.to_int(idx);
-    let+ (_, ty) = nth_var_binding(ctx, n);
-    HTyp.of_syntax(HTyp_syntax.to_abs(~offset=n, ty));
+    let i = Index.Abs.to_int(idx);
+    let+ (_, ty) = nth_var_binding(ctx, i);
+    HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
   };
 
   let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
@@ -769,7 +775,12 @@ and HTyp: {
     | List(ty) => List(ty);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
-  let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
+  let rec head_normalize = (ctx: Context.t, ty: t): head_normalized => {
+    Log.debug_call(__FUNCTION__);
+    Log.debug_args([
+      ("ctx", Context.sexp_of_t(ctx)),
+      ("ty", sexp_of_t(ty)),
+    ]);
     switch (ty) {
     | TyVar(idx, t) =>
       switch (Context.tyvar_kind(ctx, idx)) {
@@ -790,6 +801,7 @@ and HTyp: {
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
     };
+  };
 
   /* Matched Type Constructors */
 
