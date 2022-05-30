@@ -3,7 +3,7 @@ open Virtual_dom.Vdom;
 // just draws the ranking
 let selected = (rank, option) =>
   if (rank == option) {
-    [Attr.selected];
+    [Attr.string_property("selected", "selected")];
   } else {
     [];
   };
