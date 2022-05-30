@@ -25,7 +25,6 @@ let text_box_handler = (~inject, new_text) => {
         DocumentationStudySettings.Update_Prompt_Text(Explanation, new_text),
       ),
     ),
-    inject(FocusCell),
   ]);
 };
 
@@ -133,7 +132,7 @@ let view =
       ~settings: DocumentationStudySettings.t,
       ~inject: ModelAction.t => Event.t,
       explanations: list(Prompt.explain),
-      text_box_text,
+      free_response,
     )
     : Node.t => {
   let explanation_view = {
@@ -170,20 +169,18 @@ let view =
         [
           Node.textarea(
             [
+              Attr.string_property(
+                "value",
+                free_response == ""
+                  ? "Please list any other options that you would have preferred"
+                  : free_response,
+              ),
               Attr.classes(["right-panel-textarea"]),
-              Attr.on_change((_, new_rank) =>
+              Attr.on_input((_, new_rank) =>
                 text_box_handler(~inject, new_rank)
               ),
             ],
-            [
-              Node.text(
-                if (text_box_text == "") {
-                  "Please list any other options that you would have preferred";
-                } else {
-                  text_box_text;
-                },
-              ),
-            ],
+            [],
           ),
         ],
       ),

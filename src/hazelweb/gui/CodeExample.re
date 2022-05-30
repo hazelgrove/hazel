@@ -33,7 +33,6 @@ let text_box_handler = (~inject, new_text) => {
         DocumentationStudySettings.Update_Prompt_Text(Example, new_text),
       ),
     ),
-    inject(FocusCell),
   ]);
 };
 
@@ -218,7 +217,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       example_list: list(Prompt.quest),
       hovered_over_example: int,
-      text_box_text: string,
+      free_response: string,
     )
     : Node.t => {
   let explanation_view = {
@@ -243,7 +242,12 @@ let view =
   };
 
   // TODO implement this top level function to generate and display examples
-
+  let free_response =
+    free_response == ""
+      ? "Please list any other options that you would have preferred"
+      : free_response;
+  print_endline("Free response: " ++ free_response);
+  print_endline(string_of_bool(free_response == ""));
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
     [
@@ -271,20 +275,13 @@ let view =
         [
           Node.textarea(
             [
+              Attr.string_property("value", free_response),
               Attr.classes(["right-panel-textarea"]),
-              Attr.on_change((_, new_rank) =>
+              Attr.on_input((_, new_rank) =>
                 text_box_handler(~inject, new_rank)
               ),
             ],
-            [
-              Node.text(
-                if (text_box_text == "") {
-                  "Please list any other options that you would have preferred";
-                } else {
-                  text_box_text;
-                },
-              ),
-            ],
+            [],
           ),
         ],
       ),
