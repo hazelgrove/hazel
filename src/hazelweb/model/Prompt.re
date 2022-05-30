@@ -33,6 +33,7 @@ type t = {
   explanation_text_box: string,
   example_text_box: string,
   syntactic_form_level: int,
+  hovered_over_example: list(int),
 };
 
 // TODO - Ardi - This how to create a prompt
@@ -1258,6 +1259,17 @@ let prompts: list(t) = [
     examples: let_with_tuple_examples,
     example_text_box: "",
     syntactic_form_level: 2,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "let with tuple - more specific",
@@ -1268,6 +1280,17 @@ let prompts: list(t) = [
     examples: let_with_tuple_examples,
     example_text_box: "",
     syntactic_form_level: 4,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "lambda with tuple - less specific",
@@ -1278,6 +1301,17 @@ let prompts: list(t) = [
     examples: lambda_with_tuple_examples,
     example_text_box: "",
     syntactic_form_level: 2,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "lambda with tuple - more specific",
@@ -1288,6 +1322,17 @@ let prompts: list(t) = [
     examples: lambda_with_tuple_examples,
     example_text_box: "",
     syntactic_form_level: 4,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "case",
@@ -1302,6 +1347,17 @@ let prompts: list(t) = [
     examples: case_examples,
     example_text_box: "",
     syntactic_form_level: 1,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "tuple function application - less specific",
@@ -1319,6 +1375,17 @@ let prompts: list(t) = [
     examples: tuple_fun_app_examples,
     example_text_box: "",
     syntactic_form_level: 1,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "tuple function application - more specific",
@@ -1336,6 +1403,17 @@ let prompts: list(t) = [
     examples: tuple_fun_app_examples,
     example_text_box: "",
     syntactic_form_level: 2,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "curried function application - less specific",
@@ -1353,6 +1431,17 @@ let prompts: list(t) = [
     examples: curry_fun_app_examples,
     example_text_box: "",
     syntactic_form_level: 1,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
   {
     key: "curried function application - more specific",
@@ -1370,6 +1459,17 @@ let prompts: list(t) = [
     examples: curry_fun_app_examples,
     example_text_box: "",
     syntactic_form_level: 2,
+    hovered_over_example: [
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+      (-1),
+    ],
   },
 ];
 
@@ -1408,4 +1508,22 @@ let update_explanation_text = (prompt, text) => {
 
 let update_example_text = (prompt, text) => {
   {...prompt, example_text_box: text};
+};
+
+let update_example_hover = (prompt: t, index) => {
+  ...prompt,
+  hovered_over_example:
+    List.mapi(
+      (idx, hovered_over_value) =>
+        if (index == idx) {
+          if (hovered_over_value == (-1)) {
+            1;
+          } else {
+            (-1);
+          };
+        } else {
+          hovered_over_value;
+        },
+      prompt.hovered_over_example,
+    ),
 };

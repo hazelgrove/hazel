@@ -8,7 +8,6 @@ type t = {
   prompts: list(Prompt.t),
   example_level: int,
   hovered_over: int,
-  hovered_over_example: int,
 };
 
 let init = {
@@ -18,7 +17,6 @@ let init = {
   prompts: Prompt.prompts,
   example_level: 1,
   hovered_over: (-1),
-  hovered_over_example: (-1),
 };
 
 [@deriving sexp]
@@ -46,7 +44,7 @@ type update =
   | Set_Prompt(int)
   | Toggle_Syntactic_Form_Level(int)
   | Toggle_Explanation_Hovered_over(int)
-  | Toggle_Example_Hovered_over(int)
+  | Toggle_Example_Hovered_over(prompt_piece, int)
   | Update_Prompt(prompt_piece, int, int)
   | Update_Prompt_Text(prompt_piece, string);
 
@@ -107,8 +105,63 @@ let apply_update = (u: update, settings: t) =>
 
   | Toggle_Syntactic_Form_Level(l) => {...settings, example_level: l}
   | Toggle_Explanation_Hovered_over(l) => {...settings, hovered_over: l}
-  | Toggle_Example_Hovered_over(l) => {...settings, hovered_over_example: l}
+  | Toggle_Example_Hovered_over(prompt_piece, option_index) =>
+    switch (settings.prompt) {
+    | None => settings
+    | Some(prompt_index) =>
+      let current_prompt = List.nth(settings.prompts, prompt_index);
+      let new_prompt: Prompt.t =
+        switch (prompt_piece) {
+        | Explanation =>
+          Prompt.update_example_hover(current_prompt, option_index)
+        | Example => Prompt.update_example_hover(current_prompt, option_index) // Call Prompt.update... on the current prompt and then call update_nth
+        };
+      let new_prompts =
+        List.mapi(
+          (idx, prompt) =>
+            if (idx == prompt_index) {
+              new_prompt;
+            } else {
+              prompt;
+            },
+          settings.prompts,
+        );
+      print_time_and_prompt_to_console(new_prompts);
+      {...settings, prompts: new_prompts};
+    }
   };
 
-//TODO fire this
-//
+//     ...settings,
+//     hovered_over_example:
+//       List.mapi(
+//         (idx, hovered_over_value) =>
+//           if (l == idx) {
+//             if (hovered_over_value == (-1)) {
+//               1;
+//             } else {
+//               (-1);
+//             };
+//           } else {
+//             hovered_over_value;
+//           },
+//         settings.hovered_over_example,
+//       ),
+//   }
+// };
+
+// | Toggle_Example_Hovered_over(l) =>
+//   {...settings, hovered_over_example: List.mapi(
+//           (idx, hovered_over_value) =>
+//             if (l == idx) {
+//               if (hovered_over_value== -1){
+//                 1
+//               } else {
+//                 1
+//               }
+//             } else {
+//               hovered_over_value;
+//             },
+//           settings.hovered_over_example,
+//         )
+//   };
+//   }

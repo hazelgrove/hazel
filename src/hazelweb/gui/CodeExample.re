@@ -91,7 +91,7 @@ let a_single_example_expression_ =
       rank: int,
     ) => {
   let more_info =
-    if (index == hovered_over_example) {
+    if (hovered_over_example == 1) {
       [
         Node.div(
           [Attr.class_("example_result")],
@@ -131,19 +131,8 @@ let a_single_example_expression_ =
                 inject(
                   ModelAction.UpdateDocumentationStudySettings(
                     DocumentationStudySettings.Toggle_Example_Hovered_over(
+                      Example,
                       index,
-                    ),
-                  ),
-                ),
-                inject(FocusCell),
-              ])
-            }),
-            Attr.on_mouseleave(_ => {
-              Event.Many([
-                inject(
-                  ModelAction.UpdateDocumentationStudySettings(
-                    DocumentationStudySettings.Toggle_Example_Hovered_over(
-                      -1,
                     ),
                   ),
                 ),
@@ -186,7 +175,7 @@ let display_examples =
       width,
       pos,
       examples_list_: list(quest),
-      hovered_over_example,
+      hovered_over_example: list(int),
     ) => {
   List.flatten(
     List.mapi(
@@ -207,7 +196,7 @@ let display_examples =
             e.result,
           ),
           index,
-          hovered_over_example,
+          List.nth(hovered_over_example, index),
           e.rankz,
         ),
       examples_list_,
@@ -223,7 +212,7 @@ let view =
       ~settings: Settings.t,
       ~font_metrics: FontMetrics.t,
       example_list: list(Prompt.quest),
-      hovered_over_example: int,
+      hovered_over_example: list(int),
       free_response: string,
     )
     : Node.t => {

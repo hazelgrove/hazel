@@ -26,6 +26,7 @@ type t = {
   explanation_text_box: string,
   example_text_box: string,
   syntactic_form_level: int,
+  hovered_over_example: list(int),
 };
 
 let prompts: list(t);
@@ -34,3 +35,4 @@ let update_explanation_rank: (t, int, int) => t;
 let update_example_rank: (t, int, int) => t;
 let update_explanation_text: (t, string) => t;
 let update_example_text: (t, string) => t;
+let update_example_hover: (t, int) => t;
