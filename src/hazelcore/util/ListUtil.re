@@ -288,3 +288,11 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
+
+// Based on https://stackoverflow.com/questions/15095541/how-to-shuffle-list-in-on-in-ocaml
+let shuffle = (xs: list('x)): list('x) => {
+  Random.self_init();
+  let tagged = List.map(x => (Random.bits(), x), xs);
+  let sorted = List.sort(compare, tagged);
+  List.map(snd, sorted);
+};

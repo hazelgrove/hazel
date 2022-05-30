@@ -1252,229 +1252,281 @@ let let_with_tuple_examples = [
 /************* PROMPTS ***************/
 let prompt_msg = "Rank the code explanations and examples on the right for the selected code snippet below. Higher rankings correspond to explanations and examples that would be more beneficial to a programmer who is trying to understand the indicated code form when looking at the specific code snippet. Use the indicated syntactic form as a proxy for what a programmer is trying to understand about the code snippet. Use the free response boxes for the explanations or examples if there are other explanations or examples you think would be more beneficial than those displayed.";
 
-let prompts: list(t) = [
-  {
-    key: "let - 1",
-    program: ZExp.place_before(let_with_tuple_snippet),
-    prompt_message: prompt_msg,
-    explanation: let_with_tuple_explanations,
-    explanation_text_box: "",
-    examples: let_with_tuple_examples,
-    example_text_box: "",
-    syntactic_form_level: 2,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "let - 2",
-    program: ZExp.place_before(let_with_tuple_snippet),
-    prompt_message: prompt_msg,
-    explanation: let_with_tuple_explanations,
-    explanation_text_box: "",
-    examples: let_with_tuple_examples,
-    example_text_box: "",
-    syntactic_form_level: 4,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function - 1",
-    program: ZExp.place_before(lambda_with_tuple_snippet),
-    prompt_message: prompt_msg,
-    explanation: lambda_with_tuple_explanations,
-    explanation_text_box: "",
-    examples: lambda_with_tuple_examples,
-    example_text_box: "",
-    syntactic_form_level: 2,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function - 2",
-    program: ZExp.place_before(lambda_with_tuple_snippet),
-    prompt_message: prompt_msg,
-    explanation: lambda_with_tuple_explanations,
-    explanation_text_box: "",
-    examples: lambda_with_tuple_examples,
-    example_text_box: "",
-    syntactic_form_level: 4,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "case",
-    program:
-      OptUtil.get(
-        () => failwith("bad path"),
-        CursorPath_Exp.follow(([1, 0], OnDelim(0, Before)), case_snippet),
-      ),
-    prompt_message: prompt_msg,
-    explanation: case_explanations,
-    explanation_text_box: "",
-    examples: case_examples,
-    example_text_box: "",
-    syntactic_form_level: 1,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function application 1 - 1",
-    program:
-      OptUtil.get(
-        () => failwith("bad path"),
-        CursorPath_Exp.follow(
-          ([1, 0], OnDelim(0, Before)),
-          tuple_fun_app_snippet,
-        ),
-      ),
-    prompt_message: prompt_msg,
-    explanation: tuple_fun_app_explanations,
-    explanation_text_box: "",
-    examples: tuple_fun_app_examples,
-    example_text_box: "",
-    syntactic_form_level: 1,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function application 1 - 2",
-    program:
-      OptUtil.get(
-        () => failwith("bad path"),
-        CursorPath_Exp.follow(
-          ([1, 0], OnDelim(0, Before)),
-          tuple_fun_app_snippet,
-        ),
-      ),
-    prompt_message: prompt_msg,
-    explanation: tuple_fun_app_explanations,
-    explanation_text_box: "",
-    examples: tuple_fun_app_examples,
-    example_text_box: "",
-    syntactic_form_level: 2,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function application 2 - 1",
-    program:
-      OptUtil.get(
-        () => failwith("bad path"),
-        CursorPath_Exp.follow(
-          ([1, 0], OnDelim(0, Before)),
-          curry_fun_app_snippet,
-        ),
-      ),
-    prompt_message: prompt_msg,
-    explanation: curry_fun_app_explanations,
-    explanation_text_box: "",
-    examples: curry_fun_app_examples,
-    example_text_box: "",
-    syntactic_form_level: 1,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
-  {
-    key: "function application 2 - 2",
-    program:
-      OptUtil.get(
-        () => failwith("bad path"),
-        CursorPath_Exp.follow(
-          ([1, 0], OnDelim(0, Before)),
-          curry_fun_app_snippet,
-        ),
-      ),
-    prompt_message: prompt_msg,
-    explanation: curry_fun_app_explanations,
-    explanation_text_box: "",
-    examples: curry_fun_app_examples,
-    example_text_box: "",
-    syntactic_form_level: 2,
-    hovered_over_example: [
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-      (-1),
-    ],
-  },
+let let_with_tuple_less_specific = {
+  key: "let - 1",
+  program: ZExp.place_before(let_with_tuple_snippet),
+  prompt_message: prompt_msg,
+  explanation: let_with_tuple_explanations,
+  explanation_text_box: "",
+  examples: let_with_tuple_examples,
+  example_text_box: "",
+  syntactic_form_level: 2,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let let_with_tuple_more_specific = {
+  key: "let - 2",
+  program: ZExp.place_before(let_with_tuple_snippet),
+  prompt_message: prompt_msg,
+  explanation: let_with_tuple_explanations,
+  explanation_text_box: "",
+  examples: let_with_tuple_examples,
+  example_text_box: "",
+  syntactic_form_level: 4,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+let let_with_tuple_prompts = [
+  let_with_tuple_less_specific,
+  let_with_tuple_more_specific,
 ];
+
+let lambda_with_tuple_less_specific = {
+  key: "function - 1",
+  program: ZExp.place_before(lambda_with_tuple_snippet),
+  prompt_message: prompt_msg,
+  explanation: lambda_with_tuple_explanations,
+  explanation_text_box: "",
+  examples: lambda_with_tuple_examples,
+  example_text_box: "",
+  syntactic_form_level: 2,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let lambda_with_tuple_more_specific = {
+  key: "function - 2",
+  program: ZExp.place_before(lambda_with_tuple_snippet),
+  prompt_message: prompt_msg,
+  explanation: lambda_with_tuple_explanations,
+  explanation_text_box: "",
+  examples: lambda_with_tuple_examples,
+  example_text_box: "",
+  syntactic_form_level: 4,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let lambda_with_tuple_prompts = [
+  lambda_with_tuple_less_specific,
+  lambda_with_tuple_more_specific,
+];
+
+let case_prompt = {
+  key: "case",
+  program:
+    OptUtil.get(
+      () => failwith("bad path"),
+      CursorPath_Exp.follow(([1, 0], OnDelim(0, Before)), case_snippet),
+    ),
+  prompt_message: prompt_msg,
+  explanation: case_explanations,
+  explanation_text_box: "",
+  examples: case_examples,
+  example_text_box: "",
+  syntactic_form_level: 1,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let tuple_fun_app_less_specific = {
+  key: "function application 1 - 1",
+  program:
+    OptUtil.get(
+      () => failwith("bad path"),
+      CursorPath_Exp.follow(
+        ([1, 0], OnDelim(0, Before)),
+        tuple_fun_app_snippet,
+      ),
+    ),
+  prompt_message: prompt_msg,
+  explanation: tuple_fun_app_explanations,
+  explanation_text_box: "",
+  examples: tuple_fun_app_examples,
+  example_text_box: "",
+  syntactic_form_level: 1,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let tuple_fun_app_more_specific = {
+  key: "function application 1 - 2",
+  program:
+    OptUtil.get(
+      () => failwith("bad path"),
+      CursorPath_Exp.follow(
+        ([1, 0], OnDelim(0, Before)),
+        tuple_fun_app_snippet,
+      ),
+    ),
+  prompt_message: prompt_msg,
+  explanation: tuple_fun_app_explanations,
+  explanation_text_box: "",
+  examples: tuple_fun_app_examples,
+  example_text_box: "",
+  syntactic_form_level: 2,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let tuple_fun_app_prompts = [
+  tuple_fun_app_less_specific,
+  tuple_fun_app_more_specific,
+];
+
+let curry_fun_app_less_specific = {
+  key: "function application 2 - 1",
+  program:
+    OptUtil.get(
+      () => failwith("bad path"),
+      CursorPath_Exp.follow(
+        ([1, 0], OnDelim(0, Before)),
+        curry_fun_app_snippet,
+      ),
+    ),
+  prompt_message: prompt_msg,
+  explanation: curry_fun_app_explanations,
+  explanation_text_box: "",
+  examples: curry_fun_app_examples,
+  example_text_box: "",
+  syntactic_form_level: 1,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let curry_fun_app_more_specific = {
+  key: "function application 2 - 2",
+  program:
+    OptUtil.get(
+      () => failwith("bad path"),
+      CursorPath_Exp.follow(
+        ([1, 0], OnDelim(0, Before)),
+        curry_fun_app_snippet,
+      ),
+    ),
+  prompt_message: prompt_msg,
+  explanation: curry_fun_app_explanations,
+  explanation_text_box: "",
+  examples: curry_fun_app_examples,
+  example_text_box: "",
+  syntactic_form_level: 2,
+  hovered_over_example: [
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+    (-1),
+  ],
+};
+
+let curry_fun_app_prompts = [
+  curry_fun_app_less_specific,
+  curry_fun_app_more_specific,
+];
+let all_prompts_ = [
+  let_with_tuple_prompts,
+  lambda_with_tuple_prompts,
+  [case_prompt],
+  tuple_fun_app_prompts,
+  curry_fun_app_prompts,
+];
+// Shuffle the prompts, explanations, and examples - keep related prompts adjacent
+let shuffle = true;
+let prompts: list(t) =
+  if (shuffle) {
+    print_endline("SHUFFLING");
+    let prompt_shuffle = ListUtil.shuffle(all_prompts_) |> List.flatten;
+    let _ = List.map(prompt => print_endline(prompt.key), prompt_shuffle);
+    List.map(
+      prompt =>
+        {
+          ...prompt,
+          explanation: ListUtil.shuffle(prompt.explanation),
+          examples: ListUtil.shuffle(prompt.examples),
+        },
+      prompt_shuffle,
+    );
+  } else {
+    print_endline("Not shuffling");
+    List.flatten(all_prompts_);
+  };
 
 // given a prompt and an explanation index, updates the rank
 // Same function but for examples
