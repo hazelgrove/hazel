@@ -45,34 +45,7 @@ let a_single_example_expression =
     );
   [
     Node.div(
-      [
-        Attr.name("question_wrapper"),
-        Attr.class_("question_wrapper"),
-        Attr.on_mouseenter(_ => {
-          Event.Many([
-            inject(
-              ModelAction.UpdateDocumentationStudySettings(
-                DocumentationStudySettings.Toggle_Explanation_Hovered_over(
-                  index,
-                ),
-              ),
-            ),
-            inject(FocusCell),
-          ])
-        }),
-        Attr.on_mouseleave(_ => {
-          Event.Many([
-            inject(
-              ModelAction.UpdateDocumentationStudySettings(
-                DocumentationStudySettings.Toggle_Explanation_Hovered_over(
-                  -1,
-                ),
-              ),
-            ),
-            inject(FocusCell),
-          ])
-        }),
-      ],
+      [Attr.name("question_wrapper"), Attr.class_("question_wrapper")],
       [
         Node.select(
           [
@@ -83,7 +56,35 @@ let a_single_example_expression =
           ],
           CodeExplanation_common.rank_list(ranking_out_of, rank),
         ),
-        Node.div([], msg),
+        Node.div(
+          [
+            Attr.on_mouseenter(_ => {
+              Event.Many([
+                inject(
+                  ModelAction.UpdateDocumentationStudySettings(
+                    DocumentationStudySettings.Toggle_Explanation_Hovered_over(
+                      index,
+                    ),
+                  ),
+                ),
+                inject(FocusCell),
+              ])
+            }),
+            Attr.on_mouseleave(_ => {
+              Event.Many([
+                inject(
+                  ModelAction.UpdateDocumentationStudySettings(
+                    DocumentationStudySettings.Toggle_Explanation_Hovered_over(
+                      -1,
+                    ),
+                  ),
+                ),
+                inject(FocusCell),
+              ])
+            }),
+          ],
+          msg,
+        ),
       ],
     ),
   ];
