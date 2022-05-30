@@ -358,7 +358,7 @@ body {
 
 .sidebar-body-slider {
   width: 100%;
-  height: 100%;
+  /* height: 100%; */
   display: flex;
 }
 
@@ -1676,6 +1676,7 @@ h1 {
 }
 
 .syntactic_form {
+  height: fit-content;
   padding: 5px;
 }
 
@@ -1752,12 +1753,14 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .syntactic-form-panel-body {
+  overflow: hidden;
   height: fit-content !important;
   flex-grow: 0;
 }
 
 .syntactic-form-panel {
   flex-grow: 0;
+  display: inline-table;
 }
 
 .logo_svg_right_sidebar{
