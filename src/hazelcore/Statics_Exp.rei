@@ -132,7 +132,8 @@ let extend_let_def_ctx: (Context.t, UHPat.t, UHExp.t) => Context.t;
  * Currently we restrict recursive definitions to let lines with
  * type annotations that bind a function to a single variable.
  * Given a let line with a pattern `p`, and a defining expression `e`,
- * `recursive_let_id(ctx, p, e)` returns the name of the recursive reference, if any.
+ * `recursive_let_id(ctx, p, e)` returns the name and type of the recursive
+ * reference, if any.
  */
 let recursive_let_id: (Context.t, UHPat.t, UHExp.t) => option(Var.t);
 

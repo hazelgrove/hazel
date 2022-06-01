@@ -81,6 +81,9 @@ module rec Context: {
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
 
+  /** Returns the number of binding in the given context */
+  let length: t => int;
+
   /* Type Variables */
 
   /** Returns the absolute index, name, and [Kind] of each type variable bound by
@@ -190,6 +193,19 @@ and HTyp: {
 
   /** Produces an [HTyp] with the given underlying AST. */
   let of_syntax: HTyp_syntax.t(Index.absolute) => t;
+
+  /* Index Manipulation */
+
+  /** Shifts all indices in the underlying AST by the given amount. */
+  let shift_indices: (t, int) => t;
+
+  /** Scope preserving cross-context index shifting.
+
+     [rescope(new_ctx, old_ctx, tyvar(idx, t))] returns a
+     [tyvar(idx', t)] satisfying
+     [Index.equal(Context.tyvar_kind(old_ctx, idx), Context.tyvar_kind(old_ctx, idx))].
+   */
+  let rescope: (Context.t, Context.t, t) => t;
 
   /* HTyp Constructors */
 
@@ -338,6 +354,7 @@ and HTyp: {
      This function is used by matched type constructors (see above) to convert
      a type variable of kind [S] to its underlying .
    */
+  [@deriving sexp]
   type head_normalized =
     | Hole
     | Int

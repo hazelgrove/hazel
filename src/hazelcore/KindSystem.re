@@ -128,6 +128,7 @@ module rec Context: {
       list((Var.t, HTyp_syntax.t(Index.relative))),
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
+  let length: t => int;
   let tyvars: t => list((Index.Abs.t, TyVar.t, Kind.t));
   let tyvar: (t, Index.Abs.t) => option(TyVar.t);
   let tyvar_index: (t, TyVar.t) => option(Index.Abs.t);
@@ -163,6 +164,8 @@ module rec Context: {
       ctx,
       ([], []),
     );
+
+  let length = List.length;
 
   let nth_var_binding =
       (ctx: t, n: int): option((Var.t, HTyp_syntax.t(Index.relative))) => {
@@ -232,16 +235,17 @@ module rec Context: {
   };
 
   let tyvar_index = (ctx: t, t: TyVar.t): option(Index.Abs.t) => {
-    open OptUtil.Syntax;
-    let+ (i, _, _) =
-      first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
-    Log.debug_call(__FUNCTION__);
-    Log.debug_args([
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("t", TyVar.sexp_of_t(t)),
-    ]);
-    Log.debug_result(__FUNCTION__, "i", Sexplib.Std.sexp_of_int(i));
-    Index.Abs.of_int(i);
+    Log.debug_function(
+      __FUNCTION__,
+      [("ctx", sexp_of_t(ctx)), ("t", TyVar.sexp_of_t(t))],
+      ~result_sexp=Sexplib.Std.sexp_of_option(Index.Abs.sexp_of_t),
+      () => {
+        open OptUtil.Syntax;
+        let+ (i, _, _) =
+          first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
+        Index.Abs.of_int(i);
+      },
+    );
   };
 
   let tyvar_kind = (ctx: t, idx: Index.Abs.t): option(Kind.t) => {
@@ -318,6 +322,9 @@ and HTyp: {
   let to_syntax: t => HTyp_syntax.t(Index.absolute);
   let of_syntax: HTyp_syntax.t(Index.absolute) => t;
 
+  let shift_indices: (t, int) => t;
+  let rescope: (Context.t, Context.t, t) => t;
+
   let hole: unit => t;
   let int: unit => t;
   let float: unit => t;
@@ -378,6 +385,7 @@ and HTyp: {
 
   let ground_cases_of: normalized => ground_cases;
 
+  [@deriving sexp]
   type head_normalized =
     | Hole
     | Int
@@ -416,6 +424,29 @@ and HTyp: {
 
   let to_syntax: t => HTyp_syntax.t(Index.absolute) = ty => ty;
   let of_syntax: HTyp_syntax.t(Index.absolute) => t = ty => ty;
+
+  let rec shift_indices = (ty: t, amount: int): t =>
+    switch (ty) {
+    | TyVar(idx, t) => TyVar(Index.shift(~above=-1, ~amount, idx), t)
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | TyVarHole(_) => ty
+    | Arrow(ty1, ty2) =>
+      let ty1 = shift_indices(ty1, amount);
+      let ty2 = shift_indices(ty2, amount);
+      Arrow(ty1, ty2);
+    | Sum(tyL, tyR) =>
+      let tyL = shift_indices(tyL, amount);
+      let tyR = shift_indices(tyR, amount);
+      Sum(tyL, tyR);
+    | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
+    | List(ty1) => List(shift_indices(ty1, amount))
+    };
+
+  let rescope = (new_ctx: Context.t, old_ctx: Context.t, ty: t): t =>
+    shift_indices(ty, Context.length(new_ctx) - Context.length(old_ctx));
 
   let hole: unit => t = () => Hole;
   let int: unit => t = () => Int;
@@ -749,6 +780,7 @@ and HTyp: {
 
   /* HTyp Head-Normalization */
 
+  [@deriving sexp]
   type head_normalized =
     | Hole
     | Int
@@ -776,31 +808,34 @@ and HTyp: {
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized => {
-    Log.debug_call(__FUNCTION__);
-    Log.debug_args([
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("ty", sexp_of_t(ty)),
-    ]);
-    switch (ty) {
-    | TyVar(idx, t) =>
-      switch (Context.tyvar_kind(ctx, idx)) {
-      | Some(S(ty1)) => head_normalize(ctx, ty1)
-      | Some(_) => TyVar(idx, t)
-      | None =>
-        failwith(
-          __LOC__ ++ ": unknown type variable index " ++ Index.to_string(idx),
-        )
+    Log.debug_function(
+      __FUNCTION__,
+      [("ctx", Context.sexp_of_t(ctx)), ("ty", sexp_of_t(ty))],
+      ~result_sexp=sexp_of_head_normalized,
+      () =>
+      switch (ty) {
+      | TyVar(idx, t) =>
+        switch (Context.tyvar_kind(ctx, idx)) {
+        | Some(S(ty1)) => head_normalize(ctx, ty1)
+        | Some(_) => TyVar(idx, t)
+        | None =>
+          failwith(
+            __LOC__
+            ++ ": unknown type variable index "
+            ++ Index.to_string(idx),
+          )
+        }
+      | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
+      | Hole => Hole
+      | Int => Int
+      | Float => Float
+      | Bool => Bool
+      | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+      | Sum(tyL, tyR) => Sum(tyL, tyR)
+      | Prod(tys) => Prod(tys)
+      | List(ty) => List(ty)
       }
-    | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
-    | Hole => Hole
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | Arrow(ty1, ty2) => Arrow(ty1, ty2)
-    | Sum(tyL, tyR) => Sum(tyL, tyR)
-    | Prod(tys) => Prod(tys)
-    | List(ty) => List(ty)
-    };
+    );
   };
 
   /* Matched Type Constructors */
