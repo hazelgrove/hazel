@@ -130,6 +130,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -141,6 +142,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -169,6 +171,10 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.Arrow(ty_p, ty_body);
+  | TypApp(NotInHole, e, _ty) =>
+    let* ty_e = syn(ctx, e);
+    // TODO (typ-app): apply typ
+    Some(ty_e);
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
@@ -179,8 +185,6 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
-  /* TypArg should never be synthesized. It is handled at a high level. */
-  | TypArg(_, _) => Some(Hole)
   }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -274,6 +278,7 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -285,6 +290,7 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
@@ -304,6 +310,10 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
+  | TypApp(NotInHole, e, _ty) =>
+    let* ty_e = syn(ctx, e);
+    // TODO (typ-app): apply typ
+    HTyp.consistent(ty_e, ty) ? Some() : None;
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
@@ -311,8 +321,6 @@ and ana_operand =
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
   | Parenthesized(body) => ana(ctx, body, ty)
-  /* TypArg should never be analyzed. It is handled at a high level. */
-  | TypArg(_, _) => Some()
   }
 and ana_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
@@ -780,12 +788,6 @@ and syn_fix_holes_operand =
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
     };
-  | TypArg(_, _) => (
-      // TODO (typ-app): shouldn't be here in the first place
-      e,
-      Hole,
-      u_gen,
-    )
   | IntLit(_, _) => (e_nih, Int, u_gen)
   | FloatLit(_, _) => (e_nih, Float, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
@@ -800,6 +802,11 @@ and syn_fix_holes_operand =
     let (body, ty_body, u_gen) =
       syn_fix_holes(ctx_body, u_gen, ~renumber_empty_holes, body);
     (Fun(NotInHole, p, body), Arrow(ty_p, ty_body), u_gen);
+  | TypApp(_, e, ty) =>
+    let (e, ty_e, u_gen) =
+      syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, e);
+    // TODO (typ-app): apply typ
+    (TypApp(NotInHole, e, ty), ty_e, u_gen);
   | Inj(_, side, body) =>
     let (body, ty1, u_gen) =
       syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, body);
@@ -1143,8 +1150,6 @@ and ana_fix_holes_operand =
     }
   | InvalidText(_) => (e, u_gen)
   | Var(_, _, _)
-  // TODO (typ-app): shouldn't be here in the first place
-  | TypArg(_, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) =>
@@ -1190,6 +1195,9 @@ and ana_fix_holes_operand =
         u_gen,
       );
     }
+  | TypApp(_, _e, _ty) =>
+    // TODO (typ-app): apply typ
+    (e, u_gen)
   | Inj(_, side, body) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((ty1, ty2)) =>
