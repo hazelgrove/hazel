@@ -48,7 +48,7 @@ let debug_states = (fn: string, states: list((string, Sexplib.Sexp.t))) =>
 let debug_function =
     (
       fn: string,
-      _args: list((string, Sexplib.Sexp.t)),
+      args: list((string, Sexplib.Sexp.t)),
       ~id: option(int)=?,
       ~result_sexp: 'a => Sexplib.Sexp.t,
       thunk: unit => 'a,
@@ -57,10 +57,10 @@ let debug_function =
   let fn =
     fn ++ Option.fold(~none="", ~some=id => "/" ++ Int.to_string(id), id);
   debug_call(fn);
-  /* debug_args(args); */
+  debug_args(args);
   let result = thunk();
   let sexp = result_sexp(result);
-  /* debug_msg("RETURN " ++ fn); */
   debug_result(fn, sexp);
+  /* debug_msg("RETURN " ++ fn); */
   result;
 };

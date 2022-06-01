@@ -847,6 +847,11 @@ and syn_perform_block =
       switch (Statics_Exp.syn_lines(ctx, prefix)) {
       | None => Failed
       | Some(ctx_zline) =>
+        Log.debug_state(
+          __FUNCTION__,
+          "ctx_zline",
+          Context.sexp_of_t(ctx_zline),
+        );
         switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
@@ -867,6 +872,15 @@ and syn_perform_block =
               u_gen,
             )),
           ) =>
+          Log.debug_states(
+            __FUNCTION__,
+            [
+              ("suffix", UHExp.sexp_of_block(suffix)),
+              ("zblock", ZExp.sexp_of_zblock(zblock)),
+              ("ctx_suffix", Context.sexp_of_t(ctx_suffix)),
+              ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+            ],
+          );
           switch (suffix) {
           | [] =>
             switch (
@@ -884,8 +898,8 @@ and syn_perform_block =
               (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
               |> ZExp.prune_empty_hole_lines;
             Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-          }
-        }
+          };
+        };
       }
     }
   );
@@ -2740,6 +2754,7 @@ and ana_perform_block =
           | TyAliasLineP(_)
           | TyAliasLineT(_) => Failed
           | ExpLineZ(zopseq) =>
+            let ty = HTyp.rescope(ctx_zline, ctx, ty);
             switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
             | Failed => Failed
             | CursorEscaped(side) =>
@@ -2760,7 +2775,7 @@ and ana_perform_block =
             | Succeeded(AnaDone(((inner_prefix, zline, suffix), u_gen))) =>
               let new_ze = (prefix @ inner_prefix, zline, suffix);
               Succeeded(AnaDone((new_ze, u_gen)));
-            }
+            };
           }
         | [_, ..._] =>
           switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
