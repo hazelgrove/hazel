@@ -82,7 +82,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
       @ CursorPosition.delim_cursors_k(1)
       @ CursorPosition.delim_cursors_k(2);
     }
-  | TypApp(_, _, _) => CursorPosition.delim_cursors(3) //   (   @   )
+  | TypApp(_, _, _) => CursorPosition.delim_cursors(1) //   (   @   )
   | Inj(_) => CursorPosition.delim_cursors(2)
   | Case(_) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2);
@@ -142,14 +142,14 @@ and is_before_zoperand =
   | CursorE(cursor, FloatLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Fun(_))
-  | CursorE(cursor, TypApp(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
+  | TypAppZE(_, ze, _) => is_before(ze)
   | ParenthesizedZ(_)
   | FunZP(_)
   | FunZE(_)
-  | TypAppZE(_)
+  | CursorE(_, TypApp(_))
   | TypAppZT(_)
   | InjZ(_)
   | CaseZE(_)
@@ -225,15 +225,15 @@ and is_after_zoperand =
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Fun(_)) => cursor == OnDelim(2, After)
-  | CursorE(cursor, TypApp(_)) => cursor == OnDelim(2, After)
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
+  | TypAppZT(_, _, zty) => ZTyp.is_after(zty)
   | FunZP(_)
   | FunZE(_)
+  | CursorE(_, TypApp(_)) => false
   | TypAppZE(_)
-  | TypAppZT(_)
   | InjZ(_)
   | CaseZE(_)
   | CaseZR(_) => false;
@@ -313,8 +313,8 @@ and place_before_operand = operand =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) => CursorE(OnText(0), operand)
+  | TypApp(err, e, ty) => TypAppZE(err, place_before(e), ty)
   | Fun(_)
-  | TypApp(_)
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
@@ -353,7 +353,7 @@ and place_after_operand = operand =>
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Fun(_) => CursorE(OnDelim(2, After), operand)
-  | TypApp(_) => CursorE(OnDelim(2, After), operand)
+  | TypApp(err, e, ty) => TypAppZT(err, e, ZTyp.place_after(ty))
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
@@ -664,12 +664,9 @@ and move_cursor_left_zoperand =
     | 2 => Some(FunZE(err, arg, place_after(body)))
     | _ => None
     }
-  | CursorE(OnDelim(k, Before), TypApp(err, e, ty)) =>
-    switch (k) {
-    | 1 => Some(TypAppZE(err, place_after(e), ty))
-    | 2 => Some(TypAppZT(err, e, ZTyp.place_after(ty)))
-    | _ => None
-    }
+  | CursorE(OnDelim(_k, Before), TypApp(err, e, ty)) =>
+    // _k == 0
+    Some(TypAppZE(err, place_after(e), ty))
   | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
     // _k == 1
     Some(InjZ(err, side, place_after(body)))
@@ -713,13 +710,13 @@ and move_cursor_left_zoperand =
   | TypAppZE(err, ze, ty) =>
     switch (move_cursor_left(ze)) {
     | Some(ze) => Some(TypAppZE(err, ze, ty))
-    | None => Some(CursorE(OnDelim(0, After), TypApp(err, erase(ze), ty)))
+    | None => None
     }
   | TypAppZT(err, e, zty) =>
     switch (ZTyp.move_cursor_left(zty)) {
     | Some(zty) => Some(TypAppZT(err, e, zty))
     | None =>
-      Some(CursorE(OnDelim(1, After), TypApp(err, e, ZTyp.erase(zty))))
+      Some(CursorE(OnDelim(0, After), TypApp(err, e, ZTyp.erase(zty))))
     }
   | InjZ(err, side, zbody) =>
     switch (move_cursor_left(zbody)) {
@@ -860,12 +857,9 @@ and move_cursor_right_zoperand =
     | 1 => Some(FunZE(err, arg, place_before(body)))
     | _ => None // invalid cursor position
     }
-  | CursorE(OnDelim(k, After), TypApp(err, e, ty)) =>
-    switch (k) {
-    | 0 => Some(TypAppZE(err, place_before(e), ty))
-    | 1 => Some(TypAppZT(err, e, ZTyp.place_before(ty)))
-    | _ => None // invalid cursor position
-    }
+  | CursorE(OnDelim(_k, After), TypApp(err, e, ty)) =>
+    // _k == 0
+    Some(TypAppZT(err, e, ZTyp.place_before(ty)))
   | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
     // _k == 0
     Some(InjZ(err, side, place_before(body)))
@@ -900,13 +894,12 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(ze)) {
     | Some(ze) => Some(TypAppZE(err, ze, ty))
     | None =>
-      Some(CursorE(OnDelim(1, Before), TypApp(err, erase(ze), ty)))
+      Some(CursorE(OnDelim(0, Before), TypApp(err, erase(ze), ty)))
     }
   | TypAppZT(err, e, zty) =>
     switch (ZTyp.move_cursor_right(zty)) {
-    | None =>
-      Some(CursorE(OnDelim(2, Before), TypApp(err, e, ZTyp.erase(zty))))
     | Some(zty) => Some(TypAppZT(err, e, zty))
+    | None => None
     }
   | InjZ(err, side, zbody) =>
     switch (move_cursor_right(zbody)) {
