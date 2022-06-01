@@ -611,19 +611,6 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnDelim(_k, _), TypApp(err, _e, _ty)) =>
-    /* TODO (typ-app): */
-    switch (err) {
-    | NotInHole => CursorPath_common.no_holes
-    | InHole(_, _u) =>
-      CursorPath_common.mk_zholes(
-        ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
-        (),
-      )
-    }
-  | CursorE(_, TypApp(_err, _e, _ty)) =>
-    /* TODO (typ-app): */
-    failwith("UnReachable")
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
@@ -670,6 +657,17 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(_k, _), TypApp(err, _e, _ty)) =>
+    // TODO (typ-app):
+    switch (err) {
+    | NotInHole => CursorPath_common.no_holes
+    | InHole(_, _u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorE(_, TypApp(_err, _e, _ty)) => failwith("UnReachable")
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {

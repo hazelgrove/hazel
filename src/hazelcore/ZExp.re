@@ -39,7 +39,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZP(_), _))) => true
   | LetLineZE(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZE(_), _)))
-  // TODO (typ-app): not sure ask Cyrus
+  // TODO (typ-app):
   | ExpLineZ(ZOpSeq(_, ZOperand(TypAppZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(TypAppZT(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(InjZ(_), _)))

@@ -247,16 +247,6 @@ and syn_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
   switch (operand) {
-  /* TODO (typ-app): TypArgs is treated as a dummy hole at this point (dirty work around);
-   * will be changed when switching to Eric's branch.
-   */
-  | TypArg(_, _) =>
-    let gamma = Contexts.gamma(ctx);
-    let sigma = Environment.id_env(gamma);
-    let d = DHExp.EmptyHole(-1, 0, sigma);
-    let ty = HTyp.Hole;
-    let delta = MetaVarMap.add(-1, (Delta.ExpressionHole, ty, gamma), delta);
-    Elaborates(d, ty, delta);
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
@@ -264,6 +254,7 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypApp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -282,6 +273,7 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate
@@ -373,6 +365,16 @@ and syn_elab_operand =
         let d = DHExp.Fun(dp, ty1, d1);
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
+    }
+  | TypApp(NotInHole, e, _ty) =>
+    switch (syn_elab(ctx, delta, e)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(d1, ty1, delta) =>
+      /* TODO (typ-app):
+       * the TypApp is merely dummy;
+       * will change in Eric's branch
+       */
+      Elaborates(d1, ty1, delta)
     }
   | Inj(NotInHole, side, body) =>
     switch (syn_elab(ctx, delta, body)) {
@@ -645,16 +647,6 @@ and ana_elab_operand =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
-  /* TODO (typ-app): TypArgs is treated as a dummy hole at this point (dirty work around);
-   * will be changed when switching to Eric's branch.
-   */
-  | TypArg(_, _) =>
-    let gamma = Contexts.gamma(ctx);
-    let sigma = Environment.id_env(gamma);
-    let d = DHExp.EmptyHole(-1, 0, sigma);
-    let ty = HTyp.Hole;
-    let delta = MetaVarMap.add(-1, (Delta.ExpressionHole, ty, gamma), delta);
-    Elaborates(d, ty, delta);
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
   | IntLit(InHole(TypeInconsistent as reason, u), _)
@@ -662,6 +654,7 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypApp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -689,6 +682,7 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate /* not in hole */
@@ -733,6 +727,19 @@ and ana_elab_operand =
           }
         }
       };
+    }
+  | TypApp(NotInHole, e, _ty2) =>
+    switch (syn_elab(ctx, delta, e)) {
+    | Elaborates(d1, ty1, delta) =>
+      /* TODO (typ-app):
+       * the TypApp is merely dummy;
+       * will change in Eric's branch
+       */
+      switch (HTyp.consistent(ty1, ty)) {
+      | false => DoesNotElaborate
+      | true => Elaborates(d1, ty1, delta)
+      }
+    | DoesNotElaborate => DoesNotElaborate
     }
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ty)) {
