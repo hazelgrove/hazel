@@ -19,7 +19,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | Fun(_)
     | Inj(_)
     | Case(_)
-    | TypArg(_)
+    | TypApp(_)
     | Parenthesized(_) => false
     }
   | PatOperand(_, pat) =>

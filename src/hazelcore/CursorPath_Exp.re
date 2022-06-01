@@ -27,7 +27,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | TypArgZ(_, zty) => cons'(0, CursorPath_Typ.of_z(zty))
+  | TypAppZE(_, ze, _ty) => cons'(0, of_z(ze))
+  | TypAppZT(_, _e, zty) => cons'(0, CursorPath_Typ.of_z(zty))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -105,7 +106,6 @@ and follow_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
-    | TypArg(_, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -128,6 +128,18 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.FunZE(err, p, zbody))
+      | _ => None
+      }
+    | TypApp(err, e, ty) =>
+      switch (x) {
+      | 0 =>
+        e
+        |> follow((xs, cursor))
+        |> Option.map(ze => ZExp.TypAppZE(err, ze, ty))
+      | 1 =>
+        ty
+        |> CursorPath_Typ.follow((xs, cursor))
+        |> Option.map(zty => ZExp.TypAppZT(err, e, zty))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -273,7 +285,6 @@ and of_steps_operand =
     | EmptyHole(_)
     | InvalidText(_)
     | Var(_, _, _)
-    | TypArg(_, _)
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
@@ -292,6 +303,15 @@ and of_steps_operand =
         |> Option.map(path => cons'(0, path))
       | 1 =>
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
+      | _ => None
+      }
+    | TypApp(_, e, ty) =>
+      switch (x) {
+      | 0 => e |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+      | 1 =>
+        ty
+        |> CursorPath_Typ.of_steps(xs, ~side)
+        |> Option.map(path => cons'(1, path))
       | _ => None
       }
     | Inj(_, _, body) =>
@@ -414,10 +434,6 @@ and holes_operand =
     ]
   | Var(err, verr, _) =>
     hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
-  | TypArg(err, ty) =>
-    hs
-    |> CursorPath_Typ.holes(ty, [0, ...rev_steps])
-    |> holes_err(err, rev_steps)
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
@@ -429,6 +445,11 @@ and holes_operand =
     hs
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
+  | TypApp(err, e, ty) =>
+    hs
+    |> holes(e, [0, ...rev_steps])
+    |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
     |> holes_err(err, rev_steps)
   | Case(err, scrut, rules) =>
     hs
@@ -590,7 +611,7 @@ and holes_zoperand =
     | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnDelim(_k, _), TypArg(err, _ty)) =>
+  | CursorE(OnDelim(_k, _), TypApp(err, _e, _ty)) =>
     /* TODO (typ-app): */
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
@@ -600,7 +621,7 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorE(_, TypArg(_err, _ty)) =>
+  | CursorE(_, TypApp(_err, _e, _ty)) =>
     /* TODO (typ-app): */
     failwith("UnReachable")
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
@@ -718,6 +739,40 @@ and holes_zoperand =
       ~holes_after,
       (),
     );
+  | TypAppZE(err, ze, ty) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(ze, [0, ...rev_steps]);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_ty,
+      (),
+    );
+  | TypAppZT(err, e, zty) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let holes_e = holes(e, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(zty, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_e @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   | InjZ(err, _, zbody) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
@@ -791,22 +846,6 @@ and holes_zoperand =
       hole_selected,
       holes_after: holes_after @ holes_suffix,
     };
-  | TypArgZ(err, zty) =>
-    let holes_err: list(CursorPath.hole_info) =
-      switch (err) {
-      | NotInHole => []
-      | InHole(_, u) => [
-          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
-        ]
-      };
-    let CursorPath.{holes_before, hole_selected, holes_after} =
-      CursorPath_Typ.holes_z(zty, [0, ...rev_steps]);
-    CursorPath_common.mk_zholes(
-      ~holes_before=holes_err @ holes_before,
-      ~hole_selected,
-      ~holes_after,
-      (),
-    );
   }
 and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   switch (zrule) {

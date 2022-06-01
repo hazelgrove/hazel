@@ -22,7 +22,8 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
-  | TypArgZ(_, zty) => CursorInfo_Typ.extract_cursor_term(zty)
+  | TypAppZE(_, zexp, _) => extract_cursor_term(zexp)
+  | TypAppZT(_, _, zty) => CursorInfo_Typ.extract_cursor_term(zty)
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
@@ -83,7 +84,8 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
-  | TypArgZ(_, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
+  | TypAppZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | TypAppZT(_, _, zty) => CursorInfo_Typ.get_zoperand_from_ztyp(zty)
   };
 }
 and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
@@ -133,8 +135,9 @@ and get_outer_zrules_from_zexp_operand =
   | CursorE(_, _) => outer_zrules
   | ParenthesizedZ(zexp) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | FunZP(_)
-  | TypArgZ(_) => outer_zrules
+  | TypAppZT(_) => outer_zrules
   | FunZE(_, _, zexp)
+  | TypAppZE(_, zexp, _)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
@@ -547,6 +550,12 @@ and syn_cursor_info_zoperand =
   | FunZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
+  | TypAppZE(_, _ze, _ty) =>
+    // TODO (typ-app): cursor_info
+    None
+  | TypAppZT(_, _e, _zty) =>
+    // TODO (typ-app): cursor_info
+    None
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =
@@ -603,12 +612,6 @@ and syn_cursor_info_zoperand =
           List.length(prefix),
         )
       };
-    }
-  | TypArgZ(_) =>
-    switch (Statics_Exp.syn_operand(ctx, ZExp.erase_zoperand(zoperand))) {
-    | None => None
-    | Some(ty) =>
-      Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
   };
 }
@@ -841,7 +844,7 @@ and ana_cursor_info_zoperand =
   | CursorE(_, e) =>
     switch (e) {
     // TODO (typ-app): Dont know what to do
-    | TypArg(_) => None
+    | TypApp(_) => None
     /* in hole */
     | Var(_, InVarHole(Keyword(k), _), _) =>
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
@@ -930,14 +933,15 @@ and ana_cursor_info_zoperand =
       _,
       _,
     )
-  | TypArgZ(InHole(WrongLength, _), _)
+  | TypAppZE(InHole(WrongLength, _), _, _)
+  | TypAppZT(InHole(WrongLength, _), _, _)
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
-  | TypArgZ(InHole(TypeInconsistent, _), _)
-  =>
+  | TypAppZE(InHole(TypeInconsistent, _), _, _)
+  | TypAppZT(InHole(TypeInconsistent, _), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
   | FunZP(NotInHole, zp, body) =>
     let* (ty_p_given, _) = HTyp.matched_arrow(ty);
@@ -954,7 +958,6 @@ and ana_cursor_info_zoperand =
       let uses = UsageAnalysis.find_uses(~steps=steps @ [1], x, body);
       uses |> deferred_ci;
     };
-
   | FunZE(NotInHole, p, zbody) =>
     let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ty);
     switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
@@ -962,6 +965,8 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
+  | TypAppZE(NotInHole, _ze, _ty) => None
+  | TypAppZT(NotInHole, _e, _zty) => None
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
@@ -987,8 +992,6 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
-  | TypArgZ(NotInHole, _) =>
-    None
   };
 }
 and syn_cursor_info_rule =
