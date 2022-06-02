@@ -62,7 +62,7 @@ test:
 bench:
 	dune build @src/fmt --auto-promote || true
 	BENCHMARKS_RUNNER=TRUE BENCH_LIB=hazelc_test \
-		dune exec -- src/hazelc/test/bench/main.exe -run-without-cross-library-inlining
+		dune exec -- src/hazelc/test/bench/main.exe -run-without-cross-library-inlining -reduced-bootstrap -no-sexp -quota 0.5
 
 fix-test-answers:
 	dune promote || true

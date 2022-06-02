@@ -11,15 +11,14 @@ let bench = source => {
   // Read wasm module.
   let wasm = {
     let&i wasm_ch = open_in(wasm_path);
-    really_input_string(wasm_ch, in_channel_length(wasm_ch))
-    |> W.Byte_vec.of_string;
+    really_input_string(wasm_ch, in_channel_length(wasm_ch));
   };
-
-  let name = W.Byte_vec.of_string("bench");
 
   // Create wasmtime engine and load module.
   let engine = W.Engine.create();
   let store = W.Store.create(engine);
+
+  let wasm = W.Byte_vec.of_string(wasm);
   let modl = W.Wasmtime.new_module(engine, ~wasm);
 
   // Link wasi for `fd_write`.
@@ -28,10 +27,12 @@ let bench = source => {
   W.Wasmtime.Linker.define_wasi(linker, wasi_instance);
 
   // Link module.
+  let name = W.Byte_vec.of_string("bench");
   W.Wasmtime.Linker.module_(linker, ~name, modl);
 
   // Get `_start` function.
   let start_func = W.Wasmtime.Linker.get_default(linker, ~name);
+
   () => W.Wasmtime.func_call0(start_func, []);
 };
 
@@ -42,4 +43,3 @@ let bench_eval = source => {
   () => ignore(d |> eval);
 };
 
-let%bench_fun "test" = bench("let a : Int = 5 in a");
