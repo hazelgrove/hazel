@@ -1,7 +1,6 @@
 module Compile: {
   let compile: string => string;
   let run: string => string;
-  let run_no_output: string => string;
 };
 
 module Eval: {

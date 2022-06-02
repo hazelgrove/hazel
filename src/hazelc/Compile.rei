@@ -26,10 +26,15 @@ let grainize: (~opts: opts, Anf.prog) => GrainIR.prog;
 let print: (~opts: opts, GrainIR.prog) => string;
 
 [@deriving sexp]
-type grain_opts = Grain.opts;
+type wasm_opts = {
+  grain: string,
+  wat: bool,
+  maximum_memory_pages: int,
+};
 
 let wasmize:
-  (~opts: grain_opts, string, string, string) => result(unit, unit);
+  (~opts: wasm_opts, ~source: string, ~output: string, string) =>
+  result(unit, unit);
 
 /*
    Compiler state.
@@ -80,11 +85,6 @@ let stop_after_printed: state => resume_action;
  */
 let resume:
   (~opts: opts, ~hook: state => resume_action=?, state) => next_result;
-
-/*
-   Exception indicative of an error in `resume_until_*`.
- */
-exception BadState;
 
 /*
    Resume from a given state until DHExp.

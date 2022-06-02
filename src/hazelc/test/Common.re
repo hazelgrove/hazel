@@ -12,12 +12,10 @@ module Compile = {
     },
   };
 
-  let grain_opts: Compile.grain_opts = {
-    grain: None,
-    optimize: None,
-    includes: None,
-    debug: None,
-    wat: None,
+  let wasm_opts: Compile.wasm_opts = {
+    grain: "grain",
+    wat: false,
+    maximum_memory_pages: 4194304 / 64,
   };
 
   let compile = source => {
@@ -26,7 +24,14 @@ module Compile = {
       let src_path = Filename.temp_file(temp_prefix, "a.gr");
       let out_path = Filename.temp_file(temp_prefix, "a.wasm");
 
-      switch (Compile.wasmize(~opts=grain_opts, src_path, out_path, g)) {
+      switch (
+        Compile.wasmize(
+          ~opts=wasm_opts,
+          ~source=src_path,
+          ~output=out_path,
+          g,
+        )
+      ) {
       | Ok () => out_path
       | Error () => failwith("wasm compilation failed")
       };
@@ -39,18 +44,14 @@ module Compile = {
     };
   };
 
-  let run = path => {
-    switch (Grain.run(~opts=grain_opts, {wasm: path})) {
-    | Ok(output) => output
-    | Error(_) => failwith("execution failed")
-    };
-  };
-
-  let run_no_output = path => {
-    /* FIXME: Run function that doesn't collect stdout. */
-    switch (Grain.run(~opts=grain_opts, {wasm: path})) {
-    | Ok(output) => output
-    | Error(_) => failwith("execution failed")
+  let run = modl => {
+    let cmd =
+      Grain.Run.(
+        Grain.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
+      );
+    switch (cmd |> Grain.execute(~capture_stdout=true)) {
+    | {stdout: output, status: Ok(_)} => output |> String.trim
+    | {stdout: _, status: Error(_)} => failwith("execution failed")
     };
   };
 };

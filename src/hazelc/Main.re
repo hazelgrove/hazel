@@ -25,7 +25,7 @@ type error =
   | ElaborateError
   | GrainError;
 
-let mk_opts = (action, _verbose, optimize, debug) => {
+let mk_opts = (action, _verbose, optimize, _debug) => {
   let indet_analysis_level =
     switch (optimize) {
     | Some(l) when l >= 1 => IndetAnalysis.LocalAnalysis
@@ -43,15 +43,13 @@ let mk_opts = (action, _verbose, optimize, debug) => {
       print_final_expr: true,
     },
   };
-  let grain_opts: Compile.grain_opts = {
-    grain: None,
-    includes: None,
-    wat: Some(action == Wat),
-    optimize,
-    debug: Some(debug),
+  let wasm_opts: Compile.wasm_opts = {
+    grain: "grain",
+    wat: action == Wat,
+    maximum_memory_pages: 64,
   };
 
-  (opts, grain_opts);
+  (opts, wasm_opts);
 };
 
 let hazelc =
@@ -65,7 +63,7 @@ let hazelc =
   let grain_output = Filename.temp_file(prefix, "a.gr");
 
   // Initialize options.
-  let (opts, grain_opts) = mk_opts(action, verbose, optimize, debug);
+  let (opts, wasm_opts) = mk_opts(action, verbose, optimize, debug);
 
   // Use the given output filename, or use "a.{ext}" where {ext} depends on
   // output kind.
@@ -123,9 +121,12 @@ let hazelc =
       |> Result.map(write_output)
       |> Result.map(() =>
            ignore(
-             Grain.Format.format(
-               ~opts=grain_opts,
-               {filename: output_filename},
+             Grain.Format.(
+               Grain.make(~grain=wasm_opts.grain)
+               |> make(~source=output_filename)
+               |> with_in_place(true)
+               |> to_command
+               |> Grain.execute(~capture_stdout=false)
              ),
            )
          )
@@ -136,7 +137,12 @@ let hazelc =
       let g = Compile.resume_until_printed(~opts, source);
       switch (g) {
       | Ok(g) =>
-        Compile.wasmize(~opts=grain_opts, grain_output, output_filename, g)
+        Compile.wasmize(
+          ~opts=wasm_opts,
+          ~source=grain_output,
+          ~output=output_filename,
+          g,
+        )
         |> Result.map_error(() => GrainError)
       | Error(err) => Error(convert_error(err))
       };

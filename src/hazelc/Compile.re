@@ -1,9 +1,7 @@
 open Sexplib.Std;
 open SexpResult;
-
+open LetOpen.Syntax;
 module Parsing = Hazeltext.Parsing;
-
-exception BadState;
 
 [@deriving sexp]
 type opts = {
@@ -11,46 +9,64 @@ type opts = {
   codegen: GrainCodegen.opts,
 };
 
-[@deriving sexp]
-type grain_opts = Grain.opts;
-
-let _parse = (source: Source.t) =>
+let parse' = (source: Source.t) =>
   source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
 
-let _elaborate = (e: UHExp.t) => {
+let elaborate' = (e: UHExp.t) => {
   let ctx = Contexts.initial;
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let _transform = (ctx: Contexts.t) => Transform.transform(ctx);
+let transform' = (ctx: Contexts.t) => Transform.transform(ctx);
 
-let _linearize = Linearize.linearize;
+let linearize' = Linearize.linearize;
 
-let _optimize = opts => Optimize.optimize(~opts);
+let optimize' = opts => Optimize.optimize(~opts);
 
-let _grainize = GrainCodegen.codegen;
+let grainize' = opts => GrainCodegen.codegen(~opts);
 
-let _print = GrainPrint.print;
+let print' = GrainPrint.print;
 
-let _wasmize = (~opts, src_path, out_path, g) => {
-  let f = open_out(src_path);
-  Printf.fprintf(f, "%s\n", g);
-  close_out(f);
+[@deriving sexp]
+type wasm_opts = {
+  grain: string,
+  wat: bool,
+  maximum_memory_pages: int,
+};
 
-  switch (Grain.compile(~opts, {file: src_path, output: Some(out_path)})) {
-  | Ok(_) => Ok()
-  | Error(_) => Error()
+let wasmize' = (opts: wasm_opts, source, output, g) => {
+  // Write Grain to source path.
+  {
+    let&o f = open_out(source);
+    Printf.fprintf(f, "%s\n", g);
+  };
+
+  // TODO: Add necessary includes.
+  // TODO: Add option for alternative stdlib path.
+  let cmd =
+    Grain.Compile.(
+      Grain.make(~grain=opts.grain)
+      |> make(~source)
+      |> with_output(output)
+      |> with_wat(opts.wat)
+      |> with_maximum_memory_pages(opts.maximum_memory_pages)
+      |> to_command
+    );
+
+  switch (cmd |> Grain.execute(~capture_stdout=false)) {
+  | {stdout: _, status: Ok(_)} => Ok()
+  | {stdout: _, status: Error(_)} => Error()
   };
 };
 
 let parse = (~opts, source) => {
   let _ = opts;
-  _parse(source);
+  parse'(source);
 };
 
 let elaborate = (~opts, e) => {
   let _ = opts;
-  switch (_elaborate(e)) {
+  switch (elaborate'(e)) {
   | (ctx, Elaborates(d, _ty, _delta)) => Ok((ctx, d))
   | (_, DoesNotElaborate) => Error()
   };
@@ -58,28 +74,25 @@ let elaborate = (~opts, e) => {
 
 let transform = (~opts, ctx, d) => {
   let _ = opts;
-  _transform(ctx, d);
+  transform'(ctx, d);
 };
 
 let linearize = (~opts, d) => {
   let _ = opts;
-  _linearize(d);
+  linearize'(d);
 };
 
-let optimize = (~opts, a) => _optimize(opts.optimize, a);
+let optimize = (~opts, a) => optimize'(opts.optimize, a);
 
-let grainize = (~opts, a) => {
-  let _ = opts;
-  _grainize(~opts=opts.codegen, a);
-};
+let grainize = (~opts, a) => grainize'(opts.codegen, a);
 
 let print = (~opts, g) => {
   let _ = opts;
-  _print(g);
+  print'(g);
 };
 
-let wasmize = (~opts, src_path, out_path, g) =>
-  _wasmize(~opts, src_path, out_path, g);
+let wasmize = (~opts, ~source, ~output, g) =>
+  wasmize'(opts, source, output, g);
 
 [@deriving sexp]
 type state =
@@ -165,6 +178,11 @@ let stop_after_printed =
   fun
   | Printed(_) => Stop
   | state => Continue(state);
+
+/*
+   Exception indicative of an error in `resume_until_*`.
+ */
+exception BadState;
 
 let rec resume = (~opts, ~hook=stop_after_printed, state) => {
   switch (next(~opts, state)) {
