@@ -25,9 +25,9 @@ module Imports = {
   let with_indet = imps => {...imps, indet: true};
   let with_sum = imps => {...imps, sum: true};
   /* let with_int32 = imps => {...imps, int32: true}; */
-  let with_int64 = imps => {...imps, int64: true};
+  let with_int32 = imps => {...imps, int32: true};
   /* let with_float32 = imps => {...imps, float32: true}; */
-  let with_float64 = imps => {...imps, float64: true};
+  let with_float32 = imps => {...imps, float32: true};
 
   /*
      Generate GrainIR from the imports specification.
@@ -58,9 +58,9 @@ module Imports = {
          )
       |> add(sum, [Sum.import])
       |> add(int32, [GrainStd.Int32.import])
-      |> add(int64, [GrainStd.Int64.import])
+      |> add(int64, [GrainStd.Int32.import])
       |> add(float32, [GrainStd.Float32.import])
-      |> add(float64, [GrainStd.Float64.import]);
+      |> add(float64, [GrainStd.Float32.import]);
 
     imps |> List.map(((x, path)) => GrainIR.TSImport(x, path));
   };
@@ -147,37 +147,37 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
 }
 
 and codegen_bin_op_non_indet = (op: Anf.bin_op, imps) => {
-  let (op, with_int64, with_float64) =
+  let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
       | OpAnd => (((e1, e2) => GrainIR.EBinOp(OpAnd, e1, e2)), false, false)
       | OpOr => (((e1, e2) => GrainIR.EBinOp(OpOr, e1, e2)), false, false)
-      | OpPlus => (Int64.add, true, false)
-      | OpMinus => (Int64.sub, true, false)
-      | OpTimes => (Int64.mul, true, false)
-      | OpDivide => (Int64.div, true, false)
-      | OpLessThan => (Int64.lt, true, false)
-      | OpGreaterThan => (Int64.gt, true, false)
-      | OpEquals => (Int64.eq, true, false)
-      | OpFPlus => (Float64.add, false, true)
-      | OpFMinus => (Float64.sub, false, true)
-      | OpFTimes => (Float64.mul, false, true)
-      | OpFDivide => (Float64.div, false, true)
-      | OpFLessThan => (Float64.lt, false, true)
-      | OpFGreaterThan => (Float64.gt, false, true)
-      | OpFEquals => (Float64.eq, false, true)
+      | OpPlus => (Int32.add, true, false)
+      | OpMinus => (Int32.sub, true, false)
+      | OpTimes => (Int32.mul, true, false)
+      | OpDivide => (Int32.div, true, false)
+      | OpLessThan => (Int32.lt, true, false)
+      | OpGreaterThan => (Int32.gt, true, false)
+      | OpEquals => (Int32.eq, true, false)
+      | OpFPlus => (Float32.add, false, true)
+      | OpFMinus => (Float32.sub, false, true)
+      | OpFTimes => (Float32.mul, false, true)
+      | OpFDivide => (Float32.div, false, true)
+      | OpFLessThan => (Float32.lt, false, true)
+      | OpFGreaterThan => (Float32.gt, false, true)
+      | OpFEquals => (Float32.eq, false, true)
       }
     );
 
   let imps =
-    if (with_int64) {
-      Imports.with_int64(imps);
+    if (with_int32) {
+      Imports.with_int32(imps);
     } else {
       imps;
     };
   let imps =
-    if (with_float64) {
-      Imports.with_float64(imps);
+    if (with_float32) {
+      Imports.with_float32(imps);
     } else {
       imps;
     };
@@ -250,8 +250,8 @@ and codegen_var = (x: Var.t, imps): (GrainIR.expr, Imports.t) => {
 
 and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
   switch (const) {
-  | ConstInt(n) => (EInt64Lit(n), imps)
-  | ConstFloat(f) => (EFloat64Lit(f), imps)
+  | ConstInt(n) => (EInt32Lit(n), imps)
+  | ConstFloat(f) => (EFloat32Lit(f), imps)
   | ConstBool(b) => (EBoolLit(b), imps)
   | ConstNil(_) => (EList([]), imps)
   | ConstTriv => (ETriv, imps)
@@ -320,11 +320,11 @@ and codegen_hole_reason =
   (EVar(reason'), imps);
 }
 and codegen_meta_var = (u: MetaVar.t, imps): (GrainIR.expr, Imports.t) => {
-  (EInt64Lit(u), imps);
+  (EInt32Lit(u), imps);
 }
 and codegen_meta_var_inst =
     (i: MetaVarInst.t, imps): (GrainIR.expr, Imports.t) => {
-  (EInt64Lit(i), imps);
+  (EInt32Lit(i), imps);
 }
 and codegen_sigma =
     (sigma: VarMap.t_(Anf.comp), imps): (GrainIR.expr, Imports.t) => {
