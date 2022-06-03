@@ -1,6 +1,7 @@
 opam-version: "2.0"
 compiler: ["ocaml-base-compiler.4.13.1"]
 roots: [
+  "benchmark.1.6"
   "core_bench.v0.14.0"
   "deriving.0.8.1"
   "dune.3.0.2"
@@ -41,6 +42,7 @@ installed: [
   "base-unix.base"
   "base_bigstring.v0.14.0"
   "base_quickcheck.v0.14.1"
+  "benchmark.1.6"
   "bigarray-compat.1.1.0"
   "bigstringaf.0.8.0"
   "bin_prot.v0.14.0"
