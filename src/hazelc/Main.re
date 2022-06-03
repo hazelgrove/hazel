@@ -26,11 +26,11 @@ type error =
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug) => {
+  let optimize = optimize |> Option.value(~default=0);
   let indet_analysis_level =
     switch (optimize) {
-    | Some(l) when l >= 1 => IndetAnalysis.LocalAnalysis
-    | None => IndetAnalysis.LocalAnalysis
-    | Some(_) => IndetAnalysis.NoAnalysis
+    | 0 => IndetAnalysis.NoAnalysis
+    | _ => IndetAnalysis.LocalAnalysis
     };
 
   let opts: Compile.opts = {
