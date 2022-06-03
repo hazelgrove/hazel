@@ -2,7 +2,7 @@
 
 (library
  (name hazelc_test)
- (libraries hazelc_test_util core_bench.inline_benchmarks)
+ (libraries hazelc_test_util)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test)))

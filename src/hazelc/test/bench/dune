@@ -3,9 +3,7 @@
 (library
  (name hazelc_bench)
  (modules :standard \ Main)
- (libraries hazelc_test_util)
- (preprocess
-  (pps ppx_bench)))
+ (libraries hazelc_test_util))
 
 (executable
  (name main)
