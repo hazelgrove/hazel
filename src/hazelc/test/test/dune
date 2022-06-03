@@ -1,0 +1,8 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelc_test)
+ (libraries hazelc_test_util core_bench.inline_benchmarks)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test)))

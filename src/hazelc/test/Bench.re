@@ -42,4 +42,3 @@ let bench_eval = source => {
   let d = source |> parse |> elab;
   () => ignore(d |> eval);
 };
-

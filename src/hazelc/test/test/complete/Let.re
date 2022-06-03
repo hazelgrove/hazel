@@ -1,3 +1,5 @@
+open Hazelc_test_util;
+
 let test = Case.test_with_eval;
 
 let%test_unit "let annotated bool lit true" =
