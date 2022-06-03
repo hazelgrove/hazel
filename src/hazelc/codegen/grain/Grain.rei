@@ -21,7 +21,6 @@ module Compile: {
   type opts = {
     source: Opts.arg(string),
     output: Opts.opt(string),
-    graceful: Opts.flag,
     includes: Opts.opt(list(string)),
     stdlib: Opts.opt(string),
     initial_memory_pages: Opts.opt(int),
@@ -32,13 +31,13 @@ module Compile: {
     debug: Opts.flag,
     wat: Opts.flag,
     hide_locs: Opts.flag,
+    no_color: Opts.flag,
     no_gc: Opts.flag,
     no_bulk_memory: Opts.flag,
     wasi_polyfill: Opts.opt(string),
     use_start_section: Opts.flag,
     no_link: Opts.flag,
     no_pervasives: Opts.flag,
-    optimize: Opts.opt(int),
     parser_debug_level: Opts.opt(int),
     memory_base: Opts.opt(string),
     source_map: Opts.flag,
@@ -53,7 +52,6 @@ module Compile: {
 
   let with_source: (string, t) => t;
   let with_output: (string, t) => t;
-  let with_graceful: (bool, t) => t;
   let with_includes: (list(string), t) => t;
   let with_stdlib: (string, t) => t;
   let with_initial_memory_pages: (int, t) => t;
@@ -64,13 +62,13 @@ module Compile: {
   let with_debug: (bool, t) => t;
   let with_wat: (bool, t) => t;
   let with_hide_locs: (bool, t) => t;
+  let with_no_color: (bool, t) => t;
   let with_no_gc: (bool, t) => t;
   let with_no_bulk_memory: (bool, t) => t;
   let with_wasi_polyfill: (string, t) => t;
   let with_use_start_section: (bool, t) => t;
   let with_no_link: (bool, t) => t;
   let with_no_pervasives: (bool, t) => t;
-  let with_optimize: (int, t) => t;
   let with_parser_debug_level: (int, t) => t;
   let with_memory_base: (string, t) => t;
   let with_source_map: (bool, t) => t;

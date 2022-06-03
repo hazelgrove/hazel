@@ -40,7 +40,6 @@ module Compile = {
   type opts = {
     source: Opts.arg(string),
     output: Opts.opt(string),
-    graceful: Opts.flag,
     includes: Opts.opt(list(string)),
     stdlib: Opts.opt(string),
     initial_memory_pages: Opts.opt(int),
@@ -51,13 +50,13 @@ module Compile = {
     debug: Opts.flag,
     wat: Opts.flag,
     hide_locs: Opts.flag,
+    no_color: Opts.flag,
     no_gc: Opts.flag,
     no_bulk_memory: Opts.flag,
     wasi_polyfill: Opts.opt(string),
     use_start_section: Opts.flag,
     no_link: Opts.flag,
     no_pervasives: Opts.flag,
-    optimize: Opts.opt(int),
     parser_debug_level: Opts.opt(int),
     memory_base: Opts.opt(string),
     source_map: Opts.flag,
@@ -73,7 +72,6 @@ module Compile = {
     {
       source,
       output: None,
-      graceful: None,
       includes: None,
       stdlib: None,
       initial_memory_pages: None,
@@ -84,13 +82,13 @@ module Compile = {
       debug: None,
       wat: None,
       hide_locs: None,
+      no_color: None,
       no_gc: None,
       no_bulk_memory: None,
       wasi_polyfill: None,
       use_start_section: None,
       no_link: None,
       no_pervasives: None,
-      optimize: None,
       parser_debug_level: None,
       memory_base: None,
       source_map: None,
@@ -104,8 +102,6 @@ module Compile = {
   let with_source = source => with'(copts => {...copts, source});
   let with_output = output =>
     with'(copts => {...copts, output: Some(output)});
-  let with_graceful = graceful =>
-    with'(copts => {...copts, graceful: Some(graceful)});
   let with_includes = includes =>
     with'(copts => {...copts, includes: Some(includes)});
   let with_stdlib = stdlib =>
@@ -133,6 +129,8 @@ module Compile = {
   let with_wat = wat => with'(copts => {...copts, wat: Some(wat)});
   let with_hide_locs = hide_locs =>
     with'(copts => {...copts, hide_locs: Some(hide_locs)});
+  let with_no_color = no_color =>
+    with'(copts => {...copts, no_color: Some(no_color)});
   let with_no_gc = no_gc => with'(copts => {...copts, no_gc: Some(no_gc)});
   let with_no_bulk_memory = no_bulk_memory =>
     with'(copts => {...copts, no_bulk_memory: Some(no_bulk_memory)});
@@ -144,8 +142,6 @@ module Compile = {
     with'(copts => {...copts, no_link: Some(no_link)});
   let with_no_pervasives = no_pervasives =>
     with'(copts => {...copts, no_pervasives: Some(no_pervasives)});
-  let with_optimize = optimize =>
-    with'(copts => {...copts, optimize: Some(optimize)});
   let with_parser_debug_level = parser_debug_level =>
     with'(copts => {...copts, parser_debug_level: Some(parser_debug_level)});
   let with_memory_base = memory_base =>
@@ -165,7 +161,6 @@ module Compile = {
       | None => Opts.identity
       };
 
-    let use_graceful = copts => Opts.use_flag'("--graceful", copts.graceful);
     let use_includes = copts =>
       switch (copts.includes) {
       | Some(includes) =>
@@ -205,6 +200,7 @@ module Compile = {
     let use_wat = copts => Opts.use_flag'("--wat", copts.wat);
     let use_hide_locs = copts =>
       Opts.use_flag'("--hide-locs", copts.hide_locs);
+    let use_no_color = copts => Opts.use_flag'("--no_color", copts.no_color);
     let use_no_gc = copts => Opts.use_flag'("--no-gc", copts.no_gc);
     let use_no_bulk_memory = copts =>
       Opts.use_flag'("--no-bulk-memory", copts.no_bulk_memory);
@@ -218,11 +214,6 @@ module Compile = {
     let use_no_link = copts => Opts.use_flag'("--no-link", copts.no_link);
     let use_no_pervasives = copts =>
       Opts.use_flag'("--no-pervasives", copts.no_pervasives);
-    let use_optimize = copts =>
-      switch (copts.optimize) {
-      | Some(level) => Opts.use_opt("-O", string_of_int(level))
-      | None => Opts.identity
-      };
     let use_parser_debug_level = copts =>
       switch (copts.parser_debug_level) {
       | Some(level) =>
@@ -243,7 +234,6 @@ module Compile = {
     let uses = [
       use_source,
       use_output,
-      use_graceful,
       use_includes,
       use_stdlib,
       use_initial_memory_pages,
@@ -254,13 +244,13 @@ module Compile = {
       use_debug,
       use_wat,
       use_hide_locs,
+      use_no_color,
       use_no_gc,
       use_no_bulk_memory,
       use_wasi_polyfill,
       use_use_start_section,
       use_no_link,
       use_no_pervasives,
-      use_optimize,
       use_parser_debug_level,
       use_memory_base,
       use_source_map,
