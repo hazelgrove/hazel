@@ -20,8 +20,8 @@ let view =
     let ty' =
       if (HTyp.is_tyvar(ty)) {
         open OptUtil.Syntax;
-        let* i = HTyp.tyvar_index(ty);
-        let* kind = Context.tyvar_kind(ctx, i);
+        let* (idx, stamp) = HTyp.tyvar_index(ty);
+        let* kind = Context.tyvar_kind(ctx, idx, stamp);
         switch (kind) {
         | Hole => Some(HTyp.hole())
         | Type => None

@@ -42,8 +42,9 @@ let test_tyvar_actions =
       let* ze = place_cursor_before_first_hole(e);
       switch (ZExpTest.eval(actions, (ze, HTyp.hole(), u_gen))) {
       | Ok((ze, ty, _)) =>
-        let+ i = Context.tyvar_index(ctx, name);
-        let t = HTyp.tyvar(i, name);
+        let+ (idx, stamp) = Context.tyvar_index(ctx, name);
+        let t =
+          HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar(idx, stamp, name));
         if (verbose) {
           Format.printf(
             "%s\n",

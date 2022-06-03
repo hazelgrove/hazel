@@ -2754,7 +2754,6 @@ and ana_perform_block =
           | TyAliasLineP(_)
           | TyAliasLineT(_) => Failed
           | ExpLineZ(zopseq) =>
-            let ty = HTyp.rescope(ctx_zline, ctx, ty);
             switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
             | Failed => Failed
             | CursorEscaped(side) =>
@@ -2775,7 +2774,7 @@ and ana_perform_block =
             | Succeeded(AnaDone(((inner_prefix, zline, suffix), u_gen))) =>
               let new_ze = (prefix @ inner_prefix, zline, suffix);
               Succeeded(AnaDone((new_ze, u_gen)));
-            };
+            }
           }
         | [_, ..._] =>
           switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {

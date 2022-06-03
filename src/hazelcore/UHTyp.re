@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
@@ -7,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | TyVar(TyVarErrStatus.t, string)
+  | TyVar(TyVarErrStatus.t, TyVar.t)
   | Hole
   | Unit
   | Int
@@ -61,7 +59,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
-      | TyVar(idx, t) => Seq.wrap(TyVar(NotInTyVarHole(idx), t))
+      | TyVar(idx, stamp, t) =>
+        Seq.wrap(TyVar(NotInTyVarHole(idx, stamp), t))
       | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
@@ -138,7 +137,8 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | TyVar(NotInTyVarHole(idx), t) => HTyp.tyvar(idx, t)
+  | TyVar(NotInTyVarHole(idx, stamp), t) =>
+    HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar(idx, stamp, t))
   | TyVar(InHole(reason, u), t) => HTyp.tyvarhole(reason, u, t)
   | Hole => HTyp.hole()
   | Unit => HTyp.product([])

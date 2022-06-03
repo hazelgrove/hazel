@@ -44,8 +44,7 @@ let extend_let_def_ctx = (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t =
     {
       open OptUtil.Syntax;
       let* id = recursive_let_id(ctx, p, def);
-      let+ (ty_p, ctx_p) = Statics_Pat.syn(ctx, p);
-      let ty_p = HTyp.rescope(ctx, ctx_p, ty_p);
+      let+ (ty_p, _) = Statics_Pat.syn(ctx, p);
       Context.add_var(ctx, id, ty_p);
     }
     |> Option.value(~default=ctx)

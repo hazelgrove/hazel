@@ -21,7 +21,7 @@ module HTyp_syntax: {
     | /** Lists. */
       List(t('idx))
     | /** A bound type variable. */
-      TyVar(Index.t('idx), TyVar.t)
+      TyVar(Index.t('idx), int, TyVar.t)
     | /** A free type variable. */
       TyVarHole(
         TyVarErrStatus.HoleReason.t,
@@ -84,21 +84,27 @@ module rec Context: {
   /** Returns the number of binding in the given context */
   let length: t => int;
 
+  /** Remaps a tyvar index and stamp to a new context.
+
+     WARNING: The results are only valid if the given context is the
+     context used to create the type variable or an extension of it. */
+  let rescope: (t, Index.Abs.t, int) => (Index.Abs.t, int);
+
   /* Type Variables */
 
   /** Returns the absolute index, name, and [Kind] of each type variable bound by
-   the given context. */
+     the given context. */
   let tyvars: t => list((Index.Abs.t, TyVar.t, Kind.t));
 
   /** Returns the name of the type variable bound at the given index. */
-  let tyvar: (t, Index.Abs.t) => option(TyVar.t);
+  let tyvar: (t, Index.Abs.t, int) => option(TyVar.t);
 
-  /** Returns the index of the most recently bound type variable with the given
-   name. */
-  let tyvar_index: (t, TyVar.t) => option(Index.Abs.t);
+  /** Returns the index and stamp of the most recently bound type variable with
+     the given name. */
+  let tyvar_index: (t, TyVar.t) => option((Index.Abs.t, int));
 
   /** Returns the [Kind] of the type variable bound at the given index. */
-  let tyvar_kind: (t, Index.Abs.t) => option(Kind.t);
+  let tyvar_kind: (t, Index.Abs.t, int) => option(Kind.t);
 
   /** Binds the given type variable name to the given [Kind]. */
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
@@ -114,7 +120,7 @@ module rec Context: {
   let vars: t => list((Index.Abs.t, Var.t, HTyp.t));
 
   /** Returns the name of the expression variable bound at the given index. */
-  let var: (t, Index.Abs.t) => option(Var.t);
+  let var: (t, Index.Abs.t, int) => option(Var.t);
 
   /** Returnx the index of the most recently bound expression variable with the
    given name. */
@@ -199,15 +205,10 @@ and HTyp: {
   /** Shifts all indices in the underlying AST by the given amount. */
   let shift_indices: (t, int) => t;
 
-  /** Scope preserving cross-context index shifting.
+  /** Scope preserving cross-context index shifting. */
+  let rescope: (Context.t, t) => t;
 
-     [rescope(new_ctx, old_ctx, tyvar(idx, t))] returns a
-     [tyvar(idx', t)] satisfying
-     [Index.equal(Context.tyvar_kind(old_ctx, idx), Context.tyvar_kind(old_ctx, idx))].
-   */
-  let rescope: (Context.t, Context.t, t) => t;
-
-  /* HTyp Constructors */
+  /* Base HTyp Constructors */
 
   let hole: unit => t;
   let int: unit => t;
@@ -217,8 +218,6 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
-  let tyvar: (Index.Abs.t, TyVar.t) => t;
-  let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
 
   /* HTyp Value Predicates */
 
@@ -269,7 +268,10 @@ and HTyp: {
 
   /* Type Variables */
 
-  let tyvar_index: t => option(Index.Abs.t);
+  let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
+  let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
+
+  let tyvar_index: t => option((Index.Abs.t, int));
   let tyvar_name: t => option(TyVar.t);
 
   /** Type variable substitution.  */
@@ -364,7 +366,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
-    | TyVar(Index.Abs.t, TyVar.t)
+    | TyVar(Index.Abs.t, int, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   /** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */

@@ -125,7 +125,6 @@ and syn_elab_line =
       | None => LinesDoNotElaborate
       | Some((ty_p, ctx_p)) =>
         /* let recursive_id = Statics_Exp.recursive_let_id(ctx, p, def); */
-        let ty_p = HTyp.rescope(ctx_p, ctx, ty_p);
         Log.debug_states(
           __FUNCTION__,
           [
@@ -646,7 +645,6 @@ and ana_elab_block =
             ("delta", Delta.sexp_of_t(delta)),
           ],
         );
-        let ty = HTyp.rescope(new_ctx, ctx, ty);
         Log.debug_states(__FUNCTION__, [("ty", HTyp.sexp_of_t(ty))]);
         switch (ana_elab_opseq(new_ctx, delta, conclusion, ty)) {
         | DoesNotElaborate => DoesNotElaborate

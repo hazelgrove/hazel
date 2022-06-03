@@ -22,14 +22,14 @@ open Infix;
 let tyvars: t(list((Index.Abs.t, TyVar.t, Kind.t))) =
   Context.tyvars +-+ get();
 
-let tyvar = (idx: Index.Abs.t): t(option(TyVar.t)) =>
-  Context.tyvar +-+ get() +~. idx;
+let tyvar = (idx: Index.Abs.t, stamp: int): t(option(TyVar.t)) =>
+  Context.tyvar +-+ get() +~. idx +~. stamp;
 
-let tyvar_index = (t: TyVar.t): t(option(Index.Abs.t)) =>
+let tyvar_index = (t: TyVar.t): t(option((Index.Abs.t, int))) =>
   Context.tyvar_index +-+ get() +~. t;
 
-let tyvar_kind = (idx: Index.Abs.t): t(option(Kind.t)) =>
-  Context.tyvar_kind +-+ get() +~. idx;
+let tyvar_kind = (idx: Index.Abs.t, stamp: int): t(option(Kind.t)) =>
+  Context.tyvar_kind +-+ get() +~. idx +~. stamp;
 
 let add_tyvar = (x: TyVar.t, k: Kind.t): t(unit) =>
   put @>+ Context.add_tyvar +-+ get() +~. x +~. k;
@@ -41,8 +41,8 @@ let diff_tyvars = (new_ctx: Context.t): t(list((Index.Abs.t, HTyp.t))) =>
 
 let vars: t(list((Index.Abs.t, Var.t, HTyp.t))) = Context.vars +-+ get();
 
-let var = (idx: Index.Abs.t): t(option(Var.t)) =>
-  Context.var +-+ get() +~. idx;
+let var = (idx: Index.Abs.t, stamp: int): t(option(Var.t)) =>
+  Context.var +-+ get() +~. idx +~. stamp;
 
 let var_index = (x: Var.t): t(option(Index.Abs.t)) =>
   Context.var_index +-+ get() +~. x;

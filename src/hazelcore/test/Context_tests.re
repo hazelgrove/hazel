@@ -138,8 +138,10 @@ let test_tyvars_rel =
 
 let k = Kind.singleton(HTyp.int());
 
-let tyvar = (i: int, name: string): HTyp.t =>
-  HTyp.tyvar(Index.Abs.of_int(i), name);
+let tyvar = (i: int, stamp: int, t: TyVar.t): HTyp.t =>
+  HTyp.of_syntax(
+    KindSystem.HTyp_syntax.TyVar(Index.Abs.of_int(i), stamp, t),
+  );
 
 let pairing = (f: 'a => 'b, g: 'a => 'c, x: 'a): ('b, 'c) => (f(x), g(x));
 
@@ -171,11 +173,11 @@ let%test _ =
 let%test _ =
   ContextMonad.Infix.(
     Context.initial
-    |> exec(add_tyvar("a", k) $++ add_var("x", tyvar(0, "a")))
+    |> exec(add_tyvar("a", k) $++ add_var("x", tyvar(0, 2, "a")))
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(1, "a", k)]),
-         test_vars([(0, "x", tyvar(1, "a"))]),
+         test_vars([(0, "x", tyvar(1, 2, "a"))]),
        )
     |> meet
   );
@@ -188,12 +190,12 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_tyvar("b", Kind.singleton(tyvar(0, "a"))),
+         $++ add_tyvar("b", Kind.singleton(tyvar(0, 2, "a"))),
        )
     |> Context.to_list
     |> snd
     |> test_tyvars_rel([
-         ("b", S(TyVar(Index.Rel.of_int(0), "a"))),
+         ("b", S(TyVar(Index.Rel.of_int(0), 2, "a"))),
          ("a", S(Int)),
        ])
   );
@@ -206,14 +208,14 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_tyvar("b", Kind.singleton(tyvar(0, "a")))
-         $++ add_tyvar("c", Kind.singleton(tyvar(1, "a"))),
+         $++ add_tyvar("b", Kind.singleton(tyvar(0, 1, "a")))
+         $++ add_tyvar("c", Kind.singleton(tyvar(1, 2, "a"))),
        )
     |> Context.to_list
     |> snd
     |> test_tyvars_rel([
-         ("c", S(TyVar(Index.Rel.of_int(1), "a"))),
-         ("b", S(TyVar(Index.Rel.of_int(0), "a"))),
+         ("c", S(TyVar(Index.Rel.of_int(1), 2, "a"))),
+         ("b", S(TyVar(Index.Rel.of_int(0), 2, "a"))),
          ("a", S(Int)),
        ])
   );
@@ -244,14 +246,14 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_tyvar("b", Kind.singleton(tyvar(0, "a")))
-         $++ add_tyvar("c", Kind.singleton(tyvar(0, "a"))),
+         $++ add_tyvar("b", Kind.singleton(tyvar(0, 1, "a")))
+         $++ add_tyvar("c", Kind.singleton(tyvar(0, 2, "a"))),
        )
     |> Context.to_list
     |> snd
     |> test_tyvars_rel([
-         ("c", S(TyVar(Index.Rel.of_int(0), "a"))),
-         ("b", S(TyVar(Index.Rel.of_int(0), "a"))),
+         ("c", S(TyVar(Index.Rel.of_int(0), 2, "a"))),
+         ("b", S(TyVar(Index.Rel.of_int(0), 1, "a"))),
          ("a", S(Int)),
        ])
   );
@@ -287,13 +289,13 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_var("x", tyvar(0, "a"))
+         $++ add_var("x", tyvar(0, 1, "a"))
          $++ add_tyvar("b", k),
        )
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(0, "b", k), (2, "a", k)]),
-         test_vars([(1, "x", tyvar(2, "a"))]),
+         test_vars([(1, "x", tyvar(2, 1, "a"))]),
        )
     |> meet
   );
@@ -306,14 +308,17 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_var("x", tyvar(0, "a"))
+         $++ add_var("x", tyvar(0, 1, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(0, "b")),
+         $++ add_var("y", tyvar(0, 3, "b")),
        )
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(1, "b", k), (3, "a", k)]),
-         test_vars([(0, "y", tyvar(1, "b")), (2, "x", tyvar(3, "a"))]),
+         test_vars([
+           (0, "y", tyvar(1, 3, "b")),
+           (2, "x", tyvar(3, 1, "a")),
+         ]),
        )
     |> meet
   );
@@ -326,14 +331,17 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_var("x", tyvar(0, "a"))
+         $++ add_var("x", tyvar(0, 1, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(1, "a")),
+         $++ add_var("y", tyvar(1, 3, "a")),
        )
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(1, "b", k), (3, "a", k)]),
-         test_vars([(0, "y", tyvar(3, "a")), (2, "x", tyvar(3, "a"))]),
+         test_vars([
+           (0, "y", tyvar(3, 3, "a")),
+           (2, "x", tyvar(3, 3, "a")),
+         ]),
        )
     |> meet
   );
@@ -346,19 +354,19 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_var("x", tyvar(0, "a"))
+         $++ add_var("x", tyvar(0, 1, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(1, "a"))
+         $++ add_var("y", tyvar(1, 3, "a"))
          $++ add_tyvar("c", k)
-         $++ add_var("z", tyvar(2, "a")),
+         $++ add_var("z", tyvar(2, 5, "a")),
        )
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(1, "c", k), (3, "b", k), (5, "a", k)]),
          test_vars([
-           (0, "z", tyvar(5, "a")),
-           (2, "y", tyvar(5, "a")),
-           (4, "x", tyvar(5, "a")),
+           (0, "z", tyvar(5, 5, "a")),
+           (2, "y", tyvar(5, 3, "a")),
+           (4, "x", tyvar(5, 1, "a")),
          ]),
        )
     |> meet
@@ -372,19 +380,19 @@ let%test _ =
     Context.initial
     |> exec(
          add_tyvar("a", k)
-         $++ add_var("x", tyvar(0, "a"))
+         $++ add_var("x", tyvar(0, 1, "a"))
          $++ add_tyvar("b", k)
-         $++ add_var("y", tyvar(0, "b"))
+         $++ add_var("y", tyvar(0, 3, "b"))
          $++ add_tyvar("c", k)
-         $++ add_var("z", tyvar(0, "c")),
+         $++ add_var("z", tyvar(0, 5, "c")),
        )
     |> pairing(Context.tyvars, Context.vars)
     |> product(
          test_tyvars_abs([(1, "c", k), (3, "b", k), (5, "a", k)]),
          test_vars([
-           (0, "z", tyvar(1, "c")),
-           (2, "y", tyvar(3, "b")),
-           (4, "x", tyvar(5, "a")),
+           (0, "z", tyvar(1, 5, "c")),
+           (2, "y", tyvar(3, 3, "b")),
+           (4, "x", tyvar(5, 1, "a")),
          ]),
        )
     |> meet

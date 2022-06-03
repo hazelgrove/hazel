@@ -98,10 +98,11 @@ and syn_elab_operand =
         let+ (ty_elt, _, delta) = syn_elab(ctx, delta, ty);
         let ty = HTyp.list(ty_elt);
         (ty, Kind.singleton(ty), delta);
-      | TyVar(NotInTyVarHole(idx), t) =>
+      | TyVar(NotInTyVarHole(idx, stamp), t) =>
         open OptUtil.Syntax;
-        let+ k = Context.tyvar_kind(ctx, idx);
-        (HTyp.tyvar(idx, t), k, delta);
+        let+ k = Context.tyvar_kind(ctx, idx, stamp);
+        let (idx, _) = Context.rescope(ctx, idx, stamp);
+        (HTyp.tyvar(ctx, idx, t), k, delta);
       | TyVar(InHole(reason, u), t) =>
         let ty = HTyp.tyvarhole(reason, u, t);
         Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));

@@ -30,7 +30,7 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
       open OptUtil.Syntax;
       let+ _ = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
       Kind.singleton(ty);
-    | TyVar(i, _) => Context.tyvar_kind(ctx, i)
+    | TyVar(idx, stamp, _) => Context.tyvar_kind(ctx, idx, stamp)
     }
   )
 

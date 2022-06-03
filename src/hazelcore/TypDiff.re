@@ -19,7 +19,12 @@ let rec mk =
   | (Float, Float)
   | (Bool, Bool) => ([], [])
   // TODO: add ctx to TyVar
-  | (TyVar(i, _), TyVar(j, _)) => i == j ? ([], []) : ([[]], [[]])
+  | (TyVar(idx, stamp, _), TyVar(idx', stamp', _)) =>
+    Int.equal(
+      Index.Abs.to_int(idx) + stamp,
+      Index.Abs.to_int(idx') + stamp',
+    )
+      ? ([], []) : ([[]], [[]])
   | (TyVar(_), _)
   | (_, TyVar(_)) => ([], [])
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
