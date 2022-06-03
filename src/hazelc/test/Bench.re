@@ -1,12 +1,13 @@
 open LetOpen.Syntax;
-
 module W = Wasmtime.Wrappers;
 
-let bench = source => {
+let profile = Common.Bench;
+
+let bench_comp = source => {
   open Common.Compile;
 
   // Compile.
-  let wasm_path = source |> compile;
+  let wasm_path = source |> compile(~profile);
 
   // Read wasm module.
   let wasm = {
@@ -27,11 +28,11 @@ let bench = source => {
   W.Wasmtime.Linker.define_wasi(linker, wasi_instance);
 
   // Link module.
-  let name = W.Byte_vec.of_string("bench");
-  W.Wasmtime.Linker.module_(linker, ~name, modl);
+  let modl_name = W.Byte_vec.of_string("bench");
+  W.Wasmtime.Linker.module_(linker, ~name=modl_name, modl);
 
   // Get `_start` function.
-  let start_func = W.Wasmtime.Linker.get_default(linker, ~name);
+  let start_func = W.Wasmtime.Linker.get_default(linker, ~name=modl_name);
 
   () => W.Wasmtime.func_call0(start_func, []);
 };
@@ -39,6 +40,15 @@ let bench = source => {
 let bench_eval = source => {
   open Common.Eval;
 
-  let d = source |> parse |> elab;
-  () => ignore(d |> eval);
+  let d = source |> parse(~profile) |> elab(~profile);
+  () => ignore(d |> eval(~profile));
+};
+
+let bench = (name, source) => {
+  let bench = (name, f) => {
+    Benchmark.latency1(~style=Auto, ~repeat=5, 4L, ~name, f, ()) |> ignore;
+  };
+
+  bench("comp " ++ name, bench_comp(source));
+  bench("eval " ++ name, bench_eval(source));
 };

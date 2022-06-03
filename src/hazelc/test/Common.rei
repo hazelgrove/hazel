@@ -1,11 +1,16 @@
+[@deriving sexp]
+type profile =
+  | Test
+  | Bench;
+
 module Compile: {
-  let compile: string => string;
-  let run: string => string;
+  let compile: (~profile: profile, string) => string;
+  let run: (~profile: profile, string) => string;
 };
 
 module Eval: {
-  let parse: string => UHExp.t;
-  let elab: UHExp.t => DHExp.t;
-  let eval: DHExp.t => EvaluatorResult.t;
-  let stringify: EvaluatorResult.t => string;
+  let parse: (~profile: profile, string) => UHExp.t;
+  let elab: (~profile: profile, UHExp.t) => DHExp.t;
+  let eval: (~profile: profile, DHExp.t) => EvaluatorResult.t;
+  let stringify: (~profile: profile, EvaluatorResult.t) => string;
 };

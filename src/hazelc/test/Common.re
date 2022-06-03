@@ -1,24 +1,54 @@
+[@deriving sexp]
+type profile =
+  | Test
+  | Bench;
+
 module Compile = {
   let temp_prefix = "hazelc_test";
 
-  let opts: Compile.opts = {
-    optimize: {
-      indet_analysis: {
-        level: LocalAnalysis,
-      },
-    },
-    codegen: {
-      print_final_expr: true,
-    },
+  let mk_opts = profile => {
+    switch (profile) {
+    | Test =>
+      let opts: Compile.opts = {
+        optimize: {
+          indet_analysis: {
+            level: LocalAnalysis,
+          },
+        },
+        codegen: {
+          print_final_expr: true,
+        },
+      };
+      let wasm_opts: Compile.wasm_opts = {
+        grain: "grain",
+        wat: false,
+        maximum_memory_pages: 64,
+      };
+      (opts, wasm_opts);
+
+    | Bench =>
+      let opts: Compile.opts = {
+        optimize: {
+          indet_analysis: {
+            level: LocalAnalysis,
+          },
+        },
+        codegen: {
+          print_final_expr: false,
+        },
+      };
+      let wasm_opts: Compile.wasm_opts = {
+        grain: "grain",
+        wat: false,
+        maximum_memory_pages: 4194304 / 64,
+      };
+      (opts, wasm_opts);
+    };
   };
 
-  let wasm_opts: Compile.wasm_opts = {
-    grain: "grain",
-    wat: false,
-    maximum_memory_pages: 4194304 / 64,
-  };
+  let compile = (~profile, source) => {
+    let (opts, wasm_opts) = mk_opts(profile);
 
-  let compile = source => {
     switch (Compile.resume_until_printed(~opts, Source(Text(source)))) {
     | Ok(g) =>
       let src_path = Filename.temp_file(temp_prefix, "a.gr");
@@ -44,7 +74,9 @@ module Compile = {
     };
   };
 
-  let run = modl => {
+  let run = (~profile, modl) => {
+    let (_opts, wasm_opts) = mk_opts(profile);
+
     let cmd =
       Grain.Run.(
         Grain.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
@@ -57,22 +89,29 @@ module Compile = {
 };
 
 module Eval = {
-  let parse = source =>
+  let parse = (~profile, source) => {
+    let _ = profile;
     switch (Hazeltext.Parsing.ast_of_string(source)) {
     | Ok(e) => e
     | Error(err) => failwith(err)
     };
+  };
 
-  let elab = e => {
+  let elab = (~profile, e) => {
+    let _ = profile;
     switch (Elaborator_Exp.elab(Contexts.initial, Delta.empty, e)) {
     | Elaborates(d, _, _) => d
     | DoesNotElaborate => failwith("elaboration failed")
     };
   };
 
-  let eval = Evaluator.evaluate;
+  let eval = (~profile) => {
+    let _ = profile;
+    Evaluator.evaluate;
+  };
 
-  let stringify = (r: EvaluatorResult.t) => {
+  let stringify = (~profile, r: EvaluatorResult.t) => {
+    let _ = profile;
     let rec string_of_boxed_value = (d: DHExp.t) => {
       switch (d) {
       | BoolLit(b) => string_of_bool(b)
