@@ -1600,6 +1600,11 @@ and syn_perform_operand =
     ActionOutcome.Succeeded((new_ze, HTyp.Arrow(Hole, body_ty), u_gen))
     |> wrap_in_SynDone;
 
+  /* x @<| Int   ==>   x| */
+  | (Backspace, CursorE(OnDelim(_k, After), TypApp(_, e, _ty))) =>
+    let new_ze = ZExp.place_after(e);
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+
   | (
       Backspace,
       CursorE(
@@ -1925,6 +1930,10 @@ and syn_perform_operand =
         }
       }
     }
+
+  // TODO (typ-app):
+  | (_, TypAppZE(_, _ze, _ty_arg)) => failwith("")
+  | (_, TypAppZT(_, _e, _zty_arg)) => failwith("")
 
   | (_, InjZ(_, side, zbody)) =>
     switch (ty) {
@@ -3085,9 +3094,13 @@ and ana_perform_operand =
         ZExp.ZBlock.wrap(FunZP(NotInHole, ZPat.place_after(p), body));
       Succeeded(AnaDone((new_ze, u_gen)));
     }
-  // | (Backspace, CursorE(OnDelim(_, After), TypApp(_))) =>
-  //   let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-  //   Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), u_gen)));
+
+  /* x @<| Int   ==>   x| */
+  | (Backspace, CursorE(OnDelim(_k, After), TypApp(_, e, _ty))) =>
+    let new_ze = ZExp.place_after(e);
+    let (ze, _, u_gen) = Statics_Exp.syn_fix_holes_z(ctx, u_gen, new_ze);
+    Succeeded(AnaDone((ze, u_gen)));
+
   | (
       Backspace,
       CursorE(
@@ -3451,6 +3464,11 @@ and ana_perform_operand =
         }
       }
     }
+
+  // TODO (typ-app):
+  | (_, TypAppZE(_, _ze, _ty_arg)) => failwith("")
+  | (_, TypAppZT(_, _e, _zty_arg)) => failwith("")
+
   | (_, InjZ(_, side, zbody)) =>
     switch (HTyp.matched_sum(ty)) {
     | None => Failed
