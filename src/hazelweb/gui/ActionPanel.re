@@ -491,7 +491,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SDivide)) => Added
   | Construct(SOp(SLessThan)) => Added
   | Construct(SOp(SSpace)) => Added
-  | Construct(STypArg) => Added
+  | Construct(STypApp) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
   | Construct(SListNil) => Added

@@ -87,6 +87,8 @@ module Delim = {
   let open_Fun = (): t => mk(~index=1, Doc_common.Delim.open_Fun);
   let close_Fun = (): t => mk(~index=2, Doc_common.Delim.close_Fun);
 
+  let sym_TypApp = (): t => mk(~index=0, Doc_common.Delim.sym_TypApp);
+
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
@@ -314,13 +316,6 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
 
-// TODO (typ-app): need to render UHTyp.t with "@"
-let mk_TypArg = (~sort: TermSort.t, ty: formatted_child): t => {
-  let at_sign = Delim.mk(~index=0, "@") |> annot_Tessera;
-  Doc.hcats([at_sign, ty |> pad_left_delimited_open_child])
-  |> annot_Operand(~sort);
-};
-
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
   let close_group = Delim.close_Parenthesized() |> annot_Tessera;
@@ -356,6 +351,17 @@ let mk_Fun = (p: formatted_child, body: formatted_child): t => {
   };
   let close_group = Delim.close_Fun() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
+  |> annot_Operand(~sort=Exp);
+};
+
+// TODO (typ-app): need to render UHTyp.t with "@"
+let mk_TypApp = (e: formatted_child, ty: formatted_child): t => {
+  let at_sign = Delim.sym_TypApp();
+  Doc.hcats([
+    e |> pad_right_delimited_open_child,
+    at_sign,
+    ty |> pad_left_delimited_open_child,
+  ])
   |> annot_Operand(~sort=Exp);
 };
 

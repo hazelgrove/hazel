@@ -33,7 +33,7 @@ type shape =
   | SLet
   | SLine
   | SCase
-  | STypArg
+  | STypApp
   | SOp(operator_shape);
 
 [@deriving sexp]

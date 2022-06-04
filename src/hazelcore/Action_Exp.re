@@ -1740,7 +1740,7 @@ and syn_perform_operand =
       );
     Succeeded(SynDone((new_ze, HTyp.Arrow(Hole, ty), u_gen)));
 
-  | (Construct(STypArg), CursorE(_, operand)) =>
+  | (Construct(STypApp), CursorE(_, operand)) =>
     let new_ze = {
       let new_zty = UHTyp.contract(HTyp.Hole) |> ZTyp.place_before;
       ZExp.ZBlock.wrap(
@@ -3401,7 +3401,7 @@ and ana_perform_operand =
     Succeeded(AnaDone((new_ze, u_gen)));
   | (Construct(SLine), CursorE(_)) => Failed
 
-  | (Construct(SListNil | STypArg), _) =>
+  | (Construct(SListNil | STypApp), _) =>
     ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
 
   /* Invalid Swap actions */
