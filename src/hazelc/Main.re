@@ -13,6 +13,7 @@ type action =
   | Hir
   | Anf
   | Grain
+  | Gir
   | Wasm
   | Wat;
 
@@ -26,7 +27,7 @@ type error =
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug) => {
-  let optimize = optimize |> Option.value(~default=0);
+  let optimize = optimize |> Option.value(~default=1);
   let indet_analysis_level =
     switch (optimize) {
     | 0 => IndetAnalysis.NoAnalysis
@@ -78,6 +79,7 @@ let hazelc =
           | Hir => "hz.ihexp"
           | Anf => "hz.anf"
           | Grain => "gr"
+          | Gir => "hz.gir"
           | Wasm => "wasm"
           | Wat => "wat"
           };
@@ -131,6 +133,11 @@ let hazelc =
              ),
            )
          )
+      |> Result.map_error(convert_error)
+
+    | Gir =>
+      Compile.resume_until_grainized(~opts, source)
+      |> Result.map(GrainIR.sexp_of_prog |> write_sexp_output)
       |> Result.map_error(convert_error)
 
     | Wasm
@@ -196,6 +203,10 @@ let action_flag = {
     let doc = "Emit Grain code.";
     (Grain, Arg.info(["grain"], ~doc));
   };
+  let gir = {
+    let doc = "Emit Grain IR sexp.";
+    (Gir, Arg.info(["gir"], ~doc));
+  };
   let wasm = {
     let doc = "Emit WebAssembly.";
     (Wasm, Arg.info(["wasm"], ~doc));
@@ -204,7 +215,9 @@ let action_flag = {
     let doc = "Emit WebAssembly text.";
     (Wat, Arg.info(["wat"], ~doc));
   };
-  Arg.(last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, wasm, wat]));
+  Arg.(
+    last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, gir, wasm, wat])
+  );
 };
 
 /* Verbosity flag. */
