@@ -17,12 +17,12 @@ type opts = {level};
 type indet_context = VarMap.t_(Anf.completeness);
 
 let rec analyze_prog = (~opts, prog: Anf.prog, ictx): Anf.prog => {
-  let {prog_body: (body, c), prog_ty, prog_indet: _}: Anf.prog = prog;
+  let {prog_body: (body, c), prog_ty, prog_complete: _}: Anf.prog = prog;
 
   let (body, ictx) = analyze_body(~opts, body, ictx);
   let c = analyze_comp(~opts, c, ictx);
 
-  {prog_body: (body, c), prog_ty, prog_indet: c.comp_indet};
+  {prog_body: (body, c), prog_ty, prog_complete: c.comp_complete};
 }
 
 and analyze_body =
@@ -41,51 +41,55 @@ and analyze_body =
 }
 
 and analyze_stmt = (~opts, stmt: Anf.stmt, ictx): (Anf.stmt, indet_context) => {
-  let {stmt_kind, stmt_indet: _}: Anf.stmt = stmt;
-  let (stmt_kind, stmt_indet, ictx) =
+  let {stmt_kind, stmt_complete: _}: Anf.stmt = stmt;
+  let (stmt_kind, stmt_complete, ictx) =
     switch (stmt_kind) {
     | SLet(p, c) =>
       let c = analyze_comp(~opts, c, ictx);
-      let (p, ictx) = analyze_pat(~opts, p, c.comp_indet, ictx);
-      (Anf.SLet(p, c), Completeness.join(p.pat_indet, c.comp_indet), ictx);
+      let (p, ictx) = analyze_pat(~opts, p, c.comp_complete, ictx);
+      (
+        Anf.SLet(p, c),
+        Completeness.join(p.pat_complete, c.comp_complete),
+        ictx,
+      );
 
     /* SLetRec rhs can only be a lambda. */
-    | SLetRec(x, {comp_kind: CLam(_, _), comp_ty: _, comp_indet: _} as c) =>
+    | SLetRec(x, {comp_kind: CLam(_, _), comp_ty: _, comp_complete: _} as c) =>
       let ictx = VarMap.extend(ictx, (x, IndeterminatelyIncomplete));
       let c = analyze_comp(~opts, c, ictx);
-      (Anf.SLetRec(x, c), c.comp_indet, ictx);
+      (Anf.SLetRec(x, c), c.comp_complete, ictx);
 
     | SLetRec(_, _) => raise(BadLetRec)
     };
 
-  ({stmt_kind, stmt_indet}, ictx);
+  ({stmt_kind, stmt_complete}, ictx);
 }
 
 and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
-  let {comp_kind, comp_ty, comp_indet: _}: Anf.comp = c;
-  let (comp_kind, comp_indet): (Anf.comp_kind, Anf.completeness) =
+  let {comp_kind, comp_ty, comp_complete: _}: Anf.comp = c;
+  let (comp_kind, comp_complete): (Anf.comp_kind, Anf.completeness) =
     switch (comp_kind) {
     | CImm(im) =>
       let im = analyze_imm(~opts, im, ictx);
-      (CImm(im), im.imm_indet);
+      (CImm(im), im.imm_complete);
 
     | CBinOp(op, im1, im2) =>
       let im1 = analyze_imm(~opts, im1, ictx);
       let im2 = analyze_imm(~opts, im2, ictx);
       (
         CBinOp(op, im1, im2),
-        Completeness.join(im1.imm_indet, im2.imm_indet),
+        Completeness.join(im1.imm_complete, im2.imm_complete),
       );
 
     | CAp(fn, args) =>
       let fn = analyze_imm(~opts, fn, ictx);
       let args = args |> List.map(arg => analyze_imm(~opts, arg, ictx));
 
-      let args_indet =
+      let args_complete =
         args
-        |> List.map((arg: Anf.imm) => arg.imm_indet)
+        |> List.map((arg: Anf.imm) => arg.imm_complete)
         |> Completeness.join_fold;
-      (CAp(fn, args), Completeness.join(fn.imm_indet, args_indet));
+      (CAp(fn, args), Completeness.join(fn.imm_complete, args_complete));
 
     | CLam(params, body) =>
       let (params_rev, ictx) =
@@ -100,41 +104,47 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
         );
       let params = List.rev(params_rev);
 
-      let params_indet =
+      let params_complete =
         params
-        |> List.map((param: Anf.pat) => param.pat_indet)
+        |> List.map((param: Anf.pat) => param.pat_complete)
         |> Completeness.join_fold;
       let body = analyze_prog(~opts, body, ictx);
       (
         CLam(params, body),
-        Completeness.join(body.prog_indet, params_indet),
+        Completeness.join(body.prog_complete, params_complete),
       );
 
     | CCons(im1, im2) =>
       let im1 = analyze_imm(~opts, im1, ictx);
       let im2 = analyze_imm(~opts, im2, ictx);
-      (CCons(im1, im2), Completeness.join(im1.imm_indet, im2.imm_indet));
+      (
+        CCons(im1, im2),
+        Completeness.join(im1.imm_complete, im2.imm_complete),
+      );
 
     | CPair(im1, im2) =>
       let im1 = analyze_imm(~opts, im1, ictx);
       let im2 = analyze_imm(~opts, im2, ictx);
-      (CPair(im1, im2), Completeness.join(im1.imm_indet, im2.imm_indet));
+      (
+        CPair(im1, im2),
+        Completeness.join(im1.imm_complete, im2.imm_complete),
+      );
 
     | CInj(side, im) =>
       let im = analyze_imm(~opts, im, ictx);
-      (CInj(side, im), im.imm_indet);
+      (CInj(side, im), im.imm_complete);
 
     | CCase(scrut, rules) =>
       let scrut = analyze_imm(~opts, scrut, ictx);
       let rules = analyze_rules(~opts, scrut, rules, ictx);
 
-      let rules_indet =
+      let rules_complete =
         rules
-        |> List.map((rule: Anf.rule) => rule.rule_indet)
+        |> List.map((rule: Anf.rule) => rule.rule_complete)
         |> Completeness.join_fold;
       (
         CCase(scrut, rules),
-        Completeness.join(scrut.imm_indet, rules_indet),
+        Completeness.join(scrut.imm_complete, rules_complete),
       );
 
     | CEmptyHole(u, i, sigma) =>
@@ -150,7 +160,7 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
       (CCast(im, ty, ty'), IndeterminatelyIncomplete);
     };
 
-  {comp_kind, comp_ty, comp_indet};
+  {comp_kind, comp_ty, comp_complete};
 }
 
 and analyze_rules =
@@ -159,13 +169,15 @@ and analyze_rules =
 }
 
 and analyze_rule = (~opts, scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
-  let {rule_pat, rule_branch, rule_indet: _}: Anf.rule = rule;
-  let (rule_pat, ictx) = analyze_pat(~opts, rule_pat, scrut.imm_indet, ictx);
+  let {rule_pat, rule_branch, rule_complete: _}: Anf.rule = rule;
+  let (rule_pat, ictx) =
+    analyze_pat(~opts, rule_pat, scrut.imm_complete, ictx);
   let rule_branch = analyze_prog(~opts, rule_branch, ictx);
   {
     rule_pat,
     rule_branch,
-    rule_indet: Completeness.join(rule_pat.pat_indet, rule_branch.prog_indet),
+    rule_complete:
+      Completeness.join(rule_pat.pat_complete, rule_branch.prog_complete),
   };
 }
 
@@ -177,20 +189,20 @@ and analyze_sigma =
 }
 
 and analyze_imm = (~opts, im: Anf.imm, ictx): Anf.imm => {
-  let {imm_kind, imm_ty, imm_indet: _}: Anf.imm = im;
-  let (imm_kind, imm_indet): (Anf.imm_kind, Anf.completeness) =
+  let {imm_kind, imm_ty, imm_complete: _}: Anf.imm = im;
+  let (imm_kind, imm_complete): (Anf.imm_kind, Anf.completeness) =
     switch (imm_kind) {
     | IConst(const) =>
       let const = analyze_const(~opts, const, ictx);
       (IConst(const), NecessarilyComplete);
     | IVar(x) =>
       switch (VarMap.lookup(ictx, x)) {
-      | Some(x_indet) => (IVar(x), x_indet)
+      | Some(x_complete) => (IVar(x), x_complete)
       | None => raise(FreeBoundVar(x))
       }
     };
 
-  {imm_kind, imm_ty, imm_indet};
+  {imm_kind, imm_ty, imm_complete};
 }
 
 and analyze_const = (~opts, const: Anf.constant, _ictx): Anf.constant => {
@@ -199,15 +211,21 @@ and analyze_const = (~opts, const: Anf.constant, _ictx): Anf.constant => {
 }
 
 and analyze_pat =
-    (~opts, p: Anf.pat, matchee_indet: Anf.completeness, ictx)
+    (~opts, p: Anf.pat, matchee_complete: Anf.completeness, ictx)
     : (Anf.pat, indet_context) =>
-  analyze_pat'(~opts, p, matchee_indet, false, ictx)
+  analyze_pat'(~opts, p, matchee_complete, false, ictx)
 
 and analyze_pat' =
-    (~opts, p: Anf.pat, matchee_indet: Anf.completeness, in_hole: bool, ictx)
+    (
+      ~opts,
+      p: Anf.pat,
+      matchee_complete: Anf.completeness,
+      in_hole: bool,
+      ictx,
+    )
     : (Anf.pat, indet_context) => {
-  let {pat_kind, pat_indet: _}: Anf.pat = p;
-  let (pat_kind, pat_indet: Anf.completeness, ictx) =
+  let {pat_kind, pat_complete: _}: Anf.pat = p;
+  let (pat_kind, pat_complete: Anf.completeness, ictx) =
     switch (pat_kind) {
     | PVar(x) =>
       /* We mark that the variable x refers to a possibly indeterminate
@@ -216,7 +234,10 @@ and analyze_pat' =
       let ictx =
         VarMap.extend(
           ictx,
-          (x, if (in_hole) {IndeterminatelyIncomplete} else {matchee_indet}),
+          (
+            x,
+            if (in_hole) {IndeterminatelyIncomplete} else {matchee_complete},
+          ),
         );
       (pat_kind, NecessarilyComplete, ictx);
     | PWild
@@ -226,19 +247,32 @@ and analyze_pat' =
     | PNil
     | PTriv => (pat_kind, NecessarilyComplete, ictx)
     | PInj(side, p') =>
-      let (p', ictx) = analyze_pat'(~opts, p', matchee_indet, in_hole, ictx);
-      (PInj(side, p'), p'.pat_indet, ictx);
+      let (p', ictx) =
+        analyze_pat'(~opts, p', matchee_complete, in_hole, ictx);
+      (PInj(side, p'), p'.pat_complete, ictx);
     | PCons(p1, p2) =>
-      let (p1, ictx) = analyze_pat'(~opts, p1, matchee_indet, in_hole, ictx);
-      let (p2, ictx) = analyze_pat'(~opts, p2, matchee_indet, in_hole, ictx);
-      (PCons(p1, p2), Completeness.join(p1.pat_indet, p2.pat_indet), ictx);
+      let (p1, ictx) =
+        analyze_pat'(~opts, p1, matchee_complete, in_hole, ictx);
+      let (p2, ictx) =
+        analyze_pat'(~opts, p2, matchee_complete, in_hole, ictx);
+      (
+        PCons(p1, p2),
+        Completeness.join(p1.pat_complete, p2.pat_complete),
+        ictx,
+      );
     | PPair(p1, p2) =>
-      let (p1, ictx) = analyze_pat'(~opts, p1, matchee_indet, in_hole, ictx);
-      let (p2, ictx) = analyze_pat'(~opts, p2, matchee_indet, in_hole, ictx);
-      (PPair(p1, p2), Completeness.join(p1.pat_indet, p2.pat_indet), ictx);
+      let (p1, ictx) =
+        analyze_pat'(~opts, p1, matchee_complete, in_hole, ictx);
+      let (p2, ictx) =
+        analyze_pat'(~opts, p2, matchee_complete, in_hole, ictx);
+      (
+        PPair(p1, p2),
+        Completeness.join(p1.pat_complete, p2.pat_complete),
+        ictx,
+      );
     };
 
-  ({pat_kind, pat_indet}, ictx);
+  ({pat_kind, pat_complete}, ictx);
 };
 
 let analyze = (~opts, prog: Anf.prog): Anf.prog =>

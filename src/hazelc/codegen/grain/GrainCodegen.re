@@ -22,7 +22,7 @@ module Imports = {
     float64: false,
   };
 
-  let with_indet = imps => {...imps, indet: true};
+  let with_complete = imps => {...imps, indet: true};
   let with_sum = imps => {...imps, sum: true};
   /* let with_int32 = imps => {...imps, int32: true}; */
   let with_int32 = imps => {...imps, int32: true};
@@ -78,7 +78,10 @@ let codegen_fold = (codegen_f, xs, imps) => {
 };
 
 let rec codegen_prog =
-        ({prog_body: (body, c), prog_ty: _, prog_indet: _}: Anf.prog, imps)
+        (
+          {prog_body: (body, c), prog_ty: _, prog_complete: _}: Anf.prog,
+          imps,
+        )
         : (GrainIR.block, GrainIR.expr, Imports.t) => {
   let (stmts, imps) = codegen_fold(codegen_stmt, body, imps);
   let (c, imps) = codegen_comp(c, imps);
@@ -95,7 +98,7 @@ and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
   | SLetRec(x, c) =>
     let (p', imps) =
       codegen_pat(
-        {pat_kind: PVar(x), pat_indet: NecessarilyComplete},
+        {pat_kind: PVar(x), pat_complete: NecessarilyComplete},
         imps,
       );
     let (c', imps) = codegen_comp(c, imps);
@@ -107,7 +110,8 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   switch (c.comp_kind) {
   | CImm(im) => codegen_imm(im, imps)
 
-  | CBinOp(op, im1, im2) => codegen_bin_op(op, im1, im2, c.comp_indet, imps)
+  | CBinOp(op, im1, im2) =>
+    codegen_bin_op(op, im1, im2, c.comp_complete, imps)
 
   | CAp(fn, args) =>
     let (fn', imps) = codegen_imm(fn, imps);
@@ -149,7 +153,7 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   };
 }
 
-and codegen_bin_op_non_indet = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_non_complete = (op: Anf.bin_op, imps) => {
   let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
@@ -187,7 +191,7 @@ and codegen_bin_op_non_indet = (op: Anf.bin_op, imps) => {
   (op, imps);
 }
 
-and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_complete = (op: Anf.bin_op, imps) => {
   let op =
     HazelStd.Rt.(
       switch (op) {
@@ -209,7 +213,7 @@ and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
       | OpFEquals => AstOps.indet_fequals
       }
     );
-  (op, Imports.with_indet(imps));
+  (op, Imports.with_complete(imps));
 }
 
 and codegen_bin_op =
@@ -226,10 +230,9 @@ and codegen_bin_op =
   let (op, imps) =
     switch (indet) {
     // TODO: Separate cases
-    | NecessarilyComplete => codegen_bin_op_non_indet(op, imps)
+    | NecessarilyComplete => codegen_bin_op_non_complete(op, imps)
     | NecessarilyIncomplete
-    | IndeterminatelyIncomplete => 
-codegen_bin_op_indet(op, imps)
+    | IndeterminatelyIncomplete => codegen_bin_op_complete(op, imps)
     };
   (op(e1, e2), imps);
 }
@@ -357,7 +360,7 @@ and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
   let (i', imps) = codegen_meta_var_inst(i, imps);
   let (sigma', imps) = codegen_sigma(sigma, imps);
 
-  HazelStd.Rt.(Ast.empty_hole(u', i', sigma'), Imports.with_indet(imps));
+  HazelStd.Rt.(Ast.empty_hole(u', i', sigma'), Imports.with_complete(imps));
 }
 
 and codegen_non_empty_hole =
@@ -370,7 +373,7 @@ and codegen_non_empty_hole =
 
   HazelStd.Rt.(
     Ast.non_empty_hole(reason', u', i', sigma', e'),
-    Imports.with_indet(imps),
+    Imports.with_complete(imps),
   );
 }
 
@@ -408,7 +411,7 @@ and codegen_cast =
   let ty1' = codegen_htyp(ty1);
   let ty2' = codegen_htyp(ty2);
 
-  HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.with_indet(imps));
+  HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.with_complete(imps));
 };
 
 let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
@@ -420,7 +423,7 @@ let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
       /* TODO: Clean this up. */
       /* FIXME: Probably doesn't work all the time. */
       let print_ap: GrainIR.expr =
-        switch (prog.prog_indet) {
+        switch (prog.prog_complete) {
         | NecessarilyComplete => EAp(EVar("print"), [c])
         | NecessarilyIncomplete
         | IndeterminatelyIncomplete => HazelStd.Rt.AstPrint.print(c)

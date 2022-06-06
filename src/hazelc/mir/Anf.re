@@ -28,7 +28,7 @@ type bin_op =
 [@deriving sexp]
 type pat = {
   pat_kind,
-  pat_indet: completeness,
+  pat_complete: completeness,
 }
 
 [@deriving sexp]
@@ -56,7 +56,7 @@ and constant =
 and imm = {
   imm_kind,
   imm_ty: HTyp.t,
-  imm_indet: completeness,
+  imm_complete: completeness,
 }
 
 [@deriving sexp]
@@ -68,7 +68,7 @@ and imm_kind =
 and comp = {
   comp_kind,
   comp_ty: HTyp.t,
-  comp_indet: completeness,
+  comp_complete: completeness,
 }
 
 [@deriving sexp]
@@ -100,13 +100,13 @@ and inj_side =
 and rule = {
   rule_pat: pat,
   rule_branch: prog,
-  rule_indet: completeness,
+  rule_complete: completeness,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_indet: completeness,
+  stmt_complete: completeness,
 }
 
 [@deriving sexp]
@@ -118,7 +118,7 @@ and stmt_kind =
 and prog = {
   prog_body,
   prog_ty: HTyp.t,
-  prog_indet: completeness,
+  prog_complete: completeness,
 }
 
 [@deriving sexp]
@@ -128,7 +128,7 @@ module Imm = {
   let mk_var = (x: Var.t, c: comp): imm => {
     imm_kind: IVar(x),
     imm_ty: c.comp_ty,
-    imm_indet: c.comp_indet,
+    imm_complete: c.comp_complete,
   };
 };
 
@@ -136,7 +136,7 @@ module Comp = {
   let mk_imm = (im: imm): comp => {
     comp_kind: CImm(im),
     comp_ty: im.imm_ty,
-    comp_indet: im.imm_indet,
+    comp_complete: im.imm_complete,
   };
 };
 
@@ -144,6 +144,6 @@ module Prog = {
   let mk = (body: list(stmt), c: comp): prog => {
     prog_body: (body, c),
     prog_ty: c.comp_ty,
-    prog_indet: c.comp_indet,
+    prog_complete: c.comp_complete,
   };
 };
