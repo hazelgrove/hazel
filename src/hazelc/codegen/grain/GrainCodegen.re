@@ -153,7 +153,7 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   };
 }
 
-and codegen_bin_op_non_complete = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_complete = (op: Anf.bin_op, imps) => {
   let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
@@ -191,7 +191,7 @@ and codegen_bin_op_non_complete = (op: Anf.bin_op, imps) => {
   (op, imps);
 }
 
-and codegen_bin_op_complete = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_incomplete = (op: Anf.bin_op, imps) => {
   let op =
     HazelStd.Rt.(
       switch (op) {
@@ -230,9 +230,9 @@ and codegen_bin_op =
   let (op, imps) =
     switch (indet) {
     // TODO: Separate cases
-    | NecessarilyComplete => codegen_bin_op_non_complete(op, imps)
+    | NecessarilyComplete => codegen_bin_op_complete(op, imps)
     | NecessarilyIncomplete
-    | IndeterminatelyIncomplete => codegen_bin_op_complete(op, imps)
+    | IndeterminatelyIncomplete => codegen_bin_op_incomplete(op, imps)
     };
   (op(e1, e2), imps);
 }

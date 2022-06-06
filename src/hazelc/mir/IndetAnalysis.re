@@ -55,6 +55,7 @@ and analyze_stmt = (~opts, stmt: Anf.stmt, ictx): (Anf.stmt, indet_context) => {
 
     /* SLetRec rhs can only be a lambda. */
     | SLetRec(x, {comp_kind: CLam(_, _), comp_ty: _, comp_complete: _} as c) =>
+      /* TODO: Lambda analysis */
       let ictx = VarMap.extend(ictx, (x, IndeterminatelyIncomplete));
       let c = analyze_comp(~opts, c, ictx);
       (Anf.SLetRec(x, c), c.comp_complete, ictx);
@@ -96,6 +97,7 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
         List.fold_left(
           ((params, ictx), param) => {
             let (param, ictx) =
+              /* TODO: Lambda analysis */
               analyze_pat(~opts, param, IndeterminatelyIncomplete, ictx);
             ([param, ...params], ictx);
           },
@@ -149,15 +151,15 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
 
     | CEmptyHole(u, i, sigma) =>
       let sigma = analyze_sigma(~opts, sigma, ictx);
-      (CEmptyHole(u, i, sigma), IndeterminatelyIncomplete);
+      (CEmptyHole(u, i, sigma), NecessarilyIncomplete);
 
     | CNonEmptyHole(reason, u, i, sigma, im) =>
       let im = analyze_imm(~opts, im, ictx);
-      (CNonEmptyHole(reason, u, i, sigma, im), IndeterminatelyIncomplete);
+      (CNonEmptyHole(reason, u, i, sigma, im), NecessarilyIncomplete);
 
     | CCast(im, ty, ty') =>
       let im = analyze_imm(~opts, im, ictx);
-      (CCast(im, ty, ty'), IndeterminatelyIncomplete);
+      (CCast(im, ty, ty'), NecessarilyIncomplete);
     };
 
   {comp_kind, comp_ty, comp_complete};
@@ -236,6 +238,7 @@ and analyze_pat' =
           ictx,
           (
             x,
+            /* TODO: Not sure if this could be more specific. */
             if (in_hole) {IndeterminatelyIncomplete} else {matchee_complete},
           ),
         );
