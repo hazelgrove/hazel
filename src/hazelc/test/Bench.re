@@ -46,7 +46,8 @@ let bench_eval = source => {
 
 let bench = (name, source) => {
   let bench = (name, f) => {
-    Benchmark.latency1(~style=Auto, ~repeat=5, 4L, ~name, f, ()) |> ignore;
+    /* Benchmark.latency1(~style=Auto, ~repeat=1, 4L, ~name, f, ()) |> ignore; */
+    Benchmark.throughput1(~style=Auto, ~repeat=1, ~name, 1, f, ()) |> ignore;
   };
 
   bench("comp " ++ name, bench_comp(source));

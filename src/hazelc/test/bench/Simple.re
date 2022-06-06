@@ -20,7 +20,7 @@ let bench = () => {
   };
 
   let adds =
-    take(100, random_seq(Random.get_state()))
+    take(1000, random_seq(Random.get_state()))
     |> Stdlib.Seq.fold_left(
          (acc, d) =>
            Printf.sprintf("%s + %d * %d - %d", acc, d, d + 1, d + 2),
