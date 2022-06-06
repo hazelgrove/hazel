@@ -95,7 +95,7 @@ module Format: {
 
   let make: (~source: Opts.arg(string), Opts.t) => t;
 
-  let with_in_place: (bool, t) => t;
+  let with_output: (string, t) => t;
 
   let to_command: t => command;
 };

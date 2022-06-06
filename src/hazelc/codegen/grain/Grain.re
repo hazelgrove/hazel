@@ -291,27 +291,27 @@ module Format = {
   [@deriving sexp]
   type opts = {
     source: Opts.arg(string),
-    in_place: Opts.flag,
+    output: Opts.opt(string),
   };
 
   [@deriving sexp]
   type t = (Opts.t, opts);
 
-  let make = (~source, opts): t => (opts, {source, in_place: None});
+  let make = (~source, opts): t => (opts, {source, output: None});
 
   let with' = (f: opts => opts, (opts, copts): t): t => (opts, f(copts));
-  let with_in_place = in_place =>
-    with'(fopts => {...fopts, in_place: Some(in_place)});
+  let with_output = output =>
+    with'(fopts => {...fopts, output: Some(output)});
 
   let to_command = ((opts, fopts): t) => {
     let use_source = ropts => Opts.use_arg(ropts.source);
-    let use_in_place = ropts =>
-      switch (ropts.in_place) {
-      | Some(true) => Opts.use_flag("--in-place")
-      | _ => Opts.identity
+    let use_output = ropts =>
+      switch (ropts.output) {
+      | Some(output) => Opts.use_opt("-o", output)
+      | None => Opts.identity
       };
 
-    let uses = [use_source, use_in_place];
+    let uses = [use_source, use_output];
 
     Opts.use_subcmd(opts, "format")
     |> Opts.fold_uses(List.map(use => use(fopts), uses));

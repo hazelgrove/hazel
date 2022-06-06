@@ -125,7 +125,7 @@ let hazelc =
              Grain.Format.(
                Grain.make(~grain=wasm_opts.grain)
                |> make(~source=output_filename)
-               |> with_in_place(true)
+               |> with_output(output_filename)
                |> to_command
                |> Grain.execute(~capture_stdout=false)
              ),
