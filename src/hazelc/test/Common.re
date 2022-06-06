@@ -23,6 +23,7 @@ module Compile = {
         grain: "grain",
         wat: false,
         maximum_memory_pages: 64,
+        release: false,
       };
       (opts, wasm_opts);
 
@@ -41,6 +42,7 @@ module Compile = {
         grain: "grain",
         wat: false,
         maximum_memory_pages: 4194304 / 64,
+        release: true,
       };
       (opts, wasm_opts);
     };

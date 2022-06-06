@@ -26,6 +26,7 @@ module Compile: {
     initial_memory_pages: Opts.opt(int),
     maximum_memory_pages: Opts.opt(int),
     compilation_mode: Opts.opt(string),
+    release: Opts.flag,
     elide_type_info: Opts.flag,
     experimental_wasm_tail_call: Opts.flag,
     debug: Opts.flag,
@@ -57,6 +58,7 @@ module Compile: {
   let with_initial_memory_pages: (int, t) => t;
   let with_maximum_memory_pages: (int, t) => t;
   let with_compilation_mode: (string, t) => t;
+  let with_release: (bool, t) => t;
   let with_elide_type_info: (bool, t) => t;
   let with_experimental_wasm_tail_call: (bool, t) => t;
   let with_debug: (bool, t) => t;

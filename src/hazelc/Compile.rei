@@ -30,6 +30,7 @@ type wasm_opts = {
   grain: string,
   wat: bool,
   maximum_memory_pages: int,
+  release: bool,
 };
 
 let wasmize:

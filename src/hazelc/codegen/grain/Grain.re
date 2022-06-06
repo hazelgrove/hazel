@@ -45,6 +45,7 @@ module Compile = {
     initial_memory_pages: Opts.opt(int),
     maximum_memory_pages: Opts.opt(int),
     compilation_mode: Opts.opt(string),
+    release: Opts.flag,
     elide_type_info: Opts.flag,
     experimental_wasm_tail_call: Opts.flag,
     debug: Opts.flag,
@@ -77,6 +78,7 @@ module Compile = {
       initial_memory_pages: None,
       maximum_memory_pages: None,
       compilation_mode: None,
+      release: None,
       elide_type_info: None,
       experimental_wasm_tail_call: None,
       debug: None,
@@ -116,6 +118,8 @@ module Compile = {
     );
   let with_compilation_mode = compilation_mode =>
     with'(copts => {...copts, compilation_mode: Some(compilation_mode)});
+  let with_release = release =>
+    with'(copts => {...copts, release: Some(release)});
   let with_elide_type_info = elide_type_info =>
     with'(copts => {...copts, elide_type_info: Some(elide_type_info)});
   let with_experimental_wasm_tail_call = experimental_wasm_tail_call =>
@@ -189,6 +193,7 @@ module Compile = {
       | Some(mode) => Opts.use_opt("--compilation-mode", mode)
       | None => Opts.identity
       };
+    let use_release = copts => Opts.use_flag'("--release", copts.release);
     let use_elide_type_info = copts =>
       Opts.use_flag'("--elide-type-info", copts.elide_type_info);
     let use_experimental_wasm_tail_call = copts =>
@@ -239,6 +244,7 @@ module Compile = {
       use_initial_memory_pages,
       use_maximum_memory_pages,
       use_compilation_mode,
+      use_release,
       use_elide_type_info,
       use_experimental_wasm_tail_call,
       use_debug,

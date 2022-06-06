@@ -47,6 +47,7 @@ let mk_opts = (action, _verbose, optimize, _debug) => {
     grain: "grain",
     wat: action == Wat,
     maximum_memory_pages: 64,
+    release: optimize >= 2,
   };
 
   (opts, wasm_opts);
