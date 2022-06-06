@@ -3,15 +3,15 @@ exception WrongType;
 exception FreeBoundVar(Var.t);
 
 type bind =
-  | BLet(Anf.pat, Anf.comp, Anf.has_indet)
-  | BLetRec(Var.t, Anf.comp, Anf.has_indet);
+  | BLet(Anf.pat, Anf.comp, Anf.completeness)
+  | BLetRec(Var.t, Anf.comp, Anf.completeness);
 
 let mk_bind = (p: Anf.pat, c: Anf.comp) =>
-  BLet(p, c, p.pat_indet || c.comp_indet);
+  BLet(p, c, Completeness.join(p.pat_indet, c.comp_indet));
 
 let mk_bind_var = (x: Var.t, c: Anf.comp) => (
   Anf.Imm.mk_var(x, c),
-  mk_bind({pat_kind: PVar(x), pat_indet: true}, c),
+  mk_bind({pat_kind: PVar(x), pat_indet: IndeterminatelyIncomplete}, c),
 );
 
 let mk_bind_var_tmp = (c: Anf.comp, t_gen: TmpVarGen.t) => {
@@ -48,7 +48,11 @@ and linearize_exp =
       | None => raise(FreeBoundVar(x))
       };
 
-    ({imm_kind: IVar(x'), imm_ty: ty, imm_indet: true}, [], t_gen);
+    (
+      {imm_kind: IVar(x'), imm_ty: ty, imm_indet: IndeterminatelyIncomplete},
+      [],
+      t_gen,
+    );
 
   | ELet(dp, d1, d2) =>
     let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
@@ -67,7 +71,7 @@ and linearize_exp =
     let lam: Anf.comp = {
       comp_kind: CLam([p], body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
-      comp_indet: p.pat_indet || body.prog_indet,
+      comp_indet: Completeness.join(p.pat_indet, body.prog_indet),
     };
 
     let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
@@ -82,7 +86,7 @@ and linearize_exp =
     let lam: Anf.comp = {
       comp_kind: CLam([p], body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
-      comp_indet: p.pat_indet || body.prog_indet,
+      comp_indet: Completeness.join(p.pat_indet, body.prog_indet),
     };
 
     let (lam_var, lam_bind, t_gen) = mk_bind_var_tmp(lam, t_gen);
@@ -100,7 +104,7 @@ and linearize_exp =
     let ap: Anf.comp = {
       comp_kind: CAp(fn, [arg]),
       comp_ty: ap_ty,
-      comp_indet: fn.imm_indet || arg.imm_indet,
+      comp_indet: Completeness.join(fn.imm_indet, arg.imm_indet),
     };
 
     let (ap_var, ap_bind, t_gen) = mk_bind_var_tmp(ap, t_gen);
@@ -108,31 +112,51 @@ and linearize_exp =
     (ap_var, binds, t_gen);
 
   | EBoolLit(b) => (
-      {imm_kind: IConst(ConstBool(b)), imm_ty: Bool, imm_indet: true},
+      {
+        imm_kind: IConst(ConstBool(b)),
+        imm_ty: Bool,
+        imm_indet: IndeterminatelyIncomplete,
+      },
       [],
       t_gen,
     )
 
   | EIntLit(i) => (
-      {imm_kind: IConst(ConstInt(i)), imm_ty: Int, imm_indet: true},
+      {
+        imm_kind: IConst(ConstInt(i)),
+        imm_ty: Int,
+        imm_indet: IndeterminatelyIncomplete,
+      },
       [],
       t_gen,
     )
 
   | EFloatLit(f) => (
-      {imm_kind: IConst(ConstFloat(f)), imm_ty: Float, imm_indet: true},
+      {
+        imm_kind: IConst(ConstFloat(f)),
+        imm_ty: Float,
+        imm_indet: IndeterminatelyIncomplete,
+      },
       [],
       t_gen,
     )
 
   | ENil(ty) => (
-      {imm_kind: IConst(ConstNil(ty)), imm_ty: List(ty), imm_indet: true},
+      {
+        imm_kind: IConst(ConstNil(ty)),
+        imm_ty: List(ty),
+        imm_indet: IndeterminatelyIncomplete,
+      },
       [],
       t_gen,
     )
 
   | ETriv => (
-      {imm_kind: IConst(ConstTriv), imm_ty: Prod([]), imm_indet: true},
+      {
+        imm_kind: IConst(ConstTriv),
+        imm_ty: Prod([]),
+        imm_indet: IndeterminatelyIncomplete,
+      },
       [],
       t_gen,
     )
@@ -177,7 +201,7 @@ and linearize_exp =
     let pair: Anf.comp = {
       comp_kind: CPair(im1, im2),
       comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
-      comp_indet: im1.imm_indet || im2.imm_indet,
+      comp_indet: Completeness.join(im1.imm_indet, im2.imm_indet),
     };
 
     let (pair_var, pair_bind, t_gen) = mk_bind_var_tmp(pair, t_gen);
@@ -190,7 +214,7 @@ and linearize_exp =
     let cons: Anf.comp = {
       comp_kind: CCons(im1, im2),
       comp_ty: im2.imm_ty,
-      comp_indet: im1.imm_indet || im2.imm_indet,
+      comp_indet: Completeness.join(im1.imm_indet, im2.imm_indet),
     };
 
     let (cons_var, cons_bind, t_gen) = mk_bind_var_tmp(cons, t_gen);
@@ -225,7 +249,7 @@ and linearize_exp =
     let hole: Anf.comp = {
       comp_kind: CEmptyHole(u, i, sigma),
       comp_ty: Hole,
-      comp_indet: true,
+      comp_indet: IndeterminatelyIncomplete,
     };
 
     let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
@@ -238,7 +262,7 @@ and linearize_exp =
     let hole: Anf.comp = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
       comp_ty: Hole,
-      comp_indet: true,
+      comp_indet: IndeterminatelyIncomplete,
     };
 
     let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
@@ -250,7 +274,7 @@ and linearize_exp =
     let cast: Anf.comp = {
       comp_kind: CCast(im, ty1, ty2),
       comp_ty: ty2,
-      comp_indet: true,
+      comp_indet: IndeterminatelyIncomplete,
     };
 
     let (cast_var, cast_bind, t_gen) = mk_bind_var_tmp(cast, t_gen);
@@ -282,7 +306,7 @@ and linearize_bin_op =
   let bin: Anf.comp = {
     comp_kind: CBinOp(op, im1, im2),
     comp_ty: ty,
-    comp_indet: im1.imm_indet || im2.imm_indet,
+    comp_indet: Completeness.join(im1.imm_indet, im2.imm_indet),
   };
 
   let (bin_var, bin_bind, t_gen) = mk_bind_var_tmp(bin, t_gen);
@@ -299,12 +323,14 @@ and linearize_case =
 
     let rules_ty = List.hd(rules).rule_branch.prog_ty;
     let rules_indet =
-      rules |> List.exists((rule: Anf.rule) => rule.rule_indet);
+      rules
+      |> List.map((rule: Anf.rule) => rule.rule_indet)
+      |> Completeness.join_fold;
 
     let case: Anf.comp = {
       comp_kind: CCase(scrut_imm, rules),
       comp_ty: rules_ty,
-      comp_indet: scrut_imm.imm_indet || rules_indet,
+      comp_indet: Completeness.join(scrut_imm.imm_indet, rules_indet),
     };
 
     let (case_var, case_bind, t_gen) = mk_bind_var_tmp(case, t_gen);
@@ -337,7 +363,7 @@ and linearize_rule = (rule: Hir.rule, vctx, t_gen): (Anf.rule, TmpVarGen.t) => {
       {
         rule_pat: p,
         rule_branch: branch,
-        rule_indet: p.pat_indet || branch.prog_indet,
+        rule_indet: Completeness.join(p.pat_indet, branch.prog_indet),
       },
       t_gen,
     );
@@ -361,7 +387,10 @@ and linearize_pat_hole =
     let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
     let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
     (
-      {pat_kind: PPair(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
+      {
+        pat_kind: PPair(p1, p2),
+        pat_indet: Completeness.join(p1.pat_indet, p2.pat_indet),
+      },
       vctx,
       t_gen,
     );
@@ -370,7 +399,10 @@ and linearize_pat_hole =
     let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
     let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
     (
-      {pat_kind: PCons(p1, p2), pat_indet: p1.pat_indet || p2.pat_indet},
+      {
+        pat_kind: PCons(p1, p2),
+        pat_indet: Completeness.join(p1.pat_indet, p2.pat_indet),
+      },
       vctx,
       t_gen,
     );
@@ -380,24 +412,52 @@ and linearize_pat_hole =
     let (p', vctx, t_gen) = linearize_pat_hole(p', vctx, t_gen);
     ({pat_kind: PInj(side, p'), pat_indet: p'.pat_indet}, vctx, t_gen);
 
-  | PWild => ({pat_kind: PWild, pat_indet: true}, vctx, t_gen)
+  | PWild => (
+      {pat_kind: PWild, pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
   | PVar(x) =>
     // Mark x as indet whenever the matchee is indet or the pattern is inside a
     // pattern hole.
     let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
     let vctx = VarMap.extend(vctx, (x, x'));
-    ({pat_kind: PVar(x'), pat_indet: true}, vctx, t_gen);
+    (
+      {pat_kind: PVar(x'), pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    );
 
-  | PIntLit(i) => ({pat_kind: PInt(i), pat_indet: true}, vctx, t_gen)
+  | PIntLit(i) => (
+      {pat_kind: PInt(i), pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
-  | PFloatLit(f) => ({pat_kind: PFloat(f), pat_indet: true}, vctx, t_gen)
+  | PFloatLit(f) => (
+      {pat_kind: PFloat(f), pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
-  | PBoolLit(b) => ({pat_kind: PBool(b), pat_indet: true}, vctx, t_gen)
+  | PBoolLit(b) => (
+      {pat_kind: PBool(b), pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
-  | PNil => ({pat_kind: PNil, pat_indet: true}, vctx, t_gen)
+  | PNil => (
+      {pat_kind: PNil, pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
-  | PTriv => ({pat_kind: PTriv, pat_indet: true}, vctx, t_gen)
+  | PTriv => (
+      {pat_kind: PTriv, pat_indet: IndeterminatelyIncomplete},
+      vctx,
+      t_gen,
+    )
 
   | PEmptyHole(_)
   | PNonEmptyHole(_)

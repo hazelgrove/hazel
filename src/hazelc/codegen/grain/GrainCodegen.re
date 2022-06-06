@@ -94,7 +94,10 @@ and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
 
   | SLetRec(x, c) =>
     let (p', imps) =
-      codegen_pat({pat_kind: PVar(x), pat_indet: false}, imps);
+      codegen_pat(
+        {pat_kind: PVar(x), pat_indet: NecessarilyComplete},
+        imps,
+      );
     let (c', imps) = codegen_comp(c, imps);
     (SLetRec([p'], c'), imps);
   };
@@ -210,15 +213,23 @@ and codegen_bin_op_indet = (op: Anf.bin_op, imps) => {
 }
 
 and codegen_bin_op =
-    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Hir.has_indet, imps)
+    (
+      op: Anf.bin_op,
+      im1: Anf.imm,
+      im2: Anf.imm,
+      indet: Anf.completeness,
+      imps,
+    )
     : (GrainIR.expr, Imports.t) => {
   let (e1, imps) = codegen_imm(im1, imps);
   let (e2, imps) = codegen_imm(im2, imps);
   let (op, imps) =
-    if (!indet) {
-      codegen_bin_op_non_indet(op, imps);
-    } else {
-      codegen_bin_op_indet(op, imps);
+    switch (indet) {
+    // TODO: Separate cases
+    | NecessarilyComplete => codegen_bin_op_non_indet(op, imps)
+    | NecessarilyIncomplete
+    | IndeterminatelyIncomplete => 
+codegen_bin_op_indet(op, imps)
     };
   (op(e1, e2), imps);
 }
@@ -408,11 +419,11 @@ let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
     if (opts.print_final_expr) {
       /* TODO: Clean this up. */
       /* FIXME: Probably doesn't work all the time. */
-      let print_ap =
-        if (prog.prog_indet) {
-          HazelStd.Rt.AstPrint.print(c);
-        } else {
-          EAp(EVar("print"), [c]);
+      let print_ap: GrainIR.expr =
+        switch (prog.prog_indet) {
+        | NecessarilyComplete => EAp(EVar("print"), [c])
+        | NecessarilyIncomplete
+        | IndeterminatelyIncomplete => HazelStd.Rt.AstPrint.print(c)
         };
       body @ [SExpr(print_ap)];
     } else {

@@ -5,9 +5,6 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type has_indet = bool;
-
-[@deriving sexp]
 type bin_bool_op =
   | OpAnd
   | OpOr;

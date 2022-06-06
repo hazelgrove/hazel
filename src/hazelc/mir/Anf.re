@@ -4,6 +4,9 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type completeness = Completeness.t;
+
+[@deriving sexp]
 type bin_op =
   | OpAnd
   | OpOr
@@ -23,12 +26,9 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type has_indet = bool;
-
-[@deriving sexp]
 type pat = {
   pat_kind,
-  pat_indet: has_indet,
+  pat_indet: completeness,
 }
 
 [@deriving sexp]
@@ -56,7 +56,7 @@ and constant =
 and imm = {
   imm_kind,
   imm_ty: HTyp.t,
-  imm_indet: has_indet,
+  imm_indet: completeness,
 }
 
 [@deriving sexp]
@@ -68,7 +68,7 @@ and imm_kind =
 and comp = {
   comp_kind,
   comp_ty: HTyp.t,
-  comp_indet: has_indet,
+  comp_indet: completeness,
 }
 
 [@deriving sexp]
@@ -100,13 +100,13 @@ and inj_side =
 and rule = {
   rule_pat: pat,
   rule_branch: prog,
-  rule_indet: has_indet,
+  rule_indet: completeness,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_indet: has_indet,
+  stmt_indet: completeness,
 }
 
 [@deriving sexp]
@@ -118,7 +118,7 @@ and stmt_kind =
 and prog = {
   prog_body,
   prog_ty: HTyp.t,
-  prog_indet: has_indet,
+  prog_indet: completeness,
 }
 
 [@deriving sexp]
