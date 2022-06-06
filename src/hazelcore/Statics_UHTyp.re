@@ -31,12 +31,13 @@ and syn_fix_holes_operand =
     : (UHTyp.operand, Kind.t, MetaVarGen.t) => {
   switch (operand) {
   | Hole => (Hole, Kind.Hole, u_gen)
-  | TyVar(NotInTyVarHole(idx, stamp), t) =>
-    let k' = Kind.singleton(HTyp.tyvar(ctx, idx, t));
-    switch (Context.tyvar_kind(ctx, idx, stamp)) {
+  | TyVar(NotInTyVarHole(index, stamp), t) =>
+    let cref = KindSystem.ContextRef.{index, stamp};
+    let k' = Kind.singleton(HTyp.tyvar(ctx, index, t));
+    switch (Context.tyvar_kind(ctx, {index, stamp})) {
     | Some(k)
         when
-          Context.tyvar(ctx, idx, stamp) == Some(t)
+          Context.tyvar(ctx, cref) == Some(t)
           && Kind.consistent_subkind(ctx, k', k) => (
         operand,
         k',
@@ -61,13 +62,13 @@ and syn_fix_holes_operand =
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
       (ty, Kind.S(TyVarHole(Reserved, u, t)), u_gen);
     } else if (TyVar.valid_name(t)) {
-      switch (Context.tyvar_index(ctx, t)) {
+      switch (Context.tyvar_ref(ctx, t)) {
       | None =>
         let ty = UHTyp.TyVar(InHole(Unbound, u), t);
         (ty, Kind.S(TyVarHole(Unbound, u, t)), u_gen);
-      | Some((idx, stamp)) =>
-        let ty = UHTyp.TyVar(NotInTyVarHole(idx, stamp), t);
-        (ty, Kind.S(TyVar(idx, stamp, t)), u_gen);
+      | Some(cref) =>
+        let ty = UHTyp.TyVar(NotInTyVarHole(cref.index, cref.stamp), t);
+        (ty, Kind.S(TyVar(cref, t)), u_gen);
       };
     } else {
       let ty = UHTyp.TyVar(InHole(InvalidName, u), t);

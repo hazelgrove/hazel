@@ -1,5 +1,20 @@
 open Sexplib.Std;
 
+module ContextRef = {
+  [@deriving sexp]
+  type s('idx) = {
+    index: Index.t('idx),
+    stamp: int,
+  };
+
+  [@deriving sexp]
+  type t = s(Index.absolute);
+
+  let equal = (cref: t, cref': t): bool =>
+    Index.equal(cref.index, cref'.index)
+    && Int.equal(cref.stamp, cref'.stamp);
+};
+
 module HTyp_syntax: {
   [@deriving sexp]
   type t('idx) =
@@ -11,7 +26,7 @@ module HTyp_syntax: {
     | Sum(t('idx), t('idx))
     | Prod(list(t('idx)))
     | List(t('idx))
-    | TyVar(Index.t('idx), int, TyVar.t)
+    | TyVar(ContextRef.s('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
@@ -28,14 +43,16 @@ module HTyp_syntax: {
     | Sum(t('idx), t('idx))
     | Prod(list(t('idx)))
     | List(t('idx))
-    | TyVar(Index.t('idx), int, TyVar.t)
+    | TyVar(ContextRef.s('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let rec to_rel =
           (~offset: int=0, ty: t(Index.absolute)): t(Index.relative) =>
     switch (ty) {
-    | TyVar(i, stamp, name) =>
-      TyVar(Index.Abs.to_rel(~offset, i), stamp, name)
+    | TyVar(cref, t) =>
+      let index = Index.Abs.to_rel(~offset, cref.index);
+      let stamp = cref.stamp;
+      TyVar({index, stamp}, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Hole => Hole
     | Int => Int
@@ -50,8 +67,10 @@ module HTyp_syntax: {
   let rec to_abs =
           (~offset: int=0, ty: t(Index.relative)): t(Index.absolute) =>
     switch (ty) {
-    | TyVar(i, stamp, name) =>
-      TyVar(Index.Rel.to_abs(~offset, i), stamp, name)
+    | TyVar(cref, t) =>
+      let index = Index.Rel.to_abs(~offset, cref.index);
+      let stamp = cref.stamp;
+      TyVar({index, stamp}, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Hole => Hole
     | Int => Int
@@ -67,7 +86,7 @@ module HTyp_syntax: {
           (ty: t('idx), idx: Index.t('idx), new_ty: t('idx)): t('idx) => {
     let go = ty1 => subst_tyvar(ty1, idx, new_ty);
     switch (ty) {
-    | TyVar(idx', _, _) => Index.equal(idx, idx') ? new_ty : ty
+    | TyVar(cref', _) => Index.equal(idx, cref'.index) ? new_ty : ty
     | TyVarHole(_)
     | Hole
     | Int
@@ -131,16 +150,16 @@ module rec Context: {
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
   let length: t => int;
-  let rescope: (t, Index.Abs.t, int) => (Index.Abs.t, int);
-  let tyvars: t => list((Index.Abs.t, TyVar.t, Kind.t));
-  let tyvar: (t, Index.Abs.t, int) => option(TyVar.t);
-  let tyvar_index: (t, TyVar.t) => option((Index.Abs.t, int));
-  let tyvar_kind: (t, Index.Abs.t, int) => option(Kind.t);
+  let rescope: (t, ContextRef.t) => ContextRef.t;
+  let tyvars: t => list((ContextRef.t, TyVar.t, Kind.t));
+  let tyvar: (t, ContextRef.t) => option(TyVar.t);
+  let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
+  let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
-  let diff_tyvars: (t, t) => list((Index.Abs.t, HTyp.t));
-  let vars: t => list((Index.Abs.t, Var.t, HTyp.t));
-  let var: (t, Index.Abs.t, int) => option(Var.t);
-  let var_index: (t, Var.t) => option(Index.Abs.t);
+  let diff_tyvars: (t, t) => list((ContextRef.t, HTyp.t));
+  let vars: t => list((ContextRef.t, Var.t, HTyp.t));
+  let var: (t, ContextRef.t) => option(Var.t);
+  let var_ref: (t, Var.t) => option(ContextRef.t);
   let var_type: (t, Var.t) => option(HTyp.t);
   let add_var: (t, Var.t, HTyp.t) => t;
 } = {
@@ -170,14 +189,14 @@ module rec Context: {
 
   let length = List.length;
 
-  let rescope = (ctx: t, idx: Index.Abs.t, stamp: int): (Index.Abs.t, int) => {
-    let diff = Context.length(ctx) - stamp;
+  let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t => {
+    let diff = Context.length(ctx) - cref.stamp;
     /* if (diff < 0) { */
     /*   failwith(__LOC__ ++ ": found a type variable from the future"); */
     /* }; */
-    let idx = Index.shift(~above=-1, ~amount=diff, idx);
-    let stamp = stamp + diff;
-    (idx, stamp);
+    let index = Index.shift(~above=-1, ~amount=diff, cref.index);
+    let stamp = cref.stamp + diff;
+    {index, stamp};
   };
 
   let nth_var_binding =
@@ -228,47 +247,48 @@ module rec Context: {
 
   /* Type Variables */
 
-  let tyvars = (ctx: t): list((Index.Abs.t, TyVar.t, Kind.t)) =>
+  let tyvars = (ctx: t): list((ContextRef.t, TyVar.t, Kind.t)) => {
+    let stamp = length(ctx);
     ctx
     |> List.mapi((i, binding) => (i, binding))
     |> List.filter_map(
          fun
          | (i, TyVarBinding(t, k)) => {
-             let idx = Index.Abs.of_int(i);
+             let index = Index.Abs.of_int(i);
              let k = Kind_core.to_abs(~offset=i + 1, k);
-             Some((idx, t, k));
+             Some(({index, stamp}: ContextRef.t, t, k));
            }
          | (_, VarBinding(_)) => None,
        );
+  };
 
-  let tyvar = (ctx: t, idx: Index.Abs.t, stamp: int): option(TyVar.t) => {
+  let tyvar = (ctx: t, cref: ContextRef.t): option(TyVar.t) => {
     open OptUtil.Syntax;
-    let (idx, _) = rescope(ctx, idx, stamp);
-    let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(idx));
+    let cref = rescope(ctx, cref);
+    let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(cref.index));
     t;
   };
 
-  let tyvar_index = (ctx: t, t: TyVar.t): option((Index.Abs.t, int)) => {
+  let tyvar_ref = (ctx: t, t: TyVar.t): option(ContextRef.t) => {
     Log.debug_function(
       __FUNCTION__,
       [("ctx", sexp_of_t(ctx)), ("t", TyVar.sexp_of_t(t))],
-      ~result_sexp=
-        Sexplib.Std.sexp_of_option(((idx, stamp)) =>
-          List([Index.Abs.sexp_of_t(idx), Sexplib.Std.sexp_of_int(stamp)])
-        ),
+      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
       () => {
         open OptUtil.Syntax;
-        let+ (idx, _, _) =
+        let+ (i, _, _) =
           first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
-        (Index.Abs.of_int(idx), Context.length(ctx));
+        let index = Index.Abs.of_int(i);
+        let stamp = Context.length(ctx);
+        ContextRef.{index, stamp};
       },
     );
   };
 
-  let tyvar_kind = (ctx: t, idx: Index.Abs.t, stamp: int): option(Kind.t) => {
+  let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) => {
     open OptUtil.Syntax;
-    let (idx, _) = rescope(ctx, idx, stamp);
-    let i = Index.Abs.to_int(idx);
+    let cref = rescope(ctx, cref);
+    let i = Index.Abs.to_int(cref.index);
     let+ (_, k) = nth_tyvar_binding(ctx, i);
     Kind_core.to_abs(~offset=i + 1, k);
   };
@@ -278,53 +298,57 @@ module rec Context: {
     ...ctx,
   ];
 
-  let diff_tyvars = (new_ctx: t, old_ctx: t): list((Index.Abs.t, HTyp.t)) => {
+  let diff_tyvars = (new_ctx: t, old_ctx: t): list((ContextRef.t, HTyp.t)) => {
     let new_tyvars = tyvars(new_ctx);
     let old_tyvars = tyvars(old_ctx);
     let n = List.length(new_tyvars) - List.length(old_tyvars);
     ListUtil.take(new_tyvars, n)
-    |> List.map(((idx, _, k)) => (idx, Kind.to_htyp(k)));
+    |> List.map(((cref, _, k)) => (cref, Kind.to_htyp(k)));
   };
 
   /* Expression Variables */
 
-  let vars = (ctx: t): list((Index.Abs.t, Var.t, HTyp.t)) =>
+  let vars = (ctx: t): list((ContextRef.t, Var.t, HTyp.t)) =>
     ctx
     |> List.mapi((i, binding) => (i, binding))
     |> List.filter_map(
          fun
          | (i, VarBinding(x, ty)) => {
-             let idx = Index.Abs.of_int(i);
+             let index = Index.Abs.of_int(i);
+             let stamp = Context.length(ctx);
              let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
-             Some((idx, x, ty));
+             Some((ContextRef.{index, stamp}, x, ty));
            }
          | (_, TyVarBinding(_)) => None,
        );
 
-  let var = (ctx: t, idx: Index.Abs.t, stamp: int): option(Var.t) => {
+  let var = (ctx: t, cref: ContextRef.t): option(Var.t) => {
     open OptUtil.Syntax;
-    let (idx, _) = rescope(ctx, idx, stamp);
-    let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(idx));
+    let cref = rescope(ctx, cref);
+    let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(cref.index));
     x;
   };
 
-  let var_index = (ctx: t, x: Var.t): option(Index.Abs.t) => {
+  let var_ref = (ctx: t, x: Var.t): option(ContextRef.t) => {
     open OptUtil.Syntax;
     let+ (i, _, _) = first_var_binding(ctx, (x', _) => Var.eq(x, x'));
-    Index.Abs.of_int(i);
+    let index = Index.Abs.of_int(i);
+    let stamp = Context.length(ctx);
+    ContextRef.{index, stamp};
   };
 
-  let var_index_type = (ctx: t, idx: Index.Abs.t): option(HTyp.t) => {
+  let var_ref_type = (ctx: t, cref: ContextRef.t): option(HTyp.t) => {
     open OptUtil.Syntax;
-    let i = Index.Abs.to_int(idx);
+    let cref = rescope(ctx, cref);
+    let i = Index.Abs.to_int(cref.index);
     let+ (_, ty) = nth_var_binding(ctx, i);
     HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
   };
 
   let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
     open OptUtil.Syntax;
-    let* idx = var_index(ctx, x);
-    var_index_type(ctx, idx);
+    let* cref = var_ref(ctx, x);
+    var_ref_type(ctx, cref);
   };
 
   let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t => [
@@ -372,7 +396,7 @@ and HTyp: {
   let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
   let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
 
-  let tyvar_index: t => option((Index.Abs.t, int));
+  let tyvar_ref: t => option(ContextRef.t);
   let tyvar_name: t => option(TyVar.t);
 
   let subst_tyvar: (t, Index.Abs.t, t) => t;
@@ -415,7 +439,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
-    | TyVar(Index.Abs.t, int, TyVar.t)
+    | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let of_head_normalized: head_normalized => t;
@@ -437,7 +461,7 @@ and HTyp: {
     | Sum(_, _) => "a Sum"
     | Prod(_) => "a Product"
     | List(_) => "a List"
-    | TyVar(_, _, t) => "a " ++ t
+    | TyVar(_, t) => "a " ++ t
     | TyVarHole(_) => "a"
     };
   };
@@ -447,8 +471,10 @@ and HTyp: {
 
   let rec shift_indices = (ty: t, amount: int): t =>
     switch (ty) {
-    | TyVar(idx, stamp, t) =>
-      TyVar(Index.shift(~above=-1, ~amount, idx), stamp + amount, t)
+    | TyVar(cref, t) =>
+      let index = Index.shift(~above=-1, ~amount, cref.index);
+      let stamp = cref.stamp + amount;
+      TyVar({index, stamp}, t);
     | Hole
     | Int
     | Float
@@ -488,16 +514,18 @@ and HTyp: {
     | _ => false
     };
 
-  let tyvar = (ctx: Context.t, idx: Index.Abs.t, name: string): t =>
-    TyVar(idx, Context.length(ctx), name);
+  let tyvar = (ctx: Context.t, index: Index.Abs.t, t: TyVar.t): t => {
+    let stamp = Context.length(ctx);
+    TyVar({index, stamp}, t);
+  };
 
   let tyvarhole =
       (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, name: TyVar.t): t =>
     TyVarHole(reason, u, name);
 
-  let tyvar_index = (ty: t): option((Index.Abs.t, int)) =>
+  let tyvar_ref = (ty: t): option(ContextRef.t) =>
     switch (ty) {
-    | TyVar(idx, stamp, _) => Some((idx, stamp))
+    | TyVar(cref, _) => Some(cref)
     | TyVarHole(_)
     | Hole
     | Int
@@ -511,7 +539,7 @@ and HTyp: {
 
   let tyvar_name = (ty: t): option(string) =>
     switch (ty) {
-    | TyVar(_, _, name) => Some(name)
+    | TyVar(_, t) => Some(t)
     | TyVarHole(_)
     | Hole
     | Int
@@ -529,9 +557,7 @@ and HTyp: {
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
     switch (ty) {
-    | TyVar(idx, stamp, t) =>
-      let (idx, stamp) = Context.rescope(ctx, idx, stamp);
-      TyVar(idx, stamp, t);
+    | TyVar(cref, t) => TyVar(Context.rescope(ctx, cref), t)
     | TyVarHole(_)
     | Hole
     | Int
@@ -545,21 +571,19 @@ and HTyp: {
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {
-    | (TyVar(idx, stamp, _), TyVar(idx', stamp', _)) =>
-      Index.equal(idx, idx')
-      && Int.equal(stamp, stamp')
-      || {
-        let (idx, stamp) = Context.rescope(ctx, idx, stamp);
-        let (idx', stamp') = Context.rescope(ctx, idx', stamp');
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      Index.equal(cref.index, cref'.index)
+      && Int.equal(cref.stamp, cref'.stamp)
+      || (
         switch (
-          Context.tyvar_kind(ctx, idx, stamp),
-          Context.tyvar_kind(ctx, idx', stamp'),
+          Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
+          Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
         ) {
         | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
         | (None, _)
         | (_, None) => false
-        };
-      }
+        }
+      )
     | (TyVar(_), _) => false
     | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
     | (TyVarHole(_, _, _), _) => false
@@ -578,12 +602,10 @@ and HTyp: {
 
   let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {
-    | (TyVar(idx, stamp, _), TyVar(idx', stamp', _)) =>
-      let (idx, stamp) = Context.rescope(ctx, idx, stamp);
-      let (idx', stamp') = Context.rescope(ctx, idx', stamp');
+    | (TyVar(cref, _), TyVar(cref', _)) =>
       switch (
-        Context.tyvar_kind(ctx, idx, stamp),
-        Context.tyvar_kind(ctx, idx', stamp'),
+        Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
+        Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
       ) {
       | (Some(k), Some(k')) =>
         consistent(
@@ -593,7 +615,7 @@ and HTyp: {
         )
       | (None, _)
       | (_, None) => false
-      };
+      }
     | (TyVar(_) | TyVarHole(_) | Hole, _)
     | (_, TyVar(_) | TyVarHole(_) | Hole) => true
     | (Int | Float | Bool, _) => ty == ty'
@@ -668,18 +690,18 @@ and HTyp: {
       | GLB => Some(Hole)
       | LUB => Some(ty)
       }
-    | (TyVar(idx, stamp, _), _) =>
+    | (TyVar(cref, _), _) =>
       open OptUtil.Syntax;
-      let* k = Context.tyvar_kind(ctx, idx, stamp);
+      let* k = Context.tyvar_kind(ctx, cref);
       switch (k) {
       | S(ty) => join(ctx, j, ty, ty2)
       | Hole => join(ctx, j, Hole, ty2)
       | Type =>
         failwith("impossible for bounded type variables (currently) 1")
       };
-    | (_, TyVar(idx, stamp, _)) =>
+    | (_, TyVar(cref, _)) =>
       open OptUtil.Syntax;
-      let* k = Context.tyvar_kind(ctx, idx, stamp);
+      let* k = Context.tyvar_kind(ctx, cref);
       switch (k) {
       | S(ty) => join(ctx, j, ty1, ty)
       | Hole => join(ctx, j, ty1, Hole)
@@ -736,17 +758,17 @@ and HTyp: {
   /* Replaces every singleton-kinded type variable with a normalized type. */
   let rec normalize = (ctx: Context.t, ty: t): normalized =>
     switch (ty) {
-    | TyVar(idx, stamp, _) =>
-      switch (Context.tyvar_kind(ctx, idx, stamp)) {
+    | TyVar(cref, _) =>
+      switch (Context.tyvar_kind(ctx, cref)) {
       | Some(S(ty1)) => normalize(ctx, ty1)
       | Some(_) => ty
       | None =>
         failwith(
           __LOC__
           ++ ": unknown type variable index "
-          ++ Index.to_string(idx)
-          ++ " + "
-          ++ Int.to_string(stamp),
+          ++ Index.to_string(cref.index)
+          ++ " stamped "
+          ++ Int.to_string(cref.stamp),
         )
       }
     | TyVarHole(_)
@@ -764,10 +786,10 @@ and HTyp: {
 
   let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
     switch (ty, ty') {
-    | (TyVar(idx, _, _), TyVar(idx', _, _)) =>
+    | (TyVar(cref, _), TyVar(cref', _)) =>
       // normalization eliminates all type variables of singleton kind, so these
-      // must be of kind Type or KHole
-      Index.equal(idx, idx')
+      // must be of kind Type or Hole
+      ContextRef.equal(cref, cref')
     | (TyVar(_) | TyVarHole(_) | Hole, _)
     | (_, TyVar(_) | TyVarHole(_) | Hole) => true
     | (Int | Float | Bool, _) => ty == ty'
@@ -784,7 +806,7 @@ and HTyp: {
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
     switch (ty, ty') {
-    | (TyVar(idx, _, _), TyVar(idx', _, _)) => Index.equal(idx, idx')
+    | (TyVar(cref, _), TyVar(cref', _)) => ContextRef.equal(cref, cref')
     | (TyVar(_), _) => false
     | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
     | (TyVarHole(_, _, _), _) => false
@@ -846,7 +868,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
-    | TyVar(Index.Abs.t, int, TyVar.t)
+    | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let of_head_normalized: head_normalized => t =
@@ -859,7 +881,7 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(tyL, tyR)
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
-    | TyVar(idx, stamp, t) => TyVar(idx, stamp, t)
+    | TyVar(cref, t) => TyVar(cref, t)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
@@ -870,15 +892,17 @@ and HTyp: {
       ~result_sexp=sexp_of_head_normalized,
       () =>
       switch (ty) {
-      | TyVar(idx, stamp, t) =>
-        switch (Context.tyvar_kind(ctx, idx, stamp)) {
+      | TyVar(cref, t) =>
+        switch (Context.tyvar_kind(ctx, cref)) {
         | Some(S(ty1)) => head_normalize(ctx, ty1)
-        | Some(_) => TyVar(idx, stamp, t)
+        | Some(_) => TyVar(cref, t)
         | None =>
           failwith(
             __LOC__
             ++ ": unknown type variable index "
-            ++ Index.to_string(idx),
+            ++ Index.to_string(cref.index)
+            ++ " stamp "
+            ++ Int.to_string(cref.stamp),
           )
         }
       | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)

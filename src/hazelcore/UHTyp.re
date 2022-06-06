@@ -59,8 +59,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
-      | TyVar(idx, stamp, t) =>
-        Seq.wrap(TyVar(NotInTyVarHole(idx, stamp), t))
+      | TyVar(cref, t) =>
+        Seq.wrap(TyVar(NotInTyVarHole(cref.index, cref.stamp), t))
       | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
@@ -137,8 +137,8 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | TyVar(NotInTyVarHole(idx, stamp), t) =>
-    HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar(idx, stamp, t))
+  | TyVar(NotInTyVarHole(index, stamp), t) =>
+    HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar({index, stamp}, t))
   | TyVar(InHole(reason, u), t) => HTyp.tyvarhole(reason, u, t)
   | Hole => HTyp.hole()
   | Unit => HTyp.product([])

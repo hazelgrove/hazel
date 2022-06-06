@@ -19,33 +19,35 @@ open Infix;
 
 /* Type Variables */
 
-let tyvars: t(list((Index.Abs.t, TyVar.t, Kind.t))) =
+let tyvars: t(list((KindSystem.ContextRef.t, TyVar.t, Kind.t))) =
   Context.tyvars +-+ get();
 
-let tyvar = (idx: Index.Abs.t, stamp: int): t(option(TyVar.t)) =>
-  Context.tyvar +-+ get() +~. idx +~. stamp;
+let tyvar = (cref: KindSystem.ContextRef.t): t(option(TyVar.t)) =>
+  Context.tyvar +-+ get() +~. cref;
 
-let tyvar_index = (t: TyVar.t): t(option((Index.Abs.t, int))) =>
-  Context.tyvar_index +-+ get() +~. t;
+let tyvar_ref = (t: TyVar.t): t(option(KindSystem.ContextRef.t)) =>
+  Context.tyvar_ref +-+ get() +~. t;
 
-let tyvar_kind = (idx: Index.Abs.t, stamp: int): t(option(Kind.t)) =>
-  Context.tyvar_kind +-+ get() +~. idx +~. stamp;
+let tyvar_kind = (cref: KindSystem.ContextRef.t): t(option(Kind.t)) =>
+  Context.tyvar_kind +-+ get() +~. cref;
 
 let add_tyvar = (x: TyVar.t, k: Kind.t): t(unit) =>
   put @>+ Context.add_tyvar +-+ get() +~. x +~. k;
 
-let diff_tyvars = (new_ctx: Context.t): t(list((Index.Abs.t, HTyp.t))) =>
+let diff_tyvars =
+    (new_ctx: Context.t): t(list((KindSystem.ContextRef.t, HTyp.t))) =>
   Context.diff_tyvars(new_ctx) +-+ get();
 
 /* Expression Variables */
 
-let vars: t(list((Index.Abs.t, Var.t, HTyp.t))) = Context.vars +-+ get();
+let vars: t(list((KindSystem.ContextRef.t, Var.t, HTyp.t))) =
+  Context.vars +-+ get();
 
-let var = (idx: Index.Abs.t, stamp: int): t(option(Var.t)) =>
-  Context.var +-+ get() +~. idx +~. stamp;
+let var = (cref: KindSystem.ContextRef.t): t(option(Var.t)) =>
+  Context.var +-+ get() +~. cref;
 
-let var_index = (x: Var.t): t(option(Index.Abs.t)) =>
-  Context.var_index +-+ get() +~. x;
+let var_ref = (x: Var.t): t(option(KindSystem.ContextRef.t)) =>
+  Context.var_ref +-+ get() +~. x;
 
 let var_type = (x: Var.t): t(option(HTyp.t)) =>
   Context.var_type +-+ get() +~. x;

@@ -81,7 +81,9 @@ and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
       let+ ty = syn_opseq(new_ctx, conclusion);
       let tyvars =
         Context.diff_tyvars(new_ctx, ctx)
-        |> List.map(((idx, ty)) => (idx, ty));
+        |> List.map(((cref: KindSystem.ContextRef.t, ty)) =>
+             (cref.index, ty)
+           );
       HTyp.subst_tyvars(ty, tyvars);
     },
   );

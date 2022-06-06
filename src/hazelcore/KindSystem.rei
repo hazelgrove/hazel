@@ -1,5 +1,20 @@
-/** Types with holes and type variables. */
+/** A self-correcting reference into a typing context. */
+module ContextRef: {
+  [@deriving sexp]
+  type s('idx) = {
+    /** An index into some context. */
+    index: Index.t('idx),
+    /** The length of the context used to create the reference. */
+    stamp: int,
+  };
 
+  [@deriving sexp]
+  type t = s(Index.absolute);
+
+  let equal: (t, t) => bool;
+};
+
+/** Types with holes and type variables. */
 module HTyp_syntax: {
   /** An HTyp. */
   [@deriving sexp]
@@ -21,7 +36,7 @@ module HTyp_syntax: {
     | /** Lists. */
       List(t('idx))
     | /** A bound type variable. */
-      TyVar(Index.t('idx), int, TyVar.t)
+      TyVar(ContextRef.s('idx), TyVar.t)
     | /** A free type variable. */
       TyVarHole(
         TyVarErrStatus.HoleReason.t,
@@ -37,8 +52,8 @@ module HTyp_syntax: {
 
   /** Index-polymorphic type variable substitution.
 
-     [subst_tyvar(ty, idx, new_ty)] substitutes [new_ty] for type variable instances
-     with index [idx] in [ty].
+     [subst_tyvar(ty, idx, new_ty)] substitutes [new_ty] for type variable at
+     index [idx] in [ty].
    */
   let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
   let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
@@ -84,50 +99,55 @@ module rec Context: {
   /** Returns the number of binding in the given context */
   let length: t => int;
 
-  /** Remaps a tyvar index and stamp to a new context.
+  /** Converts a reference between two different versions of a context.
 
-     WARNING: The results are only valid if the given context is the
-     context used to create the type variable or an extension of it. */
-  let rescope: (t, Index.Abs.t, int) => (Index.Abs.t, int);
+     WARNING: result is only valid if the given context is the same context
+     used to construct the reference, or an extension of it.
+   */
+  let rescope: (t, ContextRef.t) => ContextRef.t;
 
   /* Type Variables */
 
-  /** Returns the absolute index, name, and [Kind] of each type variable bound by
-     the given context. */
-  let tyvars: t => list((Index.Abs.t, TyVar.t, Kind.t));
+  /** Returns a reference, name, and [Kind] for each type variable bound in the
+     given context. */
+  let tyvars: t => list((ContextRef.t, TyVar.t, Kind.t));
 
-  /** Returns the name of the type variable bound at the given index. */
-  let tyvar: (t, Index.Abs.t, int) => option(TyVar.t);
+  /** Returns the name of the referenced type variable. */
+  let tyvar: (t, ContextRef.t) => option(TyVar.t);
 
-  /** Returns the index and stamp of the most recently bound type variable with
-     the given name. */
-  let tyvar_index: (t, TyVar.t) => option((Index.Abs.t, int));
+  /** Returns a reference to the type variable most recently bound to the given
+     name. */
+  let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
 
-  /** Returns the [Kind] of the type variable bound at the given index. */
-  let tyvar_kind: (t, Index.Abs.t, int) => option(Kind.t);
+  /** Returns the [Kind] of the referenced type variable. */
+  let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
 
   /** Binds the given type variable name to the given [Kind]. */
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
 
-  /** [diff_tyvars(ctx, ctx')] produces the absolute index and [HTyp] of any type
-   variables bound in [ctx] but not in [ctx']. */
-  let diff_tyvars: (t, t) => list((Index.Abs.t, HTyp.t));
+  /** [diff_tyvars(ctx, ctx')] produces a reference and [HTyp] for every type
+     variable bound in [ctx] but not in [ctx'].
+
+     WARNING: result only valid if the contexts are the same or one is an
+     extension of the other.
+   */
+  let diff_tyvars: (t, t) => list((ContextRef.t, HTyp.t));
 
   /* Expression Variables */
 
-  /** Returns the absolute index, name, and [HTyp] of the expression variables
-   bound by the given context. */
-  let vars: t => list((Index.Abs.t, Var.t, HTyp.t));
+  /** Returns a reference, name, and [HTyp] for every expression variable bound
+   in the given context. */
+  let vars: t => list((ContextRef.t, Var.t, HTyp.t));
 
-  /** Returns the name of the expression variable bound at the given index. */
-  let var: (t, Index.Abs.t, int) => option(Var.t);
+  /** Returns the name of the referenced expression variable. */
+  let var: (t, ContextRef.t) => option(Var.t);
 
-  /** Returnx the index of the most recently bound expression variable with the
-   given name. */
-  let var_index: (t, Var.t) => option(Index.Abs.t);
+  /** Returnx a reference to the expression variable most recently bound to the
+     given name. */
+  let var_ref: (t, Var.t) => option(ContextRef.t);
 
-  /** Returns the [HTyp] of the most recently bound expression variable with the
-   given name. */
+  /** Returns the [HTyp] of the expression variable most recently bound to the
+     given name. */
   let var_type: (t, Var.t) => option(HTyp.t);
 
   /** Binds an expression variable with the given name to the given [HTyp]. */
@@ -271,7 +291,7 @@ and HTyp: {
   let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
   let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
 
-  let tyvar_index: t => option((Index.Abs.t, int));
+  let tyvar_ref: t => option(ContextRef.t);
   let tyvar_name: t => option(TyVar.t);
 
   /** Type variable substitution.  */
@@ -366,7 +386,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
-    | TyVar(Index.Abs.t, int, TyVar.t)
+    | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   /** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
