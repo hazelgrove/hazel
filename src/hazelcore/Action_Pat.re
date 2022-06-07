@@ -1540,16 +1540,15 @@ and ana_perform_operand =
           switch (Context.var_type(new_ctx, x)) {
           | None => Failed
           | Some(ty') =>
-            let ty': HTyp.t = ty';
-            let (new_op, ctx, u_gen) =
+            let (new_op, new_ctx, u_gen) =
               Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');
             let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-            if (HTyp.consistent(ctx, ty, ty')) {
-              Succeeded((new_zopseq, ctx, u_gen));
+            if (HTyp.consistent(new_ctx, ty, ty')) {
+              Succeeded((new_zopseq, new_ctx, u_gen));
             } else {
               let (new_zopseq, u_gen) =
                 new_zopseq |> ZPat.mk_inconsistent(u_gen);
-              Succeeded((new_zopseq, ctx, u_gen));
+              Succeeded((new_zopseq, new_ctx, u_gen));
             };
           };
         }

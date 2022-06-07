@@ -1,3 +1,12 @@
+open Sexplib.Std;
+
+module Log =
+  Log.Make({
+    let subsystem = Some("web");
+    let sort = None;
+  });
+
+[@deriving sexp]
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -165,43 +174,63 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> map_selected_instances(UserSelectedInstances.add(u, i))
   |> focus_cell;
 
-let update_program = (a: ModelAction.t, new_program, model) => {
-  let old_program = model |> get_program;
-  let update_selected_instances = si => {
-    let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
-    switch (
-      model.settings.evaluation.evaluate,
-      new_program |> Program.cursor_on_exp_hole,
-    ) {
-    | (false, _)
-    | (_, None) => si
-    | (true, Some(u)) =>
-      switch (si |> UserSelectedInstances.find_opt(u)) {
-      | None => si |> UserSelectedInstances.add(u, 0)
-      | Some(_) => si
-      }
-    };
-  };
-  model
-  |> put_program(new_program)
-  |> map_selected_instances(update_selected_instances)
-  |> put_undo_history(
-       {
-         let history = model |> get_undo_history;
-         let prev_cardstacks = model |> get_cardstacks;
-         let new_cardstacks =
-           model |> put_program(new_program) |> get_cardstacks;
-         UndoHistory.push_edit_state(
-           history,
-           prev_cardstacks,
-           new_cardstacks,
-           a,
+let update_program = (a: ModelAction.t, new_program, model) =>
+  Log.fun_call(
+    __FUNCTION__,
+    ~args=[
+      ("a", () => ModelAction.sexp_of_t(a)),
+      ("new_program", () => Program.sexp_of_t(new_program)),
+      ("model", () => sexp_of_t(model)),
+    ],
+    ~result_sexp=sexp_of_t,
+    () => {
+      let old_program = model |> get_program;
+      Log.debug_states(
+        __FUNCTION__,
+        [
+          (
+            "get_result(old_program)",
+            Result.sexp_of_t(Program.get_result(old_program)),
+          ),
+          ("new_program", Program.sexp_of_t(new_program)),
+        ],
+      );
+      let update_selected_instances = si => {
+        let si =
+          Program.get_result(old_program) == Program.get_result(new_program)
+            ? si : UserSelectedInstances.init;
+        switch (
+          model.settings.evaluation.evaluate,
+          new_program |> Program.cursor_on_exp_hole,
+        ) {
+        | (false, _)
+        | (_, None) => si
+        | (true, Some(u)) =>
+          switch (si |> UserSelectedInstances.find_opt(u)) {
+          | None => si |> UserSelectedInstances.add(u, 0)
+          | Some(_) => si
+          }
+        };
+      };
+      model
+      |> put_program(new_program)
+      |> map_selected_instances(update_selected_instances)
+      |> put_undo_history(
+           {
+             let history = model |> get_undo_history;
+             let prev_cardstacks = model |> get_cardstacks;
+             let new_cardstacks =
+               model |> put_program(new_program) |> get_cardstacks;
+             UndoHistory.push_edit_state(
+               history,
+               prev_cardstacks,
+               new_cardstacks,
+               a,
+             );
+           },
          );
-       },
-     );
-};
+    },
+  );
 
 let prev_card = model => {
   model

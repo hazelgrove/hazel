@@ -1231,10 +1231,11 @@ and syn_perform_line =
 
       | (_, LetLineZP(zp, def)) =>
         Log.debug_msg("LetLineZP");
-        let def_ctx =
+        let _def_ctx =
           Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
+        /* TODO: (eric) restore recursive let id's */
         let ty_def =
-          switch (Statics_Exp.syn(def_ctx, def)) {
+          switch (Statics_Exp.syn(ctx, def)) {
           | None =>
             failwith(
               "syn_perform_line: LetLineZP: definition doesn't synthesize",
@@ -1250,19 +1251,20 @@ and syn_perform_line =
           // holes if ty_def is inconsistent with pattern type
           let (new_zp, ty_p, _, u_gen) =
             Statics_Pat.syn_fix_holes_z(ctx, u_gen, new_zp);
+          let ty_p = HTyp.rescope(ctx, ty_p);
           let p = ZPat.erase(new_zp);
           let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
           let (new_def, u_gen) =
             Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
           let new_zline = ZExp.LetLineZP(new_zp, new_def);
+          Log.debug_states(
+            __FUNCTION__,
+            [("new_zline", ZExp.sexp_of_zline(new_zline))],
+          );
           let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
           Log.debug_states(
             __FUNCTION__,
-            [
-              ("new_zline", ZExp.sexp_of_zline(new_zline)),
-              ("body_ctx", Context.sexp_of_t(body_ctx)),
-              ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-            ],
+            [("body_ctx", Context.sexp_of_t(body_ctx))],
           );
           Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
         };
@@ -1299,14 +1301,14 @@ and syn_perform_line =
             Log.debug_msg("Succeeded");
             let new_zline = ZExp.LetLineZE(p, new_zdef);
             let new_def = ZExp.erase(new_zdef);
+            Log.debug_states(
+              __FUNCTION__,
+              [("new_zline", ZExp.sexp_of_zline(new_zline))],
+            );
             let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
             Log.debug_states(
               __FUNCTION__,
-              [
-                ("new_zline", ZExp.sexp_of_zline(new_zline)),
-                ("body_ctx", Context.sexp_of_t(body_ctx)),
-                ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-              ],
+              [("body_ctx", Context.sexp_of_t(body_ctx))],
             );
             Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
           };

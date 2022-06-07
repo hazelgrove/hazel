@@ -87,6 +87,13 @@ and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
     () => {
       let* (leading, conclusion) = UHExp.Block.split_conclusion(block);
       let* new_ctx = syn_lines(ctx, leading);
+      Log.debug_states(
+        __FUNCTION__,
+        [
+          ("ctx", Context.sexp_of_t(ctx)),
+          ("new_ctx", Context.sexp_of_t(new_ctx)),
+        ],
+      );
       let+ ty = syn_opseq(new_ctx, conclusion);
       let tyvars =
         Context.diff_tyvars(new_ctx, ctx)
@@ -135,6 +142,16 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
     | LetLine(p, def) =>
       let def_ctx = extend_let_def_ctx(ctx, p, def);
       let* ty_def = syn(def_ctx, def);
+      Log.debug_states(
+        __FUNCTION__,
+        [
+          ("ctx", Context.sexp_of_t(ctx)),
+          ("p", UHPat.sexp_of_t(p)),
+          ("def", UHExp.sexp_of_t(def)),
+          ("def_ctx", Context.sexp_of_t(def_ctx)),
+          ("ty_def", HTyp.sexp_of_t(ty_def)),
+        ],
+      );
       Statics_Pat.ana(ctx, p, ty_def);
     | TyAliasLine(p, ty) =>
       open OptUtil.Syntax;
@@ -912,11 +929,28 @@ and syn_fix_holes_line =
           (TyAliasLine(p, ty), ctx, u_gen);
         }
       | LetLine(p, def) =>
+        Log.debug_states(
+          __FUNCTION__,
+          [
+            ("p 1", UHPat.sexp_of_t(p)),
+            ("def 1", UHExp.sexp_of_t(def)),
+            ("ctx 1", Context.sexp_of_t(ctx)),
+          ],
+        );
         let (p, ty_p, _, u_gen) =
           Statics_Pat.syn_fix_holes(ctx, u_gen, ~renumber_empty_holes, p);
         let def_ctx = extend_let_def_ctx(ctx, p, def);
         let (def, u_gen) =
           ana_fix_holes(def_ctx, u_gen, ~renumber_empty_holes, def, ty_p);
+        Log.debug_states(
+          __FUNCTION__,
+          [
+            ("p 2", UHPat.sexp_of_t(p)),
+            ("ty_p", HTyp.sexp_of_t(ty_p)),
+            ("def 2", UHExp.sexp_of_t(def)),
+            ("def_ctx", Context.sexp_of_t(def_ctx)),
+          ],
+        );
         let body_ctx = extend_let_body_ctx(ctx, p, def);
         (LetLine(p, def), body_ctx, u_gen);
       },
@@ -1889,15 +1923,31 @@ and extend_let_body_ctx =
       ("def", () => UHExp.sexp_of_t(def)),
     ],
     ~result_sexp=Context.sexp_of_t,
-    ()
-    /* precondition: (p)attern and (def)inition have consistent types */
-    =>
+    () => {
+      /* precondition: (p)attern and (def)inition have consistent types */
+
+      let def_ctx = extend_let_def_ctx(ctx, p, def);
       def
-      |> syn(extend_let_def_ctx(ctx, p, def))
+      |> syn(def_ctx)
       |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-      |> Statics_Pat.ana(ctx, p)
-      |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"))
-    );
+      |> (
+        ty_p => {
+          Log.debug_states(
+            __FUNCTION__,
+            [
+              ("ctx", Context.sexp_of_t(ctx)),
+              ("p", UHPat.sexp_of_t(p)),
+              ("def", UHExp.sexp_of_t(def)),
+              ("def_ctx", Context.sexp_of_t(def_ctx)),
+              ("ty_p", HTyp.sexp_of_t(ty_p)),
+            ],
+          );
+          Statics_Pat.ana(def_ctx, p, ty_p);
+        }
+      )
+      |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
+    },
+  );
 
 let syn_fix_holes_z =
     (ctx: Context.t, u_gen: MetaVarGen.t, ze: ZExp.t)

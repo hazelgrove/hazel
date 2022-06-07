@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
@@ -48,6 +50,9 @@ module Evaluation = {
  * the render cycle
  */
 module Performance = {
+  open Sexplib.Std;
+
+  [@deriving sexp]
   type t = {
     measure: bool,
     model_perform_edit_action: bool,
@@ -112,6 +117,7 @@ module Performance = {
     };
 };
 
+[@deriving sexp]
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,

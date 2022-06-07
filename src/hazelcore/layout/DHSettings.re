@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = {
   evaluate: bool,
   show_kinds: bool,

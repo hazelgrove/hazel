@@ -132,7 +132,6 @@ and syn_elab_line =
       switch (Statics_Pat.syn(ctx, p)) {
       | None => LinesDoNotElaborate
       | Some((ty_p, ctx_p)) =>
-        /* let recursive_id = Statics_Exp.recursive_let_id(ctx, p, def); */
         Log.debug_states(
           __FUNCTION__,
           [
@@ -141,7 +140,7 @@ and syn_elab_line =
             ("ty_p", HTyp.sexp_of_t(ty_p)),
           ],
         );
-        switch (ana_elab(ctx_p, delta, def, ty_p)) {
+        switch (ana_elab(ctx, delta, def, ty_p)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(d, ty_p', delta') =>
           Log.debug_states(
@@ -152,8 +151,10 @@ and syn_elab_line =
               ("delta'", Delta.sexp_of_t(delta')),
             ],
           );
-          let dty_p = (ctx_p, ty_p);
-          let dty_p' = (ctx_p, ty_p');
+          let dty_p = (ctx, ty_p);
+          let dty_p' = (ctx, ty_p');
+          /* TODO: (eric) restore recursive let ids */
+          /* let recursive_id = Statics_Exp.recursive_let_id(ctx, p, def); */
           /* let d1 = */
           /*   switch (recursive_id) { */
           /*   | None => d1 */
@@ -170,7 +171,7 @@ and syn_elab_line =
               ("d", DHExp.sexp_of_t(d)),
             ],
           );
-          switch (Elaborator_Pat.ana_elab(ctx_p, delta', p, ty_p)) {
+          switch (Elaborator_Pat.ana_elab(ctx, delta', p, ty_p)) {
           | DoesNotElaborate => LinesDoNotElaborate
           | Elaborates(dp, _, ctx, delta) =>
             let prelude = d2 => DHExp.Let(dp, d, d2);

@@ -7,7 +7,7 @@ let log_name = (subsystem_opt, sort_opt) =>
   String.concat(
     ".",
     [
-      "hazel.core",
+      "hazel",
       ...switch (subsystem_opt, sort_opt) {
          | (Some(subsystem), Some(sort)) => [subsystem, sort]
          | (Some(name), None)

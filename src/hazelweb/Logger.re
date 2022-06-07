@@ -58,5 +58,5 @@ let reporter = ppf => {
 let init_log = () => {
   /* Logs.set_reporter(Logs_browser.console_reporter()); */
   Logs.set_reporter(reporter(Format.std_formatter));
-  Logs.set_level(Some(Logs.Debug));
+  Logs.set_level(Some(Logs.Error));
 };

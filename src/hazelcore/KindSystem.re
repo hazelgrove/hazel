@@ -75,7 +75,7 @@ module HTyp_syntax: {
     switch (ty) {
     | TyVar(cref, t) =>
       let index = Index.Rel.to_abs(~offset, cref.index);
-      let stamp = cref.stamp;
+      let stamp = cref.stamp + offset;
       TyVar({index, stamp}, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Hole => Hole
@@ -195,15 +195,38 @@ module rec Context: {
 
   let length = List.length;
 
-  let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t => {
-    let diff = Context.length(ctx) - cref.stamp;
-    /* if (diff < 0) { */
-    /*   failwith(__LOC__ ++ ": found a type variable from the future"); */
-    /* }; */
-    let index = Index.shift(~above=-1, ~amount=diff, cref.index);
-    let stamp = cref.stamp + diff;
-    {index, stamp};
-  };
+  let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=ContextRef.sexp_of_t,
+      () => {
+        let stamp = Context.length(ctx);
+        if (stamp == 0) {
+          failwith(
+            __LOC__ ++ ": cannot rescope type variables in an empty context",
+          );
+        };
+        let amount = stamp - cref.stamp;
+        let index = Index.shift(~above=-1, ~amount, cref.index);
+        if (Index.Abs.to_int(index) >= stamp) {
+          Log.debug_states(
+            __FUNCTION__,
+            [
+              ("ctx", Context.sexp_of_t(ctx)),
+              ("cref", ContextRef.sexp_of_t(cref)),
+              ("index", Index.Abs.sexp_of_t(index)),
+              ("stamp", Sexplib.Std.sexp_of_int(stamp)),
+            ],
+          );
+          failwith(__LOC__ ++ ": rescoped type variable is in the future");
+        };
+        {index, stamp};
+      },
+    );
 
   let nth_var_binding =
       (ctx: t, n: int): option((Var.t, HTyp_syntax.t(Index.relative))) => {
@@ -294,13 +317,31 @@ module rec Context: {
     );
   };
 
-  let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) => {
-    open OptUtil.Syntax;
-    let cref = rescope(ctx, cref);
-    let i = Index.Abs.to_int(cref.index);
-    let+ (_, k) = nth_tyvar_binding(ctx, i);
-    Kind_core.to_abs(~offset=i + 1, k);
-  };
+  let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_option(Kind.sexp_of_t),
+      () => {
+        open OptUtil.Syntax;
+        let cref = rescope(ctx, cref);
+        let i = Index.Abs.to_int(cref.index);
+        let+ (_, k) = nth_tyvar_binding(ctx, i);
+        let k' = Kind_core.to_abs(~offset=i + 1, k);
+        Log.debug_states(
+          __FUNCTION__,
+          [
+            ("i", Sexplib.Std.sexp_of_int(i)),
+            ("k", Kind_core.sexp_of_s(Index.sexp_of_relative, k)),
+            ("k'", Kind.sexp_of_t(k')),
+          ],
+        );
+        Kind.rescope(ctx, k');
+      },
+    );
 
   let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
     TyVarBinding(t, Kind_core.to_rel(k)),
@@ -325,7 +366,7 @@ module rec Context: {
          | (i, VarBinding(x, ty)) => {
              let index = Index.Abs.of_int(i);
              let stamp = Context.length(ctx);
-             let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
+             let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
              Some((ContextRef.{index, stamp}, x, ty));
            }
          | (_, TyVarBinding(_)) => None,
@@ -351,14 +392,24 @@ module rec Context: {
     let cref = rescope(ctx, cref);
     let i = Index.Abs.to_int(cref.index);
     let+ (_, ty) = nth_var_binding(ctx, i);
-    HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i + 1, ty));
+    let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
+    HTyp.rescope(ctx, ty);
   };
 
-  let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
-    open OptUtil.Syntax;
-    let* cref = var_ref(ctx, x);
-    var_ref_type(ctx, cref);
-  };
+  let var_type = (ctx: t, x: Var.t): option(HTyp.t) =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => sexp_of_t(ctx)),
+        ("x", () => Var.sexp_of_t(x)),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
+      () => {
+        open OptUtil.Syntax;
+        let* cref = var_ref(ctx, x);
+        var_ref_type(ctx, cref);
+      },
+    );
 
   let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t => [
     VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))),
@@ -978,6 +1029,7 @@ and HTyp: {
 and Kind: {
   [@deriving sexp]
   type t = Kind_core.s(Index.absolute);
+  let rescope: (Context.t, t) => t;
   let to_htyp: t => HTyp.t;
   let singleton: HTyp.t => t;
   let consistent_subkind: (Context.t, t, t) => bool;
@@ -988,6 +1040,13 @@ and Kind: {
 
   [@deriving sexp]
   type t = s(Index.absolute);
+
+  let rescope = (ctx: Context.t, k: t): t =>
+    switch (k) {
+    | Hole
+    | Type => k
+    | S(ty) => S(HTyp.to_syntax(HTyp.rescope(ctx, HTyp.of_syntax(ty))))
+    };
 
   /* For converting type variables to equivalent [HTyp]s while resolving local
      type aliases. */
