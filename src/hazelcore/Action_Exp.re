@@ -1,11 +1,5 @@
 open Sexplib.Std;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("action");
-    let sort = Some("EXP");
-  });
-
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)

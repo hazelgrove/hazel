@@ -1,11 +1,5 @@
 open OptUtil.Syntax;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("STATICS");
-    let sort = Some("PAT");
-  });
-
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 

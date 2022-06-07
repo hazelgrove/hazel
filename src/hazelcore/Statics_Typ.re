@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("statics");
-    let sort = Some("TYP");
-  });
-
 let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
   Log.fun_call(
     __FUNCTION__,

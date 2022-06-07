@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("elaborator");
-    let sort = Some("PAT");
-  });
-
 module ElaborationResult = {
   [@deriving sexp]
   type t =

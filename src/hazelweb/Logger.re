@@ -18,12 +18,6 @@ let append = (s: string) => {
 
 /* robust system event logging */
 
-module Log =
-  Log.Make({
-    let subsystem = Some("logger");
-    let sort = None;
-  });
-
 let reporter = ppf => {
   let report = (src, level, ~over, k, msgf) => {
     let k = _ => {
@@ -58,5 +52,5 @@ let reporter = ppf => {
 let init_log = () => {
   /* Logs.set_reporter(Logs_browser.console_reporter()); */
   Logs.set_reporter(reporter(Format.std_formatter));
-  Logs.set_level(Some(Logs.Error));
+  Logs.set_level(Some(Logs.Info));
 };

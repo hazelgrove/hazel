@@ -1,11 +1,5 @@
 open Sexplib.Std;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("elaborator");
-    let sort = Some("TYP");
-  });
-
 module ElaborationResult = {
   [@deriving sexp]
   type t = option((HTyp.t, Kind.t, Delta.t));

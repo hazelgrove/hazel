@@ -1,11 +1,5 @@
 open Sexplib.Std;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("internal");
-    let sort = None;
-  });
-
 module ContextRef = {
   [@deriving sexp]
   type s('idx) = {

@@ -1,11 +1,5 @@
 open OptUtil.Syntax;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("statics");
-    let sort = Some("EXP");
-  });
-
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
@@ -19,22 +13,19 @@ let recursive_let_id =
       ("def", () => UHExp.sexp_of_t(def)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Var.sexp_of_t),
-    ()
-    => None);
-    /* TODO: (eric) restore recursive let bindings
-
-       switch (p, def) {
-       | (
-           OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
-           [ExpLine(OpSeq(_, S(Fun(_), E)))],
-         ) =>
-         open OptUtil.Syntax;
-         let* (ty_p, ctx) = Statics_Pat.syn(ctx, p);
-         let+ _ = HTyp.matched_arrow(ctx, ty_p);
-         x;
-       | _ => None
-            }
-            */
+    () =>
+    switch (p, def) {
+    | (
+        OpSeq(_, S(TypeAnn(_, Var(_, NotInVarHole, x), _), E)),
+        [ExpLine(OpSeq(_, S(Fun(_), E)))],
+      ) =>
+      open OptUtil.Syntax;
+      let* (ty_p, ctx) = Statics_Pat.syn(ctx, p);
+      let+ _ = HTyp.matched_arrow(ctx, ty_p);
+      x;
+    | _ => None
+    }
+  );
 };
 
 let extend_let_def_ctx = (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t =>

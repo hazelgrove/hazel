@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("elaborator");
-    let sort = Some("EXP");
-  });
-
 [@deriving sexp]
 type elab_result_lines =
   | LinesElaborate(DHExp.t => DHExp.t, Context.t, Delta.t)

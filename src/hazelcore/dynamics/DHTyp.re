@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("internal");
-    let sort = Some("TYP");
-  });
-
 [@deriving sexp]
 type t = (Context.t, HTyp.t);
 

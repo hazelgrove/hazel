@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("action");
-    let sort = Some("PAT");
-  });
-
 let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   fun
   | SComma => Some(Comma)

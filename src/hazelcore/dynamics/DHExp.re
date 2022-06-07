@@ -1,11 +1,5 @@
 open Sexplib.Std;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("internal");
-    let sort = Some("EXP");
-  });
-
 module BinBoolOp = {
   [@deriving sexp]
   type t =

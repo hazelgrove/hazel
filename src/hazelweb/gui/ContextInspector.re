@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("inspector");
-    let sort = None;
-  });
-
 module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;

@@ -1,11 +1,5 @@
 open Sexplib.Std;
 
-module Log =
-  Log.Make({
-    let subsystem = Some("web");
-    let sort = None;
-  });
-
 [@deriving sexp]
 type t = {
   cardstacks: ZCardstacks.t,

@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("web");
-    let sort = None;
-  });
-
 open Virtual_dom.Vdom;
 open Node;
 

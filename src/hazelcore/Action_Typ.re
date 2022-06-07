@@ -1,9 +1,3 @@
-module Log =
-  Log.Make({
-    let subsystem = Some("action");
-    let sort = Some("TYP");
-  });
-
 let operator_of_shape = (os: Action.operator_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
