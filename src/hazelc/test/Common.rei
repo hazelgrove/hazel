@@ -4,6 +4,7 @@ type profile =
   | Bench;
 
 module Compile: {
+  let compile_grain: (~profile: profile, string) => string;
   let compile: (~profile: profile, string) => string;
   let run: (~profile: profile, string) => string;
 };

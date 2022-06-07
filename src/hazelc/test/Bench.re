@@ -3,18 +3,12 @@ module W = Wasmtime.Wrappers;
 
 let profile = Common.Bench;
 
-let bench_comp = source => {
-  open Common.Compile;
+let read_file_to_string = filename => {
+  let&i ch = open_in(filename);
+  really_input_string(ch, in_channel_length(ch));
+};
 
-  // Compile.
-  let wasm_path = source |> compile(~profile);
-
-  // Read wasm module.
-  let wasm = {
-    let&i wasm_ch = open_in(wasm_path);
-    really_input_string(wasm_ch, in_channel_length(wasm_ch));
-  };
-
+let bench_wasm = wasm => {
   // Create wasmtime engine and load module.
   let engine = W.Engine.create();
   let store = W.Store.create(engine);
@@ -37,19 +31,62 @@ let bench_comp = source => {
   () => W.Wasmtime.func_call0(start_func, []);
 };
 
-let bench_eval = source => {
+let bench_grain = grain_source => {
+  open Common.Compile;
+
+  let wasm_path = grain_source |> compile_grain(~profile);
+
+  // Read wasm module.
+  let wasm = read_file_to_string(wasm_path);
+  bench_wasm(wasm);
+};
+
+let bench_comp = hazel_source => {
+  open Common.Compile;
+
+  // Compile.
+  let wasm_path = hazel_source |> compile(~profile);
+
+  // Read wasm module.
+  let wasm = {
+    let&i wasm_ch = open_in(wasm_path);
+    really_input_string(wasm_ch, in_channel_length(wasm_ch));
+  };
+
+  bench_wasm(wasm);
+};
+
+let bench_eval = hazel_source => {
   open Common.Eval;
 
-  let d = source |> parse(~profile) |> elab(~profile);
+  let d = hazel_source |> parse(~profile) |> elab(~profile);
   () => ignore(d |> eval(~profile));
 };
 
-let bench = (name, source) => {
-  let bench = (name, f) => {
-    /* Benchmark.latency1(~style=Auto, ~repeat=1, 4L, ~name, f, ()) |> ignore; */
-    Benchmark.throughput1(~style=Auto, ~repeat=1, ~name, 1, f, ()) |> ignore;
+let bench = (name, times, ~grain_source=None, hazel_source) => {
+  let name' = prefix => prefix ++ " " ++ name;
+  let bench' = fs => {
+    let fs = fs |> List.map(((name, f)) => (name, f, ()));
+    Benchmark.latencyN(~style=Auto, times, fs);
   };
 
-  bench("comp " ++ name, bench_comp(source));
-  bench("eval " ++ name, bench_eval(source));
+  let tests =
+    [
+      (name'("compiled"), bench_comp(hazel_source)),
+      (name'("eval"), bench_eval(hazel_source)),
+    ];
+
+  let tests =
+    tests @ switch (grain_source) {
+    | Some(grain_source) => [(name'("grain"), bench_grain(grain_source))]
+    | None => []
+    };
+
+  bench'(tests) |> ignore;
+};
+
+let bench_file = (name, times, ~grain_filename=None, hazel_filename) => {
+  let hazel_source = read_file_to_string(hazel_filename);
+  let grain_source = grain_filename |> Option.map(read_file_to_string);
+  bench(name, times, hazel_source, ~grain_source);
 };

@@ -48,26 +48,30 @@ module Compile = {
     };
   };
 
+  let compile_grain = (~profile, source) => {
+    let (_opts, wasm_opts) = mk_opts(profile);
+
+    let src_path = Filename.temp_file(temp_prefix, "a.gr");
+    let out_path = Filename.temp_file(temp_prefix, "a.wasm");
+
+    switch (
+      Compile.wasmize(
+        ~opts=wasm_opts,
+        ~source=src_path,
+        ~output=out_path,
+        source,
+      )
+    ) {
+    | Ok () => out_path
+    | Error () => failwith("wasm compilation failed")
+    };
+  };
+
   let compile = (~profile, source) => {
-    let (opts, wasm_opts) = mk_opts(profile);
+    let (opts, _wasm_opts) = mk_opts(profile);
 
     switch (Compile.resume_until_printed(~opts, Source(Text(source)))) {
-    | Ok(g) =>
-      let src_path = Filename.temp_file(temp_prefix, "a.gr");
-      let out_path = Filename.temp_file(temp_prefix, "a.wasm");
-
-      switch (
-        Compile.wasmize(
-          ~opts=wasm_opts,
-          ~source=src_path,
-          ~output=out_path,
-          g,
-        )
-      ) {
-      | Ok () => out_path
-      | Error () => failwith("wasm compilation failed")
-      };
-
+    | Ok(g) => compile_grain(~profile, g)
     | Error(err) =>
       switch (err) {
       | ParseError(err) => failwith(err)
