@@ -1742,10 +1742,12 @@ and syn_perform_operand =
 
   | (Construct(STypApp), CursorE(_, operand)) =>
     let new_ze = {
-      let new_zty = UHTyp.contract(HTyp.Hole) |> ZTyp.place_before;
-      ZExp.ZBlock.wrap(
-        TypAppZT(NotInHole, UHExp.Block.wrap(operand), new_zty),
-      );
+      ZExp.TypAppZE(
+        NotInHole,
+        operand |> ZExp.place_after_operand |> ZExp.ZBlock.wrap,
+        HTyp.Hole |> UHTyp.contract,
+      )
+      |> ZExp.ZBlock.wrap;
     };
     Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
 

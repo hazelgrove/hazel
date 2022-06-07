@@ -2,6 +2,21 @@ open OptUtil.Syntax;
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
+// Debug..
+let print_step = steps =>
+  if (List.length(steps) == 0) {
+    print_endline("[follow] steps is empty");
+  } else {
+    print_endline(
+      "[follow] steps = "
+      ++ List.fold_left(
+           (string, item) => string ++ string_of_int(item) ++ ",",
+           "",
+           steps,
+         ),
+    );
+  };
+
 let rec extract_cursor_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
 }
@@ -550,12 +565,15 @@ and syn_cursor_info_zoperand =
   | FunZE(_, p, zbody) =>
     let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
-  | TypAppZE(_, _ze, _ty) =>
+  | TypAppZE(_, ze, _ty) =>
+    print_endline("typappze");
+    print_step(steps);
+    syn_cursor_info(~steps=steps @ [0], ctx, ze);
+  | TypAppZT(_, _e, zty) =>
+    print_endline("typappzt");
+    print_step(steps);
     // TODO (typ-app): cursor_info
-    None
-  | TypAppZT(_, _e, _zty) =>
-    // TODO (typ-app): cursor_info
-    None
+    zty |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
     let ty_join =

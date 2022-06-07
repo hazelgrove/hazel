@@ -28,7 +28,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
   | TypAppZE(_, ze, _ty) => cons'(0, of_z(ze))
-  | TypAppZT(_, _e, zty) => cons'(0, CursorPath_Typ.of_z(zty))
+  | TypAppZT(_, _e, zty) => cons'(1, CursorPath_Typ.of_z(zty))
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
