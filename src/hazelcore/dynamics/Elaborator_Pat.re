@@ -1,3 +1,9 @@
+module Log =
+  Log.Make({
+    let subsystem = Some("elaborator");
+    let sort = Some("PAT");
+  });
+
 module ElaborationResult = {
   [@deriving sexp]
   type t =
@@ -25,12 +31,12 @@ module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
         (ctx: Context.t, delta: Delta.t, p: UHPat.t): ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("p", UHPat.sexp_of_t(p)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("p", () => UHPat.sexp_of_t(p)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -40,12 +46,12 @@ let rec syn_elab =
 and syn_elab_opseq =
     (ctx: Context.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("opseq", UHPat.sexp_of_opseq(OpSeq(skel, seq))),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("opseq", () => UHPat.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -55,13 +61,13 @@ and syn_elab_opseq =
 and syn_elab_skel =
     (ctx: Context.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.seq)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("skel", UHPat.sexp_of_skel(skel)),
-      ("seq", UHPat.sexp_of_seq(seq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHPat.sexp_of_skel(skel)),
+      ("seq", () => UHPat.sexp_of_seq(seq)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -137,12 +143,12 @@ and syn_elab_skel =
 and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHPat.operand)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHPat.sexp_of_operand(operand)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHPat.sexp_of_operand(operand)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -224,13 +230,13 @@ and syn_elab_operand =
 and ana_elab =
     (ctx: Context.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("p", UHPat.sexp_of_t(p)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("p", () => UHPat.sexp_of_t(p)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -245,13 +251,13 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("skel", UHPat.sexp_of_skel(skel)),
-      ("seq", UHPat.sexp_of_seq(seq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHPat.sexp_of_skel(skel)),
+      ("seq", () => UHPat.sexp_of_seq(seq)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () => {
@@ -345,14 +351,14 @@ and ana_elab_skel =
       ty: HTyp.t,
     )
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("skel", UHPat.sexp_of_skel(skel)),
-      ("seq", UHPat.sexp_of_seq(seq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHPat.sexp_of_skel(skel)),
+      ("seq", () => UHPat.sexp_of_seq(seq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -406,13 +412,13 @@ and ana_elab_skel =
 and ana_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHPat.operand, ty: HTyp.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHPat.sexp_of_operand(operand)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHPat.sexp_of_operand(operand)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>

@@ -1,5 +1,11 @@
 open Sexplib.Std;
 
+module Log =
+  Log.Make({
+    let subsystem = Some("internal");
+    let sort = None;
+  });
+
 module ContextRef = {
   [@deriving sexp]
   type s('idx) = {
@@ -270,9 +276,12 @@ module rec Context: {
   };
 
   let tyvar_ref = (ctx: t, t: TyVar.t): option(ContextRef.t) => {
-    Log.debug_function(
+    Log.fun_call(
       __FUNCTION__,
-      [("ctx", sexp_of_t(ctx)), ("t", TyVar.sexp_of_t(t))],
+      ~args=[
+        ("ctx", () => sexp_of_t(ctx)),
+        ("t", () => TyVar.sexp_of_t(t)),
+      ],
       ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
       () => {
         open OptUtil.Syntax;
@@ -616,8 +625,14 @@ and HTyp: {
       | (None, _)
       | (_, None) => false
       }
-    | (TyVar(_) | TyVarHole(_) | Hole, _)
-    | (_, TyVar(_) | TyVarHole(_) | Hole) => true
+    | (TyVar(cref, _), ty1)
+    | (ty1, TyVar(cref, _)) =>
+      switch (Context.tyvar_kind(ctx, Context.rescope(ctx, cref))) {
+      | Some(k) => consistent(ctx, HTyp.to_syntax(Kind.to_htyp(k)), ty1)
+      | None => false
+      }
+    | (TyVarHole(_) | Hole, _)
+    | (_, TyVarHole(_) | Hole) => true
     | (Int | Float | Bool, _) => ty == ty'
     | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
     | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
@@ -886,9 +901,12 @@ and HTyp: {
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized => {
-    Log.debug_function(
+    Log.fun_call(
       __FUNCTION__,
-      [("ctx", Context.sexp_of_t(ctx)), ("ty", sexp_of_t(ty))],
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("ty", () => sexp_of_t(ty)),
+      ],
       ~result_sexp=sexp_of_head_normalized,
       () =>
       switch (ty) {

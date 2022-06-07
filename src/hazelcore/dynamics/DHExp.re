@@ -1,5 +1,11 @@
 open Sexplib.Std;
 
+module Log =
+  Log.Make({
+    let subsystem = Some("internal");
+    let sort = Some("EXP");
+  });
+
 module BinBoolOp = {
   [@deriving sexp]
   type t =
@@ -209,12 +215,12 @@ let rec mk_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("d", sexp_of_t(d)),
-      ("dty1", DHTyp.sexp_of_t(dty1)),
-      ("dty2", DHTyp.sexp_of_t(dty2)),
+    ~args=[
+      ("d", () => sexp_of_t(d)),
+      ("dty1", () => DHTyp.sexp_of_t(dty1)),
+      ("dty2", () => DHTyp.sexp_of_t(dty2)),
     ],
     ~result_sexp=sexp_of_t,
     () =>

@@ -1,7 +1,16 @@
+module Log =
+  Log.Make({
+    let subsystem = Some("statics");
+    let sort = Some("TYP");
+  });
+
 let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("ctx", Context.sexp_of_t(ctx)), ("ty", HTyp.sexp_of_t(ty))],
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+    ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Kind.sexp_of_t),
     () =>
     switch (HTyp.to_syntax(ty)) {
@@ -35,12 +44,12 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
   )
 
 and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("ty", HTyp.sexp_of_t(ty)),
-      ("k", Kind.sexp_of_t(k)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+      ("k", () => Kind.sexp_of_t(k)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () =>

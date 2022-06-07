@@ -1,5 +1,11 @@
 open Sexplib.Std;
 
+module Log =
+  Log.Make({
+    let subsystem = Some("action");
+    let sort = Some("EXP");
+  });
+
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -616,14 +622,14 @@ let rec syn_perform =
           (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("ze", ZExp.sexp_of_t(ze)),
-      ("ty", HTyp.sexp_of_t(ty)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("ze", () => ZExp.sexp_of_t(ze)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_done),
@@ -682,14 +688,14 @@ and syn_perform_block =
       ),
     )
     : ActionOutcome.t(syn_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zblock", ZExp.sexp_of_zblock(zblock)),
-      ("ty", HTyp.sexp_of_t(ty)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zblock", () => ZExp.sexp_of_zblock(zblock)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
     ],
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_success),
     () =>
@@ -908,13 +914,13 @@ and syn_perform_block =
 and syn_perform_line =
     (ctx: Context.t, a: Action.t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
     : ActionOutcome.t(line_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zline", ZExp.sexp_of_zline(zline)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zline", () => ZExp.sexp_of_zline(zline)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
     ],
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_line_success),
     () => {
@@ -1322,14 +1328,14 @@ and syn_perform_opseq =
       ),
     )
     : ActionOutcome.t(syn_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zopseq", ZExp.sexp_of_zopseq(zopseq)),
-      ("ty", HTyp.sexp_of_t(ty)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zopseq", () => ZExp.sexp_of_zopseq(zopseq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_success),
@@ -1656,14 +1662,14 @@ and syn_perform_operand =
       (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
     )
     : ActionOutcome.t(syn_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zoperand", ZExp.sexp_of_zoperand(zoperand)),
-      ("ty", HTyp.sexp_of_t(ty)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zoperand", () => ZExp.sexp_of_zoperand(zoperand)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_success),
@@ -2196,14 +2202,14 @@ and syn_perform_rules =
       pat_ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.zrules, MetaVarGen.t)) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zrules", ZExp.sexp_of_zrules(zrules)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zrules", () => ZExp.sexp_of_zrules(zrules)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -2361,9 +2367,8 @@ and ana_perform_rules =
       clause_ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.zrules, MetaVarGen.t)) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [],
     ~id=u_gen,
     ~result_sexp=
       ActionOutcome.sexp_of_t(((zrules, u_gen)) =>
@@ -2526,14 +2531,14 @@ and ana_perform =
       ty: HTyp.t,
     )
     : ActionOutcome.t((ZExp.t, MetaVarGen.t)) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("ze", ZExp.sexp_of_t(ze)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("ze", () => ZExp.sexp_of_t(ze)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -2583,14 +2588,14 @@ and ana_perform_block =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zblock", ZExp.sexp_of_zblock(zblock)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zblock", () => ZExp.sexp_of_zblock(zblock)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_ana_success),
@@ -2822,14 +2827,14 @@ and ana_perform_opseq =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zopseq", ZExp.sexp_of_zopseq(zopseq)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zopseq", () => ZExp.sexp_of_zopseq(zopseq)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_ana_success),
@@ -3215,14 +3220,14 @@ and ana_perform_operand =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zoperand", ZExp.sexp_of_zoperand(zoperand)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zoperand", () => ZExp.sexp_of_zoperand(zoperand)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_ana_success),
@@ -3765,14 +3770,14 @@ and ana_perform_subsume =
       ty: HTyp.t,
     )
     : ActionOutcome.t(ana_success) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("a", Action.sexp_of_t(a)),
-      ("zoperand", ZExp.sexp_of_zoperand(zoperand)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zoperand", () => ZExp.sexp_of_zoperand(zoperand)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_ana_success),

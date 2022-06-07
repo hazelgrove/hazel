@@ -1,3 +1,9 @@
+module Log =
+  Log.Make({
+    let subsystem = Some("internal");
+    let sort = Some("TYP");
+  });
+
 [@deriving sexp]
 type t = (Context.t, HTyp.t);
 
@@ -12,9 +18,12 @@ let head_normalize = ((ctx, ty): t): HTyp.head_normalized =>
   HTyp.head_normalize(ctx, ty);
 
 let equivalent = (dty1: t, dty2: t): bool =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("dty1", sexp_of_t(dty1)), ("dty2", sexp_of_t(dty2))],
+    ~args=[
+      ("dty1", () => sexp_of_t(dty1)),
+      ("dty2", () => sexp_of_t(dty2)),
+    ],
     ~result_sexp=Sexplib.Std.sexp_of_bool,
     () =>
     HTyp.normalized_equivalent(normalize(dty1), normalize(dty2))

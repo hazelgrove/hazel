@@ -1,5 +1,11 @@
 open Sexplib.Std;
 
+module Log =
+  Log.Make({
+    let subsystem = Some("elaborator");
+    let sort = Some("TYP");
+  });
+
 module ElaborationResult = {
   [@deriving sexp]
   type t = option((HTyp.t, Kind.t, Delta.t));
@@ -13,12 +19,12 @@ let rec get_prod_elements: UHTyp.skel => list(UHTyp.skel) =
 
 let rec syn_elab: (Context.t, Delta.t, UHTyp.t) => ElaborationResult.t =
   (ctx, delta, OpSeq(skel, seq)) =>
-    Log.debug_function(
+    Log.fun_call(
       __FUNCTION__,
-      [
-        ("ctx", Context.sexp_of_t(ctx)),
-        ("delta", Delta.sexp_of_t(delta)),
-        ("opseq", UHTyp.sexp_of_opseq(OpSeq(skel, seq))),
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("delta", () => Delta.sexp_of_t(delta)),
+        ("opseq", () => UHTyp.sexp_of_opseq(OpSeq(skel, seq))),
       ],
       ~result_sexp=ElaborationResult.sexp_of_t,
       () =>
@@ -26,12 +32,12 @@ let rec syn_elab: (Context.t, Delta.t, UHTyp.t) => ElaborationResult.t =
     )
 
 and syn_elab_skel = (ctx, delta, skel, seq) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("seq", UHTyp.sexp_of_seq(seq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("seq", () => UHTyp.sexp_of_seq(seq)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -76,12 +82,12 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
 and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHTyp.operand)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHTyp.sexp_of_operand(operand)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHTyp.sexp_of_operand(operand)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () => {
@@ -112,13 +118,13 @@ and syn_elab_operand =
 
 and ana_elab: (Context.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
   (ctx, delta, OpSeq(skel, seq), k) =>
-    Log.debug_function(
+    Log.fun_call(
       __FUNCTION__,
-      [
-        ("ctx", Context.sexp_of_t(ctx)),
-        ("delta", Delta.sexp_of_t(delta)),
-        ("opseq", UHTyp.sexp_of_opseq(OpSeq(skel, seq))),
-        ("k", Kind.sexp_of_t(k)),
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("delta", () => Delta.sexp_of_t(delta)),
+        ("opseq", () => UHTyp.sexp_of_opseq(OpSeq(skel, seq))),
+        ("k", () => Kind.sexp_of_t(k)),
       ],
       ~result_sexp=ElaborationResult.sexp_of_t,
       () =>
@@ -126,14 +132,14 @@ and ana_elab: (Context.t, Delta.t, UHTyp.t, Kind.t) => ElaborationResult.t =
     )
 
 and ana_elab_skel = (ctx: Context.t, delta, skel, seq, k): ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("skel", UHTyp.sexp_of_skel(skel)),
-      ("seq", UHTyp.sexp_of_seq(seq)),
-      ("k", Kind.sexp_of_t(k)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHTyp.sexp_of_skel(skel)),
+      ("seq", () => UHTyp.sexp_of_seq(seq)),
+      ("k", () => Kind.sexp_of_t(k)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -151,13 +157,13 @@ and ana_elab_skel = (ctx: Context.t, delta, skel, seq, k): ElaborationResult.t =
 and ana_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHTyp.operand, k: Kind.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHTyp.sexp_of_operand(operand)),
-      ("k", Kind.sexp_of_t(k)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHTyp.sexp_of_operand(operand)),
+      ("k", () => Kind.sexp_of_t(k)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>

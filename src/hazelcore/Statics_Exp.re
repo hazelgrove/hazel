@@ -1,16 +1,22 @@
 open OptUtil.Syntax;
 
+module Log =
+  Log.Make({
+    let subsystem = Some("statics");
+    let sort = Some("EXP");
+  });
+
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
 let recursive_let_id =
     (ctx: Context.t, p: UHPat.t, def: UHExp.t): option(Var.t) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("p", UHPat.sexp_of_t(p)),
-      ("def", UHExp.sexp_of_t(def)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("p", () => UHPat.sexp_of_t(p)),
+      ("def", () => UHExp.sexp_of_t(def)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Var.sexp_of_t),
     ()
@@ -32,12 +38,12 @@ let recursive_let_id =
 };
 
 let extend_let_def_ctx = (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("p", UHPat.sexp_of_t(p)),
-      ("def", UHExp.sexp_of_t(def)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("p", () => UHPat.sexp_of_t(p)),
+      ("def", () => UHExp.sexp_of_t(def)),
     ],
     ~result_sexp=Context.sexp_of_t,
     () =>
@@ -59,20 +65,23 @@ let joined_pattern_type = (ctx, rules) => {
 };
 
 let rec syn = (ctx: Context.t, e: UHExp.t): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("ctx", Context.sexp_of_t(ctx)), ("e", UHExp.sexp_of_t(e))],
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("e", () => UHExp.sexp_of_t(e)),
+    ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () =>
     syn_block(ctx, e)
   )
 
 and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("block", UHExp.sexp_of_block(block)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("block", () => UHExp.sexp_of_block(block)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () => {
@@ -90,11 +99,11 @@ and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
 }
 
 and syn_lines = (ctx: Context.t, lines: list(UHExp.line)): option(Context.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("lines", Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("lines", () => Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Context.sexp_of_t),
     () => {
@@ -109,9 +118,12 @@ and syn_lines = (ctx: Context.t, lines: list(UHExp.line)): option(Context.t) =>
   })
 
 and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("ctx", Context.sexp_of_t(ctx)), ("line", UHExp.sexp_of_line(line))],
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("line", () => UHExp.sexp_of_line(line)),
+    ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Context.sexp_of_t),
     () =>
     switch (line) {
@@ -133,11 +145,11 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
 
 and syn_opseq =
     (ctx: Context.t, OpSeq(skel, seq): UHExp.opseq): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () =>
@@ -146,12 +158,12 @@ and syn_opseq =
 
 and syn_skel =
     (ctx: Context.t, skel: UHExp.skel, seq: UHExp.seq): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () =>
@@ -203,11 +215,11 @@ and syn_skel =
   )
 
 and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("operand", UHExp.sexp_of_operand(operand)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("operand", () => UHExp.sexp_of_operand(operand)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () =>
@@ -275,12 +287,12 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
 
 and syn_rules =
     (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () => {
@@ -300,12 +312,12 @@ and syn_rules =
 
 and syn_rule =
     (ctx: Context.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("rule", UHExp.sexp_of_rule(rule)),
-      ("pat_Ty", HTyp.sexp_of_t(pat_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("rule", () => UHExp.sexp_of_rule(rule)),
+      ("pat_Ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () => {
@@ -316,12 +328,12 @@ and syn_rule =
   )
 
 and ana = (ctx: Context.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("e", UHExp.sexp_of_t(e)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("e", () => UHExp.sexp_of_t(e)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () =>
@@ -330,12 +342,12 @@ and ana = (ctx: Context.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
 
 and ana_block =
     (ctx: Context.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("block", UHExp.sexp_of_t(block)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("block", () => UHExp.sexp_of_t(block)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () => {
@@ -348,12 +360,12 @@ and ana_block =
 and ana_opseq =
     (ctx: Context.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
     : option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("opseq", UHExp.sexp_of_opseq(opseq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("opseq", () => UHExp.sexp_of_opseq(opseq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () => {
@@ -384,13 +396,13 @@ and ana_opseq =
 and ana_skel =
     (ctx: Context.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () =>
@@ -427,12 +439,12 @@ and ana_skel =
 
 and ana_operand =
     (ctx: Context.t, operand: UHExp.operand, ty: HTyp.t): option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("operand", UHExp.sexp_of_operand(operand)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("operand", () => UHExp.sexp_of_operand(operand)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () =>
@@ -492,13 +504,13 @@ and ana_operand =
 and ana_rules =
     (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () =>
@@ -520,13 +532,13 @@ and ana_rule =
       clause_ty: HTyp.t,
     )
     : option(unit) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("rule", UHExp.sexp_of_rule(Rule(p, clause))),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("rule", () => UHExp.sexp_of_rule(Rule(p, clause))),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () => {
@@ -541,12 +553,12 @@ and ana_rule =
 let rec syn_nth_type_mode =
         (ctx: Context.t, n: int, OpSeq(skel, seq): UHExp.opseq)
         : option(Statics.type_mode) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("n", Sexplib.Std.sexp_of_int(n)),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("n", () => Sexplib.Std.sexp_of_int(n)),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Statics.sexp_of_type_mode),
     () =>
@@ -556,13 +568,13 @@ let rec syn_nth_type_mode =
 and syn_nth_type_mode' =
     (ctx: Context.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
     : option(Statics.type_mode) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("n", Sexplib.Std.sexp_of_int(n)),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("n", () => Sexplib.Std.sexp_of_int(n)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Statics.sexp_of_type_mode),
     () => {
@@ -640,13 +652,13 @@ and ana_nth_type_mode =
       ty: HTyp.t,
     )
     : option(Statics.type_mode) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("n", Sexplib.Std.sexp_of_int(n)),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("n", () => Sexplib.Std.sexp_of_int(n)),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Statics.sexp_of_type_mode),
     ()
@@ -673,14 +685,14 @@ and ana_nth_type_mode =
 and ana_nth_type_mode' =
     (ctx: Context.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
     : option(Statics.type_mode) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("n", Sexplib.Std.sexp_of_int(n)),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("n", () => Sexplib.Std.sexp_of_int(n)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Statics.sexp_of_type_mode),
     () => {
@@ -737,16 +749,16 @@ let rec syn_fix_holes =
           e: UHExp.t,
         )
         : (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("e", UHExp.sexp_of_t(e)),
+      ("e", () => UHExp.sexp_of_t(e)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -767,16 +779,16 @@ and syn_fix_holes_block =
       block: UHExp.block,
     )
     : (UHExp.block, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("block", UHExp.sexp_of_block(block)),
+      ("block", () => UHExp.sexp_of_block(block)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -814,16 +826,16 @@ and syn_fix_holes_lines =
       lines: list(UHExp.line),
     )
     : (list(UHExp.line), Context.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("lines", Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
+      ("lines", () => Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -863,16 +875,16 @@ and syn_fix_holes_line =
       line: UHExp.line,
     )
     : (UHExp.line, Context.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("line", UHExp.sexp_of_line(line)),
+      ("line", () => UHExp.sexp_of_line(line)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -918,16 +930,16 @@ and syn_fix_holes_opseq =
       OpSeq(skel, seq): UHExp.opseq,
     )
     : (UHExp.opseq, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -953,17 +965,17 @@ and syn_fix_holes_skel =
       seq: UHExp.seq,
     )
     : (UHExp.skel, UHExp.seq, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1157,16 +1169,16 @@ and syn_fix_holes_operand =
       e: UHExp.operand,
     )
     : (UHExp.operand, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("e", UHExp.sexp_of_operand(e)),
+      ("e", () => UHExp.sexp_of_operand(e)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1258,17 +1270,17 @@ and syn_fix_holes_rules =
       pat_ty: HTyp.t,
     )
     : (UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t)) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1310,17 +1322,17 @@ and syn_fix_holes_rule =
       pat_ty: HTyp.t,
     )
     : (UHExp.rule, MetaVarGen.t, HTyp.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("rule", UHExp.sexp_of_rule(rule)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+      ("rule", () => UHExp.sexp_of_rule(rule)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1356,18 +1368,18 @@ and ana_fix_holes_rules =
       clause_ty: HTyp.t,
     )
     : (UHExp.rules, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1405,18 +1417,18 @@ and ana_fix_holes_rule =
       clause_ty: HTyp.t,
     )
     : (UHExp.rule, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("rule", UHExp.sexp_of_rule(Rule(p, clause))),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+      ("rule", () => UHExp.sexp_of_rule(Rule(p, clause))),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1446,17 +1458,17 @@ and ana_fix_holes =
       ty: HTyp.t,
     )
     : (UHExp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("e", UHExp.sexp_of_t(e)),
-      ("ty", HTyp.sexp_of_t(ty)),
+      ("e", () => UHExp.sexp_of_t(e)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1474,17 +1486,17 @@ and ana_fix_holes_block =
       ty: HTyp.t,
     )
     : (UHExp.block, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("block", UHExp.sexp_of_block(block)),
-      ("ty", HTyp.sexp_of_t(ty)),
+      ("block", () => UHExp.sexp_of_block(block)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1521,17 +1533,17 @@ and ana_fix_holes_opseq =
       ty: HTyp.t,
     )
     : (UHExp.opseq, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("opseq", UHExp.sexp_of_opseq(opseq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+      ("opseq", () => UHExp.sexp_of_opseq(opseq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1638,18 +1650,18 @@ and ana_fix_holes_skel =
       ty: HTyp.t,
     )
     : (UHExp.skel, UHExp.seq, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1751,17 +1763,17 @@ and ana_fix_holes_operand =
       ty: HTyp.t,
     )
     : (UHExp.operand, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
         "reunumber_empty_holes",
-        Sexplib.Std.sexp_of_bool(renumber_empty_holes),
+        () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
-      ("e", UHExp.sexp_of_operand(e)),
-      ("ty", HTyp.sexp_of_t(ty)),
+      ("e", () => UHExp.sexp_of_operand(e)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~id=u_gen,
     ~result_sexp=
@@ -1869,12 +1881,12 @@ and ana_fix_holes_operand =
 
 and extend_let_body_ctx =
     (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("p", UHPat.sexp_of_t(p)),
-      ("def", UHExp.sexp_of_t(def)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("p", () => UHPat.sexp_of_t(p)),
+      ("def", () => UHExp.sexp_of_t(def)),
     ],
     ~result_sexp=Context.sexp_of_t,
     ()
@@ -1890,12 +1902,12 @@ and extend_let_body_ctx =
 let syn_fix_holes_z =
     (ctx: Context.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ze", ZExp.sexp_of_t(ze)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ze", () => ZExp.sexp_of_t(ze)),
     ],
     ~result_sexp=
       ((ze, ty, u_gen)) =>
@@ -1922,12 +1934,12 @@ let syn_fix_holes_z =
 let syn_fix_holes_zlines =
     (ctx: Context.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
     : (ZExp.zblock, Context.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("zlines", ZExp.sexp_of_zblock(zlines)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("zlines", () => ZExp.sexp_of_zblock(zlines)),
     ],
     ~result_sexp=
       ((zblock, ctx, u_gen)) =>
@@ -1955,13 +1967,13 @@ let syn_fix_holes_zlines =
 let syn_fix_holes_zrules =
     (ctx: Context.t, u_gen: MetaVarGen.t, zrules: ZExp.zrules, pat_ty: HTyp.t)
     : (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("zrules", ZExp.sexp_of_zrules(zrules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("zrules", () => ZExp.sexp_of_zrules(zrules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~result_sexp=
       ((zrules, tys, ty_opt, u_gen)) =>
@@ -1991,13 +2003,13 @@ let syn_fix_holes_zrules =
 let ana_fix_holes_z =
     (ctx: Context.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("ze", ZExp.sexp_of_t(ze)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("ze", () => ZExp.sexp_of_t(ze)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=
       ((ze, u_gen)) =>
@@ -2020,9 +2032,12 @@ let ana_fix_holes_z =
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
     (ctx: Context.t, e: UHExp.t): (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("ctx", Context.sexp_of_t(ctx)), ("e", UHExp.sexp_of_t(e))],
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("e", () => UHExp.sexp_of_t(e)),
+    ],
     ~result_sexp=
       ((e, ty, u_gen)) =>
         List([
@@ -2035,9 +2050,12 @@ let fix_and_renumber_holes =
 
 let fix_and_renumber_holes_z =
     (ctx: Context.t, ze: ZExp.t): Statics.edit_state =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("ctx", Context.sexp_of_t(ctx)), ("ze", ZExp.sexp_of_t(ze))],
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("ze", () => ZExp.sexp_of_t(ze)),
+    ],
     ~result_sexp=Statics.sexp_of_edit_state,
     () => {
       let path = CursorPath_Exp.of_z(ze);

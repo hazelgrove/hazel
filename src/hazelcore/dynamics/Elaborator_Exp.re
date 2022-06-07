@@ -1,3 +1,9 @@
+module Log =
+  Log.Make({
+    let subsystem = Some("elaborator");
+    let sort = Some("EXP");
+  });
+
 [@deriving sexp]
 type elab_result_lines =
   | LinesElaborate(DHExp.t => DHExp.t, Context.t, Delta.t)
@@ -30,12 +36,12 @@ module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
         (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("e", UHExp.sexp_of_t(e)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("e", () => UHExp.sexp_of_t(e)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -44,12 +50,12 @@ let rec syn_elab =
 
 and syn_elab_block =
     (ctx: Context.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("block", UHExp.sexp_of_block(block)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("block", () => UHExp.sexp_of_block(block)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -77,12 +83,12 @@ and syn_elab_block =
 and syn_elab_lines =
     (ctx: Context.t, delta: Delta.t, lines: list(UHExp.line))
     : elab_result_lines =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("lines", Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("lines", () => Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
     ],
     ~result_sexp=sexp_of_elab_result_lines,
     () =>
@@ -103,12 +109,12 @@ and syn_elab_lines =
 
 and syn_elab_line =
     (ctx: Context.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("line", UHExp.sexp_of_line(line)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("line", () => UHExp.sexp_of_line(line)),
     ],
     ~result_sexp=sexp_of_elab_result_lines,
     () =>
@@ -187,12 +193,12 @@ and syn_elab_line =
 and syn_elab_opseq =
     (ctx: Context.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -202,12 +208,12 @@ and syn_elab_opseq =
 and syn_elab_skel =
     (ctx: Context.t, delta: Delta.t, skel: UHExp.skel, seq: UHExp.seq)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("opseq", UHExp.sexp_of_opseq(OpSeq(skel, seq))),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -364,12 +370,12 @@ and syn_elab_skel =
 and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHExp.sexp_of_operand(operand)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHExp.sexp_of_operand(operand)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -522,13 +528,13 @@ and syn_elab_operand =
 and syn_elab_rules =
     (ctx: Context.t, delta: Delta.t, rules: list(UHExp.rule), pat_ty: HTyp.t)
     : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
     ],
     ~result_sexp=
       Sexplib.Std.sexp_of_option(((rules, ty, delta)) =>
@@ -574,14 +580,14 @@ and syn_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("r", UHExp.sexp_of_rule(r)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("r", () => UHExp.sexp_of_rule(r)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~result_sexp=
       Sexplib.Std.sexp_of_option(((r, delta)) =>
@@ -608,13 +614,13 @@ and syn_elab_rule =
 and ana_elab =
     (ctx: Context.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("e", UHExp.sexp_of_t(e)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("e", () => UHExp.sexp_of_t(e)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -624,13 +630,13 @@ and ana_elab =
 and ana_elab_block =
     (ctx: Context.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("block", UHExp.sexp_of_block(block)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("block", () => UHExp.sexp_of_block(block)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -664,13 +670,13 @@ and ana_elab_opseq =
       ty: HTyp.t,
     )
     : ElaborationResult.t => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("opseq", UHExp.sexp_of_opseq(opseq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("opseq", () => UHExp.sexp_of_opseq(opseq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () => {
@@ -782,14 +788,14 @@ and ana_elab_skel =
       ty: HTyp.t,
     )
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("skel", UHExp.sexp_of_skel(skel)),
-      ("seq", UHExp.sexp_of_seq(seq)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHExp.sexp_of_skel(skel)),
+      ("seq", () => UHExp.sexp_of_seq(seq)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -859,13 +865,13 @@ and ana_elab_skel =
 and ana_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("operand", UHExp.sexp_of_operand(operand)),
-      ("ty", HTyp.sexp_of_t(ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("operand", () => UHExp.sexp_of_operand(operand)),
+      ("ty", () => HTyp.sexp_of_t(ty)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>
@@ -1000,14 +1006,14 @@ and ana_elab_rules =
       clause_ty: HTyp.t,
     )
     : option((list(DHExp.rule), Delta.t)) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("rules", UHExp.sexp_of_rules(rules)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("rules", () => UHExp.sexp_of_rules(rules)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~result_sexp=
       Sexplib.Std.sexp_of_option(((rules, delta)) =>
@@ -1043,14 +1049,14 @@ and ana_elab_rule =
       clause_ty: HTyp.t,
     )
     : option((DHExp.rule, Delta.t)) => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("r", UHExp.sexp_of_rule(r)),
-      ("pat_ty", HTyp.sexp_of_t(pat_ty)),
-      ("clause_ty", HTyp.sexp_of_t(clause_ty)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("r", () => UHExp.sexp_of_rule(r)),
+      ("pat_ty", () => HTyp.sexp_of_t(pat_ty)),
+      ("clause_ty", () => HTyp.sexp_of_t(clause_ty)),
     ],
     ~result_sexp=
       Sexplib.Std.sexp_of_option(((r, delta)) =>
@@ -1076,9 +1082,9 @@ and ana_elab_rule =
 
 /* Bind built-ins before an elaborated expression. */
 let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [("d", DHExp.sexp_of_t(d))],
+    ~args=[("d", () => DHExp.sexp_of_t(d))],
     ~result_sexp=DHExp.sexp_of_t,
     () =>
     List.fold_left(
@@ -1089,12 +1095,12 @@ let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   );
 
 let elab = (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("delta", Delta.sexp_of_t(delta)),
-      ("e", UHExp.sexp_of_t(e)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("delta", () => Delta.sexp_of_t(delta)),
+      ("e", () => UHExp.sexp_of_t(e)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,
     () =>

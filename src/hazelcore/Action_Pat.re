@@ -1,3 +1,9 @@
+module Log =
+  Log.Make({
+    let subsystem = Some("action");
+    let sort = Some("PAT");
+  });
+
 let operator_of_shape: Action.operator_shape => option(UHPat.operator) =
   fun
   | SComma => Some(Comma)
@@ -407,13 +413,13 @@ let annotate_last_operand =
 let rec syn_perform =
         (ctx: Context.t, u_gen: MetaVarGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("a", Action.sexp_of_t(a)),
-      ("zp", ZPat.sexp_of_t(zp)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zp", () => ZPat.sexp_of_t(zp)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_success),
@@ -429,13 +435,13 @@ and syn_perform_opseq =
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
     )
     : ActionOutcome.t(syn_success) =>
-  Log.debug_function(
+  Log.fun_call(
     __FUNCTION__,
-    [
-      ("ctx", Context.sexp_of_t(ctx)),
-      ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ("a", Action.sexp_of_t(a)),
-      ("zopseq", ZPat.sexp_of_zopseq(zopseq)),
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("a", () => Action.sexp_of_t(a)),
+      ("zopseq", () => ZPat.sexp_of_zopseq(zopseq)),
     ],
     ~id=u_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_success),
