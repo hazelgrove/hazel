@@ -76,7 +76,7 @@ and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
   | CAp(imm, list(imm))
-  | CLam(pat, prog)
+  | CFun(pat, prog)
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)

@@ -50,8 +50,8 @@ and expr_kind =
   /* Let bindings */
   | ELet(pat, expr, expr)
   | ELetRec(Var.t, pat, HTyp.t, expr, expr)
-  /* Lambda */
-  | ELam(pat, HTyp.t, expr)
+  /* Function */
+  | EFun(pat, HTyp.t, expr)
   /* Application */
   | EAp(expr, expr)
   | EApBuiltin(Var.t, list(expr))

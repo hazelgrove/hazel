@@ -75,29 +75,29 @@ and linearize_exp =
 
     let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
     let (body, t_gen) = linearize_prog(body, vctx, t_gen);
-    let lam: Anf.comp = {
-      comp_kind: CLam(p, body),
+    let fn: Anf.comp = {
+      comp_kind: CFun(p, body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
       comp_complete: default_completeness,
     };
 
     let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
 
-    let binds = [BLetRec(x', lam), ...im_binds];
+    let binds = [BLetRec(x', fn), ...im_binds];
     (im, binds, t_gen);
 
-  | ELam(dp, dp_ty, body) =>
+  | EFun(dp, dp_ty, body) =>
     let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
     let (body, t_gen) = linearize_prog(body, vctx, t_gen);
 
-    let lam: Anf.comp = {
-      comp_kind: CLam(p, body),
+    let fn: Anf.comp = {
+      comp_kind: CFun(p, body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
       comp_complete: default_completeness,
     };
 
-    let (lam_var, lam_bind, t_gen) = mk_bind_var_tmp(lam, t_gen);
-    (lam_var, [lam_bind], t_gen);
+    let (fn_var, fn_bind, t_gen) = mk_bind_var_tmp(fn, t_gen);
+    (fn_var, [fn_bind], t_gen);
 
   | EAp(fn, arg) =>
     let (fn, fn_binds, t_gen) = linearize_exp(fn, vctx, t_gen);

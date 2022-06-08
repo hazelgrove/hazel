@@ -122,8 +122,8 @@ and print_expr = (e: GrainIR.expr) =>
   | ECons(e1, e2) => print_cons(e1, e2)
   | ETuple(els) => print_tuple(els)
   | EVar(var) => print_var(var)
-  | ELam(params, e') => print_lam(params, e')
-  | EAp(lam, args) => print_ap(lam, args)
+  | Efn(params, e') => print_fn(params, e')
+  | EAp(fn, args) => print_ap(fn, args)
   | ECtor(ctor, args) => print_ctor(ctor, args)
   | EMatch(scrut, rules) => print_match(scrut, rules)
   | EBlock(b) => print_block(b)
@@ -162,16 +162,16 @@ and print_var = (var: Var.t) => var
 and print_params = (ps: GrainIR.params) =>
   ps |> List.map(print_pat) |> String.concat(", ")
 
-and print_lam = (params: GrainIR.params, e': GrainIR.expr) => {
+and print_fn = (params: GrainIR.params, e': GrainIR.expr) => {
   let params = print_params(params);
   let e' = print_expr(e');
   sprintf("(%s) => { %s }", params, e');
 }
 
-and print_ap = (lam: GrainIR.expr, args: GrainIR.args) => {
-  let lam = print_expr(lam);
+and print_ap = (fn: GrainIR.expr, args: GrainIR.args) => {
+  let fn = print_expr(fn);
   let args = print_args(args);
-  sprintf("%s(%s)", lam, args);
+  sprintf("%s(%s)", fn, args);
 }
 
 and print_ctor = (ctor: Var.t, args: GrainIR.args) => {

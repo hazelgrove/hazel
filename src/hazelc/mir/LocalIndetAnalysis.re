@@ -46,8 +46,8 @@ and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
       );
 
     /* SLetRec rhs can only be a lambda. */
-    | SLetRec(x, {comp_kind: CLam(_, _), comp_ty: _, comp_complete: _} as c) =>
-      /* TODO: Lambda analysis */
+    | SLetRec(x, {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _} as c) =>
+      /* TODO: Funbda analysis */
       let ictx = VarMap.extend(ictx, (x, IndeterminatelyIncomplete));
       let c = analyze_comp(c, ictx);
       (Anf.SLetRec(x, c), c.comp_complete, ictx);
@@ -84,12 +84,12 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
         |> Completeness.join_fold;
       (CAp(fn, args), Completeness.join(fn.imm_complete, args_complete));
 
-    | CLam(param, body) =>
+    | CFun(param, body) =>
       let (param, ictx) =
         analyze_pat(param, IndeterminatelyIncomplete, ictx);
       let body = analyze_prog(body, ictx);
       (
-        CLam(param, body),
+        CFun(param, body),
         Completeness.join(body.prog_complete, param.pat_complete),
       );
 

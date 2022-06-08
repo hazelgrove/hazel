@@ -52,7 +52,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
     // TODO: Can't assume anything about indet-ness of argument when called?
     let (dp, body_ctx) = transform_pat(ctx, dp, dp_ty);
     let (body, body_ty) = transform_exp(body_ctx, body);
-    ({expr_kind: ELam(dp, dp_ty, body)}, Arrow(dp_ty, body_ty));
+    ({expr_kind: EFun(dp, dp_ty, body)}, Arrow(dp_ty, body_ty));
 
   | Ap(fn, arg) =>
     let (fn, fn_ty) = transform_exp(ctx, fn);

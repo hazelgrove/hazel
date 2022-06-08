@@ -118,7 +118,7 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
     let (args', imps) = codegen_fold(codegen_imm, args, imps);
     (EAp(fn', args'), imps);
 
-  | CLam(param, body) =>
+  | CFun(param, body) =>
     let (param', imps) = codegen_pat(param, imps);
     let (body', c, imps) = codegen_prog(body, imps);
     let body' = body' @ [SExpr(c)];
