@@ -159,7 +159,7 @@ and analyze_rule = (scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
   };
 }
 
-and analyze_sigma = (sigma: VarMap.t_(Anf.comp), _ictx): VarMap.t_(Anf.comp) => {
+and analyze_sigma = (sigma: VarMap.t_(Anf.imm), _ictx): VarMap.t_(Anf.imm) => {
   /* TODO: Not sure if we need to do anything to this. */
   sigma;
 }

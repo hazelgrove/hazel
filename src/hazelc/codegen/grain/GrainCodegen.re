@@ -341,12 +341,12 @@ and codegen_meta_var_inst =
   (EInt32Lit(i), imps);
 }
 and codegen_sigma =
-    (sigma: VarMap.t_(Anf.comp), imps): (GrainIR.expr, Imports.t) => {
+    (sigma: VarMap.t_(Anf.imm), imps): (GrainIR.expr, Imports.t) => {
   let (sigma', imps) =
     codegen_fold(
-      ((x, c), imps) => {
-        let (c', imps) = codegen_comp(c, imps);
-        (GrainIR.ETuple([GrainIR.EStringLit(x), c']), imps);
+      ((x, im), imps) => {
+        let (im', imps) = codegen_imm(im, imps);
+        (GrainIR.ETuple([GrainIR.EStringLit(x), im']), imps);
       },
       sigma,
       imps,

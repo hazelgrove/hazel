@@ -81,12 +81,12 @@ and comp_kind =
   | CPair(imm, imm)
   | CInj(inj_side, imm)
   | CCase(imm, list(rule))
-  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(comp))
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(imm))
   | CNonEmptyHole(
       ErrStatus.HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(comp),
+      VarMap.t_(imm),
       imm,
     )
   | CCast(imm, HTyp.t, HTyp.t)

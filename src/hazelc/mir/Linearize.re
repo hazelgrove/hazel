@@ -294,12 +294,11 @@ and linearize_exp =
 
 and linearize_sigma =
     (sigma: VarMap.t_(Hir.expr), vctx, t_gen)
-    : (VarMap.t_(Anf.comp), list(bind), TmpVarGen.t) =>
+    : (VarMap.t_(Anf.imm), list(bind), TmpVarGen.t) =>
   List.fold_left(
     ((sigma, sigma_binds, t_gen), (x, d)) => {
       let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
-      let c = Anf.Comp.mk_imm(im);
-      let sigma = VarMap.extend(sigma, (x, c));
+      let sigma = VarMap.extend(sigma, (x, im));
       (sigma, sigma_binds @ im_binds, t_gen);
     },
     ([], [], t_gen),
