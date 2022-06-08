@@ -356,7 +356,7 @@ let mk_Fun = (p: formatted_child, body: formatted_child): t => {
 
 // TODO (typ-app): need to render UHTyp.t with "@"
 let mk_TypApp = (e: formatted_child, ty: formatted_child): t => {
-  let at_sign = Delim.sym_TypApp();
+  let at_sign = Delim.sym_TypApp() |> annot_Tessera;
   Doc.hcats([
     e |> pad_right_delimited_open_child,
     at_sign,
