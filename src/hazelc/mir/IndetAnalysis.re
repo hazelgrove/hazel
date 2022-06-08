@@ -1,7 +1,8 @@
 [@deriving sexp]
 type level =
   | NoAnalysis
-  | LocalAnalysis;
+  | LocalAnalysis
+  | GlobalAnalysis;
 
 [@deriving sexp]
 type opts = {level};
@@ -9,6 +10,8 @@ type opts = {level};
 let analyze = (~opts, prog) => {
   switch (opts.level) {
   | NoAnalysis => prog
-  | LocalAnalysis => LocalIndetAnalysis.analyze(prog)
+  | LocalAnalysis => prog |> LocalIndetAnalysis.analyze
+  | GlobalAnalysis =>
+    prog |> LocalIndetAnalysis.analyze |> LamIndetAnalysis.analyze
   };
 };

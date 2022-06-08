@@ -1,12 +1,11 @@
 /**
  * Analysis level.
- *
- * TODO: Whole-program analysis (e.g. for lambdas).
  */
 [@deriving sexp]
 type level =
   | NoAnalysis
-  | LocalAnalysis;
+  | LocalAnalysis
+  | GlobalAnalysis;
 
 /**
  * Options for analysis.
