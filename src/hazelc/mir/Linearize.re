@@ -76,7 +76,7 @@ and linearize_exp =
     let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
     let (body, t_gen) = linearize_prog(body, vctx, t_gen);
     let lam: Anf.comp = {
-      comp_kind: CLam([p], body),
+      comp_kind: CLam(p, body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
       comp_complete: default_completeness,
     };
@@ -91,7 +91,7 @@ and linearize_exp =
     let (body, t_gen) = linearize_prog(body, vctx, t_gen);
 
     let lam: Anf.comp = {
-      comp_kind: CLam([p], body),
+      comp_kind: CLam(p, body),
       comp_ty: Arrow(dp_ty, body.prog_ty),
       comp_complete: default_completeness,
     };

@@ -92,28 +92,13 @@ and analyze_comp = (~opts, c: Anf.comp, ictx): Anf.comp => {
         |> Completeness.join_fold;
       (CAp(fn, args), Completeness.join(fn.imm_complete, args_complete));
 
-    | CLam(params, body) =>
-      let (params_rev, ictx) =
-        List.fold_left(
-          ((params, ictx), param) => {
-            let (param, ictx) =
-              /* TODO: Lambda analysis */
-              analyze_pat(~opts, param, IndeterminatelyIncomplete, ictx);
-            ([param, ...params], ictx);
-          },
-          ([], ictx),
-          params,
-        );
-      let params = List.rev(params_rev);
-
-      let params_complete =
-        params
-        |> List.map((param: Anf.pat) => param.pat_complete)
-        |> Completeness.join_fold;
+    | CLam(param, body) =>
+      let (param, ictx) =
+        analyze_pat(~opts, param, IndeterminatelyIncomplete, ictx);
       let body = analyze_prog(~opts, body, ictx);
       (
-        CLam(params, body),
-        Completeness.join(body.prog_complete, params_complete),
+        CLam(param, body),
+        Completeness.join(body.prog_complete, param.pat_complete),
       );
 
     | CCons(im1, im2) =>

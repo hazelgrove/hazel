@@ -118,11 +118,11 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
     let (args', imps) = codegen_fold(codegen_imm, args, imps);
     (EAp(fn', args'), imps);
 
-  | CLam(params, body) =>
-    let (params', imps) = codegen_fold(codegen_pat, params, imps);
+  | CLam(param, body) =>
+    let (param', imps) = codegen_pat(param, imps);
     let (body', c, imps) = codegen_prog(body, imps);
     let body' = body' @ [SExpr(c)];
-    (ELam(params', EBlock(body')), imps);
+    (ELam([param'], EBlock(body')), imps);
 
   | CCons(im1, im2) =>
     let (e1, imps) = codegen_imm(im1, imps);
