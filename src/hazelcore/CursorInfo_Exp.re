@@ -531,6 +531,11 @@ and syn_cursor_info_zoperand =
     (~steps: CursorPath.steps, ctx: Contexts.t, zoperand: ZExp.zoperand)
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_zexp_operand(zoperand);
+  // Debug..
+  zoperand
+  |> ZExp.sexp_of_zoperand
+  |> Sexplib.Sexp.to_string
+  |> (s => "zoperand" ++ s |> print_endline);
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
@@ -861,8 +866,6 @@ and ana_cursor_info_zoperand =
   switch (zoperand) {
   | CursorE(_, e) =>
     switch (e) {
-    // TODO (typ-app): Dont know what to do
-    | TypApp(_) => None
     /* in hole */
     | Var(_, InVarHole(Keyword(k), _), _) =>
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
@@ -876,6 +879,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(TypeInconsistent, _), _)
     | ListNil(InHole(TypeInconsistent, _))
     | Fun(InHole(TypeInconsistent, _), _, _)
+    | TypApp(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | Var(InHole(WrongLength, _), _, _)
@@ -884,6 +888,7 @@ and ana_cursor_info_zoperand =
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Fun(InHole(WrongLength, _), _, _)
+    | TypApp(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
         StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
@@ -934,6 +939,13 @@ and ana_cursor_info_zoperand =
         ctx,
         cursor_term,
       );
+
+    | TypApp(NotInHole, _, _) =>
+      switch (Statics_Exp.syn_operand(ctx, e)) {
+      | None => None
+      | Some(ty') =>
+        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+      }
     /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
