@@ -1934,7 +1934,7 @@ and syn_perform_operand =
     }
 
   // TODO (typ-app):
-  | (_, TypAppZE(_, ze, _ty_arg)) =>
+  | (_, TypAppZE(err, ze, ty_arg)) =>
     switch (syn_perform(ctx, a, (ze, ty, u_gen))) {
     | Failed => Failed
     | CursorEscaped(side) =>
@@ -1943,7 +1943,10 @@ and syn_perform_operand =
         Action_common.escape(side),
         (zoperand, ty, u_gen),
       )
-    | Succeeded(syn_done) => Succeeded(SynDone(syn_done))
+    | Succeeded((ze, ty, u_gen)) =>
+      // Todo: Static_Exp.syn_hole
+      let new_ze = ZExp.TypAppZE(err, ze, ty_arg) |> ZExp.ZBlock.wrap;
+      Succeeded(SynDone((new_ze, ty, u_gen)));
     }
   | (_, TypAppZT(err, e, zty_arg)) =>
     switch (Action_Typ.perform(a, zty_arg)) {
