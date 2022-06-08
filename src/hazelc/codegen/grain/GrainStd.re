@@ -35,24 +35,24 @@ module Inner = (X: InnerMeta) => {
   let import = (X.name, X.path);
 
   /* Construct a call to a function in the module. */
-  let mk_ap = (x: Var.t): (list(GrainIR.expr) => GrainIR.expr) => {
+  let mk_nary_ap = (x: Var.t): (list(GrainIR.expr) => GrainIR.expr) =>
     args => EAp(EVar(ident(x)), args);
-  };
+  let mk_unary_ap = (x: Var.t): (GrainIR.expr => GrainIR.expr) =>
+    arg => mk_nary_ap(x, [arg]);
+  let mk_binary_ap =
+      (x: Var.t): ((GrainIR.expr, GrainIR.expr) => GrainIR.expr) =>
+    (arg1, arg2) => mk_nary_ap(x, [arg1, arg2]);
 
   /* Reference a variable in the module. */
-  let mk_var = (x: Var.t): GrainIR.expr => {
-    EVar(ident(x));
-  };
+  let mk_var = (x: Var.t): GrainIR.expr => EVar(ident(x));
 
   /* Construct a call to a constructor in the module. */
-  let mk_ctor = (x: Var.t): (list(GrainIR.expr) => GrainIR.expr) => {
+  let mk_nary_ctor = (x: Var.t): (list(GrainIR.expr) => GrainIR.expr) =>
     args => ECtor(ident(x), args);
-  };
 
   /* Construct a call to a pattern constructor in the module. */
-  let mk_ctor_pat = (x: Var.t): (list(GrainIR.pat) => GrainIR.pat) => {
+  let mk_nary_ctor_pat = (x: Var.t): (list(GrainIR.pat) => GrainIR.pat) =>
     pats => PCtor(ident(x), pats);
-  };
 };
 
 /* Below are utilities for abstracting Int/Float32/64 modules. */
@@ -87,15 +87,15 @@ module SizedNum = (X: SizedNumType) => {
     let path = GrainIR.ImportStd(String.lowercase_ascii(name));
   });
 
-  let add = (n1, n2) => mk_ap("add", [n1, n2]);
-  let sub = (n1, n2) => mk_ap("sub", [n1, n2]);
-  let mul = (n1, n2) => mk_ap("mul", [n1, n2]);
-  let div = (n1, n2) => mk_ap("div", [n1, n2]);
+  let add = mk_binary_ap("add");
+  let sub = mk_binary_ap("sub");
+  let mul = mk_binary_ap("mul");
+  let div = mk_binary_ap("div");
 
-  let lt = (n1, n2) => mk_ap("lt", [n1, n2]);
-  let gt = (n1, n2) => mk_ap("gt", [n1, n2]);
-  let lte = (n1, n2) => mk_ap("lte", [n1, n2]);
-  let gte = (n1, n2) => mk_ap("gte", [n1, n2]);
+  let lt = mk_binary_ap("lt");
+  let gt = mk_binary_ap("gt");
+  let lte = mk_binary_ap("lte");
+  let gte = mk_binary_ap("gte");
 };
 
 module type SizedIntType = {let sz: num_sz;};
@@ -105,12 +105,12 @@ module SizedInt = (X: SizedIntType) => {
     let sz = X.sz;
   });
 
-  let incr = n => mk_ap("incr", [n]);
-  let decr = n => mk_ap("decr", [n]);
+  let incr = mk_unary_ap("incr");
+  let decr = mk_unary_ap("decr");
 
-  let div_u = (n1, n2) => mk_ap("divU", [n1, n2]);
+  let div_u = mk_binary_ap("divU");
 
-  let eq = (n1, n2) => mk_ap("eq", [n1, n2]);
+  let eq = mk_binary_ap("eq");
 };
 
 module type SizedFloatType = SizedIntType;
@@ -155,5 +155,5 @@ module Map = {
   });
 
   /* Map.fromList */
-  let from_list = xs => mk_ap("fromList", [xs]);
+  let from_list = mk_unary_ap("fromList");
 };
