@@ -14,7 +14,7 @@ type opts = {level};
  * refers.
  */
 [@deriving sexp]
-type indet_context = VarMap.t_(Anf.completeness);
+type complete_context = VarMap.t_(Anf.completeness);
 
 let rec analyze_prog = (~opts, prog: Anf.prog, ictx): Anf.prog => {
   let {prog_body: (body, c), prog_ty, prog_complete: _}: Anf.prog = prog;
@@ -26,7 +26,7 @@ let rec analyze_prog = (~opts, prog: Anf.prog, ictx): Anf.prog => {
 }
 
 and analyze_body =
-    (~opts, body: list(Anf.stmt), ictx): (list(Anf.stmt), indet_context) => {
+    (~opts, body: list(Anf.stmt), ictx): (list(Anf.stmt), complete_context) => {
   let (rev_body, ictx) =
     List.fold_left(
       ((body, ictx), stmt) => {
@@ -40,7 +40,8 @@ and analyze_body =
   (List.rev(rev_body), ictx);
 }
 
-and analyze_stmt = (~opts, stmt: Anf.stmt, ictx): (Anf.stmt, indet_context) => {
+and analyze_stmt =
+    (~opts, stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
   let {stmt_kind, stmt_complete: _}: Anf.stmt = stmt;
   let (stmt_kind, stmt_complete, ictx) =
     switch (stmt_kind) {
@@ -199,7 +200,7 @@ and analyze_const = (~opts, const: Anf.constant, _ictx): Anf.constant => {
 
 and analyze_pat =
     (~opts, p: Anf.pat, matchee_complete: Anf.completeness, ictx)
-    : (Anf.pat, indet_context) =>
+    : (Anf.pat, complete_context) =>
   analyze_pat'(~opts, p, matchee_complete, false, ictx)
 
 and analyze_pat' =
@@ -210,7 +211,7 @@ and analyze_pat' =
       in_hole: bool,
       ictx,
     )
-    : (Anf.pat, indet_context) => {
+    : (Anf.pat, complete_context) => {
   let {pat_kind, pat_complete: _}: Anf.pat = p;
   let (pat_kind, pat_complete: Anf.completeness, ictx) =
     switch (pat_kind) {
