@@ -70,17 +70,21 @@ let bench = (name, times, ~grain_source=None, hazel_source) => {
     Benchmark.latencyN(~style=Auto, times, fs);
   };
 
-  let tests =
-    [
-      (name'("compiled"), bench_comp(hazel_source)),
-      (name'("eval"), bench_eval(hazel_source)),
-    ];
+  let tests = [
+    (name'("compiled"), bench_comp(hazel_source)),
+    (name'("eval"), bench_eval(hazel_source)),
+  ];
 
   let tests =
-    tests @ switch (grain_source) {
-    | Some(grain_source) => [(name'("grain"), bench_grain(grain_source))]
-    | None => []
-    };
+    tests
+    @ (
+      switch (grain_source) {
+      | Some(grain_source) => [
+          (name'("grain"), bench_grain(grain_source)),
+        ]
+      | None => []
+      }
+    );
 
   bench'(tests) |> ignore;
 };
