@@ -449,10 +449,3 @@ module Caret = {
     );
   };
 };
-
-module CellBoundary = {
-  let view = ((_, __): UHMeasuredLayout.with_offset): Node.t => {
-    print_endline("rendering cell boundary");
-    Node.p([Attr.id("cell-boundary")], [Node.text("Cell Boundary here")]);
-  };
-};

@@ -11,13 +11,22 @@ type t = {
   width: int,
   start_col_of_vertical_movement: option(int),
   is_focused: bool,
+  is_zexp: bool,
 };
 
-let mk = (~width: int, ~is_focused=false, edit_state: Statics.edit_state): t => {
+let mk =
+    (
+      ~width: int,
+      ~is_focused=false,
+      ~is_zexp=true,
+      edit_state: Statics.edit_state,
+    )
+    : t => {
   width,
   edit_state,
   start_col_of_vertical_movement: None,
   is_focused,
+  is_zexp,
 };
 
 let put_start_col = (start_col, program) => {
@@ -32,26 +41,47 @@ let clear_start_col = program => {
 let focus = program => {...program, is_focused: true};
 let blur = program => {...program, is_focused: false};
 
+let mk_zexp = program => {...program, is_zexp: true};
+let mk_uhexp = program => {...program, is_zexp: false};
+
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
-// let rec split_into_cells_helper = (l,acc) => {
-//   switch (l) {
-//   | [] => [[]]
-//   | [x,...xs] =>
-//     if(x==UHExp.CommentLine("CellBoundary")) {
-//       acc @ split_into_cells_helper(xs, [[]]);
-//     } else {
-//       List.rev(List.tl(List.rev(acc))) @ [List.hd(List.rev(acc))@[x]] @ split_into_cells_helper(xs,[[]]);
-//     }
-//   }
-// }
+let rec split_into_cells_helper = (l, acc) => {
+  switch (l) {
+  | [] => [acc]
+  | [x, ...xs] =>
+    if (x == UHExp.CellBoundary) {
+      [acc] @ split_into_cells_helper(xs, []);
+    } else {
+      split_into_cells_helper(xs, acc @ [x]);
+    }
+  };
+};
 
-// let extract_zcells = program => {
-//   let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
-//   let prefix_list=split_into_cells_helper(prefix,[[]]);
-//   let suffix_list=split_into_cells_helper(suffix,[[]]);
-//   List.hd(List.rev(prefix_list)) @ [zline] @ List.hd(suffix_list);
-// }
+let extract_zcells = program => {
+  let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
+  let prefix_list = split_into_cells_helper(prefix, []);
+  let suffix_list = split_into_cells_helper(suffix, []);
+
+  let zedit_state = (
+    (List.hd(List.rev(prefix_list)), zline, List.hd(suffix_list)),
+    ty,
+    u_gen,
+  );
+  let wrap_edit_state = lines => {
+    let edit_state = (
+      (lines, ZExp.CursorL(OnText(0), UHExp.EmptyLine), []),
+      ty,
+      u_gen,
+    );
+    program |> put_edit_state(edit_state) |> mk_uhexp;
+  };
+  let prefix_cells =
+    List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
+  let suffix_cells = List.tl(suffix_list) |> List.map(wrap_edit_state);
+  let zcell = program |> put_edit_state(zedit_state) |> mk_zexp;
+  prefix_cells @ [zcell] @ suffix_cells;
+};
 
 /* let rec prune_holes_rec = (acc: list(UHExp.line), l: list(UHExp.line)) => {
      switch (l) {
@@ -192,7 +222,8 @@ let get_cursor_info = (program: t) => {
 };
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
-  let current_term = program.is_focused ? Some(get_path(program)) : None;
+  let current_term =
+    program.is_focused && program.is_zexp ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map(hole_info =>

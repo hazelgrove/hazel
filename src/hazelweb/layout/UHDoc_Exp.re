@@ -139,7 +139,8 @@ and mk_line =
         | ExpLine(opseq) =>
           Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
         | CellBoundary =>
-          UHDoc_common.empty_ |> Doc.annot(UHAnnot.CellBoundary)
+          UHDoc_common.empty_
+          |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
         | LetLine(p, def) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);

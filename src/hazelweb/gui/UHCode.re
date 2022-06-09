@@ -11,8 +11,7 @@ let decoration_cls: UHDecorationShape.t => string =
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
   | VarUse => "var-use"
-  | CurrentTerm => "current-term"
-  | CellBoundary => "cell-boundary";
+  | CurrentTerm => "current-term";
 
 let decoration_view =
     (
@@ -29,7 +28,6 @@ let decoration_view =
     | VarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
-    | CellBoundary => CellBoundary.view
     }
   );
 
@@ -87,18 +85,14 @@ let decoration_views =
                    dshape,
                    (offset, m),
                  );
-               switch (dshape) {
-               | CellBoundary => view
-               | _ =>
-                 Decoration_common.container(
-                   ~font_metrics,
-                   ~height=MeasuredLayout.height(m),
-                   ~width=MeasuredLayout.width(~offset, m),
-                   ~origin=MeasuredPosition.{row: start.row, col: indent},
-                   ~cls,
-                   [view],
-                 )
-               };
+               Decoration_common.container(
+                 ~font_metrics,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
+                 ~cls,
+                 [view],
+               );
              });
         go'(~tl=current_vs @ tl, dpaths, m);
       | _ => go'(~tl, dpaths, m)
@@ -228,13 +222,17 @@ let view =
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);
       };
-      let caret = {
-        let caret_pos = Program.get_caret_position(~settings, program);
-        program.is_focused
-          ? [UHDecoration.Caret.view(~font_metrics, caret_pos)] : [];
-      };
+      let caret =
+        program.is_focused && program.is_zexp
+          ? [
+            UHDecoration.Caret.view(
+              ~font_metrics,
+              Program.get_caret_position(~settings, program),
+            ),
+          ]
+          : [];
       let cursor_inspector =
-        if (program.is_focused && cursor_inspector.visible) {
+        if (program.is_focused && program.is_zexp && cursor_inspector.visible) {
           let path = Program.get_path(program);
           let ci = Program.get_cursor_info(program);
           [

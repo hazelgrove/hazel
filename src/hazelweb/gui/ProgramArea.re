@@ -15,26 +15,32 @@ let view = (~inject, model: Model.t) => {
     performance.measure && performance.cell_view,
     () => {
       open Vdom;
-      let program = Model.get_program(model);
-      Node.div(
-        [Attr.id(cell_id)],
-        [
-          /* font-specimen used to gather font metrics for caret positioning and other things */
-          Node.div([Attr.id("font-specimen")], [Node.text("X")]),
-          Node.div(
-            [Attr.id("code-container")],
-            [
-              UHCode.view(
-                ~inject,
-                ~font_metrics=model.font_metrics,
-                ~settings,
-                ~cursor_inspector,
-                program,
-              ),
-            ],
-          ),
-        ],
-      );
+      let wrap_cell = cell =>
+        Node.div(
+          [Attr.id(cell_id)],
+          [
+            /* font-specimen used to gather font metrics for caret positioning and other things */
+            Node.div([Attr.id("font-specimen")], [Node.text("X")]),
+            Node.div(
+              [Attr.id("code-container")],
+              [
+                UHCode.view(
+                  ~inject,
+                  ~font_metrics=model.font_metrics,
+                  ~settings,
+                  ~cursor_inspector,
+                  cell,
+                ),
+              ],
+            ),
+          ],
+        );
+      let cells =
+        model
+        |> Model.get_program
+        |> Program.extract_zcells
+        |> List.map(wrap_cell);
+      Node.div([], cells);
     },
   );
 };

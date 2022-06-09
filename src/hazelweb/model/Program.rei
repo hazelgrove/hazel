@@ -11,9 +11,13 @@ type t =
     width: int,
     start_col_of_vertical_movement: option(int),
     is_focused: bool,
+    is_zexp: bool,
   };
 
-let mk: (~width: int, ~is_focused: bool=?, Statics.edit_state) => t;
+let mk:
+  (~width: int, ~is_focused: bool=?, ~is_zexp: bool=?, Statics.edit_state) => t;
+
+let extract_zcells: t => list(t);
 
 let focus: t => t;
 let blur: t => t;

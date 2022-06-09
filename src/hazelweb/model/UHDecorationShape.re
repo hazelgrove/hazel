@@ -3,5 +3,4 @@ type t =
   | ErrHole
   | VarErrHole
   | VarUse
-  | CurrentTerm
-  | CellBoundary;
+  | CurrentTerm;
