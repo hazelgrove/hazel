@@ -34,9 +34,8 @@ let tyvar_kind = (cref: KindSystem.ContextRef.t): t(option(Kind.t)) =>
 let add_tyvar = (x: TyVar.t, k: Kind.t): t(unit) =>
   put @>+ Context.add_tyvar +-+ get() +~. x +~. k;
 
-let diff_tyvars =
-    (new_ctx: Context.t): t(list((KindSystem.ContextRef.t, HTyp.t))) =>
-  Context.diff_tyvars(new_ctx) +-+ get();
+let reduce_tyvars = (old_ctx: Context.t, ty: HTyp.t): t(HTyp.t) =>
+  Context.reduce_tyvars +-+ get() +~. old_ctx +~. ty;
 
 /* Expression Variables */
 

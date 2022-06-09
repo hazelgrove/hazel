@@ -888,12 +888,14 @@ and syn_perform_block =
             ) {
             | None => Failed
             | Some(new_ty) =>
+              let new_ty = Context.reduce_tyvars(ctx_zline, ctx, new_ty);
               let new_ze = (prefix @ inner_prefix, new_zline, inner_suffix);
               Succeeded(SynDone((new_ze, new_ty, u_gen)));
             }
           | [_, ..._] =>
             let (suffix, new_ty, u_gen) =
               Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
+            let new_ty = Context.reduce_tyvars(ctx_suffix, ctx, new_ty);
             let new_zblock =
               (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
               |> ZExp.prune_empty_hole_lines;

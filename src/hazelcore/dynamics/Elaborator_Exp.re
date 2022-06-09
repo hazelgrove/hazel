@@ -62,12 +62,7 @@ and syn_elab_block =
         switch (syn_elab_opseq(new_ctx, delta, conclusion)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d, ty, delta) =>
-          let tyvars =
-            Context.diff_tyvars(new_ctx, ctx)
-            |> List.map(((cref: KindSystem.ContextRef.t, ty)) =>
-                 (cref.index, ty)
-               );
-          let ty = HTyp.subst_tyvars(ty, tyvars);
+          let ty = Context.reduce_tyvars(new_ctx, ctx, ty);
           Elaborates(prelude(d), ty, delta);
         }
       }

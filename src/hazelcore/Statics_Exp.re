@@ -71,8 +71,8 @@ and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
   Log.fun_call(
     __FUNCTION__,
     ~args=[
-      ("ctx", () => Context.sexp_of_t(ctx)),
-      ("block", () => UHExp.sexp_of_block(block)),
+      ("!ctx", () => Context.sexp_of_t(ctx)),
+      ("!block", () => UHExp.sexp_of_block(block)),
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
     () => {
@@ -81,17 +81,12 @@ and syn_block = (ctx: Context.t, block: UHExp.block): option(HTyp.t) => {
       Log.debug_states(
         __FUNCTION__,
         [
-          ("ctx", Context.sexp_of_t(ctx)),
-          ("new_ctx", Context.sexp_of_t(new_ctx)),
+          ("!!ctx", Context.sexp_of_t(ctx)),
+          ("!!new_ctx", Context.sexp_of_t(new_ctx)),
         ],
       );
       let+ ty = syn_opseq(new_ctx, conclusion);
-      let tyvars =
-        Context.diff_tyvars(new_ctx, ctx)
-        |> List.map(((cref: KindSystem.ContextRef.t, ty)) =>
-             (cref.index, ty)
-           );
-      HTyp.subst_tyvars(ty, tyvars);
+      Context.reduce_tyvars(new_ctx, ctx, ty);
     },
   );
 }

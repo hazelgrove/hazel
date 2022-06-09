@@ -125,13 +125,14 @@ module rec Context: {
   /** Binds the given type variable name to the given [Kind]. */
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
 
-  /** [diff_tyvars(ctx, ctx')] produces a reference and [HTyp] for every type
-     variable bound in [ctx] but not in [ctx'].
+  /** [reduce_tyvars(new_ctx, old_ctx, ty)] replaces any type variables bound by
+     [new_ctx] but not by [old_ctx] in [ty] with equivalent types that have no
+     new type variables.
 
      WARNING: result only valid if the contexts are the same or one is an
      extension of the other.
    */
-  let diff_tyvars: (t, t) => list((ContextRef.t, HTyp.t));
+  let reduce_tyvars: (t, t, HTyp.t) => HTyp.t;
 
   /* Expression Variables */
 

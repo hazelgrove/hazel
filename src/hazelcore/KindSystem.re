@@ -156,7 +156,8 @@ module rec Context: {
   let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
   let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
-  let diff_tyvars: (t, t) => list((ContextRef.t, HTyp.t));
+  let reduce_tyvars: (t, t, HTyp.t) => HTyp.t;
+  /* let reduce_tyvars: (t, t) => list((ContextRef.t, HTyp.t)); */
   let vars: t => list((ContextRef.t, Var.t, HTyp.t));
   let var: (t, ContextRef.t) => option(Var.t);
   let var_ref: (t, Var.t) => option(ContextRef.t);
@@ -278,7 +279,7 @@ module rec Context: {
          fun
          | (i, TyVarBinding(t, k)) => {
              let index = Index.Abs.of_int(i);
-             let k = Kind_core.to_abs(~offset=i + 1, k);
+             let k = Kind_core.to_abs(~offset=i, k);
              Some(({index, stamp}: ContextRef.t, t, k));
            }
          | (_, VarBinding(_)) => None,
@@ -342,12 +343,15 @@ module rec Context: {
     ...ctx,
   ];
 
-  let diff_tyvars = (new_ctx: t, old_ctx: t): list((ContextRef.t, HTyp.t)) => {
+  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
     let new_tyvars = tyvars(new_ctx);
     let old_tyvars = tyvars(old_ctx);
     let n = List.length(new_tyvars) - List.length(old_tyvars);
     ListUtil.take(new_tyvars, n)
-    |> List.map(((cref, _, k)) => (cref, Kind.to_htyp(k)));
+    |> List.map(((cref: ContextRef.t, _, k)) =>
+         (cref.index, Kind.to_htyp(k))
+       )
+    |> HTyp.subst_tyvars(ty);
   };
 
   /* Expression Variables */
