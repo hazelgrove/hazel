@@ -201,7 +201,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
 
   let typ_view = (typ: UHTyp.operand) => {
     switch (typ) {
-    | Hole =>
+    | Hole(_) =>
       Vdom.(
         Node.span(
           [],

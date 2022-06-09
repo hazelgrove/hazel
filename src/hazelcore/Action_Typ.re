@@ -33,11 +33,11 @@ let construct_operator =
   let operand = zoperand |> ZTyp.erase_zoperand;
   let (zoperand, surround) =
     if (ZTyp.is_before_zoperand(zoperand)) {
-      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+      let zoperand = UHTyp.Hole(0) |> ZTyp.place_before_operand; // TODO anand and raef: use UHTyp.new_EmptyHole(u_gen) here... Need to add u_gen as input to construct_operator() and other funcs in this file
       let new_suffix = Seq.A(operator, S(operand, suffix));
       (zoperand, (prefix, new_suffix));
     } else {
-      let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+      let zoperand = UHTyp.Hole(0) |> ZTyp.place_before_operand; // TODO anand and raef: placeholder id
       let new_prefix = Seq.A(operator, S(operand, prefix));
       (zoperand, (new_prefix, suffix));
     };
@@ -254,11 +254,11 @@ and perform_operand =
   | (Delete, CursorT(OnDelim(k, Before), operand)) =>
     perform_operand(Backspace, CursorT(OnDelim(k, After), operand))
 
-  | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
+  | (Backspace, CursorT(OnDelim(_, After), Hole(_) as hole)) =>
+    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(hole)))
 
   | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
+    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole(0)))) // TODO anand and raef: placeholder id, use new_EmptyHole
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -282,11 +282,11 @@ and perform_operand =
     | Succeeded(zty) => perform(a, zty)
     }
 
-  | (Construct(SChar("I")), CursorT(_, Hole)) =>
+  | (Construct(SChar("I")), CursorT(_, Hole(_))) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Int)))
-  | (Construct(SChar("F")), CursorT(_, Hole)) =>
+  | (Construct(SChar("F")), CursorT(_, Hole(_))) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Float)))
-  | (Construct(SChar("B")), CursorT(_, Hole)) =>
+  | (Construct(SChar("B")), CursorT(_, Hole(_))) =>
     Succeeded(ZOpSeq.wrap(ZTyp.place_after_operand(Bool)))
   | (Construct(SChar(_)), CursorT(_)) => Failed
 

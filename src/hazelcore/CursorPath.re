@@ -20,7 +20,7 @@ type hole_shape =
 
 [@deriving sexp]
 type hole_sort =
-  | TypHole
+  | TypHole // TODO anand raef: There needs to be a MetaVar.t here probably
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape);
 

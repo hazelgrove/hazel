@@ -167,7 +167,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     }
   | TypOperand(_, operand) =>
     switch (operand) {
-    | Hole => MinLen
+    | Hole(_) => MinLen
     | Unit
     | Int
     | Float

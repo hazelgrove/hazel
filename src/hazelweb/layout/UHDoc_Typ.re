@@ -50,7 +50,7 @@ and mk_operand =
       (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
       (
         switch (operand) {
-        | Hole => mk_EmptyHole("?")
+        | Hole(_) => mk_EmptyHole("?")
         | Unit => UHDoc_common.mk_Unit()
         | Int => UHDoc_common.mk_Int()
         | Float => UHDoc_common.mk_Float()

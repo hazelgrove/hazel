@@ -858,7 +858,7 @@ and syn_perform_operand =
     }
 
   | (Construct(SAnn), CursorP(_)) =>
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole));
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole(0))); //TODO: Anand and Raef: call the new_emtpyhole
     let new_zp =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),

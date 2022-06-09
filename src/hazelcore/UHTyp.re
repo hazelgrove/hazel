@@ -5,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t)
   | Unit
   | Int
   | Float
@@ -26,7 +26,7 @@ let rec get_prod_elements: skel => list(skel) =
 
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
-  | Hole
+  | Hole(_)
   | Unit
   | Int
   | Float
@@ -57,7 +57,7 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Unknown(ModeSwitch)
-      | Unknown(Internal | TypHole) => Seq.wrap(Hole)
+      | Unknown(Internal | TypHole) => Seq.wrap(Hole(0)) // TODO anand raef: this is a placeholder to get it to compile
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -115,7 +115,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | Hole => Unknown(TypHole)
+  | Hole(_) => Unknown(TypHole) //TODO: Anand and Raef- use id in Hole to create a UserGenerated prov'd HTyp
   | Unit => Prod([])
   | Int => Int
   | Float => Float
@@ -125,7 +125,7 @@ and expand_operand =
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
-  | Hole => false
+  | Hole(_) => false
   | Unit => true
   | Int => true
   | Float => true
@@ -146,4 +146,10 @@ and is_complete = (ty: t) => {
   switch (ty) {
   | OpSeq(sk, sq) => is_complete_skel(sk, sq)
   };
+};
+
+/* helper function for constructing a new empty hole */
+let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
+  let (u, u_gen) = u_gen |> MetaVarGen.next;
+  (Hole(u), u_gen);
 };

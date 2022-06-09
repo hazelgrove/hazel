@@ -27,7 +27,7 @@ and follow_operand =
   | [] => operand |> ZTyp.place_cursor_operand(cursor)
   | [x, ...xs] =>
     switch (operand) {
-    | Hole
+    | Hole(_)
     | Unit
     | Int
     | Float
@@ -85,7 +85,7 @@ and of_steps_operand =
     Some(of_zoperand(place_cursor(operand)));
   | [x, ...xs] =>
     switch (operand) {
-    | Hole
+    | Hole(_)
     | Unit
     | Int
     | Float
@@ -150,7 +150,7 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs]
+  | Hole(_) => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs] // TODO: Raef and Anand: after adding id to hole_sort TypHole, transfer here
   | Unit
   | Int
   | Float
@@ -178,11 +178,11 @@ and holes_zoperand =
     (zoperand: ZTyp.zoperand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zoperand) {
-  | CursorT(_, Hole) =>
+  | CursorT(_, Hole(_)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
-    )
+    ) // TODO: Raef and Anand: after adding id to hole_sort TypHole, transfer here
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);

@@ -5,7 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
-  | Hole
+  | Hole(MetaVar.t)
   | Unit
   | Int
   | Float
@@ -31,3 +31,6 @@ let contract: HTyp.t => t;
 let expand: t => HTyp.t;
 
 let is_complete: t => bool;
+
+/* helper function for constructing a new empty hole */
+let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
