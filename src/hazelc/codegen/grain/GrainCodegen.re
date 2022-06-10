@@ -79,13 +79,13 @@ let codegen_fold = (codegen_f, xs, imps) => {
 
 let rec codegen_prog =
         (
-          {prog_body: (body, c), prog_ty: _, prog_complete: _}: Anf.prog,
+          {prog_body: (body, im), prog_ty: _, prog_complete: _}: Anf.prog,
           imps,
         )
         : (GrainIR.block, GrainIR.expr, Imports.t) => {
   let (stmts, imps) = codegen_fold(codegen_stmt, body, imps);
-  let (c, imps) = codegen_comp(c, imps);
-  (stmts, c, imps);
+  let (im, imps) = codegen_imm(im, imps);
+  (stmts, im, imps);
 }
 
 and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {

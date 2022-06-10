@@ -41,8 +41,7 @@ let rec linearize_prog = (d: Hir.expr, vctx, t_gen): (Anf.prog, TmpVarGen.t) => 
   let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
   let body = im_binds |> List.map(convert_bind);
 
-  let c = Anf.Comp.mk_imm(im);
-  (Anf.Prog.mk(body, c), t_gen);
+  (Anf.Prog.mk(body, im), t_gen);
 }
 
 and linearize_exp =

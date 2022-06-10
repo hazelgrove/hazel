@@ -122,7 +122,7 @@ and prog = {
 }
 
 [@deriving sexp]
-and prog_body = (list(stmt), comp);
+and prog_body = (list(stmt), imm);
 
 module Imm = {
   let mk_var = (x: Var.t, c: comp): imm => {
@@ -141,9 +141,9 @@ module Comp = {
 };
 
 module Prog = {
-  let mk = (body: list(stmt), c: comp): prog => {
-    prog_body: (body, c),
-    prog_ty: c.comp_ty,
-    prog_complete: c.comp_complete,
+  let mk = (body: list(stmt), im: imm): prog => {
+    prog_body: (body, im),
+    prog_ty: im.imm_ty,
+    prog_complete: im.imm_complete,
   };
 };

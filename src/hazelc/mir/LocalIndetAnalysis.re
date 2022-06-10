@@ -9,12 +9,12 @@ exception BadLetRec;
 type complete_context = VarMap.t_(Anf.completeness);
 
 let rec analyze_prog = (prog: Anf.prog, ictx): Anf.prog => {
-  let {prog_body: (body, c), prog_ty, prog_complete: _}: Anf.prog = prog;
+  let {prog_body: (body, im), prog_ty, prog_complete: _}: Anf.prog = prog;
 
   let (body, ictx) = analyze_body(body, ictx);
-  let c = analyze_comp(c, ictx);
+  let im = analyze_imm(im, ictx);
 
-  {prog_body: (body, c), prog_ty, prog_complete: c.comp_complete};
+  {prog_body: (body, im), prog_ty, prog_complete: im.imm_complete};
 }
 
 and analyze_body =
