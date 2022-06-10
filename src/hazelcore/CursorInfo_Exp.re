@@ -995,8 +995,10 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
-  | TypAppZE(NotInHole, _ze, _ty) => None
-  | TypAppZT(NotInHole, _e, _zty) => None
+  | TypAppZE(NotInHole, ze, _ty) =>
+    ana_cursor_info(~steps=steps @ [0], ctx, ze, ty)
+  | TypAppZT(NotInHole, _e, zty) =>
+    zty |> CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx)
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
