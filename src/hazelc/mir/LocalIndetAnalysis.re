@@ -74,15 +74,10 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
         Completeness.join(im1.imm_complete, im2.imm_complete),
       );
 
-    | CAp(fn, args) =>
+    | CAp(fn, arg) =>
       let fn = analyze_imm(fn, ictx);
-      let args = args |> List.map(arg => analyze_imm(arg, ictx));
-
-      let args_complete =
-        args
-        |> List.map((arg: Anf.imm) => arg.imm_complete)
-        |> Completeness.join_fold;
-      (CAp(fn, args), Completeness.join(fn.imm_complete, args_complete));
+      let arg = analyze_imm(arg, ictx);
+      (CAp(fn, arg), Completeness.join(fn.imm_complete, arg.imm_complete));
 
     | CFun(param, body) =>
       let (param, ictx) =

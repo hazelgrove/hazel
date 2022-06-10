@@ -109,7 +109,7 @@ and linearize_exp =
       | _ => raise(WrongType)
       };
     let ap: Anf.comp = {
-      comp_kind: CAp(fn, [arg]),
+      comp_kind: CAp(fn, arg),
       comp_ty: ap_ty,
       comp_complete: default_completeness,
     };

@@ -113,10 +113,10 @@ and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
   | CBinOp(op, im1, im2) =>
     codegen_bin_op(op, im1, im2, c.comp_complete, imps)
 
-  | CAp(fn, args) =>
+  | CAp(fn, arg) =>
     let (fn', imps) = codegen_imm(fn, imps);
-    let (args', imps) = codegen_fold(codegen_imm, args, imps);
-    (EAp(fn', args'), imps);
+    let (arg', imps) = codegen_imm(arg, imps);
+    (EAp(fn', [arg']), imps);
 
   | CFun(param, body) =>
     let (param', imps) = codegen_pat(param, imps);
