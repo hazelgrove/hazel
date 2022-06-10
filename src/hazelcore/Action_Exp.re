@@ -1742,11 +1742,8 @@ and syn_perform_operand =
 
   | (Construct(STypApp), CursorE(_, operand)) =>
     let new_ze = {
-      ZExp.TypAppZE(
-        NotInHole,
-        operand |> ZExp.place_after_operand |> ZExp.ZBlock.wrap,
-        HTyp.Hole |> UHTyp.contract,
-      )
+      UHExp.typapp(operand |> UHExp.Block.wrap, HTyp.Hole |> UHTyp.contract)
+      |> ZExp.place_after_operand
       |> ZExp.ZBlock.wrap;
     };
     Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
@@ -1950,6 +1947,19 @@ and syn_perform_operand =
     }
   | (_, TypAppZT(err, e, zty_arg)) =>
     switch (Action_Typ.perform(a, zty_arg)) {
+    | Failed when ZTyp.is_after(zty_arg) =>
+      syn_perform_operand(
+        ctx,
+        a,
+        (
+          CursorE(
+            CursorPosition.OnDelim(0, After),
+            zoperand |> ZExp.erase_zoperand,
+          ),
+          ty,
+          u_gen,
+        ),
+      )
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
