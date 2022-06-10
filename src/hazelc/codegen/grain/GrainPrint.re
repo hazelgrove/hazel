@@ -122,7 +122,7 @@ and print_expr = (e: GrainIR.expr) =>
   | ECons(e1, e2) => print_cons(e1, e2)
   | ETuple(els) => print_tuple(els)
   | EVar(var) => print_var(var)
-  | Efn(params, e') => print_fn(params, e')
+  | ELam(params, e') => print_fn(params, e')
   | EAp(fn, args) => print_ap(fn, args)
   | ECtor(ctor, args) => print_ctor(ctor, args)
   | EMatch(scrut, rules) => print_match(scrut, rules)
