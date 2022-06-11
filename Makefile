@@ -1,4 +1,4 @@
-HTML_DIR=_build/default/src/hazelweb/www
+HTML_DIR=$(shell pwd)/_build/default/src/hazelweb/www
 HTML_FILE=$(HTML_DIR)/index.html
 
 all: dev
@@ -26,10 +26,10 @@ echo-html:
 	@echo "$(HTML_FILE)"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
+	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
 
 win-firefox:
-	"/mnt/c/Program Files/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
+	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"
 
 firefox:
 	firefox "$(HTML_FILE)" &
