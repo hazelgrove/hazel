@@ -182,7 +182,7 @@ and holes_zoperand =
     CursorPath_common.mk_zholes(
       ~hole_selected=Some(mk_hole_sort(TypHole(u), List.rev(rev_steps))),
       (),
-    ) // TODO anand raef: after adding id to hole_sort TypHole, transfer here
+    )
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);
