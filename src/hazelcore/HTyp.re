@@ -5,6 +5,16 @@ type unknown_type_provenance =
   | TypHole
   | ModeSwitch
   | Internal;
+//   | Internal(internal_provenance)
+// and internal_provenance =
+//   // enumerate other base cases here if applicable; try to avoid
+//   | Matched_arrow_L(unknown_type_provenance)
+//   | Matched_arrow_R(unknown_type_provenance)
+//   | Matched_sum_L(unknown_type_provenance)
+//   | Matched_sum_R(unknown_type_provenance)
+//   | Matched_prod_L(unknown_type_provenance)
+//   | Matched_prod_R(unknown_type_provenance)
+//   | Matched_list(unknown_type_provenance);
 
 /* types with holes */
 [@deriving sexp]
