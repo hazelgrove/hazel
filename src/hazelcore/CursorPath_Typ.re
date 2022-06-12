@@ -124,7 +124,7 @@ and of_steps_operator =
     };
   };
 
-let hole_sort = _ => CursorPath.TypHole;
+let hole_sort = u => CursorPath.TypHole(u);
 let is_space = _ => false;
 
 let rec holes =
@@ -150,7 +150,7 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole(_) => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs] // TODO anand raef: after adding id to hole_sort TypHole, transfer here
+  | Hole(u) => [mk_hole_sort(TypHole(u), List.rev(rev_steps)), ...hs]
   | Unit
   | Int
   | Float
@@ -178,9 +178,9 @@ and holes_zoperand =
     (zoperand: ZTyp.zoperand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zoperand) {
-  | CursorT(_, Hole(_)) =>
+  | CursorT(_, Hole(u)) =>
     CursorPath_common.mk_zholes(
-      ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
+      ~hole_selected=Some(mk_hole_sort(TypHole(u), List.rev(rev_steps))),
       (),
     ) // TODO anand raef: after adding id to hole_sort TypHole, transfer here
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes

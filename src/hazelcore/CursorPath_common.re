@@ -391,8 +391,8 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
       hole_info =>
         switch (CursorPath.get_sort(hole_info)) {
         | ExpHole(u', _)
-        | PatHole(u', _) => MetaVar.eq(u, u')
-        | TypHole => false
+        | PatHole(u', _)
+        | TypHole(u') => MetaVar.eq(u, u')
         },
       hole_list,
     )

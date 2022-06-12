@@ -35,12 +35,12 @@ let construct_operator =
   let (zoperand, surround, u_gen) =
     if (ZTyp.is_before_zoperand(zoperand)) {
       let (hole, u_gen) = UHTyp.new_EmptyHole(u_gen);
-      let zoperand = hole |> ZTyp.place_before_operand; // TODO anand raef: use UHTyp.new_EmptyHole(u_gen) here... Need to add u_gen as input to construct_operator() and other funcs in this file
+      let zoperand = hole |> ZTyp.place_before_operand;
       let new_suffix = Seq.A(operator, S(operand, suffix));
       (zoperand, (prefix, new_suffix), u_gen);
     } else {
       let (hole, u_gen) = UHTyp.new_EmptyHole(u_gen);
-      let zoperand = hole |> ZTyp.place_before_operand; // TODO anand raef: placeholder id
+      let zoperand = hole |> ZTyp.place_before_operand;
       let new_prefix = Seq.A(operator, S(operand, prefix));
       (zoperand, (new_prefix, suffix), u_gen);
     };
@@ -278,7 +278,7 @@ and perform_operand =
 
   | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
     let (hole, u_gen) = UHTyp.new_EmptyHole(u_gen);
-    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(hole)), u_gen)); // TODO anand raef: placeholder id, use new_EmptyHole
+    Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(hole)), u_gen));
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
