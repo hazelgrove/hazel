@@ -519,8 +519,8 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(u_gen, a, zann)) {
+        | Succeeded((new_zann, u_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
@@ -858,7 +858,8 @@ and syn_perform_operand =
     }
 
   | (Construct(SAnn), CursorP(_)) =>
-    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(Hole(0))); //TODO: Anand and Raef: call the new_emtpyhole
+    let (hole, u_gen) = UHTyp.new_EmptyHole(u_gen);
+    let new_zann = ZOpSeq.wrap(ZTyp.place_before_operand(hole));
     let new_zp =
       ZOpSeq.wrap(
         ZPat.TypeAnnZA(NotInHole, ZPat.erase_zoperand(zoperand), new_zann),
@@ -903,11 +904,11 @@ and syn_perform_operand =
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, newseq));
     }
   | (_, TypeAnnZA(_, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
+    switch (Action_Typ.perform(u_gen, a, zann)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
-    | Succeeded(zann) =>
+    | Succeeded((zann, u_gen)) =>
       let ty = UHTyp.expand(ZTyp.erase(zann));
       let (zpat, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_z(
@@ -1112,8 +1113,8 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(u_gen, a, zann)) {
+        | Succeeded((new_zann, u_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           let ty' = UHTyp.expand(ZTyp.erase(new_zann));
@@ -1548,7 +1549,7 @@ and ana_perform_operand =
       Succeeded((zpat, ctx, u_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
+    switch (Action_Typ.perform(u_gen, a, zann)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -1558,7 +1559,7 @@ and ana_perform_operand =
         zoperand,
         ty,
       )
-    | Succeeded(zann) =>
+    | Succeeded((zann, u_gen)) =>
       let ty' = UHTyp.expand(ZTyp.erase(zann));
       let (new_op, ctx, u_gen) =
         Statics_Pat.ana_fix_holes_operand(ctx, u_gen, op, ty');

@@ -150,7 +150,7 @@ and holes_operand =
     )
     : CursorPath.hole_list =>
   switch (operand) {
-  | Hole(_) => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs] // TODO: Raef and Anand: after adding id to hole_sort TypHole, transfer here
+  | Hole(_) => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs] // TODO anand raef: after adding id to hole_sort TypHole, transfer here
   | Unit
   | Int
   | Float
@@ -182,7 +182,7 @@ and holes_zoperand =
     CursorPath_common.mk_zholes(
       ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
-    ) // TODO: Raef and Anand: after adding id to hole_sort TypHole, transfer here
+    ) // TODO anand raef: after adding id to hole_sort TypHole, transfer here
   | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);

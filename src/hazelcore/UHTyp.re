@@ -115,7 +115,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | Hole(_) => Unknown(TypHole) //TODO: Anand and Raef- use id in Hole to create a UserGenerated prov'd HTyp
+  | Hole(_) => Unknown(TypHole) //TODO anand raef: - use id in Hole to create a UserGenerated prov'd HTyp
   | Unit => Prod([])
   | Int => Int
   | Float => Float
