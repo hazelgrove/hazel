@@ -12,6 +12,7 @@ let view:
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,
-    Program.t
+    Program.t,
+    int
   ) =>
   Vdom.Node.t;

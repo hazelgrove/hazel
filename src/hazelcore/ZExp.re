@@ -50,7 +50,7 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
       ListUtil.range(String.length(comment) + 1)
       |> List.map(i => CursorPosition.OnText(i))
     )
-  | CellBoundary => []
+  | CellBoundary => [OnText(0)]
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
   | LetLine(_) =>
@@ -119,7 +119,7 @@ and is_before_zblock = ((prefix, zline, _): zblock): bool =>
 and is_before_zline = (zline: zline): bool =>
   switch (zline) {
   | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
-  | CursorL(_, CellBoundary) => false
+  | CursorL(cursor, CellBoundary) => cursor == OnText(0)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
@@ -199,7 +199,7 @@ and is_after_zline =
   fun
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
-  | CursorL(_, CellBoundary) => false
+  | CursorL(cursor, CellBoundary) => cursor == OnText(0)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_)) => cursor == OnDelim(2, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
@@ -288,7 +288,7 @@ and place_before_block =
 and place_before_line =
   fun
   | CommentLine(_) as line => CursorL(OnDelim(0, Before), line)
-  | CellBoundary => failwith("impossible")
+  | CellBoundary => CursorL(OnText(0), CellBoundary)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
@@ -326,7 +326,7 @@ and place_after_line =
   fun
   | CommentLine(comment) as line =>
     CursorL(OnText(String.length(comment)), line)
-  | CellBoundary => failwith("impossible")
+  | CellBoundary => CursorL(OnText(0), CellBoundary)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_) as line => CursorL(OnDelim(2, After), line)
   | ExpLine(e) => ExpLineZ(place_after_opseq(e))
@@ -366,11 +366,11 @@ let place_cursor_operand =
 let place_cursor_line =
     (cursor: CursorPosition.t, line: UHExp.line): option(zline) =>
   switch (line) {
-  | CellBoundary
   | ExpLine(_) =>
     // all cursor positions in a zopseq are
     // encoded in steps, not CursorPosition.t
     None
+  | CellBoundary
   | EmptyLine
   | CommentLine(_)
   | LetLine(_) =>

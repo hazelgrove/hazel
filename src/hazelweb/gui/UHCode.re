@@ -195,6 +195,8 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
 };
 
 let root_id = "code-root";
+let cell_id = "cell";
+let cell_top_padding = 20.0;
 
 let focus = () => {
   JSUtil.force_get_elem_by_id(root_id)##focus;
@@ -207,6 +209,7 @@ let view =
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
+      num_of_cell: int,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -230,7 +233,18 @@ let view =
               Program.get_caret_position(~settings, program),
             ),
           ]
-          : [];
+          : [
+            Node.div(
+              [
+                Attr.id("caret"),
+                Attr.create(
+                  "style",
+                  Printf.sprintf("height: 0px; width: 0px;"),
+                ),
+              ],
+              [],
+            ),
+          ];
       let cursor_inspector =
         if (program.is_focused && program.is_zexp && cursor_inspector.visible) {
           let path = Program.get_path(program);
@@ -260,16 +274,36 @@ let view =
       let click_handler = evt => {
         let container_rect =
           JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
+        let cell_rect =
+          JSUtil.force_get_elem_by_id(cell_id)##getBoundingClientRect;
         let (target_x, target_y) = (
           float_of_int(evt##.clientX),
           float_of_int(evt##.clientY),
         );
+        let cell_boundary_height =
+          container_rect##.top
+          -.
+          cell_rect##.top
+          +.
+          cell_rect##.bottom
+          -.
+          container_rect##.bottom
+          +. cell_top_padding;
         let caret_pos =
           MeasuredPosition.{
             row:
               Float.to_int(
-                (target_y -. container_rect##.top) /. font_metrics.row_height,
-              ),
+                (
+                  target_y
+                  -.
+                  container_rect##.top
+                  -. 0.5
+                  -. float_of_int(num_of_cell)
+                  *. cell_boundary_height
+                )
+                /. font_metrics.row_height,
+              )
+              + num_of_cell,
             col:
               Float.to_int(
                 Float.round(

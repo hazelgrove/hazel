@@ -15,7 +15,7 @@ let view = (~inject, model: Model.t) => {
     performance.measure && performance.cell_view,
     () => {
       open Vdom;
-      let wrap_cell = cell =>
+      let wrap_cell = (num_of_cell, cell) =>
         Node.div(
           [Attr.id(cell_id)],
           [
@@ -30,6 +30,7 @@ let view = (~inject, model: Model.t) => {
                   ~settings,
                   ~cursor_inspector,
                   cell,
+                  num_of_cell,
                 ),
               ],
             ),
@@ -39,7 +40,7 @@ let view = (~inject, model: Model.t) => {
         model
         |> Model.get_program
         |> Program.extract_zcells
-        |> List.map(wrap_cell);
+        |> List.mapi(wrap_cell);
       Node.div([], cells);
     },
   );

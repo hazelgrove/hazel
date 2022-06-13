@@ -63,11 +63,6 @@ let extract_zcells = program => {
   let prefix_list = split_into_cells_helper(prefix, []);
   let suffix_list = split_into_cells_helper(suffix, []);
 
-  let zedit_state = (
-    (List.hd(List.rev(prefix_list)), zline, List.hd(suffix_list)),
-    ty,
-    u_gen,
-  );
   let wrap_edit_state = lines => {
     let edit_state = (
       (lines, ZExp.CursorL(OnText(0), UHExp.EmptyLine), []),
@@ -76,11 +71,27 @@ let extract_zcells = program => {
     );
     program |> put_edit_state(edit_state) |> mk_uhexp;
   };
-  let prefix_cells =
-    List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
-  let suffix_cells = List.tl(suffix_list) |> List.map(wrap_edit_state);
-  let zcell = program |> put_edit_state(zedit_state) |> mk_zexp;
-  prefix_cells @ [zcell] @ suffix_cells;
+
+  if (zline == ZExp.CursorL(OnText(0), CellBoundary)) {
+    let prefix_cells =
+      List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
+
+    let suffix_cells = suffix_list |> List.map(wrap_edit_state);
+    let zcell = List.hd(List.rev(prefix_list)) |> wrap_edit_state;
+
+    prefix_cells @ [zcell] @ suffix_cells;
+  } else {
+    let zedit_state = (
+      (List.hd(List.rev(prefix_list)), zline, List.hd(suffix_list)),
+      ty,
+      u_gen,
+    );
+    let prefix_cells =
+      List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
+    let suffix_cells = List.tl(suffix_list) |> List.map(wrap_edit_state);
+    let zcell = program |> put_edit_state(zedit_state) |> mk_zexp;
+    prefix_cells @ [zcell] @ suffix_cells;
+  };
 };
 
 /* let rec prune_holes_rec = (acc: list(UHExp.line), l: list(UHExp.line)) => {
