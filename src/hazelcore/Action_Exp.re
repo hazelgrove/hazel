@@ -836,6 +836,16 @@ and syn_perform_block =
             u_gen,
           )),
         ) =>
+        let combine = (pre, suf) =>
+          if (List.length(pre) > 0
+              && List.length(suf) > 0
+              && List.hd(suf) == UHExp.CellBoundary
+              && List.hd(List.rev(pre)) == UHExp.CellBoundary) {
+            pre @ [UHExp.EmptyLine] @ suf;
+          } else {
+            pre @ suf;
+          };
+
         switch (suffix) {
         | [] =>
           switch (
@@ -848,8 +858,7 @@ and syn_perform_block =
               let (_, zexp, _) =
                 ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), hole));
               let prefix =
-                prefix
-                @ inner_prefix
+                combine(prefix, inner_prefix)
                 @ [new_zline |> ZExp.erase_zline]
                 @ inner_suffix;
 
@@ -869,7 +878,7 @@ and syn_perform_block =
             | _ => Failed
             }
           | Some(new_ty) =>
-            let prefix = prefix @ inner_prefix;
+            let prefix = combine(prefix, inner_prefix);
 
             let new_ze = (
               if (List.length(prefix) > 0
@@ -886,17 +895,7 @@ and syn_perform_block =
         | [_, ..._] =>
           let (suffix, new_ty, u_gen) =
             Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
-          let combine = (pre, suf) =>
-            if (List.length(pre) > 0
-                && List.length(suf) > 0
-                && List.hd(suf) == UHExp.CellBoundary
-                && List.hd(List.rev(pre)) == UHExp.CellBoundary) {
-              pre @ [UHExp.EmptyLine] @ suf;
-            } else {
-              pre @ suf;
-            };
           let prefix = combine(prefix, inner_prefix);
-
           let new_zblock =
             (
               if (List.length(prefix) > 0
@@ -910,7 +909,7 @@ and syn_perform_block =
             )
             |> ZExp.prune_empty_hole_lines;
           Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-        }
+        };
       }
     }
   }
