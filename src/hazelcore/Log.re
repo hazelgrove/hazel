@@ -33,7 +33,8 @@ module Filter = {
   let matches_loc = (loc, str) =>
     switch (loc) {
     | Eq(str') => String.equal(str', str)
-    | Pre(prefix) => String.starts_with(~prefix, str)
+    | Pre(prefix) =>
+      String.equal(prefix, String.sub(str, 0, String.length(prefix)))
     };
 
   let rec matches = (flt, (mod_name, fun_name)) =>
