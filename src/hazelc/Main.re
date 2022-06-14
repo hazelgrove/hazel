@@ -32,7 +32,7 @@ let mk_opts = (action, _verbose, optimize, _debug) => {
   let indet_analysis_level =
     switch (optimize) {
     | 0 => IndetAnalysis.NoAnalysis
-    | _ => IndetAnalysis.LocalAnalysis
+    | _ => IndetAnalysis.GlobalAnalysis
     };
 
   let opts: Compile.opts = {
