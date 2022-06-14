@@ -3,6 +3,7 @@ type elab_result_lines =
   | LinesDoNotElaborate;
 
 module ElaborationResult: {
+  [@deriving sexp]
   type t =
     | Elaborates(DHExp.t, HTyp.t, Delta.t)
     | DoesNotElaborate;

@@ -872,15 +872,6 @@ and syn_perform_block =
               u_gen,
             )),
           ) =>
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("suffix", UHExp.sexp_of_block(suffix)),
-              ("zblock", ZExp.sexp_of_zblock(zblock)),
-              ("ctx_suffix", Context.sexp_of_t(ctx_suffix)),
-              ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-            ],
-          );
           switch (suffix) {
           | [] =>
             switch (
@@ -900,7 +891,7 @@ and syn_perform_block =
               (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
               |> ZExp.prune_empty_hole_lines;
             Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-          };
+          }
         };
       }
     }
@@ -1226,7 +1217,6 @@ and syn_perform_line =
         }
 
       | (_, LetLineZP(zp, def)) =>
-        Log.debug_msg("LetLineZP");
         let _def_ctx =
           Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
         /* TODO: (eric) restore recursive let id's */
@@ -1242,7 +1232,6 @@ and syn_perform_line =
         | Failed => Failed
         | CursorEscaped(side) => escape(u_gen, side)
         | Succeeded((new_zp, _, u_gen)) =>
-          Log.debug_msg("Succeeded");
           // NOTE: Need to fix holes since ana_perform may have created
           // holes if ty_def is inconsistent with pattern type
           let (new_zp, ty_p, _, u_gen) =
@@ -1253,62 +1242,26 @@ and syn_perform_line =
           let (new_def, u_gen) =
             Statics_Exp.ana_fix_holes(def_ctx, u_gen, def, ty_p);
           let new_zline = ZExp.LetLineZP(new_zp, new_def);
-          Log.debug_states(
-            __FUNCTION__,
-            [("new_zline", ZExp.sexp_of_zline(new_zline))],
-          );
           let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-          Log.debug_states(
-            __FUNCTION__,
-            [("body_ctx", Context.sexp_of_t(body_ctx))],
-          );
           Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
         };
 
       | (_, LetLineZE(p, zdef)) =>
-        Log.debug_msg("LetLineZE");
         switch (Statics_Pat.syn(ctx, p)) {
         | None => Failed
         | Some((ty_p, _)) =>
-          Log.debug_msg("Some");
           let def = ZExp.erase(zdef);
           let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("def_ctx", Context.sexp_of_t(def_ctx)),
-              ("a", Action.sexp_of_t(a)),
-              ("zdef", ZExp.sexp_of_t(zdef)),
-              ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-              ("ty_p", HTyp.sexp_of_t(ty_p)),
-            ],
-          );
-          switch (
-            ana_perform(
-              /* TODO: (eric) BREAKS RECURSIVE FUNCTIONS: def_ */ ctx,
-              a,
-              (zdef, u_gen),
-              ty_p,
-            )
-          ) {
+          switch (ana_perform(def_ctx, a, (zdef, u_gen), ty_p)) {
           | Failed => Failed
           | CursorEscaped(side) => escape(u_gen, side)
           | Succeeded((new_zdef, u_gen)) =>
-            Log.debug_msg("Succeeded");
             let new_zline = ZExp.LetLineZE(p, new_zdef);
             let new_def = ZExp.erase(new_zdef);
-            Log.debug_states(
-              __FUNCTION__,
-              [("new_zline", ZExp.sexp_of_zline(new_zline))],
-            );
             let body_ctx = Statics_Exp.extend_let_body_ctx(ctx, p, new_def);
-            Log.debug_states(
-              __FUNCTION__,
-              [("body_ctx", Context.sexp_of_t(body_ctx))],
-            );
             Succeeded(LineDone((([], new_zline, []), body_ctx, u_gen)));
           };
-        };
+        }
       | (Init, _) => failwith("Init action should not be performed.")
       };
     },

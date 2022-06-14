@@ -208,15 +208,6 @@ module rec Context: {
         let amount = stamp - cref.stamp;
         let index = Index.shift(~above=-1, ~amount, cref.index);
         if (Index.Abs.to_int(index) >= stamp) {
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("ctx", Context.sexp_of_t(ctx)),
-              ("cref", ContextRef.sexp_of_t(cref)),
-              ("index", Index.Abs.sexp_of_t(index)),
-              ("stamp", Sexplib.Std.sexp_of_int(stamp)),
-            ],
-          );
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
         };
         {index, stamp};
@@ -326,14 +317,6 @@ module rec Context: {
         let i = Index.Abs.to_int(cref.index);
         let+ (_, k) = nth_tyvar_binding(ctx, i);
         let k' = Kind_core.to_abs(~offset=i + 1, k);
-        Log.debug_states(
-          __FUNCTION__,
-          [
-            ("i", Sexplib.Std.sexp_of_int(i)),
-            ("k", Kind_core.sexp_of_s(Index.sexp_of_relative, k)),
-            ("k'", Kind.sexp_of_t(k')),
-          ],
-        );
         Kind.rescope(ctx, k');
       },
     );

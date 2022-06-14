@@ -61,9 +61,7 @@ and syn_elab_block =
       | LinesElaborate(prelude, new_ctx, delta) =>
         switch (syn_elab_opseq(new_ctx, delta, conclusion)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d, ty, delta) =>
-          let ty = Context.reduce_tyvars(new_ctx, ctx, ty);
-          Elaborates(prelude(d), ty, delta);
+        | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
         }
       }
     }
@@ -120,50 +118,33 @@ and syn_elab_line =
     | LetLine(p, def) =>
       switch (Statics_Pat.syn(ctx, p)) {
       | None => LinesDoNotElaborate
-      | Some((ty_p, ctx_p)) =>
-        Log.debug_states(
-          __FUNCTION__,
-          [
-            ("ctx", Context.sexp_of_t(ctx)),
-            ("ctx_p", Context.sexp_of_t(ctx_p)),
-            ("ty_p", HTyp.sexp_of_t(ty_p)),
-          ],
-        );
-        switch (ana_elab(ctx, delta, def, ty_p)) {
+      | Some((ty1, _)) =>
+        let ty1 = HTyp.rescope(ctx, ty1);
+        let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+        switch (ana_elab(ctx1, delta, def, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
-        | Elaborates(d, ty_p', delta') =>
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("d", DHExp.sexp_of_t(d)),
-              ("ty_p''", HTyp.sexp_of_t(ty_p')),
-              ("delta'", Delta.sexp_of_t(delta')),
-            ],
-          );
-          let dty_p = (ctx, ty_p);
-          let dty_p' = (ctx, ty_p');
-          /* TODO: (eric) restore recursive let ids */
-          /* let recursive_id = Statics_Exp.recursive_let_id(ctx, p, def); */
-          /* let d1 = */
-          /*   switch (recursive_id) { */
-          /*   | None => d1 */
-          /*   | Some(x) => */
-          /*     let d1 = DHExp.cast(BoundVar(x), dty1', dty1); */
-          /*     FixF(x, dty1', Evaluator.subst_var(d1, x, d1)); */
-          /*   }; */
+        | Elaborates(d1, ty1', delta) =>
+          let dty1 = (ctx, ty1);
+          let dty1' = (ctx, ty1');
+          let d1 =
+            switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
+            | None => d1
+            | Some(x) =>
+              FixF(
+                x,
+                dty1',
+                Evaluator.subst_var(
+                  DHExp.cast(BoundVar(x), dty1', dty1),
+                  x,
+                  d1,
+                ),
+              )
+            };
           /* let d1 = DHExp.cast(d1, dty1', dty1); */
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("dty_p", DHTyp.sexp_of_t(dty_p)),
-              ("dty_p'", DHTyp.sexp_of_t(dty_p')),
-              ("d", DHExp.sexp_of_t(d)),
-            ],
-          );
-          switch (Elaborator_Pat.ana_elab(ctx, delta', p, ty_p)) {
+          switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
           | DoesNotElaborate => LinesDoNotElaborate
           | Elaborates(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d, d2);
+            let prelude = d2 => DHExp.Let(dp, d1, d2);
             LinesElaborate(prelude, ctx, delta);
           };
         };
@@ -636,18 +617,11 @@ and ana_elab_block =
       switch (syn_elab_lines(ctx, delta, leading)) {
       | LinesDoNotElaborate => DoesNotElaborate
       | LinesElaborate(prelude, new_ctx, delta) =>
-        Log.debug_states(
-          __FUNCTION__,
-          [
-            ("new_ctx", Context.sexp_of_t(new_ctx)),
-            ("delta", Delta.sexp_of_t(delta)),
-          ],
-        );
-        Log.debug_states(__FUNCTION__, [("ty", HTyp.sexp_of_t(ty))]);
+        /* let ty = HTyp.rescope(new_ctx, ty); */
         switch (ana_elab_opseq(new_ctx, delta, conclusion, ty)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
-        };
+        }
       }
     }
   )

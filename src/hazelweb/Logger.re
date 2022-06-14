@@ -18,39 +18,7 @@ let append = (s: string) => {
 
 /* robust system event logging */
 
-let reporter = ppf => {
-  let report = (src, level, ~over, k, msgf) => {
-    let k = _ => {
-      over();
-      k();
-    };
-    let timestamped = (h, tags, k, ppf, fmt) => {
-      let ts =
-        {
-          open OptUtil.Syntax;
-          let* tags = tags;
-          Logs.Tag.find(Log.timestamp_tag, tags);
-        }
-        |> Option.value(~default=0.0);
-      Format.kfprintf(
-        k,
-        ppf,
-        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@.",
-        Logs.pp_header,
-        (level, h),
-        ts,
-        Logs.Src.name(src),
-      );
-    };
-    msgf((~header=?, ~tags=?, fmt) =>
-      timestamped(header, tags, k, ppf, fmt)
-    );
-  };
-  {Logs.report: report};
-};
-
 let init_log = () => {
-  /* Logs.set_reporter(Logs_browser.console_reporter()); */
-  Logs.set_reporter(reporter(Format.std_formatter));
+  Logs.set_reporter(Log.reporter(Format.std_formatter));
   Logs.set_level(Some(Logs.Debug));
 };

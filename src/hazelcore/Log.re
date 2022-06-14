@@ -49,15 +49,7 @@ module Filter = {
     };
 };
 
-let watch_list =
-  Some(
-    Filter.(
-      md(pre("Action_Exp"))
-      * fn(pre("syn_perform"))
-      + md(pre("Statics_Exp"))
-      * fn(pre("syn"))
-    ),
-  );
+let watch_list = Some(Filter.(md(pre("Action_Typ"))));
 
 let watching = fn =>
   {
@@ -150,4 +142,37 @@ let fun_call =
   let result = thunk();
   debug_result(fn, result_sexp(result));
   result;
+};
+
+/* Logs Reporter */
+
+let reporter = ppf => {
+  let report = (src, level, ~over, k, msgf) => {
+    let k = _ => {
+      over();
+      k();
+    };
+    let timestamped = (h, tags, k, ppf, fmt) => {
+      let ts =
+        {
+          open OptUtil.Syntax;
+          let* tags = tags;
+          Logs.Tag.find(timestamp_tag, tags);
+        }
+        |> Option.value(~default=0.0);
+      Format.kfprintf(
+        k,
+        ppf,
+        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@.",
+        Logs.pp_header,
+        (level, h),
+        ts,
+        Logs.Src.name(src),
+      );
+    };
+    msgf((~header=?, ~tags=?, fmt) =>
+      timestamped(header, tags, k, ppf, fmt)
+    );
+  };
+  {Logs.report: report};
 };

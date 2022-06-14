@@ -179,16 +179,6 @@ let update_program = (a: ModelAction.t, new_program, model) =>
     ~result_sexp=sexp_of_t,
     () => {
       let old_program = model |> get_program;
-      Log.debug_states(
-        __FUNCTION__,
-        [
-          (
-            "get_result(old_program)",
-            Result.sexp_of_t(Program.get_result(old_program)),
-          ),
-          ("new_program", Program.sexp_of_t(new_program)),
-        ],
-      );
       let update_selected_instances = si => {
         let si =
           Program.get_result(old_program) == Program.get_result(new_program)

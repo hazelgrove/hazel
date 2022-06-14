@@ -70,49 +70,71 @@ let construct_operator =
 
 let mk_syn_text =
     (ctx: Context.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) => {
-  let text_cursor = CursorPosition.OnText(caret_index);
-  switch (TyTextShape.of_string(text)) {
-  | None =>
-    if (StringUtil.is_empty(text)) {
-      Succeeded((
-        ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
-        u_gen,
-      ));
-    } else {
-      Failed;
-    }
-  | Some(Bool) =>
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool));
-    Succeeded((zty, u_gen));
-  | Some(Int) =>
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int));
-    Succeeded((zty, u_gen));
-  | Some(Float) =>
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
-    Succeeded((zty, u_gen));
-  | Some(ExpandingKeyword(kw)) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    let zty =
-      ZOpSeq.wrap(
-        ZTyp.CursorT(
-          text_cursor,
-          UHTyp.TyVar(InHole(Reserved, u), ExpandingKeyword.to_string(kw)),
-        ),
-      );
-    Succeeded((zty, u_gen));
-  | Some(TyVar(t)) =>
-    let (status: TyVarErrStatus.t, u_gen) =
-      switch (Context.tyvar_ref(ctx, t)) {
+    : ActionOutcome.t((ZTyp.t, MetaVarGen.t)) =>
+  Log.fun_call(
+    __FUNCTION__,
+    ~args=[
+      ("ctx", () => Context.sexp_of_t(ctx)),
+      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("caret_index", () => Sexplib.Std.sexp_of_int(caret_index)),
+      ("text", () => Sexplib.Std.sexp_of_string(text)),
+    ],
+    ~id=u_gen,
+    ~result_sexp=
+      ActionOutcome.sexp_of_t(((zty, u_gen)) =>
+        List([ZTyp.sexp_of_t(zty), MetaVarGen.sexp_of_t(u_gen)])
+      ),
+    () => {
+      let text_cursor = CursorPosition.OnText(caret_index);
+      switch (TyTextShape.of_string(text)) {
       | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (InHole(Unbound, u), u_gen);
-      | Some(cref) => (NotInTyVarHole(cref.index, cref.stamp), u_gen)
+        if (StringUtil.is_empty(text)) {
+          Succeeded((
+            ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
+            u_gen,
+          ));
+        } else {
+          let (u, u_gen) = MetaVarGen.next(u_gen);
+          let ty = UHTyp.TyVar(InHole(InvalidName, u), text);
+          let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, ty));
+          Succeeded((zty, u_gen));
+          /* Failed; */
+        }
+      | Some(Bool) =>
+        let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool));
+        Succeeded((zty, u_gen));
+      | Some(Int) =>
+        let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int));
+        Succeeded((zty, u_gen));
+      | Some(Float) =>
+        let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
+        Succeeded((zty, u_gen));
+      | Some(ExpandingKeyword(kw)) =>
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let zty =
+          ZOpSeq.wrap(
+            ZTyp.CursorT(
+              text_cursor,
+              UHTyp.TyVar(
+                InHole(Reserved, u),
+                ExpandingKeyword.to_string(kw),
+              ),
+            ),
+          );
+        Succeeded((zty, u_gen));
+      | Some(TyVar(t)) =>
+        let (status: TyVarErrStatus.t, u_gen) =
+          switch (Context.tyvar_ref(ctx, t)) {
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            (InHole(Unbound, u), u_gen);
+          | Some(cref) => (NotInTyVarHole(cref.index, cref.stamp), u_gen)
+          };
+        let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
+        Succeeded((zty, u_gen));
       };
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
-    Succeeded((zty, u_gen));
-  };
-};
+    },
+  );
 
 let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   switch (a) {
