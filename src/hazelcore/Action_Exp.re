@@ -1039,8 +1039,7 @@ and syn_perform_line =
           let new_zblock = ([], ZExp.TyAliasLineP(zp, ty), []);
           fix_and_mk_result(u_gen, new_zblock);
         | 2 =>
-          let zty = ty |> ZTyp.place_after;
-          let new_zblock = ([], ZExp.TyAliasLineT(p, zty), []);
+          let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
           fix_and_mk_result(u_gen, new_zblock);
         | _ => failwith(Printf.sprintf("Delim too large: %d\n", k))
         }

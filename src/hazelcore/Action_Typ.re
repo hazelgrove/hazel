@@ -481,6 +481,11 @@ and perform_operand =
       | Succeeded((zty, u_gen)) => Succeeded((zty, ctx, u_gen))
       }
 
+    | (Delete, CursorT(OnDelim(_, Before), Hole)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Hole)), ctx, u_gen))
+    | (Delete, CursorT(OnDelim(_, Before), Unit)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.place_after_operand(Hole)), ctx, u_gen))
+
     /* ( _ <|)   ==>   ( _| ) */
     | (Backspace, CursorT(OnDelim(_, Before), _)) =>
       zoperand |> ZTyp.is_before_zoperand
@@ -511,6 +516,7 @@ and perform_operand =
         CursorT(OnDelim(_, After), Int | Float | Bool | TyVar(_, _)),
       ) =>
       failwith("Impossible: Int|Float|Bool|TyVar are treated as text")
+
     /* TyVar-related Backspace & Delete */
     | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
       switch (delete_text(ctx, u_gen, caret_index, text)) {

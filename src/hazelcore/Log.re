@@ -49,7 +49,14 @@ module Filter = {
     };
 };
 
-let watch_list = Some(Filter.(md(pre("Action_Typ"))));
+let watch_list =
+  Some(
+    Filter.(
+      md(pre("Action_TPat"))
+      + md(pre("Action_Exp"))
+      * fn(pre("syn_perform_line"))
+    ),
+  );
 
 let watching = fn =>
   {
