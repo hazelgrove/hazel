@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open SexpResult;
+open ResultSexp;
 open LetOpen.Syntax;
 module Parsing = Hazeltext.Parsing;
 
