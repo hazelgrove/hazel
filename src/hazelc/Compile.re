@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open ResultSexp;
-open LetOpen.Syntax;
+open ChannelUtil.Syntax;
+
 module Parsing = Hazeltext.Parsing;
 
 [@deriving sexp]

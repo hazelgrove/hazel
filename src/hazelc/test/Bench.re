@@ -1,4 +1,5 @@
-open LetOpen.Syntax;
+open ChannelUtil.Syntax;
+
 module W = Wasmtime.Wrappers;
 
 let profile = Common.Bench;

@@ -5,7 +5,8 @@
  */
 open Sexplib.Std;
 open Cmdliner;
-open LetOpen.Syntax;
+
+open ChannelUtil.Syntax;
 
 [@deriving sexp]
 type action =
