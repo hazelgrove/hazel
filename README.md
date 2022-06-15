@@ -88,30 +88,14 @@ breadcrumbs bar visible:
 
 ### Suggested Setup for NeoVim
 
-If you enjoy your Vim binding and Vim setup, the following may help you set up your Reason IDE in NeoVim.
+The recommended setup is to use Neovim's built-in LSP support. We recommend using the
+[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) plugin. See the plugin's main page for
+recommended setup instructions.
 
-If you use vim, I recommend you to switch to NeoVim since it has a better support for multi-thread,
-and thus less likely to block you when you are programming.
-
-To set up the LSP(Language Server Protocal), you need to set up your Language Client for Neovim and Language Server for ocaml.
-- [ocaml-language-server](https://www.npmjs.com/package/ocaml-language-server)
-- [LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
-
-After installing the previous two, you may want to copy the following to your neovim config file. 
-(assuming `npm` have ocaml-language-server installed under `/usr/bin`)
-```
-let g:LanguageClient_serverCommands = {
-    \ 'ocaml': ['/usr/bin/ocaml-language-server', '--stdio'],
-    \ 'reason': ['/usr/bin/ocaml-language-server', '--stdio']
-    \ }
-" LanguageClient-neovim
-nnoremap <F5> :call LanguageClient_contextMenu()<CR>
-" Or map each action separately
-nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
-nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
-nnoremap <silent> gr :call LanguageClient#textDocument_references()<CR>
-nnoremap <silent> gf :call LanguageClient#textDocument_formatting()<cr>
-nnoremap <silent> <F2> :call LanguageClient#textDocument_rename()<CR>
+To set-up Reason ML support, enable `ocamllsp` in your configuration:
+```lua
+local lspconfig = require('lspconfig')
+lspconfig.ocamllsp.setup { on_attach = on_attach }
 ```
 
 ### Build System Details
