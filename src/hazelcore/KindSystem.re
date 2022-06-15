@@ -26,6 +26,7 @@ module HTyp_syntax: {
     | Sum(t('idx), t('idx))
     | Prod(list(t('idx)))
     | List(t('idx))
+    | Forall(TPat.t, t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
@@ -43,6 +44,7 @@ module HTyp_syntax: {
     | Sum(t('idx), t('idx))
     | Prod(list(t('idx)))
     | List(t('idx))
+    | Forall(TPat.t, t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
@@ -62,6 +64,8 @@ module HTyp_syntax: {
     | Sum(tyL, tyR) => Sum(to_rel(~offset, tyL), to_rel(~offset, tyR))
     | Prod(tys) => Prod(List.map(to_rel(~offset), tys))
     | List(ty) => List(to_rel(~offset, ty))
+    // TODO (forall-typ)
+    | Forall(tpat, ty) => Forall(tpat, to_rel(~offset, ty))
     };
 
   let rec to_abs =
@@ -80,6 +84,8 @@ module HTyp_syntax: {
     | Sum(tyL, tyR) => Sum(to_abs(~offset, tyL), to_abs(~offset, tyR))
     | Prod(tys) => Prod(List.map(to_abs(~offset), tys))
     | List(ty) => List(to_abs(~offset, ty))
+    // TODO (forall-typ)
+    | Forall(tpat, ty) => Forall(tpat, to_abs(~offset, ty))
     };
 
   let rec subst_tyvar =
@@ -96,6 +102,8 @@ module HTyp_syntax: {
     | Sum(tyL, tyR) => Sum(go(tyL), go(tyR))
     | Prod(tys) => Prod(List.map(go, tys))
     | List(ty) => List(go(ty))
+    // TODO (forall-typ): What to do with tpat, do we need to modify the ctx/cref?
+    | Forall(tpat, ty) => Forall(tpat, go(ty))
     };
   };
 
@@ -480,6 +488,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
+    | Forall(TPat.t, t)
     | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
@@ -504,6 +513,7 @@ and HTyp: {
     | List(_) => "a List"
     | TyVar(_, t) => "a " ++ t
     | TyVarHole(_) => "a"
+    | Forall(_, _) => "a Forall"
     };
   };
 
@@ -531,6 +541,7 @@ and HTyp: {
       Sum(tyL, tyR);
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
+    | Forall(tpat, ty) => Forall(tpat, shift_indices(ty, amount))
     };
 
   /* let rescope = (new_ctx: Context.t, old_ctx: Context.t, ty: t): t => */
@@ -575,7 +586,8 @@ and HTyp: {
     | Arrow(_)
     | Sum(_)
     | Prod(_)
-    | List(_) => None
+    | List(_)
+    | Forall(_) => None
     };
 
   let tyvar_name = (ty: t): option(string) =>
@@ -589,7 +601,8 @@ and HTyp: {
     | Arrow(_)
     | Sum(_)
     | Prod(_)
-    | List(_) => None
+    | List(_)
+    | Forall(_) => None
     };
 
   let subst_tyvar: (t, Index.Abs.t, t) => t = HTyp_syntax.subst_tyvar;
@@ -608,6 +621,9 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
     | Prod(tys) => Prod(List.map(rescope(ctx), tys))
     | List(ty1) => List(rescope(ctx, ty1))
+    // TODO (forall-typ): How to deal with ctx?
+    // Do we need to add tpat to ctx if it's not a hole?
+    | Forall(tpat, ty1) => Forall(tpat, rescope(ctx, ty1))
     };
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
@@ -639,6 +655,9 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
     | (List(_), _) => false
+    // TODO (forall-typ)
+    | (Forall(_, ty1), Forall(_, ty2)) => equivalent(ctx, ty1, ty2)
+    | (Forall(_), _) => false
     };
 
   let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
@@ -674,6 +693,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty2)) => consistent(ctx, ty1, ty2)
+    | (Forall(_), _) => false
     };
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
@@ -698,7 +719,8 @@ and HTyp: {
     | Arrow(ty1, ty2)
     | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
     | Prod(tys) => tys |> List.for_all(complete)
-    | List(ty) => complete(ty);
+    | List(ty) => complete(ty)
+    | Forall(_, ty) => complete(ty);
 
   /* HTyp Constructor Precedence */
 
@@ -715,7 +737,8 @@ and HTyp: {
     | Prod([])
     | List(_)
     | TyVar(_)
-    | TyVarHole(_) => precedence_const()
+    | TyVarHole(_)
+    | Forall(_) => precedence_const()
     | Prod(_) => precedence_Prod()
     | Sum(_, _) => precedence_Sum()
     | Arrow(_, _) => precedence_Arrow()
@@ -727,6 +750,20 @@ and HTyp: {
   type join =
     | GLB
     | LUB;
+
+  let join_tpat = (j: join, ty1: TPat.t, ty2: TPat.t): TPat.t =>
+    TPat.(
+      switch (ty1, ty2) {
+      | ((EmptyHole | TyVar(InHole(_), _)) as tvar, ty)
+      | (ty, (EmptyHole | TyVar(InHole(_), _)) as tvar) =>
+        switch (j) {
+        | GLB => tvar
+        | LUB => ty
+        }
+      | (TyVar(NotInHole, name), TyVar(NotInHole, _)) =>
+        TyVar(NotInHole, name)
+      }
+    );
 
   let rec join = (ctx: Context.t, j: join, ty1: t, ty2: t): option(t) =>
     switch (ty1, ty2) {
@@ -775,7 +812,11 @@ and HTyp: {
       open OptUtil.Syntax;
       let+ ty = join(ctx, j, ty, ty');
       HTyp_syntax.List(ty);
-    | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    | (Forall(tpat, ty), Forall(tpat', ty')) =>
+      open OptUtil.Syntax;
+      let+ ty = join(ctx, j, ty, ty');
+      HTyp_syntax.Forall(join_tpat(j, tpat, tpat'), ty);
+    | (Arrow(_) | Sum(_) | Prod(_) | List(_) | Forall(_), _) => None
     };
 
   let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
@@ -827,6 +868,7 @@ and HTyp: {
     | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
+    | Forall(tpat, ty1) => Forall(tpat, normalize(ctx, ty1))
     };
 
   /* Properties of Normalized HTyp */
@@ -849,6 +891,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_consistent(ty1, ty1')
+    | (Forall(_), _) => false
     };
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
@@ -868,6 +912,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_equivalent(ty1, ty1')
+    | (Forall(_), _) => false
     };
 
   /* Ground Cases */
@@ -883,6 +929,7 @@ and HTyp: {
   let grounded_Prod = length =>
     NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp_syntax.Hole)));
   let grounded_List = () => NotGroundOrHole(List(Hole));
+  let grounded_Forall = () => NotGroundOrHole(Forall(TPat.EmptyHole, Hole));
 
   let ground_cases_of = (ty: normalized): ground_cases =>
     switch (ty) {
@@ -894,6 +941,7 @@ and HTyp: {
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
     | List(Hole)
+    | Forall(_, Hole)
     | TyVar(_) => Ground
     | Prod(tys) =>
       let equiv = ty => normalized_equivalent(Hole, ty);
@@ -901,6 +949,7 @@ and HTyp: {
     | Arrow(_, _) => grounded_Arrow()
     | Sum(_, _) => grounded_Sum()
     | List(_) => grounded_List()
+    | Forall(_) => grounded_Forall()
     };
 
   /* HTyp Head-Normalization */
@@ -915,6 +964,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
+    | Forall(TPat.t, t)
     | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
@@ -928,6 +978,7 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(tyL, tyR)
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
+    | Forall(tpat, ty) => Forall(tpat, ty)
     | TyVar(cref, t) => TyVar(cref, t)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
 
@@ -964,6 +1015,10 @@ and HTyp: {
       | Sum(tyL, tyR) => Sum(tyL, tyR)
       | Prod(tys) => Prod(tys)
       | List(ty) => List(ty)
+      // TODO (forall-typ): Do we need to consider the ctx?
+      // Why is this function not recursively called in variants
+      // other than TyVar?
+      | Forall(tpat, ty) => Forall(tpat, ty)
       }
     );
   };

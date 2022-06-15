@@ -35,6 +35,8 @@ module HTyp_syntax: {
       Prod(list(t('idx)))
     | /** Lists. */
       List(t('idx))
+    | /** Foralls. */
+      Forall(TPat.t, t('idx))
     | /** A bound type variable. */
       TyVar(ContextRef.s('idx), TyVar.t)
     | /** A free type variable. */
@@ -387,6 +389,7 @@ and HTyp: {
     | Sum(t, t)
     | Prod(list(t))
     | List(t)
+    | Forall(TPat.t, t)
     | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
