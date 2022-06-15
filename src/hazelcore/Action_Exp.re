@@ -2080,7 +2080,7 @@ and syn_perform_operand =
         Succeeded(SynDone((new_ze, ty, u_gen)));
       }
     | (_, TypAppZT(err, e, zty_arg)) =>
-      switch (Action_Typ.perform(a, zty_arg)) {
+      switch (Action_Typ.perform(ctx, a, zty_arg, u_gen)) {
       | Failed when ZTyp.is_after(zty_arg) =>
         syn_perform_operand(
           ctx,
@@ -2101,10 +2101,10 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, u_gen),
         )
-      | Succeeded(zty_arg) =>
+      | Succeeded((zty_arg, _ctx, u_gen)) =>
         let new_ze = ZExp.TypAppZT(err, e, zty_arg) |> ZExp.ZBlock.wrap;
         // TODO: Static_Exp.syn_hole
-        Succeeded(SynDone((new_ze, HTyp.Hole, u_gen)));
+        Succeeded(SynDone((new_ze, HTyp.hole(), u_gen)));
       }
 
     | (_, InjZ(_, side, zbody)) =>

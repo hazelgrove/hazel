@@ -490,7 +490,7 @@ and ana_operand =
     | TypApp(NotInHole, e, _ty) =>
       let* ty_e = syn(ctx, e);
       // TODO (typ-app): apply typ
-      HTyp.consistent(ty_e, ty) ? Some() : None;
+      HTyp.consistent(ctx, ty_e, ty) ? Some() : None;
     | Inj(NotInHole, side, body) =>
       let* (ty1, ty2) = HTyp.matched_sum(ctx, ty);
       ana(ctx, body, InjSide.pick(side, ty1, ty2));

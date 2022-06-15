@@ -998,7 +998,9 @@ and ana_cursor_info_zoperand =
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
-        Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
+        Some(
+          CursorInfo_common.mk(AnaSubsumed(ctx, ty, ty'), ctx, cursor_term),
+        )
       }
     /* zipper cases */
     }

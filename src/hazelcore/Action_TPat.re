@@ -100,6 +100,7 @@ let rec perform =
           SInj(_) |
           SCase |
           STyAlias |
+          STypApp |
           SList |
           SParenthesized,
         ) |

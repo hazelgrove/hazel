@@ -120,12 +120,16 @@ and find_tyuses_operand =
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypApp(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   // | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
     find_tyuses_pat(~steps=steps @ [0], name, p)
     @ find_tyuses(~steps=steps @ [1], name, body)
+  | TypApp(NotInHole, e, ty) =>
+    find_tyuses(~steps=steps @ [0], name, e)
+    @ find_tyuses_typ(~steps=steps @ [1], name, ty)
   | Inj(NotInHole, _, body) => find_tyuses(~steps=steps @ [0], name, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),

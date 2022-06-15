@@ -934,7 +934,7 @@ and ana_elab_operand =
          * the TypApp is merely dummy;
          * will change in Eric's branch
          */
-        switch (HTyp.consistent(ty1, ty)) {
+        switch (HTyp.consistent(ctx, ty1, ty)) {
         | false => DoesNotElaborate
         | true => Elaborates(d1, ty1, delta)
         }
