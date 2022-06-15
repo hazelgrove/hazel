@@ -42,7 +42,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Lam(_) => DHDoc_common.precedence_const
+  | Fun(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -53,6 +53,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
+  | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
   | NonEmptyHole(_, _, _, _, d) => precedence'(d)
@@ -196,6 +197,19 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | ApBuiltin(ident, args) =>
+        switch (args) {
+        | [hd, ...tl] =>
+          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
+          let (doc1, doc2) =
+            mk_left_associative_operands(
+              DHDoc_common.precedence_Ap,
+              BoundVar(ident),
+              d',
+            );
+          DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+        | [] => text(ident)
+        }
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
@@ -287,18 +301,24 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      | Lam(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
           hcats([
-            DHDoc_common.Delim.sym_Lam,
-            DHDoc_Pat.mk(~enforce_inline=true, dp),
-            DHDoc_common.Delim.colon_Lam,
+            DHDoc_common.Delim.sym_Fun,
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.colon_Fun,
+            space(),
             DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_Lam,
+            space(),
+            DHDoc_common.Delim.open_Fun,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Lam,
+            DHDoc_common.Delim.close_Fun,
           ]);
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));

@@ -121,7 +121,7 @@ let advanced_summary =
       | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    | AnaAnnotatedLambda(expected_ty, got_ty)
+    | AnaAnnotatedFun(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       pat_ana_subsumed_msg(expected_ty, got_ty, [ana], consistent_symbol)
@@ -253,7 +253,7 @@ let novice_summary =
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    | AnaAnnotatedLambda(expected_ty, got_ty)
+    | AnaAnnotatedFun(expected_ty, got_ty)
     | AnaSubsumed(expected_ty, got_ty)
     | PatAnaSubsumed(expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
@@ -614,7 +614,7 @@ let view =
   let rec get_err_state_b = (typed: CursorInfo.typed) =>
     switch (typed) {
     | Analyzed(_)
-    | AnaAnnotatedLambda(_)
+    | AnaAnnotatedFun(_)
     | AnaSubsumed(_)
     | Synthesized(_)
     | SynMatchingArrow(_)

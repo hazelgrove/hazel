@@ -253,8 +253,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
   (place_before_operand(hole), u_gen);
 };
 
-let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
-
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None
