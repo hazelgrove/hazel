@@ -1,3 +1,4 @@
+open Sexplib.Std;
 let operator_of_shape = (os: Action.operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -37,6 +38,18 @@ let shape_of_operator = (op: UHExp.operator): option(Action.operator_shape) =>
   | FLessThan
   | FGreaterThan
   | FEquals => None
+  };
+
+let int_to_float_operator = (sop: UHExp.operator): option(UHExp.operator) =>
+  switch (sop) {
+  | Plus => Some(FPlus)
+  | Minus => Some(FMinus)
+  | Times => Some(FTimes)
+  | Divide => Some(FDivide)
+  | LessThan => Some(FLessThan)
+  | GreaterThan => Some(FGreaterThan)
+  | Equals => Some(FEquals)
+  | _ => None
   };
 
 let has_Comma = (ZOpSeq(_, zseq): ZExp.zopseq) =>
@@ -111,8 +124,12 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
-    ~comma=Operators_Exp.Comma,
+    ~holes_opseq=CursorPath_Exp.holes_opseq,
+    ~follow_opseq=CursorPath_Exp.follow_opseq,
+    ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
     ~place_before_opseq=ZExp.place_before_opseq,
+    ~place_before_operand=ZExp.place_before_operand,
+    ~comma=Operators_Exp.Comma,
     ~new_EmptyHole=UHExp.new_EmptyHole,
   );
 
@@ -213,6 +230,7 @@ let resurround_z =
     ((new_prefix_lines, zline, new_suffix_lines), u_gen);
   };
 
+[@deriving sexp]
 type expanding_result = {
   kw: ExpandingKeyword.t,
   u_gen: MetaVarGen.t,
@@ -241,7 +259,9 @@ let wrap_in_SynDone:
   | (Failed | CursorEscaped(_)) as err => err
   | Succeeded(syn_done) => Succeeded(SynDone(syn_done));
 
+[@deriving sexp]
 type ana_done = (ZExp.t, MetaVarGen.t);
+[@deriving sexp]
 type ana_success =
   | AnaExpands(expanding_result)
   | AnaDone(ana_done);
@@ -1214,18 +1234,7 @@ and syn_perform_opseq =
 
   /* Making Float Operators from Int Operators */
   | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
-    let new_operator = {
-      switch (oper) {
-      | Operators_Exp.Plus => Some(Operators_Exp.FPlus)
-      | Operators_Exp.Minus => Some(Operators_Exp.FMinus)
-      | Operators_Exp.Times => Some(Operators_Exp.FTimes)
-      | Operators_Exp.Divide => Some(Operators_Exp.FDivide)
-      | Operators_Exp.LessThan => Some(Operators_Exp.FLessThan)
-      | Operators_Exp.GreaterThan => Some(Operators_Exp.FGreaterThan)
-      | Operators_Exp.Equals => Some(Operators_Exp.FEquals)
-      | _ => None
-      };
-    };
+    let new_operator = int_to_float_operator(oper);
     switch (new_operator) {
     | Some(op) =>
       let new_zoperator = (pos, op);
@@ -1300,6 +1309,60 @@ and syn_perform_opseq =
     let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
     syn_perform_opseq(ctx, keyword_action(k), (zopseq, ty, u_gen));
 
+  // operator type prediction
+  // synthesis from float
+  | (Construct(SOp(os)), ZOperand(zoperand, surround))
+      when
+        ty == HTyp.Float
+        && (
+          ZExp.is_before_zoperand(zoperand)
+          || ZExp.is_after_zoperand(zoperand)
+        ) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        switch (int_to_float_operator(operator)) {
+        | None => construct_operator(u_gen, operator, zoperand, surround)
+        | Some(float_op) =>
+          construct_operator(u_gen, float_op, zoperand, surround)
+        };
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    }
+  // synthesize operator's type from opposing zoperand when cursor on hole
+  | (
+      Construct(SOp(os)),
+      ZOperand(
+        CursorE(_, EmptyHole(_)) as zoperand,
+        (prefix, suffix) as surround,
+      ),
+    )
+      when
+        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let opp_operand = ZExp.is_before_zoperand(zoperand) ? prefix : suffix;
+      let (zseq, u_gen) =
+        switch (opp_operand) {
+        | Seq.A(_, Seq.S(FloatLit(_), _)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
+      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
+    }
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
@@ -1311,9 +1374,21 @@ and syn_perform_opseq =
           ? construct_operator_before_zoperand
           : construct_operator_after_zoperand;
       let (zseq, u_gen) =
-        construct_operator(u_gen, operator, zoperand, surround);
+        switch (zoperand) {
+        // synthesize operator's type from zoperand
+        // e.g. 1.| 2 => 1. +.| 2
+        // e.g. 1. |2 => 1. +| 2
+        | CursorE(_, FloatLit(_)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
       Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
     }
+
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -2562,20 +2637,9 @@ and ana_perform_opseq =
 
   /* Construction */
 
-  /* contruction of Float Operators from Int Operators */
+  /* construction of Float Operators from Int Operators */
   | (Construct(SChar(".")), ZOperator((pos, oper), seq)) =>
-    let new_operator = {
-      switch (oper) {
-      | Operators_Exp.Plus => Some(Operators_Exp.FPlus)
-      | Operators_Exp.Minus => Some(Operators_Exp.FMinus)
-      | Operators_Exp.Times => Some(Operators_Exp.FTimes)
-      | Operators_Exp.Divide => Some(Operators_Exp.FDivide)
-      | Operators_Exp.LessThan => Some(Operators_Exp.FLessThan)
-      | Operators_Exp.GreaterThan => Some(Operators_Exp.FGreaterThan)
-      | Operators_Exp.Equals => Some(Operators_Exp.FEquals)
-      | _ => None
-      };
-    };
+    let new_operator = int_to_float_operator(oper);
     switch (new_operator) {
     | Some(op) =>
       let new_zoperator = (pos, op);
@@ -2599,11 +2663,15 @@ and ana_perform_opseq =
     };
 
   | (Construct(SOp(SComma)), _)
-      when
-        ZExp.is_after_zopseq(zopseq)
-        && !(zopseq |> has_Comma)
-        && List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (OpSeq(_, opseq), u_gen) =
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length > first_seq_length;
+      } =>
+    let (OpSeq(_, seq), u_gen) =
       Statics_Exp.ana_fix_holes_opseq(
         ctx,
         u_gen,
@@ -2611,8 +2679,60 @@ and ana_perform_opseq =
         // safe because pattern guard
         ty |> HTyp.get_prod_elements |> List.hd,
       );
-    let (ZOpSeq(_, new_zseq), u_gen) = complete_tuple(u_gen, opseq, ty);
+    let (ZOpSeq(_, new_zseq), u_gen) =
+      complete_tuple(
+        u_gen,
+        seq,
+        ty,
+        ~triggered_by_paren=false,
+        ~is_after_zopseq=ZExp.is_after_zopseq(zopseq),
+      );
     Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty)));
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
+        let first_seq_length = List.length(Seq.operands(first_seq));
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
+        && ty_length >= 2
+        && ty_length >= first_seq_length;
+      } =>
+    let OpSeq(_, first_seq) = zopseq |> ZExp.erase_zopseq;
+    let first_seq_length = List.length(Seq.operands(first_seq));
+    let (OpSeq(_, first_seq), u_gen) =
+      Statics_Exp.ana_fix_holes_opseq(
+        ctx,
+        u_gen,
+        zopseq |> ZExp.erase_zopseq,
+        // safe because pattern guard
+        HTyp.Prod(
+          ty
+          |> HTyp.get_prod_elements
+          |> ListUtil.sublist(~lo=0, first_seq_length),
+        ),
+      );
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        first_seq,
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
+    let new_ze =
+      ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+    Succeeded(AnaDone((new_ze, u_gen)));
+
+  | (Construct(SParenthesized), _)
+      when {
+        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        (ZExp.is_after_zopseq(zopseq) || ZExp.is_before_zopseq(zopseq))
+        && ty_length >= 2;
+      } =>
+    let new_ze =
+      ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
+    Succeeded(AnaDone((new_ze, u_gen)));
 
   | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
       when zoperand |> ZExp.is_after_zoperand =>
@@ -2670,9 +2790,38 @@ and ana_perform_opseq =
     let zopseq = ZOpSeq.ZOpSeq(skel, ZOperand(zhole, surround));
     ana_perform_opseq(ctx, keyword_action(k), (zopseq, u_gen), ty);
 
+  // operator type prediction
+  // analysis from float
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+        ty == HTyp.Float
+        && (
+          ZExp.is_before_zoperand(zoperand)
+          || ZExp.is_after_zoperand(zoperand)
+        ) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        switch (int_to_float_operator(operator)) {
+        | None => construct_operator(u_gen, operator, zoperand, surround)
+        | Some(float_op) =>
+          construct_operator(u_gen, float_op, zoperand, surround)
+        };
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+    }
+  // analysis from int
+  | (Construct(SOp(os)), ZOperand(zoperand, surround))
+      when
+        ty == HTyp.Int
+        && (
+          ZExp.is_before_zoperand(zoperand)
+          || ZExp.is_after_zoperand(zoperand)
+        ) =>
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(operator) =>
@@ -2684,6 +2833,33 @@ and ana_perform_opseq =
         construct_operator(u_gen, operator, zoperand, surround);
       Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
     }
+
+  | (Construct(SOp(os)), ZOperand(zoperand, surround))
+      when
+        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
+    switch (operator_of_shape(os)) {
+    | None => Failed
+    | Some(operator) =>
+      let construct_operator =
+        ZExp.is_before_zoperand(zoperand)
+          ? construct_operator_before_zoperand
+          : construct_operator_after_zoperand;
+      let (zseq, u_gen) =
+        switch (zoperand) {
+        // synthesize operator's type from zoperand
+        // e.g. 1.| 2 => 1. +.| 2
+        // e.g. 1. |2 => 1. +| 2
+        | CursorE(_, FloatLit(_)) =>
+          switch (int_to_float_operator(operator)) {
+          | None => construct_operator(u_gen, operator, zoperand, surround)
+          | Some(float_op) =>
+            construct_operator(u_gen, float_op, zoperand, surround)
+          }
+        | _ => construct_operator(u_gen, operator, zoperand, surround)
+        };
+      Succeeded(AnaDone(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty)));
+    }
+
   /* Swap actions */
   | (SwapUp | SwapDown, ZOperator(_))
   | (SwapLeft, ZOperator(_))
@@ -2997,9 +3173,29 @@ and ana_perform_operand =
 
   | (Construct(SAnn), CursorE(_)) => Failed
 
-  | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
+  | (Construct(SParenthesized), CursorE(_, operand))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
-    let (zopseq, u_gen) = complete_tuple(u_gen, Seq.wrap(hole), ty);
+    // the operand wrapped by the hole
+    let operand_inside_hole =
+      UHExp.set_err_status_operand(NotInHole, operand);
+    let operand =
+      switch (Statics_Exp.syn_operand(ctx, operand_inside_hole)) {
+      | Some(first_seq_ty) =>
+        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
+          operand_inside_hole;
+        } else {
+          operand;
+        }
+      | None => operand
+      };
+    let (zopseq, u_gen) =
+      complete_tuple(
+        u_gen,
+        Seq.wrap(operand),
+        ty,
+        ~triggered_by_paren=true,
+        ~is_after_zopseq=true,
+      );
     let new_ze =
       ZExp.ParenthesizedZ(ZExp.ZBlock.wrap'(zopseq)) |> ZExp.ZBlock.wrap;
     Succeeded(AnaDone((new_ze, u_gen)));
