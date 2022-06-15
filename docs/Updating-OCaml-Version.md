@@ -2,45 +2,70 @@
 
 ## Current version
 
-The most recent version that we use is Ocaml 4.12.1. We have not updated past that for the following
+The most recent version that we use is Ocaml 4.13.1. We have not updated past that for the following
 reasons (which should be re-confirmed periodically):
 
-- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) does not support 4.13 or higher version.
+- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) did not support 4.13 or higher version.
+- The package [`sexplib`](https://opam.ocaml.org/packages/sexplib/) as of v0.15.0 has a bug preventing
+  compilation of expressions of the form
+  
+    `[@deriving sexp] type t = u and ...`
+
+  where `u` is an identifier.
 
 ## How to update Hazel to use a new version of ocaml
 
 There are new releases of OCaml 2-4 times per year.
 
-To update do the following:
+To update, make sure the current branch compiles and then do the following:
 
 - `opam update`
 
-- `opam switch list-available`
+- Determine the latest version of Ocaml supported by the current branch.
 
-- Choose the most recent version that does not contain a `+` character (e.g.,
-  `4.12.1`)
+    `opam upgrade --update-invariant --dry-run --no`
 
-- Create a new branch called `update_ocaml_VERSION` where VERSION is the 
-  version of OCaml you intend to upgrade to. 
+  - The curent version (`OLD-VERSION`) of Ocaml and the latest version (`NEW-VERSION`)
+     supported by the current toolchain are the versions reported for the `ocaml` or
+	 `ocaml-base-compiler` package.
 
-    `git checkout -b update_ocaml_VERSION`
+- Create a new branch called `update_ocaml_NEW-VERSION`.
 
-- `opam switch create VERSION`, where `VERSION` is the most recent OCaml version
-  that does not contain a `+` character (e.g., `4.12.1`).
+    `git checkout -b update_ocaml_NEW-VERSION`
 
-- `make deps`
+- Create a new opam switch called `update_ocaml_NEW-VERSION`.
 
-- `opam upgrade`
+    ```
+    opam switch create update_ocaml_NEW-VERSION OLD-VERSION
+    opam switch set update_ocaml_NEW-VERSION
+    ```
 
-- `make change-deps`
+  - If there is a local switch folder in the current working directory (`./_opam`),
+    it must be overriden manually.
+  
+      `eval $(opam env --switch=update_ocaml_NEW-VERSION --set-switch)`
 
-- `make repl`
+- Install the old toolchain and dependencies.
+
+    `opam switch import opam.export`
+
+- Perform the upgrade.
+
+    `opam upgrade --update-invariant`
 
 - Make sure the REPL loads correctly.
 
-- `make release`
+    `make repl`
 
-- Test in Firefox and Chrome.
+- Make sure Hazel still runs correctly.
+
+    `make release`
+
+  - Test in Firefox and Chrome.
+
+- Reconstruct `opam.export`.
+
+    `make change-deps`
 
 - Update the version number in `.github/workflows/deploy_branches.yml`
 
@@ -67,4 +92,4 @@ To update do the following:
         opam update
         opam switch create VERSION
         make deps
-        ```
+			```
