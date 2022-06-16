@@ -44,8 +44,8 @@ and print_top_block = (tb: GrainIR.top_block) => {
 
 and print_top_statement = (tstmt: GrainIR.top_stmt) =>
   switch (tstmt) {
-  | TSImport(name, path) => print_import(name, path)
-  | TSDecl(decl) => print_decl(decl)
+  | TImport(name, path) => print_import(name, path)
+  | TDecl(decl) => print_decl(decl)
   }
 
 and print_import = (name: Var.t, path: GrainIR.import_path) => {

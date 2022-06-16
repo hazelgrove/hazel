@@ -62,7 +62,7 @@ module Imports = {
       |> add(float32, [GrainStd.Float32.import])
       |> add(float64, [GrainStd.Float32.import]);
 
-    imps |> List.map(((x, path)) => GrainIR.TSImport(x, path));
+    imps |> List.map(((x, path)) => GrainIR.TImport(x, path));
   };
 };
 
