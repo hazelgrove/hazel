@@ -2,7 +2,7 @@
 
 ## Current version
 
-The most recent version that we use is Ocaml 4.13.1. We have not updated past that for the following
+The most recent version that we use is OCaml 4.13.1. We have not updated past that for the following
 reasons (which should be re-confirmed periodically):
 
 - The package [`sexplib`](https://opam.ocaml.org/packages/sexplib/) as of v0.15.0 has a bug preventing
@@ -21,11 +21,11 @@ To update, make sure the current branch compiles and then do the following:
 
 - `opam update`
 
-- Determine the latest version of Ocaml supported by the current branch.
+- Determine the latest version of OCaml supported by the current branch.
 
     `opam upgrade --update-invariant --dry-run --no`
 
-  - The curent version (`OLD-VERSION`) of Ocaml and the latest version (`NEW-VERSION`)
+  - The curent version (`OLD-VERSION`) of OCaml and the latest version (`NEW-VERSION`)
      supported by the current toolchain are the versions reported for the `ocaml` or
      `ocaml-base-compiler` package.
 
