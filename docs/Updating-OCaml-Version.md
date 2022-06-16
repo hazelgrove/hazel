@@ -5,13 +5,13 @@
 The most recent version that we use is Ocaml 4.13.1. We have not updated past that for the following
 reasons (which should be re-confirmed periodically):
 
-- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) did not support 4.13 or higher version.
 - The package [`sexplib`](https://opam.ocaml.org/packages/sexplib/) as of v0.15.0 has a bug preventing
   compilation of expressions of the form
-  
+
     `[@deriving sexp] type t = u and ...`
 
   where `u` is an identifier.
+- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) did not support 4.13 or higher version.
 
 ## How to update Hazel to use a new version of ocaml
 
@@ -27,7 +27,7 @@ To update, make sure the current branch compiles and then do the following:
 
   - The curent version (`OLD-VERSION`) of Ocaml and the latest version (`NEW-VERSION`)
      supported by the current toolchain are the versions reported for the `ocaml` or
-	 `ocaml-base-compiler` package.
+     `ocaml-base-compiler` package.
 
 - Create a new branch called `update_ocaml_NEW-VERSION`.
 
@@ -42,7 +42,7 @@ To update, make sure the current branch compiles and then do the following:
 
   - If there is a local switch folder in the current working directory (`./_opam`),
     it must be overriden manually.
-  
+
       `eval $(opam env --switch=update_ocaml_NEW-VERSION --set-switch)`
 
 - Install the old toolchain and dependencies.
@@ -72,24 +72,24 @@ To update, make sure the current branch compiles and then do the following:
   - Update the version number in step 3: Install dependencies and build hazel.
   - Push to github and check deploy status
 
+- Update the current version number and caveats at the top of this document.
+
 - Update the version numbers in `README.md`.
 
 - Update the version number and instructions in `INSTALL.md`.
-
-- Update the "Current Version" section in `UPDATING.md`
 
 - Announce the version change on the `#hazel-dev` channel of the `hazelgrove`
   Slack by sending the following message, with the appropriate VERSION:
 
       @channel
       We have switched `dev` to OCaml version VERSION. You can update to VERSION by doing the following things.
-      
-      - Merge your branch with either `dev` or `update_ocaml_VERSION` if that is tricky.
+
+      - Merge your branch with either `dev` or `update_ocaml_NEW-VERSION` if that is tricky.
 
       - Update your OCaml installation by running the following:
 
         ```
         opam update
-        opam switch create VERSION
+        opam switch create NEW-VERSION
         make deps
-			```
+        ```
