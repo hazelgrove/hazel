@@ -338,50 +338,48 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  /* let rec mk_by_segment = (s, errors, idx, acc_doc) => */
-  /* switch (errors) { */
-  /* [> If no remaining errors, concatenate the remainder of the string. <] */
-  /* | [] => */
-  /* let len = String.length(s); */
-  /* if (len != 0) { */
-  /* let rest_doc = */
-  /* mk_text_str(~start=idx, String.sub(s, idx, len - idx)); */
-  /* Doc.hcat(acc_doc, rest_doc); */
-  /* } else { */
-  /* acc_doc; */
-  /* }; */
+  let rec mk_by_segment = (s, errors, idx, acc_doc) =>
+    switch (errors) {
+    /* If no remaining errors, concatenate the remainder of the string. */
+    | [] =>
+      let len = String.length(s);
+      if (len != 0) {
+        let rest_doc =
+          mk_text_str(~start=idx, String.sub(s, idx, len - idx));
+        Doc.hcat(acc_doc, rest_doc);
+      } else {
+        acc_doc;
+      };
 
-  /* | [error, ...errors] => */
-  /* let (next_doc, length) = */
-  /* switch (error) { */
-  /* | StringLitLexer.InvalidSeq({start: _, ostart: start, length}) => */
-  /* [> Get valid segment up until error, if there is one. <] */
-  /* let inter_doc = */
-  /* if (start > idx) { */
-  /* let inter_seg = String.sub(s, idx, start - idx); */
-  /* Some(mk_text_str(~start=idx, inter_seg)); */
-  /* } else { */
-  /* None; */
-  /* }; */
+    | [error, ...errors] =>
+      let (next_doc, length) =
+        switch (error) {
+        | StringLitLexer.InvalidSeq({start: _, ostart: start, length}) =>
+          /* Get valid segment up until error, if there is one. */
+          let inter_doc =
+            if (start > idx) {
+              let inter_seg = String.sub(s, idx, start - idx);
+              Some(mk_text_str(~start=idx, inter_seg));
+            } else {
+              None;
+            };
 
-  /* [> Append invalid escape segment. <] */
-  /* let err_seg = annot_InvalidSeq(String.sub(s, start, length)); */
-  /* let next_doc = */
-  /* inter_doc */
-  /* |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg)) */
-  /* |> Option.value(~default=err_seg); */
-  /* (next_doc, length + start - idx); */
-  /* }; */
+          /* Append invalid escape segment. */
+          let err_seg = annot_InvalidSeq(String.sub(s, start, length));
+          let next_doc =
+            inter_doc
+            |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg))
+            |> Option.value(~default=err_seg);
+          (next_doc, length + start - idx);
+        };
 
-  /* let acc_doc = Doc.hcat(acc_doc, next_doc); */
-  /* mk_by_segment(s, errors, idx + length, acc_doc); */
-  /* }; */
+      let acc_doc = Doc.hcat(acc_doc, next_doc);
+      mk_by_segment(s, errors, idx + length, acc_doc);
+    };
 
-  /* [> TODO: Special formatting for seqs. <] */
-  /* let (_, _seqs, errors) = UnescapedString.from_string(s); */
-  /* let inner = mk_by_segment(s, errors, 0, mk_text_str(~start=0, "")); */
-
-  let inner = mk_text(s);
+  /* TODO: Special formatting for seqs. */
+  let (_, _seqs, errors) = UnescapedString.from_string(s);
+  let inner = mk_by_segment(s, errors, 0, mk_text_str(~start=0, ""));
 
   let open_group = Delim.open_StringLit() |> annot_Tessera;
   let close_group = Delim.close_StringLit() |> annot_Tessera;
