@@ -1,4 +1,4 @@
-open Hazelc_test_util.Bench;
+open Bench;
 module Seq = Stdlib.Seq;
 
 let rec seq_nat = (i, ()) => {

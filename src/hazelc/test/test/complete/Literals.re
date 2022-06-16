@@ -1,5 +1,3 @@
-open Hazelc_test_util;
-
 let test = Case.test_with_eval;
 
 let%test_unit "bool lit true" = test("true");
