@@ -5,6 +5,8 @@ and zoperand =
   | CursorT(CursorPosition.t, UHTyp.operand)
   | ParenthesizedZ(t)
   | ListZ(t)
+  | ForallZP(ZTPat.t, UHTyp.t)
+  | ForallZT(TPat.t, t)
 and zoperator = (CursorPosition.t, UHTyp.operator);
 
 type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
@@ -22,6 +24,7 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
     | TyVar(_, name) => text_cursors(String.length(name))
     | Parenthesized(_)
     | List(_) => delim_cursors(2)
+    | Forall(_, _) => delim_cursors(3)
   );
 
 let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
@@ -46,7 +49,9 @@ and erase_zoperand =
   fun
   | CursorT(_, operand) => operand
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
-  | ListZ(zty) => List(erase(zty));
+  | ListZ(zty) => List(erase(zty))
+  | ForallZP(ztpat, ty) => Forall(ZTPat.erase(ztpat), ty)
+  | ForallZT(tpat, zty) => Forall(tpat, erase(zty));
 
 let mk_ZOpSeq: zseq => zopseq =
   ZOpSeq.mk(~associate=UHTyp.associate, ~erase_zoperand, ~erase_zoperator);
@@ -61,13 +66,15 @@ and is_before_zoperand =
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Parenthesized(_))
-  | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
+  | CursorT(cursor, List(_) | Forall(_)) => cursor == OnDelim(0, Before)
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
   | CursorT(cursor, TyVar(_)) => cursor == OnText(0)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false;
+  | ListZ(_) => false
+  | ForallZP(_) => false
+  | ForallZT(_) => false;
 let is_before_zoperator: zoperator => bool =
   fun
   | (OnOp(Before), _) => true
@@ -86,8 +93,11 @@ and is_after_zoperand =
     cursor == OnText(String.length(name))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
+  | CursorT(cursor, Forall(_)) => cursor == OnDelim(2, After)
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false;
+  | ListZ(_) => false
+  | ForallZP(_) => false
+  | ForallZT(_) => false;
 let is_after_zoperator: zoperator => bool =
   fun
   | (OnOp(After), _) => true
@@ -98,7 +108,7 @@ and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
   fun
-  | (Hole | Unit | Parenthesized(_) | List(_)) as operand =>
+  | (Hole | Unit | Parenthesized(_) | List(_) | Forall(_)) as operand =>
     CursorT(OnDelim(0, Before), operand)
   | (TyVar(_) | Int | Float | Bool) as operand =>
     CursorT(OnText(0), operand);
@@ -117,7 +127,8 @@ and place_after_operand =
   | TyVar(_, name) as operand =>
     CursorT(OnText(String.length(name)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
-    CursorT(OnDelim(1, After), operand);
+    CursorT(OnDelim(1, After), operand)
+  | Forall(_) as operand => CursorT(OnDelim(2, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 
@@ -156,12 +167,21 @@ and move_cursor_left_zoperand =
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
+  // TODO (forall-typ): should we deal with left-most case for OnDelim?
+  // Plus, why are List and Parenthesized working?
+  // | CursorT(OnDelim(0, Before), _) => None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(ty1)))
   | CursorT(OnDelim(_k, Before), List(ty1)) =>
     // _k == 1
     Some(ListZ(place_after(ty1)))
+  | CursorT(OnDelim(k, Before), Forall(tpat, tbody)) =>
+    switch (k) {
+    | 1 => Some(ForallZP(tpat |> ZTPat.place_after, tbody))
+    | 2 => Some(ForallZT(tpat, tbody |> place_after))
+    | _ => None
+    }
   | CursorT(OnDelim(_, _), TyVar(_)) => None
   | ParenthesizedZ(zty1) =>
     switch (move_cursor_left(zty1)) {
@@ -172,6 +192,16 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
+    }
+  | ForallZP(ztpat, ty) as zoperand =>
+    switch (ZTPat.move_cursor_left(ztpat)) {
+    | Some(ztpat) => Some(ForallZP(ztpat, ty))
+    | None => Some(CursorT(OnDelim(0, After), erase_zoperand(zoperand)))
+    }
+  | ForallZT(tpat, zty) as zoperand =>
+    switch (move_cursor_left(zty)) {
+    | Some(zty) => Some(ForallZT(tpat, zty))
+    | None => Some(CursorT(OnDelim(1, After), erase_zoperand(zoperand)))
     };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
@@ -206,6 +236,12 @@ and move_cursor_right_zoperand =
   | CursorT(OnDelim(_k, After), List(ty1)) =>
     // _k == 0
     Some(ListZ(place_before(ty1)))
+  | CursorT(OnDelim(k, After), Forall(tpat, tbody)) =>
+    switch (k) {
+    | 0 => Some(ForallZP(tpat |> ZTPat.place_before, tbody))
+    | 1 => Some(ForallZT(tpat, tbody |> place_before))
+    | _ => None
+    }
   | CursorT(OnDelim(_, _), TyVar(_)) => None
   | ParenthesizedZ(zty1) =>
     switch (move_cursor_right(zty1)) {
@@ -217,4 +253,14 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(1, Before), List(erase(zty1))))
+    }
+  | ForallZP(ztpat, ty) as zoperand =>
+    switch (ZTPat.move_cursor_right(ztpat)) {
+    | Some(ztpat) => Some(ForallZP(ztpat, ty))
+    | None => Some(CursorT(OnDelim(1, Before), erase_zoperand(zoperand)))
+    }
+  | ForallZT(tpat, zty) as zoperand =>
+    switch (move_cursor_right(zty)) {
+    | Some(zty) => Some(ForallZT(tpat, zty))
+    | None => Some(CursorT(OnDelim(2, Before), erase_zoperand(zoperand)))
     };
