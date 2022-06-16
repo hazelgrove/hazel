@@ -1,9 +1,9 @@
 module Inner = GrainStd.Inner;
 
-let mk_path = path => GrainIR.ImportStd("hazel/" ++ path);
+let mk_path = path => GrainIR.ImportStd(Filename.concat("hazel", path));
 
 module Rt = {
-  let mk_path = path => mk_path("rt/" ++ path);
+  let mk_path = path => mk_path(Filename.concat("rt", path));
 
   module Ast = {
     include Inner({
