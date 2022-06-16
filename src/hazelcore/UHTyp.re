@@ -169,10 +169,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
-  // TODO (forall-typ): do we need to check tpat for completeness?
-  | Forall(tpat, body) => {
-    TPat.is_complete(tpat) && is_complete(body)
-  }
+  | Forall(tpat, body) => TPat.is_complete(tpat) && is_complete(body)
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {
