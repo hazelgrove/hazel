@@ -5,16 +5,20 @@
 The most recent version that we use is OCaml 4.13.1. We have not updated past that for the following
 reasons (which should be re-confirmed periodically):
 
+- The following packages break support for OCaml version 4.14.0 by conflicting on `js_of_ocaml` version 4.0.0:
+  - [`incr_dom`](https://github.com/janestreet/incr_dom)
+  - [`async_hs`](https://github.com/janestreet/async_js)
+  - [`virtual_dom`](https://github.com/janestreet/virtual_dom)
 - The package [`sexplib`](https://opam.ocaml.org/packages/sexplib/) as of v0.15.0 has a bug preventing
-  compilation of expressions of the form
+  compilation of some expressions of the form
 
     `[@deriving sexp] type t = u and ...`
 
   where `u` is an identifier. To work around this limitation, `sexplib` has been downgraded from version
-  0.15 to 0.14, preventing a "complete" upgrade to OCaml 4.13.1 by a cascading downgrade of `core_kernel`
-  and related Jane Street packages from version 0.15 to 0.14.
+  0.15 to 0.14, preventing a "complete" upgrade to OCaml 4.13.1 by downgrading several Jane Street packages
+  from version 0.15 to 0.14.
 
-## How to update Hazel to use a new version of ocaml
+## How to update Hazel to use a new version of OCaml
 
 There are new releases of OCaml 2-4 times per year.
 
