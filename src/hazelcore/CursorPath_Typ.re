@@ -223,12 +223,10 @@ and holes_zoperand =
     )
   | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInTyVarHole(_), _)) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
-    // TODO (forall-typ): Maybe should be 0 => ...(~holes_after=holes) and
-    // 1 => ...(~holes_before=holes)? (See CursorPath_Exp/holes_zoperand)
     let holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
-    | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
+    | 0 => CursorPath_common.mk_zholes(~holes_after=holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | _ => CursorPath_common.no_holes
     };
   | CursorT(OnDelim(k, _), Forall(tpat, ty)) =>
