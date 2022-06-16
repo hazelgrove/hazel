@@ -10,8 +10,9 @@ reasons (which should be re-confirmed periodically):
 
     `[@deriving sexp] type t = u and ...`
 
-  where `u` is an identifier.
-- The package [`rtop`](https://opam.ocaml.org/packages/rtop/) did not support 4.13 or higher version.
+  where `u` is an identifier. To work around this limitation, `sexplib` has been downgraded from version
+  0.15 to 0.14, preventing a "complete" upgrade to OCaml 4.13.1 by a cascading downgrade of `core_kernel`
+  and related Jane Street packages from version 0.15 to 0.14.
 
 ## How to update Hazel to use a new version of ocaml
 
