@@ -5,9 +5,6 @@
  (modules :standard \ Main)
  (libraries hazelcore hazeltext)
  (wrapped false)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
 
@@ -17,9 +14,3 @@
  (libraries hazelc cmdliner)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
-
-(rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))
