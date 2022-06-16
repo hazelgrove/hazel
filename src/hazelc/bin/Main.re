@@ -251,7 +251,11 @@ let optimize_flag = {
   };
 
   let doc = "Set optimization level";
-  Arg.(value & opt(optimize_arg, default_optimize) & info(["O"], ~docv="LEVEL", ~doc));
+  Arg.(
+    value
+    & opt(optimize_arg, default_optimize)
+    & info(["O"], ~docv="LEVEL", ~doc)
+  );
 };
 
 /* Debug flag. */
