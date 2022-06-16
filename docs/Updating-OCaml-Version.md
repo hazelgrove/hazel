@@ -84,10 +84,10 @@ To update, make sure the current branch compiles and then do the following:
 - Update the version number and instructions in `INSTALL.md`.
 
 - Announce the version change on the `#hazel-dev` channel of the `hazelgrove`
-  Slack by sending the following message, with the appropriate VERSION:
+  Slack by sending the following message, with the appropriate `NEW-VERSION`:
 
       @channel
-      We have switched `dev` to OCaml version VERSION. You can update to VERSION by doing the following things.
+      We have switched `dev` to OCaml version `NEW-VERSION`. You can update to `NEW-VERSION` by doing the following things.
 
       - Merge your branch with either `dev` or `update_ocaml_NEW-VERSION` if that is tricky.
 
