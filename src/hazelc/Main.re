@@ -21,6 +21,8 @@ type action =
 /* Temporary directory prefix. */
 let prefix = "hazelc";
 
+let default_optimize = 1;
+
 /* Default std path, via dune-site. */
 let default_std = Hazelclib.Sites.lib |> List.hd;
 
@@ -31,7 +33,6 @@ type error =
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
-  let optimize = optimize |> Option.value(~default=1);
   let indet_analysis_level =
     switch (optimize) {
     | 0 => IndetAnalysis.NoAnalysis
@@ -250,11 +251,7 @@ let optimize_flag = {
   };
 
   let doc = "Set optimization level";
-  Arg.(
-    value
-    & opt(some(optimize_arg), None)
-    & info(["O"], ~docv="LEVEL", ~doc)
-  );
+  Arg.(value & opt(optimize_arg, default_optimize) & info(["O"], ~docv="LEVEL", ~doc));
 };
 
 /* Debug flag. */
