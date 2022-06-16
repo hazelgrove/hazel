@@ -45,7 +45,9 @@ let rec mk =
       |> List.split
       |> TupleUtil.map2(List.flatten);
     }
-  | (List(ty), List(ty')) =>
+  | (List(ty), List(ty'))
+  | (Forall(_, ty), Forall(_, ty')) =>
+    // TODO (forall-typ):
     diff_subtypes(0, (HTyp.of_syntax(ty), HTyp.of_syntax(ty')))
   | (Int, _)
   | (Float, _)
@@ -53,6 +55,7 @@ let rec mk =
   | (Arrow(_), _)
   | (Sum(_), _)
   | (Prod(_), _)
-  | (List(_), _) => ([[]], [[]])
+  | (List(_), _)
+  | (Forall(_), _) => ([[]], [[]])
   };
 };

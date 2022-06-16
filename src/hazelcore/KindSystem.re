@@ -425,6 +425,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   let is_hole: t => bool;
   let is_tyvar: t => bool;
@@ -555,6 +556,7 @@ and HTyp: {
   let sum = (tyL: t, tyR: t): t => Sum(tyL, tyR);
   let product = (tys: list(t)): t => Prod(tys);
   let list = (ty: t): t => List(ty);
+  let forall = (tpat: TPat.t, ty: t): t => Forall(tpat, ty);
 
   let is_hole = (ty: t): bool => ty == Hole;
 

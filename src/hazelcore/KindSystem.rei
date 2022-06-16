@@ -241,6 +241,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   /* HTyp Value Predicates */
 

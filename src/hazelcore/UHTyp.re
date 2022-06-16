@@ -12,7 +12,8 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+  | Forall(TPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -33,7 +34,8 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
-  | List(_) => OpSeq.wrap(operand)
+  | List(_)
+  | Forall(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
 
@@ -105,6 +107,13 @@ let contract = (ty: HTyp.t): t => {
             HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
           ),
         )
+      | Forall(tpat, ty1) =>
+        Seq.wrap(
+          Forall(
+            tpat,
+            HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
+          ),
+        )
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -146,7 +155,8 @@ and expand_operand =
   | Float => HTyp.float()
   | Bool => HTyp.bool()
   | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => HTyp.list(expand(opseq));
+  | List(opseq) => HTyp.list(expand(opseq))
+  | Forall(tpat, opseq) => HTyp.forall(tpat, expand(opseq));
 
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
@@ -159,6 +169,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Bool => true
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
+  // TODO (forall-typ): do we need to check tpat for completeness?
+  | Forall(_, body) => is_complete(body)
   };
 }
 and is_complete_skel = (sk: skel, sq: seq) => {
