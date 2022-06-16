@@ -31,6 +31,7 @@ let print' = GrainPrint.print;
 [@deriving sexp]
 type wasm_opts = {
   grain: string,
+  includes: list(string),
   wat: bool,
   maximum_memory_pages: int,
   release: bool,
@@ -50,6 +51,7 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
       Grain.make(~grain=opts.grain)
       |> make(~source)
       |> with_output(output)
+      |> with_includes(opts.includes)
       |> with_wat(opts.wat)
       |> with_maximum_memory_pages(opts.maximum_memory_pages)
       |> with_release(opts.release)

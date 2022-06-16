@@ -28,6 +28,7 @@ let print: (~opts: opts, GrainIR.prog) => string;
 [@deriving sexp]
 type wasm_opts = {
   grain: string,
+  includes: list(string),
   wat: bool,
   maximum_memory_pages: int,
   release: bool,

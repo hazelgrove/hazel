@@ -1,6 +1,6 @@
 module Inner = GrainStd.Inner;
 
-let mk_path = path => GrainIR.ImportRel("hazel/" ++ path);
+let mk_path = path => GrainIR.ImportStd("hazel/" ++ path);
 
 module Rt = {
   let mk_path = path => mk_path("rt/" ++ path);

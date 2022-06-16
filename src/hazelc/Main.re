@@ -27,13 +27,16 @@ type error =
   | ElaborateError
   | GrainError;
 
-let mk_opts = (action, _verbose, optimize, _debug) => {
+let mk_opts = (action, _verbose, optimize, _debug, std) => {
   let optimize = optimize |> Option.value(~default=1);
   let indet_analysis_level =
     switch (optimize) {
     | 0 => IndetAnalysis.NoAnalysis
     | _ => IndetAnalysis.GlobalAnalysis
     };
+
+  /* FIXME: Fix this. */
+  let std = std |> Option.value(~default=".");
 
   let opts: Compile.opts = {
     optimize: {
@@ -47,6 +50,7 @@ let mk_opts = (action, _verbose, optimize, _debug) => {
   };
   let wasm_opts: Compile.wasm_opts = {
     grain: "grain",
+    includes: [std],
     wat: action == Wat,
     maximum_memory_pages: 64,
     release: optimize >= 2,
@@ -56,7 +60,7 @@ let mk_opts = (action, _verbose, optimize, _debug) => {
 };
 
 let hazelc =
-    (action, source_filenames, output_filename, verbose, optimize, debug) => {
+    (action, source_filenames, output_filename, verbose, optimize, debug, std) => {
   // Open the source file.
   let source_filename = List.hd(source_filenames);
   let&i source_file = open_in(source_filename);
@@ -66,7 +70,7 @@ let hazelc =
   let grain_output = Filename.temp_file(prefix, "a.gr");
 
   // Initialize options.
-  let (opts, wasm_opts) = mk_opts(action, verbose, optimize, debug);
+  let (opts, wasm_opts) = mk_opts(action, verbose, optimize, debug, std);
 
   // Use the given output filename, or use "a.{ext}" where {ext} depends on
   // output kind.
@@ -259,6 +263,13 @@ let debug_flag = {
   Arg.(value & flag & info(["g", "debug"], ~doc));
 };
 
+let std_flag = {
+  let doc = "Specify std location.";
+  Arg.(
+    value & opt(some(string), None) & info(["std"], ~docv="PATH", ~doc)
+  );
+};
+
 let cmd = {
   let doc = "Hazel compiler.";
   let man = [
@@ -276,6 +287,7 @@ let cmd = {
       $ verbose_flag
       $ optimize_flag
       $ debug_flag
+      $ std_flag
     ),
   );
 };

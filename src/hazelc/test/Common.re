@@ -6,6 +6,9 @@ type profile =
 module Compile = {
   let temp_prefix = "hazelc_test";
 
+  /* FIXME: Fix this. */
+  let std = ".";
+
   let mk_opts = profile => {
     switch (profile) {
     | Test =>
@@ -21,6 +24,7 @@ module Compile = {
       };
       let wasm_opts: Compile.wasm_opts = {
         grain: "grain",
+        includes: [std],
         wat: false,
         maximum_memory_pages: 64,
         release: false,
@@ -40,6 +44,7 @@ module Compile = {
       };
       let wasm_opts: Compile.wasm_opts = {
         grain: "grain",
+        includes: [std],
         wat: false,
         maximum_memory_pages: 4194304 / 64,
         release: true,
