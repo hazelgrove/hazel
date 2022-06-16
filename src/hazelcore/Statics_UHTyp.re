@@ -84,6 +84,9 @@ and syn_fix_holes_operand =
   | List(opseq) =>
     let (opseq, k, u_gen) = syn_fix_holes(ctx, u_gen, opseq);
     (List(opseq), k, u_gen);
+  | Forall(tpat, ty) =>
+    let (ty, k, u_gen) = syn_fix_holes(ctx, u_gen, ty);
+    (Forall(tpat, ty), k, u_gen);
   };
 }
 
@@ -135,7 +138,8 @@ and ana_fix_holes_operand = (tyvars, u_gen, operand, k) => {
   | Int
   | Float
   | Bool
-  | List(_) =>
+  | List(_)
+  | Forall(_) =>
     let (ty, k', u_gen) = syn_fix_holes_operand(tyvars, u_gen, operand);
     if (Kind.consistent_subkind(tyvars, k', k)) {
       (ty, k', u_gen);

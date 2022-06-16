@@ -1,3 +1,4 @@
+open OptUtil.Syntax;
 type cursor_term = CursorInfo.cursor_term;
 type zoperand = CursorInfo_common.zoperand;
 
@@ -24,7 +25,9 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
-  | ListZ(ztyp) => extract_cursor_term(ztyp)
+  | ListZ(ztyp)
+  | ForallZT(_, ztyp) => extract_cursor_term(ztyp)
+  | ForallZP(ztpat, _) => CursorInfo_TPat.extract_cursor_term(ztpat)
   };
 };
 
@@ -46,7 +49,9 @@ and get_zoperand_from_ztyp_operand =
   switch (zoperand) {
   | CursorT(_, _) => Some(ZTyp(zoperand))
   | ParenthesizedZ(ztyp)
-  | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
+  | ListZ(ztyp)
+  | ForallZT(_, ztyp) => get_zoperand_from_ztyp(ztyp)
+  | ForallZP(ztpat, _) => CursorInfo_TPat.get_zoperand_from_ztpat(ztpat)
   };
 };
 
@@ -138,6 +143,21 @@ and cursor_info_zoperand =
     let+ (_, k, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
     CursorInfo_common.mk(OnType(k), ctx, cursor_term);
   | ParenthesizedZ(zbody)
-  | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ListZ(zbody)=> cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ForallZT(tpat, zbody) => {
+    // TODO (forall-typ): Shall we use Statics_TPat.matches or
+    // create our own?
+     cursor_info(~steps=steps @ [0], ctx, zbody);
+  }
+  | ForallZP(ztpat, zty) => {
+    // TODO (forall-typ): What does defferrable mean?
+    let+ defferrable = CursorInfo_TPat.cursor_info(~steps=steps @ [1], ctx, ztpat);Noneswitch (defferrable) {
+    switch (defferrable) {
+      | CursorNotOnDeferredVarPat(ci) => ci
+      | CursorOnDeferredVarPat(deferred_ci, x) =>
+        let uses = UsageAnalysis.find_tyuses_typ(~steps=steps @ [1], x, zty);
+        uses |> deferred_ci;
+      | CursorOnDeferredTyVarPat(_) => failwith("deferred impossible")
+    };
   };
 };

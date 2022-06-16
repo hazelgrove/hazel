@@ -98,6 +98,11 @@ and syn_elab_operand =
         let+ (ty_elt, _, delta) = syn_elab(ctx, delta, ty);
         let ty = HTyp.list(ty_elt);
         (ty, Kind.singleton(ty), delta);
+      | Forall(tpat, ty) =>
+        open OptUtil.Syntax;
+        let+ (ty_elt, _, delta) = syn_elab(ctx, delta, ty);
+        let ty = HTyp.forall(tpat, ty_elt);
+        (ty, Kind.singleton(ty), delta);
       | TyVar(NotInTyVarHole(index, stamp), t) =>
         open OptUtil.Syntax;
         let+ k = Context.tyvar_kind(ctx, {index, stamp});
@@ -172,7 +177,8 @@ and ana_elab_operand =
     | Int
     | Float
     | Bool
-    | List(_) =>
+    | List(_)
+    | Forall(_) =>
       open OptUtil.Syntax;
       let* (ty, k', delta) = syn_elab_operand(ctx, delta, operand);
       Kind.consistent_subkind(ctx, k', k) ? Some((ty, k', delta)) : None;
