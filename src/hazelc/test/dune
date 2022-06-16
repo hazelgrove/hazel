@@ -2,6 +2,6 @@
 
 (library
  (name hazelc_test_util)
- (libraries hazelc wasmtime benchmark)
+ (libraries hazelc hazelclib wasmtime benchmark)
  (preprocess
   (pps ppx_assert)))

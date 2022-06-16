@@ -2,7 +2,8 @@
 
 (library
  (name hazelc)
- (modules :standard \ Main)
+ (modules
+  (:standard \ Main))
  (libraries hazelcore hazeltext)
  (wrapped false)
  (preprocess
@@ -11,6 +12,6 @@
 (executable
  (name main)
  (modules Main)
- (libraries hazelc cmdliner)
+ (libraries hazelc hazelclib cmdliner)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))

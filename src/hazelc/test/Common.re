@@ -6,8 +6,7 @@ type profile =
 module Compile = {
   let temp_prefix = "hazelc_test";
 
-  /* FIXME: Fix this. */
-  let std = ".";
+  let std = Hazelclib.Sites.lib |> List.hd;
 
   let mk_opts = profile => {
     switch (profile) {

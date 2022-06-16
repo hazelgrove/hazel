@@ -21,6 +21,9 @@ type action =
 /* Temporary directory prefix. */
 let prefix = "hazelc";
 
+/* Default std path, via dune-site. */
+let default_std = Hazelclib.Sites.lib |> List.hd;
+
 [@deriving sexp]
 type error =
   | ParseError(string)
@@ -34,9 +37,6 @@ let mk_opts = (action, _verbose, optimize, _debug, std) => {
     | 0 => IndetAnalysis.NoAnalysis
     | _ => IndetAnalysis.GlobalAnalysis
     };
-
-  /* FIXME: Fix this. */
-  let std = std |> Option.value(~default=".");
 
   let opts: Compile.opts = {
     optimize: {
@@ -266,7 +266,7 @@ let debug_flag = {
 let std_flag = {
   let doc = "Specify std location.";
   Arg.(
-    value & opt(some(string), None) & info(["std"], ~docv="PATH", ~doc)
+    value & opt(string, default_std) & info(["std"], ~docv="PATH", ~doc)
   );
 };
 
