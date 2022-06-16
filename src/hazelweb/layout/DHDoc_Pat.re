@@ -44,7 +44,8 @@ let rec mk =
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | StringLit(s, errors) => DHDoc_common.mk_StringLit(s, errors)
+    | StringLit(s, seqs, errors) =>
+      DHDoc_common.mk_StringLit(s, seqs, errors)
     | Inj(inj_side, dp) =>
       DHDoc_common.mk_Inj(
         inj_side,

@@ -60,7 +60,7 @@ module Impls = {
     switch (r1) {
     | BoxedValue(IntLit(i)) =>
       let s = string_of_int(i) |> UnescapedString.from_string_unchecked;
-      BoxedValue(StringLit(s, []));
+      BoxedValue(StringLit(s, [], []));
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
@@ -70,7 +70,7 @@ module Impls = {
     switch (r1) {
     | BoxedValue(FloatLit(f)) =>
       let s = string_of_float(f) |> UnescapedString.from_string_unchecked;
-      BoxedValue(StringLit(s, []));
+      BoxedValue(StringLit(s, [], []));
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
@@ -80,7 +80,7 @@ module Impls = {
     switch (r1) {
     | BoxedValue(BoolLit(b)) =>
       let s = string_of_bool(b) |> UnescapedString.from_string_unchecked;
-      BoxedValue(StringLit(s, []));
+      BoxedValue(StringLit(s, [], []));
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
@@ -88,7 +88,7 @@ module Impls = {
 
   let int_of_string = (ident, r1) =>
     switch (r1) {
-    | BoxedValue(StringLit(s, errors) as d1) =>
+    | BoxedValue(StringLit(s, _seqs, errors) as d1) =>
       switch (errors) {
       | [] =>
         let s = s |> UnescapedString.to_string;
@@ -105,7 +105,7 @@ module Impls = {
 
   let float_of_string = (ident, r1) =>
     switch (r1) {
-    | BoxedValue(StringLit(s, errors) as d1) =>
+    | BoxedValue(StringLit(s, _seqs, errors) as d1) =>
       switch (errors) {
       | [] =>
         let s = s |> UnescapedString.to_string;
@@ -122,7 +122,7 @@ module Impls = {
 
   let bool_of_string = (ident, r1) =>
     switch (r1) {
-    | BoxedValue(StringLit(s, errors) as d1) =>
+    | BoxedValue(StringLit(s, _seqs, errors) as d1) =>
       switch (errors) {
       | [] =>
         let s = s |> UnescapedString.to_string;
@@ -139,7 +139,7 @@ module Impls = {
 
   let string_length = (ident, r1) =>
     switch (r1) {
-    | BoxedValue(StringLit(s, errors) as d1) =>
+    | BoxedValue(StringLit(s, _seqs, errors) as d1) =>
       switch (errors) {
       | [] => BoxedValue(IntLit(UnescapedString.length(s)))
       | _ => Indet(d1)

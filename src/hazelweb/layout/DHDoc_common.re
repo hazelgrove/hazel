@@ -115,48 +115,46 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-/* Make Doc of a string literal.
- *
- * TODO: Fancy indicators for special escape sequences (\n, \t, etc.)?
- */
-let mk_StringLit = (s, errors) => {
-  let rec mk_with_errors = (s, errors, idx, doc1) =>
+/** Make Doc of a string literal. */
+let mk_StringLit = (s, _seqs, errors) => {
+  let rec mk_by_segment = (s, errors, idx, acc_doc) =>
     switch (errors) {
     /* If no remaining errors, concatenate the remainder of the string. */
     | [] =>
       let len = String.length(s);
       if (len != 0) {
-        let doc2 = Doc.text(String.sub(s, idx, len - idx));
-        Doc.hcat(doc1, doc2);
+        let rest_doc = Doc.text(String.sub(s, idx, len - idx));
+        Doc.hcat(acc_doc, rest_doc);
       } else {
-        doc1;
+        acc_doc;
       };
 
     | [error, ...errors'] =>
-      let (doc2, length) =
+      let (next_doc, length) =
         switch (error) {
-        | StringLitLexer.InvalidEscape({start, length}) =>
+        | StringLitLexer.InvalidSeq({start, ostart: _, length}) =>
           /* Get valid segment up until error, if there is one. */
-          let (doc2, length') =
+          let inter_doc =
             if (start > idx) {
-              let seg = String.sub(s, idx, start - idx);
-              (Some(Doc.text(seg)), length + start - idx);
+              let inter_seg = String.sub(s, idx, start - idx);
+              Some(Doc.text(inter_seg));
             } else {
-              (None, length);
+              None;
             };
 
           /* Append invalid escape segment. */
-          let err_doc = Doc.text(String.sub(s, start, length));
-          let doc2 =
-            doc2
-            |> Option.map(doc2 => Doc.hcat(doc2, err_doc))
-            |> Option.value(~default=err_doc)
+          let err_doc =
+            Doc.text(String.sub(s, start, length))
             |> Doc.annot(DHAnnot.InvalidStringEscape);
-          (doc2, length');
+          let next_doc =
+            inter_doc
+            |> Option.map(inter_doc => Doc.hcat(inter_doc, err_doc))
+            |> Option.value(~default=err_doc);
+          (next_doc, length + start - idx);
         };
 
-      let doc1 = Doc.hcat(doc1, doc2);
-      mk_with_errors(s, errors', idx + length, doc1);
+      let acc_doc = Doc.hcat(acc_doc, next_doc);
+      mk_by_segment(s, errors', idx + length, acc_doc);
     };
 
   let inner =
@@ -166,7 +164,7 @@ let mk_StringLit = (s, errors) => {
     /* Otherwise, if there are errors, build in segments. */
     | _ =>
       let s = s |> UnescapedString.to_string;
-      mk_with_errors(s, errors, 0, Doc.text(""));
+      mk_by_segment(s, errors, 0, Doc.text(""));
     };
 
   Doc.hcats([Delim.open_StringLit, inner, Delim.close_StringLit]);

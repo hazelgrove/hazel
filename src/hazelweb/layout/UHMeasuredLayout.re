@@ -20,7 +20,8 @@ let caret_position_of_path =
         step == step' ? go(steps, indent, start, m) : None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
-        | (OnText(j), Text) => Some({...start, col: start.col + j})
+        | (OnText(j), Text({start: _})) =>
+          Some({...start, col: start.col + j})
         | (OnOp(Before), Op) => Some(start)
         | (OnOp(After), Op) => Some({...start, col: start.col + len})
         | (OnDelim(k, side), Delim(k')) when k == k' =>
@@ -131,7 +132,7 @@ let first_path_in_row =
              let UHAnnot.{shape, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text => OnText(0)
+               | Text({start: _}) => OnText(0)
                | Op => OnOp(Before)
                | Delim(k) => OnDelim(k, Before)
                };
@@ -175,7 +176,7 @@ let last_path_in_row =
              let UHAnnot.{shape, len, _} = token_data;
              let cursor: CursorPosition.t =
                switch (shape) {
-               | Text => OnText(len)
+               | Text({start: _}) => OnText(len)
                | Op => OnOp(After)
                | Delim(k) => OnDelim(k, After)
                };
@@ -236,7 +237,7 @@ let prev_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text => (OnText(from_start - 1), 1)
+               | Text({start: _}) => (OnText(from_start - 1), 1)
                | Op => (OnOp(Before), len)
                | Delim(k) => (OnDelim(k, Before), len)
                };
@@ -280,7 +281,7 @@ let next_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text => (OnText(from_start + 1), 1)
+               | Text({start: _}) => (OnText(from_start + 1), 1)
                | Op => (OnOp(After), len)
                | Delim(k) => (OnDelim(k, After), len)
                };
@@ -324,7 +325,7 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text =>
+             | Text({start: _}) =>
                let offset = min(from_start, len);
                (OnText(offset), offset);
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)

@@ -1,9 +1,15 @@
+type seq = {
+  start: int;
+  ostart: int;
+} [@@deriving sexp]
+
 type error =
   (** An invalid escape sequence. *)
-  | InvalidEscape of {
+  | InvalidSeq of {
     start: int;
+    ostart: int;
     length: int;
   } [@@deriving sexp]
 
 (** Parse a string literal. *)
-val lex: Lexing.lexbuf -> string * error list
+val lex: Lexing.lexbuf -> string * seq list * error list 

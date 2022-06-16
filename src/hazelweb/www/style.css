@@ -1455,6 +1455,10 @@ h1 {
   color: #BBB;
 }
 
+.InvalidSeq {
+  color: red
+}
+
 .hide-hole-names .holeName {
   display: none !important;
 }

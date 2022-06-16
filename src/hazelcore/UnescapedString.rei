@@ -17,7 +17,8 @@ let to_string: t => string;
 /**
  * Parse a string into an unescaped string.
  */
-let from_string: string => (t, list(StringLitLexer.error));
+let from_string:
+  string => (t, list(StringLitLexer.seq), list(StringLitLexer.error));
 
 /**
  * Convert a string to an unescaped string without parsing.

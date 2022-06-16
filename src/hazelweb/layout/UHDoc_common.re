@@ -73,17 +73,8 @@ module Delim = {
     |> Doc.annot(UHAnnot.mk_Token(~shape=Delim(0), ~len, ()));
   };
 
-  let quote_doc = (~index: int, delim_text: string): t =>
-    Doc.annot(
-      UHAnnot.mk_Token(
-        ~len=StringUtil.utf8_length(delim_text),
-        ~shape=Delim(index),
-        (),
-      ),
-      Doc.annot(UHAnnot.String, Doc.text(delim_text)),
-    );
-  let open_StringLit = (): t => quote_doc(~index=0, "\"");
-  let close_StringLit = (): t => quote_doc(~index=1, "\"");
+  let open_StringLit = (): t => mk(~index=0, "\"");
+  let close_StringLit = (): t => mk(~index=1, "\"");
 
   let open_List = (): t => mk(~index=0, "[");
   let close_List = (): t => mk(~index=1, "]");
@@ -107,7 +98,7 @@ module Delim = {
   let arrow_Rule = (): t => mk(~index=1, "=>");
 
   let open_Subscript = (): t => mk(~index=0, "[");
-  let delim_Subscript_idx = (): t => mk(~index=1, ":");
+  let mid_Subscript = (): t => mk(~index=1, ":");
   let close_Subscript = (): t => mk(~index=2, "]");
 
   let let_LetLine = (): t => mk(~index=0, "let");
@@ -139,11 +130,18 @@ let annot_InvalidSeq = (s: string): t =>
 
 let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
-let mk_text = (s: string): t =>
+let mk_text = (~start=0, s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
+    UHAnnot.mk_Token(
+      ~shape=Text({start: start}),
+      ~len=StringUtil.utf8_length(s),
+      (),
+    ),
     Doc.text(s),
   );
+
+let mk_text_str = (~start=0, s: string): t =>
+  Doc.annot(UHAnnot.String, mk_text(~start, s));
 
 let mk_op = (op_text: string): t =>
   Doc.annot(
@@ -340,7 +338,54 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  Doc.hcats([Delim.open_StringLit(), mk_text(s), Delim.close_StringLit()])
+  /* let rec mk_by_segment = (s, errors, idx, acc_doc) => */
+  /* switch (errors) { */
+  /* [> If no remaining errors, concatenate the remainder of the string. <] */
+  /* | [] => */
+  /* let len = String.length(s); */
+  /* if (len != 0) { */
+  /* let rest_doc = */
+  /* mk_text_str(~start=idx, String.sub(s, idx, len - idx)); */
+  /* Doc.hcat(acc_doc, rest_doc); */
+  /* } else { */
+  /* acc_doc; */
+  /* }; */
+
+  /* | [error, ...errors] => */
+  /* let (next_doc, length) = */
+  /* switch (error) { */
+  /* | StringLitLexer.InvalidSeq({start: _, ostart: start, length}) => */
+  /* [> Get valid segment up until error, if there is one. <] */
+  /* let inter_doc = */
+  /* if (start > idx) { */
+  /* let inter_seg = String.sub(s, idx, start - idx); */
+  /* Some(mk_text_str(~start=idx, inter_seg)); */
+  /* } else { */
+  /* None; */
+  /* }; */
+
+  /* [> Append invalid escape segment. <] */
+  /* let err_seg = annot_InvalidSeq(String.sub(s, start, length)); */
+  /* let next_doc = */
+  /* inter_doc */
+  /* |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg)) */
+  /* |> Option.value(~default=err_seg); */
+  /* (next_doc, length + start - idx); */
+  /* }; */
+
+  /* let acc_doc = Doc.hcat(acc_doc, next_doc); */
+  /* mk_by_segment(s, errors, idx + length, acc_doc); */
+  /* }; */
+
+  /* [> TODO: Special formatting for seqs. <] */
+  /* let (_, _seqs, errors) = UnescapedString.from_string(s); */
+  /* let inner = mk_by_segment(s, errors, 0, mk_text_str(~start=0, "")); */
+
+  let inner = mk_text(s);
+
+  let open_group = Delim.open_StringLit() |> annot_Tessera;
+  let close_group = Delim.close_StringLit() |> annot_Tessera;
+  Doc.hcats([open_group, inner, close_group])
   |> annot_Tessera
   |> annot_Operand(~sort);
 };
@@ -425,7 +470,7 @@ let mk_Subscript =
     s |> pad_closed_child(~sort=Exp),
     Delim.open_Subscript() |> annot_Tessera,
     n1 |> pad_bidelimited_open_child,
-    Delim.delim_Subscript_idx() |> annot_Tessera,
+    Delim.mid_Subscript() |> annot_Tessera,
     n2 |> pad_bidelimited_open_child,
     Delim.close_Subscript() |> annot_Tessera,
   ])
