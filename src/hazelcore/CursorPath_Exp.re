@@ -701,6 +701,7 @@ and holes_zoperand =
     let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
     let holes_body = holes(body, [1, ...rev_steps], []);
     switch (k) {
+    // TODO (typ-app): Need a case for k = 2 for the closing }?
     | 0 =>
       CursorPath_common.mk_zholes(
         ~hole_selected,

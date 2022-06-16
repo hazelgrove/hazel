@@ -6,6 +6,9 @@ and of_zoperand =
   | CursorT(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | ListZ(zbody) => CursorPath_common.cons'(0, of_z(zbody))
+  | ForallZP(ztpat, _) =>
+    CursorPath_common.cons'(0, CursorPath_TPat.of_z(ztpat))
+  | ForallZT(_, zty) => CursorPath_common.cons'(1, of_z(zty))
 and of_zoperator =
   fun
   | (cursor, _) => ([], cursor);
@@ -47,6 +50,18 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZTyp.ListZ(zbody))
+      | _ => None
+      }
+    | Forall(tpat, ty) =>
+      switch (x) {
+      | 0 =>
+        tpat
+        |> CursorPath_TPat.follow((xs, cursor))
+        |> Option.map(ztpat => ZTyp.ForallZP(ztpat, ty))
+      | 1 =>
+        ty
+        |> follow((xs, cursor))
+        |> Option.map(zty => ZTyp.ForallZT(tpat, zty))
       | _ => None
       }
     }
@@ -107,6 +122,18 @@ and of_steps_operand =
         |> Option.map(path => CursorPath_common.cons'(0, path))
       | _ => None
       }
+    | Forall(tpat, ty) =>
+      switch (x) {
+      | 0 =>
+        tpat
+        |> CursorPath_TPat.of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(0, path))
+      | 1 =>
+        ty
+        |> of_steps(xs, ~side)
+        |> Option.map(path => CursorPath_common.cons'(1, path))
+      | _ => None
+      }
     }
   }
 and of_steps_operator =
@@ -164,6 +191,10 @@ and holes_operand =
   | TyVar(NotInTyVarHole(_), _) => hs
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
+  | Forall(tpat, ty) =>
+    hs
+    |> holes(ty, [1, ...rev_steps])
+    |> CursorPath_TPat.holes(tpat, [0, ...rev_steps])
   };
 
 let rec holes_z =
@@ -192,15 +223,52 @@ and holes_zoperand =
     )
   | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInTyVarHole(_), _)) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
+    // TODO (forall-typ): Maybe should be 0 => ...(~holes_after=holes) and
+    // 1 => ...(~holes_before=holes)? (See CursorPath_Exp/holes_zoperand)
     let holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=holes, ())
     | 1 => CursorPath_common.mk_zholes(~holes_after=holes, ())
     | _ => CursorPath_common.no_holes
     };
-  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_)) =>
+  | CursorT(OnDelim(k, _), Forall(tpat, ty)) =>
+    let holes_tpat = CursorPath_TPat.holes(tpat, [0, ...rev_steps], []);
+    let holes_ty = holes(ty, [0, ...rev_steps], []);
+    switch (k) {
+    | 0 => CursorPath_common.mk_zholes(~holes_after=holes_tpat @ holes_ty, ())
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_tpat,
+        ~holes_after=holes_ty,
+        (),
+      )
+    | 2 =>
+      CursorPath_common.mk_zholes(~holes_before=holes_tpat @ holes_ty, ())
+    | _ => CursorPath_common.no_holes
+    };
+  | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_) | Forall(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | ForallZP(ztpat, ty) =>
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_TPat.holes_z(ztpat, [0, ...rev_steps]);
+    let holes_ty = holes(ty, [0, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_ty,
+      (),
+    );
+  | ForallZT(tpat, zty) =>
+    let holes_tpat = CursorPath_TPat.holes(tpat, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zty, [0, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_tpat @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
   };
