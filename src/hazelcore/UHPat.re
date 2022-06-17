@@ -58,16 +58,28 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
+let new_InvalidText_and_id =
+    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t, MetaVar.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (InvalidText(u, t), u_gen, u);
+};
+
 let new_InvalidText =
     (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
+  let (op, u_gen, _) = new_InvalidText_and_id(u_gen, t);
+  (op, u_gen);
+};
+
+let new_EmptyHole_and_id =
+    (u_gen: MetaVarGen.t): (operand, MetaVarGen.t, MetaVar.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
-  (InvalidText(u, t), u_gen);
+  (EmptyHole(u), u_gen, u);
 };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  (EmptyHole(u), u_gen);
+  let (operand, u_gen, _) = new_EmptyHole_and_id(u_gen);
+  (operand, u_gen);
 };
 
 let is_EmptyHole =

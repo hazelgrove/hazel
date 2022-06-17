@@ -226,10 +226,16 @@ let place_cursor_operator =
   is_valid_cursor_operator(cursor, operator)
     ? Some((cursor, operator)) : None;
 
+let new_EmptyHole_and_id =
+    (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t, MetaVar.t) => {
+  let (hole, u_gen, u) = UHPat.new_EmptyHole_and_id(u_gen);
+  (place_before_operand(hole), u_gen, u);
+};
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-  (place_before_operand(hole), u_gen);
+  let (zoperand, u_gen, _) = new_EmptyHole_and_id(u_gen);
+  (zoperand, u_gen);
 };
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =

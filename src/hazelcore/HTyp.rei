@@ -6,7 +6,18 @@ type unknown_type_provenance =
   | ModeSwitch /* from a pattern var being asked to synthesize a type either directly or via matched arrow/prod/etc.
      When analyzing against such a type, expression can be treated as if synthetic when the distinction matters
      e.g. for inconsistent branches or cast insertion */
-  | Internal; /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
+  | Internal(internal_provenance) /* other internally generated unknown types, e.g. the type synthesized by a hole in synthetic position etc. */
+and internal_provenance =
+  // enumerate other base cases here if applicable; try to avoid
+  | ExpPatHole(MetaVar.t) // TODO anand raef: rename this possibly
+  | Wildcard
+  | Matched_arrow_L(unknown_type_provenance)
+  | Matched_arrow_R(unknown_type_provenance)
+  | Matched_sum_L(unknown_type_provenance)
+  | Matched_sum_R(unknown_type_provenance)
+  | Matched_prod_L(unknown_type_provenance)
+  | Matched_prod_R(unknown_type_provenance)
+  | Matched_list(unknown_type_provenance);
 
 [@deriving sexp]
 type t =

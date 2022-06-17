@@ -4,18 +4,18 @@ open Sexplib.Std;
 type unknown_type_provenance =
   | TypHole(MetaVar.t)
   | ModeSwitch
-  | Internal;
-//   | Internal(internal_provenance)
-// and internal_provenance =
-//   // enumerate other base cases here if applicable; try to avoid
-//   | ExpPatHole(id)
-//   | Matched_arrow_L(unknown_type_provenance)
-//   | Matched_arrow_R(unknown_type_provenance)
-//   | Matched_sum_L(unknown_type_provenance)
-//   | Matched_sum_R(unknown_type_provenance)
-//   | Matched_prod_L(unknown_type_provenance)
-//   | Matched_prod_R(unknown_type_provenance)
-//   | Matched_list(unknown_type_provenance);
+  | Internal(internal_provenance)
+and internal_provenance =
+  // enumerate other base cases here if applicable; try to avoid
+  | ExpPatHole(MetaVar.t) // TODO anand raef: rename this possibly
+  | Wildcard
+  | Matched_arrow_L(unknown_type_provenance)
+  | Matched_arrow_R(unknown_type_provenance)
+  | Matched_sum_L(unknown_type_provenance)
+  | Matched_sum_R(unknown_type_provenance)
+  | Matched_prod_L(unknown_type_provenance)
+  | Matched_prod_R(unknown_type_provenance)
+  | Matched_list(unknown_type_provenance);
 
 /* types with holes */
 [@deriving sexp]
@@ -124,14 +124,14 @@ let matched_list =
 
 let rec join = (j, ty1, ty2) =>
   switch (ty1, ty2) {
-  | (_, Unknown(_)) =>
+  | (_, Unknown(_) as hole) =>
     switch (j) {
-    | GLB => Some(Unknown(Internal))
+    | GLB => Some(hole)
     | LUB => Some(ty1)
     }
-  | (Unknown(_), _) =>
+  | (Unknown(_) as hole, _) =>
     switch (j) {
-    | GLB => Some(Unknown(Internal))
+    | GLB => Some(hole)
     | LUB => Some(ty2)
     }
   | (Int, Int) => Some(ty1)

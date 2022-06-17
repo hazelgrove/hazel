@@ -65,16 +65,24 @@ let mk_syn_text =
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
-      let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.Unknown(Internal), ctx, u_gen));
+      let (zhole, u_gen, u) = u_gen |> ZPat.new_EmptyHole_and_id;
+      Succeeded((
+        ZOpSeq.wrap(zhole),
+        HTyp.Unknown(Internal(ExpPatHole(u))),
+        ctx,
+        u_gen,
+      ));
     } else {
-      let (it, u_gen) = UHPat.new_InvalidText(u_gen, t);
+      let (it, u_gen, u) = UHPat.new_InvalidText_and_id(u_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
-      Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+      Succeeded((zp, HTyp.Unknown(Internal(ExpPatHole(u))), ctx, u_gen));
     }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+    Succeeded((zp, HTyp.Unknown(Internal(Wildcard)), ctx, u_gen)); /* TODO anand raef: need to figure out how to handle wildcards (not really a constraint) (not in prototype)
+                                                                    might be simpler for DFS algo to just generate an id for these holes even though they are "useless" for the
+                                                                    type inference algorithm... still need to link all the holes together in the graph... */
+
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
     Succeeded((zp, HTyp.Int, ctx, u_gen));
@@ -92,7 +100,7 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.Unknown(Internal), ctx, u_gen));
+    Succeeded((zp, HTyp.Unknown(Internal(ExpPatHole(u))), ctx, u_gen)); // TODO anand raef: need to figure out how to handle (not really a constraint) (need separate case?)
   | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Unknown(ModeSwitch)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
@@ -648,15 +656,15 @@ and syn_perform_operand =
   | (Delete, _) when ZPat.is_after_zoperand(zoperand) =>
     CursorEscaped(After)
 
-  | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
+  | (Backspace, CursorP(_, EmptyHole(u) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
-      ? Succeeded((zp, Unknown(Internal), ctx, u_gen))
+      ? Succeeded((zp, Unknown(Internal(ExpPatHole(u))), ctx, u_gen))
       : CursorEscaped(Before);
-  | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
+  | (Delete, CursorP(_, EmptyHole(u) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
-      ? Succeeded((zp, Unknown(Internal), ctx, u_gen))
+      ? Succeeded((zp, Unknown(Internal(ExpPatHole(u))), ctx, u_gen))
       : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
@@ -672,9 +680,9 @@ and syn_perform_operand =
     syn_perform(ctx, u_gen, Backspace, new_zp);
 
   | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
-    let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (zhole, u_gen, u) = ZPat.new_EmptyHole_and_id(u_gen);
     let zp = ZOpSeq.wrap(zhole);
-    Succeeded((zp, Unknown(Internal), ctx, u_gen));
+    Succeeded((zp, Unknown(Internal(ExpPatHole(u))), ctx, u_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
