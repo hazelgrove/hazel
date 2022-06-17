@@ -142,6 +142,7 @@ and move_cursor_left_zoperand =
   | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
+  | CursorT(OnDelim(0, Before), _) => None
   | CursorT(OnDelim(_, Before), Hole | Unit | Int | Float | Bool) => None
   | CursorT(OnDelim(_k, Before), Parenthesized(ty1)) =>
     // _k == 1
