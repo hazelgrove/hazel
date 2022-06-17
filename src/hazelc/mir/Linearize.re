@@ -1,7 +1,3 @@
-exception NotImplemented;
-exception WrongType;
-exception FreeBoundVar(Var.t);
-
 let default_completeness = Completeness.IndeterminatelyIncomplete;
 
 type bind =
@@ -51,7 +47,7 @@ and linearize_exp =
     let x' =
       switch (VarMap.lookup(vctx, x)) {
       | Some(x') => x'
-      | None => raise(FreeBoundVar(x))
+      | None => failwith("bad free variable " ++ x)
       };
 
     (
@@ -105,7 +101,7 @@ and linearize_exp =
     let ap_ty =
       switch (fn.imm_ty) {
       | Arrow(_, ty') => ty'
-      | _ => raise(WrongType)
+      | _ => failwith("EAp calling non-function type")
       };
     let ap: Anf.comp = {
       comp_kind: CAp(fn, arg),
@@ -292,10 +288,8 @@ and linearize_exp =
   | EInvalidText(_, _, _, _)
   | EInvalidOperation(_, _)
   | EFailedCast(_, _, _)
-  | EConsistentCase(_)
   | EInconsistentBranches(_, _, _, _)
-  | ELetRec(_, _, _, _, _)
-  | EApBuiltin(_, _) => raise(Exception(NotImplemented))
+  | EApBuiltin(_, _) => failwith("not implemented")
   };
 }
 
@@ -461,7 +455,7 @@ and linearize_pat_hole =
   | PNonEmptyHole(_)
   | PKeyword(_)
   | PInvalidText(_)
-  | PAp(_) => raise(NotImplemented)
+  | PAp(_) => failwith("not implemented")
   };
 }
 

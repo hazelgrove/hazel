@@ -1,6 +1,3 @@
-exception FreeBoundVar(Var.t);
-exception BadLetRec;
-
 /**
  * Context mapping variables to the indet-ness of the expression to which it
  * refers.
@@ -52,7 +49,7 @@ and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
       let c = analyze_comp(c, ictx);
       (Anf.SLetRec(x, c), c.comp_complete, ictx);
 
-    | SLetRec(_, _) => raise(BadLetRec)
+    | SLetRec(_, _) => failwith("bad let rec without function rhs")
     };
 
   ({stmt_kind, stmt_complete}, ictx);
@@ -169,7 +166,7 @@ and analyze_imm = (im: Anf.imm, ictx): Anf.imm => {
     | IVar(x) =>
       switch (VarMap.lookup(ictx, x)) {
       | Some(x_complete) => (IVar(x), x_complete)
-      | None => raise(FreeBoundVar(x))
+      | None => failwith("bad free variable " ++ x)
       }
     };
 
