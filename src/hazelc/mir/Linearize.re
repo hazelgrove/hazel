@@ -245,7 +245,15 @@ and linearize_exp =
     let binds = im_binds @ [cast_bind];
     (cast_var, binds, t_gen);
 
-  | _ => raise(Exception(NotImplemented))
+  | EKeyword(_, _, _, _)
+  | EFreeVar(_, _, _, _)
+  | EInvalidText(_, _, _, _)
+  | EInvalidOperation(_, _)
+  | EFailedCast(_, _, _)
+  | EConsistentCase(_)
+  | EInconsistentBranches(_, _, _, _)
+  | ELetRec(_, _, _, _, _)
+  | EApBuiltin(_, _) => raise(Exception(NotImplemented))
   };
 }
 
