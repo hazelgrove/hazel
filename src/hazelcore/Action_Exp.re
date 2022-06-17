@@ -1106,6 +1106,9 @@ and syn_perform_line =
   | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
     let new_zblock = ([UHExp.EmptyLine], zline, []);
     fix_and_mk_result(u_gen, new_zblock);
+  | (AddCell, _) when zline |> ZExp.is_before_zline =>
+    let new_zblock = ([UHExp.CellBoundary], zline, []);
+    fix_and_mk_result(u_gen, new_zblock);
   | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
     /* If the current line is just a hole, leave it empty */
     let (prev_line, new_zline) =
@@ -1146,15 +1149,12 @@ and syn_perform_line =
   | (SwapLeft, CursorL(_))
   | (SwapRight, CursorL(_)) => Failed
 
-  | (AddCell, zline) when ZExp.is_before_zline(zline) =>
-    let ze = ([UHExp.CellBoundary], zline, []);
-    Succeeded(LineDone((ze, ctx, u_gen)));
-  | (AddCell, ExpLineZ(_) | CursorL(_, EmptyLine)) =>
+  | (AddCell, CursorL(_, EmptyLine | CommentLine(_))) =>
     let ze = ([], zline, [UHExp.CellBoundary]);
     Succeeded(LineDone((ze, ctx, u_gen)));
+  | (AddCell | RemoveCell, CursorL(_)) => Failed
 
   /* Invalid cell actions */
-  | (AddCell | RemoveCell, LetLineZP(_) | LetLineZE(_) | CursorL(_)) => Failed
   /* Zipper */
 
   | (_, ExpLineZ(zopseq)) =>
@@ -1229,7 +1229,7 @@ and syn_perform_opseq =
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
 
   /* Invalid actions */
-  | (AddCell | RemoveCell, _) => Failed
+  | (RemoveCell, _) => Failed
 
   /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
@@ -1334,7 +1334,7 @@ and syn_perform_opseq =
       when ZExp.is_after_zoperator(zoperator) =>
     syn_perform_opseq(ctx, MoveRight, (zopseq, ty, u_gen))
   /* ...while other construction is applied after movement */
-  | (Construct(_), ZOperator(zoperator, _)) =>
+  | (Construct(_) | AddCell, ZOperator(zoperator, _)) =>
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
@@ -1361,6 +1361,23 @@ and syn_perform_opseq =
     let new_zblock = ([new_line], new_zline, []);
     Succeeded(SynDone((new_zblock, ty, u_gen)));
 
+  | (AddCell, ZOperand(zoperand, (prefix, A(_) as suffix)))
+      when zoperand |> ZExp.is_after_zoperand =>
+    let (new_line, u_gen) = {
+      let operand = zoperand |> ZExp.erase_zoperand;
+      let seq = Seq.prefix_seq(prefix, S(operand, E));
+      let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
+      (UHExp.ExpLine(opseq), u_gen);
+    };
+    let (new_zline, ty, u_gen) = {
+      let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let seq = Seq.seq_suffix(S(hole, E), suffix);
+      let (opseq, ty, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
+      (ZExp.ExpLineZ(opseq |> ZExp.place_before_opseq), ty, u_gen);
+    };
+    let new_zblock = ([new_line, UHExp.CellBoundary], new_zline, []);
+    Succeeded(SynDone((new_zblock, ty, u_gen)));
+
   | (
       Construct(SLine),
       ZOperand(CursorE(_) as zoperand, (A(_) as prefix, suffix)),
@@ -1384,6 +1401,25 @@ and syn_perform_opseq =
     let new_zblock = ([new_line], new_zline, []);
     Succeeded(SynDone((new_zblock, ty, u_gen)));
 
+  | (AddCell, ZOperand(CursorE(_) as zoperand, (A(_) as prefix, suffix))) =>
+    let (new_line, u_gen) = {
+      let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let seq = Seq.prefix_seq(prefix, S(hole, E));
+      let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
+      (UHExp.ExpLine(opseq), u_gen);
+    };
+    let (new_zline, ty, u_gen) = {
+      let zseq = ZSeq.ZOperand(zoperand, (E, suffix));
+      let (zopseq, ty, u_gen) =
+        // TODO clean up hack
+        switch (mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)) {
+        | (([], ExpLineZ(zopseq), []), ty, u_gen) => (zopseq, ty, u_gen)
+        | _ => assert(false)
+        };
+      (ZExp.ExpLineZ(zopseq), ty, u_gen);
+    };
+    let new_zblock = ([new_line, UHExp.CellBoundary], new_zline, []);
+    Succeeded(SynDone((new_zblock, ty, u_gen)));
   | (
       Construct(SOp(SSpace)),
       ZOperand(
@@ -1613,8 +1649,8 @@ and syn_perform_operand =
     Failed
 
   /* Invalid actions at expression level */
-  | (Construct(SLine), CursorE(OnText(_), _))
-  | (AddCell | RemoveCell, _) => Failed
+  | (Construct(SLine) | AddCell, CursorE(OnText(_), _))
+  | (RemoveCell, _) => Failed
   | (Construct(SList), CursorE(_)) => Failed
   | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
@@ -1930,6 +1966,13 @@ and syn_perform_operand =
       [],
     );
     Succeeded(SynDone((new_ze, ty, u_gen)));
+  | (AddCell, CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
+    let new_ze = (
+      [UHExp.CellBoundary],
+      ZExp.ExpLineZ(ZOpSeq.wrap(zoperand)),
+      [],
+    );
+    Succeeded(SynDone((new_ze, ty, u_gen)));
   | (Construct(SLine), CursorE(_)) when ZExp.is_after_zoperand(zoperand) =>
     let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
     let new_zline =
@@ -1943,7 +1986,21 @@ and syn_perform_operand =
       [],
     );
     Succeeded(SynDone((new_ze, ty, u_gen)));
-  | (Construct(SLine), CursorE(_)) => Failed
+  | (AddCell, CursorE(_)) when ZExp.is_after_zoperand(zoperand) =>
+    let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+    let new_zline =
+      UHExp.ExpLine(OpSeq.wrap(new_hole)) |> ZExp.place_before_line;
+    let new_ze = (
+      [
+        UHExp.ExpLine(zoperand |> ZExp.erase_zoperand |> OpSeq.wrap)
+        |> UHExp.Line.prune_empty_hole,
+        UHExp.CellBoundary,
+      ],
+      new_zline,
+      [],
+    );
+    Succeeded(SynDone((new_ze, ty, u_gen)));
+  | (Construct(SLine) | AddCell, CursorE(_)) => Failed
 
   /* Invalid Swap actions */
   | (SwapUp | SwapDown, CursorE(_) | FunZP(_)) => Failed
