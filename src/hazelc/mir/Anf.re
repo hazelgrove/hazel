@@ -1,7 +1,10 @@
-/*
-   This module defines a linearized intermediate representation.
+/**
+ * This module defines a linearized intermediate representation.
  */
 open Sexplib.Std;
+
+[@deriving sexp]
+type completeness = Completeness.t;
 
 [@deriving sexp]
 type bin_op =
@@ -23,12 +26,9 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type has_indet = bool;
-
-[@deriving sexp]
 type pat = {
   pat_kind,
-  pat_indet: has_indet,
+  pat_complete: completeness,
 }
 
 [@deriving sexp]
@@ -56,7 +56,7 @@ and constant =
 and imm = {
   imm_kind,
   imm_ty: HTyp.t,
-  imm_indet: has_indet,
+  imm_complete: completeness,
 }
 
 [@deriving sexp]
@@ -68,24 +68,25 @@ and imm_kind =
 and comp = {
   comp_kind,
   comp_ty: HTyp.t,
-  comp_indet: has_indet,
+  comp_complete: completeness,
 }
 
 [@deriving sexp]
 and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
-  | CAp(imm, list(imm))
-  | CLam(list(pat), prog)
+  | CAp(imm, imm)
+  | CFun(pat, prog)
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
-  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(comp))
+  | CCase(imm, list(rule))
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(imm))
   | CNonEmptyHole(
       ErrStatus.HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(comp),
+      VarMap.t_(imm),
       imm,
     )
   | CCast(imm, HTyp.t, HTyp.t)
@@ -96,35 +97,38 @@ and inj_side =
   | CInjR
 
 [@deriving sexp]
+and rule = {
+  rule_pat: pat,
+  rule_branch: prog,
+  rule_complete: completeness,
+}
+
+[@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_indet: has_indet,
+  stmt_complete: completeness,
 }
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(pat, rec_flag, comp)
-
-[@deriving sexp]
-and rec_flag =
-  | NoRec
-  | Rec
+  | SLet(pat, comp)
+  | SLetRec(Var.t, comp)
 
 [@deriving sexp]
 and prog = {
   prog_body,
   prog_ty: HTyp.t,
-  prog_indet: has_indet,
+  prog_complete: completeness,
 }
 
 [@deriving sexp]
-and prog_body = (list(stmt), comp);
+and prog_body = (list(stmt), imm);
 
 module Imm = {
   let mk_var = (x: Var.t, c: comp): imm => {
     imm_kind: IVar(x),
     imm_ty: c.comp_ty,
-    imm_indet: c.comp_indet,
+    imm_complete: c.comp_complete,
   };
 };
 
@@ -132,14 +136,14 @@ module Comp = {
   let mk_imm = (im: imm): comp => {
     comp_kind: CImm(im),
     comp_ty: im.imm_ty,
-    comp_indet: im.imm_indet,
+    comp_complete: im.imm_complete,
   };
 };
 
 module Prog = {
-  let mk = (body: list(stmt), c: comp): prog => {
-    prog_body: (body, c),
-    prog_ty: c.comp_ty,
-    prog_indet: c.comp_indet,
+  let mk = (body: list(stmt), im: imm): prog => {
+    prog_body: (body, im),
+    prog_ty: im.imm_ty,
+    prog_complete: im.imm_complete,
   };
 };

@@ -5,8 +5,8 @@ type top_block = list(top_stmt)
 
 [@deriving sexp]
 and top_stmt =
-  | TSImport(Var.t, import_path)
-  | TSDecl(decl)
+  | TImport(Var.t, import_path)
+  | TDecl(decl)
 
 [@deriving sexp]
 and import_path =
@@ -38,20 +38,8 @@ module TopBlock = {
 type bin_op =
   | OpAnd
   | OpOr
-  | OpPlus
-  | OpMinus
-  | OpTimes
-  | OpDivide
-  | OpLessThan
-  | OpGreaterThan
   | OpEquals
-  | OpFPlus
-  | OpFMinus
-  | OpFTimes
-  | OpFDivide
-  | OpFLessThan
-  | OpFGreaterThan
-  | OpFEquals;
+  | OpNotEquals;
 
 [@deriving sexp]
 type params = list(pat)
@@ -81,8 +69,11 @@ and stmt =
 [@deriving sexp]
 and expr =
   | EBoolLit(bool)
-  | EIntLit(int)
-  | EFloatLit(float)
+  | EInt32Lit(int)
+  | EInt64Lit(int)
+  | EFloat32Lit(float)
+  | EFloat64Lit(float)
+  | ECharLit(char)
   | EStringLit(string)
   | EBinOp(bin_op, expr, expr)
   | EList(list(expr))

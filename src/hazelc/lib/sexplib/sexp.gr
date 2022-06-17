@@ -1,19 +1,11 @@
+import Buffer from "buffer"
+import Bytes from "bytes"
+import Int32 from "int32"
 import List from "list"
-import String from "string"
 
 export enum Sexp {
   Atom(String),
   List(List<Sexp>),
-}
-
-export let rec toString = sexp => {
-  match (sexp) {
-    Atom(s) => s,
-    List(lst) => {
-      let inner = List.join(" ", List.map(toString, lst))
-      String.concat(String.concat("(", inner), ")")
-    },
-  }
 }
 
 export let rec equal = (lhs, rhs) => {
@@ -29,5 +21,200 @@ export let rec equal = (lhs, rhs) => {
     (Atom(s1), Atom(s2)) => s1 == s2,
     (List(lst1), List(lst2)) => equalList(lst1, lst2),
     (_, _) => false,
+  }
+}
+
+/* 
+   Printing facilities.
+ */
+let (<=) = Int32.lt
+
+let mustEscape = str => {
+  let str = Bytes.fromString(str)
+  let len = Bytes.length(str)
+  if (len == 0) {
+    true
+  } else {
+    let rec loop = (str, ix) => {
+      match (Bytes.getInt8U(ix, str)) {
+        // '"' | '(' | ')' | ';' | '\\' => true
+                        34l | 40l | 41l | 59l | 92l => true,
+
+        // '|' => ix > 0 && str[ix - 1] == '#' || loop(str, ix - 1)
+        124l =>
+          ix > 0 &&
+          (Bytes.getInt8U(ix - 1, str) == 35l || loop(str, ix - 1)),
+
+        // '#' => ix > 0 && str[ix - 1] == '|' || loop(str, ix - 1)
+        35l =>
+          ix > 0 &&
+          (Bytes.getInt8U(ix - 1, str) == 124l || loop(str, ix - 1)),
+
+        // '\000' .. '\032' | '\127' .. '\255' => true
+        // _ => ix > 0 && loop(str, ix - 1)
+        c => {
+          if (000l <= c && c <= 032l || 127l <= c && c <= 255l) {
+            true
+          } else {
+            ix > 0 && loop(str, ix - 1)
+          }
+        },
+      }
+    }
+
+    loop(str, len - 1)
+  }
+}
+
+let escaped = str => {
+  let str = Bytes.fromString(str)
+
+  let mut n = 0
+  for (let mut i = 0; i < Bytes.length(str); i += 1) {
+    n += match (Bytes.getInt8U(i, str)) {
+      // '"' | '\\' | '\n' | '\t' | '\r' | '\b' => 2,
+                  34l | 92l | 10l | 9l | 13l | 8l => 2,
+
+      // ' ' .. '~' => 1
+      // _ => 2
+      c => {
+        if (32l <= c && c <= 126l) {
+          1
+        } else {
+          4
+        }
+      },
+    }
+  }
+
+  if (n == Bytes.length(str)) {
+    str
+  } else {
+    let res = Bytes.make(n)
+    n = 0
+
+    for (let mut i = 0; i < Bytes.length(str); i += 1) {
+      let c = Bytes.getInt8U(i, str)
+      match (c) {
+        // '"' | '\\' => {
+                34l | 92l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
+          n += 1
+          Bytes.setInt8(n, c, res)
+        },
+
+        // '\n' => {
+        10l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
+          n += 1
+          Bytes.setInt8(n, 110l, res) // 'n'
+        },
+
+        // '\t' => {
+        9l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
+          n += 1
+          Bytes.setInt8(n, 116l, res) // 't'
+        },
+
+        // '\r' => {
+        13l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
+          n += 1
+          Bytes.setInt8(n, 114l, res) // 'r'
+        },
+
+        // '\b' => {
+        8l => {
+          Bytes.setInt8(n, 92l, res) // '\\'
+          n += 1
+          Bytes.setInt8(n, 98l, res) // 'b'
+        },
+
+        // ' ' .. '~' => ...
+        c => {
+          if (32l <= c && c <= 126l) {
+            Bytes.setInt8(n, c, res)
+          } else {
+            Bytes.setInt8(n, 92l, res) // '\\'
+            n += 1
+            Bytes.setInt8(n, Int32.add(48l, Int32.divU(c, 100l)), res)
+            n += 1
+            Bytes.setInt8(
+              n,
+              Int32.add(48l, Int32.mod(Int32.divU(c, 10l), 10l)),
+              res
+            )
+            n += 1
+            Bytes.setInt8(n, Int32.add(48l, Int32.mod(c, 10l)), res)
+          }
+        },
+      }
+      n += 1
+    }
+    res
+  }
+}
+
+let escapeStr = str => {
+  let estr = escaped(str)
+  let elen = Bytes.length(estr)
+  let res = Bytes.make(elen + 2)
+  Bytes.move(0, 1, elen, estr, res)
+  Bytes.setInt8(0, 34l, res) // '"'
+  Bytes.setInt8(elen + 1, 34l, res) // '"'
+  Bytes.toString(res)
+}
+
+let maybeEscapeStr = str => if (mustEscape(str)) {
+  escapeStr(str)
+} else {
+  str
+}
+
+let toBuffer = (sexp, buf) => {
+  let rec loop = (mayNeedSpace, sexp) => {
+    match (sexp) {
+      Atom(str) => {
+        let newStr = maybeEscapeStr(str)
+        let newMayNeedSpace = newStr == str
+        if (mayNeedSpace && newMayNeedSpace) {
+          Buffer.addChar(' ', buf)
+        }
+        Buffer.addString(newStr, buf)
+        newMayNeedSpace
+      },
+      List([h, ...t]) => {
+        Buffer.addChar('(', buf)
+        let mayNeedSpace = loop(false, h)
+        loopRest(mayNeedSpace, t)
+        false
+      },
+      List([]) => {
+        Buffer.addString("()", buf)
+        false
+      },
+    }
+  }, loopRest = (mayNeedSpace, sexps) => {
+    match (sexps) {
+      [h, ...t] => {
+        let mayNeedSpace = loop(mayNeedSpace, h)
+        loopRest(mayNeedSpace, t)
+      },
+      [] => Buffer.addChar(')', buf),
+    }
+  }
+
+  let _ = loop(false, sexp)
+}
+
+export let toString = sexp => {
+  match (sexp) {
+    Atom(str) => maybeEscapeStr(str),
+    sexp => {
+      let buf = Buffer.make(1024)
+      toBuffer(sexp, buf)
+      Buffer.toString(buf)
+    },
   }
 }

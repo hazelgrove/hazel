@@ -1,0 +1,9 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelctest_inline)
+ (libraries hazelctest)
+ (wrapped false)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test)))

@@ -1,0 +1,8 @@
+(include_subdirs unqualified)
+
+(executable
+ (name main)
+ (modules Main)
+ (libraries hazelc hazelclib cmdliner)
+ (preprocess
+  (pps ppx_let ppx_sexp_conv)))

@@ -1,3 +1,8 @@
+/*
+   Printing is a relatively straight-foward 1-1 conversion.
+
+   TODO: Pretty-printing for readability of the final result.
+ */
 let sprintf = Printf.sprintf;
 
 module Consts = {
@@ -7,19 +12,16 @@ module Consts = {
 
   let prim_and_op = "&&";
   let prim_or_op = "||";
-  let prim_plus_op = "+";
-  let prim_minus_op = "-";
-  let prim_times_op = "*";
-  let prim_divide_op = "/";
-  let prim_less_than_op = "<";
-  let prim_greater_than_op = "<";
-  let prim_equals_op = "<";
+
+  let prim_equals_op = "==";
+  let prim_not_equals_op = "!=";
 
   let pat_wild = "_";
   let pat_list_nil = "[]";
   let pat_triv = "void";
 };
 
+/* Some utilities for printing things. */
 let print_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
 let print_surround = (s1, o, s2) => sprintf("%s%s%s", s1, o, s2);
 let print_lines = ss => ss |> String.concat("\n");
@@ -42,8 +44,8 @@ and print_top_block = (tb: GrainIR.top_block) => {
 
 and print_top_statement = (tstmt: GrainIR.top_stmt) =>
   switch (tstmt) {
-  | TSImport(name, path) => print_import(name, path)
-  | TSDecl(decl) => print_decl(decl)
+  | TImport(name, path) => print_import(name, path)
+  | TDecl(decl) => print_decl(decl)
   }
 
 and print_import = (name: Var.t, path: GrainIR.import_path) => {
@@ -105,9 +107,12 @@ and print_statement = (stmt: GrainIR.stmt) =>
 and print_expr = (e: GrainIR.expr) =>
   switch (e) {
   | EBoolLit(b) => b ? Consts.truelit : Consts.falselit
-  | EIntLit(n) => string_of_int(n)
+  | EInt32Lit(n) => string_of_int(n) ++ "l"
+  | EInt64Lit(n) => string_of_int(n) ++ "L"
   // TODO: NaN?
-  | EFloatLit(f) => string_of_float(f)
+  | EFloat32Lit(f) => string_of_float(f) ++ "f"
+  | EFloat64Lit(f) => string_of_float(f) ++ "d"
+  | ECharLit(c) => print_char(c)
   | EStringLit(s) => print_string(s)
   | EBinOp(op, e1, e2) => print_bin_op(op, e1, e2)
   | EList(es) =>
@@ -117,42 +122,30 @@ and print_expr = (e: GrainIR.expr) =>
   | ECons(e1, e2) => print_cons(e1, e2)
   | ETuple(els) => print_tuple(els)
   | EVar(var) => print_var(var)
-  | ELam(params, e') => print_lam(params, e')
-  | EAp(lam, args) => print_ap(lam, args)
+  | ELam(params, e') => print_fn(params, e')
+  | EAp(fn, args) => print_ap(fn, args)
   | ECtor(ctor, args) => print_ctor(ctor, args)
   | EMatch(scrut, rules) => print_match(scrut, rules)
   | EBlock(b) => print_block(b)
   }
+
+and print_char = (c: char) => print_surround("'", String.make(1, c), "'")
 
 and print_string = (s: string) => print_surround("\"", s, "\"")
 
 and print_args = (args: GrainIR.args) =>
   args |> List.map(print_expr) |> print_comma_sep
 
-and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) => {
-  let op =
-    switch (op) {
-    | OpAnd => Consts.prim_and_op
-    | OpOr => Consts.prim_or_op
-    | OpPlus => Consts.prim_plus_op
-    | OpMinus => Consts.prim_minus_op
-    | OpTimes => Consts.prim_times_op
-    | OpDivide => Consts.prim_divide_op
-    | OpLessThan => Consts.prim_less_than_op
-    | OpGreaterThan => Consts.prim_greater_than_op
-    | OpEquals => Consts.prim_equals_op
-    | OpFPlus => Consts.prim_plus_op
-    | OpFMinus => Consts.prim_minus_op
-    | OpFTimes => Consts.prim_times_op
-    | OpFDivide => Consts.prim_divide_op
-    | OpFLessThan => Consts.prim_less_than_op
-    | OpFGreaterThan => Consts.prim_greater_than_op
-    | OpFEquals => Consts.prim_equals_op
-    };
-  let e1 = print_expr(e1);
-  let e2 = print_expr(e2);
-  print_infix(e1, op, e2);
-}
+and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) =>
+  switch (op) {
+  | OpAnd => print_infix(print_expr(e1), Consts.prim_and_op, print_expr(e2))
+  | OpOr => print_infix(print_expr(e1), Consts.prim_or_op, print_expr(e2))
+
+  | OpEquals =>
+    print_infix(print_expr(e1), Consts.prim_equals_op, print_expr(e2))
+  | OpNotEquals =>
+    print_infix(print_expr(e1), Consts.prim_not_equals_op, print_expr(e2))
+  }
 
 and print_cons = (e1: GrainIR.expr, e2: GrainIR.expr) => {
   let e1 = print_expr(e1);
@@ -169,16 +162,16 @@ and print_var = (var: Var.t) => var
 and print_params = (ps: GrainIR.params) =>
   ps |> List.map(print_pat) |> String.concat(", ")
 
-and print_lam = (params: GrainIR.params, e': GrainIR.expr) => {
+and print_fn = (params: GrainIR.params, e': GrainIR.expr) => {
   let params = print_params(params);
   let e' = print_expr(e');
   sprintf("(%s) => { %s }", params, e');
 }
 
-and print_ap = (lam: GrainIR.expr, args: GrainIR.args) => {
-  let lam = print_expr(lam);
+and print_ap = (fn: GrainIR.expr, args: GrainIR.args) => {
+  let fn = print_expr(fn);
   let args = print_args(args);
-  sprintf("%s(%s)", lam, args);
+  sprintf("%s(%s)", fn, args);
 }
 
 and print_ctor = (ctor: Var.t, args: GrainIR.args) => {

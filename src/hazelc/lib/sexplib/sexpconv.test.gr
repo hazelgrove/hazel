@@ -1,15 +1,55 @@
-import * from "./sexp_conv"
+import Sexp from "./sexp"
+import * from "./sexpconv"
 
-let assertInverse = (a, aOfSexp, sexpOfA) => {
-  assert a == aOfSexp(sexpOfA(a))
+let test = (a, aOfSexp, sexpOfA, expect) => {
+  let equalsQuestion = (lhs, rhs) => toString(lhs) ++ " =? " ++ toString(rhs)
+
+  print("Testing... " ++ toString(a))
+
+  let sexp = sexpOfA(a)
+  let a2 = aOfSexp(sexp)
+  let str = Sexp.toString(sexp)
+
+  print("    sexp: " ++ toString(sexp))
+  print("  parsed: " ++ equalsQuestion(a2, a))
+  assert a2 == a
+
+  print("  string: " ++ equalsQuestion(str, expect))
+  assert str == expect
+
+  print("OK\n")
 }
 
-assertInverse(void, voidOfSexp, sexpOfVoid)
-assertInverse(true, boolOfSexp, sexpOfBool)
-assertInverse(false, boolOfSexp, sexpOfBool)
-assertInverse(0, intOfSexp, sexpOfInt)
-assertInverse(5, intOfSexp, sexpOfInt)
-assertInverse(10, intOfSexp, sexpOfInt)
-assertInverse("", stringOfSexp, sexpOfString)
-assertInverse("abc", stringOfSexp, sexpOfString)
-assertInverse('a', charOfSexp, sexpOfChar)
+test(void, voidOfSexp, sexpOfVoid, "()")
+
+test(true, boolOfSexp, sexpOfBool, "true")
+test(false, boolOfSexp, sexpOfBool, "false")
+
+test(0, intOfSexp, sexpOfInt, "0")
+test(5, intOfSexp, sexpOfInt, "5")
+test(10, intOfSexp, sexpOfInt, "10")
+
+test('a', charOfSexp, sexpOfChar, "a")
+
+test("", stringOfSexp, sexpOfString, "\"\"")
+test("abc", stringOfSexp, sexpOfString, "abc")
+
+test(
+  [1, 2, 3],
+  sexp => listOfSexp(intOfSexp, sexp),
+  xs => sexpOfList(sexpOfInt, xs),
+  "(1 2 3)"
+)
+
+test(
+  Some(5),
+  sexp => optionOfSexp(intOfSexp, sexp),
+  opt => sexpOfOption(sexpOfInt, opt),
+  "(some 5)"
+)
+test(
+  None,
+  sexp => optionOfSexp(intOfSexp, sexp),
+  opt => sexpOfOption(sexpOfInt, opt),
+  "none"
+)

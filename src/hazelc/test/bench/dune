@@ -1,0 +1,12 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelctest_bench)
+ (modules :standard \ Main)
+ (libraries hazelctest)
+ (wrapped false))
+
+(executable
+ (name main)
+ (modules Main)
+ (libraries hazelctest_bench))

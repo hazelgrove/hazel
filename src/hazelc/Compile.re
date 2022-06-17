@@ -1,153 +1,112 @@
 open Sexplib.Std;
-open SexpResult;
+open ResultSexp;
+open ChannelUtil.Syntax;
 
 module Parsing = Hazeltext.Parsing;
 
-exception BadState;
-
-[@deriving sexp]
-type grain_opts = Grain.opts;
-
 [@deriving sexp]
 type opts = {
-  exp_only: bool,
-  grain: grain_opts,
+  optimize: Optimize.opts,
+  codegen: GrainCodegen.opts,
 };
 
-type source =
-  | SourceString(string)
-  | SourceLexbuf(Lexing.lexbuf)
-  | SourceChannel(in_channel);
+let parse' = (source: Source.t) =>
+  source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
 
-let sexp_of_source = source => {
-  Sexplib.Sexp.(
-    switch (source) {
-    | SourceString(s) => List([Atom("string"), sexp_of_string(s)])
-    | SourceLexbuf(_) => List([Atom("lexbuf"), Atom("<Lexing.lexbuf>")])
-    | SourceChannel(_) => List([Atom("channel"), Atom("<in_channel>")])
-    }
-  );
-};
-
-let source_of_sexp = sexp => {
-  Sexplib0.(
-    Sexplib.Sexp.(
-      {
-        let of_sexp_error = (what, sexp) =>
-          raise(Sexp.Of_sexp_error(Failure(what), sexp));
-
-        switch (sexp) {
-        | List([Atom("string"), el]) => SourceString(string_of_sexp(el))
-        | List([Atom("lexbuf"), _]) =>
-          of_sexp_error("source_of_sexp: cannot deseralize for lexbuf", sexp)
-        | List([Atom("channel"), _]) =>
-          of_sexp_error(
-            "source_of_sexp: cannot deseralize for in_channel",
-            sexp,
-          )
-        | List(_) =>
-          of_sexp_error("source_of_sexp: list must be (string el)", sexp)
-        | Atom(_) => of_sexp_error("source_of_sexp: list needed", sexp)
-        };
-      }
-    )
-  );
-};
-
-let default_opts = {
-  exp_only: false,
-  grain: {
-    grain: None,
-    // TODO: Fix this to include Hazel lib files.
-    includes: None,
-    optimize: None,
-    debug: None,
-    wat: None,
-  },
-};
-
-let parse = source => {
-  let lexbuf =
-    switch (source) {
-    | SourceString(s) => s |> Lexing.from_string
-    | SourceLexbuf(lexbuf) => lexbuf
-    | SourceChannel(channel) => channel |> Lexing.from_channel
-    };
-  lexbuf |> Parsing.ast_of_lexbuf;
-};
-
-let elaborate = (e: UHExp.t) => {
+let elaborate' = (e: UHExp.t) => {
   let ctx = Contexts.initial;
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform = (ctx: Contexts.t) => Transform.transform(ctx);
+let transform' = (ctx: Contexts.t) => Transform.transform(ctx);
 
-let linearize = Linearize.linearize;
+let linearize' = Linearize.linearize;
 
-let grainize = GrainCodegen.codegen;
+let optimize' = opts => Optimize.optimize(~opts);
 
-let print = GrainPrint.print;
+let grainize' = opts => GrainCodegen.codegen(~opts);
 
-let wasmize = (~opts=default_opts, src_path, out_path, g) => {
-  let f = open_out(src_path);
-  Printf.fprintf(f, "%s\n", g);
-  close_out(f);
+let print' = GrainPrint.print;
 
-  switch (
-    Grain.compile(
-      ~opts=opts.grain,
-      {file: src_path, output: Some(out_path)},
-    )
-  ) {
-  | Ok(_) => Ok()
-  | Error(_) => Error()
+[@deriving sexp]
+type wasm_opts = {
+  grain: string,
+  includes: list(string),
+  wat: bool,
+  maximum_memory_pages: int,
+  release: bool,
+};
+
+let wasmize' = (opts: wasm_opts, source, output, g) => {
+  // Write Grain to source path.
+  {
+    let&o f = open_out(source);
+    Printf.fprintf(f, "%s\n", g);
+  };
+
+  // TODO: Add necessary includes.
+  // TODO: Add option for alternative stdlib path.
+  let cmd =
+    Grain.Compile.(
+      Grain.make(~grain=opts.grain)
+      |> make(~source)
+      |> with_output(output)
+      |> with_includes(opts.includes)
+      |> with_wat(opts.wat)
+      |> with_maximum_memory_pages(opts.maximum_memory_pages)
+      |> with_release(opts.release)
+      |> to_command
+    );
+
+  switch (cmd |> Grain.execute(~capture_stdout=false)) {
+  | {stdout: _, status: Ok(_)} => Ok()
+  | {stdout: _, status: Error(_)} => Error()
   };
 };
 
-let parse_next = (~opts=default_opts, source) => {
+let parse = (~opts, source) => {
   let _ = opts;
-  parse(source);
+  parse'(source);
 };
 
-let elaborate_next = (~opts=default_opts, e) => {
+let elaborate = (~opts, e) => {
   let _ = opts;
-  switch (elaborate(e)) {
+  switch (elaborate'(e)) {
   | (ctx, Elaborates(d, _ty, _delta)) => Ok((ctx, d))
   | (_, DoesNotElaborate) => Error()
   };
 };
 
-let transform_next = (~opts=default_opts, ctx, d) => {
+let transform = (~opts, ctx, d) => {
   let _ = opts;
-  transform(ctx, d);
+  transform'(ctx, d);
 };
 
-let linearize_next = (~opts=default_opts, d) => {
+let linearize = (~opts, d) => {
   let _ = opts;
-  linearize(d);
+  linearize'(d);
 };
 
-let grainize_next = (~opts=default_opts, a) => {
+let optimize = (~opts, a) => optimize'(opts.optimize, a);
+
+let grainize = (~opts, a) => grainize'(opts.codegen, a);
+
+let print = (~opts, g) => {
   let _ = opts;
-  grainize(a);
+  print'(g);
 };
 
-let print_next = (~opts=default_opts, g) => {
-  let _ = opts;
-  print(g);
-};
-
-let wasmize_next = (~opts=default_opts, src_path, out_path, g) =>
-  wasmize(~opts, src_path, out_path, g);
+let wasmize = (~opts, ~source, ~output, g) =>
+  wasmize'(opts, source, output, g);
 
 [@deriving sexp]
 type state =
-  | Source(source)
+  | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
+  | Optimized(Anf.prog)
   | Grainized(GrainIR.prog)
   | Printed(string);
 
@@ -157,29 +116,31 @@ type next_error =
   | ElaborateError;
 
 [@deriving sexp]
-type next_result = result(state, next_error);
+type next_result = result(option(state), next_error);
 
-let next = (~opts=default_opts, state) => {
+let next = (~opts, state): next_result => {
   switch (state) {
   | Source(source) =>
-    parse_next(~opts, source)
-    |> Result.map(e => Parsed(e))
+    parse(~opts, source)
+    |> Result.map(e => Some(Parsed(e)))
     |> Result.map_error(err => ParseError(err))
 
   | Parsed(e) =>
-    elaborate_next(~opts, e)
-    |> Result.map(((ctx, d)) => Elaborated(ctx, d))
+    elaborate(~opts, e)
+    |> Result.map(((ctx, d)) => Some(Elaborated(ctx, d)))
     |> Result.map_error(() => ElaborateError)
 
-  | Elaborated(ctx, d) => Ok(Transformed(transform(ctx, d)))
+  | Elaborated(ctx, d) => Ok(Some(Transformed(transform(~opts, ctx, d))))
 
-  | Transformed(u) => Ok(Linearized(linearize(u)))
+  | Transformed(u) => Ok(Some(Linearized(linearize(~opts, u))))
 
-  | Linearized(a) => Ok(Grainized(grainize(a)))
+  | Linearized(a) => Ok(Some(Optimized(optimize(~opts, a))))
 
-  | Grainized(g) => Ok(Printed(print(g)))
+  | Optimized(a) => Ok(Some(Grainized(grainize(~opts, a))))
 
-  | Printed(g) => Ok(Printed(g))
+  | Grainized(g) => Ok(Some(Printed(print(~opts, g))))
+
+  | Printed(_) => Ok(None)
   };
 };
 
@@ -208,6 +169,11 @@ let stop_after_linearized =
   | Linearized(_) => Stop
   | state => Continue(state);
 
+let stop_after_optimized =
+  fun
+  | Optimized(_) => Stop
+  | state => Continue(state);
+
 let stop_after_grainized =
   fun
   | Grainized(_) => Stop
@@ -218,68 +184,67 @@ let stop_after_printed =
   | Printed(_) => Stop
   | state => Continue(state);
 
-let rec resume = (~opts=default_opts, ~hook=stop_after_printed, state) => {
+/*
+   Exception indicative of an error in `resume_until_*`.
+ */
+exception BadState;
+
+let rec resume = (~opts, ~hook=stop_after_printed, state) => {
   switch (next(~opts, state)) {
-  | Ok(state) =>
+  | Ok(Some(state)) =>
     switch (hook(state)) {
     | Continue(state) => resume(~opts, ~hook, state)
-    | Stop => Ok(state)
+    | Stop => Ok(Some(state))
     }
+  | Ok(None) => Ok(None)
   | Error(err) => Error(err)
   };
 };
 
-let resume_until_dhexp = (~opts=default_opts, state) => {
+let resume_until_elaborated = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Elaborated(_, d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Elaborated(_, d))) => Ok(d)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
-let resume_until_hir = (~opts=default_opts, state) => {
+let resume_until_transformed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Transformed(d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Transformed(d))) => Ok(d)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
-let resume_until_anf = (~opts=default_opts, state) => {
+let resume_until_linearized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Linearized(d) => Ok(d)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Linearized(a))) => Ok(a)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
-let resume_until_grain = (~opts=default_opts, state) => {
+let resume_until_optimized = (~opts, state) => {
+  switch (resume(~opts, ~hook=stop_after_optimized, state)) {
+  | Ok(Some(Optimized(a))) => Ok(a)
+  | Ok(_) => raise(BadState)
+  | Error(err) => Error(err)
+  };
+};
+
+let resume_until_grainized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_grainized, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Grainized(g) => Ok(g)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Grainized(g))) => Ok(g)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };
 
-let resume_until_grain_text = (~opts=default_opts, state) => {
+let resume_until_printed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_printed, state)) {
-  | Ok(state) =>
-    switch (state) {
-    | Printed(g) => Ok(g)
-    | _ => raise(BadState)
-    }
+  | Ok(Some(Printed(g))) => Ok(g)
+  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
   };
 };

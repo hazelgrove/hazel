@@ -1,9 +1,9 @@
 module Inner = GrainStd.Inner;
 
-let mk_path = path => GrainIR.ImportRel("hazel/" ++ path);
+let mk_path = path => GrainIR.ImportStd(Filename.concat("hazel", path));
 
 module Rt = {
-  let mk_path = path => mk_path("rt/" ++ path);
+  let mk_path = path => mk_path(Filename.concat("rt", path));
 
   module Ast = {
     include Inner({
@@ -18,10 +18,10 @@ module Rt = {
       let int = mk_var("Int");
       let float = mk_var("Float");
       let bool = mk_var("Bool");
-      let arrow = (t1, t2) => mk_ctor("Arrow", [t1, t2]);
-      let sum = (t1, t2) => mk_ctor("Sum", [t1, t2]);
-      let prod = ts => mk_ctor("Prod", ts);
-      let list = t => mk_ctor("List", [t]);
+      let arrow = (t1, t2) => mk_nary_ctor("Arrow", [t1, t2]);
+      let sum = (t1, t2) => mk_nary_ctor("Sum", [t1, t2]);
+      let prod = ts => mk_nary_ctor("Prod", ts);
+      let list = t => mk_nary_ctor("List", [t]);
     };
 
     module HoleReason = {
@@ -30,12 +30,13 @@ module Rt = {
       let wrong_length = ident("WrongLength");
     };
 
-    let empty_hole = (u, i, sigma) => mk_ctor("EmptyHole", [u, i, sigma]);
+    let empty_hole = (u, i, sigma) =>
+      mk_nary_ctor("EmptyHole", [u, i, sigma]);
 
     let non_empty_hole = (reason, u, i, sigma, e) =>
-      mk_ctor("NonEmptyHole", [reason, u, i, sigma, e]);
+      mk_nary_ctor("NonEmptyHole", [reason, u, i, sigma, e]);
 
-    let cast = (e, t1, t2) => mk_ctor("Cast", [e, t1, t2]);
+    let cast = (e, t1, t2) => mk_nary_ctor("Cast", [e, t1, t2]);
   };
 
   module AstSexp = {
@@ -44,7 +45,7 @@ module Rt = {
       let path = mk_path("ast_sexp");
     });
 
-    let sexp_of_ast = ast => mk_ap("sexpOfAst", [ast]);
+    let sexp_of_ast = mk_unary_ap("sexpOfAst");
   };
 
   module AstOps = {
@@ -53,28 +54,26 @@ module Rt = {
       let path = mk_path("ast_ops");
     });
 
-    let indet_and = (ast1, ast2) => mk_ap("and", [ast1, ast2]);
-    let indet_or = (ast1, ast2) => mk_ap("or", [ast1, ast2]);
+    let indet_and = mk_binary_ap("and");
+    let indet_or = mk_binary_ap("or");
 
-    let indet_plus = (ast1, ast2) => mk_ap("plus", [ast1, ast2]);
-    let indet_minus = (ast1, ast2) => mk_ap("minus", [ast1, ast2]);
-    let indet_times = (ast1, ast2) => mk_ap("times", [ast1, ast2]);
-    let indet_divide = (ast1, ast2) => mk_ap("divide", [ast1, ast2]);
+    let indet_plus = mk_binary_ap("plus");
+    let indet_minus = mk_binary_ap("minus");
+    let indet_times = mk_binary_ap("times");
+    let indet_divide = mk_binary_ap("divide");
 
-    let indet_less_than = (ast1, ast2) => mk_ap("lessThan", [ast1, ast2]);
-    let indet_greater_than = (ast1, ast2) =>
-      mk_ap("greaterThan", [ast1, ast2]);
-    let indet_equals = (ast1, ast2) => mk_ap("equals", [ast1, ast2]);
+    let indet_less_than = mk_binary_ap("lessThan");
+    let indet_greater_than = mk_binary_ap("greaterThan");
+    let indet_equals = mk_binary_ap("equals");
 
-    let indet_fplus = (ast1, ast2) => mk_ap("fplus", [ast1, ast2]);
-    let indet_fminus = (ast1, ast2) => mk_ap("fminus", [ast1, ast2]);
-    let indet_ftimes = (ast1, ast2) => mk_ap("ftimes", [ast1, ast2]);
-    let indet_fdivide = (ast1, ast2) => mk_ap("fdivide", [ast1, ast2]);
+    let indet_fplus = mk_binary_ap("fplus");
+    let indet_fminus = mk_binary_ap("fminus");
+    let indet_ftimes = mk_binary_ap("ftimes");
+    let indet_fdivide = mk_binary_ap("fdivide");
 
-    let indet_fless_than = (ast1, ast2) => mk_ap("flessThan", [ast1, ast2]);
-    let indet_fgreater_than = (ast1, ast2) =>
-      mk_ap("fgreaterThan", [ast1, ast2]);
-    let indet_fequals = (ast1, ast2) => mk_ap("fequals", [ast1, ast2]);
+    let indet_fless_than = mk_binary_ap("flessThan");
+    let indet_fgreater_than = mk_binary_ap("fgreaterThan");
+    let indet_fequals = mk_binary_ap("fequals");
   };
 
   module AstPrint = {
@@ -83,7 +82,7 @@ module Rt = {
       let path = mk_path("ast_print");
     });
 
-    let print = v => mk_ap("print", [v]);
+    let print = mk_unary_ap("print");
   };
 
   module AstMk = {
@@ -92,9 +91,9 @@ module Rt = {
       let path = mk_path("ast_mk");
     });
 
-    let mk_empty_hole = v => mk_ap("mkEmptyHole", [v]);
+    let mk_empty_hole = mk_unary_ap("mkEmptyHole");
 
-    let mk_bool_lit = v => mk_ap("mkBoolLit", [v]);
+    let mk_bool_lit = mk_unary_ap("mkBoolLit");
   };
 
   module Sum = {
@@ -103,10 +102,10 @@ module Rt = {
       let path = mk_path("sum");
     });
 
-    let inj_l = e => mk_ctor("L", [e]);
-    let inj_r = e => mk_ctor("R", [e]);
+    let inj_l = e => mk_nary_ctor("L", [e]);
+    let inj_r = e => mk_nary_ctor("R", [e]);
 
-    let inj_l_pat = p => mk_ctor_pat("L", [p]);
-    let inj_r_pat = p => mk_ctor_pat("R", [p]);
+    let inj_l_pat = p => mk_nary_ctor_pat("L", [p]);
+    let inj_r_pat = p => mk_nary_ctor_pat("R", [p]);
   };
 };
