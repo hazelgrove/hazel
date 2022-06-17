@@ -2,12 +2,13 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type unknown_type_provenance =
-  | TypHole
+  | TypHole(MetaVar.t)
   | ModeSwitch
   | Internal;
 //   | Internal(internal_provenance)
 // and internal_provenance =
 //   // enumerate other base cases here if applicable; try to avoid
+//   | ExpPatHole(id)
 //   | Matched_arrow_L(unknown_type_provenance)
 //   | Matched_arrow_R(unknown_type_provenance)
 //   | Matched_sum_L(unknown_type_provenance)

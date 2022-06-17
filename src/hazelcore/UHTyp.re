@@ -57,7 +57,8 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Unknown(ModeSwitch)
-      | Unknown(Internal | TypHole) => Seq.wrap(Hole(0)) // TODO anand raef: this is a placeholder to get it to compile
+      | Unknown(Internal) => Seq.wrap(Hole(0)) // TODO anand raef: this is a placeholder to get it to compile
+      | Unknown(TypHole(u)) => Seq.wrap(Hole(u))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -115,7 +116,7 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | Hole(_) => Unknown(TypHole) //TODO anand raef: - use id in Hole to create a UserGenerated prov'd HTyp
+  | Hole(u) => Unknown(TypHole(u)) //TODO anand raef: - use id in Hole to create a UserGenerated prov'd HTyp
   | Unit => Prod([])
   | Int => Int
   | Float => Float
