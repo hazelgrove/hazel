@@ -292,10 +292,8 @@ and linearize_exp =
   | EInvalidText(_, _, _, _)
   | EInvalidOperation(_, _)
   | EFailedCast(_, _, _)
-  | EConsistentCase(_)
   | EInconsistentBranches(_, _, _, _)
-  | ELetRec(_, _, _, _, _)
-  | EApBuiltin(_, _) => raise(Exception(NotImplemented))
+  | EApBuiltin(_, _) => raise(NotImplemented)
   };
 }
 
