@@ -28,7 +28,6 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
   | BoundVar(x) =>
     switch (VarMap.lookup(Contexts.gamma(ctx), x)) {
     | Some(ty) => ({expr_kind: EBoundVar(ty, x)}, ty)
-    // TODO: Not sure what behavior is needed here.
     | None => raise(FreeVarError)
     }
 
@@ -231,6 +230,7 @@ and transform_pat =
   | Wild => ({pat_kind: PWild}, ctx)
 
   | Ap(dp1, dp2) =>
+    /* FIXME: Hole type scrutinee? */
     switch (ty) {
     | Arrow(dp1_ty, dp2_ty) =>
       let (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);

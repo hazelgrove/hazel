@@ -59,16 +59,6 @@ test:
 	dune build @src/fmt --auto-promote || true
 	dune runtest || true
 
-bench:
-	dune build @src/fmt --auto-promote || true
-	BENCHMARKS_RUNNER=TRUE BENCH_LIB=hazelc_test \
-		dune exec -- src/hazelc/test/bench/runner/main.exe \
-			-run-without-cross-library-inlining \
-			-no-sexp \
-			-reduced-bootstrap \
-			-quota 5000x \
-			-all-values
-
 fix-test-answers:
 	dune promote || true
 

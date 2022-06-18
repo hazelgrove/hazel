@@ -184,11 +184,6 @@ let stop_after_printed =
   | Printed(_) => Stop
   | state => Continue(state);
 
-/*
-   Exception indicative of an error in `resume_until_*`.
- */
-exception BadState;
-
 let rec resume = (~opts, ~hook=stop_after_printed, state) => {
   switch (next(~opts, state)) {
   | Ok(Some(state)) =>
@@ -204,47 +199,52 @@ let rec resume = (~opts, ~hook=stop_after_printed, state) => {
 let resume_until_elaborated = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
   | Ok(Some(Elaborated(_, d))) => Ok(d)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) =>
+    failwith("resume_until_elaborated did not stop with Elaborated state")
   };
 };
 
 let resume_until_transformed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
   | Ok(Some(Transformed(d))) => Ok(d)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) =>
+    failwith("resume_until_transformed did not stop with Transformed state")
   };
 };
 
 let resume_until_linearized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
   | Ok(Some(Linearized(a))) => Ok(a)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) =>
+    failwith("resume_until_linearized did not stop with Linearized state")
   };
 };
 
 let resume_until_optimized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_optimized, state)) {
   | Ok(Some(Optimized(a))) => Ok(a)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) =>
+    failwith("resume_until_optimized did not stop with Optimized state")
   };
 };
 
 let resume_until_grainized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_grainized, state)) {
   | Ok(Some(Grainized(g))) => Ok(g)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) =>
+    failwith("resume_until_grainized did not stop with Grainized state")
   };
 };
 
 let resume_until_printed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_printed, state)) {
   | Ok(Some(Printed(g))) => Ok(g)
-  | Ok(_) => raise(BadState)
   | Error(err) => Error(err)
+  | Ok(_) => failwith("resume_until_printed did not stop with Printed state")
   };
 };
