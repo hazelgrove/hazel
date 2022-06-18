@@ -34,7 +34,7 @@ let joined_pattern_type = (ctx, rules) => {
   let get_pattern_type = (ctx, UHExp.Rule(p, _)) =>
     p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty);
   let* tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
-  HTyp.join_all(LUB, tys);
+  HTyp.join_all(GLB, tys);
 };
 
 let rec syn = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) => {

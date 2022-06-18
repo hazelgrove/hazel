@@ -81,21 +81,6 @@ and syn_elab_line =
       switch (ana_elab(def_ctx, delta, def, ty_p)) {
       | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty_def, delta) =>
-        let d1 =
-          switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
-          | None => d1
-          | Some(x) =>
-            FixF(
-              x,
-              ty_def,
-              Evaluator.subst_var(
-                DHExp.cast(BoundVar(x), ty_def, ty_p),
-                x,
-                d1,
-              ),
-            )
-          };
-        let d1 = DHExp.cast(d1, ty_def, ty_p);
         switch (
           Elaborator_Pat.ana_elab(
             ctx,
@@ -107,9 +92,23 @@ and syn_elab_line =
         ) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
+          let d1 =
+            switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
+            | None => d1
+            | Some(x) =>
+              FixF(
+                x,
+                ty_def,
+                Evaluator.subst_var(
+                  DHExp.cast(BoundVar(x), ty_def, ty_p),
+                  x,
+                  d1,
+                ),
+              )
+            };
           let prelude = d2 => DHExp.Let(dp, d1, d2);
           LinesElaborate(prelude, ctx, delta);
-        };
+        }
       };
     }
   }
@@ -770,35 +769,28 @@ and ana_elab_operand_internal =
   | Fun(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
-    | Some((ty1_given, ty2)) =>
-      let ty1_ann =
-        switch (Statics_Pat.syn(ctx, p)) {
-        | None => ty1_given
-        | Some((ty_p, _)) => ty_p
-        };
-      switch (HTyp.consistent(ty1_ann, ty1_given)) {
-      | false => DoesNotElaborate
-      | true =>
-        switch (
-          Elaborator_Pat.ana_elab(
-            ctx,
-            delta,
-            p,
-            ty1_ann,
-            ~pattern_var_syn=UnknownVariable,
-          )
-        ) {
+    | Some((ty_p_given, ty_body_given)) =>
+      switch (
+        Elaborator_Pat.ana_elab(
+          ctx,
+          delta,
+          p,
+          ty_p_given,
+          ~pattern_var_syn=UnknownVariable,
+        )
+      ) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp, ty_p, ctx_body, delta) =>
+        switch (ana_elab(ctx_body, delta, body, ty_body_given)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(dp, ty1p, ctx, delta) =>
-          switch (ana_elab(ctx, delta, body, ty2)) {
-          | DoesNotElaborate => DoesNotElaborate
-          | Elaborates(d1, ty2, delta) =>
-            let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Fun(dp, ty1p, d1);
-            Elaborates(d, ty, delta);
-          }
+        | Elaborates(d1, ty_body, delta) =>
+          Elaborates(
+            DHExp.Fun(dp, ty_p, d1),
+            HTyp.Arrow(ty_p, ty_body),
+            delta,
+          )
         }
-      };
+      }
     }
   | Inj(NotInHole, side, body) =>
     switch (HTyp.matched_sum(ty)) {
