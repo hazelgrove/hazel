@@ -41,7 +41,7 @@ of type `HTyp.t`.
   - edit action semantics:
     - `Action_common`, `Action_Exp`, `Action_Pat`, `Action_Typ`
     - `ExpandingKeyword`
-    - `MetaVarGen`
+    - `IDGen`
     - `TextShape`
   - dynamics
     - internal syntax: `DHExp`, `DHPat`
