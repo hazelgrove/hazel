@@ -65,9 +65,9 @@ and cursor_info_zopseq =
     // cursor on tuple comma
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zopseq))) {
     | None => None
-    | Some((_, k, _)) =>
+    | Some((ty, _, _)) =>
       Some(
-        CursorInfo_common.mk(OnType(k), ctx, extract_cursor_term(zopseq)),
+        CursorInfo_common.mk(OnType(ty), ctx, extract_cursor_term(zopseq)),
       )
     }
   | _ =>
@@ -99,8 +99,10 @@ and cursor_info_skel =
       let ty = UHTyp.mk_OpSeq(ZTyp.erase_zseq(zseq));
       switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
       | None => None
-      | Some((_, k, _)) =>
-        Some(CursorInfo_common.mk(OnType(k), ctx, extract_from_zseq(zseq)))
+      | Some((ty, _, _)) =>
+        Some(
+          CursorInfo_common.mk(OnType(ty), ctx, extract_from_zseq(zseq)),
+        )
       };
     };
   } else {
@@ -123,20 +125,26 @@ and cursor_info_zoperand =
     : option(CursorInfo.t) => {
   let cursor_term = extract_from_ztyp_operand(zoperand);
   switch (zoperand) {
-  | CursorT(_, Hole) =>
-    Some(CursorInfo_common.mk(OnType(Kind.Hole), ctx, cursor_term))
-  | CursorT(_, Unit | Int | Float | Bool) =>
-    Some(CursorInfo_common.mk(OnType(Kind.Type), ctx, cursor_term))
+  | CursorT(_, Hole | Unit) =>
+    Some(CursorInfo_common.mk(OnType(HTyp.hole()), ctx, cursor_term))
+  | CursorT(_, Int) =>
+    Some(CursorInfo_common.mk(OnType(HTyp.int()), ctx, cursor_term))
+  | CursorT(_, Float) =>
+    Some(CursorInfo_common.mk(OnType(HTyp.float()), ctx, cursor_term))
+  | CursorT(_, Bool) =>
+    Some(CursorInfo_common.mk(OnType(HTyp.bool()), ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
+  | CursorT(_, TyVar(InHole(InvalidName, _), _)) =>
+    Some(CursorInfo_common.mk(TypInvalid, ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
     open OptUtil.Syntax;
     let+ k = ExpandingKeyword.of_string(name);
     CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
   | CursorT(_, ty) =>
     open OptUtil.Syntax;
-    let+ (_, k, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
-    CursorInfo_common.mk(OnType(k), ctx, cursor_term);
+    let+ (ty, _, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
+    CursorInfo_common.mk(OnType(ty), ctx, cursor_term);
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
   };

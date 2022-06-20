@@ -169,12 +169,12 @@ and ana_opseq =
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Context.sexp_of_t),
     () => {
-      let ty_h = HTyp.head_normalize(ctx, ty);
-      switch (tuple_zip(skel, ty_h)) {
+      let ty_head_normed = HTyp.head_normalize(ctx, ty);
+      switch (tuple_zip(skel, ty_head_normed)) {
       | None =>
         switch (
           UHPat.get_err_status_opseq(opseq),
-          HTyp.get_prod_elements(ty_h),
+          HTyp.get_prod_elements(ty_head_normed),
         ) {
         | (InHole(TypeInconsistent, _), [_])
         | (InHole(WrongLength, _), _) =>
@@ -762,9 +762,9 @@ and ana_fix_holes_opseq =
           MetaVarGen.sexp_of_t(u_gen),
         ]),
     () => {
-      let ty_h = HTyp.head_normalize(ctx, ty);
+      let ty_head_normed = HTyp.head_normalize(ctx, ty);
       // handle n-tuples
-      switch (tuple_zip(skel, ty_h)) {
+      switch (tuple_zip(skel, ty_head_normed)) {
       | Some(skel_tys) =>
         skel_tys
         |> List.fold_left(
@@ -798,7 +798,7 @@ and ana_fix_holes_opseq =
             }
         )
       | None =>
-        if (List.length(HTyp.get_prod_elements(ty_h)) == 1) {
+        if (List.length(HTyp.get_prod_elements(ty_head_normed)) == 1) {
           skel
           |> UHPat.get_tuple_elements
           |> List.fold_left(

@@ -123,6 +123,15 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
       let def_ctx = extend_let_def_ctx(ctx, p, def);
       let* ty_def = syn(def_ctx, def);
       let ty_def = HTyp.rescope(ctx, ty_def);
+      Log.debug_states(
+        __FUNCTION__,
+        [
+          ("ctx", Context.sexp_of_t(ctx)),
+          ("p", UHPat.sexp_of_t(p)),
+          ("def_ctx", Context.sexp_of_t(def_ctx)),
+          ("ty_def", HTyp.sexp_of_t(ty_def)),
+        ],
+      );
       Statics_Pat.ana(ctx, p, ty_def);
     | TyAliasLine(p, ty) =>
       open OptUtil.Syntax;
@@ -357,12 +366,12 @@ and ana_opseq =
     ],
     ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_unit),
     () => {
-      let ty_h = HTyp.head_normalize(ctx, ty);
-      switch (tuple_zip(skel, ty_h)) {
+      let ty_head_normed = HTyp.head_normalize(ctx, ty);
+      switch (tuple_zip(skel, ty_head_normed)) {
       | None =>
         switch (
           UHExp.get_err_status_opseq(opseq),
-          HTyp.get_prod_elements(ty_h),
+          HTyp.get_prod_elements(ty_head_normed),
         ) {
         | (InHole(TypeInconsistent, _), [_])
         | (InHole(WrongLength, _), _) =>
@@ -1538,9 +1547,9 @@ and ana_fix_holes_opseq =
       ((opseq, u_gen)) =>
         List([UHExp.sexp_of_opseq(opseq), MetaVarGen.sexp_of_t(u_gen)]),
     () => {
-      let ty_h = HTyp.head_normalize(ctx, ty);
+      let ty_head_normed = HTyp.head_normalize(ctx, ty);
       // handle n-tuples
-      switch (tuple_zip(skel, ty_h)) {
+      switch (tuple_zip(skel, ty_head_normed)) {
       | Some(skel_tys) =>
         skel_tys
         |> List.fold_left(
@@ -1573,7 +1582,7 @@ and ana_fix_holes_opseq =
             }
         )
       | None =>
-        if (List.length(HTyp.get_prod_elements(ty_h)) == 1) {
+        if (List.length(HTyp.get_prod_elements(ty_head_normed)) == 1) {
           skel
           |> UHExp.get_tuple_elements
           |> List.fold_left(

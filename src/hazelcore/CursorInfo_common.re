@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open CursorInfo;
 
 type zoperand =
@@ -146,6 +147,7 @@ let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
  * until we could find uses and feed it to (uses_list => 't).
  */
 
+[@deriving sexp]
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t)

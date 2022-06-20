@@ -16,6 +16,7 @@ let of_string: string => option(t) =
 let is_Fun = String.equal("fun");
 let is_Let = String.equal("let");
 let is_Case = String.equal("case");
+let is_TyAlias = String.equal("type");
 
 let mk = (text: string): option(t) =>
   if (text |> is_Let) {
@@ -24,6 +25,8 @@ let mk = (text: string): option(t) =>
     Some(Case);
   } else if (text |> is_Fun) {
     Some(Fun);
+  } else if (text |> is_TyAlias) {
+    Some(TyAlias);
   } else {
     None;
   };

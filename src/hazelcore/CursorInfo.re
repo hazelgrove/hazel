@@ -7,7 +7,7 @@ type join_of_branches =
   | InconsistentBranchTys(list(HTyp.t), CursorPath.steps)
   | JoinTy(HTyp.t);
 
-// [@deriving sexp] XXX
+[@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -113,7 +113,8 @@ type typed =
   /* cursor in type position */
   | TypKeyword(ExpandingKeyword.t)
   | TypFree
-  | OnType(Kind.t)
+  | TypInvalid
+  | OnType(HTyp.t)
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;
@@ -138,7 +139,7 @@ type parent_info =
 
 // TODO refactor into variants
 // based on term sort and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,

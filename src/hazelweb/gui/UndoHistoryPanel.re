@@ -481,10 +481,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | ConstructEdit(edit_detail) =>
       switch (edit_detail) {
       | SLet
-      | STyAlias
       | SCase
       | SFun => Some(Exp)
       | SAnn => Some(Pat)
+      | STyAlias => Some(Typ)
       | _ =>
         Some(
           TermTag.get_cursor_term_sort(

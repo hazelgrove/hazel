@@ -33,6 +33,6 @@ let term_tag_view =
   | Exp => mk_view("exp", "Expression", "EXP")
   | Pat => mk_view("pat", "Pattern", "PAT")
   | Typ => mk_view("typ", "Type", "TYP")
-  | TPat => mk_view("typ", "Type Pattern", "TPAT")
+  | TPat => mk_view("typ", "Type Variable", "TVAR")
   };
 };

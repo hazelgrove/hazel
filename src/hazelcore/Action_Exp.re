@@ -863,11 +863,6 @@ and syn_perform_block =
       switch (Statics_Exp.syn_lines(ctx, prefix)) {
       | None => Failed
       | Some(ctx_zline) =>
-        Log.debug_state(
-          __FUNCTION__,
-          "ctx_zline",
-          Context.sexp_of_t(ctx_zline),
-        );
         switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
@@ -908,7 +903,7 @@ and syn_perform_block =
               |> ZExp.prune_empty_hole_lines;
             Succeeded(SynDone((new_zblock, new_ty, u_gen)));
           }
-        };
+        }
       }
     }
   );
@@ -1034,7 +1029,7 @@ and syn_perform_line =
 
       | (Backspace, CursorL(OnDelim(k, After), LetLine(p, def))) =>
         if (k == 1) {
-          /* let x :<| Int = 2   ==>   let x| = 2 */
+          /* let _ =<| _ in ...   ==>   let _| = _ in ... */
           let zp = p |> ZPat.place_after;
           let new_zblock = ([], ZExp.LetLineZP(zp, def), []);
           fix_and_mk_result(u_gen, new_zblock);
@@ -1044,20 +1039,15 @@ and syn_perform_line =
           fix_and_mk_result(u_gen, new_ze);
         }
 
-      | (Backspace, CursorL(OnDelim(k, After), TyAliasLine(p, ty))) =>
-        switch (k) {
-        | 0 =>
+      | (Backspace, CursorL(OnDelim(k, After), TyAliasLine(tp, ty))) =>
+        if (k == 1) {
+          /* type _ =<| _ in ...   ==>   type _| = _ in ... */
+          let ztp = ZTPat.place_after(tp);
+          let new_zblock = ([], ZExp.TyAliasLineP(ztp, ty), []);
+          fix_and_mk_result(u_gen, new_zblock);
+        } else {
           let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
           mk_result(u_gen, new_zblock);
-        | 1 =>
-          /* type x<| = Int   ==>   type x| = 2 */
-          let zp = p |> ZTPat.place_after;
-          let new_zblock = ([], ZExp.TyAliasLineP(zp, ty), []);
-          fix_and_mk_result(u_gen, new_zblock);
-        | 2 =>
-          let new_zblock = ([], ZExp.CursorL(OnText(0), EmptyLine), []);
-          fix_and_mk_result(u_gen, new_zblock);
-        | _ => failwith(Printf.sprintf("Delim too large: %d\n", k))
         }
 
       /* #| some comment => | */

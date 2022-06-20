@@ -112,7 +112,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | OnTPatHole => (None, Some(HTyp.hole()), UnknownMode)
 
   | TypKeyword(_) => (None, None, UnknownMode)
-  | TypFree => (None, Some(HTyp.hole()), UnknownMode)
+  | TypFree
+  | TypInvalid => (None, Some(HTyp.hole()), UnknownMode)
 
   | OnType(_)
   | OnNonLetLine

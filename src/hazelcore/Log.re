@@ -50,13 +50,7 @@ module Filter = {
 };
 
 let watch_list =
-  Some(
-    Filter.(
-      md(pre("Action_TPat"))
-      + md(pre("Action_Exp"))
-      * fn(pre("syn_perform_line"))
-    ),
-  );
+  Some(Filter.(md(pre("CursorInfo_Exp")) + md(pre("CursorInfo_Pat"))));
 
 let watching = fn =>
   {

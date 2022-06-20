@@ -231,9 +231,10 @@ let advanced_summary =
     | OnType(_) => [emphasize_text("Type")]
     | OnNonLetLine => [emphasize_text("Line")]
     | OnRule => [emphasize_text("Rule")]
-    | OnTPat(_) => [emphasize_text("Type Alias")]
-    | OnTPatHole => [emphasize_text("Type Alias Hole")]
+    | OnTPat(_) => [emphasize_text("Type Variable")]
+    | OnTPatHole => [emphasize_text("Type Variable Hole")]
     | TypFree => [emphasize_text("Free Type Variable")]
+    | TypInvalid => [emphasize_text("Invalid Text")]
     | TypKeyword(_) => [emphasize_text("Reserved Keyword")]
     };
   };
@@ -248,227 +249,249 @@ let novice_summary =
       typed: CursorInfo.typed,
       term: CursorInfo.cursor_term,
       tag_typ: TermSort.t,
-    ) => {
-  let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
-  let article = AssistantView_common.article(tag_typ);
-  let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
-  let rec message = (typed: CursorInfo.typed) => {
-    switch (typed) {
-    | Analyzed(ty)
-    | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    | AnaAnnotatedFun(tyvars, expected_ty, got_ty)
-    | AnaSubsumed(tyvars, expected_ty, got_ty)
-    | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
-      pat_ana_subsumed_msg(
-        tyvars,
-        expected_ty,
-        got_ty,
-        expecting_of_type,
-        Node.text("and got consistent type"),
-      )
-    | Synthesized(ty)
-    | PatSynthesized(ty) =>
-      switch (term) {
-      | ExpOperand(_, EmptyHole(_)) => [
-          Node.text("Got " ++ article),
-          term_tag,
-          Node.text("of"),
-          any_typ_msg,
-        ]
-      | _ => [
-          Node.text("Got " ++ article),
-          term_tag,
-          Node.text("of type"),
-          HTypCode.view(ty),
-        ]
-      }
-    | SynMatchingArrow(_, ty) => [
-        Node.text("Got " ++ article),
-        term_tag,
-        Node.text("of type"),
-        HTypCode.view(ty),
-      ]
-    | AnaTypeInconsistent(expected_ty, got_ty)
-    | PatAnaTypeInconsistent(expected_ty, got_ty) =>
-      let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
-      expecting_of_type
-      @ [
-        HTypCode.view(~diff_steps=expected_diff, expected_ty),
-        Node.text("but got inconsistent type"),
-        HTypCode.view(~diff_steps=got_diff, got_ty),
-      ];
-    | SynErrorArrow(_expected_ty, got_ty) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("of"),
-        emphasize_text("Function Type"),
-        Node.text("but got inconsistent type"),
-        HTypCode.view(got_ty),
-      ]
-    | AnaWrongLength(expected_len, got_len, _expected_ty)
-    | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
-      expecting_of_type
-      @ [
-        emphasize_text(string_of_int(expected_len) ++ "-tuple"),
-        Node.text("but got"),
-        emphasize_text(string_of_int(got_len) ++ "-tuple"),
-      ]
-    | AnaInvalid(expected_ty)
-    | PatAnaInvalid(expected_ty) =>
-      expecting_of_type
-      @ [
-        HTypCode.view(expected_ty),
-        Node.text("but got"),
-        emphasize_text("Invalid Text"),
-      ]
-    | SynInvalid => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Invalid Text"),
-      ]
-    | SynInvalidArrow(_) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("of"),
-        emphasize_text("Function Type"),
-        Node.text("but got"),
-        emphasize_text("Invalid Text"),
-      ]
-    | AnaFree(expected_ty) =>
-      expecting_of_type
-      @ [
-        HTypCode.view(expected_ty),
-        Node.text("but got a"),
-        emphasize_text("Free Variable"),
-      ]
-    | SynFree => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Free Variable"),
-      ]
-    | SynFreeArrow(_) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("of"),
-        emphasize_text("Function Type"),
-        Node.text("but got a"),
-        emphasize_text("Free Variable"),
-      ]
-    | AnaKeyword(expected_ty, keyword) =>
-      let main_msg =
-        expecting_of_type
-        @ [
-          HTypCode.view(expected_ty),
-          Node.text("but got a"),
-          emphasize_text("Reserved Keyword"),
-        ];
-      exp_keyword_msg(term, keyword, main_msg);
-    | PatAnaKeyword(expected_ty, _) =>
-      expecting_of_type
-      @ [
-        HTypCode.view(expected_ty),
-        Node.text("but got a"),
-        emphasize_text("Reserved Keyword"),
-      ]
-    | SynKeyword(keyword) =>
-      let main_msg = [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text("Reserved Keyword"),
-      ];
-      exp_keyword_msg(term, keyword, main_msg);
-    | PatSynKeyword(_) => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text("Reserved Keyword"),
-      ]
-    | SynKeywordArrow(_, keyword) =>
-      let main_msg = [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("of"),
-        emphasize_text("Function Type"),
-        Node.text("but got a"),
-        emphasize_text("Reserved Keyword"),
-      ];
-      exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _, tyvars) =>
-      syn_branch_clause_msg(
-        join,
-        typed,
-        [Node.text("Got " ++ article), term_tag, Node.text("of type")],
-        expecting_of_type,
-        Node.text("but got inconsistent type"),
-        message,
-        tyvars,
-      )
-    | SynInconsistentBranches(_) => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text("Inconsistent Branch Types"),
-      ]
-    | SynInconsistentBranchesArrow(_) => [
-        Node.text("Expecting " ++ article),
-        term_tag,
-        Node.text("of"),
-        emphasize_text("Function Type"),
-        Node.text("but got"),
-        emphasize_text("Inconsistent Branch Types"),
-      ]
-    | OnType(_) => [Node.text("Got " ++ article), term_tag]
-    | OnNonLetLine => [
-        Node.text("Got a "),
-        /* Don't show the term tag for empty and comment lines */
-        emphasize_text(~only_right=true, "Line"),
-      ]
-    | OnRule => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Rule"),
-      ]
-    | OnTPatHole => [
-        Node.text("Expecting a"),
-        emphasize_text("Type Alias"),
-        term_tag,
-        Node.text("Got a "),
-        emphasize_text("Type Alias Hole"),
-      ]
-    | OnTPat(Some(InHole(reason, _))) => [
-        Node.text("Expecting a"),
-        emphasize_text("Type Alias"),
-        term_tag,
-        Node.text(" but got " ++ article),
-        emphasize_text(
-          switch (reason) {
-          | ReservedKeyword => "Reserved Keyword"
-          | BuiltinType => "Builtin Type"
-          | InvalidName => "Invalid Type Name"
-          },
-        ),
-      ]
-    | OnTPat(_) => [
-        Node.text("Got " ++ article),
-        term_tag,
-        emphasize_text(~only_right=true, "Type Alias"),
-      ]
-    | TypFree => [
-        Node.text("Expecting a"),
-        emphasize_text("Type"),
-        term_tag,
-        Node.text(" but got " ++ article),
-        emphasize_text("Free Type Variable"),
-      ]
-    | TypKeyword(_) => [
-        Node.text("Expecting a"),
-        emphasize_text("Type"),
-        term_tag,
-        Node.text(" but got " ++ article),
-        emphasize_text("Reserved Keyword"),
-      ]
-    };
-  };
-  message(typed);
-};
+    ) =>
+  Log.fun_call(
+    __FUNCTION__,
+    ~args=[
+      ("typed", () => CursorInfo.sexp_of_typed(typed)),
+      ("term", () => CursorInfo.sexp_of_cursor_term(term)),
+      ("tag_typ", () => TermSort.sexp_of_t(tag_typ)),
+    ],
+    ~result_sexp=_ => List([]),
+    () => {
+      let term_tag = TermTag.term_tag_view(tag_typ, ~show_tooltip=true, []);
+      let article = AssistantView_common.article(tag_typ);
+      let expecting_of_type = mk_expecting_of_type(~article, ~term_tag);
+      let rec message = (typed: CursorInfo.typed) => {
+        switch (typed) {
+        | Analyzed(ty)
+        | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
+        | AnaAnnotatedFun(tyvars, expected_ty, got_ty)
+        | AnaSubsumed(tyvars, expected_ty, got_ty)
+        | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
+          Log.debug_states(
+            __FUNCTION__,
+            [
+              ("tyvars", Context.sexp_of_t(tyvars)),
+              ("expected_ty", HTyp.sexp_of_t(expected_ty)),
+              ("got_ty", HTyp.sexp_of_t(got_ty)),
+            ],
+          );
+          pat_ana_subsumed_msg(
+            tyvars,
+            expected_ty,
+            got_ty,
+            expecting_of_type,
+            Node.text("and got consistent type"),
+          );
+        | Synthesized(ty)
+        | PatSynthesized(ty) =>
+          switch (term) {
+          | ExpOperand(_, EmptyHole(_)) => [
+              Node.text("Got " ++ article),
+              term_tag,
+              Node.text("of"),
+              any_typ_msg,
+            ]
+          | _ => [
+              Node.text("Got " ++ article),
+              term_tag,
+              Node.text("of type"),
+              HTypCode.view(ty),
+            ]
+          }
+        | SynMatchingArrow(_, ty) => [
+            Node.text("Got " ++ article),
+            term_tag,
+            Node.text("of type"),
+            HTypCode.view(ty),
+          ]
+        | AnaTypeInconsistent(expected_ty, got_ty)
+        | PatAnaTypeInconsistent(expected_ty, got_ty) =>
+          let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
+          expecting_of_type
+          @ [
+            HTypCode.view(~diff_steps=expected_diff, expected_ty),
+            Node.text("but got inconsistent type"),
+            HTypCode.view(~diff_steps=got_diff, got_ty),
+          ];
+        | SynErrorArrow(_expected_ty, got_ty) => [
+            Node.text("Expecting " ++ article),
+            term_tag,
+            Node.text("of"),
+            emphasize_text("Function Type"),
+            Node.text("but got inconsistent type"),
+            HTypCode.view(got_ty),
+          ]
+        | AnaWrongLength(expected_len, got_len, _expected_ty)
+        | PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
+          expecting_of_type
+          @ [
+            emphasize_text(string_of_int(expected_len) ++ "-tuple"),
+            Node.text("but got"),
+            emphasize_text(string_of_int(got_len) ++ "-tuple"),
+          ]
+        | AnaInvalid(expected_ty)
+        | PatAnaInvalid(expected_ty) =>
+          expecting_of_type
+          @ [
+            HTypCode.view(expected_ty),
+            Node.text("but got"),
+            emphasize_text("Invalid Text"),
+          ]
+        | SynInvalid => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text(~only_right=true, "Invalid Text"),
+          ]
+        | SynInvalidArrow(_) => [
+            Node.text("Expecting " ++ article),
+            term_tag,
+            Node.text("of"),
+            emphasize_text("Function Type"),
+            Node.text("but got"),
+            emphasize_text("Invalid Text"),
+          ]
+        | AnaFree(expected_ty) =>
+          expecting_of_type
+          @ [
+            HTypCode.view(expected_ty),
+            Node.text("but got a"),
+            emphasize_text("Free Variable"),
+          ]
+        | SynFree => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text(~only_right=true, "Free Variable"),
+          ]
+        | SynFreeArrow(_) => [
+            Node.text("Expecting " ++ article),
+            term_tag,
+            Node.text("of"),
+            emphasize_text("Function Type"),
+            Node.text("but got a"),
+            emphasize_text("Free Variable"),
+          ]
+        | AnaKeyword(expected_ty, keyword) =>
+          let main_msg =
+            expecting_of_type
+            @ [
+              HTypCode.view(expected_ty),
+              Node.text("but got a"),
+              emphasize_text("Reserved Keyword"),
+            ];
+          exp_keyword_msg(term, keyword, main_msg);
+        | PatAnaKeyword(expected_ty, _) =>
+          expecting_of_type
+          @ [
+            HTypCode.view(expected_ty),
+            Node.text("but got a"),
+            emphasize_text("Reserved Keyword"),
+          ]
+        | SynKeyword(keyword) =>
+          let main_msg = [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text("Reserved Keyword"),
+          ];
+          exp_keyword_msg(term, keyword, main_msg);
+        | PatSynKeyword(_) => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text("Reserved Keyword"),
+          ]
+        | SynKeywordArrow(_, keyword) =>
+          let main_msg = [
+            Node.text("Expecting " ++ article),
+            term_tag,
+            Node.text("of"),
+            emphasize_text("Function Type"),
+            Node.text("but got a"),
+            emphasize_text("Reserved Keyword"),
+          ];
+          exp_keyword_msg(term, keyword, main_msg);
+        | SynBranchClause(join, typed, _, tyvars) =>
+          syn_branch_clause_msg(
+            join,
+            typed,
+            [Node.text("Got " ++ article), term_tag, Node.text("of type")],
+            expecting_of_type,
+            Node.text("but got inconsistent type"),
+            message,
+            tyvars,
+          )
+        | SynInconsistentBranches(_) => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text("Inconsistent Branch Types"),
+          ]
+        | SynInconsistentBranchesArrow(_) => [
+            Node.text("Expecting " ++ article),
+            term_tag,
+            Node.text("of"),
+            emphasize_text("Function Type"),
+            Node.text("but got"),
+            emphasize_text("Inconsistent Branch Types"),
+          ]
+        | OnType(_) => [Node.text("Expecting " ++ article), term_tag]
+        | OnNonLetLine => [
+            Node.text("Got a "),
+            /* Don't show the term tag for empty and comment lines */
+            emphasize_text(~only_right=true, "Line"),
+          ]
+        | OnRule => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text(~only_right=true, "Rule"),
+          ]
+        | OnTPatHole => [
+            Node.text("Expecting a"),
+            emphasize_text("Type Variable"),
+            term_tag,
+            Node.text("Got a "),
+            emphasize_text("Type Variable Hole"),
+          ]
+        | OnTPat(Some(InHole(reason, _))) => [
+            Node.text("Expecting a"),
+            emphasize_text("Type Variable"),
+            term_tag,
+            Node.text(" but got " ++ article),
+            emphasize_text(
+              switch (reason) {
+              | ReservedKeyword => "Reserved Keyword"
+              | BuiltinType => "Builtin Type"
+              | InvalidName => "Invalid Type Name"
+              },
+            ),
+          ]
+        | OnTPat(_) => [
+            Node.text("Got " ++ article),
+            term_tag,
+            emphasize_text(~only_right=true, "Type Variable"),
+          ]
+        | TypFree => [
+            Node.text("Expecting a"),
+            term_tag,
+            Node.text(" but got " ++ article),
+            emphasize_text("Free Type Variable"),
+          ]
+        | TypInvalid => [
+            Node.text("Expecting a"),
+            term_tag,
+            Node.text(" but got " ++ article),
+            emphasize_text("Invalid Text"),
+          ]
+        | TypKeyword(_) => [
+            Node.text("Expecting a"),
+            term_tag,
+            Node.text(" but got " ++ article),
+            emphasize_text("Reserved Keyword"),
+          ]
+        };
+      };
+      message(typed);
+    },
+  );
 
 let summary_bar =
     (
@@ -678,6 +701,7 @@ let view =
     | PatAnaKeyword(_)
     | PatSynKeyword(_)
     | TypFree
+    | TypInvalid
     | TypKeyword(_) => BindingError
     | SynBranchClause(join, typed, _, ctx) =>
       switch (join, typed) {
