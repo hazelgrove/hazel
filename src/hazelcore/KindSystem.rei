@@ -243,6 +243,8 @@ and HTyp: {
   /* HTyp Value Predicates */
 
   let is_hole: t => bool;
+  let is_int: t => bool;
+  let is_float: t => bool;
   let is_tyvar: t => bool;
 
   /* Properties of HTyp */

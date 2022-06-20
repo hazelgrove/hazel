@@ -277,21 +277,41 @@ let delete_operator_ =
 let complete_tuple_ =
     (
       ~mk_OpSeq: Seq.t('operand, 'operator) => OpSeq.t('operand, 'operator),
+      ~holes_opseq:
+         (
+           CursorPath.rev_steps,
+           OpSeq.t('operand, 'operator),
+           CursorPath.hole_list
+         ) =>
+         CursorPath.hole_list,
+      ~follow_opseq:
+         (CursorPath.t, OpSeq.t('operand, 'operator)) =>
+         option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)),
+      ~mk_ZOpSeq:
+         ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~place_before_opseq:
          OpSeq.t('operand, 'operator) =>
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+      ~place_before_operand: 'operand => 'zoperand,
       ~comma: 'operator,
       ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
       first_seq: Seq.t('operand, 'operator),
       ty: HTyp.head_normalized,
-    )
+      ~triggered_by_paren: bool,
+      ~is_after_zopseq: bool,
+    ) // is_after_zopseq not needed when parenthesizing a tuple
     : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
-  let (new_suffix: Seq.affix(_), u_gen) = {
+  // all top-level operators should be commas,
+  // count the number of commas then add 1 to get the number of elements
+  // in first_seq before or after the cursor
+  let first_seq_length = List.length(Seq.operators(first_seq)) + 1;
+  let (new_zopseq, u_gen) = {
     let (new_holes, u_gen) =
       ty
       |> HTyp.get_prod_elements
-      |> List.tl
+      |> ListUtil.drop(first_seq_length)
       // ensure that hole indices increase left to right
       |> List.fold_left(
            ((rev_holes, u_gen), _) => {
@@ -304,16 +324,63 @@ let complete_tuple_ =
         fun
         | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
       );
-    (
-      List.fold_right(
-        (new_hole, suffix: Seq.affix(_)) => A(comma, S(new_hole, suffix)),
-        new_holes,
-        Seq.E,
-      ),
-      u_gen,
-    );
+
+    let new_zopseq =
+      if (triggered_by_paren) {
+        let new_suffix =
+          List.fold_right(
+            (new_hole, suffix: Seq.affix(_)) =>
+              A(comma, S(new_hole, suffix)),
+            new_holes,
+            Seq.E,
+          );
+        let opseq = mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix));
+        let hole_list = holes_opseq([], opseq, []);
+        // no hole detected, then place cursor at the beginning of opseq
+        switch (hole_list) {
+        | [] => place_before_opseq(opseq)
+        | [first_hole_info, ..._tl] =>
+          // has at least one hole, then place cursor at that hole
+          let first_hole_steps = first_hole_info.steps;
+          // place before the first hole in the completed tuple
+          let cursor_position =
+            switch (first_hole_info.sort) {
+            | CursorPath.PatHole(_, CursorPath.Empty)
+            | CursorPath.ExpHole(_, CursorPath.Empty) =>
+              CursorPosition.OnDelim(0, Side.Before)
+            | _ => CursorPosition.OnText(0)
+            };
+          Option.value(
+            follow_opseq((first_hole_steps, cursor_position), opseq),
+            ~default=place_before_opseq(opseq),
+          );
+        };
+      } else {
+        let first_new_hole = List.hd(new_holes);
+        let new_suffix =
+          List.fold_right(
+            (new_hole, suffix: Seq.affix(_)) =>
+              A(comma, S(new_hole, suffix)),
+            List.tl(new_holes),
+            Seq.E,
+          );
+        if (is_after_zopseq) {
+          mk_ZOpSeq(
+            ZOperand(
+              place_before_operand(first_new_hole),
+              (A(comma, Seq.rev(first_seq)), new_suffix),
+            ),
+          );
+        } else {
+          mk_ZOpSeq(
+            ZOperand(
+              place_before_operand(first_new_hole),
+              (new_suffix, A(comma, first_seq)),
+            ),
+          );
+        };
+      };
+    (new_zopseq, u_gen);
   };
-  let new_zopseq =
-    place_before_opseq(mk_OpSeq(Seq.seq_suffix(first_seq, new_suffix)));
   (new_zopseq, u_gen);
 };

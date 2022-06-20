@@ -419,6 +419,8 @@ and HTyp: {
   let list: t => t;
 
   let is_hole: t => bool;
+  let is_int: t => bool;
+  let is_float: t => bool;
   let is_tyvar: t => bool;
 
   let consistent: (Context.t, t, t) => bool;
@@ -546,6 +548,8 @@ and HTyp: {
   let list = (ty: t): t => List(ty);
 
   let is_hole = (ty: t): bool => ty == Hole;
+  let is_int = (ty: t): bool => ty == Int;
+  let is_float = (ty: t): bool => ty == Float;
 
   /* Type Variables */
 

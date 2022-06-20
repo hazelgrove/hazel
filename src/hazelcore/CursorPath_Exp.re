@@ -402,20 +402,27 @@ and holes_line =
     hs
     |> holes(def, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
-  | ExpLine(opseq) =>
-    hs
-    |> CursorPath_common.holes_opseq(
-         ~holes_operand,
-         ~hole_sort=hole_sort(TypeErr),
-         ~is_space=Operators_Exp.is_Space,
-         ~rev_steps,
-         opseq,
-       )
+  | ExpLine(opseq) => holes_opseq(rev_steps, opseq, hs)
   | TyAliasLine(p, ty) =>
     hs
     |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
     |> CursorPath_TPat.holes(p, [0, ...rev_steps])
   }
+and holes_opseq =
+    (
+      rev_steps: CursorPath.rev_steps,
+      opseq: OpSeq.t('operand, 'operator),
+      hs: CursorPath.hole_list,
+    )
+    : CursorPath.hole_list =>
+  hs
+  |> CursorPath_common.holes_opseq(
+       ~holes_operand,
+       ~hole_sort=hole_sort(TypeErr),
+       ~is_space=Operators_Exp.is_Space,
+       ~rev_steps,
+       opseq,
+     )
 and holes_operand =
     (
       operand: UHExp.operand,
