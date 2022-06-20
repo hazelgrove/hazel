@@ -99,7 +99,7 @@ module Make = (Memo: Memo.S) => {
           | EmptyLine
           | CommentLine(_) => Doc.vsep(hd_doc, tl_doc)
           | ExpLine(_) =>
-            Doc.vsep(hd_doc |> Doc.annot(UHAnnot.ExternalLineBreak), tl_doc)
+            Doc.vsep(hd_doc |> Doc.annot(UHAnnot.ExpLineBreak), tl_doc)
           | LetLine(_) =>
             annot_SubBlock(
               ~hd_index=offset + i,
