@@ -90,12 +90,22 @@ module rec Context: {
   [@deriving sexp]
   type t = list(binding);
 
+  /** A (sanitized) binding. */
+  [@deriving sexp]
+  type entry =
+    | VarEntry(Var.t, HTyp.t)
+    | TyVarEntry(TyVar.t, Kind.t);
+
   let to_list:
     t =>
     (
       list((Var.t, HTyp_syntax.t(Index.relative))),
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
+
+  /** Returns the (sanitized) bindings of a given context, in the (reversed)
+     order they were defined. */
+  let entries: t => list(entry);
 
   /** Returns the number of binding in the given context */
   let length: t => int;

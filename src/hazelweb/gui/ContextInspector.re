@@ -1,6 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -17,10 +18,8 @@ let view =
     () => {
       open Vdom;
 
-      /**
-   * Shows typing info for a context entry.
-   */
-      let static_info = ((x, ty)) => {
+      /** Shows typing info for an expression variable. */
+      let static_info_var = ((x, ty)) => {
         let ctx =
           program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
         let ty' =
@@ -67,6 +66,46 @@ let view =
         );
       };
 
+      /** Shows typing info for an expression variable. */
+      let static_info_tyvar = ((t, k)) => {
+        /* let ctx = */
+        /*   program |> Program.get_cursor_info |> CursorInfo_common.get_ctx; */
+        Node.div(
+          [Attr.classes(["static-info"])],
+          [
+            Node.div(
+              [Attr.classes(["code"])],
+              [
+                Node.span([Attr.classes(["var"])], [Node.text(t)]),
+                Node.text(" :: "),
+                KindCode.view(~width=30, ~pos=Var.length(t) + 4, k),
+              ],
+              /* @ ( */
+              /*   Option.is_some(ty') */
+              /*     ? [ */
+              /*       Node.text(" = "), */
+              /*       HTypCode.view( */
+              /*         ~width=30, */
+              /*         ~pos= */
+              /*           String.length( */
+              /*             HTyp.tyvar_name(ty) |> Option.value(~default="???"), */
+              /*           ) */
+              /*           + 3, */
+              /*         Option.get(ty'), */
+              /*       ), */
+              /*     ] */
+              /*     : [] */
+              /* ), */
+            ),
+          ],
+        );
+      };
+
+      let static_info =
+        fun
+        | Context.VarEntry(x, ty) => static_info_var((x, ty))
+        | TyVarEntry(t, k) => static_info_tyvar((t, k));
+
       /**
    * Shows runtime value for a context entry.
    */
@@ -103,12 +142,16 @@ let view =
           )
         };
 
-      let context_entry = (sigma, (_, x, ty)) => {
-        let static_info = static_info((x, ty));
+      let context_entry = (sigma, entry) => {
+        let static_info = static_info(entry);
         let children =
-          switch (dynamic_info(sigma, x)) {
-          | Some(dynamic_info) => [static_info, dynamic_info]
-          | None => [static_info]
+          switch (entry) {
+          | VarEntry(x, _) =>
+            switch (dynamic_info(sigma, x)) {
+            | Some(dynamic_info) => [static_info, dynamic_info]
+            | None => [static_info]
+            }
+          | TyVarEntry(_) => [static_info]
           };
         Node.div([Attr.classes(["context-entry"])], children);
       };
@@ -342,7 +385,7 @@ let view =
           } else {
             Environment.id_env(ctx);
           };
-        switch (Context.vars(ctx)) {
+        switch (Context.entries(ctx)) {
         | [] =>
           Node.div(
             [Attr.classes(["the-context"])],
@@ -353,10 +396,10 @@ let view =
               ),
             ],
           )
-        | vars =>
+        | entries =>
           Node.div(
             [Attr.classes(["the-context"])],
-            List.map(context_entry(sigma), vars),
+            List.map(context_entry(sigma), entries),
           )
         };
       };
