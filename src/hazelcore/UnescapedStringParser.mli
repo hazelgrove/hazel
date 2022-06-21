@@ -13,5 +13,11 @@ type invalid_seq = {
   length: int;
 } [@@deriving sexp]
 
+type parsed = {
+  unescaped: string;
+  vseqs: valid_seq list;
+  iseqs: invalid_seq list;
+} [@@deriving sexp]
+
 (** Parse a string literal. *)
 val lex: Lexing.lexbuf -> string * valid_seq list * invalid_seq list 
