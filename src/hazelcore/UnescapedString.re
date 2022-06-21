@@ -5,6 +5,12 @@ type t = string;
 
 let to_string = s => s;
 
+[@deriving sexp]
+type seq = StringLitLexer.seq;
+
+[@deriving sexp]
+type error = StringLitLexer.error;
+
 let from_string = s => s |> Lexing.from_string |> StringLitLexer.lex;
 
 let from_string_unchecked = s => s;

@@ -14,11 +14,16 @@ type t;
  */
 let to_string: t => string;
 
+[@deriving sexp]
+type seq = StringLitLexer.seq;
+
+[@deriving sexp]
+type error = StringLitLexer.error;
+
 /**
  * Parse a string into an unescaped string.
  */
-let from_string:
-  string => (t, list(StringLitLexer.seq), list(StringLitLexer.error));
+let from_string: string => (t, list(seq), list(error));
 
 /**
  * Convert a string to an unescaped string without parsing.
