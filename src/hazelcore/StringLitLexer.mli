@@ -1,6 +1,8 @@
 type seq = {
   start: int;
   ostart: int;
+  length: int;
+  olength: int;
 } [@@deriving sexp]
 
 type error =

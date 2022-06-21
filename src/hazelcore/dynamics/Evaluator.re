@@ -574,9 +574,16 @@ let eval_bin_str_op =
     let s1_len = UnescapedString.length(s1);
     let s2_seqs =
       seqs2
-      |> StringLitLexer.(
-           List.map(({start, ostart}: seq) =>
-             ({start: start + s1_len, ostart: ostart + s1_len}: seq)
+      |> UnescapedString.(
+           List.map(({start, ostart, length, olength}: seq) =>
+             (
+               {
+                 start: start + s1_len,
+                 ostart: ostart + s1_len,
+                 length,
+                 olength,
+               }: seq
+             )
            )
          );
 

@@ -5,6 +5,8 @@ open Sexplib.Std
 type seq = {
   start: int;
   ostart: int;
+  length: int;
+  olength: int;
 } [@@deriving sexp]
 
 type error =
@@ -42,14 +44,19 @@ let add_string s =
 
 (** Add a valid escape sequence. *)
 let add_valid_seq c olen =
+  let length = 1 in
+  let olength = olen in
+
   Buffer.add_char buffer c;
   Stack.push ({
     start = !idx;
     ostart = !oidx;
+    length;
+    olength;
   }) seqs;
 
-  idx := !idx + 1;
-  oidx := !oidx + olen
+  idx := !idx + length;
+  oidx := !oidx + olength
 
 (** Add an error instance. *)
 let add_invalid_seq lexbuf =
