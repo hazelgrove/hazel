@@ -192,8 +192,7 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | StringLit(s, seqs, errors) =>
-        DHDoc_common.mk_StringLit(s, seqs, errors)
+      | StringLit(parsed) => DHDoc_common.mk_StringLit(parsed)
       | ListNil(_) => DHDoc_common.Delim.list_nil
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));

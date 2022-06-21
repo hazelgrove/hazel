@@ -80,13 +80,7 @@ let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
 
-let mk_StringLit:
-  (
-    UnescapedString.t,
-    list(UnescapedString.valid_seq),
-    list(UnescapedString.invalid_seq)
-  ) =>
-  Pretty.Doc.t(DHAnnot.t);
+let mk_StringLit: UnescapedStringParser.parsed => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Inj: (InjSide.t, Pretty.Doc.t(DHAnnot.t)) => Pretty.Doc.t(DHAnnot.t);
 

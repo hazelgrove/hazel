@@ -88,11 +88,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
-  | (StringLit(s1, _, errors1), StringLit(s2, _, errors2)) =>
+  | (StringLit(parsed1), StringLit(parsed2)) =>
     /* TODO: Not sure what behavior should be when there are errors. */
-    switch (errors1, errors2) {
+    switch (parsed1.iseqs, parsed2.iseqs) {
     | ([], []) =>
-      if (s1 == s2) {
+      if (parsed1.str == parsed2.str) {
         Matches(Environment.empty);
       } else {
         DoesNotMatch;
@@ -564,31 +564,29 @@ let eval_bin_str_op =
     (
       op: DHExp.BinStrOp.t,
       s1: UnescapedString.t,
+      vseqs1: list(UnescapedStringParser.valid_seq),
       s2: UnescapedString.t,
-      seqs1: list(UnescapedString.valid_seq),
-      seqs2: list(UnescapedString.valid_seq),
+      vseqs2: list(UnescapedStringParser.valid_seq),
     )
     : DHExp.t => {
   switch (op) {
   | SCaret =>
-    let s1_len = UnescapedString.length(s1);
-    let s2_seqs =
-      seqs2
-      |> UnescapedString.(
-           List.map(({start, ostart, length, olength}: valid_seq) =>
-             (
-               {
-                 start: start + s1_len,
-                 ostart: ostart + s1_len,
-                 length,
-                 olength,
-               }: valid_seq
+    let len1 = UnescapedString.length(s1);
+    let vseqs =
+      vseqs1
+      @ (
+        vseqs2
+        |> UnescapedStringParser.(
+             List.map(({start, ostart, length, olength}: valid_seq) =>
+               (
+                 {start: start + len1, ostart: ostart + len1, length, olength}: valid_seq
+               )
              )
            )
-         );
+      );
 
     let s3 = UnescapedString.concat(s1, s2);
-    StringLit(s3, seqs1 @ s2_seqs, []);
+    StringLit({str: s3, vseqs, iseqs: []});
   };
 };
 
@@ -596,19 +594,19 @@ let eval_subscript =
     (
       d: DHExp.t,
       s: UnescapedString.t,
-      seqs: list(UnescapedString.valid_seq),
+      vseqs: list(UnescapedStringParser.valid_seq),
       n1: int,
       n2: int,
     )
     : DHExp.t => {
   switch (UnescapedString.subscript(s, n1, n2)) {
   | Ok(s') =>
-    let seqs =
-      seqs
-      |> List.filter((seq: UnescapedString.valid_seq) =>
+    let vseqs =
+      vseqs
+      |> List.filter((seq: UnescapedStringParser.valid_seq) =>
            n1 <= seq.start && seq.start < n2
          );
-    StringLit(s', seqs, []);
+    StringLit({str: s', vseqs, iseqs: []});
   | Err(err) => InvalidOperation(d, SubscriptOutOfBounds(err))
   };
 };
@@ -734,12 +732,20 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | BinStrOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s1, vseqs1, iseqs1) as d1') =>
+    | BoxedValue(StringLit(parsed1) as d1') =>
       switch (evaluate(d2)) {
-      | BoxedValue(StringLit(s2, vseqs2, iseqs2) as d2') =>
-        switch (iseqs1, iseqs2) {
+      | BoxedValue(StringLit(parsed2) as d2') =>
+        switch (parsed1.iseqs, parsed2.iseqs) {
         | ([], []) =>
-          BoxedValue(eval_bin_str_op(op, s1, s2, vseqs1, vseqs2))
+          BoxedValue(
+            eval_bin_str_op(
+              op,
+              parsed1.str,
+              parsed1.vseqs,
+              parsed2.str,
+              parsed2.vseqs,
+            ),
+          )
         | _ => Indet(BinStrOp(op, d1', d2'))
         }
       | BoxedValue(d2') =>
@@ -756,14 +762,15 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s, vseqs, iseqs) as d1') =>
+    | BoxedValue(StringLit(parsed) as d1') =>
       switch (evaluate(d2)) {
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
         | BoxedValue(IntLit(n2)) =>
           /* TODO: Behavior when there are errors? */
-          switch (iseqs) {
-          | [] => BoxedValue(eval_subscript(d, s, vseqs, n1, n2))
+          switch (parsed.iseqs) {
+          | [] =>
+            BoxedValue(eval_subscript(d, parsed.str, parsed.vseqs, n1, n2))
           | _ => Indet(Subscript(d1', d2, d3))
           }
         | BoxedValue(d3') =>

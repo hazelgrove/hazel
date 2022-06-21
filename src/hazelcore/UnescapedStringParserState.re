@@ -17,7 +17,7 @@ type invalid_seq = {
 
 [@deriving sexp]
 type parsed = {
-  unescaped: string,
+  str: UnescapedString.t,
   vseqs: list(valid_seq),
   iseqs: list(invalid_seq),
 };
@@ -90,8 +90,13 @@ module State = {
     let to_list: 'a. Stack.t('a) => list('a) =
       stack => Stack.fold((acc, x) => [x, ...acc], [], stack);
 
-    let unescaped = Buffer.contents(state.buffer);
-    let r = (unescaped, state.vseqs |> to_list, state.iseqs |> to_list);
+    let str =
+      Buffer.contents(state.buffer) |> UnescapedString.from_string_unchecked;
+    let r = {
+      str,
+      vseqs: state.vseqs |> to_list,
+      iseqs: state.iseqs |> to_list,
+    };
 
     clear(state);
     r;

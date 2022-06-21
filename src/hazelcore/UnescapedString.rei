@@ -14,17 +14,6 @@ type t;
  */
 let to_string: t => string;
 
-[@deriving sexp]
-type valid_seq = UnescapedStringParser.valid_seq;
-
-[@deriving sexp]
-type invalid_seq = UnescapedStringParser.invalid_seq;
-
-/**
- * Parse a string into an unescaped string.
- */
-let from_string: string => (t, list(valid_seq), list(invalid_seq));
-
 /**
  * Convert a string to an unescaped string without parsing.
  */

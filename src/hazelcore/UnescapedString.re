@@ -5,14 +5,6 @@ type t = string;
 
 let to_string = s => s;
 
-[@deriving sexp]
-type valid_seq = UnescapedStringParser.valid_seq;
-
-[@deriving sexp]
-type invalid_seq = UnescapedStringParser.invalid_seq;
-
-let from_string = s => s |> Lexing.from_string |> UnescapedStringParser.parse;
-
 let from_string_unchecked = s => s;
 
 let length = String.length;

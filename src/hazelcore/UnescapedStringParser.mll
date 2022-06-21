@@ -61,4 +61,6 @@ let parse lexbuf =
   let r = lex state lexbuf in
   let _ = State.clear state in
   r
+
+let from_string s = s |> Lexing.from_string |> parse
 }

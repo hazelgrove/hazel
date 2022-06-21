@@ -354,7 +354,7 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
       };
 
     | [iseq, ...iseqs] =>
-      let {start: _, ostart: start, length}: UnescapedString.invalid_seq = iseq;
+      let {start: _, ostart: start, length}: UnescapedStringParser.invalid_seq = iseq;
       let (next_doc, length) = {
         /* Get valid segment up until error, if there is one. */
         let inter_doc =
@@ -380,8 +380,9 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
     };
 
   /* TODO: Special formatting for seqs. */
-  let (_, _seqs, errors) = UnescapedString.from_string(s);
-  let inner = mk_by_segment(s, errors, 0, mk_text_str(~start=0, ""));
+  let {str: _, vseqs: _, iseqs}: UnescapedStringParser.parsed =
+    UnescapedStringParser.from_string(s);
+  let inner = mk_by_segment(s, iseqs, 0, mk_text_str(~start=0, ""));
 
   let open_group = Delim.open_StringLit() |> annot_Tessera;
   let close_group = Delim.close_StringLit() |> annot_Tessera;

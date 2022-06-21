@@ -189,11 +189,7 @@ type t =
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
-  | StringLit(
-      UnescapedString.t,
-      list(UnescapedString.valid_seq),
-      list(UnescapedString.invalid_seq),
-    )
+  | StringLit(UnescapedStringParser.parsed)
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)

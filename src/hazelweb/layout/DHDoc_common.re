@@ -116,7 +116,7 @@ let mk_FloatLit = (f: float) =>
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
 /** Make Doc of a string literal. */
-let mk_StringLit = (s, _seqs, errors) => {
+let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
   let rec mk_by_segment = (s, errors, idx, acc_doc) =>
     switch (errors) {
     /* If no remaining errors, concatenate the remainder of the string. */
@@ -130,7 +130,7 @@ let mk_StringLit = (s, _seqs, errors) => {
       };
 
     | [iseq, ...iseqs] =>
-      let {start, ostart: _, length}: UnescapedString.invalid_seq = iseq;
+      let {start, ostart: _, length}: UnescapedStringParser.invalid_seq = iseq;
       let (next_doc, length) = {
         /* Get valid segment up until error, if there is one. */
         let inter_doc =
@@ -157,13 +157,13 @@ let mk_StringLit = (s, _seqs, errors) => {
       mk_by_segment(s, iseqs, length, acc_doc);
     };
 
-  let s = UnescapedString.to_string(s);
+  let s = UnescapedString.to_string(parsed.str);
   let inner =
-    switch (errors) {
+    switch (parsed.iseqs) {
     /* If there no errors, convert to normal string. */
     | [] => Doc.text(s)
     /* Otherwise, if there are errors, build in segments. */
-    | _ => mk_by_segment(s, errors, 0, Doc.text(""))
+    | _ => mk_by_segment(s, parsed.iseqs, 0, Doc.text(""))
     };
 
   Doc.hcats([Delim.open_StringLit, inner, Delim.close_StringLit]);

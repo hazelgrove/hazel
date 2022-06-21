@@ -12,11 +12,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
-  | StringLit(
-      UnescapedString.t,
-      list(UnescapedString.valid_seq),
-      list(UnescapedString.invalid_seq),
-    )
+  | StringLit(UnescapedStringParser.parsed)
   | Inj(InjSide.t, t)
   | ListNil
   | Cons(t, t)

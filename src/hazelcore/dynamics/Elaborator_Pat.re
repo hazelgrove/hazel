@@ -159,8 +159,8 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | StringLit(NotInHole, s) =>
-    let (unescaped, seqs, errors) = UnescapedString.from_string(s);
-    Elaborates(StringLit(unescaped, seqs, errors), String, ctx, delta);
+    let parsed = UnescapedStringParser.from_string(s);
+    Elaborates(StringLit(parsed), String, ctx, delta);
   | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | Inj(NotInHole, side, p) =>

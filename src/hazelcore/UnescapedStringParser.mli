@@ -14,10 +14,12 @@ type invalid_seq = {
 } [@@deriving sexp]
 
 type parsed = {
-  unescaped: string;
+  str: UnescapedString.t;
   vseqs: valid_seq list;
   iseqs: invalid_seq list;
 } [@@deriving sexp]
 
 (** Parse a string literal. *)
-val parse: Lexing.lexbuf -> string * valid_seq list * invalid_seq list 
+val parse: Lexing.lexbuf -> parsed
+
+val from_string: string -> parsed
