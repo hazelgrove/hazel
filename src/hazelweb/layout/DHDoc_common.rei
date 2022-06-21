@@ -83,8 +83,8 @@ let mk_BoolLit: bool => Pretty.Doc.t('a);
 let mk_StringLit:
   (
     UnescapedString.t,
-    list(StringLitLexer.seq),
-    list(StringLitLexer.error)
+    list(StringLitLexer.valid_seq),
+    list(StringLitLexer.invalid_seq)
   ) =>
   Pretty.Doc.t(DHAnnot.t);
 

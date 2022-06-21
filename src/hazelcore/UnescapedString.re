@@ -6,10 +6,10 @@ type t = string;
 let to_string = s => s;
 
 [@deriving sexp]
-type seq = StringLitLexer.seq;
+type valid_seq = StringLitLexer.valid_seq;
 
 [@deriving sexp]
-type error = StringLitLexer.error;
+type invalid_seq = StringLitLexer.invalid_seq;
 
 let from_string = s => s |> Lexing.from_string |> StringLitLexer.lex;
 

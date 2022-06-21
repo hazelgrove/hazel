@@ -565,8 +565,8 @@ let eval_bin_str_op =
       op: DHExp.BinStrOp.t,
       s1: UnescapedString.t,
       s2: UnescapedString.t,
-      seqs1: list(StringLitLexer.seq),
-      seqs2: list(StringLitLexer.seq),
+      seqs1: list(StringLitLexer.valid_seq),
+      seqs2: list(StringLitLexer.valid_seq),
     )
     : DHExp.t => {
   switch (op) {
@@ -575,14 +575,14 @@ let eval_bin_str_op =
     let s2_seqs =
       seqs2
       |> UnescapedString.(
-           List.map(({start, ostart, length, olength}: seq) =>
+           List.map(({start, ostart, length, olength}: valid_seq) =>
              (
                {
                  start: start + s1_len,
                  ostart: ostart + s1_len,
                  length,
                  olength,
-               }: seq
+               }: valid_seq
              )
            )
          );
@@ -596,7 +596,7 @@ let eval_subscript =
     (
       d: DHExp.t,
       s: UnescapedString.t,
-      seqs: list(StringLitLexer.seq),
+      seqs: list(StringLitLexer.valid_seq),
       n1: int,
       n2: int,
     )
@@ -605,7 +605,7 @@ let eval_subscript =
   | Ok(s') =>
     let seqs =
       seqs
-      |> List.filter((seq: StringLitLexer.seq) =>
+      |> List.filter((seq: StringLitLexer.valid_seq) =>
            n1 <= seq.start && seq.start < n2
          );
     StringLit(s', seqs, []);
@@ -734,13 +734,12 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | BinStrOp(op, d1, d2) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s1, seqs1, errors1) as d1') =>
+    | BoxedValue(StringLit(s1, vseqs1, iseqs1) as d1') =>
       switch (evaluate(d2)) {
-      | BoxedValue(StringLit(s2, seqs2, errors2) as d2') =>
-        /* TODO: Behavior when there are errors? Maybe concatenate error lists
-         * and adjust indices? */
-        switch (errors1, errors2) {
-        | ([], []) => BoxedValue(eval_bin_str_op(op, s1, s2, seqs1, seqs2))
+      | BoxedValue(StringLit(s2, vseqs2, iseqs2) as d2') =>
+        switch (iseqs1, iseqs2) {
+        | ([], []) =>
+          BoxedValue(eval_bin_str_op(op, s1, s2, vseqs1, vseqs2))
         | _ => Indet(BinStrOp(op, d1', d2'))
         }
       | BoxedValue(d2') =>
@@ -757,14 +756,14 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | Subscript(d1, d2, d3) =>
     switch (evaluate(d1)) {
-    | BoxedValue(StringLit(s, seqs, errors) as d1') =>
+    | BoxedValue(StringLit(s, vseqs, iseqs) as d1') =>
       switch (evaluate(d2)) {
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
         | BoxedValue(IntLit(n2)) =>
           /* TODO: Behavior when there are errors? */
-          switch (errors) {
-          | [] => BoxedValue(eval_subscript(d, s, seqs, n1, n2))
+          switch (iseqs) {
+          | [] => BoxedValue(eval_subscript(d, s, vseqs, n1, n2))
           | _ => Indet(Subscript(d1', d2, d3))
           }
         | BoxedValue(d3') =>

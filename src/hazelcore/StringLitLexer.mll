@@ -2,29 +2,27 @@
 {
 open Sexplib.Std
 
-type seq = {
+type valid_seq = {
   start: int;
   ostart: int;
   length: int;
   olength: int;
 } [@@deriving sexp]
 
-type error =
-  (** An invalid escape sequence. *)
-  | InvalidSeq of {
-    start: int;
-    ostart: int;
-    length: int;
-  } [@@deriving sexp]
+type invalid_seq = {
+  start: int;
+  ostart: int;
+  length: int;
+} [@@deriving sexp]
 
 (** The buffer containing the parsed string literal's contents. *)
 let buffer : Buffer.t = Buffer.create 256
 
-(** The stack of escape sequences encountered when parsing. *)
-let seqs: seq Stack.t = Stack.create ()
+(** The stack of valid sequences encountered when parsing. *)
+let valid_seqs: valid_seq Stack.t = Stack.create ()
 
-(** The stack of errors encountered when parsing. *)
-let errors: error Stack.t = Stack.create ()
+(** The stack of invalid sequences encountered when parsing. *)
+let invalid_seqs: invalid_seq Stack.t = Stack.create ()
 
 (** The current character index. *)
 let idx = ref 0
@@ -53,7 +51,7 @@ let add_valid_seq c olen =
     ostart = !oidx;
     length;
     olength;
-  }) seqs;
+  }) valid_seqs;
 
   idx := !idx + length;
   oidx := !oidx + olength
@@ -65,11 +63,11 @@ let add_invalid_seq lexbuf =
   let length = Lexing.lexeme_end lexbuf - Lexing.lexeme_start lexbuf in
   add_string (Lexing.lexeme lexbuf);
 
-  Stack.push (InvalidSeq {
+  Stack.push {
     start = start;
     ostart = ostart;
     length = length
-  }) errors;
+  } invalid_seqs;
   idx := start + length;
   oidx := ostart + length
 
@@ -172,13 +170,13 @@ rule lex = parse
   (* Reached end of string. *)
   | eof
     {
-      (* Return string and errors list; reset buffer, errors, index. *)
-      let errors_list = Stack.fold (fun a x -> x::a) [] errors in
-      let seqs_list = Stack.fold (fun a x -> x::a) [] seqs in
-      let r = (Buffer.contents buffer, seqs_list, errors_list) in
+      (* Return string and invalid_seqs list; reset buffer, invalid_seqs, index. *)
+      let invalid_seqs_list = Stack.fold (fun a x -> x::a) [] invalid_seqs in
+      let valid_seqs_list = Stack.fold (fun a x -> x::a) [] valid_seqs in
+      let r = (Buffer.contents buffer, valid_seqs_list, invalid_seqs_list) in
       Buffer.clear buffer;
-      Stack.clear seqs;
-      Stack.clear errors;
+      Stack.clear valid_seqs;
+      Stack.clear invalid_seqs;
       idx := 0;
       oidx := 0;
       r

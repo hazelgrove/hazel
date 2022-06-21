@@ -353,31 +353,30 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
         acc_doc;
       };
 
-    | [error, ...errors] =>
-      let (next_doc, length) =
-        switch (error) {
-        | StringLitLexer.InvalidSeq({start: _, ostart: start, length}) =>
-          /* Get valid segment up until error, if there is one. */
-          let inter_doc =
-            if (start > idx) {
-              let inter_seg = String.sub(s, idx, start - idx);
-              Some(mk_text_str(~start=idx, inter_seg));
-            } else {
-              None;
-            };
+    | [iseq, ...iseqs] =>
+      let {start: _, ostart: start, length}: UnescapedString.invalid_seq = iseq;
+      let (next_doc, length) = {
+        /* Get valid segment up until error, if there is one. */
+        let inter_doc =
+          if (start > idx) {
+            let inter_seg = String.sub(s, idx, start - idx);
+            Some(mk_text_str(~start=idx, inter_seg));
+          } else {
+            None;
+          };
 
-          /* Append invalid escape segment. */
-          let err_seg =
-            mk_text_InvalidSeq(~start, String.sub(s, start, length));
-          let next_doc =
-            inter_doc
-            |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg))
-            |> Option.value(~default=err_seg);
-          (next_doc, length + start);
-        };
+        /* Append invalid escape segment. */
+        let err_seg =
+          mk_text_InvalidSeq(~start, String.sub(s, start, length));
+        let next_doc =
+          inter_doc
+          |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg))
+          |> Option.value(~default=err_seg);
+        (next_doc, length + start);
+      };
 
       let acc_doc = Doc.hcat(acc_doc, next_doc);
-      mk_by_segment(s, errors, length, acc_doc);
+      mk_by_segment(s, iseqs, length, acc_doc);
     };
 
   /* TODO: Special formatting for seqs. */

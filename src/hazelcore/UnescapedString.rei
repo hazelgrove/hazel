@@ -15,15 +15,15 @@ type t;
 let to_string: t => string;
 
 [@deriving sexp]
-type seq = StringLitLexer.seq;
+type valid_seq = StringLitLexer.valid_seq;
 
 [@deriving sexp]
-type error = StringLitLexer.error;
+type invalid_seq = StringLitLexer.invalid_seq;
 
 /**
  * Parse a string into an unescaped string.
  */
-let from_string: string => (t, list(seq), list(error));
+let from_string: string => (t, list(valid_seq), list(invalid_seq));
 
 /**
  * Convert a string to an unescaped string without parsing.
