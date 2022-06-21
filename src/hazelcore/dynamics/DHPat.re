@@ -14,8 +14,8 @@ type t =
   | BoolLit(bool)
   | StringLit(
       UnescapedString.t,
-      list(StringLitLexer.valid_seq),
-      list(StringLitLexer.invalid_seq),
+      list(UnescapedString.valid_seq),
+      list(UnescapedString.invalid_seq),
     )
   | Inj(InjSide.t, t)
   | ListNil

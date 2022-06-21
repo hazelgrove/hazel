@@ -565,8 +565,8 @@ let eval_bin_str_op =
       op: DHExp.BinStrOp.t,
       s1: UnescapedString.t,
       s2: UnescapedString.t,
-      seqs1: list(StringLitLexer.valid_seq),
-      seqs2: list(StringLitLexer.valid_seq),
+      seqs1: list(UnescapedString.valid_seq),
+      seqs2: list(UnescapedString.valid_seq),
     )
     : DHExp.t => {
   switch (op) {
@@ -596,7 +596,7 @@ let eval_subscript =
     (
       d: DHExp.t,
       s: UnescapedString.t,
-      seqs: list(StringLitLexer.valid_seq),
+      seqs: list(UnescapedString.valid_seq),
       n1: int,
       n2: int,
     )
@@ -605,7 +605,7 @@ let eval_subscript =
   | Ok(s') =>
     let seqs =
       seqs
-      |> List.filter((seq: StringLitLexer.valid_seq) =>
+      |> List.filter((seq: UnescapedString.valid_seq) =>
            n1 <= seq.start && seq.start < n2
          );
     StringLit(s', seqs, []);

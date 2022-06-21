@@ -15,10 +15,10 @@ type t;
 let to_string: t => string;
 
 [@deriving sexp]
-type valid_seq = StringLitLexer.valid_seq;
+type valid_seq = UnescapedStringParser.valid_seq;
 
 [@deriving sexp]
-type invalid_seq = StringLitLexer.invalid_seq;
+type invalid_seq = UnescapedStringParser.invalid_seq;
 
 /**
  * Parse a string into an unescaped string.

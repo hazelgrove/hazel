@@ -80,8 +80,8 @@ type t =
   | FloatLit(float)
   | StringLit(
       UnescapedString.t,
-      list(StringLitLexer.valid_seq),
-      list(StringLitLexer.invalid_seq),
+      list(UnescapedString.valid_seq),
+      list(UnescapedString.invalid_seq),
     )
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)

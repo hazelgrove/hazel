@@ -11,7 +11,7 @@
  (preprocess
   (pps ppx_let ppx_sexp_conv ppx_expect ppx_inline_test)))
 
-(ocamllex StringLitLexer)
+(ocamllex UnescapedStringParser)
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard)"))
