@@ -20,8 +20,8 @@ let caret_position_of_path =
         step == step' ? go(steps, indent, start, m) : None
       | ([], Token({shape, len, _})) =>
         switch (cursor, shape) {
-        | (OnText(j), Text({start: _})) =>
-          Some({...start, col: start.col + j})
+        | (OnText(j), Text({start: start_idx})) =>
+          Some({...start, col: start.col + start_idx + j})
         | (OnOp(Before), Op) => Some(start)
         | (OnOp(After), Op) => Some({...start, col: start.col + len})
         | (OnDelim(k, side), Delim(k')) when k == k' =>
@@ -237,7 +237,10 @@ let prev_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text({start: _}) => (OnText(from_start - 1), 1)
+               | Text({start: start_idx}) => (
+                   OnText(from_start + start_idx - 1),
+                   1,
+                 )
                | Op => (OnOp(Before), len)
                | Delim(k) => (OnDelim(k, Before), len)
                };
@@ -281,7 +284,10 @@ let next_path_within_row =
            } else {
              let (cursor: CursorPosition.t, offset) =
                switch (shape) {
-               | Text({start: _}) => (OnText(from_start + 1), 1)
+               | Text({start: start_idx}) => (
+                   OnText(from_start + start_idx + 1),
+                   1,
+                 )
                | Op => (OnOp(After), len)
                | Delim(k) => (OnDelim(k, After), len)
                };
@@ -325,8 +331,8 @@ let nearest_path_within_row =
            let is_left = from_start + from_start <= len;
            let (cursor: CursorPosition.t, offset) =
              switch (shape) {
-             | Text({start: _}) =>
-               let offset = min(from_start, len);
+             | Text({start: start_idx}) =>
+               let offset = min(from_start + start_idx, len);
                (OnText(offset), offset);
              | Op => is_left ? (OnOp(Before), 0) : (OnOp(After), len)
              | Delim(k) =>

@@ -123,10 +123,6 @@ let annot_Operand = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
 let annot_Case: t => t =
   Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Case, ()));
-let annot_ValidSeq = (s: string): t =>
-  Doc.annot(UHAnnot.ValidSeq, Doc.text(s));
-let annot_InvalidSeq = (s: string): t =>
-  Doc.annot(UHAnnot.InvalidSeq, Doc.text(s));
 
 let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
@@ -142,6 +138,12 @@ let mk_text = (~start=0, s: string): t =>
 
 let mk_text_str = (~start=0, s: string): t =>
   Doc.annot(UHAnnot.String, mk_text(~start, s));
+
+let mk_text_ValidSeq = (~start=0, s: string): t =>
+  Doc.annot(UHAnnot.ValidSeq, mk_text(~start, s));
+
+let mk_text_InvalidSeq = (~start=0, s: string): t =>
+  Doc.annot(UHAnnot.InvalidSeq, mk_text(~start, s));
 
 let mk_op = (op_text: string): t =>
   Doc.annot(
@@ -365,16 +367,17 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
             };
 
           /* Append invalid escape segment. */
-          let err_seg = annot_InvalidSeq(String.sub(s, start, length));
+          let err_seg =
+            mk_text_InvalidSeq(~start, String.sub(s, start, length));
           let next_doc =
             inter_doc
             |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg))
             |> Option.value(~default=err_seg);
-          (next_doc, length + start - idx);
+          (next_doc, length + start);
         };
 
       let acc_doc = Doc.hcat(acc_doc, next_doc);
-      mk_by_segment(s, errors, idx + length, acc_doc);
+      mk_by_segment(s, errors, length, acc_doc);
     };
 
   /* TODO: Special formatting for seqs. */
