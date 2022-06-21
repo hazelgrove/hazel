@@ -145,6 +145,7 @@ let mk_StringLit = (s, _seqs, errors) => {
         let err_doc =
           Doc.text(String.sub(s, start, length))
           |> Doc.annot(DHAnnot.InvalidStringEscape);
+
         let next_doc =
           inter_doc
           |> Option.map(inter_doc => Doc.hcat(inter_doc, err_doc))
@@ -156,14 +157,13 @@ let mk_StringLit = (s, _seqs, errors) => {
       mk_by_segment(s, iseqs, length, acc_doc);
     };
 
+  let s = UnescapedString.to_string(s);
   let inner =
     switch (errors) {
     /* If there no errors, convert to normal string. */
-    | [] => Doc.text(UnescapedString.to_string(s))
+    | [] => Doc.text(s)
     /* Otherwise, if there are errors, build in segments. */
-    | _ =>
-      let s = s |> UnescapedString.to_string;
-      mk_by_segment(s, errors, 0, Doc.text(""));
+    | _ => mk_by_segment(s, errors, 0, Doc.text(""))
     };
 
   Doc.hcats([Delim.open_StringLit, inner, Delim.close_StringLit]);

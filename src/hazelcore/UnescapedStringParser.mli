@@ -20,4 +20,4 @@ type parsed = {
 } [@@deriving sexp]
 
 (** Parse a string literal. *)
-val lex: Lexing.lexbuf -> string * valid_seq list * invalid_seq list 
+val parse: Lexing.lexbuf -> string * valid_seq list * invalid_seq list 
