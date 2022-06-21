@@ -98,8 +98,15 @@ and find_tyuses_line =
   | CommentLine(_) => ([], false)
   | ExpLine(opseq) => (find_tyuses_opseq(~steps, name, opseq), false)
   | EmptyLine => ([], false)
-  | LetLine(p, _) => (find_tyuses_pat(~steps=steps @ [0], name, p), false)
-  | TyAliasLine(p, _) => ([], TPat.binds_tyvar(name, p))
+  | LetLine(p, def) => (
+      find_tyuses_pat(~steps=steps @ [0], name, p)
+      @ find_tyuses(~steps=steps @ [1], name, def),
+      false,
+    )
+  | TyAliasLine(p, ty) => (
+      find_tyuses_typ(~steps=steps @ [1], name, ty),
+      TPat.binds_tyvar(name, p),
+    )
   }
 and find_tyuses_opseq =
     (~steps, name: string, OpSeq(_, seq): UHExp.opseq): uses_list =>
