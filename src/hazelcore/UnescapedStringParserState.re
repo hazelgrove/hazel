@@ -138,14 +138,25 @@ module State = {
     state.oidx := ostart + length;
   };
 
-  /** Add a decimal escape to the buffer. */
-  let add_decimal_seq = (state, lexbuf, i, olen) =>
+  let add_decimal_seq' = (state, lexbuf, i, olen) =>
     /* Check for valid escape value; if invalid, add error. */
     if (i > 0 && i < 256) {
       add_valid_seq(state, Char.chr(i), olen);
     } else {
       add_invalid_seq(state, lexbuf);
     };
+
+  /** Add a decimal escape to the buffer. */
+  let add_decimal_seq = (state, lexbuf, i) =>
+    add_decimal_seq'(state, lexbuf, i, 3);
+
+  /** Add a hex escape to the buffer. */
+  let add_hex_seq = (state, lexbuf, i) =>
+    add_decimal_seq'(state, lexbuf, i, 3);
+
+  /** Add an octal escape to the buffer. */
+  let add_octal_seq = (state, lexbuf, i) =>
+    add_decimal_seq'(state, lexbuf, i, 4);
 
   /** Convert a special escape into the actual character. */
   let add_escape_seq = (state, c) => {

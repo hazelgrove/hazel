@@ -14,21 +14,21 @@ rule lex state = parse
   | '\\' (['0'-'9'] as a) (['0'-'9'] as b) (['0'-'9'] as c)
     {
       let i = Conv.int_of_decimal_seq a b c in
-      add_decimal_seq state lexbuf i 3;
+      add_decimal_seq state lexbuf i;
       lex state lexbuf
     }
   (* Octal escapes (\o___). *)
   | '\\' 'o' (['0'-'7'] as a) (['0'-'7'] as b) (['0'-'7'] as c)
     {
       let i = Conv.int_of_octal_seq a b c in
-      add_decimal_seq state lexbuf i 4;
+      add_octal_seq state lexbuf i;
       lex state lexbuf
     }
   (* Hex escapes (\x__). *)
   | '\\' 'x' (['0'-'9' 'a'-'f' 'A'-'F'] as a) (['0'-'9' 'a'-'f' 'A'-'F'] as b)
     {
       let i = Conv.int_of_hex_seq a b in
-      add_decimal_seq state lexbuf i 3;
+      add_hex_seq state lexbuf i;
       lex state lexbuf
     }
   (* Lone backslash; error *)
