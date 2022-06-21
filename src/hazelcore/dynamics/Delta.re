@@ -17,11 +17,11 @@ let subst_tyvars = (delta: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
   MetaVarMap.map(
     fun
     | Hole.Expression(ty, ctx) => {
-        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let ty = HTyp.subst_tyvars_exhaustively(ty, tyvars);
         Hole.Expression(ty, ctx);
       }
     | Pattern(ty, ctx) => {
-        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let ty = HTyp.subst_tyvars_exhaustively(ty, tyvars);
         Pattern(ty, ctx);
       }
     | Type as t => t,

@@ -42,6 +42,7 @@ let text_operand =
     | Some(cref) =>
       let k = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
       let ctx = Context.add_tyvar(ctx, t, k);
+      let cref = Context.rescope(ctx, cref);
       (TyVar(NotInTyVarHole(cref.index, cref.stamp), t), ctx, u_gen);
     }
   };

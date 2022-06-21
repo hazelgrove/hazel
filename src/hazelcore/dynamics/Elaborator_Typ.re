@@ -100,8 +100,9 @@ and syn_elab_operand =
         (ty, Kind.singleton(ty), delta);
       | TyVar(NotInTyVarHole(index, stamp), t) =>
         open OptUtil.Syntax;
-        let+ k = Context.tyvar_kind(ctx, {index, stamp});
-        let cref = Context.rescope(ctx, {index, stamp});
+        let cref: KindSystem.ContextRef.t = {index, stamp};
+        let cref = Context.rescope(ctx, cref);
+        let+ k = Context.tyvar_kind(ctx, cref);
         (HTyp.tyvar(ctx, cref.index, t), k, delta);
       | TyVar(InHole(reason, u), t) =>
         let ty = HTyp.tyvarhole(reason, u, t);

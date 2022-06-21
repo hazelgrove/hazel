@@ -35,17 +35,25 @@ let delete = (caret_index: int, s: string): string => {
 
 let utf8_length = CamomileLibrary.UTF8.length;
 
-// ripped from ocaml stdlib 4.13 string.ml
-let starts_with = (~prefix: string, s: string): bool => {
-  let len_s = String.length(s)
-  and len_pre = String.length(prefix);
-  let rec aux = i =>
-    if (i == len_pre) {
-      true;
-    } else if (String.unsafe_get(s, i) != String.unsafe_get(prefix, i)) {
-      false;
-    } else {
-      aux(i + 1);
+let contains_substring = (str: string, substr: string): bool => {
+  let n = String.length(str);
+  let m = String.length(substr);
+  m == 0
+  || m == n
+  && String.equal(str, substr)
+  || m < n
+  && {
+    let c = String.unsafe_get(substr, 0);
+    let rec go = i => {
+      switch (String.index_from_opt(str, i, c)) {
+      | None => false
+      | Some(j) =>
+        j <= n
+        - m
+        && String.equal(String.sub(str, j, m), substr)
+        || go(j + 1)
+      };
     };
-  len_s >= len_pre && aux(0);
+    go(0);
+  };
 };

@@ -290,7 +290,11 @@ and ana_operand =
     | Parenthesized(p) => ana(ctx, p, ty)
     | TypeAnn(NotInHole, op, ann) =>
       let* (ty_ann, _, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ann);
-      HTyp.consistent(ctx, ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
+      if (HTyp.consistent(ctx, ty, ty_ann)) {
+        ana_operand(ctx, op, ty_ann);
+      } else {
+        None;
+      };
     }
   );
 

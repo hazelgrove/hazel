@@ -61,7 +61,9 @@ and syn_elab_block =
       | LinesElaborate(prelude, new_ctx, delta) =>
         switch (syn_elab_opseq(new_ctx, delta, conclusion)) {
         | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
+        | Elaborates(d, ty, delta) =>
+          let ty = Context.reduce_tyvars(new_ctx, ctx, ty);
+          Elaborates(prelude(d), ty, delta);
         }
       }
     }
@@ -118,17 +120,17 @@ and syn_elab_line =
     | LetLine(p, def) =>
       switch (Statics_Pat.syn(ctx, p)) {
       | None => LinesDoNotElaborate
-      | Some((ty1, _)) =>
-        let ty1 = HTyp.rescope(ctx, ty1);
+      | Some((ty_p, _)) =>
         let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
+        let ty1 = HTyp.rescope(ctx1, ty_p);
         switch (ana_elab(ctx1, delta, def, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(d1, ty1', delta) =>
-          let dty1 = (ctx, ty1);
-          let dty1' = (ctx, ty1');
+          let dty1 = (ctx1, ty1);
+          let dty1' = (ctx1, ty1');
           let d1 =
             switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
-            | None => d1
+            | None => DHExp.cast(d1, dty1', dty1)
             | Some(x) =>
               FixF(
                 x,
@@ -140,12 +142,11 @@ and syn_elab_line =
                 ),
               )
             };
-          /* let d1 = DHExp.cast(d1, dty1', dty1); */
           switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
           | DoesNotElaborate => LinesDoNotElaborate
-          | Elaborates(dp, _, ctx, delta) =>
+          | Elaborates(dp, _, ctx_dp, delta) =>
             let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesElaborate(prelude, ctx, delta);
+            LinesElaborate(prelude, ctx_dp, delta);
           };
         };
       }
@@ -617,7 +618,6 @@ and ana_elab_block =
       switch (syn_elab_lines(ctx, delta, leading)) {
       | LinesDoNotElaborate => DoesNotElaborate
       | LinesElaborate(prelude, new_ctx, delta) =>
-        /* let ty = HTyp.rescope(new_ctx, ty); */
         switch (ana_elab_opseq(new_ctx, delta, conclusion, ty)) {
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)

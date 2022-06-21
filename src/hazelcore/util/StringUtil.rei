@@ -21,4 +21,4 @@ let delete: (int, string) => string;
 
 let utf8_length: CamomileLibrary.UTF8.t => int;
 
-let starts_with: (~prefix: string, string) => bool;
+let contains_substring: (string, string) => bool;

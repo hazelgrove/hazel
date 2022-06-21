@@ -55,8 +55,9 @@ module HTyp_syntax: {
      [subst_tyvar(ty, idx, new_ty)] substitutes [new_ty] for type variable at
      index [idx] in [ty].
    */
-  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
-  let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
+  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => option(t('idx));
+  let subst_tyvars:
+    (t('idx), list((Index.t('idx), t('idx)))) => option(t('idx));
 };
 
 module Kind_core: {
@@ -196,7 +197,7 @@ and Kind: {
   /* Operations on Kind */
 
   /** Type variable substitution. */
-  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;
+  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => option(t);
 }
 
 and HTyp: {
@@ -298,8 +299,9 @@ and HTyp: {
   let tyvar_name: t => option(TyVar.t);
 
   /** Type variable substitution.  */
-  let subst_tyvar: (t, Index.Abs.t, t) => t;
-  let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+  let subst_tyvar: (t, Index.Abs.t, t) => option(t);
+  let subst_tyvars: (t, list((Index.Abs.t, t))) => option(t);
+  let subst_tyvars_exhaustively: (t, list((Index.Abs.t, t))) => t;
 
   /* Joins */
 

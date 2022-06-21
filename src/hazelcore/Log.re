@@ -13,7 +13,9 @@ let timestamp = () =>
 module Filter = {
   type loc =
     | Eq(string)
-    | Pre(string);
+    | Pre(string)
+    | Suf(string)
+    | Has(string);
 
   type t =
     | Fun(loc)
@@ -23,6 +25,8 @@ module Filter = {
 
   let eq = str => Eq(str);
   let pre = str => Pre(str);
+  let suf = str => Suf(str);
+  let has = str => Has(str);
 
   let md = loc => Mod(loc);
   let fn = loc => Fun(loc);
@@ -33,7 +37,9 @@ module Filter = {
   let matches_loc = (loc, str) =>
     switch (loc) {
     | Eq(str') => String.equal(str', str)
-    | Pre(prefix) => StringUtil.starts_with(~prefix, str)
+    | Pre(prefix) => String.starts_with(~prefix, str)
+    | Suf(suffix) => String.ends_with(~suffix, str)
+    | Has(substr) => StringUtil.contains_substring(str, substr)
     };
 
   let rec matches = (flt, (mod_name, fun_name)) =>
@@ -49,8 +55,7 @@ module Filter = {
     };
 };
 
-let watch_list =
-  Some(Filter.(md(pre("CursorInfo_Exp")) + md(pre("CursorInfo_Pat"))));
+let watch_list = None;
 
 let watching = fn =>
   {
@@ -71,54 +76,55 @@ let watching = fn =>
 
 /* Level-specific Helpers */
 
-let debug_msg = (msg: string) => debug(m => m("%s", msg, ~tags=timestamp()));
+let debug_msg = (msg: string) =>
+  debug(m => m("%s@?", msg, ~tags=timestamp()));
 
 let info_call = (fn: string) =>
-  info(m => m("CALL %s", fn, ~tags=timestamp()));
+  info(m => m("CALL %s@?", fn, ~tags=timestamp()));
 
 /* Function Arguments */
 
 let debug_arg = (fn: string, name: string, sexp: unit => Sexplib.Sexp.t) =>
-  debug(m =>
-    if (watching(fn)) {
+  if (watching(fn)) {
+    debug(m =>
       m(
-        "ARG %s@.%s",
+        "ARG %s@.%s@?",
         name,
         Sexplib.Sexp.to_string_hum(sexp()),
         ~tags=timestamp(),
-      );
-    }
-  );
+      )
+    );
+  };
 
 let debug_args = (fn: string, args: list((string, unit => Sexplib.Sexp.t))) =>
   List.iter(((name, sexp)) => debug_arg(fn, name, sexp), args);
 
 let debug_result = (fn: string, sexp: Sexplib.Sexp.t) =>
-  debug(m =>
-    if (watching(fn)) {
+  if (watching(fn)) {
+    debug(m =>
       m(
-        "RESULT %s@.%s",
+        "RESULT %s@.%s@?",
         fn,
         Sexplib.Sexp.to_string_hum(sexp),
         ~tags=timestamp(),
-      );
-    }
-  );
+      )
+    );
+  };
 
 /* Intermediate States */
 
 let debug_state = (fn: string, name: string, sexp: Sexplib.Sexp.t) =>
+  /* if (watching(fn)) { */
   debug(m =>
-    if (watching(fn)) {
-      m(
-        "STATE %s.%s@.%s",
-        fn,
-        name,
-        Sexplib.Sexp.to_string_hum(sexp),
-        ~tags=timestamp(),
-      );
-    }
+    m(
+      "STATE %s.%s@.%s@?",
+      fn,
+      name,
+      Sexplib.Sexp.to_string_hum(sexp),
+      ~tags=timestamp(),
+    )
   );
+/* }; */
 
 let debug_states = (fn: string, states: list((string, Sexplib.Sexp.t))) =>
   List.iter(((name, sexp)) => debug_state(fn, name, sexp), states);
@@ -164,7 +170,7 @@ let reporter = ppf => {
       Format.kfprintf(
         k,
         ppf,
-        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@.",
+        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@?",
         Logs.pp_header,
         (level, h),
         ts,

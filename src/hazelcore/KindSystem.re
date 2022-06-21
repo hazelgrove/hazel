@@ -30,8 +30,11 @@ module HTyp_syntax: {
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
-  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
-  let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
+  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => option(t('idx));
+  let subst_tyvars:
+    (t('idx), list((Index.t('idx), t('idx)))) => option(t('idx));
+  let subst_tyvars_exhaustively:
+    (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
 } = {
   [@deriving sexp]
   type t('idx) =
@@ -82,30 +85,74 @@ module HTyp_syntax: {
     | List(ty) => List(to_abs(~offset, ty))
     };
 
+  /* TODO: (eric) XXX t ==> [u] ==> [Int] same problem as cant Backspace over u */
   let rec subst_tyvar =
-          (ty: t('idx), idx: Index.t('idx), new_ty: t('idx)): t('idx) => {
-    let go = ty1 => subst_tyvar(ty1, idx, new_ty);
+          (ty: t('idx), idx: Index.t('idx), new_ty: t('idx))
+          : option(t('idx)) =>
     switch (ty) {
-    | TyVar(cref', _) => Index.equal(idx, cref'.index) ? new_ty : ty
+    | TyVar(cref', _) =>
+      Index.equal(idx, cref'.index) && ty != new_ty ? Some(new_ty) : None
     | TyVarHole(_)
     | Hole
     | Int
     | Float
-    | Bool => ty
-    | Arrow(ty1, ty2) => Arrow(go(ty1), go(ty2))
-    | Sum(tyL, tyR) => Sum(go(tyL), go(tyR))
-    | Prod(tys) => Prod(List.map(go, tys))
-    | List(ty) => List(go(ty))
+    | Bool => None
+    | Arrow(ty1, ty2) =>
+      switch (subst_tyvar(ty1, idx, new_ty), subst_tyvar(ty2, idx, new_ty)) {
+      | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+      | (Some(ty1), None) => Some(Arrow(ty1, ty2))
+      | (None, Some(ty2)) => Some(Arrow(ty1, ty2))
+      | (None, None) => None
+      }
+    | Sum(tyL, tyR) =>
+      switch (subst_tyvar(tyL, idx, new_ty), subst_tyvar(tyR, idx, new_ty)) {
+      | (Some(tyL), Some(tyR)) => Some(Sum(tyL, tyR))
+      | (Some(tyL), None) => Some(Sum(tyL, tyR))
+      | (None, Some(tyR)) => Some(Sum(tyL, tyR))
+      | (None, None) => None
+      }
+    | Prod(tys) =>
+      let ty_opts = List.map(ty1 => subst_tyvar(ty1, idx, new_ty), tys);
+      if (List.exists(Option.is_some, ty_opts)) {
+        let tys =
+          List.map2(
+            (ty1, ty1_opt) => Option.value(~default=ty1, ty1_opt),
+            tys,
+            ty_opts,
+          );
+        Some(Prod(tys));
+      } else {
+        None;
+      };
+    | List(ty1) =>
+      open OptUtil.Syntax;
+      let+ ty1 = subst_tyvar(ty1, idx, new_ty);
+      List(ty1);
     };
-  };
 
-  let subst_tyvars =
+  let rec subst_tyvars =
+          (ty: t('idx), tyvars: list((Index.t('idx), t('idx))))
+          : option(t('idx)) =>
+    switch (tyvars) {
+    | [] => None
+    | [(idx, new_ty)] => subst_tyvar(ty, idx, new_ty)
+    | [(idx, new_ty), ...tyvars] =>
+      switch (subst_tyvar(ty, idx, new_ty)) {
+      | None => subst_tyvars(ty, tyvars)
+      | Some(ty) =>
+        switch (subst_tyvars(ty, tyvars)) {
+        | None => Some(ty)
+        | Some(ty) => Some(ty)
+        }
+      }
+    };
+
+  let subst_tyvars_exhaustively =
       (ty: t('idx), tyvars: list((Index.t('idx), t('idx)))): t('idx) =>
-    List.fold_left(
-      (ty, (idx, ty_idx)) => subst_tyvar(ty, idx, ty_idx),
-      ty,
-      tyvars,
-    );
+    switch (subst_tyvars(ty, tyvars)) {
+    | None => ty
+    | Some(ty) => ty /* subst_tyvars_exhaustively(ty, tyvars) */
+    };
 };
 
 module Kind_core: {
@@ -157,7 +204,6 @@ module rec Context: {
   let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
   let reduce_tyvars: (t, t, HTyp.t) => HTyp.t;
-  /* let reduce_tyvars: (t, t) => list((ContextRef.t, HTyp.t)); */
   let vars: t => list((ContextRef.t, Var.t, HTyp.t));
   let var: (t, ContextRef.t) => option(Var.t);
   let var_ref: (t, Var.t) => option(ContextRef.t);
@@ -326,16 +372,27 @@ module rec Context: {
     ...ctx,
   ];
 
-  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
-    let new_tyvars = tyvars(new_ctx);
-    let old_tyvars = tyvars(old_ctx);
-    let n = List.length(new_tyvars) - List.length(old_tyvars);
-    ListUtil.take(new_tyvars, n)
-    |> List.map(((cref: ContextRef.t, _, k)) =>
-         (cref.index, Kind.to_htyp(k))
-       )
-    |> HTyp.subst_tyvars(ty);
-  };
+  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("new_ctx", () => Context.sexp_of_t(new_ctx)),
+        ("old_ctx", () => Context.sexp_of_t(old_ctx)),
+        ("ty", () => HTyp.sexp_of_t(ty)),
+      ],
+      ~result_sexp=HTyp.sexp_of_t,
+      () => {
+        let new_tyvars = tyvars(new_ctx);
+        let old_tyvars = tyvars(old_ctx);
+        let n = List.length(new_tyvars) - List.length(old_tyvars);
+        let tyvars =
+          ListUtil.take(new_tyvars, n)
+          |> List.map(((cref: ContextRef.t, _, k)) =>
+               (cref.index, Kind.to_htyp(k))
+             );
+        HTyp.subst_tyvars_exhaustively(ty, tyvars);
+      },
+    );
 
   /* Expression Variables */
 
@@ -442,8 +499,9 @@ and HTyp: {
   let tyvar_ref: t => option(ContextRef.t);
   let tyvar_name: t => option(TyVar.t);
 
-  let subst_tyvar: (t, Index.Abs.t, t) => t;
-  let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+  let subst_tyvar: (t, Index.Abs.t, t) => option(t);
+  let subst_tyvars: (t, list((Index.Abs.t, t))) => option(t);
+  let subst_tyvars_exhaustively: (t, list((Index.Abs.t, t))) => t;
 
   type join =
     | GLB
@@ -596,9 +654,47 @@ and HTyp: {
     | List(_) => None
     };
 
-  let subst_tyvar: (t, Index.Abs.t, t) => t = HTyp_syntax.subst_tyvar;
+  let subst_tyvar: (t, Index.Abs.t, t) => option(t) = HTyp_syntax.subst_tyvar;
 
-  let subst_tyvars: (t, list((Index.Abs.t, t))) => t = HTyp_syntax.subst_tyvars;
+  let subst_tyvars = (ty: t, tyvars: list((Index.Abs.t, t))): option(t) =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ty", () => sexp_of_t(ty)),
+        (
+          "tyvars",
+          () =>
+            Sexplib.Std.sexp_of_list(
+              ((idx, ty)) =>
+                List([Index.Abs.sexp_of_t(idx), sexp_of_t(ty)]),
+              tyvars,
+            ),
+        ),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_option(sexp_of_t),
+      () =>
+      HTyp_syntax.subst_tyvars(ty, tyvars)
+    );
+
+  let subst_tyvars_exhaustively = (ty: t, tyvars: list((Index.Abs.t, t))): t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ty", () => sexp_of_t(ty)),
+        (
+          "tyvars",
+          () =>
+            Sexplib.Std.sexp_of_list(
+              ((idx, ty)) =>
+                List([Index.Abs.sexp_of_t(idx), sexp_of_t(ty)]),
+              tyvars,
+            ),
+        ),
+      ],
+      ~result_sexp=sexp_of_t,
+      () =>
+      HTyp_syntax.subst_tyvars_exhaustively(ty, tyvars)
+    );
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
     switch (ty) {
@@ -1019,7 +1115,7 @@ and Kind: {
   let singleton: HTyp.t => t;
   let consistent_subkind: (Context.t, t, t) => bool;
   let equivalent: (Context.t, t, t) => bool;
-  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;
+  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => option(t);
 } = {
   open Kind_core;
 
@@ -1044,15 +1140,25 @@ and Kind: {
   let singleton = (ty: HTyp_syntax.t(Index.absolute)): t => S(ty);
 
   let consistent_subkind = (ctx: Context.t, k: t, k': t): bool =>
-    switch (k, k') {
-    | (Hole, _)
-    | (_, Hole) => true
-    | (S(_), Type) => true
-    | (S(ty), S(ty')) =>
-      HTyp.equivalent(ctx, HTyp.of_syntax(ty), HTyp.of_syntax(ty'))
-    | (Type, S(_)) => false
-    | (Type, Type) => true
-    };
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("k", () => Kind.sexp_of_t(k)),
+        ("k'", () => Kind.sexp_of_t(k')),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_bool,
+      () =>
+      switch (k, k') {
+      | (Hole, _)
+      | (_, Hole) => true
+      | (S(_), Type) => true
+      | (S(ty), S(ty')) =>
+        HTyp.consistent(ctx, HTyp.of_syntax(ty), HTyp.of_syntax(ty'))
+      | (Type, S(_)) => false
+      | (Type, Type) => true
+      }
+    );
 
   let equivalent = (ctx: Context.t, k: t, k': t): bool =>
     switch (k, k') {
@@ -1063,11 +1169,13 @@ and Kind: {
     | (S(_), _) => false
     };
 
-  let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
+  let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.t))): option(t) =>
     switch (k) {
     | Hole
-    | Type => k
+    | Type => None
     | S(ty) =>
-      S(HTyp.to_syntax(HTyp.subst_tyvars(HTyp.of_syntax(ty), tyvars)))
+      open OptUtil.Syntax;
+      let+ ty = HTyp.subst_tyvars(HTyp.of_syntax(ty), tyvars);
+      S(HTyp.to_syntax(ty));
     };
 };

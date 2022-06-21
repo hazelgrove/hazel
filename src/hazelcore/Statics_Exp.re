@@ -121,18 +121,9 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
       ctx;
     | LetLine(p, def) =>
       let def_ctx = extend_let_def_ctx(ctx, p, def);
-      let* ty_def = syn(def_ctx, def);
-      let ty_def = HTyp.rescope(ctx, ty_def);
-      Log.debug_states(
-        __FUNCTION__,
-        [
-          ("ctx", Context.sexp_of_t(ctx)),
-          ("p", UHPat.sexp_of_t(p)),
-          ("def_ctx", Context.sexp_of_t(def_ctx)),
-          ("ty_def", HTyp.sexp_of_t(ty_def)),
-        ],
-      );
-      Statics_Pat.ana(ctx, p, ty_def);
+      let* def_ty = syn(def_ctx, def);
+      let ty = HTyp.rescope(ctx, def_ty);
+      Statics_Pat.ana(ctx, p, ty);
     | TyAliasLine(p, ty) =>
       open OptUtil.Syntax;
       let+ (ty, kind, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
@@ -878,7 +869,7 @@ and syn_fix_holes_line =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("line", () => UHExp.sexp_of_line(line)),
@@ -903,8 +894,10 @@ and syn_fix_holes_line =
         switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
         | Some((_, kind, _)) =>
           let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, kind, u_gen);
+          let (ty, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ty);
           (TyAliasLine(p, ty), ctx, u_gen);
         | None =>
+          let (ctx, p, u_gen) = Statics_TPat.fix_holes(ctx, p, Hole, u_gen);
           let (ty, _, u_gen) = Statics_UHTyp.syn_fix_holes(ctx, u_gen, ty);
           (TyAliasLine(p, ty), ctx, u_gen);
         }
@@ -1893,7 +1886,7 @@ and extend_let_body_ctx =
       def
       |> syn(def_ctx)
       |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-      |> (ty_p => Statics_Pat.ana(def_ctx, p, ty_p))
+      |> (ty_p => Statics_Pat.ana(ctx, p, ty_p))
       |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
     },
   );
