@@ -150,11 +150,11 @@ let mk_StringLit = (s, _seqs, errors) => {
             inter_doc
             |> Option.map(inter_doc => Doc.hcat(inter_doc, err_doc))
             |> Option.value(~default=err_doc);
-          (next_doc, length + start - idx);
+          (next_doc, length + start);
         };
 
       let acc_doc = Doc.hcat(acc_doc, next_doc);
-      mk_by_segment(s, errors', idx + length, acc_doc);
+      mk_by_segment(s, errors', length, acc_doc);
     };
 
   let inner =
