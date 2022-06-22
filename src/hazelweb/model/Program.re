@@ -1,5 +1,6 @@
 open Sexplib.Std;
 
+module UHDoc_Exp = UHDoc_Exp.Make(WeakMemo);
 module Memo = Core_kernel.Memo;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
