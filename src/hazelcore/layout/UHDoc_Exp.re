@@ -18,6 +18,7 @@ let inline_padding_of_operator: UHExp.operator => (UHDoc.t, UHDoc.t) =
   | FLessThan
   | FGreaterThan
   | FEquals
+  | SCaret
   | And
   | Or => (UHDoc_common.space_, UHDoc_common.space_)
   | Comma => (UHDoc_common.empty_, UHDoc_common.space_);
@@ -28,6 +29,7 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
+let mk_StringLit: string => UHDoc.t = UHDoc_common.mk_StringLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
@@ -120,13 +122,15 @@ module Make = (Memo: Memo.S) => {
           switch (line) {
           | EmptyLine =>
             UHDoc_common.empty_
-            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+            |> Doc.annot(
+                 UHAnnot.mk_Token(~shape=Text({start: 0}), ~len=0, ()),
+               )
           | CommentLine(comment) =>
             let comment_doc =
               UHDoc_common.mk_text(comment)
               |> Doc.annot(
                    UHAnnot.mk_Token(
-                     ~shape=Text,
+                     ~shape=Text({start: 0}),
                      ~len=StringUtil.utf8_length(comment),
                      (),
                    ),
@@ -178,6 +182,7 @@ module Make = (Memo: Memo.S) => {
           | IntLit(_, n) => mk_IntLit(n)
           | FloatLit(_, f) => mk_FloatLit(f)
           | BoolLit(_, b) => mk_BoolLit(b)
+          | StringLit(_, s) => mk_StringLit(s)
           | ListNil(_) => mk_ListNil()
           | Fun(_, p, body) =>
             let p =
@@ -212,6 +217,11 @@ module Make = (Memo: Memo.S) => {
                    );
               UHDoc_common.mk_Case(scrut, rules);
             }
+          | Subscript(_, s, n1, n2) =>
+            let s = mk_child(~memoize, ~enforce_inline, ~child_step=0, s);
+            let n1 = mk_child(~memoize, ~enforce_inline, ~child_step=1, n1);
+            let n2 = mk_child(~memoize, ~enforce_inline, ~child_step=2, n2);
+            UHDoc_common.mk_Subscript(s, n1, n2);
           }: UHDoc.t
         )
       )
