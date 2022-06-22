@@ -5,11 +5,11 @@ let keyword_table = Hashtbl.create 12
 let _ =
   List.iter
     (fun (keyword, token) -> Hashtbl.add keyword_table keyword token)
-    [ "fun", FUN;
-      "let", LET;
+    [ "let", LET;
       "in", IN;
       "case", CASE;
       "end", END;
+      "fun", FUN;
       "true", TRUE;
       "false", FALSE;
       "NaN", FLOAT ("NaN");
@@ -76,7 +76,8 @@ rule read =
   | ">." { FGREATER }
   | "<" { LESSER }
   | "<." { FLESSER }
-  | "." { PERIOD }
+  | "&&" { AND }
+  | "||" { OR }
   | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }
@@ -88,8 +89,6 @@ rule read =
   | "[" { LBRACK }
   | "]" { RBRACK }
   | "?" { EMPTY_HOLE }
-  | "\\" { LAMBDA }
-  | "λ" { LAMBDA }
   | "|" { BAR }
   | "=>" { ARROW }
   | "->" { TARROW }

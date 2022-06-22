@@ -45,8 +45,7 @@ open Failure.Syntax;
 let parse = (text): Result.t(UHExp.block, Failure.t) =>
   try(
     {
-      let+ e =
-        Parsing.ast_of_lexbuf(Lexing.from_string(text)) ||> syntaxerror;
+      let+ e = Parsing.ast_of_string(text) ||> syntaxerror;
       let (e, _, _) = Statics_Exp.fix_and_renumber_holes(Context.initial, e);
       e;
     }

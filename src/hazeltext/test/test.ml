@@ -3,17 +3,8 @@ module Parse = Hazeltext.Parse
 module Print = Hazeltext.Print
 module UHDoc_Exp = UHDoc_Exp.Make (Memo.DummyMemo)
 
-let verbose = false
-
 let parse text : UHExp.block option =
-  if verbose then print_endline ("\nPARSE\n------------\n" ^ text ^ "\n------------");
-  match Parsing.ast_of_string text with
-  | Ok ast -> 
-    if verbose then print_endline @@ ">>> >>> >>> \n" ^ (Sexplib.Sexp.to_string_hum @@ UHExp.sexp_of_block ast) ^ "\n>>> >>> >>> ";
-    Some ast
-  | Error msg ->
-    if verbose then (print_endline @@ "FAILURE: " ^ msg);
-    None
+  match Parsing.ast_of_string text with Ok ast -> Some ast | Error _ -> None
 
 let test_parse text : bool =
   (*Get the first AST*)
@@ -35,40 +26,47 @@ let test_parse text : bool =
     | None -> false
   with Failure _ -> false
 
+(* For testing something that should fail *)
 let test_incorrect text = test_parse text = false
 
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f {f}"
-let%test "multiline" = test_parse "let a =\n 1\n in\n a"
+let%test "multiline" = test_parse "let a = 1 in a"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
 (* The program must end in an expr line of some sort *)
 let%test "only comment" = test_incorrect "# Comment"
 let%test "only empty" = test_incorrect "\n"
+let%test "func app" = test_parse "let f = fun x { fun y { x + y } } in f 1 2"
+
+let%test "func app 2" =
+  test_parse
+    "let f = fun x {fun y { x + y }} in\n\
+     let g = fun g { fun x { fun y { g x y } }} in\n\
+     g f 1 2"
 
 let%test "mult" =
   test_parse
-    "\n\
-    \    let mult : [Int] -> Int =\n\
-    \      \\list.{\n\
-    \        case list\n\
-    \        | hd::[] => hd\n\
-    \        | hd::md::[] => hd * md\n\
-    \        | hd::tl => (mult tl)\n\
-    \        end\n\
-    \      }\n\
-    \    in\n\
-    \    mult (4::3::[])"
+    "let mult : [Int] -> Int = \n\
+    \    fun list {\n\
+    \      case list\n\
+    \       | hd::[] => hd\n\
+    \       | hd::md::[] => hd * md\n\
+    \       | hd::tl => (mult tl)\n\
+    \      end\n\
+    \    }\n\
+     in\n\
+     mult (4::3::[])"
 
 let%test "map" =
   test_parse
     "\n\
     \  let map : (Int -> Int) -> [Int] -> [Int] =\n\
-    \      \\f.{\n\
-    \        \\xs.{\n\
+    \      fun f {\n\
+    \        fun xs {\n\
     \          case xs\n\
     \          | [] => []\n\
     \          | y::ys => (f y)::(map f ys)\n\
@@ -81,7 +79,7 @@ let%test "case type annot" =
   test_parse
     "\n\
     \  let a =\n\
-    \    \\f.{\n\
+    \    fun f {\n\
     \      case f\n\
     \       | 1 : Int => 1\n\
     \       | 2 => 2\n\
@@ -91,7 +89,7 @@ let%test "case type annot" =
 
 let%test "pat type annotation" =
   test_parse
-    "let c = λa : Int, b : Float.{1, true} in\n\
+    "let c = fun a : Int, b : Float {1, true} in\n\
      let d : (Int), (Bool), e : Float = c (2, 1.0), 2.0 in\n\
      let d : (Int, Bool), e : Float = c (2, 1.0), 2.0 in\n\
      (d, e)"
@@ -111,7 +109,7 @@ let%test "exp shapes" =
     \  | _ => 1\n\
     \  end\n\
      in\n\
-     let e = \\x.{x+1} in\n\
+     let e = fun x {x+1} in\n\
      (e, 'x3, ?)"
 
 let%test "float ops" =
@@ -126,8 +124,7 @@ let%test "float ops" =
     \  "
 
 let%test "identifier characters" =
-  test_parse
-    "\nlet __a = 3 in\nlet 0a = 4 in\nlet 'b = 5 in\nlet c' = 6 in\nc'\n  "
+  test_parse "let __a = 3 in let 0a = 4 in let 'b = 5 in let c' = 6 in c'"
 
 let%test "multiple type annotations" =
   test_incorrect "let a : Int : Float = 3 in a"
@@ -144,4 +141,6 @@ let%test "block within case" =
      end"
 
 let%test "case in function position" =
-  test_parse "case true\n    | true => \\f.{f+1}\n   end 2"
+  test_parse "case true\n    | true => fun f {f+1}\n   end 2"
+
+let%test "and, or" = test_parse "((a && b || c) && d || e) && (f || g)"

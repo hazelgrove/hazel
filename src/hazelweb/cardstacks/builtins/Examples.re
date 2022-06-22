@@ -1,344 +1,68 @@
-let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
+// Examples can be easily added from Hazel by
+// exporting the program (in Text Editor), and passing
+// the resulting string to `parse`
 
-// let holey_lambda: UHExp.t = {
-//   let lam =
-//     UHExp.(
-//       Parenthesized(
-//         Block.wrap(
-//           lam(
-//             OpSeq.wrap(UHPat.EmptyHole(0)),
-//             Block.wrap(UHExp.EmptyHole(1)),
-//           ),
-//         ),
-//       )
-//     );
-//   let arg = UHExp.EmptyHole(2);
-//   UHExp.Block.wrap'(
-//     Seq.mk(lam, [(Operators_Exp.Space, arg)]) |> UHExp.mk_OpSeq,
-//   );
-// };
+let parse = (str: string): UHExp.t => {
+  let result = Hazeltext.Parsing.ast_of_string(str);
+  Stdlib.Result.get_ok(result);
+};
 
-// let let_line: UHExp.t =
-//   UHExp.[
-//     letline(OpSeq.wrap(UHPat.var("y")), Block.wrap(EmptyHole(0))),
-//     EmptyLine,
-//     letline(OpSeq.wrap(UHPat.var("x")), Block.wrap(EmptyHole(1))),
-//     ExpLine(var("x") |> OpSeq.wrap),
-//     ExpLine(var("y") |> OpSeq.wrap),
-//   ];
+let just_hole: UHExp.t = parse("?");
 
-// let map_example: UHExp.t = {
-//   let case_node =
-//     UHExp.(
-//       case(
-//         Block.wrap(var("xs")),
-//         [
-//           Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(listnil())),
-//           Rule(
-//             UHPat.(
-//               Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
-//               |> mk_OpSeq
-//             ),
-//             Operators_Exp.(
-//               Block.wrap'(
-//                 Seq.mk(
-//                   Parenthesized(
-//                     Block.wrap'(
-//                       Seq.mk(var("f"), [(Space, var("y"))]) |> mk_OpSeq,
-//                     ),
-//                   ),
-//                   [
-//                     (
-//                       Cons,
-//                       Parenthesized(
-//                         Block.wrap'(
-//                           Seq.mk(
-//                             var("map"),
-//                             [(Space, var("f")), (Space, var("ys"))],
-//                           )
-//                           |> mk_OpSeq,
-//                         ),
-//                       ),
-//                     ),
-//                   ],
-//                 )
-//                 |> mk_OpSeq,
-//               )
-//             ),
-//           ),
-//         ],
-//       )
-//     );
-//   let lam_node =
-//     UHExp.(
-//       lam(
-//         OpSeq.wrap(UHPat.var("f")),
-//         Block.wrap(
-//           lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(case_node)),
-//         ),
-//       )
-//     );
-//   let letline_node =
-//     UHExp.(
-//       letline(
-//         OpSeq.wrap(
-//           UHPat.TypeAnn(
-//             NotInHole,
-//             UHPat.var("map"),
-//             Operators_Typ.(
-//               UHTyp.(
-//                 Seq.mk(
-//                   Parenthesized(Seq.mk(Int, [(Arrow, Int)]) |> mk_OpSeq),
-//                   [
-//                     (Arrow, List(OpSeq.wrap(Int))),
-//                     (Arrow, List(OpSeq.wrap(Int))),
-//                   ],
-//                 )
-//                 |> mk_OpSeq
-//               )
-//             ),
-//           ),
-//         ),
-//         Block.wrap(lam_node),
-//       )
-//     );
-//   UHExp.[letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)];
-// };
+let holey_lambda: UHExp.t = parse("(fun ? {?}) ?");
 
-// let qsort_example: UHExp.t = {
-//   let append_case =
-//     UHExp.(
-//       case(
-//         Block.wrap(var("xs")),
-//         [
-//           Rule(OpSeq.wrap(UHPat.listnil()), Block.wrap(var("ys"))),
-//           Rule(
-//             UHPat.(
-//               Seq.mk(var("z"), [(Operators_Pat.Cons, var("zs"))])
-//               |> mk_OpSeq
-//             ),
-//             Operators_Exp.(
-//               Block.wrap'(
-//                 Seq.mk(
-//                   var("z"),
-//                   [
-//                     (
-//                       Cons,
-//                       Parenthesized(
-//                         Block.wrap'(
-//                           Seq.mk(
-//                             var("append"),
-//                             [(Space, var("zs")), (Space, var("ys"))],
-//                           )
-//                           |> mk_OpSeq,
-//                         ),
-//                       ),
-//                     ),
-//                   ],
-//                 )
-//                 |> mk_OpSeq,
-//               )
-//             ),
-//           ),
-//         ],
-//       )
-//     );
-//   let append_lam =
-//     UHExp.(
-//       lam(
-//         OpSeq.wrap(UHPat.var("xs")),
-//         Block.wrap(
-//           lam(OpSeq.wrap(UHPat.var("ys")), Block.wrap(append_case)),
-//         ),
-//       )
-//     );
-//   let append_letline =
-//     UHExp.(
-//       letline(
-//         OpSeq.wrap(
-//           UHPat.TypeAnn(
-//             NotInHole,
-//             UHPat.var("append"),
-//             Operators_Typ.(
-//               Seq.mk(
-//                 UHTyp.List(OpSeq.wrap(UHTyp.Int)),
-//                 [
-//                   (Arrow, List(OpSeq.wrap(UHTyp.Int))),
-//                   (Arrow, List(OpSeq.wrap(UHTyp.Int))),
-//                 ],
-//               )
-//               |> UHTyp.mk_OpSeq
-//             ),
-//           ),
-//         ),
-//         Block.wrap(append_lam),
-//       )
-//     );
-//   let partition_case =
-//     UHExp.(
-//       Operators_Exp.(
-//         case(
-//           Block.wrap(var("xs")),
-//           [
-//             Rule(
-//               OpSeq.wrap(UHPat.listnil()),
-//               Block.wrap(
-//                 Parenthesized(
-//                   Block.wrap'(
-//                     Seq.mk(listnil(), [(Comma, listnil())]) |> mk_OpSeq,
-//                   ),
-//                 ),
-//               ),
-//             ),
-//             Rule(
-//               UHPat.(
-//                 Seq.mk(var("y"), [(Operators_Pat.Cons, var("ys"))])
-//                 |> mk_OpSeq
-//               ),
-//               [
-//                 letline(
-//                   UHPat.(
-//                     OpSeq.wrap(
-//                       Parenthesized(
-//                         Seq.mk(
-//                           var("ys1"),
-//                           [(Operators_Pat.Comma, var("ys2"))],
-//                         )
-//                         |> mk_OpSeq,
-//                       ),
-//                     )
-//                   ),
-//                   Block.wrap'(
-//                     Seq.mk(
-//                       var("partition"),
-//                       [(Space, var("f")), (Space, var("ys"))],
-//                     )
-//                     |> mk_OpSeq,
-//                   ),
-//                 ),
-//                 ExpLine(
-//                   case(
-//                     Block.wrap'(
-//                       Seq.mk(var("f"), [(Space, var("y"))]) |> mk_OpSeq,
-//                     ),
-//                     [
-//                       Rule(
-//                         OpSeq.wrap(UHPat.boollit(true)),
-//                         Block.wrap(
-//                           Parenthesized(
-//                             Block.wrap'(
-//                               Seq.mk(
-//                                 var("y"),
-//                                 [(Cons, var("ys1")), (Comma, var("ys2"))],
-//                               )
-//                               |> mk_OpSeq,
-//                             ),
-//                           ),
-//                         ),
-//                       ),
-//                       Rule(
-//                         OpSeq.wrap(UHPat.boollit(false)),
-//                         Block.wrap(
-//                           Parenthesized(
-//                             Block.wrap'(
-//                               Seq.mk(
-//                                 var("ys1"),
-//                                 [(Comma, var("y")), (Cons, var("ys2"))],
-//                               )
-//                               |> mk_OpSeq,
-//                             ),
-//                           ),
-//                         ),
-//                       ),
-//                     ],
-//                   )
-//                   |> OpSeq.wrap,
-//                 ),
-//               ],
-//             ),
-//           ],
-//         )
-//       )
-//     );
-//   let partition_lam =
-//     UHExp.(
-//       lam(
-//         OpSeq.wrap(UHPat.var("f")),
-//         Block.wrap(
-//           lam(OpSeq.wrap(UHPat.var("xs")), Block.wrap(partition_case)),
-//         ),
-//       )
-//     );
-//   let partition_letline =
-//     UHExp.(
-//       letline(
-//         OpSeq.wrap(
-//           UHPat.TypeAnn(
-//             NotInHole,
-//             UHPat.var("partition"),
-//             UHTyp.(
-//               Operators_Typ.(
-//                 Seq.mk(
-//                   Parenthesized(Seq.mk(Int, [(Arrow, Bool)]) |> mk_OpSeq),
-//                   [
-//                     (Arrow, List(OpSeq.wrap(Int))),
-//                     (
-//                       Arrow,
-//                       Parenthesized(
-//                         Seq.mk(
-//                           List(OpSeq.wrap(Int)),
-//                           [(Prod, List(OpSeq.wrap(Int)))],
-//                         )
-//                         |> mk_OpSeq,
-//                       ),
-//                     ),
-//                   ],
-//                 )
-//                 |> mk_OpSeq
-//               )
-//             ),
-//           ),
-//         ),
-//         Block.wrap(partition_lam),
-//       )
-//     );
+let let_line: UHExp.t = parse("let y = ? in
 
-//   let qsort_line =
-//     UHExp.(
-//       Operators_Exp.(
-//         ExpLine(
-//           Seq.mk(
-//             var("qsort"),
-//             [
-//               (
-//                 Space,
-//                 Parenthesized(
-//                   Block.wrap'(
-//                     Seq.mk(
-//                       intlit("4"),
-//                       [
-//                         (Cons, intlit("2")),
-//                         (Cons, intlit("6")),
-//                         (Cons, intlit("5")),
-//                         (Cons, intlit("3")),
-//                         (Cons, intlit("1")),
-//                         (Cons, intlit("7")),
-//                         (Cons, listnil()),
-//                       ],
-//                     )
-//                     |> mk_OpSeq,
-//                   ),
-//                 ),
-//               ),
-//             ],
-//           )
-//           |> mk_OpSeq,
-//         )
-//       )
-//     );
+  let x = ? in
+  x;
+  y");
 
-//   UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
-// };
+let map_example: UHExp.t =
+  parse(
+    "let map : (Int -> Int) -> [Int] -> [Int] =
+     fun f {
+         fun xs {
+             case xs
+               | [] => []
+               | y::ys => (f y)::(map f ys)
+               end
+           }
+       }
+   in
+   ?",
+  );
+
+let qsort_example: UHExp.t =
+  parse(
+    "let append : [Int] -> [Int] -> [Int] =
+     fun xs {
+         fun ys {
+             case xs
+               | [] => ys
+               | z::zs => z::(append zs ys)
+               end
+           }
+       }
+   in
+
+   let partition : (Int -> Bool) -> [Int] -> ([Int], [Int]) =
+     fun f {
+         fun xs {
+             case xs
+               | [] => ([], [])
+               | y::ys =>
+                 let (ys1, ys2) = partition f ys in
+                   case f y
+                   | true => (y::ys1, ys2)
+                   | false => (ys1, y::ys2)
+                   end
+               end
+           }
+       }
+   in
+
+   qsort (4::2::6::5::3::1::7::[])",
+  );
 
 // let rec qsort_n = (n: int): UHExp.t =>
 //   if (n == 0) {
@@ -353,29 +77,13 @@ let just_hole: UHExp.t = UHExp.Block.wrap(EmptyHole(0));
 //     ];
 //   };
 
-// let inconsistent_branches: UHExp.t =
-//   UHExp.(
-//     Block.wrap(
-//       case(
-//         ~err=InconsistentBranches([HTyp.bool, HTyp.float, HTyp.float], 0),
-//         Block.wrap(UHExp.IntLit(NotInHole, "1")),
-//         [
-//           Rule(
-//             OpSeq.wrap(UHPat.IntLit(NotInHole, "0")),
-//             Block.wrap(UHExp.BoolLit(NotInHole, true)),
-//           ),
-//           Rule(
-//             OpSeq.wrap(UHPat.IntLit(NotInHole, "1")),
-//             Block.wrap(UHExp.FloatLit(NotInHole, "1.")),
-//           ),
-//           Rule(
-//             OpSeq.wrap(UHPat.IntLit(NotInHole, "2")),
-//             Block.wrap(UHExp.FloatLit(NotInHole, "2.")),
-//           ),
-//         ],
-//       ),
-//     )
-//   );
+let inconsistent_branches: UHExp.t =
+  parse("
+case 1
+| 0 => true
+| 1 => 1.
+| 2 => 2.
+end ");
 
 let examples = [
   ("hole", just_hole),

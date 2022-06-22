@@ -1,5 +1,6 @@
 open Lexing
 
+(* Intended to store the line, column and character of error *)
 exception SyntaxError of ((int * int) option * string option)
 
 module I = Parse.MenhirInterpreter
