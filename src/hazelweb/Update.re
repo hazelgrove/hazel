@@ -233,31 +233,10 @@ let apply_action =
         };
         model;
       | LoadPermalink =>
-        open Js_of_ocaml;
-
-        let program =
-          model
-          |> Model.get_program
-          |> Program.sexp_of_t
-          |> Sexp.to_string_mach;
-
-        let set_program = arguments =>
-          arguments
-          |> List.remove_assoc("program")
-          |> List.cons(("program", program));
-        let set_url = Url.Current.set;
-
-        switch (Url.Current.get()) {
-        | None => failwith("")
-        | Some(Http(url)) =>
-          Http({...url, hu_arguments: set_program(url.hu_arguments)})
-          |> set_url
-        | Some(Https(url)) =>
-          Https({...url, hu_arguments: set_program(url.hu_arguments)})
-          |> set_url
-        | Some(File(url)) =>
-          File({...url, fu_arguments: set_program(url.fu_arguments)})
-          |> set_url
+        switch (Permalink.get_current()) {
+        | url => model |> Permalink.update(url) |> Permalink.set_current
+        | exception Permalink.EmptyCurrent =>
+          JSUtil.log("[Permalink.EmptyCurrent]")
         };
         model;
       };

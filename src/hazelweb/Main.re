@@ -1,12 +1,13 @@
 Logger.init_log();
 
 let initial_model =
-  switch (List.assoc_opt("program", Js_of_ocaml.Url.Current.arguments)) {
-  | Some(sexp) =>
-    let program = sexp |> Sexplib.Sexp.of_string |> Program.t_of_sexp;
-    Model.init() |> Model.put_program(program);
-  | None => Model.init()
-  };
+  Model.init()
+  |> (
+    Permalink.get_current()
+    |> Permalink.get_program
+    |> Option.map(Model.put_program)
+    |> Option.value(~default=model => model)
+  );
 
 // Start the main app.
 // See <https://github.com/janestreet/incr_dom/blob/master/src/start_app.mli>.
