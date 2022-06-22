@@ -41,6 +41,8 @@
   let mk_case expr rules = UHExp.case expr rules
 
   let mk_empty_list = UHExp.listnil ()
+
+  let unquote quoted = String.sub quoted 1 (String.length quoted - 2)
 %}
 
 %token AND
@@ -174,6 +176,7 @@ pat_:
   | EMPTY_HOLE { UHPat.EmptyHole 0 }
   | INT { UHPat.intlit $1 }
   | FLOAT { UHPat.floatlit $1 }
+  | STRING { UHPat.stringlit (unquote $1) }
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
   | WILD { UHPat.wild () }
@@ -207,7 +210,7 @@ expr_:
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | INT { UHExp.intlit $1 }
   | FLOAT { UHExp.floatlit $1 }
-  | STRING { UHExp.stringlit (String.sub $1 1 (String.length $1 - 2)) }
+  | STRING { UHExp.stringlit (unquote $1) }
   | TRUE { UHExp.boollit true }
   | FALSE { UHExp.boollit false }
 ;
