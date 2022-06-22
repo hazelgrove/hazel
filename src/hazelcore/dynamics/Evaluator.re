@@ -553,7 +553,13 @@ and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t => {
         }
       }
     )
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1), state)
+  | FixF(_, _, _) when EvaluatorState.out_of_fuel(state) => (
+      Indet(InvalidOperation(d, OutOfFuel)),
+      state,
+    )
+  | FixF(x, _, d1) =>
+    let state = EvaluatorState.take_fuel(state);
+    evaluate(subst_var(d, x, d1), state);
   | Fun(_, _, _) => (BoxedValue(d), state)
   | Ap(d1, d2) =>
     evaluate_bind((d1, state), (r1, state) =>
