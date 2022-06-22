@@ -117,9 +117,9 @@ let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
 /** Make Doc of a string literal. */
 let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
-  let rec mk_by_segment = (s, errors, idx, acc_doc) =>
-    switch (errors) {
-    /* If no remaining errors, concatenate the remainder of the string. */
+  let rec mk_by_segment = (s, iseqs, idx, acc_doc) =>
+    switch (iseqs) {
+    /* If no remaining invalid sequences, concatenate the remainder of the string. */
     | [] =>
       let len = String.length(s);
       if (len != 0) {
@@ -132,7 +132,7 @@ let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
     | [iseq, ...iseqs] =>
       let {start, ostart: _, length}: UnescapedStringParser.invalid_seq = iseq;
       let (next_doc, length) = {
-        /* Get valid segment up until error, if there is one. */
+        /* Get valid segment up until invalid sequene, if there is one. */
         let inter_doc =
           if (start > idx) {
             let inter_seg = String.sub(s, idx, start - idx);
@@ -141,7 +141,7 @@ let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
             None;
           };
 
-        /* Append invalid escape segment. */
+        /* Append invalid sequence. */
         let err_doc =
           Doc.text(String.sub(s, start, length))
           |> Doc.annot(DHAnnot.InvalidStringEscape);
@@ -158,13 +158,7 @@ let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
     };
 
   let s = UnescapedString.to_string(parsed.str);
-  let inner =
-    switch (parsed.iseqs) {
-    /* If there no errors, convert to normal string. */
-    | [] => Doc.text(s)
-    /* Otherwise, if there are errors, build in segments. */
-    | _ => mk_by_segment(s, parsed.iseqs, 0, Doc.text(""))
-    };
+  let inner = mk_by_segment(s, parsed.iseqs, 0, Doc.text(""));
 
   Doc.hcats([Delim.open_StringLit, inner, Delim.close_StringLit]);
 };

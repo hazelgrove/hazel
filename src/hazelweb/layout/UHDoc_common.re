@@ -340,9 +340,9 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  let rec mk_by_segment = (s, errors, idx, acc_doc) =>
-    switch (errors) {
-    /* If no remaining errors, concatenate the remainder of the string. */
+  let rec mk_by_segment = (s, iseqs, idx, acc_doc) =>
+    switch (iseqs) {
+    /* If no remaining invalid sequences, concatenate the remainder of the string. */
     | [] =>
       let len = String.length(s);
       if (len != 0) {
@@ -356,7 +356,7 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
     | [iseq, ...iseqs] =>
       let {start: _, ostart: start, length}: UnescapedStringParser.invalid_seq = iseq;
       let (next_doc, length) = {
-        /* Get valid segment up until error, if there is one. */
+        /* Get valid segment up until invalid sequence, if there is one. */
         let inter_doc =
           if (start > idx) {
             let inter_seg = String.sub(s, idx, start - idx);
@@ -365,7 +365,7 @@ let mk_StringLit = (~sort: TermSort.t, s: string): t => {
             None;
           };
 
-        /* Append invalid escape segment. */
+        /* Append invalid sequence. */
         let err_seg =
           mk_text_InvalidSeq(~start, String.sub(s, start, length));
         let next_doc =
