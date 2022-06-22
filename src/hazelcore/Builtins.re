@@ -11,48 +11,52 @@ module Impls = {
   open EvaluatorResult;
 
   /* int_of_float implementation. */
-  let int_of_float = (ident, r1) =>
+  let int_of_float = (ident, (r1, state)) =>
     switch (r1) {
     | BoxedValue(FloatLit(f)) =>
       let i = int_of_float(f);
-      BoxedValue(IntLit(i));
+      (BoxedValue(IntLit(i)), state);
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    | Indet(d1) => (Indet(ApBuiltin(ident, [d1])), state)
     };
 
   /* float_of_int implementation. */
-  let float_of_int = (ident, r1) =>
+  let float_of_int = (ident, (r1, state)) =>
     switch (r1) {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
-      BoxedValue(FloatLit(f));
+      (BoxedValue(FloatLit(f)), state);
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    | Indet(d1) => (Indet(ApBuiltin(ident, [d1])), state)
     };
 
   /* mod implementation */
-  let int_mod = (ident, r1, r2) =>
+  let int_mod = (ident, (r1, r2, state)) =>
     switch (r1) {
     | BoxedValue(IntLit(n) as d1) =>
       switch (r2) {
       | BoxedValue(IntLit(m) as d2) =>
         switch (n, m) {
-        | (_, 0) =>
-          Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
-        | (n, m) => BoxedValue(IntLit(n mod m))
+        | (_, 0) => (
+            Indet(
+              InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero),
+            ),
+            state,
+          )
+        | (n, m) => (BoxedValue(IntLit(n mod m)), state)
         }
       | BoxedValue(d2) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      | Indet(d2) => (Indet(ApBuiltin(ident, [d1, d2])), state)
       }
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
     | Indet(d1) =>
       switch (r2) {
       | BoxedValue(d2)
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      | Indet(d2) => (Indet(ApBuiltin(ident, [d1, d2])), state)
       }
     };
 

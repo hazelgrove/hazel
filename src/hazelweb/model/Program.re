@@ -372,12 +372,12 @@ exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_elaboration |> evaluate) {
-  | BoxedValue(d) =>
+  | (BoxedValue(d), state) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, BoxedValue(d_renumbered));
-  | Indet(d) =>
+    (d_renumbered, hii, (BoxedValue(d_renumbered), state));
+  | (Indet(d), state) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
-    (d_renumbered, hii, Indet(d_renumbered));
+    (d_renumbered, hii, (Indet(d_renumbered), state));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 

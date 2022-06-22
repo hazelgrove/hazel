@@ -266,14 +266,17 @@ let rec mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        switch (err) {
-        | DivideByZero =>
-          let (d_doc, _) = go'(d);
-          let decoration =
+        let decoration =
+          switch (err) {
+          | OutOfFuel =>
             Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.DivideByZero);
-          hcats([d_doc, decoration]);
-        }
+            |> annot(DHAnnot.OutOfFuel)
+          | DivideByZero =>
+            Doc.text(InvalidOperationError.err_msg(err))
+            |> annot(DHAnnot.DivideByZero)
+          };
+        let (d_doc, _) = go'(d);
+        hcats([d_doc, decoration]);
       /*
        let (d_doc, d_cast) as dcast_doc = go'(d);
        let cast_decoration =
