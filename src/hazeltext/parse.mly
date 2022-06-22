@@ -88,6 +88,7 @@
 %token RBRACE
 %token RBRACK
 %token RPAREN
+%token SCARET
 %token SEMICOLON
 %token <string> STRING
 %token TARROW
@@ -98,6 +99,7 @@
 %right OR
 %right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
+%left SCARET
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
 %right COLONCOLON
@@ -234,6 +236,7 @@ expr_:
   | FLESSER { Operators_Exp.FLessThan }
   | EQUALEQUAL { Operators_Exp.Equals }
   | FEQUALEQUAL { Operators_Exp.FEquals }
+  | SCARET { Operators_Exp.SCaret }
   | COMMA { Operators_Exp.Comma }
   | AND { Operators_Exp.And }
   | OR { Operators_Exp.Or }

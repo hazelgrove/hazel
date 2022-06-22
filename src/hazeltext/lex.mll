@@ -80,6 +80,7 @@ rule read =
   | "<." { FLESSER }
   | "&&" { AND }
   | "||" { OR }
+  | "^" { SCARET }
   | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }
