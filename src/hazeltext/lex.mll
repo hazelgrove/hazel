@@ -36,7 +36,7 @@ let float_hex =
 let float_lit = float | float_hex
 
 let whitespace = [' ' '\160' '\194']
-let newline = ['\n']
+let newline = ('\r'* '\n')
 let wild = ['_']
 let ident = ['_' 'a'-'z' 'A'-'Z' '0'-'9' '\'']+
 

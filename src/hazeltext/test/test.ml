@@ -26,33 +26,40 @@ let test_parse text : bool =
     | None -> false
   with Failure _ -> false
 
+(* For testing something that should fail *)
 let test_incorrect text = test_parse text = false
 
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f {f}"
-let%test "multiline" = test_parse "let a =\n 1\n in\n a"
+let%test "multiline" = test_parse "let a = 1 in a"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
 (* The program must end in an expr line of some sort *)
 let%test "only comment" = test_incorrect "# Comment"
 let%test "only empty" = test_incorrect "\n"
+let%test "func app" = test_parse "let f = fun x { fun y { x + y } } in f 1 2"
+
+let%test "func app 2" =
+  test_parse
+    "let f = fun x {fun y { x + y }} in\n\
+     let g = fun g { fun x { fun y { g x y } }} in\n\
+     g f 1 2"
 
 let%test "mult" =
   test_parse
-    "\n\
-    \    let mult : [Int] -> Int =\n\
-    \      fun list {\n\
-    \        case list\n\
-    \        | hd::[] => hd\n\
-    \        | hd::md::[] => hd * md\n\
-    \        | hd::tl => (mult tl)\n\
-    \        end\n\
-    \      }\n\
-    \    in\n\
-    \    mult (4::3::[])"
+    "let mult : [Int] -> Int = \n\
+    \    fun list {\n\
+    \      case list\n\
+    \       | hd::[] => hd\n\
+    \       | hd::md::[] => hd * md\n\
+    \       | hd::tl => (mult tl)\n\
+    \      end\n\
+    \    }\n\
+     in\n\
+     mult (4::3::[])"
 
 let%test "map" =
   test_parse
@@ -117,8 +124,7 @@ let%test "float ops" =
     \  "
 
 let%test "identifier characters" =
-  test_parse
-    "\nlet __a = 3 in\nlet 0a = 4 in\nlet 'b = 5 in\nlet c' = 6 in\nc'\n  "
+  test_parse "let __a = 3 in let 0a = 4 in let 'b = 5 in let c' = 6 in c'"
 
 let%test "multiple type annotations" =
   test_incorrect "let a : Int : Float = 3 in a"

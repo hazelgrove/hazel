@@ -9,18 +9,8 @@
     let e = UHPat.mk_OpSeq e in
     UHPat.Parenthesized(e)
 
-  let mk_application e args =
-    let e = Seq.wrap e in
-    let rec mk_app e args =
-      match args with
-      | [] -> e
-      | x::xs -> (
-        let x = Seq.wrap x in
-        let opseq = mk_app x xs in
-        mk_binop e Operators_Exp.Space opseq
-      )
-    in
-    mk_app e args
+  let mk_application e ep =
+    mk_binop e Operators_Exp.Space ep
 
   let mk_let_line pat expr =
     let pat = UHPat.mk_OpSeq pat in
@@ -101,6 +91,7 @@
 %token TRUE
 %token WILD
 
+(* Precedence levels and associativity - latter definitions are higher precedence *)
 %right OR
 %right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
@@ -111,6 +102,8 @@
 %right TARROW
 %left COMMA
 %left COLON
+%nonassoc LBRACK CASE LPAREN IDENT WILD FUN INJL INJR EMPTY_HOLE INT FLOAT TRUE FALSE
+%nonassoc app
 
 %start main
 %type <UHExp.t> main
@@ -185,7 +178,7 @@ pat_:
 ;
 
 expr:
-  expr_ expr_+ { mk_application $1 $2 }
+  expr expr %prec app { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
   | expr_ { Seq.wrap $1 }
