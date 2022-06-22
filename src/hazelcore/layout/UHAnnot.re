@@ -29,7 +29,7 @@ type t =
   | HoleLabel({len: int})
   | Token(token_data)
   | UserNewline
-  | ExternalLineBreak
+  | ExpLineBreak
   | OpenChild(open_child_format)
   | ClosedChild({
       // TODO consider whether necessary

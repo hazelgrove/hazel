@@ -8,7 +8,7 @@
   let mk_pat_parenthesized e =
     let e = UHPat.mk_OpSeq e in
     UHPat.Parenthesized(e)
-  
+
   let mk_application e ep =
     mk_binop e Operators_Exp.Space ep
 

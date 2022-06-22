@@ -14,7 +14,7 @@ let string_of_layout (l : 'a Layout.t) : string =
     | Linebreak -> ("\n" ^ String.make indent ' ', indent)
     | Align l -> go col col l
     | Annot (UHAnnot.HoleLabel _, _) -> ("?", col + 2)
-    | Annot (UHAnnot.ExternalLineBreak, d) ->
+    | Annot (UHAnnot.ExpLineBreak, d) ->
         let s, _ = go indent col d in
         (s ^ ";" ^ String.make indent ' ', indent)
     | Annot (_, l) -> go indent col l

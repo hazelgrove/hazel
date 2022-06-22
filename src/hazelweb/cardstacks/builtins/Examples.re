@@ -64,18 +64,18 @@ let qsort_example: UHExp.t =
    qsort (4::2::6::5::3::1::7::[])",
   );
 
-// let rec qsort_n = (n: int): UHExp.t =>
-//   if (n == 0) {
-//     [];
-//   } else {
-//     [
-//       UHExp.letline(
-//         OpSeq.wrap(UHPat.var("qsort" ++ Int.to_string(n))),
-//         qsort_example,
-//       ),
-//       ...qsort_n(n - 1),
-//     ];
-//   };
+let rec qsort_n = (n: int): UHExp.t =>
+  if (n == 0) {
+    [];
+  } else {
+    [
+      UHExp.letline(
+        OpSeq.wrap(UHPat.var("qsort" ++ Int.to_string(n))),
+        qsort_example,
+      ),
+      ...qsort_n(n - 1),
+    ];
+  };
 
 let inconsistent_branches: UHExp.t =
   parse("
