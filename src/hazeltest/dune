@@ -1,0 +1,5 @@
+(include_subdirs no)
+
+(test
+ (name hazeltest)
+ (libraries hazelcore hazelweb hazeltext tezt))
