@@ -6,6 +6,7 @@ let _ =
   List.iter
     (fun (keyword, token) -> Hashtbl.add keyword_table keyword token)
     [ "let", LET;
+      "type", TYPE;
       "in", IN;
       "case", CASE;
       "end", END;

@@ -20,7 +20,9 @@ type t =
   | EmptyHole
   | TyVar(Status.t, string);
 
-let is_complete: t => bool;
 let of_string: string => t;
+let invalid_of_string: (MetaVarGen.t, string) => (t, MetaVarGen.t);
+
+let is_complete: t => bool;
 let binds_tyvar: (string, t) => bool;
 let tyvar_name: t => option(string);
