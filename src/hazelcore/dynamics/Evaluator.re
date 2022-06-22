@@ -537,7 +537,8 @@ let rec evaluate_bind =
   let (r, state) = evaluate(d, state);
   f(r, state);
 }
-and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t =>
+and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t => {
+  let state = EvaluatorState.take_step(state);
   switch (d) {
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
@@ -835,7 +836,8 @@ and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t =>
       }
     )
   | InvalidOperation(d, err) => (Indet(InvalidOperation(d, err)), state)
-  }
+  };
+}
 and evaluate_case =
     (
       inconsistent_info,
