@@ -47,7 +47,6 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             /* TODO: OutOfFuel styling in style.css */
              | OutOfFuel => ([with_cls("OutOfFuel", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
