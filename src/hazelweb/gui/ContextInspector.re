@@ -78,12 +78,13 @@ let view =
               [
                 Node.span([Attr.classes(["var"])], [Node.text(t)]),
                 Node.text(" :: "),
+                /* TODO: (eric) move kind rendering code here "type t = Int" */
                 KindCode.view(~width=30, ~pos=Var.length(t) + 4, k),
               ],
               /* @ ( */
               /*   Option.is_some(ty') */
               /*     ? [ */
-              /*       Node.text(" = "), */
+              /*       node.text(" = "), */
               /*       HTypCode.view( */
               /*         ~width=30, */
               /*         ~pos= */
