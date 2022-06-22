@@ -49,4 +49,5 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole(serialize_object);
+  | SerializeToConsole(serialize_object)
+  | LoadPermalink;

@@ -63,7 +63,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | SerializeToConsole(_) =>
+  | SerializeToConsole(_)
+  | LoadPermalink =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -229,6 +230,34 @@ let apply_action =
           |> Serialization.string_of_zexp
           |> Js.string
           |> JSUtil.log
+        };
+        model;
+      | LoadPermalink =>
+        open Js_of_ocaml;
+
+        let program =
+          model
+          |> Model.get_program
+          |> Program.sexp_of_t
+          |> Sexp.to_string_mach;
+
+        let set_program = arguments =>
+          arguments
+          |> List.remove_assoc("program")
+          |> List.cons(("program", program));
+        let set_url = Url.Current.set;
+
+        switch (Url.Current.get()) {
+        | None => failwith("")
+        | Some(Http(url)) =>
+          Http({...url, hu_arguments: set_program(url.hu_arguments)})
+          |> set_url
+        | Some(Https(url)) =>
+          Https({...url, hu_arguments: set_program(url.hu_arguments)})
+          |> set_url
+        | Some(File(url)) =>
+          File({...url, fu_arguments: set_program(url.fu_arguments)})
+          |> set_url
         };
         model;
       };

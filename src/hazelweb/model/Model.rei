@@ -36,6 +36,8 @@ let get_cards_info: t => list(CardInfo.t);
 
 let get_cursor_info: t => CursorInfo.t;
 
+let put_program: (Program.t, t) => t;
+
 let get_undo_history: t => UndoHistory.t;
 let put_undo_history: (UndoHistory.t, t) => t;
 

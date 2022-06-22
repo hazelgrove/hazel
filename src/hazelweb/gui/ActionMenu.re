@@ -8,6 +8,7 @@ type menu_entry = {
 };
 
 let menu_entries: list(menu_entry) = [
+  {label: "Load permalink", shortcut: None, action: LoadPermalink},
   {
     label: "Serialize to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
