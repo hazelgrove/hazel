@@ -87,6 +87,7 @@
 %token RBRACK
 %token RPAREN
 %token SEMICOLON
+%token <string> STRING
 %token TARROW
 %token TRUE
 %token WILD
@@ -102,7 +103,7 @@
 %right TARROW
 %left COMMA
 %left COLON
-%nonassoc LBRACK CASE LPAREN IDENT WILD FUN INJL INJR EMPTY_HOLE INT FLOAT TRUE FALSE
+%nonassoc LBRACK CASE LPAREN IDENT WILD FUN INJL INJR EMPTY_HOLE INT FLOAT STRING TRUE FALSE
 %nonassoc app
 
 %start main
@@ -205,6 +206,7 @@ expr_:
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | INT { UHExp.intlit $1 }
   | FLOAT { UHExp.floatlit $1 }
+  | STRING { UHExp.stringlit (String.sub $1 1 (String.length $1 - 2)) }
   | TRUE { UHExp.boollit true }
   | FALSE { UHExp.boollit false }
 ;

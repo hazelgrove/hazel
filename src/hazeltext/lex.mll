@@ -34,6 +34,7 @@ let float_hex =
   ('.' ['0'-'9' 'A'-'F' 'a'-'f' '_']*)?
   (['p' 'P'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)?
 let float_lit = float | float_hex
+let string_lit = '"' _* '"'
 
 let whitespace = [' ' '\160' '\194']
 let newline = ('\r'* '\n')
@@ -52,6 +53,7 @@ rule read =
       read lexbuf
   }
   | whitespace+ { read lexbuf }
+  | string_lit { STRING (Lexing.lexeme lexbuf) }
   | int_lit { INT (Lexing.lexeme lexbuf) }
   | float_lit { FLOAT (Lexing.lexeme lexbuf) }
   | wild { WILD }

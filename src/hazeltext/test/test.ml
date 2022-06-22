@@ -29,7 +29,7 @@ let test_parse text : bool =
 (* For testing something that should fail *)
 let test_incorrect text = test_parse text = false
 
-let%test "basic types" = test_parse "1; two; 3.0; true; false"
+let%test "basic types" = test_parse "1; two; 3.0; true; false; \"abc\"; \"\""
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f {f}"
