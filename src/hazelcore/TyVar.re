@@ -3,6 +3,8 @@ open Sexplib.Std;
 [@deriving sexp]
 type t = string;
 
+let length: t => int = String.length;
+
 let equal: (t, t) => bool = String.equal;
 
 let valid_name: string => bool = {

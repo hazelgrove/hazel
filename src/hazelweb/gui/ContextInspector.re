@@ -20,21 +20,6 @@ let view =
 
       /** Shows typing info for an expression variable. */
       let static_info_var = ((x, ty)) => {
-        let ctx =
-          program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
-        let ty' =
-          if (HTyp.is_tyvar(ty)) {
-            open OptUtil.Syntax;
-            let* cref = HTyp.tyvar_ref(ty);
-            let* kind = Context.tyvar_kind(ctx, cref);
-            switch (kind) {
-            | Hole => Some(HTyp.hole())
-            | Type => None
-            | S(ty') => Some(HTyp.of_syntax(ty'))
-            };
-          } else {
-            None;
-          };
         Node.div(
           [Attr.classes(["static-info"])],
           [
@@ -44,59 +29,44 @@ let view =
                 Node.span([Attr.classes(["var"])], [Node.text(x)]),
                 Node.text(" : "),
                 HTypCode.view(~width=30, ~pos=Var.length(x) + 3, ty),
-              ]
-              @ (
-                Option.is_some(ty')
-                  ? [
-                    Node.text(" = "),
-                    HTypCode.view(
-                      ~width=30,
-                      ~pos=
-                        String.length(
-                          HTyp.tyvar_name(ty) |> Option.value(~default="???"),
-                        )
-                        + 3,
-                      Option.get(ty'),
-                    ),
-                  ]
-                  : []
-              ),
+              ],
             ),
           ],
         );
       };
 
-      /** Shows typing info for an expression variable. */
+      /** Shows typing info for a type variable. */
       let static_info_tyvar = ((t, k)) => {
-        /* let ctx = */
-        /*   program |> Program.get_cursor_info |> CursorInfo_common.get_ctx; */
         Node.div(
           [Attr.classes(["static-info"])],
           [
             Node.div(
               [Attr.classes(["code"])],
               [
+                Node.text("type "),
                 Node.span([Attr.classes(["var"])], [Node.text(t)]),
-                Node.text(" :: "),
-                /* TODO: (eric) move kind rendering code here "type t = Int" */
-                KindCode.view(~width=30, ~pos=Var.length(t) + 4, k),
-              ],
-              /* @ ( */
-              /*   Option.is_some(ty') */
-              /*     ? [ */
-              /*       node.text(" = "), */
-              /*       HTypCode.view( */
-              /*         ~width=30, */
-              /*         ~pos= */
-              /*           String.length( */
-              /*             HTyp.tyvar_name(ty) |> Option.value(~default="???"), */
-              /*           ) */
-              /*           + 3, */
-              /*         Option.get(ty'), */
-              /*       ), */
-              /*     ] */
-              /*     : [] */
-              /* ), */
+              ]
+              @ (
+                switch (k) {
+                | Kind.Hole => [
+                    Node.text(" = "),
+                    HTypCode.view(
+                      ~width=30,
+                      ~pos=TyVar.length(t) + 8,
+                      HTyp.hole(),
+                    ),
+                  ]
+                | Type => []
+                | S(ty) => [
+                    Node.text(" = "),
+                    HTypCode.view(
+                      ~width=30,
+                      ~pos=TyVar.length(t) + 8,
+                      HTyp.of_syntax(ty),
+                    ),
+                  ]
+                }
+              ),
             ),
           ],
         );
