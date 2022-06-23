@@ -1,13 +1,7 @@
 Logger.init_log();
 
 let initial_model =
-  Model.init()
-  |> (
-    Permalink.get_current()
-    |> Permalink.get_program
-    |> Option.map(Model.put_program)
-    |> Option.value(~default=model => model)
-  );
+  Permalink.get_current() |> Permalink.get_model(~initial_model=Model.init());
 
 // Start the main app.
 // See <https://github.com/janestreet/incr_dom/blob/master/src/start_app.mli>.

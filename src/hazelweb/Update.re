@@ -234,11 +234,7 @@ let apply_action =
         model;
       | LoadPermalink =>
         switch (Permalink.get_current()) {
-        | url =>
-          model
-          |> Model.get_program
-          |> Permalink.put_program(url)
-          |> Permalink.set_current
+        | url => model |> Permalink.put_model(url) |> Permalink.set_current
         | exception Permalink.EmptyCurrent =>
           JSUtil.log("[Permalink.EmptyCurrent]")
         };
