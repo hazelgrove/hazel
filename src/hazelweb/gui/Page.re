@@ -24,7 +24,7 @@ let branch_panel =
 let history_panel = (~inject): Node.t => {
   button(
     [
-      Attr.id("cardstack-next-button"),
+      Attr.classes(["button"]),
       Attr.on_click(_ => inject(ModelAction.ToggleLeftSidebar)),
     ],
     [text("history")],
