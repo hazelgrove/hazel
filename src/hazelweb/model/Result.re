@@ -1,7 +1,9 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvalState.t);
 
-let get_dhexp = ((d, _, _): t) => d;
+let get_dhexp = ((d, _, _, _): t) => d;
+let get_hole_closure_info = ((_, hci, _, _): t) => hci;
+let get_eval_state = ((_, _, _, state): t) => state;
 
 let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool => {
   switch (r1, r2) {
@@ -11,7 +13,7 @@ let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool =>
   };
 };
 
-let fast_equals = ((_, hci1, r1): t, (_, hci2, r2): t): bool => {
+let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
   /* Check that HoleClosureInstances are equal */
   MetaVarMap.cardinal(hci1) == MetaVarMap.cardinal(hci2)
   && List.for_all2(

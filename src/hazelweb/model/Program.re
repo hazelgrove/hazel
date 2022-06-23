@@ -113,22 +113,22 @@ let evaluate =
   );
 let get_result = (program: t): Result.t => {
   switch (program |> get_elaboration |> evaluate) {
-  | (_, BoxedValue(d)) =>
+  | (es, BoxedValue(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, BoxedValue(d));
-  | (_, Indet(d)) =>
+    (d, hci, BoxedValue(d), es);
+  | (es, Indet(d)) =>
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
       | exception (EvalPostprocessError.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, Indet(d));
+    (d, hci, Indet(d), es);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

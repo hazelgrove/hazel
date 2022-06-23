@@ -75,8 +75,8 @@ let view =
   let path_view_titlebar =
     Panel.view_of_other_title_bar("Closure above observed at ");
 
-  let hii_summary = (hii, (u, i) as inst) => {
-    let num_instances = HoleClosureInfo.num_unique_hcs(hii, u);
+  let hci_summary = (hci, (u, i) as inst) => {
+    let num_instances = HoleClosureInfo.num_unique_hcs(hci, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -85,7 +85,7 @@ let view =
             [],
             [
               Node.div(
-                [Attr.classes(["hii-summary-inst"])],
+                [Attr.classes(["hci-summary-inst"])],
                 [
                   DHCode.view_of_hole_closure(
                     ~inject,
@@ -243,11 +243,12 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let (_, hii, _) = program |> Program.get_result;
+        let hci =
+          program |> Program.get_result |> Result.get_hole_closure_info;
         switch (selected_hole_closure) {
         | None => Environment.empty
         | Some((u, i)) =>
-          switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
+          switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
@@ -282,7 +283,7 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      let (_, hii, _) = program |> Program.get_result;
+      let hci = program |> Program.get_result |> Result.get_hole_closure_info;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
@@ -297,13 +298,13 @@ let view =
             ]
           | Some((u', i) as inst) =>
             if (MetaVar.eq(u, u')) {
-              switch (HoleClosureInfo.find_hc_opt(hii, u, i)) {
+              switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
               | Some((_, hc_parents)) => [
                   path_view_titlebar,
-                  hii_summary(hii, inst),
+                  hci_summary(hci, inst),
                   hc_parents_view(hc_parents),
                 ]
               };
