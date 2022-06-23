@@ -28,4 +28,4 @@ let set_current: t => unit;
  * {get_current ()} gets the current window's URL, throwing {EmptyCurrent} if
  * it is not set.
  */
-let get_current: unit => t;
+let get_current: unit => option(t);

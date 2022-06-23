@@ -58,8 +58,4 @@ let get_model = (~initial_model: Model.t, url: t): Model.t => {
 
 let set_current = Url.Current.set;
 
-let get_current = () =>
-  switch (Url.Current.get()) {
-  | Some(url) => url
-  | None => raise(EmptyCurrent)
-  };
+let get_current = Url.Current.get;
