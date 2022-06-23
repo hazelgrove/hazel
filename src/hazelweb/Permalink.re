@@ -14,7 +14,11 @@ type t = Url.url;
  * {update url model} updates {url} for {model}.
  */
 let put_program = (url: t, program: Program.t): t => {
-  let sexp = program |> Program.sexp_of_t |> Sexplib.Sexp.to_string_mach;
+  let sexp =
+    program
+    |> Program.sexp_of_t
+    |> Sexplib.Sexp.to_string_mach
+    |> Url.urlencode;
 
   switch (url) {
   | Http(url) => Http({...url, hu_fragment: sexp})
@@ -31,7 +35,7 @@ let get_program = (url: t): option(Program.t) => {
     switch (url) {
     | Http({hu_fragment: sexp, _})
     | Https({hu_fragment: sexp, _})
-    | File({fu_fragment: sexp, _}) => sexp |> Url.urldecode
+    | File({fu_fragment: sexp, _}) => sexp |> Url.urldecode |> Url.urldecode
     };
 
   switch (sexp |> Sexplib.Sexp.of_string |> Program.t_of_sexp) {
