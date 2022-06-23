@@ -478,7 +478,7 @@ let novice_summary =
         | TypInvalid => [
             Node.text("Expecting a"),
             term_tag,
-            Node.text(" but got " ++ article),
+            Node.text(" but got "),
             emphasize_text("Invalid Text"),
           ]
         | TypKeyword(_) => [
