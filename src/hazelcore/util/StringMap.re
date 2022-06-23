@@ -1,10 +1,10 @@
-include Map.Make(Int);
+include Map.Make(String);
 
 open Sexplib.Std;
 module Sexp = Sexplib.Sexp;
 
 [@deriving sexp]
-type binding('v) = (int, 'v);
+type binding('v) = (string, 'v);
 
 let sexp_of_t = (sexp_of_v: 'v => Sexp.t, map: t('v)): Sexp.t =>
   map |> bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));

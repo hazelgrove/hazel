@@ -102,8 +102,8 @@ module rec Context: {
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
 
-  /** Returns the (sanitized) bindings of a given context, in the (reversed)
-     order they were defined. */
+  /** Returns the (sanitized) visible bindings of a given context, in the
+     (reversed) order they were defined. */
   let entries: t => list(entry);
 
   /** Returns the number of binding in the given context */

@@ -206,7 +206,29 @@ module rec Context: {
          | (i, TyVarBinding(t, k)) =>
            TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
          }
-       );
+       )
+    |> List.fold_left(
+         ((entries, (vars, tyvars)), entry) =>
+           switch (entry) {
+           | VarEntry(x, _) =>
+             StringMap.mem(x, vars)
+               ? (entries, (vars, tyvars))
+               : (
+                 [entry, ...entries],
+                 (StringMap.add(x, (), vars), tyvars),
+               )
+           | TyVarEntry(t, _) =>
+             StringMap.mem(t, tyvars)
+               ? (entries, (vars, tyvars))
+               : (
+                 [entry, ...entries],
+                 (vars, StringMap.add(t, (), tyvars)),
+               )
+           },
+         ([], (StringMap.empty, StringMap.empty)),
+       )
+    |> fst
+    |> List.rev;
   };
 
   let length = List.length;
