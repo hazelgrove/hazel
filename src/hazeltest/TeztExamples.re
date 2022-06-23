@@ -49,5 +49,3 @@ let () =
       unit;
     },
   );
-
-let () = Test.run();
