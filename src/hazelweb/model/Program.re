@@ -443,28 +443,12 @@ let perform_edit_action = (a, program) => {
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
     let (ze, ty, u_gen) = new_edit_state;
-    Log.debug_states(
-      __FUNCTION__,
-      [
-        ("ze", ZExp.sexp_of_t(ze)),
-        ("ty", HTyp.sexp_of_t(ty)),
-        ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-      ],
-    );
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
         (ze, ty, MetaVarGen.init);
       } else {
         (ze, ty, u_gen);
       };
-    Log.debug_states(
-      __FUNCTION__,
-      [
-        ("ze*", ZExp.sexp_of_t(ze)),
-        ("ty*", HTyp.sexp_of_t(ty)),
-        ("u_gen*", MetaVarGen.sexp_of_t(u_gen)),
-      ],
-    );
     program |> put_edit_state(new_edit_state);
   };
   // };

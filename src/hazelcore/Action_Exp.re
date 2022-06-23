@@ -860,30 +860,22 @@ and syn_perform_block =
 
     /* Zipper */
     | _ =>
-      Log.debug_msg("AAAAAAAAAA");
       switch (Statics_Exp.syn_lines(ctx, prefix)) {
-      | None =>
-        Log.debug_msg("BBBBBBBBBB");
-        Failed;
+      | None => Failed
       | Some(ctx_zline) =>
-        Log.debug_msg("CCCCCCCCCC");
         switch (syn_perform_line(ctx_zline, a, (zline, u_gen))) {
-        | Failed =>
-          Log.debug_msg("DDDDDDDDDD");
-          Failed;
+        | Failed => Failed
         | CursorEscaped(side) =>
-          Log.debug_msg("EEEEEEEEEE");
           syn_perform(ctx, Action_common.escape(side), (zblock, ty, u_gen))
-          |> wrap_in_SynDone;
+          |> wrap_in_SynDone
         | Succeeded(LineExpands(r)) =>
-          Log.debug_msg("FFFFFFFFFF");
           Succeeded(
             SynExpands({
               ...r,
               prefix: prefix @ r.prefix,
               suffix: r.suffix @ suffix,
             }),
-          );
+          )
         | Succeeded(
             LineDone((
               (inner_prefix, new_zline, inner_suffix) as zblock,
@@ -891,37 +883,22 @@ and syn_perform_block =
               u_gen,
             )),
           ) =>
-          Log.debug_msg("GGGGGGGGGG");
           switch (suffix) {
           | [] =>
-            Log.debug_msg("HHHHHHHHHH");
             switch (
               Statics_Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
             ) {
-            | None =>
-              Log.debug_msg("IIIIIIIIII");
-              Failed;
+            | None => Failed
             | Some(new_ty) =>
-              Log.debug_msg("JJJJJJJJJJ");
               let new_ty = Context.reduce_tyvars(ctx_zline, ctx, new_ty);
               let new_zblock = (
                 prefix @ inner_prefix,
                 new_zline,
                 inner_suffix,
               );
-              Log.debug_states(
-                __FUNCTION__,
-                [
-                  ("ctx", Context.sexp_of_t(ctx)),
-                  ("ctx_zline", Context.sexp_of_t(ctx_zline)),
-                  ("new_ty", HTyp.sexp_of_t(new_ty)),
-                  ("new_zblock", ZExp.sexp_of_t(new_zblock)),
-                ],
-              );
               Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-            };
+            }
           | [_, ..._] =>
-            Log.debug_msg("KKKKKKKKKK");
             let (suffix, new_ty, u_gen) =
               Statics_Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
             let new_ty = Context.reduce_tyvars(ctx_suffix, ctx, new_ty);
@@ -929,9 +906,9 @@ and syn_perform_block =
               (prefix @ inner_prefix, new_zline, inner_suffix @ suffix)
               |> ZExp.prune_empty_hole_lines;
             Succeeded(SynDone((new_zblock, new_ty, u_gen)));
-          };
-        };
-      };
+          }
+        }
+      }
     }
   );
 }
@@ -1259,16 +1236,6 @@ and syn_perform_line =
             )
           | Some(ty) => ty
           };
-        Log.debug_states(
-          __FUNCTION__,
-          [
-            ("ctx", Context.sexp_of_t(ctx)),
-            ("u_gen", MetaVarGen.sexp_of_t(u_gen)),
-            ("a", Action.sexp_of_t(a)),
-            ("zp", ZPat.sexp_of_t(zp)),
-            ("ty_def", HTyp.sexp_of_t(ty_def)),
-          ],
-        );
         switch (Action_Pat.ana_perform(ctx, u_gen, a, zp, ty_def)) {
         | Failed => Failed
         | CursorEscaped(side) => escape(u_gen, side)

@@ -55,8 +55,7 @@ module Filter = {
     };
 };
 
-let watch_list = None;
-/* Some(Filter.(fn(pre("subst_tyvar")))); */
+let watch_list = Some(Filter.(fn(has("elab")) + fn(has("perform"))));
 
 let watching = fn =>
   {

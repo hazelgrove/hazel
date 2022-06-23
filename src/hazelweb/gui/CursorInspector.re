@@ -269,21 +269,13 @@ let novice_summary =
         | AnaAnnotatedFun(tyvars, expected_ty, got_ty)
         | AnaSubsumed(tyvars, expected_ty, got_ty)
         | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
-          Log.debug_states(
-            __FUNCTION__,
-            [
-              ("tyvars", Context.sexp_of_t(tyvars)),
-              ("expected_ty", HTyp.sexp_of_t(expected_ty)),
-              ("got_ty", HTyp.sexp_of_t(got_ty)),
-            ],
-          );
           pat_ana_subsumed_msg(
             tyvars,
             expected_ty,
             got_ty,
             expecting_of_type,
             Node.text("and got consistent type"),
-          );
+          )
         | Synthesized(ty)
         | PatSynthesized(ty) =>
           switch (term) {

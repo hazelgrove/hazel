@@ -1018,21 +1018,13 @@ and ana_cursor_info_zoperand =
           switch (Statics_Exp.syn_operand(ctx, e)) {
           | None => None
           | Some(ty') =>
-            Log.debug_states(
-              __FUNCTION__,
-              [
-                ("ctx", Context.sexp_of_t(ctx)),
-                ("ty", HTyp.sexp_of_t(ty)),
-                ("ty'", HTyp.sexp_of_t(ty')),
-              ],
-            );
             Some(
               CursorInfo_common.mk(
                 AnaSubsumed(ctx, ty, ty'),
                 ctx,
                 cursor_term,
               ),
-            );
+            )
           }
         | ListNil(NotInHole)
         | Inj(NotInHole, _, _)
