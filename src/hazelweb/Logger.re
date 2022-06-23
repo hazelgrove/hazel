@@ -20,5 +20,5 @@ let append = (s: string) => {
 
 let init_log = () => {
   Logs.set_reporter(Log.reporter(Format.std_formatter));
-  Logs.set_level(Some(Logs.Debug));
+  Logs.set_level(Some(Logs.Info));
 };
