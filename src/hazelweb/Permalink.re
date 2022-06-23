@@ -15,7 +15,7 @@ let key = "program";
 /**
  * {update url model} updates {url} for {model}.
  */
-let update = (url: t, model: Model.t): t => {
+let put_program = (url: t, model: Model.t): t => {
   let program =
     model
     |> Model.get_program
@@ -26,10 +26,12 @@ let update = (url: t, model: Model.t): t => {
     arguments |> List.remove_assoc(key) |> List.cons((key, program));
 
   switch (url) {
-  | Http(url) => Http({...url, hu_arguments: set_program(url.hu_arguments)})
+  | Http(url) =>
+    Http({...url, hu_arguments: set_program(url.hu_arguments)})
   | Https(url) =>
     Https({...url, hu_arguments: set_program(url.hu_arguments)})
-  | File(url) => File({...url, fu_arguments: set_program(url.fu_arguments)})
+  | File(url) =>
+    File({...url, fu_arguments: set_program(url.fu_arguments)})
   };
 };
 
