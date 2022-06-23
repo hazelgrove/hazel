@@ -16,7 +16,7 @@
    environments) or env.
 
    This mimicks the VarMap interface on the extended EvalEnv.t type. Most
-   operations require an EvalEnvIdGen.t parameter, which is used to generate
+   operations require an EvalState.t parameter, which is used to generate
    unique ID's for each environment, and is created using EvalEnv.empty
    (at the beginning of evaluation).
    */
@@ -30,7 +30,7 @@ let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
 let alist_of_evalenv: t => list((Var.t, EvaluatorResult.t));
 
-let empty: (EvalEnvIdGen.t, t);
+let empty: (EvalState.t, t);
 let is_empty: t => bool;
 let length: t => int;
 let to_list: t => list((Var.t, EvaluatorResult.t));
@@ -41,20 +41,18 @@ let contains: (t, Var.t) => bool;
    (faster than structural equality checking.) */
 let equals: (t, t) => bool;
 
-/* these functions require an EvalEnvIdGen.t because they generate a new
-   EvalEnv.t */
-let extend:
-  (EvalEnvIdGen.t, t, (Var.t, EvaluatorResult.t)) => (EvalEnvIdGen.t, t);
+/* these functions require an EvalState.t because they generate a new
+   (numbered) environment */
+let extend: (EvalState.t, t, (Var.t, EvaluatorResult.t)) => (EvalState.t, t);
 let map:
-  (EvalEnvIdGen.t, (Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) =>
-  (EvalEnvIdGen.t, t);
+  (EvalState.t, (Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) =>
+  (EvalState.t, t);
 let filter:
-  (EvalEnvIdGen.t, (Var.t, EvaluatorResult.t) => bool, t) =>
-  (EvalEnvIdGen.t, t);
+  (EvalState.t, (Var.t, EvaluatorResult.t) => bool, t) => (EvalState.t, t);
 
 /* union(new_env, env) extends env with new_env (same argument order
    as in VarMap.union) */
-let union: (EvalEnvIdGen.t, t, t) => (EvalEnvIdGen.t, t);
+let union: (EvalState.t, t, t) => (EvalState.t, t);
 
 /* same as map, but doesn't assign a new ID. (This is used when
    transforming an environment, such as in the closure->lambda stage
