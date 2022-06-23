@@ -9,7 +9,11 @@ let string_of_model = (model: Model.t): string =>
   model |> Model.get_program |> Program.get_uhexp |> Hazeltext.Print.print_exp;
 
 let model_of_string = (~initial_model: Model.t, str: string): Model.t => {
-  let e = str |> Hazeltext.Parsing.ast_of_string |> Result.to_option;
+  let e =
+    try(str |> Hazeltext.Parsing.ast_of_string |> Result.to_option) {
+    | _ => None
+    };
+
   let ze = e |> Option.map(ZExp.place_before);
   let edit_state =
     ze |> Option.map(Statics_Exp.fix_and_renumber_holes_z(Contexts.initial));
@@ -22,7 +26,12 @@ let model_of_string = (~initial_model: Model.t, str: string): Model.t => {
 };
 
 let put_model = (url: t, model: Model.t): t => {
-  let str = model |> string_of_model |> Url.urlencode;
+  let str =
+    model
+    |> string_of_model
+    |> Js.string
+    |> Js.encodeURIComponent
+    |> Js.to_string;
 
   switch (url) {
   | Http(url) => Http({...url, hu_fragment: str})
@@ -37,8 +46,11 @@ let get_model = (~initial_model: Model.t, url: t): Model.t => {
     | Http({hu_fragment: str, _})
     | Https({hu_fragment: str, _})
     | File({fu_fragment: str, _}) =>
-      /* Not sure why we need to call this 3 times, but doesn't work without it. */
-      str |> Url.urldecode |> Url.urldecode |> Url.urldecode
+      str
+      |> Url.urldecode
+      |> Js.string
+      |> Js.decodeURIComponent
+      |> Js.to_string
     };
 
   str |> model_of_string(~initial_model);
