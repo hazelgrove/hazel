@@ -31,6 +31,7 @@ let get_program: t => Program.t;
 let get_edit_state: t => Statics.edit_state;
 
 let get_card: t => ZCard.t;
+let get_cardstacks: t => ZCardstacks.t;
 let get_cardstack: t => Cardstack.t;
 let get_cards_info: t => list(CardInfo.t);
 

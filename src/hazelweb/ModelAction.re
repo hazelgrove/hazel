@@ -50,4 +50,5 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | SerializeToConsole(serialize_object)
+  | Import(UHExp.t)
   | LoadPermalink;

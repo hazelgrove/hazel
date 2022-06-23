@@ -64,6 +64,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
   | SerializeToConsole(_)
+  | Import(_)
   | LoadPermalink =>
     Logger.append(
       Sexp.to_string(
@@ -232,6 +233,7 @@ let apply_action =
           |> JSUtil.log
         };
         model;
+      | Import(e) => Import.import(e, model)
       | LoadPermalink =>
         switch (Permalink.get_current()) {
         | Some(url) =>

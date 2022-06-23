@@ -8,22 +8,10 @@ type t = Url.url;
 let string_of_model = (model: Model.t): string =>
   model |> Model.get_program |> Program.get_uhexp |> Hazeltext.Print.print_exp;
 
-let model_of_string = (~initial_model: Model.t, str: string): Model.t => {
-  let e =
-    try(str |> Hazeltext.Parsing.ast_of_string |> Result.to_option) {
-    | _ => None
-    };
-
-  let ze = e |> Option.map(ZExp.place_before);
-  let edit_state =
-    ze |> Option.map(Statics_Exp.fix_and_renumber_holes_z(Contexts.initial));
-  let program =
-    edit_state |> Option.map(Program.mk(~width=initial_model.cell_width));
-
-  program
-  |> Option.map(program => Model.put_program(program, initial_model))
-  |> Option.value(~default=initial_model);
-};
+let exp_of_string = (str: string): option(UHExp.t) =>
+  try(str |> Hazeltext.Parsing.ast_of_string |> Result.to_option) {
+  | _ => None
+  };
 
 let put_model = (url: t, model: Model.t): t => {
   let str =
@@ -40,7 +28,7 @@ let put_model = (url: t, model: Model.t): t => {
   };
 };
 
-let get_model = (~initial_model: Model.t, url: t): Model.t => {
+let get_exp = (url: t): option(UHExp.t) => {
   let str =
     switch (url) {
     | Http({hu_fragment: str, _})
@@ -53,7 +41,7 @@ let get_model = (~initial_model: Model.t, url: t): Model.t => {
       |> Js.to_string
     };
 
-  str |> model_of_string(~initial_model);
+  str |> exp_of_string;
 };
 
 let set_current = Url.Current.set;
