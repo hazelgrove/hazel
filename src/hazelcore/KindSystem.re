@@ -158,6 +158,7 @@ module rec Context: {
   let entries: t => list(entry);
   let length: t => int;
   let rescope: (t, ContextRef.t) => ContextRef.t;
+  let rescope_opt: (t, ContextRef.t) => option(ContextRef.t);
   let tyvars: t => list((ContextRef.t, TyVar.t, Kind.t));
   let tyvar: (t, ContextRef.t) => option(TyVar.t);
   let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
@@ -203,6 +204,22 @@ module rec Context: {
 
   let length = List.length;
 
+  let rescope_unchecked = (ctx: t, cref: ContextRef.t): ContextRef.t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=ContextRef.sexp_of_t,
+      () => {
+        let stamp = Context.length(ctx);
+        let amount = stamp - cref.stamp;
+        let index = Index.shift(~above=-1, ~amount, cref.index);
+        {index, stamp};
+      },
+    );
+
   let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
     Log.fun_call(
       __FUNCTION__,
@@ -218,15 +235,38 @@ module rec Context: {
             __LOC__ ++ ": cannot rescope type variables in an empty context",
           );
         };
-        let amount = stamp - cref.stamp;
-        let index = Index.shift(~above=-1, ~amount, cref.index);
-        if (Index.Abs.to_int(index) >= stamp) {
+        let cref = rescope_unchecked(ctx, cref);
+        if (Index.Abs.to_int(cref.index) >= stamp) {
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
         };
-        if (Index.Abs.to_int(index) < 0) {
+        if (Index.Abs.to_int(cref.index) < 0) {
           failwith(__LOC__ ++ ": rescoped type variable is in the past");
         };
-        {index, stamp};
+        cref;
+      },
+    );
+
+  let rescope_opt = (ctx: t, cref: ContextRef.t): option(ContextRef.t) =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
+      () => {
+        let stamp = Context.length(ctx);
+        if (stamp == 0) {
+          None;
+        } else {
+          let cref = rescope_unchecked(ctx, cref);
+          if (Index.Abs.to_int(cref.index) >= stamp
+              || Index.Abs.to_int(cref.index) < 0) {
+            None;
+          } else {
+            Some(cref);
+          };
+        };
       },
     );
 

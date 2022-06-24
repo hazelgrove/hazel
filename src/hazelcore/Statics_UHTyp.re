@@ -95,30 +95,38 @@ and syn_fix_holes_operand =
       switch (operand) {
       | Hole => (Hole, Kind.Hole, u_gen)
       | TyVar(NotInTyVarHole(index, stamp), t) =>
-        let cref = KindSystem.ContextRef.{index, stamp};
-        let cref = Context.rescope(ctx, cref);
-        let k' = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
-        switch (Context.tyvar_kind(ctx, cref)) {
-        | Some(k) when Kind.consistent_subkind(ctx, k', k) => (
-            operand,
-            k',
-            u_gen,
-          )
-        | Some(_)
+        switch (Context.rescope_opt(ctx, {index, stamp})) {
         | None =>
-          let reason: TyVarErrStatus.HoleReason.t =
-            if (TyVar.reserved_word(t)) {
-              Reserved;
-            } else if (TyVar.valid_name(t)) {
-              Unbound;
-            } else {
-              InvalidName;
-            };
           let (u, u_gen) = MetaVarGen.next(u_gen);
-          let ty = UHTyp.TyVar(InHole(reason, u), t);
-          let k = Kind.singleton(HTyp.tyvarhole(reason, u, t));
-          (ty, k, u_gen);
-        };
+          syn_fix_holes_operand(
+            ctx,
+            u_gen,
+            TyVar(InHole(InvalidName, u), t),
+          );
+        | Some(cref) =>
+          let k' = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
+          switch (Context.tyvar_kind(ctx, cref)) {
+          | Some(k) when Kind.consistent_subkind(ctx, k', k) => (
+              operand,
+              k',
+              u_gen,
+            )
+          | Some(_)
+          | None =>
+            let reason: TyVarErrStatus.HoleReason.t =
+              if (TyVar.reserved_word(t)) {
+                Reserved;
+              } else if (TyVar.valid_name(t)) {
+                Unbound;
+              } else {
+                InvalidName;
+              };
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            let ty = UHTyp.TyVar(InHole(reason, u), t);
+            let k = Kind.singleton(HTyp.tyvarhole(reason, u, t));
+            (ty, k, u_gen);
+          };
+        }
       | TyVar(InHole(_, u), t) =>
         if (TyVar.reserved_word(t)) {
           let ty = UHTyp.TyVar(InHole(Reserved, u), t);

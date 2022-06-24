@@ -117,8 +117,15 @@ module rec Context: {
 
      WARNING: result is only valid if the given context is the same context
      used to construct the reference, or an extension of it.
+
+     WARNING: crashes if the given context is empty.
+
+     WARNING: crashes if the given reference is out of bounds.
    */
   let rescope: (t, ContextRef.t) => ContextRef.t;
+
+  /** Like [rescope] but returns [None] instead of crashing. */
+  let rescope_opt: (t, ContextRef.t) => option(ContextRef.t);
 
   /* Type Variables */
 
