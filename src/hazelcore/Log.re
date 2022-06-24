@@ -58,15 +58,13 @@ module Filter = {
     };
 };
 
-let watch_list =
-  Some(
-    Filter.(
-      (md(pre("Statics_Exp")) +^ fn(pre("syn")))
-      /^ fn(eq("rescope"))
-      /^ fn(has("elab"))
-      /^ fn(has("perform"))
-    ),
-  );
+let watch_list = None;
+/* Some( */
+/*   Filter.( */
+/*     (md(pre("CursorInfo_Exp")) +^ fn(has("cursor_info"))) */
+/*     /^ (md(pre("Statics_Exp")) +^ fn(eq("syn_lines"))) */
+/*   ), */
+/* ); */
 
 let watching = fn =>
   {

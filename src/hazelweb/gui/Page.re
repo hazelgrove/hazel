@@ -35,7 +35,10 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
 let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) =>
   Log.fun_call(
     __FUNCTION__,
-    ~args=[],
+    ~args=[
+      ("settings", () => Settings.sexp_of_t(settings)),
+      ("model", () => Model.sexp_of_t(model)),
+    ],
     ~result_sexp=_ => List([]),
     () => {
       let program = Model.get_program(model);

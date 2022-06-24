@@ -106,8 +106,7 @@ module rec Context: {
   /** Returns a context consisting of the given entries. */
   let of_entries: list(entry) => t;
 
-  /** Returns the (sanitized) visible bindings of a given context, in the
-     (reversed) order they were defined. */
+  /** Returns the (sanitized) bindings of a given context. */
   let entries: t => list(entry);
 
   /** Returns the number of binding in the given context */

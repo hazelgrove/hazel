@@ -997,6 +997,11 @@ body {
   padding-bottom: 5px;
 }
 
+.shadowed .static-info,
+.shadowed .extended-info {
+  background-color: #c0ccc2;
+}
+
 .path-area-parent {
   min-height: 38px;
   display: flex;

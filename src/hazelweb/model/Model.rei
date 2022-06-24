@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,

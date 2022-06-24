@@ -467,39 +467,17 @@ module rec Context: {
     ...ctx,
   ];
 
-  let entries = (ctx: t): list(entry) => {
-    ctx
-    |> List.mapi((i, binding) =>
-         switch (i, binding) {
-         | (i, VarBinding(x, ty)) =>
-           VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
-         | (i, TyVarBinding(t, k)) =>
-           TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
-         }
-       )
-    |> List.fold_left(
-         ((entries, (vars, tyvars)), entry) =>
-           switch (entry) {
-           | VarEntry(x, _) =>
-             StringMap.mem(x, vars)
-               ? (entries, (vars, tyvars))
-               : (
-                 [entry, ...entries],
-                 (StringMap.add(x, (), vars), tyvars),
-               )
-           | TyVarEntry(t, _) =>
-             StringMap.mem(t, tyvars)
-               ? (entries, (vars, tyvars))
-               : (
-                 [entry, ...entries],
-                 (vars, StringMap.add(t, (), tyvars)),
-               )
-           },
-         ([], (StringMap.empty, StringMap.empty)),
-       )
-    |> fst
-    |> List.rev;
-  };
+  let entries = (ctx: t): list(entry) =>
+    List.mapi(
+      (i, binding) =>
+        switch (i, binding) {
+        | (i, VarBinding(x, ty)) =>
+          VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
+        | (i, TyVarBinding(t, k)) =>
+          TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
+        },
+      ctx,
+    );
 
   let of_entries = (entries: list(entry)): t =>
     List.fold_right(

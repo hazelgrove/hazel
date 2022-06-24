@@ -55,17 +55,31 @@ let view_of_layout =
 
 let view =
     (~width=30, ~pos=0, ~diff_steps: list(CursorPath.steps)=[], ty: HTyp.t)
-    : Node.t => {
-  let l =
-    ty
-    |> HTypDoc.mk(~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_htyp on layout failure")
-  | Some(l) =>
-    Node.div(
-      [Attr.classes(["code", "HTypCode"])],
-      view_of_layout(diff_steps, l),
-    )
-  };
-};
+    : Node.t =>
+  Log.fun_call(
+    __FUNCTION__,
+    ~args=[
+      ("width", () => Sexplib.Std.sexp_of_int(width)),
+      ("pos", () => Sexplib.Std.sexp_of_int(pos)),
+      (
+        "diff_steps",
+        () => Sexplib.Std.sexp_of_list(CursorPath.sexp_of_steps, diff_steps),
+      ),
+      ("ty", () => HTyp.sexp_of_t(ty)),
+    ],
+    ~result_sexp=_ => List([]),
+    () => {
+      let l =
+        ty
+        |> HTypDoc.mk(~enforce_inline=false)
+        |> LayoutOfDoc.layout_of_doc(~width, ~pos);
+      switch (l) {
+      | None => failwith("unimplemented: view_of_htyp on layout failure")
+      | Some(l) =>
+        Node.div(
+          [Attr.classes(["code", "HTypCode"])],
+          view_of_layout(diff_steps, l),
+        )
+      };
+    },
+  );

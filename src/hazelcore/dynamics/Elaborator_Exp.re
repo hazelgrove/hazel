@@ -154,7 +154,7 @@ and syn_elab_line =
       switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
       | None => LinesDoNotElaborate
       | Some((ty1, k, delta)) =>
-        let ctx1 = Statics_TPat.matches(ctx, tp, ty1, k);
+        let ctx1 = Statics_TPat.matches(ctx, tp, k);
         let dty = (ctx, ty1);
         let prelude = d => DHExp.TyAlias(tp, dty, d);
         LinesElaborate(prelude, ctx1, delta);

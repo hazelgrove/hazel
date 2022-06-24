@@ -1,8 +1,8 @@
-let matches = (ctx: Context.t, tp: TPat.t, _ty: HTyp.t, k: Kind.t): Context.t => {
+let matches = (ctx: Context.t, tp: TPat.t, k: Kind.t): Context.t => {
   switch (tp) {
-  | EmptyHole => ctx
-  | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
+  | EmptyHole
   | TyVar(InHole(_), _) => ctx
+  | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
   };
 };
 

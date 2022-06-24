@@ -124,10 +124,12 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
       let* def_ty = syn(def_ctx, def);
       let ty = HTyp.rescope(ctx, def_ty);
       Statics_Pat.ana(ctx, p, ty);
-    | TyAliasLine(p, ty) =>
+    | TyAliasLine(tp, ty) =>
       open OptUtil.Syntax;
-      let+ (ty, kind, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
-      Statics_TPat.matches(ctx, p, ty, kind);
+      Log.debug_state(__FUNCTION__, "ty", UHTyp.sexp_of_t(ty));
+      let+ (_, k, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
+      Log.debug_state(__FUNCTION__, "k", Kind.sexp_of_t(k));
+      Statics_TPat.matches(ctx, tp, k);
     }
   )
 

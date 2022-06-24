@@ -13,7 +13,19 @@ let view =
     : Vdom.Node.t =>
   Log.fun_call(
     __FUNCTION__,
-    ~args=[],
+    ~args=[
+      (
+        "selected_instance",
+        () =>
+          Sexplib.Std.sexp_of_option(
+            HoleInstance.sexp_of_t,
+            selected_instance,
+          ),
+      ),
+      ("settings", () => Settings.Evaluation.sexp_of_t(settings)),
+      ("font_metrics", () => FontMetrics.sexp_of_t(font_metrics)),
+      ("program", () => Program.sexp_of_t(program)),
+    ],
     ~result_sexp=_ => List([]),
     () => {
       open Vdom;
@@ -174,13 +186,36 @@ let view =
         | TyVarEntry(t, k) => extended_info_tyvar(t, k)
         };
 
-      let context_entry = (sigma, entry) => {
+      let context_entry = (seen_vars, seen_tyvars, sigma, entry) => {
+        let (seen_vars, seen_tyvars, maybe_shadowed) =
+          switch (entry) {
+          | Context.VarEntry(x, _) =>
+            VarMap.mem(seen_vars, x)
+              ? (seen_vars, seen_tyvars, ["shadowed"])
+              : (VarMap.add(seen_vars, x, ()), seen_tyvars, [])
+          | TyVarEntry(t, _) =>
+            TyVarMap.mem(t, seen_tyvars)
+              ? (seen_vars, seen_tyvars, ["shadowed"])
+              : (seen_vars, TyVarMap.add(t, (), seen_tyvars), [])
+          };
         let static_info = static_info(entry);
         let children =
-          extended_info(sigma, entry)
-          |> Option.map(extended_info => [static_info, extended_info])
-          |> Option.value(~default=[static_info]);
-        Node.div([Attr.classes(["context-entry"])], children);
+          switch (entry) {
+          | VarEntry(_) when maybe_shadowed != [] => [static_info]
+          | VarEntry(_)
+          | TyVarEntry(_) =>
+            extended_info(sigma, entry)
+            |> Option.map(extended_info => [static_info, extended_info])
+            |> Option.value(~default=[static_info])
+          };
+        (
+          seen_vars,
+          seen_tyvars,
+          Node.div(
+            [Attr.classes(["context-entry"] @ maybe_shadowed)],
+            children,
+          ),
+        );
       };
 
       let instructional_msg = msg =>
@@ -395,6 +430,7 @@ let view =
       let context_view = {
         let ctx =
           program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
+        Log.debug_state(__FUNCTION__, "ctx", Context.sexp_of_t(ctx));
         let sigma =
           if (settings.evaluate) {
             let (_, hii, _) = program |> Program.get_result;
@@ -426,7 +462,17 @@ let view =
         | entries =>
           Node.div(
             [Attr.classes(["the-context"])],
-            List.map(context_entry(sigma), entries),
+            List.fold_left(
+              (((seen_vars, seen_tyvars), children), entry) => {
+                let (seen_vars, seen_tyvars, child) =
+                  context_entry(seen_vars, seen_tyvars, sigma, entry);
+                ((seen_vars, seen_tyvars), [child, ...children]);
+              },
+              ((VarMap.empty, TyVarMap.empty), []),
+              entries,
+            )
+            |> snd
+            |> List.rev,
           )
         };
       };
