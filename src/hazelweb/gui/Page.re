@@ -26,7 +26,7 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
     [
       logo_panel,
       CardsPanel.view(~inject, ~model),
-      ActionMenu.view(~inject),
+      ActionMenu.view(~inject, model.settings),
     ],
   );
 };
@@ -93,7 +93,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         program,
       ),
       UndoHistoryPanel.view(~inject, model),
-      SettingsPanel.view(~inject, settings),
+      // SettingsPanel.view(~inject, settings),
     ]
   );
 };
