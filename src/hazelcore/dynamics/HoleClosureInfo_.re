@@ -1,91 +1,54 @@
+/* HoleClosureInfo_.re: Auxiliary data structure for constructing a
+   HoleClosureInfo.t.
+
+   Useful for building the HoleClosureInfo, because we can index/lookup
+   by EvalEnvId. However, when using it we want sequential numbers
+   (HoleClosureId) to identify the hole closures
+   (similar to HoleInstanceInfo.t).
+   */
 [@deriving sexp]
 type t =
   MetaVarMap.t(
     EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
   );
 
-let empty = MetaVarMap.empty;
+let empty: t = MetaVarMap.empty;
 
-type hc_id_result =
-  | ExistClosure(t, HoleClosureId.t, EvalEnv.t)
-  | NewClosure(t, HoleClosureId.t);
-let get_hc_id =
-    (hci: t, u: MetaVar.t, sigma: EvalEnv.t, parent: HoleClosureParents.t_)
-    : hc_id_result => {
-  let ei = sigma |> EvalEnv.id_of_evalenv;
+/* Assign a unique hole closure ID for the (u, env) pair representing
+   a hole closure. If the pair already exists, return the existing value;
+   otherwise, assign a new ID to the pair. */
+let number_hole_closure =
+    (hci: t, u: MetaVar.t, env: EvalEnv.t): (t, HoleClosureId.t) => {
+  let ei = env |> EvalEnv.id_of_evalenv;
   switch (hci |> MetaVarMap.find_opt(u)) {
   /* Hole already exists in the HoleClosureInfo_.t */
   | Some(hcs) =>
     switch (hcs |> EvalEnvIdMap.find_opt(ei)) {
-    /* Hole closure already exists in the HoleClosureInfo_.t.
-       Add parent_eid to eids */
-    | Some((i, sigma, hole_parents)) =>
-      ExistClosure(
-        hci
-        |> MetaVarMap.add(
-             u,
-             hcs
-             |> EvalEnvIdMap.add(
-                  ei,
-                  (
-                    i,
-                    sigma,
-                    parent |> HoleClosureParents.add_parent(hole_parents),
-                  ),
-                ),
-           ),
-        i,
-        sigma,
-      )
+    /* Hole closure already exists in the HoleClosureInfo_.t, simply
+       return the hole closure number */
+    | Some((i, _, _)) => (hci, i)
     /* Hole exists in the HoleClosureInfo_.t but closure doesn't.
        Create a new hole closure with closure id equal to the number
        of unique hole closures for the hole. Return a None environment */
     | None =>
       let i = hcs |> EvalEnvIdMap.cardinal;
-      NewClosure(
-        hci
-        |> MetaVarMap.add(
-             u,
-             hcs
-             |> EvalEnvIdMap.add(
-                  ei,
-                  (i, sigma, parent |> HoleClosureParents.singleton),
-                ),
-           ),
+      (
+        hci |> MetaVarMap.add(u, hcs |> EvalEnvIdMap.add(ei, (i, env, []))),
         i,
       );
     }
   /* Hole doesn't exist in the HoleClosureInfo_.t */
-  | None =>
-    NewClosure(
-      hci
-      |> MetaVarMap.add(
-           u,
-           EvalEnvIdMap.singleton(
-             ei,
-             (0, sigma, parent |> HoleClosureParents.singleton),
-           ),
-         ),
+  | None => (
+      hci |> MetaVarMap.add(u, EvalEnvIdMap.singleton(ei, (0, env, []))),
       0,
     )
   };
 };
 
-let update_hc_env = (hci: t, u: MetaVar.t, sigma: EvalEnv.t): t => {
-  let ei = sigma |> EvalEnv.id_of_evalenv;
-  hci
-  |> MetaVarMap.update(
-       u,
-       Option.map(hcs => {
-         hcs
-         |> EvalEnvIdMap.update(
-              ei,
-              Option.map(((hcid, _, parents)) => (hcid, sigma, parents)),
-            )
-       }),
-     );
-};
+/* Converts HoleClosureInfo_.t to HoleClosureInfo.t
 
+   TODO: implement hole closure parent tracking
+   */
 let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
   /* For each hole, arrange closures in order of increasing hole
      closure id. */
