@@ -335,6 +335,79 @@ and syn_cursor_info_line =
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
+and syn_cursor_info_zlist =
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      cursor_term: cursor_term,
+      ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
+      err: ListErrStatus.t,
+    )
+    : option(CursorInfo.t) => {
+  switch (zseq) {
+  | ZOperator((_, Comma), _) =>
+    // cursor on tuple comma
+    Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
+    |> Option.map(ty =>
+         switch (ty) {
+         | HTyp.Prod(types) =>
+           switch (HTyp.join_all(LUB, types)) {
+           | Some(ty) =>
+             CursorInfo_common.mk(
+               Synthesized(List(ty)),
+               ctx,
+               extract_from_zexp_zseq(zseq),
+             )
+           | None =>
+             switch (err) {
+             | InconsistentBranches(rule_types, _) =>
+               CursorInfo_common.mk(
+                 SynInconsistentElements(rule_types, steps),
+                 ctx,
+                 cursor_term,
+               )
+             | _ => failwith("expected InconsistentBranches")
+             }
+           }
+         | _ => failwith("expect list elements")
+         }
+       )
+  | _ =>
+    // cursor within tuple element
+    let ele_list = skel |> UHExp.get_tuple_elements;
+    let (cursor_index, _) =
+      ele_list
+      |> List.mapi((index, a) => (index, a))
+      |> List.find(((_, skel)) => ZOpSeq.skel_contains_cursor(skel, zseq));
+    let type_list =
+      switch (Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)) {
+      | Some(Prod(types)) => types
+      | Some(ty) => [ty]
+      | None => failwith("expect list element")
+      };
+    let rest_type_list =
+      type_list
+      |> List.mapi((index, a) => (index, a))
+      |> List.filter(((index, _)) => index != cursor_index)
+      |> List.map(((_, a)) => a);
+
+    let lub: CursorInfo.join_of_branches =
+      switch (rest_type_list) {
+      | [] => NoBranches
+      | types =>
+        switch (HTyp.join_all(LUB, types)) {
+        | None => InconsistentBranchTys(types, steps)
+        | Some(lub) => JoinTy(lub)
+        }
+      };
+    switch (syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)) {
+    | None => None
+    | Some({cursor_term, typed, ctx, uses, parent_info}) =>
+      let typed = CursorInfo.SynListElement(lub, typed, cursor_index);
+      Some({cursor_term, typed, ctx, uses, parent_info});
+    };
+  };
+}
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
@@ -548,8 +621,8 @@ and syn_cursor_info_zoperand =
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
-  | ListLitZ(_, zopseq) =>
-    syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)
+  | ListLitZ(err, zopseq) =>
+    syn_cursor_info_zlist(~steps=steps @ [0], ctx, cursor_term, zopseq, err)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | FunZP(_, zp, body) =>
     let+ defferrable =

@@ -76,6 +76,7 @@ type typed =
         // index of the branch
         int,
       )
+  | SynListElement(join_of_branches, typed, int)
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)

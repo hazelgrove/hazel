@@ -69,6 +69,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFree
   | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
+  | SynListElement(join, typed, _)
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>

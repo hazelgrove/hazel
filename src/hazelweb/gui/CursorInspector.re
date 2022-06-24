@@ -200,6 +200,7 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _)
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -388,6 +389,7 @@ let novice_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _)
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -585,6 +587,11 @@ let view =
       "Got inconsistent branch types",
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
     );
+  let got_inconsistent_elements_indicator = (branch_types, path_to_case) =>
+    got_indicator(
+      "Got inconsistent element types",
+      inconsistent_branches_ty_bar(branch_types, path_to_case, None),
+    );
 
   let expanded_msg =
     switch (cursor_info.typed) {
@@ -607,6 +614,26 @@ let view =
       Some([ind1, ind2]);
     | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
       let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
+      Some([ind]);
+    | SynListElement(
+        InconsistentBranchTys(rule_types, path_to_case),
+        _,
+        branch_index,
+      ) =>
+      let ind =
+        expected_inconsistent_branches_indicator(
+          rule_types,
+          path_to_case,
+          branch_index,
+        );
+      Some([ind]);
+    | SynInconsistentElements(rule_types, path_to_case) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_inconsistent_elements_indicator(rule_types, path_to_case);
+      Some([ind1, ind2]);
+    | SynInconsistentElementsArrow(rule_types, path_to_case) =>
+      let ind = got_inconsistent_elements_indicator(rule_types, path_to_case);
       Some([ind]);
     | _ => None
     };
@@ -645,6 +672,7 @@ let view =
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
     | PatSynKeyword(_) => BindingError
+    | SynListElement(join, typed, _)
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
