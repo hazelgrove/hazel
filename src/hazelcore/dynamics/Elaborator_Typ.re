@@ -31,6 +31,7 @@ and syn_elab_skel = (ctx, delta, skel, seq) =>
     ~args=[
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("delta", () => Delta.sexp_of_t(delta)),
+      ("skel", () => UHTyp.sexp_of_skel(skel)),
       ("seq", () => UHTyp.sexp_of_seq(seq)),
     ],
     ~result_sexp=ElaborationResult.sexp_of_t,

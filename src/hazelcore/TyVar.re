@@ -12,11 +12,19 @@ let valid_name: string => bool = {
   s => Re.Str.string_match(re, s, 0);
 };
 
-let reserved_word = (s: string): bool =>
-  // built-in types
-  s == "Int"
-  || s == "Float"
-  || s == "Bool"
-  // keywords
-  || s == "let"
-  || s == "case";
+let builtin_type: string => bool =
+  fun
+  | "Int"
+  | "Float"
+  | "Bool" => true
+  | _ => false;
+
+let keyword: string => bool =
+  fun
+  | "let"
+  | "case"
+  | "type"
+  | "fun" => true
+  | _ => false;
+
+let reserved_word = (s: string): bool => builtin_type(s) || keyword(s);
