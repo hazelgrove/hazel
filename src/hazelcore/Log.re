@@ -13,6 +13,7 @@ let timestamp = () =>
 module Filter = {
   type loc =
     | Eq(string)
+    | Re(Re.re)
     | Pre(string)
     | Suf(string)
     | Has(string);
@@ -24,6 +25,7 @@ module Filter = {
     | Or(t, t);
 
   let eq = str => Eq(str);
+  let re = str => Re(Re.compile(Re.Perl.re(str)));
   let pre = str => Pre(str);
   let suf = str => Suf(str);
   let has = str => Has(str);
@@ -31,12 +33,13 @@ module Filter = {
   let md = loc => Mod(loc);
   let fn = loc => Fun(loc);
 
-  let ( * ) = (a, b) => And(a, b);
-  let (+) = (a, b) => Or(a, b);
+  let (+^) = (a, b) => And(a, b);
+  let (/^) = (a, b) => Or(a, b);
 
   let matches_loc = (loc, str) =>
     switch (loc) {
     | Eq(str') => String.equal(str', str)
+    | Re(re) => Re.execp(re, str)
     | Pre(prefix) => String.starts_with(~prefix, str)
     | Suf(suffix) => String.ends_with(~suffix, str)
     | Has(substr) => StringUtil.contains_substring(str, substr)
@@ -55,7 +58,7 @@ module Filter = {
     };
 };
 
-let watch_list = Some(Filter.(fn(has("elab")) + fn(has("perform"))));
+let watch_list = Some(Filter.(fn(has("elab")) /^ fn(has("perform"))));
 
 let watching = fn =>
   {
