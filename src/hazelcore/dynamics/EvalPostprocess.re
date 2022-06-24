@@ -308,7 +308,8 @@ and pp_eval_env =
         env |> EvalEnv.result_map_of_evalenv,
         (pe, hci, VarBstMap.empty),
       );
-    (pe, hci, (ei, result_map));
+    let env = (ei, result_map);
+    (pe |> EvalEnvIdMap.add(ei, env), hci, env);
   };
 };
 
