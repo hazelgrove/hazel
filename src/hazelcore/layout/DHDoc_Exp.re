@@ -42,7 +42,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Lam(_)
+  | Fun(_)
   | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
@@ -97,7 +97,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
 
 let rec mk =
         (
-          ~settings: Settings.Evaluation.t,
+          ~settings: DHSettings.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_hole_closure: option(HoleClosure.t),
@@ -316,18 +316,24 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      | Lam(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
           hcats([
-            DHDoc_common.Delim.sym_Lam,
-            DHDoc_Pat.mk(~enforce_inline=true, dp),
-            DHDoc_common.Delim.colon_Lam,
+            DHDoc_common.Delim.sym_Fun,
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+            DHDoc_common.Delim.colon_Fun,
+            space(),
             DHDoc_Typ.mk(~enforce_inline=true, ty),
-            DHDoc_common.Delim.open_Lam,
+            space(),
+            DHDoc_common.Delim.open_Fun,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Lam,
+            DHDoc_common.Delim.close_Fun,
           ]);
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));

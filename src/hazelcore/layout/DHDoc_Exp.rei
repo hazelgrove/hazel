@@ -1,6 +1,6 @@
 let mk:
   (
-    ~settings: Settings.Evaluation.t,
+    ~settings: DHSettings.t,
     ~parenthesize: bool=?,
     ~enforce_inline: bool,
     ~selected_hole_closure: option(HoleClosure.t),

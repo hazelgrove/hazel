@@ -59,9 +59,9 @@ let rec pp_uneval =
   | FixF(f, ty, d1) =>
     let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
     (pe, hci, FixF(f, ty, d1'));
-  | Lam(dp, ty, d') =>
+  | Fun(dp, ty, d') =>
     let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, Lam(dp, ty, d''));
+    (pe, hci, Fun(dp, ty, d''));
   | Ap(d1, d2) =>
     let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
     let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
@@ -227,7 +227,7 @@ and pp_eval =
   | BoundVar(_)
   | Let(_)
   | ConsistentCase(_)
-  | Lam(_)
+  | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | Keyword(_)
@@ -244,9 +244,9 @@ and pp_eval =
     let (pe, hci, env) = pp_eval_env(pe, hci, env);
     switch (d) {
     /* Non-hole constructs inside closures. */
-    | Lam(dp, ty, d) =>
+    | Fun(dp, ty, d) =>
       let (pe, hci, d) = pp_uneval(pe, hci, env, d);
-      (pe, hci, Lam(dp, ty, d));
+      (pe, hci, Fun(dp, ty, d));
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
       let (pe, hci, d1) = pp_eval(pe, hci, d1);
@@ -335,7 +335,7 @@ let rec track_children_of_hole =
   | FloatLit(_)
   | BoundVar(_) => hci
   | FixF(_, _, d)
-  | Lam(_, _, d)
+  | Fun(_, _, d)
   | Inj(_, _, d)
   | Cast(d, _, _)
   | FailedCast(d, _, _)

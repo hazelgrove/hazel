@@ -1,53 +1,6 @@
 module Doc = Pretty.Doc;
 open UHDoc;
 
-type memoization_value('a) = {
-  mutable inline_true: option('a),
-  mutable inline_false: option('a),
-};
-
-let memoize =
-    (f: (~memoize: bool, ~enforce_inline: bool, 'k) => 'v)
-    : ((~memoize: bool, ~enforce_inline: bool, 'k) => 'v) => {
-  let table: WeakMap.t('k, memoization_value('v)) = WeakMap.mk();
-  (~memoize: bool, ~enforce_inline: bool, k: 'k) => (
-    if (!memoize) {
-      f(~memoize, ~enforce_inline, k);
-    } else {
-      switch (WeakMap.get(table, k)) {
-      | None =>
-        let v = f(~memoize, ~enforce_inline, k);
-        let m =
-          if (enforce_inline) {
-            {inline_true: Some(v), inline_false: None};
-          } else {
-            {inline_false: Some(v), inline_true: None};
-          };
-        let _ = WeakMap.set(table, k, m);
-        v;
-      | Some(m: memoization_value('v)) =>
-        if (enforce_inline) {
-          switch (m.inline_true) {
-          | Some(v) => v
-          | None =>
-            let v = f(~memoize, ~enforce_inline, k);
-            m.inline_true = Some(v);
-            v;
-          };
-        } else {
-          switch (m.inline_false) {
-          | Some(v) => v
-          | None =>
-            let v = f(~memoize, ~enforce_inline, k);
-            m.inline_false = Some(v);
-            v;
-          };
-        }
-      };
-    }: 'v
-  );
-};
-
 let empty_: t = Doc.empty();
 let space_: t = Doc.space();
 let indent_: t = Doc.indent();
@@ -83,9 +36,9 @@ module Delim = {
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
 
-  let sym_Lam = (): t => mk(~index=0, Unicode.lamSym);
-  let open_Lam = (): t => mk(~index=1, ".{");
-  let close_Lam = (): t => mk(~index=2, "}");
+  let sym_Fun = (): t => mk(~index=0, Doc_common.Delim.sym_Fun);
+  let open_Fun = (): t => mk(~index=1, Doc_common.Delim.open_Fun);
+  let close_Fun = (): t => mk(~index=2, Doc_common.Delim.close_Fun);
 
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
@@ -336,14 +289,18 @@ let mk_Inj =
   |> annot_Operand(~sort);
 };
 
-let mk_Lam = (p: formatted_child, body: formatted_child): t => {
+let mk_Fun = (p: formatted_child, body: formatted_child): t => {
   let open_group = {
-    let lam_delim = Delim.sym_Lam();
-    let open_delim = Delim.open_Lam();
-    Doc.hcats([lam_delim, p |> pad_closed_child(~sort=Pat), open_delim])
+    let fun_delim = Delim.sym_Fun();
+    let open_delim = Delim.open_Fun();
+    Doc.hcats([
+      fun_delim,
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+      open_delim,
+    ])
     |> annot_Tessera;
   };
-  let close_group = Delim.close_Lam() |> annot_Tessera;
+  let close_group = Delim.close_Fun() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort=Exp);
 };
