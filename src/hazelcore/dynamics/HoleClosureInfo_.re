@@ -46,9 +46,7 @@ let number_hole_closure =
 };
 
 /* Converts HoleClosureInfo_.t to HoleClosureInfo.t
-
-   TODO: implement hole closure parent tracking
-   */
+ */
 let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
   /* For each hole, arrange closures in order of increasing hole
      closure id. */

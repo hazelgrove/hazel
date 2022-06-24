@@ -20,3 +20,22 @@ let find_hc_opt =
   | None => None
   };
 };
+
+/* Add a parent to a hole. Assumes both the parent and the hole exist
+   in the HoleClosureInfo_.t. */
+let add_parent =
+    ((u, i): HoleClosure.t, parent: HoleClosureParents.t_, hci: t): t => {
+  let u_hole_closures = hci |> MetaVarMap.find(u);
+  hci
+  |> MetaVarMap.add(
+       u,
+       u_hole_closures
+       |> List.mapi((i', (env, parents)) =>
+            if (i' == i) {
+              (env, parent |> HoleClosureParents.add_parent(parents));
+            } else {
+              (env, parents);
+            }
+          ),
+     );
+};

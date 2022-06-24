@@ -16,3 +16,5 @@ let num_unique_hcs: (t, MetaVar.t) => int;
 let find_hc_opt:
   (t, MetaVar.t, HoleClosureId.t) =>
   option((EvalEnv.t, HoleClosureParents.t));
+
+let add_parent: (HoleClosure.t, HoleClosureParents.t_, t) => t;

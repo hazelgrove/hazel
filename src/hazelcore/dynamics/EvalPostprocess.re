@@ -313,14 +313,137 @@ and pp_eval_env =
   };
 };
 
+/* Tracking children of hole closures. A hole closure is a child of
+   another hole closure if it exists in the hole environment of the parent.
+
+   This is the second stage of postprocessing, separate from hole numbering
+   and substitution, since memoization becomes much more convoluted if
+   these two stages are combined.
+
+   This works by simply iterating over all the (postprocessed)
+   hole closure environments in the HoleClosureInfo_.t and looking for
+   "child" holes.
+   */
+let rec track_children_of_hole =
+        (hci: HoleClosureInfo.t, parent: HoleClosureParents.t_, d: DHExp.t)
+        : HoleClosureInfo.t =>
+  switch (d) {
+  | Triv
+  | ListNil(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoundVar(_) => hci
+  | FixF(_, _, d)
+  | Lam(_, _, d)
+  | Inj(_, _, d)
+  | Cast(d, _, _)
+  | FailedCast(d, _, _)
+  | InvalidOperation(d, _) => track_children_of_hole(hci, parent, d)
+  | Let(_, d1, d2)
+  | Ap(d1, d2)
+  | BinBoolOp(_, d1, d2)
+  | BinIntOp(_, d1, d2)
+  | BinFloatOp(_, d1, d2)
+  | Cons(d1, d2)
+  | Pair(d1, d2) =>
+    let hci = track_children_of_hole(hci, parent, d1);
+    track_children_of_hole(hci, parent, d2);
+
+  | ConsistentCase(Case(scrut, rules, _)) =>
+    let hci = track_children_of_hole(hci, parent, scrut);
+    track_children_of_hole_rules(hci, parent, rules);
+
+  | ApBuiltin(_, args) =>
+    List.fold_right(
+      (arg, hci) => track_children_of_hole(hci, parent, arg),
+      args,
+      hci,
+    )
+
+  /* Hole types */
+  | NonEmptyHole(_, u, i, d) =>
+    let hci = track_children_of_hole(hci, parent, d);
+    hci |> HoleClosureInfo.add_parent((u, i), parent);
+  | InconsistentBranches(u, i, Case(scrut, rules, _)) =>
+    let hci = track_children_of_hole(hci, parent, scrut);
+    let hci = track_children_of_hole_rules(hci, parent, rules);
+    hci |> HoleClosureInfo.add_parent((u, i), parent);
+  | EmptyHole(u, i)
+  | Keyword(u, i, _)
+  | FreeVar(u, i, _)
+  | InvalidText(u, i, _) =>
+    hci |> HoleClosureInfo.add_parent((u, i), parent)
+
+  /* The only thing that should exist in closures at this point
+     are holes. Ignore the hole environment, not necessary for
+     parent tracking. */
+  | Closure(_, d) => track_children_of_hole(hci, parent, d)
+  }
+
+and track_children_of_hole_rules =
+    (
+      hci: HoleClosureInfo.t,
+      parent: HoleClosureParents.t_,
+      rules: list(DHExp.rule),
+    )
+    : HoleClosureInfo.t =>
+  List.fold_right(
+    (DHExp.Rule(_, d), hci) => track_children_of_hole(hci, parent, d),
+    rules,
+    hci,
+  );
+
+/* Driver for hole parent tracking; iterate through all hole closures
+   in the HoleClosureInfo, and call `track_children_of_hole` on them. */
+let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
+  MetaVarMap.fold(
+    (u, hcs, hci) =>
+      List.fold_right(
+        ((i, (env, _)), hci) =>
+          VarBstMap.fold(
+            (x, dr: DHExp.result, hci) => {
+              let d =
+                switch (dr) {
+                | BoxedValue(d) => d
+                | Indet(d) => d
+                };
+              track_children_of_hole(hci, (x, (u, i)), d);
+            },
+            env |> EvalEnv.result_map_of_evalenv,
+            hci,
+          ),
+        hcs |> List.mapi((i, hc) => (i, hc)),
+        hci,
+      ),
+    hci,
+    hci,
+  );
+
 /* Postprocessing driver.
 
-   TODO: wrap d in a hole to keep track of holes appearing
-   in the top level result expression
+   Note: The top-level expression is wrapped in a non-empty hole, this
+   is a clean way of noting holes that lie directly in the result.
 
    See also HoleClosureInfo.rei/HoleClosureInfo_.rei.
    */
 let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
+  /* Substitution and hole numbering postprocessing */
   let (_, hci, d) = pp_eval(EvalEnvIdMap.empty, HoleClosureInfo_.empty, d);
-  (hci |> HoleClosureInfo_.to_hole_closure_info, d);
+
+  /* Convert HoleClosureInfo_.t to HoleClosureInfo.t */
+  let hci = hci |> HoleClosureInfo_.to_hole_closure_info;
+
+  /* Add special hole acting as top-level expression (to act as parent
+     for holes directly in the result) */
+  let (u_result, _) = HoleClosure.result_hc;
+  let hci =
+    MetaVarMap.add(
+      u_result,
+      [(((-1), VarBstMap.singleton("", DHExp.BoxedValue(d))), [])],
+      hci,
+    );
+
+  /* Perform hole parent tracking */
+  (hci |> track_children, d);
 };
