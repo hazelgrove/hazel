@@ -58,7 +58,15 @@ module Filter = {
     };
 };
 
-let watch_list = Some(Filter.(fn(has("elab")) /^ fn(has("perform"))));
+let watch_list =
+  Some(
+    Filter.(
+      (md(pre("Statics_Exp")) +^ fn(pre("syn")))
+      /^ fn(eq("rescope"))
+      /^ fn(has("elab"))
+      /^ fn(has("perform"))
+    ),
+  );
 
 let watching = fn =>
   {

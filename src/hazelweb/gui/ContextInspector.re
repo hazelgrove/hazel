@@ -18,8 +18,34 @@ let view =
     () => {
       open Vdom;
 
+      /* Deetermines which types are simple enough to display inline. */
+      let rec is_simple_type =
+              (
+                ~max_depth: int=1,
+                ty: KindSystem.HTyp_syntax.t(Index.absolute),
+              )
+              : bool =>
+        switch (ty) {
+        | Hole
+        | Int
+        | Float
+        | Bool
+        | TyVar(_)
+        | TyVarHole(_) => true
+        | Arrow(ty1, ty2)
+        | Sum(ty1, ty2) =>
+          max_depth > 0
+          && is_simple_type(~max_depth=max_depth - 1, ty1)
+          && is_simple_type(~max_depth=max_depth - 1, ty2)
+        | Prod(tys) =>
+          max_depth > 0
+          && List.for_all(is_simple_type(~max_depth=max_depth - 1), tys)
+        | List(ty1) =>
+          max_depth > 0 && is_simple_type(~max_depth=max_depth - 1, ty1)
+        };
+
       /** Shows typing info for an expression variable. */
-      let static_info_var = ((x, ty)) => {
+      let static_info_var = (x, ty) => {
         Node.div(
           [Attr.classes(["static-info"])],
           [
@@ -36,7 +62,7 @@ let view =
       };
 
       /** Shows typing info for a type variable. */
-      let static_info_tyvar = ((t, k)) => {
+      let static_info_tyvar = (t, k) => {
         Node.div(
           [Attr.classes(["static-info"])],
           [
@@ -57,7 +83,7 @@ let view =
                     ),
                   ]
                 | Type => []
-                | S(ty) => [
+                | S(ty) when is_simple_type(ty) => [
                     Node.text(" = "),
                     HTypCode.view(
                       ~width=30,
@@ -65,6 +91,7 @@ let view =
                       HTyp.of_syntax(ty),
                     ),
                   ]
+                | S(_) => [Node.text(" = ")]
                 }
               ),
             ),
@@ -74,18 +101,18 @@ let view =
 
       let static_info =
         fun
-        | Context.VarEntry(x, ty) => static_info_var((x, ty))
-        | TyVarEntry(t, k) => static_info_tyvar((t, k));
+        | Context.VarEntry(x, ty) => static_info_var(x, ty)
+        | TyVarEntry(t, k) => static_info_tyvar(t, k);
 
       /**
-   * Shows runtime value for a context entry.
+   * Shows the runtime value of an expression variable.
    */
-      let dynamic_info = (sigma, x) =>
+      let extended_info_var = (sigma, x) =>
         switch (VarMap.lookup(sigma, x)) {
         | None =>
           Some(
             Node.div(
-              [Attr.classes(["dynamic-info"])],
+              [Attr.classes(["extended-info"])],
               [Node.div([], [Node.span([], [Node.text("NONE!!!!!!")])])],
             ),
           )
@@ -93,7 +120,7 @@ let view =
         | Some(d) =>
           Some(
             Node.div(
-              [Attr.classes(["dynamic-info"])],
+              [Attr.classes(["extended-info"])],
               [
                 Node.div(
                   [],
@@ -113,17 +140,46 @@ let view =
           )
         };
 
+      /**
+   * Shows the type bound to a type alias.
+   */
+      let extended_info_tyvar = (t, k) =>
+        switch (k) {
+        | Kind.Hole
+        | Type => None
+        | S(ty) when is_simple_type(ty) => None
+        | S(ty) =>
+          Some(
+            Node.div(
+              [Attr.classes(["extended-info"])],
+              [
+                Node.div(
+                  [],
+                  [
+                    HTypCode.view(
+                      ~width=30,
+                      ~pos=TyVar.length(t),
+                      HTyp.of_syntax(ty),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )
+        };
+
+      let extended_info = (sigma, entry) =>
+        switch (entry) {
+        | Context.VarEntry(x, _) => extended_info_var(sigma, x)
+        | TyVarEntry(t, k) => extended_info_tyvar(t, k)
+        };
+
       let context_entry = (sigma, entry) => {
         let static_info = static_info(entry);
         let children =
-          switch (entry) {
-          | VarEntry(x, _) =>
-            switch (dynamic_info(sigma, x)) {
-            | Some(dynamic_info) => [static_info, dynamic_info]
-            | None => [static_info]
-            }
-          | TyVarEntry(_) => [static_info]
-          };
+          extended_info(sigma, entry)
+          |> Option.map(extended_info => [static_info, extended_info])
+          |> Option.value(~default=[static_info]);
         Node.div([Attr.classes(["context-entry"])], children);
       };
 
