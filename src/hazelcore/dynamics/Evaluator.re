@@ -1,3 +1,6 @@
+open EvaluatorMonad;
+open EvaluatorMonad.Syntax;
+
 [@deriving sexp]
 type ground_cases =
   | Hole
@@ -526,246 +529,302 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
-  switch (d) {
-  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
-  | Let(dp, d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(d1)
-    | Indet(d1) =>
-      switch (matches(dp, d1)) {
-      | Indet => Indet(d)
-      | DoesNotMatch => Indet(d)
-      | Matches(env) => evaluate(subst(env, d2))
-      }
-    }
-  | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Fun(_, _, _) => BoxedValue(d)
-  | Ap(d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(Fun(dp, _, d3)) =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2)
-      | Indet(d2) =>
-        switch (matches(dp, d2)) {
-        | DoesNotMatch => Indet(d)
-        | Indet => Indet(d)
-        | Matches(env) =>
+open EvaluatorResult;
+
+type t('a) = EvaluatorMonad.t('a);
+
+let rec evaluate: DHExp.t => t(EvaluatorResult.t) =
+  d => {
+    let* _ = take_step;
+
+    switch (d) {
+    | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
+
+    | Let(dp, d1, d2) =>
+      let* r2 = evaluate(d1);
+      switch (r2) {
+      | BoxedValue(d1)
+      | Indet(d1) =>
+        switch (matches(dp, d1)) {
+        | Indet
+        | DoesNotMatch => Indet(d) |> return
+        | Matches(env) => evaluate(subst(env, d2))
+        }
+      };
+    | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
+
+    | Fun(_, _, _) => BoxedValue(d) |> return
+
+    | Ap(d1, d2) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(Fun(dp, _, d3)) =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(d2)
+        | Indet(d2) =>
+          switch (matches(dp, d2)) {
+          | DoesNotMatch
+          | Indet => Indet(d) |> return
           /* beta rule */
-          evaluate(subst(env, d3))
+          | Matches(env) => evaluate(subst(env, d3))
+          }
+        };
+      | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
+      | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') =>
+          /* ap cast rule */
+          evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+        };
+      | BoxedValue(d1') =>
+        raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
+      | Indet(d1') =>
+        evaluate(d2)
+        >>= (
+          fun
+          | BoxedValue(d2')
+          | Indet(d2') => Indet(Ap(d1', d2')) |> return
+        )
+      };
+
+    | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
+
+    | ListNil(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | Triv => BoxedValue(d) |> return
+
+    | BinBoolOp(op, d1, d2) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(BoolLit(b1) as d1') =>
+        switch (eval_bin_bool_op_short_circuit(op, b1)) {
+        | Some(b3) => b3 |> return
+        | None =>
+          let* r2 = evaluate(d2);
+          switch (r2) {
+          | BoxedValue(BoolLit(b2)) =>
+            BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
+          | BoxedValue(d2') =>
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
+          | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+          };
         }
-      }
-    | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
-    | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') =>
-        /* ap cast rule */
-        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
-      }
-    | BoxedValue(d1') =>
-      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
-    | Indet(d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(Ap(d1', d2'))
-      }
-    }
-  | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
-  | ListNil(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | Triv => BoxedValue(d)
-  | BinBoolOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(BoolLit(b1) as d1') =>
-      switch (eval_bin_bool_op_short_circuit(op, b1)) {
-      | Some(b3) => b3
-      | None =>
-        switch (evaluate(d2)) {
-        | BoxedValue(BoolLit(b2)) =>
-          BoxedValue(eval_bin_bool_op(op, b1, b2))
+      | BoxedValue(d1') =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
+      | Indet(d1') =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
+        };
+      };
+
+    | BinIntOp(op, d1, d2) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(IntLit(n1) as d1') =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(IntLit(n2)) =>
+          switch (op, n1, n2) {
+          | (Divide, _, 0) =>
+            Indet(
+              InvalidOperation(
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                DivideByZero,
+              ),
+            )
+            |> return
+          | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
+          }
         | BoxedValue(d2') =>
-          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
-        | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
-        }
-      }
-    | BoxedValue(d1') =>
-      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
-    | Indet(d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
-      }
-    }
-  | BinIntOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(IntLit(n1) as d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(IntLit(n2)) =>
-        switch (op, n1, n2) {
-        | (Divide, _, 0) =>
-          Indet(
-            InvalidOperation(
-              BinIntOp(op, IntLit(n1), IntLit(n2)),
-              DivideByZero,
-            ),
-          )
-        | _ => BoxedValue(eval_bin_int_op(op, n1, n2))
-        }
-      | BoxedValue(d2') =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
-      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
-      }
-    | BoxedValue(d1') =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-    | Indet(d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
-      }
-    }
-  | BinFloatOp(op, d1, d2) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(FloatLit(f1) as d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(FloatLit(f2)) =>
-        BoxedValue(eval_bin_float_op(op, f1, f2))
-      | BoxedValue(d2') =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
-      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
-      }
-    | BoxedValue(d1') =>
-      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
-    | Indet(d1') =>
-      switch (evaluate(d2)) {
-      | BoxedValue(d2')
-      | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
-      }
-    }
-  | Inj(ty, side, d1) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
-    | Indet(d1') => Indet(Inj(ty, side, d1'))
-    }
-  | Pair(d1, d2) =>
-    switch (evaluate(d1), evaluate(d2)) {
-    | (Indet(d1), Indet(d2))
-    | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
-    }
-  | Cons(d1, d2) =>
-    switch (evaluate(d1), evaluate(d2)) {
-    | (Indet(d1), Indet(d2))
-    | (Indet(d1), BoxedValue(d2))
-    | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2))
-    | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
-    }
-  | ConsistentCase(Case(d1, rules, n)) => evaluate_case(None, d1, rules, n)
-  | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
-    evaluate_case(Some((u, i, sigma)), d1, rules, n)
-  | EmptyHole(_) => Indet(d)
-  | NonEmptyHole(reason, u, i, sigma, d1) =>
-    switch (evaluate(d1)) {
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
-    }
-  | FreeVar(_) => Indet(d)
-  | Keyword(_) => Indet(d)
-  | InvalidText(_) => Indet(d)
-  | Cast(d1, ty, ty') =>
-    switch (evaluate(d1)) {
-    | BoxedValue(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
-      | (Ground, Ground) =>
-        /* if two types are ground and consistent, then they are eq */
-        result
-      | (Ground, Hole) =>
-        /* can't remove the cast or do anything else here, so we're done */
-        BoxedValue(Cast(d1', ty, ty'))
-      | (Hole, Ground) =>
-        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
-          if (HTyp.eq(ty'', ty')) {
-            BoxedValue(d1'');
-          } else {
-            Indet(FailedCast(d1', ty, ty'));
+          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
+        | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        };
+      | BoxedValue(d1') =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+      | Indet(d1') =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
+        };
+      };
+
+    | BinFloatOp(op, d1, d2) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(FloatLit(f1) as d1') =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(FloatLit(f2)) =>
+          BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
+        | BoxedValue(d2') =>
+          raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
+        | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        };
+      | BoxedValue(d1') =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
+      | Indet(d1') =>
+        let* r2 = evaluate(d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        };
+      };
+
+    | Inj(ty, side, d1) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
+      | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
+      };
+
+    | Pair(d1, d2) =>
+      let* r1 = evaluate(d1);
+      let* r2 = evaluate(d2);
+      switch (r1, r2) {
+      | (Indet(d1), Indet(d2))
+      | (Indet(d1), BoxedValue(d2))
+      | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2)) |> return
+      | (BoxedValue(d1), BoxedValue(d2)) =>
+        BoxedValue(Pair(d1, d2)) |> return
+      };
+
+    | Cons(d1, d2) =>
+      let* r1 = evaluate(d1);
+      let* r2 = evaluate(d2);
+      switch (r1, r2) {
+      | (Indet(d1), Indet(d2))
+      | (Indet(d1), BoxedValue(d2))
+      | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
+      | (BoxedValue(d1), BoxedValue(d2)) =>
+        BoxedValue(Cons(d1, d2)) |> return
+      };
+
+    | ConsistentCase(Case(d1, rules, n)) =>
+      evaluate_case(None, d1, rules, n)
+
+    | InconsistentBranches(u, i, sigma, Case(d1, rules, n)) =>
+      evaluate_case(Some((u, i, sigma)), d1, rules, n)
+
+    | EmptyHole(_) => Indet(d) |> return
+
+    | NonEmptyHole(reason, u, i, sigma, d1) =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(d1')
+      | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1')) |> return
+      };
+
+    | FreeVar(_) => Indet(d) |> return
+
+    | Keyword(_) => Indet(d) |> return
+
+    | InvalidText(_) => Indet(d) |> return
+
+    | Cast(d1, ty, ty') =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(d1') as result =>
+        switch (ground_cases_of(ty), ground_cases_of(ty')) {
+        | (Hole, Hole) => result |> return
+        | (Ground, Ground) =>
+          /* if two types are ground and consistent, then they are eq */
+          result |> return
+        | (Ground, Hole) =>
+          /* can't remove the cast or do anything else here, so we're done */
+          BoxedValue(Cast(d1', ty, ty')) |> return
+        | (Hole, Ground) =>
+          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
+          switch (d1') {
+          | Cast(d1'', ty'', Hole) =>
+            if (HTyp.eq(ty'', ty')) {
+              BoxedValue(d1'') |> return;
+            } else {
+              Indet(FailedCast(d1', ty, ty')) |> return;
+            }
+          | _ =>
+            // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
+            raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
           }
-        | _ =>
-          // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-          raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
-        }
-      | (Hole, NotGroundOrHole(ty'_grounded)) =>
-        /* ITExpand rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(d');
-      | (NotGroundOrHole(ty_grounded), Hole) =>
-        /* ITGround rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(d');
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
-        /* can't do anything when casting between diseq, non-hole types */
-        BoxedValue(Cast(d1', ty, ty'))
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-        /* they might be eq in this case, so remove cast if so */
-        if (HTyp.eq(ty, ty')) {
-          result;
-        } else {
-          BoxedValue(Cast(d1', ty, ty'));
-        }
-      }
-    | Indet(d1') as result =>
-      switch (ground_cases_of(ty), ground_cases_of(ty')) {
-      | (Hole, Hole) => result
-      | (Ground, Ground) =>
-        /* if two types are ground and consistent, then they are eq */
-        result
-      | (Ground, Hole) =>
-        /* can't remove the cast or do anything else here, so we're done */
-        Indet(Cast(d1', ty, ty'))
-      | (Hole, Ground) =>
-        switch (d1') {
-        | Cast(d1'', ty'', Hole) =>
-          if (HTyp.eq(ty'', ty')) {
-            Indet(d1'');
+        | (Hole, NotGroundOrHole(ty'_grounded)) =>
+          /* ITExpand rule */
+          let d' =
+            DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
+          evaluate(d');
+        | (NotGroundOrHole(ty_grounded), Hole) =>
+          /* ITGround rule */
+          let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
+          evaluate(d');
+        | (Ground, NotGroundOrHole(_))
+        | (NotGroundOrHole(_), Ground) =>
+          /* can't do anything when casting between diseq, non-hole types */
+          BoxedValue(Cast(d1', ty, ty')) |> return
+        | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+          /* they might be eq in this case, so remove cast if so */
+          if (HTyp.eq(ty, ty')) {
+            result |> return;
           } else {
-            Indet(FailedCast(d1', ty, ty'));
+            BoxedValue(Cast(d1', ty, ty')) |> return;
           }
-        | _ => Indet(Cast(d1', ty, ty'))
         }
-      | (Hole, NotGroundOrHole(ty'_grounded)) =>
-        /* ITExpand rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-        evaluate(d');
-      | (NotGroundOrHole(ty_grounded), Hole) =>
-        /* ITGround rule */
-        let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-        evaluate(d');
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
-        /* can't do anything when casting between diseq, non-hole types */
-        Indet(Cast(d1', ty, ty'))
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-        /* it might be eq in this case, so remove cast if so */
-        if (HTyp.eq(ty, ty')) {
-          result;
-        } else {
-          Indet(Cast(d1', ty, ty'));
+      | Indet(d1') as result =>
+        switch (ground_cases_of(ty), ground_cases_of(ty')) {
+        | (Hole, Hole) => result |> return
+        | (Ground, Ground) =>
+          /* if two types are ground and consistent, then they are eq */
+          result |> return
+        | (Ground, Hole) =>
+          /* can't remove the cast or do anything else here, so we're done */
+          Indet(Cast(d1', ty, ty')) |> return
+        | (Hole, Ground) =>
+          switch (d1') {
+          | Cast(d1'', ty'', Hole) =>
+            if (HTyp.eq(ty'', ty')) {
+              Indet(d1'') |> return;
+            } else {
+              Indet(FailedCast(d1', ty, ty')) |> return;
+            }
+          | _ => Indet(Cast(d1', ty, ty')) |> return
+          }
+        | (Hole, NotGroundOrHole(ty'_grounded)) =>
+          /* ITExpand rule */
+          let d' =
+            DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
+          evaluate(d');
+        | (NotGroundOrHole(ty_grounded), Hole) =>
+          /* ITGround rule */
+          let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
+          evaluate(d');
+        | (Ground, NotGroundOrHole(_))
+        | (NotGroundOrHole(_), Ground) =>
+          /* can't do anything when casting between diseq, non-hole types */
+          Indet(Cast(d1', ty, ty')) |> return
+        | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
+          /* it might be eq in this case, so remove cast if so */
+          if (HTyp.eq(ty, ty')) {
+            result |> return;
+          } else {
+            Indet(Cast(d1', ty, ty')) |> return;
+          }
         }
-      }
-    }
-  | FailedCast(d1, ty, ty') =>
-    switch (evaluate(d1)) {
-    | BoxedValue(d1')
-    | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
-    }
-  | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
+      };
+    | FailedCast(d1, ty, ty') =>
+      let* r1 = evaluate(d1);
+      switch (r1) {
+      | BoxedValue(d1')
+      | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
+      };
+    | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
+    };
   }
+
 and evaluate_case =
     (
       inconsistent_info,
@@ -773,38 +832,43 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : EvaluatorResult.t =>
-  switch (evaluate(scrut)) {
+    : t(EvaluatorResult.t) => {
+  let* r1 = evaluate(scrut);
+  switch (r1) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
       let case = DHExp.Case(scrut, rules, current_rule_index);
       switch (inconsistent_info) {
-      | None => Indet(ConsistentCase(case))
+      | None => Indet(ConsistentCase(case)) |> return
       | Some((u, i, sigma)) =>
-        Indet(InconsistentBranches(u, i, sigma, case))
+        Indet(InconsistentBranches(u, i, sigma, case)) |> return
       };
     | Some(Rule(dp, d)) =>
       switch (matches(dp, scrut)) {
       | Indet =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         switch (inconsistent_info) {
-        | None => Indet(ConsistentCase(case))
+        | None => Indet(ConsistentCase(case)) |> return
         | Some((u, i, sigma)) =>
-          Indet(InconsistentBranches(u, i, sigma, case))
+          Indet(InconsistentBranches(u, i, sigma, case)) |> return
         };
       | Matches(env) => evaluate(subst(env, d))
       | DoesNotMatch =>
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
-  }
+  };
+}
+
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
-    (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
+    (ident: string, args: list(DHExp.t)): t(EvaluatorResult.t) => {
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => eval(args, evaluate)
   | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
   };
 };
+
+let evaluate = d => evaluate(d, EvaluatorState.init);

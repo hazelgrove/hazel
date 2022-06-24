@@ -373,10 +373,10 @@ exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 let get_result = (program: t): Result.t =>
   switch (program |> get_elaboration |> evaluate) {
-  | BoxedValue(d) =>
+  | (_state, BoxedValue(d)) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
-  | Indet(d) =>
+  | (_state, Indet(d)) =>
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
