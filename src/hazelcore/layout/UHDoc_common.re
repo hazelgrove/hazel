@@ -63,11 +63,6 @@ module Delim = {
   let colon_Ann = (): t => mk(~index=0, ":");
 };
 
-let annot_Padding = (d: t): t =>
-  switch (d.doc) {
-  | Text("") => d
-  | _ => Doc.annot(UHAnnot.Padding, d)
-  };
 let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
@@ -79,24 +74,11 @@ let annot_Case: t => t =
 
 let indent_and_align = (d: t): t => Doc.(hcats([indent_, align(d)]));
 
-let mk_text = (~start=0, s: string): t =>
+let mk_text = (s: string): t =>
   Doc.annot(
-    UHAnnot.mk_Token(
-      ~shape=Text({start: start}),
-      ~len=StringUtil.utf8_length(s),
-      (),
-    ),
+    UHAnnot.mk_Token(~shape=Text, ~len=StringUtil.utf8_length(s), ()),
     Doc.text(s),
   );
-
-let mk_text_str = (~start=0, s: string): t =>
-  Doc.annot(UHAnnot.String, mk_text(~start, s));
-
-let mk_text_ValidSeq = (~start=0, s: string): t =>
-  Doc.annot(UHAnnot.ValidSeq, mk_text(~start, s));
-
-let mk_text_InvalidSeq = (~start=0, s: string): t =>
-  Doc.annot(UHAnnot.InvalidSeq, mk_text(~start, s));
 
 let mk_op = (op_text: string): t =>
   Doc.annot(
@@ -293,50 +275,7 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  let rec mk_by_segment = (s, iseqs, idx, acc_doc) =>
-    switch (iseqs) {
-    /* If no remaining invalid sequences, concatenate the remainder of the string. */
-    | [] =>
-      let len = String.length(s);
-      if (len != 0) {
-        let rest_doc =
-          mk_text_str(~start=idx, String.sub(s, idx, len - idx));
-        Doc.hcat(acc_doc, rest_doc);
-      } else {
-        acc_doc;
-      };
-
-    | [iseq, ...iseqs] =>
-      let {start: _, ostart: start, length}: UnescapedStringParser.invalid_seq = iseq;
-      let (next_doc, length) = {
-        /* Get valid segment up until invalid sequence, if there is one. */
-        let inter_doc =
-          if (start > idx) {
-            let inter_seg = String.sub(s, idx, start - idx);
-            Some(mk_text_str(~start=idx, inter_seg));
-          } else {
-            None;
-          };
-
-        /* Append invalid sequence. */
-        let err_seg =
-          mk_text_InvalidSeq(~start, String.sub(s, start, length));
-        let next_doc =
-          inter_doc
-          |> Option.map(inter_doc => Doc.hcat(inter_doc, err_seg))
-          |> Option.value(~default=err_seg);
-        (next_doc, length + start);
-      };
-
-      let acc_doc = Doc.hcat(acc_doc, next_doc);
-      mk_by_segment(s, iseqs, length, acc_doc);
-    };
-
-  /* TODO: Special formatting for seqs. */
-  let {str: _, vseqs: _, iseqs}: UnescapedStringParser.parsed =
-    UnescapedStringParser.from_string(s);
-  let inner = mk_by_segment(s, iseqs, 0, mk_text_str(~start=0, ""));
-
+  let inner = mk_text(s);
   let open_group = Delim.open_StringLit() |> annot_Tessera;
   let close_group = Delim.close_StringLit() |> annot_Tessera;
   Doc.hcats([open_group, inner, close_group])

@@ -122,15 +122,13 @@ module Make = (Memo: Memo.S) => {
           switch (line) {
           | EmptyLine =>
             UHDoc_common.empty_
-            |> Doc.annot(
-                 UHAnnot.mk_Token(~shape=Text({start: 0}), ~len=0, ()),
-               )
+            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
           | CommentLine(comment) =>
             let comment_doc =
               UHDoc_common.mk_text(comment)
               |> Doc.annot(
                    UHAnnot.mk_Token(
-                     ~shape=Text({start: 0}),
+                     ~shape=Text,
                      ~len=StringUtil.utf8_length(comment),
                      (),
                    ),

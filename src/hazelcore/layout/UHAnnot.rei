@@ -6,7 +6,7 @@ type term_data = {
 
 [@deriving sexp]
 type token_shape =
-  | Text({start: CharIndex.t})
+  | Text
   | Op
   | Delim(DelimIndex.t);
 [@deriving sexp]
@@ -31,14 +31,10 @@ type t =
       is_inline: bool,
       sort: TermSort.t,
     })
-  | Padding
   | Tessera
   | CommentLine
   | Step(int)
-  | Term(term_data)
-  | String
-  | ValidSeq
-  | InvalidSeq;
+  | Term(term_data);
 
 let mk_Token: (~len: int, ~shape: token_shape, unit) => t;
 
