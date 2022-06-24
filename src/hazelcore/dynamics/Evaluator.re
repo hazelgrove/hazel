@@ -759,13 +759,19 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let dty'_grounded = DHTyp.wrap(HTyp.of_normalized(ty'_grounded));
+        let dty'_grounded = (
+          InitialContext.ctx,
+          HTyp.of_normalized(ty'_grounded),
+        );
         let d' =
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let dty_grounded = DHTyp.wrap(HTyp.of_normalized(ty_grounded));
+        let dty_grounded = (
+          InitialContext.ctx,
+          HTyp.of_normalized(ty_grounded),
+        );
         let d' =
           DHExp.Cast(Cast(d1', dty, dty_grounded), dty_grounded, dty');
         evaluate(d');
@@ -802,13 +808,19 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
-        let dty'_grounded = DHTyp.wrap(HTyp.of_normalized(ty'_grounded));
+        let dty'_grounded = (
+          InitialContext.ctx,
+          HTyp.of_normalized(ty'_grounded),
+        );
         let d' =
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
         /* ITGround rule */
-        let dty_grounded = DHTyp.wrap(HTyp.of_normalized(ty_grounded));
+        let dty_grounded = (
+          InitialContext.ctx,
+          HTyp.of_normalized(ty_grounded),
+        );
         let d' =
           DHExp.Cast(Cast(d1', dty, dty_grounded), dty_grounded, dty');
         evaluate(d');

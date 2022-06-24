@@ -1,8 +1,6 @@
 [@deriving sexp]
 type t = (Context.t, HTyp.t);
 
-let wrap = (ty: HTyp.t): t => (Context.initial, ty);
-
 let many = (ctx: Context.t, tys: list(HTyp.t)): list(t) =>
   List.map(ty => (ctx, ty), tys);
 

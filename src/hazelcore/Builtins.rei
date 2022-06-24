@@ -1,5 +1,5 @@
 /* Context of built-in functions. */
-let ctx: VarMap.t(HTyp.t);
+let vars: VarMap.t(HTyp.t);
 
 /* Map of built-in function names to implementations. */
 let forms: VarMap.t((Builtin.eval, Builtin.elab));

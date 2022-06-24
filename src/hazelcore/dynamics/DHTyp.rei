@@ -1,8 +1,6 @@
 [@deriving sexp]
 type t = (Context.t, HTyp.t);
 
-let wrap: HTyp.t => t;
-
 let many: (Context.t, list(HTyp.t)) => list(t);
 
 let normalize: t => HTyp.normalized;

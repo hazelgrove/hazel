@@ -276,9 +276,9 @@ and syn_elab_skel =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, delta) =>
           let dc1 =
-            DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.int()));
+            DHExp.cast(d1, (ctx, ty1), (InitialContext.ctx, HTyp.int()));
           let dc2 =
-            DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.int()));
+            DHExp.cast(d2, (ctx, ty2), (InitialContext.ctx, HTyp.int()));
           switch (DHExp.BinIntOp.of_op(op)) {
           | None => DoesNotElaborate
           | Some((op, ty)) =>
@@ -306,9 +306,9 @@ and syn_elab_skel =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, delta) =>
           let dc1 =
-            DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.float()));
+            DHExp.cast(d1, (ctx, ty1), (InitialContext.ctx, HTyp.float()));
           let dc2 =
-            DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.float()));
+            DHExp.cast(d2, (ctx, ty2), (InitialContext.ctx, HTyp.float()));
           switch (DHExp.BinFloatOp.of_op(op)) {
           | None => DoesNotElaborate
           | Some((op, ty)) =>
@@ -325,9 +325,9 @@ and syn_elab_skel =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(d2, ty2, delta) =>
           let dc1 =
-            DHExp.cast(d1, (ctx, ty1), (Context.initial, HTyp.bool()));
+            DHExp.cast(d1, (ctx, ty1), (InitialContext.ctx, HTyp.bool()));
           let dc2 =
-            DHExp.cast(d2, (ctx, ty2), (Context.initial, HTyp.bool()));
+            DHExp.cast(d2, (ctx, ty2), (InitialContext.ctx, HTyp.bool()));
           switch (DHExp.BinBoolOp.of_op(op)) {
           | None => DoesNotElaborate
           | Some(op) =>

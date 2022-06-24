@@ -10,7 +10,7 @@ let ap_opt =
   };
 
 let statics_exp_syn_simple =
-    (~ctx: Context.t=Context.initial, e: UHExp.t, want_ty: HTyp.t): bool => {
+    (~ctx: Context.t=InitialContext.ctx, e: UHExp.t, want_ty: HTyp.t): bool => {
   let want = Some(want_ty);
   let got = Statics_Exp.syn(ctx, e);
   let result = ap_opt(HTyp.equivalent(ctx), want, got);
@@ -31,7 +31,7 @@ let statics_exp_syn_simple =
 };
 
 let statics_exp_ana_simple =
-    (~ctx: Context.t=Context.initial, e: UHExp.t, ty: HTyp.t): bool => {
+    (~ctx: Context.t=InitialContext.ctx, e: UHExp.t, ty: HTyp.t): bool => {
   let got = Statics_Exp.ana(ctx, e, ty);
   let result = ap_opt((==), got, Some());
   if (!result) {

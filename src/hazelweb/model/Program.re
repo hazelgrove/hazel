@@ -53,7 +53,7 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Context.initial),
+    CursorInfo_Exp.syn_cursor_info(InitialContext.ctx),
   );
 let get_cursor_info = (program: t) => {
   program
@@ -376,7 +376,7 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.elab(Context.initial, Delta.empty),
+    Elaborator_Exp.elab(InitialContext.ctx, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
@@ -438,7 +438,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-  switch (Action_Exp.syn_perform(Context.initial, a, edit_state)) {
+  switch (Action_Exp.syn_perform(InitialContext.ctx, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>

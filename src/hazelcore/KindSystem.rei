@@ -94,6 +94,7 @@ module rec Context: {
   type entry =
     | VarEntry(Var.t, HTyp.t)
     | TyVarEntry(TyVar.t, Kind.t);
+  let empty: unit => t;
 
   let to_list:
     t =>
@@ -101,6 +102,9 @@ module rec Context: {
       list((Var.t, HTyp_syntax.t(Index.relative))),
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
+
+  /** Returns a context consisting of the given entries. */
+  let of_entries: list(entry) => t;
 
   /** Returns the (sanitized) visible bindings of a given context, in the
      (reversed) order they were defined. */

@@ -33,7 +33,7 @@ let read = (ty_text: string): option(HTyp.t) => {
 let test_read = (text: string, expected_ty: HTyp.t): bool =>
   switch (read(text)) {
   | None => false
-  | Some(got_ty) => HTyp.equivalent(Context.initial, got_ty, expected_ty)
+  | Some(got_ty) => HTyp.equivalent(InitialContext.ctx, got_ty, expected_ty)
   };
 
 let register_test = (text, tags, expected_ty) =>

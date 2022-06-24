@@ -3,7 +3,7 @@ Logs.set_level(Some(Logs.Warning));
 
 let elaborator_exp_syn_elab_simple =
     (
-      ~ctx: Context.t=Context.initial,
+      ~ctx: Context.t=InitialContext.ctx,
       ~delta: Delta.t=Delta.empty,
       e: UHExp.t,
       want_d: DHExp.t,
@@ -33,7 +33,7 @@ let elaborator_exp_syn_elab_simple =
 
 let elaborator_exp_ana_elab_simple =
     (
-      ~ctx: Context.t=Context.initial,
+      ~ctx: Context.t=InitialContext.ctx,
       ~delta: Delta.t=Delta.empty,
       e: UHExp.t,
       want_d: DHExp.t,
@@ -152,7 +152,7 @@ let%test _ =
 let%test _ = {
   let p = OpSeq.wrap(UHPat.var("x"));
   let e = UHExp.Block.wrap(EmptyHole(u0));
-  let ctx = Context.add_var(Context.initial, "x", HTyp.hole());
+  let ctx = Context.add_var(InitialContext.ctx, "x", HTyp.hole());
   let gamma = VarMap.extend(VarMap.empty, ("x", DHExp.BoundVar("x")));
   elaborator_exp_syn_elab_simple(
     UHExp.Block.wrap(Fun(NotInHole, p, e)),
@@ -165,7 +165,7 @@ let%test _ = {
 let%test _ = {
   let p = OpSeq.wrap(UHPat.var("x"));
   let e = UHExp.Block.wrap(EmptyHole(u0));
-  let ctx = Context.add_var(Context.initial, "x", HTyp.hole());
+  let ctx = Context.add_var(InitialContext.ctx, "x", HTyp.hole());
   let gamma = VarMap.extend(VarMap.empty, ("x", DHExp.BoundVar("x")));
   elaborator_exp_syn_elab_simple(
     UHExp.Block.wrap(Fun(NotInHole, p, e)),
@@ -180,7 +180,7 @@ let%test _ = {
   let p_y = OpSeq.wrap(UHPat.var("y"));
   let e_y = UHExp.Block.wrap(EmptyHole(u0));
   let f_y = UHExp.Block.wrap(Fun(NotInHole, p_y, e_y));
-  let ctx_x = Context.add_var(Context.initial, "x", HTyp.hole());
+  let ctx_x = Context.add_var(InitialContext.ctx, "x", HTyp.hole());
   let ctx_y = Context.add_var(ctx_x, "y", HTyp.hole());
   let gamma = VarMap.extend(VarMap.empty, ("x", DHExp.BoundVar("x")));
   let gamma = VarMap.extend(gamma, ("y", DHExp.BoundVar("y")));
@@ -199,7 +199,7 @@ let%test _ = {
   let p_y = OpSeq.wrap(UHPat.var("y"));
   let e_y = UHExp.Block.wrap(EmptyHole(u0));
   let f_y = UHExp.Block.wrap(Fun(NotInHole, p_y, e_y));
-  let ctx_x = Context.add_var(Context.initial, "x", HTyp.hole());
+  let ctx_x = Context.add_var(InitialContext.ctx, "x", HTyp.hole());
   let ctx_y = Context.add_var(ctx_x, "y", HTyp.hole());
   let gamma = VarMap.extend(VarMap.empty, ("x", DHExp.BoundVar("x")));
   let gamma = VarMap.extend(gamma, ("y", DHExp.BoundVar("y")));
@@ -272,7 +272,7 @@ let%test _ = {
 let%test _ =
   elaborator_exp_syn_elab_simple(
     UHExp.Block.wrap(UHExp.ListNil(NotInHole)),
-    DHExp.ListNil((Context.initial, HTyp.hole())),
+    DHExp.ListNil((InitialContext.ctx, HTyp.hole())),
     HTyp.list(HTyp.hole()),
   );
 
@@ -280,7 +280,7 @@ let%test _ =
 let%test _ =
   elaborator_exp_ana_elab_simple(
     UHExp.Block.wrap(UHExp.ListNil(NotInHole)),
-    DHExp.ListNil((Context.initial, HTyp.hole())),
+    DHExp.ListNil((InitialContext.ctx, HTyp.hole())),
     HTyp.list(HTyp.hole()),
   );
 
@@ -344,7 +344,7 @@ let%test _ = {
     [TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
     TyAlias(
       tp,
-      (Context.initial, HTyp.hole()),
+      (InitialContext.ctx, HTyp.hole()),
       EmptyHole(u0, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -359,7 +359,7 @@ let%test _ = {
     [TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
     TyAlias(
       tp,
-      (Context.initial, HTyp.hole()),
+      (InitialContext.ctx, HTyp.hole()),
       EmptyHole(u0, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -374,7 +374,7 @@ let%test _ = {
     [TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
     TyAlias(
       tp,
-      (Context.initial, HTyp.hole()),
+      (InitialContext.ctx, HTyp.hole()),
       EmptyHole(u0, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -389,7 +389,7 @@ let%test _ = {
     [TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
     TyAlias(
       tp,
-      (Context.initial, HTyp.hole()),
+      (InitialContext.ctx, HTyp.hole()),
       EmptyHole(u0, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -401,7 +401,7 @@ let%test _ = {
   let tp = TPat.TyVar(NotInHole, "t");
   let ty = UHTyp.mk_OpSeq(S(Hole, E));
   let p = UHPat.mk_OpSeq(S(TypeAnn(NotInHole, UHPat.var("x"), ty), E));
-  let ctx = Context.initial;
+  let ctx = InitialContext.ctx;
   elaborator_exp_syn_elab_simple(
     [
       TyAliasLine(tp, ty),
@@ -434,7 +434,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.hole()),
+      (InitialContext.ctx, HTyp.hole()),
       Let(Var("x"), EmptyHole(u0, 0, VarMap.empty), BoundVar("x")),
     ),
     HTyp.hole(),
@@ -454,7 +454,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.int()),
+      (InitialContext.ctx, HTyp.int()),
       Let(Var("x"), EmptyHole(u0, 0, VarMap.empty), BoundVar("x")),
     ),
     HTyp.int(),
@@ -474,7 +474,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.int()),
+      (InitialContext.ctx, HTyp.int()),
       Let(Var("x"), EmptyHole(u0, 0, VarMap.empty), BoundVar("x")),
     ),
     HTyp.int(),
@@ -491,7 +491,7 @@ let%test _ = {
     ],
     TyAlias(
       TPat.TyVar(NotInHole, "t"),
-      (Context.initial, HTyp.tyvarhole(InvalidName, u0, "123")),
+      (InitialContext.ctx, HTyp.tyvarhole(InvalidName, u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -509,7 +509,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.tyvarhole(InvalidName, u0, "123")),
+      (InitialContext.ctx, HTyp.tyvarhole(InvalidName, u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -527,7 +527,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.tyvarhole(Reserved, u0, "type")),
+      (InitialContext.ctx, HTyp.tyvarhole(Reserved, u0, "type")),
       IntLit(123),
     ),
     HTyp.int(),
@@ -545,7 +545,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (Context.initial, HTyp.tyvarhole(Reserved, u0, "type")),
+      (InitialContext.ctx, HTyp.tyvarhole(Reserved, u0, "type")),
       IntLit(123),
     ),
     HTyp.int(),

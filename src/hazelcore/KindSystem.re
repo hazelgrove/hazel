@@ -147,12 +147,14 @@ module rec Context: {
   type entry =
     | VarEntry(Var.t, HTyp.t)
     | TyVarEntry(TyVar.t, Kind.t);
+  let empty: unit => t;
   let to_list:
     t =>
     (
       list((Var.t, HTyp_syntax.t(Index.relative))),
       list((TyVar.t, Kind_core.s(Index.relative))),
     );
+  let of_entries: list(entry) => t;
   let entries: t => list(entry);
   let length: t => int;
   let rescope: (t, ContextRef.t) => ContextRef.t;
@@ -181,6 +183,8 @@ module rec Context: {
     | VarEntry(Var.t, HTyp.t)
     | TyVarEntry(TyVar.t, Kind.t);
 
+  let empty: unit => t = () => [];
+
   let to_list =
       (ctx: t)
       : (
@@ -196,40 +200,6 @@ module rec Context: {
       ctx,
       ([], []),
     );
-
-  let entries = (ctx: t): list(entry) => {
-    ctx
-    |> List.mapi((i, binding) =>
-         switch (i, binding) {
-         | (i, VarBinding(x, ty)) =>
-           VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
-         | (i, TyVarBinding(t, k)) =>
-           TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
-         }
-       )
-    |> List.fold_left(
-         ((entries, (vars, tyvars)), entry) =>
-           switch (entry) {
-           | VarEntry(x, _) =>
-             StringMap.mem(x, vars)
-               ? (entries, (vars, tyvars))
-               : (
-                 [entry, ...entries],
-                 (StringMap.add(x, (), vars), tyvars),
-               )
-           | TyVarEntry(t, _) =>
-             StringMap.mem(t, tyvars)
-               ? (entries, (vars, tyvars))
-               : (
-                 [entry, ...entries],
-                 (vars, StringMap.add(t, (), tyvars)),
-               )
-           },
-         ([], (StringMap.empty, StringMap.empty)),
-       )
-    |> fst
-    |> List.rev;
-  };
 
   let length = List.length;
 
@@ -453,6 +423,51 @@ module rec Context: {
     VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))),
     ...ctx,
   ];
+
+  let entries = (ctx: t): list(entry) => {
+    ctx
+    |> List.mapi((i, binding) =>
+         switch (i, binding) {
+         | (i, VarBinding(x, ty)) =>
+           VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
+         | (i, TyVarBinding(t, k)) =>
+           TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
+         }
+       )
+    |> List.fold_left(
+         ((entries, (vars, tyvars)), entry) =>
+           switch (entry) {
+           | VarEntry(x, _) =>
+             StringMap.mem(x, vars)
+               ? (entries, (vars, tyvars))
+               : (
+                 [entry, ...entries],
+                 (StringMap.add(x, (), vars), tyvars),
+               )
+           | TyVarEntry(t, _) =>
+             StringMap.mem(t, tyvars)
+               ? (entries, (vars, tyvars))
+               : (
+                 [entry, ...entries],
+                 (vars, StringMap.add(t, (), tyvars)),
+               )
+           },
+         ([], (StringMap.empty, StringMap.empty)),
+       )
+    |> fst
+    |> List.rev;
+  };
+
+  let of_entries = (entries: list(entry)): t =>
+    List.fold_right(
+      (entry, ctx) =>
+        switch (entry) {
+        | VarEntry(x, ty) => add_var(ctx, x, ty)
+        | TyVarEntry(t, k) => add_tyvar(ctx, t, k)
+        },
+      entries,
+      [],
+    );
 }
 
 and HTyp: {
