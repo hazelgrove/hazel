@@ -743,7 +743,7 @@ let rec syn_fix_holes =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("e", () => UHExp.sexp_of_t(e)),
@@ -773,7 +773,7 @@ and syn_fix_holes_block =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("block", () => UHExp.sexp_of_block(block)),
@@ -820,7 +820,7 @@ and syn_fix_holes_lines =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("lines", () => Sexplib.Std.sexp_of_list(UHExp.sexp_of_line, lines)),
@@ -926,7 +926,7 @@ and syn_fix_holes_opseq =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("opseq", () => UHExp.sexp_of_opseq(OpSeq(skel, seq))),
@@ -961,7 +961,7 @@ and syn_fix_holes_skel =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("skel", () => UHExp.sexp_of_skel(skel)),
@@ -1165,7 +1165,7 @@ and syn_fix_holes_operand =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("e", () => UHExp.sexp_of_operand(e)),
@@ -1266,7 +1266,7 @@ and syn_fix_holes_rules =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("rules", () => UHExp.sexp_of_rules(rules)),
@@ -1318,7 +1318,7 @@ and syn_fix_holes_rule =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("rule", () => UHExp.sexp_of_rule(rule)),
@@ -1364,7 +1364,7 @@ and ana_fix_holes_rules =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("rules", () => UHExp.sexp_of_rules(rules)),
@@ -1413,7 +1413,7 @@ and ana_fix_holes_rule =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("rule", () => UHExp.sexp_of_rule(Rule(p, clause))),
@@ -1454,7 +1454,7 @@ and ana_fix_holes =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("e", () => UHExp.sexp_of_t(e)),
@@ -1482,7 +1482,7 @@ and ana_fix_holes_block =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("block", () => UHExp.sexp_of_block(block)),
@@ -1529,7 +1529,7 @@ and ana_fix_holes_opseq =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("opseq", () => UHExp.sexp_of_opseq(opseq)),
@@ -1646,7 +1646,7 @@ and ana_fix_holes_skel =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("skel", () => UHExp.sexp_of_skel(skel)),
@@ -1759,7 +1759,7 @@ and ana_fix_holes_operand =
       ("ctx", () => Context.sexp_of_t(ctx)),
       ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
       (
-        "reunumber_empty_holes",
+        "renumber_empty_holes",
         () => Sexplib.Std.sexp_of_bool(renumber_empty_holes),
       ),
       ("e", () => UHExp.sexp_of_operand(e)),
