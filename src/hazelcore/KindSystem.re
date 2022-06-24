@@ -223,6 +223,9 @@ module rec Context: {
         if (Index.Abs.to_int(index) >= stamp) {
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
         };
+        if (Index.Abs.to_int(index) < 0) {
+          failwith(__LOC__ ++ ": rescoped type variable is in the past");
+        };
         {index, stamp};
       },
     );
