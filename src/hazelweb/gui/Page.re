@@ -21,24 +21,12 @@ let branch_panel =
     ],
   );
 
-// // button to toggle history panel
-// let history_panel = (~inject): Node.t => {
-//   button(
-//     [
-//       Attr.classes(["button"]),
-//       Attr.on_click(_ => inject(ModelAction.ToggleLeftSidebar)),
-//     ],
-//     [text("history")],
-//   );
-// };
-
 let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   div(
     [Attr.classes(["top-bar"])],
     [
       logo_panel,
       CardsPanel.view(~inject, ~model),
-      // history_panel(~inject),
       ActionMenu.view(~inject),
     ],
   );
