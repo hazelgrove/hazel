@@ -6,13 +6,14 @@ To use it, we need to install a reporter during app initialization (see `init_lo
 
 https://github.com/hazelgrove/hazel/blob/type-alias-3/src/hazelweb/Logger.re
 
-We also need to set the logging level here (to `Logs.Debug` at time of writing).
+We also need to set the logging level here.
+At time of writing, the logging level is set to `Logs.Debug`.
+In the future, this should be changed to `Logs.Info` or something even less verbose in dev.
 
-Some guidelines on choosing a level:
+Some considerations when choosing a level:
 
-- All instrumented functions (see `Logs.fun_call` below) report invocations at level `Logs.Info`.
+- All instrumented functions (see `Log.fun_call` below) report invocations at level `Logs.Info`.
 - Any instrumented functions on the watch list (see `watch_list` below) report arguments and return values at level `Logs.Debug`.
-- Never use level `Logs.App` outside `hazelweb`.
 
 We use a custom reporter that produces timestamped, level-specific messages in the browser console:
 
@@ -128,8 +129,10 @@ And finally, `Log` provides a few other useful functions:
 All three of these functions use level `Log.Debug` and none of them consult the watch list.
 They are intended for use as transient helpers and should not be committed to dev.
 
-In the coming weeks, there's a good chance the filtering dsl will become significantly more expressive.
-For example, I'll probably add match negation, and a "call stack" to drive context-depdendent selections, such as:
+The filtering dsl is easy to extend and will become significantly more expressive as I apply it to more complex scenarios.
+For example, in the coming weeks I'll probably add match negation, and a "call stack" to drive context-dependent selections such as:
 
-- watch functions called by some (set of) parent function(s)
-- report which functions call some other (set of) function(s)
+- any function that calls a particular function
+- any function that is called by a particular function
+- any function that calls into a particular module
+- any function that is called from a particular module
