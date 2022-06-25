@@ -2,19 +2,19 @@ The js_of_ocaml devs recommended `logs` for performance and flexibility:
 
 https://opam.ocaml.org/packages/logs/
 
-We need to install a reporter during app initialization (see `init_log`):
+To use it, we need to install a reporter during app initialization (see `init_log`):
 
 https://github.com/hazelgrove/hazel/blob/type-alias-3/src/hazelweb/Logger.re
 
-We also set the logging level here (to `Logs.Debug` at time of writing).
+We also need to set the logging level here (to `Logs.Debug` at time of writing).
 
 Some guidelines on choosing a level:
 
 - All instrumented functions (see `Logs.fun_call` below) report invocations at level `Logs.Info`.
-- Any instrumented functions on the watch list (see `watch_list` below) report arguments and return valuies at level `Logs.debug`
+- Any instrumented functions on the watch list (see `watch_list` below) report arguments and return values at level `Logs.Debug`.
 - Never use level `Logs.App` outside `hazelweb`.
 
-We use a custom reporter to get timestamped messages going to the browser console:
+We use a custom reporter that produces timestamped, level-specific messages in the browser console:
 
 https://github.com/hazelgrove/hazel/blob/type-alias-3/src/hazelcore/Log.re
 
@@ -44,30 +44,32 @@ let rec syn_perform =
     () => ...
 ```
 
-Once this is done, invoking `Action_Exp.syn_perform` will record the invocation at level `Logs.Info` and arguments and return value at level `Logs.Debug`.
+Once this is done, invoking `Action_Exp.syn_perform` will record the invocation at level `Logs.Info` and the arguments and return value at level `Logs.Debug`.
 
-There is also a simple eDSL for configuring an optional "watch list" filter. To disable it, set `watch_list` to `None`:
+The `Log` module also contains an optional "watch list" filter with a simple eDSL to configure it.
+When the filter is disabled, all instrumented functions will report arguments and return values.
+When enabled, invoking a watched function produces a more verbose log entry.
+
+To disable the filter, open up `hazelcore/Log.re` and set `watch_list` to `None`:
 
 ```reason
-// inside Log.re
-
 let watch_list = None;
 ```
 
-When the filter is disabled, every instrumented function will report its arguments and return value.
-
-When enabled, the watch list consists of a series of rules for matching against module and function names. To watch a particular function, e.g., `Action_Exp.syn_perform`:
+To watch a particular function, e.g., `Action_Exp.syn_perform`:
 
 ```reason
 let watch_list =
   Some(Filter.(md(pre("Action_Exp"))) +^ fn(eq("syn_perform")));
 ```
 
-Filtering works by splitting the __FUNCTION__ string into two parts - a "module" name and a "function" name - at the last dot (".").
+Filtering works by splitting the `__FUNCTION__` string into two parts&mdash;a "module" name and a "function" name&mdash;at the last dot (".").
 
-Beware, this is a somewhat crude approximation. For example, tracing through an anonymous function call adds a ".(fun)" to the module name (which is why the example above uses string prefix equality (`pre`) on the module name (`md`), as opposed to whole-string equality (`eq`) on the function name (`fn`)).
+Beware, this is a somewhat crude approximation.
+For example, tracing through an anonymous function call adds a ".(fun)" to the module name.
+So, we use string prefix equality (`pre`) on the module name (`md`) instead of whole-string equality (`eq`).
 
-As a more realistic example, here's how to trace action-drivens bugs introduced by new features to existing code paths:
+As a realistic example, to trace an action-driven bug introduced by new features to existing code paths:
 
 ```reason
 let watch_list =
@@ -78,7 +80,7 @@ let watch_list =
   );
 ```
 
-And here's one for tracing action expression bugs that only arise in synthetic position:
+and to trace a action-driven bug that only arises in expressions in synthetic position:
 
 ```reason
 let watch_list =
@@ -92,10 +94,30 @@ let watch_list =
   );
 ```
 
-In addition to `eq` and `pre`, there's also:
+and for comparison, a similar one where the `fn(pre("syn_"))` constraint only applies to functions in `Action_Exp`:
 
-- `suf` - string suffix matching
-- `re` - Perl regular expression matching
+```reason
+
+let watch_list =
+  Some(
+    Filter.(
+      (md(pre("Action_Exp")) +^ fn(pre("syn_")))
+      /^ md(pre("Elaborator_Exp"))
+      /^ md(pre("Statics_Exp"))
+    ),
+  );
+```
+
+There are two operators for composing constraints:
+
+- `+^` is conjunction (logical AND)
+- `/^` is disjunction (logical OR)
+
+and, in addition to the `eq` and `pre` string comparators, we have:
+
+- `suf` is string suffix matching
+- `has` is substring matching
+- `re` is (Perl) regular expression matching
 
 And finally, `Log` provides a few other useful functions:
 
@@ -103,9 +125,11 @@ And finally, `Log` provides a few other useful functions:
 - `Log.debug_state(__FUNCTION__, str, sexp)` is similar, but writes something like `"str = " ++ Sexplib.Sexp.to_string_hum(sexp)`.
 - `Log.debug_states(__FUNCTION__)` is just `debug_state` lifted to lists of (`str`, `sexp`) pairs.
 
-All of these functions use level `Log.Debug` and none of them consult the watch list. They are intended for use as transient helpers and should not be committed to dev.
+All three of these functions use level `Log.Debug` and none of them consult the watch list.
+They are intended for use as transient helpers and should not be committed to dev.
 
-In the coming weeks, there's a good chance the filtering dsl will become significantly more expressive. For example, I'll probably add match negation, and a "call stack" to drive context-depdendent selections, such as:
+In the coming weeks, there's a good chance the filtering dsl will become significantly more expressive.
+For example, I'll probably add match negation, and a "call stack" to drive context-depdendent selections, such as:
 
 - watch functions called by some (set of) parent function(s)
 - report which functions call some other (set of) function(s)
