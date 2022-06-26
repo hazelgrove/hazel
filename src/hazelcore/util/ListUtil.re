@@ -317,3 +317,23 @@ let rec fold_to =
     | None => (init, xs)
     }
   };
+
+let pivot = (i: int, xs: list('a)): (list('a), 'a, list('a)) => {
+  let n = List.length(xs);
+  if (n == 0) {
+    failwith(__LOC__ ++ ": cannot pivot an empty list");
+  } else if (i < 0) {
+    failwith(__LOC__ ++ ": index too low");
+  } else if (i >= n) {
+    failwith(__LOC__ ++ ": index too high");
+  } else if (n == 1) {
+    ([], List.hd(xs), []);
+  } else if (i == 0) {
+    ([], List.hd(xs), List.tl(xs));
+  } else if (i == n) {
+    let xs_rev = List.rev(xs);
+    (List.rev(List.tl(xs_rev)), List.hd(xs_rev), []);
+  } else {
+    (take(xs, i), List.nth(xs, i), drop(i + 1, xs));
+  };
+};

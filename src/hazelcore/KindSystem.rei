@@ -6,6 +6,10 @@ module ContextRef: {
     index: Index.t('idx),
     /** The length of the context used to create the reference. */
     stamp: int,
+    /** The names of older bindings in the context used to create the reference. */
+    predecessors: list(string),
+    /** The names of newer bindings in the context used to create the reference. */
+    successors: list(string),
   };
 
   [@deriving sexp]
@@ -94,6 +98,9 @@ module rec Context: {
   type entry =
     | VarEntry(Var.t, HTyp.t)
     | TyVarEntry(TyVar.t, Kind.t);
+
+  let binding_name: binding => string;
+
   let empty: unit => t;
 
   let to_list:
@@ -339,6 +346,7 @@ and HTyp: {
      they are safe to pattern match against directly. */
 
   /** A normalized [HTyp]. */
+  [@deriving sexp]
   type normalized = HTyp_syntax.t(Index.absolute);
 
   /** Coerces a normalized [HTyp] to an ordinary [HTyp]. */

@@ -800,10 +800,16 @@ and syn_fix_holes_block =
           u_gen,
         );
       | Some((leading, conclusion)) =>
-        let (leading, ctx, u_gen) =
+        let (leading, ctx_suffix, u_gen) =
           syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, leading);
         let (conclusion, ty, u_gen) =
-          syn_fix_holes_opseq(ctx, u_gen, ~renumber_empty_holes, conclusion);
+          syn_fix_holes_opseq(
+            ctx_suffix,
+            u_gen,
+            ~renumber_empty_holes,
+            conclusion,
+          );
+        let ty = Context.reduce_tyvars(ctx_suffix, ctx, ty);
         (leading @ [UHExp.ExpLine(conclusion)], ty, u_gen);
       },
   )

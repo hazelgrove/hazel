@@ -137,8 +137,16 @@ and expand_skel = (skel, seq) =>
   }
 and expand_operand =
   fun
-  | TyVar(NotInTyVarHole(index, stamp), t) =>
-    HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar({index, stamp}, t))
+  | TyVar(NotInTyVarHole(index, stamp), t) => {
+      let cref =
+        KindSystem.ContextRef.{
+          index,
+          stamp,
+          predecessors: [],
+          successors: [],
+        };
+      HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar(cref, t));
+    }
   | TyVar(InHole(reason, u), t) => HTyp.tyvarhole(reason, u, t)
   | Hole => HTyp.hole()
   | Unit => HTyp.product([])

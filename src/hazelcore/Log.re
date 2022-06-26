@@ -58,11 +58,18 @@ module Filter = {
     };
 };
 
-let watch_list = None;
+let watch_list =
+  Some(
+    Filter.(
+      (md(pre("Action_Exp")) +^ fn(pre("syn_perform")))
+      /^ (md(pre("KindSystem.HTyp")) +^ fn(pre("subst_tyvars")))
+    ),
+  );
 /* Some( */
 /*   Filter.( */
-/*     (md(pre("CursorInfo_Exp")) +^ fn(has("cursor_info"))) */
-/*     /^ (md(pre("Statics_Exp")) +^ fn(eq("syn_lines"))) */
+/*     md(pre("Action_Exp")) */
+/*     /^ md(pre("Elaborator_Exp")) */
+/*     /^ md(pre("Statics_Exp")) */
 /*   ), */
 /* ); */
 
@@ -156,7 +163,7 @@ let fun_call =
     debug_args(fn, Option.value(~default=[], args));
   };
   let result = thunk();
-  debug_result(fn, result_sexp(result));
+  debug_result(fname, result_sexp(result));
   result;
 };
 

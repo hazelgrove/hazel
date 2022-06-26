@@ -115,3 +115,5 @@ let rotate: list('x) => list('x);
 let memf: ('x => bool, list('x)) => bool;
 
 let fold_to: (('a, 'x) => option('a), 'a, list('x)) => ('a, list('x));
+
+let pivot: (int, list('a)) => (list('a), 'a, list('a));

@@ -95,7 +95,13 @@ and syn_fix_holes_operand =
       switch (operand) {
       | Hole => (Hole, Kind.Hole, u_gen)
       | TyVar(NotInTyVarHole(index, stamp), t) =>
-        switch (Context.rescope_opt(ctx, {index, stamp})) {
+        let (successors, _, predecessors) =
+          ctx
+          |> List.map(Context.binding_name)
+          |> ListUtil.pivot(Index.Abs.to_int(index));
+        let cref =
+          KindSystem.ContextRef.{index, stamp, predecessors, successors};
+        switch (Context.rescope_opt(ctx, cref)) {
         | None =>
           let (u, u_gen) = MetaVarGen.next(u_gen);
           syn_fix_holes_operand(
@@ -126,7 +132,7 @@ and syn_fix_holes_operand =
             let k = Kind.singleton(HTyp.tyvarhole(reason, u, t));
             (ty, k, u_gen);
           };
-        }
+        };
       | TyVar(InHole(_, u), t) =>
         if (TyVar.reserved_word(t)) {
           let ty = UHTyp.TyVar(InHole(Reserved, u), t);

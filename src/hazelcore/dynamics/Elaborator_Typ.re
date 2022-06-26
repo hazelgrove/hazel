@@ -101,7 +101,16 @@ and syn_elab_operand =
         (ty, Kind.singleton(ty), delta);
       | TyVar(NotInTyVarHole(index, stamp), t) =>
         open OptUtil.Syntax;
-        let cref: KindSystem.ContextRef.t = {index, stamp};
+        let (successors, _, predecessors) =
+          ctx
+          |> List.map(Context.binding_name)
+          |> ListUtil.pivot(Index.Abs.to_int(index));
+        let cref: KindSystem.ContextRef.t = {
+          index,
+          stamp,
+          predecessors,
+          successors,
+        };
         let cref = Context.rescope(ctx, cref);
         let+ k = Context.tyvar_kind(ctx, cref);
         (HTyp.tyvar(ctx, cref.index, t), k, delta);
