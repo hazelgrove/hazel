@@ -607,7 +607,7 @@ let eval_subscript =
            n1 <= seq.start && seq.start < n2
          );
     StringLit({str: s', vseqs, iseqs: []});
-  | Err(err) => InvalidOperation(d, SubscriptOutOfBounds(err))
+  | Error(err) => InvalidOperation(d, SubscriptOutOfBounds(err))
   };
 };
 

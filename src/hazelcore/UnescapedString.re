@@ -28,33 +28,28 @@ type subscript_error =
   | EndIndexBeforeStart(out_of_bounds_error)
   | EmptyString;
 
-[@deriving sexp]
-type subscript_result =
-  | Ok(t)
-  | Err(subscript_error);
-
 let subscript = (s, n1, n2) => {
   let len = s |> length;
   if (len == 0) {
-    Err(EmptyString);
+    Error(EmptyString);
   } else {
     let start_in_bounds = n1 >= 0 && n1 < len;
     let end_in_bounds = n2 >= 0 && n2 <= len;
     switch (start_in_bounds, end_in_bounds) {
     | (false, false) =>
-      Err(
+      Error(
         BothIndicesOutOfBounds(
           {idx: n1, lower: 0, upper: len - 1},
           {idx: n2, lower: 0, upper: len},
         ),
       )
     | (false, true) =>
-      Err(StartIndexOutOfBounds({idx: n1, lower: 0, upper: len - 1}))
+      Error(StartIndexOutOfBounds({idx: n1, lower: 0, upper: len - 1}))
     | (true, false) =>
-      Err(EndIndexOutOfBounds({idx: n2, lower: 0, upper: len}))
+      Error(EndIndexOutOfBounds({idx: n2, lower: 0, upper: len}))
     | (true, true) =>
       if (n2 < n1) {
-        Err(EndIndexBeforeStart({idx: n2, lower: 0, upper: n1}));
+        Error(EndIndexBeforeStart({idx: n2, lower: 0, upper: n1}));
       } else {
         Ok(String.sub(s, n1, n2 - n1));
       }
