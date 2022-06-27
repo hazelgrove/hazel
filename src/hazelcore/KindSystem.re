@@ -272,6 +272,31 @@ module rec Context: {
             __LOC__ ++ ": cannot rescope type variables in an empty context",
           );
         };
+        let amount = stamp - cref.stamp;
+        let i = Index.Abs.to_int(cref.index) + amount;
+        if (i >= stamp) {
+          failwith(__LOC__ ++ ": rescoping context is in the past");
+        } else if (i < 0) {
+          failwith(__LOC__ ++ ": rescoping context is in the future");
+        };
+        let (successors, _, predecessors) =
+          ctx |> List.map(binding_name) |> ListUtil.pivot(i);
+        if (predecessors != cref.predecessors) {
+          failwith(
+            __LOC__
+            ++ ": cannot rescope index in an incompatbile context: different pasts",
+          );
+        };
+        let n = List.length(successors);
+        let m = List.length(cref.successors);
+        if (n >= m
+            && ListUtil.drop(n - m, successors) != cref.successors
+            || successors != ListUtil.drop(m - n, cref.successors)) {
+          failwith(
+            __LOC__
+            ++ ": cannot rescope index in incompatible context: diverging futures",
+          );
+        };
         let cref = rescope_unchecked(ctx, cref);
         if (Index.Abs.to_int(cref.index) >= stamp) {
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
@@ -291,20 +316,10 @@ module rec Context: {
         ("cref", () => ContextRef.sexp_of_t(cref)),
       ],
       ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () => {
-        let stamp = Context.length(ctx);
-        if (stamp == 0) {
-          None;
-        } else {
-          let cref = rescope_unchecked(ctx, cref);
-          if (Index.Abs.to_int(cref.index) >= stamp
-              || Index.Abs.to_int(cref.index) < 0) {
-            None;
-          } else {
-            Some(cref);
-          };
-        };
-      },
+      () =>
+      try(Some(rescope(ctx, cref))) {
+      | _ => None
+      }
     );
 
   let nth_var_binding =

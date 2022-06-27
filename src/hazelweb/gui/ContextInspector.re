@@ -430,7 +430,6 @@ let view =
       let context_view = {
         let ctx =
           program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
-        Log.debug_state(__FUNCTION__, "ctx", Context.sexp_of_t(ctx));
         let sigma =
           if (settings.evaluate) {
             let (_, hii, _) = program |> Program.get_result;

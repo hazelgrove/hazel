@@ -126,9 +126,7 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
       Statics_Pat.ana(ctx, p, ty);
     | TyAliasLine(tp, ty) =>
       open OptUtil.Syntax;
-      Log.debug_state(__FUNCTION__, "ty", UHTyp.sexp_of_t(ty));
       let+ (_, k, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
-      Log.debug_state(__FUNCTION__, "k", Kind.sexp_of_t(k));
       Statics_TPat.matches(ctx, tp, k);
     }
   )
