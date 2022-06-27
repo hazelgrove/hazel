@@ -72,6 +72,9 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
+let subscript = (~err: ErrStatus.t=NotInHole, s: t, n1: t, n2: t): operand =>
+  Subscript(err, s, n1, n2);
+
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
 module Line = {

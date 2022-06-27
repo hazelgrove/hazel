@@ -52,6 +52,8 @@ let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
+let subscript: (~err: ErrStatus.t=?, t, t, t) => operand;
+
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
 module Line: {
