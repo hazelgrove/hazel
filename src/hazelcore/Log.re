@@ -19,6 +19,8 @@ module Filter = {
     | Has(string);
 
   type t =
+    | Disabled
+    | All
     | Fun(loc)
     | Mod(loc)
     | And(t, t)
@@ -47,6 +49,8 @@ module Filter = {
 
   let rec matches = (flt, (mod_name, fun_name)) =>
     switch (flt) {
+    | Disabled => false
+    | All => true
     | Fun(loc) => matches_loc(loc, fun_name)
     | Mod(loc) => matches_loc(loc, mod_name)
     | And(flt1, flt2) =>
@@ -58,37 +62,20 @@ module Filter = {
     };
 };
 
-let watch_list =
-  Some(
-    Filter.(
-      (md(pre("Action_Exp")) +^ fn(pre("syn_perform")))
-      /^ (md(pre("KindSystem.HTyp")) +^ fn(pre("subst_tyvars")))
-    ),
-  );
-/* Some( */
-/*   Filter.( */
-/*     md(pre("Action_Exp")) */
-/*     /^ md(pre("Elaborator_Exp")) */
-/*     /^ md(pre("Statics_Exp")) */
-/*   ), */
-/* ); */
+let watch_list = Filter.Disabled;
 
 let watching = fn =>
-  {
-    open OptUtil.Syntax;
-    let+ watch_list = watch_list;
-    let (m, f) =
-      switch (List.rev(String.split_on_char('.', fn))) {
-      | [] => ("--", "--")
-      | [fun_name] => ("--", fun_name)
-      | [fun_name, ...mod_names] => (
-          String.concat(".", List.rev(mod_names)),
-          fun_name,
-        )
-      };
-    Filter.matches(watch_list, (m, f));
-  }
-  |> Option.value(~default=true);
+  Filter.matches(
+    watch_list,
+    switch (List.rev(String.split_on_char('.', fn))) {
+    | [] => ("--", "--")
+    | [fun_name] => ("--", fun_name)
+    | [fun_name, ...mod_names] => (
+        String.concat(".", List.rev(mod_names)),
+        fun_name,
+      )
+    },
+  );
 
 /* Level-specific Helpers */
 

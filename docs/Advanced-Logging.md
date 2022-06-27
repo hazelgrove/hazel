@@ -51,17 +51,22 @@ The `Log` module also contains an optional "watch list" filter with a simple eDS
 When the filter is disabled, all instrumented functions will report arguments and return values.
 When enabled, invoking a watched function produces a more verbose log entry.
 
-To disable the filter, open up `hazelcore/Log.re` and set `watch_list` to `None`:
+To disable the filter, open up `hazelcore/Log.re` and set `watch_list` to `Disabled`:
 
 ```reason
-let watch_list = None;
+let watch_list = Filter.Disabled;
+```
+
+To watch all instrumented functions, set it to `All`:
+
+``` reason
+let watch_list = Filter.All;
 ```
 
 To watch a particular function, e.g., `Action_Exp.syn_perform`:
 
 ```reason
-let watch_list =
-  Some(Filter.(md(pre("Action_Exp"))) +^ fn(eq("syn_perform")));
+let watch_list = Filter.(md(pre("Action_Exp")) +^ fn(eq("syn_perform")));
 ```
 
 Filtering works by splitting the `__FUNCTION__` string into two parts&mdash;a "module" name and a "function" name&mdash;at the last dot (".").
@@ -74,38 +79,29 @@ As a realistic example, to trace an action-driven bug introduced by new features
 
 ```reason
 let watch_list =
-  Some(
-    Filter.(
-      fn(has("perform")) /^ fn(has("elab")) /^ fn(has("fix_holes"))
-    ),
-  );
+  Filter.(fn(has("perform")) /^ fn(has("elab")) /^ fn(has("fix_holes")));
 ```
 
 and to trace a action-driven bug that only arises in expressions in synthetic position:
 
 ```reason
 let watch_list =
-  Some(
-    Filter.(
-      md(pre("Action_Exp"))
-      /^ md(pre("Elaborator_Exp"))
-      /^ md(pre("Statics_Exp"))
-      +^ fn(pre("syn_"))
-    ),
+  Filter.(
+    md(pre("Action_Exp"))
+    /^ md(pre("Elaborator_Exp"))
+    /^ md(pre("Statics_Exp"))
+    +^ fn(pre("syn_"))
   );
 ```
 
 and for comparison, a similar one where the `fn(pre("syn_"))` constraint only applies to functions in `Action_Exp`:
 
 ```reason
-
 let watch_list =
-  Some(
-    Filter.(
-      (md(pre("Action_Exp")) +^ fn(pre("syn_")))
-      /^ md(pre("Elaborator_Exp"))
-      /^ md(pre("Statics_Exp"))
-    ),
+  Filter.(
+    (md(pre("Action_Exp")) +^ fn(pre("syn_")))
+    /^ md(pre("Elaborator_Exp"))
+    /^ md(pre("Statics_Exp"))
   );
 ```
 
