@@ -253,9 +253,9 @@ module rec Context: {
   //
   //   deviating successors  ==>  deviating futures (since cref was constructed)
   //
-  // new stamp = old stamp  ==>  successors = pivot(ctx, index)[0]
-  // new stamp > old stamp  ==>  successors = successors + new bindings
-  // new stamp < old stamp  ==>  successors = successors - new bindings
+  // new stamp = old stamp  ==>  new successors = pivot(ctx, index)[0]
+  // new stamp > old stamp  ==>  new successors = old successors + new entries
+  // new stamp < old stamp  ==>  new successors = new successors - old entries
 
   let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
     Log.fun_call(
@@ -281,7 +281,7 @@ module rec Context: {
         };
         let (successors, _, predecessors) =
           ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        if (predecessors != cref.predecessors) {
+        if (!List.for_all2(String.equal, predecessors, cref.predecessors)) {
           failwith(
             __LOC__
             ++ ": cannot rescope index in an incompatbile context: different pasts",
@@ -289,9 +289,13 @@ module rec Context: {
         };
         let n = List.length(successors);
         let m = List.length(cref.successors);
-        if (n >= m
-            && ListUtil.drop(n - m, successors) != cref.successors
-            || successors != ListUtil.drop(m - n, cref.successors)) {
+        let (succs1, succs2) =
+          switch (n > m, n < m) {
+          | (true, _) => (ListUtil.drop(n - m, successors), cref.successors)
+          | (_, true) => (successors, ListUtil.drop(m - n, cref.successors))
+          | _ => (successors, cref.successors)
+          };
+        if (!List.for_all2(String.equal, succs1, succs2)) {
           failwith(
             __LOC__
             ++ ": cannot rescope index in incompatible context: diverging futures",
@@ -398,12 +402,15 @@ module rec Context: {
                  let successors = successors @ [t];
                  ((predecessors, successors), [(cref, t, k), ...tyvars]);
                | VarBinding(x, _) =>
-                 let successors = [x, ...successors];
+                 let predecessors = ListUtil.drop(1, predecessors);
+                 let successors = successors @ [x];
                  ((predecessors, successors), tyvars);
                },
              ((List.map(binding_name, ctx), []), []),
            )
-        |> snd;
+        |> snd
+        /* TODO: (eric) redo the right way around */
+        |> List.rev;
       },
     );
 
@@ -495,8 +502,7 @@ module rec Context: {
                let cref = rescope(new_ctx, cref);
                let ty = HTyp.rescope(new_ctx, Kind.to_htyp(k));
                (cref.index, ty);
-             })
-          |> List.rev;
+             });
         HTyp.subst_tyvars(ty, tyvars);
       },
     );
@@ -536,7 +542,9 @@ module rec Context: {
                },
              ((List.map(binding_name, ctx), []), []),
            )
-        |> snd;
+        |> snd
+        /* TODO: (eric) redo the right way around */
+        |> List.rev;
       },
     );
 
