@@ -35,16 +35,16 @@ let get_exp = (frag: t): option(UHExp.t) => {
   str |> exp_of_string;
 };
 
-let fragment_of_url = (url: Url.url): string =>
-  switch (url) {
-  | Http({hu_fragment: str, _})
-  | Https({hu_fragment: str, _})
-  | File({fu_fragment: str, _}) => str
-  };
+let get_fragment = (frag: t): string => frag;
 
-let update_fragment = (f: string => string, frag: t): t => f(frag);
+let put_fragment = (_frag: t, str: string): t => str;
+
+let update_fragment = (f: string => string, frag: t): t =>
+  frag |> get_fragment |> f |> put_fragment(frag);
 
 let clear_fragment = update_fragment(_ => "");
+
+let is_empty = (frag: t): bool => String.length(get_fragment(frag)) == 0;
 
 let set_current = frag => {
   let frag =
@@ -56,4 +56,12 @@ let set_current = frag => {
   history##pushState(Js.null, Js.string(""), Js.some(Js.string(frag)));
 };
 
-let get_current = () => Url.Current.get() |> Option.map(fragment_of_url);
+let get_current = () => {
+  let fragment_of_url = (url: Url.url): string =>
+    switch (url) {
+    | Http({hu_fragment: str, _})
+    | Https({hu_fragment: str, _})
+    | File({fu_fragment: str, _}) => str
+    };
+  Url.Current.get() |> Option.map(fragment_of_url);
+};

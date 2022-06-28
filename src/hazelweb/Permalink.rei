@@ -20,6 +20,21 @@ let put_model: (t, Model.t) => t;
 let get_exp: t => option(UHExp.t);
 
 /**
+   [is_empty url] returns true if the fragment of [url] is an empty string.
+ */
+let is_empty: t => bool;
+
+/**
+   [get_fragment url] returns the fragment of [url].
+ */
+let get_fragment: t => string;
+
+/**
+   [put_fragment url frag] returns [url] with the new fragment [frag].
+ */
+let put_fragment: (t, string) => t;
+
+/**
    [update_fragment f url] returns [url] with [f] applied to the URL fragment.
  */
 let update_fragment: (string => string, t) => t;

@@ -19,7 +19,7 @@ module State = State;
 let on_startup = (~schedule_action, _) => {
   /* check URL for code permalink. */
   switch (Permalink.get_current()) {
-  | Some(url) =>
+  | Some(url) when !Permalink.is_empty(url) =>
     switch (url |> Permalink.get_exp) {
     /* If valid permalink, import the encoded program. */
     | Some(e) => schedule_action(ModelAction.Import(e))
@@ -28,6 +28,7 @@ let on_startup = (~schedule_action, _) => {
       url |> Permalink.clear_fragment |> Permalink.set_current;
       print_endline("Failed to load malformed permalink");
     }
+  | Some(_)
   | None => ()
   };
 
