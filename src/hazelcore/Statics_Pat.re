@@ -89,7 +89,7 @@ and syn_operand_internal =
     : option((HTyp.t, Contexts.t)) =>
   switch (operand) {
   /* in hole */
-  | EmptyHole(_) => Some((Unknown(Internal), ctx))
+  | EmptyHole(_) => Some((Unknown(ModeSwitch), ctx))
   | InvalidText(_) => Some((Unknown(Internal), ctx))
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
@@ -111,7 +111,7 @@ and syn_operand_internal =
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Wild(NotInHole) => Some((Unknown(Internal), ctx))
+  | Wild(NotInHole) => Some((Unknown(ModeSwitch), ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) =>
     Some((Unknown(ModeSwitch), ctx))
@@ -558,11 +558,11 @@ and syn_fix_holes_operand =
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (EmptyHole(u), Unknown(Internal), ctx, u_gen);
+      (EmptyHole(u), Unknown(ModeSwitch), ctx, u_gen);
     } else {
-      (operand, HTyp.Unknown(Internal), ctx, u_gen);
+      (operand, Unknown(ModeSwitch), ctx, u_gen);
     }
-  | Wild(_) => (operand_nih, Unknown(Internal), ctx, u_gen)
+  | Wild(_) => (operand_nih, Unknown(ModeSwitch), ctx, u_gen)
   | InvalidText(_) => (operand_nih, Unknown(Internal), ctx, u_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (
