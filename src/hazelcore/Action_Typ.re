@@ -86,7 +86,6 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -107,10 +106,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
-      Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
-      ) |
+      Construct(SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase) |
       SwapUp |
       SwapDown,
       _,
@@ -224,10 +220,8 @@ and perform_operand =
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
-        SCommentLine,
+        SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase | SCommentLine,
       ) |
       SwapUp |
       SwapDown,
@@ -299,9 +293,35 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))))
 
+  | (Construct(SCloseSquareBracket), ListZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), UHTyp.List(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (Construct(SCloseSquareBracket), CursorT(_, _)) => Failed
+
   | (Construct(SParenthesized), CursorT(_)) =>
     Succeeded(ZOpSeq.wrap(ZTyp.ParenthesizedZ(ZOpSeq.wrap(zoperand))))
 
+  | (Construct(SCloseBraces), CursorT(_)) => Failed
+
+  | (Construct(SCloseParens), ParenthesizedZ(zopseq))
+      when ZTyp.is_after(zopseq) =>
+    Succeeded(
+      ZOpSeq.wrap(
+        ZTyp.CursorT(OnDelim(1, After), Parenthesized(ZTyp.erase(zopseq))),
+      ),
+    )
+  | (
+      Construct(SCloseParens),
+      CursorT(OnDelim(1, Before), Parenthesized(opseq)),
+    ) =>
+    Succeeded(
+      ZOpSeq.wrap(ZTyp.CursorT(OnDelim(1, After), Parenthesized(opseq))),
+    )
+  | (Construct(SCloseParens), CursorT(_, _)) => Failed
   | (Construct(SOp(os)), CursorT(_)) =>
     switch (operator_of_shape(os)) {
     | None => Failed

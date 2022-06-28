@@ -60,8 +60,6 @@ let set_err_status_opseq: (ErrStatus.t, t) => t;
 
 let set_err_status_operand: (ErrStatus.t, operand) => operand;
 
-let is_inconsistent: t => bool;
-
 /* put p in a new hole, if it is not already in a hole */
 let mk_inconsistent: (MetaVarGen.t, t) => (t, MetaVarGen.t);
 

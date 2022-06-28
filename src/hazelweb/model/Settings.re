@@ -3,20 +3,14 @@
  * and configuring the result view
  */
 module Evaluation = {
-  type t = {
-    evaluate: bool,
-    show_case_clauses: bool,
-    show_fn_bodies: bool,
-    show_casts: bool,
-    show_unevaluated_expansion: bool,
-  };
+  include DHSettings;
 
   let init = {
     evaluate: true,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,
-    show_unevaluated_expansion: false,
+    show_unevaluated_elaboration: false,
   };
 
   [@deriving sexp]
@@ -25,7 +19,7 @@ module Evaluation = {
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
     | Toggle_show_casts
-    | Toggle_show_unevaluated_expansion;
+    | Toggle_show_unevaluated_elaboration;
 
   let apply_update = (u: update, settings: t) =>
     switch (u) {
@@ -39,9 +33,9 @@ module Evaluation = {
         show_fn_bodies: !settings.show_fn_bodies,
       }
     | Toggle_show_casts => {...settings, show_casts: !settings.show_casts}
-    | Toggle_show_unevaluated_expansion => {
+    | Toggle_show_unevaluated_elaboration => {
         ...settings,
-        show_unevaluated_expansion: !settings.show_unevaluated_expansion,
+        show_unevaluated_elaboration: !settings.show_unevaluated_elaboration,
       }
     };
 };

@@ -1,4 +1,4 @@
-# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: trunk](https://img.shields.io/travis/hazelgrove/hazel/trunk?label=build:%20trunk)](https://travis-ci.org/hazelgrove/hazel)
+# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
 
 [![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
@@ -17,7 +17,7 @@ branch is updated infrequently and is currently almost two years behind!
 
 ### Short version
 
-If you already have `ocaml` version 4.08.1 and least version 2.0 of `opam`
+If you already have `ocaml` version 4.13.1 and least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -61,10 +61,10 @@ that you know the OCaml syntax for.
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
 are a few extensions that might be helpful.
 
-- These extensions provide support for editing ReasonML and Dune source code:
+- This extension provides full support for editing ReasonML source code and
+  relevant tools:
 
-  - [reason-vscode](https://marketplace.visualstudio.com/items?itemName=jaredly.reason-vscode)
-  - [Dune](https://marketplace.visualstudio.com/items?itemName=maelvalais.dune)
+  - [ocaml-platform](https://github.com/ocamllabs/vscode-ocaml-platform)
 
 - Due to Reason's poor parse errors, unbalanced parentheses can be difficult
   to find.  The following extensions help with that.
@@ -72,6 +72,28 @@ are a few extensions that might be helpful.
   - [Bracket Pair Colorizer 2](https://marketplace.visualstudio.com/items?itemName=coenraads.bracket-pair-colorizer-2)
   - [Indenticator](https://marketplace.visualstudio.com/items?itemName=sirtori.indenticator)
   - [indent-rainbow](https://marketplace.visualstudio.com/items?itemName=oderwat.indent-rainbow)
+
+In addition to these extensions, enabling the breadcrumbs bar can make
+navigating a large code base easier. There are multiple ways to make the
+breadcrumbs bar visible:
+
+- Click **View** / **Show Breadcrumbs** from the menu bar.
+- Press `Ctrl+Shift+P` (macOS: `Cmd+Shift+P`), start typing `breadcrumbs`, and
+  select `View: Toggle Breadcrumbs` from the dropdown menu to toggle breadcrumbs
+  on and off.
+- Press `Ctrl+Shift+.` to start breadcrumbs navigation.
+
+### Suggested Setup for NeoVim
+
+The recommended setup is to use Neovim's built-in LSP support. We recommend using the
+[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) plugin. See the plugin's main page for
+recommended setup instructions.
+
+To set-up Reason ML support, enable `ocamllsp` in your configuration:
+```lua
+local lspconfig = require('lspconfig')
+lspconfig.ocamllsp.setup { on_attach = on_attach }
+```
 
 ### Build System Details
 
@@ -96,6 +118,9 @@ The `make dev` and `make release` commands do three things:
 2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
 3. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
+
+For a smoother dev experience, use `make watch` to automatically watch 
+for file changes. This will require installing fswatch (see INSTALL.md).
    
 ### Debugging
 
@@ -110,3 +135,14 @@ You can run all of the unit tests located in `src/hazelcore/test` by running `ma
 Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
 
 If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
+
+### Continuous Integration
+
+When you push your branch to the main `hazelgrove/hazel` repository, we 
+have a GitHub Action setup (see `.github/workflows/deploy_branches.yml`) 
+that will build that branch (in `release` mode) and deploy it to the URL 
+`https://hazel.org/build/<branch name>`, assuming the build succeeds.
+
+It usually takes about 2 minutes if the build environment cache hits, or 
+20+ minutes if not. You can view the status of the build in the [Actions 
+tab on Github](https://github.com/hazelgrove/hazel/actions).

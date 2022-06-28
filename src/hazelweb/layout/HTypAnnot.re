@@ -1,3 +1,0 @@
-type t =
-  | HoleLabel
-  | Delim;
