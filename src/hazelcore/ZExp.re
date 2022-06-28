@@ -148,7 +148,8 @@ and is_before_zoperand =
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
-  | CursorE(cursor, ListLit(_, _)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, ListLit(_, Some(_))) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, ListLit(_, None)) => cursor == OnText(0)
   | ListLitZ(_, _)
   | ParenthesizedZ(_)
   | FunZP(_)
@@ -229,7 +230,8 @@ and is_after_zoperand =
   | CursorE(cursor, Case(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
-  | CursorE(cursor, ListLit(_, _)) => cursor == OnDelim(1, After)
+  | CursorE(cursor, ListLit(_, Some(_))) => cursor == OnDelim(1, After)
+  | CursorE(cursor, ListLit(_, None)) => cursor == OnText(2)
   | ParenthesizedZ(_) => false
   | ListLitZ(_, _)
   | FunZP(_)
@@ -305,6 +307,7 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_) => CursorE(OnDelim(0, Before), operand)
+  | ListLit(_, None)
   | InvalidText(_, _)
   | Var(_)
   | IntLit(_)
@@ -314,7 +317,7 @@ and place_before_operand = operand =>
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
-  | ListLit(_, _) => CursorE(OnDelim(0, Before), operand)
+  | ListLit(_, Some(_)) => CursorE(OnDelim(0, Before), operand)
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -352,7 +355,8 @@ and place_after_operand = operand =>
   | Case(_) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
-  | ListLit(_, _) => CursorE(OnDelim(1, After), operand)
+  | ListLit(_, None) => CursorE(OnText(2), operand)
+  | ListLit(_, Some(_)) => CursorE(OnDelim(1, After), operand)
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
@@ -436,6 +440,7 @@ and erase_zoperand =
   | CursorE(_, operand) => operand
   | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
   | ListLitZ(err, zopseq) => ListLit(err, Some(erase_zopseq(zopseq)))
+  // ToDo:  ListLit(err, Some(None))
   | FunZP(err, zp, body) => Fun(err, ZPat.erase(zp), body)
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
@@ -995,13 +1000,14 @@ and cursor_on_EmptyHole_zoperand =
   fun
   | CursorE(_, EmptyHole(u)) => Some(u)
   | CursorE(_)
-  | ListLitZ(_)
   | FunZP(_) => None
   | FunZE(_, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
+  | ListLitZ(_, zopseq) => cursor_on_EmptyHole_zopseq(zopseq)
+
 and cursor_on_EmptyHole_zrule =
   fun
   | CursorR(_)

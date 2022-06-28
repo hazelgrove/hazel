@@ -3717,7 +3717,8 @@ and ana_perform_operand =
     }
 
   /* Subsumption */
-  | (Construct(SListLit), _)
+  | (Construct(SListLit), _) =>
+    ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
   /* Invalid actions at the expression level */
   | (Init, _) => failwith("Init action should not be performed.")
   }
