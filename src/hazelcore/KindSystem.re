@@ -213,36 +213,6 @@ module rec Context: {
     | VarBinding(x, _) => x
     | TyVarBinding(t, _) => t;
 
-  let rescope_unchecked = (ctx: t, cref: ContextRef.t): ContextRef.t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=ContextRef.sexp_of_t,
-      () => {
-        let stamp = Context.length(ctx);
-        let amount = stamp - cref.stamp;
-        let index = Index.shift(~above=-1, ~amount, cref.index);
-        let predecessors = cref.predecessors;
-        let successors =
-          if (amount > 0) {
-            let new_successors =
-              ListUtil.take(ctx, amount) |> List.map(binding_name);
-            new_successors @ cref.successors;
-          } else if (amount < 0) {
-            let n = List.length(cref.successors) - amount;
-            ListUtil.take(cref.successors, n);
-          } else {
-            [];
-          };
-
-        /* ListUtil.take(List.rev(cref.ancestors, amount); */
-        {index, stamp, predecessors, successors};
-      },
-    );
-
   // The general idea behind "peer tracking", i.e., predecessors and successors,is:
   //
   // 1. Predecessors should never change.
@@ -256,6 +226,48 @@ module rec Context: {
   // new stamp = old stamp  ==>  new successors = pivot(ctx, index)[0]
   // new stamp > old stamp  ==>  new successors = old successors + new entries
   // new stamp < old stamp  ==>  new successors = new successors - old entries
+
+  let rescope_unchecked = (ctx: t, cref: ContextRef.t): ContextRef.t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=ContextRef.sexp_of_t,
+      () => {
+        let stamp = Context.length(ctx);
+        let amount = stamp - cref.stamp;
+        let index = Index.Abs.of_int(Index.Abs.to_int(cref.index) + amount);
+        let predecessors = cref.predecessors;
+        let successors =
+          if (amount > 0) {
+            let new_successors =
+              ListUtil.take(ctx, amount) |> List.map(binding_name);
+            new_successors @ cref.successors;
+          } else if (amount < 0) {
+            let n = List.length(cref.successors) - amount;
+            ListUtil.take(cref.successors, n);
+          } else {
+            [];
+          };
+        {index, stamp, predecessors, successors};
+      },
+    );
+
+  let rescope_opt = (ctx: t, cref: ContextRef.t): option(ContextRef.t) =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ctx", () => Context.sexp_of_t(ctx)),
+        ("cref", () => ContextRef.sexp_of_t(cref)),
+      ],
+      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
+      () =>
+      try(Some(rescope_unchecked(ctx, cref))) {
+      | _ => None
+      }
+    );
 
   let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
     Log.fun_call(
@@ -301,7 +313,8 @@ module rec Context: {
             ++ ": cannot rescope index in incompatible context: diverging futures",
           );
         };
-        let cref = rescope_unchecked(ctx, cref);
+        let index = Index.Abs.of_int(i);
+        let cref = ContextRef.{index, stamp, predecessors, successors};
         if (Index.Abs.to_int(cref.index) >= stamp) {
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
         };
@@ -310,20 +323,6 @@ module rec Context: {
         };
         cref;
       },
-    );
-
-  let rescope_opt = (ctx: t, cref: ContextRef.t): option(ContextRef.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () =>
-      try(Some(rescope(ctx, cref))) {
-      | _ => None
-      }
     );
 
   let nth_var_binding =
@@ -502,7 +501,8 @@ module rec Context: {
                let cref = rescope(new_ctx, cref);
                let ty = HTyp.rescope(new_ctx, Kind.to_htyp(k));
                (cref.index, ty);
-             });
+             })
+          |> List.rev;
         HTyp.subst_tyvars(ty, tyvars);
       },
     );

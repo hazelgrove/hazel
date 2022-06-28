@@ -356,15 +356,18 @@ let mk_syn_text =
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
     Succeeded(SynDone((ze, HTyp.hole(), u_gen)));
   | Var(x) =>
-    switch (Context.var_type(ctx, x)) {
-    | Some(ty) =>
-      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
+    switch (Context.var_ref(ctx, x)) {
+    | Some(_) =>
+      let e = UHExp.var(x);
+      let ty =
+        Statics_Exp.syn_operand(ctx, e) |> Option.value(~default=HTyp.hole());
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, e));
       Succeeded(SynDone((ze, ty, u_gen)));
     | None =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
-      let var = UHExp.var(~var_err=InVarHole(Free, u), x);
-      let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
-      Succeeded(SynDone((new_ze, HTyp.hole(), u_gen)));
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let e = UHExp.var(~var_err=InVarHole(Free, u), x);
+      let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, e));
+      Succeeded(SynDone((ze, HTyp.hole(), u_gen)));
     }
   };
 };

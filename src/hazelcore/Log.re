@@ -74,17 +74,11 @@ module Filter = {
     };
 };
 
-let watch_list = Filter.All;
-/* Filter.( */
-/*   fn(eq("add_tyvar")) */
-/*   /^ (md(pre("Action_Exp")) +^ fn(pre("syn_perform"))) */
-/*   /^ args([eq("ctx")]) */
-/* ); */
-/* Filter.( */
-/*   fn(eq("subst_tyvars")) */
-/*   /^ fn(has("fix_holes")) */
-/*   /^ (md(pre("KindSystem.Context")) +^ fn(eq("tyvars"))) */
-/* ); */
+let watch_list =
+  Filter.(
+    (md(pre("KindSystem.Context")) +^ fn(eq("tyvars")))
+    /^ md(has(".tyvars"))
+  );
 
 let watching = (fn, arg_opt) =>
   Filter.matches(

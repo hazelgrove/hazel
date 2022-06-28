@@ -103,9 +103,9 @@ and syn_operand =
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _)
     | TypeAnn(InHole(TypeInconsistent, _), _, _) =>
-      let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-      let+ (_, gamma) = syn_operand(ctx, operand');
-      (HTyp.hole(), gamma);
+      let operand = UHPat.set_err_status_operand(NotInHole, operand);
+      let+ (_, ctx) = syn_operand(ctx, operand);
+      (HTyp.hole(), ctx);
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | IntLit(InHole(WrongLength, _), _)
@@ -139,7 +139,9 @@ and syn_operand =
     | Parenthesized(p) => syn(ctx, p)
     | TypeAnn(NotInHole, op, ann) =>
       let* (ty_ann, _, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ann);
-      let+ _ = ana_operand(ctx, op, ty_ann);
+      let* ctx_ann = ana_operand(ctx, op, ty_ann);
+      let+ x = List.nth_opt(ctx_ann, 0) |> Option.map(Context.binding_name);
+      let ctx = Context.add_var(ctx, x, ty_ann);
       (ty_ann, ctx);
     }
   )
@@ -677,7 +679,7 @@ and syn_fix_holes_operand =
         switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
         | Some((ty_ann, _, _)) =>
           if (HTyp.complete(ty_ann)) {
-            let (op, _, u_gen) =
+            let (op, ctx, u_gen) =
               ana_fix_holes_operand(
                 ctx,
                 u_gen,
