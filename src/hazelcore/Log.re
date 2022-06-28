@@ -76,8 +76,12 @@ module Filter = {
 
 let watch_list =
   Filter.(
-    (md(pre("KindSystem.Context")) +^ fn(eq("tyvars")))
-    /^ md(has(".tyvars"))
+    (md(pre("KindSystem.Context")) +^ fn(eq("reduce_tyvars")))
+    /^ md(has(".reduce_tyvars"))
+    /^ (
+      (md(pre("KindSystem.HTyp")) +^ fn(pre("subst_tyvar")))
+      /^ md(has(".subst_tyvar"))
+    )
   );
 
 let watching = (fn, arg_opt) =>

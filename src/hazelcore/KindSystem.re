@@ -500,10 +500,9 @@ module rec Context: {
           |> List.map(((cref: ContextRef.t, _, k)) => {
                let cref = rescope(new_ctx, cref);
                let ty = HTyp.rescope(new_ctx, Kind.to_htyp(k));
-               (cref.index, ty);
-             })
-          |> List.rev;
-        HTyp.subst_tyvars(ty, tyvars);
+               (cref, ty);
+             });
+        HTyp.subst_tyvars(new_ctx, ty, tyvars);
       },
     );
 
@@ -710,8 +709,7 @@ and HTyp: {
   let tyvar_ref: t => option(ContextRef.t);
   let tyvar_name: t => option(TyVar.t);
 
-  let subst_tyvar: (t, Index.Abs.t, t) => t;
-  let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+  let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
 
   type join =
     | GLB
@@ -813,9 +811,6 @@ and HTyp: {
       }
     );
 
-  /* let rescope = (new_ctx: Context.t, old_ctx: Context.t, ty: t): t => */
-  /*   shift_indices(ty, Context.length(new_ctx) - Context.length(old_ctx)); */
-
   let hole: unit => t = () => Hole;
   let int: unit => t = () => Int;
   let float: unit => t = () => Float;
@@ -910,28 +905,6 @@ and HTyp: {
       }
     );
 
-  let subst_tyvar: (t, Index.Abs.t, t) => t = HTyp_syntax.subst_tyvar;
-
-  let subst_tyvars = (ty: t, tyvars: list((Index.Abs.t, t))): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ty", () => sexp_of_t(ty)),
-        (
-          "tyvars",
-          () =>
-            Sexplib.Std.sexp_of_list(
-              ((idx, ty)) =>
-                List([Index.Abs.sexp_of_t(idx), sexp_of_t(ty)]),
-              tyvars,
-            ),
-        ),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      HTyp_syntax.subst_tyvars(ty, tyvars)
-    );
-
   let rec rescope = (ctx: Context.t, ty: t): t =>
     Log.fun_call(
       __FUNCTION__,
@@ -953,6 +926,38 @@ and HTyp: {
       | Prod(tys) => Prod(List.map(rescope(ctx), tys))
       | List(ty1) => List(rescope(ctx, ty1))
       }
+    );
+
+  let subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
+    let cref = Context.rescope(ctx, cref);
+    let ty = rescope(ctx, ty);
+    let ty' = rescope(ctx, ty');
+    HTyp_syntax.subst_tyvar(ty, cref.index, ty');
+  };
+
+  let subst_tyvars =
+      (ctx: Context.t, ty: t, tyvars: list((ContextRef.t, t))): t =>
+    Log.fun_call(
+      __FUNCTION__,
+      ~args=[
+        ("ty", () => sexp_of_t(ty)),
+        (
+          "tyvars",
+          () =>
+            Sexplib.Std.sexp_of_list(
+              ((cref, ty)) =>
+                List([ContextRef.sexp_of_t(cref), sexp_of_t(ty)]),
+              tyvars,
+            ),
+        ),
+      ],
+      ~result_sexp=sexp_of_t,
+      () =>
+      List.fold_left(
+        (ty, (cref, ty')) => subst_tyvar(ctx, ty, cref, ty'),
+        ty,
+        tyvars,
+      )
     );
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
@@ -1490,7 +1495,6 @@ and Kind: {
   let singleton: HTyp.t => t;
   let consistent_subkind: (Context.t, t, t) => bool;
   let equivalent: (Context.t, t, t) => bool;
-  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;
 } = {
   open Kind_core;
 
@@ -1560,32 +1564,6 @@ and Kind: {
       | (S(ty1), S(ty1')) =>
         HTyp.equivalent(ctx, HTyp.of_syntax(ty1), HTyp.of_syntax(ty1'))
       | (S(_), _) => false
-      }
-    );
-
-  let subst_tyvars = (k: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("k", () => sexp_of_t(k)),
-        (
-          "tyvars",
-          () =>
-            Sexplib.Std.sexp_of_list(
-              ((index, ty)) =>
-                List([Index.Abs.sexp_of_t(index), HTyp.sexp_of_t(ty)]),
-              tyvars,
-            ),
-        ),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      switch (k) {
-      | Hole
-      | Type => k
-      | S(ty) =>
-        let ty = HTyp.subst_tyvars(HTyp.of_syntax(ty), tyvars);
-        S(HTyp.to_syntax(ty));
       }
     );
 };

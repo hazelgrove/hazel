@@ -222,8 +222,8 @@ and Kind: {
 
   /* Operations on Kind */
 
-  /** Type variable substitution. */
-  let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t;
+  /** Type variable substitution. */;
+  /* let subst_tyvars: (t, list((Index.Abs.t, HTyp.t))) => t; */
 }
 
 and HTyp: {
@@ -325,8 +325,8 @@ and HTyp: {
   let tyvar_name: t => option(TyVar.t);
 
   /** Type variable substitution.  */
-  let subst_tyvar: (t, Index.Abs.t, t) => t;
-  let subst_tyvars: (t, list((Index.Abs.t, t))) => t;
+  /* let subst_tyvar: (t, Index.Abs.t, t) => t; */
+  let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
 
   /* Joins */
 

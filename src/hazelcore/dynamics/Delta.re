@@ -13,15 +13,16 @@ let empty: t = (MetaVarMap.empty: t);
 
 let union = (d1, d2) => MetaVarMap.union((_, a, _) => Some(a), d1, d2);
 
-let subst_tyvars = (delta: t, tyvars: list((Index.Abs.t, HTyp.t))): t =>
+let subst_tyvars =
+    (delta: t, tyvars: list((KindSystem.ContextRef.t, HTyp.t))): t =>
   MetaVarMap.map(
     fun
     | Hole.Expression(ty, ctx) => {
-        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let ty = HTyp.subst_tyvars(ctx, ty, tyvars);
         Hole.Expression(ty, ctx);
       }
     | Pattern(ty, ctx) => {
-        let ty = HTyp.subst_tyvars(ty, tyvars);
+        let ty = HTyp.subst_tyvars(ctx, ty, tyvars);
         Pattern(ty, ctx);
       }
     | Type as t => t,
