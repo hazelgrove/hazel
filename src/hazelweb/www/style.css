@@ -1031,6 +1031,7 @@ body {
 #SettingsPanel .indented-option {
   position: relative;
   left: 2.5ch;
+  margin-right: 2.5ch;
 }
 #SettingsPanel label[disabled] {
   opacity: 0.5;
