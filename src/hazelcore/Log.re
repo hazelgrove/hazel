@@ -13,32 +13,36 @@ let timestamp = () =>
 module Filter = {
   type loc =
     | Eq(string)
-    | Re(Re.re)
     | Pre(string)
     | Suf(string)
-    | Has(string);
+    | Has(string)
+    | Re(Re.re);
 
   type t =
     | Disabled
     | All
-    | Fun(loc)
-    | Mod(loc)
     | And(t, t)
-    | Or(t, t);
+    | Or(t, t)
+    | Not(t)
+    | Mod(loc)
+    | Fun(loc)
+    | Args(list(loc));
 
   let eq = str => Eq(str);
-  let re = str => Re(Re.compile(Re.Perl.re(str)));
   let pre = str => Pre(str);
   let suf = str => Suf(str);
   let has = str => Has(str);
-
-  let md = loc => Mod(loc);
-  let fn = loc => Fun(loc);
+  let re = str => Re(Re.compile(Re.Perl.re(str)));
 
   let (+^) = (a, b) => And(a, b);
   let (/^) = (a, b) => Or(a, b);
+  let not = a => Not(a);
 
-  let matches_loc = (loc, str) =>
+  let md = loc => Mod(loc);
+  let fn = loc => Fun(loc);
+  let args = locs => Args(locs);
+
+  let matches_loc = (str, loc) =>
     switch (loc) {
     | Eq(str') => String.equal(str', str)
     | Re(re) => Re.execp(re, str)
@@ -47,24 +51,42 @@ module Filter = {
     | Has(substr) => StringUtil.contains_substring(str, substr)
     };
 
-  let rec matches = (flt, (mod_name, fun_name)) =>
+  let rec matches = (flt, (mod_name, fun_name), arg_opt) =>
     switch (flt) {
     | Disabled => false
     | All => true
-    | Fun(loc) => matches_loc(loc, fun_name)
-    | Mod(loc) => matches_loc(loc, mod_name)
     | And(flt1, flt2) =>
-      matches(flt1, (mod_name, fun_name))
-      && matches(flt2, (mod_name, fun_name))
+      matches(flt1, (mod_name, fun_name), arg_opt)
+      && matches(flt2, (mod_name, fun_name), arg_opt)
     | Or(flt1, flt2) =>
-      matches(flt1, (mod_name, fun_name))
-      || matches(flt2, (mod_name, fun_name))
+      matches(flt1, (mod_name, fun_name), arg_opt)
+      || matches(flt2, (mod_name, fun_name), arg_opt)
+    | Not(flt1) => !matches(flt1, (mod_name, fun_name), arg_opt)
+    | Mod(loc) => matches_loc(mod_name, loc)
+    | Fun(loc) => matches_loc(fun_name, loc)
+    | Args(locs) =>
+      {
+        open OptUtil.Syntax;
+        let+ arg = arg_opt;
+        List.exists(matches_loc(arg), locs);
+      }
+      |> Option.value(~default=true)
     };
 };
 
-let watch_list = Filter.Disabled;
+let watch_list = Filter.All;
+/* Filter.( */
+/*   fn(eq("add_tyvar")) */
+/*   /^ (md(pre("Action_Exp")) +^ fn(pre("syn_perform"))) */
+/*   /^ args([eq("ctx")]) */
+/* ); */
+/* Filter.( */
+/*   fn(eq("subst_tyvars")) */
+/*   /^ fn(has("fix_holes")) */
+/*   /^ (md(pre("KindSystem.Context")) +^ fn(eq("tyvars"))) */
+/* ); */
 
-let watching = fn =>
+let watching = (fn, arg_opt) =>
   Filter.matches(
     watch_list,
     switch (List.rev(String.split_on_char('.', fn))) {
@@ -75,6 +97,7 @@ let watching = fn =>
         fun_name,
       )
     },
+    arg_opt,
   );
 
 /* Level-specific Helpers */
@@ -87,12 +110,12 @@ let info_call = (fn: string) =>
 
 /* Function Arguments */
 
-let debug_arg = (fn: string, name: string, sexp: unit => Sexplib.Sexp.t) =>
-  if (watching(fn)) {
+let debug_arg = (fn: string, arg: string, sexp: unit => Sexplib.Sexp.t) =>
+  if (watching(fn, Some(arg))) {
     debug(m =>
       m(
         "ARG %s@.%s@?",
-        name,
+        arg,
         Sexplib.Sexp.to_string_hum(sexp()),
         ~tags=timestamp(),
       )
@@ -102,8 +125,13 @@ let debug_arg = (fn: string, name: string, sexp: unit => Sexplib.Sexp.t) =>
 let debug_args = (fn: string, args: list((string, unit => Sexplib.Sexp.t))) =>
   List.iter(((name, sexp)) => debug_arg(fn, name, sexp), args);
 
-let debug_result = (fn: string, sexp: Sexplib.Sexp.t) =>
-  if (watching(fn)) {
+let debug_result =
+    (
+      fn: string,
+      args: option(list((string, unit => Sexplib.Sexp.t))),
+      sexp: Sexplib.Sexp.t,
+    ) =>
+  if (watching(fn, None)) {
     debug(m =>
       m(
         "RESULT %s@.%s@?",
@@ -112,6 +140,9 @@ let debug_result = (fn: string, sexp: Sexplib.Sexp.t) =>
         ~tags=timestamp(),
       )
     );
+    if (Option.is_some(args)) {
+      debug_args(fn, Option.value(~default=[], args));
+    };
   };
 
 /* Intermediate States */
@@ -150,7 +181,7 @@ let fun_call =
     debug_args(fn, Option.value(~default=[], args));
   };
   let result = thunk();
-  debug_result(fname, result_sexp(result));
+  debug_result(fname, args, result_sexp(result));
   result;
 };
 
