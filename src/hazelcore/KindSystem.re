@@ -162,7 +162,6 @@ module rec Context: {
   let entries: t => list(entry);
   let length: t => int;
   let rescope: (t, ContextRef.t) => ContextRef.t;
-  let rescope_opt: (t, ContextRef.t) => option(ContextRef.t);
   let tyvars: t => list((ContextRef.t, TyVar.t, Kind.t));
   let tyvar: (t, ContextRef.t) => option(TyVar.t);
   let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
@@ -227,48 +226,6 @@ module rec Context: {
   // new stamp > old stamp  ==>  new successors = old successors + new entries
   // new stamp < old stamp  ==>  new successors = new successors - old entries
 
-  let rescope_unchecked = (ctx: t, cref: ContextRef.t): ContextRef.t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=ContextRef.sexp_of_t,
-      () => {
-        let stamp = Context.length(ctx);
-        let amount = stamp - cref.stamp;
-        let index = Index.Abs.of_int(Index.Abs.to_int(cref.index) + amount);
-        let predecessors = cref.predecessors;
-        let successors =
-          if (amount > 0) {
-            let new_successors =
-              ListUtil.take(ctx, amount) |> List.map(binding_name);
-            new_successors @ cref.successors;
-          } else if (amount < 0) {
-            let n = List.length(cref.successors) - amount;
-            ListUtil.take(cref.successors, n);
-          } else {
-            [];
-          };
-        {index, stamp, predecessors, successors};
-      },
-    );
-
-  let rescope_opt = (ctx: t, cref: ContextRef.t): option(ContextRef.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () =>
-      try(Some(rescope_unchecked(ctx, cref))) {
-      | _ => None
-      }
-    );
-
   let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
     Log.fun_call(
       __FUNCTION__,
@@ -293,7 +250,8 @@ module rec Context: {
         };
         let (successors, _, predecessors) =
           ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        if (!List.for_all2(String.equal, predecessors, cref.predecessors)) {
+        if (List.length(predecessors) != List.length(cref.predecessors)
+            || !List.for_all2(String.equal, predecessors, cref.predecessors)) {
           failwith(
             __LOC__
             ++ ": cannot rescope index in an incompatbile context: different pasts",
@@ -536,7 +494,8 @@ module rec Context: {
                  let successors = successors @ [x];
                  ((predecessors, successors), [(cref, x, ty), ...vars]);
                | TyVarBinding(t, _) =>
-                 let successors = [t, ...successors];
+                 let predecessors = ListUtil.drop(1, predecessors);
+                 let successors = successors @ [t];
                  ((predecessors, successors), vars);
                },
              ((List.map(binding_name, ctx), []), []),
@@ -930,8 +889,6 @@ and HTyp: {
 
   let subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
     let cref = Context.rescope(ctx, cref);
-    let ty = rescope(ctx, ty);
-    let ty' = rescope(ctx, ty');
     HTyp_syntax.subst_tyvar(ty, cref.index, ty');
   };
 

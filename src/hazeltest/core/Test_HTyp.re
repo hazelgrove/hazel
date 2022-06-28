@@ -9,13 +9,16 @@ let read = (ty_text: string): option(HTyp.t) => {
   let e_text = Format.sprintf({|let ? : (%s) = ? in ?|}, ty_text);
   switch (Parsing.ast_of_string(e_text)) {
   | Ok([LetLine(OpSeq(_, S(TypeAnn(_, _, uty), E)), _), _]) =>
+    open OptUtil.Syntax;
     if (verbose) {
       Format.printf(
         "EXTRACTED:\n%s\n",
         Sexplib.Sexp.to_string_hum(UHTyp.sexp_of_t(uty)),
       );
     };
-    Some(UHTyp.expand(uty));
+    let+ (ty, _, _) =
+      Elaborator_Typ.syn_elab(InitialContext.ctx, Delta.empty, uty);
+    ty;
   | Ok(e) =>
     if (verbose) {
       Format.printf(

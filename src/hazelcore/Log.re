@@ -76,13 +76,26 @@ module Filter = {
 
 let watch_list =
   Filter.(
-    (md(pre("KindSystem.Context")) +^ fn(eq("reduce_tyvars")))
-    /^ md(has(".reduce_tyvars"))
-    /^ (
-      (md(pre("KindSystem.HTyp")) +^ fn(pre("subst_tyvar")))
-      /^ md(has(".subst_tyvar"))
-    )
+    md(pre("KindSystem.Context"))
+    +^ fn(pre("tyvar"))
+    /^ fn(eq("tyvar_ref"))
   );
+
+/*   md(pre("Statics_Exp")) */
+/*   /^ md(has("fix_holes")) */
+/*   /^ fn(has("fix_holes")) */
+/*   /^ (md(pre("KindSystem.Context")) +^ fn(pre("rescope"))) */
+/*   /^ md(has("rescope")) */
+/* ); */
+
+/* Filter.( */
+/*   (md(pre("KindSystem.Context")) +^ fn(eq("reduce_tyvars"))) */
+/*   /^ md(has(".reduce_tyvars")) */
+/*   /^ ( */
+/*     (md(pre("KindSystem.HTyp")) +^ fn(pre("subst_tyvar"))) */
+/*     /^ md(has(".subst_tyvar")) */
+/*   ) */
+/* ); */
 
 let watching = (fn, arg_opt) =>
   Filter.matches(

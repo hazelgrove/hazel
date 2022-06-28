@@ -59,8 +59,7 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
-      | TyVar(cref, t) =>
-        Seq.wrap(TyVar(NotInTyVarHole(cref.index, cref.stamp), t))
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInTyVarHole, t))
       | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
@@ -115,51 +114,10 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
-and expand_opseq =
-  fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
-  switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
-  | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    HTyp.arrow(ty1, ty2);
-  | BinOp(_, Prod, _, _) =>
-    HTyp.product(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
-    )
-  | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    HTyp.sum(ty1, ty2);
-  }
-and expand_operand =
-  fun
-  | TyVar(NotInTyVarHole(index, stamp), t) => {
-      let cref =
-        KindSystem.ContextRef.{
-          index,
-          stamp,
-          predecessors: [],
-          successors: [],
-        };
-      HTyp.of_syntax(KindSystem.HTyp_syntax.TyVar(cref, t));
-    }
-  | TyVar(InHole(reason, u), t) => HTyp.tyvarhole(reason, u, t)
-  | Hole => HTyp.hole()
-  | Unit => HTyp.product([])
-  | Int => HTyp.int()
-  | Float => HTyp.float()
-  | Bool => HTyp.bool()
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => HTyp.list(expand(opseq));
-
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
-  | TyVar(NotInTyVarHole(_), _) => true
+  | TyVar(NotInTyVarHole, _) => true
   | TyVar(InHole(_), _) => false
   | Unit => true
   | Int => true

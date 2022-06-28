@@ -130,9 +130,6 @@ module rec Context: {
    */
   let rescope: (t, ContextRef.t) => ContextRef.t;
 
-  /** Like [rescope] but returns [None] instead of crashing. */
-  let rescope_opt: (t, ContextRef.t) => option(ContextRef.t);
-
   /* Type Variables */
 
   /** Returns a reference, name, and [Kind] for each type variable bound in the

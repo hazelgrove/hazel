@@ -99,13 +99,9 @@ and syn_elab_operand =
         let+ (ty_elt, _, delta) = syn_elab(ctx, delta, ty);
         let ty = HTyp.list(ty_elt);
         (ty, Kind.singleton(ty), delta);
-      | TyVar(NotInTyVarHole(index, stamp), t) =>
-        let (successors, _, predecessors) =
-          ctx
-          |> List.map(Context.binding_name)
-          |> ListUtil.pivot(Index.Abs.to_int(index));
-        let cref =
-          Context.rescope(ctx, {index, stamp, predecessors, successors});
+      | TyVar(NotInTyVarHole, t) =>
+        open OptUtil.Syntax;
+        let* cref = Context.tyvar_ref(ctx, t);
         let ty = HTyp.rescope(ctx, HTyp.tyvar(ctx, cref.index, t));
         Some((ty, Kind.singleton(ty), delta));
       | TyVar(InHole(reason, u), t) =>
@@ -172,7 +168,7 @@ and ana_elab_operand =
       Some((HTyp.tyvarhole(reason, u, t), Kind.Hole, delta))
     | Parenthesized(opseq) => ana_elab(ctx, delta, opseq, k)
     // subsumption
-    | TyVar(NotInTyVarHole(_), _)
+    | TyVar(NotInTyVarHole, _)
     | Unit
     | Int
     | Float

@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 module HoleReason = {
   [@deriving sexp]
   type t =
@@ -10,5 +8,5 @@ module HoleReason = {
 
 [@deriving sexp]
 type t =
-  | NotInTyVarHole(Index.Abs.t, int)
+  | NotInTyVarHole
   | InHole(HoleReason.t, MetaVar.t);

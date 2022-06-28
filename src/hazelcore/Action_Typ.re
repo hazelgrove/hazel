@@ -42,8 +42,7 @@ let text_operand =
     | Some(cref) =>
       let k = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
       let ctx = Context.add_tyvar(ctx, t, k);
-      let cref = Context.tyvar_ref(ctx, t) |> Option.get;
-      (TyVar(NotInTyVarHole(cref.index, cref.stamp), t), ctx, u_gen);
+      (TyVar(NotInTyVarHole, t), ctx, u_gen);
     }
   };
 
@@ -129,7 +128,7 @@ let mk_syn_text =
           | None =>
             let (u, u_gen) = MetaVarGen.next(u_gen);
             (InHole(Unbound, u), u_gen);
-          | Some(cref) => (NotInTyVarHole(cref.index, cref.stamp), u_gen)
+          | Some(_) => (NotInTyVarHole, u_gen)
           };
         let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
         Succeeded((zty, u_gen));
