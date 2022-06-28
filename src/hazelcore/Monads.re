@@ -17,7 +17,7 @@ module type MONAD_FUNCTOR = {
   let map: (t('a), 'a => 'b) => t('b);
 };
 
-module Functor_of_Basic = (M: MONAD_BASIC) => {
+module Make_Functor = (M: MONAD_BASIC) => {
   include M;
   let map = (x, f) => bind(x, a => M.return(f(a)));
 };
@@ -27,7 +27,7 @@ module type MONAD_ZIP = {
   let zip: (t('a), t('b)) => t(('a, 'b));
 };
 
-module Zip_of_Functor = (M: MONAD_FUNCTOR) => {
+module Make_Zip = (M: MONAD_FUNCTOR) => {
   include M;
 
   let zip = (x, y) => bind(x, a => bind(y, b => M.return((a, b))));
@@ -42,7 +42,7 @@ module type MONAD = {
   };
 };
 
-module MakeZ = (M: MONAD_ZIP) => {
+module Make_Monad_Z = (M: MONAD_ZIP) => {
   include M;
 
   module Syntax = {
@@ -52,5 +52,5 @@ module MakeZ = (M: MONAD_ZIP) => {
   };
 };
 
-module MakeB = (M: MONAD_BASIC) =>
-  MakeZ((Zip_of_Functor((Functor_of_Basic(M)))));
+module Make_Monad_B = (M: MONAD_BASIC) =>
+  Make_Monad_Z((Make_Zip((Make_Functor(M)))));

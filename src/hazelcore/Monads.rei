@@ -17,10 +17,9 @@ module type MONAD_ZIP = {
   let zip: (t('a), t('b)) => t(('a, 'b));
 };
 
-module Functor_of_Basic:
+module Make_Functor:
   (M: MONAD_BASIC) => MONAD_FUNCTOR with type t('a) = M.t('a);
-module Zip_of_Functor:
-  (M: MONAD_FUNCTOR) => MONAD_ZIP with type t('a) = M.t('a);
+module Make_Zip: (M: MONAD_FUNCTOR) => MONAD_ZIP with type t('a) = M.t('a);
 
 module type MONAD = {
   include MONAD_ZIP;
@@ -32,5 +31,5 @@ module type MONAD = {
 };
 
 // See ActionOutcome.re{i} for an example
-module MakeB: (M: MONAD_BASIC) => MONAD with type t('a) = M.t('a);
-module MakeZ: (M: MONAD_ZIP) => MONAD with type t('a) = M.t('a);
+module Make_Monad_B: (M: MONAD_BASIC) => MONAD with type t('a) = M.t('a);
+module Make_Monad_Z: (M: MONAD_ZIP) => MONAD with type t('a) = M.t('a);
