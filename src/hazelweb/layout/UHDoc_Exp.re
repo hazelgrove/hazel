@@ -50,6 +50,19 @@ let mk_NTuple:
     ~get_tuple_elements=UHExp.get_tuple_elements,
     ~inline_padding_of_operator,
   );
+let mk_NListLit:
+  (
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+    ~mk_operator: UHExp.operator => UHDoc.t,
+    ~enforce_inline: bool,
+    OpSeq.t('a, UHExp.operator)
+  ) =>
+  UHDoc.t =
+  UHDoc_common.mk_NListLit(
+    ~sort=Exp,
+    ~get_tuple_elements=UHExp.get_tuple_elements,
+    ~inline_padding_of_operator,
+  );
 
 let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
   Doc.annot(
@@ -191,7 +204,7 @@ and mk_operand =
           switch (body) {
           | Some(opseq) =>
             let formattable_body = (~enforce_inline) =>
-              Lazy.force(mk_opseq, ~memoize, ~enforce_inline, opseq)
+              Lazy.force(mk_list, ~memoize, ~enforce_inline, opseq)
               |> UHDoc_common.annot_Step(0);
             let formatted_body =
               enforce_inline
@@ -268,4 +281,18 @@ and mk_child =
       ? EnforcedInline(formattable(~enforce_inline=true))
       : Unformatted(formattable);
   };
-};
+}
+and mk_list =
+  lazy(
+    UHDoc_common.memoize(
+      (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
+      (
+        mk_NListLit(
+          ~mk_operand=Lazy.force(mk_operand, ~memoize),
+          ~mk_operator,
+          ~enforce_inline,
+          opseq,
+        ): UHDoc.t
+      )
+    )
+  );

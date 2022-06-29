@@ -17,6 +17,7 @@ and of_zopseq = (zopseq: ZExp.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
+  | CursorE(cursor, ListLit(_, Some(_))) => ([0], cursor)
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
   | ListLitZ(_, zopseq) => cons'(0, of_zopseq(zopseq))
@@ -120,9 +121,13 @@ and follow_operand =
     | ListLit(err, Some(opseq)) =>
       switch (x) {
       | 0 =>
-        opseq
-        |> follow_opseq((xs, cursor))
-        |> Option.map(zopseq => ZExp.listlitz(~err, zopseq))
+        if (List.length(xs) == 0) {
+          follow_operand((xs, cursor), operand);
+        } else {
+          opseq
+          |> follow_opseq((xs, cursor))
+          |> Option.map(zopseq => ZExp.listlitz(~err, zopseq));
+        }
       | _ => None
       }
     | Fun(err, p, body) =>
