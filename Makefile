@@ -49,7 +49,7 @@ chromium-browser:
 xdg-open:
 	xdg-open "$(HTML_FILE)"
 
-open:
+open: dev
 	open "$(HTML_FILE)"
 
 repl:
