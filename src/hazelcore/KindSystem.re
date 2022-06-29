@@ -13,9 +13,43 @@ module ContextRef = {
   [@deriving sexp]
   type t = s(Index.absolute);
 
-  let equal = (cref: t, cref': t): bool =>
-    Index.equal(cref.index, cref'.index)
-    && Int.equal(cref.stamp, cref'.stamp);
+  let abs =
+      (
+        index: Index.Abs.t,
+        stamp: int,
+        predecessors: list(string),
+        successors: list(string),
+      )
+      : t => {
+    let i = Index.Abs.to_int(index);
+    if (i >= stamp) {
+      failwith(__LOC__ ++ ": reference is in the past");
+    } else if (i < 0) {
+      failwith(__LOC__ ++ ": reference is in the future");
+    };
+    if (List.length(successors) != i) {
+      failwith(__LOC__ ++ ": index does not agree with successors");
+    };
+    if (List.length(predecessors) != stamp - i - 1) {
+      failwith(__LOC__ ++ ": stamp does not agree with predecessors");
+    };
+    {index, stamp, predecessors, successors};
+  };
+
+  let equivalent = (cref: t, cref': t): bool => {
+    let stamp_delta = cref.stamp - cref'.stamp;
+    stamp_delta > 0
+      ? Index.equal(
+          cref.index,
+          Index.shift(~above=-1, ~amount=stamp_delta, cref'.index),
+        )
+      : stamp_delta < 0
+          ? Index.equal(
+              Index.shift(~above=-1, ~amount=- stamp_delta, cref.index),
+              cref'.index,
+            )
+          : Index.equal(cref.index, cref'.index);
+  };
 };
 
 module HTyp_syntax: {
@@ -33,8 +67,6 @@ module HTyp_syntax: {
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
-  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
-  let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
 } = {
   [@deriving sexp]
   type t('idx) =
@@ -84,31 +116,6 @@ module HTyp_syntax: {
     | Prod(tys) => Prod(List.map(to_abs(~offset), tys))
     | List(ty) => List(to_abs(~offset, ty))
     };
-
-  let rec subst_tyvar =
-          (ty: t('idx), idx: Index.t('idx), new_ty: t('idx)): t('idx) => {
-    let go = ty1 => subst_tyvar(ty1, idx, new_ty);
-    switch (ty) {
-    | TyVar(cref', _) => Index.equal(idx, cref'.index) ? new_ty : ty
-    | TyVarHole(_)
-    | Hole
-    | Int
-    | Float
-    | Bool => ty
-    | Arrow(ty1, ty2) => Arrow(go(ty1), go(ty2))
-    | Sum(tyL, tyR) => Sum(go(tyL), go(tyR))
-    | Prod(tys) => Prod(List.map(go, tys))
-    | List(ty) => List(go(ty))
-    };
-  };
-
-  let subst_tyvars =
-      (ty: t('idx), tyvars: list((Index.t('idx), t('idx)))): t('idx) =>
-    List.fold_left(
-      (ty, (idx, ty_idx)) => subst_tyvar(ty, idx, ty_idx),
-      ty,
-      tyvars,
-    );
 };
 
 module Kind_core: {
@@ -272,7 +279,7 @@ module rec Context: {
           );
         };
         let index = Index.Abs.of_int(i);
-        let cref = ContextRef.{index, stamp, predecessors, successors};
+        let cref = ContextRef.abs(index, stamp, predecessors, successors);
         if (Index.Abs.to_int(cref.index) >= stamp) {
           failwith(__LOC__ ++ ": rescoped type variable is in the future");
         };
@@ -348,25 +355,26 @@ module rec Context: {
         ctx
         |> List.mapi((i, binding) => (i, binding))
         |> List.fold_left(
-             (((predecessors, successors), tyvars), (i, binding)) =>
+             ((tyvars, (successors, predecessors)), (i, binding)) => {
                switch (binding) {
                | TyVarBinding(t, k) =>
                  let index = Index.Abs.of_int(i);
-                 let k = Kind_core.to_abs(~offset=i, k);
                  let predecessors = ListUtil.drop(1, predecessors);
                  let cref =
-                   ContextRef.{index, stamp, predecessors, successors};
+                   ContextRef.abs(index, stamp, predecessors, successors);
+                 let k = Kind_core.to_abs(~offset=i, k);
+                 let tyvars = [(cref, t, k), ...tyvars];
                  let successors = successors @ [t];
-                 ((predecessors, successors), [(cref, t, k), ...tyvars]);
+                 (tyvars, (successors, predecessors));
                | VarBinding(x, _) =>
                  let predecessors = ListUtil.drop(1, predecessors);
                  let successors = successors @ [x];
-                 ((predecessors, successors), tyvars);
-               },
-             ((List.map(binding_name, ctx), []), []),
+                 (tyvars, (successors, predecessors));
+               }
+             },
+             ([], ([], List.map(binding_name, ctx))),
            )
-        |> snd
-        /* TODO: (eric) redo the right way around */
+        |> fst
         |> List.rev;
       },
     );
@@ -403,7 +411,7 @@ module rec Context: {
         let stamp = Context.length(ctx);
         let (successors, _, predecessors) =
           ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        ContextRef.{index, stamp, predecessors, successors};
+        ContextRef.abs(index, stamp, predecessors, successors);
       },
     );
   };
@@ -483,25 +491,26 @@ module rec Context: {
         ctx
         |> List.mapi((i, binding) => (i, binding))
         |> List.fold_left(
-             (((predecessors, successors), vars), (i, binding)) =>
+             ((vars, (successors, predecessors)), (i, binding)) => {
                switch (binding) {
                | VarBinding(x, ty) =>
                  let index = Index.Abs.of_int(i);
-                 let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
                  let predecessors = ListUtil.drop(1, predecessors);
                  let cref =
-                   ContextRef.{index, stamp, predecessors, successors};
+                   ContextRef.abs(index, stamp, predecessors, successors);
+                 let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
+                 let vars = [(cref, x, ty), ...vars];
                  let successors = successors @ [x];
-                 ((predecessors, successors), [(cref, x, ty), ...vars]);
+                 (vars, (successors, predecessors));
                | TyVarBinding(t, _) =>
                  let predecessors = ListUtil.drop(1, predecessors);
                  let successors = successors @ [t];
-                 ((predecessors, successors), vars);
-               },
-             ((List.map(binding_name, ctx), []), []),
+                 (vars, (successors, predecessors));
+               }
+             },
+             ([], ([], List.map(binding_name, ctx))),
            )
-        |> snd
-        /* TODO: (eric) redo the right way around */
+        |> fst
         |> List.rev;
       },
     );
@@ -537,7 +546,7 @@ module rec Context: {
         let stamp = Context.length(ctx);
         let (successors, _, predecessors) =
           ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        ContextRef.{index, stamp, predecessors, successors};
+        ContextRef.abs(index, stamp, predecessors, successors);
       },
     );
 
@@ -887,9 +896,28 @@ and HTyp: {
       }
     );
 
-  let subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
-    let cref = Context.rescope(ctx, cref);
-    HTyp_syntax.subst_tyvar(ty, cref.index, ty');
+  let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
+    switch (ty) {
+    | TyVar(cref', _) => ContextRef.equivalent(cref, cref') ? ty' : ty
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool => ty
+    | Arrow(ty1, ty2) =>
+      Arrow(
+        subst_tyvar(ctx, ty1, cref, ty'),
+        subst_tyvar(ctx, ty2, cref, ty'),
+      )
+    | Sum(tyL, tyR) =>
+      Sum(
+        subst_tyvar(ctx, tyL, cref, ty'),
+        subst_tyvar(ctx, tyR, cref, ty'),
+      )
+    | Prod(tys) =>
+      Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
+    | List(ty1) => List(subst_tyvar(ctx, ty1, cref, ty'))
+    };
   };
 
   let subst_tyvars =
@@ -1222,7 +1250,7 @@ and HTyp: {
       | (TyVar(cref, _), TyVar(cref', _)) =>
         // normalization eliminates all type variables of singleton kind, so these
         // must be of kind Type or Hole
-        ContextRef.equal(cref, cref')
+        ContextRef.equivalent(cref, cref')
       | (TyVar(_) | TyVarHole(_) | Hole, _)
       | (_, TyVar(_) | TyVarHole(_) | Hole) => true
       | (Int | Float | Bool, _) => ty == ty'
@@ -1248,7 +1276,8 @@ and HTyp: {
       ~result_sexp=Sexplib.Std.sexp_of_bool,
       () =>
       switch (ty, ty') {
-      | (TyVar(cref, _), TyVar(cref', _)) => ContextRef.equal(cref, cref')
+      | (TyVar(cref, _), TyVar(cref', _)) =>
+        ContextRef.equivalent(cref, cref')
       | (TyVar(_), _) => false
       | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
       | (TyVarHole(_, _, _), _) => false

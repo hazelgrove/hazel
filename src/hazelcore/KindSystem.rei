@@ -15,7 +15,9 @@ module ContextRef: {
   [@deriving sexp]
   type t = s(Index.absolute);
 
-  let equal: (t, t) => bool;
+  let abs: (Index.Abs.t, int, list(string), list(string)) => t;
+
+  let equivalent: (t, t) => bool;
 };
 
 /** Types with holes and type variables. */
@@ -53,14 +55,6 @@ module HTyp_syntax: {
 
   /** Changes indices from relative to absolute. */
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
-
-  /** Index-polymorphic type variable substitution.
-
-     [subst_tyvar(ty, idx, new_ty)] substitutes [new_ty] for type variable at
-     index [idx] in [ty].
-   */
-  let subst_tyvar: (t('idx), Index.t('idx), t('idx)) => t('idx);
-  let subst_tyvars: (t('idx), list((Index.t('idx), t('idx)))) => t('idx);
 };
 
 module Kind_core: {
