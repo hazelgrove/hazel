@@ -172,7 +172,7 @@ and syn_elab_operand =
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let ty = HTyp.Unknown(Internal);
+    let ty = HTyp.Unknown(ModeSwitch);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(u, t) =>
@@ -181,7 +181,7 @@ and syn_elab_operand =
     let ty = HTyp.Unknown(Internal);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Wild(NotInHole) => Elaborates(Wild, Unknown(Internal), ctx, delta)
+  | Wild(NotInHole) => Elaborates(Wild, Unknown(ModeSwitch), ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
     Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
