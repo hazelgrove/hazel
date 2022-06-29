@@ -221,7 +221,10 @@ let view =
       )
     );
   details(
-    [],
-    [summary([], [Vdom.Node.text("Options")]), evaluation_checkboxes],
+    [Vdom.Attr.classes(["settings-panel"])],
+    [
+      summary([], [Vdom.Node.text("Advanced Settings")]),
+      evaluation_checkboxes,
+    ],
   );
 };
