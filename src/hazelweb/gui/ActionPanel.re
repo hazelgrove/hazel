@@ -4,7 +4,7 @@ let action_panel = (children: list(Node.t)): Node.t => {
   let panel_title =
     Node.div(
       [Attr.classes(["panel-title-bar", "title-bar"])],
-      [Node.text("Edit Actions")],
+      [Node.text("Available Edit Actions")],
     );
 
   let panel_body =

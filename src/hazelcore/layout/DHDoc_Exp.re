@@ -96,7 +96,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
 
 let rec mk =
         (
-          ~settings: Settings.Evaluation.t,
+          ~settings: DHSettings.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
