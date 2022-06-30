@@ -127,7 +127,7 @@ let rec mk_ListLit = (l, ol) =>
     if (l == ol) {
       Doc.(hcats([text("["), hd, mk_ListLit(tl, ol)]));
     } else {
-      Doc.(hcats([text(","), hd, mk_ListLit(tl, ol)]));
+      Doc.(hcats([text(", "), hd, mk_ListLit(tl, ol)]));
     }
   };
 
