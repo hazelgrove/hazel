@@ -100,60 +100,81 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
+let text_editor_page = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
+  TextEditor.view(~inject, ~model);
+};
+
+let structural_page = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
+  let settings = model.settings;
+  let card_caption = Model.get_card(model).info.caption;
+  let cell_status =
+    !settings.evaluation.evaluate
+      ? div([], []) : cell_status_panel(~settings, ~model, ~inject);
+  div(
+    [Attr.id("page-area")],
+    [
+      div(
+        [Attr.classes(["page"])],
+        [
+          Node.span(
+            [Attr.id("button-span")],
+            [
+              Node.button(
+                [
+                  Attr.id("editor-switch-button"),
+                  Attr.on_click(_ => {
+                    inject(
+                      ModelAction.UpdateTextEditor(
+                        TextEditorModel.OpenEditor(Model.get_program(model)),
+                      ),
+                    )
+                  }),
+                ],
+                [Node.text("Switch to Text Editor")],
+              ),
+            ],
+          ),
+          div([Attr.classes(["card-caption"])], [card_caption]),
+          Cell.view(~inject, model),
+          cell_status,
+        ],
+      ),
+      div(
+        [
+          Attr.style(
+            Css_gen.(white_space(`Pre) @> font_family(["monospace"])),
+          ),
+        ],
+        [branch_panel],
+      ),
+    ],
+  );
+};
+
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
+  let current_page =
+    model.text_editor.active ? text_editor_page : structural_page;
   TimeUtil.measure_time(
     "Page.view",
     settings.performance.measure && settings.performance.page_view,
     () => {
-      let card_caption = Model.get_card(model).info.caption;
-      let cell_status =
-        !settings.evaluation.evaluate
-          ? div([], []) : cell_status_panel(~settings, ~model, ~inject);
-      div(
-        [Attr.id("root")],
-        [
-          top_bar(~inject, ~model),
-          div(
-            [Attr.classes(["main-area"])],
-            [
-              left_sidebar(~inject, ~model),
-              div(
-                [Attr.classes(["flex-wrapper"])],
-                [
-                  div(
-                    [Attr.id("page-area")],
-                    [
-                      div(
-                        [Attr.classes(["page"])],
-                        [
-                          div(
-                            [Attr.classes(["card-caption"])],
-                            [card_caption],
-                          ),
-                          Cell.view(~inject, model),
-                          cell_status,
-                        ],
-                      ),
-                      div(
-                        [
-                          Attr.style(
-                            Css_gen.(
-                              white_space(`Pre) @> font_family(["monospace"])
-                            ),
-                          ),
-                        ],
-                        [branch_panel],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              right_sidebar(~inject, ~model),
-            ],
-          ),
-        ],
-      );
-    },
-  );
+    div(
+      [Attr.id("root")],
+      [
+        top_bar(~inject, ~model),
+        div(
+          [Attr.classes(["main-area"])],
+          [
+            left_sidebar(~inject, ~model),
+            div(
+              [Attr.classes(["flex-wrapper"])],
+              [current_page(~inject, ~model)],
+            ),
+            right_sidebar(~inject, ~model),
+          ],
+        ),
+      ],
+    )
+  });
 };

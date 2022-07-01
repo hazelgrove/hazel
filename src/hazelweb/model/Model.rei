@@ -16,6 +16,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
+  text_editor: TextEditorModel.t,
 };
 
 let cardstack_info: list(CardstackInfo.t);

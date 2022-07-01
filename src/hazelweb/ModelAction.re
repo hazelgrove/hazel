@@ -40,6 +40,7 @@ type t =
   | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
+  | UpdateTextEditor(TextEditorModel.update)
   | FocusCell
   | BlurCell
   | Redo

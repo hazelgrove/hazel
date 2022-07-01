@@ -9,6 +9,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
+  text_editor: TextEditorModel.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -55,6 +56,7 @@ let init = (): t => {
   };
   let settings = Settings.init;
   let cursor_inspector = CursorInspectorModel.init;
+  let text_editor = TextEditorModel.init;
   let selected_instances = {
     let si = UserSelectedInstances.init;
     switch (
@@ -82,6 +84,7 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     cursor_inspector,
+    text_editor,
   };
 };
 
