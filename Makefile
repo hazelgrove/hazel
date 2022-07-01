@@ -57,10 +57,10 @@ repl:
 
 test:
 	dune build @src/fmt --auto-promote || true
-	dune exec src/hazeltest/hazeltest.exe -- --regression-dir regressions
+	dune exec src/hazeltest/hazeltest.exe -- --regression-dir src/hazeltest/regressions
 
 reset-regression-tests:
-	dune exec src/hazeltest/hazeltest.exe -- regression --regression-dir regressions --reset-regressions
+	dune exec src/hazeltest/hazeltest.exe -- regression --regression-dir src/hazeltest/regressions --reset-regressions
 
 fix-test-answers:
 	dune promote || true
