@@ -9,8 +9,3 @@ module Let_syntax = ElaborationResult;
 let syn_elab: (Contexts.t, Delta.t, UHPat.t) => ElaborationResult.t;
 
 let ana_elab: (Contexts.t, Delta.t, UHPat.t, HTyp.t) => ElaborationResult.t;
-
-/* TODO: remove */
-/* let renumber_result_only:
-   (InstancePath.t, HoleInstanceInfo.t, DHPat.t) =>
-   (DHPat.t, HoleInstanceInfo.t); */

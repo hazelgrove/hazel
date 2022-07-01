@@ -3,8 +3,6 @@
 
    Replacement for HoleInstance.t (due to performance issue,
    should group instances with the same environment together)
-
-   TODO: should this include hole closure parents?
    */
 [@deriving sexp]
 type t = (MetaVar.t, HoleClosureId.t);

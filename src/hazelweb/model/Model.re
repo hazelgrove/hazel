@@ -171,12 +171,6 @@ let update_program = (a: ModelAction.t, new_program, model) => {
     let si =
       Result.fast_equals(old_result, new_result)
         ? si : UserSelectedInstances.init;
-    /* TimeUtil.measure_time("Result.fast_equals", true, () =>
-         Result.fast_equals(old_result, new_result)
-           ? si : UserSelectedInstances.init
-       ); */
-    /* TODO: remove timing here */
-    /* Compare performance to old_result == new_result */
 
     switch (
       model.settings.evaluation.evaluate,
