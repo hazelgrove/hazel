@@ -1,4 +1,4 @@
-/* Identifier for a hole closure (unique among
+/* Identifier for a unique hole closure/instantiation (unique among
    hole closures for a given hole number)
    */
 [@deriving sexp]

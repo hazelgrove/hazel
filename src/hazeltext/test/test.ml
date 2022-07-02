@@ -30,25 +30,16 @@ let test_parse text : bool =
 let test_incorrect text = test_parse text = false
 
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
-
 let%test "let basic" = test_parse "let a = 1 in a"
-
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
-
 let%test "basic lambda" = test_parse "fun f {f}"
-
 let%test "multiline" = test_parse "let a = 1 in a"
-
 let%test "comment" = test_parse "#Comment\n 3"
-
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
-
 (* The program must end in an expr line of some sort *)
 let%test "only comment" = test_incorrect "# Comment"
-
 let%test "only empty" = test_incorrect "\n"
-
 let%test "func app" = test_parse "let f = fun x { fun y { x + y } } in f 1 2"
 
 let%test "func app 2" =

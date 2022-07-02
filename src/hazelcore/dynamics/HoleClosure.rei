@@ -1,4 +1,4 @@
-/* Representation of a hole closure (the set of hole
+/* Representation of a unique hole closure/instantiation (the set of hole
    instances with the same hole number and environment)
 
    Replacement for HoleInstance.t (due to performance issue,

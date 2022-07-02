@@ -1,11 +1,3 @@
-/* HoleClosureInfo_.re: Auxiliary data structure for constructing a
-   HoleClosureInfo.t.
-
-   Useful for building the HoleClosureInfo, because we can index/lookup
-   by EvalEnvId. However, when using it we want sequential numbers
-   (HoleClosureId) to identify the hole closures
-   (similar to HoleInstanceInfo.t).
-   */
 [@deriving sexp]
 type t =
   MetaVarMap.t(
@@ -14,9 +6,6 @@ type t =
 
 let empty: t = MetaVarMap.empty;
 
-/* Assign a unique hole closure ID for the (u, env) pair representing
-   a hole closure. If the pair already exists, return the existing value;
-   otherwise, assign a new ID to the pair. */
 let number_hole_closure =
     (hci: t, u: MetaVar.t, env: EvalEnv.t): (t, HoleClosureId.t) => {
   let ei = env |> EvalEnv.id_of_evalenv;
@@ -45,8 +34,6 @@ let number_hole_closure =
   };
 };
 
-/* Converts HoleClosureInfo_.t to HoleClosureInfo.t
- */
 let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
   /* For each hole, arrange closures in order of increasing hole
      closure id. */
