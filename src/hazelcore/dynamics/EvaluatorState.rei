@@ -20,7 +20,7 @@ let take_step: t => t;
 /**
  * {take_fuel state} decrements the amount of fuel in {state}.
  */
-let take_fuel: t => t;
+let take_fuel: (t, int) => t;
 
 /**
  * {out_of_fuel t} returns {true} if there is no more fuel.
