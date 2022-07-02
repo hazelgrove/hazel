@@ -7,7 +7,7 @@ type t = {
 };
 
 /* TODO: Configurable fuel. */
-let init = {step: 0, fuel: 32};
+let init = {step: 0, fuel: 256};
 
 let take_step = ({step, _} as state) => {...state, step: step + 1};
 
