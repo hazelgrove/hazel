@@ -1,32 +1,27 @@
 import Ast from "./ast"
 import AstUtil from "./ast_util"
 
-@disableGC
 export let mkBoolLit = (x : Bool) => {
-    AstUtil.toNumber(Ast.BoolLit(x))
+    AstUtil.toHazel(Ast.BoolLit(x))
 }
 
-@disableGC
 export let mkBinBoolOpAnd = (x, y) => {
     let x = AstUtil.toAst(x)
     let y = AstUtil.toAst(y)
-    AstUtil.toNumber(Ast.BinBoolOp(Ast.And, x, y))
+    AstUtil.toHazel(Ast.BinBoolOp(Ast.And, x, y))
 }
 
-@disableGC
 export let mkBinBoolOpOr = (x, y) => {
     let x = AstUtil.toAst(x)
     let y = AstUtil.toAst(y)
-    AstUtil.toNumber(Ast.BinBoolOp(Ast.Or, x, y))
+    AstUtil.toHazel(Ast.BinBoolOp(Ast.Or, x, y))
 }
 
-@disableGC
 export let mkEmptyHole = (u : Ast.MetaVar, i : Ast.MetaVarInst, sigma : Ast.VarMap<Ast.Ast>) => {
-    AstUtil.toNumber(Ast.EmptyHole(u, i, sigma))
+    AstUtil.toHazel(Ast.EmptyHole(u, i, sigma))
 }
 
-@disableGC
-export let convertBoolLit = (x : Number) => {
+export let convertBoolLit = (x : AstUtil.Hazel) => {
     if (AstUtil.isIndet(x)) {
         x
     } else if (AstUtil.isConst(x)) {

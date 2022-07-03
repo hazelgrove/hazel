@@ -1,0 +1,43 @@
+import WasmI32 from "runtime/unsafe/wasmi32"
+
+import Ast from "./ast"
+
+@disableGC
+export let toNumber = (arr : Ast.Ast) => {
+    let arr = WasmI32.fromGrain(arr)
+    let arr = WasmI32.add(arr, 2n)
+    WasmI32.toGrain(arr) : Number
+}
+
+@disableGC
+export let toAst = (x : Number) => {
+    let arr = WasmI32.fromGrain(x)
+    let arr = WasmI32.sub(arr, 2n)
+    WasmI32.toGrain(arr) : Ast.Ast
+}
+
+@disableGC
+export let boolToNumber = (b : Bool) => {
+    let b = WasmI32.fromGrain(b)
+    WasmI32.toGrain(b) : Number
+}
+
+@disableGC
+export let toBool = (x : Number) => {
+    let arr = WasmI32.fromGrain(x)
+    WasmI32.toGrain(arr) : Bool
+}
+
+@disableGC
+export let isIndet = (x : Number) => {
+    let addr = WasmI32.fromGrain(x)
+    let addr = WasmI32.remU(addr, 8n)
+    WasmI32.eq(addr, 2n)
+}
+
+@disableGC
+export let isConst = (x : Number) => {
+    let addr = WasmI32.fromGrain(x)
+    let addr = WasmI32.remU(addr, 8n)
+    WasmI32.eq(addr, 6n)
+}
