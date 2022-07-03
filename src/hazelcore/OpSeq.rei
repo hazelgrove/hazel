@@ -36,12 +36,11 @@ let set_err_status:
 
 let mk_inconsistent:
   (
-    ~mk_inconsistent_operand: (MetaVarGen.t, 'operand) =>
-                              ('operand, MetaVarGen.t),
-    MetaVarGen.t,
+    ~mk_inconsistent_operand: (IDGen.t, 'operand) => ('operand, IDGen.t),
+    IDGen.t,
     t('operand, 'operator)
   ) =>
-  (t('operand, 'operator), MetaVarGen.t);
+  (t('operand, 'operator), IDGen.t);
 
 /**
  * `is_complete(is_complete_operand, opseq)` returns

@@ -15,7 +15,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (e, HTyp.Int, MetaVarGen.init),
+         (e, HTyp.Int, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -35,7 +35,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(sop)),
-         (e, HTyp.Float, MetaVarGen.init),
+         (e, HTyp.Float, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -160,7 +160,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (final, HTyp.Int, MetaVarGen.init),
+         (final, HTyp.Int, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -261,7 +261,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (e, HTyp.Int, MetaVarGen.init),
+         (e, HTyp.Int, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -300,7 +300,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (e, HTyp.Float, MetaVarGen.init),
+         (e, HTyp.Float, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -381,7 +381,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (e, HTyp.Hole, MetaVarGen.init),
+         (e, HTyp.Hole, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
@@ -419,7 +419,7 @@
        Action_Exp.syn_perform(
          Contexts.empty,
          Construct(SOp(SPlus)),
-         (e, HTyp.Hole, MetaVarGen.init),
+         (e, HTyp.Hole, IDGen.init),
        )
      ) {
      | Succeeded((ze, _, _)) => print_endline(Serialization.string_of_zexp(ze))
