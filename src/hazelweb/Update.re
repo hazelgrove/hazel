@@ -65,7 +65,9 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(_)
-  | SerializeToConsole(_) =>
+  | SerializeToConsole(_)
+  | Import(_)
+  | LoadPermalink =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -253,6 +255,14 @@ let apply_action =
                err |> Compile.sexp_of_next_error |> Sexplib.Sexp.to_string
              )
           |> JSUtil.log;
+        };
+        model;
+      | Import(e) => Import.import(e, model)
+      | LoadPermalink =>
+        switch (Permalink.get_current()) {
+        | Some(url) =>
+          model |> Permalink.put_model(url) |> Permalink.set_current
+        | None => JSUtil.log("[Permalink.EmptyCurrent]")
         };
         model;
       };
