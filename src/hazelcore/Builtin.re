@@ -2,13 +2,13 @@ open Sexplib.Std;
 
 /* Evaluator alias. */
 [@deriving sexp]
-type evaluate = DHExp.t => EvaluatorResult.t;
+type evaluate = (DHExp.t, EvaluatorResult.state) => EvaluatorResult.t;
 
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval = (args, evaluate) => EvaluatorResult.t;
+type eval = (args, evaluate, EvaluatorResult.state) => EvaluatorResult.t;
 
 [@deriving sexp]
 type elab = DHExp.t;
@@ -55,9 +55,9 @@ let mk = (ident: Var.t, ty: HTyp.t, eval: eval): t => {
 };
 
 let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
-  let fn = (args, evaluate) => {
+  let fn = (args, evaluate, state) => {
     switch (args) {
-    | [] => evaluate(v)
+    | [] => evaluate(v, state)
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };
@@ -72,11 +72,11 @@ let mk_one =
       fn: (Var.t, EvaluatorResult.t) => EvaluatorResult.t,
     )
     : t => {
-  let fn = (args, evaluate) => {
+  let fn = (args, evaluate, state) => {
     switch (args) {
     | [d1] =>
-      let r1 = evaluate(d1);
-      fn(ident, r1);
+      let r1' = evaluate(d1, state);
+      fn(ident, r1');
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };
@@ -88,15 +88,20 @@ let mk_two =
     (
       ident: Var.t,
       ty: HTyp.t,
-      fn: (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t,
+      fn:
+        (
+          Var.t,
+          (EvaluatorResult.exp, EvaluatorResult.exp, EvaluatorResult.state)
+        ) =>
+        EvaluatorResult.t,
     )
     : t => {
-  let fn = (args, evaluate) => {
+  let fn = (args, evaluate, state) => {
     switch (args) {
     | [d1, d2] =>
-      let r1 = evaluate(d1);
-      let r2 = evaluate(d2);
-      fn(ident, r1, r2);
+      let (r1, state) = evaluate(d1, state);
+      let (r2, state) = evaluate(d2, state);
+      fn(ident, (r1, r2, state));
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };

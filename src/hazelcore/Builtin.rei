@@ -2,7 +2,13 @@
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval = (args, DHExp.t => EvaluatorResult.t) => EvaluatorResult.t;
+type eval =
+  (
+    args,
+    (DHExp.t, EvaluatorResult.state) => EvaluatorResult.t,
+    EvaluatorResult.state
+  ) =>
+  EvaluatorResult.t;
 
 [@deriving sexp]
 type elab = DHExp.t;
@@ -40,6 +46,10 @@ let mk_two:
   (
     Var.t,
     HTyp.t,
-    (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t
+    (
+      Var.t,
+      (EvaluatorResult.exp, EvaluatorResult.exp, EvaluatorResult.state)
+    ) =>
+    EvaluatorResult.t
   ) =>
   t;
