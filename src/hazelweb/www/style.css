@@ -139,10 +139,10 @@ body {
   color:#40cb85;
 }
 
-.dropdown details {
+/* .dropdown details {
   display: flex;
   align-items: center;
-}
+} */
 
 .dropdown ul {
   list-style: none;
@@ -169,13 +169,14 @@ body {
   color:#7f8b85;
 }
 
-.dropdown summary {
+.dropdown > details > summary {
   text-shadow: 0 2px #020;
   list-style: none;
   cursor: pointer;
   padding-left: 1.5em;
 }
-.dropdown summary::-webkit-details-marker {
+
+.dropdown > details > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -193,7 +194,7 @@ body {
   filter: drop-shadow(0 0.2em 0.3em #2337);
 }
 
-.dropdown details[open] summary::before {
+.dropdown > details[open] > summary::before {
   position: fixed;
   top: 0;
   right: 0;
@@ -205,6 +206,13 @@ body {
   z-index: 10000;
 }
 
+.settings-panel {
+  font-size: 0.8em;
+}
+
+.settings-panel summary {
+  cursor: pointer
+}
 
 #card-controls {
   display: flex;
@@ -1113,6 +1121,7 @@ body {
 #SettingsPanel .indented-option {
   position: relative;
   left: 2.5ch;
+  margin-right: 2.5ch;
 }
 #SettingsPanel label[disabled] {
   opacity: 0.5;
