@@ -1,0 +1,12 @@
+import AstUtil from "./ast_util"
+import AstMk from "hazel/rt/ast_mk"
+
+export let and = (x, y) => {
+    if (AstUtil.isConst(x) && AstUtil.isConst(y)) {
+        AstUtil.boolToHazel(AstUtil.toBool(x) && AstUtil.toBool(y))
+    } else {
+        let x = AstUtil.convertBoolLit(x)
+        let y = AstUtil.convertBoolLit(y)
+        AstMk.mkBinBoolOpAnd(x, y)
+    }
+}
