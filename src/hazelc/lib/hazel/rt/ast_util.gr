@@ -40,7 +40,6 @@ export let isIndet = (x : Hazel) => {
     }
 }
 
-@disableGC
 export let isConst = (x : Hazel) => {
     match(x) {
         Indet(_) => false,
