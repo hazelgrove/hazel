@@ -10,7 +10,7 @@ type menu_entry = {
 let menu_entries: list(menu_entry) = [
   {
     label: "Load permalink into address bar",
-    shortcut: Some(HazelKeyCombos.name(Ctrl_Y)),
+    shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_L)),
     action: LoadPermalink,
   },
   {
