@@ -209,21 +209,11 @@ let rec mk_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
-  Log.fun_call(
-    __FUNCTION__,
-    ~args=[
-      ("d", () => sexp_of_t(d)),
-      ("dty1", () => DHTyp.sexp_of_t(dty1)),
-      ("dty2", () => DHTyp.sexp_of_t(dty2)),
-    ],
-    ~result_sexp=sexp_of_t,
-    () =>
-    if (DHTyp.equivalent(dty1, dty2)) {
-      d;
-    } else {
-      Cast(d, dty1, dty2);
-    }
-  );
+  if (DHTyp.equivalent(dty1, dty2)) {
+    d;
+  } else {
+    Cast(d, dty1, dty2);
+  };
 
 let apply_casts = (d: t, casts: list((DHTyp.t, DHTyp.t))): t =>
   List.fold_left(

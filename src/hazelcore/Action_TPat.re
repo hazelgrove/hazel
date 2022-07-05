@@ -75,120 +75,105 @@ let rec move = (a: Action.t, ztp: ZTPat.t): ActionOutcome.t(ZTPat.t) =>
 let rec perform =
         (a: Action.t, ztp: ZTPat.t, u_gen: MetaVarGen.t)
         : ActionOutcome.t((ZTPat.t, MetaVarGen.t)) =>
-  Log.fun_call(
-    __FUNCTION__,
-    ~args=[
-      ("a", () => Action.sexp_of_t(a)),
-      ("ztp", () => ZTPat.sexp_of_t(ztp)),
-      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
-    ],
-    ~id=u_gen,
-    ~result_sexp=
-      ActionOutcome.sexp_of_t(((ztp, u_gen)) =>
-        List([ZTPat.sexp_of_t(ztp), MetaVarGen.sexp_of_t(u_gen)])
-      ),
-    () =>
-    switch (a, ztp) {
-    | (
-        Construct(
-          SCloseParens | SCloseBraces | SCloseSquareBracket | SCommentLine |
-          SAnn |
-          SFun |
-          SLet |
-          SLine |
-          SListNil |
-          SInj(_) |
-          SCase |
-          STyAlias |
-          SList |
-          SParenthesized,
-        ) |
-        SwapUp |
-        SwapDown |
-        SwapLeft |
-        SwapRight,
-        _,
-      ) =>
-      Failed
+  switch (a, ztp) {
+  | (
+      Construct(
+        SCloseParens | SCloseBraces | SCloseSquareBracket | SCommentLine | SAnn |
+        SFun |
+        SLet |
+        SLine |
+        SListNil |
+        SInj(_) |
+        SCase |
+        STyAlias |
+        SList |
+        SParenthesized,
+      ) |
+      SwapUp |
+      SwapDown |
+      SwapLeft |
+      SwapRight,
+      _,
+    ) =>
+    Failed
 
-    | (_, CursorP(OnOp(_), _)) => Failed
-    | (_, CursorP(cursor, tp)) when !ZTPat.is_valid_cursor(cursor, tp) =>
-      Failed
+  | (_, CursorP(OnOp(_), _)) => Failed
+  | (_, CursorP(cursor, tp)) when !ZTPat.is_valid_cursor(cursor, tp) =>
+    Failed
 
-    | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-      switch (move(a, ztp)) {
-      | Succeeded(ztp) => Succeeded((ztp, u_gen))
-      | (CursorEscaped(_) | Failed) as outcome => outcome
-      }
-
-    | (Backspace, CursorP(OnDelim(_, Before), _)) => CursorEscaped(Before)
-
-    | (Delete, CursorP(OnDelim(_, After), _)) => CursorEscaped(After)
-
-    | (Backspace, CursorP(OnDelim(k, After), EmptyHole)) =>
-      Succeeded((CursorP(OnDelim(k, Before), EmptyHole), u_gen))
-
-    | (Delete, CursorP(OnDelim(k, Before), EmptyHole)) =>
-      Succeeded((CursorP(OnDelim(k, After), EmptyHole), u_gen))
-
-    | (Backspace, CursorP(OnDelim(_, After), _)) => Failed
-
-    | (Delete, CursorP(OnDelim(k, Before), tp)) =>
-      perform(Backspace, CursorP(OnDelim(k, After), tp), u_gen)
-
-    /* Backspace and delete on tyvar */
-    | (Backspace, CursorP(OnText(k), TyVar(_, name))) =>
-      if (ZTPat.is_before(ztp)) {
-        CursorEscaped(Before);
-      } else {
-        let new_name = StringUtil.backspace(k, name);
-        if (StringUtil.is_empty(new_name)) {
-          Succeeded((ZTPat.place_before(EmptyHole), u_gen));
-        } else {
-          let tp = TPat.of_string(new_name);
-          Succeeded((CursorP(OnText(k - 1), tp), u_gen));
-        };
-      }
-
-    | (Backspace, CursorP(OnText(_), _)) => Failed
-
-    | (Delete, CursorP(OnText(k), TyVar(_, name))) =>
-      if (ZTPat.is_after(ztp)) {
-        CursorEscaped(After);
-      } else {
-        let new_name = StringUtil.delete(k, name);
-        if (StringUtil.is_empty(new_name)) {
-          Succeeded((ZTPat.place_before(EmptyHole), u_gen));
-        } else {
-          let tp = TPat.of_string(new_name);
-          Succeeded((CursorP(OnText(k), tp), u_gen));
-        };
-      }
-
-    | (Delete, CursorP(OnText(_), _)) => Failed
-    /* Construction */
-    | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
-      perform(MoveRight, ztp, u_gen)
-
-    | (Construct(SOp(_)), _) => Failed
-
-    | (Construct(SChar(s)), CursorP(_, EmptyHole)) =>
-      let tp = TPat.of_string(s);
-      Succeeded((CursorP(OnText(1), tp), u_gen));
-
-    | (Construct(SChar(s)), CursorP(OnText(k), TyVar(_, name))) =>
-      let new_name = StringUtil.insert(k, s, name);
-      switch (TyTextShape.of_string(new_name)) {
-      | None =>
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        let tp = TPat.TyVar(InHole(InvalidName, u), new_name);
-        Succeeded((CursorP(OnText(k + 1), tp), u_gen));
-      | Some(shape) =>
-        let (tp, u_gen) = text_operand(shape, u_gen);
-        Succeeded((CursorP(OnText(k + 1), tp), u_gen));
-      };
-
-    | (Construct(SChar(_)), _) => Failed
-    | (Init, _) => failwith("Init action should not be performed")
+  | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
+    switch (move(a, ztp)) {
+    | Succeeded(ztp) => Succeeded((ztp, u_gen))
+    | (CursorEscaped(_) | Failed) as outcome => outcome
     }
-  );
+
+  | (Backspace, CursorP(OnDelim(_, Before), _)) => CursorEscaped(Before)
+
+  | (Delete, CursorP(OnDelim(_, After), _)) => CursorEscaped(After)
+
+  | (Backspace, CursorP(OnDelim(k, After), EmptyHole)) =>
+    Succeeded((CursorP(OnDelim(k, Before), EmptyHole), u_gen))
+
+  | (Delete, CursorP(OnDelim(k, Before), EmptyHole)) =>
+    Succeeded((CursorP(OnDelim(k, After), EmptyHole), u_gen))
+
+  | (Backspace, CursorP(OnDelim(_, After), _)) => Failed
+
+  | (Delete, CursorP(OnDelim(k, Before), tp)) =>
+    perform(Backspace, CursorP(OnDelim(k, After), tp), u_gen)
+
+  /* Backspace and delete on tyvar */
+  | (Backspace, CursorP(OnText(k), TyVar(_, name))) =>
+    if (ZTPat.is_before(ztp)) {
+      CursorEscaped(Before);
+    } else {
+      let new_name = StringUtil.backspace(k, name);
+      if (StringUtil.is_empty(new_name)) {
+        Succeeded((ZTPat.place_before(EmptyHole), u_gen));
+      } else {
+        let tp = TPat.of_string(new_name);
+        Succeeded((CursorP(OnText(k - 1), tp), u_gen));
+      };
+    }
+
+  | (Backspace, CursorP(OnText(_), _)) => Failed
+
+  | (Delete, CursorP(OnText(k), TyVar(_, name))) =>
+    if (ZTPat.is_after(ztp)) {
+      CursorEscaped(After);
+    } else {
+      let new_name = StringUtil.delete(k, name);
+      if (StringUtil.is_empty(new_name)) {
+        Succeeded((ZTPat.place_before(EmptyHole), u_gen));
+      } else {
+        let tp = TPat.of_string(new_name);
+        Succeeded((CursorP(OnText(k), tp), u_gen));
+      };
+    }
+
+  | (Delete, CursorP(OnText(_), _)) => Failed
+  /* Construction */
+  | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
+    perform(MoveRight, ztp, u_gen)
+
+  | (Construct(SOp(_)), _) => Failed
+
+  | (Construct(SChar(s)), CursorP(_, EmptyHole)) =>
+    let tp = TPat.of_string(s);
+    Succeeded((CursorP(OnText(1), tp), u_gen));
+
+  | (Construct(SChar(s)), CursorP(OnText(k), TyVar(_, name))) =>
+    let new_name = StringUtil.insert(k, s, name);
+    switch (TyTextShape.of_string(new_name)) {
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let tp = TPat.TyVar(InHole(InvalidName, u), new_name);
+      Succeeded((CursorP(OnText(k + 1), tp), u_gen));
+    | Some(shape) =>
+      let (tp, u_gen) = text_operand(shape, u_gen);
+      Succeeded((CursorP(OnText(k + 1), tp), u_gen));
+    };
+
+  | (Construct(SChar(_)), _) => Failed
+  | (Init, _) => failwith("Init action should not be performed")
+  };

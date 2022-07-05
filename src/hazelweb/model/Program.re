@@ -56,16 +56,10 @@ let cursor_info =
     CursorInfo_Exp.syn_cursor_info(InitialContext.ctx),
   );
 let get_cursor_info = (program: t) =>
-  Log.fun_call(
-    __FUNCTION__,
-    ~args=[("program", () => sexp_of_t(program))],
-    ~result_sexp=CursorInfo.sexp_of_t,
-    () => {
-    program
-    |> get_zexp
-    |> cursor_info
-    |> OptUtil.get(() => raise(MissingCursorInfo))
-  });
+  program
+  |> get_zexp
+  |> cursor_info
+  |> OptUtil.get(() => raise(MissingCursorInfo));
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;

@@ -32,60 +32,48 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   );
 };
 
-let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) =>
-  Log.fun_call(
-    __FUNCTION__,
-    ~args=[
-      ("settings", () => Settings.sexp_of_t(settings)),
-      ("model", () => Model.sexp_of_t(model)),
-    ],
-    ~result_sexp=_ => List([]),
-    () => {
-      let program = Model.get_program(model);
-      let selected_instance = Model.get_selected_hole_instance(model);
-      let (_, ty, _) = program.edit_state;
-      let result =
-        settings.evaluation.show_unevaluated_elaboration
-          ? program |> Program.get_elaboration
-          : program |> Program.get_result |> Result.get_dhexp;
+let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
+  let program = Model.get_program(model);
+  let selected_instance = Model.get_selected_hole_instance(model);
+  let (_, ty, _) = program.edit_state;
+  let result =
+    settings.evaluation.show_unevaluated_elaboration
+      ? program |> Program.get_elaboration
+      : program |> Program.get_result |> Result.get_dhexp;
+  div(
+    [],
+    [
       div(
-        [],
+        [Attr.classes(["cell-status"])],
         [
           div(
-            [Attr.classes(["cell-status"])],
+            [Attr.classes(["type-indicator"])],
             [
               div(
-                [Attr.classes(["type-indicator"])],
-                [
-                  div(
-                    [Attr.classes(["type-label"])],
-                    [text("Result of type: ")],
-                  ),
-                  div(
-                    [Attr.classes(["htype-view"])],
-                    [HTypCode.view(ty)],
-                  ),
-                ],
+                [Attr.classes(["type-label"])],
+                [text("Result of type: ")],
               ),
-            ],
-          ),
-          div(
-            [Attr.classes(["result-view"])],
-            [
-              DHCode.view(
-                ~inject,
-                ~selected_instance,
-                ~settings=settings.evaluation,
-                ~width=80,
-                ~font_metrics=model.font_metrics,
-                result,
-              ),
+              div([Attr.classes(["htype-view"])], [HTypCode.view(ty)]),
             ],
           ),
         ],
-      );
-    },
+      ),
+      div(
+        [Attr.classes(["result-view"])],
+        [
+          DHCode.view(
+            ~inject,
+            ~selected_instance,
+            ~settings=settings.evaluation,
+            ~width=80,
+            ~font_metrics=model.font_metrics,
+            result,
+          ),
+        ],
+      ),
+    ],
   );
+};
 
 let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>

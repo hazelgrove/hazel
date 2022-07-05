@@ -233,62 +233,53 @@ module rec Context: {
   // new stamp > old stamp  ==>  new successors = old successors + new entries
   // new stamp < old stamp  ==>  new successors = new successors - old entries
 
-  let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=ContextRef.sexp_of_t,
-      () => {
-        let stamp = Context.length(ctx);
-        if (stamp == 0) {
-          failwith(
-            __LOC__ ++ ": cannot rescope type variables in an empty context",
-          );
-        };
-        let amount = stamp - cref.stamp;
-        let i = Index.Abs.to_int(cref.index) + amount;
-        if (i >= stamp) {
-          failwith(__LOC__ ++ ": rescoping context is in the past");
-        } else if (i < 0) {
-          failwith(__LOC__ ++ ": rescoping context is in the future");
-        };
-        let (successors, _, predecessors) =
-          ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        if (List.length(predecessors) != List.length(cref.predecessors)
-            || !List.for_all2(String.equal, predecessors, cref.predecessors)) {
-          failwith(
-            __LOC__
-            ++ ": cannot rescope index in an incompatbile context: different pasts",
-          );
-        };
-        let n = List.length(successors);
-        let m = List.length(cref.successors);
-        let (succs1, succs2) =
-          switch (n > m, n < m) {
-          | (true, _) => (ListUtil.drop(n - m, successors), cref.successors)
-          | (_, true) => (successors, ListUtil.drop(m - n, cref.successors))
-          | _ => (successors, cref.successors)
-          };
-        if (!List.for_all2(String.equal, succs1, succs2)) {
-          failwith(
-            __LOC__
-            ++ ": cannot rescope index in incompatible context: diverging futures",
-          );
-        };
-        let index = Index.Abs.of_int(i);
-        let cref = ContextRef.abs(index, stamp, predecessors, successors);
-        if (Index.Abs.to_int(cref.index) >= stamp) {
-          failwith(__LOC__ ++ ": rescoped type variable is in the future");
-        };
-        if (Index.Abs.to_int(cref.index) < 0) {
-          failwith(__LOC__ ++ ": rescoped type variable is in the past");
-        };
-        cref;
-      },
-    );
+  let rescope = (ctx: t, cref: ContextRef.t): ContextRef.t => {
+    let stamp = Context.length(ctx);
+    if (stamp == 0) {
+      failwith(
+        __LOC__ ++ ": cannot rescope type variables in an empty context",
+      );
+    };
+    let amount = stamp - cref.stamp;
+    let i = Index.Abs.to_int(cref.index) + amount;
+    if (i >= stamp) {
+      failwith(__LOC__ ++ ": rescoping context is in the past");
+    } else if (i < 0) {
+      failwith(__LOC__ ++ ": rescoping context is in the future");
+    };
+    let (successors, _, predecessors) =
+      ctx |> List.map(binding_name) |> ListUtil.pivot(i);
+    if (List.length(predecessors) != List.length(cref.predecessors)
+        || !List.for_all2(String.equal, predecessors, cref.predecessors)) {
+      failwith(
+        __LOC__
+        ++ ": cannot rescope index in an incompatbile context: different pasts",
+      );
+    };
+    let n = List.length(successors);
+    let m = List.length(cref.successors);
+    let (succs1, succs2) =
+      switch (n > m, n < m) {
+      | (true, _) => (ListUtil.drop(n - m, successors), cref.successors)
+      | (_, true) => (successors, ListUtil.drop(m - n, cref.successors))
+      | _ => (successors, cref.successors)
+      };
+    if (!List.for_all2(String.equal, succs1, succs2)) {
+      failwith(
+        __LOC__
+        ++ ": cannot rescope index in incompatible context: diverging futures",
+      );
+    };
+    let index = Index.Abs.of_int(i);
+    let cref = ContextRef.abs(index, stamp, predecessors, successors);
+    if (Index.Abs.to_int(cref.index) >= stamp) {
+      failwith(__LOC__ ++ ": rescoped type variable is in the future");
+    };
+    if (Index.Abs.to_int(cref.index) < 0) {
+      failwith(__LOC__ ++ ": rescoped type variable is in the past");
+    };
+    cref;
+  };
 
   let nth_var_binding =
       (ctx: t, n: int): option((Var.t, HTyp_syntax.t(Index.relative))) => {
@@ -338,298 +329,169 @@ module rec Context: {
 
   /* Type Variables */
 
-  let tyvars = (ctx: t): list((ContextRef.t, TyVar.t, Kind.t)) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[("ctx", () => sexp_of_t(ctx))],
-      ~result_sexp=
-        Sexplib.Std.sexp_of_list(((cref, t, k)) =>
-          List([
-            ContextRef.sexp_of_t(cref),
-            TyVar.sexp_of_t(t),
-            Kind.sexp_of_t(k),
-          ])
-        ),
-      () => {
-        let stamp = length(ctx);
-        ctx
-        |> List.mapi((i, binding) => (i, binding))
-        |> List.fold_left(
-             ((tyvars, (successors, predecessors)), (i, binding)) => {
-               switch (binding) {
-               | TyVarBinding(t, k) =>
-                 let index = Index.Abs.of_int(i);
-                 let predecessors = ListUtil.drop(1, predecessors);
-                 let cref =
-                   ContextRef.abs(index, stamp, predecessors, successors);
-                 let k = Kind_core.to_abs(~offset=i, k);
-                 let tyvars = [(cref, t, k), ...tyvars];
-                 let successors = successors @ [t];
-                 (tyvars, (successors, predecessors));
-               | VarBinding(x, _) =>
-                 let predecessors = ListUtil.drop(1, predecessors);
-                 let successors = successors @ [x];
-                 (tyvars, (successors, predecessors));
-               }
-             },
-             ([], ([], List.map(binding_name, ctx))),
-           )
-        |> fst
-        |> List.rev;
-      },
-    );
-
-  let tyvar = (ctx: t, cref: ContextRef.t): option(TyVar.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(TyVar.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let cref = rescope(ctx, cref);
-        let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(cref.index));
-        t;
-      },
-    );
-
-  let tyvar_ref = (ctx: t, t: TyVar.t): option(ContextRef.t) => {
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("t", () => TyVar.sexp_of_t(t)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let+ (i, _, _) =
-          first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
-        let index = Index.Abs.of_int(i);
-        let stamp = Context.length(ctx);
-        let (successors, _, predecessors) =
-          ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        ContextRef.abs(index, stamp, predecessors, successors);
-      },
-    );
+  let tyvars = (ctx: t): list((ContextRef.t, TyVar.t, Kind.t)) => {
+    let stamp = length(ctx);
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.fold_left(
+         ((tyvars, (successors, predecessors)), (i, binding)) => {
+           switch (binding) {
+           | TyVarBinding(t, k) =>
+             let index = Index.Abs.of_int(i);
+             let predecessors = ListUtil.drop(1, predecessors);
+             let cref =
+               ContextRef.abs(index, stamp, predecessors, successors);
+             let k = Kind_core.to_abs(~offset=i, k);
+             let tyvars = [(cref, t, k), ...tyvars];
+             let successors = successors @ [t];
+             (tyvars, (successors, predecessors));
+           | VarBinding(x, _) =>
+             let predecessors = ListUtil.drop(1, predecessors);
+             let successors = successors @ [x];
+             (tyvars, (successors, predecessors));
+           }
+         },
+         ([], ([], List.map(binding_name, ctx))),
+       )
+    |> fst
+    |> List.rev;
   };
 
-  let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(Kind.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let cref = rescope(ctx, cref);
-        let i = Index.Abs.to_int(cref.index);
-        let+ (_, k) = nth_tyvar_binding(ctx, i);
-        let k' = Kind_core.to_abs(~offset=i + 1, k);
-        Kind.rescope(ctx, k');
-      },
-    );
+  let tyvar = (ctx: t, cref: ContextRef.t): option(TyVar.t) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(cref.index));
+    t;
+  };
 
-  let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("t", () => TyVar.sexp_of_t(t)),
-        ("k", () => Kind.sexp_of_t(k)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      [TyVarBinding(t, Kind_core.to_rel(k)), ...ctx]
-    );
+  let tyvar_ref = (ctx: t, t: TyVar.t): option(ContextRef.t) => {
+    open OptUtil.Syntax;
+    let+ (i, _, _) =
+      first_tyvar_binding(ctx, (t', _) => TyVar.equal(t, t'));
+    let index = Index.Abs.of_int(i);
+    let stamp = Context.length(ctx);
+    let (successors, _, predecessors) =
+      ctx |> List.map(binding_name) |> ListUtil.pivot(i);
+    ContextRef.abs(index, stamp, predecessors, successors);
+  };
+
+  let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let i = Index.Abs.to_int(cref.index);
+    let+ (_, k) = nth_tyvar_binding(ctx, i);
+    let k' = Kind_core.to_abs(~offset=i + 1, k);
+    Kind.rescope(ctx, k');
+  };
+
+  let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
+    TyVarBinding(t, Kind_core.to_rel(k)),
+    ...ctx,
+  ];
 
   /* Assumes indices in ty are scoped to new_ctx. */
-  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("new_ctx", () => Context.sexp_of_t(new_ctx)),
-        ("old_ctx", () => Context.sexp_of_t(old_ctx)),
-        ("ty", () => HTyp.sexp_of_t(ty)),
-      ],
-      ~result_sexp=HTyp.sexp_of_t,
-      () => {
-        let new_tyvars = tyvars(new_ctx);
-        let old_tyvars = tyvars(old_ctx);
-        let n = List.length(new_tyvars) - List.length(old_tyvars);
-        let tyvars =
-          ListUtil.take(new_tyvars, n)
-          |> List.map(((cref: ContextRef.t, _, k)) => {
-               let cref = rescope(new_ctx, cref);
-               let ty = HTyp.rescope(new_ctx, Kind.to_htyp(k));
-               (cref, ty);
-             });
-        HTyp.subst_tyvars(new_ctx, ty, tyvars);
-      },
-    );
+  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
+    let new_tyvars = tyvars(new_ctx);
+    let old_tyvars = tyvars(old_ctx);
+    let n = List.length(new_tyvars) - List.length(old_tyvars);
+    let tyvars =
+      ListUtil.take(new_tyvars, n)
+      |> List.map(((cref: ContextRef.t, _, k)) => {
+           let cref = rescope(new_ctx, cref);
+           let ty = HTyp.rescope(new_ctx, Kind.to_htyp(k));
+           (cref, ty);
+         });
+    HTyp.subst_tyvars(new_ctx, ty, tyvars);
+  };
 
   /* Expression Variables */
 
-  let vars = (ctx: t): list((ContextRef.t, Var.t, HTyp.t)) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[("ctx", () => sexp_of_t(ctx))],
-      ~result_sexp=
-        Sexplib.Std.sexp_of_list(((cref, x, ty)) =>
-          List([
-            ContextRef.sexp_of_t(cref),
-            Var.sexp_of_t(x),
-            HTyp.sexp_of_t(ty),
-          ])
-        ),
-      () => {
-        let stamp = length(ctx);
-        ctx
-        |> List.mapi((i, binding) => (i, binding))
-        |> List.fold_left(
-             ((vars, (successors, predecessors)), (i, binding)) => {
-               switch (binding) {
-               | VarBinding(x, ty) =>
-                 let index = Index.Abs.of_int(i);
-                 let predecessors = ListUtil.drop(1, predecessors);
-                 let cref =
-                   ContextRef.abs(index, stamp, predecessors, successors);
-                 let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
-                 let vars = [(cref, x, ty), ...vars];
-                 let successors = successors @ [x];
-                 (vars, (successors, predecessors));
-               | TyVarBinding(t, _) =>
-                 let predecessors = ListUtil.drop(1, predecessors);
-                 let successors = successors @ [t];
-                 (vars, (successors, predecessors));
-               }
-             },
-             ([], ([], List.map(binding_name, ctx))),
-           )
-        |> fst
-        |> List.rev;
-      },
-    );
+  let vars = (ctx: t): list((ContextRef.t, Var.t, HTyp.t)) => {
+    let stamp = length(ctx);
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.fold_left(
+         ((vars, (successors, predecessors)), (i, binding)) => {
+           switch (binding) {
+           | VarBinding(x, ty) =>
+             let index = Index.Abs.of_int(i);
+             let predecessors = ListUtil.drop(1, predecessors);
+             let cref =
+               ContextRef.abs(index, stamp, predecessors, successors);
+             let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
+             let vars = [(cref, x, ty), ...vars];
+             let successors = successors @ [x];
+             (vars, (successors, predecessors));
+           | TyVarBinding(t, _) =>
+             let predecessors = ListUtil.drop(1, predecessors);
+             let successors = successors @ [t];
+             (vars, (successors, predecessors));
+           }
+         },
+         ([], ([], List.map(binding_name, ctx))),
+       )
+    |> fst
+    |> List.rev;
+  };
 
-  let var = (ctx: t, cref: ContextRef.t): option(Var.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(Var.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let cref = rescope(ctx, cref);
-        let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(cref.index));
-        x;
-      },
-    );
+  let var = (ctx: t, cref: ContextRef.t): option(Var.t) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(cref.index));
+    x;
+  };
 
-  let var_ref = (ctx: t, x: Var.t): option(ContextRef.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("x", () => Var.sexp_of_t(x)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let+ (i, _, _) = first_var_binding(ctx, (x', _) => Var.eq(x, x'));
-        let index = Index.Abs.of_int(i);
-        let stamp = Context.length(ctx);
-        let (successors, _, predecessors) =
-          ctx |> List.map(binding_name) |> ListUtil.pivot(i);
-        ContextRef.abs(index, stamp, predecessors, successors);
-      },
-    );
+  let var_ref = (ctx: t, x: Var.t): option(ContextRef.t) => {
+    open OptUtil.Syntax;
+    let+ (i, _, _) = first_var_binding(ctx, (x', _) => Var.eq(x, x'));
+    let index = Index.Abs.of_int(i);
+    let stamp = Context.length(ctx);
+    let (successors, _, predecessors) =
+      ctx |> List.map(binding_name) |> ListUtil.pivot(i);
+    ContextRef.abs(index, stamp, predecessors, successors);
+  };
 
-  let var_ref_type = (ctx: t, cref: ContextRef.t): option(HTyp.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("cref", () => ContextRef.sexp_of_t(cref)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let cref = rescope(ctx, cref);
-        let i = Index.Abs.to_int(cref.index);
-        let+ (_, ty) = nth_var_binding(ctx, i);
-        let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
-        HTyp.rescope(ctx, ty);
-      },
-    );
+  let var_ref_type = (ctx: t, cref: ContextRef.t): option(HTyp.t) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let i = Index.Abs.to_int(cref.index);
+    let+ (_, ty) = nth_var_binding(ctx, i);
+    let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
+    HTyp.rescope(ctx, ty);
+  };
 
-  let var_type = (ctx: t, x: Var.t): option(HTyp.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("x", () => Var.sexp_of_t(x)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(HTyp.sexp_of_t),
-      () => {
-        open OptUtil.Syntax;
-        let* cref = var_ref(ctx, x);
-        var_ref_type(ctx, cref);
-      },
-    );
+  let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
+    open OptUtil.Syntax;
+    let* cref = var_ref(ctx, x);
+    var_ref_type(ctx, cref);
+  };
 
-  let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => sexp_of_t(ctx)),
-        ("x", () => Var.sexp_of_t(x)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      [VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))), ...ctx]
-    );
+  let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t => [
+    VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))),
+    ...ctx,
+  ];
 
   let entries = (ctx: t): list(entry) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[("ctx", () => sexp_of_t(ctx))],
-      ~result_sexp=Sexplib.Std.sexp_of_list(sexp_of_entry),
-      () =>
-      List.mapi(
-        (i, binding) =>
-          switch (i, binding) {
-          | (i, VarBinding(x, ty)) =>
-            VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
-          | (i, TyVarBinding(t, k)) =>
-            TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
-          },
-        ctx,
-      )
+    List.mapi(
+      (i, binding) =>
+        switch (i, binding) {
+        | (i, VarBinding(x, ty)) =>
+          VarEntry(x, HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty)))
+        | (i, TyVarBinding(t, k)) =>
+          TyVarEntry(t, Kind_core.to_abs(~offset=i, k))
+        },
+      ctx,
     );
 
   let of_entries = (entries: list(entry)): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("entries", () => Sexplib.Std.sexp_of_list(sexp_of_entry, entries)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      List.fold_right(
-        (entry, ctx) =>
-          switch (entry) {
-          | VarEntry(x, ty) => add_var(ctx, x, ty)
-          | TyVarEntry(t, k) => add_tyvar(ctx, t, k)
-          },
-        entries,
-        [],
-      )
+    List.fold_right(
+      (entry, ctx) =>
+        switch (entry) {
+        | VarEntry(x, ty) => add_var(ctx, x, ty)
+        | TyVarEntry(t, k) => add_tyvar(ctx, t, k)
+        },
+      entries,
+      [],
     );
 }
 
@@ -748,36 +610,27 @@ and HTyp: {
   let of_syntax: HTyp_syntax.t(Index.absolute) => t = ty => ty;
 
   let rec shift_indices = (ty: t, amount: int): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ty", () => sexp_of_t(ty)),
-        ("amount", () => Sexplib.Std.sexp_of_int(amount)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      switch (ty) {
-      | TyVar(cref, t) =>
-        let index = Index.shift(~above=-1, ~amount, cref.index);
-        let stamp = cref.stamp + amount;
-        TyVar({...cref, index, stamp}, t);
-      | Hole
-      | Int
-      | Float
-      | Bool
-      | TyVarHole(_) => ty
-      | Arrow(ty1, ty2) =>
-        let ty1 = shift_indices(ty1, amount);
-        let ty2 = shift_indices(ty2, amount);
-        Arrow(ty1, ty2);
-      | Sum(tyL, tyR) =>
-        let tyL = shift_indices(tyL, amount);
-        let tyR = shift_indices(tyR, amount);
-        Sum(tyL, tyR);
-      | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
-      | List(ty1) => List(shift_indices(ty1, amount))
-      }
-    );
+    switch (ty) {
+    | TyVar(cref, t) =>
+      let index = Index.shift(~above=-1, ~amount, cref.index);
+      let stamp = cref.stamp + amount;
+      TyVar({...cref, index, stamp}, t);
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | TyVarHole(_) => ty
+    | Arrow(ty1, ty2) =>
+      let ty1 = shift_indices(ty1, amount);
+      let ty2 = shift_indices(ty2, amount);
+      Arrow(ty1, ty2);
+    | Sum(tyL, tyR) =>
+      let tyL = shift_indices(tyL, amount);
+      let tyR = shift_indices(tyR, amount);
+      Sum(tyL, tyR);
+    | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
+    | List(ty1) => List(shift_indices(ty1, amount))
+    };
 
   let hole: unit => t = () => Hole;
   let int: unit => t = () => Int;
@@ -800,101 +653,60 @@ and HTyp: {
     | _ => false
     };
 
-  let tyvar = (ctx: Context.t, index: Index.Abs.t, t: TyVar.t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("index", () => Index.Abs.sexp_of_t(index)),
-        ("t", () => TyVar.sexp_of_t(t)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () => {
-        let stamp = Context.length(ctx);
-        let (successors, _, predecessors) =
-          ctx
-          |> List.map(Context.binding_name)
-          |> ListUtil.pivot(Index.Abs.to_int(index));
-        TyVar({index, stamp, successors, predecessors}, t);
-      },
-    );
+  let tyvar = (ctx: Context.t, index: Index.Abs.t, t: TyVar.t): t => {
+    let stamp = Context.length(ctx);
+    let (successors, _, predecessors) =
+      ctx
+      |> List.map(Context.binding_name)
+      |> ListUtil.pivot(Index.Abs.to_int(index));
+    TyVar({index, stamp, successors, predecessors}, t);
+  };
 
   let tyvarhole =
       (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, t: TyVar.t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("reason", () => TyVarErrStatus.HoleReason.sexp_of_t(reason)),
-        ("u", () => MetaVar.sexp_of_t(u)),
-        ("t", () => TyVar.sexp_of_t(t)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      TyVarHole(reason, u, t)
-    );
+    TyVarHole(reason, u, t);
 
   let tyvar_ref = (ty: t): option(ContextRef.t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[("ty", () => sexp_of_t(ty))],
-      ~result_sexp=Sexplib.Std.sexp_of_option(ContextRef.sexp_of_t),
-      () =>
-      switch (ty) {
-      | TyVar(cref, _) => Some(cref)
-      | TyVarHole(_)
-      | Hole
-      | Int
-      | Float
-      | Bool
-      | Arrow(_)
-      | Sum(_)
-      | Prod(_)
-      | List(_) => None
-      }
-    );
+    switch (ty) {
+    | TyVar(cref, _) => Some(cref)
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | List(_) => None
+    };
 
   let tyvar_name = (ty: t): option(string) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[("ty", () => sexp_of_t(ty))],
-      ~result_sexp=Sexplib.Std.sexp_of_option(Sexplib.Std.sexp_of_string),
-      () =>
-      switch (ty) {
-      | TyVar(_, t) => Some(t)
-      | TyVarHole(_)
-      | Hole
-      | Int
-      | Float
-      | Bool
-      | Arrow(_)
-      | Sum(_)
-      | Prod(_)
-      | List(_) => None
-      }
-    );
+    switch (ty) {
+    | TyVar(_, t) => Some(t)
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | List(_) => None
+    };
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_t(ty)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      switch (ty) {
-      | TyVar(cref, t) => TyVar(Context.rescope(ctx, cref), t)
-      | TyVarHole(_)
-      | Hole
-      | Int
-      | Float
-      | Bool => ty
-      | Arrow(ty1, ty2) => Arrow(rescope(ctx, ty1), rescope(ctx, ty2))
-      | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
-      | Prod(tys) => Prod(List.map(rescope(ctx), tys))
-      | List(ty1) => List(rescope(ctx, ty1))
-      }
-    );
+    switch (ty) {
+    | TyVar(cref, t) => TyVar(Context.rescope(ctx, cref), t)
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool => ty
+    | Arrow(ty1, ty2) => Arrow(rescope(ctx, ty1), rescope(ctx, ty2))
+    | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
+    | Prod(tys) => Prod(List.map(rescope(ctx), tys))
+    | List(ty1) => List(rescope(ctx, ty1))
+    };
 
   let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
     switch (ty) {
@@ -922,144 +734,87 @@ and HTyp: {
 
   let subst_tyvars =
       (ctx: Context.t, ty: t, tyvars: list((ContextRef.t, t))): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ty", () => sexp_of_t(ty)),
-        (
-          "tyvars",
-          () =>
-            Sexplib.Std.sexp_of_list(
-              ((cref, ty)) =>
-                List([ContextRef.sexp_of_t(cref), sexp_of_t(ty)]),
-              tyvars,
-            ),
-        ),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      List.fold_left(
-        (ty, (cref, ty')) => subst_tyvar(ctx, ty, cref, ty'),
-        ty,
-        tyvars,
-      )
+    List.fold_left(
+      (ty, (cref, ty')) => subst_tyvar(ctx, ty, cref, ty'),
+      ty,
+      tyvars,
     );
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_t(ty)),
-        ("ty'", () => sexp_of_t(ty')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (ty, ty') {
-      | (TyVar(cref, _), TyVar(cref', _)) =>
-        Index.equal(cref.index, cref'.index)
-        && Int.equal(cref.stamp, cref'.stamp)
-        || (
-          switch (
-            Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
-            Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
-          ) {
-          | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
-          | (None, _)
-          | (_, None) => false
-          }
-        )
-      | (TyVar(_), _) => false
-      | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
-      | (TyVarHole(_, _, _), _) => false
-      | (Hole | Int | Float | Bool, _) => ty == ty'
-      | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-      | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-        equivalent(ctx, ty1, ty1') && equivalent(ctx, ty2, ty2')
-      | (Arrow(_, _), _) => false
-      | (Sum(_, _), _) => false
-      | (Prod(tys1), Prod(tys2)) =>
-        List.for_all2(equivalent(ctx), tys1, tys2)
-      | (Prod(_), _) => false
-      | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
-      | (List(_), _) => false
-      }
-    );
-
-  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_t(ty)),
-        ("ty'", () => sexp_of_t(ty')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (ty, ty') {
-      | (TyVar(cref, _), TyVar(cref', _)) =>
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      Index.equal(cref.index, cref'.index)
+      && Int.equal(cref.stamp, cref'.stamp)
+      || (
         switch (
           Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
           Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
         ) {
-        | (Some(k), Some(k')) =>
-          consistent(
-            ctx,
-            HTyp.to_syntax(Kind.to_htyp(k)),
-            HTyp.to_syntax(Kind.to_htyp(k')),
-          )
+        | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
         | (None, _)
         | (_, None) => false
         }
-      | (TyVar(cref, _), ty1)
-      | (ty1, TyVar(cref, _)) =>
-        switch (Context.tyvar_kind(ctx, Context.rescope(ctx, cref))) {
-        | Some(k) => consistent(ctx, HTyp.to_syntax(Kind.to_htyp(k)), ty1)
-        | None => false
-        }
-      | (TyVarHole(_) | Hole, _)
-      | (_, TyVarHole(_) | Hole) => true
-      | (Int | Float | Bool, _) => ty == ty'
-      | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-      | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-        consistent(ctx, ty1, ty1') && consistent(ctx, ty2, ty2')
-      | (Arrow(_) | Sum(_), _) => false
-      | (Prod(tys), Prod(tys')) =>
-        List.for_all2(consistent(ctx), tys, tys')
-      | (Prod(_), _) => false
-      | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
-      | (List(_), _) => false
+      )
+    | (TyVar(_), _) => false
+    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+    | (TyVarHole(_, _, _), _) => false
+    | (Hole | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      equivalent(ctx, ty1, ty1') && equivalent(ctx, ty2, ty2')
+    | (Arrow(_, _), _) => false
+    | (Sum(_, _), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.for_all2(equivalent(ctx), tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
+    | (List(_), _) => false
+    };
+
+  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      switch (
+        Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
+        Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
+      ) {
+      | (Some(k), Some(k')) =>
+        consistent(
+          ctx,
+          HTyp.to_syntax(Kind.to_htyp(k)),
+          HTyp.to_syntax(Kind.to_htyp(k')),
+        )
+      | (None, _)
+      | (_, None) => false
       }
-    );
+    | (TyVar(cref, _), ty1)
+    | (ty1, TyVar(cref, _)) =>
+      switch (Context.tyvar_kind(ctx, Context.rescope(ctx, cref))) {
+      | Some(k) => consistent(ctx, HTyp.to_syntax(Kind.to_htyp(k)), ty1)
+      | None => false
+      }
+    | (TyVarHole(_) | Hole, _)
+    | (_, TyVarHole(_) | Hole) => true
+    | (Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      consistent(ctx, ty1, ty1') && consistent(ctx, ty2, ty2')
+    | (Arrow(_) | Sum(_), _) => false
+    | (Prod(tys), Prod(tys')) => List.for_all2(consistent(ctx), tys, tys')
+    | (Prod(_), _) => false
+    | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
+    | (List(_), _) => false
+    };
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty1", () => sexp_of_t(ty1)),
-        ("ty2", () => sexp_of_t(ty2)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      !consistent(ctx, ty1, ty2)
-    );
+    !consistent(ctx, ty1, ty2);
 
   let rec consistent_all = (ctx: Context.t, types: list(t)): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("types", () => Sexplib.Std.sexp_of_list(sexp_of_t, types)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (types) {
-      | [] => true
-      | [hd, ...tl] =>
-        !List.exists(inconsistent(ctx, hd), tl) || consistent_all(ctx, tl)
-      }
-    );
+    switch (types) {
+    | [] => true
+    | [hd, ...tl] =>
+      !List.exists(inconsistent(ctx, hd), tl) || consistent_all(ctx, tl)
+    };
 
   /* complete (i.e. does not have any holes) */
   let rec complete: t => bool =
@@ -1104,93 +859,72 @@ and HTyp: {
     | LUB;
 
   let rec join = (ctx: Context.t, j: join, ty1: t, ty2: t): option(t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("j", () => sexp_of_join(j)),
-        ("ty1", () => sexp_of_t(ty1)),
-        ("ty2", () => sexp_of_t(ty2)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(sexp_of_t),
-      () =>
-      switch (ty1, ty2) {
-      | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
-      | (ty, Hole | TyVarHole(_))
-      | (Hole | TyVarHole(_), ty) =>
-        switch (j) {
-        | GLB => Some(Hole)
-        | LUB => Some(ty)
-        }
-      | (TyVar(cref, _), _) =>
-        open OptUtil.Syntax;
-        let* k = Context.tyvar_kind(ctx, cref);
-        switch (k) {
-        | S(ty) => join(ctx, j, ty, ty2)
-        | Hole => join(ctx, j, Hole, ty2)
-        | Type =>
-          failwith("impossible for bounded type variables (currently) 1")
-        };
-      | (_, TyVar(cref, _)) =>
-        open OptUtil.Syntax;
-        let* k = Context.tyvar_kind(ctx, cref);
-        switch (k) {
-        | S(ty) => join(ctx, j, ty1, ty)
-        | Hole => join(ctx, j, ty1, Hole)
-        | Type =>
-          failwith("impossible for bounded type variables (currently) 2")
-        };
-      | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
-      | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-        open OptUtil.Syntax;
-        let* ty1 = join(ctx, j, ty1, ty1');
-        let+ ty2 = join(ctx, j, ty2, ty2');
-        HTyp_syntax.Arrow(ty1, ty2);
-      | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-        open OptUtil.Syntax;
-        let* ty1 = join(ctx, j, ty1, ty1');
-        let+ ty2 = join(ctx, j, ty2, ty2');
-        HTyp_syntax.Sum(ty1, ty2);
-      | (Prod(tys1), Prod(tys2)) =>
-        open OptUtil.Syntax;
-        let+ joined_tys =
-          List.map2(join(ctx, j), tys1, tys2) |> OptUtil.sequence;
-        HTyp_syntax.Prod(joined_tys);
-      | (List(ty), List(ty')) =>
-        open OptUtil.Syntax;
-        let+ ty = join(ctx, j, ty, ty');
-        HTyp_syntax.List(ty);
-      | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    switch (ty1, ty2) {
+    | (TyVarHole(_), TyVarHole(_)) => Some(Hole)
+    | (ty, Hole | TyVarHole(_))
+    | (Hole | TyVarHole(_), ty) =>
+      switch (j) {
+      | GLB => Some(Hole)
+      | LUB => Some(ty)
       }
-    );
+    | (TyVar(cref, _), _) =>
+      open OptUtil.Syntax;
+      let* k = Context.tyvar_kind(ctx, cref);
+      switch (k) {
+      | S(ty) => join(ctx, j, ty, ty2)
+      | Hole => join(ctx, j, Hole, ty2)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 1")
+      };
+    | (_, TyVar(cref, _)) =>
+      open OptUtil.Syntax;
+      let* k = Context.tyvar_kind(ctx, cref);
+      switch (k) {
+      | S(ty) => join(ctx, j, ty1, ty)
+      | Hole => join(ctx, j, ty1, Hole)
+      | Type =>
+        failwith("impossible for bounded type variables (currently) 2")
+      };
+    | (Int | Float | Bool, _) => ty1 == ty2 ? Some(ty1) : None
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      open OptUtil.Syntax;
+      let* ty1 = join(ctx, j, ty1, ty1');
+      let+ ty2 = join(ctx, j, ty2, ty2');
+      HTyp_syntax.Arrow(ty1, ty2);
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      open OptUtil.Syntax;
+      let* ty1 = join(ctx, j, ty1, ty1');
+      let+ ty2 = join(ctx, j, ty2, ty2');
+      HTyp_syntax.Sum(ty1, ty2);
+    | (Prod(tys1), Prod(tys2)) =>
+      open OptUtil.Syntax;
+      let+ joined_tys =
+        List.map2(join(ctx, j), tys1, tys2) |> OptUtil.sequence;
+      HTyp_syntax.Prod(joined_tys);
+    | (List(ty), List(ty')) =>
+      open OptUtil.Syntax;
+      let+ ty = join(ctx, j, ty, ty');
+      HTyp_syntax.List(ty);
+    | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    };
 
   let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("j", () => sexp_of_join(j)),
-        ("types", () => Sexplib.Std.sexp_of_list(sexp_of_t, types)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(sexp_of_t),
-      () =>
-      switch (types) {
-      | [] => None
-      | [hd] => Some(hd)
-      | [hd, ...tl] =>
-        !consistent_all(ctx, types)
-          ? None
-          : List.fold_left(
-              (common_opt, ty) => {
-                open OptUtil.Syntax;
-                let* common_ty = common_opt;
-                join(ctx, j, common_ty, ty);
-              },
-              Some(hd),
-              tl,
-            )
-      }
-    );
+    switch (types) {
+    | [] => None
+    | [hd] => Some(hd)
+    | [hd, ...tl] =>
+      !consistent_all(ctx, types)
+        ? None
+        : List.fold_left(
+            (common_opt, ty) => {
+              open OptUtil.Syntax;
+              let* common_ty = common_opt;
+              join(ctx, j, common_ty, ty);
+            },
+            Some(hd),
+            tl,
+          )
+    };
 
   /* HTyp Normalization */
 
@@ -1201,99 +935,72 @@ and HTyp: {
 
   /* Replaces every singleton-kinded type variable with a normalized type. */
   let rec normalize = (ctx: Context.t, ty: t): normalized =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_t(ty)),
-      ],
-      ~result_sexp=sexp_of_normalized,
-      () =>
-      switch (ty) {
-      | TyVar(cref, _) =>
-        switch (Context.tyvar_kind(ctx, cref)) {
-        | Some(S(ty1)) => normalize(ctx, ty1)
-        | Some(_) => ty
-        | None =>
-          failwith(
-            __LOC__
-            ++ ": unknown type variable index "
-            ++ Index.to_string(cref.index)
-            ++ " stamped "
-            ++ Int.to_string(cref.stamp),
-          )
-        }
-      | TyVarHole(_)
-      | Hole
-      | Int
-      | Float
-      | Bool => ty
-      | Arrow(ty1, ty2) => Arrow(normalize(ctx, ty1), normalize(ctx, ty2))
-      | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
-      | Prod(tys) => Prod(List.map(normalize(ctx), tys))
-      | List(ty1) => List(normalize(ctx, ty1))
+    switch (ty) {
+    | TyVar(cref, _) =>
+      switch (Context.tyvar_kind(ctx, cref)) {
+      | Some(S(ty1)) => normalize(ctx, ty1)
+      | Some(_) => ty
+      | None =>
+        failwith(
+          __LOC__
+          ++ ": unknown type variable index "
+          ++ Index.to_string(cref.index)
+          ++ " stamped "
+          ++ Int.to_string(cref.stamp),
+        )
       }
-    );
+    | TyVarHole(_)
+    | Hole
+    | Int
+    | Float
+    | Bool => ty
+    | Arrow(ty1, ty2) => Arrow(normalize(ctx, ty1), normalize(ctx, ty2))
+    | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
+    | Prod(tys) => Prod(List.map(normalize(ctx), tys))
+    | List(ty1) => List(normalize(ctx, ty1))
+    };
 
   /* Properties of Normalized HTyp */
 
   let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ty", () => sexp_of_normalized(ty)),
-        ("ty'", () => sexp_of_normalized(ty')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (ty, ty') {
-      | (TyVar(cref, _), TyVar(cref', _)) =>
-        // normalization eliminates all type variables of singleton kind, so these
-        // must be of kind Type or Hole
-        ContextRef.equivalent(cref, cref')
-      | (TyVar(_) | TyVarHole(_) | Hole, _)
-      | (_, TyVar(_) | TyVarHole(_) | Hole) => true
-      | (Int | Float | Bool, _) => ty == ty'
-      | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-      | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-        normalized_consistent(ty1, ty1') && normalized_consistent(ty2, ty2')
-      | (Arrow(_) | Sum(_), _) => false
-      | (Prod(tys), Prod(tys')) =>
-        List.for_all2(normalized_consistent, tys, tys')
-      | (Prod(_), _) => false
-      | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
-      | (List(_), _) => false
-      }
-    );
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      // normalization eliminates all type variables of singleton kind, so these
+      // must be of kind Type or Hole
+      ContextRef.equivalent(cref, cref')
+    | (TyVar(_) | TyVarHole(_) | Hole, _)
+    | (_, TyVar(_) | TyVarHole(_) | Hole) => true
+    | (Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      normalized_consistent(ty1, ty1') && normalized_consistent(ty2, ty2')
+    | (Arrow(_) | Sum(_), _) => false
+    | (Prod(tys), Prod(tys')) =>
+      List.for_all2(normalized_consistent, tys, tys')
+    | (Prod(_), _) => false
+    | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
+    | (List(_), _) => false
+    };
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ty", () => sexp_of_normalized(ty)),
-        ("ty'", () => sexp_of_normalized(ty')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (ty, ty') {
-      | (TyVar(cref, _), TyVar(cref', _)) =>
-        ContextRef.equivalent(cref, cref')
-      | (TyVar(_), _) => false
-      | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
-      | (TyVarHole(_, _, _), _) => false
-      | (Hole | Int | Float | Bool, _) => ty == ty'
-      | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-      | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-        normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
-      | (Arrow(_, _), _) => false
-      | (Sum(_, _), _) => false
-      | (Prod(tys1), Prod(tys2)) =>
-        List.for_all2(normalized_equivalent, tys1, tys2)
-      | (Prod(_), _) => false
-      | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
-      | (List(_), _) => false
-      }
-    );
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      ContextRef.equivalent(cref, cref')
+    | (TyVar(_), _) => false
+    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
+    | (TyVarHole(_, _, _), _) => false
+    | (Hole | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
+    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+      normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
+    | (Arrow(_, _), _) => false
+    | (Sum(_, _), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.for_all2(normalized_equivalent, tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
+    | (List(_), _) => false
+    };
 
   /* Ground Cases */
 
@@ -1358,110 +1065,59 @@ and HTyp: {
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_normalized(ty)),
-      ],
-      ~result_sexp=sexp_of_head_normalized,
-      () => {
-      Log.fun_call(
-        __FUNCTION__,
-        ~args=[
-          ("ctx", () => Context.sexp_of_t(ctx)),
-          ("ty", () => sexp_of_t(ty)),
-        ],
-        ~result_sexp=sexp_of_head_normalized,
-        () =>
-        switch (ty) {
-        | TyVar(cref, t) =>
-          switch (Context.tyvar_kind(ctx, cref)) {
-          | Some(S(ty1)) => head_normalize(ctx, ty1)
-          | Some(_) => TyVar(cref, t)
-          | None =>
-            failwith(
-              __LOC__
-              ++ ": unknown type variable index "
-              ++ Index.to_string(cref.index)
-              ++ " stamp "
-              ++ Int.to_string(cref.stamp),
-            )
-          }
-        | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
-        | Hole => Hole
-        | Int => Int
-        | Float => Float
-        | Bool => Bool
-        | Arrow(ty1, ty2) => Arrow(ty1, ty2)
-        | Sum(tyL, tyR) => Sum(tyL, tyR)
-        | Prod(tys) => Prod(tys)
-        | List(ty) => List(ty)
-        }
-      )
-    });
+    switch (ty) {
+    | TyVar(cref, t) =>
+      switch (Context.tyvar_kind(ctx, cref)) {
+      | Some(S(ty1)) => head_normalize(ctx, ty1)
+      | Some(_) => TyVar(cref, t)
+      | None =>
+        failwith(
+          __LOC__
+          ++ ": unknown type variable index "
+          ++ Index.to_string(cref.index)
+          ++ " stamp "
+          ++ Int.to_string(cref.stamp),
+        )
+      }
+    | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
+    | Hole => Hole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | Arrow(ty1, ty2) => Arrow(ty1, ty2)
+    | Sum(tyL, tyR) => Sum(tyL, tyR)
+    | Prod(tys) => Prod(tys)
+    | List(ty) => List(ty)
+    };
 
   /* Matched Type Constructors */
 
   let matched_arrow = (ctx: Context.t, ty: t): option((t, t)) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_normalized(ty)),
-      ],
-      ~result_sexp=
-        Sexplib.Std.sexp_of_option(((ty, ty')) =>
-          List([sexp_of_t(ty), sexp_of_t(ty')])
-        ),
-      () =>
-      switch (head_normalize(ctx, ty)) {
-      | Hole
-      | TyVarHole(_)
-      | TyVar(_) => Some((Hole, Hole))
-      | Arrow(ty1, ty2) => Some((ty1, ty2))
-      | _ => None
-      }
-    );
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((Hole, Hole))
+    | Arrow(ty1, ty2) => Some((ty1, ty2))
+    | _ => None
+    };
 
   let matched_sum = (ctx: Context.t, ty: t): option((t, t)) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_normalized(ty)),
-      ],
-      ~result_sexp=
-        Sexplib.Std.sexp_of_option(((ty, ty')) =>
-          List([sexp_of_t(ty), sexp_of_t(ty')])
-        ),
-      () =>
-      switch (head_normalize(ctx, ty)) {
-      | Hole
-      | TyVarHole(_)
-      | TyVar(_) => Some((Hole, Hole))
-      | Sum(tyL, tyR) => Some((tyL, tyR))
-      | _ => None
-      }
-    );
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((Hole, Hole))
+    | Sum(tyL, tyR) => Some((tyL, tyR))
+    | _ => None
+    };
 
   let matched_list = (ctx: Context.t, ty: t): option(t) =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("ty", () => sexp_of_normalized(ty)),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_option(sexp_of_t),
-      () =>
-      switch (head_normalize(ctx, ty)) {
-      | Hole
-      | TyVarHole(_)
-      | TyVar(_) => Some(Hole)
-      | List(ty) => Some(ty)
-      | _ => None
-      }
-    );
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some(Hole)
+    | List(ty) => Some(ty)
+    | _ => None
+    };
 
   /* Product Types */
 
@@ -1488,20 +1144,11 @@ and Kind: {
   type t = s(Index.absolute);
 
   let rescope = (ctx: Context.t, k: t): t =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("k", () => sexp_of_t(k)),
-      ],
-      ~result_sexp=sexp_of_t,
-      () =>
-      switch (k) {
-      | Hole
-      | Type => k
-      | S(ty) => S(HTyp.to_syntax(HTyp.rescope(ctx, HTyp.of_syntax(ty))))
-      }
-    );
+    switch (k) {
+    | Hole
+    | Type => k
+    | S(ty) => S(HTyp.to_syntax(HTyp.rescope(ctx, HTyp.of_syntax(ty))))
+    };
 
   /* For converting type variables to equivalent [HTyp]s while resolving local
      type aliases. */
@@ -1514,42 +1161,22 @@ and Kind: {
   let singleton = (ty: HTyp_syntax.t(Index.absolute)): t => S(ty);
 
   let consistent_subkind = (ctx: Context.t, k: t, k': t): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("k", () => Kind.sexp_of_t(k)),
-        ("k'", () => Kind.sexp_of_t(k')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (k, k') {
-      | (Hole, _)
-      | (_, Hole) => true
-      | (S(_), Type) => true
-      | (S(ty), S(ty')) =>
-        HTyp.consistent(ctx, HTyp.of_syntax(ty), HTyp.of_syntax(ty'))
-      | (Type, S(_)) => false
-      | (Type, Type) => true
-      }
-    );
+    switch (k, k') {
+    | (Hole, _)
+    | (_, Hole) => true
+    | (S(_), Type) => true
+    | (S(ty), S(ty')) =>
+      HTyp.consistent(ctx, HTyp.of_syntax(ty), HTyp.of_syntax(ty'))
+    | (Type, S(_)) => false
+    | (Type, Type) => true
+    };
 
   let equivalent = (ctx: Context.t, k: t, k': t): bool =>
-    Log.fun_call(
-      __FUNCTION__,
-      ~args=[
-        ("ctx", () => Context.sexp_of_t(ctx)),
-        ("k", () => sexp_of_t(k)),
-        ("k'", () => sexp_of_t(k')),
-      ],
-      ~result_sexp=Sexplib.Std.sexp_of_bool,
-      () =>
-      switch (k, k') {
-      | (Hole | Type, Hole | Type) => true
-      | (Hole | Type, _) => false
-      | (S(ty1), S(ty1')) =>
-        HTyp.equivalent(ctx, HTyp.of_syntax(ty1), HTyp.of_syntax(ty1'))
-      | (S(_), _) => false
-      }
-    );
+    switch (k, k') {
+    | (Hole | Type, Hole | Type) => true
+    | (Hole | Type, _) => false
+    | (S(ty1), S(ty1')) =>
+      HTyp.equivalent(ctx, HTyp.of_syntax(ty1), HTyp.of_syntax(ty1'))
+    | (S(_), _) => false
+    };
 };
