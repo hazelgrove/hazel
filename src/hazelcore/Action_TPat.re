@@ -1,16 +1,16 @@
 let text_operand = (shape: TyTextShape.t, id_gen: IDGen.t): (TPat.t, IDGen.t) => {
   switch (shape) {
   | Int =>
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     (TyVar(InHole(BuiltinType, u), "Int"), id_gen);
   | Bool =>
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     (TyVar(InHole(BuiltinType, u), "Bool"), id_gen);
   | Float =>
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     (TyVar(InHole(BuiltinType, u), "Float"), id_gen);
   | ExpandingKeyword(kw) =>
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let name = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(ReservedKeyword, u), name), id_gen);
   | TyVar(name) => (TyVar(NotInHole, name), id_gen)
@@ -165,7 +165,7 @@ let rec perform =
     let new_name = StringUtil.insert(k, s, name);
     switch (TyTextShape.of_string(new_name)) {
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       let tp = TPat.TyVar(InHole(InvalidName, u), new_name);
       Succeeded((CursorP(OnText(k + 1), tp), id_gen));
     | Some(shape) =>

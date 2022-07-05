@@ -13,20 +13,20 @@ let fix_holes =
   | TyVar(_, t) =>
     switch (TyTextShape.of_string(t)) {
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
     | Some(Int | Bool | Float) =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(BuiltinType, u), t), id_gen);
     | Some(ExpandingKeyword(_)) =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(ReservedKeyword, u), t), id_gen);
     | Some(TyVar(_)) =>
       if (TyVar.valid_name(t)) {
         let ctx = Context.add_tyvar(ctx, t, k);
         (ctx, TyVar(NotInHole, t), id_gen);
       } else {
-        let (u, id_gen) = IDGen.next(id_gen);
+        let (u, id_gen) = IDGen.next_hole(id_gen);
         (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
       }
     }

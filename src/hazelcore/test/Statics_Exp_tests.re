@@ -48,8 +48,8 @@ let statics_exp_ana_simple =
 };
 
 let id_gen0 = IDGen.init;
-let (u0, id_gen1) = IDGen.next(id_gen0);
-let (u1, id_gen2) = IDGen.next(id_gen1);
+let (u0, id_gen1) = IDGen.next_hole(id_gen0);
+let (u1, id_gen2) = IDGen.next_hole(id_gen1);
 
 /* Simple Forms */
 

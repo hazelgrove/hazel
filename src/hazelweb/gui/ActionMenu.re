@@ -9,6 +9,11 @@ type menu_entry = {
 
 let menu_entries: list(menu_entry) = [
   {
+    label: "Load permalink into address bar",
+    shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_L)),
+    action: LoadPermalink,
+  },
+  {
     label: "Serialize to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
     action: SerializeToConsole(UHExp),
@@ -25,7 +30,6 @@ let menu_entries: list(menu_entry) = [
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
-  {label: "Open text editor", shortcut: None, action: ToggleTextEditorPopup},
 ];
 
 let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {

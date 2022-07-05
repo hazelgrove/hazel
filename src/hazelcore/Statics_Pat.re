@@ -361,7 +361,7 @@ and syn_fix_holes_skel =
         switch (HTyp.matched_arrow(ctx, ty)) {
         | Some(_) => (skel1, seq, id_gen)
         | None =>
-          let (u, id_gen) = IDGen.next(id_gen);
+          let (u, id_gen) = IDGen.next_hole(id_gen);
           let OpSeq(skel1, seq) =
             UHPat.set_err_status_opseq(
               InHole(TypeInconsistent, u),
@@ -380,7 +380,7 @@ and syn_fix_holes_skel =
         seq,
         HTyp.hole(),
       );
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let skel =
       Skel.BinOp(
         InHole(TypeInconsistent, u),
@@ -412,7 +412,7 @@ and syn_fix_holes_operand =
   switch (operand) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (EmptyHole(u), HTyp.hole(), ctx, id_gen);
     } else {
       (operand, HTyp.hole(), ctx, id_gen);
@@ -468,7 +468,7 @@ and syn_fix_holes_operand =
     | None =>
       let (op, ty, ctx, id_gen) =
         syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, op);
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHPat.TypeAnn(InHole(TypeInconsistent, u), op, ann),
         ty,
@@ -563,7 +563,7 @@ and ana_fix_holes_opseq =
       |> (
         fun
         | (rev_skels, seq, ctx, id_gen) => {
-            let (u, id_gen) = IDGen.next(id_gen);
+            let (u, id_gen) = IDGen.next_hole(id_gen);
             let skel = UHPat.mk_tuple(List.rev(rev_skels));
             let opseq =
               UHPat.set_err_status_opseq(
@@ -574,7 +574,7 @@ and ana_fix_holes_opseq =
           }
       );
     } else {
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let (opseq, _, _, id_gen) =
         syn_fix_holes_opseq(
           ctx,
@@ -618,7 +618,7 @@ and ana_fix_holes_skel =
         switch (HTyp.matched_arrow(ctx, ty)) {
         | Some(_) => (skel1, seq, id_gen)
         | None =>
-          let (u, id_gen) = IDGen.next(id_gen);
+          let (u, id_gen) = IDGen.next_hole(id_gen);
           let OpSeq(skel1, seq) =
             UHPat.set_err_status_opseq(
               InHole(TypeInconsistent, u),
@@ -637,7 +637,7 @@ and ana_fix_holes_skel =
         seq,
         HTyp.hole(),
       );
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let skel =
       Skel.BinOp(
         InHole(TypeInconsistent, u),
@@ -683,7 +683,7 @@ and ana_fix_holes_skel =
           seq,
           ty_list,
         );
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       let skel =
         Skel.BinOp(
           InHole(TypeInconsistent, u),
@@ -708,7 +708,7 @@ and ana_fix_holes_operand =
   switch (operand) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (EmptyHole(u), ctx, id_gen);
     } else {
       (operand, ctx, id_gen);
@@ -728,7 +728,7 @@ and ana_fix_holes_operand =
     if (HTyp.consistent(ctx, ty, ty')) {
       (UHPat.set_err_status_operand(NotInHole, operand'), ctx, id_gen);
     } else {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHPat.set_err_status_operand(InHole(TypeInconsistent, u), operand'),
         ctx,
@@ -739,7 +739,7 @@ and ana_fix_holes_operand =
     switch (HTyp.matched_list(ctx, ty)) {
     | Some(_) => (ListNil(NotInHole), ctx, id_gen)
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (ListNil(InHole(TypeInconsistent, u)), ctx, id_gen);
     }
   | Parenthesized(p1) =>
@@ -756,7 +756,7 @@ and ana_fix_holes_operand =
     | None =>
       let (p1, _, ctx, id_gen) =
         syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p1);
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (Inj(InHole(TypeInconsistent, u), side, p1), ctx, id_gen);
     }
   | TypeAnn(err, op, ann) =>
@@ -769,7 +769,7 @@ and ana_fix_holes_operand =
     | None =>
       let (op, _, _, id_gen) =
         syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, op);
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHPat.set_err_status_operand(
           InHole(TypeInconsistent, u),

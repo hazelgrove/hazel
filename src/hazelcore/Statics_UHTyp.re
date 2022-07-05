@@ -37,7 +37,7 @@ and syn_fix_holes_operand =
   | TyVar(err, t) =>
     let next_u = () =>
       switch (err) {
-      | NotInTyVarHole => IDGen.next(id_gen)
+      | NotInTyVarHole => IDGen.next_hole(id_gen)
       | InHole(_, u) => (u, id_gen)
       };
     if (TyVar.reserved_word(t)) {

@@ -100,10 +100,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   );
 };
 
-let text_editor_popup = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
-  Popup.text_editor(~inject, ~is_open=model.text_editor_popup_open, ~model);
-};
-
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
   TimeUtil.measure_time(
@@ -154,7 +150,6 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
                 ],
               ),
               right_sidebar(~inject, ~model),
-              text_editor_popup(~inject, ~model),
             ],
           ),
         ],

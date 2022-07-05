@@ -40,8 +40,6 @@ type t =
   | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
-  | Import(UHExp.block)
-  | ToggleTextEditorPopup
   | FocusCell
   | BlurCell
   | Redo
@@ -51,4 +49,12 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole(serialize_object);
+  | SerializeToConsole(serialize_object)
+  | /**
+     * Import a {UHExp.t} into the editor.
+     */
+    Import(UHExp.t)
+  | /**
+     * Load a permalink for the current program into the address bar.
+     */
+    LoadPermalink;

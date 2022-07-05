@@ -31,13 +31,13 @@ let text_operand =
   | Bool => (Bool, ctx, id_gen)
   | Float => (Float, ctx, id_gen)
   | ExpandingKeyword(kw) =>
-    let (u, id_gen) = IDGen.next(id_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let t = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(Reserved, u), t), ctx, id_gen);
   | TyVar(t) =>
     switch (Context.tyvar_ref(ctx, t)) {
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (TyVar(InHole(Unbound, u), t), ctx, id_gen);
     | Some(cref) =>
       let k = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
@@ -80,7 +80,7 @@ let mk_syn_text =
         id_gen,
       ));
     } else {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       let ty = UHTyp.TyVar(InHole(InvalidName, u), text);
       let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, ty));
       Succeeded((zty, id_gen));
@@ -96,7 +96,7 @@ let mk_syn_text =
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
     Succeeded((zty, id_gen));
   | Some(ExpandingKeyword(kw)) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zty =
       ZOpSeq.wrap(
         ZTyp.CursorT(
@@ -109,7 +109,7 @@ let mk_syn_text =
     let (status: TyVarErrStatus.t, id_gen) =
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
-        let (u, id_gen) = IDGen.next(id_gen);
+        let (u, id_gen) = IDGen.next_hole(id_gen);
         (InHole(Unbound, u), id_gen);
       | Some(_) => (NotInTyVarHole, id_gen)
       };

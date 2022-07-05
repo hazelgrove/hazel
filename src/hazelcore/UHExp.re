@@ -146,13 +146,13 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   };
 
 let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
-  let (u, id_gen) = IDGen.next(id_gen);
+  let (u, id_gen) = IDGen.next_hole(id_gen);
   (InvalidText(u, t), id_gen);
 };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
-  let (u, id_gen) = id_gen |> IDGen.next;
+  let (u, id_gen) = id_gen |> IDGen.next_hole;
   (EmptyHole(u), id_gen);
 };
 
@@ -254,7 +254,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
       _,
       _,
     ) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
     (operand, id_gen);
@@ -272,7 +272,7 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | BoolLit(b) => (boollit(b), id_gen)
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     (
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
       id_gen,

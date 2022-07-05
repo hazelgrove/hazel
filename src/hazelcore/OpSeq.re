@@ -66,7 +66,7 @@ let mk_inconsistent =
       BinOp(InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
     (OpSeq(set_skel, seq), id_gen);
   };

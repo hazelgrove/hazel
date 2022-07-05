@@ -172,7 +172,7 @@ pat_:
     if Var.is_valid $1 then
       UHPat.var $1
     else
-      let (it, _) = UHPat.new_InvalidText 0 $1 in
+      let (it, _) = UHPat.new_InvalidText IDGen.init $1 in
       it
   }
   | LBRACK RBRACK { UHPat.listnil () }
@@ -189,7 +189,7 @@ tpat:
     if TyVar.valid_name $1 then
       Some (TPat.of_string $1)
     else
-      let (it, _) = TPat.invalid_of_string 0 $1 in
+      let (it, _) = TPat.invalid_of_string IDGen.init $1 in
       Some it
   }
   | EMPTY_HOLE { None }
@@ -210,11 +210,11 @@ expr_:
     if Var.is_valid $1 then
       UHExp.var $1
     else
-      let (it, _) = UHExp.new_InvalidText 0 $1 in
+      let (it, _) = UHExp.new_InvalidText IDGen.init $1 in
       it
   }
   | WILD {
-      let (it, _) = UHExp.new_InvalidText 0 "_" in
+      let (it, _) = UHExp.new_InvalidText IDGen.init "_" in
       it
   }
   | FUN pat LBRACE block RBRACE { mk_fn $2 $4 }

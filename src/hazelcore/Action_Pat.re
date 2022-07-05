@@ -88,7 +88,7 @@ let mk_syn_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.bool(), ctx, id_gen));
   | ExpandingKeyword(k) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHPat.var(
         ~var_err=InVarHole(Keyword(k), u),
@@ -140,7 +140,7 @@ let mk_ana_text =
       }
     }
   | ExpandingKeyword(k) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, id_gen));
@@ -184,6 +184,7 @@ let syn_split_text =
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, id_gen, new_ze));
   };
 };
+
 let ana_split_text =
     (
       ctx: Context.t,
@@ -1453,7 +1454,7 @@ and ana_perform_operand =
     | None =>
       let (zbody, _, ctx, id_gen) =
         Statics_Pat.syn_fix_holes_z(ctx, id_gen, ZOpSeq.wrap(zoperand));
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let zp =
         ZOpSeq.wrap(ZPat.InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded((zp, ctx, id_gen));
