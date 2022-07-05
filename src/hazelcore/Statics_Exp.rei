@@ -32,7 +32,7 @@ let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,
- * `syn_fix_holes(ctx, u_gen, e)` fixes the err statuses in `e` such
+ * `syn_fix_holes(ctx, id_gen, e)` fixes the err statuses in `e` such
  * that it can synthesize a type and returns the results of doing so
  */
 let syn_fix_holes:
@@ -53,7 +53,7 @@ let syn_fix_holes_rules:
 
 /**
  * Given a pattern `e` in analytic position under context `ctx`,
- * `ana_fix_holes(ctx, u_gen, e, ty)` fixes the err statuses in `e`
+ * `ana_fix_holes(ctx, id_gen, e, ty)` fixes the err statuses in `e`
  * such that it can analyze against `ty` and returns the result of
  * doing so
  */

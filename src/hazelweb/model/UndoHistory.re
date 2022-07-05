@@ -683,6 +683,7 @@ let get_new_action_group =
     | MoveToPrevHole
     | Init => None
     }
+  | Import(_) => Some(Import)
   | _ => None
   };
 

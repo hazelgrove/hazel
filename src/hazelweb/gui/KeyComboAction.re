@@ -63,6 +63,7 @@ let get_model_action_from_kc =
   | Ctrl_Space => Some(UpdateCursorInspector(Toggle_visible))
   | Ctrl_S => Some(SerializeToConsole(UHExp))
   | Ctrl_Shift_S => Some(SerializeToConsole(ZExp))
+  | Ctrl_Shift_L => Some(LoadPermalink)
   | CtrlOrCmd_Z => Some(Undo)
   | CtrlOrCmd_Shift_Z => Some(Redo)
   | Up => Some(MoveAction(Key(ArrowUp)))

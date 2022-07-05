@@ -322,7 +322,7 @@ let mk_syn_text =
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, id_gen)));
   | ExpandingKeyword(k) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHExp.var(
         ~var_err=InVarHole(Keyword(k), u),
@@ -340,7 +340,7 @@ let mk_syn_text =
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.var(x)));
       Succeeded(SynDone((ze, ty, id_gen)));
     | None =>
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let var = UHExp.var(~var_err=InVarHole(Free, u), x);
       let new_ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
       Succeeded(SynDone((new_ze, Hole, id_gen)));
@@ -369,7 +369,7 @@ let mk_ana_text =
       Succeeded(AnaDone((ze, id_gen)));
     }
   | ExpandingKeyword(k) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHExp.var(
         ~var_err=InVarHole(Keyword(k), u),
@@ -1029,6 +1029,7 @@ and syn_perform_line =
     fix_and_mk_result(id_gen, new_zblock);
   | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
     /* If the current line is just a hole, leave it empty */
+    let (new_hole, id_gen) = id_gen |> UHExp.new_EmptyHole;
     let (prev_line, new_zline) =
       ZExp.zline_is_just_empty_hole(zline)
         ? (
@@ -1037,9 +1038,7 @@ and syn_perform_line =
         )
         : (
           ZExp.erase_zline(zline),
-          ZExp.place_before_line(
-            ExpLine(OpSeq.wrap(UHExp.EmptyHole(id_gen))),
-          ),
+          ZExp.place_before_line(ExpLine(OpSeq.wrap(new_hole))),
         );
     let new_zblock = ([prev_line], new_zline, []);
     fix_and_mk_result(id_gen, new_zblock);
@@ -2141,7 +2140,7 @@ and syn_perform_operand =
           Statics_Exp.syn_fix_holes_rules(ctx, id_gen, rules, ty1);
         switch (common_type) {
         | None =>
-          let (u, id_gen) = IDGen.next(id_gen);
+          let (u, id_gen) = IDGen.next_hole(id_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
@@ -2173,7 +2172,7 @@ and syn_perform_operand =
           Statics_Exp.syn_fix_holes_zrules(ctx, id_gen, new_zrules, pat_ty);
         switch (common_type) {
         | None =>
-          let (u, id_gen) = IDGen.next(id_gen);
+          let (u, id_gen) = IDGen.next_hole(id_gen);
           let new_ze =
             ZExp.ZBlock.wrap(
               CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
@@ -3512,7 +3511,7 @@ and ana_perform_operand =
     | None =>
       let (zbody, _, id_gen) =
         Statics_Exp.syn_fix_holes_z(ctx, id_gen, ZExp.ZBlock.wrap(zoperand));
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let new_ze =
         ZExp.ZBlock.wrap(InjZ(InHole(TypeInconsistent, u), side, zbody));
       Succeeded(AnaDone((new_ze, id_gen)));
@@ -3530,7 +3529,7 @@ and ana_perform_operand =
     | None =>
       let (body, _, id_gen) = Statics_Exp.syn_fix_holes(ctx, id_gen, body);
       let (zhole, id_gen) = id_gen |> ZPat.new_EmptyHole;
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let new_ze =
         ZExp.ZBlock.wrap(
           FunZP(InHole(TypeInconsistent, u), ZOpSeq.wrap(zhole), body),

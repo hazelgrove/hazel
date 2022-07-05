@@ -38,6 +38,7 @@ type t =
   | Ctrl_Space
   | Ctrl_S
   | Ctrl_Shift_S
+  | Ctrl_Shift_L
   | CtrlOrCmd_Z
   | CtrlOrCmd_Shift_Z
   | Up

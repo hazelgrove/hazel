@@ -32,7 +32,7 @@ let ana_skel:
 
 /**
  * Given a pattern `p` in synthetic position under context `ctx`,
- * `syn_fix_holes(ctx, u_gen, p)` fixes the err statuses in `p` such
+ * `syn_fix_holes(ctx, id_gen, p)` fixes the err statuses in `p` such
  * that it can synthesize a type and returns the results of doing so
  */
 let syn_fix_holes:
@@ -41,7 +41,7 @@ let syn_fix_holes:
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,
- * `ana_fix_holes(ctx, u_gen, p, ty)` fixes the err statuses in `p`
+ * `ana_fix_holes(ctx, id_gen, p, ty)` fixes the err statuses in `p`
  * such that it can analyze against `ty` and returns the result of
  * doing so
  */
