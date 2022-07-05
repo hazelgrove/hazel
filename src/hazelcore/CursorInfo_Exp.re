@@ -1142,7 +1142,19 @@ and ana_cursor_info_zoperand =
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_el) =>
-      ana_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq, ty_el)
+      let ty_list =
+        zopseq
+        |> ZExp.erase_zopseq
+        |> (
+          (OpSeq(skel, _)) =>
+            skel |> UHExp.get_tuple_elements |> List.map(_ => ty_el)
+        );
+      ana_cursor_info_zopseq(
+        ~steps=steps @ [0],
+        ctx,
+        zopseq,
+        HTyp.Prod(ty_list),
+      );
     }
   };
 }
