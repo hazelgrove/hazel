@@ -8,6 +8,13 @@ type join_of_branches =
   | JoinTy(HTyp.t);
 
 [@deriving sexp]
+type join_of_elements =
+  | NoBranches
+  // steps to the case
+  | InconsistentBranchTys(list(HTyp.t), list(CursorPath.t))
+  | JoinTy(HTyp.t);
+
+[@deriving sexp]
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
@@ -76,11 +83,11 @@ type typed =
         // index of the branch
         int,
       )
-  | SynListElement(join_of_branches, typed, int)
+  | SynListElement(join_of_elements, typed, int)
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
-  | SynInconsistentElements(list(HTyp.t), CursorPath.steps)
+  | SynInconsistentElements(list(HTyp.t), list(CursorPath.t))
   // none of the above
   | Synthesized(HTyp.t)
   /* cursor in analytic pattern position */
