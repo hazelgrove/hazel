@@ -36,8 +36,8 @@ let ana_skel:
  * that it can synthesize a type and returns the results of doing so
  */
 let syn_fix_holes:
-  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
-  (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
+  (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
+  (UHPat.t, HTyp.t, Contexts.t, IDGen.t);
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,
@@ -46,30 +46,22 @@ let syn_fix_holes:
  * doing so
  */
 let ana_fix_holes:
-  (Contexts.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
-  (UHPat.t, Contexts.t, MetaVarGen.t);
+  (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
+  (UHPat.t, Contexts.t, IDGen.t);
 let ana_fix_holes_opseq:
-  (
-    Contexts.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHPat.opseq,
-    HTyp.t
-  ) =>
-  (UHPat.opseq, Contexts.t, MetaVarGen.t);
+  (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq, HTyp.t) =>
+  (UHPat.opseq, Contexts.t, IDGen.t);
 let ana_fix_holes_operand:
   (
     Contexts.t,
-    MetaVarGen.t,
+    IDGen.t,
     ~renumber_empty_holes: bool=?,
     UHPat.operand,
     HTyp.t
   ) =>
-  (UHPat.operand, Contexts.t, MetaVarGen.t);
+  (UHPat.operand, Contexts.t, IDGen.t);
 let syn_fix_holes_z:
-  (Contexts.t, MetaVarGen.t, ZPat.t) =>
-  (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
+  (Contexts.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Contexts.t, IDGen.t);
 
 let ana_fix_holes_z:
-  (Contexts.t, MetaVarGen.t, ZPat.t, HTyp.t) =>
-  (ZPat.t, Contexts.t, MetaVarGen.t);
+  (Contexts.t, IDGen.t, ZPat.t, HTyp.t) => (ZPat.t, Contexts.t, IDGen.t);

@@ -14,11 +14,11 @@ type t =
   | NotInHole
   | InHole(HoleReason.t, MetaVar.t);
 
-let make_recycled_InHole: (t, HoleReason.t, MetaVarGen.t) => (t, MetaVarGen.t) =
-  (err, reason, u_gen) =>
+let make_recycled_InHole: (t, HoleReason.t, IDGen.t) => (t, IDGen.t) =
+  (err, reason, id_gen) =>
     switch (err) {
     | NotInHole =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (InHole(reason, u), u_gen);
-    | InHole(_, u) => (InHole(reason, u), u_gen)
+      let (u, id_gen) = IDGen.next(id_gen);
+      (InHole(reason, u), id_gen);
+    | InHole(_, u) => (InHole(reason, u), id_gen)
     };
