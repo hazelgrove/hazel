@@ -12,11 +12,6 @@ module Make = (S: {type t;}) => {
 
     let map = Monads.MapDefinition.Define_using_bind;
 
-    let run_state = (m, a) =>
-      switch (m, a) {
-      | (x, _) => x
-      };
-
     let get = s => (s, s);
 
     let put = (x, _) => (x, ());
