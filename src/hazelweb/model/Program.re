@@ -441,12 +441,12 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, u_gen) = new_edit_state;
+    let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
-        (ze, ty, MetaVarGen.init);
+        (ze, ty, IDGen.init);
       } else {
-        (ze, ty, u_gen);
+        (ze, ty, id_gen);
       };
     program |> put_edit_state(new_edit_state);
   };

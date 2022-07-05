@@ -1,7 +1,7 @@
 open Tezt;
 open Tezt.Base;
 
-let mvar = MetaVarGen.init;
+let mvar = IDGen.init;
 
 let register_exp_test = (title, tags, seq, skel) =>
   Test.register(

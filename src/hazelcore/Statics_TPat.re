@@ -6,37 +6,37 @@ let matches = (ctx: Context.t, tp: TPat.t, k: Kind.t): Context.t =>
   };
 
 let fix_holes =
-    (ctx: Context.t, tp: TPat.t, k: Kind.t, u_gen: MetaVarGen.t)
-    : (Context.t, TPat.t, MetaVarGen.t) =>
+    (ctx: Context.t, tp: TPat.t, k: Kind.t, id_gen: IDGen.t)
+    : (Context.t, TPat.t, IDGen.t) =>
   switch (tp) {
-  | EmptyHole => (ctx, EmptyHole, u_gen)
+  | EmptyHole => (ctx, EmptyHole, id_gen)
   | TyVar(_, t) =>
     switch (TyTextShape.of_string(t)) {
     | None =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ctx, TyVar(InHole(InvalidName, u), t), u_gen);
+      let (u, id_gen) = IDGen.next(id_gen);
+      (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
     | Some(Int | Bool | Float) =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ctx, TyVar(InHole(BuiltinType, u), t), u_gen);
+      let (u, id_gen) = IDGen.next(id_gen);
+      (ctx, TyVar(InHole(BuiltinType, u), t), id_gen);
     | Some(ExpandingKeyword(_)) =>
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ctx, TyVar(InHole(ReservedKeyword, u), t), u_gen);
+      let (u, id_gen) = IDGen.next(id_gen);
+      (ctx, TyVar(InHole(ReservedKeyword, u), t), id_gen);
     | Some(TyVar(_)) =>
       if (TyVar.valid_name(t)) {
         let ctx = Context.add_tyvar(ctx, t, k);
-        (ctx, TyVar(NotInHole, t), u_gen);
+        (ctx, TyVar(NotInHole, t), id_gen);
       } else {
-        let (u, u_gen) = MetaVarGen.next(u_gen);
-        (ctx, TyVar(InHole(InvalidName, u), t), u_gen);
+        let (u, id_gen) = IDGen.next(id_gen);
+        (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
       }
     }
   };
 
 let fix_holes_z =
-    (ctx: Context.t, ztp: ZTPat.t, k: Kind.t, u_gen: MetaVarGen.t)
-    : (Context.t, ZTPat.t, MetaVarGen.t) => {
+    (ctx: Context.t, ztp: ZTPat.t, k: Kind.t, id_gen: IDGen.t)
+    : (Context.t, ZTPat.t, IDGen.t) => {
   let path = CursorPath_TPat.of_z(ztp);
-  let (ctx, new_tp, u_gen) = fix_holes(ctx, ZTPat.erase(ztp), k, u_gen);
+  let (ctx, new_tp, id_gen) = fix_holes(ctx, ZTPat.erase(ztp), k, id_gen);
   let ztp =
     CursorPath_TPat.follow(path, new_tp)
     |> OptUtil.get(() =>
@@ -45,5 +45,5 @@ let fix_holes_z =
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
-  (ctx, ztp, u_gen);
+  (ctx, ztp, id_gen);
 };

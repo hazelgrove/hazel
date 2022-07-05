@@ -28,7 +28,7 @@ let rec syn_perform =
         (
           ctx: Context.t,
           a: Action.t,
-          (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t): Statics.edit_state,
+          (ze: ZExp.t, ty: HTyp.t, id_gen: IDGen.t): Statics.edit_state,
         )
         : ActionOutcome.t(syn_done) => {
   Log.fun_call(
@@ -38,9 +38,9 @@ let rec syn_perform =
       ("a", () => Action.sexp_of_t(a)),
       ("ze", () => ZExp.sexp_of_t(ze)),
       ("ty", () => HTyp.sexp_of_t(ty)),
-      ("u_gen", () => MetaVarGen.sexp_of_t(u_gen)),
+      ("id_gen", () => IDGen.sexp_of_t(id_gen)),
     ],
-    ~id=u_gen,
+    ~id=id_gen,
     ~result_sexp=ActionOutcome.sexp_of_t(sexp_of_syn_done),
     () => ...
 ```

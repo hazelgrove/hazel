@@ -32,44 +32,30 @@ let ana_skel: (Context.t, UHPat.skel, UHPat.seq, HTyp.t) => option(Context.t);
 
 /**
  * Given a pattern `p` in synthetic position under context `ctx`,
- * `syn_fix_holes(ctx, u_gen, p)` fixes the err statuses in `p` such
+ * `syn_fix_holes(ctx, id_gen, p)` fixes the err statuses in `p` such
  * that it can synthesize a type and returns the results of doing so
  */
 let syn_fix_holes:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
-  (UHPat.t, HTyp.t, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
+  (UHPat.t, HTyp.t, Context.t, IDGen.t);
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,
- * `ana_fix_holes(ctx, u_gen, p, ty)` fixes the err statuses in `p`
+ * `ana_fix_holes(ctx, id_gen, p, ty)` fixes the err statuses in `p`
  * such that it can analyze against `ty` and returns the result of
  * doing so
  */
 let ana_fix_holes:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
-  (UHPat.t, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
+  (UHPat.t, Context.t, IDGen.t);
 let ana_fix_holes_opseq:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHPat.opseq,
-    HTyp.t
-  ) =>
-  (UHPat.opseq, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq, HTyp.t) =>
+  (UHPat.opseq, Context.t, IDGen.t);
 let ana_fix_holes_operand:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHPat.operand,
-    HTyp.t
-  ) =>
-  (UHPat.operand, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.operand, HTyp.t) =>
+  (UHPat.operand, Context.t, IDGen.t);
 let syn_fix_holes_z:
-  (Context.t, MetaVarGen.t, ZPat.t) =>
-  (ZPat.t, HTyp.t, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Context.t, IDGen.t);
 
 let ana_fix_holes_z:
-  (Context.t, MetaVarGen.t, ZPat.t, HTyp.t) =>
-  (ZPat.t, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ZPat.t, HTyp.t) => (ZPat.t, Context.t, IDGen.t);

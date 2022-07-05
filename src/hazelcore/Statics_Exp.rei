@@ -33,88 +33,64 @@ let ana_skel: (Context.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,
- * `syn_fix_holes(ctx, u_gen, e)` fixes the err statuses in `e` such
+ * `syn_fix_holes(ctx, id_gen, e)` fixes the err statuses in `e` such
  * that it can synthesize a type and returns the results of doing so
  */
 let syn_fix_holes:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t) =>
-  (UHExp.t, HTyp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.t) =>
+  (UHExp.t, HTyp.t, IDGen.t);
 let syn_fix_holes_block:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.block) =>
-  (UHExp.block, HTyp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.block) =>
+  (UHExp.block, HTyp.t, IDGen.t);
 let syn_fix_holes_lines:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    list(UHExp.line)
-  ) =>
-  (list(UHExp.line), Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, list(UHExp.line)) =>
+  (list(UHExp.line), Context.t, IDGen.t);
 let syn_fix_holes_opseq:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
-  (UHExp.opseq, HTyp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
+  (UHExp.opseq, HTyp.t, IDGen.t);
 let syn_fix_holes_rules:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHExp.rules,
-    HTyp.t
-  ) =>
-  (UHExp.rules, MetaVarGen.t, list(HTyp.t), option(HTyp.t));
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.rules, HTyp.t) =>
+  (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t));
 
 /**
  * Given a pattern `e` in analytic position under context `ctx`,
- * `ana_fix_holes(ctx, u_gen, e, ty)` fixes the err statuses in `e`
+ * `ana_fix_holes(ctx, id_gen, e, ty)` fixes the err statuses in `e`
  * such that it can analyze against `ty` and returns the result of
  * doing so
  */
 let ana_fix_holes:
-  (Context.t, MetaVarGen.t, ~renumber_empty_holes: bool=?, UHExp.t, HTyp.t) =>
-  (UHExp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.t, HTyp.t) =>
+  (UHExp.t, IDGen.t);
 let ana_fix_holes_block:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHExp.block,
-    HTyp.t
-  ) =>
-  (UHExp.block, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.block, HTyp.t) =>
+  (UHExp.block, IDGen.t);
 let ana_fix_holes_opseq:
-  (
-    Context.t,
-    MetaVarGen.t,
-    ~renumber_empty_holes: bool=?,
-    UHExp.opseq,
-    HTyp.t
-  ) =>
-  (UHExp.opseq, MetaVarGen.t);
+  (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq, HTyp.t) =>
+  (UHExp.opseq, IDGen.t);
 let ana_fix_holes_rules:
   (
     Context.t,
-    MetaVarGen.t,
+    IDGen.t,
     ~renumber_empty_holes: bool=?,
     UHExp.rules,
     HTyp.t,
     HTyp.t
   ) =>
-  (UHExp.rules, MetaVarGen.t);
+  (UHExp.rules, IDGen.t);
 
 let syn_fix_holes_z:
-  (Context.t, MetaVarGen.t, ZExp.t) => (ZExp.t, HTyp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
 let syn_fix_holes_zlines:
-  (Context.t, MetaVarGen.t, ZExp.zblock) =>
-  (ZExp.zblock, Context.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ZExp.zblock) => (ZExp.zblock, Context.t, IDGen.t);
 let syn_fix_holes_zrules:
-  (Context.t, MetaVarGen.t, ZExp.zrules, HTyp.t) =>
-  (ZExp.zrules, list(HTyp.t), option(HTyp.t), MetaVarGen.t);
+  (Context.t, IDGen.t, ZExp.zrules, HTyp.t) =>
+  (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t);
 
 let ana_fix_holes_z:
-  (Context.t, MetaVarGen.t, ZExp.t, HTyp.t) => (ZExp.t, MetaVarGen.t);
+  (Context.t, IDGen.t, ZExp.t, HTyp.t) => (ZExp.t, IDGen.t);
 
 let fix_and_renumber_holes:
-  (Context.t, UHExp.t) => (UHExp.t, HTyp.t, MetaVarGen.t);
+  (Context.t, UHExp.t) => (UHExp.t, HTyp.t, IDGen.t);
 
 let fix_and_renumber_holes_z: (Context.t, ZExp.t) => Statics.edit_state;
 

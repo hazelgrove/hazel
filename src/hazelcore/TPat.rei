@@ -21,7 +21,7 @@ type t =
   | TyVar(Status.t, string);
 
 let of_string: string => t;
-let invalid_of_string: (MetaVarGen.t, string) => (t, MetaVarGen.t);
+let invalid_of_string: (IDGen.t, string) => (t, IDGen.t);
 
 let is_complete: t => bool;
 let binds_tyvar: (string, t) => bool;

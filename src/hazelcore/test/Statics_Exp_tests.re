@@ -47,9 +47,9 @@ let statics_exp_ana_simple =
   result;
 };
 
-let u_gen0 = MetaVarGen.init;
-let (u0, u_gen1) = MetaVarGen.next(u_gen0);
-let (u1, u_gen2) = MetaVarGen.next(u_gen1);
+let id_gen0 = IDGen.init;
+let (u0, id_gen1) = IDGen.next(id_gen0);
+let (u1, id_gen2) = IDGen.next(id_gen1);
 
 /* Simple Forms */
 

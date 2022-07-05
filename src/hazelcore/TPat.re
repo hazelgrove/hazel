@@ -25,10 +25,10 @@ type t =
 
 let of_string = (t: string): t => TyVar(NotInHole, t);
 
-let invalid_of_string = (u_gen: MetaVarGen.t, t: string): (t, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+let invalid_of_string = (id_gen: IDGen.t, t: string): (t, IDGen.t) => {
+  let (u, id_gen) = IDGen.next(id_gen);
   let ty = TyVar(InHole(InvalidName, u), t);
-  (ty, u_gen);
+  (ty, id_gen);
 };
 
 let tyvar_name: t => option(string) =

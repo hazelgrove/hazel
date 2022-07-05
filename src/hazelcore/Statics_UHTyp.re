@@ -1,88 +1,88 @@
 let rec syn_fix_holes:
-  (Context.t, MetaVarGen.t, UHTyp.t) => (UHTyp.t, Kind.t, MetaVarGen.t) =
-  (ctx, u_gen, ty) =>
+  (Context.t, IDGen.t, UHTyp.t) => (UHTyp.t, Kind.t, IDGen.t) =
+  (ctx, id_gen, ty) =>
     switch (ty) {
     | OpSeq(skel, seq) =>
-      let (skel, seq, k, u_gen) = syn_fix_holes_skel(ctx, u_gen, skel, seq);
-      (OpSeq(skel, seq), k, u_gen);
+      let (skel, seq, k, id_gen) =
+        syn_fix_holes_skel(ctx, id_gen, skel, seq);
+      (OpSeq(skel, seq), k, id_gen);
     }
 
-and syn_fix_holes_skel = (ctx, u_gen, skel, seq) =>
+and syn_fix_holes_skel = (ctx, id_gen, skel, seq) =>
   switch (skel) {
   | Placeholder(n) =>
     let ty_n = seq |> Seq.nth_operand(n);
-    let (ty_n, k, u_gen) = syn_fix_holes_operand(ctx, u_gen, ty_n);
+    let (ty_n, k, id_gen) = syn_fix_holes_operand(ctx, id_gen, ty_n);
     let seq = seq |> Seq.update_nth_operand(n, ty_n);
-    (skel, seq, k, u_gen);
+    (skel, seq, k, id_gen);
   | BinOp(_, op, skel1, skel2) =>
-    let (skel1, seq, _, u_gen) =
-      ana_fix_holes_skel(ctx, u_gen, skel1, seq, Kind.Type);
-    let (skel2, seq, _, u_gen) =
-      ana_fix_holes_skel(ctx, u_gen, skel2, seq, Kind.Type);
+    let (skel1, seq, _, id_gen) =
+      ana_fix_holes_skel(ctx, id_gen, skel1, seq, Kind.Type);
+    let (skel2, seq, _, id_gen) =
+      ana_fix_holes_skel(ctx, id_gen, skel2, seq, Kind.Type);
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, UHTyp.mk_OpSeq(seq))) {
     | Some((_, k, _)) =>
       let skel = Skel.BinOp(NotInHole, op, skel1, skel2);
-      (skel, seq, k, u_gen);
+      (skel, seq, k, id_gen);
     | None =>
       failwith("TODO: Add inconsistent kind hole (this can't happen now) 1")
     };
   }
 
 and syn_fix_holes_operand =
-    (ctx: Context.t, u_gen: MetaVarGen.t, operand: UHTyp.operand)
-    : (UHTyp.operand, Kind.t, MetaVarGen.t) =>
+    (ctx: Context.t, id_gen: IDGen.t, operand: UHTyp.operand)
+    : (UHTyp.operand, Kind.t, IDGen.t) =>
   switch (operand) {
-  | Hole => (Hole, Kind.Hole, u_gen)
+  | Hole => (Hole, Kind.Hole, id_gen)
   | TyVar(err, t) =>
     let next_u = () =>
       switch (err) {
-      | NotInTyVarHole => MetaVarGen.next(u_gen)
-      | InHole(_, u) => (u, u_gen)
+      | NotInTyVarHole => IDGen.next(id_gen)
+      | InHole(_, u) => (u, id_gen)
       };
     if (TyVar.reserved_word(t)) {
-      let (u, u_gen) = next_u();
+      let (u, id_gen) = next_u();
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
       let k = Kind.singleton(HTyp.tyvarhole(Reserved, u, t));
-      (ty, k, u_gen);
+      (ty, k, id_gen);
     } else if (TyVar.valid_name(t)) {
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
-        let (u, u_gen) = next_u();
+        let (u, id_gen) = next_u();
         let ty = UHTyp.TyVar(InHole(Unbound, u), t);
         let k = Kind.singleton(HTyp.tyvarhole(Unbound, u, t));
-        (ty, k, u_gen);
+        (ty, k, id_gen);
       | Some(cref) =>
         let ty = UHTyp.TyVar(NotInTyVarHole, t);
         let k = Kind.singleton(HTyp.tyvar(ctx, cref.index, t));
-        (ty, k, u_gen);
+        (ty, k, id_gen);
       };
     } else {
-      let (u, u_gen) = next_u();
+      let (u, id_gen) = next_u();
       let ty = UHTyp.TyVar(InHole(InvalidName, u), t);
-      (ty, Kind.S(TyVarHole(InvalidName, u, t)), u_gen);
+      (ty, Kind.S(TyVarHole(InvalidName, u, t)), id_gen);
     };
-  | Unit => (operand, Kind.singleton(HTyp.product([])), u_gen)
-  | Int => (operand, Kind.singleton(HTyp.int()), u_gen)
-  | Float => (operand, Kind.singleton(HTyp.float()), u_gen)
-  | Bool => (operand, Kind.singleton(HTyp.bool()), u_gen)
+  | Unit => (operand, Kind.singleton(HTyp.product([])), id_gen)
+  | Int => (operand, Kind.singleton(HTyp.int()), id_gen)
+  | Float => (operand, Kind.singleton(HTyp.float()), id_gen)
+  | Bool => (operand, Kind.singleton(HTyp.bool()), id_gen)
   | Parenthesized(body) =>
-    let (block, k, u_gen) = syn_fix_holes(ctx, u_gen, body);
-    (Parenthesized(block), k, u_gen);
+    let (block, k, id_gen) = syn_fix_holes(ctx, id_gen, body);
+    (Parenthesized(block), k, id_gen);
   | List(opseq) =>
-    let (opseq, k, u_gen) = syn_fix_holes(ctx, u_gen, opseq);
-    (List(opseq), k, u_gen);
+    let (opseq, k, id_gen) = syn_fix_holes(ctx, id_gen, opseq);
+    (List(opseq), k, id_gen);
   }
 
 and ana_fix_holes:
-  (Context.t, MetaVarGen.t, UHTyp.t, Kind.t) =>
-  (UHTyp.t, Kind.t, MetaVarGen.t) =
-  (ctx, u_gen, ty, k) =>
+  (Context.t, IDGen.t, UHTyp.t, Kind.t) => (UHTyp.t, Kind.t, IDGen.t) =
+  (ctx, id_gen, ty, k) =>
     switch (ty) {
     | OpSeq(skel, seq) =>
-      let (skel, seq, k', u_gen) =
-        ana_fix_holes_skel(ctx, u_gen, skel, seq, k);
+      let (skel, seq, k', id_gen) =
+        ana_fix_holes_skel(ctx, id_gen, skel, seq, k);
       if (Kind.consistent_subkind(ctx, k', k)) {
-        (OpSeq(skel, seq), k', u_gen);
+        (OpSeq(skel, seq), k', id_gen);
       } else {
         failwith(
           "TODO: Add inconsistent kind hole (this can't happen now) 2",
@@ -90,30 +90,30 @@ and ana_fix_holes:
       };
     }
 
-and ana_fix_holes_skel = (tyvars, u_gen, skel, seq, k) =>
+and ana_fix_holes_skel = (tyvars, id_gen, skel, seq, k) =>
   switch (skel) {
   | Placeholder(n) =>
     let ty_n = seq |> Seq.nth_operand(n);
-    let (ty_n, k', u_gen) = ana_fix_holes_operand(tyvars, u_gen, ty_n, k);
+    let (ty_n, k', id_gen) = ana_fix_holes_operand(tyvars, id_gen, ty_n, k);
     let seq = seq |> Seq.update_nth_operand(n, ty_n);
-    (skel, seq, k', u_gen);
+    (skel, seq, k', id_gen);
   | BinOp(_, _, _, _) =>
-    let (skel, seq, k', u_gen) =
-      syn_fix_holes_skel(tyvars, u_gen, skel, seq);
+    let (skel, seq, k', id_gen) =
+      syn_fix_holes_skel(tyvars, id_gen, skel, seq);
     if (Kind.consistent_subkind(tyvars, k', k)) {
-      (skel, seq, k', u_gen);
+      (skel, seq, k', id_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole (this can't happen now) 3");
     };
   }
 
-and ana_fix_holes_operand = (ctx, u_gen, operand, k) =>
+and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
   switch (operand) {
-  | UHTyp.Hole => (Hole, Kind.Hole, u_gen)
+  | UHTyp.Hole => (Hole, Kind.Hole, id_gen)
   | Parenthesized(body) =>
-    let (block, k', u_gen) = ana_fix_holes(ctx, u_gen, body, k);
+    let (block, k', id_gen) = ana_fix_holes(ctx, id_gen, body, k);
     if (Kind.consistent_subkind(ctx, k', k)) {
-      (Parenthesized(block), k', u_gen);
+      (Parenthesized(block), k', id_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole (this can't happen now) 4");
     };
@@ -124,9 +124,9 @@ and ana_fix_holes_operand = (ctx, u_gen, operand, k) =>
   | Float
   | Bool
   | List(_) =>
-    let (ty, k', u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
+    let (ty, k', id_gen) = syn_fix_holes_operand(ctx, id_gen, operand);
     if (Kind.consistent_subkind(ctx, k', k)) {
-      (ty, k', u_gen);
+      (ty, k', id_gen);
     } else {
       failwith("TODO: Add inconsistent kind hole (this can't happen now) 5");
     };

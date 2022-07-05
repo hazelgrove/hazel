@@ -91,34 +91,33 @@ let set_err_status =
 
 let mk_inconsistent =
     (
-      ~mk_inconsistent_zoperand:
-         (MetaVarGen.t, 'zoperand) => ('zoperand, MetaVarGen.t),
-      u_gen: MetaVarGen.t,
+      ~mk_inconsistent_zoperand: (IDGen.t, 'zoperand) => ('zoperand, IDGen.t),
+      id_gen: IDGen.t,
       ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
-    : (t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
-  let (skel: Skel.t(_), zseq: ZSeq.t(_), u_gen) =
+    : (t('operand, 'operator, 'zoperand, 'zoperator), IDGen.t) => {
+  let (skel: Skel.t(_), zseq: ZSeq.t(_), id_gen) =
     switch (skel, zseq) {
     | (Placeholder(_), ZOperator(_, _)) => assert(false)
     | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperator(zop, surround),
-        u_gen,
+        id_gen,
       );
     | (Placeholder(_), ZOperand(zoperand, surround)) =>
-      let (zoperand, u_gen) = zoperand |> mk_inconsistent_zoperand(u_gen);
-      (skel, ZOperand(zoperand, surround), u_gen);
+      let (zoperand, id_gen) = zoperand |> mk_inconsistent_zoperand(id_gen);
+      (skel, ZOperand(zoperand, surround), id_gen);
     | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
-      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperand(zoperand, surround),
-        u_gen,
+        id_gen,
       );
     };
-  (ZOpSeq(skel, zseq), u_gen);
+  (ZOpSeq(skel, zseq), id_gen);
 };
 
 let erase =
