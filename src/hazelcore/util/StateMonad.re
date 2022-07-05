@@ -10,13 +10,11 @@ module Make = (S: {type t;}) => {
       f(x, s');
     };
 
-    let map = Monads.MapDefinition.Define_using_bind;
-
     let get = s => (s, s);
 
     let put = (x, _) => (x, ());
   };
 
   include T;
-  include Monads.Make(T);
+  include Monads.Make_Monad_B(T);
 };
