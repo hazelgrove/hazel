@@ -262,6 +262,17 @@ let select_case_branch =
   |> focus_cell;
 };
 
+let select_list_element = (path_to_case: CursorPath.t, model: t): t => {
+  let program = model |> get_program;
+  let action = Program.move_to_list_element(path_to_case);
+  let new_program = Program.perform_edit_action(action, program);
+  let model_action = ModelAction.EditAction(action);
+  model
+  |> put_program(new_program)
+  |> update_program(model_action, new_program)
+  |> focus_cell;
+};
+
 let toggle_left_sidebar = (model: t): t => {
   ...model,
   left_sidebar_open: !model.left_sidebar_open,

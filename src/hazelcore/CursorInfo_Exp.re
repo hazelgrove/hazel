@@ -344,6 +344,11 @@ and syn_cursor_info_zlist =
       err: ListErrStatus.t,
     )
     : option(CursorInfo.t) => {
+  let uhexp = ZExp.erase_zopseq(zopseq);
+  let seq =
+    switch (uhexp) {
+    | OpSeq(_, seq) => seq
+    };
   switch (zseq) {
   | ZOperator((_, Comma), _) =>
     // cursor on tuple comma
@@ -360,12 +365,38 @@ and syn_cursor_info_zlist =
              )
            | None =>
              switch (err) {
-             | InconsistentBranches(rule_types, _) =>
+             | InconsistentBranches(ele_types, _) =>
+               let ele_paths =
+                 seq
+                 |> Seq.operators
+                 |> List.append([Operators_Exp.Comma])
+                 |> List.mapi((index, operator) =>
+                      (
+                        index,
+                        operator,
+                        seq |> Seq.nth_operand(index),
+                        steps @ [index],
+                      )
+                    )
+                 |> List.filter(((_, operator, _, _)) =>
+                      operator == Operators_Exp.Comma
+                    )
+                 |> List.map(((_, _, operand, steps)) =>
+                      (
+                        operand
+                        |> ZExp.place_before_operand
+                        |> CursorPath_Exp.of_zoperand,
+                        steps,
+                      )
+                    )
+                 |> List.map((((_, position), steps)) => {
+                      (steps, position)
+                    });
                CursorInfo_common.mk(
-                 SynInconsistentElements(rule_types, steps),
+                 SynInconsistentElements(ele_types, ele_paths),
                  ctx,
                  cursor_term,
-               )
+               );
              | _ => failwith("expected InconsistentBranches")
              }
            }
@@ -375,6 +406,13 @@ and syn_cursor_info_zlist =
   | _ =>
     // cursor within tuple element
     let ele_list = skel |> UHExp.get_tuple_elements;
+    let comma_pos =
+      seq
+      |> Seq.operators
+      |> List.append([Operators_Exp.Comma])
+      |> List.mapi((index, operator) => (index, operator))
+      |> List.filter(((_, operator)) => operator == Operators_Exp.Comma)
+      |> List.map(((index, _)) => index);
     let (cursor_index, _) =
       ele_list
       |> List.mapi((index, a) => (index, a))
@@ -386,17 +424,26 @@ and syn_cursor_info_zlist =
       | None => failwith("expect list element")
       };
     let rest_type_list =
-      type_list
+      List.combine(type_list, comma_pos)
       |> List.mapi((index, a) => (index, a))
       |> List.filter(((index, _)) => index != cursor_index)
-      |> List.map(((_, a)) => a);
-
-    let lub: CursorInfo.join_of_branches =
-      switch (rest_type_list) {
-      | [] => NoBranches
-      | types =>
+      |> List.map(((_, (ty, index))) =>
+           (
+             ty,
+             seq
+             |> Seq.nth_operand(index)
+             |> ZExp.place_before_operand
+             |> CursorPath_Exp.of_zoperand,
+             steps @ [index],
+           )
+         )
+      |> List.map(((a, (_, position), steps)) => (a, (steps, position)));
+    let lub: CursorInfo.join_of_elements =
+      switch (rest_type_list |> List.split) {
+      | ([], []) => NoBranches
+      | (types, positions) =>
         switch (HTyp.join_all(LUB, types)) {
-        | None => InconsistentBranchTys(types, steps)
+        | None => InconsistentBranchTys(types, positions)
         | Some(lub) => JoinTy(lub)
         }
       };
@@ -607,14 +654,39 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
-  | CursorE(_, ListLit(InconsistentBranches(rule_types, _), _)) =>
+  | CursorE(
+      _,
+      ListLit(InconsistentBranches(ele_types, _), Some(OpSeq(_, seq))),
+    ) =>
+    let ele_paths =
+      seq
+      |> Seq.operators
+      |> List.append([Operators_Exp.Comma])
+      |> List.mapi((index, operator) =>
+           (
+             index,
+             operator,
+             seq |> Seq.nth_operand(index),
+             steps @ [0, index],
+           )
+         )
+      |> List.filter(((_, operator, _, _)) =>
+           operator == Operators_Exp.Comma
+         )
+      |> List.map(((_, _, operand, steps)) =>
+           (
+             operand |> ZExp.place_before_operand |> CursorPath_Exp.of_zoperand,
+             steps,
+           )
+         )
+      |> List.map((((_, position), steps)) => {(steps, position)});
     Some(
       CursorInfo_common.mk(
-        SynInconsistentElements(rule_types, steps),
+        SynInconsistentElements(ele_types, ele_paths),
         ctx,
         cursor_term,
       ),
-    )
+    );
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
