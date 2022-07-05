@@ -1278,7 +1278,7 @@ and ana_fix_holes_operand =
     if (HTyp.consistent(ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e'), id_gen);
     } else {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
         id_gen,
