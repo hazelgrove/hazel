@@ -4,12 +4,13 @@ module T = (X: E) => {
   include X;
 
   type t('a) = result('a, error);
-  let map = Monads.MapDefinition.Custom((x, f) => Result.map(f, x));
-  let bind = Result.bind;
   let return = x => Ok(x);
+  let bind = Result.bind;
+  let map = (x, f) => Result.map(f, x);
 };
 
 module Make = (X: E) => {
-  include T(X);
-  include Monads.Make((T(X)));
+  module T = T(X);
+  include T;
+  include Monads.Make_Monad_Z((Monads.Make_Zip(T)));
 };
