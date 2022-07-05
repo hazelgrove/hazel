@@ -40,7 +40,9 @@
 
   let mk_case expr rules = UHExp.case expr rules
 
-  let mk_subscript e1 e2 e3 = UHExp.subscript e1 e2 e3
+  let mk_subscript e1 e2 e3 = 
+    let e1 = ([UHExp.ExpLine (UHExp.mk_OpSeq e1)]) in
+    UHExp.subscript e1 e2 e3
 
   let mk_empty_list = UHExp.listnil ()
 
@@ -190,12 +192,12 @@ expr:
   expr expr %prec app { mk_application $1 $2 }
   | expr op expr { mk_binop $1 $2 $3 }
   | expr COLONCOLON expr { mk_binop $1 Operators_Exp.Cons $3 }
+  | expr LBRACK block COLON block RBRACK { Seq.wrap (mk_subscript $1 $3 $5) }
   | expr_ { Seq.wrap $1 }
 ;
 
 expr_:
   LBRACK RBRACK { mk_empty_list }
-  | block LBRACK block COLON block RBRACK { mk_subscript $1 $3 $5 }
   | CASE block rule+ END { mk_case $2 $3 }
   | LPAREN block RPAREN { UHExp.Parenthesized($2) }
   | IDENT {
