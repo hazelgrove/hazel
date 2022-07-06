@@ -143,21 +143,20 @@ and cursor_info_zoperand =
     let+ (_, k, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
     CursorInfo_common.mk(OnType(k), ctx, cursor_term);
   | ParenthesizedZ(zbody)
-  | ListZ(zbody)=> cursor_info(~steps=steps @ [0], ctx, zbody)
-  | ForallZT(tpat, zbody) => {
-    // TODO (forall-typ): Shall we use Statics_TPat.matches or
-    // create our own?
-     cursor_info(~steps=steps @ [0], ctx, zbody);
-  }
-  | ForallZP(ztpat, zty) => {
-    // TODO (forall-typ): What does defferrable mean?
-    let+ defferrable = CursorInfo_TPat.cursor_info(~steps=steps @ [1], ctx, ztpat);Noneswitch (defferrable) {
+  | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ForallZP(ztpat, body) =>
+    let+ defferrable =
+      CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, ztpat);
     switch (defferrable) {
-      | CursorNotOnDeferredVarPat(ci) => ci
-      | CursorOnDeferredVarPat(deferred_ci, x) =>
-        let uses = UsageAnalysis.find_tyuses_typ(~steps=steps @ [1], x, zty);
-        uses |> deferred_ci;
-      | CursorOnDeferredTyVarPat(_) => failwith("deferred impossible")
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredTyVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_tyuses_typ(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
+    | CursorOnDeferredVarPat(_) => failwith("deferred impossible")
     };
+  | ForallZT(tpat, zbody) =>
+    // TODO (forall-typ): Statics_TPat.matches needs dummy HTyp.t; check Kind
+    let body_ctx = Statics_TPat.matches(ctx, tpat, HTyp.hole(), Kind.Type);
+    cursor_info(~steps=steps @ [1], body_ctx, zbody);
   };
 };
