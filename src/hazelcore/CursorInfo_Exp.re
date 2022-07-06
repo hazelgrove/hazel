@@ -622,14 +622,17 @@ and syn_cursor_info_skel =
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
-      switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
+      switch (syn_cursor_info_skel(~steps, ctx, skel2, zseq)) {
       | Some(_) as result => result
       | None =>
-        switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
+        switch (Statics_Exp.syn_skel(ctx, skel2, seq)) {
         | None => None
-        | Some(ty_elt) =>
-          let ty_list = HTyp.List(ty_elt);
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_list);
+        | Some(ty_list) =>
+          switch (HTyp.matched_list(ty_list)) {
+          | Some(ty_elt) =>
+            ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)
+          | None => None
+          }
         }
       }
     };
@@ -1006,10 +1009,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(WrongLength, _), _)
     | FloatLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListLit(
-        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
-        _,
-      )
+    | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
     | Fun(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(
@@ -1043,7 +1043,9 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
-    | ListLit(StandardErrStatus(NotInHole), _)
+    | ListLit(InconsistentBranches(_), _)
+    | ListLit(StandardErrStatus(NotInHole), _) =>
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
@@ -1068,10 +1070,7 @@ and ana_cursor_info_zoperand =
   | FunZP(InHole(WrongLength, _), _, _)
   | FunZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
-  | ListLitZ(
-      StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
-      _,
-    )
+  | ListLitZ(StandardErrStatus(InHole(WrongLength, _)), _)
   | CaseZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
@@ -1138,6 +1137,7 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+  | ListLitZ(InconsistentBranches(_, _), zopseq)
   | ListLitZ(StandardErrStatus(NotInHole), zopseq) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
