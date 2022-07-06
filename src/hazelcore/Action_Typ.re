@@ -430,6 +430,7 @@ and perform_operand =
     | (
         Construct(
           SAnn | SLet | STyAlias | SLine | SFun | SListNil | SInj(_) | SCase |
+          STypFun |
           STypApp |
           SCommentLine,
         ) |
@@ -589,6 +590,21 @@ and perform_operand =
         u_gen,
       ))
 
+    | (Construct(SForall), CursorT(_)) =>
+      Succeeded((
+        ZOpSeq.wrap(
+          ZTyp.ForallZP(
+            TPat.EmptyHole |> ZTPat.place_before,
+            zoperand
+            |> ZTyp.erase_zoperand
+            |> UHTyp.expand_operand
+            |> UHTyp.contract,
+          ),
+        ),
+        ctx,
+        u_gen,
+      ))
+
     | (Construct(SCloseSquareBracket), ListZ(zopseq))
         when ZTyp.is_after(zopseq) =>
       let zty =
@@ -671,6 +687,27 @@ and perform_operand =
       | Succeeded((zbody, ctx, u_gen)) =>
         Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), ctx, u_gen))
       }
+    | (_, ForallZP(ztpat, body)) => {
+      switch (Action_TPat.perform(a, ztpat, u_gen)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        // TODO (forall-typ): fix escape
+        perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
+      | Succeeded((ztpat, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZTyp.ForallZP(ztpat, body)), ctx, u_gen))
+      }
+    }
+    | (_, ForallZT(tpat, zbody)) => {
+      let ctx = Statics_TPat.matches(ctx, tpat, HTyp.hole(), Kind.Type);
+      switch (perform(ctx, a, zbody, u_gen)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        // TODO (forall-typ): fix escape
+        perform_operand(ctx, Action_common.escape(side), zoperand, u_gen)
+      | Succeeded((zbody, ctx, u_gen)) =>
+        Succeeded((ZOpSeq.wrap(ZTyp.ForallZT(tpat, zbody)), ctx, u_gen))
+      }
+    }
 
     /* Invalid cursor positions */
     | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed

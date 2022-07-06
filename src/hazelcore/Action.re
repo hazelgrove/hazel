@@ -34,6 +34,8 @@ type shape =
   | SLine
   | SCase
   | STyAlias
+  | SForall
+  | STypFun
   | STypApp
   | SOp(operator_shape);
 

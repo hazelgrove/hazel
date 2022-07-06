@@ -21,6 +21,8 @@ let shape_to_string = (shape: shape): string =>
   | SCommentLine => "comment line"
   | SCase => "case expression"
   | STyAlias => "type alias binding"
+  | SForall => "forall type"
+  | STypFun => "type function"
   | STypApp => "type argument"
   | SOp(operator_shape) =>
     switch (operator_shape) {
