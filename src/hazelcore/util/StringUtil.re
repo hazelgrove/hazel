@@ -34,3 +34,18 @@ let delete = (caret_index: int, s: string): string => {
 };
 
 let utf8_length = CamomileLibrary.UTF8.length;
+
+// ripped from ocaml stdlib 4.13 string.ml
+let starts_with = (~prefix: string, s: string): bool => {
+  let len_s = String.length(s)
+  and len_pre = String.length(prefix);
+  let rec aux = i =>
+    if (i == len_pre) {
+      true;
+    } else if (String.unsafe_get(s, i) != String.unsafe_get(prefix, i)) {
+      false;
+    } else {
+      aux(i + 1);
+    };
+  len_s >= len_pre && aux(0);
+};
