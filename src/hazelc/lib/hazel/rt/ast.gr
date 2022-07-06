@@ -27,6 +27,16 @@ export enum BinBoolOp {
   Or,
 }
 
+export enum BinIntOp {
+  Minus,
+  Plus,
+  Times,
+  Divide,
+  LessThan,
+  GreaterThan,
+  Equals,
+}
+
 export enum Ast {
   EmptyHole(MetaVar, MetaVarInst, VarMap<Ast>),
   NonEmptyHole(HoleReason, MetaVar, MetaVarInst, VarMap<Ast>, Ast),
@@ -34,5 +44,7 @@ export enum Ast {
   FailedCast(Ast, HTyp, HTyp),
   Ap(Ast, Ast),
   BoolLit(Bool),
+  IntLit(Number),
   BinBoolOp(BinBoolOp, Ast, Ast),
+  BinIntOp(BinIntOp, Ast, Ast)
 }

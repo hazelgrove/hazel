@@ -1,12 +1,33 @@
 import AstUtil from "./ast_util"
-import AstMk from "hazel/rt/ast_mk"
+import AstMk from "./ast_mk"
+import Ast from "./ast"
 
 export let and = (x, y) => {
     if (AstUtil.isConst(x) && AstUtil.isConst(y)) {
-        AstUtil.boolToHazel(AstUtil.toBool(x) && AstUtil.toBool(y))
+        AstUtil.boolToHazel(AstUtil.hazelToBool(x) && AstUtil.hazelToBool(y))
     } else {
-        let x = AstUtil.convertBoolLit(x)
-        let y = AstUtil.convertBoolLit(y)
-        AstMk.mkBinBoolOpAnd(x, y)
+        let x = AstMk.convertToAst(x)
+        let y = AstMk.convertToAst(y)
+        AstMk.mkBinBoolOp(Ast.And, x, y)
+    }
+}
+
+export let or = (x, y) => {
+    if (AstUtil.isConst(x) && AstUtil.isConst(y)) {
+        AstUtil.boolToHazel(AstUtil.hazelToBool(x) || AstUtil.hazelToBool(y))
+    } else {
+        let x = AstMk.convertToAst(x)
+        let y = AstMk.convertToAst(y)
+        AstMk.mkBinBoolOp(Ast.Or, x, y)
+    }
+}
+
+export let plus = (x, y) => {
+    if (AstUtil.isNumber(x) && AstUtil.isNumber(y)) {
+        AstUtil.numberToHazel(AstUtil.hazelToNumber(x) + AstUtil.hazelToNumber(y))
+    } else {
+        let x = AstMk.convertToAst(x)
+        let y = AstMk.convertToAst(y)
+        AstMk.mkBinIntOp(Ast.Plus, x, y)
     }
 }

@@ -11,6 +11,7 @@
  (files
   (hazel/rt/ast.gr as hazel/rt/ast.gr)
   (hazel/rt/ast_mk.gr as hazel/rt/ast_mk.gr)
+  (hazel/rt/ast_ops.gr as hazel/rt/ast_ops.gr)
   (hazel/rt/ast_print.gr as hazel/rt/ast_print.gr)
   (hazel/rt/ast_sexp.gr as hazel/rt/ast_sexp.gr)
   (hazel/rt/ast_util.gr as hazel/rt/ast_util.gr)

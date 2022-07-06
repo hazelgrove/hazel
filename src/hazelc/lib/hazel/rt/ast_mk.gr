@@ -1,32 +1,37 @@
 import Ast from "./ast"
 import AstUtil from "./ast_util"
 
-export let mkBoolLit = (x : Bool) => {
-    AstUtil.toHazel(Ast.BoolLit(x))
-}
-
-export let mkBinBoolOpAnd = (x, y) => {
-    let x = AstUtil.toAst(x)
-    let y = AstUtil.toAst(y)
-    AstUtil.toHazel(Ast.BinBoolOp(Ast.And, x, y))
-}
-
-export let mkBinBoolOpOr = (x, y) => {
-    let x = AstUtil.toAst(x)
-    let y = AstUtil.toAst(y)
-    AstUtil.toHazel(Ast.BinBoolOp(Ast.Or, x, y))
-}
-
 export let mkEmptyHole = (u : Ast.MetaVar, i : Ast.MetaVarInst, sigma : Ast.VarMap<Ast.Ast>) => {
-    AstUtil.toHazel(Ast.EmptyHole(u, i, sigma))
+    AstUtil.astToHazel(Ast.EmptyHole(u, i, sigma))
 }
 
-export let convertBoolLit = (x : AstUtil.Hazel) => {
+export let mkBoolLit = (x : Bool) => {
+    AstUtil.astToHazel(Ast.BoolLit(x))
+}
+
+export let mkIntLit = (x : Number) => {
+    AstUtil.astToHazel(Ast.IntLit(x))
+}
+
+export let mkBinBoolOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinBoolOp(op, x, y))
+}
+
+export let mkBinIntOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinIntOp(op, x, y))
+}
+
+
+export let convertToAst = (x : AstUtil.Hazel) => {
     if (AstUtil.isIndet(x)) {
         x
     } else if (AstUtil.isConst(x)) {
-        mkBoolLit(AstUtil.toBool(x))
+        mkBoolLit(AstUtil.hazelToBool(x))
     } else {
-        x // unreachable
+        mkIntLit(AstUtil.hazelToNumber(x))
     }
 }

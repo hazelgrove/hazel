@@ -164,7 +164,7 @@ export let mapOfSexp = (keyOfSexp, valOfSexp, sexp) =>
         match (sexp) {
           Sexp.List([kSexp, vSexp]) => {
             Map.set(keyOfSexp(kSexp), valOfSexp(vSexp), map)
-            Ok(void)
+            void
           },
           _ => ofSexpError("mapOfSexp", "tuple list needed", sexp),
         }

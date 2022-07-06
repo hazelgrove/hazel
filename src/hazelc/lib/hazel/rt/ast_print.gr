@@ -6,7 +6,7 @@ import Sexp from "../../sexplib/sexp"
 
 export let print = v => 
   if (AstUtil.isIndet(v)) {
-    let ast = AstUtil.toAst(v)
+    let ast = AstUtil.hazelToAst(v)
     print(Sexp.toString(AstSexp.sexpOfAst(ast)))
   } else {
     print(v)
