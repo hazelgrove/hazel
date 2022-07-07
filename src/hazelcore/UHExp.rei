@@ -20,6 +20,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypFun(ErrStatus.t, TPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)

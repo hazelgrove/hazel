@@ -127,12 +127,20 @@ and find_tyuses_operand =
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypFun(InHole(_), _, _)
+  | TypApp(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   // | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
     find_tyuses_pat(~steps=steps @ [0], name, p)
     @ find_tyuses(~steps=steps @ [1], name, body)
+  | TypFun(NotInHole, tp, body) =>
+    TPat.binds_tyvar(name, tp)
+      ? [] : find_tyuses(~steps=steps @ [1], name, body)
+  | TypApp(NotInHole, tyfn, ty) =>
+    find_tyuses(~steps=steps @ [0], name, tyfn)
+    @ find_tyuses_typ(~steps=steps @ [1], name, ty)
   | Inj(NotInHole, _, body) => find_tyuses(~steps=steps @ [0], name, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),
@@ -203,11 +211,15 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypFun(InHole(_), _, _)
+  | TypApp(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)
+  | TypFun(NotInHole, _tp, body) => find_uses(~steps=steps @ [1], x, body)
+  | TypApp(NotInHole, tyfn, _ty) => find_uses(~steps=steps @ [1], x, tyfn)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),
