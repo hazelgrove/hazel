@@ -214,7 +214,7 @@ and set_err_status_operand = (err, operand) =>
   | ListNil(_) => ListNil(err)
   | Fun(_, p, def) => Fun(err, p, def)
   | TypFun(_, tp, def) => TypFun(err, tp, def)
-  | TypApp(_, tyfn, ty) => TypApp(err, tyfn, ty)
+  | TypApp(_, body, ty) => TypApp(err, body, ty)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
@@ -337,7 +337,7 @@ and is_complete_operand = (operand: 'operand): bool => {
     TPat.is_complete(tpat) && is_complete(body)
   | TypApp(InHole(_), _, _) => false
   // TODO (poly): typapp complete when?
-  | TypApp(NotInHole, _tyfn, _ty) => failwith("typapp complete when?")
+  | TypApp(NotInHole, _body, _ty) => failwith("typapp complete when?")
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>

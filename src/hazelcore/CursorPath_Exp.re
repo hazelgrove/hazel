@@ -25,7 +25,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
   | TypFunZP(_, ztp, _) => cons'(0, CursorPath_TPat.of_z(ztp))
   | TypFunZE(_, _, zdef) => cons'(1, of_z(zdef))
-  | TypAppZE(_, ztyfn, _) => cons'(0, of_z(ztyfn))
+  | TypAppZE(_, zbody, _) => cons'(0, of_z(zbody))
   | TypAppZT(_, _, zty) => cons'(1, CursorPath_Typ.of_z(zty))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
@@ -158,16 +158,16 @@ and follow_operand =
         |> Option.map(zbody => ZExp.TypFunZE(err, tp, zbody))
       | _ => None
       }
-    | TypApp(err, tyfn, ty) =>
+    | TypApp(err, body, ty) =>
       switch (x) {
       | 0 =>
-        tyfn
+        body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.TypAppZE(err, zbody, ty))
       | 1 =>
         ty
         |> CursorPath_Typ.follow((xs, cursor))
-        |> Option.map(zty => ZExp.TypAppZT(err, tyfn, zty))
+        |> Option.map(zty => ZExp.TypAppZT(err, body, zty))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -355,10 +355,10 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
       | _ => None
       }
-    | TypApp(_, tyfn, ty) =>
+    | TypApp(_, body, ty) =>
       switch (x) {
       | 0 =>
-        tyfn |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | 1 =>
         ty
         |> CursorPath_Typ.of_steps(xs, ~side)

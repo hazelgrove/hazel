@@ -483,8 +483,8 @@ and erase_zoperand =
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
   | TypFunZP(err, ztp, body) => TypFun(err, ZTPat.erase(ztp), body)
   | TypFunZE(err, tp, zbody) => TypFun(err, tp, erase(zbody))
-  | TypAppZE(err, ztyfn, ty) => TypApp(err, erase(ztyfn), ty)
-  | TypAppZT(err, tyfn, zty) => TypApp(err, tyfn, ZTyp.erase(zty))
+  | TypAppZE(err, zbody, ty) => TypApp(err, erase(zbody), ty)
+  | TypAppZT(err, body, zty) => TypApp(err, body, ZTyp.erase(zty))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
   | CaseZR(err, scrut, zrules) => Case(err, scrut, erase_zrules(zrules))
@@ -538,8 +538,8 @@ and set_err_status_zoperand = (err, zoperand) =>
   | FunZE(_, p, zbody) => FunZE(err, p, zbody)
   | TypFunZP(_, ztp, body) => TypFunZP(err, ztp, body)
   | TypFunZE(_, tp, zbody) => TypFunZE(err, tp, zbody)
-  | TypAppZE(_, ztyfn, ty) => TypAppZE(err, ztyfn, ty)
-  | TypAppZT(_, tyfn, zty) => TypAppZT(err, tyfn, zty)
+  | TypAppZE(_, zbody, ty) => TypAppZE(err, zbody, ty)
+  | TypAppZT(_, body, zty) => TypAppZT(err, body, zty)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
   | CaseZE(_, zscrut, rules) =>
     CaseZE(StandardErrStatus(err), zscrut, rules)
@@ -737,10 +737,10 @@ and move_cursor_left_zoperand =
     | 2 => Some(TypFunZE(err, arg, place_after(body)))
     | _ => None
     }
-  | CursorE(OnDelim(k, Before), TypApp(err, tyfn, ty)) =>
+  | CursorE(OnDelim(k, Before), TypApp(err, body, ty)) =>
     switch (k) {
-    | 1 => Some(TypAppZE(err, place_after(tyfn), ty))
-    | 2 => Some(TypAppZT(err, tyfn, ZTyp.place_after(ty)))
+    | 1 => Some(TypAppZE(err, place_after(body), ty))
+    | 2 => Some(TypAppZT(err, body, ZTyp.place_after(ty)))
     | _ => None
     }
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
@@ -800,17 +800,17 @@ and move_cursor_left_zoperand =
     | None =>
       Some(CursorE(OnDelim(1, After), TypFun(err, arg, erase(zbody))))
     }
-  | TypAppZE(err, ztyfn, ty) =>
-    switch (move_cursor_left(ztyfn)) {
-    | Some(ztyfn) => Some(TypAppZE(err, ztyfn, ty))
+  | TypAppZE(err, zbody, ty) =>
+    switch (move_cursor_left(zbody)) {
+    | Some(zbody) => Some(TypAppZE(err, zbody, ty))
     | None =>
-      Some(CursorE(OnDelim(1, After), TypApp(err, erase(ztyfn), ty)))
+      Some(CursorE(OnDelim(1, After), TypApp(err, erase(zbody), ty)))
     }
-  | TypAppZT(err, tyfn, zty) =>
+  | TypAppZT(err, body, zty) =>
     switch (ZTyp.move_cursor_left(zty)) {
-    | Some(zty) => Some(TypAppZT(err, tyfn, zty))
+    | Some(zty) => Some(TypAppZT(err, body, zty))
     | None =>
-      Some(CursorE(OnDelim(1, After), TypApp(err, tyfn, ZTyp.erase(zty))))
+      Some(CursorE(OnDelim(1, After), TypApp(err, body, ZTyp.erase(zty))))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_left(zscrut)) {
@@ -973,10 +973,10 @@ and move_cursor_right_zoperand =
     | 1 => Some(TypFunZE(err, arg, place_before(body)))
     | _ => None // invalid cursor position
     }
-  | CursorE(OnDelim(k, After), TypApp(err, tyfn, ty)) =>
+  | CursorE(OnDelim(k, After), TypApp(err, body, ty)) =>
     switch (k) {
-    | 0 => Some(TypAppZE(err, place_before(tyfn), ty))
-    | 1 => Some(TypAppZT(err, tyfn, ZTyp.place_before(ty)))
+    | 0 => Some(TypAppZE(err, place_before(body), ty))
+    | 1 => Some(TypAppZT(err, body, ZTyp.place_before(ty)))
     | _ => None // invalid cursor position
     }
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
@@ -1026,18 +1026,18 @@ and move_cursor_right_zoperand =
     | None =>
       Some(CursorE(OnDelim(2, Before), TypFun(err, arg, erase(zbody))))
     }
-  | TypAppZE(err, ztyfn, ty) =>
-    switch (move_cursor_right(ztyfn)) {
-    | Some(ztyfn) => Some(TypAppZE(err, ztyfn, ty))
+  | TypAppZE(err, zbody, ty) =>
+    switch (move_cursor_right(zbody)) {
+    | Some(zbody) => Some(TypAppZE(err, zbody, ty))
     | None =>
-      Some(CursorE(OnDelim(1, Before), TypApp(err, erase(ztyfn), ty)))
+      Some(CursorE(OnDelim(1, Before), TypApp(err, erase(zbody), ty)))
     }
-  | TypAppZT(err, tyfn, zty) =>
+  | TypAppZT(err, body, zty) =>
     switch (ZTyp.move_cursor_right(zty)) {
-    | Some(zty) => Some(TypAppZT(err, tyfn, zty))
+    | Some(zty) => Some(TypAppZT(err, body, zty))
     | None =>
       Some(
-        CursorE(OnDelim(2, Before), TypApp(err, tyfn, ZTyp.erase(zty))),
+        CursorE(OnDelim(2, Before), TypApp(err, body, ZTyp.erase(zty))),
       )
     }
   | CaseZE(err, zscrut, rules) =>
