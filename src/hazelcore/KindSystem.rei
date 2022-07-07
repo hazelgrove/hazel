@@ -48,7 +48,9 @@ module HTyp_syntax: {
         TyVarErrStatus.HoleReason.t,
         MetaVar.t,
         TyVar.t,
-      );
+      )
+    | /** Forall types with a type pattern. */
+      Forall(TPat.t, t('idx));
 
   /** Changes indices from absolute to relative. */
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);

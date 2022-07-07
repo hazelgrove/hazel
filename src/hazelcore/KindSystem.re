@@ -64,7 +64,8 @@ module HTyp_syntax: {
     | Prod(list(t('idx)))
     | List(t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t('idx));
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
 } = {
@@ -79,7 +80,8 @@ module HTyp_syntax: {
     | Prod(list(t('idx)))
     | List(t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t('idx));
 
   let rec to_rel =
           (~offset: int=0, ty: t(Index.absolute)): t(Index.relative) =>
@@ -88,6 +90,9 @@ module HTyp_syntax: {
       let cref = {...cref, index: Index.Abs.to_rel(~offset, cref.index)};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(tp, ty) =>
+      // TODO (poly): bind tp?
+      Forall(tp, to_rel(~offset, ty))
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -107,6 +112,7 @@ module HTyp_syntax: {
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(tp, ty) => Forall(tp, to_abs(~offset, ty))
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -591,7 +597,7 @@ and HTyp: {
   [@deriving sexp]
   type t = HTyp_syntax.t(Index.absolute);
 
-  let to_string = (ty: t): string => {
+  let rec to_string = (ty: t): string => {
     switch (ty) {
     | Hole => "a"
     | Int => "an Integer"
@@ -603,6 +609,8 @@ and HTyp: {
     | List(_) => "a List"
     | TyVar(_, t) => "a " ++ t
     | TyVarHole(_) => "a"
+    | Forall(tp, ty) =>
+      "forall " ++ TPat.to_string(tp) ++ " -> " ++ to_string(ty)
     };
   };
 
@@ -630,6 +638,9 @@ and HTyp: {
       Sum(tyL, tyR);
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
+    | Forall(tp, ty) =>
+      // TODO (poly): tp binded?
+      Forall(tp, shift_indices(ty, amount))
     };
 
   let hole: unit => t = () => Hole;
@@ -670,6 +681,7 @@ and HTyp: {
     switch (ty) {
     | TyVar(cref, _) => Some(cref)
     | TyVarHole(_)
+    | Forall(_)
     | Hole
     | Int
     | Float
@@ -691,7 +703,8 @@ and HTyp: {
     | Arrow(_)
     | Sum(_)
     | Prod(_)
-    | List(_) => None
+    | List(_)
+    | Forall(_) => None
     };
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
@@ -706,6 +719,8 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
     | Prod(tys) => Prod(List.map(rescope(ctx), tys))
     | List(ty1) => List(rescope(ctx, ty1))
+    // TODO (poly):
+    | Forall(tp, ty) => Forall(tp, rescope(ctx, ty))
     };
 
   let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
@@ -729,6 +744,8 @@ and HTyp: {
     | Prod(tys) =>
       Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
     | List(ty1) => List(subst_tyvar(ctx, ty1, cref, ty'))
+    // TODO (poly):
+    | Forall(tp, ty) => Forall(tp, subst_tyvar(ctx, ty, cref, ty'))
     };
   };
 
@@ -769,6 +786,9 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
     | (List(_), _) => false
+    // TODO (poly):
+    | (Forall(_tp, ty), Forall(_tp', ty')) => equivalent(ctx, ty, ty')
+    | (Forall(_), _) => false
     };
 
   let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
@@ -804,6 +824,9 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
     | (List(_), _) => false
+    // TODO (poly):
+    | (Forall(_tp, ty), Forall(_tp', ty')) => consistent(ctx, ty, ty')
+    | (Forall(_), _) => false
     };
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
@@ -828,7 +851,8 @@ and HTyp: {
     | Arrow(ty1, ty2)
     | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
     | Prod(tys) => tys |> List.for_all(complete)
-    | List(ty) => complete(ty);
+    | List(ty) => complete(ty)
+    | Forall(_tp, ty) => complete(ty);
 
   /* HTyp Constructor Precedence */
 
@@ -849,6 +873,8 @@ and HTyp: {
     | Prod(_) => precedence_Prod()
     | Sum(_, _) => precedence_Sum()
     | Arrow(_, _) => precedence_Arrow()
+    // TODO (poly): check precedence
+    | Forall(_) => 0
     };
 
   /* Joins */
@@ -857,6 +883,23 @@ and HTyp: {
   type join =
     | GLB
     | LUB;
+
+  // TODO (poly): check join_tpat
+  let join_tpat = (j: join, tp1: TPat.t, tp2: TPat.t): TPat.t => {
+    switch (j) {
+    | GLB =>
+      switch (tp1, tp2) {
+      | (EmptyHole, _) => EmptyHole
+      | (_, EmptyHole) => EmptyHole
+      | (tp1, _) => tp1
+      }
+    | LUB =>
+      switch (tp1, tp2) {
+      | (EmptyHole, tp2) => tp2
+      | (tp1, _) => tp1
+      }
+    };
+  };
 
   let rec join = (ctx: Context.t, j: join, ty1: t, ty2: t): option(t) =>
     switch (ty1, ty2) {
@@ -905,7 +948,12 @@ and HTyp: {
       open OptUtil.Syntax;
       let+ ty = join(ctx, j, ty, ty');
       HTyp_syntax.List(ty);
-    | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    | (Forall(tp, ty), Forall(tp', ty')) =>
+      open OptUtil.Syntax;
+      let tp = join_tpat(j, tp, tp');
+      let+ ty = join(ctx, j, ty, ty');
+      HTyp_syntax.Forall(tp, ty);
+    | (Arrow(_) | Sum(_) | Prod(_) | List(_) | Forall(_), _) => None
     };
 
   let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
@@ -958,6 +1006,8 @@ and HTyp: {
     | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
+    // TODO (poly): forall
+    | Forall(tp, ty) => Forall(tp, normalize(ctx, ty))
     };
 
   /* Properties of Normalized HTyp */
@@ -980,6 +1030,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_consistent(ty1, ty1')
+    | (Forall(_, _), _) => false
     };
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
@@ -1000,6 +1052,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_equivalent(ty1, ty1')
+    | (Forall(_, _), _) => false
     };
 
   /* Ground Cases */
@@ -1033,6 +1087,8 @@ and HTyp: {
     | Arrow(_, _) => grounded_Arrow()
     | Sum(_, _) => grounded_Sum()
     | List(_) => grounded_List()
+    // TODO (poly):
+    | Forall(_) => failwith("nya >_<")
     };
 
   /* HTyp Head-Normalization */
@@ -1088,6 +1144,8 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(tyL, tyR)
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
+    // TODO (poly):
+    | Forall(_) => failwith("nya >_<")
     };
 
   /* Matched Type Constructors */
