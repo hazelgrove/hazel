@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+
 let logo_panel =
   a(
     [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
@@ -76,7 +77,10 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
 
 let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
-    [ActionPanel.view(~inject, model)]
+    [
+      UndoHistoryPanel.view(~inject, model),
+      ActionPanel.view(~inject, model),
+    ]
   );
 
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
@@ -92,7 +96,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~font_metrics=model.font_metrics,
         program,
       ),
-      UndoHistoryPanel.view(~inject, model),
       SettingsPanel.view(~inject, settings),
     ]
   );
