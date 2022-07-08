@@ -39,7 +39,7 @@ let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
     switch (ty') {
     | Arrow(_, ty'') =>
       let var = "x" ++ string_of_int(n);
-      Lam(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
+      Fun(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
     | _ =>
       let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
       ApBuiltin(ident, bindings);
