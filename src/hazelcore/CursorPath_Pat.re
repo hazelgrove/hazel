@@ -203,6 +203,21 @@ let rec holes =
        ~rev_steps,
        p,
      )
+and holes_opseq =
+    (
+      rev_steps: CursorPath.rev_steps,
+      opseq: OpSeq.t('operand, 'operator),
+      hs: CursorPath.hole_list,
+    )
+    : CursorPath.hole_list =>
+  hs
+  |> CursorPath_common.holes_opseq(
+       ~holes_operand,
+       ~hole_sort=hole_sort(TypeErr),
+       ~is_space=Operators_Pat.is_Space,
+       ~rev_steps,
+       opseq,
+     )
 and holes_operand =
     (
       operand: UHPat.operand,
