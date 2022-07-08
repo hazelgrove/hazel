@@ -210,26 +210,53 @@ let%test "type precedence test" = {
       ),
     );
 
+  // The following seems wrong:
+  // (Int, (Int -> ((Int, Int) -> Int)))
+  /* let precedence_op_skel = */
+  /*   Skel.BinOp( */
+  /*     NotInHole, */
+  /*     Operators_Typ.Prod, */
+  /*     Skel.Placeholder(0), */
+  /*     Skel.BinOp( */
+  /*       NotInHole, */
+  /*       Operators_Typ.Arrow, */
+  /*       Skel.Placeholder(1), */
+  /*       Skel.BinOp( */
+  /*         NotInHole, */
+  /*         Operators_Typ.Arrow, */
+  /*         Skel.BinOp( */
+  /*           NotInHole, */
+  /*           Operators_Typ.Prod, */
+  /*           Skel.Placeholder(2), */
+  /*           Skel.Placeholder(3), */
+  /*         ), */
+  /*         Skel.Placeholder(4), */
+  /*       ), */
+  /*     ), */
+  /*   ); */
+
+  // I think it should be this instead:
+  // (Int, ((Int -> Int), (Int -> Int)))
   let precedence_op_skel =
     Skel.BinOp(
       NotInHole,
       Operators_Typ.Prod,
-      Skel.Placeholder(0),
       Skel.BinOp(
         NotInHole,
-        Operators_Typ.Arrow,
-        Skel.Placeholder(1),
+        Operators_Typ.Prod,
+        Skel.Placeholder(0),
         Skel.BinOp(
           NotInHole,
           Operators_Typ.Arrow,
-          Skel.BinOp(
-            NotInHole,
-            Operators_Typ.Prod,
-            Skel.Placeholder(2),
-            Skel.Placeholder(3),
-          ),
-          Skel.Placeholder(4),
+          Skel.Placeholder(1),
+          Skel.Placeholder(2),
         ),
+      ),
+      Skel.BinOp(
+        NotInHole,
+        Operators_Typ.Arrow,
+        Skel.Placeholder(3),
+        Skel.Placeholder(4),
       ),
     );
 

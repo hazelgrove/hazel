@@ -9,7 +9,7 @@ let shape_to_string = (shape: shape): string => {
   | SCloseSquareBracket => "closing square bracket"
   | SChar(str) => str
   | SAnn => "type annotation"
-  | SLam => "function"
+  | SFun => "function"
   | SListNil => "empty list"
   | SInj => "injection"
   | SLet => "let binding"

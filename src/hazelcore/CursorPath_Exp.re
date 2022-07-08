@@ -22,8 +22,8 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
-  | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
-  | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
+  | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZT(_, ztag, _) => cons'(0, CursorPath_Tag.of_z(ztag))
   | InjZE(_, _, zbody) => cons'(1, of_z(zbody))
   | MatchZE(_, zscrut, _) => cons'(0, of_z(zscrut))
@@ -120,16 +120,16 @@ and follow_operand =
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
       }
-    | Lam(err, p, body) =>
+    | Fun(err, p, body) =>
       switch (x) {
       | 0 =>
         p
         |> CursorPath_Pat.follow((xs, cursor))
-        |> Option.map(zp => ZExp.LamZP(err, zp, body))
+        |> Option.map(zp => ZExp.FunZP(err, zp, body))
       | 1 =>
         body
         |> follow((xs, cursor))
-        |> Option.map(zbody => ZExp.LamZE(err, p, zbody))
+        |> Option.map(zbody => ZExp.FunZE(err, p, zbody))
       | _ => None
       }
     | Inj(err, tag, arg_opt) =>
@@ -292,7 +292,7 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
-    | Lam(_, p, body) =>
+    | Fun(_, p, body) =>
       switch (x) {
       | 0 =>
         p
@@ -456,7 +456,7 @@ and holes_operand =
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Tag.holes(tag, [0, ...rev_steps])
     |> CursorPath_common.holes_inj_err(err, rev_steps)
-  | Lam(err, p, body) =>
+  | Fun(err, p, body) =>
     hs
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
@@ -671,7 +671,7 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnDelim(k, _), Lam(err, p, body)) =>
+  | CursorE(OnDelim(k, _), Fun(err, p, body)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => None
@@ -740,11 +740,11 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Match(_)) =>
+  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Fun(_) | Match(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | LamZP(err, zp, body) =>
+  | FunZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
@@ -761,7 +761,7 @@ and holes_zoperand =
       ~holes_after=holes_after @ holes_body,
       (),
     );
-  | LamZE(err, p, zbody) =>
+  | FunZE(err, p, zbody) =>
     let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []

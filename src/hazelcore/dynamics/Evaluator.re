@@ -87,7 +87,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
   | (_, FixF(_, _, _)) => DoesNotMatch
-  | (_, Lam(_, _, _)) => DoesNotMatch
+  | (_, Fun(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
@@ -259,7 +259,7 @@ and matches_cast_Inj =
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -325,7 +325,7 @@ and matches_cast_Pair =
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -398,7 +398,7 @@ and matches_cast_Cons =
   | Keyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -449,12 +449,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Lam(dp, ty, d3) =>
+  | Fun(dp, ty, d3) =>
     if (DHPat.binds_var(x, dp)) {
       d2;
     } else {
       let d3 = subst_var(d1, x, d3);
-      Lam(dp, ty, d3);
+      Fun(dp, ty, d3);
     }
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -607,10 +607,10 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       }
     }
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Lam(_, _, _) => BoxedValue(d)
+  | Fun(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
-    | BoxedValue(Lam(dp, _, d3)) =>
+    | BoxedValue(Fun(dp, _, d3)) =>
       switch (evaluate(d2)) {
       | BoxedValue(d2)
       | Indet(d2) =>
@@ -631,7 +631,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
     | BoxedValue(d1') =>
-      raise(EvaluatorError.Exception(InvalidBoxedLam(d1')))
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
     | Indet(d1') =>
       switch (evaluate(d2)) {
       | BoxedValue(d2')
