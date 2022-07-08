@@ -682,6 +682,7 @@ let get_new_action_group =
     | RemoveCell
     | Init => None
     }
+  | Import(_) => Some(Import)
   | _ => None
   };
 

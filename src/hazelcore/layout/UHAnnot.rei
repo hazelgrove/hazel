@@ -25,6 +25,7 @@ type t =
   | HoleLabel({len: int})
   | Token(token_data)
   | UserNewline
+  | ExpLineBreak
   | OpenChild(open_child_format)
   | ClosedChild({
       is_inline: bool,
