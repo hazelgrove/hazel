@@ -1260,7 +1260,6 @@ and syn_perform_opseq =
     let move_cursor =
       ZExp.is_before_zoperator(zoperator)
         ? ZExp.move_cursor_left_zopseq : ZExp.move_cursor_right_zopseq;
-    print_endline("addition happens here");
     switch (zopseq |> move_cursor) {
     | None => Failed
     | Some(zopseq) => syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))
