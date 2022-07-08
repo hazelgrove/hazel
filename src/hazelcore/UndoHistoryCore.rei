@@ -36,6 +36,7 @@ type action_group =
      so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
+  | Import
   | Init;
 
 [@deriving sexp]

@@ -9,6 +9,11 @@ type menu_entry = {
 
 let menu_entries: list(menu_entry) = [
   {
+    label: "Load permalink into address bar",
+    shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_L)),
+    action: LoadPermalink,
+  },
+  {
     label: "Serialize to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
     action: SerializeToConsole(UHExp),
