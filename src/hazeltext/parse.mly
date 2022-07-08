@@ -16,6 +16,11 @@
     let pat = UHPat.mk_OpSeq pat in
     UHExp.letline pat expr
 
+  let mk_tyalias_line tpat_opt typ =
+    let tpat = Option.value ~default:TPat.EmptyHole tpat_opt in
+    let opseq = UHTyp.mk_OpSeq typ in
+    UHExp.tyaliasline tpat opseq
+
   let mk_typ_paren typ =
     let opseq = UHTyp.mk_OpSeq typ in
     UHTyp.Parenthesized opseq
@@ -89,6 +94,7 @@
 %token SEMICOLON
 %token TARROW
 %token TRUE
+%token TYPE
 %token WILD
 
 (* Precedence levels and associativity - latter definitions are higher precedence *)
@@ -125,6 +131,7 @@ block:
 line:
   COMMENT { UHExp.CommentLine $1 }
   | EMPTY { UHExp.EmptyLine }
+  | TYPE tpat EQUAL typ IN { mk_tyalias_line $2 $4 }
   | LET pat EQUAL block IN { mk_let_line $2 $4 }
 ;
 
@@ -141,7 +148,7 @@ typ_:
     | "Int" -> UHTyp.Int
     | "Bool" -> UHTyp.Bool
     | "Float" -> UHTyp.Float
-    | _ -> failwith ("Unknown Type: "^$1)
+    | _ -> UHTyp.TyVar (InHole (Unbound, 0), $1)
   }
   | EMPTY_HOLE { UHTyp.Hole }
 ;
@@ -175,6 +182,17 @@ pat_:
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
   | WILD { UHPat.wild () }
+;
+
+tpat:
+  IDENT {
+    if TyVar.valid_name $1 then
+      Some (TPat.of_string $1)
+    else
+      let (it, _) = TPat.invalid_of_string IDGen.init $1 in
+      Some it
+  }
+  | EMPTY_HOLE { None }
 ;
 
 expr:

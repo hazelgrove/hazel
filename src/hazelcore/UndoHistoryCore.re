@@ -62,6 +62,7 @@ let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   | ExpOperator(cursor_pos, _)
   | PatOperator(cursor_pos, _)
   | TypOperator(cursor_pos, _)
+  | TPat(cursor_pos, _)
   | Line(cursor_pos, _)
   | Rule(cursor_pos, _) => cursor_pos
   };
@@ -105,9 +106,10 @@ let group_action_group =
     }
   | (VarGroup(_), ConstructEdit(construct_edit)) =>
     switch (construct_edit) {
+    | SFun
     | SLet
     | SCase
-    | SFun => true
+    | STyAlias => true
     | _ => false
     }
   | (VarGroup(_), _) => false
@@ -170,6 +172,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | TypOperand(_, operand) =>
     switch (operand) {
     | Hole => MinLen
+    | TyVar(_, name) => Len(String.length(name))
     | Unit
     | Int
     | Float
@@ -186,7 +189,13 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | EmptyLine => MinLen
     | CommentLine(comment) => Len(String.length(comment))
     | LetLine(_)
-    | ExpLine(_) => MaxLen
+    | ExpLine(_)
+    | TyAliasLine(_) => MaxLen
+    }
+  | TPat(_, p) =>
+    switch (p) {
+    | EmptyHole => MinLen
+    | TyVar(_, name) => Len(String.length(name))
     }
   };
 };

@@ -37,6 +37,8 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 
+let get_var_name: operand => option(Var.t);
+
 let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;

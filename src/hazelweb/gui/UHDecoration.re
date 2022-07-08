@@ -112,6 +112,7 @@ module CurrentTerm = {
 
   let sort_cls: TermSort.t => string =
     fun
+    | TPat => "TPat"
     | Typ => "Typ"
     | Pat => "Pat"
     | Exp => "Exp";

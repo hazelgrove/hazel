@@ -5,6 +5,7 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
+  | TyVar(TyVarErrStatus.t, TyVar.t)
   | Hole
   | Unit
   | Int
@@ -27,6 +28,7 @@ let rec get_prod_elements: skel => list(skel) =
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
+  | TyVar(_)
   | Unit
   | Int
   | Float
@@ -55,33 +57,53 @@ let contract = (ty: HTyp.t): t => {
     )
   and contract_to_seq = (~parenthesize=false, ty: HTyp.t) => {
     let seq =
-      switch (ty) {
+      switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
+      | TyVar(_, t) => Seq.wrap(TyVar(NotInTyVarHole, t))
+      | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
       | Arrow(ty1, ty2) =>
-        mk_seq_operand(HTyp.precedence_Arrow, Operators_Typ.Arrow, ty1, ty2)
+        mk_seq_operand(
+          HTyp.precedence_Arrow(),
+          Operators_Typ.Arrow,
+          HTyp.of_syntax(ty1),
+          HTyp.of_syntax(ty2),
+        )
       | Prod([]) => Seq.wrap(Unit)
       | Prod([head, ...tail]) =>
         tail
         |> List.map(elementType =>
              contract_to_seq(
                ~parenthesize=
-                 HTyp.precedence(elementType) > HTyp.precedence_Prod,
-               elementType,
+                 HTyp.precedence(HTyp.of_syntax(elementType))
+                 > HTyp.precedence_Prod(),
+               HTyp.of_syntax(elementType),
              )
            )
         |> List.fold_left(
              (seq1, seq2) => Seq.seq_op_seq(seq1, Operators_Typ.Prod, seq2),
              contract_to_seq(
-               ~parenthesize=HTyp.precedence(head) > HTyp.precedence_Prod,
-               head,
+               ~parenthesize=
+                 HTyp.precedence(HTyp.of_syntax(head))
+                 > HTyp.precedence_Prod(),
+               HTyp.of_syntax(head),
              ),
            )
-      | Sum(ty1, ty2) => mk_seq_operand(HTyp.precedence_Sum, Sum, ty1, ty2)
+      | Sum(ty1, ty2) =>
+        mk_seq_operand(
+          HTyp.precedence_Sum(),
+          Sum,
+          HTyp.of_syntax(ty1),
+          HTyp.of_syntax(ty2),
+        )
       | List(ty1) =>
-        Seq.wrap(List(ty1 |> contract_to_seq |> OpSeq.mk(~associate)))
+        Seq.wrap(
+          List(
+            HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
+          ),
+        )
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -92,39 +114,11 @@ let contract = (ty: HTyp.t): t => {
   ty |> contract_to_seq |> OpSeq.mk(~associate);
 };
 
-let rec expand = (ty: t): HTyp.t => expand_opseq(ty)
-and expand_opseq =
-  fun
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
-and expand_skel = (skel, seq) =>
-  switch (skel) {
-  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
-  | BinOp(_, Arrow, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Arrow(ty1, ty2);
-  | BinOp(_, Prod, _, _) =>
-    Prod(
-      skel |> get_prod_elements |> List.map(skel => expand_skel(skel, seq)),
-    )
-  | BinOp(_, Sum, skel1, skel2) =>
-    let ty1 = expand_skel(skel1, seq);
-    let ty2 = expand_skel(skel2, seq);
-    Sum(ty1, ty2);
-  }
-and expand_operand =
-  fun
-  | Hole => Hole
-  | Unit => Prod([])
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Parenthesized(opseq) => expand(opseq)
-  | List(opseq) => List(expand(opseq));
-
 let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
+  | TyVar(NotInTyVarHole, _) => true
+  | TyVar(InHole(_), _) => false
   | Unit => true
   | Int => true
   | Float => true

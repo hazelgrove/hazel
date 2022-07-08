@@ -1,6 +1,12 @@
 module Doc = Pretty.Doc;
 open UHDoc;
 
+module BindingForm = {
+  type t =
+    | Type
+    | Let;
+};
+
 let empty_: t = Doc.empty();
 let space_: t = Doc.space();
 let indent_: t = Doc.indent();
@@ -50,6 +56,8 @@ module Delim = {
   let let_LetLine = (): t => mk(~index=0, "let");
   let eq_LetLine = (): t => mk(~index=1, "=");
   let in_LetLine = (): t => mk(~index=2, "in");
+
+  let type_TyAliasLine = (): t => mk(~index=0, "type");
 
   let open_CommentLine = (): t => mk(~index=0, "#");
 
@@ -231,13 +239,13 @@ let mk_Unit = (): t =>
   Delim.mk(~index=0, "()") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Bool = (): t =>
-  Delim.mk(~index=0, "Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_text("Bool") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Int = (): t =>
-  Delim.mk(~index=0, "Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_text("Int") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let mk_Float = (): t =>
-  Delim.mk(~index=0, "Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
+  mk_text("Float") |> annot_Tessera |> annot_Operand(~sort=Typ);
 
 let hole_lbl = (u: MetaVar.t): string => string_of_int(u);
 let hole_inst_lbl = (u: MetaVar.t, i: MetaVarInst.t): string =>
@@ -336,6 +344,30 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
     clause |> pad_left_delimited_open_child(~with_border=false),
   ])
   |> Doc.annot(UHAnnot.mk_Term(~sort=Exp, ~shape=Rule, ()));
+};
+
+let mk_BindingLine =
+    (p: formatted_child, def: formatted_child, binding_form: BindingForm.t): t => {
+  let open_group = {
+    let binding_delim =
+      switch (binding_form) {
+      | BindingForm.Type => Delim.type_TyAliasLine()
+      | BindingForm.Let => Delim.let_LetLine()
+      };
+    let eq_delim = Delim.eq_LetLine();
+    Doc.hcats([
+      binding_delim,
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=Pat),
+      eq_delim,
+    ])
+    |> annot_Tessera;
+  };
+  let close_group = Delim.in_LetLine() |> annot_Tessera;
+  Doc.hcats([
+    open_group,
+    def |> pad_bidelimited_open_child(~inline_padding=(space_, space_)),
+    close_group,
+  ]);
 };
 
 let mk_LetLine = (p: formatted_child, def: formatted_child): t => {

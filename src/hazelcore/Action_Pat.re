@@ -28,30 +28,33 @@ let has_Comma = (ZOpSeq(_, zseq): ZPat.zopseq) =>
   |> Seq.operators
   |> List.exists(op => op == Operators_Pat.Comma);
 
-type syn_success = (ZPat.t, HTyp.t, Contexts.t, IDGen.t);
-type ana_success = (ZPat.t, Contexts.t, IDGen.t);
+[@deriving sexp]
+type syn_success = (ZPat.t, HTyp.t, Context.t, IDGen.t);
+
+[@deriving sexp]
+type ana_success = (ZPat.t, Context.t, IDGen.t);
 
 let mk_and_syn_fix_ZOpSeq =
-    (ctx: Contexts.t, id_gen: IDGen.t, zseq: ZPat.zseq): syn_success => {
+    (ctx: Context.t, id_gen: IDGen.t, zseq: ZPat.zseq): syn_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
   Statics_Pat.syn_fix_holes_z(ctx, id_gen, zopseq);
 };
 let mk_and_ana_fix_ZOpSeq =
-    (ctx: Contexts.t, id_gen: IDGen.t, zseq: ZPat.zseq, ty: HTyp.t)
+    (ctx: Context.t, id_gen: IDGen.t, zseq: ZPat.zseq, ty: HTyp.t)
     : ana_success => {
   let zopseq = ZPat.mk_ZOpSeq(zseq);
   Statics_Pat.ana_fix_holes_z(ctx, id_gen, zopseq, ty);
 };
 
 let mk_syn_result =
-    (ctx: Contexts.t, id_gen: IDGen.t, zp: ZPat.t)
+    (ctx: Context.t, id_gen: IDGen.t, zp: ZPat.t)
     : ActionOutcome.t(syn_success) =>
   switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
   | None => Failed
   | Some((ty, ctx)) => Succeeded((zp, ty, ctx, id_gen))
   };
 let mk_ana_result =
-    (ctx: Contexts.t, id_gen: IDGen.t, zp: ZPat.t, ty: HTyp.t)
+    (ctx: Context.t, id_gen: IDGen.t, zp: ZPat.t, ty: HTyp.t)
     : ActionOutcome.t(ana_success) =>
   switch (Statics_Pat.ana(ctx, zp |> ZPat.erase, ty)) {
   | None => Failed
@@ -59,31 +62,31 @@ let mk_ana_result =
   };
 
 let mk_syn_text =
-    (ctx: Contexts.t, id_gen: IDGen.t, caret_index: int, text: string)
+    (ctx: Context.t, id_gen: IDGen.t, caret_index: int, text: string)
     : ActionOutcome.t(syn_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, id_gen) = id_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.Hole, ctx, id_gen));
+      Succeeded((ZOpSeq.wrap(zhole), HTyp.hole(), ctx, id_gen));
     } else {
       let (it, id_gen) = UHPat.new_InvalidText(id_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
-      Succeeded((zp, HTyp.Hole, ctx, id_gen));
+      Succeeded((zp, HTyp.hole(), ctx, id_gen));
     }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, HTyp.Hole, ctx, id_gen));
+    Succeeded((zp, HTyp.hole(), ctx, id_gen));
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
-    Succeeded((zp, HTyp.Int, ctx, id_gen));
+    Succeeded((zp, HTyp.int(), ctx, id_gen));
   | FloatLit(f) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.floatlit(f)));
-    Succeeded((zp, HTyp.Float, ctx, id_gen));
+    Succeeded((zp, HTyp.float(), ctx, id_gen));
   | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
-    Succeeded((zp, HTyp.Bool, ctx, id_gen));
+    Succeeded((zp, HTyp.bool(), ctx, id_gen));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
@@ -92,17 +95,17 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.Hole, ctx, id_gen));
+    Succeeded((zp, HTyp.hole(), ctx, id_gen));
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let ctx = Context.add_var(ctx, x, HTyp.hole());
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.Hole, ctx, id_gen));
+    Succeeded((zp, HTyp.hole(), ctx, id_gen));
   };
 };
 
 let mk_ana_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       text: string,
@@ -129,7 +132,7 @@ let mk_ana_text =
     switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, id_gen));
       } else {
         let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
@@ -142,7 +145,7 @@ let mk_ana_text =
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, id_gen));
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Context.add_var(ctx, x, ty);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
     Succeeded((zp, ctx, id_gen));
   };
@@ -157,7 +160,7 @@ let ana_delete_text = Action_common.ana_delete_text_(~mk_ana_text);
 
 let syn_split_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       sop: Action.operator_shape,
@@ -181,9 +184,10 @@ let syn_split_text =
     Succeeded(Statics_Pat.syn_fix_holes_z(ctx, id_gen, new_ze));
   };
 };
+
 let ana_split_text =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       sop: Action.operator_shape,
@@ -261,7 +265,7 @@ let resurround_z =
   };
 
 let rec syn_move =
-        (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t)
+        (ctx: Context.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   switch (a) {
   /* Movement */
@@ -318,13 +322,7 @@ let rec syn_move =
   };
 
 let rec ana_move =
-        (
-          ctx: Contexts.t,
-          id_gen: IDGen.t,
-          a: Action.t,
-          zp: ZPat.t,
-          ty: HTyp.t,
-        )
+        (ctx: Context.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t, ty: HTyp.t)
         : ActionOutcome.t(ana_success) =>
   switch (a) {
   /* Movement */
@@ -406,12 +404,13 @@ let annotate_last_operand =
 };
 
 let rec syn_perform =
-        (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t)
+        (ctx: Context.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t)
         : ActionOutcome.t(syn_success) =>
   syn_perform_opseq(ctx, id_gen, a, zp)
+
 and syn_perform_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
@@ -519,8 +518,8 @@ and syn_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(ctx, a, zann, id_gen)) {
+        | Succeeded((new_zann, ctx, id_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, new_zseq));
@@ -597,8 +596,9 @@ and syn_perform_opseq =
     };
   | (Init, _) => failwith("Init action should not be performed.")
   }
+
 and syn_perform_operand =
-    (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zoperand: ZPat.zoperand)
+    (ctx: Context.t, id_gen: IDGen.t, a: Action.t, zoperand: ZPat.zoperand)
     : ActionOutcome.t(syn_success) => {
   switch (a, zoperand) {
   /* Invalid cursor positions */
@@ -623,7 +623,7 @@ and syn_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SList | SLet | SLine | SFun | SCase | SCommentLine |
+        SList | SLet | STyAlias | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |
@@ -646,11 +646,11 @@ and syn_perform_operand =
   | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
-      ? Succeeded((zp, Hole, ctx, id_gen)) : CursorEscaped(Before);
+      ? Succeeded((zp, HTyp.hole(), ctx, id_gen)) : CursorEscaped(Before);
   | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
-      ? Succeeded((zp, Hole, ctx, id_gen)) : CursorEscaped(After);
+      ? Succeeded((zp, HTyp.hole(), ctx, id_gen)) : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
@@ -667,7 +667,7 @@ and syn_perform_operand =
   | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
     let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
     let zp = ZOpSeq.wrap(zhole);
-    Succeeded((zp, Hole, ctx, id_gen));
+    Succeeded((zp, HTyp.hole(), ctx, id_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
@@ -776,7 +776,7 @@ and syn_perform_operand =
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Hole), ctx, id_gen));
+    Succeeded((zp, HTyp.list(HTyp.hole()), ctx, id_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -793,8 +793,8 @@ and syn_perform_operand =
     | Some((body_ty, ctx)) =>
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, Hole)
-        | R => HTyp.Sum(Hole, body_ty)
+        | L => HTyp.sum(body_ty, HTyp.hole())
+        | R => HTyp.sum(HTyp.hole(), body_ty)
         };
       Succeeded((zp, ty, ctx, id_gen));
     };
@@ -883,52 +883,67 @@ and syn_perform_operand =
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
+        | L => HTyp.sum(ty1, HTyp.hole())
+        | R => HTyp.sum(HTyp.hole(), ty1)
         };
       Succeeded((zp, ty, ctx, id_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (ana_perform_operand(ctx, id_gen, a, zop, UHTyp.expand(ann))) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
-    | Succeeded((ZOpSeq(_, zseq), ctx, id_gen)) =>
-      let newseq = annotate_last_operand(zseq, ann);
-      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, newseq));
-    }
-  | (_, TypeAnnZA(_, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
-    | Failed => Failed
-    | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
-    | Succeeded(zann) =>
-      let ty = UHTyp.expand(ZTyp.erase(zann));
-      let (zpat, ctx, id_gen) =
-        Statics_Pat.ana_fix_holes_z(
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ann)) {
+    | None => Failed
+    | Some((ty, _, _)) =>
+      switch (ana_perform_operand(ctx, id_gen, a, zop, ty)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
           ctx,
           id_gen,
-          ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
-          ty,
-        );
-      Succeeded((zpat, ty, ctx, id_gen));
+          Action_common.escape(side),
+          zoperand,
+        )
+      | Succeeded((ZOpSeq(_, zseq), ctx, id_gen)) =>
+        let newseq = annotate_last_operand(zseq, ann);
+        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, newseq));
+      }
+    }
+  | (_, TypeAnnZA(_, op, zann)) =>
+    switch (Action_Typ.perform(ctx, a, zann, id_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+    | Succeeded((zann, ctx, id_gen)) =>
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
+      | None => Failed
+      | Some((ty, _, _)) =>
+        let (zpat, ctx, id_gen) =
+          Statics_Pat.ana_fix_holes_z(
+            ctx,
+            id_gen,
+            ZOpSeq.wrap(ZPat.TypeAnnZA(NotInHole, op, zann)),
+            ty,
+          );
+        Succeeded((zpat, ty, ctx, id_gen));
+      }
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
 }
+
 and ana_perform =
-    (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t, ty: HTyp.t)
+    (ctx: Context.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t, ty: HTyp.t)
     : ActionOutcome.t(ana_success) =>
   ana_perform_opseq(ctx, id_gen, a, zp, ty)
+
 and ana_perform_opseq =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_head_normed = HTyp.head_normalize(ctx, ty);
   switch (a, zseq) {
   /* Invalid cursor positions */
   | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1020,7 +1035,7 @@ and ana_perform_opseq =
 
   | (Construct(SOp(SComma)), _)
       when {
-        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let ty_length = List.length(HTyp.get_prod_elements(ty_head_normed));
         let OpSeq(_, first_seq) = zopseq |> ZPat.erase_zopseq;
         let first_seq_length = List.length(Seq.operands(first_seq));
         (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
@@ -1033,13 +1048,13 @@ and ana_perform_opseq =
         id_gen,
         zopseq |> ZPat.erase_zopseq,
         // safe because pattern guard
-        ty |> HTyp.get_prod_elements |> List.hd,
+        ty_head_normed |> HTyp.get_prod_elements |> List.hd,
       );
     let (new_zopseq, id_gen) =
       complete_tuple(
         id_gen,
         seq,
-        ty,
+        ty_head_normed,
         ~triggered_by_paren=false,
         ~is_after_zopseq=ZPat.is_after_zopseq(zopseq),
       );
@@ -1047,7 +1062,7 @@ and ana_perform_opseq =
 
   | (Construct(SParenthesized), _)
       when {
-        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let ty_length = List.length(HTyp.get_prod_elements(ty_head_normed));
         let OpSeq(_, first_seq) = zopseq |> ZPat.erase_zopseq;
         let first_seq_length = List.length(Seq.operands(first_seq));
         (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
@@ -1062,8 +1077,8 @@ and ana_perform_opseq =
         id_gen,
         opseq,
         // safe because pattern guard
-        HTyp.Prod(
-          ty
+        HTyp.product(
+          ty_head_normed
           |> HTyp.get_prod_elements
           |> ListUtil.sublist(~lo=0, first_seq_length),
         ),
@@ -1072,7 +1087,7 @@ and ana_perform_opseq =
       complete_tuple(
         id_gen,
         first_seq,
-        ty,
+        ty_head_normed,
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,
       );
@@ -1081,7 +1096,7 @@ and ana_perform_opseq =
 
   | (Construct(SParenthesized), _)
       when {
-        let ty_length = List.length(HTyp.get_prod_elements(ty));
+        let ty_length = List.length(HTyp.get_prod_elements(ty_head_normed));
         (ZPat.is_after_zopseq(zopseq) || ZPat.is_before_zopseq(zopseq))
         && ty_length >= 2;
       } =>
@@ -1101,12 +1116,17 @@ and ana_perform_opseq =
        *  */
       switch (zoperand) {
       | TypeAnnZA(err, operand, zann) when ZTyp.is_after(zann) =>
-        switch (Action_Typ.perform(a, zann)) {
-        | Succeeded(new_zann) =>
+        switch (Action_Typ.perform(ctx, a, zann, id_gen)) {
+        | Succeeded((new_zann, ctx, id_gen)) =>
           let new_zseq =
             ZSeq.ZOperand(ZPat.TypeAnnZA(err, operand, new_zann), surround);
-          let ty' = UHTyp.expand(ZTyp.erase(new_zann));
-          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, id_gen, new_zseq, ty'));
+          switch (
+            Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(new_zann))
+          ) {
+          | None => Failed
+          | Some((ty', _, _)) =>
+            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, id_gen, new_zseq, ty'))
+          };
         | _ => Failed
         }
       | _ => Failed
@@ -1190,16 +1210,19 @@ and ana_perform_opseq =
       }
     };
   | (Init, _) => failwith("Init action should not be performed.")
-  }
+  };
+}
+
 and ana_perform_operand =
     (
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       a: Action.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
     )
-    : ActionOutcome.t(ana_success) =>
+    : ActionOutcome.t(ana_success) => {
+  let ty_head_normed = HTyp.head_normalize(ctx, ty);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -1223,7 +1246,7 @@ and ana_perform_operand =
   /* Invalid actions */
   | (
       Construct(
-        SList | SLet | SLine | SFun | SCase | SCommentLine |
+        SList | SLet | STyAlias | SLine | SFun | SCase | SCommentLine |
         SCloseSquareBracket,
       ) |
       SwapUp |
@@ -1387,14 +1410,14 @@ and ana_perform_operand =
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_, operand))
-      when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+      when List.length(HTyp.get_prod_elements(ty_head_normed)) >= 2 =>
     // the operand wrapped by the hole
     let operand_inside_hole =
       UHPat.set_err_status_operand(NotInHole, operand);
     let operand =
       switch (Statics_Pat.syn_operand(ctx, operand_inside_hole)) {
       | Some((first_seq_ty, _)) =>
-        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty))) {
+        if (first_seq_ty == List.hd(HTyp.get_prod_elements(ty_head_normed))) {
           operand_inside_hole;
         } else {
           operand;
@@ -1405,7 +1428,7 @@ and ana_perform_operand =
       complete_tuple(
         id_gen,
         Seq.wrap(operand),
-        ty,
+        ty_head_normed,
         ~triggered_by_paren=true,
         ~is_after_zopseq=true,
       );
@@ -1416,7 +1439,7 @@ and ana_perform_operand =
     mk_ana_result(ctx, id_gen, new_zp, ty);
 
   | (Construct(SInj(side)), CursorP(_)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
       let (zbody, ctx, id_gen) =
@@ -1509,7 +1532,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, id_gen));
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (HTyp.matched_sum(ty)) {
+    switch (HTyp.matched_sum(ctx, ty)) {
     | None => Failed
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
@@ -1544,13 +1567,14 @@ and ana_perform_operand =
       // since the sorts on both sides differ. Thus an annotation is not parsed
       // systematically as part of an opseq, so we have to reassociate the annotation
       // onto the trailing operand.
+      let (ann, _, id_gen) = Statics_UHTyp.syn_fix_holes(ctx, id_gen, ann);
       let newseq = annotate_last_operand(zseq, ann);
       let (zpat, ctx, id_gen) =
         mk_and_ana_fix_ZOpSeq(ctx, id_gen, newseq, ty);
       Succeeded((zpat, ctx, id_gen));
     }
   | (_, TypeAnnZA(err, op, zann)) =>
-    switch (Action_Typ.perform(a, zann)) {
+    switch (Action_Typ.perform(ctx, a, zann, id_gen)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -1560,25 +1584,39 @@ and ana_perform_operand =
         zoperand,
         ty,
       )
-    | Succeeded(zann) =>
-      let ty' = UHTyp.expand(ZTyp.erase(zann));
-      let (new_op, ctx, id_gen) =
-        Statics_Pat.ana_fix_holes_operand(ctx, id_gen, op, ty');
-      let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((new_zopseq, ctx, id_gen));
-      } else {
-        let (new_zopseq, id_gen) =
-          new_zopseq |> ZPat.mk_inconsistent(id_gen);
-        Succeeded((new_zopseq, ctx, id_gen));
-      };
+    | Succeeded((zann, ctx, id_gen)) =>
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
+      | None => Failed
+      | Some((ty', _, _)) =>
+        switch (UHPat.get_var_name(op)) {
+        | None =>
+          let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, op, zann));
+          Succeeded((new_zopseq, ctx, id_gen));
+        | Some(x) =>
+          let new_ctx = Context.add_var(ctx, x, ty');
+          switch (Context.var_type(new_ctx, x)) {
+          | None => failwith(__LOC__ ++ ": impossible branch")
+          | Some(ty') =>
+            let (new_op, new_ctx, id_gen) =
+              Statics_Pat.ana_fix_holes_operand(ctx, id_gen, op, ty');
+            let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+            if (HTyp.consistent(new_ctx, ty, ty')) {
+              Succeeded((new_zopseq, new_ctx, id_gen));
+            } else {
+              let (new_zopseq, id_gen) =
+                new_zopseq |> ZPat.mk_inconsistent(id_gen);
+              Succeeded((new_zopseq, new_ctx, id_gen));
+            };
+          };
+        }
+      }
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>
     switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
+      if (HTyp.consistent(ctx, ty, ty')) {
         Succeeded((zp, ctx, id_gen));
       } else {
         let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
@@ -1587,3 +1625,4 @@ and ana_perform_operand =
     }
   | (Init, _) => failwith("Init action should not be performed.")
   };
+};

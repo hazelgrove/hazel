@@ -16,7 +16,7 @@ type t =
   | Pair(t, t);
 
 let rec constrains = (c: t, ty: HTyp.t): bool =>
-  switch (c, ty) {
+  switch (c, HTyp.head_normalize(InitialContext.ctx, ty)) {
   | (Truth, _)
   | (Falsity, _)
   | (Hole, _) => true
@@ -24,13 +24,13 @@ let rec constrains = (c: t, ty: HTyp.t): bool =>
   | (Int(_) | NotInt(_), _) => false
   | (Float(_) | NotFloat(_), Float) => true
   | (Float(_) | NotFloat(_), _) => false
-  | (And(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
-  | (Or(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
+  | (And(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
+  | (Or(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
   | (InjL(c1), Sum(ty1, _)) => constrains(c1, ty1)
   | (InjL(_), _) => false
   | (InjR(c2), Sum(_, ty2)) => constrains(c2, ty2)
   | (InjR(_), _) => false
-  | (Pair(c1, c2), ty) => constrains(c1, ty) && constrains(c2, ty)
+  | (Pair(c1, c2), _) => constrains(c1, ty) && constrains(c2, ty)
   };
 
 let rec dual = (c: t): t =>

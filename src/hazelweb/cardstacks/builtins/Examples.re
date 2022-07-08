@@ -87,11 +87,11 @@ end ");
 
 let examples = [
   ("hole", just_hole),
-  ("lambda", holey_lambda),
-  ("let", let_line),
-  ("map", map_example),
-  ("quicksort", qsort_example),
-  ("inconsistent branches", inconsistent_branches),
+  // ("lambda", holey_lambda),
+  // ("let", let_line),
+  // ("map", map_example),
+  // ("quicksort", qsort_example),
+  // ("inconsistent branches", inconsistent_branches),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
@@ -105,11 +105,13 @@ let cardstack: CardstackInfo.t = {
   cards: List.map(example_to_card, examples),
 };
 
-let tests = [
-  ("quicksort x1", qsort_n(1)),
-  ("quicksort x10", qsort_n(10)),
-  ("quicksort x100", qsort_n(100)),
-];
+// let tests = [
+//   ("quicksort x1", qsort_n(1)),
+//   ("quicksort x10", qsort_n(10)),
+//   ("quicksort x100", qsort_n(100)),
+// ];
+
+let tests = [];
 
 let teststack: CardstackInfo.t = {
   title: "tests",

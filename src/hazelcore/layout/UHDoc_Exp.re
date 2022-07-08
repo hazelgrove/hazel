@@ -54,6 +54,8 @@ let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
   );
 
 module UHDoc_Pat = UHDoc_Pat.Make(Memo.DummyMemo);
+module UHDoc_Typ = UHDoc_Typ.Make(Memo.DummyMemo);
+module UHDoc_TPat = UHDoc_TPat.Make(Memo.DummyMemo);
 module Make = (Memo: Memo.S) => {
   let rec mk =
     lazy(
@@ -100,6 +102,7 @@ module Make = (Memo: Memo.S) => {
           | CommentLine(_) => Doc.vsep(hd_doc, tl_doc)
           | ExpLine(_) =>
             Doc.vsep(hd_doc |> Doc.annot(UHAnnot.ExpLineBreak), tl_doc)
+          | TyAliasLine(_)
           | LetLine(_) =>
             annot_SubBlock(
               ~hd_index=offset + i,
@@ -144,6 +147,22 @@ module Make = (Memo: Memo.S) => {
               UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
             let def = mk_child(~memoize, ~enforce_inline, ~child_step=1, def);
             UHDoc_common.mk_LetLine(p, def);
+          | TyAliasLine(p, ty) =>
+            let p =
+              UHDoc_TPat.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=0,
+                p,
+              );
+            let ty =
+              UHDoc_Typ.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=1,
+                ty,
+              );
+            UHDoc_common.mk_BindingLine(p, ty, UHDoc_common.BindingForm.Type);
           }: UHDoc.t
         )
       )

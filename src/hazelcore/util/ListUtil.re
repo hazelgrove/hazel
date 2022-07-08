@@ -243,6 +243,16 @@ let combos3 =
   |> List.map(((x, y)) => zs |> List.map(z => (x, y, z)))
   |> List.flatten;
 
+let rec take = (xs: list('a), n: int): list('a) =>
+  n <= 0
+    ? []
+    : (
+      switch (xs) {
+      | [] => failwith("index too high")
+      | [x, ...xs'] => [x, ...take(xs', n - 1)]
+      }
+    );
+
 let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
   xs
   |> List.fold_left(
@@ -288,3 +298,42 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
+
+let rec memf = (f: 'x => bool, xs: list('x)): bool =>
+  switch (xs) {
+  | [x, ...xs'] => f(x) || memf(f, xs')
+  | [] => false
+  };
+
+/* a short-circuiting fold */
+let rec fold_to =
+        (f: ('a, 'x) => option('a), init: 'a, xs: list('x))
+        : ('a, list('x)) =>
+  switch (xs) {
+  | [] => (init, xs)
+  | [x, ...xs'] =>
+    switch (f(init, x)) {
+    | Some(acc) => fold_to(f, acc, xs')
+    | None => (init, xs)
+    }
+  };
+
+let pivot = (i: int, xs: list('a)): (list('a), 'a, list('a)) => {
+  let n = List.length(xs);
+  if (n == 0) {
+    failwith(__LOC__ ++ ": cannot pivot an empty list");
+  } else if (i < 0) {
+    failwith(__LOC__ ++ ": index too low");
+  } else if (i >= n) {
+    failwith(__LOC__ ++ ": index too high");
+  } else if (n == 1) {
+    ([], List.hd(xs), []);
+  } else if (i == 0) {
+    ([], List.hd(xs), List.tl(xs));
+  } else if (i == n) {
+    let xs_rev = List.rev(xs);
+    (List.rev(List.tl(xs_rev)), List.hd(xs_rev), []);
+  } else {
+    (take(xs, i), List.nth(xs, i), drop(i + 1, xs));
+  };
+};

@@ -6,6 +6,7 @@ let get_cursor_term_sort = (cursor_term: CursorInfo.cursor_term): TermSort.t => 
   | ExpOperator(_, _)
   | Line(_, _)
   | Rule(_, _) => Exp
+  | TPat(_, _) => TPat
   | PatOperand(_, _)
   | PatOperator(_, _) => Pat
   | TypOperand(_, _)
@@ -32,5 +33,6 @@ let term_tag_view =
   | Exp => mk_view("exp", "Expression", "EXP")
   | Pat => mk_view("pat", "Pattern", "PAT")
   | Typ => mk_view("typ", "Type", "TYP")
+  | TPat => mk_view("typ", "Type Variable", "TVAR")
   };
 };

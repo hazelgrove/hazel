@@ -53,28 +53,29 @@ exception MissingCursorInfo;
 let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.initial),
+    CursorInfo_Exp.syn_cursor_info(InitialContext.ctx),
   );
-let get_cursor_info = (program: t) => {
+let get_cursor_info = (program: t) =>
   program
   |> get_zexp
   |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
-};
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (pat_err_holes, pat_var_err_holes) =
     CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map((CursorPath.{sort, steps, _}) =>
-         switch (sort) {
-         | TypHole => None
-         | ExpHole(_, _) => None
+    |> List.filter_map(hole_info =>
+         switch (CursorPath.get_sort(hole_info)) {
+         | TypHole
+         | ExpHole(_)
+         | TPatHole(_)
+         | TyVarHole => None
          | PatHole(_, shape) =>
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, steps))
+           | TypeErr => Some((shape, hole_info.steps))
            }
          }
        )
@@ -90,8 +91,10 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
-         | TypHole => None
-         | PatHole(_, _) => None
+         | TypHole
+         | PatHole(_)
+         | TPatHole(_)
+         | TyVarHole => None
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
@@ -112,8 +115,10 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
-         | TypHole => None
-         | PatHole(_, _) => None
+         | TypHole
+         | PatHole(_)
+         | TPatHole(_)
+         | TyVarHole => None
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
@@ -134,8 +139,10 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     CursorPath_Exp.holes(get_uhexp(program), [], [])
     |> List.filter_map((CursorPath.{sort, steps, _}) =>
          switch (sort) {
-         | TypHole => None
-         | PatHole(_, _) => None
+         | TypHole
+         | PatHole(_, _)
+         | TPatHole(_)
+         | TyVarHole => None
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
@@ -152,12 +159,18 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     | {uses: Some(uses), _} => uses
     | _ => []
     };
+  let tyvar_uses =
+    switch (get_cursor_info(program)) {
+    | {tyuses: Some(tyuses), _} => tyuses
+    | _ => []
+    };
   {
     rule_err_holes,
     case_err_holes: (case_err_notex, case_err_incon),
     current_term,
     err_holes: pat_err_holes @ exp_err_holes,
     var_uses,
+    tyvar_uses,
     var_err_holes: pat_var_err_holes @ exp_var_err_holes,
   };
 };
@@ -177,6 +190,9 @@ let rec renumber_result_only =
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, d3) =>
+    let (d3, hii) = renumber_result_only(path, hii, d3);
+    (TyAlias(dp, dty, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -286,6 +302,9 @@ let rec renumber_sigmas_only =
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | TyAlias(dp, dty, d3) =>
+    let (d3, hii) = renumber_sigmas_only(path, hii, d3);
+    (TyAlias(dp, dty, d3), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -431,7 +450,7 @@ exception DoesNotElaborate;
 let elaborate =
   Memo.general(
     ~cache_size_bound=1000,
-    Elaborator_Exp.elab(Contexts.initial, Delta.empty),
+    Elaborator_Exp.elab(InitialContext.ctx, Delta.empty),
   );
 let get_elaboration = (program: t): DHExp.t =>
   switch (program |> get_uhexp |> elaborate) {
@@ -493,7 +512,7 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
-  switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
+  switch (Action_Exp.syn_perform(InitialContext.ctx, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
@@ -504,7 +523,6 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, id_gen);
       };
-    ();
     program |> put_edit_state(new_edit_state);
   };
   // };

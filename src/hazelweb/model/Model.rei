@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -5,6 +6,7 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  text_editor_popup_open: bool,
   font_metrics: FontMetrics.t,
   /**
    * Preview on undo history entry mainly implemented by
@@ -72,6 +74,16 @@ let select_case_branch: (CursorPath.steps, int, t) => t;
  */
 let toggle_left_sidebar: t => t;
 let toggle_right_sidebar: t => t;
+
+/**
+ * Show/hide import popup
+ */
+let toggle_text_editor_popup: t => t;
+
+/**
+ * Load in imported text
+ */
+let import_uhexp: (t, UHExp.t) => t;
 
 /**
  * Load a selected cardstack into view

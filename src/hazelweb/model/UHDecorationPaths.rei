@@ -8,6 +8,7 @@ type t = {
   err_holes: list(CursorPath.steps),
   var_err_holes: list(CursorPath.steps),
   var_uses: list(CursorPath.steps),
+  tyvar_uses: list(CursorPath.steps),
   current_term: option(CursorPath.t),
 };
 

@@ -13,7 +13,8 @@ let decoration_cls: UHDecorationShape.t => string =
   | CaseErrHole(NotExhaustive) => "case-err-hole-notexhaustive"
   | CaseErrHole(InconsistentBranches) => "case-err-hole-inconsistentbranches"
   | RuleErrHole => "rule-err-hole"
-  | VarUse => "var-use"
+  | VarUse
+  | TyVarUse => "var-use"
   | CurrentTerm => "current-term";
 
 let decoration_view =
@@ -31,7 +32,8 @@ let decoration_view =
     | CaseErrHole(reason) =>
       CaseErrHole.view(~contains_current_term, reason, ~corner_radii)
     | RuleErrHole => RuleErrHole.view(~contains_current_term, ~corner_radii)
-    | VarUse => VarUse.view(~corner_radii)
+    | VarUse
+    | TyVarUse => VarUse.view(~corner_radii)
     | CurrentTerm =>
       CurrentTerm.view(~corner_radii, ~sort=term_sort, ~shape=term_shape)
     }
@@ -181,6 +183,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             | Text => ["code-text"]
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
+            | Keyword => ["code-keyword"]
             };
           [Node.span([Attr.classes(clss)], vs)];
         | HoleLabel({len}) =>

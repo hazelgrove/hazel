@@ -13,7 +13,7 @@ type rev_steps = steps;
 type rev_t = (CursorPosition.t, rev_steps);
 
 [@deriving sexp]
-type hole_shape =
+type tpat_hole_shape =
   | TypeErr
   | VarErr
   | Empty;
@@ -40,6 +40,8 @@ type exp_hole_shape =
 [@deriving sexp]
 type hole_sort =
   | TypHole
+  | TyVarHole
+  | TPatHole(tpat_hole_shape)
   | PatHole(MetaVar.t, pat_hole_shape)
   | ExpHole(MetaVar.t, exp_hole_shape);
 

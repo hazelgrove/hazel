@@ -9,6 +9,7 @@ and line =
   | CommentLine(string)
   | LetLine(UHPat.t, t)
   | ExpLine(opseq)
+  | TyAliasLine(TPat.t, UHTyp.t)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -35,6 +36,8 @@ type seq = OpSeq.seq(operand, operator);
 type affix = Seq.affix(operand, operator);
 
 let letline: (UHPat.t, t) => line;
+
+let tyaliasline: (TPat.t, UHTyp.t) => line;
 
 let var: (~err: ErrStatus.t=?, ~var_err: VarErrStatus.t=?, Var.t) => operand;
 
@@ -112,6 +115,5 @@ let associate: seq => Skel.t(Operators_Exp.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let is_complete: t => bool;
-// let is_complete: (t, bool) => bool;
 
 let get_pats: rules => list(UHPat.t);

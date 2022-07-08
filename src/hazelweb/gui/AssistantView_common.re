@@ -4,7 +4,8 @@ let article = (tag: TermSort.t): string =>
   switch (tag) {
   | Exp => "an"
   | Pat
-  | Typ => "a"
+  | Typ
+  | TPat => "a"
   };
 
 let text_shortcut_node = text =>

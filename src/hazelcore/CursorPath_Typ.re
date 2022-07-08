@@ -31,7 +31,8 @@ and follow_operand =
     | Unit
     | Int
     | Float
-    | Bool => None
+    | Bool
+    | TyVar(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -89,7 +90,8 @@ and of_steps_operand =
     | Unit
     | Int
     | Float
-    | Bool => None
+    | Bool
+    | TyVar(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -151,10 +153,15 @@ and holes_operand =
     : CursorPath.hole_list =>
   switch (operand) {
   | Hole => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs]
+  | TyVar(InHole(_), _) => [
+      mk_hole_sort(TyVarHole, List.rev(rev_steps)),
+      ...hs,
+    ]
   | Unit
   | Int
   | Float
-  | Bool => hs
+  | Bool
+  | TyVar(NotInTyVarHole, _) => hs
   | Parenthesized(body)
   | List(body) => hs |> holes(body, [0, ...rev_steps])
   };
@@ -178,12 +185,12 @@ and holes_zoperand =
     (zoperand: ZTyp.zoperand, rev_steps: CursorPath.rev_steps)
     : CursorPath.zhole_list =>
   switch (zoperand) {
-  | CursorT(_, Hole) =>
+  | CursorT(_, Hole | TyVar(InHole(_), _)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
       (),
     )
-  | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
+  | CursorT(_, Unit | Int | Float | Bool | TyVar(NotInTyVarHole, _)) => CursorPath_common.no_holes
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
     let holes = holes(body, [0, ...rev_steps], []);
     switch (k) {

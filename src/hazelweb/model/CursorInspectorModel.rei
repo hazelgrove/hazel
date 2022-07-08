@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   visible: bool,
   show_expanded: bool,

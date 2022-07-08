@@ -1,8 +1,8 @@
 /* Context of built-in functions. */
-let ctx: VarCtx.t;
+let vars: VarMap.t(HTyp.t);
 
 /* Map of built-in function names to implementations. */
-let forms: VarMap.t_((Builtin.eval, Builtin.elab));
+let forms: VarMap.t((Builtin.eval, Builtin.elab));
 
 /* Lookup the type of a built-in function. */
 let lookup_type: Var.t => option(HTyp.t);

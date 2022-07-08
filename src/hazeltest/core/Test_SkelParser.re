@@ -1,60 +1,75 @@
+open Tezt;
+open Tezt.Base;
+
 // Test suite for the skel parser.
-let mvar = fst(IDGen.init);
+let mvar = IDGen.init;
 
-let%test "single operand test" = {
-  // 1
-  let single_op_seq = Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E);
-  let single_op_skel = Skel.Placeholder(0);
+let register_exp_test = (title, tags, seq, skel) =>
+  Test.register(
+    ~__FILE__, ~title, ~tags=["hazelcore", "skelparser"] @ tags, () =>
+    UHExp.associate(seq) == skel ? unit : Test.fail("skel parser failed!")
+  );
 
-  UHExp.associate(single_op_seq) == single_op_skel;
-};
+let register_typ_test = (title, tags, seq, skel) =>
+  Test.register(
+    ~__FILE__, ~title, ~tags=["hazelcore", "skelparser"] @ tags, () =>
+    UHTyp.associate(seq) == skel ? unit : Test.fail("skel parser failed!")
+  );
 
-let%test "simple addition test" = {
-  // 1 + 2
-  let simple_add_seq =
+// 1
+let () =
+  register_exp_test(
+    "single operand test",
+    [],
+    Seq.S(UHExp.IntLit(NotInHole, "1"), Seq.E),
+    Skel.Placeholder(0),
+  );
+
+// 1 + 2
+let () =
+  register_exp_test(
+    "simple addition test",
+    [],
     Seq.S(
       UHExp.IntLit(NotInHole, "1"),
       Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
-    );
-  let simple_add_skel =
+    ),
     Skel.BinOp(
       NotInHole,
       Operators_Exp.Plus,
       Skel.Placeholder(0),
       Skel.Placeholder(1),
-    );
+    ),
+  );
 
-  UHExp.associate(simple_add_seq) == simple_add_skel;
-};
+// _
+let () =
+  register_exp_test(
+    "single hole test",
+    [],
+    Seq.wrap(UHExp.new_EmptyHole(mvar) |> fst),
+    Skel.Placeholder(0),
+  );
 
-let%test "single hole test" = {
-  // _
-  let single_hole_seq = Seq.S(UHExp.EmptyHole(mvar), E);
-  let single_hole_skel = Skel.Placeholder(0);
-
-  UHExp.associate(single_hole_seq) == single_hole_skel;
-};
-
-let%test "addition w/ left hole" = {
-  // _ + 2
-  let add_l_hole_seq =
+// _ + 2
+let () =
+  register_exp_test(
+    "addition w/ left hole",
+    [],
     Seq.S(
-      UHExp.EmptyHole(mvar),
+      UHExp.new_EmptyHole(mvar) |> fst,
       Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
-    );
-  let add_l_hole_skel =
+    ),
     Skel.BinOp(
       NotInHole,
       Operators_Exp.Plus,
       Skel.Placeholder(0),
       Skel.Placeholder(1),
-    );
+    ),
+  );
 
-  UHExp.associate(add_l_hole_seq) == add_l_hole_skel;
-};
-
-let%test "operator precedence test" = {
-  // 1 - 2 + 2 * 3 :: 4 :: []
+// 1 - 2 + 2 * 3 :: 4 :: []
+let () = {
   let cons_seq =
     Seq.S(
       UHExp.IntLit(NotInHole, "3"),
@@ -66,8 +81,9 @@ let%test "operator precedence test" = {
         ),
       ),
     );
-
-  let precedence_op_seq =
+  register_exp_test(
+    "operator precedence test",
+    [],
     Seq.S(
       UHExp.IntLit(NotInHole, "1"),
       Seq.A(
@@ -83,9 +99,7 @@ let%test "operator precedence test" = {
           ),
         ),
       ),
-    );
-
-  let precedence_op_skel =
+    ),
     Skel.BinOp(
       NotInHole,
       Operators_Exp.Cons,
@@ -111,13 +125,12 @@ let%test "operator precedence test" = {
         Skel.Placeholder(4),
         Skel.Placeholder(5),
       ),
-    );
-
-  UHExp.associate(precedence_op_seq) == precedence_op_skel;
+    ),
+  );
 };
 
-let%test "holey operator precedence test" = {
-  // 1 - _ + 2 * 3.2 :: 4 :: []
+// 1 - _ + 2 * 3.2 :: 4 :: []
+let () = {
   let cons_seq =
     Seq.S(
       UHExp.FloatLit(NotInHole, "3.2"),
@@ -129,14 +142,15 @@ let%test "holey operator precedence test" = {
         ),
       ),
     );
-
-  let precedence_op_seq =
+  register_exp_test(
+    "holey operator precedence test",
+    [],
     Seq.S(
       UHExp.IntLit(NotInHole, "1"),
       Seq.A(
         Operators_Exp.Minus,
         Seq.S(
-          UHExp.EmptyHole(mvar),
+          UHExp.new_EmptyHole(mvar) |> fst,
           Seq.A(
             Operators_Exp.Plus,
             Seq.S(
@@ -146,9 +160,7 @@ let%test "holey operator precedence test" = {
           ),
         ),
       ),
-    );
-
-  let precedence_op_skel =
+    ),
     Skel.BinOp(
       NotInHole,
       Operators_Exp.Cons,
@@ -174,20 +186,19 @@ let%test "holey operator precedence test" = {
         Skel.Placeholder(4),
         Skel.Placeholder(5),
       ),
-    );
-
-  // Utils.run_n_times(
-  //   10_000_000,
-  //   "precedence op skel",
-  //   UHExp.associate,
-  //   precedence_op_seq,
-  // );
-
-  UHExp.associate(precedence_op_seq) == precedence_op_skel;
+    ),
+  );
 };
 
-let%test "type precedence test" = {
-  // Int + Int -> Int || Int -> Int
+// Utils.run_n_times(
+//   10_000_000,
+//   "precedence op skel",
+//   UHExp.associate,
+//   precedence_op_seq,
+// );
+
+// Int + Int -> Int || Int -> Int
+let () = {
   let second_half =
     Seq.S(
       UHTyp.Int,
@@ -199,17 +210,16 @@ let%test "type precedence test" = {
         ),
       ),
     );
-
-  let type_precedence_seq =
+  register_typ_test(
+    "type precedence test",
+    [],
     Seq.S(
       UHTyp.Int,
       Seq.A(
         Operators_Typ.Prod,
         Seq.S(UHTyp.Int, Seq.A(Operators_Typ.Arrow, second_half)),
       ),
-    );
-
-  let precedence_op_skel =
+    ),
     Skel.BinOp(
       NotInHole,
       Operators_Typ.Prod,
@@ -230,7 +240,6 @@ let%test "type precedence test" = {
           Skel.Placeholder(4),
         ),
       ),
-    );
-
-  UHTyp.associate(type_precedence_seq) == precedence_op_skel;
+    ),
+  );
 };

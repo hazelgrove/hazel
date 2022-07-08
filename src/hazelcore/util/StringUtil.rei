@@ -20,3 +20,5 @@ let backspace: (int, string) => string;
 let delete: (int, string) => string;
 
 let utf8_length: CamomileLibrary.UTF8.t => int;
+
+let contains_substring: (string, string) => bool;

@@ -200,8 +200,8 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let is_action_allowed_with_on_type_check = (~on_type, action) => {
     switch (cursor_info.typed) {
-    | OnType when on_type => is_action_allowed(action)
-    | OnType => false
+    | OnType(_) when on_type => is_action_allowed(action)
+    | OnType(_) => false
     | _ when on_type => false
     | _ => is_action_allowed(action)
     };
@@ -317,14 +317,11 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           mono_text("false"),
           text(" directly"),
         ]),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"B\""),
-            text(" to insert a Bool type"),
-          ],
-          Action.Construct(SChar("B")),
-        ),
+        info([
+          text("Type "),
+          mono_text("\"Bool\""),
+          text(" to insert a Bool type"),
+        ]),
         operator_list(~on_type=false, "Operators", [Ampersand, VBar]),
       ],
     ),
@@ -335,26 +332,20 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
           text("Enter number literals directly e.g. "),
           mono_text("1.0, 2"),
         ]),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"I\""),
-            text(" to insert an "),
-            mono_text("Int"),
-            text(" type"),
-          ],
-          Action.Construct(SChar("I")),
-        ),
-        info_action(
-          [
-            text("Type "),
-            mono_text("\"F\""),
-            text(" to insert a "),
-            mono_text("Float"),
-            text(" type"),
-          ],
-          Action.Construct(SChar("F")),
-        ),
+        info([
+          text("Type "),
+          mono_text("\"Int\""),
+          text(" to insert an "),
+          mono_text("Int"),
+          text(" type"),
+        ]),
+        info([
+          text("Type "),
+          mono_text("\"Float\""),
+          text(" to insert a "),
+          mono_text("Float"),
+          text(" type"),
+        ]),
         operator_list(
           ~on_type=false,
           "Integer operators",
@@ -429,6 +420,20 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         combo(Enter, simple("Add new rule")),
       ],
     ),
+    section(
+      "Type Aliases",
+      [
+        info([
+          text("Type alias regex: "),
+          mono_text("[_a-zA-Z][_a-zA-Z0-9']*"),
+        ]),
+        info([
+          text("Type \""),
+          mono_text("type "),
+          text("\" to add a type alias expression"),
+        ]),
+      ],
+    ),
   ];
 };
 
@@ -437,7 +442,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
+    switch (Action_Exp.syn_perform(InitialContext.ctx, a, edit_state)) {
     | Failed => false
     | CursorEscaped(_)
     | Succeeded(_) => true
@@ -450,7 +455,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
 };
 
 /* This function is unused at runtime, its purpose is to catch
-  * new cases added to the Acion.t type, but forgotten about in this
+  * new cases added to the Action.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
   * inside generate_panel_body with a description of the new action.
   * Afterwards the below function can be updated to not error anymore.
@@ -495,6 +500,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SInj(R)) => Added
   | Construct(SCase) => Added
   | Construct(SLet) => Added
+  | Construct(STyAlias) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
   | SwapUp => Added
