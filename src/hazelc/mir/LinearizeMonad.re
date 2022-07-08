@@ -29,7 +29,7 @@ open Syntax;
 let sequence = ms => {
   let rec sequence' = (ms, acc) => {
     switch (ms) {
-    | [] => acc 
+    | [] => acc
     | [m, ...ms] =>
       let* x = m;
       sequence'(ms, acc >>| (acc => [x, ...acc]));

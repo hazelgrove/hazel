@@ -173,11 +173,10 @@ and analyze_imm = (im: Anf.imm, ictx): Anf.imm => {
       let const = analyze_const(const, ictx);
       (IConst(const), NecessarilyComplete);
     | IVar(x) =>
-
       switch (VarMap.lookup(ictx, x)) {
       | Some(x_complete) => (IVar(x), x_complete)
       | None => failwith("bad free variable " ++ x)
-      };
+      }
     };
 
   {imm_kind, imm_ty, imm_complete, imm_label};
