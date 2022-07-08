@@ -15,7 +15,9 @@ let view = (~inject, model: Model.t) => {
     performance.measure && performance.cell_view,
     () => {
       open Vdom;
-      let wrap_cell = (num_of_cell, cell) =>
+      let program = model |> Model.get_program |> Program.extract_zcells;
+
+      let wrap_cell = (num_of_cell, code_text) =>
         Node.div(
           [Attr.id(cell_id)],
           [
@@ -29,19 +31,20 @@ let view = (~inject, model: Model.t) => {
                   ~font_metrics=model.font_metrics,
                   ~settings,
                   ~cursor_inspector,
-                  cell,
+                  program,
                   num_of_cell,
+                  code_text,
                 ),
               ],
             ),
           ],
         );
-      let cells =
-        model
-        |> Model.get_program
-        |> Program.extract_zcells
-        |> List.mapi(wrap_cell);
-      Node.div([], cells);
+
+      Node.div(
+        [],
+        UHCode.get_code_text_cells(~settings, program)
+        |> List.mapi(wrap_cell),
+      );
     },
   );
 };

@@ -24,6 +24,7 @@
  */
 [@deriving sexp]
 type t('annot) =
+  | CellBoundary
   | Text(string)
   | HBox(list(t('annot)))
   | VBox(list(t('annot)))

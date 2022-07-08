@@ -48,6 +48,7 @@ let decoration_views =
     let go' = go(~indent, ~start);
     switch (m.layout) {
     | Linebreak
+    | CellBoundary
     | Text(_) => tl
     | Cat(m1, m2) =>
       let mid_row = start.row + MeasuredLayout.height(m1) - 1;
@@ -151,23 +152,55 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
 };
 
 let box_table: WeakMap.t(UHBox.t, list(Vdom.Node.t)) = WeakMap.mk();
-let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
+let rec view_of_box =
+        (
+          (cells: list(list(Vdom.Node.t)), cell: list(Vdom.Node.t)),
+          box: UHBox.t,
+        )
+        : (list(list(Vdom.Node.t)), list(Vdom.Node.t)) => {
+  let concat_cell = ((new_cells, new_cell)) =>
+    if (List.length(new_cells) == 0) {
+      (cells, cell @ new_cell);
+    } else {
+      (cells @ [cell @ List.hd(new_cells)] @ List.tl(new_cells), new_cell);
+    };
   Vdom.(
     switch (WeakMap.get(box_table, box)) {
-    | Some(vs) => vs
+    | Some(vs) => (cells, cell @ vs)
     | None =>
       switch (box) {
-      | Text(s) => StringUtil.is_empty(s) ? [] : [Node.text(s)]
-      | HBox(boxes) => boxes |> List.map(view_of_box) |> List.flatten
+      | CellBoundary => (cells @ [cell], [])
+      | Text(s) => (
+          cells,
+          cell @ (StringUtil.is_empty(s) ? [] : [Node.text(s)]),
+        )
+      | HBox(boxes) =>
+        boxes |> List.fold_left(view_of_box, ([], [])) |> concat_cell
       | VBox(boxes) =>
-        let vs =
-          boxes
-          |> List.map(view_of_box)
-          |> ListUtil.join([Node.br([])])
-          |> List.flatten;
-        [Node.div([Attr.classes(["VBox"])], vs)];
+        if (List.length(boxes) == 0) {
+          (cells, cell);
+        } else {
+          let join = ((cells, cell), box) => {
+            let (cells, cell) = view_of_box((cells, cell), box);
+            List.length(cell) == 0
+              ? (cells, cell) : (cells, cell @ [Node.br([])]);
+          };
+          let (vcells, vcell) =
+            List.rev(List.tl(List.rev(boxes)))
+            |> List.fold_left(join, ([], []));
+          let wrap = vs => [Node.div([Attr.classes(["VBox"])], vs)];
+          let (vcells, vcell) =
+            view_of_box((vcells, vcell), List.hd(List.rev(boxes)));
+          let cells =
+            vcells
+            //|> List.map(ListUtil.join([Node.br([])]))
+            |> List.map(wrap);
+          let cell = vcell |> wrap;
+          (cells, cell) |> concat_cell;
+        }
+
       | Annot(annot, box) =>
-        let vs = view_of_box(box);
+        let (vcells, vcell) = view_of_box(([], []), box);
         switch (annot) {
         | Token({shape, _}) =>
           let clss =
@@ -176,27 +209,45 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
             };
-          [Node.span([Attr.classes(clss)], vs)];
+          let wrap = vs => [Node.span([Attr.classes(clss)], vs)];
+          (vcells |> List.map(wrap), vcell |> wrap) |> concat_cell;
         | HoleLabel({len}) =>
           let width = Css_gen.width(`Ch(float_of_int(len)));
-          [
+          let wrap = vs => [
             Node.span(
               [Attr.style(width), Attr.classes(["HoleLabel"])],
               [Node.span([Attr.classes(["HoleNumber"])], vs)],
             ),
           ];
-        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
-        | _ => vs
+          (vcells |> List.map(wrap), vcell |> wrap) |> concat_cell;
+        | UserNewline =>
+          let wrap = vs => [
+            Node.span([Attr.classes(["UserNewline"])], vs),
+          ];
+          (vcells |> List.map(wrap), vcell |> wrap) |> concat_cell;
+        | CommentLine =>
+          let wrap = vs => [
+            Node.span([Attr.classes(["CommentLine"])], vs),
+          ];
+          (vcells |> List.map(wrap), vcell |> wrap) |> concat_cell;
+        | Term(_) =>
+          let (cells, cell) = (vcells, vcell) |> concat_cell;
+          (cells, cell);
+        | _ => (vcells, vcell) |> concat_cell
         };
       }
     }
   );
 };
 
+let get_code_text_cells =
+    (~settings: Settings.t, program: Program.t): list(list(Vdom.Node.t)) => {
+  let l = Program.get_layout(~settings, program);
+  let (cells, cell) = view_of_box(([], []), UHBox.mk(l));
+  cells @ [cell];
+};
+
 let root_id = "code-root";
-let cell_id = "cell";
-let cell_top_padding = 20.0;
 
 let focus = () => {
   JSUtil.force_get_elem_by_id(root_id)##focus;
@@ -210,6 +261,7 @@ let view =
       ~cursor_inspector: CursorInspectorModel.t,
       program: Program.t,
       num_of_cell: int,
+      code_text: list(Vdom.Node.t),
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -220,7 +272,6 @@ let view =
 
       let l = Program.get_layout(~settings, program);
 
-      let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
         decoration_views(~font_metrics, dpaths, l);
@@ -274,36 +325,18 @@ let view =
       let click_handler = evt => {
         let container_rect =
           JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
-        let cell_rect =
-          JSUtil.force_get_elem_by_id(cell_id)##getBoundingClientRect;
+
         let (target_x, target_y) = (
           float_of_int(evt##.clientX),
           float_of_int(evt##.clientY),
         );
-        let cell_boundary_height =
-          container_rect##.top
-          -.
-          cell_rect##.top
-          +.
-          cell_rect##.bottom
-          -.
-          container_rect##.bottom
-          +. cell_top_padding;
         let caret_pos =
           MeasuredPosition.{
             row:
               Float.to_int(
-                (
-                  target_y
-                  -.
-                  container_rect##.top
-                  -. 0.5
-                  -. float_of_int(num_of_cell)
-                  *. cell_boundary_height
-                )
+                (target_y -. container_rect##.top -. 0.5)
                 /. font_metrics.row_height,
-              )
-              + num_of_cell,
+              ),
             col:
               Float.to_int(
                 Float.round(
@@ -313,6 +346,17 @@ let view =
           };
         inject(ModelAction.MoveAction(Click(caret_pos)));
       };
+      let elements =
+        if (num_of_cell == 0) {
+          caret
+          @ cursor_inspector
+          @ [
+            Node.span([Attr.classes(["code"])], code_text),
+            ...decorations,
+          ];
+        } else {
+          [Node.span([Attr.classes(["code"])], code_text)];
+        };
 
       Node.div(
         [
@@ -327,9 +371,7 @@ let view =
           Attr.on_blur(_ => inject(ModelAction.BlurCell)),
           ...key_handlers,
         ],
-        caret
-        @ cursor_inspector
-        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        elements,
       );
     },
   );

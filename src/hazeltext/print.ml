@@ -12,6 +12,7 @@ let string_of_layout (l : 'a Layout.t) : string =
         let s2, c2 = go indent c1 l2 in
         (s1 ^ s2, c2)
     | Linebreak -> ("\n" ^ String.make indent ' ', indent)
+    | CellBoundary -> ("CellBoundary", col + String.length "CellBoundary")
     | Align l -> go col col l
     | Annot (UHAnnot.HoleLabel _, _) -> ("?", col + 2)
     | Annot (UHAnnot.ExpLineBreak, d) ->

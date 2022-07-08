@@ -122,9 +122,7 @@ module Make = (Memo: Memo.S) => {
           | EmptyLine =>
             UHDoc_common.empty_
             |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
-          | CellBoundary =>
-            UHDoc_common.empty_
-            |> Doc.annot(UHAnnot.mk_Token(~shape=Text, ~len=0, ()))
+          | CellBoundary => Doc.cellboundary()
           | CommentLine(comment) =>
             let comment_doc =
               UHDoc_common.mk_text(comment)

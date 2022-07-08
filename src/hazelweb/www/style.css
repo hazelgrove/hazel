@@ -42,7 +42,7 @@
   --typ-shadow-color: rgb(173, 154, 202);
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
-  --current-term-z: 0;
+  --current-term-z: 1;
   --var-use-z: 0;
   --err-hole-z: 1;
   --verr-hole-z: 1;
@@ -1381,9 +1381,12 @@ h1 {
 #cell {
   position: relative;
   width: auto;
-  margin-top: 20px;
+  margin-top: 10px;
   background-color: white;
-  padding: 10px;
+  padding-top: 6px;
+  padding-right: 10px;
+  padding-bottom: 6px;
+  padding-left: 10px;
   border: 2px solid #CCC;
 }
 #cell:focus {

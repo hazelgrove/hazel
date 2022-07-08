@@ -25,6 +25,7 @@ let view_of_layout =
     | Text(s) =>
       col := col^ + Unicode.length(s);
       [Node.text(s)];
+    | CellBoundary => failwith("view_of_layout")
     | Cat(l1, l2) =>
       let vs1 = go(indent, dpaths, l1);
       let vs2 = go(indent, dpaths, l2);

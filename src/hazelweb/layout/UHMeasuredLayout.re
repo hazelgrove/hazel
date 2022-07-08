@@ -11,6 +11,7 @@ let caret_position_of_path =
   let rec go = (steps, indent: int, start: MeasuredPosition.t, m: t) =>
     switch (m.layout) {
     | Linebreak
+    | CellBoundary
     | Text(_) => None
     | Align(m) => go(steps, start.col, start, m)
     | Annot(annot, m) =>
@@ -84,6 +85,7 @@ let find_path =
   let rec go = (rev_steps, indent, start: MeasuredPosition.t, m: t) =>
     switch (m.layout) {
     | Linebreak
+    | CellBoundary
     | Text(_) => None
     | Align(m) => go(rev_steps, start.col, start, m)
     | Cat(m1, m2) =>

@@ -17,7 +17,7 @@ type t =
 let mk:
   (~width: int, ~is_focused: bool=?, ~is_zexp: bool=?, Statics.edit_state) => t;
 
-let extract_zcells: t => list(t);
+let extract_zcells: t => t;
 
 let focus: t => t;
 let blur: t => t;

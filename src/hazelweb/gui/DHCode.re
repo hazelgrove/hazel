@@ -10,6 +10,7 @@ let view_of_layout =
     DHMeasuredLayout.mk(l)
     |> MeasuredLayout.pos_fold(
          ~linebreak=_ => ([Node.br([])], []),
+         ~cellboundary=_ => ([], []),
          ~text=(_, s) => ([Node.text(s)], []),
          ~align=
            (_, (txt, ds)) =>

@@ -42,56 +42,14 @@ let clear_start_col = program => {
 let focus = program => {...program, is_focused: true};
 let blur = program => {...program, is_focused: false};
 
-let mk_zexp = program => {...program, is_zexp: true};
-let mk_uhexp = program => {...program, is_zexp: false};
-
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
-let rec split_into_cells_helper = (l, acc) => {
-  switch (l) {
-  | [] => [acc]
-  | [x, ...xs] =>
-    if (x == UHExp.CellBoundary) {
-      [acc] @ split_into_cells_helper(xs, []);
-    } else {
-      split_into_cells_helper(xs, acc @ [x]);
-    }
-  };
-};
-
 let extract_zcells = program => {
-  let ((prefix, zline, suffix), ty, u_gen) = program.edit_state;
-  let prefix_list = split_into_cells_helper(prefix, []);
-  let suffix_list = split_into_cells_helper(suffix, []);
-
-  let wrap_edit_state = lines => {
-    let edit_state = (
-      (lines, ZExp.CursorL(OnText(0), UHExp.EmptyLine), []),
-      ty,
-      u_gen,
-    );
-    program |> put_edit_state(edit_state) |> mk_uhexp;
-  };
-
+  let ((_, zline, _), _, _) = program.edit_state;
   if (zline == ZExp.CursorL(OnText(0), CellBoundary)) {
-    let prefix_cells =
-      List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
-
-    let suffix_cells = suffix_list |> List.map(wrap_edit_state);
-    let zcell = List.hd(List.rev(prefix_list)) |> wrap_edit_state;
-
-    prefix_cells @ [zcell] @ suffix_cells;
+    {...program, is_zexp: false};
   } else {
-    let zedit_state = (
-      (List.hd(List.rev(prefix_list)), zline, List.hd(suffix_list)),
-      ty,
-      u_gen,
-    );
-    let prefix_cells =
-      List.rev(List.tl(List.rev(prefix_list))) |> List.map(wrap_edit_state);
-    let suffix_cells = List.tl(suffix_list) |> List.map(wrap_edit_state);
-    let zcell = program |> put_edit_state(zedit_state) |> mk_zexp;
-    prefix_cells @ [zcell] @ suffix_cells;
+    program;
   };
 };
 
@@ -666,7 +624,13 @@ let move_via_click =
   let m = get_measured_layout(~settings, program);
   let path =
     UHMeasuredLayout.nearest_path_within_row(target, m)
-    |> OptUtil.get(() => failwith("row with no caret positions"))
+    |> OptUtil.get(() =>
+         UHMeasuredLayout.nearest_path_within_row(
+           {row: target.row + 1, col: target.col},
+           m,
+         )
+         |> OptUtil.get(() => failwith("row with no caret positions"))
+       )
     |> fst
     |> CursorPath_common.rev;
   let new_program =

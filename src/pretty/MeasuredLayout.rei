@@ -32,6 +32,7 @@ type t('annot) = {
   metrics: list(box),
 }
 and t'('annot) =
+  | CellBoundary
   | Linebreak
   | Text(string)
   | Align(t('annot))
@@ -54,6 +55,7 @@ let width: (~offset: int=?, t(_)) => int;
  */
 let fold:
   (
+    ~cellboundary: 'acc,
     ~linebreak: 'acc,
     ~text: string => 'acc,
     ~align: 'acc => 'acc,
@@ -71,6 +73,7 @@ let fold:
 let pos_fold:
   (
     ~linebreak: MeasuredPosition.t => 'acc,
+    ~cellboundary: MeasuredPosition.t => 'acc,
     ~text: (MeasuredPosition.t, string) => 'acc,
     ~align: (MeasuredPosition.t, 'acc) => 'acc,
     ~cat: (MeasuredPosition.t, 'acc, 'acc) => 'acc,

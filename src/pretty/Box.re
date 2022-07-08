@@ -2,6 +2,7 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t('annot) =
+  | CellBoundary
   | Text(string)
   | HBox(list(t('annot)))
   | VBox(list(t('annot)))
@@ -15,6 +16,7 @@ module Make = (MemoTbl: MemoTbl.S) => {
     | None =>
       let h =
         switch (box) {
+        | CellBoundary
         | Text(_) => 1
         | Annot(_, b) => height(b)
         | HBox(bs) => bs |> List.map(height) |> List.fold_left(max, 1) // Note: 1 is HBox([]) height
@@ -46,6 +48,7 @@ module Make = (MemoTbl: MemoTbl.S) => {
         };
       };
       switch (box1) {
+      | CellBoundary
       | Text(_) => failwith("impossible due to `box_height` guard")
       | HBox(bs1) => HBox(append_last(bs1))
       | VBox(bs1) => VBox(append_last(bs1))
@@ -71,6 +74,7 @@ module Make = (MemoTbl: MemoTbl.S) => {
         let box =
           switch (l) {
           | Linebreak => [[], []]
+          | CellBoundary => [[CellBoundary]]
           | Text(s) => [[Text(s)]]
           | Align(l) => [[mk(go(l))]]
           | Annot(ann, l) =>

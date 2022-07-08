@@ -12,6 +12,7 @@ type t('annot) = {
   metrics: list(box),
 }
 and t'('annot) =
+  | CellBoundary
   | Linebreak
   | Text(string)
   | Align(t('annot))
@@ -30,6 +31,7 @@ let width = (~offset=0, m: t(_)) =>
 
 let fold =
     (
+      ~cellboundary: 'acc,
       ~linebreak: 'acc,
       ~text: string => 'acc,
       ~align: 'acc => 'acc,
@@ -42,6 +44,7 @@ let fold =
     : 'acc => {
   let rec go = (m: t(_)) =>
     switch (m.layout) {
+    | CellBoundary => cellboundary
     | Linebreak => linebreak
     | Text(s) => text(s)
     | Align(m) => align(go(m))
@@ -74,6 +77,7 @@ let next_position =
 let pos_fold =
     (
       ~linebreak: MeasuredPosition.t => 'acc,
+      ~cellboundary: MeasuredPosition.t => 'acc,
       ~text: (MeasuredPosition.t, string) => 'acc,
       ~align: (MeasuredPosition.t, 'acc) => 'acc,
       ~cat: (MeasuredPosition.t, 'acc, 'acc) => 'acc,
@@ -96,6 +100,7 @@ let pos_fold =
     switch (m.layout) {
     | Linebreak => linebreak(start)
     | Text(s) => text(start, s)
+    | CellBoundary => cellboundary(start)
     | Align(m) => align(start, go(start.col, start, m))
     | Cat(m1, m2) =>
       let mid = next_position(~indent, start, m1);
@@ -140,6 +145,10 @@ module Make = (MemoTbl: MemoTbl.S) => {
             width: last.width + first.width,
           };
           {metrics: leading @ [mid_box, ...trailing], layout: Cat(m1, m2)};
+        | CellBoundary => {
+            metrics: [{height: 1, width: 0}],
+            layout: CellBoundary,
+          }
         | Annot(annot, l) =>
           let m = mk(l);
           {...m, layout: Annot(annot, m)};

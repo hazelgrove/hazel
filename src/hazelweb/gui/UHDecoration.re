@@ -167,6 +167,7 @@ module CurrentTerm = {
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
+         ~cellboundary=_ => [],
          ~text=(_, _) => [],
          ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
@@ -194,6 +195,7 @@ module CurrentTerm = {
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
+         ~cellboundary=_ => [],
          ~text=(_, _) => [],
          ~align=(_, rss) => rss,
          ~cat=(_, rss1, rss2) => rss1 @ rss2,
@@ -222,6 +224,7 @@ module CurrentTerm = {
     let has_multiline_open_child =
       subject
       |> MeasuredLayout.fold(
+           ~cellboundary=false,
            ~linebreak=false,
            ~text=_ => false,
            ~align=b => b,
@@ -240,6 +243,7 @@ module CurrentTerm = {
     |> MeasuredLayout.pos_fold(
          ~start={row: 0, col: offset},
          ~linebreak=_ => [],
+         ~cellboundary=_ => [],
          ~text=(_, _) => [],
          ~align=(_, rs) => rs,
          ~cat=(_, rs1, rs2) => rs1 @ rs2,
