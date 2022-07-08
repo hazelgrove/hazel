@@ -162,6 +162,9 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
     div(
       [Attr.id("root")],
       [
+        /* font-specimen used to gather font metrics for caret positioning and other things */
+        /* Ensure any font styling for the editor is applied to this as well */
+        Node.div([Attr.id("font-specimen")], [Node.text("X")]),
         top_bar(~inject, ~model),
         div(
           [Attr.classes(["main-area"])],
