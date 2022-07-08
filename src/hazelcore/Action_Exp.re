@@ -1109,6 +1109,9 @@ and syn_perform_line =
   | (AddCell, _) when zline |> ZExp.is_before_zline =>
     let new_zblock = ([UHExp.CellBoundary], zline, []);
     fix_and_mk_result(u_gen, new_zblock);
+  | (AddCell, _) when zline |> ZExp.is_after_zline =>
+    let new_zblock = ([], zline, [UHExp.CellBoundary]);
+    fix_and_mk_result(u_gen, new_zblock);
   | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
     /* If the current line is just a hole, leave it empty */
     let (prev_line, new_zline) =
