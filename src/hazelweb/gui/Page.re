@@ -27,7 +27,7 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
     [
       logo_panel,
       CardsPanel.view(~inject, ~model),
-      ActionMenu.view(~inject),
+      ActionMenu.view(~inject, model.settings),
     ],
   );
 };
@@ -96,7 +96,6 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~font_metrics=model.font_metrics,
         program,
       ),
-      SettingsPanel.view(~inject, settings),
     ]
   );
 };
