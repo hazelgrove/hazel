@@ -74,14 +74,14 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
-let new_InvalidText: (MetaVarGen.t, string) => (operand, MetaVarGen.t);
+let new_InvalidText: (IDGen.t, string) => (operand, IDGen.t);
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole: MetaVarGen.t => (operand, MetaVarGen.t);
+let new_EmptyHole: IDGen.t => (operand, IDGen.t);
 
 let is_EmptyHole: operand => bool;
 
-let empty_rule: MetaVarGen.t => (rule, MetaVarGen.t);
+let empty_rule: IDGen.t => (rule, IDGen.t);
 
 let get_err_status: t => ErrStatus.t;
 
@@ -101,12 +101,11 @@ let set_err_status_rule: (RuleErrStatus.t, rule) => rule;
 
 let is_inconsistent: operand => bool;
 
-let mk_inconsistent_opseq: (MetaVarGen.t, opseq) => (opseq, MetaVarGen.t);
+let mk_inconsistent_opseq: (IDGen.t, opseq) => (opseq, IDGen.t);
 
-let mk_inconsistent_operand:
-  (MetaVarGen.t, operand) => (operand, MetaVarGen.t);
+let mk_inconsistent_operand: (IDGen.t, operand) => (operand, IDGen.t);
 
-let text_operand: (MetaVarGen.t, TextShape.t) => (operand, MetaVarGen.t);
+let text_operand: (IDGen.t, TextShape.t) => (operand, IDGen.t);
 
 let associate: seq => Skel.t(Operators_Exp.t);
 
