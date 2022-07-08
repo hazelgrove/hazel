@@ -123,27 +123,3 @@ and prog = {
 
 [@deriving sexp]
 and prog_body = (list(stmt), imm);
-
-module Imm = {
-  let mk_var = (x: Var.t, c: comp): imm => {
-    imm_kind: IVar(x),
-    imm_ty: c.comp_ty,
-    imm_complete: c.comp_complete,
-  };
-};
-
-module Comp = {
-  let mk_imm = (im: imm): comp => {
-    comp_kind: CImm(im),
-    comp_ty: im.imm_ty,
-    comp_complete: im.imm_complete,
-  };
-};
-
-module Prog = {
-  let mk = (body: list(stmt), im: imm): prog => {
-    prog_body: (body, im),
-    prog_ty: im.imm_ty,
-    prog_complete: im.imm_complete,
-  };
-};

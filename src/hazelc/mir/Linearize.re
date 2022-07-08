@@ -10,7 +10,11 @@ let default_completeness = Completeness.IndeterminatelyIncomplete;
 let mk_bind = (p: Anf.pat, c: Anf.comp) => BLet(p, c);
 
 let mk_bind_var = (x: Var.t, c: Anf.comp) => (
-  Anf.Imm.mk_var(x, c),
+  Anf.{
+    imm_kind: IVar(x),
+    imm_ty: c.comp_ty,
+    imm_complete: default_completeness,
+  },
   mk_bind({pat_kind: PVar(x), pat_complete: default_completeness}, c),
 );
 
@@ -40,7 +44,12 @@ let rec linearize_prog = (d: Hir.expr, vctx): t(Anf.prog) => {
   let* (im, im_binds) = linearize_exp(d, vctx);
   let body = im_binds |> List.map(convert_bind);
 
-  Anf.Prog.mk(body, im) |> return;
+  Anf.{
+    prog_body: (body, im),
+    prog_ty: im.imm_ty,
+    prog_complete: default_completeness,
+  }
+  |> return;
 }
 
 and linearize_exp = (d: Hir.expr, vctx): t((Anf.imm, list(bind))) => {
@@ -67,7 +76,19 @@ and linearize_exp = (d: Hir.expr, vctx): t((Anf.imm, list(bind))) => {
     let* (p, vctx') = linearize_pat(dp, vctx);
     let* (im2, im2_binds) = linearize_exp(d2, vctx');
 
-    let binds = im1_binds @ [mk_bind(p, Anf.Comp.mk_imm(im1))] @ im2_binds;
+    let binds =
+      im1_binds
+      @ [
+        mk_bind(
+          p,
+          {
+            comp_kind: CImm(im1),
+            comp_ty: im1.imm_ty,
+            comp_complete: default_completeness,
+          },
+        ),
+      ]
+      @ im2_binds;
     (im2, binds) |> return;
 
   | ELetRec(x, dp, dp_ty, body, d') =>
