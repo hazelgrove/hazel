@@ -20,7 +20,6 @@ let cardstack_info = [
   Examples.cardstack,
   Examples.teststack,
   Examples.assignment_stack,
-  // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];
 
