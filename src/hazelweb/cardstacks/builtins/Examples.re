@@ -428,7 +428,8 @@ let example_to_card =
 
 let cardstack: CardstackInfo.t = {
   title: "examples",
-  cards: List.map(example_to_card, List.map(edit_state_of_block, examples)),
+  cards:
+    List.map(example_to_card, List.map(edit_state_of_block, uhexp_examples)),
 };
 
 let tests = [
