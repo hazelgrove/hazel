@@ -387,15 +387,18 @@ let tests_test =
 //   |> Sexplib.Sexp.of_string
 //   |> Statics.edit_state_of_sexp;
 
-let examples = [
+/* Examples for which it suffices to specify the program UHExp */
+let uhexp_examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
   ("let", let_line),
   ("map", map_example),
   ("quicksort", qsort_example),
   ("inconsistent branches", inconsistent_branches),
-  ("tests", tests_test),
 ];
+
+/* Examples which require either a zipper or IDGen state */
+let edit_state_examples = [("tests", tests_test)];
 
 let edit_state_of_block =
     ((name: string, block: UHExp.block)): (string, Statics.edit_state) => {
