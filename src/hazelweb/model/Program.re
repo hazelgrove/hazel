@@ -36,13 +36,11 @@ let blur = program => {...program, is_focused: false};
 let put_edit_state = (edit_state, program) => {...program, edit_state};
 
 let get_zexp = program => {
-  // figure out whether this should get the whole program and not just the template
   program.edit_state.
     template;
 };
 
 let get_zexp_all = program => {
-  // figure out whether this should get the whole program and not just the template
   Statics.merge_edit_states(
     program.edit_state,
   );
@@ -249,7 +247,6 @@ let perform_edit_action = (a, program) => {
 
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
-  // todo should this be a template or the whole program spliced together
   let ze = program.edit_state.template;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
   switch (CursorPath_common.steps_to_hook(holes, u)) {
