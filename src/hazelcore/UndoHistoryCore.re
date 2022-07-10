@@ -180,7 +180,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | Float
     | Bool
     | Parenthesized(_)
-    | List(_) => MaxLen
+    | List(_)
+    | Forall(_) => MaxLen
     }
   | ExpOperator(_, _)
   | PatOperator(_, _)

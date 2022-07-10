@@ -130,8 +130,7 @@ and place_after_operand =
     CursorT(OnText(String.length(name)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand)
-  | Forall(tp, ty) =>
-    ForallZT(tp, place_after(ty));
+  | Forall(tp, ty) => ForallZT(tp, place_after(ty));
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(After), op));
 
@@ -194,14 +193,14 @@ and move_cursor_left_zoperand =
   | ForallZP(ztp, ty) =>
     switch (ZTPat.move_cursor_left(ztp)) {
     | Some(ztp) => Some(ForallZP(ztp, ty))
-    | None => Some(CursorT(OnDelim(0, After), Forall(ZTPat.erase(ztp), ty)))
+    | None =>
+      Some(CursorT(OnDelim(0, After), Forall(ZTPat.erase(ztp), ty)))
     }
   | ForallZT(tp, zty) =>
     switch (move_cursor_left(zty)) {
     | Some(zty) => Some(ForallZT(tp, zty))
     | None => Some(CursorT(OnDelim(1, After), Forall(tp, erase(zty))))
-    }
-    ;
+    };
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
@@ -255,11 +254,11 @@ and move_cursor_right_zoperand =
   | ForallZP(ztp, ty) =>
     switch (ZTPat.move_cursor_right(ztp)) {
     | Some(ztp) => Some(ForallZP(ztp, ty))
-    | None => Some(CursorT(OnDelim(1, Before), Forall(ZTPat.erase(ztp), ty)))
+    | None =>
+      Some(CursorT(OnDelim(1, Before), Forall(ZTPat.erase(ztp), ty)))
     }
   | ForallZT(tp, zty) =>
     switch (move_cursor_right(zty)) {
     | Some(zty) => Some(ForallZT(tp, zty))
     | None => None
-    }
-    ;
+    };

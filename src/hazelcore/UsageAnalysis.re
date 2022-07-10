@@ -45,6 +45,9 @@ and find_tyuses_typ_operand =
   | TyVar(_, name') => name == name' ? [steps] : []
   | Parenthesized(t)
   | List(t) => find_tyuses_typ(~steps=steps @ [0], name, t)
+  | Forall(tp, t) =>
+    TPat.binds_tyvar(name, tp)
+      ? [] : find_tyuses_typ(~steps=steps @ [1], name, t)
   };
 
 let rec find_tyuses_pat =

@@ -112,6 +112,7 @@ module HTyp_syntax: {
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    // TODO (poly): bind tp?
     | Forall(tp, ty) => Forall(tp, to_abs(~offset, ty))
     | Hole => Hole
     | Int => Int
@@ -586,7 +587,8 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t);
 
   let of_head_normalized: head_normalized => t;
   let head_normalize: (Context.t, t) => head_normalized;
@@ -1104,7 +1106,8 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t);
 
   let of_head_normalized: head_normalized => t =
     fun
@@ -1117,7 +1120,8 @@ and HTyp: {
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
     | TyVar(cref, t) => TyVar(cref, t)
-    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(_) => failwith("nya >_<");
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>

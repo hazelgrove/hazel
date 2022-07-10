@@ -411,7 +411,8 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t);
 
   /** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
   let of_head_normalized: head_normalized => t;
