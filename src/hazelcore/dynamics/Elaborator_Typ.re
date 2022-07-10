@@ -73,6 +73,15 @@ and syn_elab_operand =
   | TyVar(InHole(reason, u), t) =>
     let ty = HTyp.tyvarhole(reason, u, t);
     Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));
+  | Forall(tp, body) =>
+    let (ctx, delta) =
+      switch (TPat.tyvar_name(tp)) {
+      | Some(name) => (Context.add_tyvar(ctx, name, Kind.Type), delta)
+      | None =>
+        // TODO (poly): should delta be updated?
+        (ctx, delta)
+      };
+    syn_elab(ctx, delta, body);
   };
 }
 
@@ -105,7 +114,8 @@ and ana_elab_operand =
   | Int
   | Float
   | Bool
-  | List(_) =>
+  | List(_)
+  | Forall(_) =>
     open OptUtil.Syntax;
     let* (ty, k', delta) = syn_elab_operand(ctx, delta, operand);
     Kind.consistent_subkind(ctx, k', k) ? Some((ty, k', delta)) : None;
