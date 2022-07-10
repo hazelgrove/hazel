@@ -167,7 +167,8 @@ let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
+      Worker.get_program_result(old_program)
+      == Worker.get_program_result(new_program)
         ? si : UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,

@@ -39,7 +39,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let result =
     settings.evaluation.show_unevaluated_elaboration
       ? program |> Program.get_elaboration
-      : program |> Program.get_result |> Result.get_dhexp;
+      : program |> Worker.get_program_result |> Result.get_dhexp;
   div(
     [],
     [
