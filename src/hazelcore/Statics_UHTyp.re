@@ -72,6 +72,14 @@ and syn_fix_holes_operand =
   | List(opseq) =>
     let (opseq, k, id_gen) = syn_fix_holes(ctx, id_gen, opseq);
     (List(opseq), k, id_gen);
+  | Forall(tp, body) =>
+    let ctx =
+      switch (tp |> TPat.tyvar_name) {
+      | Some(name) => Context.add_tyvar(ctx, name, Kind.Type)
+      | None => ctx
+      };
+    let (body, k, id_gen) = syn_fix_holes(ctx, id_gen, body);
+    (Forall(tp, body), k, id_gen);
   }
 
 and ana_fix_holes:
@@ -123,7 +131,9 @@ and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
   | Int
   | Float
   | Bool
-  | List(_) =>
+  | List(_)
+  // TODO (poly): check rule
+  | Forall(_) =>
     let (ty, k', id_gen) = syn_fix_holes_operand(ctx, id_gen, operand);
     if (Kind.consistent_subkind(ctx, k', k)) {
       (ty, k', id_gen);
