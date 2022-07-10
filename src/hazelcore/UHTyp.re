@@ -132,7 +132,7 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
-  // TODO (poly):
+  // TODO: (poly)
   | Forall(_, body)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)

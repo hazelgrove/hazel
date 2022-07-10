@@ -611,14 +611,14 @@ and syn_cursor_info_zoperand =
     | CursorOnDeferredVarPat(_) => failwith("deferred impossible")
     };
   | TypFunZE(_, tp, zbody) =>
-    // TODO (poly): is matches used correctly?
+    // TODO: (poly) is matches used correctly?
     let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   | TypAppZE(_, zbody, _ty) =>
-    // TODO (poly): what to do here?
+    // TODO: (poly) what to do here?
     syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | TypAppZT(_, _body, zty) =>
-    // TODO (poly): what to do here?
+    // TODO: (poly) what to do here?
     CursorInfo_Typ.cursor_info(~steps=steps @ [1], ctx, zty)
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
@@ -1006,7 +1006,7 @@ and ana_cursor_info_zoperand =
     | TypFun(NotInHole, _tp, _body) =>
       failwith("How to ana cursor_info on TypFun?")
     | TypApp(NotInHole, _body, _ty) =>
-      // TODO (poly): how to check?
+      // TODO: (poly) how to check?
       failwith("How to ana cursor_info on TypApp?")
     }
   /* zipper cases */
@@ -1064,16 +1064,16 @@ and ana_cursor_info_zoperand =
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
   | TypFunZP(NotInHole, _ztp, _body) =>
-    // TODO (poly): what to do?
+    // TODO: (poly) what to do?
     failwith("How to get cursor_info for TypFun?")
   | TypFunZE(NotInHole, _tp, _zbody) =>
-    // TODO (poly): what to do?
+    // TODO: (poly) what to do?
     failwith("How to get cursor_info for TypFun?")
   | TypAppZE(NotInHole, _zbody, _ty) =>
-    // TODO (poly): what to do?
+    // TODO: (poly) what to do?
     failwith("How to get cursor_info for TypApp?")
   | TypAppZT(NotInHole, _body, _zty) =>
-    // TODO (poly): what to do?
+    // TODO: (poly) what to do?
     failwith("How to get cursor_info for TypApp?")
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ctx, ty)) {

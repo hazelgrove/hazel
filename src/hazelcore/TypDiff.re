@@ -47,7 +47,7 @@ let rec mk =
     }
   | (List(ty), List(ty')) =>
     diff_subtypes(0, (HTyp.of_syntax(ty), HTyp.of_syntax(ty')))
-  // TODO (poly):
+  // TODO: (poly)
   | (Forall(_, ty), Forall(_, ty')) =>
     diff_subtypes(0, (HTyp.of_syntax(ty), HTyp.of_syntax(ty')))
   | (Int, _)
@@ -57,7 +57,7 @@ let rec mk =
   | (Sum(_), _)
   | (Prod(_), _)
   | (List(_), _)
-  // TODO (poly):
+  // TODO: (poly)
   | (Forall(_), _) => ([[]], [[]])
   };
 };

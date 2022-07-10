@@ -336,7 +336,7 @@ and is_complete_operand = (operand: 'operand): bool => {
   | TypFun(NotInHole, tpat, body) =>
     TPat.is_complete(tpat) && is_complete(body)
   | TypApp(InHole(_), _, _) => false
-  // TODO (poly): typapp complete when?
+  // TODO: (poly) typapp complete when?
   | TypApp(NotInHole, _body, _ty) => failwith("typapp complete when?")
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)

@@ -45,7 +45,7 @@ let line_can_be_swapped = (line: zline): bool =>
   | LetLineZE(_)
   | TyAliasLineT(_)
   | ExpLineZ(ZOpSeq(_, ZOperand(FunZE(_), _)))
-  // TODO (poly): ZP swapped?
+  // TODO: (poly) ZP swapped?
   | ExpLineZ(ZOpSeq(_, ZOperand(TypFunZP(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(TypFunZE(_), _)))
   | ExpLineZ(ZOpSeq(_, ZOperand(TypAppZE(_), _)))

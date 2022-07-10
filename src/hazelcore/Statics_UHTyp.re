@@ -132,7 +132,7 @@ and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
   | Float
   | Bool
   | List(_)
-  // TODO (poly): check rule
+  // TODO: (poly) check rule
   | Forall(_) =>
     let (ty, k', id_gen) = syn_fix_holes_operand(ctx, id_gen, operand);
     if (Kind.consistent_subkind(ctx, k', k)) {

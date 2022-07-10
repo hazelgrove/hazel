@@ -78,7 +78,7 @@ and syn_elab_operand =
       switch (TPat.tyvar_name(tp)) {
       | Some(name) => (Context.add_tyvar(ctx, name, Kind.Type), delta)
       | None =>
-        // TODO (poly): should delta be updated?
+        // TODO: (poly) should delta be updated?
         (ctx, delta)
       };
     syn_elab(ctx, delta, body);
