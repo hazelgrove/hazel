@@ -1,1 +1,1 @@
-let get_program_result: Program.t => Result.t;
+let send_program_to_evaluator: Program.t => unit;

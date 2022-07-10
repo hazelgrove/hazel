@@ -219,8 +219,7 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | DHExp =>
-          let (d, _, _) =
-            model |> Model.get_program |> Worker.get_program_result;
+          let (d, _, _) = model.last_result;
           d
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string

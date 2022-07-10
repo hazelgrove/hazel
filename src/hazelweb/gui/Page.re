@@ -39,7 +39,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let result =
     settings.evaluation.show_unevaluated_elaboration
       ? program |> Program.get_elaboration
-      : program |> Worker.get_program_result |> Result.get_dhexp;
+      : model.last_result |> Result.get_dhexp;
   div(
     [],
     [
@@ -86,6 +86,7 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
+  let (_, hii, _) = model.last_result;
   let selected_instance = Model.get_selected_hole_instance(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
@@ -95,6 +96,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
         program,
+        hii,
       ),
     ]
   );
