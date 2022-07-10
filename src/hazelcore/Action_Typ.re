@@ -350,7 +350,9 @@ and perform_operand =
   /* Invalid actions at the type level */
   | (
       Construct(
-        SAnn | SLet | STyAlias | SLine | SFun | SListNil | SInj(_) | SCase |
+        SAnn | SLet | STyAlias | STypFun | STypApp | SLine | SFun | SListNil |
+        SInj(_) |
+        SCase |
         SCommentLine,
       ) |
       SwapUp |
@@ -458,6 +460,14 @@ and perform_operand =
     ) =>
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
     Succeeded((place_cursor(body), ctx, id_gen));
+  | (Backspace, CursorT(OnDelim(_k, After), Forall(_tp, body))) =>
+    Succeeded((body |> ZTyp.place_before, ctx, id_gen))
+  // let tp_place_cursor = k == 0 ? ZTPat.place_before : ZTPat.place_after;
+  // Succeeded((
+  //   ZOpSeq.wrap(ZTyp.ForallZP(tp_place_cursor(tp), body)),
+  //   ctx,
+  //   id_gen,
+  // ));
 
   /* Construction */
 
@@ -505,6 +515,18 @@ and perform_operand =
   | (Construct(SList), CursorT(_)) =>
     Succeeded((
       ZOpSeq.wrap(ZTyp.ListZ(ZOpSeq.wrap(zoperand))),
+      ctx,
+      id_gen,
+    ))
+
+  | (Construct(SForall), CursorT(_)) =>
+    Succeeded((
+      ZOpSeq.wrap(
+        ZTyp.ForallZP(
+          TPat.EmptyHole |> ZTPat.place_before,
+          zoperand |> ZOpSeq.wrap |> ZTyp.erase,
+        ),
+      ),
       ctx,
       id_gen,
     ))
@@ -590,6 +612,22 @@ and perform_operand =
       perform_operand(ctx, Action_common.escape(side), zoperand, id_gen)
     | Succeeded((zbody, ctx, id_gen)) =>
       Succeeded((ZOpSeq.wrap(ZTyp.ListZ(zbody)), ctx, id_gen))
+    }
+  | (_, ForallZP(ztp, body)) =>
+    switch (Action_TPat.perform(a, ztp, id_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      perform_operand(ctx, Action_common.escape(side), zoperand, id_gen)
+    | Succeeded((ztp, id_gen)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.ForallZP(ztp, body)), ctx, id_gen))
+    }
+  | (_, ForallZT(tp, zbody)) =>
+    switch (perform(ctx, a, zbody, id_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      perform_operand(ctx, Action_common.escape(side), zoperand, id_gen)
+    | Succeeded((zbody, ctx, id_gen)) =>
+      Succeeded((ZOpSeq.wrap(ZTyp.ForallZT(tp, zbody)), ctx, id_gen))
     }
 
   /* Invalid cursor positions */

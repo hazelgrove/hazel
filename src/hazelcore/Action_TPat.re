@@ -85,6 +85,9 @@ let rec perform =
         SInj(_) |
         SCase |
         STyAlias |
+        SForall |
+        STypFun |
+        STypApp |
         SList |
         SParenthesized,
       ) |
