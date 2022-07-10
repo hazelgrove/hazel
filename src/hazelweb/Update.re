@@ -65,6 +65,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateFontMetrics(_)
   | SerializeToConsole(_)
   | Import(_)
+  | UpdateLastResult(_)
   | LoadPermalink =>
     Logger.append(
       Sexp.to_string(
@@ -242,6 +243,7 @@ let apply_action =
         | None => JSUtil.log("[Permalink.EmptyCurrent]")
         };
         model;
+      | UpdateLastResult(result) => {...model, last_result: result}
       };
     },
   );
