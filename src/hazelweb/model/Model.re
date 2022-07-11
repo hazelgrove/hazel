@@ -168,9 +168,9 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
 let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
   let update_selected_instances = si => {
+    // TODO see how to not call get result here
     let si =
-      Worker.send_program_to_evaluator(old_program)
-      == Worker.send_program_to_evaluator(new_program)
+      Program.get_result(old_program) == Program.get_result(new_program)
         ? si : UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,
@@ -185,6 +185,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       }
     };
   };
+  Worker.send_program_to_evaluator(new_program);
   model
   |> put_program(new_program)
   |> map_selected_instances(update_selected_instances)
