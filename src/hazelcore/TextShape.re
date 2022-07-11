@@ -6,6 +6,7 @@ type t =
   | IntLit(string)
   | FloatLit(string)
   | BoolLit(bool)
+  | Keyword(Keyword.kw)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
   | InvalidTextShape(string);
@@ -34,12 +35,14 @@ let of_text = (text: string): t =>
     hazel_float_of_string_opt(text),
     bool_of_string_opt(text),
     ExpandingKeyword.mk(text),
+    Keyword.kw_of_string(text),
   ) {
-  | (Some(_), _, _, _) => IntLit(text)
-  | (_, Some(_), _, _) => FloatLit(text)
-  | (_, _, Some(b), _) => BoolLit(b)
-  | (_, _, _, Some(k)) => ExpandingKeyword(k)
-  | (None, None, None, None) =>
+  | (Some(_), _, _, _, _) => IntLit(text)
+  | (_, Some(_), _, _, _) => FloatLit(text)
+  | (_, _, Some(b), _, _) => BoolLit(b)
+  | (_, _, _, Some(k), _) => ExpandingKeyword(k)
+  | (_, _, _, _, Some(kw)) => Keyword(kw)
+  | (None, None, None, None, None) =>
     if (text |> String.equal("_")) {
       Underscore;
     } else if (text |> Var.is_valid) {

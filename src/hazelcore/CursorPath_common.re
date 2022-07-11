@@ -361,6 +361,7 @@ let hooks_zopseq_ =
   };
 };
 
+/* FIXME: Should this be `steps_to_hole`? */
 let steps_to_hook = (hook_list: hook_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
@@ -368,7 +369,8 @@ let steps_to_hook = (hook_list: hook_list, u: MetaVar.t): option(steps) =>
         switch (CursorPath.get_hook(hook_info)) {
         | ExpHole(u', _)
         | PatHole(u', _) => MetaVar.eq(u, u')
-        | TypHole => false
+        | TypHole
+        | KeywordHook(_) => false
         },
       hook_list,
     )

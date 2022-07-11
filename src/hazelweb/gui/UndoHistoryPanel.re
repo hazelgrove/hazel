@@ -110,6 +110,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       )
+    | Keyword(kw) =>
+      Vdom.(
+        Node.span(
+          [],
+          [
+            code_keywords_view(Keyword.to_string(kw)),
+            indicate_words_view(" literal "),
+            code_view(Keyword.to_string(kw)),
+          ],
+        )
+      )
     | ListNil(_) => indicate_words_view("empty list")
     | Fun(_) => indicate_words_view("function")
 

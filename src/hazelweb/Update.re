@@ -112,7 +112,7 @@ let apply_action =
         | exception (Program.PostprocessError(reason)) =>
           let serialized =
             reason
-            |> EvalPostprocessError.sexp_of_t
+            |> EvalPostprocess.sexp_of_error
             |> Sexplib.Sexp.to_string_hum;
           JSUtil.log(
             "[EvalPostprocessError.Exception(" ++ serialized ++ ")]",

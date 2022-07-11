@@ -76,6 +76,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
            | VarErr
            | TypeErr => Some((shape, CursorPath.get_steps(hook_info)))
            }
+         | KeywordHook(_) => None
          }
        )
     |> List.partition(
@@ -105,7 +106,7 @@ let get_elaboration = (program: t): DHExp.t =>
   };
 
 exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvalPostprocessError.t);
+exception PostprocessError(EvalPostprocess.error);
 let (ec_init, env_init) = EvalEnv.empty;
 let evaluate =
   Memo.general(
@@ -118,7 +119,7 @@ let get_result = (program: t): Result.t => {
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
-      | exception (EvalPostprocessError.Exception(reason)) =>
+      | exception (EvalPostprocess.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
     (d, hci, BoxedValue(d), es);
@@ -126,7 +127,7 @@ let get_result = (program: t): Result.t => {
     let (hci, d) =
       switch (d |> EvalPostprocess.postprocess) {
       | d => d
-      | exception (EvalPostprocessError.Exception(reason)) =>
+      | exception (EvalPostprocess.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
     (d, hci, Indet(d), es);

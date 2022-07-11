@@ -319,6 +319,11 @@ let mk_syn_text =
   | BoolLit(b) =>
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.boollit(b)));
     Succeeded(SynDone((ze, HTyp.Bool, id_gen)));
+  | Keyword(kw) =>
+    let (u, id_gen) = IDGen.next_kw(id_gen);
+    let ze =
+      ZExp.ZBlock.wrap(CursorE(text_cursor, UHExp.keyword_typed(kw, u)));
+    Succeeded(SynDone((ze, Keyword.type_of_kw(kw), id_gen)));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
@@ -365,6 +370,17 @@ let mk_ana_text =
       let (it, id_gen) = UHExp.new_InvalidText(id_gen, t);
       let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, it));
       Succeeded(AnaDone((ze, id_gen)));
+    }
+  | Keyword(_) =>
+    switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(SynExpands(r)) => Succeeded(AnaExpands(r))
+    | Succeeded(SynDone((ze, ty', id_gen))) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded(AnaDone((ze, id_gen)));
+      } else {
+        Succeeded(AnaDone((ze, id_gen)));
+      }
     }
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
@@ -1506,7 +1522,8 @@ and syn_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -1571,6 +1588,8 @@ and syn_perform_operand =
     syn_delete_text(ctx, id_gen, j, f)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, id_gen, j, string_of_bool(b))
+  | (Delete, CursorE(OnText(j), Keyword(kw))) =>
+    syn_delete_text(ctx, id_gen, j, Keyword.to_string(kw))
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_backspace_text(ctx, id_gen, j, t)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1581,6 +1600,8 @@ and syn_perform_operand =
     syn_backspace_text(ctx, id_gen, j, f)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
+  | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
+    syn_backspace_text(ctx, id_gen, j, Keyword.to_string(kw))
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Fun(_, p, body))) =>
@@ -1696,6 +1717,8 @@ and syn_perform_operand =
     syn_insert_text(ctx, id_gen, (j, s), f)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
+  | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
+    syn_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw))
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
@@ -2986,7 +3009,8 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_),
+        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
@@ -3046,6 +3070,8 @@ and ana_perform_operand =
     ana_delete_text(ctx, id_gen, j, f, ty)
   | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, id_gen, j, string_of_bool(b), ty)
+  | (Delete, CursorE(OnText(j), Keyword(kw))) =>
+    ana_delete_text(ctx, id_gen, j, Keyword.to_string(kw), ty)
 
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, id_gen, j, t, ty)
@@ -3057,6 +3083,8 @@ and ana_perform_operand =
     ana_backspace_text(ctx, id_gen, j, f, ty)
   | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
     ana_backspace_text(ctx, id_gen, j, string_of_bool(b), ty)
+  | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
+    ana_backspace_text(ctx, id_gen, j, Keyword.to_string(kw), ty)
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Fun(_, p, body))) =>
@@ -3130,6 +3158,8 @@ and ana_perform_operand =
     ana_insert_text(ctx, id_gen, (j, s), f, ty)
   | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ty)
+  | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
+    ana_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw), ty)
   | (Construct(SChar(_)), CursorE(_)) => Failed
 
   | (Construct(SCase), CursorE(_, operand)) =>

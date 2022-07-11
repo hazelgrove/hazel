@@ -32,6 +32,17 @@ module Delim = {
   let open_Parenthesized = (): t => mk(~index=0, "(");
   let close_Parenthesized = (): t => mk(~index=1, ")");
 
+  let keyword = (kw: Keyword.kw, _id: KeywordID.t): t => {
+    mk(~index=0, Keyword.string_of_kw(kw))
+    |> Doc.annot(
+         UHAnnot.mk_Token(
+           ~shape=Text,
+           ~len=String.length(Keyword.string_of_kw(kw)),
+           (),
+         ),
+       );
+  };
+
   let open_Inj = (inj_side: InjSide.t): t =>
     mk(~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
   let close_Inj = (): t => mk(~index=1, ")");
@@ -266,6 +277,9 @@ let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
 
 let mk_ListNil = (~sort: TermSort.t, ()): t =>
   Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
+
+let mk_Keyword = (~sort: TermSort.t, kw: Keyword.kw, id: KeywordID.t): t =>
+  Delim.keyword(kw, id) |> annot_Tessera |> annot_Operand(~sort);
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;

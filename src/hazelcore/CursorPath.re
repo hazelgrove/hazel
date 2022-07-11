@@ -22,7 +22,8 @@ type hole_shape =
 type hook =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
-  | ExpHole(MetaVar.t, hole_shape);
+  | ExpHole(MetaVar.t, hole_shape)
+  | KeywordHook(KeywordID.t);
 
 [@deriving sexp]
 type hook_info = {
@@ -70,6 +71,7 @@ let is_hole: hook_info => bool =
     | TypHole
     | PatHole(_)
     | ExpHole(_) => true
+    | KeywordHook(_) => false
     };
 
 let filter_holes_z: zhook_list => zhook_list =

@@ -107,7 +107,8 @@ and follow_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Keyword(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -274,7 +275,8 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListNil(_)
+    | Keyword(_) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -413,6 +415,15 @@ and hooks_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err) => hs |> hooks_err(err, rev_steps)
+  | Keyword(Typed(_, InHole(TypeInconsistent, u), id)) => [
+      CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+      CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      ...hs,
+    ]
+  | Keyword(Typed(_, _, id)) => [
+      CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      ...hs,
+    ]
   | Parenthesized(body) => hs |> hooks(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> hooks(body, [0, ...rev_steps]) |> hooks_err(err, rev_steps)
@@ -570,6 +581,26 @@ and hooks_zoperand =
       CursorPath_common.mk_zhooks(
         ~hook_selected=
           Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorE(_, Keyword(Typed(_, err, id))) =>
+    switch (err) {
+    | InHole(TypeInconsistent, u) =>
+      CursorPath_common.mk_zhooks(
+        ~hooks_before=[
+          CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+        ],
+        ~hook_selected=
+          Some(
+            CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          ),
+        (),
+      )
+    | _ =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected=
+          Some(CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps))),
         (),
       )
     }

@@ -2,15 +2,15 @@
 type kw =
   | Test;
 
-let type_of_kw: kw => HTyp.t =
+let type_of_kw =
   fun
-  | Test => Arrow(Bool, Prod([]));
+  | Test => HTyp.Arrow(Bool, Prod([]));
 
-let string_of_kw: kw => string =
+let string_of_kw =
   fun
   | Test => "test";
 
-let kw_of_string: string => option(kw) =
+let kw_of_string =
   fun
   | "test" => Some(Test)
   | _ => None;
@@ -19,8 +19,8 @@ let kw_of_string: string => option(kw) =
 type t =
   | Typed(kw, ErrStatus.t, KeywordID.t);
 
-let to_string: t => string =
+let to_string =
   fun
   | Typed(kw, _, _) => string_of_kw(kw);
 
-let length: t => int = kw => String.length(to_string(kw));
+let length = kw => String.length(to_string(kw));

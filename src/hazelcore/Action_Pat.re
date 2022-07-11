@@ -84,6 +84,13 @@ let mk_syn_text =
   | BoolLit(b) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.boollit(b)));
     Succeeded((zp, HTyp.Bool, ctx, id_gen));
+  | Keyword(kw) =>
+    let (_, id_gen) = IDGen.next_kw(id_gen);
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(text_cursor, UHPat.var(Keyword.string_of_kw(kw))),
+      );
+    Succeeded((zp, Keyword.type_of_kw(kw), ctx, id_gen));
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
@@ -126,6 +133,17 @@ let mk_ana_text =
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) =>
+    switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded((zp, ty', ctx, id_gen)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((zp, ctx, id_gen));
+      } else {
+        let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
+        Succeeded((zp, ctx, id_gen));
+      }
+    }
+  | Keyword(_) =>
     switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>

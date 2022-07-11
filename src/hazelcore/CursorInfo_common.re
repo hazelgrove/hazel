@@ -16,6 +16,7 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
     | BoolLit(_, _)
     | InvalidText(_) => true
     | ListNil(_)
+    | Keyword(_)
     | Fun(_)
     | Inj(_)
     | Case(_)

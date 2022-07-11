@@ -66,7 +66,7 @@ and syn_elab_line =
     switch (syn_elab_opseq(ctx, delta, e1)) {
     | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
-      let prelude = d2 => DHExp.Let(Wild, d1, d2);
+      let prelude = d2 => DHExp.Sequence(d1, d2);
       LinesElaborate(prelude, ctx, delta);
     }
   | EmptyLine
@@ -252,6 +252,7 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
@@ -269,6 +270,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
@@ -346,6 +348,10 @@ and syn_elab_operand =
   | ListNil(NotInHole) =>
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
+  | Keyword(Typed(kw, NotInHole, n)) =>
+    switch (kw) {
+    | Test => Elaborates(TestLit(n), Keyword.type_of_kw(kw), delta)
+    }
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
@@ -633,6 +639,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
+  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
@@ -659,6 +666,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
+  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
@@ -744,7 +752,8 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
-  | FloatLit(NotInHole, _) =>
+  | FloatLit(NotInHole, _)
+  | Keyword(Typed(_, NotInHole, _)) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
   }

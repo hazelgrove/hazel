@@ -18,6 +18,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | Keyword(Keyword.t)
   | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -43,6 +44,8 @@ let intlit: (~err: ErrStatus.t=?, string) => operand;
 let floatlit: (~err: ErrStatus.t=?, string) => operand;
 
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
+
+let keyword_typed: (~err: ErrStatus.t=?, Keyword.kw, KeywordID.t) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 

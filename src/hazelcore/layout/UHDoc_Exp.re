@@ -29,6 +29,8 @@ let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Exp);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
 let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_Keyword: (Keyword.kw, KeywordID.t) => UHDoc.t =
+  UHDoc_common.mk_Keyword(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
@@ -179,6 +181,7 @@ module Make = (Memo: Memo.S) => {
           | FloatLit(_, f) => mk_FloatLit(f)
           | BoolLit(_, b) => mk_BoolLit(b)
           | ListNil(_) => mk_ListNil()
+          | Keyword(Typed(kw, _, id)) => mk_Keyword(kw, id)
           | Fun(_, p, body) =>
             let p =
               UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);

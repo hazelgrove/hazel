@@ -20,6 +20,7 @@ and operand =
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | Keyword(Keyword.t)
   | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
@@ -54,6 +55,10 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string): operand =>
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
+
+let keyword_typed =
+    (~err: ErrStatus.t=NotInHole, kw: Keyword.kw, id: KeywordID.t): operand =>
+  Keyword(Typed(kw, err, id));
 
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Fun(err, p, body);
@@ -179,6 +184,7 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | Keyword(Typed(_, err, _))
   | Fun(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _) => err
@@ -203,6 +209,7 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
+  | Keyword(Typed(kw, _, n)) => Keyword(Typed(kw, err, n))
   | Fun(_, p, def) => Fun(err, p, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
@@ -229,6 +236,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
   | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
@@ -241,6 +249,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | Keyword(Typed(_, NotInHole | InHole(WrongLength, _), _))
   | Fun(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
@@ -266,6 +275,9 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | FloatLit(f) => (floatlit(f), id_gen)
   | BoolLit(b) => (boollit(b), id_gen)
   | Var(x) => (var(x), id_gen)
+  | Keyword(kw) =>
+    let (u, id_gen) = IDGen.next_kw(id_gen);
+    (keyword_typed(kw, u), id_gen);
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     (
@@ -314,6 +326,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(NotInHole, _) => true
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
+  | Keyword(Typed(_, InHole(_), _)) => false
+  | Keyword(Typed(_, NotInHole, _)) => true
   | Fun(InHole(_), _, _) => false
   | Fun(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
   | Inj(InHole(_), _, _) => false
