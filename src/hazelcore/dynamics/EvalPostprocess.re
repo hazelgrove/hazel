@@ -52,6 +52,10 @@ let rec pp_uneval =
   | FloatLit(_)
   | ListNil(_)
   | Triv => (pe, hci, d)
+  | Sequence(d1, d2) =>
+    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
+    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
+    (pe, hci, Sequence(d1', d2'));
   | Let(dp, d1, d2) =>
     let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
     let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
@@ -167,6 +171,10 @@ and pp_eval =
     : (t, HoleClosureInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
+  | Sequence(d1, d2) =>
+    let (pe, hci, d1') = pp_eval(pe, hci, d1);
+    let (pe, hci, d2') = pp_eval(pe, hci, d2);
+    (pe, hci, Sequence(d1', d2'));
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -340,6 +348,7 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | FailedCast(d, _, _)
   | InvalidOperation(d, _) => track_children_of_hole(hci, parent, d)
+  | Sequence(d1, d2)
   | Let(_, d1, d2)
   | Ap(d1, d2)
   | BinBoolOp(_, d1, d2)

@@ -142,6 +142,7 @@ type t =
   | Closure(evalenv, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
+  | Sequence(t, t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Fun(DHPat.t, HTyp.t, t)
@@ -180,6 +181,7 @@ let constructor_string = (d: t): string =>
   | FreeVar(_, _, _) => "FreeVar"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
+  | Sequence(_, _) => "Sequence"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
   | Fun(_, _, _) => "Fun"
@@ -238,6 +240,8 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   | (Triv, _) => d1 == d2
 
   /* Non-hole forms: recurse */
+  | (Sequence(d11, d21), Sequence(d12, d22)) =>
+    fast_equals(d11, d12) && fast_equals(d21, d22)
   | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
     dp1 == dp2 && fast_equals(d11, d12) && fast_equals(d21, d22)
   | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
@@ -267,6 +271,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     fast_equals_case(case1, case2)
   /* We can group these all into a `_ => false` clause; separating
      these so that we get exhaustiveness checking. */
+  | (Sequence(_), _)
   | (Let(_), _)
   | (FixF(_), _)
   | (Fun(_), _)

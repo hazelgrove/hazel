@@ -55,6 +55,7 @@ type t =
   | Closure(evalenv, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
+  | Sequence(t, t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
   | Fun(DHPat.t, HTyp.t, t)

@@ -33,6 +33,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FreeVar(_)
   | InvalidText(_)
   | Keyword(_)
+  | Sequence(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -199,6 +200,9 @@ let rec mk =
 
       /* Other, non-closure expressions */
       | BoundVar(x) => text(x)
+      | Sequence(d1, d2) =>
+        let (doc1, doc2) = (go'(d1), go'(d2));
+        DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)

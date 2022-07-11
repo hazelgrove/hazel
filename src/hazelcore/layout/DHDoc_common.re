@@ -96,6 +96,8 @@ let mk_Keyword = (hc, k) =>
 let mk_InvalidText = (t, hc) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
 
+let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
+
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_FloatLit = (f: float) =>

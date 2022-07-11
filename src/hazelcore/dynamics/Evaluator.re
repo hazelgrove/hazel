@@ -201,6 +201,7 @@ and matches_cast_Inj =
   | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _) => Indet
+  | Sequence(_, _) => DoesNotMatch
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -269,6 +270,7 @@ and matches_cast_Pair =
   | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _) => Indet
+  | Sequence(_, _) => DoesNotMatch
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -343,6 +345,7 @@ and matches_cast_Cons =
   | FreeVar(_, _, _) => Indet
   | InvalidText(_) => Indet
   | Keyword(_, _, _) => Indet
+  | Sequence(_, _) => DoesNotMatch
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -381,6 +384,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | FreeVar(_) => d2
   | InvalidText(_) => d2
   | Keyword(_) => d2
+  | Sequence(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Sequence(d3, d4);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -560,6 +567,14 @@ let rec evaluate =
     | BoxedValue(FixF(_) as d) => evaluate(es, env, d)
     | _ => (es, dr)
     };
+  | Sequence(d1, d2) =>
+    switch (evaluate(es, env, d1)) {
+    | (es, BoxedValue(_d1)) => evaluate(es, env, d2)
+    | (es, Indet(d1)) =>
+      switch (evaluate(es, env, d2)) {
+      | (es, BoxedValue(d2) | Indet(d2)) => (es, Indet(Sequence(d1, d2)))
+      }
+    }
   | Let(dp, d1, d2) =>
     switch (evaluate(es, env, d1)) {
     | (es, BoxedValue(d1))
