@@ -238,7 +238,7 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_OpSeq=OpSeq.mk(~associate=UHPat.associate),
-    ~holes_opseq=CursorPath_Pat.holes_opseq,
+    ~hooks_opseq=CursorPath_Pat.hooks_opseq,
     ~follow_opseq=CursorPath_Pat.follow_opseq,
     ~mk_ZOpSeq=ZPat.mk_ZOpSeq,
     ~place_before_opseq=ZPat.place_before_opseq,
@@ -272,7 +272,7 @@ let rec syn_move =
     }
   | MoveToPrevHole =>
     switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+      CursorPath_common.(prev_hook_steps(CursorPath_Pat.hooks_z(zp, [])))
     ) {
     | None => Failed
     | Some(steps) =>
@@ -283,7 +283,7 @@ let rec syn_move =
     }
   | MoveToNextHole =>
     switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+      CursorPath_common.(next_hook_steps(CursorPath_Pat.hooks_z(zp, [])))
     ) {
     | None => Failed
     | Some(steps) =>
@@ -335,7 +335,7 @@ let rec ana_move =
     }
   | MoveToPrevHole =>
     switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+      CursorPath_common.(prev_hook_steps(CursorPath_Pat.hooks_z(zp, [])))
     ) {
     | None => Failed
     | Some(steps) =>
@@ -346,7 +346,7 @@ let rec ana_move =
     }
   | MoveToNextHole =>
     switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Pat.holes_z(zp, [])))
+      CursorPath_common.(next_hook_steps(CursorPath_Pat.hooks_z(zp, [])))
     ) {
     | None => Failed
     | Some(steps) =>

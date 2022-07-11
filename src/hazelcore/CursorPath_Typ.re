@@ -1,4 +1,4 @@
-let mk_hole_sort = CursorPath.mk_hole_sort;
+let mk_hook = CursorPath.mk_hook;
 let rec of_z = (zty: ZTyp.t): CursorPath.t => of_zopseq(zty)
 and of_zopseq = zopseq => CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
@@ -124,76 +124,76 @@ and of_steps_operator =
     };
   };
 
-let hole_sort = _ => CursorPath.TypHole;
+let hook = _ => CursorPath.TypHole;
 let is_space = _ => false;
 
-let rec holes =
+let rec hooks =
         (
           uty: UHTyp.t,
           rev_steps: CursorPath.rev_steps,
-          hs: CursorPath.hole_list,
+          hs: CursorPath.hook_list,
         )
-        : CursorPath.hole_list =>
+        : CursorPath.hook_list =>
   hs
-  |> CursorPath_common.holes_opseq(
-       ~holes_operand,
-       ~hole_sort,
+  |> CursorPath_common.hooks_opseq(
+       ~hooks_operand,
+       ~hook,
        ~is_space,
        ~rev_steps,
        uty,
      )
-and holes_operand =
+and hooks_operand =
     (
       operand: UHTyp.operand,
       rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hole_list,
+      hs: CursorPath.hook_list,
     )
-    : CursorPath.hole_list =>
+    : CursorPath.hook_list =>
   switch (operand) {
-  | Hole => [mk_hole_sort(TypHole, List.rev(rev_steps)), ...hs]
+  | Hole => [mk_hook(TypHole, List.rev(rev_steps)), ...hs]
   | Unit
   | Int
   | Float
   | Bool => hs
   | Parenthesized(body)
-  | List(body) => hs |> holes(body, [0, ...rev_steps])
+  | List(body) => hs |> hooks(body, [0, ...rev_steps])
   };
 
-let rec holes_z =
-        (zty: ZTyp.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
-  holes_zopseq(zty, rev_steps)
-and holes_zopseq =
+let rec hooks_z =
+        (zty: ZTyp.t, rev_steps: CursorPath.rev_steps): CursorPath.zhook_list =>
+  hooks_zopseq(zty, rev_steps)
+and hooks_zopseq =
     (zopseq: ZTyp.zopseq, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhole_list =>
-  CursorPath_common.holes_zopseq_(
-    ~holes_operand,
-    ~holes_zoperand,
-    ~hole_sort,
+    : CursorPath.zhook_list =>
+  CursorPath_common.hooks_zopseq_(
+    ~hooks_operand,
+    ~hooks_zoperand,
+    ~hook,
     ~is_space,
     ~rev_steps,
     ~erase_zopseq=ZTyp.erase_zopseq,
     zopseq,
   )
-and holes_zoperand =
+and hooks_zoperand =
     (zoperand: ZTyp.zoperand, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhole_list =>
+    : CursorPath.zhook_list =>
   switch (zoperand) {
   | CursorT(_, Hole) =>
-    CursorPath_common.mk_zholes(
-      ~hole_selected=Some(mk_hole_sort(TypHole, List.rev(rev_steps))),
+    CursorPath_common.mk_zhooks(
+      ~hook_selected=Some(mk_hook(TypHole, List.rev(rev_steps))),
       (),
     )
-  | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_holes
+  | CursorT(_, Unit | Int | Float | Bool) => CursorPath_common.no_hooks
   | CursorT(OnDelim(k, _), Parenthesized(body) | List(body)) =>
-    let holes = holes(body, [0, ...rev_steps], []);
+    let hooks = hooks(body, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath_common.mk_zholes(~holes_after=holes, ())
-    | 1 => CursorPath_common.mk_zholes(~holes_before=holes, ())
-    | _ => CursorPath_common.no_holes
+    | 0 => CursorPath_common.mk_zhooks(~hooks_after=hooks, ())
+    | 1 => CursorPath_common.mk_zhooks(~hooks_before=hooks, ())
+    | _ => CursorPath_common.no_hooks
     };
   | CursorT(OnOp(_) | OnText(_), Parenthesized(_) | List(_)) =>
     /* invalid cursor position */
-    CursorPath_common.no_holes
+    CursorPath_common.no_hooks
   | ParenthesizedZ(zbody)
-  | ListZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | ListZ(zbody) => hooks_z(zbody, [0, ...rev_steps])
   };

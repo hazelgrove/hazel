@@ -53,7 +53,7 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
     }
   | MoveToPrevHole =>
     switch (
-      CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      CursorPath_common.(prev_hook_steps(CursorPath_Typ.hooks_z(zty, [])))
     ) {
     | None => Failed
     | Some(steps) =>
@@ -64,7 +64,7 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
     }
   | MoveToNextHole =>
     switch (
-      CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+      CursorPath_common.(next_hook_steps(CursorPath_Typ.hooks_z(zty, [])))
     ) {
     | None => Failed
     | Some(steps) =>

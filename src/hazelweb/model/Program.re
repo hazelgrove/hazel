@@ -65,16 +65,16 @@ let get_cursor_info = (program: t) => {
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let current_term = program.is_focused ? Some(get_path(program)) : None;
   let (err_holes, var_err_holes) =
-    CursorPath_Exp.holes(get_uhexp(program), [], [])
-    |> List.filter_map(hole_info =>
-         switch (CursorPath.get_sort(hole_info)) {
+    CursorPath_Exp.hooks(get_uhexp(program), [], [])
+    |> List.filter_map(hook_info =>
+         switch (CursorPath.get_hook(hook_info)) {
          | TypHole => None
          | PatHole(_, shape)
          | ExpHole(_, shape) =>
            switch (shape) {
            | Empty => None
            | VarErr
-           | TypeErr => Some((shape, CursorPath.get_steps(hole_info)))
+           | TypeErr => Some((shape, CursorPath.get_steps(hook_info)))
            }
          }
        )
@@ -195,14 +195,14 @@ let perform_edit_action = (a, program) => {
 exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
-  let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath_common.steps_to_hole(holes, u)) {
+  let hooks = CursorPath_Exp.hooks(ZExp.erase(ze), [], []);
+  switch (CursorPath_common.steps_to_hook(hooks, u)) {
   | None => raise(HoleNotFound)
-  | Some(hole_steps) =>
+  | Some(hook_steps) =>
     let e = ZExp.erase(ze);
-    switch (CursorPath_Exp.of_steps(hole_steps, e)) {
+    switch (CursorPath_Exp.of_steps(hook_steps, e)) {
     | None => raise(HoleNotFound)
-    | Some(hole_path) => Action.MoveTo(hole_path)
+    | Some(hook_path) => Action.MoveTo(hook_path)
     };
   };
 };

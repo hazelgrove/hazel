@@ -19,36 +19,36 @@ type hole_shape =
   | Empty;
 
 [@deriving sexp]
-type hole_sort =
+type hook =
   | TypHole
   | PatHole(MetaVar.t, hole_shape)
   | ExpHole(MetaVar.t, hole_shape);
 
 [@deriving sexp]
-type hole_info = {
-  sort: hole_sort,
+type hook_info = {
+  sort: hook,
   ap_steps: steps,
   steps,
 };
 
 [@deriving sexp]
-type hole_list = list(hole_info);
+type hook_list = list(hook_info);
 
 /* two hole lists, one for before the cursor, one for after */
 [@deriving sexp]
-type zhole_list = {
-  holes_before: hole_list,
-  hole_selected: option(hole_info),
-  holes_after: hole_list,
+type zhook_list = {
+  hooks_before: hook_list,
+  hook_selected: option(hook_info),
+  hooks_after: hook_list,
 };
 
-let mk_hole_sort = (sort, steps): hole_info => {
+let mk_hook = (sort, steps): hook_info => {
   sort,
   ap_steps: steps, /* if this is an ap hole, steps to function pos; otherwise == steps */
   steps,
 };
 
-let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
+let mk_hook_ap = (sort, steps, ~ap_steps): hook_info => {
   sort,
   ap_steps,
   steps,
@@ -59,7 +59,26 @@ let mk_hole_sort_ap = (sort, steps, ~ap_steps): hole_info => {
    This is turned on for cursor movement to holes, as there is no
    cursor position on an ap, but off to draw error hole decorations */
 let get_steps =
-    (~to_fpos_for_aps: bool=false, {steps, ap_steps, _}: hole_info) =>
+    (~to_fpos_for_aps: bool=false, {steps, ap_steps, _}: hook_info) =>
   to_fpos_for_aps ? ap_steps : steps;
 
-let get_sort = ({sort, _}: hole_info): hole_sort => sort;
+let get_hook = ({sort, _}: hook_info): hook => sort;
+
+let is_hole: hook_info => bool =
+  hi =>
+    switch (get_hook(hi)) {
+    | TypHole
+    | PatHole(_)
+    | ExpHole(_) => true
+    };
+
+let filter_holes_z: zhook_list => zhook_list =
+  ({hooks_before, hook_selected, hooks_after}) => {
+    hooks_before: List.filter(is_hole, hooks_before),
+    hook_selected:
+      switch (hook_selected) {
+      | None => None
+      | Some(h) => is_hole(h) ? Some(h) : None
+      },
+    hooks_after: List.filter(is_hole, hooks_after),
+  };

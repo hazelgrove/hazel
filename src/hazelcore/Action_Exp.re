@@ -124,7 +124,7 @@ let construct_operator_after_zoperand =
 let complete_tuple =
   Action_common.complete_tuple_(
     ~mk_OpSeq=OpSeq.mk(~associate=UHExp.associate),
-    ~holes_opseq=CursorPath_Exp.holes_opseq,
+    ~hooks_opseq=CursorPath_Exp.hooks_opseq,
     ~follow_opseq=CursorPath_Exp.follow_opseq,
     ~mk_ZOpSeq=ZExp.mk_ZOpSeq,
     ~place_before_opseq=ZExp.place_before_opseq,
@@ -502,7 +502,7 @@ let rec syn_move =
     | Some(ze) => Succeeded(SynDone((ze, ty, id_gen)))
     }
   | MoveToPrevHole =>
-    switch (CursorPath_Exp.prev_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.prev_hook_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
@@ -511,7 +511,7 @@ let rec syn_move =
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath_Exp.next_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.next_hook_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
@@ -560,7 +560,7 @@ let rec ana_move =
     | Some(ze) => Succeeded(AnaDone((ze, id_gen)))
     }
   | MoveToPrevHole =>
-    switch (CursorPath_Exp.prev_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.prev_hook_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
@@ -569,7 +569,7 @@ let rec ana_move =
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath_Exp.next_hole_steps_z(ze)) {
+    switch (CursorPath_Exp.next_hook_steps_z(ze)) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Exp.of_steps(steps, ze |> ZExp.erase)) {
@@ -880,7 +880,7 @@ and syn_perform_line =
          mk_result(id_gen, ([], zline, []))
        )
   | (MoveToPrevHole, _) =>
-    switch (CursorPath_Exp.prev_hole_steps_zline(zline)) {
+    switch (CursorPath_Exp.prev_hook_steps_zline(zline)) {
     | None => Failed
     | Some(steps) =>
       switch (
@@ -895,7 +895,7 @@ and syn_perform_line =
       }
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath_Exp.next_hole_steps_zline(zline)) {
+    switch (CursorPath_Exp.next_hook_steps_zline(zline)) {
     | None => Failed
     | Some(steps) =>
       switch (
