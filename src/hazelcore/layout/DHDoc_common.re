@@ -98,6 +98,8 @@ let mk_InvalidText = (t, hc) =>
 
 let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
 
+let mk_TestLit = _n => Doc.text(Keyword.string_of_kw(Test));
+
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_FloatLit = (f: float) =>

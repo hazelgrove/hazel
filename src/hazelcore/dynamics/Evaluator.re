@@ -209,6 +209,7 @@ and matches_cast_Inj =
   | Closure(_, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
+  | TestLit(_) => DoesNotMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -278,6 +279,7 @@ and matches_cast_Pair =
   | Closure(_, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
+  | TestLit(_) => DoesNotMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -352,6 +354,7 @@ and matches_cast_Cons =
   | Closure(_, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
+  | TestLit(_) => DoesNotMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -425,6 +428,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | ApBuiltin(ident, args) =>
     let args = List.map(subst_var(d1, x), args);
     ApBuiltin(ident, args);
+  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -629,6 +633,7 @@ let rec evaluate =
       }
     }
   | ApBuiltin(ident, args) => evaluate_ap_builtin(es, env, ident, args)
+  | TestLit(_)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)

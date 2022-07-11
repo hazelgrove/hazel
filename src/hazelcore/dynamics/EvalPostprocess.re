@@ -47,6 +47,7 @@ let rec pp_uneval =
     }
 
   /* Non-hole expressions: expand recursively */
+  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -175,6 +176,7 @@ and pp_eval =
     let (pe, hci, d1') = pp_eval(pe, hci, d1);
     let (pe, hci, d2') = pp_eval(pe, hci, d2);
     (pe, hci, Sequence(d1', d2'));
+  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -338,6 +340,7 @@ let rec track_children_of_hole =
   switch (d) {
   | Triv
   | ListNil(_)
+  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

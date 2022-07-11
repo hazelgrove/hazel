@@ -148,6 +148,7 @@ type t =
   | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
+  | TestLit(KeywordID.t)
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
@@ -188,6 +189,7 @@ let constructor_string = (d: t): string =>
   | Closure(_, _) => "Closure"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
+  | TestLit(_) => "TestLit"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
   | FloatLit(_) => "FloatLit"
@@ -233,6 +235,8 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   switch (d1, d2) {
   /* Primitive forms: regular structural equality */
   | (BoundVar(_), _)
+  /* TODO: Not sure if this is right. */
+  | (TestLit(_), _)
   | (BoolLit(_), _)
   | (IntLit(_), _)
   | (FloatLit(_), _)

@@ -34,6 +34,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidText(_)
   | Keyword(_)
   | Sequence(_)
+  | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -231,6 +232,7 @@ let rec mk =
           DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | [] => text(ident)
         }
+      | TestLit(n) => DHDoc_common.mk_TestLit(n)
       | BinIntOp(op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =

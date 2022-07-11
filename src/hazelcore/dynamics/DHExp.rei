@@ -61,6 +61,7 @@ type t =
   | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
+  | TestLit(KeywordID.t)
   | BoolLit(bool)
   | IntLit(int)
   | FloatLit(float)
