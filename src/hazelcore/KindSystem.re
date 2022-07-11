@@ -762,12 +762,11 @@ and HTyp: {
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {
     | (TyVar(cref, _), TyVar(cref', _)) =>
-      Index.equal(cref.index, cref'.index)
-      && Int.equal(cref.stamp, cref'.stamp)
+      ContextRef.equivalent(cref, cref')
       || (
         switch (
-          Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
-          Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
+          Context.tyvar_kind(ctx, cref),
+          Context.tyvar_kind(ctx, cref'),
         ) {
         | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
         | (None, _)
