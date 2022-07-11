@@ -602,6 +602,7 @@ let rec evaluate =
   | Fun(_) => (es, BoxedValue(Closure(env, d)))
   | Ap(d1, d2) =>
     switch (evaluate(es, env, d1)) {
+    | (es, BoxedValue(TestLit(n))) => evaluate_test(es, env, n, d2)
     | (es, BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1)) =>
       switch (evaluate(es, env, d2)) {
       | (es, BoxedValue(d2))
@@ -941,4 +942,67 @@ and evaluate_ap_builtin =
   | Some((eval, _)) => eval(es, env, args, evaluate)
   | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
   };
+}
+
+and evaluate_test =
+    (es: EvalState.t, env: EvalEnv.t, n: KeywordID.t, arg: DHExp.t)
+    : (EvalState.t, EvaluatorResult.t) => {
+  let (show_d, (es, res_d)) =
+    switch (DHExp.strip_casts(arg)) {
+    | BinBoolOp(op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinBoolOp(op, d1, d2);
+      evaluate_test_eq(es, env, mk_op, d1, d2);
+    | BinIntOp(op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
+      evaluate_test_eq(es, env, mk_op, d1, d2);
+    | BinFloatOp(op, d1, d2) =>
+      let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
+      evaluate_test_eq(es, env, mk_op, d1, d2);
+    | Ap(Ap(d1, d2), d3) =>
+      let (es, d1) = evaluate(es, env, d1);
+      let (es, d2) = evaluate(es, env, d2);
+      let (es, d3) = evaluate(es, env, d3);
+      let d =
+        DHExp.Ap(
+          Ap(EvaluatorResult.unbox(d1), EvaluatorResult.unbox(d2)),
+          EvaluatorResult.unbox(d3),
+        );
+      (d, evaluate(es, env, d));
+    | Ap(d1, d2) =>
+      let mk = (d1, d2) => DHExp.Ap(d1, d2);
+      evaluate_test_eq(es, env, mk, d1, d2);
+    | _ =>
+      let (es, arg) = evaluate(es, env, arg);
+      (EvaluatorResult.unbox(arg), (es, arg));
+    };
+
+  let test_status: TestStatus.t =
+    switch (res_d) {
+    | BoxedValue(BoolLit(true)) => Pass
+    | BoxedValue(BoolLit(false)) => Fail
+    | _ => Indet
+    };
+
+  let es = EvalState.add_test(es, n, (show_d, test_status));
+  let r: EvaluatorResult.t =
+    switch (res_d) {
+    | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
+    | _ => Indet(Ap(TestLit(n), arg))
+    };
+  (es, r);
+}
+
+and evaluate_test_eq =
+    (
+      es: EvalState.t,
+      env: EvalEnv.t,
+      mk_op: (DHExp.t, DHExp.t) => DHExp.t,
+      d1: DHExp.t,
+      d2: DHExp.t,
+    )
+    : (DHExp.t, (EvalState.t, EvaluatorResult.t)) => {
+  let (es, d1) = evaluate(es, env, d1);
+  let (es, d2) = evaluate(es, env, d2);
+  let d = EvaluatorResult.(mk_op(unbox(d1), unbox(d2)));
+  (d, evaluate(es, env, d));
 };

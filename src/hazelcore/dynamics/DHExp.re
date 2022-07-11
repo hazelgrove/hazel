@@ -332,3 +332,44 @@ and fast_equals_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
      )
   && i1 == i2;
 };
+
+let rec strip_casts: t => t =
+  fun
+  | Closure(ei, d) => Closure(ei, strip_casts(d))
+  | Cast(d, _, _) => strip_casts(d)
+  | FailedCast(d, _, _) => strip_casts(d)
+  | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
+  | Pair(d1, d2) => Pair(strip_casts(d1), strip_casts(d2))
+  | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
+  | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
+  | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
+  | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
+  | FixF(a, b, c) => FixF(a, b, strip_casts(c))
+  | Fun(a, b, c) => Fun(a, b, strip_casts(c))
+  | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+  | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
+  | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
+  | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
+  | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
+  | ConsistentCase(Case(a, rs, b)) =>
+    ConsistentCase(Case(strip_casts(a), List.map(strip_casts_rule, rs), b))
+  | InconsistentBranches(u, i, Case(scrut, rules, n)) =>
+    InconsistentBranches(
+      u,
+      i,
+      Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
+    )
+  | EmptyHole(_) as d
+  | Keyword(_) as d
+  | FreeVar(_) as d
+  | InvalidText(_) as d
+  | BoundVar(_) as d
+  | TestLit(_) as d
+  | BoolLit(_) as d
+  | IntLit(_) as d
+  | FloatLit(_) as d
+  | ListNil(_) as d
+  | Triv as d
+  | InvalidOperation(_) as d => d
+and strip_casts_rule: rule => rule =
+  (Rule(a, d)) => Rule(a, strip_casts(d));

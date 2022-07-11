@@ -109,3 +109,5 @@ let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
    equal (see Result.fast_equals).
    */
 let fast_equals: (t, t) => bool;
+
+let strip_casts: t => t;

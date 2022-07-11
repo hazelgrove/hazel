@@ -7,7 +7,7 @@
    */
 
 [@deriving sexp]
-type t = (EvalEnvId.t, EvalStats.t);
+type t = (EvalEnvId.t, EvalStats.t, TestMap.t);
 
 let initial: t;
 
@@ -17,3 +17,5 @@ let next_env_id: t => (t, EvalEnvId.t);
 let inc_eval_steps: t => t;
 
 let eval_steps: t => int;
+
+let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
