@@ -57,6 +57,7 @@ let alt_PageDown = alt(Key.the_key("PageDown"));
 let ctrl_space = ctrl(Key.key1("Space", " "));
 let ctrl_s = ctrl(Key.the_key("S"));
 let ctrl_shift_s = ctrl_shift(Key.the_key("S"));
+let ctrl_shift_l = ctrl_shift(Key.the_key("L"));
 let ctrlOrCmd_z = ctrlOrCmd(Key.the_key("Z"));
 let ctrlOrCmd_shift_z = ctrlOrCmd_shift(Key.the_key("Z"));
 let up = plain(Key.key1(Unicode.up_arrow_key, "ArrowUp"));

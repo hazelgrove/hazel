@@ -36,6 +36,7 @@ type action_group =
      so an extra type MatchRule is added for construction */
   | MatchRule
   | SwapEdit(swap_group)
+  | Import
   | Init;
 
 [@deriving sexp]

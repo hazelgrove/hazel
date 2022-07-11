@@ -40,9 +40,9 @@ let place_cursor = (cursor: CursorPosition.t, tag: UHTag.t): option(t) =>
 
 let erase = (CursorTag(_, tag): t): UHTag.t => tag;
 
-let new_TagHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHTag.new_TagHole(u_gen);
-  (place_before(hole), u_gen);
+let new_TagHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
+  let (hole, id_gen) = UHTag.new_TagHole(id_gen);
+  (place_before(hole), id_gen);
 };
 
 let move_cursor_left: t => option(t) =

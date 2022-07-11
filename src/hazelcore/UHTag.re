@@ -7,9 +7,9 @@ type t =
 
 let compare = compare;
 
-let new_TagHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (u, u_gen) = u_gen |> MetaVarGen.next;
-  (EmptyTagHole(u), u_gen);
+let new_TagHole = (id_gen: IDGen.t): (t, IDGen.t) => {
+  let (u, id_gen) = id_gen |> IDGen.next_hole;
+  (EmptyTagHole(u), id_gen);
 };
 
 let is_majuscule_letter = (c: char): bool => {
@@ -92,14 +92,14 @@ let consistent = (tag1: t, tag2: t): bool =>
   | (Tag(NotInTagHole, _), Tag(NotInTagHole, _)) => equal(tag1, tag2)
   };
 
-let fix_holes = (tag: t, dups: Set.t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) =>
+let fix_holes = (tag: t, dups: Set.t, id_gen: IDGen.t): (t, IDGen.t) =>
   switch (tag) {
   | Tag(_, t) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let (u, id_gen) = IDGen.next_hole(id_gen);
     let status: TagErrStatus.t =
       !is_tag_name(t)
         ? InTagHole(InvalidName, u)
         : Set.mem(tag, dups) ? InTagHole(Duplicate, u) : NotInTagHole;
-    (Tag(status, t), u_gen);
-  | EmptyTagHole(_) => (tag, u_gen)
+    (Tag(status, t), id_gen);
+  | EmptyTagHole(_) => (tag, id_gen)
   };

@@ -49,5 +49,5 @@ let expand: t => HTyp.t;
 
 let is_complete: t => bool;
 
-let fix_holes: (t, MetaVarGen.t) => (t, MetaVarGen.t);
-let fix_holes_sum_body: (sum_body, MetaVarGen.t) => (sum_body, MetaVarGen.t);
+let fix_holes: (t, IDGen.t) => (t, IDGen.t);
+let fix_holes_sum_body: (sum_body, IDGen.t) => (sum_body, IDGen.t);

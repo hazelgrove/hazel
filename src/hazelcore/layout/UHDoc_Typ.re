@@ -1,5 +1,4 @@
 open UHDoc_common;
-// module Doc = UHDoc_common.Doc;
 
 let inline_padding_of_operator: UHTyp.operator => (UHDoc.t, UHDoc.t) =
   fun
@@ -12,8 +11,10 @@ let inline_padding_of_sum_body_operator:
   | Plus => (space_, space_);
 
 let mk_EmptyHole: string => UHDoc.t = mk_EmptyHole(~sort=Typ);
+
 let mk_Parenthesized: formatted_child => UHDoc.t =
   mk_Parenthesized(~sort=Typ);
+
 let mk_NTuple:
   (
     ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
@@ -22,7 +23,7 @@ let mk_NTuple:
     OpSeq.t('a, UHTyp.operator)
   ) =>
   UHDoc.t =
-  UHDoc_common.mk_NTuple(
+  mk_NTuple(
     ~sort=Typ,
     ~get_tuple_elements=UHTyp.get_prod_elements,
     ~inline_padding_of_operator,
@@ -85,7 +86,7 @@ let mk_SumBody =
     )
     : UHDoc.t => {
   let mk_BinOp =
-    UHDoc_common.mk_BinOp(
+    mk_BinOp(
       ~sort=SumBody,
       ~mk_operand,
       ~mk_operator,
@@ -159,116 +160,135 @@ let mk_SumBody =
   };
 };
 
-let rec mk =
-  lazy(
-    memoize((~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
-      (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
-    )
-  )
-and mk_opseq =
-  lazy(
-    memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
-      (
-        mk_NTuple(
-          ~mk_operand=Lazy.force(mk_operand, ~memoize),
-          ~mk_operator,
-          ~enforce_inline,
-          opseq,
-        ): UHDoc.t
+module UHDoc_Tag = UHDoc_Tag.Make(Memo.DummyMemo);
+
+module Make = (Memo: Memo.S) => {
+  let rec mk =
+    lazy(
+      Memo.memoize((~memoize: bool, ~enforce_inline: bool, uty: UHTyp.t) =>
+        (Lazy.force(mk_opseq, ~memoize, ~enforce_inline, uty): UHDoc.t)
       )
     )
-  )
-and mk_operator = (op: UHTyp.operator): UHDoc.t =>
-  mk_op(Operators_Typ.to_string(op))
-and mk_operand =
-  lazy(
-    memoize((~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
-      (
-        switch (operand) {
-        | Hole => mk_EmptyHole("?")
-        | Unit => mk_Unit()
-        | Int => mk_Int()
-        | Float => mk_Float()
-        | Bool => mk_Bool()
-        | Parenthesized(body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_Parenthesized(body);
-        | List(body) =>
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
-          mk_List(body);
-        | FiniteSum(None) => mk_FiniteSum(None)
-        | FiniteSum(Some(sum_body)) =>
-          let sum_body =
-            mk_sum_body(~memoize, ~enforce_inline, ~child_step=0, sum_body);
-          mk_FiniteSum(Some(sum_body));
-        | ElidedSum(operand) =>
-          let operand_doc =
-            Lazy.force(
-              mk_sum_body_operand,
-              ~memoize,
-              ~enforce_inline,
-              operand,
-            );
-          mk_ElidedSum(operand_doc);
-        }: UHDoc.t
+  and mk_opseq =
+    lazy(
+      Memo.memoize(
+        (~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.opseq) =>
+        (
+          mk_NTuple(
+            ~mk_operand=Lazy.force(mk_operand, ~memoize),
+            ~mk_operator,
+            ~enforce_inline,
+            opseq,
+          ): UHDoc.t
+        )
       )
     )
-  )
-and mk_child =
-    (~memoize: bool, ~enforce_inline: bool, ~child_step: int, uty: UHTyp.t)
-    : formatted_child => {
-  let formattable = (~enforce_inline: bool) =>
-    Lazy.force(mk, ~memoize, ~enforce_inline, uty) |> annot_Step(child_step);
-  enforce_inline
-    ? EnforcedInline(formattable(~enforce_inline=true))
-    : Unformatted(formattable);
-}
-and mk_sum_body =
-    (
-      ~memoize: bool,
-      ~enforce_inline: bool,
-      ~child_step: int,
-      sum_body: UHTyp.sum_body,
-    )
-    : formatted_child => {
-  let formattable = (~enforce_inline: bool) =>
-    Lazy.force(mk_sum_body_opseq, ~memoize, ~enforce_inline, sum_body)
-    |> annot_Step(child_step);
-  enforce_inline
-    ? EnforcedInline(formattable(~enforce_inline))
-    : Unformatted(formattable);
-}
-and mk_sum_body_opseq =
-  lazy(
-    memoize((~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.sum_body) =>
-      (
-        mk_SumBody(
-          ~mk_operand=Lazy.force(mk_sum_body_operand, ~memoize),
-          ~mk_operator=mk_sum_body_operator,
-          ~enforce_inline,
-          opseq,
-        ): UHDoc.t
+  and mk_operator = (op: UHTyp.operator): UHDoc.t =>
+    mk_op(Operators_Typ.to_string(op))
+  and mk_operand =
+    lazy(
+      Memo.memoize(
+        (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.operand) =>
+        (
+          switch (operand) {
+          | Hole => mk_EmptyHole("?")
+          | Unit => mk_Unit()
+          | Int => mk_Int()
+          | Float => mk_Float()
+          | Bool => mk_Bool()
+          | Parenthesized(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_Parenthesized(body);
+          | List(body) =>
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
+            mk_List(body);
+          | FiniteSum(None) => mk_FiniteSum(None)
+          | FiniteSum(Some(sum_body)) =>
+            let sum_body =
+              mk_sum_body(~memoize, ~enforce_inline, ~child_step=0, sum_body);
+            mk_FiniteSum(Some(sum_body));
+          | ElidedSum(operand) =>
+            let operand_doc =
+              Lazy.force(
+                mk_sum_body_operand,
+                ~memoize,
+                ~enforce_inline,
+                operand,
+              );
+            mk_ElidedSum(operand_doc);
+          }: UHDoc.t
+        )
       )
     )
-  )
-and mk_sum_body_operator = (op: UHTyp.sum_body_operator): UHDoc.t =>
-  mk_op(Operators_SumBody.to_string(op))
-and mk_sum_body_operand =
-  lazy(
-    memoize(
-      (~memoize: bool, ~enforce_inline: bool, operand: UHTyp.sum_body_operand) =>
+  and mk_child =
+      (~memoize: bool, ~enforce_inline: bool, ~child_step: int, uty: UHTyp.t)
+      : formatted_child => {
+    let formattable = (~enforce_inline: bool) =>
+      Lazy.force(mk, ~memoize, ~enforce_inline, uty)
+      |> annot_Step(child_step);
+    enforce_inline
+      ? EnforcedInline(formattable(~enforce_inline=true))
+      : Unformatted(formattable);
+  }
+  and mk_sum_body =
       (
-        switch (operand) {
-        | ConstTag(tag) =>
-          let tag_doc =
-            UHDoc_Tag.mk_formatted(~memoize, ~enforce_inline, tag);
-          mk_ConstTag(tag_doc);
-        | ArgTag(tag, ty) =>
-          let tag_doc =
-            UHDoc_Tag.mk_child(~memoize, ~enforce_inline, ~child_step=0, tag);
-          let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
-          mk_ArgTag(tag_doc, body);
-        }: UHDoc.t
+        ~memoize: bool,
+        ~enforce_inline: bool,
+        ~child_step: int,
+        sum_body: UHTyp.sum_body,
+      )
+      : formatted_child => {
+    let formattable = (~enforce_inline: bool) =>
+      Lazy.force(mk_sum_body_opseq, ~memoize, ~enforce_inline, sum_body)
+      |> UHDoc_common.annot_Step(child_step);
+    enforce_inline
+      ? EnforcedInline(formattable(~enforce_inline))
+      : Unformatted(formattable);
+  }
+  and mk_sum_body_opseq =
+    lazy(
+      Memo.memoize(
+        (~memoize: bool, ~enforce_inline: bool, opseq: UHTyp.sum_body) =>
+        (
+          mk_SumBody(
+            ~mk_operand=Lazy.force(mk_sum_body_operand, ~memoize),
+            ~mk_operator=mk_sum_body_operator,
+            ~enforce_inline,
+            opseq,
+          ): UHDoc.t
+        )
       )
     )
-  );
+  and mk_sum_body_operator = (op: UHTyp.sum_body_operator): UHDoc.t =>
+    mk_op(Operators_SumBody.to_string(op))
+  and mk_sum_body_operand =
+    lazy(
+      Memo.memoize(
+        (
+          ~memoize: bool,
+          ~enforce_inline: bool,
+          operand: UHTyp.sum_body_operand,
+        ) =>
+        (
+          switch (operand) {
+          | ConstTag(tag) =>
+            let tag_doc =
+              UHDoc_Tag.mk_formatted(~memoize, ~enforce_inline, tag);
+            mk_ConstTag(tag_doc);
+          | ArgTag(tag, ty) =>
+            let tag_doc =
+              UHDoc_Tag.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=0,
+                tag,
+              );
+            let body = mk_child(~memoize, ~enforce_inline, ~child_step=1, ty);
+            mk_ArgTag(tag_doc, body);
+          }: UHDoc.t
+        )
+      )
+    );
+};

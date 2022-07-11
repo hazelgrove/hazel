@@ -1,0 +1,14 @@
+(include_subdirs no)
+
+(library
+ (name hazeltext)
+ (libraries pretty hazelcore menhirLib)
+ (preprocess
+  (pps ppx_let)))
+
+(ocamllex
+ (modules lex))
+
+(menhir
+ (flags --table -v)
+ (modules parse))

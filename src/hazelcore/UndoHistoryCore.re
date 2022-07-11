@@ -38,6 +38,7 @@ type action_group =
      so an extra type MatchRule is added for construction */
   | MatchRule
   | SwapEdit(swap_group)
+  | Import
   | Init;
 
 [@deriving sexp]
@@ -118,6 +119,7 @@ let group_action_group =
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)
   | (SwapEdit(_), _)
+  | (Import, _)
   | (Init, _) => false
   };
 

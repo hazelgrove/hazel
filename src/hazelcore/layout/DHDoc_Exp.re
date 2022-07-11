@@ -97,7 +97,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
 
 let rec mk =
         (
-          ~settings: Settings.Evaluation.t,
+          ~settings: DHSettings.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_instance: option(HoleInstance.t),
@@ -324,7 +324,9 @@ let rec mk =
                  ~enforce_inline,
                ),
             DHDoc_common.Delim.colon_Fun,
+            space(),
             DHDoc_Typ.mk(~enforce_inline=true, ~selected_tag_hole, ty),
+            space(),
             DHDoc_common.Delim.open_Fun,
             body_doc |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Fun,

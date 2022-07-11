@@ -58,7 +58,7 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Fun(err, p, body);
 
-let match =
+let new_match =
     (
       ~err: MatchErrStatus.t=StandardErrStatus(NotInHole),
       scrut: t,
@@ -140,16 +140,15 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
   | [skel, ...skels] => BinOp(err, Comma, skel, mk_tuple(skels))
   };
 
-let new_InvalidText =
-    (u_gen: MetaVarGen.t, t: string): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  (InvalidText(u, t), u_gen);
+let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
+  let (u, id_gen) = IDGen.next_hole(id_gen);
+  (InvalidText(u, t), id_gen);
 };
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
-  let (u, u_gen) = u_gen |> MetaVarGen.next;
-  (EmptyHole(u), u_gen);
+let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
+  let (u, id_gen) = id_gen |> IDGen.next_hole;
+  (EmptyHole(u), id_gen);
 };
 
 let is_EmptyHole =
@@ -157,11 +156,11 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
-let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
-  let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
-  let (e, u_gen) = new_EmptyHole(u_gen);
+let empty_rule = (id_gen: IDGen.t): (rule, IDGen.t) => {
+  let (p, id_gen) = UHPat.new_EmptyHole(id_gen);
+  let (e, id_gen) = new_EmptyHole(id_gen);
   let rule = Rule(NotRedundant, OpSeq.wrap(p), Block.wrap(e));
-  (rule, u_gen);
+  (rule, id_gen);
 };
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
@@ -234,23 +233,22 @@ let is_inconsistent = operand =>
   };
 
 /* put e in a new hole, if it is not already in a hole */
-let rec mk_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
-  mk_inconsistent_block(u_gen, e)
-and mk_inconsistent_block =
-    (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
+let rec mk_inconsistent = (id_gen: IDGen.t, e: t): (t, IDGen.t) =>
+  mk_inconsistent_block(id_gen, e)
+and mk_inconsistent_block = (id_gen: IDGen.t, block: block): (block, IDGen.t) => {
   let (leading, conclusion) = block |> Block.force_split_conclusion;
-  let (conclusion, u_gen) = conclusion |> mk_inconsistent_opseq(u_gen);
-  (Block.join_conclusion(leading, conclusion), u_gen);
+  let (conclusion, id_gen) = conclusion |> mk_inconsistent_opseq(id_gen);
+  (Block.join_conclusion(leading, conclusion), id_gen);
 }
 /* called when we find a type inconsistency */
-and mk_inconsistent_opseq = (u_gen, opseq) =>
-  OpSeq.mk_inconsistent(~mk_inconsistent_operand, u_gen, opseq)
-and mk_inconsistent_operand = (u_gen, operand) =>
+and mk_inconsistent_opseq = (id_gen, opseq) =>
+  OpSeq.mk_inconsistent(~mk_inconsistent_operand, id_gen, opseq)
+and mk_inconsistent_operand = (id_gen, operand) =>
   switch (operand) {
   /* cannot be inconsistent */
   | EmptyHole(_)
   | InvalidText(_, _)
-  | Inj(_, _, _) => (operand, u_gen)
+  | Inj(_, _, _) => (operand, id_gen)
   /* already in hole  */
   | Var(InHole(TypeInconsistent, _), _, _)
   | IntLit(InHole(TypeInconsistent, _), _)
@@ -260,7 +258,7 @@ and mk_inconsistent_operand = (u_gen, operand) =>
   | Fun(InHole(TypeInconsistent, _), _, _)
   | Match(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       operand,
-      u_gen,
+      id_gen,
     )
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
@@ -276,31 +274,30 @@ and mk_inconsistent_operand = (u_gen, operand) =>
       _,
       _,
     ) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
-    (operand, u_gen);
+    (operand, id_gen);
   /* err in constructor args */
   | Parenthesized(body) =>
-    let (body, u_gen) = body |> mk_inconsistent(u_gen);
-    (Parenthesized(body), u_gen);
+    let (body, id_gen) = body |> mk_inconsistent(id_gen);
+    (Parenthesized(body), id_gen);
   };
 
-let text_operand =
-    (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   switch (shape) {
-  | Underscore => (var("_"), u_gen)
-  | IntLit(n) => (intlit(n), u_gen)
-  | FloatLit(f) => (floatlit(f), u_gen)
-  | BoolLit(b) => (boollit(b), u_gen)
-  | Var(x) => (var(x), u_gen)
+  | Underscore => (var("_"), id_gen)
+  | IntLit(n) => (intlit(n), id_gen)
+  | FloatLit(f) => (floatlit(f), id_gen)
+  | BoolLit(b) => (boollit(b), id_gen)
+  | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     (
       var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
-      u_gen,
+      id_gen,
     );
-  | InvalidTextShape(t) => new_InvalidText(u_gen, t)
+  | InvalidTextShape(t) => new_InvalidText(id_gen, t)
   };
 
 let associate =

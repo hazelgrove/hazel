@@ -44,26 +44,26 @@ let escape: Side.t => t =
 let syn_insert_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       (caret_index: int, insert_text: string),
       text: string,
     )
     : ActionOutcome.t('success) =>
   mk_syn_text(
     ctx,
-    u_gen,
+    id_gen,
     caret_index + String.length(insert_text),
     text |> StringUtil.insert(caret_index, insert_text),
   );
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       (caret_index: int, insert_text: string),
       text: string,
       ty: HTyp.t,
@@ -71,7 +71,7 @@ let ana_insert_text_ =
     : ActionOutcome.t('success) =>
   mk_ana_text(
     ctx,
-    u_gen,
+    id_gen,
     caret_index + String.length(insert_text),
     text |> StringUtil.insert(caret_index, insert_text),
     ty,
@@ -80,9 +80,9 @@ let ana_insert_text_ =
 let syn_backspace_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       caret_index: int,
       text: string,
     )
@@ -91,15 +91,15 @@ let syn_backspace_text_ =
     CursorEscaped(Before);
   } else {
     let new_text = text |> StringUtil.backspace(caret_index);
-    mk_syn_text(ctx, u_gen, caret_index - 1, new_text);
+    mk_syn_text(ctx, id_gen, caret_index - 1, new_text);
   };
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
@@ -109,15 +109,15 @@ let ana_backspace_text_ =
     CursorEscaped(Before);
   } else {
     let new_text = text |> StringUtil.backspace(caret_index);
-    mk_ana_text(ctx, u_gen, caret_index - 1, new_text, ty);
+    mk_ana_text(ctx, id_gen, caret_index - 1, new_text, ty);
   };
 
 let syn_delete_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => ActionOutcome.t('success),
+         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       caret_index: int,
       text: string,
     )
@@ -126,15 +126,15 @@ let syn_delete_text_ =
     CursorEscaped(After);
   } else {
     let new_text = text |> StringUtil.delete(caret_index);
-    mk_syn_text(ctx, u_gen, caret_index, new_text);
+    mk_syn_text(ctx, id_gen, caret_index, new_text);
   };
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
       ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
@@ -144,70 +144,70 @@ let ana_delete_text_ =
     CursorEscaped(After);
   } else {
     let new_text = text |> StringUtil.delete(caret_index);
-    mk_ana_text(ctx, u_gen, caret_index, new_text, ty);
+    mk_ana_text(ctx, id_gen, caret_index, new_text, ty);
   };
 
 let construct_operator_after_zoperand_ =
     (
       ~is_Space: 'operator => bool,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~new_EmptyHole: IDGen.t => ('operand, IDGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
       ~place_after_operator: 'operator => option('zoperator),
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       operator: 'operator,
       zoperand: 'zoperand,
       (prefix, suffix): Seq.operand_surround('operand, 'operator),
     )
-    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), IDGen.t) => {
   let operand = zoperand |> erase_zoperand;
   switch (operator |> place_after_operator) {
   | None =>
     // operator == Space
     // ... + [k]| + [k+1] + ...   ==>   ... + [k]  |_ + [k+1] + ...
-    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    let (hole, id_gen) = id_gen |> new_EmptyHole;
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zoperand = hole |> place_before_operand;
-    (ZOperand(new_zoperand, (new_prefix, suffix)), u_gen);
+    (ZOperand(new_zoperand, (new_prefix, suffix)), id_gen);
   | Some(zoperator) =>
     let new_prefix = Seq.S(operand, prefix);
-    let (new_suffix, u_gen) =
+    let (new_suffix, id_gen) =
       switch (suffix) {
       | A(op, new_suffix) when op |> is_Space =>
         // zoperator overwrites Space
         // ... + [k]|  [k+1] + ...   ==>   ... + [k] *| [k+1] + ...
-        (new_suffix, u_gen)
+        (new_suffix, id_gen)
       | _ =>
         // ... + [k]| + [k+1] + ...   ==>   ... + [k] *| _ + [k+1] + ...
-        let (hole, u_gen) = u_gen |> new_EmptyHole;
-        (Seq.S(hole, suffix), u_gen);
+        let (hole, id_gen) = id_gen |> new_EmptyHole;
+        (Seq.S(hole, suffix), id_gen);
       };
-    (ZOperator(zoperator, (new_prefix, new_suffix)), u_gen);
+    (ZOperator(zoperator, (new_prefix, new_suffix)), id_gen);
   };
 };
 let construct_operator_before_zoperand_ =
     (
       ~is_Space: 'operator => bool,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~new_EmptyHole: IDGen.t => ('operand, IDGen.t),
       ~erase_zoperand: 'zoperand => 'operand,
       ~place_before_operand: 'operand => 'zoperand,
       ~place_after_operator: 'operator => option('zoperator),
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
       operator: 'operator,
       zoperand: 'zoperand,
       (prefix, suffix): Seq.operand_surround('operand, 'operator),
     )
-    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), IDGen.t) => {
   // symmetric to construct_operator_after_zoperand
   let mirror_surround = (suffix, prefix);
-  let (mirror_zseq, u_gen) =
+  let (mirror_zseq, id_gen) =
     construct_operator_after_zoperand_(
       ~is_Space,
       ~new_EmptyHole,
       ~erase_zoperand,
       ~place_before_operand,
       ~place_after_operator,
-      u_gen,
+      id_gen,
       operator,
       zoperand,
       mirror_surround,
@@ -217,7 +217,7 @@ let construct_operator_before_zoperand_ =
     | ZOperator(z, (suffix, prefix)) => ZOperator(z, (prefix, suffix))
     | ZOperand(z, (suffix, prefix)) => ZOperand(z, (prefix, suffix))
     };
-  (zseq, u_gen);
+  (zseq, id_gen);
 };
 
 let delete_operator_ =
@@ -291,34 +291,34 @@ let complete_tuple_ =
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
       ~place_before_operand: 'operand => 'zoperand,
       ~comma: 'operator,
-      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
-      u_gen: MetaVarGen.t,
+      ~new_EmptyHole: IDGen.t => ('operand, IDGen.t),
+      id_gen: IDGen.t,
       first_seq: Seq.t('operand, 'operator),
       ty: HTyp.t,
       ~triggered_by_paren: bool,
       ~is_after_zopseq: bool,
     ) // is_after_zopseq not needed when parenthesizing a tuple
-    : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+    : (ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator), IDGen.t) => {
   // all top-level operators should be commas,
   // count the number of commas then add 1 to get the number of elements
   // in first_seq before or after the cursor
   let first_seq_length = List.length(Seq.operators(first_seq)) + 1;
-  let (new_zopseq, u_gen) = {
-    let (new_holes, u_gen) =
+  let (new_zopseq, id_gen) = {
+    let (new_holes, id_gen) =
       ty
       |> HTyp.get_prod_elements
       |> ListUtil.drop(first_seq_length)
       // ensure that hole indices increase left to right
       |> List.fold_left(
-           ((rev_holes, u_gen), _) => {
-             let (new_hole, u_gen) = u_gen |> new_EmptyHole;
-             ([new_hole, ...rev_holes], u_gen);
+           ((rev_holes, id_gen), _) => {
+             let (new_hole, id_gen) = id_gen |> new_EmptyHole;
+             ([new_hole, ...rev_holes], id_gen);
            },
-           ([], u_gen),
+           ([], id_gen),
          )
       |> (
         fun
-        | (rev_holes, u_gen) => (rev_holes |> List.rev, u_gen)
+        | (rev_holes, id_gen) => (rev_holes |> List.rev, id_gen)
       );
 
     let new_zopseq =
@@ -376,7 +376,7 @@ let complete_tuple_ =
           );
         };
       };
-    (new_zopseq, u_gen);
+    (new_zopseq, id_gen);
   };
-  (new_zopseq, u_gen);
+  (new_zopseq, id_gen);
 };

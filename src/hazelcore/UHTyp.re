@@ -261,56 +261,55 @@ let duplicate_tags = (OpSeq(_, seq): sum_body): UHTag.Set.t => {
   |> UHTag.Set.of_list;
 };
 
-let rec fix_holes =
-        (OpSeq(skel, seq): t, u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (skel, seq, u_gen) = fix_holes_skel(skel, seq, u_gen);
-  (OpSeq(skel, seq), u_gen);
+let rec fix_holes = (OpSeq(skel, seq): t, id_gen: IDGen.t): (t, IDGen.t) => {
+  let (skel, seq, id_gen) = fix_holes_skel(skel, seq, id_gen);
+  (OpSeq(skel, seq), id_gen);
 }
 
 and fix_holes_skel =
-    (skel: skel, seq: seq, u_gen: MetaVarGen.t): (skel, seq, MetaVarGen.t) =>
+    (skel: skel, seq: seq, id_gen: IDGen.t): (skel, seq, IDGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    let (operand, u_gen) = fix_holes_operand(operand, u_gen);
+    let (operand, id_gen) = fix_holes_operand(operand, id_gen);
     let seq = seq |> Seq.update_nth_operand(n, operand);
-    (skel, seq, u_gen);
+    (skel, seq, id_gen);
   | BinOp(_, op, skel1, skel2) =>
-    let (skel1, seq, u_gen) = fix_holes_skel(skel1, seq, u_gen);
-    let (skel2, seq, u_gen) = fix_holes_skel(skel2, seq, u_gen);
-    (BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
+    let (skel1, seq, id_gen) = fix_holes_skel(skel1, seq, id_gen);
+    let (skel2, seq, id_gen) = fix_holes_skel(skel2, seq, id_gen);
+    (BinOp(NotInHole, op, skel1, skel2), seq, id_gen);
   }
 
 and fix_holes_operand =
-    (operand: operand, u_gen: MetaVarGen.t): (operand, MetaVarGen.t) =>
+    (operand: operand, id_gen: IDGen.t): (operand, IDGen.t) =>
   switch (operand) {
   | Hole
   | Unit
   | Int
   | Float
   | Bool
-  | FiniteSum(None) => (operand, u_gen)
+  | FiniteSum(None) => (operand, id_gen)
   | FiniteSum(Some(sum_body)) =>
-    let (sum_body, u_gen) = fix_holes_sum_body(sum_body, u_gen);
-    (FiniteSum(Some(sum_body)), u_gen);
+    let (sum_body, id_gen) = fix_holes_sum_body(sum_body, id_gen);
+    (FiniteSum(Some(sum_body)), id_gen);
   | ElidedSum(operand') =>
-    let (operand'', u_gen) =
-      fix_holes_sum_body_operand(operand', UHTag.Set.empty, u_gen);
-    (ElidedSum(operand''), u_gen);
+    let (operand'', id_gen) =
+      fix_holes_sum_body_operand(operand', UHTag.Set.empty, id_gen);
+    (ElidedSum(operand''), id_gen);
   | Parenthesized(body) =>
-    let (body, u_gen) = fix_holes(body, u_gen);
-    (Parenthesized(body), u_gen);
+    let (body, id_gen) = fix_holes(body, id_gen);
+    (Parenthesized(body), id_gen);
   | List(body) =>
-    let (body, u_gen) = fix_holes(body, u_gen);
-    (List(body), u_gen);
+    let (body, id_gen) = fix_holes(body, id_gen);
+    (List(body), id_gen);
   }
 
 and fix_holes_sum_body =
-    (OpSeq(skel, seq) as sum_body: sum_body, u_gen: MetaVarGen.t)
-    : (sum_body, MetaVarGen.t) => {
+    (OpSeq(skel, seq) as sum_body: sum_body, id_gen: IDGen.t)
+    : (sum_body, IDGen.t) => {
   let dups = duplicate_tags(sum_body);
-  let (skel, seq, u_gen) = fix_holes_sum_body_skel(skel, seq, dups, u_gen);
-  (OpSeq(skel, seq), u_gen);
+  let (skel, seq, id_gen) = fix_holes_sum_body_skel(skel, seq, dups, id_gen);
+  (OpSeq(skel, seq), id_gen);
 }
 
 and fix_holes_sum_body_skel =
@@ -318,32 +317,33 @@ and fix_holes_sum_body_skel =
       skel: sum_body_skel,
       seq: sum_body_seq,
       dups: UHTag.Set.t,
-      u_gen: MetaVarGen.t,
+      id_gen: IDGen.t,
     )
-    : (sum_body_skel, sum_body_seq, MetaVarGen.t) =>
+    : (sum_body_skel, sum_body_seq, IDGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    let (operand, u_gen) = fix_holes_sum_body_operand(operand, dups, u_gen);
+    let (operand, id_gen) =
+      fix_holes_sum_body_operand(operand, dups, id_gen);
     let seq = seq |> Seq.update_nth_operand(n, operand);
-    (skel, seq, u_gen);
+    (skel, seq, id_gen);
   | BinOp(_, op, skel1, skel2) =>
-    let (skel1, seq, u_gen) =
-      fix_holes_sum_body_skel(skel1, seq, dups, u_gen);
-    let (skel2, seq, u_gen) =
-      fix_holes_sum_body_skel(skel2, seq, dups, u_gen);
-    (BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
+    let (skel1, seq, id_gen) =
+      fix_holes_sum_body_skel(skel1, seq, dups, id_gen);
+    let (skel2, seq, id_gen) =
+      fix_holes_sum_body_skel(skel2, seq, dups, id_gen);
+    (BinOp(NotInHole, op, skel1, skel2), seq, id_gen);
   }
 
 and fix_holes_sum_body_operand =
-    (operand: sum_body_operand, dups: UHTag.Set.t, u_gen: MetaVarGen.t)
-    : (sum_body_operand, MetaVarGen.t) =>
+    (operand: sum_body_operand, dups: UHTag.Set.t, id_gen: IDGen.t)
+    : (sum_body_operand, IDGen.t) =>
   switch (operand) {
   | ConstTag(tag) =>
-    let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);
-    (ConstTag(tag), u_gen);
+    let (tag, id_gen) = UHTag.fix_holes(tag, dups, id_gen);
+    (ConstTag(tag), id_gen);
   | ArgTag(tag, ty) =>
-    let (tag, u_gen) = UHTag.fix_holes(tag, dups, u_gen);
-    let (ty, u_gen) = fix_holes(ty, u_gen);
-    (ArgTag(tag, ty), u_gen);
+    let (tag, id_gen) = UHTag.fix_holes(tag, dups, id_gen);
+    let (ty, id_gen) = fix_holes(ty, id_gen);
+    (ArgTag(tag, ty), id_gen);
   };

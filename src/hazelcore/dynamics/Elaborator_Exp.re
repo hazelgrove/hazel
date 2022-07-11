@@ -783,7 +783,7 @@ and ana_elab_operand =
         | DoesNotElaborate => DoesNotElaborate
         | Elaborates(dp, ty1p, ctx, delta) =>
           let (body, _) =
-            Statics_Exp.ana_fix_holes(ctx, MetaVarGen.init, body, ty2);
+            Statics_Exp.ana_fix_holes(ctx, IDGen.init, body, ty2);
           switch (ana_elab(ctx, delta, body, ty2)) {
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>

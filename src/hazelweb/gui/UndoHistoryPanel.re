@@ -437,6 +437,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       | Left => indicate_words_view("swap operand left")
       | Right => indicate_words_view("swap operand right")
       }
+    | Import => indicate_words_view("import")
     | Init => indicate_words_view("initial state")
     };
   };
@@ -504,6 +505,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           ),
         )
       }
+    | Import
     | Init => None
     };
   };
@@ -1160,7 +1162,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         Attr.classes(["panel", "context-inspector-panel"]),
       ],
       [
-        Panel.view_of_main_title_bar("history"),
+        Panel.view_of_main_title_bar("Edit Action History"),
         button_bar_view(model.undo_history),
         Node.div(
           if (model.undo_history.preview_on_hover) {
