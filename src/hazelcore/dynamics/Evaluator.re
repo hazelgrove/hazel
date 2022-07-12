@@ -947,7 +947,7 @@ and evaluate_ap_builtin =
 and evaluate_test =
     (es: EvalState.t, env: EvalEnv.t, n: KeywordID.t, arg: DHExp.t)
     : (EvalState.t, EvaluatorResult.t) => {
-  let (show_d, (es, res_d)) =
+  let (show_arg, (es, arg_result)) =
     switch (DHExp.strip_casts(arg)) {
     | BinBoolOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinBoolOp(op, d1, d2);
@@ -958,36 +958,40 @@ and evaluate_test =
     | BinFloatOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
       evaluate_test_eq(es, env, mk_op, d1, d2);
+
     | Ap(Ap(d1, d2), d3) =>
       let (es, d1) = evaluate(es, env, d1);
       let (es, d2) = evaluate(es, env, d2);
       let (es, d3) = evaluate(es, env, d3);
-      let d =
+      let show_arg =
         DHExp.Ap(
           Ap(EvaluatorResult.unbox(d1), EvaluatorResult.unbox(d2)),
           EvaluatorResult.unbox(d3),
         );
-      (d, evaluate(es, env, d));
+      (show_arg, evaluate(es, env, show_arg));
+
     | Ap(d1, d2) =>
       let mk = (d1, d2) => DHExp.Ap(d1, d2);
       evaluate_test_eq(es, env, mk, d1, d2);
+
     | _ =>
       let (es, arg) = evaluate(es, env, arg);
       (EvaluatorResult.unbox(arg), (es, arg));
     };
 
   let test_status: TestStatus.t =
-    switch (res_d) {
+    switch (arg_result) {
     | BoxedValue(BoolLit(true)) => Pass
     | BoxedValue(BoolLit(false)) => Fail
     | _ => Indet
     };
 
-  let es = EvalState.add_test(es, n, (show_d, test_status));
+  let es = EvalState.add_test(es, n, (show_arg, test_status));
   let r: EvaluatorResult.t =
-    switch (res_d) {
+    switch (arg_result) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
-    | _ => Indet(Ap(TestLit(n), arg))
+    | BoxedValue(arg)
+    | Indet(arg) => Indet(Ap(TestLit(n), arg))
     };
   (es, r);
 }
