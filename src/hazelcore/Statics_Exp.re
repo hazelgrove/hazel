@@ -136,6 +136,8 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -147,6 +149,8 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -175,6 +179,27 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.arrow(ty_p, ty_body);
+  | TypFun(NotInHole, tp, body) =>
+    let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    let+ ty_body = syn(body_ctx, body);
+    HTyp.forall(tp, ty_body);
+  | TypApp(NotInHole, body, arg) =>
+    let* ty_body = syn(ctx, body);
+    let* (tp, ty_def) = HTyp.matched_forall(ctx, ty_body);
+    // TODO: (poly) fix delta
+    let+ (arg, _k, _delta) = Elaborator_Typ.syn_elab(ctx, Delta.empty, arg);
+    // TODO: (poly) ensure the arg is well-kinded
+    // let ctx = Statics_TPat.matches(ctx, tp, Kind.S(HTyp.to_syntax(arg)));
+    (
+      switch (tp) {
+      | TyVar(_, v) => Context.tyvar_ref(ctx, v)
+      | EmptyHole => None
+      }
+    )
+    |> Option.map(tyvar_r =>
+         HTyp.subst_tyvars(ctx, ty_def, [(tyvar_r, arg)])
+       )
+    |> Option.value(~default=ty_def);
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
@@ -290,6 +315,8 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -301,6 +328,8 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     HTyp.head_normalize(ctx, ty) |> HTyp.get_prod_elements |> List.length > 1
@@ -313,7 +342,8 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | TypApp(NotInHole, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ctx, ty, ty') ? Some() : None;
@@ -321,6 +351,11 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ctx, ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
+  | TypFun(NotInHole, tp, body) =>
+    // TODO: (poly) do we need to check tpat?
+    let* (_, ty_body) = HTyp.matched_forall(ctx, ty);
+    let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    ana(body_ctx, body, ty_body);
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ctx, ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
@@ -429,6 +464,11 @@ and syn_nth_type_mode' =
 
 /**
  * Get type mode of nth operand of an opseq in analytic position
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
+
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
  */
 and ana_nth_type_mode =
     (

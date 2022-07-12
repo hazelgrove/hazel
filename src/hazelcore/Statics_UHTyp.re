@@ -73,12 +73,17 @@ and syn_fix_holes_operand =
     let (opseq, k, id_gen) = syn_fix_holes(ctx, id_gen, opseq);
     (List(opseq), k, id_gen);
   | Forall(tp, body) =>
-    let ctx =
-      switch (tp |> TPat.tyvar_name) {
-      | Some(name) => Context.add_tyvar(ctx, name, Kind.Type)
-      | None => ctx
+    let (ctx, id_gen) =
+      switch (tp) {
+      | TyVar(_, name) =>
+        // TODO: (poly) Discuss InHole?
+        (Context.add_tyvar(ctx, name, Kind.Type), id_gen)
+      | EmptyHole =>
+        // TODO: (poly) consider incrementing id_gen here
+        (ctx, id_gen)
       };
     let (body, k, id_gen) = syn_fix_holes(ctx, id_gen, body);
+    // FIXME: (poly) kind needs to be updated if k is singleton
     (Forall(tp, body), k, id_gen);
   }
 

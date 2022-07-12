@@ -521,6 +521,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   let is_hole: t => bool;
   let is_int: t => bool;
@@ -539,6 +540,7 @@ and HTyp: {
   let matched_arrow: (Context.t, t) => option((t, t));
   let matched_sum: (Context.t, t) => option((t, t));
   let matched_list: (Context.t, t) => option(t);
+  let matched_forall: (Context.t, t) => option((TPat.t, t));
 
   let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
   let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
@@ -653,6 +655,7 @@ and HTyp: {
   let sum = (tyL: t, tyR: t): t => Sum(tyL, tyR);
   let product = (tys: list(t)): t => Prod(tys);
   let list = (ty: t): t => List(ty);
+  let forall = (tp: TPat.t, ty: t): t => Forall(tp, ty);
 
   let is_hole = (ty: t): bool => ty == Hole;
   let is_int = (ty: t): bool => ty == Int;
@@ -1177,6 +1180,15 @@ and HTyp: {
     | TyVarHole(_)
     | TyVar(_) => Some(Hole)
     | List(ty) => Some(ty)
+    | _ => None
+    };
+
+  let matched_forall = (ctx: Context.t, ty: t): option((TPat.t, t)) =>
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((EmptyHole, Hole))
+    | Forall(tp, ty) => Some((tp, ty))
     | _ => None
     };
 

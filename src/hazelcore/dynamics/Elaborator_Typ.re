@@ -74,14 +74,19 @@ and syn_elab_operand =
     let ty = HTyp.tyvarhole(reason, u, t);
     Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));
   | Forall(tp, body) =>
+    open OptUtil.Syntax;
     let (ctx, delta) =
-      switch (TPat.tyvar_name(tp)) {
-      | Some(name) => (Context.add_tyvar(ctx, name, Kind.Type), delta)
-      | None =>
-        // TODO: (poly) should delta be updated?
+      switch (tp) {
+      | TyVar(_, name) =>
+        // TODO: (poly) Discuss InHole?
+        (Context.add_tyvar(ctx, name, Kind.Type), delta)
+      | EmptyHole =>
+        // TODO: (poly) consider updating delta here
         (ctx, delta)
       };
-    syn_elab(ctx, delta, body);
+    let+ (ty_body, _k, delta) = syn_elab(ctx, delta, body);
+    let ty = HTyp.forall(tp, ty_body);
+    (ty, Kind.singleton(ty), delta);
   };
 }
 

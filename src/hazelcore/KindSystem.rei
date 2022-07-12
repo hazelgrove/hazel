@@ -259,6 +259,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   /* HTyp Value Predicates */
 
@@ -308,6 +309,7 @@ and HTyp: {
   let matched_arrow: (Context.t, t) => option((t, t));
   let matched_sum: (Context.t, t) => option((t, t));
   let matched_list: (Context.t, t) => option(t);
+  let matched_forall: (Context.t, t) => option((TPat.t, t));
 
   /* Type Variables */
 
