@@ -41,7 +41,7 @@ jobs:
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
       - name: Copy in the newly built source # STEP 6
-        run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/hazelweb/www"/* "./server/${BRANCH_NAME}"
+        run: mkdir -p "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/hazelweb/www"/* "./server/${BRANCH_NAME}"
       - name : Commit to the website aka deploy # STEP 7
         run: |
           git config user.name github-deploy-action
