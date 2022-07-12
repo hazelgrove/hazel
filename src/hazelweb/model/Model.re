@@ -1,4 +1,5 @@
 type t = {
+  /* FIXME: Make this an option? */
   last_result: ProgramResult.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,

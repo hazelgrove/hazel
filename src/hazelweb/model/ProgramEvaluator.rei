@@ -21,5 +21,5 @@ module Make:
 
     let init: unit => t;
 
-    let get_result: (t, Program.t) => Deferred.t(ProgramResult.t);
+    let get_result: (t, request) => Deferred.t(response);
   };

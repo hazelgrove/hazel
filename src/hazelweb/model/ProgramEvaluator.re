@@ -48,6 +48,6 @@ module Make = (M: M) => {
 
   let init = M.init;
 
-  let get_result = (t: t, program: Program.t): Deferred.t(ProgramResult.t) =>
-    program |> M.get_result(t);
+  let get_result = (t: t, {program}: request): Deferred.t(response) =>
+    program |> M.get_result(t) >>| (result => {result: result});
 };
