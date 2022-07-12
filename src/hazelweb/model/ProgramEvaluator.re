@@ -19,6 +19,7 @@ module Sync: M = {
     t,
     Deferred.create(cell => {
       let r = program |> Program.get_result;
+      print_endline("filled cell");
       Ivar.fill(cell, r);
     }),
   );
@@ -27,11 +28,15 @@ module Sync: M = {
 module Worker: M = {
   type t = Js.t(Worker.worker(Program.t, ProgramResult.t));
 
-  let init = () => Worker.create("worker.js");
+  let init = () => Worker.create("./worker.js");
 
   let get_result = (worker: t, program: Program.t) => {
+    /* FIXME: Starting a new worker everytime seems quite slow. */
     /* Terminate and initialize new worker. */
+    print_endline("terminated old worker");
     worker##terminate;
+
+    print_endline("initialized new worker");
     let worker = init();
 
     (
@@ -39,11 +44,14 @@ module Worker: M = {
       Deferred.create(cell => {
         worker##.onmessage :=
           Dom.handler(evt => {
-            let result = evt##.data;
-            Ivar.fill(cell, result);
+            print_endline("received response");
+
+            let r = evt##.data;
+            Ivar.fill(cell, r);
             Js._true;
           });
 
+        print_endline("posted request");
         worker##postMessage(program);
       }),
     );

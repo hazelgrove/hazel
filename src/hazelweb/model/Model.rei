@@ -1,5 +1,9 @@
+open Async_kernel;
+module ProgramEvaluator: ProgramEvaluator.M;
+
 type t = {
   last_result: ProgramResult.t,
+  evaluator: ProgramEvaluator.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -29,6 +33,9 @@ let init: unit => t;
 
 let get_last_result: t => ProgramResult.t;
 let put_last_result: (ProgramResult.t, t) => t;
+
+let get_evaluator: t => ProgramEvaluator.t;
+let put_evaluator: (ProgramEvaluator.t, t) => t;
 
 let get_program: t => Program.t;
 
@@ -61,15 +68,17 @@ let prev_card: t => t;
 let next_card: t => t;
 let nth_card: (int, t) => t;
 
-let perform_edit_action: (Action.t, t) => t;
+let perform_edit_action: (Action.t, t) => (t, Deferred.t(ModelAction.t));
 
-let move_via_key: (MoveKey.t, t) => t;
-let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
+let move_via_key: (MoveKey.t, t) => (t, Deferred.t(ModelAction.t));
+let move_via_click:
+  (Pretty.MeasuredPosition.t, t) => (t, Deferred.t(ModelAction.t));
 
 /**
  * See `Program.move_to_case_branch`
  */
-let select_case_branch: (CursorPath.steps, int, t) => t;
+let select_case_branch:
+  (CursorPath.steps, int, t) => (t, Deferred.t(ModelAction.t));
 
 /**
  * Show/hide sidebars

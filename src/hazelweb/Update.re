@@ -3,6 +3,7 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
+open Async_kernel;
 
 [@deriving sexp]
 type timestamp = {
@@ -76,13 +77,11 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let apply_action =
-    (
-      model: Model.t,
-      action: ModelAction.t,
-      state: State.t,
-      ~schedule_action as _,
-    )
+    (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
+  let schedule_deferred_action = deferred_action =>
+    Deferred.upon(deferred_action, schedule_action);
+
   let settings = model.settings;
   if (settings.performance.measure) {
     Printf.printf("\n== Update.apply_action times ==\n");
@@ -92,10 +91,13 @@ let apply_action =
     settings.performance.measure && settings.performance.update_apply_action,
     () => {
       log_action(action, state);
+      /* FIXME: Catch branches can't handle exceptions in web worker. */
       switch (action) {
       | EditAction(a) =>
         switch (model |> Model.perform_edit_action(a)) {
-        | new_model => new_model
+        | (new_model, deferred_action) =>
+          schedule_deferred_action(deferred_action);
+          new_model;
         | exception Program.FailedAction =>
           JSUtil.log("[Program.FailedAction]");
           model;
@@ -116,12 +118,18 @@ let apply_action =
         }
       | MoveAction(Key(move_key)) =>
         switch (model |> Model.move_via_key(move_key)) {
-        | new_model => new_model
+        | (new_model, deferred_action) =>
+          schedule_deferred_action(deferred_action);
+          new_model;
         | exception Program.CursorEscaped =>
           JSUtil.log("[Program.CursorEscaped]");
           model;
         }
-      | MoveAction(Click(row_col)) => model |> Model.move_via_click(row_col)
+      | MoveAction(Click(row_col)) =>
+        let (new_model, deferred_action) =
+          model |> Model.move_via_click(row_col);
+        schedule_deferred_action(deferred_action);
+        new_model;
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
       | LoadCard(n) => Model.nth_card(n, model)
@@ -130,7 +138,10 @@ let apply_action =
       | PrevCard => Model.prev_card(model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
-        Model.select_case_branch(path_to_case, branch_index, model)
+        let (new_model, deferred_action) =
+          Model.select_case_branch(path_to_case, branch_index, model);
+        schedule_deferred_action(deferred_action);
+        new_model;
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
       | Undo =>
