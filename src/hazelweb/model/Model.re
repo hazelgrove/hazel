@@ -185,7 +185,6 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       }
     };
   };
-  Worker.send_program_to_evaluator(new_program);
   model
   |> put_program(new_program)
   |> map_selected_instances(update_selected_instances)

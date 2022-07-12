@@ -1,1 +1,3 @@
-let send_program_to_evaluator: Program.t => unit;
+module HazelResult = Result;
+
+let get_result_promise: Program.t => Lwt.t(HazelResult.t);
