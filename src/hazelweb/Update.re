@@ -219,7 +219,7 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | DHExp =>
-          let (d, _, _) = model.last_result;
+          let (d, _, _) = model |> Model.get_last_result;
           d
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string
@@ -242,7 +242,8 @@ let apply_action =
         | None => JSUtil.log("[Permalink.EmptyCurrent]")
         };
         model;
-      | UpdateLastResult(result) => {...model, last_result: result}
+      | UpdateLastResult(last_result) =>
+        model |> Model.put_last_result(last_result)
       };
     },
   );

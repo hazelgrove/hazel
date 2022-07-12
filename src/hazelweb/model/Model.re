@@ -1,4 +1,5 @@
 type t = {
+  last_result: ProgramResult.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -9,7 +10,6 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
-  last_result: ProgramResult.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -68,6 +68,7 @@ let init = (): t => {
     };
   };
   {
+    last_result: ProgramResult.empty,
     cardstacks,
     cell_width,
     selected_instances,
@@ -83,8 +84,13 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     cursor_inspector,
-    last_result: ProgramResult.empty,
   };
+};
+
+let get_last_result = (model: t): ProgramResult.t => model.last_result;
+let put_last_result = (last_result: ProgramResult.t, model: t): t => {
+  ...model,
+  last_result,
 };
 
 let get_program = (model: t): Program.t =>
