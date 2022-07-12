@@ -70,8 +70,13 @@ and syn_fix_holes_operand =
     let (block, k, id_gen) = syn_fix_holes(ctx, id_gen, body);
     (Parenthesized(block), k, id_gen);
   | List(opseq) =>
-    let (opseq, k, id_gen) = syn_fix_holes(ctx, id_gen, opseq);
-    (List(opseq), k, id_gen);
+    let (opseq, _, id_gen) = syn_fix_holes(ctx, id_gen, opseq);
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, opseq)) {
+    | Some((ty, _, _)) =>
+      let k = Kind.singleton(HTyp.list(ty));
+      (List(opseq), k, id_gen);
+    | None => failwith(__LOC__ ++ ": impossible branch")
+    };
   }
 
 and ana_fix_holes:
