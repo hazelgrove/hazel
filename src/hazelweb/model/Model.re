@@ -9,7 +9,7 @@ type t = {
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
   cursor_inspector: CursorInspectorModel.t,
-  last_result: Result.t,
+  last_result: ProgramResult.t,
 };
 
 let cutoff = (m1, m2) => m1 === m2;
@@ -83,7 +83,7 @@ let init = (): t => {
     mouse_position: ref(MousePosition.{x: 0, y: 0}),
     settings,
     cursor_inspector,
-    last_result: Result.empty,
+    last_result: ProgramResult.empty,
   };
 };
 

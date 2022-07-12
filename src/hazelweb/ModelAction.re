@@ -50,7 +50,7 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | SerializeToConsole(serialize_object)
-  | UpdateLastResult(Result.t)
+  | UpdateLastResult(ProgramResult.t)
   | /**
      * Import a {UHExp.t} into the editor.
      */
