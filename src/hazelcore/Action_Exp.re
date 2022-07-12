@@ -1162,7 +1162,6 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    let _def_ctx = Statics_Exp.extend_let_def_ctx(ctx, ZPat.erase(zp), def);
     let ty_def =
       switch (Statics_Exp.syn(ctx, def)) {
       | None =>
