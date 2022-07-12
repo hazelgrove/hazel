@@ -137,7 +137,11 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
+  | Case(
+      StandardErrStatus(InHole(TypeInconsistent, _)) | NotExhaustive(_),
+      _,
+      _,
+    ) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
     HTyp.hole();
@@ -181,8 +185,7 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     | L => HTyp.sum(ty, HTyp.hole())
     | R => HTyp.sum(HTyp.hole(), ty)
     };
-  | Case(StandardErrStatus(NotInHole), scrut, rules)
-  | Case(NotExhaustive(_), scrut, rules) =>
+  | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Parenthesized(body) => syn(ctx, body)
