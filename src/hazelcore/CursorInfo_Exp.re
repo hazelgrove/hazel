@@ -612,7 +612,7 @@ and syn_cursor_info_zoperand =
     };
   | TypFunZE(_, tp, zbody) =>
     // TODO: (poly) is matches used correctly?
-    let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   | TypAppZE(_, zbody, _ty) =>
     // TODO: (poly) what to do here?

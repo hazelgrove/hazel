@@ -70,7 +70,7 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
   | TyAliasLine(tp, ty) =>
     open OptUtil.Syntax;
     let+ (_, k, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
-    Statics_TPat.matches(ctx, tp, k);
+    Statics_TPat.ana(ctx, tp, k);
   }
 
 and syn_opseq =
@@ -180,14 +180,15 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     let+ ty_body = syn(body_ctx, body);
     HTyp.arrow(ty_p, ty_body);
   | TypFun(NotInHole, tp, body) =>
-    let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
     let+ ty_body = syn(body_ctx, body);
     HTyp.forall(tp, ty_body);
   | TypApp(NotInHole, body, arg) =>
     let* ty_body = syn(ctx, body);
     let* (tp, ty_def) = HTyp.matched_forall(ctx, ty_body);
     let+ (arg, _k, _delta) = Elaborator_Typ.syn_elab(ctx, Delta.empty, arg);
-    let tyvar_ref = switch (tp) {
+    let tyvar_ref =
+      switch (tp) {
       | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
       | _ => None
       };
@@ -350,7 +351,7 @@ and ana_operand =
   | TypFun(NotInHole, tp, body) =>
     // TODO: (poly) do we need to check tpat?
     let* (_tp', ty_body) = HTyp.matched_forall(ctx, ty);
-    let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
     ana(body_ctx, body, ty_body);
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ctx, ty);
