@@ -3,8 +3,9 @@ open Lwt.Infix;
 
 module type Serializable = {
   type t;
-  let serialize: t => string;
-  let deserialize: string => t;
+  type u;
+  let serialize: t => u;
+  let deserialize: u => t;
 };
 
 module type M = {
@@ -35,7 +36,7 @@ module type ClientS = {
   /**
      [get_worker t] is the worker client.
    */
-  let get_worker: t => Js.t(Worker.worker(string, string));
+  let get_worker: t => Js.t(Worker.worker(Request.u, Response.u));
 
   /**
      [get_last t] is the last request response, if any.
@@ -99,7 +100,7 @@ module Make = (M: M) => {
     module Response = Response;
 
     type t = {
-      worker: Js.t(Worker.worker(string, string)),
+      worker: Js.t(Worker.worker(Request.u, Response.u)),
       last: option(Lwt.t(Response.t)),
     };
 
@@ -143,7 +144,7 @@ module Make = (M: M) => {
     let respond = (res: Response.t) =>
       res |> Response.serialize |> Js_of_ocaml.Worker.post_message;
 
-    let on_request = ({state}: t, req: string) => {
+    let on_request = ({state}: t, req: Request.u) => {
       /* Deserialize request. */
       let req = req |> Request.deserialize;
 

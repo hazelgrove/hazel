@@ -36,6 +36,7 @@ module Worker = {
     WebWorker.Make({
       module Request = {
         type t = Program.t;
+        type u = string;
 
         let serialize = program =>
           program |> Program.sexp_of_t |> Sexp.to_string;
@@ -44,6 +45,7 @@ module Worker = {
 
       module Response = {
         type t = program_result;
+        type u = string;
 
         let serialize = r =>
           r

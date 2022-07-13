@@ -2,16 +2,17 @@ open Js_of_ocaml;
 
 module type Serializable = {
   type t;
+  type u;
 
   /**
-     [serialize v] is a string representation of [t].
+     [serialize v] is a serialized representation of [t].
    */
-  let serialize: t => string;
+  let serialize: t => u;
 
   /**
-     [deserialize s] is [v] where [s] is the string representation of [v].
+     [deserialize s] is [v] where [s] is the serialized representation of [v].
    */
-  let deserialize: string => t;
+  let deserialize: u => t;
 };
 
 module type M = {
@@ -55,7 +56,7 @@ module type ClientS = {
   /**
      [get_worker t] is the worker client.
    */
-  let get_worker: t => Js.t(Worker.worker(string, string));
+  let get_worker: t => Js.t(Worker.worker(Request.u, Response.u));
 
   /**
      [get_last t] is the last request response, if any.
