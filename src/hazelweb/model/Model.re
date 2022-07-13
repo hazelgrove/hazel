@@ -1,4 +1,4 @@
-module ProgramEvaluator = ProgramEvaluator.Worker;
+module ProgramEvaluator = ProgramEvaluator.Worker.Client;
 
 type t = {
   /* FIXME: Make this an option? */

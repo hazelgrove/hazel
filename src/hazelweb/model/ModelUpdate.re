@@ -5,12 +5,13 @@ open Model;
 type deferred_action = Lwt.t(option(ModelAction.t));
 
 let update_program = (a: ModelAction.t, new_program, model) => {
-  let old_program = model |> get_program;
-  let update_selected_instances = si => {
-    // TODO: See how to not call get_result here.
+  /* let old_program = model |> get_program; */
+  let update_selected_instances = _si => {
+    /* FIXME: Restore this. */
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
+      /* Program.get_result(old_program) == Program.get_result(new_program) ? si : */
+      UserSelectedInstances.init;
+
     switch (
       model.settings.evaluation.evaluate,
       new_program |> Program.cursor_on_exp_hole,

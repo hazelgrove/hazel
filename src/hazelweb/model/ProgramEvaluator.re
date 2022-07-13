@@ -1,7 +1,9 @@
 open Lwt.Infix;
+open Sexplib;
 
 /**
-   The type of the evaluation result. [None] indicates some error was encountered.
+   The type of the evaluation result. [None] indicates some error was
+   encountered.
  */
 type program_result = option(ProgramResult.t);
 
@@ -29,57 +31,49 @@ module Sync: M = {
   };
 };
 
-module Worker: M = {
-  open Js_of_ocaml;
+module Worker = {
+  module Inner =
+    WebWorker.Make({
+      module Request = {
+        type t = Program.t;
 
-  type t = {
-    /** [worker] is the handle to the active web worker. */
-    worker: Js.t(Worker.worker(Program.t, program_result)),
-    /** [last] is the last evaluation task. */
-    last: option(deferred_result),
-  };
+        let serialize = program =>
+          program |> Program.sexp_of_t |> Sexp.to_string;
+        let deserialize = sexp => sexp |> Sexp.of_string |> Program.t_of_sexp;
+      };
 
-  let init = () => {worker: Worker.create("./worker.js"), last: None};
+      module Response = {
+        type t = program_result;
 
-  /**
-     [cancel_last t] cancels the last evaluation request and returns [t] with
-     [last] set to [None].
-   */
-  let cancel_last = ({last, _} as t: t) => {
-    switch (last) {
-    | Some(last) => Lwt.cancel(last)
-    | None => ()
+        let serialize = r =>
+          r
+          |> Sexplib.Conv.sexp_of_option(ProgramResult.sexp_of_t)
+          |> Sexp.to_string;
+        let deserialize = sexp =>
+          sexp
+          |> Sexp.of_string
+          |> Sexplib.Conv.option_of_sexp(ProgramResult.t_of_sexp);
+      };
+
+      module Worker = {
+        /* FIXME: Somehow use constant from dune or something? */
+        let file = () => "worker.js";
+
+        type state = Sync.t;
+
+        let init_state = Sync.init;
+        let on_request = Sync.get_result;
+      };
+    });
+
+  module Client: M = {
+    include Inner.Client;
+
+    let get_result = (t: t, program: Program.t) => {
+      let t = t |> cancel_last;
+      program |> request(t);
     };
-
-    {...t, last: None};
   };
 
-  /**
-     [request t program] sends an evaluation request for [program] to the web
-     worker.
-   */
-  let request = ({worker, _}: t, program: Program.t) => {
-    /* Start up new task, resolved when response is received. */
-    let (lwt, resolver) = Lwt.task();
-    worker##.onmessage :=
-      Dom.handler(evt => {
-        print_endline("received response");
-
-        let r = evt##.data;
-        Lwt.wakeup_later(resolver, r);
-        Js._true;
-      });
-
-    /* Post evaluation request to worker. */
-    print_endline("posted request");
-    worker##postMessage(program);
-
-    lwt;
-  };
-
-  let get_result = (t: t, program: Program.t) => {
-    let t = t |> cancel_last;
-    let lwt = program |> request(t);
-    ({...t, last: Some(lwt)}, lwt);
-  };
+  module Worker = Inner.Worker;
 };

@@ -10,4 +10,8 @@ module type M = {
 };
 
 module Sync: M;
-module Worker: M;
+
+module Worker: {
+  module Client: M;
+  module Worker: WebWorker.WorkerS;
+};
