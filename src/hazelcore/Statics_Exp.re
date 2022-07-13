@@ -70,7 +70,7 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
   | TyAliasLine(tp, ty) =>
     open OptUtil.Syntax;
     let+ (_, k, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
-    Statics_TPat.matches(ctx, tp, k);
+    Statics_TPat.ana(ctx, tp, k);
   }
 
 and syn_opseq =

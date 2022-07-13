@@ -1,4 +1,4 @@
-let matches = (ctx: Context.t, tp: TPat.t, k: Kind.t): Context.t =>
+let ana = (ctx: Context.t, tp: TPat.t, k: Kind.t): Context.t =>
   switch (tp) {
   | EmptyHole
   | TyVar(InHole(_), _) => ctx
