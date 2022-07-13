@@ -117,6 +117,16 @@ module Make = (M: M) => {
     let request = ({worker, last: _}: t, req: Request.t) => {
       /* Start up new task, resolved when response is received. */
       let (lwt, resolver) = Lwt.task();
+
+      /* Catch exceptions, particularly cancellation. */
+      Lwt.on_failure(
+        lwt,
+        fun
+        | Lwt.Canceled => ()
+        /* FIXME: Print error. */
+        | _exn => (),
+      );
+
       worker##.onmessage :=
         Dom.handler(evt => {
           let res = evt##.data |> Response.deserialize;
