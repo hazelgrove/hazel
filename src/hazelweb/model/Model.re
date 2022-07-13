@@ -227,8 +227,8 @@ let update_program = (a: ModelAction.t, new_program, model) => {
     model |> get_program |> ProgramEvaluator.get_result(model.evaluator);
   let model = model |> put_evaluator(evaluator);
   let deferred_action =
-    Async_kernel.(
-      deferred_result >>| (result => ModelAction.UpdateLastResult(result))
+    Lwt.Infix.(
+      deferred_result >|= (result => ModelAction.UpdateLastResult(result))
     );
 
   (model, deferred_action);

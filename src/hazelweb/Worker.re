@@ -1,7 +1,7 @@
 /**
    Web worker thread.
  */
-open Async_kernel;
+open Lwt.Infix;
 
 open ProgramEvaluator.Sync;
 
@@ -19,7 +19,7 @@ let respond = (res: ProgramResult.t): unit => {
 let on_request = (t: t, req: Program.t): unit => {
   print_endline("received request");
   let (_, res) = req |> get_result(t);
-  Deferred.upon(res, respond);
+  res >|= respond |> ignore;
 };
 
 let () = {

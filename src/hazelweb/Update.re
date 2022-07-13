@@ -3,7 +3,6 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open Async_kernel;
 
 [@deriving sexp]
 type timestamp = {
@@ -80,7 +79,7 @@ let apply_action =
     (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   let schedule_deferred_action = deferred_action =>
-    Deferred.upon(deferred_action, schedule_action);
+    Lwt.Infix.(deferred_action >|= schedule_action) |> ignore;
 
   let settings = model.settings;
   if (settings.performance.measure) {
