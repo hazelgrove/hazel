@@ -640,8 +640,7 @@ and HTyp: {
       Sum(tyL, tyR);
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
-    | Forall(tp, ty) =>
-      Forall(tp, shift_indices(ty, amount))
+    | Forall(tp, ty) => Forall(tp, shift_indices(ty, amount))
     };
 
   let hole: unit => t = () => Hole;

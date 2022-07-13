@@ -25,8 +25,9 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
     open OptUtil.Syntax;
     let+ _ = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
     Kind.singleton(ty);
-  | Forall(_, ty1) =>
+  | Forall(tp, ty1) =>
     open OptUtil.Syntax;
+    let ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
     let+ () = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
     Kind.singleton(ty);
   | TyVar(cref, _) => Context.tyvar_kind(ctx, cref)

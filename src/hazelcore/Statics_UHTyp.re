@@ -78,18 +78,14 @@ and syn_fix_holes_operand =
     | None => failwith(__LOC__ ++ ": impossible branch")
     };
   | Forall(tp, body) =>
-    let (ctx, id_gen) =
-      switch (tp) {
-      | TyVar(_, name) =>
-        // TODO: (poly) Discuss InHole?
-        (Context.add_tyvar(ctx, name, Kind.Type), id_gen)
-      | EmptyHole =>
-        // TODO: (poly) consider incrementing id_gen here
-        (ctx, id_gen)
-      };
-    let (body, k, id_gen) = syn_fix_holes(ctx, id_gen, body);
-    // FIXME: (poly) kind needs to be updated if k is singleton
-    (Forall(tp, body), k, id_gen);
+    let (ctx, tp, id_gen) = Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+    let (body, _, id_gen) = syn_fix_holes(ctx, id_gen, body);
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, body)) {
+    | Some((ty, _, _)) =>
+      let k = Kind.singleton(HTyp.forall(tp, ty));
+      (Forall(tp, body), k, id_gen);
+    | None => failwith(__LOC__ ++ ": impossible branch")
+    }
   }
 
 and ana_fix_holes:
@@ -142,7 +138,6 @@ and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
   | Float
   | Bool
   | List(_)
-  // TODO: (poly) check rule
   | Forall(_) =>
     let (ty, k', id_gen) = syn_fix_holes_operand(ctx, id_gen, operand);
     if (Kind.consistent_subkind(ctx, k', k)) {

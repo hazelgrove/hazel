@@ -186,18 +186,14 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | TypApp(NotInHole, body, arg) =>
     let* ty_body = syn(ctx, body);
     let* (tp, ty_def) = HTyp.matched_forall(ctx, ty_body);
-    // TODO: (poly) fix delta
     let+ (arg, _k, _delta) = Elaborator_Typ.syn_elab(ctx, Delta.empty, arg);
-    // TODO: (poly) ensure the arg is well-kinded
-    // let ctx = Statics_TPat.matches(ctx, tp, Kind.S(HTyp.to_syntax(arg)));
-    (
-      switch (tp) {
-      | TyVar(_, v) => Context.tyvar_ref(ctx, v)
-      | EmptyHole => None
-      }
-    )
-    |> Option.map(tyvar_r =>
-         HTyp.subst_tyvars(ctx, ty_def, [(tyvar_r, arg)])
+    let tyvar_ref = switch (tp) {
+      | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
+      | _ => None
+      };
+    tyvar_ref
+    |> Option.map(tyvar_ref =>
+         HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg)])
        )
     |> Option.value(~default=ty_def);
   | Inj(NotInHole, side, body) =>
@@ -353,7 +349,7 @@ and ana_operand =
     ana(ctx_body, body, ty_body);
   | TypFun(NotInHole, tp, body) =>
     // TODO: (poly) do we need to check tpat?
-    let* (_, ty_body) = HTyp.matched_forall(ctx, ty);
+    let* (_tp', ty_body) = HTyp.matched_forall(ctx, ty);
     let body_ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
     ana(body_ctx, body, ty_body);
   | Inj(NotInHole, side, body) =>

@@ -336,8 +336,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | TypFun(NotInHole, tpat, body) =>
     TPat.is_complete(tpat) && is_complete(body)
   | TypApp(InHole(_), _, _) => false
-  // TODO: (poly) typapp complete when?
-  | TypApp(NotInHole, _body, _ty) => failwith("typapp complete when?")
+  | TypApp(NotInHole, body, ty) =>
+    is_complete(body) && UHTyp.is_complete(ty)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>

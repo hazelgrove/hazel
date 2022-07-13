@@ -65,6 +65,12 @@ and syn_elab_operand =
     let+ (ty_elt, _, delta) = syn_elab(ctx, delta, ty);
     let ty = HTyp.list(ty_elt);
     (ty, Kind.singleton(ty), delta);
+  | Forall(tp, body) =>
+    open OptUtil.Syntax;
+    let ctx = Statics_TPat.matches(ctx, tp, Kind.Type);
+    let+ (ty_body, _k, delta) = syn_elab(ctx, delta, body);
+    let ty = HTyp.forall(tp, ty_body);
+    (ty, Kind.singleton(ty), delta);
   | TyVar(NotInTyVarHole, t) =>
     open OptUtil.Syntax;
     let* cref = Context.tyvar_ref(ctx, t);
@@ -73,20 +79,6 @@ and syn_elab_operand =
   | TyVar(InHole(reason, u), t) =>
     let ty = HTyp.tyvarhole(reason, u, t);
     Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));
-  | Forall(tp, body) =>
-    open OptUtil.Syntax;
-    let (ctx, delta) =
-      switch (tp) {
-      | TyVar(_, name) =>
-        // TODO: (poly) Discuss InHole?
-        (Context.add_tyvar(ctx, name, Kind.Type), delta)
-      | EmptyHole =>
-        // TODO: (poly) consider updating delta here
-        (ctx, delta)
-      };
-    let+ (ty_body, _k, delta) = syn_elab(ctx, delta, body);
-    let ty = HTyp.forall(tp, ty_body);
-    (ty, Kind.singleton(ty), delta);
   };
 }
 
