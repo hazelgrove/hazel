@@ -90,9 +90,7 @@ module HTyp_syntax: {
       let cref = {...cref, index: Index.Abs.to_rel(~offset, cref.index)};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
-    | Forall(tp, ty) =>
-      // TODO: (poly) bind tp?
-      Forall(tp, to_rel(~offset, ty))
+    | Forall(tp, ty) => Forall(tp, to_rel(~offset, ty))
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -112,7 +110,6 @@ module HTyp_syntax: {
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
-    // TODO: (poly) bind tp?
     | Forall(tp, ty) => Forall(tp, to_abs(~offset, ty))
     | Hole => Hole
     | Int => Int
@@ -575,6 +572,7 @@ and HTyp: {
   let grounded_Sum: unit => ground_cases;
   let grounded_Prod: int => ground_cases;
   let grounded_List: unit => ground_cases;
+  let grounded_Forall: unit => ground_cases;
 
   let ground_cases_of: normalized => ground_cases;
 
@@ -643,7 +641,6 @@ and HTyp: {
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
     | Forall(tp, ty) =>
-      // TODO: (poly) tp binded?
       Forall(tp, shift_indices(ty, amount))
     };
 
@@ -724,7 +721,6 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
     | Prod(tys) => Prod(List.map(rescope(ctx), tys))
     | List(ty1) => List(rescope(ctx, ty1))
-    // TODO: (poly)
     | Forall(tp, ty) => Forall(tp, rescope(ctx, ty))
     };
 
@@ -749,7 +745,6 @@ and HTyp: {
     | Prod(tys) =>
       Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
     | List(ty1) => List(subst_tyvar(ctx, ty1, cref, ty'))
-    // TODO: (poly)
     | Forall(tp, ty) => Forall(tp, subst_tyvar(ctx, ty, cref, ty'))
     };
   };
@@ -790,7 +785,6 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
     | (List(_), _) => false
-    // TODO: (poly)
     | (Forall(_tp, ty), Forall(_tp', ty')) => equivalent(ctx, ty, ty')
     | (Forall(_), _) => false
     };
@@ -828,7 +822,6 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
     | (List(_), _) => false
-    // TODO: (poly)
     | (Forall(_tp, ty), Forall(_tp', ty')) => consistent(ctx, ty, ty')
     | (Forall(_), _) => false
     };
@@ -873,12 +866,11 @@ and HTyp: {
     | Prod([])
     | List(_)
     | TyVar(_)
-    | TyVarHole(_) => precedence_const()
+    | TyVarHole(_)
+    | Forall(_) => precedence_const()
     | Prod(_) => precedence_Prod()
     | Sum(_, _) => precedence_Sum()
     | Arrow(_, _) => precedence_Arrow()
-    // TODO: (poly) check precedence
-    | Forall(_) => 0
     };
 
   /* Joins */
@@ -888,7 +880,6 @@ and HTyp: {
     | GLB
     | LUB;
 
-  // TODO: (poly) check join_tpat
   let join_tpat = (j: join, tp1: TPat.t, tp2: TPat.t): TPat.t => {
     switch (j) {
     | GLB =>
@@ -1010,7 +1001,6 @@ and HTyp: {
     | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
-    // TODO: (poly) forall
     | Forall(tp, ty) => Forall(tp, normalize(ctx, ty))
     };
 
@@ -1073,6 +1063,7 @@ and HTyp: {
   let grounded_Prod = length =>
     NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp_syntax.Hole)));
   let grounded_List = () => NotGroundOrHole(List(Hole));
+  let grounded_Forall = () => NotGroundOrHole(Forall(EmptyHole, Hole));
 
   let ground_cases_of = (ty: normalized): ground_cases =>
     switch (ty) {
@@ -1091,8 +1082,7 @@ and HTyp: {
     | Arrow(_, _) => grounded_Arrow()
     | Sum(_, _) => grounded_Sum()
     | List(_) => grounded_List()
-    // TODO: (poly)
-    | Forall(_) => failwith("nya >_<")
+    | Forall(_) => grounded_Forall()
     };
 
   /* HTyp Head-Normalization */
@@ -1123,7 +1113,7 @@ and HTyp: {
     | List(ty) => List(ty)
     | TyVar(cref, t) => TyVar(cref, t)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
-    | Forall(_) => failwith("nya >_<");
+    | Forall(tp, ty) => Forall(tp, ty);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
@@ -1150,8 +1140,7 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(tyL, tyR)
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
-    // TODO: (poly)
-    | Forall(_) => failwith("nya >_<")
+    | Forall(tp, ty) => Forall(tp, ty)
     };
 
   /* Matched Type Constructors */

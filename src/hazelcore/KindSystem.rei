@@ -382,6 +382,7 @@ and HTyp: {
   let grounded_Sum: unit => ground_cases;
   let grounded_Prod: int => ground_cases;
   let grounded_List: unit => ground_cases;
+  let grounded_Forall: unit => ground_cases;
 
   let ground_cases_of: normalized => ground_cases;
 
