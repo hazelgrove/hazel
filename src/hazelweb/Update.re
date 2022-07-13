@@ -93,7 +93,7 @@ let apply_action =
       /* FIXME: Catch branches can't handle exceptions in web worker. */
       switch (action) {
       | EditAction(a) =>
-        switch (model |> Model.perform_edit_action(a)) {
+        switch (model |> ModelUpdate.perform_edit_action(a)) {
         | (new_model, deferred_action) =>
           schedule_deferred_action(deferred_action);
           new_model;
@@ -116,7 +116,7 @@ let apply_action =
           model;
         }
       | MoveAction(Key(move_key)) =>
-        switch (model |> Model.move_via_key(move_key)) {
+        switch (model |> ModelUpdate.move_via_key(move_key)) {
         | (new_model, deferred_action) =>
           schedule_deferred_action(deferred_action);
           new_model;
@@ -126,7 +126,7 @@ let apply_action =
         }
       | MoveAction(Click(row_col)) =>
         let (new_model, deferred_action) =
-          model |> Model.move_via_click(row_col);
+          model |> ModelUpdate.move_via_click(row_col);
         schedule_deferred_action(deferred_action);
         new_model;
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
@@ -138,7 +138,7 @@ let apply_action =
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
         let (new_model, deferred_action) =
-          Model.select_case_branch(path_to_case, branch_index, model);
+          ModelUpdate.select_case_branch(path_to_case, branch_index, model);
         schedule_deferred_action(deferred_action);
         new_model;
       | FocusCell => model |> Model.focus_cell

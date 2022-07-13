@@ -45,6 +45,9 @@ let get_cardstacks: t => ZCardstacks.t;
 let get_cardstack: t => Cardstack.t;
 let get_cards_info: t => list(CardInfo.t);
 
+let map_selected_instances:
+  (UserSelectedInstances.t => UserSelectedInstances.t, t) => t;
+
 let get_cursor_info: t => CursorInfo.t;
 
 let put_program: (Program.t, t) => t;
@@ -66,18 +69,6 @@ let get_selected_hole_instance: t => option(HoleInstance.t);
 let prev_card: t => t;
 let next_card: t => t;
 let nth_card: (int, t) => t;
-
-let perform_edit_action: (Action.t, t) => (t, Lwt.t(ModelAction.t));
-
-let move_via_key: (MoveKey.t, t) => (t, Lwt.t(ModelAction.t));
-let move_via_click:
-  (Pretty.MeasuredPosition.t, t) => (t, Lwt.t(ModelAction.t));
-
-/**
- * See `Program.move_to_case_branch`
- */
-let select_case_branch:
-  (CursorPath.steps, int, t) => (t, Lwt.t(ModelAction.t));
 
 /**
  * Show/hide sidebars
