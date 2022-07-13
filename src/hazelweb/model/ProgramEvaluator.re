@@ -22,20 +22,21 @@ module Sync: M = {
 module Worker: M = {
   open Js_of_ocaml;
 
-  type t = Js.t(Worker.worker(Program.t, ProgramResult.t));
+  type t = {
+    worker: Js.t(Worker.worker(Program.t, ProgramResult.t)),
+    last: option(Lwt.t(ProgramResult.t)),
+  };
 
-  let init = () => Worker.create("./worker.js");
+  let init = () => {worker: Worker.create("./worker.js"), last: None};
 
-  let get_result = (worker: t, program: Program.t) => {
-    /* FIXME: Starting a new worker everytime seems quite slow. */
-    /* Terminate and initialize new worker. */
-    print_endline("terminated old worker");
-    worker##terminate;
+  let get_result = ({worker, last}: t, program: Program.t) => {
+    /* Cancel last. */
+    switch (last) {
+    | Some(last) => Lwt.cancel(last)
+    | None => ()
+    };
 
-    print_endline("initialized new worker");
-    let worker = init();
-
-    let (lwt, resolver) = Lwt.wait();
+    let (lwt, resolver) = Lwt.task();
     worker##.onmessage :=
       Dom.handler(evt => {
         print_endline("received response");
@@ -48,6 +49,6 @@ module Worker: M = {
     print_endline("posted request");
     worker##postMessage(program);
 
-    (worker, lwt);
+    ({worker, last: Some(lwt)}, lwt);
   };
 };
