@@ -3,12 +3,13 @@
  */
 open Lwt.Infix;
 
+open ProgramEvaluator;
 open ProgramEvaluator.Sync;
 
 /**
    [respond response] sends [response] to the main thread.
  */
-let respond = (res: ProgramResult.t): unit => {
+let respond = (res: program_result): unit => {
   print_endline("posted response");
   Js_of_ocaml.Worker.post_message(res);
 };
@@ -18,6 +19,7 @@ let respond = (res: ProgramResult.t): unit => {
  */
 let on_request = (t: t, req: Program.t): unit => {
   print_endline("received request");
+  /* FIXME: Catch exceptions. */
   let (_, res) = req |> get_result(t);
   res >|= respond |> ignore;
 };

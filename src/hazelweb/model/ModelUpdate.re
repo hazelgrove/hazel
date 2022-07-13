@@ -1,4 +1,8 @@
+open Lwt.Infix;
+
 open Model;
+
+type deferred_action = Lwt.t(option(ModelAction.t));
 
 let update_program = (a: ModelAction.t, new_program, model) => {
   let old_program = model |> get_program;
@@ -45,9 +49,8 @@ let update_program = (a: ModelAction.t, new_program, model) => {
     model |> get_program |> ProgramEvaluator.get_result(model.evaluator);
   let model = model |> put_evaluator(evaluator);
   let deferred_action =
-    Lwt.Infix.(
-      deferred_result >|= (result => ModelAction.UpdateLastResult(result))
-    );
+    deferred_result
+    >|= Option.map(result => ModelAction.UpdateLastResult(result));
 
   (model, deferred_action);
 };

@@ -1,4 +1,5 @@
-type deferred_result = Lwt.t(ProgramResult.t);
+type program_result = option(ProgramResult.t);
+type deferred_result = Lwt.t(program_result);
 
 module type M = {
   type t;

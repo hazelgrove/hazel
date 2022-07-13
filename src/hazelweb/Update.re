@@ -79,7 +79,7 @@ let apply_action =
     (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   let schedule_deferred_action = deferred_action =>
-    Lwt.Infix.(deferred_action >|= schedule_action) |> ignore;
+    Lwt.Infix.(deferred_action >|= Option.map(schedule_action)) |> ignore;
 
   let settings = model.settings;
   if (settings.performance.measure) {
