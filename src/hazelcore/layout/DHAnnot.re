@@ -15,8 +15,7 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  /* TODO: Rename to InvalidSeq */
-  | InvalidStringEscape
+  | InvalidStringSeq
   | DivideByZero
   | SubscriptOutOfBounds
   | InvalidIntOfString

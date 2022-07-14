@@ -47,10 +47,7 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | InvalidStringEscape => (
-                 [with_cls("InvalidStringEscape", txt)],
-                 ds,
-               )
+             | InvalidStringSeq => ([with_cls("InvalidStringSeq", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
              | SubscriptOutOfBounds => (
                  [with_cls("SubscriptOutOfBounds", txt)],

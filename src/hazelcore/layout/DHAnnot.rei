@@ -13,7 +13,7 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | InvalidStringEscape
+  | InvalidStringSeq
   | DivideByZero
   | SubscriptOutOfBounds
   | InvalidIntOfString

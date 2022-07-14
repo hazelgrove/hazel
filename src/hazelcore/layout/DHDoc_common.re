@@ -144,7 +144,7 @@ let mk_StringLit = (parsed: UnescapedStringParser.parsed) => {
         /* Append invalid sequence. */
         let err_doc =
           Doc.text(String.sub(s, start, length))
-          |> Doc.annot(DHAnnot.InvalidStringEscape);
+          |> Doc.annot(DHAnnot.InvalidStringSeq);
 
         let next_doc =
           inter_doc
