@@ -32,7 +32,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BoundVar(_)
   | FreeVar(_)
   | InvalidText(_)
-  | Keyword(_)
+  | ExpandingKeyword(_)
   | Sequence(_)
   | TestLit(_)
   | BoolLit(_)
@@ -191,7 +191,7 @@ let rec mk =
          the postprocessed result */
       | EmptyHole(_)
       | NonEmptyHole(_)
-      | Keyword(_)
+      | ExpandingKeyword(_)
       | FreeVar(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
