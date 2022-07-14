@@ -698,9 +698,17 @@ and move_cursor_left_zoperand =
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) when j > 0 => Some(CursorE(OnText(j - 1), e))
-  | CursorE(OnText(_), _) => None
+  | CursorE(OnText(_j), StringLit(_, _) as e) =>
+    Some(CursorE(OnDelim(0, After), e)) /* _j == 0 */
+  | CursorE(OnText(_j), _) => None /* _j == 0 */
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(k, Before), StringLit(_, s) as e) =>
+    switch (k) {
+    | 0 => None
+    | 1 => Some(CursorE(OnText(String.length(s)), e))
+    | _ => failwith("move_cursor_left_zoperand: invalid StringLit OnDelim")
+    }
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
@@ -718,7 +726,7 @@ and move_cursor_left_zoperand =
     | 0 => Some(SubscriptZE1(err, place_after(s), n1, n2))
     | 1 => Some(SubscriptZE2(err, s, place_after(n1), n2))
     | 2 => Some(SubscriptZE3(err, s, n1, place_after(n2)))
-    | _ => None /* Invalid cursor position */
+    | _ => failwith("move_cursor_left_zoperand: invalid SubScript OnDelim")
     }
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules)) =>
     // _k == 1
@@ -735,10 +743,8 @@ and move_cursor_left_zoperand =
     }
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
-      StringLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
     ) =>
-    // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
     switch (move_cursor_left(zbody)) {
@@ -904,9 +910,17 @@ and move_cursor_right_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) when is_valid_cursor_operand(OnText(j + 1), e) =>
     Some(CursorE(OnText(j + 1), e))
-  | CursorE(OnText(_), _) => None
+  | CursorE(OnText(_j), StringLit(_, _) as e) =>
+    Some(CursorE(OnDelim(1, Before), e)) /* _j < String.length(s) */
+  | CursorE(OnText(_j), _) => None
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(k, After), StringLit(_, _) as e) =>
+    switch (k) {
+    | 0 => Some(CursorE(OnText(0), e))
+    | 1 => None
+    | _ => failwith("move_cursor_right_zoperand: invalid StringLit OnDelim")
+    }
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
@@ -924,15 +938,14 @@ and move_cursor_right_zoperand =
     | 0 => Some(SubscriptZE2(err, s, place_before(n1), n2))
     | 1 => Some(SubscriptZE3(err, s, n1, place_before(n2)))
     | 2 => None
-    | _ => None /* Invalid cursor position */
+    | _ => failwith("move_cursor_right_zoperand: invalid Subscript OnDelim")
     }
   | CursorE(OnDelim(_k, After), Case(err, scrut, rules)) =>
     // _k == 0
     Some(CaseZE(err, place_before(scrut), rules))
   | CursorE(
       OnDelim(_),
-      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_) |
-      StringLit(_),
+      InvalidText(_, _) | Var(_) | BoolLit(_) | IntLit(_) | FloatLit(_),
     ) =>
     // invalid cursor position
     None
