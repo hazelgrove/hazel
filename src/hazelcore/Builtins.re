@@ -56,6 +56,7 @@ module Impls = {
       }
     };
 
+  /* string_of_int implementation. */
   let string_of_int = (ident, r1) =>
     switch (r1) {
     | BoxedValue(IntLit(i)) =>
@@ -66,6 +67,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* string_of_float implementation */
   let string_of_float = (ident, r1) =>
     switch (r1) {
     | BoxedValue(FloatLit(f)) =>
@@ -76,6 +78,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* string_of_bool implementation. */
   let string_of_bool = (ident, r1) =>
     switch (r1) {
     | BoxedValue(BoolLit(b)) =>
@@ -86,6 +89,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* int_of_string implementation. */
   let int_of_string = (ident, r1) =>
     switch (r1) {
     | BoxedValue(StringLit({str: s, vseqs: _, iseqs}) as d1) =>
@@ -103,6 +107,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* float_of_string implementation. */
   let float_of_string = (ident, r1) =>
     switch (r1) {
     | BoxedValue(StringLit({str: s, vseqs: _, iseqs}) as d1) =>
@@ -120,6 +125,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* bool_of_string implementation. */
   let bool_of_string = (ident, r1) =>
     switch (r1) {
     | BoxedValue(StringLit({str: s, vseqs: _, iseqs}) as d1) =>
@@ -137,6 +143,7 @@ module Impls = {
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
     };
 
+  /* length implementation. */
   let string_length = (ident, r1) =>
     switch (r1) {
     | BoxedValue(StringLit({str: s, vseqs: _, iseqs}) as d1) =>
