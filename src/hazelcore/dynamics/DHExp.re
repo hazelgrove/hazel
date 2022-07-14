@@ -298,7 +298,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
   | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
     reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equals(d1, d2)
-  | (Keyword(u1, i1, kw1), Keyword(u2, i2, kw2)) =>
+  | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
     u1 == u2 && i1 == i2 && kw1 == kw2
   | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
     u1 == u2 && i1 == i2 && x1 == x2
@@ -314,7 +314,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
     u1 == u2 && i1 == i2 && fast_equals_case(case1, case2)
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _)
-  | (Keyword(_), _)
+  | (ExpandingKeyword(_), _)
   | (FreeVar(_), _)
   | (InvalidText(_), _)
   | (Closure(_), _)
@@ -359,7 +359,7 @@ let rec strip_casts: t => t =
       Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
     )
   | EmptyHole(_) as d
-  | Keyword(_) as d
+  | ExpandingKeyword(_) as d
   | FreeVar(_) as d
   | InvalidText(_) as d
   | BoundVar(_) as d
