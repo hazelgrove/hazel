@@ -172,7 +172,8 @@ let rec mk =
           DHDoc_common.mk_EmptyHole(~selected, (u, i));
         | NonEmptyHole(reason, u, i, d') =>
           go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-        | Keyword(u, i, k) => DHDoc_common.mk_Keyword((u, i), k)
+        | ExpandingKeyword(u, i, k) =>
+          DHDoc_common.mk_ExpandingKeyword((u, i), k)
         | FreeVar(u, i, x) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
         | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))

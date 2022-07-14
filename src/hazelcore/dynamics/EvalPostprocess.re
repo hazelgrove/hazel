@@ -129,9 +129,9 @@ let rec pp_uneval =
     let (pe, hci, d') = pp_uneval(pe, hci, env, d');
     let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d')));
-  | Keyword(u, _, kw) =>
+  | ExpandingKeyword(u, _, kw) =>
     let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, Keyword(u, i, kw)));
+    (pe, hci, Closure(env, ExpandingKeyword(u, i, kw)));
   | FreeVar(u, _, x) =>
     let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, FreeVar(u, i, x)));
@@ -230,7 +230,7 @@ and pp_eval =
   | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
-  | Keyword(_)
+  | ExpandingKeyword(_)
   | FreeVar(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
@@ -274,7 +274,7 @@ and pp_eval =
       let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
       (pe, hci, InconsistentBranches(u, i, Case(scrut, rules, case_i)));
     | EmptyHole(_)
-    | Keyword(_)
+    | ExpandingKeyword(_)
     | FreeVar(_)
     | InvalidText(_) => pp_uneval(pe, hci, env, d)
 
@@ -370,7 +370,7 @@ let rec track_children_of_hole =
     let hci = track_children_of_hole_rules(hci, parent, rules);
     hci |> HoleClosureInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
-  | Keyword(u, i, _)
+  | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
     hci |> HoleClosureInfo.add_parent((u, i), parent)

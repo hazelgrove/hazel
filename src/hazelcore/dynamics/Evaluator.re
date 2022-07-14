@@ -739,7 +739,10 @@ let rec evaluate =
       )
     }
   | FreeVar(u, i, x) => (es, Indet(Closure(env, FreeVar(u, i, x))))
-  | ExpandingKeyword(u, i, kw) => (es, Indet(Closure(env, ExpandingKeyword(u, i, kw))))
+  | ExpandingKeyword(u, i, kw) => (
+      es,
+      Indet(Closure(env, ExpandingKeyword(u, i, kw))),
+    )
   | InvalidText(u, i, text) => (
       es,
       Indet(Closure(env, InvalidText(u, i, text))),
