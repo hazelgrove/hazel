@@ -142,7 +142,7 @@ module Impls = {
     | BoxedValue(StringLit({str: s, vseqs: _, iseqs}) as d1) =>
       switch (iseqs) {
       | [] => BoxedValue(IntLit(UnescapedString.length(s)))
-      | _ => Indet(d1)
+      | _ => Indet(ApBuiltin(ident, [d1]))
       }
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1)))
