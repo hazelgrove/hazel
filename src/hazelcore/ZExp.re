@@ -697,10 +697,8 @@ and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
-  | CursorE(OnText(j), e) => {
-      print_endline(string_of_int(j));
-      Some(CursorE(OnText(j - 1), e));
-    }
+  | CursorE(OnText(j), e) when j > 0 => Some(CursorE(OnText(j - 1), e))
+  | CursorE(OnText(_), _) => None
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
@@ -904,10 +902,8 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorE(OnOp(_), _) => None
-  | CursorE(OnText(j), e) => {
-      print_endline(string_of_int(j));
-      Some(CursorE(OnText(j + 1), e));
-    }
+  /* FIXME: What if you hit the right side? */
+  | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
