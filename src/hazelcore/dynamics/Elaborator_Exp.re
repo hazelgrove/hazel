@@ -335,7 +335,7 @@ and syn_elab_operand =
     let d =
       switch (reason) {
       | Free => DHExp.FreeVar(u, 0, sigma, x)
-      | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+      | Keyword(k) => DHExp.ExpandingKeyword(u, 0, sigma, k)
       };
     Elaborates(d, Hole, delta);
   | IntLit(NotInHole, n) =>
@@ -685,7 +685,7 @@ and ana_elab_operand =
     let d: DHExp.t =
       switch (reason) {
       | Free => FreeVar(u, 0, sigma, x)
-      | Keyword(k) => Keyword(u, 0, sigma, k)
+      | Keyword(k) => ExpandingKeyword(u, 0, sigma, k)
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
