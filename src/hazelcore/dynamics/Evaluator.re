@@ -198,7 +198,7 @@ and matches_cast_Inj =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -264,7 +264,7 @@ and matches_cast_Pair =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -336,7 +336,7 @@ and matches_cast_Cons =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -371,7 +371,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | InvalidText(_) => d2
-  | Keyword(_) => d2
+  | ExpandingKeyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -724,7 +724,7 @@ let rec evaluate: DHExp.t => t(EvaluatorResult.t) =
 
     | FreeVar(_) => Indet(d) |> return
 
-    | Keyword(_) => Indet(d) |> return
+    | ExpandingKeyword(_) => Indet(d) |> return
 
     | InvalidText(_) => Indet(d) |> return
 
