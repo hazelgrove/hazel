@@ -95,7 +95,7 @@ let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
-let mk_Keyword = (u, i, k) =>
+let mk_ExpandingKeyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
 
