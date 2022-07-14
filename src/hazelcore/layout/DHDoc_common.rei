@@ -66,7 +66,7 @@ module Delim: {
 let mk_EmptyHole:
   (~selected: bool=?, HoleClosure.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_Keyword:
+let mk_ExpandingKeyword:
   (HoleClosure.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_InvalidText: (string, HoleClosure.t) => Pretty.Doc.t(DHAnnot.t);

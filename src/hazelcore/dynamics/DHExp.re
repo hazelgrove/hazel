@@ -133,8 +133,7 @@ type t =
   /* Hole types */
   | EmptyHole(MetaVar.t, HoleClosureId.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
-  // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
+  | ExpandingKeyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
   | FreeVar(MetaVar.t, HoleClosureId.t, Var.t)
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
@@ -176,7 +175,7 @@ let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-  | Keyword(_, _, _) => "Keyword"
+  | ExpandingKeyword(_, _, _) => "Keyword"
   | FreeVar(_, _, _) => "FreeVar"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
