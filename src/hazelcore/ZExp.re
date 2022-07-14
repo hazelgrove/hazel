@@ -15,9 +15,9 @@ and zoperand =
   | FunZP(ErrStatus.t, ZPat.t, UHExp.t)
   | FunZE(ErrStatus.t, UHPat.t, t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-  | SubscriptZE1(ErrStatus.t, t, UHExp.t, UHExp.t)
-  | SubscriptZE2(ErrStatus.t, UHExp.t, t, UHExp.t)
-  | SubscriptZE3(ErrStatus.t, UHExp.t, UHExp.t, t)
+  | SubscriptZE1(ErrStatus.t, zoperand, UHExp.t, UHExp.t)
+  | SubscriptZE2(ErrStatus.t, UHExp.operand, t, UHExp.t)
+  | SubscriptZE3(ErrStatus.t, UHExp.operand, UHExp.t, t)
   | CaseZE(CaseErrStatus.t, t, list(UHExp.rule))
   | CaseZR(CaseErrStatus.t, UHExp.t, zrules)
 and zoperator = (CursorPosition.t, UHExp.operator)
@@ -181,7 +181,7 @@ and is_before_zoperand =
   | CursorE(cursor, Case(_)) => cursor == OnDelim(0, Before)
   | CursorE(_, Subscript(_)) => false
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
-  | SubscriptZE1(_, s, _, _) => is_before(s)
+  | SubscriptZE1(_, s, _, _) => is_before_zoperand(s)
   | ParenthesizedZ(_)
   | FunZP(_)
   | FunZE(_)
@@ -358,7 +358,8 @@ and place_before_operand = operand =>
   | Inj(_)
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
-  | Subscript(err, s, n1, n2) => SubscriptZE1(err, place_before(s), n1, n2)
+  | Subscript(err, s, n1, n2) =>
+    SubscriptZE1(err, place_before_operand(s), n1, n2)
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -484,7 +485,8 @@ and erase_zoperand =
   | FunZP(err, zp, body) => Fun(err, ZPat.erase(zp), body)
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
-  | SubscriptZE1(err, zs, n1, n2) => Subscript(err, erase(zs), n1, n2)
+  | SubscriptZE1(err, zs, n1, n2) =>
+    Subscript(err, erase_zoperand(zs), n1, n2)
   | SubscriptZE2(err, s, zn1, n2) => Subscript(err, s, erase(zn1), n2)
   | SubscriptZE3(err, s, n1, zn2) => Subscript(err, s, n1, erase(zn2))
   | CaseZE(err, zscrut, rules) => Case(err, erase(zscrut), rules)
@@ -715,7 +717,7 @@ and move_cursor_left_zoperand =
     }
   | CursorE(OnDelim(k, Before), Subscript(err, s, n1, n2)) =>
     switch (k) {
-    | 0 => Some(SubscriptZE1(err, place_after(s), n1, n2))
+    | 0 => Some(SubscriptZE1(err, place_after_operand(s), n1, n2))
     | 1 => Some(SubscriptZE2(err, s, place_after(n1), n2))
     | 2 => Some(SubscriptZE3(err, s, n1, place_after(n2)))
     | _ => None /* Invalid cursor position */
@@ -776,7 +778,7 @@ and move_cursor_left_zoperand =
     | None => Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules))
     }
   | SubscriptZE1(err, zs, n1, n2) =>
-    switch (move_cursor_left(zs)) {
+    switch (move_cursor_left_zoperand(zs)) {
     | Some(zs) => Some(SubscriptZE1(err, zs, n1, n2))
     | None => None
     }
@@ -960,10 +962,15 @@ and move_cursor_right_zoperand =
     | Some(zbody) => Some(FunZE(err, arg, zbody))
     }
   | SubscriptZE1(err, zs, n1, n2) =>
-    switch (move_cursor_right(zs)) {
+    switch (move_cursor_right_zoperand(zs)) {
     | Some(zs) => Some(SubscriptZE1(err, zs, n1, n2))
     | None =>
-      Some(CursorE(OnDelim(0, Before), Subscript(err, erase(zs), n1, n2)))
+      Some(
+        CursorE(
+          OnDelim(0, Before),
+          Subscript(err, erase_zoperand(zs), n1, n2),
+        ),
+      )
     }
   | SubscriptZE2(err, s, zn1, n2) =>
     switch (move_cursor_right(zn1)) {
@@ -1061,9 +1068,9 @@ and cursor_on_EmptyHole_zoperand =
   | FunZE(_, _, ze)
   | ParenthesizedZ(ze)
   | InjZ(_, _, ze)
-  | SubscriptZE1(_, ze, _, _)
   | SubscriptZE2(_, _, ze, _)
   | SubscriptZE3(_, _, _, ze) => cursor_on_EmptyHole(ze)
+  | SubscriptZE1(_, zoperand, _, _) => cursor_on_EmptyHole_zoperand(zoperand)
   | CaseZE(_, ze, _) => cursor_on_EmptyHole(ze)
   | CaseZR(_, _, (_, zrule, _)) => cursor_on_EmptyHole_zrule(zrule)
 and cursor_on_EmptyHole_zrule =

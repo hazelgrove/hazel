@@ -187,7 +187,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
     let* clause_ty = syn(ctx, scrut);
     syn_rules(ctx, rules, clause_ty);
   | Subscript(NotInHole, s, n1, n2) =>
-    let* _ = ana(ctx, s, HTyp.String);
+    let* _ = ana_operand(ctx, s, HTyp.String);
     let* _ = ana(ctx, n1, HTyp.Int);
     let+ _ = ana(ctx, n2, HTyp.Int);
     HTyp.String;
@@ -867,7 +867,13 @@ and syn_fix_holes_operand =
     };
   | Subscript(_, s, n1, n2) =>
     let (s, id_gen) =
-      ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, s, String);
+      ana_fix_holes_operand(
+        ctx,
+        id_gen,
+        ~renumber_empty_holes,
+        s,
+        HTyp.String,
+      );
     let (n1, id_gen) =
       ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, n1, Int);
     let (n2, id_gen) =
@@ -1325,6 +1331,23 @@ let syn_fix_holes_zlines =
          )
        );
   (zlines, ctx, id_gen);
+};
+
+let syn_fix_holes_zoperand =
+    (ctx: Contexts.t, id_gen: IDGen.t, zoperand: ZExp.zoperand)
+    : (ZExp.zoperand, HTyp.t, IDGen.t) => {
+  let path = CursorPath_Exp.of_zoperand(zoperand);
+  let (operand, ty, id_gen) =
+    syn_fix_holes_operand(ctx, id_gen, ZExp.erase_zoperand(zoperand));
+  let zoperand =
+    CursorPath_Exp.follow_operand(path, operand)
+    |> OptUtil.get(() =>
+         failwith(
+           "syn_fix_holes_operand did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zoperand, ty, id_gen);
 };
 
 let syn_fix_holes_zrules =

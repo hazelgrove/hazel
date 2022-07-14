@@ -81,6 +81,8 @@ let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
 let syn_fix_holes_zlines:
   (Contexts.t, IDGen.t, ZExp.zblock) => (ZExp.zblock, Contexts.t, IDGen.t);
+let syn_fix_holes_zoperand:
+  (Contexts.t, IDGen.t, ZExp.zoperand) => (ZExp.zoperand, HTyp.t, IDGen.t);
 let syn_fix_holes_zrules:
   (Contexts.t, IDGen.t, ZExp.zrules, HTyp.t) =>
   (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t);

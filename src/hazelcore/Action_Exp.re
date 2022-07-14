@@ -1564,7 +1564,8 @@ and syn_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(zhole);
     Succeeded(SynDone((new_ze, Hole, id_gen)));
   | (Backspace, CursorE(OnDelim(_, After), Subscript(_, s, _, _))) =>
-    let new_ze = s |> ZExp.place_after;
+    let zs = s |> ZExp.place_after_operand;
+    let new_ze = ZExp.ZBlock.wrap(zs);
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
 
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
@@ -1804,7 +1805,7 @@ and syn_perform_operand =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
-              ZExp.ZBlock.wrap(ZExp.place_before_operand(operand)),
+              ZExp.place_before_operand(operand),
               UHExp.Block.wrap(hole1),
               UHExp.Block.wrap(hole2),
             ),
@@ -1817,7 +1818,7 @@ and syn_perform_operand =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
               NotInHole,
-              UHExp.Block.wrap(operand),
+              operand,
               ZExp.ZBlock.wrap(ZExp.place_before_operand(hole1)),
               UHExp.Block.wrap(hole2),
             ),
@@ -2056,7 +2057,7 @@ and syn_perform_operand =
     | _ => Failed /* should never happen */
     }
   | (_, SubscriptZE1(_, zs, n1, n2)) =>
-    switch (ana_perform(ctx, a, (zs, id_gen), String)) {
+    switch (ana_perform(ctx, a, (ZExp.ZBlock.wrap(zs), id_gen), String)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2075,8 +2076,7 @@ and syn_perform_operand =
       | Some(ZOperator(zoperator, (prefix, suffix))) =>
         switch (suffix) {
         | S(operand, affix) =>
-          let e =
-            UHExp.Subscript(NotInHole, UHExp.Block.wrap(operand), n1, n2);
+          let e = UHExp.Subscript(NotInHole, operand, n1, n2);
           let new_zopseq =
             ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
           let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
@@ -2085,8 +2085,7 @@ and syn_perform_operand =
           );
         }
       | Some(ZOperand(zoperand, (prefix, suffix))) =>
-        let e =
-          ZExp.SubscriptZE1(NotInHole, ZExp.ZBlock.wrap(zoperand), n1, n2);
+        let e = ZExp.SubscriptZE1(NotInHole, zoperand, n1, n2);
         let new_zopseq = ZExp.mk_ZOpSeq(ZOperand(e, (prefix, suffix)));
         let new_ze = ZExp.ZBlock.wrap'(new_zopseq);
         Succeeded(
@@ -3227,7 +3226,8 @@ and ana_perform_operand =
     let (zhole, id_gen) = id_gen |> ZExp.new_EmptyHole;
     Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), id_gen)));
   | (Backspace, CursorE(OnDelim(_, After), Subscript(_, s, _, _))) =>
-    let new_ze = s |> ZExp.place_after;
+    let zs = s |> ZExp.place_after_operand;
+    let new_ze = ZExp.ZBlock.wrap(zs);
     Succeeded(
       AnaDone(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty)),
     );
@@ -3677,7 +3677,7 @@ and ana_perform_operand =
           ZExp.ZBlock.wrap(
             SubscriptZE1(
               NotInHole,
-              ZExp.ZBlock.wrap(zoperand),
+              zoperand,
               UHExp.Block.wrap(hole1),
               UHExp.Block.wrap(hole2),
             ),
@@ -3690,7 +3690,7 @@ and ana_perform_operand =
           ZExp.ZBlock.wrap(
             SubscriptZE2(
               NotInHole,
-              UHExp.Block.wrap(operand),
+              operand,
               ZExp.ZBlock.wrap(ZExp.place_before_operand(hole1)),
               UHExp.Block.wrap(hole2),
             ),
@@ -3828,7 +3828,7 @@ and ana_perform_operand =
       }
     }
   | (_, SubscriptZE1(_, zs, n1, n2)) =>
-    switch (ana_perform(ctx, a, (zs, id_gen), String)) {
+    switch (ana_perform(ctx, a, (ZExp.ZBlock.wrap(zs), id_gen), String)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -3842,8 +3842,7 @@ and ana_perform_operand =
       | Some(ZOperator(zoperator, (prefix, suffix))) =>
         switch (suffix) {
         | S(operand, affix) =>
-          let e =
-            UHExp.Subscript(NotInHole, UHExp.Block.wrap(operand), n1, n2);
+          let e = UHExp.Subscript(NotInHole, operand, n1, n2);
           let new_zopseq =
             ZExp.mk_ZOpSeq(ZOperator(zoperator, (prefix, S(e, affix))));
           let new_ze = ZExp.ZBlock.wrap'(new_zopseq);

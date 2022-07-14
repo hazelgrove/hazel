@@ -216,10 +216,10 @@ module Make = (Memo: Memo.S) => {
               UHDoc_common.mk_Case(scrut, rules);
             }
           | Subscript(_, s, n1, n2) =>
-            let s = mk_child(~memoize, ~enforce_inline, ~child_step=0, s);
+            let s = Lazy.force(mk_operand, ~memoize, ~enforce_inline, s);
             let n1 = mk_child(~memoize, ~enforce_inline, ~child_step=1, n1);
             let n2 = mk_child(~memoize, ~enforce_inline, ~child_step=2, n2);
-            UHDoc_common.mk_Subscript(s, n1, n2);
+            UHDoc_common.mk_Subscript(EnforcedInline(s), n1, n2);
           }: UHDoc.t
         )
       )

@@ -401,7 +401,7 @@ and syn_elab_operand =
       Elaborates(d, ty, delta);
     }
   | Subscript(NotInHole, s, n1, n2) =>
-    switch (ana_elab(ctx, delta, s, String)) {
+    switch (ana_elab_operand(ctx, delta, s, HTyp.String)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
       switch (ana_elab(ctx, delta, n1, Int)) {

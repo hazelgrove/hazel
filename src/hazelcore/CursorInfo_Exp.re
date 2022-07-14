@@ -20,10 +20,10 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | FunZP(_, zpat, _) => CursorInfo_Pat.extract_cursor_term(zpat)
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
   | SubscriptZE3(_, _, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
+  | SubscriptZE1(_, zoperand, _, _) => extract_from_zexp_operand(zoperand)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
   };
 }
@@ -83,10 +83,11 @@ and get_zoperand_from_zexp_operand =
   | FunZP(_, zpat, _) => CursorInfo_Pat.get_zoperand_from_zpat(zpat)
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
   | SubscriptZE3(_, _, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
+  | SubscriptZE1(_, zoperand, _, _) =>
+    get_zoperand_from_zexp_operand(zoperand)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
   };
 }
@@ -139,10 +140,11 @@ and get_outer_zrules_from_zexp_operand =
   | FunZP(_) => outer_zrules
   | FunZE(_, _, zexp)
   | InjZ(_, _, zexp)
-  | SubscriptZE1(_, zexp, _, _)
   | SubscriptZE2(_, _, zexp, _)
   | SubscriptZE3(_, _, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
+  | SubscriptZE1(_, zoperand, _, _) =>
+    get_outer_zrules_from_zexp_operand(zoperand, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
   };
 }
@@ -616,7 +618,7 @@ and syn_cursor_info_zoperand =
       };
     }
   | SubscriptZE1(_, zs, _, _) =>
-    syn_cursor_info(~steps=steps @ [0], ctx, zs)
+    syn_cursor_info_zoperand(~steps=steps @ [0], ctx, zs)
   | SubscriptZE2(_, _, zn1, _) =>
     syn_cursor_info(~steps=steps @ [1], ctx, zn1)
   | SubscriptZE3(_, _, _, zn2) =>
@@ -1007,7 +1009,7 @@ and ana_cursor_info_zoperand =
       )
     }
   | SubscriptZE1(NotInHole, zs, _, _) =>
-    ana_cursor_info(~steps=steps @ [0], ctx, zs, ty)
+    ana_cursor_info_zoperand(~steps=steps @ [0], ctx, zs, ty)
   | SubscriptZE2(NotInHole, _, zn1, _) =>
     ana_cursor_info(~steps=steps @ [1], ctx, zn1, HTyp.Int)
   | SubscriptZE3(NotInHole, _, _, zn2) =>

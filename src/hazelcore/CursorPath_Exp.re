@@ -22,7 +22,7 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
-  | SubscriptZE1(_, zs, _, _) => cons'(0, of_z(zs))
+  | SubscriptZE1(_, zs, _, _) => cons'(0, of_zoperand(zs))
   | SubscriptZE2(_, _, zn1, _) => cons'(1, of_z(zn1))
   | SubscriptZE3(_, _, _, zn2) => cons'(2, of_z(zn2))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
@@ -144,7 +144,7 @@ and follow_operand =
       switch (x) {
       | 0 =>
         s
-        |> follow((xs, cursor))
+        |> follow_operand((xs, cursor))
         |> Option.map(zs => ZExp.SubscriptZE1(err, zs, n1, n2))
       | 1 =>
         n1
@@ -320,7 +320,10 @@ and of_steps_operand =
       }
     | Subscript(_, s, n1, n2) =>
       switch (x) {
-      | 0 => s |> of_steps(~side, xs) |> Option.map(path => cons'(0, path))
+      | 0 =>
+        s
+        |> of_steps_operand(~side, xs)
+        |> Option.map(path => cons'(0, path))
       | 1 => n1 |> of_steps(~side, xs) |> Option.map(path => cons'(1, path))
       | 2 => n2 |> of_steps(~side, xs) |> Option.map(path => cons'(2, path))
       | _ => None
@@ -456,7 +459,7 @@ and holes_operand =
     hs
     |> holes(n2, [2, ...rev_steps])
     |> holes(n1, [1, ...rev_steps])
-    |> holes(s, [0, ...rev_steps])
+    |> holes_operand(s, [0, ...rev_steps])
     |> holes_err(err, rev_steps)
   | Case(err, scrut, rules) =>
     hs
@@ -672,7 +675,7 @@ and holes_zoperand =
       | InHole(_, u) =>
         Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
-    let holes_s = holes(s, [0, ...rev_steps], []);
+    let holes_s = holes_operand(s, [0, ...rev_steps], []);
     let holes_n1 = holes(n1, [1, ...rev_steps], []);
     let holes_n2 = holes(n2, [2, ...rev_steps], []);
     switch (k) {
@@ -845,7 +848,7 @@ and holes_zoperand =
         ]
       };
     let CursorPath.{holes_before, hole_selected, holes_after} =
-      holes_z(zs, [0, ...rev_steps]);
+      holes_zoperand(zs, [0, ...rev_steps]);
     let holes_n1 = holes(n1, [1, ...rev_steps], []);
     let holes_n2 = holes(n2, [2, ...rev_steps], []);
     CursorPath_common.mk_zholes(
@@ -862,7 +865,7 @@ and holes_zoperand =
           mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let holes_s = holes(s, [0, ...rev_steps], []);
+    let holes_s = holes_operand(s, [0, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zn1, [1, ...rev_steps]);
     let holes_n2 = holes(n2, [2, ...rev_steps], []);
@@ -880,7 +883,7 @@ and holes_zoperand =
           mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let holes_s = holes(s, [0, ...rev_steps], []);
+    let holes_s = holes_operand(s, [0, ...rev_steps], []);
     let holes_n1 = holes(n1, [1, ...rev_steps], []);
     let CursorPath.{holes_before, hole_selected, holes_after} =
       holes_z(zn2, [2, ...rev_steps]);

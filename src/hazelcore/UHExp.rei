@@ -22,7 +22,7 @@ and operand =
   | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
-  | Subscript(ErrStatus.t, t, t, t)
+  | Subscript(ErrStatus.t, operand, t, t)
   | Parenthesized(t)
 and rules = list(rule)
 and rule =
@@ -52,7 +52,7 @@ let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
-let subscript: (~err: ErrStatus.t=?, t, t, t) => operand;
+let subscript: (~err: ErrStatus.t=?, operand, t, t) => operand;
 
 let listnil: (~err: ErrStatus.t=?, unit) => operand;
 

@@ -24,7 +24,7 @@ and operand =
   | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
-  | Subscript(ErrStatus.t, t, t, t)
+  | Subscript(ErrStatus.t, operand, t, t)
   | Parenthesized(t)
 and rules = list(rule)
 and rule =
@@ -72,7 +72,8 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
-let subscript = (~err: ErrStatus.t=NotInHole, s: t, n1: t, n2: t): operand =>
+let subscript =
+    (~err: ErrStatus.t=NotInHole, s: operand, n1: t, n2: t): operand =>
   Subscript(err, s, n1, n2);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
