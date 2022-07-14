@@ -89,7 +89,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
   | (StringLit(parsed1), StringLit(parsed2)) =>
-    /* TODO: Not sure what behavior should be when there are errors. */
     switch (parsed1.iseqs, parsed2.iseqs) {
     | ([], []) =>
       if (parsed1.str == parsed2.str) {
@@ -767,7 +766,6 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       | BoxedValue(IntLit(n1) as d2') =>
         switch (evaluate(d3)) {
         | BoxedValue(IntLit(n2)) =>
-          /* TODO: Behavior when there are errors? */
           switch (parsed.iseqs) {
           | [] =>
             BoxedValue(eval_subscript(d, parsed.str, parsed.vseqs, n1, n2))
