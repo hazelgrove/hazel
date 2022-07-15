@@ -21,4 +21,7 @@ let ground_cases_of = (dty: t): HTyp.ground_cases =>
 let is_hole = (dty: t): bool =>
   HTyp.is_hole(HTyp.of_head_normalized(head_normalize(dty)));
 
+let is_tyvar_hole = (dty: t): bool =>
+  HTyp.is_tyvar_hole(HTyp.of_head_normalized(head_normalize(dty)));
+
 let list = ((tyvars, ty): t): t => (tyvars, HTyp.list(ty));

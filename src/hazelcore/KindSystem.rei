@@ -264,6 +264,7 @@ and HTyp: {
   let is_int: t => bool;
   let is_float: t => bool;
   let is_tyvar: t => bool;
+  let is_tyvar_hole: t => bool;
 
   /* Properties of HTyp */
 

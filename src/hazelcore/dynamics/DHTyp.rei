@@ -12,5 +12,6 @@ let consistent: (t, t) => bool;
 let ground_cases_of: t => HTyp.ground_cases;
 
 let is_hole: t => bool;
+let is_tyvar_hole: t => bool;
 
 let list: t => t;

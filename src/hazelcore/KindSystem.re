@@ -519,6 +519,7 @@ and HTyp: {
   let is_int: t => bool;
   let is_float: t => bool;
   let is_tyvar: t => bool;
+  let is_tyvar_hole: t => bool;
 
   let consistent: (Context.t, t, t) => bool;
   let equivalent: (Context.t, t, t) => bool;
@@ -650,6 +651,12 @@ and HTyp: {
   let is_tyvar = (ty: t): bool =>
     switch (ty) {
     | TyVar(_) => true
+    | _ => false
+    };
+
+  let is_tyvar_hole = (ty: t): bool =>
+    switch (ty) {
+    | TyVarHole(_) => true
     | _ => false
     };
 

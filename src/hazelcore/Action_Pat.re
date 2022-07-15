@@ -1588,27 +1588,16 @@ and ana_perform_operand =
       switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(zann))) {
       | None => Failed
       | Some((ty', _, _)) =>
-        switch (UHPat.get_var_name(op)) {
-        | None =>
-          let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, op, zann));
+        let (new_op, ctx, id_gen) =
+          Statics_Pat.ana_fix_holes_operand(ctx, id_gen, op, ty');
+        let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
+        if (HTyp.consistent(ctx, ty, ty')) {
           Succeeded((new_zopseq, ctx, id_gen));
-        | Some(x) =>
-          let new_ctx = Context.add_var(ctx, x, ty');
-          switch (Context.var_type(new_ctx, x)) {
-          | None => failwith(__LOC__ ++ ": impossible branch")
-          | Some(ty') =>
-            let (new_op, new_ctx, id_gen) =
-              Statics_Pat.ana_fix_holes_operand(ctx, id_gen, op, ty');
-            let new_zopseq = ZOpSeq.wrap(ZPat.TypeAnnZA(err, new_op, zann));
-            if (HTyp.consistent(new_ctx, ty, ty')) {
-              Succeeded((new_zopseq, new_ctx, id_gen));
-            } else {
-              let (new_zopseq, id_gen) =
-                new_zopseq |> ZPat.mk_inconsistent(id_gen);
-              Succeeded((new_zopseq, new_ctx, id_gen));
-            };
-          };
-        }
+        } else {
+          let (new_zopseq, id_gen) =
+            new_zopseq |> ZPat.mk_inconsistent(id_gen);
+          Succeeded((new_zopseq, ctx, id_gen));
+        };
       }
     }
   /* Subsumption */

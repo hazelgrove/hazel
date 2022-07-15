@@ -45,11 +45,6 @@ let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
-let get_var_name: operand => option(Var.t) =
-  fun
-  | Var(_, _, x) => Some(x)
-  | _ => None;
-
 let rec get_tuple_elements: skel => list(skel) =
   fun
   | BinOp(_, Comma, skel1, skel2) =>

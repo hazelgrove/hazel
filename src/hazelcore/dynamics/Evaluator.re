@@ -747,7 +747,8 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       | (Hole, Ground) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
         switch (d1') {
-        | Cast(d1'', dty'', dty''') when DHTyp.is_hole(dty''') =>
+        | Cast(d1'', dty'', dty''')
+            when DHTyp.is_hole(dty''') || DHTyp.is_tyvar_hole(dty''') =>
           if (DHTyp.equivalent(dty'', dty')) {
             BoxedValue(d1'');
           } else {
