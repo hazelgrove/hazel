@@ -1760,8 +1760,8 @@ and syn_perform_operand =
     let j =
       switch (delim_idx) {
       | 0 => 0
-      /* FIXME: Check for bad delim index */
-      | _1 => EscapedString.length(s)
+      | 1 => EscapedString.length(s)
+      | _ => failwith("syn_perform_operand: bad StringLit OnDelim index")
       };
     syn_perform_operand(
       ctx,
@@ -3411,8 +3411,8 @@ and ana_perform_operand =
     let j =
       switch (delim_idx) {
       | 0 => 0
-      /* FIXME: Check for bad delim index. */
-      | _1 => EscapedString.length(s)
+      | 1 => EscapedString.length(s)
+      | _ => failwith("ana_perform_operand: bad StringLit OnDelim index")
       };
     ana_perform_operand(ctx, a, (CursorE(OnText(j), operand), id_gen), ty);
   /* Disallow quotes directly next to anything */
