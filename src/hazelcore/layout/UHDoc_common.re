@@ -363,14 +363,13 @@ let mk_Subscript =
   let colon_delim = Delim.mid_Subscript() |> annot_Tessera;
   let close_delim = Delim.close_Subscript() |> annot_Tessera;
   Doc.hcats([
-    s |> pad_closed_child(~sort=Exp),
+    s |> pad_bidelimited_open_child,
     open_delim,
-    n1 |> pad_closed_child(~sort=Exp),
+    n1 |> pad_bidelimited_open_child,
     colon_delim,
-    n2 |> pad_closed_child(~sort=Exp),
+    n2 |> pad_bidelimited_open_child,
     close_delim,
   ])
-  |> annot_Tessera
   |> annot_Operand(~sort=Exp);
 };
 
