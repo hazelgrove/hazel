@@ -347,7 +347,7 @@ let%test _ = {
 
 /* type t = 123 in ?  =>  ? */
 let%test _ = {
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidName, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
   statics_exp_syn_simple(
     UHExp.[
       TyAliasLine(TPat.TyVar(NotInHole, "t"), ty),
@@ -359,7 +359,7 @@ let%test _ = {
 
 /* type t = 123 in ?  <=  ? */
 let%test _ = {
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidName, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
   statics_exp_ana_simple(
     UHExp.[
       TyAliasLine(TPat.TyVar(NotInHole, "t"), ty),

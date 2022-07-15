@@ -443,7 +443,7 @@ let novice_summary =
           switch (reason) {
           | ReservedKeyword => "Reserved Keyword"
           | BuiltinType => "Builtin Type"
-          | InvalidName => "Invalid Type Name"
+          | InvalidText => "Invalid Text"
           },
         ),
       ]

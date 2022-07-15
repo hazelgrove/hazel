@@ -4,7 +4,7 @@ module HoleReason: {
   type t =
     | ReservedKeyword
     | BuiltinType
-    | InvalidName;
+    | InvalidText;
 };
 
 /* type variable pattern hole status */

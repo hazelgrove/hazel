@@ -14,7 +14,7 @@ let fix_holes =
     switch (TyTextShape.of_string(t)) {
     | None =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
-      (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
+      (ctx, TyVar(InHole(InvalidText, u), t), id_gen);
     | Some(Int | Bool | Float) =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(BuiltinType, u), t), id_gen);
@@ -27,7 +27,7 @@ let fix_holes =
         (ctx, TyVar(NotInHole, t), id_gen);
       } else {
         let (u, id_gen) = IDGen.next_hole(id_gen);
-        (ctx, TyVar(InHole(InvalidName, u), t), id_gen);
+        (ctx, TyVar(InHole(InvalidText, u), t), id_gen);
       }
     }
   };

@@ -3,7 +3,7 @@ module HoleReason = {
   type t =
     | Unbound
     | Reserved
-    | InvalidName;
+    | InvalidText;
 };
 
 [@deriving sexp]

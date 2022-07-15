@@ -135,7 +135,7 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(OnType(HTyp.bool()), ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
-  | CursorT(_, TyVar(InHole(InvalidName, _), _)) =>
+  | CursorT(_, TyVar(InHole(InvalidText, _), _)) =>
     Some(CursorInfo_common.mk(TypInvalid, ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
     open OptUtil.Syntax;

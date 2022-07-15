@@ -166,7 +166,7 @@ let rec perform =
     switch (TyTextShape.of_string(new_name)) {
     | None =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
-      let tp = TPat.TyVar(InHole(InvalidName, u), new_name);
+      let tp = TPat.TyVar(InHole(InvalidText, u), new_name);
       Succeeded((CursorP(OnText(k + 1), tp), id_gen));
     | Some(shape) =>
       let (tp, id_gen) = text_operand(shape, id_gen);

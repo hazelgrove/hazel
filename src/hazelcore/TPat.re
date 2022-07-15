@@ -6,8 +6,7 @@ module HoleReason = {
   type t =
     | ReservedKeyword
     | BuiltinType
-    /* TODO: (eric) rename InvalidName to InvalidText */
-    | InvalidName;
+    | InvalidText;
 };
 
 /* type variable pattern hole status */
@@ -27,7 +26,7 @@ let of_string = (t: string): t => TyVar(NotInHole, t);
 
 let invalid_of_string = (id_gen: IDGen.t, t: string): (t, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
-  let ty = TyVar(InHole(InvalidName, u), t);
+  let ty = TyVar(InHole(InvalidText, u), t);
   (ty, id_gen);
 };
 

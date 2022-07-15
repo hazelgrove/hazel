@@ -483,7 +483,7 @@ let%test _ = {
 
 /* type t = 123 in ?  =>  type t = 123 in ?  : ? */
 let%test _ = {
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidName, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
   elaborator_exp_syn_elab_simple(
     UHExp.[
       TyAliasLine(TPat.TyVar(NotInHole, "t"), ty),
@@ -491,7 +491,7 @@ let%test _ = {
     ],
     TyAlias(
       TPat.TyVar(NotInHole, "t"),
-      (InitialContext.ctx, HTyp.tyvarhole(InvalidName, u0, "123")),
+      (InitialContext.ctx, HTyp.tyvarhole(InvalidText, u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -501,7 +501,7 @@ let%test _ = {
 /* type t = 123 in ?  <=  type t = 123 in ?  : ? */
 let%test _ = {
   let tp = TPat.TyVar(NotInHole, "t");
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidName, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
   elaborator_exp_ana_elab_simple(
     UHExp.[
       TyAliasLine(tp, ty),
@@ -509,7 +509,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (InitialContext.ctx, HTyp.tyvarhole(InvalidName, u0, "123")),
+      (InitialContext.ctx, HTyp.tyvarhole(InvalidText, u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),

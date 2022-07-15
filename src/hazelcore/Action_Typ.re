@@ -81,7 +81,7 @@ let mk_syn_text =
       ));
     } else {
       let (u, id_gen) = IDGen.next_hole(id_gen);
-      let ty = UHTyp.TyVar(InHole(InvalidName, u), text);
+      let ty = UHTyp.TyVar(InHole(InvalidText, u), text);
       let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, ty));
       Succeeded((zty, id_gen));
       /* Failed; */
