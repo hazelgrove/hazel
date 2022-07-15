@@ -209,9 +209,3 @@ and is_complete_operand = (operand: 'operand): bool => {
   | Inj(NotInHole, _, body) => is_complete(body)
   };
 };
-
-/* let defines_var = (OpSeq(skel, seq): t): bool => */
-/*   switch (seq) { */
-/*   | S(Var(NotInHole) | TypeAnn(_), E) => true */
-/*   | _ => false */
-/*   }; */
