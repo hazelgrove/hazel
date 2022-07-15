@@ -8,7 +8,7 @@ module HoleReason: {
 };
 
 /* type variable pattern hole status */
-module Status: {
+module ErrStatus: {
   [@deriving sexp]
   type t =
     | NotInHole
@@ -18,7 +18,7 @@ module Status: {
 [@deriving sexp]
 type t =
   | EmptyHole
-  | TyVar(Status.t, string);
+  | TyVar(ErrStatus.t, string);
 
 let of_string: string => t;
 let invalid_of_string: (IDGen.t, string) => (t, IDGen.t);

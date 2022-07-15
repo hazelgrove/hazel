@@ -271,7 +271,7 @@ let%test _ = {
 
 /* type t = ? in ?  =>  ? */
 let%test _ = {
-  let tp = TPat.TyVar(TPat.Status.NotInHole, "t");
+  let tp = TPat.TyVar(TPat.ErrStatus.NotInHole, "t");
   let ty = UHTyp.mk_OpSeq(S(Hole, E));
   statics_exp_syn_simple(
     UHExp.[TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
@@ -281,7 +281,7 @@ let%test _ = {
 
 /* type t = ? in ?  <=  ? */
 let%test _ = {
-  let tp = TPat.TyVar(TPat.Status.NotInHole, "t");
+  let tp = TPat.TyVar(TPat.ErrStatus.NotInHole, "t");
   let ty = UHTyp.mk_OpSeq(S(Hole, E));
   statics_exp_ana_simple(
     UHExp.[TyAliasLine(tp, ty), ExpLine(OpSeq.wrap(UHExp.EmptyHole(u0)))],
