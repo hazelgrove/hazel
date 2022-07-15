@@ -140,8 +140,8 @@ and syn_elab_operand =
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Hole, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), Hole, ctx, delta)
+  | Var(NotInHole, InVarHole(ExpandingKeyword(k), u), _) =>
+    Elaborates(ExpandingKeyword(u, 0, k), Hole, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     Elaborates(Var(x), Hole, ctx, delta);
@@ -354,8 +354,8 @@ and ana_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), ty, ctx, delta)
+  | Var(NotInHole, InVarHole(ExpandingKeyword(k), u), _) =>
+    Elaborates(ExpandingKeyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
@@ -411,11 +411,11 @@ let rec renumber_result_only =
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (NonEmptyHole(reason, u, i, dp1), hii);
-  | Keyword(u, _, k) =>
+  | ExpandingKeyword(u, _, k) =>
     /* TODO: see above */
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Keyword(u, i, k), hii);
+    (ExpandingKeyword(u, i, k), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);

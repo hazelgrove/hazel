@@ -5,7 +5,7 @@ let precedence = (dp: DHPat.t) =>
   | EmptyHole(_)
   | NonEmptyHole(_)
   | Wild
-  | Keyword(_)
+  | ExpandingKeyword(_)
   | InvalidText(_)
   | Var(_)
   | IntLit(_)
@@ -35,7 +35,7 @@ let rec mk =
     | EmptyHole(u, i) => DHDoc_common.mk_EmptyHole((u, i))
     | NonEmptyHole(reason, u, i, dp) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | Keyword(u, i, k) => DHDoc_common.mk_ExpandingKeyword(u, i, k)
+    | ExpandingKeyword(u, i, k) => DHDoc_common.mk_ExpandingKeyword(u, i, k)
     | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
