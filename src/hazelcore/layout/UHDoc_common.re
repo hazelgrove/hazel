@@ -359,13 +359,16 @@ let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
 
 let mk_Subscript =
     (s: formatted_child, n1: formatted_child, n2: formatted_child): t => {
+  let open_delim = Delim.open_Subscript() |> annot_Tessera;
+  let colon_delim = Delim.mid_Subscript() |> annot_Tessera;
+  let close_delim = Delim.close_Subscript() |> annot_Tessera;
   Doc.hcats([
     s |> pad_closed_child(~sort=Exp),
-    Delim.open_Subscript() |> annot_Tessera,
-    n1 |> pad_bidelimited_open_child,
-    Delim.mid_Subscript() |> annot_Tessera,
-    n2 |> pad_bidelimited_open_child,
-    Delim.close_Subscript() |> annot_Tessera,
+    open_delim,
+    n1 |> pad_closed_child(~sort=Exp),
+    colon_delim,
+    n2 |> pad_closed_child(~sort=Exp),
+    close_delim,
   ])
   |> annot_Tessera
   |> annot_Operand(~sort=Exp);
