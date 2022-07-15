@@ -602,7 +602,7 @@ let get_new_action_group =
           switch (new_cursor_term_info.cursor_term_before) {
           | ExpOperand(pos, uexp_operand) =>
             switch (uexp_operand) {
-            | Var(_, InVarHole(Keyword(k), _), _) =>
+            | Var(_, InVarHole(ExpandingKeyword(k), _), _) =>
               switch (k) {
               | Fun
               | Let =>

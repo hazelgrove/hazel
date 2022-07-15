@@ -325,7 +325,7 @@ let mk_syn_text =
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHExp.var(
-        ~var_err=InVarHole(Keyword(k), u),
+        ~var_err=InVarHole(ExpandingKeyword(k), u),
         k |> ExpandingKeyword.to_string,
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -372,7 +372,7 @@ let mk_ana_text =
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHExp.var(
-        ~var_err=InVarHole(Keyword(k), u),
+        ~var_err=InVarHole(ExpandingKeyword(k), u),
         k |> ExpandingKeyword.to_string,
       );
     let ze = ZExp.ZBlock.wrap(CursorE(text_cursor, var));
@@ -1294,7 +1294,7 @@ and syn_perform_opseq =
   | (
       Construct(SOp(SSpace)),
       ZOperand(
-        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as zoperand,
+        CursorE(_, Var(_, InVarHole(ExpandingKeyword(k), _), _)) as zoperand,
         surround,
       ),
     )
@@ -2971,7 +2971,7 @@ and ana_perform_opseq =
   | (
       Construct(SOp(SSpace)),
       ZOperand(
-        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as zoperand,
+        CursorE(_, Var(_, InVarHole(ExpandingKeyword(k), _), _)) as zoperand,
         surround,
       ),
     )

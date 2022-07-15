@@ -5,8 +5,7 @@ type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
   | Wild
-  // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  | ExpandingKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
   | IntLit(int)
@@ -41,7 +40,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | StringLit(_)
   | Triv
   | ListNil
-  | Keyword(_, _, _) => false
+  | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)

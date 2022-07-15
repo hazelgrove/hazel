@@ -457,7 +457,7 @@ and syn_cursor_info_skel =
           Statics_Exp.syn_operand(ctx, operand_nih)
           |> Option.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
-        | Some(VarErr(Keyword(k))) =>
+        | Some(VarErr(ExpandingKeyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
@@ -527,7 +527,7 @@ and syn_cursor_info_zoperand =
   switch (zoperand) {
   | CursorE(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(SynInvalid, ctx, cursor_term))
-  | CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) =>
+  | CursorE(_, Var(_, InVarHole(ExpandingKeyword(k), _), _)) =>
     Some(CursorInfo_common.mk(SynKeyword(k), ctx, cursor_term))
   | CursorE(_, Var(_, InVarHole(Free, _), _)) =>
     Some(CursorInfo_common.mk(SynFree, ctx, cursor_term))
@@ -853,7 +853,7 @@ and ana_cursor_info_zoperand =
   | CursorE(_, e) =>
     switch (e) {
     /* in hole */
-    | Var(_, InVarHole(Keyword(k), _), _) =>
+    | Var(_, InVarHole(ExpandingKeyword(k), _), _) =>
       Some(CursorInfo_common.mk(AnaKeyword(ty, k), ctx, cursor_term))
     | Var(_, InVarHole(Free, _), _) =>
       Some(CursorInfo_common.mk(AnaFree(ty), ctx, cursor_term))
