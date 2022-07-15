@@ -46,7 +46,6 @@ type t =
   /* Hole types */
   | EmptyHole(MetaVar.t, HoleClosureId.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
-  // TODO rename to ExpandingKeyword
   | ExpandingKeyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
   | FreeVar(MetaVar.t, HoleClosureId.t, Var.t)
   | InvalidText(MetaVar.t, HoleClosureId.t, string)

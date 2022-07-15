@@ -775,7 +775,7 @@ and syn_fix_holes_operand =
         let (u, id_gen) = IDGen.next_hole(id_gen);
         let reason: VarErrStatus.HoleReason.t =
           switch (ExpandingKeyword.mk(x)) {
-          | Some(t) => Keyword(t)
+          | Some(t) => ExpandingKeyword(t)
           | None => Free
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, id_gen);
