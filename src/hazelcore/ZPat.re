@@ -355,8 +355,7 @@ and move_cursor_right_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _) |
-      StringLit(_, _),
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
