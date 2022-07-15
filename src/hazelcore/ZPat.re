@@ -41,7 +41,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | StringLit(_, s) =>
-      List.append(delim_cursors(2), text_cursors(String.length(s)))
+      List.append(delim_cursors(2), text_cursors(EscapedString.length(s)))
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
@@ -258,6 +258,7 @@ and move_cursor_left_zopseq = zopseq =>
   )
 and move_cursor_left_zoperand =
   fun
+  /* FIXME: Fix movement for StringLit. */
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))

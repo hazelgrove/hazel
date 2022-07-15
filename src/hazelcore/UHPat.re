@@ -17,7 +17,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | StringLit(ErrStatus.t, string)
+  | StringLit(ErrStatus.t, EscapedString.t)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
@@ -44,7 +44,7 @@ let intlit = (~err: ErrStatus.t=NotInHole, n: string) => IntLit(err, n);
 
 let floatlit = (~err: ErrStatus.t=NotInHole, f: string) => FloatLit(err, f);
 
-let stringlit = (~err: ErrStatus.t=NotInHole, s: string) =>
+let stringlit = (~err: ErrStatus.t=NotInHole, s: EscapedString.t) =>
   StringLit(err, s);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);

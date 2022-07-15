@@ -274,8 +274,8 @@ let mk_FloatLit = (~sort: TermSort.t, f: string): t =>
 let mk_BoolLit = (~sort: TermSort.t, b: bool): t =>
   mk_text(string_of_bool(b)) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_StringLit = (~sort: TermSort.t, s: string): t => {
-  let inner = mk_text(s);
+let mk_StringLit = (~sort: TermSort.t, s: EscapedString.t): t => {
+  let inner = s |> EscapedString.to_string |> mk_text;
   let open_group = Delim.open_StringLit() |> annot_Tessera;
   let close_group = Delim.close_StringLit() |> annot_Tessera;
   Doc.hcats([open_group, inner, close_group])

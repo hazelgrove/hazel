@@ -83,7 +83,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | StringLit(_, s) =>
     List.append(
       CursorPosition.delim_cursors(2),
-      CursorPosition.text_cursors(String.length(s)),
+      CursorPosition.text_cursors(EscapedString.length(s)),
     )
   /* inner nodes */
   | Fun(_, _, _) => {
@@ -706,7 +706,7 @@ and move_cursor_left_zoperand =
   | CursorE(OnDelim(k, Before), StringLit(_, s) as e) =>
     switch (k) {
     | 0 => None
-    | 1 => Some(CursorE(OnText(String.length(s)), e))
+    | 1 => Some(CursorE(OnText(EscapedString.length(s)), e))
     | _ => failwith("move_cursor_left_zoperand: invalid StringLit OnDelim")
     }
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>

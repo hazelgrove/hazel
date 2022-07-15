@@ -62,5 +62,5 @@ let parse lexbuf =
   let _ = State.clear state in
   r
 
-let from_string s = s |> Lexing.from_string |> parse
+let from_string s = s |> EscapedString.to_string |> Lexing.from_string |> parse
 }

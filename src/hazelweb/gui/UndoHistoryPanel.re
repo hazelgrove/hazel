@@ -117,7 +117,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [
             code_keywords_view("String"),
             indicate_words_view(" literal "),
-            code_view(str),
+            code_view(EscapedString.to_string(str)),
           ],
         )
       )
@@ -207,7 +207,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [
             code_keywords_view("String"),
             indicate_words_view(" literal "),
-            code_view(str),
+            code_view(EscapedString.to_string(str)),
           ],
         )
       )

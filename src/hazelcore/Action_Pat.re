@@ -691,14 +691,14 @@ and syn_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     syn_delete_text(ctx, id_gen, j, string_of_bool(b))
   | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == String.length(s)) {
+    if (j == EscapedString.length(s)) {
       /* Delete at end of string, before delim, deletes the string */
       let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, Hole, ctx, id_gen));
     } else {
       /* Delete inside a string deletes the next character in the string */
-      let new_text = s |> StringUtil.delete(j);
+      let new_text = s |> EscapedString.apply(StringUtil.delete(j));
       let text_cursor = CursorPosition.OnText(j);
       let zp =
         ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -723,7 +723,7 @@ and syn_perform_operand =
       Succeeded((zp, Hole, ctx, id_gen));
     } else {
       /* Backspace inside a string deletes the previous character in the string */
-      let new_text = s |> StringUtil.backspace(j);
+      let new_text = s |> EscapedString.apply(StringUtil.backspace(j));
       let text_cursor = CursorPosition.OnText(j - 1);
       let zp =
         ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -805,7 +805,7 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
   | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, x))) =>
-    let new_text = x |> StringUtil.insert(j, s);
+    let new_text = x |> EscapedString.apply(StringUtil.insert(j, s));
     let text_cursor = CursorPosition.OnText(j + 1);
     let zp =
       ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -820,7 +820,10 @@ and syn_perform_operand =
   /* Insert new empty string literal in an empty hole */
   | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
     let text_cursor = CursorPosition.OnText(0);
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(text_cursor, UHPat.stringlit(EscapedString.empty)),
+      );
     Succeeded((zp, String, ctx, id_gen));
   /* Insert a quote at beginning/end of string literal */
   | (
@@ -830,7 +833,8 @@ and syn_perform_operand =
     let j =
       switch (delim_idx) {
       | 0 => 0
-      | _1 => String.length(s)
+      /* FIXME: Check for bad delim index */
+      | _1 => EscapedString.length(s)
       };
     syn_perform_operand(ctx, id_gen, a, CursorP(OnText(j), operand));
   /* Disallow quotes directly next to something else */
@@ -1358,17 +1362,17 @@ and ana_perform_operand =
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
     ana_delete_text(ctx, id_gen, j, string_of_bool(b), ty)
   | (Delete, CursorP(OnText(j), StringLit(_, s))) =>
-    if (j == String.length(s)) {
+    if (j == EscapedString.length(s)) {
       /* Delete at end of string, before quotation, deletes the string */
       let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
       let zp = ZOpSeq.wrap(zhole);
       Succeeded((zp, ctx, id_gen));
     } else {
       /* Delete inside a string deletes the next character in the string */
-      let new_s = s |> StringUtil.delete(j);
+      let new_text = s |> EscapedString.apply(StringUtil.delete(j));
       let text_cursor = CursorPosition.OnText(j);
       let zp =
-        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_s)));
+        ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
       if (HTyp.consistent(ty, HTyp.String)) {
         Succeeded((zp, ctx, id_gen));
       } else {
@@ -1395,7 +1399,7 @@ and ana_perform_operand =
       Succeeded((zp, ctx, id_gen));
     } else {
       /* Backspace inside a string deletes the previous character in the string */
-      let new_text = s |> StringUtil.backspace(j);
+      let new_text = s |> EscapedString.apply(StringUtil.backspace(j));
       let text_cursor = CursorPosition.OnText(j - 1);
       let zp =
         ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -1501,7 +1505,7 @@ and ana_perform_operand =
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     ana_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ty)
   | (Construct(SChar(s)), CursorP(OnText(j), StringLit(_, x))) =>
-    let new_text = x |> StringUtil.insert(j, s);
+    let new_text = x |> EscapedString.apply(StringUtil.insert(j, s));
     let text_cursor = CursorPosition.OnText(j + 1);
     let zp =
       ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit(new_text)));
@@ -1515,7 +1519,10 @@ and ana_perform_operand =
   /* Construct a new empty string literal in an empty hole */
   | (Construct(SQuote), CursorP(OnDelim(_), EmptyHole(_))) =>
     let text_cursor = CursorPosition.OnText(0);
-    let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.stringlit("")));
+    let zp =
+      ZOpSeq.wrap(
+        ZPat.CursorP(text_cursor, UHPat.stringlit(EscapedString.empty)),
+      );
     if (HTyp.consistent(ty, HTyp.String)) {
       Succeeded((zp, ctx, id_gen));
     } else {
@@ -1530,7 +1537,8 @@ and ana_perform_operand =
     let j =
       switch (delim_idx) {
       | 0 => 0
-      | _1 => String.length(s)
+      /* FIXME: Check for bad delim index. */
+      | _1 => EscapedString.length(s)
       };
     ana_perform_operand(ctx, id_gen, a, CursorP(OnText(j), operand), ty);
   /* Disallow quotes directly next to anything else */

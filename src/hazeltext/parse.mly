@@ -182,7 +182,7 @@ pat_:
   | EMPTY_HOLE { UHPat.EmptyHole 0 }
   | INT { UHPat.intlit $1 }
   | FLOAT { UHPat.floatlit $1 }
-  | STRING { UHPat.stringlit (unquote $1) }
+  | STRING { UHPat.stringlit (EscapedString.of_string (unquote $1)) }
   | TRUE { UHPat.boollit true }
   | FALSE { UHPat.boollit false }
   | WILD { UHPat.wild () }
@@ -217,7 +217,7 @@ expr_:
   | EMPTY_HOLE { UHExp.EmptyHole 0 }
   | INT { UHExp.intlit $1 }
   | FLOAT { UHExp.floatlit $1 }
-  | STRING { UHExp.stringlit (unquote $1) }
+  | STRING { UHExp.stringlit (EscapedString.of_string (unquote $1)) }
   | TRUE { UHExp.boollit true }
   | FALSE { UHExp.boollit false }
 ;

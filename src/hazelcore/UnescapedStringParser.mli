@@ -13,6 +13,7 @@ type parsed = {
 [@@deriving sexp]
 
 val parse : Lexing.lexbuf -> parsed
-(** Parse a string literal. *)
+(** [parse lexbuf] parses [lexbuf]. *)
 
-val from_string : string -> parsed
+val from_string : EscapedString.t -> parsed
+(** [from_string s] parses [s]. *)
