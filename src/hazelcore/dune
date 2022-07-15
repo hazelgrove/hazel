@@ -2,7 +2,7 @@
 
 (library
  (name hazelcore)
- (libraries re sexplib camomile pretty logs)
+ (libraries re sexplib camomile pretty)
  (wrapped false)
  (js_of_ocaml
   (flags

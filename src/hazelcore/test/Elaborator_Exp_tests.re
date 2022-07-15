@@ -1,5 +1,5 @@
-Logs.set_reporter(Log.reporter(Format.std_formatter));
-Logs.set_level(Some(Logs.Warning));
+/* Logs.set_reporter(Log.reporter(Format.std_formatter)); */
+/* Logs.set_level(Some(Logs.Warning)); */
 
 let elaborator_exp_syn_elab_simple =
     (

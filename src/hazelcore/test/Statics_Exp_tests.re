@@ -1,5 +1,5 @@
-Logs.set_reporter(Log.reporter(Format.std_formatter));
-Logs.set_level(Some(Logs.Warning));
+/* Logs.set_reporter(Log.reporter(Format.std_formatter)); */
+/* Logs.set_level(Some(Logs.Warning)); */
 
 let ap_opt =
     (f: ('a, 'a) => 'bool, a_opt: option('a), b_opt: option('a)): bool =>
