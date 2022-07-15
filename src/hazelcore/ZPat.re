@@ -258,13 +258,21 @@ and move_cursor_left_zopseq = zopseq =>
   )
 and move_cursor_left_zoperand =
   fun
-  /* FIXME: Fix movement for StringLit. */
   | z when is_before_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
-  | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
+  | CursorP(OnText(j), e) when j > 0 => Some(CursorP(OnText(j - 1), e))
+  | CursorP(OnText(_j), StringLit(_, _) as e) =>
+    Some(CursorP(OnDelim(0, After), e)) /* _j == 0 */
+  | CursorP(OnText(_j), _) => None /* _j == 0 */
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(k, Before), StringLit(_, s) as e) =>
+    switch (k) {
+    | 0 => None
+    | 1 => Some(CursorP(OnText(EscapedString.length(s)), e))
+    | _ => failwith("move_cursor_left_zoperand: invalid StringLit OnDelim")
+    }
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
@@ -276,8 +284,7 @@ and move_cursor_left_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _) |
-      StringLit(_, _),
+      FloatLit(_, _),
     ) =>
     // invalid cursor position
     None
@@ -324,9 +331,19 @@ and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
   | CursorP(OnOp(_), _) => None
-  | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
+  | CursorP(OnText(j), e) when is_valid_cursor_operand(OnText(j + 1), e) =>
+    Some(CursorP(OnText(j + 1), e))
+  | CursorP(OnText(_j), StringLit(_, _) as e) =>
+    Some(CursorP(OnDelim(1, Before), e)) /* _j < String.length(s) */
+  | CursorP(OnText(_j), _) => None
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(k, After), StringLit(_, _) as e) =>
+    switch (k) {
+    | 0 => Some(CursorP(OnText(0), e))
+    | 1 => None
+    | _ => failwith("move_cursor_right_zoperand: invalid StringLit OnDelim")
+    }
   | CursorP(OnDelim(_k, After), TypeAnn(err, p, a)) =>
     Some(TypeAnnZA(err, p, ZTyp.place_before(a)))
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
