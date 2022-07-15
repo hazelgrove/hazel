@@ -163,15 +163,23 @@ and syn_cursor_info_skel =
           ctx,
           skel1,
           zseq,
-          HTyp.Unknown(Internal),
+          HTyp.Unknown(Internal(Dummy)),
         )
       ) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal))) {
+        switch (
+          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(Dummy)))
+        ) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Unknown(Internal))
+          ana_cursor_info_skel(
+            ~steps,
+            ctx,
+            skel2,
+            zseq,
+            Unknown(Internal(Dummy)),
+          )
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>

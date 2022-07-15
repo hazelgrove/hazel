@@ -9,6 +9,7 @@ and internal_provenance =
   // enumerate other base cases here if applicable; try to avoid
   | ExpPatHole(MetaVar.t) // TODO anand raef: rename this possibly
   | Wildcard
+  | Dummy
   | Matched_arrow_L(unknown_type_provenance)
   | Matched_arrow_R(unknown_type_provenance)
   | Matched_sum_L(unknown_type_provenance)

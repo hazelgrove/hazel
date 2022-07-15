@@ -100,7 +100,7 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.Unknown(Internal(ExpPatHole(u))), ctx, u_gen)); // TODO anand raef: need to figure out how to handle (not really a constraint) (need separate case?)
+    Succeeded((zp, HTyp.Unknown(Internal(Wildcard)), ctx, u_gen)); // TODO anand raef: need to figure out how to handle (not really a constraint) (need separate case?)
   | Var(x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Unknown(ModeSwitch)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
@@ -789,7 +789,7 @@ and syn_perform_operand =
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Unknown(Internal)), ctx, u_gen));
+    Succeeded((zp, List(Unknown(Internal(Wildcard))), ctx, u_gen)); // todo anand raef: clarify with cyrus difference between 'a (forall type) and hole type
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -801,13 +801,14 @@ and syn_perform_operand =
 
   | (Construct(SInj(side)), CursorP(_) as zbody) =>
     let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, ZOpSeq.wrap(zbody)));
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
     switch (Statics_Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((body_ty, ctx)) =>
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), body_ty)
+        | L => HTyp.Sum(body_ty, Unknown(Internal(ExpPatHole(u))))
+        | R => HTyp.Sum(Unknown(Internal(ExpPatHole(u))), body_ty)
         };
       Succeeded((zp, ty, ctx, u_gen));
     };
@@ -895,10 +896,11 @@ and syn_perform_operand =
       syn_perform_operand(ctx, u_gen, Action_common.escape(side), zoperand)
     | Succeeded((zbody, ty1, ctx, u_gen)) =>
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
+      let (u, u_gen) = MetaVarGen.next(u_gen);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), ty1)
+        | L => HTyp.Sum(ty1, Unknown(Internal(ExpPatHole(u))))
+        | R => HTyp.Sum(Unknown(Internal(ExpPatHole(u))), ty1)
         };
       Succeeded((zp, ty, ctx, u_gen));
     }

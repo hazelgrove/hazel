@@ -522,9 +522,15 @@ and mk_inconsistent_zoperand = (u_gen, zoperand) =>
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
     (zoperand, u_gen);
   };
+let new_EmptyHole_and_id =
+    (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t, MetaVar.t) => {
+  let (hole, u_gen, u) = UHExp.new_EmptyHole_and_id(u_gen);
+  (place_before_operand(hole), u_gen, u);
+};
+
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-  (place_before_operand(hole), u_gen);
+  let (zhole, u_gen, _) = new_EmptyHole_and_id(u_gen);
+  (zhole, u_gen);
 };
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
