@@ -3,8 +3,7 @@ type t =
   | EmptyHole(MetaVar.t, HoleClosureId.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleClosureId.t, t)
   | Wild
-  // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
+  | ExpandingKeyword(MetaVar.t, HoleClosureId.t, ExpandingKeyword.t)
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | Var(Var.t)
   | IntLit(int)

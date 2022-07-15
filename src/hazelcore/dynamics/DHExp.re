@@ -175,7 +175,7 @@ let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-  | ExpandingKeyword(_, _, _) => "Keyword"
+  | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
   | FreeVar(_, _, _) => "FreeVar"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"

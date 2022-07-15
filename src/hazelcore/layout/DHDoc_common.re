@@ -91,7 +91,7 @@ let mk_EmptyHole = (~selected=false, hc: HoleClosure.t) =>
 
 let mk_ExpandingKeyword = (hc, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(Keyword(k), hc));
+  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), hc));
 
 let mk_InvalidText = (t, hc) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
