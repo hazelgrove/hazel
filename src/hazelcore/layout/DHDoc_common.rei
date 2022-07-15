@@ -70,7 +70,7 @@ module Delim: {
 let mk_EmptyHole:
   (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_Keyword:
+let mk_ExpandingKeyword:
   (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_InvalidText:

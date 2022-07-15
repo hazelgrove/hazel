@@ -138,8 +138,12 @@ type t =
       VarMap.t(t),
       t,
     )
-  // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t(t), ExpandingKeyword.t)
+  | ExpandingKeyword(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t(t),
+      ExpandingKeyword.t,
+    )
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t(t), Var.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
@@ -174,7 +178,7 @@ let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"
   | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
-  | Keyword(_, _, _, _) => "Keyword"
+  | ExpandingKeyword(_, _, _, _) => "ExpandingKeyword"
   | FreeVar(_, _, _, _) => "FreeVar"
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"

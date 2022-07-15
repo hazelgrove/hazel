@@ -70,7 +70,8 @@ and syn_operand =
   /* not in hole */
   | Wild(NotInHole) => Some((HTyp.hole(), ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((HTyp.hole(), ctx))
+  | Var(NotInHole, InVarHole(ExpandingKeyword(_), _), _) =>
+    Some((HTyp.hole(), ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
@@ -184,7 +185,7 @@ and ana_operand =
       ? Some(ctx) : None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
+  | Var(NotInHole, InVarHole(ExpandingKeyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Context.add_var(ctx, x, ty)))
   | Wild(NotInHole) => Some(ctx)
@@ -420,7 +421,7 @@ and syn_fix_holes_operand =
   | Wild(_) => (operand_nih, HTyp.hole(), ctx, id_gen)
   | InvalidText(_) => (operand_nih, HTyp.hole(), ctx, id_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (
+  | Var(_, InVarHole(ExpandingKeyword(_), _), _) => (
       operand_nih,
       HTyp.hole(),
       ctx,
@@ -716,7 +717,11 @@ and ana_fix_holes_operand =
   | Wild(_) => (operand_nih, ctx, id_gen)
   | InvalidText(_) => (operand_nih, ctx, id_gen)
   | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (operand_nih, ctx, id_gen)
+  | Var(_, InVarHole(ExpandingKeyword(_), _), _) => (
+      operand_nih,
+      ctx,
+      id_gen,
+    )
   | Var(_, NotInVarHole, x) =>
     let ctx = Context.add_var(ctx, x, ty);
     (operand_nih, ctx, id_gen);
