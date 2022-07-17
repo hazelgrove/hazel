@@ -187,16 +187,7 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     let* ty_body = syn(ctx, body);
     let* (tp, ty_def) = HTyp.matched_forall(ctx, ty_body);
     let+ (arg, _k, _delta) = Elaborator_Typ.syn_elab(ctx, Delta.empty, arg);
-    let tyvar_ref =
-      switch (tp) {
-      | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
-      | _ => None
-      };
-    tyvar_ref
-    |> Option.map(tyvar_ref =>
-         HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg)])
-       )
-    |> Option.value(~default=ty_def);
+    HTyp.subst_tpat(ctx, ty_def, tp, arg);
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
