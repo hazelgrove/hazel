@@ -546,6 +546,7 @@ and HTyp: {
   let tyvar_name: t => option(TyVar.t);
 
   let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
+  let subst_tpat: (Context.t, t, TPat.t, t) => t;
 
   type join =
     | GLB
@@ -755,6 +756,20 @@ and HTyp: {
       ty,
       tyvars,
     );
+
+  let subst_tpat = (ctx: Context.t, ty: t, tp: TPat.t, ty': t): t => {
+    let tyvar_ref =
+      switch (tp) {
+      | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
+      | _ => None
+      };
+    let new_ty =
+      switch (tyvar_ref) {
+      | Some(tyvar_ref) => subst_tyvar(ctx, ty, tyvar_ref, ty')
+      | None => ty
+      };
+    new_ty;
+  };
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {

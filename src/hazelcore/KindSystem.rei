@@ -322,6 +322,7 @@ and HTyp: {
   /** Type variable substitution.  */
   /* let subst_tyvar: (t, Index.Abs.t, t) => t; */
   let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
+  let subst_tpat: (Context.t, t, TPat.t, t) => t;
 
   /* Joins */
 
