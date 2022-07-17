@@ -1845,35 +1845,15 @@ and syn_perform_operand =
     Succeeded(SynDone((new_ze, HTyp.forall(TPat.EmptyHole, ty), id_gen)));
 
   | (Construct(STypApp), CursorE(_, operand)) =>
-    switch (Statics_Exp.syn_operand(ctx, operand)) {
-    | None => Failed
-    | Some(ty_body) =>
-      switch (HTyp.matched_forall(ctx, ty_body)) {
-      | None => Failed
-      | Some((tp, ty_def)) =>
-        // TODO: (poly) substitute tyvar for hole?
-        let tyvar_ref =
-          switch (tp) {
-          | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
-          | _ => None
-          };
-        let new_ty =
-          tyvar_ref
-          |> Option.map(tyvar_ref =>
-               HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, HTyp.hole())])
-             )
-          |> Option.value(~default=ty);
-        let new_ze =
-          ZExp.ZBlock.wrap(
-            TypAppZT(
-              NotInHole,
-              UHExp.Block.wrap(operand),
-              ZTyp.place_before(OpSeq.wrap(UHTyp.Hole)),
-            ),
-          );
-        Succeeded(SynDone((new_ze, new_ty, id_gen)));
-      }
-    }
+    let new_ze =
+      ZExp.ZBlock.wrap(
+        TypAppZT(
+          NotInHole,
+          UHExp.Block.wrap(operand),
+          ZTyp.place_before(UHTyp.contract(HTyp.hole())),
+        ),
+      );
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -2067,7 +2047,6 @@ and syn_perform_operand =
       )
     | Succeeded((ztp, id_gen)) =>
       let tp = ZTPat.erase(ztp);
-      // TODO: (poly) do we need to add tp to body ctx?
       let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
       let (body, ty_body, id_gen) =
         Statics_Exp.syn_fix_holes(body_ctx, id_gen, body);
@@ -2115,17 +2094,7 @@ and syn_perform_operand =
           switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, arg)) {
           | None => Failed
           | Some((arg_ty, _, _)) =>
-            let tyvar_ref =
-              switch (tp) {
-              | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
-              | _ => None
-              };
-            let new_ty =
-              tyvar_ref
-              |> Option.map(tyvar_ref =>
-                   HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg_ty)])
-                 )
-              |> Option.value(~default=ty_def);
+            let new_ty = HTyp.subst_tpat(ctx, ty_def, tp, arg_ty);
             let new_ze = ZExp.ZBlock.wrap(TypAppZE(NotInHole, zbody, arg));
             Succeeded(SynDone((new_ze, new_ty, id_gen)));
           }
@@ -2154,17 +2123,7 @@ and syn_perform_operand =
           switch (HTyp.matched_forall(ctx, ty_body)) {
           | None => Failed
           | Some((tp, ty_def)) =>
-            let tyvar_ref =
-              switch (tp) {
-              | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
-              | _ => None
-              };
-            let new_ty =
-              tyvar_ref
-              |> Option.map(tyvar_ref =>
-                   HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg_ty)])
-                 )
-              |> Option.value(~default=ty_def);
+            let new_ty = HTyp.subst_tpat(ctx, ty_def, tp, arg_ty);
             let new_ze =
               ZExp.ZBlock.wrap(TypAppZT(NotInHole, body, new_zarg));
             Succeeded(SynDone((new_ze, new_ty, id_gen)));
@@ -3573,27 +3532,7 @@ and ana_perform_operand =
     };
 
   | (Construct(STypApp), CursorE(_)) =>
-    // TODO: (poly) should we wrap the supplied ty as a forall and ana against it?
-    let exp = UHExp.Block.wrap(ZExp.erase_zoperand(zoperand));
-    let whole_exp =
-      UHExp.Block.wrap(
-        UHExp.TypApp(NotInHole, exp, UHTyp.contract(HTyp.hole())),
-      );
-    let (whole_exp, _whole_exp_ty, id_gen) =
-      Statics_Exp.syn_fix_holes(ctx, id_gen, whole_exp);
-    let zty_hole = ZTyp.place_before(UHTyp.contract(HTyp.hole()));
-    switch (Statics_Exp.ana(ctx, whole_exp, ty)) {
-    | Some () =>
-      let new_ze = ZExp.ZBlock.wrap(TypAppZT(NotInHole, exp, zty_hole));
-      Succeeded(AnaDone((new_ze, id_gen)));
-    | None =>
-      let (id, id_gen) = id_gen |> IDGen.next_hole;
-      let new_ze =
-        ZExp.ZBlock.wrap(
-          TypAppZT(InHole(TypeInconsistent, id), exp, zty_hole),
-        );
-      Succeeded(AnaDone((new_ze, id_gen)));
-    };
+    ana_perform_subsume(ctx, a, (zoperand, id_gen), ty)
 
   | (Construct(SCloseBraces), FunZE(_, _, zblock))
       when ZExp.is_after_zblock(zblock) =>
