@@ -114,9 +114,7 @@ let apply_action =
             reason
             |> EvalPostprocess.sexp_of_error
             |> Sexplib.Sexp.to_string_hum;
-          JSUtil.log(
-            "[EvalPostprocessError.Exception(" ++ serialized ++ ")]",
-          );
+          JSUtil.log("[EvalPostprocess.Exception(" ++ serialized ++ ")]");
           model;
         | exception Program.DoesNotElaborate =>
           JSUtil.log("[Program.DoesNotElaborate]");
