@@ -44,11 +44,13 @@ let register_negative_test = (title, tags, text) =>
     test_parse(text) ? Test.fail("parse did not fail!") : unit
   );
 
-let () = register_test("basic types", [], "1; two; 3.0; true; false");
+let () =
+  register_test("basic types", [], "1; two; 3.0; true; false; \"abc\"; \"\"");
 let () = register_test("let basic", [], "let a = 1 in a");
 let () = register_test("let type annotation", [], "let a : Int = 1 in a");
 let () = register_test("basic lambda", [], "fun f {f}");
 let () = register_test("multiline", [], "let a = 1 in a");
+let () = register_negative_test("subscript", [], "\"abc\"[1:3]");
 let () = register_test("comment", [], "#Comment\n 3");
 /* Currently, the final line must be an Exp line */
 let () = register_negative_test("bad comment", [], "#Comment \n 3; #Comment");
