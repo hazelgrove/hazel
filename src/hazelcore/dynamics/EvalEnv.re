@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t = DHExp.evalenv;
+type t = DHExp.env;
 
 [@deriving sexp]
 type result_map = VarBstMap.t_(EvaluatorResult.t);

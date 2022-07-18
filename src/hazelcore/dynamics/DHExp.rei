@@ -51,7 +51,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
-  | Closure(evalenv, t)
+  | Closure(env, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
@@ -78,7 +78,7 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
-and evalenv = (EvalEnvId.t, VarBstMap.t_(result))
+and env = (EvalEnvId.t, VarBstMap.t_(result))
 and result =
   | BoxedValue(t)
   | Indet(t);
