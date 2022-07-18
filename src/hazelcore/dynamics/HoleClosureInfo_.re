@@ -8,7 +8,7 @@ let empty: t = MetaVarMap.empty;
 
 let number_hole_closure =
     (hci: t, u: MetaVar.t, env: EvalEnv.t): (t, HoleClosureId.t) => {
-  let ei = env |> EvalEnv.id_of_evalenv;
+  let ei = env |> EvalEnv.id_of;
   switch (hci |> MetaVarMap.find_opt(u)) {
   /* Hole already exists in the HoleClosureInfo_.t */
   | Some(hcs) =>

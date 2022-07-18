@@ -263,15 +263,15 @@ and pp_eval =
 and pp_eval_env =
     (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t)
     : (t, HoleClosureInfo_.t, EvalEnv.t) => {
-  let ei = env |> EvalEnv.id_of_evalenv;
+  let ei = env |> EvalEnv.id_of;
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hci, env)
   | None =>
     let (pe, hci, result_map) =
       VarBstMap.fold(
-        ((x, dr: EvaluatorResult.t), (pe, hci, new_env)) => {
-          let (pe, hci, dr: EvaluatorResult.t) =
-            switch (dr) {
+        ((x, r: EvaluatorResult.t), (pe, hci, new_env)) => {
+          let (pe, hci, r: EvaluatorResult.t) =
+            switch (r) {
             | BoxedValue(d) =>
               let (pe, hci, d) = pp_eval(pe, hci, d);
               (pe, hci, BoxedValue(d));
@@ -279,10 +279,10 @@ and pp_eval_env =
               let (pe, hci, d) = pp_eval(pe, hci, d);
               (pe, hci, Indet(d));
             };
-          (pe, hci, VarBstMap.extend(new_env, (x, dr)));
+          (pe, hci, VarBstMap.extend(new_env, (x, r)));
         },
         (pe, hci, VarBstMap.empty),
-        env |> EvalEnv.result_map_of_evalenv,
+        env |> EvalEnv.map_of,
       );
     let env = (ei, result_map);
     (pe |> EnvironmentIdMap.add(ei, env), hci, env);
@@ -367,16 +367,16 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
       List.fold_right(
         ((i, (env, _)), hci) =>
           VarBstMap.fold(
-            ((x, dr: DHExp.result), hci) => {
+            ((x, r: EvaluatorResult.t), hci) => {
               let d =
-                switch (dr) {
+                switch (r) {
                 | BoxedValue(d) => d
                 | Indet(d) => d
                 };
               track_children_of_hole(hci, (x, (u, i)), d);
             },
             hci,
-            env |> EvalEnv.result_map_of_evalenv,
+            env |> EvalEnv.map_of,
           ),
         hcs |> List.mapi((i, hc) => (i, hc)),
         hci,

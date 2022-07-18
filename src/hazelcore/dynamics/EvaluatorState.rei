@@ -1,4 +1,4 @@
-/* EvaluatorState.re: Holds state to be threaded throughout evaluation.
+/* EvaluatorState: Holds state to be threaded throughout evaluation.
 
    Currently holds information about numbered environments, and
    evaluation statistics (e.g., number of calls to `Evaluator.evaluate`).
@@ -7,16 +7,13 @@
    */
 
 [@deriving sexp]
-type t = {
-  ei: EnvironmentId.t,
-  stats: EvaluatorStats.t,
-};
+type t;
 
-let initial: t;
+let init: t;
 
-/* Generate the next unique environment identifier */
-let next_env_id: t => (t, EnvironmentId.t);
+let get_eig: t => EnvironmentIdGen.t;
+let put_eig: (EnvironmentIdGen.t, t) => t;
+let next_ei: t => (EnvironmentId.t, t);
 
-let inc_eval_steps: t => t;
-
-let eval_steps: t => int;
+let step: t => t;
+let step_count: t => int;

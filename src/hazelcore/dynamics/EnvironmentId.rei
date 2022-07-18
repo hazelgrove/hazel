@@ -5,5 +5,10 @@
 [@deriving sexp]
 type t = int;
 
-/* Id of first environment */
-let initial: t;
+let init: t;
+let equal: (t, t) => bool;
+
+let next: t => t;
+
+let invalid: t;
+let is_invalid: t => bool;

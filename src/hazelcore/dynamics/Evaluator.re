@@ -485,7 +485,7 @@ and subst_var_rules =
 
 and subst_var_env = (d1: DHExp.t, x: Var.t, sigma: EvalEnv.t): EvalEnv.t =>
   EvalEnv.map_keep_id(
-    (_, dr) =>
+    ((_, dr)) =>
       switch (dr) {
       | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
       | Indet(d) => Indet(subst_var(d1, x, d))
@@ -546,7 +546,7 @@ let rec evaluate =
         (es: EvaluatorState.t, env: EvalEnv.t, d: DHExp.t)
         : (EvaluatorState.t, EvaluatorResult.t) => {
   /* Increment number of evaluation steps (calls to `evaluate`). */
-  let es = es |> EvaluatorState.inc_eval_steps;
+  let es = es |> EvaluatorState.step;
 
   switch (d) {
   | BoundVar(x) =>
@@ -575,8 +575,11 @@ let rec evaluate =
   | FixF(f, ty, d) =>
     switch (evaluate(es, env, d)) {
     | (es, BoxedValue(Closure(env', Fun(_) as d''') as d'')) =>
-      let (es, env'') =
-        EvalEnv.extend(es, env', (f, BoxedValue(FixF(f, ty, d''))));
+      /* TODO: Clean this up. */
+      let eig = es |> EvaluatorState.get_eig;
+      let (env'', eig) =
+        EvalEnv.extend(env', (f, BoxedValue(FixF(f, ty, d''))), eig);
+      let es = es |> EvaluatorState.put_eig(eig);
       (es, BoxedValue(Closure(env'', d''')));
     | _ => raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
     }
@@ -902,7 +905,7 @@ and evaluate_case =
 and extend_evalenv_with_env =
     (es: EvaluatorState.t, new_bindings: Environment.t, to_extend: EvalEnv.t)
     : (EvaluatorState.t, EvalEnv.t) => {
-  let (es, ei) = es |> EvaluatorState.next_env_id;
+  let (ei, es) = es |> EvaluatorState.next_ei;
   let result_map =
     List.fold_left(
       (new_env, (x, d)) => {
@@ -910,7 +913,7 @@ and extend_evalenv_with_env =
         let (_, dr) = evaluate(es, EvalEnv.placeholder, d);
         VarBstMap.extend(new_env, (x, dr));
       },
-      EvalEnv.result_map_of_evalenv(to_extend),
+      EvalEnv.map_of(to_extend),
       new_bindings,
     );
   (es, (ei, result_map));
