@@ -40,7 +40,8 @@ let cursor_term_is_editable = (cursor_term: cursor_term): bool => {
   | TPat(_, pat) =>
     switch (pat) {
     | EmptyHole
-    | TyVar(_) => true
+    | TyVar(_)
+    | InvalidText(_) => true
     }
   | TypOperand(_, _)
   | ExpOperator(_, _)

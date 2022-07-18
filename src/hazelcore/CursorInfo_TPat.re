@@ -32,5 +32,11 @@ let cursor_info =
         CursorInfo_common.mk(OnTPat(Some(status)), ctx, cursor_term),
       ),
     )
+  | CursorP(_, InvalidText(_)) =>
+    Some(
+      CursorInfo_common.CursorNotOnDeferredVarPat(
+        CursorInfo_common.mk(TPatInvalid, ctx, cursor_term),
+      ),
+    )
   };
 };

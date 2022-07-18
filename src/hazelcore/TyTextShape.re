@@ -20,6 +20,6 @@ let of_string = (name: string): option(t) => {
   switch (ExpandingKeyword.of_string(name), builtin(name)) {
   | (Some(k), _) => Some(ExpandingKeyword(k))
   | (_, Some(ty)) => Some(ty)
-  | (None, None) => TyVar.valid_name(name) ? Some(TyVar(name)) : None
+  | (None, None) => TyVar.is_valid(name) ? Some(TyVar(name)) : None
   };
 };

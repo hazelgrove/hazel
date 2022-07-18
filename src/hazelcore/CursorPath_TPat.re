@@ -31,6 +31,7 @@ let holes =
       mk_hole_sort(TPatHole(Empty), List.rev(rev_steps)),
       ...hs,
     ]
+  | InvalidText(_)
   | TyVar(InHole(_), _) => [
       mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps)),
       ...hs,
@@ -47,7 +48,7 @@ let holes_z =
         Some(mk_hole_sort(TPatHole(Empty), List.rev(rev_steps))),
       (),
     )
-  | CursorP(_, TyVar(InHole(_), _)) =>
+  | CursorP(_, TyVar(InHole(_), _) | InvalidText(_)) =>
     CursorPath_common.mk_zholes(
       ~hole_selected=
         Some(mk_hole_sort(TPatHole(VarErr), List.rev(rev_steps))),

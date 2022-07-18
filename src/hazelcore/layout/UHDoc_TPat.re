@@ -6,8 +6,9 @@ module Make = (Memo: Memo.S) => {
         let _ = memoize;
 
         switch (p) {
-        | TPat.EmptyHole => UHDoc_common.mk_EmptyHole("?", ~sort=Typ)
-        | TPat.TyVar(_, name) => UHDoc_common.mk_Var(~sort=Typ, name)
+        | EmptyHole => UHDoc_common.mk_EmptyHole("?", ~sort=Typ)
+        | InvalidText(_, name)
+        | TyVar(_, name) => UHDoc_common.mk_Var(~sort=Typ, name)
         };
       })
     );

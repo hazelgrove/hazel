@@ -1155,7 +1155,7 @@ and syn_perform_line =
       | None => Failed
       | Some((_, k, _)) =>
         let (body_ctx, new_p, id_gen) =
-          Statics_TPat.fix_holes(ctx, tp, k, id_gen);
+          Statics_TPat.ana_fix_holes(ctx, tp, k, id_gen);
         let new_zline = ZExp.TyAliasLineT(new_p, new_zty);
         Succeeded(LineDone((([], new_zline, []), body_ctx, id_gen)));
       }

@@ -122,7 +122,7 @@ let rec perform =
     perform(Backspace, CursorP(OnDelim(k, After), tp), id_gen)
 
   /* Backspace and delete on tyvar */
-  | (Backspace, CursorP(OnText(k), TyVar(_, name))) =>
+  | (Backspace, CursorP(OnText(k), TyVar(_, name) | InvalidText(_, name))) =>
     if (ZTPat.is_before(ztp)) {
       CursorEscaped(Before);
     } else {
@@ -130,14 +130,20 @@ let rec perform =
       if (StringUtil.is_empty(new_name)) {
         Succeeded((ZTPat.place_before(EmptyHole), id_gen));
       } else {
-        let tp = TPat.of_string(new_name);
+        let (_, tp, id_gen) =
+          Statics_TPat.ana_fix_holes(
+            InitialContext.ctx,
+            TPat.of_string(new_name),
+            Hole,
+            id_gen,
+          );
         Succeeded((CursorP(OnText(k - 1), tp), id_gen));
       };
     }
 
   | (Backspace, CursorP(OnText(_), _)) => Failed
 
-  | (Delete, CursorP(OnText(k), TyVar(_, name))) =>
+  | (Delete, CursorP(OnText(k), TyVar(_, name) | InvalidText(_, name))) =>
     if (ZTPat.is_after(ztp)) {
       CursorEscaped(After);
     } else {
@@ -145,12 +151,19 @@ let rec perform =
       if (StringUtil.is_empty(new_name)) {
         Succeeded((ZTPat.place_before(EmptyHole), id_gen));
       } else {
-        let tp = TPat.of_string(new_name);
+        let (_, tp, id_gen) =
+          Statics_TPat.ana_fix_holes(
+            InitialContext.ctx,
+            TPat.of_string(new_name),
+            Hole,
+            id_gen,
+          );
         Succeeded((CursorP(OnText(k), tp), id_gen));
       };
     }
 
   | (Delete, CursorP(OnText(_), _)) => Failed
+
   /* Construction */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
     perform(MoveRight, ztp, id_gen)
@@ -158,20 +171,28 @@ let rec perform =
   | (Construct(SOp(_)), _) => Failed
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole)) =>
-    let tp = TPat.of_string(s);
+    let (_, tp, id_gen) =
+      Statics_TPat.ana_fix_holes(
+        InitialContext.ctx,
+        TyVar(NotInHole, s),
+        Hole,
+        id_gen,
+      );
     Succeeded((CursorP(OnText(1), tp), id_gen));
 
-  | (Construct(SChar(s)), CursorP(OnText(k), TyVar(_, name))) =>
-    let new_name = StringUtil.insert(k, s, name);
-    switch (TyTextShape.of_string(new_name)) {
-    | None =>
-      let (u, id_gen) = IDGen.next_hole(id_gen);
-      let tp = TPat.TyVar(InHole(InvalidText, u), new_name);
-      Succeeded((CursorP(OnText(k + 1), tp), id_gen));
-    | Some(shape) =>
-      let (tp, id_gen) = text_operand(shape, id_gen);
-      Succeeded((CursorP(OnText(k + 1), tp), id_gen));
-    };
+  | (
+      Construct(SChar(s)),
+      CursorP(OnText(k), TyVar(_, t) | InvalidText(_, t)),
+    ) =>
+    let new_t = StringUtil.insert(k, s, t);
+    let (_, tp, id_gen) =
+      Statics_TPat.ana_fix_holes(
+        InitialContext.ctx,
+        TyVar(NotInHole, new_t),
+        Hole,
+        id_gen,
+      );
+    Succeeded((CursorP(OnText(k + 1), tp), id_gen));
 
   | (Construct(SChar(_)), _) => Failed
   | (Init, _) => failwith("Init action should not be performed")

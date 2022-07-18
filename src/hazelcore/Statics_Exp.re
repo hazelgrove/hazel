@@ -586,10 +586,12 @@ and syn_fix_holes_line =
     let (ty, _, id_gen) = Statics_UHTyp.syn_fix_holes(ctx, id_gen, ty);
     switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
     | Some((_, kind, _)) =>
-      let (ctx, p, id_gen) = Statics_TPat.fix_holes(ctx, p, kind, id_gen);
+      let (ctx, p, id_gen) =
+        Statics_TPat.ana_fix_holes(ctx, p, kind, id_gen);
       (TyAliasLine(p, ty), ctx, id_gen);
     | None =>
-      let (ctx, p, id_gen) = Statics_TPat.fix_holes(ctx, p, Hole, id_gen);
+      let (ctx, p, id_gen) =
+        Statics_TPat.ana_fix_holes(ctx, p, Hole, id_gen);
       (TyAliasLine(p, ty), ctx, id_gen);
     };
   | LetLine(p, def) =>

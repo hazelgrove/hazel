@@ -40,12 +40,12 @@ and syn_fix_holes_operand =
       | NotInTyVarHole => IDGen.next_hole(id_gen)
       | InHole(_, u) => (u, id_gen)
       };
-    if (TyVar.reserved_word(t)) {
+    if (TyVar.is_reserved(t)) {
       let (u, id_gen) = next_u();
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
       let k = Kind.singleton(HTyp.tyvarhole(Reserved, u, t));
       (ty, k, id_gen);
-    } else if (TyVar.valid_name(t)) {
+    } else if (TyVar.is_valid(t)) {
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
         let (u, id_gen) = next_u();

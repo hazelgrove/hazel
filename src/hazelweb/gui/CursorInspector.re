@@ -233,6 +233,7 @@ let advanced_summary =
     | OnRule => [emphasize_text("Rule")]
     | OnTPat(_) => [emphasize_text("Type Variable")]
     | OnTPatHole => [emphasize_text("Type Variable Hole")]
+    | TPatInvalid => [emphasize_text("Invalid Text")]
     | TypFree => [emphasize_text("Free Type Variable")]
     | TypInvalid => [emphasize_text("Invalid Text")]
     | TypKeyword(_) => [emphasize_text("Reserved Keyword")]
@@ -443,7 +444,6 @@ let novice_summary =
           switch (reason) {
           | ReservedKeyword => "Reserved Keyword"
           | BuiltinType => "Builtin Type"
-          | InvalidText => "Invalid Text"
           },
         ),
       ]
@@ -451,6 +451,12 @@ let novice_summary =
         Node.text("Got " ++ article),
         term_tag,
         emphasize_text(~only_right=true, "Type Variable"),
+      ]
+    | TPatInvalid => [
+        Node.text("Expecting a"),
+        term_tag,
+        Node.text(" but got "),
+        emphasize_text("Invalid Text"),
       ]
     | TypFree => [
         Node.text("Expecting a"),
@@ -682,6 +688,7 @@ let view =
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
     | PatSynKeyword(_)
+    | TPatInvalid
     | TypFree
     | TypInvalid
     | TypKeyword(_) => BindingError

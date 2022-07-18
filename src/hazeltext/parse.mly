@@ -186,7 +186,7 @@ pat_:
 
 tpat:
   IDENT {
-    if TyVar.valid_name $1 then
+    if TyVar.is_valid $1 then
       Some (TPat.of_string $1)
     else
       let (it, _) = TPat.invalid_of_string IDGen.init $1 in

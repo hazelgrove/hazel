@@ -195,7 +195,8 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
   | TPat(_, p) =>
     switch (p) {
     | EmptyHole => MinLen
-    | TyVar(_, name) => Len(String.length(name))
+    | TyVar(_, name)
+    | InvalidText(_, name) => Len(String.length(name))
     }
   };
 };
