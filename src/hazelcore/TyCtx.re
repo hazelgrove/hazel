@@ -130,20 +130,20 @@
 /*   go(tyctx, 0); */
 /* }; */
 /* /\* Type Variables *\/ */
-/* let rec tyvar_index = (tyctx: t, name: string): option(Index.Abs.t) => { */
+/* let rec tyvar_index = (tyctx: t, t: TyVar.t): option(Index.Abs.t) => { */
 /*   switch (tyctx) { */
-/*   | [TyVarBinding(name', _), ...tyctx'] => */
-/*     name == name' */
+/*   | [TyVarBinding(t', _), ...tyctx'] => */
+/*     t == t' */
 /*       ? Some(Index.Abs.of_int(0)) */
-/*       : Option.map(Index.increment, tyvar_index(tyctx', name)) */
+/*       : Option.map(Index.increment, tyvar_index(tyctx', t)) */
 /*   | [VarBinding(_), ...tyctx'] => */
-/*     Option.map(Index.increment, tyvar_index(tyctx', name)) */
+/*     Option.map(Index.increment, tyvar_index(tyctx', t)) */
 /*   | [] => None */
 /*   }; */
 /* }; */
-/* let tyvar_name = (tyctx: t, i: Index.Abs.t): option(string) => */
+/* let tyvar_name = (tyctx: t, i: Index.Abs.t): option(TyVar.t) => */
 /*   switch (List.nth_opt(tyctx, Index.Abs.to_int(i))) { */
-/*   | Some(TyVarBinding(name, _)) => Some(name) */
+/*   | Some(TyVarBinding(t, _)) => Some(t) */
 /*   | Some(VarBinding(_)) */
 /*   | None => None */
 /*   }; */
@@ -157,8 +157,8 @@
 /*   }; */
 /* let num_tyvars: t => int = List.length; */
 /* let push_tyvar = */
-/*     (tyctx: t, name: string, kind: KindCore.t(Index.absolute)): t => { */
-/*   [TyVarBinding(name, KindCore.to_rel(kind)), ...tyctx]; */
+/*     (tyctx: t, t: TyVar.t, kind: KindCore.t(Index.absolute)): t => { */
+/*   [TyVarBinding(t, KindCore.to_rel(kind)), ...tyctx]; */
 /* }; */
 /* let pop_tyvar = */
 /*     (tyctx: t): option((t, (TyVar.t, KindCore.t(Index.absolute)))) => { */

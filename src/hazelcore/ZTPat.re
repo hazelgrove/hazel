@@ -6,26 +6,25 @@ let erase =
   fun
   | CursorP(_, tpat) => tpat;
 
-let place_after = (tpat: TPat.t): t =>
-  switch (tpat) {
-  | EmptyHole => CursorP(OnDelim(0, After), tpat)
-  | TyVar(_, name)
-  | InvalidText(_, name) => CursorP(OnText(String.length(name)), tpat)
+let place_after = (tp: TPat.t): t =>
+  switch (tp) {
+  | EmptyHole => CursorP(OnDelim(0, After), tp)
+  | TyVar(_, t)
+  | InvalidText(_, t) => CursorP(OnText(String.length(t)), tp)
   };
 
-let place_before = (tpat: TPat.t): t =>
-  switch (tpat) {
-  | EmptyHole => CursorP(OnDelim(0, Before), tpat)
+let place_before = (tp: TPat.t): t =>
+  switch (tp) {
+  | EmptyHole => CursorP(OnDelim(0, Before), tp)
   | TyVar(_)
-  | InvalidText(_) => CursorP(OnText(0), tpat)
+  | InvalidText(_) => CursorP(OnText(0), tp)
   };
 
 let valid_cursors: TPat.t => list(CursorPosition.t) =
   fun
   | EmptyHole => CursorPosition.delim_cursors_k(0)
-  | TyVar(_, name)
-  | InvalidText(_, name) =>
-    CursorPosition.text_cursors(String.length(name));
+  | TyVar(_, t)
+  | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t));
 
 let is_valid_cursor = (cursor: CursorPosition.t, tp: TPat.t): bool =>
   valid_cursors(tp) |> List.mem(cursor);
@@ -36,8 +35,8 @@ let place_cursor = (cursor: CursorPosition.t, tp: TPat.t): option(t) =>
 let is_after =
   fun
   | CursorP(cursor, EmptyHole) => cursor == OnDelim(0, After)
-  | CursorP(cursor, TyVar(_, name) | InvalidText(_, name)) =>
-    cursor == OnText(String.length(name));
+  | CursorP(cursor, TyVar(_, t) | InvalidText(_, t)) =>
+    cursor == OnText(TyVar.length(t));
 
 let is_before =
   fun

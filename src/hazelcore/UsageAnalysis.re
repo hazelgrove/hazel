@@ -26,38 +26,38 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   };
 
 let rec find_tyuses_typ =
-        (~steps: CursorPath.steps, name: string, OpSeq(_, seq): UHTyp.t)
+        (~steps: CursorPath.steps, t: TyVar.t, OpSeq(_, seq): UHTyp.t)
         : uses_list =>
   seq
   |> Seq.operands
   |> List.mapi((i, operand) =>
-       find_tyuses_typ_operand(~steps=steps @ [i], name, operand)
+       find_tyuses_typ_operand(~steps=steps @ [i], t, operand)
      )
   |> List.concat
 and find_tyuses_typ_operand =
-    (~steps: CursorPath.steps, name: string, op: UHTyp.operand): uses_list =>
+    (~steps: CursorPath.steps, t: TyVar.t, op: UHTyp.operand): uses_list =>
   switch (op) {
   | Hole
   | Unit
   | Int
   | Float
   | Bool => []
-  | TyVar(_, name') => name == name' ? [steps] : []
-  | Parenthesized(t)
-  | List(t) => find_tyuses_typ(~steps=steps @ [0], name, t)
+  | TyVar(_, t') => t == t' ? [steps] : []
+  | Parenthesized(ty)
+  | List(ty) => find_tyuses_typ(~steps=steps @ [0], t, ty)
   };
 
 let rec find_tyuses_pat =
-        (~steps: CursorPath.steps, name: string, OpSeq(_, seq): UHPat.t)
+        (~steps: CursorPath.steps, t: TyVar.t, OpSeq(_, seq): UHPat.t)
         : uses_list =>
   seq
   |> Seq.operands
   |> List.mapi((i, operand) =>
-       find_tyuses_pat_operand(~steps=steps @ [i], name, operand)
+       find_tyuses_pat_operand(~steps=steps @ [i], t, operand)
      )
   |> List.concat
 and find_tyuses_pat_operand =
-    (~steps: CursorPath.steps, name: string, op: UHPat.operand): uses_list =>
+    (~steps: CursorPath.steps, t: TyVar.t, op: UHPat.operand): uses_list =>
   switch (op) {
   | EmptyHole(_)
   | Wild(_)
@@ -67,16 +67,16 @@ and find_tyuses_pat_operand =
   | FloatLit(_)
   | BoolLit(_)
   | ListNil(_) => []
-  | TypeAnn(_, _, typ) => find_tyuses_typ(~steps=steps @ [1], name, typ)
-  | Parenthesized(t)
-  | Inj(_, _, t) => find_tyuses_pat(~steps=steps @ [0], name, t)
+  | TypeAnn(_, _, ty) => find_tyuses_typ(~steps=steps @ [1], t, ty)
+  | Parenthesized(ty)
+  | Inj(_, _, ty) => find_tyuses_pat(~steps=steps @ [0], t, ty)
   };
 
 let rec find_tyuses =
-        (~steps: CursorPath.steps, name: string, e: UHExp.t): uses_list =>
-  find_tyuses_block(~steps, name, e)
+        (~steps: CursorPath.steps, t: TyVar.t, e: UHExp.t): uses_list =>
+  find_tyuses_block(~steps, t, e)
 and find_tyuses_block =
-    (~offset=0, ~steps, name: string, block: UHExp.block): uses_list => {
+    (~offset=0, ~steps, t: TyVar.t, block: UHExp.block): uses_list => {
   let (uses, _) =
     block
     |> ListUtil.fold_left_i(
@@ -85,7 +85,7 @@ and find_tyuses_block =
              (uses_so_far, shadowed);
            } else {
              let (line_uses, shadowed) =
-               find_tyuses_line(~steps=steps @ [offset + i], name, line);
+               find_tyuses_line(~steps=steps @ [offset + i], t, line);
              (line_uses @ uses_so_far, shadowed);
            },
          ([], false),
@@ -93,31 +93,31 @@ and find_tyuses_block =
   uses;
 }
 and find_tyuses_line =
-    (~steps, name: string, line: UHExp.line): (uses_list, bool) =>
+    (~steps, t: TyVar.t, line: UHExp.line): (uses_list, bool) =>
   switch (line) {
   | CommentLine(_) => ([], false)
-  | ExpLine(opseq) => (find_tyuses_opseq(~steps, name, opseq), false)
+  | ExpLine(opseq) => (find_tyuses_opseq(~steps, t, opseq), false)
   | EmptyLine => ([], false)
   | LetLine(p, def) => (
-      find_tyuses_pat(~steps=steps @ [0], name, p)
-      @ find_tyuses(~steps=steps @ [1], name, def),
+      find_tyuses_pat(~steps=steps @ [0], t, p)
+      @ find_tyuses(~steps=steps @ [1], t, def),
       false,
     )
-  | TyAliasLine(p, ty) => (
-      find_tyuses_typ(~steps=steps @ [1], name, ty),
-      TPat.binds_tyvar(name, p),
+  | TyAliasLine(tp, ty) => (
+      find_tyuses_typ(~steps=steps @ [1], t, ty),
+      TPat.binds_tyvar(t, tp),
     )
   }
 and find_tyuses_opseq =
-    (~steps, name: string, OpSeq(_, seq): UHExp.opseq): uses_list =>
+    (~steps, t: TyVar.t, OpSeq(_, seq): UHExp.opseq): uses_list =>
   seq
   |> Seq.operands
   |> List.mapi((i, operand) =>
-       find_tyuses_operand(~steps=steps @ [i], name, operand)
+       find_tyuses_operand(~steps=steps @ [i], t, operand)
      )
   |> List.concat
 and find_tyuses_operand =
-    (~steps, name: string, operand: UHExp.operand): uses_list =>
+    (~steps, t: TyVar.t, operand: UHExp.operand): uses_list =>
   switch (operand) {
   | EmptyHole(_)
   | InvalidText(_)
@@ -131,28 +131,28 @@ and find_tyuses_operand =
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   // | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
-    find_tyuses_pat(~steps=steps @ [0], name, p)
-    @ find_tyuses(~steps=steps @ [1], name, body)
-  | Inj(NotInHole, _, body) => find_tyuses(~steps=steps @ [0], name, body)
+    find_tyuses_pat(~steps=steps @ [0], t, p)
+    @ find_tyuses(~steps=steps @ [1], t, body)
+  | Inj(NotInHole, _, body) => find_tyuses(~steps=steps @ [0], t, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),
       scrut,
       rules,
     ) =>
-    let scrut_uses = find_tyuses(~steps=steps @ [0], name, scrut);
+    let scrut_uses = find_tyuses(~steps=steps @ [0], t, scrut);
     let rules_uses =
       rules
       |> List.mapi((i, rule) =>
-           find_tyuses_rule(~steps=steps @ [1 + i], name, rule)
+           find_tyuses_rule(~steps=steps @ [1 + i], t, rule)
          )
       |> List.concat;
     scrut_uses @ rules_uses;
-  | Parenthesized(body) => find_tyuses(~steps=steps @ [0], name, body)
+  | Parenthesized(body) => find_tyuses(~steps=steps @ [0], t, body)
   }
 and find_tyuses_rule =
-    (~steps, name: string, Rule(p, clause): UHExp.rule): uses_list =>
-  find_tyuses_pat(~steps=steps @ [0], name, p)
-  @ find_tyuses(~steps=steps @ [1], name, clause);
+    (~steps, t: TyVar.t, Rule(p, clause): UHExp.rule): uses_list =>
+  find_tyuses_pat(~steps=steps @ [0], t, p)
+  @ find_tyuses(~steps=steps @ [1], t, clause);
 
 let rec find_uses =
         (~steps: CursorPath.steps, x: Var.t, e: UHExp.t): uses_list =>

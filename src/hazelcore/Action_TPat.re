@@ -11,9 +11,9 @@ let text_operand = (shape: TyTextShape.t, id_gen: IDGen.t): (TPat.t, IDGen.t) =>
     (TyVar(InHole(BuiltinType, u), "Float"), id_gen);
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = IDGen.next_hole(id_gen);
-    let name = ExpandingKeyword.to_string(kw);
-    (TyVar(InHole(ReservedKeyword, u), name), id_gen);
-  | TyVar(name) => (TyVar(NotInHole, name), id_gen)
+    let t = ExpandingKeyword.to_string(kw);
+    (TyVar(InHole(ReservedKeyword, u), t), id_gen);
+  | TyVar(t) => (TyVar(NotInHole, t), id_gen)
   };
 };
 
@@ -122,18 +122,18 @@ let rec perform =
     perform(Backspace, CursorP(OnDelim(k, After), tp), id_gen)
 
   /* Backspace and delete on tyvar */
-  | (Backspace, CursorP(OnText(k), TyVar(_, name) | InvalidText(_, name))) =>
+  | (Backspace, CursorP(OnText(k), TyVar(_, t) | InvalidText(_, t))) =>
     if (ZTPat.is_before(ztp)) {
       CursorEscaped(Before);
     } else {
-      let new_name = StringUtil.backspace(k, name);
-      if (StringUtil.is_empty(new_name)) {
+      let new_t = StringUtil.backspace(k, t);
+      if (StringUtil.is_empty(new_t)) {
         Succeeded((ZTPat.place_before(EmptyHole), id_gen));
       } else {
         let (_, tp, id_gen) =
           Statics_TPat.ana_fix_holes(
             InitialContext.ctx,
-            TPat.of_string(new_name),
+            TPat.of_string(new_t),
             Hole,
             id_gen,
           );
@@ -143,18 +143,18 @@ let rec perform =
 
   | (Backspace, CursorP(OnText(_), _)) => Failed
 
-  | (Delete, CursorP(OnText(k), TyVar(_, name) | InvalidText(_, name))) =>
+  | (Delete, CursorP(OnText(k), TyVar(_, t) | InvalidText(_, t))) =>
     if (ZTPat.is_after(ztp)) {
       CursorEscaped(After);
     } else {
-      let new_name = StringUtil.delete(k, name);
-      if (StringUtil.is_empty(new_name)) {
+      let new_t = StringUtil.delete(k, t);
+      if (StringUtil.is_empty(new_t)) {
         Succeeded((ZTPat.place_before(EmptyHole), id_gen));
       } else {
         let (_, tp, id_gen) =
           Statics_TPat.ana_fix_holes(
             InitialContext.ctx,
-            TPat.of_string(new_name),
+            TPat.of_string(new_t),
             Hole,
             id_gen,
           );

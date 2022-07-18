@@ -16,10 +16,10 @@ let builtin = (name: string): option(t) =>
   | _ => None
   };
 
-let of_string = (name: string): option(t) => {
-  switch (ExpandingKeyword.of_string(name), builtin(name)) {
+let of_string = (text: string): option(t) => {
+  switch (ExpandingKeyword.of_string(text), builtin(text)) {
   | (Some(k), _) => Some(ExpandingKeyword(k))
   | (_, Some(ty)) => Some(ty)
-  | (None, None) => TyVar.is_valid(name) ? Some(TyVar(name)) : None
+  | (None, None) => TyVar.is_valid(text) ? Some(TyVar(text)) : None
   };
 };

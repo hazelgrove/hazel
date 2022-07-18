@@ -18,18 +18,18 @@ let cursor_info =
         CursorInfo_common.mk(OnTPatHole, ctx, cursor_term),
       ),
     )
-  | CursorP(_, TyVar(NotInHole, tyid)) =>
+  | CursorP(_, TyVar(NotInHole, t)) =>
     Some(
       CursorInfo_common.CursorOnDeferredTyVarPat(
         tyuses =>
           CursorInfo_common.mk(~tyuses, OnTPat(None), ctx, cursor_term),
-        tyid,
+        t,
       ),
     )
-  | CursorP(_, TyVar(status, _)) =>
+  | CursorP(_, TyVar(err, _)) =>
     Some(
       CursorInfo_common.CursorNotOnDeferredVarPat(
-        CursorInfo_common.mk(OnTPat(Some(status)), ctx, cursor_term),
+        CursorInfo_common.mk(OnTPat(Some(err)), ctx, cursor_term),
       ),
     )
   | CursorP(_, InvalidText(_)) =>

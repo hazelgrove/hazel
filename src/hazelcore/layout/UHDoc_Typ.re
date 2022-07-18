@@ -51,7 +51,7 @@ module Make = (Memo: Memo.S) => {
         (
           switch (operand) {
           | Hole => mk_EmptyHole("?")
-          | TyVar(_, name) => UHDoc_common.mk_Var(~sort=Typ, name)
+          | TyVar(_, t) => UHDoc_common.mk_Var(~sort=Typ, t)
           | Unit => UHDoc_common.mk_Unit()
           | Int => UHDoc_common.mk_Int()
           | Float => UHDoc_common.mk_Float()

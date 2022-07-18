@@ -137,9 +137,9 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
   | CursorT(_, TyVar(InHole(InvalidText, _), _)) =>
     Some(CursorInfo_common.mk(TypInvalid, ctx, cursor_term))
-  | CursorT(_, TyVar(InHole(Reserved, _), name)) =>
+  | CursorT(_, TyVar(InHole(Reserved, _), t)) =>
     open OptUtil.Syntax;
-    let+ k = ExpandingKeyword.of_string(name);
+    let+ k = ExpandingKeyword.of_string(t);
     CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
   | CursorT(_, ty) =>
     open OptUtil.Syntax;

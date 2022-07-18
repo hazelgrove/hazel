@@ -432,20 +432,17 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Unit)) =>
     Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), ctx, id_gen))
 
-  | (
-      Backspace,
-      CursorT(OnDelim(_, After), Int | Float | Bool | TyVar(_, _)),
-    ) =>
+  | (Backspace, CursorT(OnDelim(_, After), Int | Float | Bool | TyVar(_))) =>
     failwith("Impossible: Int|Float|Bool|TyVar are treated as text")
 
   /* TyVar-related Backspace & Delete */
-  | (Delete, CursorT(OnText(caret_index), TyVar(_, text))) =>
-    switch (delete_text(ctx, id_gen, caret_index, text)) {
+  | (Delete, CursorT(OnText(caret_index), TyVar(_, t))) =>
+    switch (delete_text(ctx, id_gen, caret_index, t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
-  | (Backspace, CursorT(OnText(caret_index), TyVar(_, text))) =>
-    switch (backspace_text(ctx, id_gen, caret_index, text)) {
+  | (Backspace, CursorT(OnText(caret_index), TyVar(_, t))) =>
+    switch (backspace_text(ctx, id_gen, caret_index, t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
@@ -495,8 +492,8 @@ and perform_operand =
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
 
-  | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, x))) =>
-    switch (insert_text(ctx, id_gen, (j, s), x)) {
+  | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, t))) =>
+    switch (insert_text(ctx, id_gen, (j, s), t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
@@ -540,11 +537,11 @@ and perform_operand =
         && !ZTyp.is_after_zoperand(zoperand) =>
     split_text(ctx, id_gen, j, os, "Float") |> ActionOutcome.of_option
 
-  | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, id)))
+  | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, t)))
       when
         !ZTyp.is_before_zoperand(zoperand)
         && !ZTyp.is_after_zoperand(zoperand) =>
-    split_text(ctx, id_gen, j, os, id) |> ActionOutcome.of_option
+    split_text(ctx, id_gen, j, os, t) |> ActionOutcome.of_option
 
   | (Construct(SCloseBraces), CursorT(_)) => Failed
 

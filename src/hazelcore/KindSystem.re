@@ -87,7 +87,7 @@ module HTyp_syntax: {
     | TyVar(cref, t) =>
       let cref = {...cref, index: Index.Abs.to_rel(~offset, cref.index)};
       TyVar(cref, t);
-    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -106,7 +106,7 @@ module HTyp_syntax: {
       let stamp = cref.stamp + offset;
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
-    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -670,8 +670,8 @@ and HTyp: {
   };
 
   let tyvarhole =
-      (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, t: TyVar.t): t =>
-    TyVarHole(reason, u, t);
+      (err: TyVarErrStatus.HoleReason.t, u: MetaVar.t, t: TyVar.t): t =>
+    TyVarHole(err, u, t);
 
   let tyvar_ref = (ty: t): option(ContextRef.t) =>
     switch (ty) {
@@ -1067,7 +1067,7 @@ and HTyp: {
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
     | TyVar(cref, t) => TyVar(cref, t)
-    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
+    | TyVarHole(err, u, t) => TyVarHole(err, u, t);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
@@ -1085,7 +1085,7 @@ and HTyp: {
           ++ Int.to_string(cref.stamp),
         )
       }
-    | TyVarHole(reason, u, t) => TyVarHole(reason, u, t)
+    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
     | Hole => Hole
     | Int => Int
     | Float => Float
