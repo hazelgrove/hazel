@@ -1,18 +1,17 @@
 open Sexplib.Std;
 
+open EvaluatorMonad.Syntax;
+
 /* Evaluator alias. */
 [@deriving sexp]
-type evaluate =
-  (EvaluatorState.t, EvalEnv.t, DHExp.t) =>
-  (EvaluatorState.t, EvaluatorResult.t);
+type evaluate = (EvalEnv.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
 type eval =
-  (EvaluatorState.t, EvalEnv.t, args, evaluate) =>
-  (EvaluatorState.t, EvaluatorResult.t);
+  (EvalEnv.t, args, evaluate) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type elab = DHExp.t;
@@ -59,9 +58,9 @@ let mk = (ident: Var.t, ty: HTyp.t, eval: eval): t => {
 };
 
 let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
-  let fn = (es, env, args, evaluate) => {
+  let fn = (env, args, evaluate) => {
     switch (args) {
-    | [] => evaluate(es, env, v)
+    | [] => evaluate(env, v)
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };
@@ -73,14 +72,14 @@ let mk_one =
     (
       ident: Var.t,
       ty: HTyp.t,
-      fn: (Var.t, EvaluatorResult.t) => EvaluatorResult.t,
+      fn: (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t),
     )
     : t => {
-  let fn = (es, env, args, evaluate) => {
+  let fn = (env, args, evaluate) => {
     switch (args) {
     | [d1] =>
-      let (es, r1) = evaluate(es, env, d1);
-      (es, fn(ident, r1));
+      let* r1 = evaluate(env, d1);
+      fn(ident, r1);
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };
@@ -92,15 +91,17 @@ let mk_two =
     (
       ident: Var.t,
       ty: HTyp.t,
-      fn: (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t,
+      fn:
+        (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
+        EvaluatorMonad.t(EvaluatorResult.t),
     )
     : t => {
-  let fn = (es, env, args, evaluate) => {
+  let fn = (env, args, evaluate) => {
     switch (args) {
     | [d1, d2] =>
-      let (es, r1) = evaluate(es, env, d1);
-      let (es, r2) = evaluate(es, env, d2);
-      (es, fn(ident, r1, r2));
+      let* r1 = evaluate(env, d1);
+      let* r2 = evaluate(env, d2);
+      fn(ident, r1, r2);
     | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
     };
   };

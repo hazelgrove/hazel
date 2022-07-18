@@ -107,11 +107,9 @@ let get_elaboration = (program: t): DHExp.t =>
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvalPostprocess.error);
 let evaluate = d => {
-  /* TODO: Clean this up. */
-  let es = EvaluatorState.init;
-  let (env, eig) = es |> EvaluatorState.get_eig |> EvalEnv.empty;
-  let es = es |> EvaluatorState.put_eig(eig);
-  Memo.general(~cache_size_bound=1000, Evaluator.evaluate(es, env), d);
+  let (env, _) =
+    EvaluatorState.init |> EvaluatorState.with_eig(EvalEnv.empty);
+  Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
 };
 let get_result = (program: t): Result.t => {
   switch (program |> get_elaboration |> evaluate) {

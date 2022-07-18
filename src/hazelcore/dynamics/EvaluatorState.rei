@@ -13,7 +13,7 @@ let init: t;
 
 let get_eig: t => EnvironmentIdGen.t;
 let put_eig: (EnvironmentIdGen.t, t) => t;
-let next_ei: t => (EnvironmentId.t, t);
+let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t), t) => ('a, t);
 
 let take_step: t => t;
 let get_step: t => int;

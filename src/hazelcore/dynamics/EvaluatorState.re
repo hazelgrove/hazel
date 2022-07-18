@@ -8,10 +8,9 @@ let init = {eig: EnvironmentIdGen.init, stats: EvaluatorStats.initial};
 
 let get_eig = ({eig, _}) => eig;
 let put_eig = (eig, es) => {...es, eig};
-let next_ei = es => {
-  let (ei, eig) = es |> get_eig |> EnvironmentIdGen.next;
-  let es = es |> put_eig(eig);
-  (ei, es);
+let with_eig = (f, es) => {
+  let (x, eig) = es |> get_eig |> f;
+  (x, es |> put_eig(eig));
 };
 
 let take_step = ({stats, _} as es) => {
