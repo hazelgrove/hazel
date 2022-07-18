@@ -9,7 +9,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => Indet
   | (Wild, _) => Matches(Environment.empty)
-  | (Keyword(_, _, _), _) => DoesNotMatch
+  | (ExpandingKeyword(_, _, _), _) => DoesNotMatch
   | (InvalidText(_), _) => Indet
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));

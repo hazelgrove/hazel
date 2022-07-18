@@ -13,7 +13,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
     let (d', _) = transform_exp(ctx, d');
     ({expr_kind: ENonEmptyHole(reason, u, i, sigma, d')}, Hole);
 
-  | Keyword(u, i, sigma, k) =>
+  | ExpandingKeyword(u, i, sigma, k) =>
     let sigma = transform_var_map(ctx, sigma);
     ({expr_kind: EKeyword(u, i, sigma, k)}, Hole);
 
@@ -223,7 +223,7 @@ and transform_pat =
     let (dp, ctx) = transform_pat(ctx, dp, ty);
     ({pat_kind: PNonEmptyHole(reason, u, i, dp)}, ctx);
 
-  | Keyword(u, i, k) => ({pat_kind: PKeyword(u, i, k)}, ctx)
+  | ExpandingKeyword(u, i, k) => ({pat_kind: PKeyword(u, i, k)}, ctx)
 
   | InvalidText(u, i, t) => ({pat_kind: PInvalidText(u, i, t)}, ctx)
 
