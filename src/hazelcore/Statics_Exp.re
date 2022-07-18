@@ -113,15 +113,10 @@ and syn_skel =
     |> OptUtil.sequence
     |> Option.map(tys => HTyp.Prod(tys))
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let ty2 = syn_skel(ctx, skel2, seq);
-    switch (ty2) {
-    | Some(HTyp.List(ty)) =>
-      switch (ana_skel(ctx, skel1, seq, ty)) {
-      | Some(_) => Some(HTyp.List(ty))
-      | _ => Some(HTyp.List(HTyp.Hole))
-      }
-    | _ => Some(HTyp.List(HTyp.Hole))
-    };
+    let* ty1 = syn_skel(ctx, skel1, seq);
+    let ty = HTyp.List(ty1);
+    let+ _ = ana_skel(ctx, skel2, seq, ty);
+    ty;
   }
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
@@ -799,25 +794,13 @@ and syn_fix_holes_skel =
     let (skels, tys) = List.split(pairs);
     (UHExp.mk_tuple(skels), seq, Prod(tys), id_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    let (skel2, seq, ty, id_gen) =
-      syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel2, seq);
-    switch (ty) {
-    | HTyp.List(ty_elt) =>
-      let (skel1, seq, id_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          id_gen,
-          ~renumber_empty_holes,
-          skel1,
-          seq,
-          ty_elt,
-        );
-      let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
-      (skel, seq, ty, id_gen);
-    | _ =>
-      let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
-      (skel, seq, HTyp.List(Hole), id_gen);
-    };
+    let (skel1, seq, ty_elt, id_gen) =
+      syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel1, seq);
+    let ty = HTyp.List(ty_elt);
+    let (skel2, seq, id_gen) =
+      ana_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel2, seq, ty);
+    let skel = Skel.BinOp(NotInHole, Operators_Exp.Cons, skel1, skel2);
+    (skel, seq, ty, id_gen);
   }
 and syn_fix_holes_operand =
     (

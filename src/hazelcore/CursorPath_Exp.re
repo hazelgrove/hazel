@@ -298,9 +298,13 @@ and of_steps_operand =
     | ListLit(_, Some(opseq)) =>
       switch (x) {
       | 0 =>
-        opseq
-        |> of_steps_opseq(xs, ~side)
-        |> Option.map(path => cons'(0, path))
+        if (List.length(xs) == 0) {
+          of_steps_operand(xs, ~side, operand);
+        } else {
+          opseq
+          |> of_steps_opseq(xs, ~side)
+          |> Option.map(path => cons'(0, path));
+        }
       | _ => None
       }
     | Fun(_, p, body) =>

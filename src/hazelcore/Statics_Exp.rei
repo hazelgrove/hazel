@@ -48,6 +48,9 @@ let syn_fix_holes_lines:
 let syn_fix_holes_opseq:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
   (UHExp.opseq, HTyp.t, IDGen.t);
+let syn_fix_holes_operand:
+  (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.operand) =>
+  (UHExp.operand, HTyp.t, IDGen.t);
 let syn_fix_holes_rules:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.rules, HTyp.t) =>
   (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t));

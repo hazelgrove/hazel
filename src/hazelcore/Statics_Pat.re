@@ -90,27 +90,26 @@ and syn_operand =
       };
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
-  | ListLit(_, Some(opseq)) =>
+  | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
     switch (opseq) {
     | OpSeq(skel, seq) =>
       let subskels = UHPat.get_tuple_elements(skel);
-      let rec syn_subskels = subskels =>
+      let rec syn_subskels = (subskels, ctx) =>
         switch (subskels) {
-        | [] => failwith("ListNil")
-        | [hd] =>
-          switch (syn_skel(ctx, hd, seq)) {
-          | Some((ty, _)) => [ty]
-          | _ => failwith("Invalid type")
-          }
+        | [] => Some([])
         | [hd, ...tl] =>
           switch (syn_skel(ctx, hd, seq)) {
-          | Some((ty, _)) => [ty, ...syn_subskels(tl)]
-          | _ => failwith("Invalid type")
+          | Some((ty, ctx)) =>
+            switch (syn_subskels(tl, ctx)) {
+            | Some(ty_list) => Some([ty, ...ty_list])
+            | None => None
+            }
+          | None => None
           }
         };
-      switch (Statics_common.lub(syn_subskels(subskels))) {
+      switch (OptUtil.bind(syn_subskels(subskels, ctx), Statics_common.lub)) {
       | Some(ty) => Some((List(ty), ctx))
-      | _ => Some((List(Hole), ctx))
+      | None => Some((List(Hole), ctx))
       };
     }
   | TypeAnn(NotInHole, op, ann) =>
@@ -213,29 +212,21 @@ and ana_operand =
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
-  | ListLit(_, Some(opseq)) =>
+  | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, seq))) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_el) =>
-      switch (opseq) {
-      | OpSeq(skel, seq) =>
-        let subskels = UHPat.get_tuple_elements(skel);
-        let rec ana_subskels = subskels =>
-          switch (subskels) {
-          | [] => failwith("ListNil")
-          | [hd] =>
-            switch (ana_skel(ctx, hd, seq, ty_el)) {
-            | Some(_) => Some(ctx)
-            | _ => failwith("Invalid type")
-            }
-          | [hd, ...tl] =>
-            switch (syn_skel(ctx, hd, seq)) {
-            | Some(_) => ana_subskels(tl)
-            | _ => failwith("Invalid type")
-            }
-          };
-        ana_subskels(subskels);
-      }
+      let subskels = UHPat.get_tuple_elements(skel);
+      let rec ana_subskels = (subskels, ctx) =>
+        switch (subskels) {
+        | [] => Some(ctx)
+        | [hd, ...tl] =>
+          switch (ana_skel(ctx, hd, seq, ty_el)) {
+          | Some(ctx) => ana_subskels(tl, ctx)
+          | None => None
+          }
+        };
+      ana_subskels(subskels, ctx);
     }
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
@@ -501,7 +492,6 @@ and syn_fix_holes_operand =
       let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
       switch (Statics_common.lub(list_types)) {
       | None =>
-        print_endline("fix hole statics exp");
         let (u, id_gen) = IDGen.next_hole(id_gen);
         (
           ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
