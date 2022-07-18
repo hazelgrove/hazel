@@ -15,5 +15,5 @@ let get_eig: t => EnvironmentIdGen.t;
 let put_eig: (EnvironmentIdGen.t, t) => t;
 let next_ei: t => (EnvironmentId.t, t);
 
-let step: t => t;
-let step_count: t => int;
+let take_step: t => t;
+let get_step: t => int;

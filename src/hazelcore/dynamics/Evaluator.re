@@ -546,7 +546,7 @@ let rec evaluate =
         (es: EvaluatorState.t, env: EvalEnv.t, d: DHExp.t)
         : (EvaluatorState.t, EvaluatorResult.t) => {
   /* Increment number of evaluation steps (calls to `evaluate`). */
-  let es = es |> EvaluatorState.step;
+  let es = es |> EvaluatorState.take_step;
 
   switch (d) {
   | BoundVar(x) =>

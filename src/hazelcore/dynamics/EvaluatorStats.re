@@ -5,5 +5,5 @@ type t = {step: int};
 
 let initial: t = {step: 0};
 
-let step = ({step}) => {step: step + 1};
-let step_count = ({step}) => step;
+let take_step = ({step}) => {step: step + 1};
+let get_step = ({step}) => step;

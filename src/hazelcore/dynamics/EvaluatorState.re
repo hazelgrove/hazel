@@ -14,9 +14,9 @@ let next_ei = es => {
   (ei, es);
 };
 
-let step = ({stats, _} as es) => {
+let take_step = ({stats, _} as es) => {
   ...es,
-  stats: stats |> EvaluatorStats.step,
+  stats: stats |> EvaluatorStats.take_step,
 };
 
-let step_count = ({stats, _}) => stats |> EvaluatorStats.step_count;
+let get_step = ({stats, _}) => stats |> EvaluatorStats.get_step;
