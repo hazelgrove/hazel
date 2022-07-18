@@ -138,7 +138,7 @@ type t =
   | InvalidText(MetaVar.t, HoleClosureId.t, string)
   | InconsistentBranches(MetaVar.t, HoleClosureId.t, case)
   /* Generalized closures */
-  | Closure(evalenv, t)
+  | Closure(env, t)
   /* Other expressions forms */
   | BoundVar(Var.t)
   | Sequence(t, t)
@@ -167,11 +167,11 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
-and environment = VarMap.t_(t)
-and evalenv = (EvalEnvId.t, VarBstMap.t(result))
 and result =
   | BoxedValue(t)
-  | Indet(t);
+  | Indet(t)
+and map = VarBstMap.t_(result)
+and env = (EnvironmentId.t, map);
 
 let constructor_string = (d: t): string =>
   switch (d) {

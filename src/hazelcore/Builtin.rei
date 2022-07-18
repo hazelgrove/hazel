@@ -1,13 +1,12 @@
 [@deriving sexp]
-type evaluate =
-  (EvalState.t, EvalEnv.t, DHExp.t) => (EvalState.t, EvaluatorResult.t);
+type evaluate = (EvalEnv.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
 type eval =
-  (EvalState.t, EvalEnv.t, args, evaluate) => (EvalState.t, EvaluatorResult.t);
+  (EvalEnv.t, args, evaluate) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type elab = DHExp.t;
@@ -35,7 +34,12 @@ let mk_zero: (Var.t, HTyp.t, DHExp.t) => t;
    must be correct.
  */
 let mk_one:
-  (Var.t, HTyp.t, (Var.t, EvaluatorResult.t) => EvaluatorResult.t) => t;
+  (
+    Var.t,
+    HTyp.t,
+    (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t)
+  ) =>
+  t;
 
 /*
    Create a built-in function that takes two arguments. The given type must be
@@ -45,6 +49,7 @@ let mk_two:
   (
     Var.t,
     HTyp.t,
-    (Var.t, EvaluatorResult.t, EvaluatorResult.t) => EvaluatorResult.t
+    (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
+    EvaluatorMonad.t(EvaluatorResult.t)
   ) =>
   t;

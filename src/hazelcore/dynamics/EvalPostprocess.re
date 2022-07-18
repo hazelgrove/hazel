@@ -9,7 +9,7 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-type t = EvalEnvIdMap.t(EvalEnv.t);
+type t = EnvironmentIdMap.t(EvalEnv.t);
 
 let rec pp_uneval =
         (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
@@ -273,15 +273,15 @@ and pp_eval =
 and pp_eval_env =
     (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t)
     : (t, HoleClosureInfo_.t, EvalEnv.t) => {
-  let ei = env |> EvalEnv.id_of_evalenv;
-  switch (pe |> EvalEnvIdMap.find_opt(ei)) {
+  let ei = env |> EvalEnv.id_of;
+  switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hci, env)
   | None =>
     let (pe, hci, result_map) =
       VarBstMap.fold(
-        (x, dr: EvaluatorResult.t, (pe, hci, new_env)) => {
-          let (pe, hci, dr: EvaluatorResult.t) =
-            switch (dr) {
+        ((x, r: EvaluatorResult.t), (pe, hci, new_env)) => {
+          let (pe, hci, r: EvaluatorResult.t) =
+            switch (r) {
             | BoxedValue(d) =>
               let (pe, hci, d) = pp_eval(pe, hci, d);
               (pe, hci, BoxedValue(d));
@@ -289,13 +289,13 @@ and pp_eval_env =
               let (pe, hci, d) = pp_eval(pe, hci, d);
               (pe, hci, Indet(d));
             };
-          (pe, hci, VarBstMap.add(x, dr, new_env));
+          (pe, hci, VarBstMap.extend(new_env, (x, r)));
         },
-        env |> EvalEnv.result_map_of_evalenv,
         (pe, hci, VarBstMap.empty),
+        env |> EvalEnv.map_of,
       );
     let env = (ei, result_map);
-    (pe |> EvalEnvIdMap.add(ei, env), hci, env);
+    (pe |> EnvironmentIdMap.add(ei, env), hci, env);
   };
 };
 
@@ -379,16 +379,16 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
       List.fold_right(
         ((i, (env, _)), hci) =>
           VarBstMap.fold(
-            (x, dr: DHExp.result, hci) => {
+            ((x, r: EvaluatorResult.t), hci) => {
               let d =
-                switch (dr) {
+                switch (r) {
                 | BoxedValue(d) => d
                 | Indet(d) => d
                 };
               track_children_of_hole(hci, (x, (u, i)), d);
             },
-            env |> EvalEnv.result_map_of_evalenv,
             hci,
+            env |> EvalEnv.map_of,
           ),
         hcs |> List.mapi((i, hc) => (i, hc)),
         hci,
@@ -399,7 +399,8 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
 
 let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let (_, hci, d) = pp_eval(EvalEnvIdMap.empty, HoleClosureInfo_.empty, d);
+  let (_, hci, d) =
+    pp_eval(EnvironmentIdMap.empty, HoleClosureInfo_.empty, d);
 
   /* Convert HoleClosureInfo_.t to HoleClosureInfo.t */
   let hci = hci |> HoleClosureInfo_.to_hole_closure_info;
@@ -410,7 +411,7 @@ let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
   let hci =
     MetaVarMap.add(
       u_result,
-      [(((-1), VarBstMap.singleton("", DHExp.BoxedValue(d))), [])],
+      [(((-1), VarBstMap.singleton(("", DHExp.BoxedValue(d)))), [])],
       hci,
     );
 

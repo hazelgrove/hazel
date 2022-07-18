@@ -1,4 +1,4 @@
-/* EvalState.re: Holds state to be threaded throughout evaluation.
+/* EvaluatorState: Holds state to be threaded throughout evaluation.
 
    Currently holds information about numbered environments, and
    evaluation statistics (e.g., number of calls to `Evaluator.evaluate`).
@@ -7,15 +7,15 @@
    */
 
 [@deriving sexp]
-type t = (EvalEnvId.t, EvalStats.t, TestMap.t);
+type t;
 
-let initial: t;
+let init: t;
 
-/* Generate the next unique environment identifier */
-let next_env_id: t => (t, EvalEnvId.t);
+let get_eig: t => EnvironmentIdGen.t;
+let put_eig: (EnvironmentIdGen.t, t) => t;
+let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t), t) => ('a, t);
 
-let inc_eval_steps: t => t;
-
-let eval_steps: t => int;
+let take_step: t => t;
+let get_step: t => int;
 
 let add_test: (t, KeywordID.t, TestMap.instance_report) => t;

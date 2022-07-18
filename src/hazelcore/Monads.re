@@ -35,20 +35,41 @@ module Make_Zip = (M: MONAD_FUNCTOR) => {
 
 module type MONAD = {
   include MONAD_ZIP;
+
+  let sequence: list(t('a)) => t(list('a));
+
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
     let (and+): (t('a), t('b)) => t(('a, 'b));
+
+    let (>>=): (t('a), 'a => t('b)) => t('b);
+    let (>>|): (t('a), 'a => 'b) => t('b);
   };
 };
 
 module Make_Monad_Z = (M: MONAD_ZIP) => {
   include M;
 
+  let sequence = ms => {
+    let rec sequence' = (ms, acc) => {
+      switch (ms) {
+      | [] => acc
+      | [m, ...ms] =>
+        bind(m, x => sequence'(ms, map(acc, acc => [x, ...acc])))
+      };
+    };
+
+    map(sequence'(ms, [] |> return), List.rev);
+  };
+
   module Syntax = {
     let ( let* ) = bind;
     let (let+) = map;
     let (and+) = zip;
+
+    let (>>=) = bind;
+    let (>>|) = map;
   };
 };
 

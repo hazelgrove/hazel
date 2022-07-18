@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvalState.t);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp = ((d, _, _, _): t) => d;
 let get_hole_closure_info = ((_, hci, _, _): t) => hci;
@@ -24,14 +24,13 @@ let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
          && List.for_all2(
               /* Check that all hole closures are equal */
               ((sigma1, _), (sigma2, _)) =>
-                EvalEnv.id_of_evalenv(sigma1)
-                == EvalEnv.id_of_evalenv(sigma2)
+                EvalEnv.id_of(sigma1) == EvalEnv.id_of(sigma2)
                 && List.for_all2(
                      /* Check that variable mappings in evalenv are equal */
                      ((x1, r1), (x2, r2)) =>
                        x1 == x2 && final_dhexp_equals(r1, r2),
-                     EvalEnv.alist_of_evalenv(sigma1),
-                     EvalEnv.alist_of_evalenv(sigma2),
+                     EvalEnv.to_list(sigma1),
+                     EvalEnv.to_list(sigma2),
                    ),
               hcs1,
               hcs2,

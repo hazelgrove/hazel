@@ -1,4 +1,4 @@
-/* Mapping from EvalEnvId.t (to some other type)
+/* Mapping from EnvironmentId.t (to some other type)
 
    Used in HoleClosureInfo_.re
    */

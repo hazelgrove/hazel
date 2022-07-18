@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t = DHExp.result = | BoxedValue(DHExp.t) | Indet(DHExp.t);
+type t = DHExp.result;
 
 let unbox =
   fun

@@ -107,12 +107,11 @@ let get_elaboration = (program: t): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvalPostprocess.error);
-let (ec_init, env_init) = EvalEnv.empty;
-let evaluate =
-  Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(ec_init, env_init),
-  );
+let evaluate = d => {
+  let (env, _) =
+    EvaluatorState.init |> EvaluatorState.with_eig(EvalEnv.empty);
+  Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
+};
 let get_result = (program: t): Result.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>

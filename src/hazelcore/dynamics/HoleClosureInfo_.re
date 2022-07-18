@@ -1,18 +1,18 @@
 [@deriving sexp]
 type t =
   MetaVarMap.t(
-    EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
+    EnvironmentIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
   );
 
 let empty: t = MetaVarMap.empty;
 
 let number_hole_closure =
     (hci: t, u: MetaVar.t, env: EvalEnv.t): (t, HoleClosureId.t) => {
-  let ei = env |> EvalEnv.id_of_evalenv;
+  let ei = env |> EvalEnv.id_of;
   switch (hci |> MetaVarMap.find_opt(u)) {
   /* Hole already exists in the HoleClosureInfo_.t */
   | Some(hcs) =>
-    switch (hcs |> EvalEnvIdMap.find_opt(ei)) {
+    switch (hcs |> EnvironmentIdMap.find_opt(ei)) {
     /* Hole closure already exists in the HoleClosureInfo_.t, simply
        return the hole closure number */
     | Some((i, _, _)) => (hci, i)
@@ -20,15 +20,16 @@ let number_hole_closure =
        Create a new hole closure with closure id equal to the number
        of unique hole closures for the hole. Return a None environment */
     | None =>
-      let i = hcs |> EvalEnvIdMap.cardinal;
+      let i = hcs |> EnvironmentIdMap.cardinal;
       (
-        hci |> MetaVarMap.add(u, hcs |> EvalEnvIdMap.add(ei, (i, env, []))),
+        hci
+        |> MetaVarMap.add(u, hcs |> EnvironmentIdMap.add(ei, (i, env, []))),
         i,
       );
     }
   /* Hole doesn't exist in the HoleClosureInfo_.t */
   | None => (
-      hci |> MetaVarMap.add(u, EvalEnvIdMap.singleton(ei, (0, env, []))),
+      hci |> MetaVarMap.add(u, EnvironmentIdMap.singleton(ei, (0, env, []))),
       0,
     )
   };
@@ -41,12 +42,12 @@ let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
   |> MetaVarMap.map(
        (
          hcs:
-           EvalEnvIdMap.t(
+           EnvironmentIdMap.t(
              (HoleClosureId.t, EvalEnv.t, HoleClosureParents.t),
            ),
        ) =>
        hcs
-       |> EvalEnvIdMap.bindings
+       |> EnvironmentIdMap.bindings
        |> List.sort(((_, (i1, _, _)), (_, (i2, _, _))) =>
             compare(i1, i2)
           )

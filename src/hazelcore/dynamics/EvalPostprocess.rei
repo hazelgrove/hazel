@@ -52,7 +52,7 @@ type error =
 exception Exception(error);
 
 /* Memoize postprocessed environments */
-type t = EvalEnvIdMap.t(EvalEnv.t);
+type t = EnvironmentIdMap.t(EvalEnv.t);
 
 /* Postprocess inside evaluation boundary. Environment should already
    be postprocessed */
