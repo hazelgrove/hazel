@@ -1,16 +1,19 @@
 [@deriving sexp]
-type t = (EvalEnvId.t, EvaluatorStats.t);
+type t = {
+  ei: EvalEnvId.t,
+  stats: EvaluatorStats.t,
+};
 
-let initial = (EvalEnvId.initial, EvaluatorStats.initial);
+let initial = {ei: EvalEnvId.initial, stats: EvaluatorStats.initial};
 
-let next_env_id = ((ei, stats): t): (t, EvalEnvId.t) => (
-  (ei + 1, stats),
+let next_env_id = ({ei, _} as es: t): (t, EvalEnvId.t) => (
+  {...es, ei: ei + 1},
   ei,
 );
 
-let inc_eval_steps = ((ei, stats): t): t => (
-  ei,
-  stats |> EvaluatorStats.inc_eval_steps,
-);
+let inc_eval_steps = ({stats, _} as es: t): t => {
+  ...es,
+  stats: stats |> EvaluatorStats.inc_eval_steps,
+};
 
-let eval_steps = ((_, stats): t): int => stats |> EvaluatorStats.eval_steps;
+let eval_steps = ({stats, _}: t): int => stats |> EvaluatorStats.eval_steps;
