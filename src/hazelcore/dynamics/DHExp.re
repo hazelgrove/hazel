@@ -165,7 +165,6 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
-and environment = VarMap.t_(t)
 and evalenv = (EvalEnvId.t, VarBstMap.t(result))
 and result =
   | BoxedValue(t)
