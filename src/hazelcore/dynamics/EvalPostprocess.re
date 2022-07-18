@@ -269,7 +269,7 @@ and pp_eval_env =
   | None =>
     let (pe, hci, result_map) =
       VarBstMap.fold(
-        (x, dr: EvaluatorResult.t, (pe, hci, new_env)) => {
+        ((x, dr: EvaluatorResult.t), (pe, hci, new_env)) => {
           let (pe, hci, dr: EvaluatorResult.t) =
             switch (dr) {
             | BoxedValue(d) =>
@@ -279,10 +279,10 @@ and pp_eval_env =
               let (pe, hci, d) = pp_eval(pe, hci, d);
               (pe, hci, Indet(d));
             };
-          (pe, hci, VarBstMap.add(x, dr, new_env));
+          (pe, hci, VarBstMap.extend(new_env, (x, dr)));
         },
-        env |> EvalEnv.result_map_of_evalenv,
         (pe, hci, VarBstMap.empty),
+        env |> EvalEnv.result_map_of_evalenv,
       );
     let env = (ei, result_map);
     (pe |> EvalEnvIdMap.add(ei, env), hci, env);
@@ -367,7 +367,7 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
       List.fold_right(
         ((i, (env, _)), hci) =>
           VarBstMap.fold(
-            (x, dr: DHExp.result, hci) => {
+            ((x, dr: DHExp.result), hci) => {
               let d =
                 switch (dr) {
                 | BoxedValue(d) => d
@@ -375,8 +375,8 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
                 };
               track_children_of_hole(hci, (x, (u, i)), d);
             },
-            env |> EvalEnv.result_map_of_evalenv,
             hci,
+            env |> EvalEnv.result_map_of_evalenv,
           ),
         hcs |> List.mapi((i, hc) => (i, hc)),
         hci,
@@ -398,7 +398,7 @@ let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
   let hci =
     MetaVarMap.add(
       u_result,
-      [(((-1), VarBstMap.singleton("", DHExp.BoxedValue(d))), [])],
+      [(((-1), VarBstMap.singleton(("", DHExp.BoxedValue(d)))), [])],
       hci,
     );
 

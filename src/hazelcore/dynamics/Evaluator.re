@@ -908,7 +908,7 @@ and extend_evalenv_with_env =
       (new_env, (x, d)) => {
         /* The value of environment doesn't matter here */
         let (_, dr) = evaluate(es, EvalEnv.placeholder, d);
-        VarBstMap.add(x, dr, new_env);
+        VarBstMap.extend(new_env, (x, dr));
       },
       EvalEnv.result_map_of_evalenv(to_extend),
       new_bindings,

@@ -23,7 +23,7 @@
 
 [@deriving sexp]
 type t = DHExp.evalenv
-and result_map = VarBstMap.t(EvaluatorResult.t);
+and result_map = VarBstMap.t_(EvaluatorResult.t);
 
 let id_of_evalenv: t => EvalEnvId.t;
 let result_map_of_evalenv: t => result_map;

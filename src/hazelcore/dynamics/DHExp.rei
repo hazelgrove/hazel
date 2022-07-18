@@ -78,7 +78,7 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
-and evalenv = (EvalEnvId.t, VarBstMap.t(result))
+and evalenv = (EvalEnvId.t, VarBstMap.t_(result))
 and result =
   | BoxedValue(t)
   | Indet(t);

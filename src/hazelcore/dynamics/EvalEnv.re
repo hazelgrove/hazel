@@ -2,13 +2,13 @@
 type t = DHExp.evalenv;
 
 [@deriving sexp]
-type result_map = VarBstMap.t(EvaluatorResult.t);
+type result_map = VarBstMap.t_(EvaluatorResult.t);
 
 let id_of_evalenv = ((ei, _): t): EvalEnvId.t => ei;
 
 let environment_of_evalenv = ((_, result_map): t): Environment.t =>
   result_map
-  |> VarBstMap.bindings
+  |> VarBstMap.to_list
   |> List.map(((x, res: EvaluatorResult.t)) =>
        switch (res) {
        | Indet(d)
@@ -20,7 +20,7 @@ let result_map_of_evalenv = ((_, result_map): t): result_map => result_map;
 
 let alist_of_evalenv =
     ((_, result_map): t): list((Var.t, EvaluatorResult.t)) =>
-  result_map |> VarBstMap.bindings;
+  result_map |> VarBstMap.to_list;
 
 let empty: (EvaluatorState.t, t) = {
   let (es, ei) = EvaluatorState.initial |> EvaluatorState.next_env_id;
@@ -37,7 +37,7 @@ let extend =
     (es: EvaluatorState.t, env: t, (x, a): (Var.t, EvaluatorResult.t))
     : (EvaluatorState.t, t) => {
   let (es, ei) = es |> EvaluatorState.next_env_id;
-  (es, (ei, VarBstMap.add(x, a, result_map_of_evalenv(env))));
+  (es, (ei, VarBstMap.extend(result_map_of_evalenv(env), (x, a))));
 };
 
 let union = (es: EvaluatorState.t, env1: t, env2: t): (EvaluatorState.t, t) => {
@@ -47,7 +47,6 @@ let union = (es: EvaluatorState.t, env1: t, env2: t): (EvaluatorState.t, t) => {
     (
       ei,
       VarBstMap.union(
-        (_, dr, _) => Some(dr),
         result_map_of_evalenv(env1),
         result_map_of_evalenv(env2),
       ),
@@ -56,30 +55,38 @@ let union = (es: EvaluatorState.t, env1: t, env2: t): (EvaluatorState.t, t) => {
 };
 
 let lookup = (env: t, x) =>
-  env |> result_map_of_evalenv |> VarBstMap.find_opt(x);
+  env |> result_map_of_evalenv |> (map => VarBstMap.lookup(map, x));
 
 let contains = (env: t, x) =>
-  env |> result_map_of_evalenv |> VarBstMap.mem(x);
+  env |> result_map_of_evalenv |> (map => VarBstMap.contains(map, x));
 
 let map = (es: EvaluatorState.t, f, env: t): (EvaluatorState.t, t) => {
   let (es, ei) = es |> EvaluatorState.next_env_id;
-  (es, (ei, VarBstMap.mapi(f, result_map_of_evalenv(env))));
+  (
+    es,
+    (ei, VarBstMap.map(((x, r)) => f(x, r), result_map_of_evalenv(env))),
+  );
 };
 
 let map_keep_id = (f, env: t): t => (
   id_of_evalenv(env),
-  VarBstMap.mapi(f, result_map_of_evalenv(env)),
+  VarBstMap.map(((x, r)) => f(x, r), result_map_of_evalenv(env)),
 );
 
 let filter = (es: EvaluatorState.t, f, env: t): (EvaluatorState.t, t) => {
   let (es, ei) = es |> EvaluatorState.next_env_id;
-  (es, (ei, VarBstMap.filter(f, result_map_of_evalenv(env))));
+  (
+    es,
+    (
+      ei,
+      VarBstMap.filter(((x, r)) => f(x, r), result_map_of_evalenv(env)),
+    ),
+  );
 };
 
-let length = (env: t): int =>
-  VarBstMap.cardinal(result_map_of_evalenv(env));
+let length = (env: t): int => VarBstMap.length(result_map_of_evalenv(env));
 
 let to_list = (env: t): list((Var.t, EvaluatorResult.t)) =>
-  env |> result_map_of_evalenv |> VarBstMap.bindings;
+  env |> result_map_of_evalenv |> VarBstMap.to_list;
 
 let placeholder = ((-1), VarBstMap.empty);
