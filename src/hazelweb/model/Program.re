@@ -106,7 +106,7 @@ let get_elaboration = (program: t): DHExp.t =>
   };
 
 exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvalPostprocess.error);
+exception PostprocessError(EvaluatorPost.error);
 let evaluate = d => {
   let (env, _) =
     EvaluatorState.init |> EvaluatorState.with_eig(EvalEnv.empty);
@@ -116,17 +116,17 @@ let get_result = (program: t): Result.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>
     let (hci, d) =
-      switch (d |> EvalPostprocess.postprocess) {
+      switch (d |> EvaluatorPost.postprocess) {
       | d => d
-      | exception (EvalPostprocess.Exception(reason)) =>
+      | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
     (d, hci, BoxedValue(d), es);
   | (es, Indet(d)) =>
     let (hci, d) =
-      switch (d |> EvalPostprocess.postprocess) {
+      switch (d |> EvaluatorPost.postprocess) {
       | d => d
-      | exception (EvalPostprocess.Exception(reason)) =>
+      | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
     (d, hci, Indet(d), es);
