@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvalState.t);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp = ((d, _, _, _): t) => d;
 let get_hole_closure_info = ((_, hci, _, _): t) => hci;

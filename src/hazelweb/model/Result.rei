@@ -6,17 +6,17 @@
    wrapper around `DHExp.t` that indicates what kind of
    final result it is (BoxedValue/Indet).
 
-   The `EvalState.t` component includes `EvalStats.t`, which
+   The `EvaluatorState.t` component includes `EvalStats.t`, which
    may contain evaluation statistics (e.g., number of evaluation
    steps) and may serve as an initial state to resume evaluation
    from a previous evaluation result in fill-and-resume.
    */
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvalState.t);
+type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp: t => DHExp.t;
 let get_hole_closure_info: t => HoleClosureInfo.t;
-let get_eval_state: t => EvalState.t;
+let get_eval_state: t => EvaluatorState.t;
 
 /* See DHExp.fast_equals. Also checks that all environments
    in the HoleClosureInfo.t are equal. */

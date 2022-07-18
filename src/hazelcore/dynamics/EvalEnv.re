@@ -22,8 +22,8 @@ let alist_of_evalenv =
     ((_, result_map): t): list((Var.t, EvaluatorResult.t)) =>
   result_map |> VarBstMap.bindings;
 
-let empty: (EvalState.t, t) = {
-  let (es, ei) = EvalState.initial |> EvalState.next_env_id;
+let empty: (EvaluatorState.t, t) = {
+  let (es, ei) = EvaluatorState.initial |> EvaluatorState.next_env_id;
   let env: t = (ei, VarBstMap.empty);
   (es, env);
 };
@@ -34,14 +34,14 @@ let equals = (env1: t, env2: t): bool =>
   id_of_evalenv(env1) == id_of_evalenv(env2);
 
 let extend =
-    (es: EvalState.t, env: t, (x, a): (Var.t, EvaluatorResult.t))
-    : (EvalState.t, t) => {
-  let (es, ei) = es |> EvalState.next_env_id;
+    (es: EvaluatorState.t, env: t, (x, a): (Var.t, EvaluatorResult.t))
+    : (EvaluatorState.t, t) => {
+  let (es, ei) = es |> EvaluatorState.next_env_id;
   (es, (ei, VarBstMap.add(x, a, result_map_of_evalenv(env))));
 };
 
-let union = (es: EvalState.t, env1: t, env2: t): (EvalState.t, t) => {
-  let (es, ei) = es |> EvalState.next_env_id;
+let union = (es: EvaluatorState.t, env1: t, env2: t): (EvaluatorState.t, t) => {
+  let (es, ei) = es |> EvaluatorState.next_env_id;
   (
     es,
     (
@@ -61,8 +61,8 @@ let lookup = (env: t, x) =>
 let contains = (env: t, x) =>
   env |> result_map_of_evalenv |> VarBstMap.mem(x);
 
-let map = (es: EvalState.t, f, env: t): (EvalState.t, t) => {
-  let (es, ei) = es |> EvalState.next_env_id;
+let map = (es: EvaluatorState.t, f, env: t): (EvaluatorState.t, t) => {
+  let (es, ei) = es |> EvaluatorState.next_env_id;
   (es, (ei, VarBstMap.mapi(f, result_map_of_evalenv(env))));
 };
 
@@ -71,8 +71,8 @@ let map_keep_id = (f, env: t): t => (
   VarBstMap.mapi(f, result_map_of_evalenv(env)),
 );
 
-let filter = (es: EvalState.t, f, env: t): (EvalState.t, t) => {
-  let (es, ei) = es |> EvalState.next_env_id;
+let filter = (es: EvaluatorState.t, f, env: t): (EvaluatorState.t, t) => {
+  let (es, ei) = es |> EvaluatorState.next_env_id;
   (es, (ei, VarBstMap.filter(f, result_map_of_evalenv(env))));
 };
 

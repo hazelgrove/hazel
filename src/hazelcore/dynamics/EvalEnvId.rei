@@ -1,6 +1,6 @@
-/* Identifier for an EvalEnv.t.EvalState
+/* Identifier for an EvalEnv.t.EvaluatorState
 
-   `EvalState.next_env_id` should generate a unique `EvalEnv.t`
+   `EvaluatorState.next_env_id` should generate a unique `EvalEnv.t`
    for each `EvalEnv.t`.
    */
 [@deriving sexp]

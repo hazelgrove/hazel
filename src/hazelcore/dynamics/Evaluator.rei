@@ -5,7 +5,8 @@ type ground_cases =
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
 let evaluate:
-  (EvalState.t, EvalEnv.t, DHExp.t) => (EvalState.t, EvaluatorResult.t);
+  (EvaluatorState.t, EvalEnv.t, DHExp.t) =>
+  (EvaluatorState.t, EvaluatorResult.t);
 
 /* closed substitution [d1/x]d2;
    Not needed for evaluation with environments,

@@ -543,10 +543,10 @@ let eval_bin_float_op =
 };
 
 let rec evaluate =
-        (es: EvalState.t, env: EvalEnv.t, d: DHExp.t)
-        : (EvalState.t, EvaluatorResult.t) => {
+        (es: EvaluatorState.t, env: EvalEnv.t, d: DHExp.t)
+        : (EvaluatorState.t, EvaluatorResult.t) => {
   /* Increment number of evaluation steps (calls to `evaluate`). */
-  let es = es |> EvalState.inc_eval_steps;
+  let es = es |> EvaluatorState.inc_eval_steps;
 
   switch (d) {
   | BoundVar(x) =>
@@ -843,14 +843,14 @@ let rec evaluate =
 }
 and evaluate_case =
     (
-      es: EvalState.t,
+      es: EvaluatorState.t,
       env: EvalEnv.t,
       inconsistent_info: option(HoleClosure.t),
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : (EvalState.t, EvaluatorResult.t) =>
+    : (EvaluatorState.t, EvaluatorResult.t) =>
   switch (evaluate(es, env, scrut)) {
   | (es, BoxedValue(scrut))
   | (es, Indet(scrut)) =>
@@ -900,9 +900,9 @@ and evaluate_case =
    in a final judgment (BoxedValue or Indet), so we call evaluate()
    on it again, but it shouldn't change the value of the expression. */
 and extend_evalenv_with_env =
-    (es: EvalState.t, new_bindings: Environment.t, to_extend: EvalEnv.t)
-    : (EvalState.t, EvalEnv.t) => {
-  let (es, ei) = es |> EvalState.next_env_id;
+    (es: EvaluatorState.t, new_bindings: Environment.t, to_extend: EvalEnv.t)
+    : (EvaluatorState.t, EvalEnv.t) => {
+  let (es, ei) = es |> EvaluatorState.next_env_id;
   let result_map =
     List.fold_left(
       (new_env, (x, d)) => {
@@ -918,8 +918,13 @@ and extend_evalenv_with_env =
 
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
-    (es: EvalState.t, env: EvalEnv.t, ident: string, args: list(DHExp.t))
-    : (EvalState.t, EvaluatorResult.t) => {
+    (
+      es: EvaluatorState.t,
+      env: EvalEnv.t,
+      ident: string,
+      args: list(DHExp.t),
+    )
+    : (EvaluatorState.t, EvaluatorResult.t) => {
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => eval(es, env, args, evaluate)
   | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))

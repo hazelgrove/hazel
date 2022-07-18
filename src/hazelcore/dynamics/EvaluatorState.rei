@@ -1,4 +1,4 @@
-/* EvalState.re: Holds state to be threaded throughout evaluation.
+/* EvaluatorState.re: Holds state to be threaded throughout evaluation.
 
    Currently holds information about numbered environments, and
    evaluation statistics (e.g., number of calls to `Evaluator.evaluate`).
