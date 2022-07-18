@@ -100,7 +100,7 @@ let mk_inconsistent =
     switch (skel, zseq) {
     | (Placeholder(_), ZOperator(_, _)) => assert(false)
     | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperator(zop, surround),
@@ -110,7 +110,7 @@ let mk_inconsistent =
       let (zoperand, id_gen) = zoperand |> mk_inconsistent_zoperand(id_gen);
       (skel, ZOperand(zoperand, surround), id_gen);
     | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
         ZOperand(zoperand, surround),

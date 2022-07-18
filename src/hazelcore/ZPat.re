@@ -88,18 +88,18 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
     (CursorP(cursor, operand), id_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp), id_gen);
   | ParenthesizedZ(zp) =>
     let (zp, id_gen) = zp |> mk_inconsistent(id_gen);
     (ParenthesizedZ(zp), id_gen);
   | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), id_gen);
   | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), id_gen);
   };
 

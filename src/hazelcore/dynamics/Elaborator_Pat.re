@@ -64,12 +64,12 @@ and syn_elab_skel =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.PatternHole, HTyp.Unknown(Internal), gamma),
+          (Delta.PatternHole, HTyp.Unknown(ModeSwitch), gamma),
           delta,
         );
       Elaborates(
         NonEmptyHole(reason, u, 0, dp),
-        Unknown(Internal),
+        Unknown(ModeSwitch),
         ctx,
         delta,
       );
@@ -112,7 +112,7 @@ and syn_elab_skel =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Unknown(Internal), ctx, delta);
+        Elaborates(dp, Unknown(ModeSwitch), ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -152,12 +152,12 @@ and syn_elab_operand =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.PatternHole, HTyp.Unknown(Internal), gamma),
+          (Delta.PatternHole, HTyp.Unknown(ModeSwitch), gamma),
           delta,
         );
       Elaborates(
         NonEmptyHole(reason, u, 0, dp),
-        Unknown(Internal),
+        Unknown(ModeSwitch),
         ctx,
         delta,
       );
@@ -178,18 +178,18 @@ and syn_elab_operand =
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.InvalidText(u, 0, t);
-    let ty = HTyp.Unknown(Internal);
+    let ty = HTyp.Unknown(ModeSwitch);
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Wild(NotInHole) => Elaborates(Wild, Unknown(ModeSwitch), ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), Unknown(Internal), ctx, delta)
+  | Var(NotInHole, InVarHole(ExpandingKeyword(k), u), _) =>
+    Elaborates(ExpandingKeyword(u, 0, k), Unknown(ModeSwitch), ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_var_syn) {
     | ModedVariable => Elaborates(Var(x), Unknown(ModeSwitch), ctx, delta)
     | UnknownVariable =>
-      let ty = HTyp.Unknown(Internal);
+      let ty = HTyp.Unknown(ModeSwitch);
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Elaborates(Var(x), ty, ctx, delta);
     }
@@ -205,7 +205,7 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | ListNil(NotInHole) =>
-    Elaborates(ListNil, List(Unknown(Internal)), ctx, delta)
+    Elaborates(ListNil, List(Unknown(ModeSwitch)), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1, ~pattern_var_syn)
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p, ~pattern_var_syn)) {
@@ -214,8 +214,8 @@ and syn_elab_operand =
       let dp = DHPat.Inj(side, dp1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), ty1)
+        | L => HTyp.Sum(ty1, Unknown(ModeSwitch))
+        | R => HTyp.Sum(Unknown(ModeSwitch), ty1)
         };
       Elaborates(dp, ty, ctx, delta);
     }
@@ -360,7 +360,7 @@ and ana_elab_skel =
         delta,
         skel1,
         seq,
-        Unknown(Internal),
+        Unknown(ModeSwitch),
         ~pattern_var_syn,
       )
     ) {
@@ -372,14 +372,14 @@ and ana_elab_skel =
           delta,
           skel2,
           seq,
-          Unknown(Internal),
+          Unknown(ModeSwitch),
           ~pattern_var_syn,
         )
       ) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _ty2, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Unknown(Internal), ctx, delta);
+        Elaborates(dp, Unknown(ModeSwitch), ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -442,8 +442,8 @@ and ana_elab_operand =
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), ty, ctx, delta)
+  | Var(NotInHole, InVarHole(ExpandingKeyword(k), u), _) =>
+    Elaborates(ExpandingKeyword(u, 0, k), ty, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     Elaborates(Var(x), ty, ctx, delta);
@@ -501,11 +501,11 @@ let rec renumber_result_only =
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (NonEmptyHole(reason, u, i, dp1), hii);
-  | Keyword(u, _, k) =>
+  | ExpandingKeyword(u, _, k) =>
     /* TODO: see above */
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Keyword(u, i, k), hii);
+    (ExpandingKeyword(u, i, k), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);

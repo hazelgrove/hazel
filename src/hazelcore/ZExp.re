@@ -516,7 +516,7 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
   | CaseZE(CaseNotInHole | InconsistentBranches(_), _, _)
   | CaseZR(CaseNotInHole | InconsistentBranches(_), _, _) =>
-    let (u, id_gen) = id_gen |> IDGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zoperand =
       zoperand |> set_err_status_zoperand(InHole(TypeInconsistent, u));
     (zoperand, id_gen);

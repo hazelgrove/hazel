@@ -807,7 +807,7 @@ and syn_fix_holes_operand =
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (EmptyHole(u), Unknown(Internal), id_gen);
     } else {
       (e, Unknown(Internal), id_gen);
@@ -821,10 +821,10 @@ and syn_fix_holes_operand =
       switch (var_err_status) {
       | InVarHole(_, _) => (e_nih, HTyp.Unknown(Internal), id_gen)
       | NotInVarHole =>
-        let (u, id_gen) = IDGen.next(id_gen);
+        let (u, id_gen) = IDGen.next_hole(id_gen);
         let reason: VarErrStatus.HoleReason.t =
           switch (ExpandingKeyword.mk(x)) {
-          | Some(t) => Keyword(t)
+          | Some(t) => ExpandingKeyword(t)
           | None => Free
           };
         (
@@ -870,7 +870,7 @@ and syn_fix_holes_operand =
       );
     switch (common_type) {
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         Case(InconsistentBranches(u, Syn), scrut, rules),
         HTyp.Unknown(Internal),
@@ -1094,7 +1094,7 @@ and ana_fix_holes_opseq' =
       |> (
         fun
         | (rev_skels, seq, id_gen) => {
-            let (u, id_gen) = IDGen.next(id_gen);
+            let (u, id_gen) = IDGen.next_hole(id_gen);
             let skel = UHExp.mk_tuple(List.rev(rev_skels));
             let opseq =
               UHExp.set_err_status_opseq(
@@ -1105,7 +1105,7 @@ and ana_fix_holes_opseq' =
           }
       );
     } else {
-      let (u, id_gen) = id_gen |> IDGen.next;
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
       let (opseq, _, id_gen) =
         syn_fix_holes_opseq(
           ctx,
@@ -1191,7 +1191,7 @@ and ana_fix_holes_skel' =
           seq,
           ty_list,
         );
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       let skel =
         Skel.BinOp(
           InHole(TypeInconsistent, u),
@@ -1254,7 +1254,7 @@ and ana_fix_holes_operand' =
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (EmptyHole(u), id_gen);
     } else {
       (e, id_gen);
@@ -1269,7 +1269,7 @@ and ana_fix_holes_operand' =
     if (HTyp.consistent(ty, ty')) {
       (UHExp.set_err_status_operand(NotInHole, e), id_gen);
     } else {
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e),
         id_gen,
@@ -1279,7 +1279,7 @@ and ana_fix_holes_operand' =
     switch (HTyp.matched_list(ty)) {
     | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), id_gen)
     | None =>
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (ListNil(InHole(TypeInconsistent, u)), id_gen);
     }
   | Parenthesized(body) =>
@@ -1303,7 +1303,7 @@ and ana_fix_holes_operand' =
     | None =>
       let (e', _, id_gen) =
         syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
-      let (u, id_gen) = IDGen.next(id_gen);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
         id_gen,
@@ -1327,7 +1327,7 @@ and ana_fix_holes_operand' =
       if (HTyp.consistent(ty, ty')) {
         (UHExp.set_err_status_operand(NotInHole, e'), id_gen);
       } else {
-        let (u, id_gen) = IDGen.next(id_gen);
+        let (u, id_gen) = IDGen.next_hole(id_gen);
         (
           UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
           id_gen,
@@ -1344,7 +1344,7 @@ and ana_fix_holes_operand' =
     | Some(clause_types) =>
       switch (HTyp.join_all(GLB, clause_types)) {
       | None =>
-        let (u, id_gen) = IDGen.next(id_gen);
+        let (u, id_gen) = IDGen.next_hole(id_gen);
         (Case(InconsistentBranches(u, Ana), scrut, rules), id_gen);
       | Some(_) => (Case(CaseNotInHole, scrut, rules), id_gen)
       }
