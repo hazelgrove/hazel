@@ -9,7 +9,7 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-type t = EvalEnvIdMap.t(EvalEnv.t);
+type t = EnvironmentIdMap.t(EvalEnv.t);
 
 let rec pp_uneval =
         (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
@@ -264,7 +264,7 @@ and pp_eval_env =
     (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t)
     : (t, HoleClosureInfo_.t, EvalEnv.t) => {
   let ei = env |> EvalEnv.id_of_evalenv;
-  switch (pe |> EvalEnvIdMap.find_opt(ei)) {
+  switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hci, env)
   | None =>
     let (pe, hci, result_map) =
@@ -285,7 +285,7 @@ and pp_eval_env =
         env |> EvalEnv.result_map_of_evalenv,
       );
     let env = (ei, result_map);
-    (pe |> EvalEnvIdMap.add(ei, env), hci, env);
+    (pe |> EnvironmentIdMap.add(ei, env), hci, env);
   };
 };
 
@@ -387,7 +387,8 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
 
 let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let (_, hci, d) = pp_eval(EvalEnvIdMap.empty, HoleClosureInfo_.empty, d);
+  let (_, hci, d) =
+    pp_eval(EnvironmentIdMap.empty, HoleClosureInfo_.empty, d);
 
   /* Convert HoleClosureInfo_.t to HoleClosureInfo.t */
   let hci = hci |> HoleClosureInfo_.to_hole_closure_info;

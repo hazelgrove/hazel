@@ -2,14 +2,14 @@
    HoleClosureInfo.t.
 
    Useful for building the HoleClosureInfo, because we can index/lookup
-   by EvalEnvId. However, when using it we want sequential numbers
+   by EnvironmentId. However, when using it we want sequential numbers
    (HoleClosureId) to identify the hole closures
    (similar to HoleInstanceInfo.t).
    */
 [@deriving sexp]
 type t =
   MetaVarMap.t(
-    EvalEnvIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
+    EnvironmentIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
   );
 
 let empty: t;

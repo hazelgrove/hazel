@@ -4,7 +4,7 @@ type t = DHExp.env;
 [@deriving sexp]
 type result_map = VarBstMap.t_(EvaluatorResult.t);
 
-let id_of_evalenv = ((ei, _): t): EvalEnvId.t => ei;
+let id_of_evalenv = ((ei, _): t): EnvironmentId.t => ei;
 
 let environment_of_evalenv = ((_, result_map): t): Environment.t =>
   result_map

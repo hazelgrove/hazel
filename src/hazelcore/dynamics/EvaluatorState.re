@@ -1,12 +1,12 @@
 [@deriving sexp]
 type t = {
-  ei: EvalEnvId.t,
+  ei: EnvironmentId.t,
   stats: EvaluatorStats.t,
 };
 
-let initial = {ei: EvalEnvId.initial, stats: EvaluatorStats.initial};
+let initial = {ei: EnvironmentId.initial, stats: EvaluatorStats.initial};
 
-let next_env_id = ({ei, _} as es: t): (t, EvalEnvId.t) => (
+let next_env_id = ({ei, _} as es: t): (t, EnvironmentId.t) => (
   {...es, ei: ei + 1},
   ei,
 );

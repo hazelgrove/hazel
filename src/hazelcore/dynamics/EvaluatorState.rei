@@ -8,14 +8,14 @@
 
 [@deriving sexp]
 type t = {
-  ei: EvalEnvId.t,
+  ei: EnvironmentId.t,
   stats: EvaluatorStats.t,
 };
 
 let initial: t;
 
 /* Generate the next unique environment identifier */
-let next_env_id: t => (t, EvalEnvId.t);
+let next_env_id: t => (t, EnvironmentId.t);
 
 let inc_eval_steps: t => t;
 

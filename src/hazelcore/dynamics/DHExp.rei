@@ -78,7 +78,7 @@ and case =
   | Case(t, list(rule), int)
 and rule =
   | Rule(DHPat.t, t)
-and env = (EvalEnvId.t, VarBstMap.t_(result))
+and env = (EnvironmentId.t, VarBstMap.t_(result))
 and result =
   | BoxedValue(t)
   | Indet(t);
@@ -97,10 +97,10 @@ let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
    We can optimize checking for structural equality of
    environments simply by checking equality of environment ID's.
 
-   Note: assumes that environments with the same EvalEnvId.t
+   Note: assumes that environments with the same EnvironmentId.t
    within both expressions are equivalent. This assumption
    is true if comparing within a program evaluation (since
-   EvalEnvId.t numbers don't get reused within a single program
+   EnvironmentId.t numbers don't get reused within a single program
    evaluation) or if all the environments are checked to be
    equal (see Result.fast_equals).
    */

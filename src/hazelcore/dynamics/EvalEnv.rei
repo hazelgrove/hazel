@@ -25,7 +25,7 @@
 type t = DHExp.env
 and result_map = VarBstMap.t_(EvaluatorResult.t);
 
-let id_of_evalenv: t => EvalEnvId.t;
+let id_of_evalenv: t => EnvironmentId.t;
 let result_map_of_evalenv: t => result_map;
 let environment_of_evalenv: t => Environment.t;
 let alist_of_evalenv: t => list((Var.t, EvaluatorResult.t));
@@ -63,5 +63,5 @@ let union: (EvaluatorState.t, t, t) => (EvaluatorState.t, t);
 let map_keep_id: ((Var.t, EvaluatorResult.t) => EvaluatorResult.t, t) => t;
 
 /* Placeholder used in DHCode. Is identified by an invalid
-   EvalEnvId.t, only used for display purposes. */
+   EnvironmentId.t, only used for display purposes. */
 let placeholder: t;
