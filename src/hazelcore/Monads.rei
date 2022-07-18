@@ -23,6 +23,9 @@ module Make_Zip: (M: MONAD_FUNCTOR) => MONAD_ZIP with type t('a) = M.t('a);
 
 module type MONAD = {
   include MONAD_ZIP;
+
+  let sequence: list(t('a)) => t(list('a));
+
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
