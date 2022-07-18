@@ -7,7 +7,7 @@
    */
 
 [@deriving sexp]
-type t = (EvalEnvId.t, EvalStats.t);
+type t = (EvalEnvId.t, EvaluatorStats.t);
 
 let initial: t;
 

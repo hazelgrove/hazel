@@ -6,7 +6,7 @@
    wrapper around `DHExp.t` that indicates what kind of
    final result it is (BoxedValue/Indet).
 
-   The `EvaluatorState.t` component includes `EvalStats.t`, which
+   The `EvaluatorState.t` component includes `EvaluatorStats.t`, which
    may contain evaluation statistics (e.g., number of evaluation
    steps) and may serve as an initial state to resume evaluation
    from a previous evaluation result in fill-and-resume.
