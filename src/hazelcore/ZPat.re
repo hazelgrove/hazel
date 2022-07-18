@@ -76,31 +76,31 @@ and set_err_status_zoperand = (err, zoperand) =>
   | TypeAnnZA(_, op, zann) => TypeAnnZA(err, op, zann)
   };
 
-let rec mk_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
-  zp |> mk_inconsistent_zopseq(u_gen)
+let rec mk_inconsistent = (id_gen: IDGen.t, zp: t): (t, IDGen.t) =>
+  zp |> mk_inconsistent_zopseq(id_gen)
 and mk_inconsistent_zopseq =
-    (u_gen: MetaVarGen.t, zopseq: zopseq): (zopseq, MetaVarGen.t) =>
-  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, u_gen, zopseq)
-and mk_inconsistent_zoperand = (u_gen, zoperand) =>
+    (id_gen: IDGen.t, zopseq: zopseq): (zopseq, IDGen.t) =>
+  ZOpSeq.mk_inconsistent(~mk_inconsistent_zoperand, id_gen, zopseq)
+and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   switch (zoperand) {
   | CursorP(cursor, operand) =>
-    let (operand, u_gen) = operand |> UHPat.mk_inconsistent_operand(u_gen);
-    (CursorP(cursor, operand), u_gen);
-  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+    let (operand, id_gen) = operand |> UHPat.mk_inconsistent_operand(id_gen);
+    (CursorP(cursor, operand), id_gen);
+  | InjZ(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (InjZ(InHole(TypeInconsistent, u), inj_side, zp), u_gen);
+    let (u, id_gen) = id_gen |> IDGen.next;
+    (InjZ(InHole(TypeInconsistent, u), inj_side, zp), id_gen);
   | ParenthesizedZ(zp) =>
-    let (zp, u_gen) = zp |> mk_inconsistent(u_gen);
-    (ParenthesizedZ(zp), u_gen);
-  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+    let (zp, id_gen) = zp |> mk_inconsistent(id_gen);
+    (ParenthesizedZ(zp), id_gen);
+  | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), u_gen);
-  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, u_gen)
+    let (u, id_gen) = id_gen |> IDGen.next;
+    (TypeAnnZP(InHole(TypeInconsistent, u), zop, ann), id_gen);
+  | TypeAnnZA(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZA(NotInHole | InHole(WrongLength, _), op, zann) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), u_gen);
+    let (u, id_gen) = id_gen |> IDGen.next;
+    (TypeAnnZA(InHole(TypeInconsistent, u), op, zann), id_gen);
   };
 
 let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
@@ -227,9 +227,9 @@ let place_cursor_operator =
     ? Some((cursor, operator)) : None;
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
-  let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-  (place_before_operand(hole), u_gen);
+let new_EmptyHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
+  let (hole, id_gen) = UHPat.new_EmptyHole(id_gen);
+  (place_before_operand(hole), id_gen);
 };
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =

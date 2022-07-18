@@ -1,5 +1,5 @@
 // Test suite for the skel parser.
-let mvar = MetaVarGen.init;
+let mvar = IDGen.init;
 
 let%test "single operand test" = {
   // 1
