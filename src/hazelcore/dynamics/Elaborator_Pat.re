@@ -158,7 +158,7 @@ and syn_elab_operand =
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | ListLit(StandardErrStatus(NotInHole), None) =>
-    Elaborates(ListLit(List(Hole), []), List(Hole), ctx, delta)
+    Elaborates(ListLit(Hole, []), List(Hole), ctx, delta)
   | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
   | ListLit(_, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
@@ -179,9 +179,8 @@ and syn_elab_operand =
       };
     let (types, deltas) = List.split(syn_subskels(subskels));
     switch (Statics_common.lub(types)) {
-    | Some(ty) =>
-      Elaborates(ListLit(List(ty), deltas), List(ty), ctx, delta)
-    | _ => Elaborates(ListLit(List(Hole), deltas), List(Hole), ctx, delta)
+    | Some(ty) => Elaborates(ListLit(ty, deltas), List(ty), ctx, delta)
+    | _ => Elaborates(ListLit(Hole, deltas), List(Hole), ctx, delta)
     };
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {
@@ -394,32 +393,34 @@ and ana_elab_operand =
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_elt) =>
-      Elaborates(ListLit(List(ty_elt), []), HTyp.List(ty_elt), ctx, delta)
+      Elaborates(ListLit(ty_elt, []), HTyp.List(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
-  | ListLit(StandardErrStatus(NotInHole), Some(body)) =>
-    let res = ana_elab(ctx, delta, body, ty);
-    let rec get_tuple_elements: DHPat.t => list(DHPat.t) = (
-      fun
-      | Pair(skel1, skel2) =>
-        get_tuple_elements(skel1) @ get_tuple_elements(skel2)
-      | skel => [skel]
-    );
-    switch (res) {
-    | Elaborates(d, ty, ctx, delta) =>
-      let lst = get_tuple_elements(d);
-      let tys = HTyp.get_prod_elements(ty);
-      let glb_ty = Statics_common.lub(tys);
-      print_endline(Sexplib.Sexp.to_string(DHPat.sexp_of_t(d)));
-      print_endline(Sexplib.Sexp.to_string(HTyp.sexp_of_t(ty)));
-      switch (glb_ty) {
-      | Some(ty) =>
-        Elaborates(ListLit(List(ty), lst), List(ty), ctx, delta)
-      | None =>
-        Elaborates(ListLit(List(Hole), lst), List(Hole), ctx, delta)
+  | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, _) as opseq)) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => DoesNotElaborate
+    | Some(ty_el) =>
+      let length = List.length(UHPat.get_tuple_elements(skel));
+      let ty_prod = HTyp.Prod(List.init(length, _ => ty_el));
+      let res = ana_elab(ctx, delta, opseq, ty_prod);
+      let rec get_tuple_elements: DHPat.t => list(DHPat.t) = (
+        fun
+        | Pair(skel1, skel2) =>
+          get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+        | skel => [skel]
+      );
+      switch (res) {
+      | Elaborates(d, ty, ctx, delta) =>
+        let lst = get_tuple_elements(d);
+        let tys = HTyp.get_prod_elements(ty);
+        let glb_ty = Statics_common.lub(tys);
+        switch (glb_ty) {
+        | Some(ty) => Elaborates(ListLit(ty, lst), List(ty), ctx, delta)
+        | None => Elaborates(ListLit(Hole, lst), List(Hole), ctx, delta)
+        };
+      | DoesNotElaborate => DoesNotElaborate
       };
-    | DoesNotElaborate => DoesNotElaborate
-    };
+    }
   | Inj(NotInHole, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => DoesNotElaborate

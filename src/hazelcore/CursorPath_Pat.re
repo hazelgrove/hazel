@@ -5,6 +5,7 @@ and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
   fun
+  | CursorP(cursor, ListLit(_, Some(_))) => ([0], cursor)
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
   | ListLitZ(_, zbody)
@@ -52,10 +53,13 @@ and follow_operand =
     | ListLit(err, Some(body)) =>
       switch (x) {
       | 0 =>
-        body
-        |> follow((xs, cursor))
-        // |> OptUtil.map2(zbody => ZPat.ListLitZ(err, zbody))
-        |> Option.map(zbody => ZPat.ListLitZ(err, zbody))
+        if (List.length(xs) == 0) {
+          follow_operand((xs, cursor), operand);
+        } else {
+          body
+          |> follow((xs, cursor))
+          |> Option.map(zbody => ZPat.ListLitZ(err, zbody));
+        }
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -134,9 +138,15 @@ and of_steps_operand =
     | ListLit(_, Some(body)) =>
       switch (x) {
       | 0 =>
-        body
-        |> of_steps(xs, ~side)
-        |> Option.map(path => CursorPath_common.cons'(0, path))
+        if (List.length(xs) == 0) {
+          operand
+          |> of_steps_operand(xs, ~side)
+          |> Option.map(path => CursorPath_common.cons'(0, path));
+        } else {
+          body
+          |> of_steps(xs, ~side)
+          |> Option.map(path => CursorPath_common.cons'(0, path));
+        }
       | _ => None
       }
     | Inj(_, _, body) =>

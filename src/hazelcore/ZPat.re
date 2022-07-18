@@ -25,7 +25,6 @@ and erase_zoperand: zoperand => UHPat.operand =
     | ParenthesizedZ(zp) => UHPat.Parenthesized(erase(zp))
     | ListLitZ(err, zopseq) =>
       UHPat.ListLit(err, Some(erase_zopseq(zopseq)))
-
     | TypeAnnZP(err, zoperand, ty) =>
       UHPat.TypeAnn(err, erase_zoperand(zoperand), ty)
     | TypeAnnZA(err, operand, zty) =>
@@ -44,7 +43,6 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | IntLit(_, n) => text_cursors(String.length(n))
     | FloatLit(_, f) => text_cursors(String.length(f))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
-    // | ListNil(_) => delim_cursors(1)
     | ListLit(_, None) => CursorPosition.text_cursors(2) // OnText(0), OnText(1), OnText(2)
     | ListLit(_, Some(_)) => CursorPosition.delim_cursors(2) // OnDelim(0 | 1, Before | After)
     | Inj(_, _, _) => delim_cursors(2)
@@ -104,9 +102,13 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | ParenthesizedZ(zp) =>
     let (zp, id_gen) = zp |> mk_inconsistent(id_gen);
     (ParenthesizedZ(zp), id_gen);
-  | ListLitZ(err, zp) =>
-    let (zp, id_gen) = zp |> mk_inconsistent(id_gen);
-    (ListLitZ(err, zp), id_gen);
+  | ListLitZ(StandardErrStatus(InHole(TypeInconsistent, _)), _) => (
+      zoperand,
+      id_gen,
+    )
+  | ListLitZ(_, zp) =>
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
+    (ListLitZ(StandardErrStatus(InHole(TypeInconsistent, u)), zp), id_gen);
   | TypeAnnZP(InHole(TypeInconsistent, _), _, _) => (zoperand, id_gen)
   | TypeAnnZP(NotInHole | InHole(WrongLength, _), zop, ann) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
@@ -176,8 +178,9 @@ and is_after_zoperand =
   | CursorP(cursor, IntLit(_, n)) => cursor == OnText(String.length(n))
   | CursorP(cursor, FloatLit(_, f)) => cursor == OnText(String.length(f))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
+  | CursorP(cursor, ListLit(_, None)) => cursor == OnText(2)
   | CursorP(cursor, Inj(_, _, _))
-  | CursorP(cursor, ListLit(_, _))
+  | CursorP(cursor, ListLit(_, Some(_)))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorP(_, TypeAnn(_)) => false
   | InjZ(_, _, _)
@@ -197,14 +200,14 @@ and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
   | Wild(_) => CursorP(OnDelim(0, Before), operand)
-  // | ListNil(_)
+  | ListLit(_, None)
   | InvalidText(_, _)
   | Var(_, _, _)
   | IntLit(_, _)
   | FloatLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), operand)
   | Inj(_, _, _)
-  | ListLit(_, _)
+  | ListLit(_, Some(_))
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   | TypeAnn(err, op, ann) => TypeAnnZP(err, place_before_operand(op), ann)
   };
@@ -227,8 +230,9 @@ and place_after_operand = operand =>
   | IntLit(_, n) => CursorP(OnText(String.length(n)), operand)
   | FloatLit(_, f) => CursorP(OnText(String.length(f)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
+  | ListLit(_, None) => CursorP(OnText(2), operand)
   | Inj(_, _, _)
-  | ListLit(_, _)
+  | ListLit(_, Some(_))
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   | TypeAnn(err, zp, za) => TypeAnnZA(err, zp, ZTyp.place_after(za))
   };

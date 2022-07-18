@@ -440,7 +440,6 @@ and erase_zoperand =
   | CursorE(_, operand) => operand
   | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
   | ListLitZ(err, zopseq) => ListLit(err, Some(erase_zopseq(zopseq)))
-  // ToDo:  ListLit(err, Some(None))
   | FunZP(err, zp, body) => Fun(err, ZPat.erase(zp), body)
   | FunZE(err, p, zbody) => Fun(err, p, erase(zbody))
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
@@ -529,13 +528,11 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | ParenthesizedZ(zbody) =>
     let (zbody, id_gen) = mk_inconsistent(id_gen, zbody);
     (ParenthesizedZ(zbody), id_gen);
-  | ListLitZ(err, zopseq) =>
-    let (zopseq, id_gen) = mk_inconsistent_zopseq(id_gen, zopseq);
-    (ListLitZ(err, zopseq), id_gen);
   /* already in hole */
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
+  | ListLitZ(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       zoperand,
@@ -545,6 +542,11 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)
+  | ListLitZ(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
+      _,
+    )
   | CaseZE(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
       InconsistentBranches(_, _),
@@ -658,15 +660,12 @@ and move_cursor_left_zoperand =
       // | ListNil(_)
     ) =>
     None
-  // | CursorE(OnDelim(_, Before), ListLit(_, _)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
-  | CursorE(OnDelim(n, Before), ListLit(err, Some(opseq))) =>
-    switch (n) {
-    | 0 => None
-    | _ => Some(ListLitZ(err, place_after_opseq(opseq)))
-    }
+  | CursorE(OnDelim(_, Before), ListLit(err, Some(opseq))) =>
+    // _k == 1
+    Some(ListLitZ(err, place_after_opseq(opseq)))
   | CursorE(OnDelim(_, Before), ListLit(_, None)) => None
   | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
     // _k == 1
@@ -852,21 +851,13 @@ and move_cursor_right_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
-  | CursorE(
-      OnDelim(_, After),
-      EmptyHole(_),
-      // | ListNil(_)
-    ) =>
-    None
-  // | CursorE(OnDelim(_k, After), ListLit(_, _)) => None
+  | CursorE(OnDelim(_, After), EmptyHole(_)) => None
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
-  | CursorE(OnDelim(n, After), ListLit(err, Some(opseq))) =>
-    switch (n) {
-    | 1 => None
-    | _ => Some(ListLitZ(err, place_before_opseq(opseq)))
-    }
+  | CursorE(OnDelim(_, After), ListLit(err, Some(opseq))) =>
+    // _k == 0
+    Some(ListLitZ(err, place_before_opseq(opseq)))
   | CursorE(OnDelim(_, After), ListLit(_, None)) => None
   | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
     // _k == 0
@@ -896,10 +887,12 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right_zopseq(zopseq)) {
     | Some(zopseq) => Some(ListLitZ(err, zopseq))
     | None =>
-      switch (erase_zopseq(zopseq)) {
-      | zopseq =>
-        Some(CursorE(OnDelim(1, Before), ListLit(err, Some(zopseq))))
-      }
+      Some(
+        CursorE(
+          OnDelim(1, Before),
+          ListLit(err, Some(erase_zopseq(zopseq))),
+        ),
+      )
     }
   | InjZ(err, side, zbody) =>
     switch (move_cursor_right(zbody)) {
