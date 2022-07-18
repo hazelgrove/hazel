@@ -1,3 +1,5 @@
+open DHExp;
+
 [@deriving sexp]
 type t = DHExp.result;
 

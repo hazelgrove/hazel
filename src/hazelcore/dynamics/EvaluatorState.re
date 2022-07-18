@@ -2,9 +2,14 @@
 type t = {
   eig: EnvironmentIdGen.t,
   stats: EvaluatorStats.t,
+  tests: TestMap.t,
 };
 
-let init = {eig: EnvironmentIdGen.init, stats: EvaluatorStats.initial};
+let init = {
+  eig: EnvironmentIdGen.init,
+  stats: EvaluatorStats.initial,
+  tests: TestMap.empty,
+};
 
 let get_eig = ({eig, _}) => eig;
 let put_eig = (eig, es) => {...es, eig};
@@ -19,3 +24,8 @@ let take_step = ({stats, _} as es) => {
 };
 
 let get_step = ({stats, _}) => stats |> EvaluatorStats.get_step;
+
+let add_test = ({tests, _} as es, id, report) => {
+  let tests = tests |> TestMap.extend((id, report));
+  {...es, tests};
+};

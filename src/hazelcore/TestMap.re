@@ -1,5 +1,6 @@
 open Sexplib.Std;
 
+/* FIXME: Make more obvious names. */
 [@deriving sexp]
 type instance_report = (DHExp.t, TestStatus.t);
 

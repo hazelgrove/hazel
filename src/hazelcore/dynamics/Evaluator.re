@@ -577,6 +577,18 @@ let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
       | _ => dr |> return
       };
 
+    | Sequence(d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(_d1) => evaluate(env, d2)
+      | Indet(d1) =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d2)
+        | Indet(d2) => Indet(Sequence(d1, d2)) |> return
+        };
+      };
+
     | Let(dp, d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
@@ -609,6 +621,8 @@ let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
+      | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
+
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -983,38 +997,38 @@ and evaluate_ap_builtin =
 }
 
 and evaluate_test =
-    (es: EvalState.t, env: EvalEnv.t, n: KeywordID.t, arg: DHExp.t)
-    : (EvalState.t, EvaluatorResult.t) => {
-  let (show_arg, (es, arg_result)) =
+    (env: EvalEnv.t, n: KeywordID.t, arg: DHExp.t): t(EvaluatorResult.t) => {
+  let* (arg_show, arg_result) =
     switch (DHExp.strip_casts(arg)) {
-    | BinBoolOp(op, d1, d2) =>
-      let mk_op = (d1, d2) => DHExp.BinBoolOp(op, d1, d2);
-      evaluate_test_eq(es, env, mk_op, d1, d2);
-    | BinIntOp(op, d1, d2) =>
-      let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
-      evaluate_test_eq(es, env, mk_op, d1, d2);
-    | BinFloatOp(op, d1, d2) =>
-      let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
-      evaluate_test_eq(es, env, mk_op, d1, d2);
+    | BinBoolOp(op, arg_d1, arg_d2) =>
+      let mk_op = (arg_d1, arg_d2) => DHExp.BinBoolOp(op, arg_d1, arg_d2);
+      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+    | BinIntOp(op, arg_d1, arg_d2) =>
+      let mk_op = (arg_d1, arg_d2) => DHExp.BinIntOp(op, arg_d1, arg_d2);
+      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+    | BinFloatOp(op, arg_d1, arg_d2) =>
+      let mk_op = (arg_d1, arg_d2) => DHExp.BinFloatOp(op, arg_d1, arg_d2);
+      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
 
-    | Ap(Ap(d1, d2), d3) =>
-      let (es, d1) = evaluate(es, env, d1);
-      let (es, d2) = evaluate(es, env, d2);
-      let (es, d3) = evaluate(es, env, d3);
-      let show_arg =
+    | Ap(Ap(arg_d1, arg_d2), arg_d3) =>
+      let* arg_d1 = evaluate(env, arg_d1);
+      let* arg_d2 = evaluate(env, arg_d2);
+      let* arg_d3 = evaluate(env, arg_d3);
+      let arg_show =
         DHExp.Ap(
-          Ap(EvaluatorResult.unbox(d1), EvaluatorResult.unbox(d2)),
-          EvaluatorResult.unbox(d3),
+          Ap(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2)),
+          EvaluatorResult.unbox(arg_d3),
         );
-      (show_arg, evaluate(es, env, show_arg));
+      let* arg_result = evaluate(env, arg_show);
+      (arg_show, arg_result) |> return;
 
-    | Ap(d1, d2) =>
-      let mk = (d1, d2) => DHExp.Ap(d1, d2);
-      evaluate_test_eq(es, env, mk, d1, d2);
+    | Ap(arg_d1, arg_d2) =>
+      let mk = (arg_d1, arg_d2) => DHExp.Ap(arg_d1, arg_d2);
+      evaluate_test_eq(env, mk, arg_d1, arg_d2);
 
     | _ =>
-      let (es, arg) = evaluate(es, env, arg);
-      (EvaluatorResult.unbox(arg), (es, arg));
+      let* arg = evaluate(env, arg);
+      (EvaluatorResult.unbox(arg), arg) |> return;
     };
 
   let test_status: TestStatus.t =
@@ -1024,29 +1038,32 @@ and evaluate_test =
     | _ => Indet
     };
 
-  let es = EvalState.add_test(es, n, (show_arg, test_status));
+  let* _ = add_test(n, (arg_show, test_status));
   let r: EvaluatorResult.t =
     switch (arg_result) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
     | BoxedValue(arg)
     | Indet(arg) => Indet(Ap(TestLit(n), arg))
     };
-  (es, r);
+  r |> return;
 }
 
 and evaluate_test_eq =
     (
-      es: EvalState.t,
       env: EvalEnv.t,
-      mk_op: (DHExp.t, DHExp.t) => DHExp.t,
-      d1: DHExp.t,
-      d2: DHExp.t,
+      mk_arg_op: (DHExp.t, DHExp.t) => DHExp.t,
+      arg_d1: DHExp.t,
+      arg_d2: DHExp.t,
     )
-    : (DHExp.t, (EvalState.t, EvaluatorResult.t)) => {
-  let (es, d1) = evaluate(es, env, d1);
-  let (es, d2) = evaluate(es, env, d2);
-  let d = EvaluatorResult.(mk_op(unbox(d1), unbox(d2)));
-  (d, evaluate(es, env, d));
+    : t((DHExp.t, EvaluatorResult.t)) => {
+  let* arg_d1 = evaluate(env, arg_d1);
+  let* arg_d2 = evaluate(env, arg_d2);
+
+  let arg_show =
+    mk_arg_op(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2));
+  let* arg_result = evaluate(env, arg_show);
+
+  (arg_show, arg_result) |> return;
 };
 
 let evaluate = (env, d) => evaluate(env, d, EvaluatorState.init);
