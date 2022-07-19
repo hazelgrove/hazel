@@ -1,4 +1,4 @@
-module Inner = GrainStd.Inner;
+module Make = Grain.Std.Make;
 
 let mk_path = path => Grain.ImportStd(Filename.concat("hazel", path));
 
@@ -6,7 +6,7 @@ module Rt = {
   let mk_path = path => mk_path(Filename.concat("rt", path));
 
   module Ast = {
-    include Inner({
+    include Make({
       let name = "Ast";
       let path = mk_path("ast");
     });
@@ -40,7 +40,7 @@ module Rt = {
   };
 
   module AstSexp = {
-    include Inner({
+    include Make({
       let name = "AstSexp";
       let path = mk_path("ast_sexp");
     });
@@ -49,7 +49,7 @@ module Rt = {
   };
 
   module AstOps = {
-    include Inner({
+    include Make({
       let name = "AstOps";
       let path = mk_path("ast_ops");
     });
@@ -77,7 +77,7 @@ module Rt = {
   };
 
   module AstPrint = {
-    include Inner({
+    include Make({
       let name = "AstPrint";
       let path = mk_path("ast_print");
     });
@@ -86,7 +86,7 @@ module Rt = {
   };
 
   module AstMk = {
-    include Inner({
+    include Make({
       let name = "AstMk";
       let path = mk_path("ast_mk");
     });
@@ -97,7 +97,7 @@ module Rt = {
   };
 
   module Sum = {
-    include Inner({
+    include Make({
       let name = "Sum";
       let path = mk_path("sum");
     });

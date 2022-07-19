@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-open Grain;
+open Grain.Expr;
 
 [@deriving sexp]
 type opts = {print_final_expr: bool};
@@ -56,14 +56,14 @@ module Imports = {
              AstOps.import,
              AstPrint.import,
              AstSexp.import,
-             GrainStd.Map.import,
+             Grain.Std.Map.import,
            ],
          )
       |> add(sum, [Sum.import])
-      |> add(int32, [GrainStd.Int32.import])
-      |> add(int64, [GrainStd.Int32.import])
-      |> add(float32, [GrainStd.Float32.import])
-      |> add(float64, [GrainStd.Float32.import]);
+      |> add(int32, [Grain.Std.Int32.import])
+      |> add(int64, [Grain.Std.Int32.import])
+      |> add(float32, [Grain.Std.Float32.import])
+      |> add(float64, [Grain.Std.Float32.import]);
 
     imps |> List.map(((x, path)) => TImport(x, path));
   };
@@ -177,7 +177,7 @@ and codegen_comp = (c: Mir.comp): t(Grain.expr) => {
 
 and codegen_bin_op_complete = (op: Mir.bin_op) => {
   let (op, with_int32, with_float32) =
-    GrainStd.(
+    Grain.Std.(
       switch (op) {
       | OpAnd => (((e1, e2) => Grain.EBinOp(OpAnd, e1, e2)), false, false)
       | OpOr => (((e1, e2) => Grain.EBinOp(OpOr, e1, e2)), false, false)
@@ -365,7 +365,7 @@ and codegen_sigma = (sigma: VarMap.t_(Mir.imm)): t(Grain.expr) => {
          Grain.ETuple([Grain.EStringLit(x), im']) |> return;
        });
 
-  Grain.EList(sigma') |> GrainStd.Map.from_list |> return;
+  Grain.EList(sigma') |> Grain.Std.Map.from_list |> return;
 }
 
 and codegen_empty_hole = (u, i, sigma): t(Grain.expr) => {
