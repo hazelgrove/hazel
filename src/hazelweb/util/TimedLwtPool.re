@@ -157,3 +157,11 @@ let use = (pool, timeout, f) => {
   | None => dispose(pool, c) >>= (_ => Lwt.return_none)
   };
 };
+
+let add = pool =>
+  /* If capacity available, create a fresh member and release it. */
+  if (pool.count < pool.max) {
+    create(pool) >|= release(pool);
+  } else {
+    Lwt.return_unit;
+  };
