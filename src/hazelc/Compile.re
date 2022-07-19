@@ -1,11 +1,6 @@
 open Sexplib.Std;
 
 open ResultSexp;
-open ChannelUtil.Syntax;
-
-open Hazelc_hir;
-open Hazelc_mir;
-open Hazelc_codegen;
 open Hazeltext;
 
 module GrainExpr = Grainlib.Expr;
@@ -13,8 +8,8 @@ module GrainCli = Grainlib.Cli;
 
 [@deriving sexp]
 type opts = {
-  optimize: Optimize.opts,
-  codegen: GrainCodegen.opts,
+  optimize: Mir.Optimize.opts,
+  codegen: Codegen.GrainCodegen.opts,
 };
 
 let parse' = (source: Source.t) =>
@@ -25,13 +20,13 @@ let elaborate' = (e: UHExp.t) => {
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform' = (ctx: Contexts.t) => Transform.transform(ctx);
+let transform' = (ctx: Contexts.t) => Hir.Transform.transform(ctx);
 
-let linearize' = Linearize.linearize;
+let linearize' = Mir.Linearize.linearize;
 
-let optimize' = opts => Optimize.optimize(~opts);
+let optimize' = opts => Mir.Optimize.optimize(~opts);
 
-let grainize' = opts => GrainCodegen.codegen(~opts);
+let grainize' = opts => Codegen.GrainCodegen.codegen(~opts);
 
 let print' = Grainlib.Print.print;
 
@@ -47,6 +42,7 @@ type wasm_opts = {
 let wasmize' = (opts: wasm_opts, source, output, g) => {
   // Write Grain to source path.
   {
+    open ChannelUtil.Syntax;
     let&o f = open_out(source);
     Printf.fprintf(f, "%s\n", g);
   };
@@ -111,9 +107,9 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
-  | Transformed(Hir.expr)
-  | Linearized(Anf.prog)
-  | Optimized(Anf.prog)
+  | Transformed(Hir.Hir.expr)
+  | Linearized(Mir.Anf.prog)
+  | Optimized(Mir.Anf.prog)
   | Grainized(GrainExpr.prog)
   | Printed(string);
 
