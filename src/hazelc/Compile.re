@@ -3,9 +3,9 @@ open Sexplib.Std;
 open ResultSexp;
 open ChannelUtil.Syntax;
 
+open Hazelc_hir;
+open Hazeltext;
 open Grainlib;
-
-module Parsing = Hazeltext.Parsing;
 
 [@deriving sexp]
 type opts = {

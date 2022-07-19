@@ -3,4 +3,4 @@
  *
  * In this pass, all indet markers are initialized to true.
  */
-let linearize: Hir.expr => Anf.prog;
+let linearize: Hazelc_hir.Hir.expr => Anf.prog;

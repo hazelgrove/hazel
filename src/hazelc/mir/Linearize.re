@@ -1,3 +1,5 @@
+open Hazelc_hir;
+
 open LinearizeMonad;
 open LinearizeMonad.Syntax;
 
