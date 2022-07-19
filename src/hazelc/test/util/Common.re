@@ -1,4 +1,4 @@
-open Grainlib;
+module GrainCli = Grainlib.Cli;
 
 [@deriving sexp]
 type profile =
@@ -90,10 +90,10 @@ module Compile = {
     let (_opts, wasm_opts) = mk_opts(profile);
 
     let cmd =
-      Grain.Run.(
-        Grain.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
+      GrainCli.Run.(
+        GrainCli.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
       );
-    switch (cmd |> Grain.execute(~capture_stdout=true)) {
+    switch (cmd |> GrainCli.execute(~capture_stdout=true)) {
     | {stdout: output, status: Ok(_)} => output |> String.trim
     | {stdout: _, status: Error(_)} => failwith("execution failed")
     };

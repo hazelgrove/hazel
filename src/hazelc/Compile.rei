@@ -13,7 +13,6 @@
 open Hazelc_hir;
 open Hazelc_mir;
 open Hazelc_codegen;
-open Grainlib;
 
 [@deriving sexp]
 type opts = {
@@ -26,8 +25,8 @@ let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
 let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.expr;
 let linearize: (~opts: opts, Hir.expr) => Anf.prog;
 let optimize: (~opts: opts, Anf.prog) => Anf.prog;
-let grainize: (~opts: opts, Anf.prog) => GrainIR.prog;
-let print: (~opts: opts, GrainIR.prog) => string;
+let grainize: (~opts: opts, Anf.prog) => Grainlib.Expr.prog;
+let print: (~opts: opts, Grainlib.Expr.prog) => string;
 
 [@deriving sexp]
 type wasm_opts = {
@@ -53,7 +52,7 @@ type state =
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Optimized(Anf.prog)
-  | Grainized(GrainIR.prog)
+  | Grainized(Grainlib.Expr.prog)
   | Printed(string);
 
 /*
@@ -120,7 +119,7 @@ let resume_until_optimized:
    Resume from a given state until Grain IR.
  */
 let resume_until_grainized:
-  (~opts: opts, state) => result(GrainIR.prog, next_error);
+  (~opts: opts, state) => result(Grainlib.Expr.prog, next_error);
 
 /*
    Resume from a given state until textual Grain.

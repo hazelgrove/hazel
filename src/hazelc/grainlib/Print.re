@@ -28,7 +28,7 @@ let print_lines = ss => ss |> String.concat("\n");
 let print_sep = (delim, ss) => ss |> String.concat(delim);
 let print_comma_sep = print_sep(", ");
 
-let rec print = ((tb, b): GrainIR.prog) => {
+let rec print = ((tb, b): Expr.prog) => {
   let tb = print_top_block(tb);
   let b = print_block_nowrap(b);
   if (tb != "") {
@@ -38,17 +38,17 @@ let rec print = ((tb, b): GrainIR.prog) => {
   };
 }
 
-and print_top_block = (tb: GrainIR.top_block) => {
+and print_top_block = (tb: Expr.top_block) => {
   tb |> List.map(print_top_statement) |> print_lines;
 }
 
-and print_top_statement = (tstmt: GrainIR.top_stmt) =>
+and print_top_statement = (tstmt: Expr.top_stmt) =>
   switch (tstmt) {
   | TImport(name, path) => print_import(name, path)
   | TDecl(decl) => print_decl(decl)
   }
 
-and print_import = (name: GrainIR.var, path: GrainIR.import_path) => {
+and print_import = (name: Expr.var, path: Expr.import_path) => {
   let path =
     switch (path) {
     | ImportStd(path) => path
@@ -58,18 +58,18 @@ and print_import = (name: GrainIR.var, path: GrainIR.import_path) => {
   sprintf("import %s from \"%s\"", name, path);
 }
 
-and print_decl = (decl: GrainIR.decl) =>
+and print_decl = (decl: Expr.decl) =>
   switch (decl) {
   | DEnum(en) => print_enum(en)
   }
 
-and print_enum = ({name, type_vars, variants}: GrainIR.enum) => {
+and print_enum = ({name, type_vars, variants}: Expr.enum) => {
   let type_vars =
     List.length(type_vars) == 0
       ? "" : type_vars |> print_comma_sep |> sprintf("<%s>");
   let variants =
     variants
-    |> List.map((variant: GrainIR.enum_variant) =>
+    |> List.map((variant: Expr.enum_variant) =>
          if (List.length(variant.params) == 0) {
            variant.ctor;
          } else {
@@ -83,15 +83,15 @@ and print_enum = ({name, type_vars, variants}: GrainIR.enum) => {
   sprintf("enum %s%s { %s }", name, type_vars, variants);
 }
 
-and print_block_nowrap = (b: GrainIR.block) => {
+and print_block_nowrap = (b: Expr.block) => {
   b |> List.map(print_statement) |> print_lines;
 }
-and print_block = (b: GrainIR.block) => {
+and print_block = (b: Expr.block) => {
   let s = print_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
-and print_statement = (stmt: GrainIR.stmt) =>
+and print_statement = (stmt: Expr.stmt) =>
   switch (stmt) {
   | SLet(params, e) =>
     let params = print_params(params);
@@ -104,7 +104,7 @@ and print_statement = (stmt: GrainIR.stmt) =>
   | SExpr(e) => print_expr(e)
   }
 
-and print_expr = (e: GrainIR.expr) =>
+and print_expr = (e: Expr.expr) =>
   switch (e) {
   | EBoolLit(b) => b ? Consts.truelit : Consts.falselit
   | EInt32Lit(n) => string_of_int(n) ++ "l"
@@ -133,10 +133,10 @@ and print_char = (c: char) => print_surround("'", String.make(1, c), "'")
 
 and print_string = (s: string) => print_surround("\"", s, "\"")
 
-and print_args = (args: GrainIR.args) =>
+and print_args = (args: Expr.args) =>
   args |> List.map(print_expr) |> print_comma_sep
 
-and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) =>
+and print_bin_op = (op: Expr.bin_op, e1: Expr.expr, e2: Expr.expr) =>
   switch (op) {
   | OpAnd => print_infix(print_expr(e1), Consts.prim_and_op, print_expr(e2))
   | OpOr => print_infix(print_expr(e1), Consts.prim_or_op, print_expr(e2))
@@ -147,45 +147,45 @@ and print_bin_op = (op: GrainIR.bin_op, e1: GrainIR.expr, e2: GrainIR.expr) =>
     print_infix(print_expr(e1), Consts.prim_not_equals_op, print_expr(e2))
   }
 
-and print_cons = (e1: GrainIR.expr, e2: GrainIR.expr) => {
+and print_cons = (e1: Expr.expr, e2: Expr.expr) => {
   let e1 = print_expr(e1);
   let e2 = print_expr(e2);
   sprintf("[%s, ...%s]", e1, e2);
 }
 
-and print_tuple = (els: list(GrainIR.expr)) => {
+and print_tuple = (els: list(Expr.expr)) => {
   let els = els |> List.map(print_expr) |> print_comma_sep;
   sprintf("(%s)", els);
 }
 
-and print_var = (var: GrainIR.var) => var
-and print_params = (ps: GrainIR.params) =>
+and print_var = (var: Expr.var) => var
+and print_params = (ps: Expr.params) =>
   ps |> List.map(print_pat) |> String.concat(", ")
 
-and print_fn = (params: GrainIR.params, e': GrainIR.expr) => {
+and print_fn = (params: Expr.params, e': Expr.expr) => {
   let params = print_params(params);
   let e' = print_expr(e');
   sprintf("(%s) => { %s }", params, e');
 }
 
-and print_ap = (fn: GrainIR.expr, args: GrainIR.args) => {
+and print_ap = (fn: Expr.expr, args: Expr.args) => {
   let fn = print_expr(fn);
   let args = print_args(args);
   sprintf("%s(%s)", fn, args);
 }
 
-and print_ctor = (ctor: GrainIR.var, args: GrainIR.args) => {
+and print_ctor = (ctor: Expr.var, args: Expr.args) => {
   let ctor = print_var(ctor);
   let args = print_args(args);
   sprintf("%s(%s)", ctor, args);
 }
 
-and print_match = (scrut: GrainIR.expr, rules: list(GrainIR.rule)) => {
+and print_match = (scrut: Expr.expr, rules: list(Expr.rule)) => {
   let scrut = print_expr(scrut);
   let rules = rules |> List.map(print_rule) |> print_comma_sep;
   sprintf("match (%s) { %s }", scrut, rules);
 }
-and print_rule = (rule: GrainIR.rule) => {
+and print_rule = (rule: Expr.rule) => {
   switch (rule) {
   | RRule(p, rhs) =>
     let p = print_pat(p);
@@ -194,7 +194,7 @@ and print_rule = (rule: GrainIR.rule) => {
   };
 }
 
-and print_pat = (p: GrainIR.pat) => {
+and print_pat = (p: Expr.pat) => {
   switch (p) {
   | PWild => Consts.pat_wild
   // TODO: Check if var conflicts with a keyword?

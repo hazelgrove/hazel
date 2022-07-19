@@ -6,10 +6,12 @@
 open Sexplib.Std;
 open Cmdliner;
 
-open Hazelc_mir;
-open Grainlib;
-
 open ChannelUtil.Syntax;
+
+open Hazelc_mir;
+
+module GrainCli = Grainlib.Cli;
+module GrainExpr = Grainlib.Expr;
 
 [@deriving sexp]
 type action =
@@ -133,12 +135,12 @@ let hazelc =
       |> Result.map(write_output)
       |> Result.map(() =>
            ignore(
-             Grain.Format.(
-               Grain.make(~grain=wasm_opts.grain)
+             GrainCli.Format.(
+               GrainCli.make(~grain=wasm_opts.grain)
                |> make(~source=output_filename)
                |> with_output(output_filename)
                |> to_command
-               |> Grain.execute(~capture_stdout=false)
+               |> GrainCli.execute(~capture_stdout=false)
              ),
            )
          )
@@ -146,7 +148,7 @@ let hazelc =
 
     | Gir =>
       Compile.resume_until_grainized(~opts, source)
-      |> Result.map(GrainIR.sexp_of_prog |> write_sexp_output)
+      |> Result.map(GrainExpr.sexp_of_prog |> write_sexp_output)
       |> Result.map_error(convert_error)
 
     | Wasm

@@ -7,7 +7,9 @@ open Hazelc_hir;
 open Hazelc_mir;
 open Hazelc_codegen;
 open Hazeltext;
-open Grainlib;
+
+module GrainExpr = Grainlib.Expr;
+module GrainCli = Grainlib.Cli;
 
 [@deriving sexp]
 type opts = {
@@ -31,7 +33,7 @@ let optimize' = opts => Optimize.optimize(~opts);
 
 let grainize' = opts => GrainCodegen.codegen(~opts);
 
-let print' = GrainPrint.print;
+let print' = Grainlib.Print.print;
 
 [@deriving sexp]
 type wasm_opts = {
@@ -52,8 +54,8 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
   // TODO: Add necessary includes.
   // TODO: Add option for alternative stdlib path.
   let cmd =
-    Grain.Compile.(
-      Grain.make(~grain=opts.grain)
+    GrainCli.Compile.(
+      GrainCli.make(~grain=opts.grain)
       |> make(~source)
       |> with_output(output)
       |> with_includes(opts.includes)
@@ -63,7 +65,7 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
       |> to_command
     );
 
-  switch (cmd |> Grain.execute(~capture_stdout=false)) {
+  switch (cmd |> GrainCli.execute(~capture_stdout=false)) {
   | {stdout: _, status: Ok(_)} => Ok()
   | {stdout: _, status: Error(_)} => Error()
   };
@@ -112,7 +114,7 @@ type state =
   | Transformed(Hir.expr)
   | Linearized(Anf.prog)
   | Optimized(Anf.prog)
-  | Grainized(GrainIR.prog)
+  | Grainized(GrainExpr.prog)
   | Printed(string);
 
 [@deriving sexp]
