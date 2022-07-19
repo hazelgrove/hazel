@@ -1,8 +1,0 @@
-(include_subdirs unqualified)
-
-(library
- (name hazelctest)
- (libraries hazelc hazelclib wasmtime benchmark)
- (wrapped false)
- (preprocess
-  (pps ppx_assert)))

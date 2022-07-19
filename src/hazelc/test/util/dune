@@ -1,0 +1,5 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelctest)
+ (libraries hazelc hazelclib wasmtime))

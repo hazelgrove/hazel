@@ -14,7 +14,7 @@ let test_with_eval = source => {
       |> stringify(~profile)
     );
 
-  Base.([%test_eq: string](compile_out, eval_out));
+  compile_out == eval_out;
 };
 
 let test = (source, expect) => {
@@ -22,5 +22,5 @@ let test = (source, expect) => {
   let compile_out =
     Common.Compile.(source |> compile(~profile) |> run(~profile));
 
-  Base.([%test_eq: string](compile_out, expect));
+  compile_out == expect;
 };
