@@ -2,6 +2,7 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
   switch (HTyp.to_syntax(ty)) {
   | Hole
   | TyVarHole(_)
+  | InvalidText(_)
   | Int
   | Float
   | Bool => Some(Kind.singleton(ty))
@@ -31,7 +32,8 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
 and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(unit) =>
   switch (HTyp.to_syntax(ty)) {
   | Hole
-  | TyVarHole(_) => Some()
+  | TyVarHole(_)
+  | InvalidText(_) => Some()
   // subsumption
   | Sum(_)
   | Prod(_)

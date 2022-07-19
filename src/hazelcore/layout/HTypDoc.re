@@ -45,7 +45,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         parenthesize,
       )
     | TyVar(_, t) => (text(t), parenthesize)
-    | TyVarHole(_, _, t) => (
+    | TyVarHole(_, _, t)
+    | InvalidText(_, t) => (
         annot(HTypAnnot.TyVarHole, text(t)),
         parenthesize,
       )

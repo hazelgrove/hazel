@@ -72,6 +72,7 @@ let contract = (ty: HTyp.t): t => {
           | InvalidText => InvalidText(u, t)
           };
         Seq.wrap(operand);
+      | InvalidText(u, t) => Seq.wrap(InvalidText(u, t))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)

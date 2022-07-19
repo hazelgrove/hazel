@@ -83,7 +83,8 @@ let lit_msg = (ty: HTyp.t) => {
   | Prod(_) => [prod_lit]
   | List(_) => [list_lit]
   | TyVar(_)
-  | TyVarHole(_) => [
+  | TyVarHole(_)
+  | InvalidText(_) => [
       int_lit,
       float_lit,
       bool_lit,

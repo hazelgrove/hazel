@@ -15,6 +15,8 @@ let rec mk =
   | (_, Hole)
   | (TyVarHole(_), _)
   | (_, TyVarHole(_))
+  | (InvalidText(_), _)
+  | (_, InvalidText(_))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])

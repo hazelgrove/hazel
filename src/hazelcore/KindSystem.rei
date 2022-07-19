@@ -48,7 +48,8 @@ module HTyp_syntax: {
         TyVarErrStatus.HoleReason.t,
         MetaVar.t,
         TyVar.t,
-      );
+      )
+    | InvalidText(MetaVar.t, string);
 
   /** Changes indices from absolute to relative. */
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
@@ -265,6 +266,7 @@ and HTyp: {
   let is_float: t => bool;
   let is_tyvar: t => bool;
   let is_tyvar_hole: t => bool;
+  let is_invalid_text: t => bool;
 
   /* Properties of HTyp */
 
@@ -312,6 +314,7 @@ and HTyp: {
 
   let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
   let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
+  let invalid_text: (MetaVar.t, string) => t;
 
   let tyvar_ref: t => option(ContextRef.t);
   let tyvar_name: t => option(TyVar.t);
@@ -410,7 +413,8 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | InvalidText(MetaVar.t, string);
 
   /** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */
   let of_head_normalized: head_normalized => t;

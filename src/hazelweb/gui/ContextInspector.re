@@ -23,7 +23,8 @@ let view =
     | Float
     | Bool
     | TyVar(_)
-    | TyVarHole(_) => true
+    | TyVarHole(_)
+    | InvalidText(_) => true
     | Arrow(ty1, ty2)
     | Sum(ty1, ty2) =>
       max_depth > 0
