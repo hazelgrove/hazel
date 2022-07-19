@@ -28,35 +28,15 @@ module type ClientS = {
 
   type t;
 
-  /**
-     [init ()] is a new worker client. Each call spawns a new worker.
-   */
   let init: unit => t;
 
-  /**
-     [get_worker t] is the worker client.
-   */
   let get_worker: t => Js.t(Worker.worker(Request.u, Response.u));
-
-  /**
-     [get_last t] is the last request response, if any.
-   */
   let get_last: t => option(Lwt.t(Response.t));
 
-  /**
-     [cancel_last t] cancels the last request. See {!val:Lwt.cancel}.
-   */
   let cancel_last: t => t;
 
-  /**
-     [request t req] is [(t, res)] where [res] is the deferred response.
-   */
   /* FIXME: Reverse return member order. */
   let request: (t, Request.t) => (t, Lwt.t(Response.t));
-
-  /**
-    [terminate t] terminates the worker.
-   */
   let terminate: t => unit;
 };
 
@@ -64,20 +44,10 @@ module type WorkerS = {
   type state;
   type t;
 
-  /**
-     [init ()] is a new worker state.
-   */
   let init: unit => t;
 
-  /**
-     [get_state t] is the inner {!type:state} of [t].
-   */
   let get_state: t => state;
 
-  /**
-     [register t] registers [t] to listen for requests from the main
-     thread.
-   */
   let register: t => unit;
 };
 
@@ -85,15 +55,9 @@ module type S = {
   module Request: Serializable;
   module Response: Serializable;
 
-  /**
-     The module for the main thread.
-   */
   module Client:
     ClientS with module Request = Request and module Response = Response;
 
-  /**
-     The module for the web worker thread.
-   */
   module Worker: WorkerS;
 };
 
