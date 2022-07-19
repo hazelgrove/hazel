@@ -7,12 +7,7 @@ module ElaborationResult: {
 module Let_syntax = ElaborationResult;
 
 let syn_elab:
-  (
-    Contexts.t,
-    Delta.t,
-    UHPat.t,
-    ~pattern_var_syn: Statics_Pat.pattern_var_syn
-  ) =>
+  (Contexts.t, Delta.t, UHPat.t, ~pattern_syn: Statics_Pat.pattern_syn) =>
   ElaborationResult.t;
 
 let ana_elab:
@@ -21,7 +16,7 @@ let ana_elab:
     Delta.t,
     UHPat.t,
     HTyp.t,
-    ~pattern_var_syn: Statics_Pat.pattern_var_syn
+    ~pattern_syn: Statics_Pat.pattern_syn
   ) =>
   ElaborationResult.t;
 

@@ -82,13 +82,7 @@ and syn_elab_line =
       | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty_def, delta) =>
         switch (
-          Elaborator_Pat.ana_elab(
-            ctx,
-            delta,
-            p,
-            ty_def,
-            ~pattern_var_syn=ModedVariable,
-          )
+          Elaborator_Pat.ana_elab(ctx, delta, p, ty_def, ~pattern_syn=Moded)
         ) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx, delta) =>
@@ -382,9 +376,7 @@ and syn_elab_operand =
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
-    switch (
-      Elaborator_Pat.syn_elab(ctx, delta, p, ~pattern_var_syn=UnknownVariable)
-    ) {
+    switch (Elaborator_Pat.syn_elab(ctx, delta, p, ~pattern_syn=Unknown)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
@@ -461,13 +453,7 @@ and syn_elab_rule =
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
   switch (
-    Elaborator_Pat.ana_elab(
-      ctx,
-      delta,
-      p,
-      ty_scrut,
-      ~pattern_var_syn=UnknownVariable,
-    )
+    Elaborator_Pat.ana_elab(ctx, delta, p, ty_scrut, ~pattern_syn=Unknown)
   ) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
@@ -776,7 +762,7 @@ and ana_elab_operand_internal =
           delta,
           p,
           ty_p_given,
-          ~pattern_var_syn=UnknownVariable,
+          ~pattern_syn=Unknown,
         )
       ) {
       | DoesNotElaborate => DoesNotElaborate
@@ -874,13 +860,7 @@ and ana_elab_rule =
     : option((DHExp.rule, Delta.t)) => {
   let UHExp.Rule(p, clause) = r;
   switch (
-    Elaborator_Pat.ana_elab(
-      ctx,
-      delta,
-      p,
-      pat_ty,
-      ~pattern_var_syn=UnknownVariable,
-    )
+    Elaborator_Pat.ana_elab(ctx, delta, p, pat_ty, ~pattern_syn=Unknown)
   ) {
   | DoesNotElaborate => None
   | Elaborates(dp, _, ctx, delta) =>
