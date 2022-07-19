@@ -1,0 +1,18 @@
+import { Ast } from "./ast"
+
+export enum MaybeIndet<t> {
+  Value(t),
+  Indet(Ast),
+}
+
+export let isValue = m =>
+  match (m) {
+    Value(_) => true,
+    Indet(_) => false,
+  }
+
+export let isIndet = m =>
+  match (m) {
+    Value(_) => false,
+    Indet(_) => true,
+  }
