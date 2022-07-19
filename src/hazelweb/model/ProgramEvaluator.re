@@ -64,16 +64,21 @@ module Worker = {
         type state = Sync.t;
 
         let init_state = Sync.init;
+
+        /* FIXME: Handle exceptions. */
         let on_request = Sync.get_result;
       };
     });
 
   module Client: M = {
-    include Inner.Client;
+    module Pool = WebWorkerPool.Make(Inner);
+    include Pool;
+
+    let init = () => Pool.init(~timeout=2000, ~max=5);
 
     let get_result = (t: t, program: Program.t) => {
-      let t = t |> cancel_last;
-      program |> request(t);
+      let res = program |> request(t) >|= Option.join;
+      (t, res);
     };
   };
 
