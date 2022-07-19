@@ -16,6 +16,11 @@ module type S = {
   let init: (~timeout: int, ~max: int) => t;
 
   /**
+    [fill pool count] initializes [count] workers into the pool.
+   */
+  let fill: (t, int) => Lwt.t(unit);
+
+  /**
     [request pool req] performs a request. See {!module:TimedLwtPool}.
    */
   let request: (t, Request.t) => Lwt.t(option(Response.t));
