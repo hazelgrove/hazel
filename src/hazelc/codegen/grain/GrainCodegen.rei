@@ -1,3 +1,5 @@
+open Hazelc_mir;
+
 [@deriving sexp]
 type opts = {print_final_expr: bool};
 

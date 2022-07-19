@@ -4,6 +4,7 @@ open ResultSexp;
 open ChannelUtil.Syntax;
 
 open Hazelc_hir;
+open Hazelc_mir;
 open Hazeltext;
 open Grainlib;
 

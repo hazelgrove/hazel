@@ -11,6 +11,7 @@
  *   . Code generation: generating WebAssembly (currently via Grain); see modules in codegen/grain
  */
 open Hazelc_hir;
+open Hazelc_mir;
 open Grainlib;
 
 [@deriving sexp]

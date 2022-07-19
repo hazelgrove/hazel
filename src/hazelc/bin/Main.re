@@ -6,6 +6,7 @@
 open Sexplib.Std;
 open Cmdliner;
 
+open Hazelc_mir;
 open Grainlib;
 
 open ChannelUtil.Syntax;
