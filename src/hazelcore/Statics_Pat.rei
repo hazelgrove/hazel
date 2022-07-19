@@ -10,6 +10,8 @@ type pattern_var_syn =
   | ModedVariable
   | UnknownVariable;
 
+let unknown: pattern_var_syn => HTyp.t;
+
 let tuple_zip: (UHPat.skel, HTyp.t) => option(list((UHPat.skel, HTyp.t)));
 
 /**

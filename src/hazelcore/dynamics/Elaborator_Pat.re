@@ -48,7 +48,8 @@ and syn_elab_skel =
       seq: UHPat.seq,
       ~pattern_var_syn: Statics_Pat.pattern_var_syn,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  let unknown = Statics_Pat.unknown(pattern_var_syn);
   switch (skel) {
   | Placeholder(n) =>
     syn_elab_operand(ctx, delta, seq |> Seq.nth_operand(n), ~pattern_var_syn)
@@ -62,17 +63,8 @@ and syn_elab_skel =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(
-          u,
-          (Delta.PatternHole, HTyp.Unknown(ModeSwitch), gamma),
-          delta,
-        );
-      Elaborates(
-        NonEmptyHole(reason, u, 0, dp),
-        Unknown(ModeSwitch),
-        ctx,
-        delta,
-      );
+        MetaVarMap.add(u, (Delta.PatternHole, unknown, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, dp), unknown, ctx, delta);
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
   | BinOp(NotInHole, Comma, _, _) =>
@@ -112,7 +104,7 @@ and syn_elab_skel =
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Unknown(ModeSwitch), ctx, delta);
+        Elaborates(dp, unknown, ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -127,7 +119,8 @@ and syn_elab_skel =
         Elaborates(dp, ty, ctx, delta);
       };
     }
-  }
+  };
+}
 and syn_elab_operand =
     (
       ctx: Contexts.t,
@@ -135,7 +128,8 @@ and syn_elab_operand =
       operand: UHPat.operand,
       ~pattern_var_syn: Statics_Pat.pattern_var_syn,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  let unknown = Statics_Pat.unknown(pattern_var_syn);
   switch (operand) {
   | Wild(InHole(TypeInconsistent as reason, u))
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -150,17 +144,8 @@ and syn_elab_operand =
     | Elaborates(dp, _, ctx, delta) =>
       let gamma = Contexts.gamma(ctx);
       let delta =
-        MetaVarMap.add(
-          u,
-          (Delta.PatternHole, HTyp.Unknown(ModeSwitch), gamma),
-          delta,
-        );
-      Elaborates(
-        NonEmptyHole(reason, u, 0, dp),
-        Unknown(ModeSwitch),
-        ctx,
-        delta,
-      );
+        MetaVarMap.add(u, (Delta.PatternHole, unknown, gamma), delta);
+      Elaborates(NonEmptyHole(reason, u, 0, dp), unknown, ctx, delta);
     };
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -172,24 +157,24 @@ and syn_elab_operand =
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.EmptyHole(u, 0);
-    let ty = HTyp.Unknown(ModeSwitch);
+    let ty = unknown;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let dp = DHPat.InvalidText(u, 0, t);
-    let ty = HTyp.Unknown(ModeSwitch);
+    let ty = unknown;
     let delta = MetaVarMap.add(u, (Delta.PatternHole, ty, gamma), delta);
     Elaborates(dp, ty, ctx, delta);
-  | Wild(NotInHole) => Elaborates(Wild, Unknown(ModeSwitch), ctx, delta)
+  | Wild(NotInHole) => Elaborates(Wild, unknown, ctx, delta)
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(ExpandingKeyword(k), u), _) =>
-    Elaborates(ExpandingKeyword(u, 0, k), Unknown(ModeSwitch), ctx, delta)
+    Elaborates(ExpandingKeyword(u, 0, k), unknown, ctx, delta)
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_var_syn) {
-    | ModedVariable => Elaborates(Var(x), Unknown(ModeSwitch), ctx, delta)
+    | ModedVariable => Elaborates(Var(x), unknown, ctx, delta)
     | UnknownVariable =>
-      let ty = HTyp.Unknown(ModeSwitch);
+      let ty = unknown;
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Elaborates(Var(x), ty, ctx, delta);
     }
@@ -204,8 +189,7 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
-  | ListNil(NotInHole) =>
-    Elaborates(ListNil, List(Unknown(ModeSwitch)), ctx, delta)
+  | ListNil(NotInHole) => Elaborates(ListNil, List(unknown), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1, ~pattern_var_syn)
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p, ~pattern_var_syn)) {
@@ -214,14 +198,15 @@ and syn_elab_operand =
       let dp = DHPat.Inj(side, dp1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(ModeSwitch))
-        | R => HTyp.Sum(Unknown(ModeSwitch), ty1)
+        | L => HTyp.Sum(ty1, unknown)
+        | R => HTyp.Sum(unknown, ty1)
         };
       Elaborates(dp, ty, ctx, delta);
     }
   | TypeAnn(_, p1, ty1) =>
     ana_elab_operand(ctx, delta, p1, UHTyp.expand(ty1), ~pattern_var_syn)
-  }
+  };
+}
 and ana_elab =
     (
       ctx: Contexts.t,
@@ -332,7 +317,8 @@ and ana_elab_skel =
       ty: HTyp.t,
       ~pattern_var_syn: Statics_Pat.pattern_var_syn,
     )
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  let unknown = Statics_Pat.unknown(pattern_var_syn);
   switch (skel) {
   | BinOp(_, Comma, _, _)
   | BinOp(InHole(WrongLength, _), _, _, _) =>
@@ -354,32 +340,16 @@ and ana_elab_skel =
       Elaborates(dp, ty, ctx, delta);
     };
   | BinOp(NotInHole, Space, skel1, skel2) =>
-    switch (
-      ana_elab_skel(
-        ctx,
-        delta,
-        skel1,
-        seq,
-        Unknown(ModeSwitch),
-        ~pattern_var_syn,
-      )
-    ) {
+    switch (ana_elab_skel(ctx, delta, skel1, seq, unknown, ~pattern_var_syn)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp1, _ty1, ctx, delta) =>
       switch (
-        ana_elab_skel(
-          ctx,
-          delta,
-          skel2,
-          seq,
-          Unknown(ModeSwitch),
-          ~pattern_var_syn,
-        )
+        ana_elab_skel(ctx, delta, skel2, seq, unknown, ~pattern_var_syn)
       ) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(dp2, _ty2, ctx, delta) =>
         let dp = DHPat.Ap(dp1, dp2);
-        Elaborates(dp, Unknown(ModeSwitch), ctx, delta);
+        Elaborates(dp, unknown, ctx, delta);
       }
     }
   | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -400,7 +370,8 @@ and ana_elab_skel =
         };
       }
     }
-  }
+  };
+}
 and ana_elab_operand =
     (
       ctx: Contexts.t,

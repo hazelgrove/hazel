@@ -66,20 +66,15 @@ let mk_syn_text =
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, id_gen) = id_gen |> ZPat.new_EmptyHole;
-      Succeeded((
-        ZOpSeq.wrap(zhole),
-        HTyp.Unknown(ModeSwitch),
-        ctx,
-        id_gen,
-      ));
+      Succeeded((ZOpSeq.wrap(zhole), HTyp.Unknown(Internal), ctx, id_gen));
     } else {
       let (it, id_gen) = UHPat.new_InvalidText(id_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
-      Succeeded((zp, HTyp.Unknown(ModeSwitch), ctx, id_gen));
+      Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
     }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, HTyp.Unknown(ModeSwitch), ctx, id_gen));
+    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
     Succeeded((zp, HTyp.Int, ctx, id_gen));
@@ -97,11 +92,11 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.Unknown(ModeSwitch), ctx, id_gen));
+    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(ModeSwitch)));
+    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(Internal)));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.Unknown(ModeSwitch), ctx, id_gen));
+    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
   };
 };
 
@@ -651,12 +646,12 @@ and syn_perform_operand =
   | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
-      ? Succeeded((zp, Unknown(ModeSwitch), ctx, id_gen))
+      ? Succeeded((zp, Unknown(Internal), ctx, id_gen))
       : CursorEscaped(Before);
   | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
-      ? Succeeded((zp, Unknown(ModeSwitch), ctx, id_gen))
+      ? Succeeded((zp, Unknown(Internal), ctx, id_gen))
       : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
@@ -674,7 +669,7 @@ and syn_perform_operand =
   | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
     let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
     let zp = ZOpSeq.wrap(zhole);
-    Succeeded((zp, Unknown(ModeSwitch), ctx, id_gen));
+    Succeeded((zp, Unknown(Internal), ctx, id_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
@@ -783,7 +778,7 @@ and syn_perform_operand =
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Unknown(ModeSwitch)), ctx, id_gen));
+    Succeeded((zp, List(Unknown(Internal)), ctx, id_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -800,8 +795,8 @@ and syn_perform_operand =
     | Some((body_ty, ctx)) =>
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, Unknown(ModeSwitch))
-        | R => HTyp.Sum(Unknown(ModeSwitch), body_ty)
+        | L => HTyp.Sum(body_ty, Unknown(Internal))
+        | R => HTyp.Sum(Unknown(Internal), body_ty)
         };
       Succeeded((zp, ty, ctx, id_gen));
     };
@@ -890,8 +885,8 @@ and syn_perform_operand =
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(ModeSwitch))
-        | R => HTyp.Sum(Unknown(ModeSwitch), ty1)
+        | L => HTyp.Sum(ty1, Unknown(Internal))
+        | R => HTyp.Sum(Unknown(Internal), ty1)
         };
       Succeeded((zp, ty, ctx, id_gen));
     }
