@@ -72,6 +72,11 @@ module type ClientS = {
      [request t req] is [(t, res)] where [res] is the deferred response.
    */
   let request: (t, Request.t) => (t, Lwt.t(Response.t));
+
+  /**
+    [terminate t] terminates the worker.
+   */
+  let terminate: t => unit;
 };
 
 module type WorkerS = {

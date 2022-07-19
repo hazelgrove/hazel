@@ -51,7 +51,13 @@ module type ClientS = {
   /**
      [request t req] is [(t, res)] where [res] is the deferred response.
    */
+  /* FIXME: Reverse return member order. */
   let request: (t, Request.t) => (t, Lwt.t(Response.t));
+
+  /**
+    [terminate t] terminates the worker.
+   */
+  let terminate: t => unit;
 };
 
 module type WorkerS = {
@@ -139,6 +145,8 @@ module Make = (M: M) => {
 
       ({worker, last: Some(lwt)}, lwt);
     };
+
+    let terminate = ({worker, _}: t) => worker##terminate;
   };
 
   module Worker = {
