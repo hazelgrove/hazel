@@ -9,8 +9,12 @@ export let mkBoolLit = (x : Bool) => {
     AstUtil.astToHazel(Ast.BoolLit(x))
 }
 
-export let mkIntLit = (x : Number) => {
+export let mkIntLit = (x : Int32) => {
     AstUtil.astToHazel(Ast.IntLit(x))
+}
+
+export let mkFloatLit = (x : Float32) => {
+    AstUtil.astToHazel(Ast.FloatLit(x))
 }
 
 export let mkBinBoolOp = (op, x, y) => {
@@ -25,13 +29,32 @@ export let mkBinIntOp = (op, x, y) => {
     AstUtil.astToHazel(Ast.BinIntOp(op, x, y))
 }
 
+export let mkBinFloatOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinFloatOp(op, x, y))
+}
 
-export let convertToAst = (x : AstUtil.Hazel) => {
+export let convertToBoolLit = (x : AstUtil.Hazel) => {
     if (AstUtil.isIndet(x)) {
         x
-    } else if (AstUtil.isConst(x)) {
-        mkBoolLit(AstUtil.hazelToBool(x))
     } else {
-        mkIntLit(AstUtil.hazelToNumber(x))
+        mkBoolLit(AstUtil.hazelToBool(x))
+    }
+}
+
+export let convertToIntLit = (x : AstUtil.Hazel) => {
+    if (AstUtil.isIndet(x)) {
+        x
+    } else {
+        mkIntLit(AstUtil.hazelToInt32(x))
+    }
+}
+
+export let convertToFloatLit = (x : AstUtil.Hazel) => {
+    if (AstUtil.isIndet(x)) {
+        x
+    } else {
+        mkFloatLit(AstUtil.hazelToFloat32(x))
     }
 }

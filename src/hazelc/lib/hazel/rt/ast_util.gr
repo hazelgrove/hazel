@@ -6,7 +6,8 @@ import Exception from "exception"
 exception HazelTypeError
 
 export enum Hazel {
-  Number(Number),
+  Number(Int32),
+  Float(Float32),
   Const(Bool),
   Indet(Ast.Ast),
 }
@@ -34,13 +35,24 @@ export let hazelToBool = (x : Hazel) => {
     }
 }
 
-export let numberToHazel = (x : Number) => {
+export let int32ToHazel = (x : Int32) => {
     Number(x)
 }
 
-export let hazelToNumber = (x : Hazel) => {
+export let float32ToHazel = (x : Float32) => {
+    Float(x)
+}
+
+export let hazelToInt32 = (x : Hazel) => {
     match(x) {
         Number(n) => n,
+        _ => throw HazelTypeError,
+    }
+}
+
+export let hazelToFloat32 = (x : Hazel) => {
+    match(x) {
+        Float(n) => n,
         _ => throw HazelTypeError,
     }
 }
@@ -62,6 +74,13 @@ export let isConst = (x : Hazel) => {
 export let isNumber = (x : Hazel) => {
     match(x) {
         Number(_) => true,
+        _ => false, 
+    }
+}
+
+export let isFloat = (x : Hazel) => {
+    match(x) {
+        Float(_) => true,
         _ => false, 
     }
 }

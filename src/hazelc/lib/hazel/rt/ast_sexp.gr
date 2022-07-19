@@ -45,6 +45,17 @@ export let sexpOfBinIntOp = op =>
     Ast.Equals => Sexp.Atom("Equals"),
   }
 
+export let sexpOfBinFloatOp = op =>
+  match (op) {
+    Ast.FMinus => Sexp.Atom("FMinus"),
+    Ast.FPlus => Sexp.Atom("FPlus"),
+    Ast.FTimes => Sexp.Atom("FTimes"),
+    Ast.FDivide => Sexp.Atom("FDivide"),
+    Ast.FLessThan => Sexp.Atom("FLessThan"),
+    Ast.FGreaterThan => Sexp.Atom("FGreaterThan"),
+    Ast.FEquals => Sexp.Atom("FEquals"),
+  }
+
 export let rec sexpOfAst = ast =>
   match (ast) {
     Ast.EmptyHole(u, i, sigma) =>
@@ -74,6 +85,7 @@ export let rec sexpOfAst = ast =>
     Ast.Ap(fn, arg) => Sexp.List([Sexp.Atom("Ap"), sexpOfAst(fn), sexpOfAst(arg)]),
     Ast.BoolLit(b) => Sexp.List([Sexp.Atom("BoolLit"), sexpOfBool(b)]),
     Ast.IntLit(b) => Sexp.List([Sexp.Atom("IntLit"), sexpOfNumber(b)]),
+    Ast.FloatLit(b) => Sexp.List([Sexp.Atom("FloatLit"), sexpOfFloat(b)]),
     Ast.BinBoolOp(op, ast1, ast2) =>
       Sexp.List(
         [Sexp.Atom("BinBoolOp"), sexpOfBinBoolOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
@@ -81,5 +93,9 @@ export let rec sexpOfAst = ast =>
     Ast.BinIntOp(op, ast1, ast2) =>
       Sexp.List(
         [Sexp.Atom("BinIntOp"), sexpOfBinIntOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
+      ),
+    Ast.BinFloatOp(op, ast1, ast2) =>
+      Sexp.List(
+        [Sexp.Atom("BinFloatOp"), sexpOfBinFloatOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
       ),
   }

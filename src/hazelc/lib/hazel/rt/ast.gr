@@ -3,8 +3,8 @@ import Map from "map"
 export type Var = String
 export type VarMap<v> = Map.Map<Var, v>
 
-export type MetaVar = Number
-export type MetaVarInst = Number
+export type MetaVar = Int32
+export type MetaVarInst = Int32
 
 export enum HoleReason {
   TypeInconsistent,
@@ -37,6 +37,16 @@ export enum BinIntOp {
   Equals,
 }
 
+export enum BinFloatOp {
+  FPlus,
+  FMinus,
+  FTimes,
+  FDivide,
+  FLessThan,
+  FGreaterThan,
+  FEquals,
+}
+
 export enum Ast {
   EmptyHole(MetaVar, MetaVarInst, VarMap<Ast>),
   NonEmptyHole(HoleReason, MetaVar, MetaVarInst, VarMap<Ast>, Ast),
@@ -44,7 +54,9 @@ export enum Ast {
   FailedCast(Ast, HTyp, HTyp),
   Ap(Ast, Ast),
   BoolLit(Bool),
-  IntLit(Number),
+  IntLit(Int32),
+  FloatLit(Float32),
   BinBoolOp(BinBoolOp, Ast, Ast),
-  BinIntOp(BinIntOp, Ast, Ast)
+  BinIntOp(BinIntOp, Ast, Ast),
+  BinFloatOp(BinFloatOp, Ast, Ast),
 }
