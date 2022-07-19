@@ -4,6 +4,7 @@ open Sexplib.Std;
 type opts = {print_final_expr: bool};
 
 module Imports = {
+  [@deriving sexp]
   type t = {
     indet: bool,
     sum: bool,
@@ -22,11 +23,11 @@ module Imports = {
     float64: false,
   };
 
-  let with_complete = imps => {...imps, indet: true};
+  let with_incomplete = imps => {...imps, indet: true};
   let with_sum = imps => {...imps, sum: true};
-  /* let with_int32 = imps => {...imps, int32: true}; */
+  /* let with_int64 = imps => {...imps, int64: true}; */
   let with_int32 = imps => {...imps, int32: true};
-  /* let with_float32 = imps => {...imps, float32: true}; */
+  /* let with_float64 = imps => {...imps, float64: true}; */
   let with_float32 = imps => {...imps, float32: true};
 
   /*
@@ -66,100 +67,114 @@ module Imports = {
   };
 };
 
+module State = {
+  [@deriving sexp]
+  type t = {imps: Imports.t};
+
+  let init = {imps: Imports.default};
+
+  let with_incomplete_import = ({imps}) => {
+    imps: Imports.with_incomplete(imps),
+  };
+  let with_sum_import = ({imps}) => {imps: Imports.with_sum(imps)};
+  let with_int32_import = ({imps}) => {imps: Imports.with_int32(imps)};
+  let with_float32_import = ({imps}) => {imps: Imports.with_float32(imps)};
+};
+
+module Monad = {
+  include StateMonad.Make(State);
+
+  let with_incomplete_import = update(State.with_incomplete_import);
+  let with_sum_import = update(State.with_sum_import);
+  let with_int32_import = update(State.with_int32_import);
+  let with_float32_import = update(State.with_float32_import);
+};
+
+open Monad;
+open Monad.Syntax;
+open GrainIR;
+
 let dummy_label = Label.init;
 
-let codegen_fold = (codegen_f, xs, imps) => {
-  List.fold_left(
-    ((xs, imps), x) => {
-      let (x, imps) = codegen_f(x, imps);
-      (xs @ [x], imps);
-    },
-    ([], imps),
-    xs,
-  );
-};
+let codegen_fold = (codegen_f, xs) =>
+  List.map(codegen_f, xs) |> Monad.sequence;
 
 let rec codegen_prog =
         (
           {prog_body: (body, im), prog_ty: _, prog_complete: _, prog_label: _}: Anf.prog,
-          imps,
         )
-        : (GrainIR.block, GrainIR.expr, Imports.t) => {
-  let (stmts, imps) = codegen_fold(codegen_stmt, body, imps);
-  let (im, imps) = codegen_imm(im, imps);
-  (stmts, im, imps);
+        : t((GrainIR.block, GrainIR.expr)) => {
+  let* stmts = codegen_fold(codegen_stmt, body);
+  let* im = codegen_imm(im);
+  (stmts, im) |> return;
 }
 
-and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
+and codegen_stmt = (stmt: Anf.stmt): t(GrainIR.stmt) => {
   switch (stmt.stmt_kind) {
   | SLet(p, c) =>
-    let (p', imps) = codegen_pat(p, imps);
-    let (c', imps) = codegen_comp(c, imps);
-    (SLet([p'], c'), imps);
+    let* p' = codegen_pat(p);
+    let* c' = codegen_comp(c);
+    SLet([p'], c') |> return;
 
   | SLetRec(x, c) =>
-    let (p', imps) =
-      codegen_pat(
-        {
-          pat_kind: PVar(x),
-          pat_complete: NecessarilyComplete,
-          pat_label: dummy_label,
-        },
-        imps,
-      );
-    let (c', imps) = codegen_comp(c, imps);
-    (SLetRec([p'], c'), imps);
+    let* p' =
+      codegen_pat({
+        pat_kind: PVar(x),
+        pat_complete: NecessarilyComplete,
+        pat_label: dummy_label,
+      });
+    let* c' = codegen_comp(c);
+    SLetRec([p'], c') |> return;
   };
 }
 
-and codegen_comp = (c: Anf.comp, imps): (GrainIR.expr, Imports.t) => {
+and codegen_comp = (c: Anf.comp): t(GrainIR.expr) => {
   switch (c.comp_kind) {
-  | CImm(im) => codegen_imm(im, imps)
+  | CImm(im) => codegen_imm(im)
 
-  | CBinOp(op, im1, im2) =>
-    codegen_bin_op(op, im1, im2, c.comp_complete, imps)
+  | CBinOp(op, im1, im2) => codegen_bin_op(op, im1, im2, c.comp_complete)
 
   | CAp(fn, arg) =>
-    let (fn', imps) = codegen_imm(fn, imps);
-    let (arg', imps) = codegen_imm(arg, imps);
-    (EAp(fn', [arg']), imps);
+    let* fn' = codegen_imm(fn);
+    let* arg' = codegen_imm(arg);
+    EAp(fn', [arg']) |> return;
 
   | CFun(param, body) =>
-    let (param', imps) = codegen_pat(param, imps);
-    let (body', c, imps) = codegen_prog(body, imps);
+    let* param' = codegen_pat(param);
+    let* (body', c) = codegen_prog(body);
     let body' = body' @ [SExpr(c)];
-    (ELam([param'], EBlock(body')), imps);
+    ELam([param'], EBlock(body')) |> return;
 
   | CCons(im1, im2) =>
-    let (e1, imps) = codegen_imm(im1, imps);
-    let (e2, imps) = codegen_imm(im2, imps);
-    (ECons(e1, e2), imps);
+    let* e1 = codegen_imm(im1);
+    let* e2 = codegen_imm(im2);
+    ECons(e1, e2) |> return;
 
   | CPair(im1, im2) =>
-    let (e1, imps) = codegen_imm(im1, imps);
-    let (e2, imps) = codegen_imm(im2, imps);
-    (ETuple([e1, e2]), imps);
+    let* e1 = codegen_imm(im1);
+    let* e2 = codegen_imm(im2);
+    ETuple([e1, e2]) |> return;
 
   | CInj(side, im) =>
-    let (ctor, imps) = codegen_inj_side(side, imps);
-    let (e, imps) = codegen_imm(im, imps);
-    (ctor(e), imps);
+    let* ctor = codegen_inj_side(side);
+    let* e = codegen_imm(im);
+    ctor(e) |> return;
 
   | CCase(scrut, rules) =>
-    let (scrut, imps) = codegen_imm(scrut, imps);
-    let (rules, imps) = codegen_rules(rules, imps);
-    (EMatch(scrut, rules), imps);
+    let* scrut = codegen_imm(scrut);
+    let* rules = codegen_rules(rules);
+    EMatch(scrut, rules) |> return;
 
-  | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma, imps)
+  | CEmptyHole(u, i, sigma) => codegen_empty_hole(u, i, sigma)
 
   | CNonEmptyHole(reason, u, i, sigma, im) =>
-    codegen_non_empty_hole(reason, u, i, sigma, im, imps)
+    codegen_non_empty_hole(reason, u, i, sigma, im)
 
-  | CCast(im, t1, t2) => codegen_cast(im, t1, t2, imps)
+  | CCast(im, t1, t2) => codegen_cast(im, t1, t2)
   };
 }
 
-and codegen_bin_op_complete = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_complete = (op: Anf.bin_op) => {
   let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
@@ -182,22 +197,22 @@ and codegen_bin_op_complete = (op: Anf.bin_op, imps) => {
       }
     );
 
-  let imps =
+  let* () =
     if (with_int32) {
-      Imports.with_int32(imps);
+      with_int32_import;
     } else {
-      imps;
+      () |> return;
     };
-  let imps =
+  let* () =
     if (with_float32) {
-      Imports.with_float32(imps);
+      with_float32_import;
     } else {
-      imps;
+      () |> return;
     };
-  (op, imps);
+  op |> return;
 }
 
-and codegen_bin_op_incomplete = (op: Anf.bin_op, imps) => {
+and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
   let op =
     HazelStd.Rt.(
       switch (op) {
@@ -219,117 +234,112 @@ and codegen_bin_op_incomplete = (op: Anf.bin_op, imps) => {
       | OpFEquals => AstOps.indet_fequals
       }
     );
-  (op, Imports.with_complete(imps));
+
+  let* () = with_incomplete_import;
+  op |> return;
 }
 
 and codegen_bin_op =
-    (
-      op: Anf.bin_op,
-      im1: Anf.imm,
-      im2: Anf.imm,
-      indet: Anf.completeness,
-      imps,
-    )
-    : (GrainIR.expr, Imports.t) => {
-  let (e1, imps) = codegen_imm(im1, imps);
-  let (e2, imps) = codegen_imm(im2, imps);
-  let (op, imps) =
+    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.completeness)
+    : t(GrainIR.expr) => {
+  let* e1 = codegen_imm(im1);
+  let* e2 = codegen_imm(im2);
+  let* op =
     switch (indet) {
     // TODO: Separate cases
-    | NecessarilyComplete => codegen_bin_op_complete(op, imps)
+    | NecessarilyComplete => codegen_bin_op_complete(op)
     | NecessarilyIncomplete
-    | IndeterminatelyIncomplete => codegen_bin_op_incomplete(op, imps)
+    | IndeterminatelyIncomplete => codegen_bin_op_incomplete(op)
     };
-  (op(e1, e2), imps);
+  op(e1, e2) |> return;
 }
 
-and codegen_rules =
-    (rules: list(Anf.rule), imps): (list(GrainIR.rule), Imports.t) => {
-  codegen_fold(codegen_rule, rules, imps);
+and codegen_rules = (rules: list(Anf.rule)): t(list(GrainIR.rule)) => {
+  codegen_fold(codegen_rule, rules);
 }
 
-and codegen_rule = (rule: Anf.rule, imps): (GrainIR.rule, Imports.t) => {
-  let (pat, imps) = codegen_pat(rule.rule_pat, imps);
-  let (branch_stmts, branch_expr, imps) =
-    codegen_prog(rule.rule_branch, imps);
+and codegen_rule = (rule: Anf.rule): t(GrainIR.rule) => {
+  let* pat = codegen_pat(rule.rule_pat);
+  let* (branch_stmts, branch_expr) = codegen_prog(rule.rule_branch);
   let branch = branch_stmts @ [SExpr(branch_expr)];
-  (RRule(pat, EBlock(branch)), imps);
+  RRule(pat, EBlock(branch)) |> return;
 }
 
-and codegen_imm = (im: Anf.imm, imps): (GrainIR.expr, Imports.t) => {
+and codegen_imm = (im: Anf.imm): t(GrainIR.expr) => {
   switch (im.imm_kind) {
-  | IConst(const) => codegen_const(const, imps)
+  | IConst(const) => codegen_const(const)
 
-  | IVar(x) => codegen_var(x, imps)
+  | IVar(x) => codegen_var(x)
   };
 }
 
-and codegen_var = (x: Var.t, imps): (GrainIR.expr, Imports.t) => {
-  (EVar(x), imps);
+and codegen_var = (x: Var.t): t(GrainIR.expr) => EVar(x) |> return
+
+and codegen_const = (const: Anf.constant): t(GrainIR.expr) => {
+  (
+    switch (const) {
+    | ConstInt(n) => EInt32Lit(n)
+    | ConstFloat(f) => EFloat32Lit(f)
+    | ConstBool(b) => EBoolLit(b)
+    | ConstNil(_) => EList([])
+    | ConstTriv => ETriv
+    }
+  )
+  |> return;
 }
 
-and codegen_const = (const: Anf.constant, imps): (GrainIR.expr, Imports.t) => {
-  switch (const) {
-  | ConstInt(n) => (EInt32Lit(n), imps)
-  | ConstFloat(f) => (EFloat32Lit(f), imps)
-  | ConstBool(b) => (EBoolLit(b), imps)
-  | ConstNil(_) => (EList([]), imps)
-  | ConstTriv => (ETriv, imps)
-  };
-}
-
-and codegen_pat = (p: Anf.pat, imps): (GrainIR.pat, Imports.t) => {
+and codegen_pat = (p: Anf.pat): t(GrainIR.pat) => {
   switch (p.pat_kind) {
-  | PWild => (PWild, imps)
-  | PVar(x) => (PVar(x), imps)
-  | PInt(n) => (PInt(n), imps)
-  | PFloat(f) => (PFloat(f), imps)
-  | PBool(b) => (PBool(b), imps)
-  | PNil => (PNil, imps)
+  | PWild => PWild |> return
+  | PVar(x) => PVar(x) |> return
+  | PInt(n) => PInt(n) |> return
+  | PFloat(f) => PFloat(f) |> return
+  | PBool(b) => PBool(b) |> return
+  | PNil => PNil |> return
 
   | PInj(side, p) =>
-    let (ctor, imps) = codegen_inj_side_pat(side, imps);
-    let (p', imps) = codegen_pat(p, imps);
-    (ctor(p'), imps);
+    let* ctor = codegen_inj_side_pat(side);
+    let* p' = codegen_pat(p);
+    ctor(p') |> return;
 
   | PCons(p1, p2) =>
-    let (p1', imps) = codegen_pat(p1, imps);
-    let (p2', imps) = codegen_pat(p2, imps);
-    (PCons(p1', p2'), imps);
+    let* p1' = codegen_pat(p1);
+    let* p2' = codegen_pat(p2);
+    PCons(p1', p2') |> return;
 
   | PPair(p1, p2) =>
-    let (p1', imps) = codegen_pat(p1, imps);
-    let (p2', imps) = codegen_pat(p2, imps);
-    (PTuple([p1', p2']), imps);
+    let* p1' = codegen_pat(p1);
+    let* p2' = codegen_pat(p2);
+    PTuple([p1', p2']) |> return;
 
-  | PTriv => (PTriv, imps)
+  | PTriv => PTriv |> return
   };
 }
 
-and codegen_inj_side =
-    (side: Anf.inj_side, imps): (GrainIR.expr => GrainIR.expr, Imports.t) => {
-  let side =
+and codegen_inj_side = (side: Anf.inj_side): t(GrainIR.expr => GrainIR.expr) => {
+  let side' =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l
     | CInjR => HazelStd.Rt.Sum.inj_r
     };
 
-  (side, Imports.with_sum(imps));
+  let* () = with_sum_import;
+  side' |> return;
 }
 
 and codegen_inj_side_pat =
-    (side: Anf.inj_side, imps): (GrainIR.pat => GrainIR.pat, Imports.t) => {
+    (side: Anf.inj_side): t(GrainIR.pat => GrainIR.pat) => {
   let side' =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l_pat
     | CInjR => HazelStd.Rt.Sum.inj_r_pat
     };
 
-  (side', Imports.with_sum(imps));
+  let* () = with_sum_import;
+  side' |> return;
 }
 
-and codegen_hole_reason =
-    (reason: ErrStatus.HoleReason.t, imps): (GrainIR.expr, Imports.t) => {
+and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(GrainIR.expr) => {
   let reason' =
     HazelStd.Rt.Ast.(
       switch (reason) {
@@ -337,91 +347,84 @@ and codegen_hole_reason =
       | WrongLength => HoleReason.wrong_length
       }
     );
-  (EVar(reason'), imps);
+  EVar(reason') |> return;
 }
-and codegen_meta_var = (u: MetaVar.t, imps): (GrainIR.expr, Imports.t) => {
-  (EInt32Lit(u), imps);
-}
-and codegen_meta_var_inst =
-    (i: MetaVarInst.t, imps): (GrainIR.expr, Imports.t) => {
-  (EInt32Lit(i), imps);
-}
-and codegen_sigma =
-    (sigma: VarMap.t_(Anf.imm), imps): (GrainIR.expr, Imports.t) => {
-  let (sigma', imps) =
-    codegen_fold(
-      ((x, im), imps) => {
-        let (im', imps) = codegen_imm(im, imps);
-        (GrainIR.ETuple([GrainIR.EStringLit(x), im']), imps);
-      },
-      sigma,
-      imps,
-    );
+and codegen_meta_var = (u: MetaVar.t): t(GrainIR.expr) =>
+  EInt32Lit(u) |> return
 
-  (GrainIR.EList(sigma') |> GrainStd.Map.from_list, imps);
+and codegen_meta_var_inst = (i: MetaVarInst.t): t(GrainIR.expr) =>
+  EInt32Lit(i) |> return
+
+and codegen_sigma = (sigma: VarMap.t_(Anf.imm)): t(GrainIR.expr) => {
+  let* sigma' =
+    sigma
+    |> codegen_fold(((x, im)) => {
+         let* im' = codegen_imm(im);
+         GrainIR.ETuple([GrainIR.EStringLit(x), im']) |> return;
+       });
+
+  GrainIR.EList(sigma') |> GrainStd.Map.from_list |> return;
 }
 
-and codegen_empty_hole = (u, i, sigma, imps): (GrainIR.expr, Imports.t) => {
-  let (u', imps) = codegen_meta_var(u, imps);
-  let (i', imps) = codegen_meta_var_inst(i, imps);
-  let (sigma', imps) = codegen_sigma(sigma, imps);
+and codegen_empty_hole = (u, i, sigma): t(GrainIR.expr) => {
+  let* u' = codegen_meta_var(u);
+  let* i' = codegen_meta_var_inst(i);
+  let* sigma' = codegen_sigma(sigma);
 
-  HazelStd.Rt.(Ast.empty_hole(u', i', sigma'), Imports.with_complete(imps));
+  let* () = with_incomplete_import;
+  HazelStd.Rt.(Ast.empty_hole(u', i', sigma')) |> return;
 }
 
-and codegen_non_empty_hole =
-    (reason, u, i, sigma, im, imps): (GrainIR.expr, Imports.t) => {
-  let (reason', imps) = codegen_hole_reason(reason, imps);
-  let (u', imps) = codegen_meta_var(u, imps);
-  let (i', imps) = codegen_meta_var_inst(i, imps);
-  let (sigma', imps) = codegen_sigma(sigma, imps);
-  let (e', imps) = codegen_imm(im, imps);
+and codegen_non_empty_hole = (reason, u, i, sigma, im): t(GrainIR.expr) => {
+  let* reason' = codegen_hole_reason(reason);
+  let* u' = codegen_meta_var(u);
+  let* i' = codegen_meta_var_inst(i);
+  let* sigma' = codegen_sigma(sigma);
+  let* e' = codegen_imm(im);
 
-  HazelStd.Rt.(
-    Ast.non_empty_hole(reason', u', i', sigma', e'),
-    Imports.with_complete(imps),
-  );
+  let* () = with_incomplete_import;
+  HazelStd.Rt.(Ast.non_empty_hole(reason', u', i', sigma', e')) |> return;
 }
 
-and codegen_cast =
-    (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t, imps): (GrainIR.expr, Imports.t) => {
-  let rec codegen_htyp = (t: HTyp.t): GrainIR.expr => {
+and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(GrainIR.expr) => {
+  let rec codegen_htyp = (t: HTyp.t): t(GrainIR.expr) => {
     HazelStd.Rt.(
       switch (t) {
-      | Hole => Ast.HTyp.hole
-      | Int => Ast.HTyp.int
-      | Float => Ast.HTyp.float
-      | Bool => Ast.HTyp.bool
+      | Hole => Ast.HTyp.hole |> return
+      | Int => Ast.HTyp.int |> return
+      | Float => Ast.HTyp.float |> return
+      | Bool => Ast.HTyp.bool |> return
 
       | Arrow(ty1, ty2) =>
-        let ty1' = codegen_htyp(ty1);
-        let ty2' = codegen_htyp(ty2);
-        Ast.HTyp.arrow(ty1', ty2');
+        let* ty1' = codegen_htyp(ty1);
+        let* ty2' = codegen_htyp(ty2);
+        Ast.HTyp.arrow(ty1', ty2') |> return;
 
       | Sum(ty1, ty2) =>
-        let ty1' = codegen_htyp(ty1);
-        let ty2' = codegen_htyp(ty2);
-        Ast.HTyp.sum(ty1', ty2');
+        let* ty1' = codegen_htyp(ty1);
+        let* ty2' = codegen_htyp(ty2);
+        Ast.HTyp.sum(ty1', ty2') |> return;
       | Prod(tys) =>
-        let tys' = tys |> List.map(codegen_htyp);
-        Ast.HTyp.prod(tys');
+        let* tys' = tys |> codegen_fold(codegen_htyp);
+        Ast.HTyp.prod(tys') |> return;
 
       | List(ty) =>
-        let ty' = codegen_htyp(ty);
-        Ast.HTyp.list(ty');
+        let* ty' = codegen_htyp(ty);
+        Ast.HTyp.list(ty') |> return;
       }
     );
   };
 
-  let (e, imps) = codegen_imm(im, imps);
-  let ty1' = codegen_htyp(ty1);
-  let ty2' = codegen_htyp(ty2);
+  let* e = codegen_imm(im);
+  let* ty1' = codegen_htyp(ty1);
+  let* ty2' = codegen_htyp(ty2);
 
-  HazelStd.Rt.(Ast.cast(e, ty1', ty2'), Imports.with_complete(imps));
+  let* () = with_incomplete_import;
+  HazelStd.Rt.(Ast.cast(e, ty1', ty2')) |> return;
 };
 
 let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
-  let (body, c, imps) = codegen_prog(prog, Imports.default);
+  let (State.{imps}, (body, c)) = codegen_prog(prog, State.init);
   let tb = Imports.codegen(imps);
 
   let b =
