@@ -491,7 +491,7 @@ let%test _ = {
     ],
     TyAlias(
       TPat.TyVar(NotInHole, "t"),
-      (InitialContext.ctx, HTyp.tyvarhole(InvalidText, u0, "123")),
+      (InitialContext.ctx, HTyp.invalid_text(u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),
@@ -509,7 +509,7 @@ let%test _ = {
     ],
     TyAlias(
       tp,
-      (InitialContext.ctx, HTyp.tyvarhole(InvalidText, u0, "123")),
+      (InitialContext.ctx, HTyp.invalid_text(u0, "123")),
       EmptyHole(u1, 0, VarMap.empty),
     ),
     HTyp.hole(),

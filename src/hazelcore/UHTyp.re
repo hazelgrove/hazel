@@ -69,7 +69,6 @@ let contract = (ty: HTyp.t): t => {
           switch (reason) {
           | Reserved
           | Unbound => TyVar(InHole(reason, u), t)
-          | InvalidText => InvalidText(u, t)
           };
         Seq.wrap(operand);
       | InvalidText(u, t) => Seq.wrap(InvalidText(u, t))

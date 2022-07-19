@@ -2,8 +2,7 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | Unbound
-    | Reserved
-    | InvalidText;
+    | Reserved;
 };
 
 [@deriving sexp]

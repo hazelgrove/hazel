@@ -63,7 +63,7 @@ and syn_fix_holes_operand =
     } else {
       let (u, id_gen) = next_id();
       let ty = UHTyp.InvalidText(u, t);
-      (ty, Kind.S(TyVarHole(InvalidText, u, t)), id_gen);
+      (ty, Kind.S(InvalidText(u, t)), id_gen);
     };
   | Unit => (operand, Kind.singleton(HTyp.product([])), id_gen)
   | Int => (operand, Kind.singleton(HTyp.int()), id_gen)

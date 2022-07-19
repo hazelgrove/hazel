@@ -74,7 +74,7 @@ and syn_elab_operand =
     let ty = HTyp.tyvarhole(reason, u, t);
     Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));
   | InvalidText(u, t) =>
-    let ty = HTyp.tyvarhole(InvalidText, u, t);
+    let ty = HTyp.invalid_text(u, t);
     Some((ty, Kind.Hole, Delta.add(u, Delta.Hole.Type, delta)));
   };
 }
@@ -101,8 +101,7 @@ and ana_elab_operand =
   | Hole => Some((HTyp.hole(), Kind.Hole, delta))
   | TyVar(InHole(reason, u), t) =>
     Some((HTyp.tyvarhole(reason, u, t), Kind.Hole, delta))
-  | InvalidText(u, t) =>
-    Some((HTyp.tyvarhole(InvalidText, u, t), Kind.Hole, delta))
+  | InvalidText(u, t) => Some((HTyp.invalid_text(u, t), Kind.Hole, delta))
   | Parenthesized(opseq) => ana_elab(ctx, delta, opseq, k)
   // subsumption
   | TyVar(NotInTyVarHole, _)
