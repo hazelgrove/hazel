@@ -2,6 +2,7 @@ open Sexplib.Std;
 
 open Hazelc_mir;
 open Grainlib;
+open Grainlib.GrainIR;
 
 [@deriving sexp]
 type opts = {print_final_expr: bool};
@@ -95,7 +96,6 @@ module Monad = {
 
 open Monad;
 open Monad.Syntax;
-open GrainIR;
 
 let dummy_label = Label.init;
 
