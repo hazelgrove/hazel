@@ -6,9 +6,7 @@
 open Sexplib.Std;
 open Cmdliner;
 
-open ChannelUtil.Syntax;
-
-open Hazelc_mir;
+open Hazelc;
 
 module GrainCli = Grainlib.Cli;
 module GrainExpr = Grainlib.Expr;
@@ -40,8 +38,8 @@ type error =
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
   let indet_analysis_level =
     switch (optimize) {
-    | 0 => IndetAnalysis.NoAnalysis
-    | _ => IndetAnalysis.GlobalAnalysis
+    | 0 => Mir.IndetAnalysis.NoAnalysis
+    | _ => Mir.IndetAnalysis.GlobalAnalysis
     };
 
   let opts: Compile.opts = {
@@ -67,6 +65,8 @@ let mk_opts = (action, _verbose, optimize, _debug, std) => {
 
 let hazelc =
     (action, source_filenames, output_filename, verbose, optimize, debug, std) => {
+  open ChannelUtil.Syntax;
+
   // Open the source file.
   let source_filename = List.hd(source_filenames);
   let&i source_file = open_in(source_filename);
@@ -122,12 +122,12 @@ let hazelc =
 
     | Hir =>
       Compile.resume_until_transformed(~opts, source)
-      |> Result.map(write_sexp_output(Hazelc_hir.Hir.sexp_of_expr))
+      |> Result.map(write_sexp_output(Hir.Hir.sexp_of_expr))
       |> Result.map_error(convert_error)
 
     | Anf =>
       Compile.resume_until_optimized(~opts, source)
-      |> Result.map(write_sexp_output(Anf.sexp_of_prog))
+      |> Result.map(write_sexp_output(Mir.Anf.sexp_of_prog))
       |> Result.map_error(convert_error)
 
     | Grain =>

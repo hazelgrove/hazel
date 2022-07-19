@@ -1,3 +1,4 @@
+open Hazelc;
 module GrainCli = Grainlib.Cli;
 
 [@deriving sexp]

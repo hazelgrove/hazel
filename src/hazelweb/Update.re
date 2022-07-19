@@ -234,25 +234,29 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | Grain =>
-          let opts: Compile.opts = {
-            optimize: {
-              indet_analysis: {
-                level: LocalAnalysis,
-              },
-            },
-            codegen: {
-              print_final_expr: false,
-            },
-          };
-          model
-          |> Model.get_program
-          |> Program.get_uhexp
-          |> (e => Compile.Parsed(e))
-          |> Compile.resume_until_printed(~opts)
-          |> Stdlib.Result.map_error(err =>
-               err |> Compile.sexp_of_next_error |> Sexplib.Sexp.to_string
-             )
-          |> JSUtil.log;
+          Hazelc.(
+            {
+              let opts: Compile.opts = {
+                optimize: {
+                  indet_analysis: {
+                    level: LocalAnalysis,
+                  },
+                },
+                codegen: {
+                  print_final_expr: false,
+                },
+              };
+              model
+              |> Model.get_program
+              |> Program.get_uhexp
+              |> (e => Compile.Parsed(e))
+              |> Compile.resume_until_printed(~opts)
+              |> Stdlib.Result.map_error(err =>
+                   err |> Compile.sexp_of_next_error |> Sexplib.Sexp.to_string
+                 )
+              |> JSUtil.log;
+            }
+          )
         };
         model;
       | Import(e) => Import.import(e, model)

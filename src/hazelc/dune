@@ -9,6 +9,5 @@
   hazelcore
   hazeltext
   grainlib)
- (wrapped false)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
