@@ -2,4 +2,4 @@
 
 (library
  (name hazelctest)
- (libraries hazelc hazelclib wasmtime))
+ (libraries hazelc hazelcrt wasmtime))
