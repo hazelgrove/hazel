@@ -1,1 +1,1 @@
-let transform: (Contexts.t, DHExp.t) => Hir.expr;
+let transform: (Contexts.t, DHExp.t) => Expr.expr;

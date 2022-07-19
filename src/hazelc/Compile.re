@@ -107,7 +107,7 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
-  | Transformed(Hir.Hir.expr)
+  | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.prog)
   | Optimized(Mir.Anf.prog)
   | Grainized(GrainExpr.prog)

@@ -1,4 +1,4 @@
-open Hazelc_hir;
+module Hir = Hazelc_hir.Expr;
 
 open LinearizeMonad;
 open LinearizeMonad.Syntax;

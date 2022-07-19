@@ -2,7 +2,7 @@ exception FixFError;
 exception FreeVarError;
 exception WrongTypeError;
 
-let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
+let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
     let sigma = transform_var_map(ctx, sigma);
@@ -145,38 +145,38 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Hir.expr, HTyp.t) => {
   };
 }
 
-and transform_bool_op = (op: DHExp.BinBoolOp.t): Hir.bin_bool_op => {
+and transform_bool_op = (op: DHExp.BinBoolOp.t): Expr.bin_bool_op => {
   switch (op) {
-  | And => Hir.OpAnd
-  | Or => Hir.OpOr
+  | And => Expr.OpAnd
+  | Or => Expr.OpOr
   };
 }
 
-and transform_int_op = (op: DHExp.BinIntOp.t): Hir.bin_int_op => {
+and transform_int_op = (op: DHExp.BinIntOp.t): Expr.bin_int_op => {
   switch (op) {
-  | Minus => Hir.OpMinus
-  | Plus => Hir.OpPlus
-  | Times => Hir.OpTimes
-  | Divide => Hir.OpDivide
-  | LessThan => Hir.OpLessThan
-  | GreaterThan => Hir.OpGreaterThan
-  | Equals => Hir.OpEquals
+  | Minus => Expr.OpMinus
+  | Plus => Expr.OpPlus
+  | Times => Expr.OpTimes
+  | Divide => Expr.OpDivide
+  | LessThan => Expr.OpLessThan
+  | GreaterThan => Expr.OpGreaterThan
+  | Equals => Expr.OpEquals
   };
 }
 
-and transform_float_op = (op: DHExp.BinFloatOp.t): Hir.bin_float_op => {
+and transform_float_op = (op: DHExp.BinFloatOp.t): Expr.bin_float_op => {
   switch (op) {
-  | FMinus => Hir.OpFMinus
-  | FPlus => Hir.OpFPlus
-  | FTimes => Hir.OpFTimes
-  | FDivide => Hir.OpFDivide
-  | FLessThan => Hir.OpFLessThan
-  | FGreaterThan => Hir.OpFGreaterThan
-  | FEquals => Hir.OpFEquals
+  | FMinus => Expr.OpFMinus
+  | FPlus => Expr.OpFPlus
+  | FTimes => Expr.OpFTimes
+  | FDivide => Expr.OpFDivide
+  | FLessThan => Expr.OpFLessThan
+  | FGreaterThan => Expr.OpFGreaterThan
+  | FEquals => Expr.OpFEquals
   };
 }
 
-and transform_case = (ctx: Contexts.t, case: DHExp.case): (Hir.case, HTyp.t) => {
+and transform_case = (ctx: Contexts.t, case: DHExp.case): (Expr.case, HTyp.t) => {
   switch (case) {
   // TODO: Check that all rules have same type.
   | Case(scrut, rules, i) =>
@@ -197,7 +197,8 @@ and transform_case = (ctx: Contexts.t, case: DHExp.case): (Hir.case, HTyp.t) => 
 }
 
 and transform_rule =
-    (ctx: Contexts.t, rule: DHExp.rule, scrut_ty: HTyp.t): (Hir.rule, HTyp.t) => {
+    (ctx: Contexts.t, rule: DHExp.rule, scrut_ty: HTyp.t)
+    : (Expr.rule, HTyp.t) => {
   switch (rule) {
   | Rule(dp, d) =>
     let (dp, ctx') = transform_pat(ctx, dp, scrut_ty);
@@ -207,7 +208,7 @@ and transform_rule =
 }
 
 and transform_var_map =
-    (ctx: Contexts.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(Hir.expr) =>
+    (ctx: Contexts.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(Expr.expr) =>
   sigma
   |> List.map(((x, d)) => {
        let (d, _) = transform_exp(ctx, d);
@@ -215,7 +216,7 @@ and transform_var_map =
      })
 
 and transform_pat =
-    (ctx: Contexts.t, dp: DHPat.t, ty: HTyp.t): (Hir.pat, Contexts.t) => {
+    (ctx: Contexts.t, dp: DHPat.t, ty: HTyp.t): (Expr.pat, Contexts.t) => {
   switch (dp) {
   | EmptyHole(u, i) => ({pat_kind: PEmptyHole(u, i)}, ctx)
 
@@ -282,7 +283,7 @@ and transform_pat =
   };
 };
 
-let transform = (ctx: Contexts.t, d: DHExp.t): Hir.expr => {
+let transform = (ctx: Contexts.t, d: DHExp.t): Expr.expr => {
   let (d, _) = transform_exp(ctx, d);
   d;
 };
