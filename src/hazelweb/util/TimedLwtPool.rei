@@ -39,6 +39,6 @@ let use: (t('a), int, 'a => (Lwt.t('b), 'a)) => Lwt.t(option('b));
 
 /**
   [add pool] creates a fresh pool member if capacity is available and releases
-  as available.
+  as available, returning [Lwt.return_true] if succeeded.
  */
-let add: t('a) => Lwt.t(unit);
+let add: t('a) => Lwt.t(bool);

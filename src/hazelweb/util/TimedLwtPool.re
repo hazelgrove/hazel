@@ -161,7 +161,7 @@ let use = (pool, timeout, f) => {
 let add = pool =>
   /* If capacity available, create a fresh member and release it. */
   if (pool.count < pool.max) {
-    create(pool) >|= release(pool);
+    create(pool) >|= release(pool) >|= (() => true);
   } else {
-    Lwt.return_unit;
+    Lwt.return_false;
   };
