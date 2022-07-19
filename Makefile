@@ -12,12 +12,14 @@ change-deps:
 dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
+	dune build @install
 
 watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
 release:
 	dune build src --profile release
+	dune build @install
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
