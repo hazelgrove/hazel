@@ -170,9 +170,9 @@ let rec renumber_result_only =
   | FreeVar(u, _, sigma, x) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, _, sigma, k) =>
+  | ExpandingKeyword(u, _, sigma, k) =>
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (Keyword(u, i, sigma, k), hii);
+    (ExpandingKeyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -283,10 +283,10 @@ let rec renumber_sigmas_only =
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
     (FreeVar(u, i, sigma, x), hii);
-  | Keyword(u, i, sigma, k) =>
+  | ExpandingKeyword(u, i, sigma, k) =>
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (Keyword(u, i, sigma, k), hii);
+    (ExpandingKeyword(u, i, sigma, k), hii);
   | Cast(d1, ty1, ty2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Cast(d1, ty1, ty2), hii);
@@ -427,12 +427,12 @@ let perform_edit_action = (a, program) => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (ze, ty, u_gen) = new_edit_state;
+    let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
-        (ze, ty, MetaVarGen.init);
+        (ze, ty, IDGen.init);
       } else {
-        (ze, ty, u_gen);
+        (ze, ty, id_gen);
       };
     ();
     program |> put_edit_state(new_edit_state);

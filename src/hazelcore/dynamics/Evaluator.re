@@ -44,7 +44,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => Indet
   | (Wild, _) => Matches(Environment.empty)
-  | (Keyword(_, _, _), _) => DoesNotMatch
+  | (ExpandingKeyword(_, _, _), _) => DoesNotMatch
   | (InvalidText(_), _) => Indet
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
@@ -198,7 +198,7 @@ and matches_cast_Inj =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -264,7 +264,7 @@ and matches_cast_Pair =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -336,7 +336,7 @@ and matches_cast_Cons =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => Indet
   | InvalidText(_) => Indet
-  | Keyword(_, _, _, _) => Indet
+  | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
@@ -371,7 +371,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | InvalidText(_) => d2
-  | Keyword(_) => d2
+  | ExpandingKeyword(_) => d2
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -744,7 +744,7 @@ and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t => {
       }
     )
   | FreeVar(_) => (Indet(d), state)
-  | Keyword(_) => (Indet(d), state)
+  | ExpandingKeyword(_) => (Indet(d), state)
   | InvalidText(_) => (Indet(d), state)
   | Cast(d1, ty, ty') =>
     evaluate_bind((d1, state), (r1, state) =>
