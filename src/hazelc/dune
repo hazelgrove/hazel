@@ -2,6 +2,6 @@
 
 (library
  (name hazelc)
- (libraries hazelc_hir hazelc_mir hazelc_codegen hazelcore hazeltext grain)
+ (libraries hir mir codegen hazelcore hazeltext grain)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))

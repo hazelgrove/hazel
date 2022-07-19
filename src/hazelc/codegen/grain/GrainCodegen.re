@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-open Hazelc_mir;
+open Mir;
 open Grain;
 
 [@deriving sexp]

@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name hazelc_hir)
+ (name hir)
  (libraries hazelcore sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

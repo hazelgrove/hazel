@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name hazelc_codegen)
- (libraries hazelc_mir grain sexplib)
+ (name codegen)
+ (libraries mir grain sexplib)
  (preprocess
   (pps ppx_sexp_conv)))
