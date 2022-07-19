@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Grainlib;
 
 [@deriving sexp]
 type opts = {print_final_expr: bool};

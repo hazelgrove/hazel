@@ -1,6 +1,9 @@
 open Sexplib.Std;
+
 open ResultSexp;
 open ChannelUtil.Syntax;
+
+open Grainlib;
 
 module Parsing = Hazeltext.Parsing;
 

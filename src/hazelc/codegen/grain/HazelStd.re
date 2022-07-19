@@ -1,3 +1,5 @@
+open Grainlib;
+
 module Inner = GrainStd.Inner;
 
 let mk_path = path => GrainIR.ImportStd(Filename.concat("hazel", path));

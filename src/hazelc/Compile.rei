@@ -10,6 +10,7 @@
  *   . Optimizeation: optimize the Anf
  *   . Code generation: generating WebAssembly (currently via Grain); see modules in codegen/grain
  */
+open Grainlib;
 
 [@deriving sexp]
 type opts = {

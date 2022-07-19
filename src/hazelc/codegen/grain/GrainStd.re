@@ -21,12 +21,14 @@
 
    See existing modules for examples.
  */
+open Grainlib;
 
 module type InnerMeta = {
   let name: Var.t;
   let path: GrainIR.import_path;
 };
 
+/* FIXME: Rename to MakeInner. */
 module Inner = (X: InnerMeta) => {
   /* Construct an identifier within the module. */
   let ident = (x: Var.t): Var.t => X.name ++ "." ++ x;

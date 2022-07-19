@@ -1,3 +1,5 @@
+open Grainlib;
+
 [@deriving sexp]
 type profile =
   | Test

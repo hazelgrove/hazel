@@ -6,6 +6,8 @@
 open Sexplib.Std;
 open Cmdliner;
 
+open Grainlib;
+
 open ChannelUtil.Syntax;
 
 [@deriving sexp]
