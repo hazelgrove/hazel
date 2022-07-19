@@ -6,7 +6,8 @@ type t =
   | Float
   | Bool
   | ExpandingKeyword(ExpandingKeyword.t)
-  | TyVar(string);
+  | TyVar(TyVar.t)
+  | InvalidText(string);
 
 let builtin = (name: string): option(t) =>
   switch (name) {
@@ -16,10 +17,10 @@ let builtin = (name: string): option(t) =>
   | _ => None
   };
 
-let of_string = (text: string): option(t) => {
+let of_string = (text: string): t => {
   switch (ExpandingKeyword.of_string(text), builtin(text)) {
-  | (Some(k), _) => Some(ExpandingKeyword(k))
-  | (_, Some(ty)) => Some(ty)
-  | (None, None) => TyVar.is_valid(text) ? Some(TyVar(text)) : None
+  | (Some(k), _) => ExpandingKeyword(k)
+  | (_, Some(ty)) => ty
+  | (None, None) => TyVar.is_valid(text) ? TyVar(text) : InvalidText(text)
   };
 };

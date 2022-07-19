@@ -19,7 +19,8 @@ let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
     | Int => text_cursors(String.length("Int"))
     | Float => text_cursors(String.length("Float"))
     | Bool => text_cursors(String.length("Bool"))
-    | TyVar(_, t) => text_cursors(TyVar.length(t))
+    | TyVar(_, t)
+    | InvalidText(_, t) => text_cursors(TyVar.length(t))
     | Parenthesized(_)
     | List(_) => delim_cursors(2)
   );
@@ -65,7 +66,7 @@ and is_before_zoperand =
   | CursorT(cursor, Int)
   | CursorT(cursor, Float)
   | CursorT(cursor, Bool)
-  | CursorT(cursor, TyVar(_)) => cursor == OnText(0)
+  | CursorT(cursor, TyVar(_) | InvalidText(_)) => cursor == OnText(0)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 let is_before_zoperator: zoperator => bool =
@@ -82,7 +83,8 @@ and is_after_zoperand =
   | CursorT(cursor, Int) => cursor == OnText(String.length("Int"))
   | CursorT(cursor, Float) => cursor == OnText(String.length("Float"))
   | CursorT(cursor, Bool) => cursor == OnText(String.length("Bool"))
-  | CursorT(cursor, TyVar(_, t)) => cursor == OnText(TyVar.length(t))
+  | CursorT(cursor, TyVar(_, t) | InvalidText(_, t)) =>
+    cursor == OnText(TyVar.length(t))
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
@@ -99,7 +101,7 @@ and place_before_operand =
   fun
   | (Hole | Unit | Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand)
-  | (TyVar(_) | Int | Float | Bool) as operand =>
+  | (TyVar(_) | InvalidText(_) | Int | Float | Bool) as operand =>
     CursorT(OnText(0), operand);
 let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
   Some((OnOp(Before), op));
@@ -113,7 +115,8 @@ and place_after_operand =
   | Int => CursorT(OnText(String.length("Int")), Int)
   | Float => CursorT(OnText(String.length("Float")), Float)
   | Bool => CursorT(OnText(String.length("Bool")), Bool)
-  | TyVar(_, t) as operand => CursorT(OnText(TyVar.length(t)), operand)
+  | (TyVar(_, t) | InvalidText(_, t)) as operand =>
+    CursorT(OnText(TyVar.length(t)), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
 let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
@@ -161,7 +164,7 @@ and move_cursor_left_zoperand =
   | CursorT(OnDelim(_k, Before), List(ty1)) =>
     // _k == 1
     Some(ListZ(place_after(ty1)))
-  | CursorT(OnDelim(_, _), TyVar(_)) => None
+  | CursorT(OnDelim(_, _), TyVar(_) | InvalidText(_)) => None
   | ParenthesizedZ(zty1) =>
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(ParenthesizedZ(zty1))
@@ -205,7 +208,7 @@ and move_cursor_right_zoperand =
   | CursorT(OnDelim(_k, After), List(ty1)) =>
     // _k == 0
     Some(ListZ(place_before(ty1)))
-  | CursorT(OnDelim(_, _), TyVar(_)) => None
+  | CursorT(OnDelim(_, _), TyVar(_) | InvalidText(_)) => None
   | ParenthesizedZ(zty1) =>
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ParenthesizedZ(zty1))

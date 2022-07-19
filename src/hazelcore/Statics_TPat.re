@@ -14,16 +14,18 @@ let ana_fix_holes =
   | InvalidText(_, t)
   | TyVar(_, t) =>
     switch (TyTextShape.of_string(t)) {
-    | None =>
+    | InvalidText(_) =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, InvalidText(u, t), id_gen);
-    | Some(Int | Bool | Float) =>
+    | Int
+    | Bool
+    | Float =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(BuiltinType, u), t), id_gen);
-    | Some(ExpandingKeyword(_)) =>
+    | ExpandingKeyword(_) =>
       let (u, id_gen) = IDGen.next_hole(id_gen);
       (ctx, TyVar(InHole(ReservedKeyword, u), t), id_gen);
-    | Some(TyVar(_)) =>
+    | TyVar(_) =>
       if (TyVar.is_valid(t)) {
         let ctx = Context.add_tyvar(ctx, t, k);
         (ctx, TyVar(NotInHole, t), id_gen);

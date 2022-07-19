@@ -483,7 +483,7 @@ let%test _ = {
 
 /* type t = 123 in ?  =>  type t = 123 in ?  : ? */
 let%test _ = {
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(InvalidText(u0, "123"), E));
   elaborator_exp_syn_elab_simple(
     UHExp.[
       TyAliasLine(TPat.TyVar(NotInHole, "t"), ty),
@@ -501,7 +501,7 @@ let%test _ = {
 /* type t = 123 in ?  <=  type t = 123 in ?  : ? */
 let%test _ = {
   let tp = TPat.TyVar(NotInHole, "t");
-  let ty = UHTyp.mk_OpSeq(S(TyVar(InHole(InvalidText, u0), "123"), E));
+  let ty = UHTyp.mk_OpSeq(S(InvalidText(u0, "123"), E));
   elaborator_exp_ana_elab_simple(
     UHExp.[
       TyAliasLine(tp, ty),

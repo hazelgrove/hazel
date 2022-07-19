@@ -135,13 +135,13 @@ and cursor_info_zoperand =
     Some(CursorInfo_common.mk(OnType(HTyp.bool()), ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Unbound, _), _)) =>
     Some(CursorInfo_common.mk(TypFree, ctx, cursor_term))
-  | CursorT(_, TyVar(InHole(InvalidText, _), _)) =>
+  | CursorT(_, TyVar(InHole(InvalidText, _), _) | InvalidText(_)) =>
     Some(CursorInfo_common.mk(TypInvalid, ctx, cursor_term))
   | CursorT(_, TyVar(InHole(Reserved, _), t)) =>
     open OptUtil.Syntax;
     let+ k = ExpandingKeyword.of_string(t);
     CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
-  | CursorT(_, ty) =>
+  | CursorT(_, (TyVar(NotInTyVarHole, _) | Parenthesized(_) | List(_)) as ty) =>
     open OptUtil.Syntax;
     let+ (ty, _, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
     CursorInfo_common.mk(OnType(ty), ctx, cursor_term);

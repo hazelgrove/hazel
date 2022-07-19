@@ -208,7 +208,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           [indicate_words_view("type: "), code_keywords_view("Hole")],
         )
       )
-    | TyVar(_, t) =>
+    | TyVar(_, t)
+    | InvalidText(_, t) =>
       Vdom.(
         Node.span(
           [],

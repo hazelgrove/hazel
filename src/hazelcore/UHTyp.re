@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type operator = Operators_Typ.t;
 
@@ -6,6 +8,7 @@ type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | TyVar(TyVarErrStatus.t, TyVar.t)
+  | InvalidText(MetaVar.t, string)
   | Hole
   | Unit
   | Int
@@ -29,6 +32,7 @@ let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
   | TyVar(_)
+  | InvalidText(_)
   | Unit
   | Int
   | Float
@@ -60,7 +64,14 @@ let contract = (ty: HTyp.t): t => {
       switch (HTyp.to_syntax(ty)) {
       | Hole => Seq.wrap(Hole)
       | TyVar(_, t) => Seq.wrap(TyVar(NotInTyVarHole, t))
-      | TyVarHole(reason, u, t) => Seq.wrap(TyVar(InHole(reason, u), t))
+      | TyVarHole(reason, u, t) =>
+        let operand =
+          switch (reason) {
+          | Reserved
+          | Unbound => TyVar(InHole(reason, u), t)
+          | InvalidText => InvalidText(u, t)
+          };
+        Seq.wrap(operand);
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)
       | Bool => Seq.wrap(Bool)
@@ -118,7 +129,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   switch (operand) {
   | Hole => false
   | TyVar(NotInTyVarHole, _) => true
-  | TyVar(InHole(_), _) => false
+  | TyVar(InHole(_), _)
+  | InvalidText(_) => false
   | Unit => true
   | Int => true
   | Float => true

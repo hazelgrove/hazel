@@ -6,6 +6,7 @@ type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | TyVar(TyVarErrStatus.t, TyVar.t)
+  | InvalidText(MetaVar.t, string)
   | Hole
   | Unit
   | Int

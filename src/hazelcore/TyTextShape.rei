@@ -4,7 +4,8 @@ type t =
   | Float
   | Bool
   | ExpandingKeyword(ExpandingKeyword.t)
-  | TyVar(string);
+  | TyVar(TyVar.t)
+  | InvalidText(string);
 
 let builtin: string => option(t);
-let of_string: string => option(t);
+let of_string: string => t;

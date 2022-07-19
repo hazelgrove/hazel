@@ -42,7 +42,8 @@ and find_tyuses_typ_operand =
   | Int
   | Float
   | Bool => []
-  | TyVar(_, t') => t == t' ? [steps] : []
+  | TyVar(_, t')
+  | InvalidText(_, t') => t == t' ? [steps] : []
   | Parenthesized(ty)
   | List(ty) => find_tyuses_typ(~steps=steps @ [0], t, ty)
   };

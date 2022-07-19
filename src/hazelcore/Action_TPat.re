@@ -14,6 +14,9 @@ let text_operand = (shape: TyTextShape.t, id_gen: IDGen.t): (TPat.t, IDGen.t) =>
     let t = ExpandingKeyword.to_string(kw);
     (TyVar(InHole(ReservedKeyword, u), t), id_gen);
   | TyVar(t) => (TyVar(NotInHole, t), id_gen)
+  | InvalidText(t) =>
+    let (u, id_gen) = IDGen.next_hole(id_gen);
+    (InvalidText(u, t), id_gen);
   };
 };
 

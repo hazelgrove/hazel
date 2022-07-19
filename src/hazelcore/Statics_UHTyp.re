@@ -34,11 +34,14 @@ and syn_fix_holes_operand =
     : (UHTyp.operand, Kind.t, IDGen.t) =>
   switch (operand) {
   | Hole => (Hole, Kind.Hole, id_gen)
-  | TyVar(err, t) =>
+  | TyVar(_, t)
+  | InvalidText(_, t) =>
     let next_id = () =>
-      switch (err) {
-      | NotInTyVarHole => IDGen.next_hole(id_gen)
-      | InHole(_, u) => (u, id_gen)
+      switch (operand) {
+      | TyVar(NotInTyVarHole, _) => IDGen.next_hole(id_gen)
+      | TyVar(InHole(_, u), _)
+      | InvalidText(u, _) => (u, id_gen)
+      | _ => assert(false)
       };
     if (TyVar.is_reserved(t)) {
       let (u, id_gen) = next_id();
@@ -59,7 +62,7 @@ and syn_fix_holes_operand =
       };
     } else {
       let (u, id_gen) = next_id();
-      let ty = UHTyp.TyVar(InHole(InvalidText, u), t);
+      let ty = UHTyp.InvalidText(u, t);
       (ty, Kind.S(TyVarHole(InvalidText, u, t)), id_gen);
     };
   | Unit => (operand, Kind.singleton(HTyp.product([])), id_gen)
@@ -124,6 +127,7 @@ and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
     };
   // subsumption
   | TyVar(_)
+  | InvalidText(_)
   | Unit
   | Int
   | Float

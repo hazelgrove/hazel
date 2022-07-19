@@ -44,6 +44,9 @@ let text_operand =
       let ctx = Context.add_tyvar(ctx, t, k);
       (TyVar(NotInTyVarHole, t), ctx, id_gen);
     }
+  | InvalidText(t) =>
+    let (u, id_gen) = IDGen.next_hole(id_gen);
+    (TyVar(InHole(Unbound, u), t), ctx, id_gen);
   };
 
 let construct_operator =
@@ -73,7 +76,7 @@ let mk_syn_text =
     : ActionOutcome.t((ZTyp.t, IDGen.t)) => {
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TyTextShape.of_string(text)) {
-  | None =>
+  | InvalidText(_) =>
     if (StringUtil.is_empty(text)) {
       Succeeded((
         ZOpSeq.wrap(ZTyp.CursorT(OnDelim(0, Before), Hole)),
@@ -81,21 +84,21 @@ let mk_syn_text =
       ));
     } else {
       let (u, id_gen) = IDGen.next_hole(id_gen);
-      let ty = UHTyp.TyVar(InHole(InvalidText, u), text);
+      let ty = UHTyp.InvalidText(u, text);
       let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, ty));
       Succeeded((zty, id_gen));
       /* Failed; */
     }
-  | Some(Bool) =>
+  | Bool =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Bool));
     Succeeded((zty, id_gen));
-  | Some(Int) =>
+  | Int =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Int));
     Succeeded((zty, id_gen));
-  | Some(Float) =>
+  | Float =>
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
     Succeeded((zty, id_gen));
-  | Some(ExpandingKeyword(kw)) =>
+  | ExpandingKeyword(kw) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let zty =
       ZOpSeq.wrap(
@@ -105,7 +108,7 @@ let mk_syn_text =
         ),
       );
     Succeeded((zty, id_gen));
-  | Some(TyVar(t)) =>
+  | TyVar(t) =>
     let (err: TyVarErrStatus.t, id_gen) =
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
@@ -191,10 +194,10 @@ let split_text =
     operator_of_shape(sop),
     TyTextShape.of_string(r),
   ) {
-  | (None, _, _)
+  | (InvalidText(_), _, _)
   | (_, None, _)
-  | (_, _, None) => None
-  | (Some(lshape), Some(op), Some(rshape)) =>
+  | (_, _, InvalidText(_)) => None
+  | (lshape, Some(op), rshape) =>
     let (loperand, ctx, id_gen) = text_operand(ctx, lshape, id_gen);
     let (roperand, ctx, id_gen) = text_operand(ctx, rshape, id_gen);
     let zoperand = ZTyp.place_before_operand(roperand);
@@ -432,16 +435,30 @@ and perform_operand =
   | (Backspace, CursorT(OnDelim(_, After), Unit)) =>
     Succeeded((ZOpSeq.wrap(ZTyp.place_before_operand(Hole)), ctx, id_gen))
 
-  | (Backspace, CursorT(OnDelim(_, After), Int | Float | Bool | TyVar(_))) =>
-    failwith("Impossible: Int|Float|Bool|TyVar are treated as text")
+  | (
+      Backspace,
+      CursorT(
+        OnDelim(_, After),
+        Int | Float | Bool | TyVar(_) | InvalidText(_),
+      ),
+    ) =>
+    failwith(
+      "Impossible: Int|Float|Bool|TyVar|InvalidText are treated as text",
+    )
 
   /* TyVar-related Backspace & Delete */
-  | (Delete, CursorT(OnText(caret_index), TyVar(_, t))) =>
+  | (
+      Delete,
+      CursorT(OnText(caret_index), TyVar(_, t) | InvalidText(_, t)),
+    ) =>
     switch (delete_text(ctx, id_gen, caret_index, t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
-  | (Backspace, CursorT(OnText(caret_index), TyVar(_, t))) =>
+  | (
+      Backspace,
+      CursorT(OnText(caret_index), TyVar(_, t) | InvalidText(_, t)),
+    ) =>
     switch (backspace_text(ctx, id_gen, caret_index, t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
@@ -492,7 +509,10 @@ and perform_operand =
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
     }
 
-  | (Construct(SChar(s)), CursorT(OnText(j), TyVar(_, t))) =>
+  | (
+      Construct(SChar(s)),
+      CursorT(OnText(j), TyVar(_, t) | InvalidText(_, t)),
+    ) =>
     switch (insert_text(ctx, id_gen, (j, s), t)) {
     | (Failed | CursorEscaped(_)) as result => result
     | Succeeded((zty, id_gen)) => Succeeded((zty, ctx, id_gen))
@@ -537,7 +557,10 @@ and perform_operand =
         && !ZTyp.is_after_zoperand(zoperand) =>
     split_text(ctx, id_gen, j, os, "Float") |> ActionOutcome.of_option
 
-  | (Construct(SOp(os)), CursorT(OnText(j), TyVar(_, t)))
+  | (
+      Construct(SOp(os)),
+      CursorT(OnText(j), TyVar(_, t) | InvalidText(_, t)),
+    )
       when
         !ZTyp.is_before_zoperand(zoperand)
         && !ZTyp.is_after_zoperand(zoperand) =>
