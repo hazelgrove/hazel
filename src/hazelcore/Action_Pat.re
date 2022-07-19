@@ -59,22 +59,29 @@ let mk_ana_result =
   };
 
 let mk_syn_text =
-    (ctx: Contexts.t, id_gen: IDGen.t, caret_index: int, text: string)
+    (
+      ctx: Contexts.t,
+      id_gen: IDGen.t,
+      caret_index: int,
+      text: string,
+      ~pattern_syn: Statics_Pat.pattern_syn,
+    )
     : ActionOutcome.t(syn_success) => {
+  let unknown = Statics_Pat.unknown(pattern_syn);
   let text_cursor = CursorPosition.OnText(caret_index);
   switch (TextShape.of_text(text)) {
   | InvalidTextShape(t) =>
     if (text |> StringUtil.is_empty) {
       let (zhole, id_gen) = id_gen |> ZPat.new_EmptyHole;
-      Succeeded((ZOpSeq.wrap(zhole), HTyp.Unknown(Internal), ctx, id_gen));
+      Succeeded((ZOpSeq.wrap(zhole), unknown, ctx, id_gen));
     } else {
       let (it, id_gen) = UHPat.new_InvalidText(id_gen, t);
       let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, it));
-      Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
+      Succeeded((zp, unknown, ctx, id_gen));
     }
   | Underscore =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(0, After), UHPat.wild()));
-    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
+    Succeeded((zp, unknown, ctx, id_gen));
   | IntLit(n) =>
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.intlit(n)));
     Succeeded((zp, HTyp.Int, ctx, id_gen));
@@ -92,11 +99,11 @@ let mk_syn_text =
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
-    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
+    Succeeded((zp, unknown, ctx, id_gen));
   | Var(x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Unknown(Internal)));
+    let ctx = Contexts.extend_gamma(ctx, (x, unknown));
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, UHPat.var(x)));
-    Succeeded((zp, HTyp.Unknown(Internal), ctx, id_gen));
+    Succeeded((zp, unknown, ctx, id_gen));
   };
 };
 
@@ -107,6 +114,7 @@ let mk_ana_text =
       caret_index: int,
       text: string,
       ty: HTyp.t,
+      ~pattern_syn: Statics_Pat.pattern_syn,
     )
     : ActionOutcome.t(ana_success) => {
   let text_cursor = CursorPosition.OnText(caret_index);
@@ -126,7 +134,7 @@ let mk_ana_text =
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_) =>
-    switch (mk_syn_text(ctx, id_gen, caret_index, text)) {
+    switch (mk_syn_text(ctx, id_gen, caret_index, text, ~pattern_syn)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>
       if (HTyp.consistent(ty, ty')) {
@@ -148,12 +156,18 @@ let mk_ana_text =
   };
 };
 
-let syn_insert_text = Action_common.syn_insert_text_(~mk_syn_text);
-let ana_insert_text = Action_common.ana_insert_text_(~mk_ana_text);
-let syn_backspace_text = Action_common.syn_backspace_text_(~mk_syn_text);
-let ana_backspace_text = Action_common.ana_backspace_text_(~mk_ana_text);
-let syn_delete_text = Action_common.syn_delete_text_(~mk_syn_text);
-let ana_delete_text = Action_common.ana_delete_text_(~mk_ana_text);
+let syn_insert_text = (~pattern_syn) =>
+  Action_common.syn_insert_text_(~mk_syn_text=mk_syn_text(~pattern_syn));
+let ana_insert_text = (~pattern_syn) =>
+  Action_common.ana_insert_text_(~mk_ana_text=mk_ana_text(~pattern_syn));
+let syn_backspace_text = (~pattern_syn) =>
+  Action_common.syn_backspace_text_(~mk_syn_text=mk_syn_text(~pattern_syn));
+let ana_backspace_text = (~pattern_syn) =>
+  Action_common.ana_backspace_text_(~mk_ana_text=mk_ana_text(~pattern_syn));
+let syn_delete_text = (~pattern_syn) =>
+  Action_common.syn_delete_text_(~mk_syn_text=mk_syn_text(~pattern_syn));
+let ana_delete_text = (~pattern_syn) =>
+  Action_common.ana_delete_text_(~mk_ana_text=mk_ana_text(~pattern_syn));
 
 let syn_split_text =
     (
@@ -718,26 +732,26 @@ and syn_perform_operand =
       ),
     )
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
-    syn_delete_text(ctx, id_gen, j, t)
+    syn_delete_text(ctx, id_gen, j, t, ~pattern_syn)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
-    syn_delete_text(ctx, id_gen, j, x)
+    syn_delete_text(ctx, id_gen, j, x, ~pattern_syn)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
-    syn_delete_text(ctx, id_gen, j, n)
+    syn_delete_text(ctx, id_gen, j, n, ~pattern_syn)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
-    syn_delete_text(ctx, id_gen, j, f)
+    syn_delete_text(ctx, id_gen, j, f, ~pattern_syn)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
-    syn_delete_text(ctx, id_gen, j, string_of_bool(b))
+    syn_delete_text(ctx, id_gen, j, string_of_bool(b), ~pattern_syn)
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
-    syn_backspace_text(ctx, id_gen, j, t)
+    syn_backspace_text(ctx, id_gen, j, t, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
-    syn_backspace_text(ctx, id_gen, j, x)
+    syn_backspace_text(ctx, id_gen, j, x, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
-    syn_backspace_text(ctx, id_gen, j, n)
+    syn_backspace_text(ctx, id_gen, j, n, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
-    syn_backspace_text(ctx, id_gen, j, f)
+    syn_backspace_text(ctx, id_gen, j, f, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
-    syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
+    syn_backspace_text(ctx, id_gen, j, string_of_bool(b), ~pattern_syn)
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -802,24 +816,24 @@ and syn_perform_operand =
     syn_split_text(ctx, id_gen, j, sop, f)
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
-    syn_insert_text(ctx, id_gen, (0, s), "")
+    syn_insert_text(ctx, id_gen, (0, s), "", ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
     let index =
       switch (side) {
       | Before => 0
       | After => 1
       };
-    syn_insert_text(ctx, id_gen, (index, s), "_");
+    syn_insert_text(ctx, id_gen, (index, s), "_", ~pattern_syn);
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
-    syn_insert_text(ctx, id_gen, (j, s), t)
+    syn_insert_text(ctx, id_gen, (j, s), t, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
-    syn_insert_text(ctx, id_gen, (j, s), x)
+    syn_insert_text(ctx, id_gen, (j, s), x, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
-    syn_insert_text(ctx, id_gen, (j, s), n)
+    syn_insert_text(ctx, id_gen, (j, s), n, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
-    syn_insert_text(ctx, id_gen, (j, s), f)
+    syn_insert_text(ctx, id_gen, (j, s), f, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
-    syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
+    syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ~pattern_syn)
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
@@ -1378,26 +1392,26 @@ and ana_perform_operand =
     Succeeded((zp, ctx, id_gen));
 
   | (Delete, CursorP(OnText(j), InvalidText(_, t))) =>
-    ana_delete_text(ctx, id_gen, j, t, ty)
+    ana_delete_text(ctx, id_gen, j, t, ty, ~pattern_syn)
   | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
-    ana_delete_text(ctx, id_gen, j, x, ty)
+    ana_delete_text(ctx, id_gen, j, x, ty, ~pattern_syn)
   | (Delete, CursorP(OnText(j), IntLit(_, n))) =>
-    ana_delete_text(ctx, id_gen, j, n, ty)
+    ana_delete_text(ctx, id_gen, j, n, ty, ~pattern_syn)
   | (Delete, CursorP(OnText(j), FloatLit(_, f))) =>
-    ana_delete_text(ctx, id_gen, j, f, ty)
+    ana_delete_text(ctx, id_gen, j, f, ty, ~pattern_syn)
   | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
-    ana_delete_text(ctx, id_gen, j, string_of_bool(b), ty)
+    ana_delete_text(ctx, id_gen, j, string_of_bool(b), ty, ~pattern_syn)
 
   | (Backspace, CursorP(OnText(j), InvalidText(_, t))) =>
-    ana_backspace_text(ctx, id_gen, j, t, ty)
+    ana_backspace_text(ctx, id_gen, j, t, ty, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
-    ana_backspace_text(ctx, id_gen, j, x, ty)
+    ana_backspace_text(ctx, id_gen, j, x, ty, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), IntLit(_, n))) =>
-    ana_backspace_text(ctx, id_gen, j, n, ty)
+    ana_backspace_text(ctx, id_gen, j, n, ty, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), FloatLit(_, f))) =>
-    ana_backspace_text(ctx, id_gen, j, f, ty)
+    ana_backspace_text(ctx, id_gen, j, f, ty, ~pattern_syn)
   | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
-    ana_backspace_text(ctx, id_gen, j, string_of_bool(b), ty)
+    ana_backspace_text(ctx, id_gen, j, string_of_bool(b), ty, ~pattern_syn)
 
   /* ( _ )<|  ==>  _| */
   /* (<| _ )  ==>  |_ */
@@ -1476,24 +1490,31 @@ and ana_perform_operand =
     ana_split_text(ctx, id_gen, j, sop, f, ty)
 
   | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
-    ana_insert_text(ctx, id_gen, (0, s), "", ty)
+    ana_insert_text(ctx, id_gen, (0, s), "", ty, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
     let index =
       switch (side) {
       | Before => 0
       | After => 1
       };
-    ana_insert_text(ctx, id_gen, (index, s), "_", ty);
+    ana_insert_text(ctx, id_gen, (index, s), "_", ty, ~pattern_syn);
   | (Construct(SChar(s)), CursorP(OnText(j), InvalidText(_, t))) =>
-    ana_insert_text(ctx, id_gen, (j, s), t, ty)
+    ana_insert_text(ctx, id_gen, (j, s), t, ty, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
-    ana_insert_text(ctx, id_gen, (j, s), x, ty)
+    ana_insert_text(ctx, id_gen, (j, s), x, ty, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), IntLit(_, n))) =>
-    ana_insert_text(ctx, id_gen, (j, s), n, ty)
+    ana_insert_text(ctx, id_gen, (j, s), n, ty, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), FloatLit(_, f))) =>
-    ana_insert_text(ctx, id_gen, (j, s), f, ty)
+    ana_insert_text(ctx, id_gen, (j, s), f, ty, ~pattern_syn)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
-    ana_insert_text(ctx, id_gen, (j, s), string_of_bool(b), ty)
+    ana_insert_text(
+      ctx,
+      id_gen,
+      (j, s),
+      string_of_bool(b),
+      ty,
+      ~pattern_syn,
+    )
   | (Construct(SChar(_)), CursorP(_)) => Failed
 
   | (Construct(SParenthesized), CursorP(_, operand))
