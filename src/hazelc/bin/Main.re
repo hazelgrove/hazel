@@ -121,7 +121,7 @@ let hazelc =
 
     | Hir =>
       Compile.resume_until_transformed(~opts, source)
-      |> Result.map(write_sexp_output(Hir.Expr.sexp_of_expr))
+      |> Result.map(write_sexp_output(Hir.sexp_of_expr))
       |> Result.map_error(convert_error)
 
     | Anf =>

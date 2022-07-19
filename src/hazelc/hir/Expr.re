@@ -29,6 +29,7 @@ type bin_float_op =
   | OpFGreaterThan
   | OpFEquals;
 
+/* FIXME: Rename to t */
 [@deriving sexp]
 type expr = {expr_kind}
 
