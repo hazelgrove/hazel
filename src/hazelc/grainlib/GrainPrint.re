@@ -48,7 +48,7 @@ and print_top_statement = (tstmt: GrainIR.top_stmt) =>
   | TDecl(decl) => print_decl(decl)
   }
 
-and print_import = (name: Var.t, path: GrainIR.import_path) => {
+and print_import = (name: GrainIR.var, path: GrainIR.import_path) => {
   let path =
     switch (path) {
     | ImportStd(path) => path
@@ -158,7 +158,7 @@ and print_tuple = (els: list(GrainIR.expr)) => {
   sprintf("(%s)", els);
 }
 
-and print_var = (var: Var.t) => var
+and print_var = (var: GrainIR.var) => var
 and print_params = (ps: GrainIR.params) =>
   ps |> List.map(print_pat) |> String.concat(", ")
 
@@ -174,7 +174,7 @@ and print_ap = (fn: GrainIR.expr, args: GrainIR.args) => {
   sprintf("%s(%s)", fn, args);
 }
 
-and print_ctor = (ctor: Var.t, args: GrainIR.args) => {
+and print_ctor = (ctor: GrainIR.var, args: GrainIR.args) => {
   let ctor = print_var(ctor);
   let args = print_args(args);
   sprintf("%s(%s)", ctor, args);

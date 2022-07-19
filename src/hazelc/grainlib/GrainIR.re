@@ -1,11 +1,14 @@
 open Sexplib.Std;
 
 [@deriving sexp]
+type var = string;
+
+[@deriving sexp]
 type top_block = list(top_stmt)
 
 [@deriving sexp]
 and top_stmt =
-  | TImport(Var.t, import_path)
+  | TImport(var, import_path)
   | TDecl(decl)
 
 [@deriving sexp]
@@ -19,15 +22,15 @@ and decl =
 
 [@deriving sexp]
 and enum = {
-  name: Var.t,
-  type_vars: list(Var.t),
+  name: var,
+  type_vars: list(var),
   variants: list(enum_variant),
 }
 
 [@deriving sexp]
 and enum_variant = {
-  ctor: Var.t,
-  params: list(Var.t),
+  ctor: var,
+  params: list(var),
 };
 
 module TopBlock = {
@@ -47,7 +50,7 @@ type params = list(pat)
 [@deriving sexp]
 and pat =
   | PWild
-  | PVar(Var.t)
+  | PVar(var)
   | PInt(int)
   | PFloat(float)
   | PBool(bool)
@@ -55,7 +58,7 @@ and pat =
   | PCons(pat, pat)
   | PTuple(list(pat))
   | PTriv
-  | PCtor(Var.t, list(pat))
+  | PCtor(var, list(pat))
 
 [@deriving sexp]
 and block = list(stmt)
@@ -80,10 +83,10 @@ and expr =
   | ETriv
   | ECons(expr, expr)
   | ETuple(list(expr))
-  | EVar(Var.t)
+  | EVar(var)
   | ELam(params, expr)
   | EAp(expr, args)
-  | ECtor(Var.t, args)
+  | ECtor(var, args)
   | EMatch(expr, list(rule))
   | EBlock(block)
 
