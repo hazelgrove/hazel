@@ -74,7 +74,13 @@ module Worker = {
     module Pool = WebWorkerPool.Make(Inner);
     include Pool;
 
-    let init = () => Pool.init(~timeout=2000, ~max=5);
+    let max = 5;
+
+    let init = () => {
+      let pool = Pool.init(~timeout=2000, ~max);
+      let _ = Pool.fill(pool, max);
+      pool;
+    };
 
     let get_result = (t: t, program: Program.t) => {
       let res = program |> request(t) >|= Option.join;
