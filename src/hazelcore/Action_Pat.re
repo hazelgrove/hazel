@@ -406,14 +406,21 @@ let annotate_last_operand =
 };
 
 let rec syn_perform =
-        (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t)
+        (
+          ~pattern_syn: Statics_Pat.pattern_syn,
+          ctx: Contexts.t,
+          id_gen: IDGen.t,
+          a: Action.t,
+          zp: ZPat.t,
+        )
         : ActionOutcome.t(syn_success) =>
-  syn_perform_opseq(ctx, id_gen, a, zp)
+  syn_perform_opseq(~pattern_syn, ctx, id_gen, a, zp)
 and syn_perform_opseq =
     (
       ctx: Contexts.t,
       id_gen: IDGen.t,
       a: Action.t,
+      ~pattern_syn: Statics_Pat.pattern_syn,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
     )
     : ActionOutcome.t(syn_success) =>
@@ -432,7 +439,13 @@ and syn_perform_opseq =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    syn_perform_opseq(ctx, id_gen, Action_common.escape(side), zopseq)
+    syn_perform_opseq(
+      ~pattern_syn,
+      ctx,
+      id_gen,
+      Action_common.escape(side),
+      zopseq,
+    )
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
@@ -441,7 +454,7 @@ and syn_perform_opseq =
         skel,
         ZOperator((CursorPosition.OnOp(After), op), surround),
       );
-    syn_perform_opseq(ctx, id_gen, Backspace, new_zp);
+    syn_perform_opseq(~pattern_syn, ctx, id_gen, Backspace, new_zp);
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
@@ -495,7 +508,7 @@ and syn_perform_opseq =
   /* construction on operators either becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZPat.is_after_zoperator(zoperator) =>
-    syn_perform_opseq(ctx, id_gen, MoveRight, zopseq)
+    syn_perform_opseq(~pattern_syn, ctx, id_gen, MoveRight, zopseq)
   /* ...or construction after movement */
   | (Construct(_), ZOperator(zoperator, _)) =>
     let move_cursor =
@@ -503,7 +516,7 @@ and syn_perform_opseq =
         ? ZPat.move_cursor_left : ZPat.move_cursor_right;
     switch (zopseq |> move_cursor) {
     | None => Failed
-    | Some(zp) => syn_perform(ctx, id_gen, a, zp)
+    | Some(zp) => syn_perform(~pattern_syn, ctx, id_gen, a, zp)
     };
 
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
@@ -568,7 +581,7 @@ and syn_perform_opseq =
   /* Zipper */
 
   | (_, ZOperand(zoperand, (E, E))) =>
-    syn_perform_operand(ctx, id_gen, a, zoperand)
+    syn_perform_operand(~pattern_syn, ctx, id_gen, a, zoperand)
 
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -577,19 +590,40 @@ and syn_perform_opseq =
     ) {
     | None => Failed
     | Some(Syn) =>
-      switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
+      switch (syn_perform_operand(~pattern_syn, ctx, id_gen, a, zoperand)) {
       | Failed => Failed
       | CursorEscaped(side) =>
-        syn_perform_opseq(ctx, id_gen, Action_common.escape(side), zopseq)
+        syn_perform_opseq(
+          ~pattern_syn,
+          ctx,
+          id_gen,
+          Action_common.escape(side),
+          zopseq,
+        )
       | Succeeded((zp, _, _, id_gen)) =>
         let zseq = resurround_z(zp, surround);
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, zseq));
       }
     | Some(Ana(ty_zoperand)) =>
-      switch (ana_perform_operand(ctx, id_gen, a, zoperand, ty_zoperand)) {
+      switch (
+        ana_perform_operand(
+          ctx,
+          id_gen,
+          a,
+          zoperand,
+          ty_zoperand,
+          ~pattern_syn,
+        )
+      ) {
       | Failed => Failed
       | CursorEscaped(side) =>
-        syn_perform_opseq(ctx, id_gen, Action_common.escape(side), zopseq)
+        syn_perform_opseq(
+          ~pattern_syn,
+          ctx,
+          id_gen,
+          Action_common.escape(side),
+          zopseq,
+        )
       | Succeeded((zp, _, id_gen)) =>
         let new_zseq = resurround_z(zp, surround);
         Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, new_zseq));
@@ -598,8 +632,15 @@ and syn_perform_opseq =
   | (Init, _) => failwith("Init action should not be performed.")
   }
 and syn_perform_operand =
-    (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zoperand: ZPat.zoperand)
+    (
+      ctx: Contexts.t,
+      id_gen: IDGen.t,
+      a: Action.t,
+      zoperand: ZPat.zoperand,
+      ~pattern_syn,
+    )
     : ActionOutcome.t(syn_success) => {
+  let unknown = Statics_Pat.unknown(pattern_syn);
   switch (a, zoperand) {
   /* Invalid cursor positions */
   | (
@@ -646,30 +687,28 @@ and syn_perform_operand =
   | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_before_operand(operand));
     zp |> ZPat.is_after
-      ? Succeeded((zp, Unknown(Internal), ctx, id_gen))
-      : CursorEscaped(Before);
+      ? Succeeded((zp, unknown, ctx, id_gen)) : CursorEscaped(Before);
   | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(operand));
     zp |> ZPat.is_before
-      ? Succeeded((zp, Unknown(Internal), ctx, id_gen))
-      : CursorEscaped(After);
+      ? Succeeded((zp, unknown, ctx, id_gen)) : CursorEscaped(After);
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
-    syn_perform(ctx, id_gen, MoveLeft, ZOpSeq.wrap(zoperand))
+    syn_perform(ctx, id_gen, MoveLeft, ZOpSeq.wrap(zoperand), ~pattern_syn)
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorP(OnDelim(_, After), _)) =>
-    syn_perform(ctx, id_gen, MoveRight, ZOpSeq.wrap(zoperand))
+    syn_perform(ctx, id_gen, MoveRight, ZOpSeq.wrap(zoperand), ~pattern_syn)
 
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorP(OnDelim(k, Before), operand)) =>
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
-    syn_perform(ctx, id_gen, Backspace, new_zp);
+    syn_perform(ctx, id_gen, Backspace, new_zp, ~pattern_syn);
 
   | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
     let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
     let zp = ZOpSeq.wrap(zhole);
-    Succeeded((zp, Unknown(Internal), ctx, id_gen));
+    Succeeded((zp, unknown, ctx, id_gen));
   | (Backspace, CursorP(OnDelim(_ /* 0 */, After), TypeAnn(_, op, _))) =>
     Succeeded(
       Statics_Pat.syn_fix_holes_z(
@@ -714,17 +753,24 @@ and syn_perform_operand =
   /* Construction */
 
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
-    syn_perform_operand(ctx, id_gen, MoveRight, zoperand)
+    syn_perform_operand(ctx, id_gen, MoveRight, zoperand, ~pattern_syn)
   | (Construct(_), CursorP(OnDelim(_, side), _))
       when
         !ZPat.is_before_zoperand(zoperand)
         && !ZPat.is_after_zoperand(zoperand) =>
     switch (
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+      syn_perform_operand(
+        ctx,
+        id_gen,
+        Action_common.escape(side),
+        zoperand,
+        ~pattern_syn,
+      )
     ) {
     | Failed
     | CursorEscaped(_) => Failed
-    | Succeeded((zp, _, _, id_gen)) => syn_perform(ctx, id_gen, a, zp)
+    | Succeeded((zp, _, _, id_gen)) =>
+      syn_perform(ctx, id_gen, a, zp, ~pattern_syn)
     }
 
   // TODO consider relaxing guards and
@@ -778,7 +824,7 @@ and syn_perform_operand =
 
   | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZOpSeq.wrap(ZPat.place_after_operand(ListNil(NotInHole)));
-    Succeeded((zp, List(Unknown(Internal)), ctx, id_gen));
+    Succeeded((zp, List(unknown), ctx, id_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
 
   | (Construct(SParenthesized), CursorP(_)) =>
@@ -795,8 +841,8 @@ and syn_perform_operand =
     | Some((body_ty, ctx)) =>
       let ty =
         switch (side) {
-        | L => HTyp.Sum(body_ty, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), body_ty)
+        | L => HTyp.Sum(body_ty, unknown)
+        | R => HTyp.Sum(unknown, body_ty)
         };
       Succeeded((zp, ty, ctx, id_gen));
     };
@@ -869,32 +915,59 @@ and syn_perform_operand =
 
   /* Zipper */
   | (_, ParenthesizedZ(zbody)) =>
-    switch (syn_perform(ctx, id_gen, a, zbody)) {
+    switch (syn_perform(ctx, id_gen, a, zbody, ~pattern_syn)) {
     | Failed => Failed
     | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+      syn_perform_operand(
+        ctx,
+        id_gen,
+        Action_common.escape(side),
+        zoperand,
+        ~pattern_syn,
+      )
     | Succeeded((zbody, ty, ctx, id_gen)) =>
       Succeeded((ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody)), ty, ctx, id_gen))
     }
   | (_, InjZ(_, side, zbody)) =>
-    switch (syn_perform(ctx, id_gen, a, zbody)) {
+    switch (syn_perform(ctx, id_gen, a, zbody, ~pattern_syn)) {
     | Failed => Failed
     | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+      syn_perform_operand(
+        ctx,
+        id_gen,
+        Action_common.escape(side),
+        zoperand,
+        ~pattern_syn,
+      )
     | Succeeded((zbody, ty1, ctx, id_gen)) =>
       let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), ty1)
+        | L => HTyp.Sum(ty1, unknown)
+        | R => HTyp.Sum(unknown, ty1)
         };
       Succeeded((zp, ty, ctx, id_gen));
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (ana_perform_operand(ctx, id_gen, a, zop, UHTyp.expand(ann))) {
+    switch (
+      ana_perform_operand(
+        ctx,
+        id_gen,
+        a,
+        zop,
+        UHTyp.expand(ann),
+        ~pattern_syn,
+      )
+    ) {
     | Failed => Failed
     | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+      syn_perform_operand(
+        ctx,
+        id_gen,
+        Action_common.escape(side),
+        zoperand,
+        ~pattern_syn,
+      )
     | Succeeded((ZOpSeq(_, zseq), ctx, id_gen)) =>
       let newseq = annotate_last_operand(zseq, ann);
       Succeeded(mk_and_syn_fix_ZOpSeq(ctx, id_gen, newseq));
@@ -903,7 +976,13 @@ and syn_perform_operand =
     switch (Action_Typ.perform(a, zann)) {
     | Failed => Failed
     | CursorEscaped(side) =>
-      syn_perform_operand(ctx, id_gen, Action_common.escape(side), zoperand)
+      syn_perform_operand(
+        ctx,
+        id_gen,
+        Action_common.escape(side),
+        zoperand,
+        ~pattern_syn,
+      )
     | Succeeded(zann) =>
       let ty = UHTyp.expand(ZTyp.erase(zann));
       let (zpat, ctx, id_gen) =
@@ -919,9 +998,16 @@ and syn_perform_operand =
   };
 }
 and ana_perform =
-    (ctx: Contexts.t, id_gen: IDGen.t, a: Action.t, zp: ZPat.t, ty: HTyp.t)
+    (
+      ~pattern_syn: Statics_Pat.pattern_syn,
+      ctx: Contexts.t,
+      id_gen: IDGen.t,
+      a: Action.t,
+      zp: ZPat.t,
+      ty: HTyp.t,
+    )
     : ActionOutcome.t(ana_success) =>
-  ana_perform_opseq(ctx, id_gen, a, zp, ty)
+  ana_perform_opseq(ctx, id_gen, a, zp, ty, ~pattern_syn)
 and ana_perform_opseq =
     (
       ctx: Contexts.t,
@@ -929,6 +1015,7 @@ and ana_perform_opseq =
       a: Action.t,
       ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       ty: HTyp.t,
+      ~pattern_syn,
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zseq) {
@@ -946,7 +1033,14 @@ and ana_perform_opseq =
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    ana_perform_opseq(ctx, id_gen, Action_common.escape(side), zopseq, ty)
+    ana_perform_opseq(
+      ctx,
+      id_gen,
+      Action_common.escape(side),
+      zopseq,
+      ty,
+      ~pattern_syn,
+    )
 
   /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
@@ -955,7 +1049,7 @@ and ana_perform_opseq =
         skel,
         ZOperator((CursorPosition.OnOp(After), op), surround),
       );
-    ana_perform_opseq(ctx, id_gen, Backspace, new_zp, ty);
+    ana_perform_opseq(ctx, id_gen, Backspace, new_zp, ty, ~pattern_syn);
 
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, ZOperator((OnOp(After), _), surround)) =>
@@ -1009,7 +1103,7 @@ and ana_perform_opseq =
   /* construction on operators either becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
       when ZPat.is_after_zoperator(zoperator) =>
-    ana_perform_opseq(ctx, id_gen, MoveRight, zopseq, ty)
+    ana_perform_opseq(ctx, id_gen, MoveRight, zopseq, ty, ~pattern_syn)
   /* ...or construction after movement */
   | (Construct(_) as a, ZOperator(zoperator, _)) =>
     let move_cursor =
@@ -1017,7 +1111,7 @@ and ana_perform_opseq =
         ? ZPat.move_cursor_left : ZPat.move_cursor_right;
     switch (zopseq |> move_cursor) {
     | None => Failed
-    | Some(zp) => ana_perform(ctx, id_gen, a, zp, ty)
+    | Some(zp) => ana_perform(ctx, id_gen, a, zp, ty, ~pattern_syn)
     };
 
   | (Construct(SOp(SComma)), _)
@@ -1152,7 +1246,7 @@ and ana_perform_opseq =
 
   /* Zipper */
   | (_, ZOperand(zoperand, (E, E))) =>
-    ana_perform_operand(ctx, id_gen, a, zoperand, ty)
+    ana_perform_operand(ctx, id_gen, a, zoperand, ty, ~pattern_syn)
 
   | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
     let n = Seq.length_of_affix(prefix);
@@ -1161,7 +1255,7 @@ and ana_perform_opseq =
     ) {
     | None => Failed
     | Some(Syn) =>
-      switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
+      switch (syn_perform_operand(ctx, id_gen, a, zoperand, ~pattern_syn)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_opseq(
@@ -1170,13 +1264,23 @@ and ana_perform_opseq =
           Action_common.escape(side),
           zopseq,
           ty,
+          ~pattern_syn,
         )
       | Succeeded((zp, _, _, id_gen)) =>
         let zseq = resurround_z(zp, surround);
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, id_gen, zseq, ty));
       }
     | Some(Ana(ty_zoperand)) =>
-      switch (ana_perform_operand(ctx, id_gen, a, zoperand, ty_zoperand)) {
+      switch (
+        ana_perform_operand(
+          ctx,
+          id_gen,
+          a,
+          zoperand,
+          ty_zoperand,
+          ~pattern_syn,
+        )
+      ) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_opseq(
@@ -1185,6 +1289,7 @@ and ana_perform_opseq =
           Action_common.escape(side),
           zopseq,
           ty,
+          ~pattern_syn,
         )
       | Succeeded((zp, _, id_gen)) =>
         let new_zseq = resurround_z(zp, surround);
@@ -1200,6 +1305,7 @@ and ana_perform_operand =
       a: Action.t,
       zoperand: ZPat.zoperand,
       ty: HTyp.t,
+      ~pattern_syn: Statics_Pat.pattern_syn,
     )
     : ActionOutcome.t(ana_success) =>
   switch (a, zoperand) {
@@ -1256,15 +1362,15 @@ and ana_perform_operand =
 
   /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorP(OnDelim(_, Before), _)) =>
-    ana_perform_operand(ctx, id_gen, MoveLeft, zoperand, ty)
+    ana_perform_operand(ctx, id_gen, MoveLeft, zoperand, ty, ~pattern_syn)
   /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorP(OnDelim(_, After), _)) =>
-    ana_perform_operand(ctx, id_gen, MoveRight, zoperand, ty)
+    ana_perform_operand(ctx, id_gen, MoveRight, zoperand, ty, ~pattern_syn)
 
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorP(OnDelim(k, Before), operand)) =>
     let new_zp = ZOpSeq.wrap(ZPat.CursorP(OnDelim(k, After), operand));
-    ana_perform(ctx, id_gen, Backspace, new_zp, ty);
+    ana_perform(ctx, id_gen, Backspace, new_zp, ty, ~pattern_syn);
 
   | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListNil(_))) =>
     let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
@@ -1314,7 +1420,7 @@ and ana_perform_operand =
     )
   /* Construct */
   | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
-    ana_perform_operand(ctx, id_gen, MoveRight, zoperand, ty)
+    ana_perform_operand(ctx, id_gen, MoveRight, zoperand, ty, ~pattern_syn)
   | (Construct(SAnn), CursorP(_)) =>
     let zty = ty |> UHTyp.contract |> ZTyp.place_before;
     let new_zp =
@@ -1333,10 +1439,12 @@ and ana_perform_operand =
         Action_common.escape(side),
         zoperand,
         ty,
+        ~pattern_syn,
       )
     ) {
     | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, _, id_gen)) => ana_perform(ctx, id_gen, a, zp, ty)
+    | Succeeded((zp, _, id_gen)) =>
+      ana_perform(ctx, id_gen, a, zp, ty, ~pattern_syn)
     }
 
   // TODO consider relaxing guards and
@@ -1496,7 +1604,7 @@ and ana_perform_operand =
 
   /* Zipper */
   | (_, ParenthesizedZ(zbody)) =>
-    switch (ana_perform(ctx, id_gen, a, zbody, ty)) {
+    switch (ana_perform(ctx, id_gen, a, zbody, ty, ~pattern_syn)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -1505,6 +1613,7 @@ and ana_perform_operand =
         Action_common.escape(side),
         zoperand,
         ty,
+        ~pattern_syn,
       )
     | Succeeded((zbody, ctx, id_gen)) =>
       let zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody));
@@ -1515,7 +1624,7 @@ and ana_perform_operand =
     | None => Failed
     | Some((tyL, tyR)) =>
       let body_ty = InjSide.pick(side, tyL, tyR);
-      switch (ana_perform(ctx, id_gen, a, zbody, body_ty)) {
+      switch (ana_perform(ctx, id_gen, a, zbody, body_ty, ~pattern_syn)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_operand(
@@ -1524,6 +1633,7 @@ and ana_perform_operand =
           Action_common.escape(side),
           zoperand,
           ty,
+          ~pattern_syn,
         )
       | Succeeded((zbody, ctx, id_gen)) =>
         let zp = ZOpSeq.wrap(ZPat.InjZ(NotInHole, side, zbody));
@@ -1531,7 +1641,7 @@ and ana_perform_operand =
       };
     }
   | (_, TypeAnnZP(_, zop, ann)) =>
-    switch (ana_perform_operand(ctx, id_gen, a, zop, ty)) {
+    switch (ana_perform_operand(ctx, id_gen, a, zop, ty, ~pattern_syn)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       ana_perform_operand(
@@ -1540,6 +1650,7 @@ and ana_perform_operand =
         Action_common.escape(side),
         zoperand,
         ty,
+        ~pattern_syn,
       )
     | Succeeded((ZOpSeq(_, zseq), ctx, id_gen)) =>
       // NOTE: Type annotations cannot be directly implemented as infix operators
@@ -1561,6 +1672,7 @@ and ana_perform_operand =
         Action_common.escape(side),
         zoperand,
         ty,
+        ~pattern_syn,
       )
     | Succeeded(zann) =>
       let ty' = UHTyp.expand(ZTyp.erase(zann));
@@ -1577,7 +1689,7 @@ and ana_perform_operand =
     }
   /* Subsumption */
   | (Construct(SListNil), _) =>
-    switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
+    switch (syn_perform_operand(ctx, id_gen, a, zoperand, ~pattern_syn)) {
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, id_gen)) =>
       if (HTyp.consistent(ty, ty')) {

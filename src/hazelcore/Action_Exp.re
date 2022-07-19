@@ -1121,7 +1121,7 @@ and syn_perform_line =
     }
 
   | (_, LetLineZP(zp, def)) =>
-    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp)) {
+    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp, ~pattern_syn=Moded)) {
     | Failed => Failed
     | CursorEscaped(side) => escape(id_gen, side)
     | Succeeded((new_zp, ty_p, _, id_gen)) =>
@@ -1915,7 +1915,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, id_gen)));
     }
   | (_, FunZP(_, zp, body)) =>
-    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp)) {
+    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp, ~pattern_syn=Unknown)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2154,7 +2154,9 @@ and syn_perform_rules =
 
   /* Zipper */
   | (_, RuleZP(zp, clause)) =>
-    switch (Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty)) {
+    switch (
+      Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty, ~pattern_syn=Unknown)
+    ) {
     | Failed => Failed
     | CursorEscaped(side) => escape(side)
     | Succeeded((new_zp, ctx, id_gen)) =>
@@ -2304,7 +2306,9 @@ and ana_perform_rules =
 
   /* Zipper */
   | (_, RuleZP(zp, clause)) =>
-    switch (Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty)) {
+    switch (
+      Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty, ~pattern_syn=Unknown)
+    ) {
     | Failed => Failed
     | CursorEscaped(side) => escape(side)
     | Succeeded((new_zp, ctx, id_gen)) =>
@@ -3482,7 +3486,16 @@ and ana_perform_operand_internal =
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
-      switch (Action_Pat.ana_perform(ctx, id_gen, a, zp, ty1_given)) {
+      switch (
+        Action_Pat.ana_perform(
+          ctx,
+          id_gen,
+          a,
+          zp,
+          ty1_given,
+          ~pattern_syn=Unknown,
+        )
+      ) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_operand(
