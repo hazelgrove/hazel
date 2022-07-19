@@ -3,6 +3,6 @@
 (executable
  (name main)
  (modules Main)
- (libraries hazelc hazelcrt grain cmdliner)
+ (libraries hazelc hazelcrt_files grain cmdliner)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))

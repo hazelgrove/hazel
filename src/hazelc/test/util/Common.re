@@ -9,7 +9,7 @@ type profile =
 module Compile = {
   let temp_prefix = "hazelc_test";
 
-  let std = Hazelcrt.Sites.lib |> List.hd;
+  let std = Hazelcrt_files.Sites.lib |> List.hd;
 
   let mk_opts = profile => {
     switch (profile) {
