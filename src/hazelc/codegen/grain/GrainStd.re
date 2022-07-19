@@ -6,7 +6,7 @@
       module ModuleName = {
         include Inner({
           let name = "ModuleName";
-          let path = GrainExpr.ImportStd("module-path");
+          let path = Grainlib.ImportStd("module-path");
         })
 
         let do_something = (x, y) => mk_ap("doSomething", [x, y]);
@@ -17,15 +17,13 @@
    Then, the following contains a call to the "doSomething" function in the
    "ModuleName" module:
 
-      let do_something_call: GrainExpr.expr = GrainStd.ModuleName.do_something(x, y);
+      let do_something_call: Grainlib.expr = GrainStd.ModuleName.do_something(x, y);
 
    See existing modules for examples.
  */
-module GrainExpr = Grainlib.Expr;
-
 module type InnerMeta = {
   let name: Var.t;
-  let path: GrainExpr.import_path;
+  let path: Grainlib.import_path;
 };
 
 /* FIXME: Rename to MakeInner. */
@@ -37,23 +35,23 @@ module Inner = (X: InnerMeta) => {
   let import = (X.name, X.path);
 
   /* Construct a call to a function in the module. */
-  let mk_nary_ap = (x: Var.t): (list(GrainExpr.expr) => GrainExpr.expr) =>
+  let mk_nary_ap = (x: Var.t): (list(Grainlib.expr) => Grainlib.expr) =>
     args => EAp(EVar(ident(x)), args);
-  let mk_unary_ap = (x: Var.t): (GrainExpr.expr => GrainExpr.expr) =>
+  let mk_unary_ap = (x: Var.t): (Grainlib.expr => Grainlib.expr) =>
     arg => mk_nary_ap(x, [arg]);
   let mk_binary_ap =
-      (x: Var.t): ((GrainExpr.expr, GrainExpr.expr) => GrainExpr.expr) =>
+      (x: Var.t): ((Grainlib.expr, Grainlib.expr) => Grainlib.expr) =>
     (arg1, arg2) => mk_nary_ap(x, [arg1, arg2]);
 
   /* Reference a variable in the module. */
-  let mk_var = (x: Var.t): GrainExpr.expr => EVar(ident(x));
+  let mk_var = (x: Var.t): Grainlib.expr => EVar(ident(x));
 
   /* Construct a call to a constructor in the module. */
-  let mk_nary_ctor = (x: Var.t): (list(GrainExpr.expr) => GrainExpr.expr) =>
+  let mk_nary_ctor = (x: Var.t): (list(Grainlib.expr) => Grainlib.expr) =>
     args => ECtor(ident(x), args);
 
   /* Construct a call to a pattern constructor in the module. */
-  let mk_nary_ctor_pat = (x: Var.t): (list(GrainExpr.pat) => GrainExpr.pat) =>
+  let mk_nary_ctor_pat = (x: Var.t): (list(Grainlib.pat) => Grainlib.pat) =>
     pats => PCtor(ident(x), pats);
 };
 
@@ -86,7 +84,7 @@ module SizedNum = (X: SizedNumType) => {
         }
       );
 
-    let path = GrainExpr.ImportStd(String.lowercase_ascii(name));
+    let path = Grainlib.ImportStd(String.lowercase_ascii(name));
   });
 
   let add = mk_binary_ap("add");
@@ -122,7 +120,7 @@ module SizedFloat = (X: SizedFloatType) => {
     let sz = X.sz;
   });
 
-  let eq = (n1, n2) => GrainExpr.EBinOp(OpEquals, n1, n2);
+  let eq = (n1, n2) => Grainlib.EBinOp(OpEquals, n1, n2);
 };
 
 /* Int32 module. */
@@ -153,7 +151,7 @@ module Float64 =
 module Map = {
   include Inner({
     let name = "Map";
-    let path = GrainExpr.ImportStd("map");
+    let path = Grainlib.ImportStd("map");
   });
 
   /* Map.fromList */
