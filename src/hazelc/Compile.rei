@@ -12,6 +12,7 @@
  */
 open Hazelc_hir;
 open Hazelc_mir;
+open Hazelc_codegen;
 open Grainlib;
 
 [@deriving sexp]

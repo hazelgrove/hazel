@@ -5,6 +5,7 @@ open ChannelUtil.Syntax;
 
 open Hazelc_hir;
 open Hazelc_mir;
+open Hazelc_codegen;
 open Hazeltext;
 open Grainlib;
 

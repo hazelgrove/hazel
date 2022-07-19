@@ -2,7 +2,13 @@
 
 (library
  (name hazelc)
- (libraries hazelc_hir hazelc_mir hazelcore hazeltext grainlib)
+ (libraries
+  hazelc_hir
+  hazelc_mir
+  hazelc_codegen
+  hazelcore
+  hazeltext
+  grainlib)
  (wrapped false)
  (preprocess
   (pps ppx_let ppx_sexp_conv)))
