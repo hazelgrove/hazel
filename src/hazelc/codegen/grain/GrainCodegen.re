@@ -66,6 +66,8 @@ module Imports = {
   };
 };
 
+let dummy_label = Label.init;
+
 let codegen_fold = (codegen_f, xs, imps) => {
   List.fold_left(
     ((xs, imps), x) => {
@@ -79,7 +81,7 @@ let codegen_fold = (codegen_f, xs, imps) => {
 
 let rec codegen_prog =
         (
-          {prog_body: (body, im), prog_ty: _, prog_complete: _}: Anf.prog,
+          {prog_body: (body, im), prog_ty: _, prog_complete: _, prog_label: _}: Anf.prog,
           imps,
         )
         : (GrainIR.block, GrainIR.expr, Imports.t) => {
@@ -98,7 +100,11 @@ and codegen_stmt = (stmt: Anf.stmt, imps): (GrainIR.stmt, Imports.t) => {
   | SLetRec(x, c) =>
     let (p', imps) =
       codegen_pat(
-        {pat_kind: PVar(x), pat_complete: NecessarilyComplete},
+        {
+          pat_kind: PVar(x),
+          pat_complete: NecessarilyComplete,
+          pat_label: dummy_label,
+        },
         imps,
       );
     let (c', imps) = codegen_comp(c, imps);

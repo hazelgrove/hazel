@@ -6,12 +6,17 @@
 type complete_context = VarMap.t_(Anf.completeness);
 
 let rec analyze_prog = (prog: Anf.prog, ictx): Anf.prog => {
-  let {prog_body: (body, im), prog_ty, prog_complete: _}: Anf.prog = prog;
+  let {prog_body: (body, im), prog_ty, prog_complete: _, prog_label}: Anf.prog = prog;
 
   let (body, ictx) = analyze_body(body, ictx);
   let im = analyze_imm(im, ictx);
 
-  {prog_body: (body, im), prog_ty, prog_complete: im.imm_complete};
+  {
+    prog_body: (body, im),
+    prog_ty,
+    prog_complete: im.imm_complete,
+    prog_label,
+  };
 }
 
 and analyze_body =
@@ -30,7 +35,7 @@ and analyze_body =
 }
 
 and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
-  let {stmt_kind, stmt_complete: _}: Anf.stmt = stmt;
+  let {stmt_kind, stmt_complete: _, stmt_label}: Anf.stmt = stmt;
   let (stmt_kind, stmt_complete, ictx) =
     switch (stmt_kind) {
     | SLet(p, c) =>
@@ -43,7 +48,10 @@ and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
       );
 
     /* SLetRec rhs can only be a lambda. */
-    | SLetRec(x, {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _} as c) =>
+    | SLetRec(
+        x,
+        {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _, comp_label: _} as c,
+      ) =>
       /* TODO: Funbda analysis */
       let ictx = VarMap.extend(ictx, (x, IndeterminatelyIncomplete));
       let c = analyze_comp(c, ictx);
@@ -52,11 +60,11 @@ and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
     | SLetRec(_, _) => failwith("bad let rec without function rhs")
     };
 
-  ({stmt_kind, stmt_complete}, ictx);
+  ({stmt_kind, stmt_complete, stmt_label}, ictx);
 }
 
 and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
-  let {comp_kind, comp_ty, comp_complete: _}: Anf.comp = c;
+  let {comp_kind, comp_ty, comp_complete: _, comp_label}: Anf.comp = c;
   let (comp_kind, comp_complete): (Anf.comp_kind, Anf.completeness) =
     switch (comp_kind) {
     | CImm(im) =>
@@ -131,7 +139,7 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       (CCast(im, ty, ty'), NecessarilyIncomplete);
     };
 
-  {comp_kind, comp_ty, comp_complete};
+  {comp_kind, comp_ty, comp_complete, comp_label};
 }
 
 and analyze_rules =
@@ -140,7 +148,7 @@ and analyze_rules =
 }
 
 and analyze_rule = (scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
-  let {rule_pat, rule_branch, rule_complete: _}: Anf.rule = rule;
+  let {rule_pat, rule_branch, rule_complete: _, rule_label}: Anf.rule = rule;
   let (rule_pat, ictx) = analyze_pat(rule_pat, scrut.imm_complete, ictx);
   let rule_branch = analyze_prog(rule_branch, ictx);
   {
@@ -148,6 +156,7 @@ and analyze_rule = (scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
     rule_branch,
     rule_complete:
       Completeness.join(rule_pat.pat_complete, rule_branch.prog_complete),
+    rule_label,
   };
 }
 
@@ -157,7 +166,7 @@ and analyze_sigma = (sigma: VarMap.t_(Anf.imm), _ictx): VarMap.t_(Anf.imm) => {
 }
 
 and analyze_imm = (im: Anf.imm, ictx): Anf.imm => {
-  let {imm_kind, imm_ty, imm_complete: _}: Anf.imm = im;
+  let {imm_kind, imm_ty, imm_complete: _, imm_label}: Anf.imm = im;
   let (imm_kind, imm_complete): (Anf.imm_kind, Anf.completeness) =
     switch (imm_kind) {
     | IConst(const) =>
@@ -170,7 +179,7 @@ and analyze_imm = (im: Anf.imm, ictx): Anf.imm => {
       }
     };
 
-  {imm_kind, imm_ty, imm_complete};
+  {imm_kind, imm_ty, imm_complete, imm_label};
 }
 
 and analyze_const = (const: Anf.constant, _ictx): Anf.constant => {
@@ -185,7 +194,7 @@ and analyze_pat =
 and analyze_pat' =
     (p: Anf.pat, matchee_complete: Anf.completeness, in_hole: bool, ictx)
     : (Anf.pat, complete_context) => {
-  let {pat_kind, pat_complete: _}: Anf.pat = p;
+  let {pat_kind, pat_complete: _, pat_label}: Anf.pat = p;
   let (pat_kind, pat_complete: Anf.completeness, ictx) =
     switch (pat_kind) {
     | PVar(x) =>
@@ -229,7 +238,7 @@ and analyze_pat' =
       );
     };
 
-  ({pat_kind, pat_complete}, ictx);
+  ({pat_kind, pat_complete, pat_label}, ictx);
 };
 
 let analyze = (prog: Anf.prog): Anf.prog => analyze_prog(prog, VarMap.empty);

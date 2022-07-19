@@ -29,6 +29,7 @@ type bin_op =
 type pat = {
   pat_kind,
   pat_complete: completeness,
+  pat_label: Label.t,
 }
 
 [@deriving sexp]
@@ -57,6 +58,7 @@ and imm = {
   imm_kind,
   imm_ty: HTyp.t,
   imm_complete: completeness,
+  imm_label: Label.t,
 }
 
 [@deriving sexp]
@@ -69,6 +71,7 @@ and comp = {
   comp_kind,
   comp_ty: HTyp.t,
   comp_complete: completeness,
+  comp_label: Label.t,
 }
 
 [@deriving sexp]
@@ -101,12 +104,14 @@ and rule = {
   rule_pat: pat,
   rule_branch: prog,
   rule_complete: completeness,
+  rule_label: Label.t,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
   stmt_complete: completeness,
+  stmt_label: Label.t,
 }
 
 [@deriving sexp]
@@ -119,31 +124,8 @@ and prog = {
   prog_body,
   prog_ty: HTyp.t,
   prog_complete: completeness,
+  prog_label: Label.t,
 }
 
 [@deriving sexp]
 and prog_body = (list(stmt), imm);
-
-module Imm = {
-  let mk_var = (x: Var.t, c: comp): imm => {
-    imm_kind: IVar(x),
-    imm_ty: c.comp_ty,
-    imm_complete: c.comp_complete,
-  };
-};
-
-module Comp = {
-  let mk_imm = (im: imm): comp => {
-    comp_kind: CImm(im),
-    comp_ty: im.imm_ty,
-    comp_complete: im.imm_complete,
-  };
-};
-
-module Prog = {
-  let mk = (body: list(stmt), im: imm): prog => {
-    prog_body: (body, im),
-    prog_ty: im.imm_ty,
-    prog_complete: im.imm_complete,
-  };
-};

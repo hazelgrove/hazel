@@ -39,6 +39,9 @@ module type MONAD = {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
     let (and+): (t('a), t('b)) => t(('a, 'b));
+
+    let (>>=): (t('a), 'a => t('b)) => t('b);
+    let (>>|): (t('a), 'a => 'b) => t('b);
   };
 };
 
@@ -49,6 +52,9 @@ module Make_Monad_Z = (M: MONAD_ZIP) => {
     let ( let* ) = bind;
     let (let+) = map;
     let (and+) = zip;
+
+    let (>>=) = bind;
+    let (>>|) = map;
   };
 };
 

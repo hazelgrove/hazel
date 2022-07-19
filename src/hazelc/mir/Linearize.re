@@ -1,47 +1,77 @@
-let default_completeness = Completeness.IndeterminatelyIncomplete;
+open LinearizeMonad;
+open LinearizeMonad.Syntax;
 
 type bind =
   | BLet(Anf.pat, Anf.comp)
   | BLetRec(Var.t, Anf.comp);
 
+let default_completeness = Completeness.IndeterminatelyIncomplete;
+
 let mk_bind = (p: Anf.pat, c: Anf.comp) => BLet(p, c);
 
-let mk_bind_var = (x: Var.t, c: Anf.comp) => (
-  Anf.Imm.mk_var(x, c),
-  mk_bind({pat_kind: PVar(x), pat_complete: default_completeness}, c),
-);
-
-let mk_bind_var_tmp = (c: Anf.comp, t_gen: TmpVarGen.t) => {
-  let (x, t_gen) = TmpVarGen.next(t_gen);
-  let (var, bind) = mk_bind_var(x, c);
-  (var, bind, t_gen);
+let mk_bind_var = (x: Var.t, c: Anf.comp): t((Anf.imm, bind)) => {
+  let* imm_label = next_label;
+  let* pat_label = next_label;
+  (
+    Anf.{
+      imm_kind: IVar(x),
+      imm_ty: c.comp_ty,
+      imm_complete: default_completeness,
+      imm_label,
+    },
+    mk_bind(
+      {pat_kind: PVar(x), pat_complete: default_completeness, pat_label},
+      c,
+    ),
+  )
+  |> return;
 };
 
-let convert_bind = (bn: bind): Anf.stmt => {
-  switch (bn) {
-  | BLet(p, c) => {
-      stmt_kind: SLet(p, c),
-      stmt_complete: default_completeness,
+let mk_bind_var_tmp = (c: Anf.comp) => {
+  let* x = next_tmp;
+  let* (var, bind) = mk_bind_var(x, c);
+  (var, bind) |> return;
+};
+
+let convert_bind = (bn: bind): t(Anf.stmt) => {
+  let* l = next_label;
+  (
+    switch (bn) {
+    | BLet(p, c) =>
+      Anf.{
+        stmt_kind: SLet(p, c),
+        stmt_complete: default_completeness,
+        stmt_label: l,
+      }
+    | BLetRec(p, c) =>
+      Anf.{
+        stmt_kind: SLetRec(p, c),
+        stmt_complete: default_completeness,
+        stmt_label: l,
+      }
     }
-  | BLetRec(p, c) => {
-      stmt_kind: SLetRec(p, c),
-      stmt_complete: default_completeness,
-    }
-  };
+  )
+  |> return;
 };
 
 /** Context of variable remappings (e.g. x -> t124_x). */
 type var_remapping = VarMap.t_(Var.t);
 
-let rec linearize_prog = (d: Hir.expr, vctx, t_gen): (Anf.prog, TmpVarGen.t) => {
-  let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
-  let body = im_binds |> List.map(convert_bind);
+let rec linearize_prog = (d: Hir.expr, vctx): t(Anf.prog) => {
+  let* (im, im_binds) = linearize_exp(d, vctx);
+  let* body = im_binds |> List.map(convert_bind) |> sequence;
 
-  (Anf.Prog.mk(body, im), t_gen);
+  let* l = next_label;
+  Anf.{
+    prog_body: (body, im),
+    prog_ty: im.imm_ty,
+    prog_complete: default_completeness,
+    prog_label: l,
+  }
+  |> return;
 }
 
-and linearize_exp =
-    (d: Hir.expr, vctx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
+and linearize_exp = (d: Hir.expr, vctx): t((Anf.imm, list(bind))) => {
   switch (d.expr_kind) {
   | EBoundVar(ty, x) =>
     let x' =
@@ -50,118 +80,157 @@ and linearize_exp =
       | None => failwith("bad free variable " ++ x)
       };
 
+    let* l = next_label;
     (
-      {imm_kind: IVar(x'), imm_ty: ty, imm_complete: default_completeness},
+      Anf.{
+        imm_kind: IVar(x'),
+        imm_ty: ty,
+        imm_complete: default_completeness,
+        imm_label: l,
+      },
       [],
-      t_gen,
-    );
+    )
+    |> return;
 
   | ELet(dp, d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
-    let (p, vctx', t_gen) = linearize_pat(dp, vctx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx', t_gen);
+    let* (im1, im1_binds) = linearize_exp(d1, vctx);
+    let* (p, vctx') = linearize_pat(dp, vctx);
+    let* (im2, im2_binds) = linearize_exp(d2, vctx');
 
-    let binds = im1_binds @ [mk_bind(p, Anf.Comp.mk_imm(im1))] @ im2_binds;
-    (im2, binds, t_gen);
+    let* c1_label = next_label;
+    let c1 =
+      Anf.{
+        comp_kind: CImm(im1),
+        comp_ty: im1.imm_ty,
+        comp_complete: default_completeness,
+        comp_label: c1_label,
+      };
+    let binds = im1_binds @ [mk_bind(p, c1)] @ im2_binds;
+    (im2, binds) |> return;
 
   | ELetRec(x, dp, dp_ty, body, d') =>
-    let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
+    let* x' = next_tmp;
     let vctx = VarMap.extend(vctx, (x, x'));
 
-    let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
-    let (body, t_gen) = linearize_prog(body, vctx, t_gen);
-    let fn: Anf.comp = {
-      comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.prog_ty),
-      comp_complete: default_completeness,
-    };
+    let* (p, vctx) = linearize_pat(dp, vctx);
+    let* body = linearize_prog(body, vctx);
 
-    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
+    let* (im, im_binds) = linearize_exp(d', vctx);
+
+    let* fn_label = next_label;
+    let fn =
+      Anf.{
+        comp_kind: CFun(p, body),
+        comp_ty: Arrow(dp_ty, body.prog_ty),
+        comp_complete: default_completeness,
+        comp_label: fn_label,
+      };
 
     let binds = [BLetRec(x', fn), ...im_binds];
-    (im, binds, t_gen);
+    (im, binds) |> return;
 
   | EFun(dp, dp_ty, body) =>
-    let (p, vctx, t_gen) = linearize_pat(dp, vctx, t_gen);
-    let (body, t_gen) = linearize_prog(body, vctx, t_gen);
+    let* (p, vctx) = linearize_pat(dp, vctx);
+    let* body = linearize_prog(body, vctx);
 
-    let fn: Anf.comp = {
-      comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.prog_ty),
-      comp_complete: default_completeness,
-    };
+    let* fn_label = next_label;
+    let fn =
+      Anf.{
+        comp_kind: CFun(p, body),
+        comp_ty: Arrow(dp_ty, body.prog_ty),
+        comp_complete: default_completeness,
+        comp_label: fn_label,
+      };
 
-    let (fn_var, fn_bind, t_gen) = mk_bind_var_tmp(fn, t_gen);
-    (fn_var, [fn_bind], t_gen);
+    let* (fn_var, fn_bind) = mk_bind_var_tmp(fn);
+    (fn_var, [fn_bind]) |> return;
 
   | EAp(fn, arg) =>
-    let (fn, fn_binds, t_gen) = linearize_exp(fn, vctx, t_gen);
-    let (arg, arg_binds, t_gen) = linearize_exp(arg, vctx, t_gen);
+    let* (fn, fn_binds) = linearize_exp(fn, vctx);
+    let* (arg, arg_binds) = linearize_exp(arg, vctx);
 
+    let* ap_label = next_label;
     let ap_ty =
       switch (fn.imm_ty) {
       | Arrow(_, ty') => ty'
       | _ => failwith("EAp calling non-function type")
       };
-    let ap: Anf.comp = {
-      comp_kind: CAp(fn, arg),
-      comp_ty: ap_ty,
-      comp_complete: default_completeness,
-    };
+    let ap =
+      Anf.{
+        comp_kind: CAp(fn, arg),
+        comp_ty: ap_ty,
+        comp_complete: default_completeness,
+        comp_label: ap_label,
+      };
 
-    let (ap_var, ap_bind, t_gen) = mk_bind_var_tmp(ap, t_gen);
+    let* (ap_var, ap_bind) = mk_bind_var_tmp(ap);
     let binds = fn_binds @ arg_binds @ [ap_bind];
-    (ap_var, binds, t_gen);
+    (ap_var, binds) |> return;
 
-  | EBoolLit(b) => (
-      {
+  | EBoolLit(b) =>
+    let* l = next_label;
+    (
+      Anf.{
         imm_kind: IConst(ConstBool(b)),
         imm_ty: Bool,
         imm_complete: default_completeness,
+        imm_label: l,
       },
       [],
-      t_gen,
     )
+    |> return;
 
-  | EIntLit(i) => (
-      {
+  | EIntLit(i) =>
+    let* l = next_label;
+    (
+      Anf.{
         imm_kind: IConst(ConstInt(i)),
         imm_ty: Int,
         imm_complete: default_completeness,
+        imm_label: l,
       },
       [],
-      t_gen,
     )
+    |> return;
 
-  | EFloatLit(f) => (
-      {
+  | EFloatLit(f) =>
+    let* l = next_label;
+    (
+      Anf.{
         imm_kind: IConst(ConstFloat(f)),
         imm_ty: Float,
         imm_complete: default_completeness,
+        imm_label: l,
       },
       [],
-      t_gen,
     )
+    |> return;
 
-  | ENil(ty) => (
-      {
+  | ENil(ty) =>
+    let* l = next_label;
+    (
+      Anf.{
         imm_kind: IConst(ConstNil(ty)),
         imm_ty: List(ty),
         imm_complete: default_completeness,
+        imm_label: l,
       },
       [],
-      t_gen,
     )
+    |> return;
 
-  | ETriv => (
-      {
+  | ETriv =>
+    let* l = next_label;
+    (
+      Anf.{
         imm_kind: IConst(ConstTriv),
         imm_ty: Prod([]),
         imm_complete: default_completeness,
+        imm_label: l,
       },
       [],
-      t_gen,
     )
+    |> return;
 
   | EBinBoolOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -169,7 +238,7 @@ and linearize_exp =
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, HTyp.Bool, d1, d2, vctx, t_gen);
+    linearize_bin_op(op, HTyp.Bool, d1, d2, vctx);
 
   | EBinIntOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -182,7 +251,7 @@ and linearize_exp =
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, HTyp.Int, d1, d2, vctx, t_gen);
+    linearize_bin_op(op, HTyp.Int, d1, d2, vctx);
 
   | EBinFloatOp(op, d1, d2) =>
     let op: Anf.bin_op =
@@ -195,37 +264,45 @@ and linearize_exp =
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, HTyp.Float, d1, d2, vctx, t_gen);
+    linearize_bin_op(op, HTyp.Float, d1, d2, vctx);
 
   | EPair(d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
-    let pair: Anf.comp = {
-      comp_kind: CPair(im1, im2),
-      comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
-      comp_complete: default_completeness,
-    };
+    let* (im1, im1_binds) = linearize_exp(d1, vctx);
+    let* (im2, im2_binds) = linearize_exp(d2, vctx);
 
-    let (pair_var, pair_bind, t_gen) = mk_bind_var_tmp(pair, t_gen);
+    let* pair_label = next_label;
+    let pair =
+      Anf.{
+        comp_kind: CPair(im1, im2),
+        comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
+        comp_complete: default_completeness,
+        comp_label: pair_label,
+      };
+
+    let* (pair_var, pair_bind) = mk_bind_var_tmp(pair);
     let binds = im1_binds @ im2_binds @ [pair_bind];
-    (pair_var, binds, t_gen);
+    (pair_var, binds) |> return;
 
   | ECons(d1, d2) =>
-    let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
-    let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
-    let cons: Anf.comp = {
-      comp_kind: CCons(im1, im2),
-      comp_ty: im2.imm_ty,
-      comp_complete: default_completeness,
-    };
+    let* (im1, im1_binds) = linearize_exp(d1, vctx);
+    let* (im2, im2_binds) = linearize_exp(d2, vctx);
 
-    let (cons_var, cons_bind, t_gen) = mk_bind_var_tmp(cons, t_gen);
+    let* cons_label = next_label;
+    let cons =
+      Anf.{
+        comp_kind: CCons(im1, im2),
+        comp_ty: im2.imm_ty,
+        comp_complete: default_completeness,
+        comp_label: cons_label,
+      };
+
+    let* (cons_var, cons_bind) = mk_bind_var_tmp(cons);
     let binds = im1_binds @ im2_binds @ [cons_bind];
 
-    (cons_var, binds, t_gen);
+    (cons_var, binds) |> return;
 
   | EInj(other_ty, side, d) =>
-    let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
+    let* (im, im_binds) = linearize_exp(d, vctx);
     let side = linearize_inj_side(side);
 
     let inj_ty: HTyp.t =
@@ -234,54 +311,69 @@ and linearize_exp =
       | CInjR => Sum(other_ty, im.imm_ty)
       };
 
-    let inj: Anf.comp = {
-      comp_kind: CInj(side, im),
-      comp_ty: inj_ty,
-      comp_complete: default_completeness,
-    };
+    let* inj_label = next_label;
+    let inj =
+      Anf.{
+        comp_kind: CInj(side, im),
+        comp_ty: inj_ty,
+        comp_complete: default_completeness,
+        comp_label: inj_label,
+      };
 
-    let (inj_var, inj_bind, t_gen) = mk_bind_var_tmp(inj, t_gen);
+    let* (inj_var, inj_bind) = mk_bind_var_tmp(inj);
     let binds = im_binds @ [inj_bind];
-    (inj_var, binds, t_gen);
+    (inj_var, binds) |> return;
 
-  | EConsistentCase(case) => linearize_case(case, vctx, t_gen)
+  | EConsistentCase(case) => linearize_case(case, vctx)
 
   | EEmptyHole(u, i, sigma) =>
-    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, vctx, t_gen);
-    let hole: Anf.comp = {
-      comp_kind: CEmptyHole(u, i, sigma),
-      comp_ty: Hole,
-      comp_complete: default_completeness,
-    };
+    let* (sigma, sigma_binds) = linearize_sigma(sigma, vctx);
 
-    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
+    let* hole_label = next_label;
+    let hole =
+      Anf.{
+        comp_kind: CEmptyHole(u, i, sigma),
+        comp_ty: Hole,
+        comp_complete: default_completeness,
+        comp_label: hole_label,
+      };
+
+    let* (hole_var, hole_bind) = mk_bind_var_tmp(hole);
     let binds = sigma_binds @ [hole_bind];
-    (hole_var, binds, t_gen);
+    (hole_var, binds) |> return;
 
   | ENonEmptyHole(reason, u, i, sigma, d') =>
-    let (sigma, sigma_binds, t_gen) = linearize_sigma(sigma, vctx, t_gen);
-    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
-    let hole: Anf.comp = {
-      comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
-      comp_ty: Hole,
-      comp_complete: default_completeness,
-    };
+    let* (sigma, sigma_binds) = linearize_sigma(sigma, vctx);
+    let* (im, im_binds) = linearize_exp(d', vctx);
 
-    let (hole_var, hole_bind, t_gen) = mk_bind_var_tmp(hole, t_gen);
+    let* hole_label = next_label;
+    let hole =
+      Anf.{
+        comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
+        comp_ty: Hole,
+        comp_complete: default_completeness,
+        comp_label: hole_label,
+      };
+
+    let* (hole_var, hole_bind) = mk_bind_var_tmp(hole);
     let binds = sigma_binds @ im_binds @ [hole_bind];
-    (hole_var, binds, t_gen);
+    (hole_var, binds) |> return;
 
   | ECast(d', ty1, ty2) =>
-    let (im, im_binds, t_gen) = linearize_exp(d', vctx, t_gen);
-    let cast: Anf.comp = {
-      comp_kind: CCast(im, ty1, ty2),
-      comp_ty: ty2,
-      comp_complete: default_completeness,
-    };
+    let* (im, im_binds) = linearize_exp(d', vctx);
 
-    let (cast_var, cast_bind, t_gen) = mk_bind_var_tmp(cast, t_gen);
+    let* cast_label = next_label;
+    let cast =
+      Anf.{
+        comp_kind: CCast(im, ty1, ty2),
+        comp_ty: ty2,
+        comp_complete: default_completeness,
+        comp_label: cast_label,
+      };
+
+    let* (cast_var, cast_bind) = mk_bind_var_tmp(cast);
     let binds = im_binds @ [cast_bind];
-    (cast_var, binds, t_gen);
+    (cast_var, binds) |> return;
 
   | EKeyword(_, _, _, _)
   | EFreeVar(_, _, _, _)
@@ -294,77 +386,75 @@ and linearize_exp =
 }
 
 and linearize_sigma =
-    (sigma: VarMap.t_(Hir.expr), vctx, t_gen)
-    : (VarMap.t_(Anf.imm), list(bind), TmpVarGen.t) =>
-  List.fold_left(
-    ((sigma, sigma_binds, t_gen), (x, d)) => {
-      let (im, im_binds, t_gen) = linearize_exp(d, vctx, t_gen);
-      let sigma = VarMap.extend(sigma, (x, im));
-      (sigma, sigma_binds @ im_binds, t_gen);
-    },
-    ([], [], t_gen),
-    sigma,
-  )
+    (sigma: VarMap.t_(Hir.expr), vctx)
+    : t((VarMap.t_(Anf.imm), list(bind))) =>
+  switch (sigma) {
+  | [] => ([], []) |> return
+  | [(x, d), ...sigma] =>
+    let* (im, im_binds) = linearize_exp(d, vctx);
+    let* (sigma, sigma_binds) = linearize_sigma(sigma, vctx);
+    let sigma = VarMap.extend(sigma, (x, im));
+    (sigma, im_binds @ sigma_binds) |> return;
+  }
 
 and linearize_bin_op =
-    (op: Anf.bin_op, ty: HTyp.t, d1: Hir.expr, d2: Hir.expr, vctx, t_gen) => {
-  let (im1, im1_binds, t_gen) = linearize_exp(d1, vctx, t_gen);
-  let (im2, im2_binds, t_gen) = linearize_exp(d2, vctx, t_gen);
-  let bin: Anf.comp = {
-    comp_kind: CBinOp(op, im1, im2),
-    comp_ty: ty,
-    comp_complete: default_completeness,
-  };
+    (op: Anf.bin_op, ty: HTyp.t, d1: Hir.expr, d2: Hir.expr, vctx) => {
+  let* (im1, im1_binds) = linearize_exp(d1, vctx);
+  let* (im2, im2_binds) = linearize_exp(d2, vctx);
 
-  let (bin_var, bin_bind, t_gen) = mk_bind_var_tmp(bin, t_gen);
-  let binds = im1_binds @ im2_binds @ [bin_bind];
-  (bin_var, binds, t_gen);
-}
-
-and linearize_case =
-    (case: Hir.case, vctx, t_gen): (Anf.imm, list(bind), TmpVarGen.t) => {
-  switch (case.case_kind) {
-  | ECase(scrut, rules, _) =>
-    let (scrut_imm, scrut_binds, t_gen) = linearize_exp(scrut, vctx, t_gen);
-    let (rules, t_gen) = linearize_rules(rules, vctx, t_gen);
-
-    let rules_ty = List.hd(rules).rule_branch.prog_ty;
-    let case: Anf.comp = {
-      comp_kind: CCase(scrut_imm, rules),
-      comp_ty: rules_ty,
+  let* bin_label = next_label;
+  let bin =
+    Anf.{
+      comp_kind: CBinOp(op, im1, im2),
+      comp_ty: ty,
       comp_complete: default_completeness,
+      comp_label: bin_label,
     };
 
-    let (case_var, case_bind, t_gen) = mk_bind_var_tmp(case, t_gen);
+  let* (bin_var, bin_bind) = mk_bind_var_tmp(bin);
+  let binds = im1_binds @ im2_binds @ [bin_bind];
+  (bin_var, binds) |> return;
+}
+
+and linearize_case = (case: Hir.case, vctx): t((Anf.imm, list(bind))) => {
+  switch (case.case_kind) {
+  | ECase(scrut, rules, _) =>
+    let* (scrut_imm, scrut_binds) = linearize_exp(scrut, vctx);
+    let* rules = linearize_rules(rules, vctx);
+
+    let rules_ty = List.hd(rules).rule_branch.prog_ty;
+    let* case_label = next_label;
+    let case =
+      Anf.{
+        comp_kind: CCase(scrut_imm, rules),
+        comp_ty: rules_ty,
+        comp_complete: default_completeness,
+        comp_label: case_label,
+      };
+
+    let* (case_var, case_bind) = mk_bind_var_tmp(case);
     let binds = scrut_binds @ [case_bind];
-    (case_var, binds, t_gen);
+    (case_var, binds) |> return;
   };
 }
 
-and linearize_rules =
-    (rules: list(Hir.rule), vctx, t_gen): (list(Anf.rule), TmpVarGen.t) => {
-  let (rules_rev, t_gen) =
-    rules
-    |> List.fold_left(
-         ((rules, t_gen), rule) => {
-           let (rule, t_gen) = linearize_rule(rule, vctx, t_gen);
-           ([rule, ...rules], t_gen);
-         },
-         ([], t_gen),
-       );
-  (List.rev(rules_rev), t_gen);
-}
+and linearize_rules = (rules: list(Hir.rule), vctx): t(list(Anf.rule)) =>
+  rules |> List.map(rule => linearize_rule(rule, vctx)) |> sequence
 
-and linearize_rule = (rule: Hir.rule, vctx, t_gen): (Anf.rule, TmpVarGen.t) => {
+and linearize_rule = (rule: Hir.rule, vctx): t(Anf.rule) => {
   switch (rule.rule_kind) {
   | ERule(p, branch) =>
-    let (p, vctx, t_gen) = linearize_pat(p, vctx, t_gen);
-    let (branch, t_gen) = linearize_prog(branch, vctx, t_gen);
+    let* (p, vctx) = linearize_pat(p, vctx);
+    let* branch = linearize_prog(branch, vctx);
 
-    (
-      {rule_pat: p, rule_branch: branch, rule_complete: default_completeness},
-      t_gen,
-    );
+    let* l = next_label;
+    Anf.{
+      rule_pat: p,
+      rule_branch: branch,
+      rule_complete: default_completeness,
+      rule_label: l,
+    }
+    |> return;
   };
 }
 
@@ -373,83 +463,132 @@ and linearize_rule = (rule: Hir.rule, vctx, t_gen): (Anf.rule, TmpVarGen.t) => {
  * Note that the pat_complete property of Anf.pat indicates the indet-ness of the
  * pattern alone, irrespective of the matchee.
  */
-and linearize_pat =
-    (p: Hir.pat, vctx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
-  linearize_pat_hole(p, vctx, t_gen);
-}
+and linearize_pat = (p: Hir.pat, vctx): t((Anf.pat, var_remapping)) =>
+  linearize_pat_hole(p, vctx)
 
-and linearize_pat_hole =
-    (p: Hir.pat, vctx, t_gen): (Anf.pat, var_remapping, TmpVarGen.t) => {
+and linearize_pat_hole = (p: Hir.pat, vctx): t((Anf.pat, var_remapping)) => {
   switch (p.pat_kind) {
   | PPair(p1, p2) =>
-    let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
-    let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
+    let* (p1, vctx) = linearize_pat_hole(p1, vctx);
+    let* (p2, vctx) = linearize_pat_hole(p2, vctx);
+
+    let* l = next_label;
     (
-      {pat_kind: PPair(p1, p2), pat_complete: default_completeness},
+      Anf.{
+        pat_kind: PPair(p1, p2),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
-    );
+    )
+    |> return;
 
   | PCons(p1, p2) =>
-    let (p1, vctx, t_gen) = linearize_pat_hole(p1, vctx, t_gen);
-    let (p2, vctx, t_gen) = linearize_pat_hole(p2, vctx, t_gen);
+    let* (p1, vctx) = linearize_pat_hole(p1, vctx);
+    let* (p2, vctx) = linearize_pat_hole(p2, vctx);
+
+    let* l = next_label;
     (
-      {pat_kind: PCons(p1, p2), pat_complete: default_completeness},
+      Anf.{
+        pat_kind: PCons(p1, p2),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
-    );
+    )
+    |> return;
 
   | PInj(side, p') =>
     let side = linearize_inj_side(side);
-    let (p', vctx, t_gen) = linearize_pat_hole(p', vctx, t_gen);
-    (
-      {pat_kind: PInj(side, p'), pat_complete: default_completeness},
-      vctx,
-      t_gen,
-    );
+    let* (p', vctx) = linearize_pat_hole(p', vctx);
 
-  | PWild => (
-      {pat_kind: PWild, pat_complete: default_completeness},
+    let* l = next_label;
+    (
+      Anf.{
+        pat_kind: PInj(side, p'),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
     )
+    |> return;
+
+  | PWild =>
+    let* l = next_label;
+    (
+      Anf.{pat_kind: PWild, pat_complete: default_completeness, pat_label: l},
+      vctx,
+    )
+    |> return;
 
   | PVar(x) =>
     // Mark x as indet whenever the matchee is indet or the pattern is inside a
     // pattern hole.
-    let (x', t_gen) = TmpVarGen.next_named(x, t_gen);
+    let* x' = next_tmp_named(x);
     let vctx = VarMap.extend(vctx, (x, x'));
-    ({pat_kind: PVar(x'), pat_complete: default_completeness}, vctx, t_gen);
 
-  | PIntLit(i) => (
-      {pat_kind: PInt(i), pat_complete: default_completeness},
+    let* l = next_label;
+    (
+      Anf.{
+        pat_kind: PVar(x'),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
     )
+    |> return;
 
-  | PFloatLit(f) => (
-      {pat_kind: PFloat(f), pat_complete: default_completeness},
+  | PIntLit(i) =>
+    let* l = next_label;
+    (
+      Anf.{
+        pat_kind: PInt(i),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
     )
+    |> return;
 
-  | PBoolLit(b) => (
-      {pat_kind: PBool(b), pat_complete: default_completeness},
+  | PFloatLit(f) =>
+    let* l = next_label;
+    (
+      Anf.{
+        pat_kind: PFloat(f),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
     )
+    |> return;
 
-  | PNil => (
-      {pat_kind: PNil, pat_complete: default_completeness},
+  | PBoolLit(b) =>
+    let* l = next_label;
+    (
+      Anf.{
+        pat_kind: PBool(b),
+        pat_complete: default_completeness,
+        pat_label: l,
+      },
       vctx,
-      t_gen,
     )
+    |> return;
 
-  | PTriv => (
-      {pat_kind: PTriv, pat_complete: default_completeness},
+  | PNil =>
+    let* l = next_label;
+    (
+      Anf.{pat_kind: PNil, pat_complete: default_completeness, pat_label: l},
       vctx,
-      t_gen,
     )
+    |> return;
+
+  | PTriv =>
+    let* l = next_label;
+    (
+      Anf.{pat_kind: PTriv, pat_complete: default_completeness, pat_label: l},
+      vctx,
+    )
+    |> return;
 
   | PEmptyHole(_)
   | PNonEmptyHole(_)
@@ -468,6 +607,6 @@ and linearize_inj_side = (side: InjSide.t): Anf.inj_side => {
 
 let linearize = (d: Hir.expr): Anf.prog => {
   // TODO: Can't pass empty vctx once builtins are supported.
-  let (prog, _) = linearize_prog(d, VarMap.empty, TmpVarGen.init);
+  let (_, prog) = linearize_prog(d, VarMap.empty, init);
   prog;
 };
