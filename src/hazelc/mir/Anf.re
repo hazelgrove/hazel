@@ -7,6 +7,9 @@ open Sexplib.Std;
 type completeness = Completeness.t;
 
 [@deriving sexp]
+type label = Label.t;
+
+[@deriving sexp]
 type bin_op =
   | OpAnd
   | OpOr
@@ -29,7 +32,7 @@ type bin_op =
 type pat = {
   pat_kind,
   pat_complete: completeness,
-  pat_label: Label.t,
+  pat_label: label,
 }
 
 [@deriving sexp]
@@ -58,7 +61,7 @@ and imm = {
   imm_kind,
   imm_ty: HTyp.t,
   imm_complete: completeness,
-  imm_label: Label.t,
+  imm_label: label,
 }
 
 [@deriving sexp]
@@ -71,7 +74,7 @@ and comp = {
   comp_kind,
   comp_ty: HTyp.t,
   comp_complete: completeness,
-  comp_label: Label.t,
+  comp_label: label,
 }
 
 [@deriving sexp]
@@ -104,14 +107,14 @@ and rule = {
   rule_pat: pat,
   rule_branch: prog,
   rule_complete: completeness,
-  rule_label: Label.t,
+  rule_label: label,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
   stmt_complete: completeness,
-  stmt_label: Label.t,
+  stmt_label: label,
 }
 
 [@deriving sexp]
@@ -124,7 +127,7 @@ and prog = {
   prog_body,
   prog_ty: HTyp.t,
   prog_complete: completeness,
-  prog_label: Label.t,
+  prog_label: label,
 }
 
 [@deriving sexp]
