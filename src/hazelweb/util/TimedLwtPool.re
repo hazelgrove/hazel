@@ -1,3 +1,8 @@
+/**
+  Lwt pool with timeouts.
+
+  Based off {{: https://github.com/ocsigen/lwt/blob/master/src/core/lwt_pool.ml} Lwt_pool}.
+ */
 open Lwt.Infix;
 open Lwt.Syntax;
 
