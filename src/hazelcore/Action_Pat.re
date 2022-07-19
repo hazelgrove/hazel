@@ -91,7 +91,7 @@ let mk_syn_text =
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let var =
       UHPat.var(
-        ~var_err=InVarHole(Keyword(k), u),
+        ~var_err=InVarHole(ExpandingKeyword(k), u),
         k |> ExpandingKeyword.to_string,
       );
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
@@ -141,7 +141,7 @@ let mk_ana_text =
     }
   | ExpandingKeyword(k) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
-    let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+    let var = UHPat.var(~var_err=InVarHole(ExpandingKeyword(k), u), text);
     let zp = ZOpSeq.wrap(ZPat.CursorP(text_cursor, var));
     Succeeded((zp, ctx, id_gen));
   | Var(x) =>

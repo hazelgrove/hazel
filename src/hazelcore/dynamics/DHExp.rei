@@ -51,8 +51,12 @@ type t =
       VarMap.t(t),
       t,
     )
-  // TODO rename to ExpandingKeyword
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t(t), ExpandingKeyword.t)
+  | ExpandingKeyword(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t(t),
+      ExpandingKeyword.t,
+    )
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t(t), Var.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)

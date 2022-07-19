@@ -31,7 +31,9 @@ let test_parse = (text: string) =>
     | None => false
     };
   }) {
-  | Failure(_) => false
+  | Failure(msg) =>
+    Format.printf("Failure: %s@.", msg);
+    false;
   };
 
 let register_test = (title, tags, text) =>

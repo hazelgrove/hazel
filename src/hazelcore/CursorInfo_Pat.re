@@ -183,7 +183,7 @@ and syn_cursor_info_zoperand =
     (~steps: CursorPath.steps, ctx: Context.t, zoperand: ZPat.zoperand)
     : option(CursorInfo_common.deferrable(CursorInfo.t)) =>
   switch (zoperand) {
-  | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
+  | CursorP(_, Var(_, InVarHole(ExpandingKeyword(k), _), _)) =>
     Some(
       CursorNotOnDeferredVarPat(
         CursorInfo_common.mk(
@@ -477,7 +477,7 @@ and ana_cursor_info_zoperand =
     | ListNil(InHole(WrongLength, _))
     | TypeAnn(InHole(WrongLength, _), _, _)
     | Inj(InHole(WrongLength, _), _, _) => None
-    | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
+    | Var(NotInHole, InVarHole(ExpandingKeyword(k), _), _) =>
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(PatAnaKeyword(ty, k), ctx, cursor_term),
