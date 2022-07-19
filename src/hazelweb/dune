@@ -21,7 +21,7 @@
   (:standard \ Main)
   \
   Worker)
- (libraries hazelcore incr_dom hazeltext lwt)
+ (libraries hazelcore incr_dom hazeltext lwt lwt-dllist)
  (wrapped false)
  (js_of_ocaml
   (flags
