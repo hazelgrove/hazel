@@ -35,20 +35,20 @@ and syn_fix_holes_operand =
   switch (operand) {
   | Hole => (Hole, Kind.Hole, id_gen)
   | TyVar(err, t) =>
-    let next_u = () =>
+    let next_id = () =>
       switch (err) {
       | NotInTyVarHole => IDGen.next_hole(id_gen)
       | InHole(_, u) => (u, id_gen)
       };
     if (TyVar.is_reserved(t)) {
-      let (u, id_gen) = next_u();
+      let (u, id_gen) = next_id();
       let ty = UHTyp.TyVar(InHole(Reserved, u), t);
       let k = Kind.singleton(HTyp.tyvarhole(Reserved, u, t));
       (ty, k, id_gen);
     } else if (TyVar.is_valid(t)) {
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
-        let (u, id_gen) = next_u();
+        let (u, id_gen) = next_id();
         let ty = UHTyp.TyVar(InHole(Unbound, u), t);
         let k = Kind.singleton(HTyp.tyvarhole(Unbound, u, t));
         (ty, k, id_gen);
@@ -58,7 +58,7 @@ and syn_fix_holes_operand =
         (ty, k, id_gen);
       };
     } else {
-      let (u, id_gen) = next_u();
+      let (u, id_gen) = next_id();
       let ty = UHTyp.TyVar(InHole(InvalidText, u), t);
       (ty, Kind.S(TyVarHole(InvalidText, u, t)), id_gen);
     };

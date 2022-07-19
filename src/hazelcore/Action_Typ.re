@@ -106,14 +106,14 @@ let mk_syn_text =
       );
     Succeeded((zty, id_gen));
   | Some(TyVar(t)) =>
-    let (status: TyVarErrStatus.t, id_gen) =
+    let (err: TyVarErrStatus.t, id_gen) =
       switch (Context.tyvar_ref(ctx, t)) {
       | None =>
         let (u, id_gen) = IDGen.next_hole(id_gen);
         (InHole(Unbound, u), id_gen);
       | Some(_) => (NotInTyVarHole, id_gen)
       };
-    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(status, t)));
+    let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, TyVar(err, t)));
     Succeeded((zty, id_gen));
   };
 };
