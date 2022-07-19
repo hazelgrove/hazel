@@ -347,6 +347,8 @@ and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(GrainIR.expr) => {
       | WrongLength => HoleReason.wrong_length
       }
     );
+
+  let* () = with_incomplete_import;
   EVar(reason') |> return;
 }
 and codegen_meta_var = (u: MetaVar.t): t(GrainIR.expr) =>
@@ -372,7 +374,7 @@ and codegen_empty_hole = (u, i, sigma): t(GrainIR.expr) => {
   let* sigma' = codegen_sigma(sigma);
 
   let* () = with_incomplete_import;
-  HazelStd.Rt.(Ast.empty_hole(u', i', sigma')) |> return;
+  HazelStd.Rt.Ast.empty_hole(u', i', sigma') |> return;
 }
 
 and codegen_non_empty_hole = (reason, u, i, sigma, im): t(GrainIR.expr) => {
@@ -383,7 +385,7 @@ and codegen_non_empty_hole = (reason, u, i, sigma, im): t(GrainIR.expr) => {
   let* e' = codegen_imm(im);
 
   let* () = with_incomplete_import;
-  HazelStd.Rt.(Ast.non_empty_hole(reason', u', i', sigma', e')) |> return;
+  HazelStd.Rt.Ast.non_empty_hole(reason', u', i', sigma', e') |> return;
 }
 
 and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(GrainIR.expr) => {
@@ -415,12 +417,13 @@ and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(GrainIR.expr) => {
     );
   };
 
+  let* () = with_incomplete_import;
+
   let* e = codegen_imm(im);
   let* ty1' = codegen_htyp(ty1);
   let* ty2' = codegen_htyp(ty2);
 
-  let* () = with_incomplete_import;
-  HazelStd.Rt.(Ast.cast(e, ty1', ty2')) |> return;
+  HazelStd.Rt.Ast.cast(e, ty1', ty2') |> return;
 };
 
 let codegen = (~opts, prog: Anf.prog): GrainIR.prog => {
