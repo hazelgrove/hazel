@@ -3,7 +3,7 @@ open Sexplib.Std;
 open ResultSexp;
 open Hazeltext;
 
-module GrainCli = Grainlib.Cli;
+module GrainCli = Grain.Cli;
 
 [@deriving sexp]
 type opts = {
@@ -27,7 +27,7 @@ let optimize' = opts => Mir.Optimize.optimize(~opts);
 
 let grainize' = opts => Codegen.GrainCodegen.codegen(~opts);
 
-let print' = Grainlib.print;
+let print' = Grain.print;
 
 [@deriving sexp]
 type wasm_opts = {
@@ -109,7 +109,7 @@ type state =
   | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.prog)
   | Optimized(Mir.Anf.prog)
-  | Grainized(Grainlib.prog)
+  | Grainized(Grain.prog)
   | Printed(string);
 
 [@deriving sexp]

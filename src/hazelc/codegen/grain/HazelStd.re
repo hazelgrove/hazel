@@ -1,6 +1,6 @@
 module Inner = GrainStd.Inner;
 
-let mk_path = path => Grainlib.ImportStd(Filename.concat("hazel", path));
+let mk_path = path => Grain.ImportStd(Filename.concat("hazel", path));
 
 module Rt = {
   let mk_path = path => mk_path(Filename.concat("rt", path));

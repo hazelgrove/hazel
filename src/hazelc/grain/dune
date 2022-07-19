@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name grainlib)
+ (name grain)
  (libraries sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

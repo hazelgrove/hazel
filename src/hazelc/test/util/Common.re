@@ -1,5 +1,5 @@
 open Hazelc;
-module GrainCli = Grainlib.Cli;
+module GrainCli = Grain.Cli;
 
 [@deriving sexp]
 type profile =

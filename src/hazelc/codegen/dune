@@ -2,6 +2,6 @@
 
 (library
  (name hazelc_codegen)
- (libraries hazelc_mir grainlib sexplib)
+ (libraries hazelc_mir grain sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

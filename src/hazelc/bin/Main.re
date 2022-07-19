@@ -8,7 +8,7 @@ open Cmdliner;
 
 open Hazelc;
 
-module GrainCli = Grainlib.Cli;
+module GrainCli = Grain.Cli;
 
 [@deriving sexp]
 type action =
@@ -147,7 +147,7 @@ let hazelc =
 
     | Gir =>
       Compile.resume_until_grainized(~opts, source)
-      |> Result.map(Grainlib.sexp_of_prog |> write_sexp_output)
+      |> Result.map(Grain.sexp_of_prog |> write_sexp_output)
       |> Result.map_error(convert_error)
 
     | Wasm
