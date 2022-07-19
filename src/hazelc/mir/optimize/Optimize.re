@@ -1,3 +1,5 @@
+module IndetAnalysis = IndetAnalysis;
+
 [@deriving sexp]
 type opts = {indet_analysis: IndetAnalysis.opts};
 

@@ -1,3 +1,5 @@
+module IndetAnalysis = IndetAnalysis;
+
 /**
  * Optimization passes.
  */

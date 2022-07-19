@@ -1,6 +1,5 @@
 open Sexplib.Std;
 
-open Mir;
 open Grain;
 
 [@deriving sexp]
@@ -96,14 +95,14 @@ module Monad = {
 open Monad;
 open Monad.Syntax;
 
-let dummy_label = Label.init;
+let dummy_label = Mir.Label.init;
 
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;
 
 let rec codegen_prog =
         (
-          {prog_body: (body, im), prog_ty: _, prog_complete: _, prog_label: _}: Anf.prog,
+          {prog_body: (body, im), prog_ty: _, prog_complete: _, prog_label: _}: Mir.prog,
         )
         : t((Grain.block, Grain.expr)) => {
   let* stmts = codegen_fold(codegen_stmt, body);
@@ -111,7 +110,7 @@ let rec codegen_prog =
   (stmts, im) |> return;
 }
 
-and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
+and codegen_stmt = (stmt: Mir.stmt): t(Grain.stmt) => {
   switch (stmt.stmt_kind) {
   | SLet(p, c) =>
     let* p' = codegen_pat(p);
@@ -130,7 +129,7 @@ and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
   };
 }
 
-and codegen_comp = (c: Anf.comp): t(Grain.expr) => {
+and codegen_comp = (c: Mir.comp): t(Grain.expr) => {
   switch (c.comp_kind) {
   | CImm(im) => codegen_imm(im)
 
@@ -176,7 +175,7 @@ and codegen_comp = (c: Anf.comp): t(Grain.expr) => {
   };
 }
 
-and codegen_bin_op_complete = (op: Anf.bin_op) => {
+and codegen_bin_op_complete = (op: Mir.bin_op) => {
   let (op, with_int32, with_float32) =
     GrainStd.(
       switch (op) {
@@ -214,7 +213,7 @@ and codegen_bin_op_complete = (op: Anf.bin_op) => {
   op |> return;
 }
 
-and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
+and codegen_bin_op_incomplete = (op: Mir.bin_op) => {
   let op =
     HazelStd.Rt.(
       switch (op) {
@@ -242,7 +241,7 @@ and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
 }
 
 and codegen_bin_op =
-    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.completeness)
+    (op: Mir.bin_op, im1: Mir.imm, im2: Mir.imm, indet: Mir.completeness)
     : t(Grain.expr) => {
   let* e1 = codegen_imm(im1);
   let* e2 = codegen_imm(im2);
@@ -256,18 +255,18 @@ and codegen_bin_op =
   op(e1, e2) |> return;
 }
 
-and codegen_rules = (rules: list(Anf.rule)): t(list(Grain.rule)) => {
+and codegen_rules = (rules: list(Mir.rule)): t(list(Grain.rule)) => {
   codegen_fold(codegen_rule, rules);
 }
 
-and codegen_rule = (rule: Anf.rule): t(Grain.rule) => {
+and codegen_rule = (rule: Mir.rule): t(Grain.rule) => {
   let* pat = codegen_pat(rule.rule_pat);
   let* (branch_stmts, branch_expr) = codegen_prog(rule.rule_branch);
   let branch = branch_stmts @ [SExpr(branch_expr)];
   RRule(pat, EBlock(branch)) |> return;
 }
 
-and codegen_imm = (im: Anf.imm): t(Grain.expr) => {
+and codegen_imm = (im: Mir.imm): t(Grain.expr) => {
   switch (im.imm_kind) {
   | IConst(const) => codegen_const(const)
 
@@ -277,7 +276,7 @@ and codegen_imm = (im: Anf.imm): t(Grain.expr) => {
 
 and codegen_var = (x: Var.t): t(Grain.expr) => EVar(x) |> return
 
-and codegen_const = (const: Anf.constant): t(Grain.expr) => {
+and codegen_const = (const: Mir.constant): t(Grain.expr) => {
   (
     switch (const) {
     | ConstInt(n) => EInt32Lit(n)
@@ -290,7 +289,7 @@ and codegen_const = (const: Anf.constant): t(Grain.expr) => {
   |> return;
 }
 
-and codegen_pat = (p: Anf.pat): t(Grain.pat) => {
+and codegen_pat = (p: Mir.pat): t(Grain.pat) => {
   switch (p.pat_kind) {
   | PWild => PWild |> return
   | PVar(x) => PVar(x) |> return
@@ -318,7 +317,7 @@ and codegen_pat = (p: Anf.pat): t(Grain.pat) => {
   };
 }
 
-and codegen_inj_side = (side: Anf.inj_side): t(Grain.expr => Grain.expr) => {
+and codegen_inj_side = (side: Mir.inj_side): t(Grain.expr => Grain.expr) => {
   let side' =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l
@@ -329,7 +328,7 @@ and codegen_inj_side = (side: Anf.inj_side): t(Grain.expr => Grain.expr) => {
   side' |> return;
 }
 
-and codegen_inj_side_pat = (side: Anf.inj_side): t(Grain.pat => Grain.pat) => {
+and codegen_inj_side_pat = (side: Mir.inj_side): t(Grain.pat => Grain.pat) => {
   let side' =
     switch (side) {
     | CInjL => HazelStd.Rt.Sum.inj_l_pat
@@ -358,7 +357,7 @@ and codegen_meta_var = (u: MetaVar.t): t(Grain.expr) =>
 and codegen_meta_var_inst = (i: MetaVarInst.t): t(Grain.expr) =>
   EInt32Lit(i) |> return
 
-and codegen_sigma = (sigma: VarMap.t_(Anf.imm)): t(Grain.expr) => {
+and codegen_sigma = (sigma: VarMap.t_(Mir.imm)): t(Grain.expr) => {
   let* sigma' =
     sigma
     |> codegen_fold(((x, im)) => {
@@ -389,7 +388,7 @@ and codegen_non_empty_hole = (reason, u, i, sigma, im): t(Grain.expr) => {
   HazelStd.Rt.Ast.non_empty_hole(reason', u', i', sigma', e') |> return;
 }
 
-and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(Grain.expr) => {
+and codegen_cast = (im: Mir.imm, ty1: HTyp.t, ty2: HTyp.t): t(Grain.expr) => {
   let rec codegen_htyp = (t: HTyp.t): t(Grain.expr) => {
     HazelStd.Rt.(
       switch (t) {
@@ -427,7 +426,7 @@ and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(Grain.expr) => {
   HazelStd.Rt.Ast.cast(e, ty1', ty2') |> return;
 };
 
-let codegen = (~opts, prog: Anf.prog): Grain.prog => {
+let codegen = (~opts, prog: Mir.prog): Grain.prog => {
   let (State.{imps}, (body, c)) = codegen_prog(prog, State.init);
   let tb = Imports.codegen(imps);
 
