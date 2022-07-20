@@ -23,6 +23,7 @@ module type META = {
   let ap2: (ident, expr, expr) => expr;
   let ap3: (ident, expr, expr, expr) => expr;
   let ap4: (ident, expr, expr, expr, expr) => expr;
+  let ap5: (ident, expr, expr, expr, expr, expr) => expr;
 
   let ctor: (ident, args) => expr;
   let ctor0: ident => expr;
@@ -30,6 +31,7 @@ module type META = {
   let ctor2: (ident, expr, expr) => expr;
   let ctor3: (ident, expr, expr, expr) => expr;
   let ctor4: (ident, expr, expr, expr, expr) => expr;
+  let ctor5: (ident, expr, expr, expr, expr, expr) => expr;
 
   let pctor: (ident, params) => pat;
   let pctor0: ident => pat;
@@ -37,6 +39,7 @@ module type META = {
   let pctor2: (ident, pat, pat) => pat;
   let pctor3: (ident, pat, pat, pat) => pat;
   let pctor4: (ident, pat, pat, pat, pat) => pat;
+  let pctor5: (ident, pat, pat, pat, pat, pat) => pat;
 };
 
 module Make = (M: M) => {
@@ -58,6 +61,7 @@ module Make = (M: M) => {
   let ap2 = ap2(file_mod_import);
   let ap3 = ap3(file_mod_import);
   let ap4 = ap4(file_mod_import);
+  let ap5 = ap5(file_mod_import);
 
   let ctor = ctor(file_mod_import);
   let ctor0 = ctor0(file_mod_import);
@@ -65,6 +69,7 @@ module Make = (M: M) => {
   let ctor2 = ctor2(file_mod_import);
   let ctor3 = ctor3(file_mod_import);
   let ctor4 = ctor4(file_mod_import);
+  let ctor5 = ctor5(file_mod_import);
 
   let pctor = pctor(file_mod_import);
   let pctor0 = pctor0(file_mod_import);
@@ -72,4 +77,5 @@ module Make = (M: M) => {
   let pctor2 = pctor2(file_mod_import);
   let pctor3 = pctor3(file_mod_import);
   let pctor4 = pctor4(file_mod_import);
+  let pctor5 = pctor5(file_mod_import);
 };

@@ -24,6 +24,8 @@ let ap2 = (fmdi, fn, arg1, arg2) => ap(fmdi, fn, [arg1, arg2]);
 let ap3 = (fmdi, fn, arg1, arg2, arg3) => ap(fmdi, fn, [arg1, arg2, arg3]);
 let ap4 = (fmdi, fn, arg1, arg2, arg3, arg4) =>
   ap(fmdi, fn, [arg1, arg2, arg3, arg4]);
+let ap5 = (fmdi, fn, arg1, arg2, arg3, arg4, arg5) =>
+  ap(fmdi, fn, [arg1, arg2, arg3, arg4, arg5]);
 
 let ctor = (fmdi, name, args) => Expr.ctor(ident(fmdi, name), args);
 let ctor0 = (fmdi, name) => var(fmdi, name);
@@ -33,6 +35,8 @@ let ctor3 = (fmdi, name, arg1, arg2, arg3) =>
   ctor(fmdi, name, [arg1, arg2, arg3]);
 let ctor4 = (fmdi, name, arg1, arg2, arg3, arg4) =>
   ctor(fmdi, name, [arg1, arg2, arg3, arg4]);
+let ctor5 = (fmdi, name, arg1, arg2, arg3, arg4, arg5) =>
+  ctor(fmdi, name, [arg1, arg2, arg3, arg4, arg5]);
 
 let pctor = (fmdi, name, args) => Expr.pctor(ident(fmdi, name), args);
 let pctor0 = (fmdi, name) => pvar(fmdi, name);
@@ -42,3 +46,5 @@ let pctor3 = (fmdi, name, arg1, arg2, arg3) =>
   pctor(fmdi, name, [arg1, arg2, arg3]);
 let pctor4 = (fmdi, name, arg1, arg2, arg3, arg4) =>
   pctor(fmdi, name, [arg1, arg2, arg3, arg4]);
+let pctor5 = (fmdi, name, arg1, arg2, arg3, arg4, arg5) =>
+  pctor(fmdi, name, [arg1, arg2, arg3, arg4, arg5]);
