@@ -63,9 +63,9 @@ and rule =
 
 module Block: {let join: list(block) => block;};
 
-let mk_var: ident => expr;
-let mk_ap: (expr, args) => expr;
-let mk_ctor: (ident, args) => expr;
+let var: ident => expr;
+let ap: (expr, args) => expr;
+let ctor: (ident, args) => expr;
 
-let mk_pat_var: ident => pat;
-let mk_pat_ctor: (ident, params) => pat;
+let pvar: ident => pat;
+let pctor: (ident, params) => pat;

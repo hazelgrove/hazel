@@ -68,9 +68,9 @@ module Block = {
   let join = bs => List.concat(bs);
 };
 
-let mk_var = x => EVar(x);
-let mk_ap = (fn, args) => EAp(fn, args);
-let mk_ctor = (name, args) => ECtor(name, args);
+let var = x => EVar(x);
+let ap = (fn, args) => EAp(fn, args);
+let ctor = (name, args) => ECtor(name, args);
 
-let mk_pat_var = x => PVar(x);
-let mk_pat_ctor = (name, args) => PCtor(name, args);
+let pvar = x => PVar(x);
+let pctor = (name, args) => PCtor(name, args);

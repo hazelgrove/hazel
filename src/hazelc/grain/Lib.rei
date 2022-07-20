@@ -16,7 +16,7 @@ module type META = {
 
   let ident: ident => ident;
   let var: ident => expr;
-  let pat_var: ident => pat;
+  let pvar: ident => pat;
 
   let ap: (ident, args) => expr;
   let ap1: (ident, expr) => expr;
@@ -31,12 +31,12 @@ module type META = {
   let ctor3: (ident, expr, expr, expr) => expr;
   let ctor4: (ident, expr, expr, expr, expr) => expr;
 
-  let pat_ctor: (ident, params) => pat;
-  let pat_ctor0: ident => pat;
-  let pat_ctor1: (ident, pat) => pat;
-  let pat_ctor2: (ident, pat, pat) => pat;
-  let pat_ctor3: (ident, pat, pat, pat) => pat;
-  let pat_ctor4: (ident, pat, pat, pat, pat) => pat;
+  let pctor: (ident, params) => pat;
+  let pctor0: ident => pat;
+  let pctor1: (ident, pat) => pat;
+  let pctor2: (ident, pat, pat) => pat;
+  let pctor3: (ident, pat, pat, pat) => pat;
+  let pctor4: (ident, pat, pat, pat, pat) => pat;
 };
 
 module Make: (M: M) => META;

@@ -26,10 +26,10 @@ module Rt = {
     module HTyp = {
       let name = ident("HTyp");
 
-      let hole = mk_var("Hole");
-      let int = mk_var("Int");
-      let float = mk_var("Float");
-      let bool = mk_var("Bool");
+      let hole = var("Hole");
+      let int = var("Int");
+      let float = var("Float");
+      let bool = var("Bool");
       let arrow = (t1, t2) => ctor2("Arrow", t1, t2);
       let sum = (t1, t2) => ctor2("Sum", t1, t2);
       let prod = ts => ctor("Prod", ts);
@@ -116,7 +116,7 @@ module Rt = {
     let inj_l = e => ctor1("L", e);
     let inj_r = e => ctor1("R", e);
 
-    let inj_l_pat = p => pat_ctor1("L", p);
-    let inj_r_pat = p => pat_ctor1("R", p);
+    let inj_l_pat = p => pctor1("L", p);
+    let inj_r_pat = p => pctor1("R", p);
   };
 };

@@ -34,14 +34,14 @@ let import: t => import;
 let ident: (t, ident) => ident;
 
 /**
-  [var fmdi x] is [Expr.mk_var(var(fmdi, x))].
+  [var fmdi x] is [Expr.var(var(fmdi, x))].
  */
 let var: (t, ident) => expr;
 
 /**
-  [pat_var fmdi x] is [Expr.mk_pat_var(var(fmdi, x))].
+  [pvar fmdi x] is [Expr.pvar(var(fmdi, x))].
  */
-let pat_var: (t, ident) => pat;
+let pvar: (t, ident) => pat;
 
 let ap: (t, ident, list(expr)) => expr;
 let ap1: (t, ident, expr) => expr;
@@ -56,9 +56,9 @@ let ctor2: (t, ident, expr, expr) => expr;
 let ctor3: (t, ident, expr, expr, expr) => expr;
 let ctor4: (t, ident, expr, expr, expr, expr) => expr;
 
-let pat_ctor: (t, ident, list(pat)) => pat;
-let pat_ctor0: (t, ident) => pat;
-let pat_ctor1: (t, ident, pat) => pat;
-let pat_ctor2: (t, ident, pat, pat) => pat;
-let pat_ctor3: (t, ident, pat, pat, pat) => pat;
-let pat_ctor4: (t, ident, pat, pat, pat, pat) => pat;
+let pctor: (t, ident, list(pat)) => pat;
+let pctor0: (t, ident) => pat;
+let pctor1: (t, ident, pat) => pat;
+let pctor2: (t, ident, pat, pat) => pat;
+let pctor3: (t, ident, pat, pat, pat) => pat;
+let pctor4: (t, ident, pat, pat, pat, pat) => pat;
