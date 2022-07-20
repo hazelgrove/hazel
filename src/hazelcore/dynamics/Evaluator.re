@@ -538,10 +538,10 @@ let rec evaluate_bind =
   f(r, state);
 }
 and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t => {
-  let state = EvaluatorState.take_fuel(state, 1);
+  let state = EvaluatorState.take_gas(state, 1);
   switch (d) {
-  | _ when EvaluatorState.out_of_fuel(state) => (
-      Indet(InvalidOperation(d, OutOfFuel)),
+  | _ when EvaluatorState.out_of_gas(state) => (
+      Indet(InvalidOperation(d, OutOfGas)),
       state,
     )
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
@@ -558,7 +558,7 @@ and evaluate = (d: DHExp.t, state: state): EvaluatorResult.t => {
       }
     )
   | FixF(x, _, d1) =>
-    let state = EvaluatorState.take_fuel(state, 1);
+    let state = EvaluatorState.take_gas(state, 1);
     evaluate(subst_var(d, x, d1), state);
   | Fun(_, _, _) => (BoxedValue(d), state)
   | Ap(d1, d2) =>

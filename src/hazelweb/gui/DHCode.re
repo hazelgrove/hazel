@@ -47,7 +47,7 @@ let view_of_layout =
                  ds,
                )
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
-             | OutOfFuel => ([with_cls("OutOfFuel", txt)], ds)
+             | OutOfGas => ([with_cls("OutOfGas", txt)], ds)
              | DivideByZero => ([with_cls("DivideByZero", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)

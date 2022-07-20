@@ -13,5 +13,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | OutOfFuel
+  | OutOfGas
   | DivideByZero;

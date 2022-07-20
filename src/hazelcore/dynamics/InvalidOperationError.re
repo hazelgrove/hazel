@@ -1,10 +1,10 @@
 [@deriving sexp]
 type t =
-  | OutOfFuel
+  | OutOfGas
   | DivideByZero;
 
 let err_msg = (err: t): string =>
   switch (err) {
-  | OutOfFuel => "Error: Recursion Limit Exceeded"
+  | OutOfGas => "Error: Recursion Limit Exceeded"
   | DivideByZero => "Error: Divide by Zero"
   };

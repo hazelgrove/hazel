@@ -1116,7 +1116,7 @@ h1 {
 }
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
-.DHCode .OutOfFuel,
+.DHCode .OutOfGas,
 .DHCode .DivideByZero {
   display: inline-block;
   position: relative;
@@ -1133,7 +1133,7 @@ h1 {
   background-color: rgba(255, 0, 0, 0.2);
 }
 
-.DHCode .OutOfFuel {
+.DHCode .OutOfGas {
   background-color: rgba(255, 255, 0, 0.2);
 }
 .DHCode .DivideByZero {

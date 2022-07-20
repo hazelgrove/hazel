@@ -269,9 +269,9 @@ let rec mk =
       | InvalidOperation(d, err) =>
         let decoration =
           switch (err) {
-          | OutOfFuel =>
+          | OutOfGas =>
             Doc.text(InvalidOperationError.err_msg(err))
-            |> annot(DHAnnot.OutOfFuel)
+            |> annot(DHAnnot.OutOfGas)
           | DivideByZero =>
             Doc.text(InvalidOperationError.err_msg(err))
             |> annot(DHAnnot.DivideByZero)

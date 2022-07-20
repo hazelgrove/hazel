@@ -4,7 +4,7 @@
 [@deriving sexp]
 type t = {
   step: int,
-  fuel: int,
+  gas: int,
 };
 
 /**
@@ -18,11 +18,11 @@ let init: t;
 let take_step: t => t;
 
 /**
- * {take_fuel state} decrements the amount of fuel in {state}.
+ * {take_gas state} decrements the amount of gas in {state}.
  */
-let take_fuel: (t, int) => t;
+let take_gas: (t, int) => t;
 
 /**
- * {out_of_fuel t} returns {true} if there is no more fuel.
+ * {out_of_gas t} returns {true} if there is no more gas.
  */
-let out_of_fuel: t => bool;
+let out_of_gas: t => bool;

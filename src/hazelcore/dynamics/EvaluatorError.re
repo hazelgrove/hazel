@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
-  | OutOfFuel
+  | OutOfGas
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
