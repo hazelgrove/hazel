@@ -5,6 +5,7 @@ export type VarMap<v> = Map.Map<Var, v>
 
 export type MetaVar = Int32
 export type MetaVarInst = Int32
+export type HoleEnvironment = VarMap<Ast>
 
 export enum HoleReason {
   TypeInconsistent,
@@ -48,8 +49,8 @@ export enum BinFloatOp {
 }
 
 export enum Ast {
-  EmptyHole(MetaVar, MetaVarInst, VarMap<Ast>),
-  NonEmptyHole(HoleReason, MetaVar, MetaVarInst, VarMap<Ast>, Ast),
+  EmptyHole(MetaVar, MetaVarInst, HoleEnvironment),
+  NonEmptyHole(HoleReason, MetaVar, MetaVarInst, HoleEnvironment, Ast),
   Cast(Ast, HTyp, HTyp),
   FailedCast(Ast, HTyp, HTyp),
   Ap(Ast, Ast),
