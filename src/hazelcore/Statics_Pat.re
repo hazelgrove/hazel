@@ -106,7 +106,10 @@ and syn_operand_internal =
     switch (pattern_syn) {
     | Moded => Var.check_valid(x, Some((unknown, ctx)))
     | Internal =>
-      Var.check_valid(x, Some((unknown, Contexts.extend_gamma(ctx, (x, ty)))));
+      Var.check_valid(
+        x,
+        Some((unknown, Contexts.extend_gamma(ctx, (x, unknown)))),
+      )
     }
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
@@ -938,26 +941,18 @@ and ana_fix_holes_operand_internal =
     }
   | TypeAnn(err, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
+    let (op, ctx, id_gen) =
+      ana_fix_holes_operand_internal(
+        ~pattern_syn,
+        ctx,
+        id_gen,
+        ~renumber_empty_holes,
+        op,
+        ty_ann,
+      );
     if (HTyp.consistent(ty, ty_ann)) {
-      let (op, ctx, id_gen) =
-        ana_fix_holes_operand_internal(
-          ~pattern_syn,
-          ctx,
-          id_gen,
-          ~renumber_empty_holes,
-          op,
-          ty_ann,
-        );
       (TypeAnn(NotInHole, op, ann), ctx, id_gen);
     } else {
-      let (op, _, _, id_gen) =
-        syn_fix_holes_operand(
-          ~pattern_syn,
-          ctx,
-          id_gen,
-          ~renumber_empty_holes,
-          op,
-        );
       let (u, id_gen) = IDGen.next_hole(id_gen);
       (
         UHPat.set_err_status_operand(
