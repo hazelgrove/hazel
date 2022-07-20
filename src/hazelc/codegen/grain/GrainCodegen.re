@@ -1,6 +1,7 @@
 open Sexplib.Std;
 
 open Grain.Expr;
+open Grain.Module;
 
 [@deriving sexp]
 type opts = {print_final_expr: bool};

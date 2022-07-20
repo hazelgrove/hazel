@@ -23,7 +23,7 @@
  */
 module type M = {
   let name: Expr.var;
-  let path: Expr.import_path;
+  let path: Module.import_path;
 };
 
 /* FIXME: Rename to MakeInner. */
@@ -83,7 +83,7 @@ module SizedNum = (X: SizedNumType) => {
         }
       );
 
-    let path = Expr.ImportStd(String.lowercase_ascii(name));
+    let path = Module.ImportStd(String.lowercase_ascii(name));
   });
 
   let add = mk_binary_ap("add");
@@ -150,7 +150,7 @@ module Float64 =
 module Map = {
   include Make({
     let name = "Map";
-    let path = Expr.ImportStd("map");
+    let path = Module.ImportStd("map");
   });
 
   /* Map.fromList */

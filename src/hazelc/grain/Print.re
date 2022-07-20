@@ -28,7 +28,7 @@ let print_lines = ss => ss |> String.concat("\n");
 let print_sep = (delim, ss) => ss |> String.concat(delim);
 let print_comma_sep = print_sep(", ");
 
-let rec print = ((tb, b): Expr.prog) => {
+let rec print = ((tb, b): Module.prog) => {
   let tb = print_top_block(tb);
   let b = print_block_nowrap(b);
   if (tb != "") {
@@ -38,17 +38,17 @@ let rec print = ((tb, b): Expr.prog) => {
   };
 }
 
-and print_top_block = (tb: Expr.top_block) => {
+and print_top_block = (tb: Module.top_block) => {
   tb |> List.map(print_top_statement) |> print_lines;
 }
 
-and print_top_statement = (tstmt: Expr.top_stmt) =>
+and print_top_statement = (tstmt: Module.top_stmt) =>
   switch (tstmt) {
   | TImport(name, path) => print_import(name, path)
   | TDecl(decl) => print_decl(decl)
   }
 
-and print_import = (name: Expr.var, path: Expr.import_path) => {
+and print_import = (name: Expr.var, path: Module.import_path) => {
   let path =
     switch (path) {
     | ImportStd(path) => path
@@ -58,18 +58,18 @@ and print_import = (name: Expr.var, path: Expr.import_path) => {
   sprintf("import %s from \"%s\"", name, path);
 }
 
-and print_decl = (decl: Expr.decl) =>
+and print_decl = (decl: Module.decl) =>
   switch (decl) {
   | DEnum(en) => print_enum(en)
   }
 
-and print_enum = ({name, type_vars, variants}: Expr.enum) => {
+and print_enum = ({name, type_vars, variants}: Module.enum) => {
   let type_vars =
     List.length(type_vars) == 0
       ? "" : type_vars |> print_comma_sep |> sprintf("<%s>");
   let variants =
     variants
-    |> List.map((variant: Expr.enum_variant) =>
+    |> List.map((variant: Module.enum_variant) =>
          if (List.length(variant.params) == 0) {
            variant.ctor;
          } else {

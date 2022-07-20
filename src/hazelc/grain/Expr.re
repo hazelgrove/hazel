@@ -4,40 +4,6 @@ open Sexplib.Std;
 type var = string;
 
 [@deriving sexp]
-type top_block = list(top_stmt)
-
-[@deriving sexp]
-and top_stmt =
-  | TImport(var, import_path)
-  | TDecl(decl)
-
-[@deriving sexp]
-and import_path =
-  | ImportStd(string)
-  | ImportRel(string)
-
-[@deriving sexp]
-and decl =
-  | DEnum(enum)
-
-[@deriving sexp]
-and enum = {
-  name: var,
-  type_vars: list(var),
-  variants: list(enum_variant),
-}
-
-[@deriving sexp]
-and enum_variant = {
-  ctor: var,
-  params: list(var),
-};
-
-module TopBlock = {
-  let join = tbs => List.concat(tbs);
-};
-
-[@deriving sexp]
 type bin_op =
   | OpAnd
   | OpOr
@@ -100,6 +66,3 @@ and rule =
 module Block = {
   let join = bs => List.concat(bs);
 };
-
-[@deriving sexp]
-type prog = (top_block, block);
