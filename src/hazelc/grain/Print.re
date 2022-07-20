@@ -84,14 +84,14 @@ and print_enum = ({name, type_vars, variants}: Module.enum) => {
 }
 
 and print_block_nowrap = (b: Expr.block) => {
-  b |> List.map(print_statement) |> print_lines;
+  b |> List.map(print_stmt) |> print_lines;
 }
 and print_block = (b: Expr.block) => {
   let s = print_block_nowrap(b);
   sprintf("{ %s }", s);
 }
 
-and print_statement = (stmt: Expr.stmt) =>
+and print_stmt = (stmt: Expr.stmt) =>
   switch (stmt) {
   | SLet(p, e) =>
     let p = print_pat(p);
