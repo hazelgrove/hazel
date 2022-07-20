@@ -2,7 +2,6 @@ open Sexplib.Std;
 
 [@deriving sexp]
 type t =
-  | OutOfGas
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
