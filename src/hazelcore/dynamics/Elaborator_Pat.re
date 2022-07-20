@@ -171,7 +171,7 @@ and syn_elab_operand =
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_syn) {
     | Moded => Elaborates(Var(x), unknown, ctx, delta)
-    | Unknown =>
+    | Internal =>
       let ty = unknown;
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Elaborates(Var(x), ty, ctx, delta);

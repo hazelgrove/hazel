@@ -3,24 +3,24 @@ open OptUtil.Syntax;
 [@deriving sexp]
 type pattern_syn =
   | Moded
-  | Unknown;
+  | Internal;
 
 let unknown: pattern_syn => HTyp.t =
   fun
   | Moded => Unknown(ModeSwitch)
-  | Unknown => Unknown(Internal);
+  | Internal => Unknown(Internal);
 
 let tuple_zip =
   Statics_common.tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
 
-let rec syn = syn_internal(~pattern_syn=Unknown)
+let rec syn = syn_internal(~pattern_syn=Internal)
 and syn_moded = (ctx: Contexts.t, p: UHPat.t): option(HTyp.t) =>
   Option.map(((a, _)) => a, syn_internal(ctx, p, ~pattern_syn=Moded))
 and syn_internal =
     (ctx: Contexts.t, p: UHPat.t, ~pattern_syn: pattern_syn)
     : option((HTyp.t, Contexts.t)) =>
   syn_opseq_internal(ctx, p, ~pattern_syn: pattern_syn)
-and syn_opseq = syn_opseq_internal(~pattern_syn=Unknown)
+and syn_opseq = syn_opseq_internal(~pattern_syn=Internal)
 and syn_opseq_internal =
     (
       ctx: Contexts.t,
@@ -29,7 +29,7 @@ and syn_opseq_internal =
     )
     : option((HTyp.t, Contexts.t)) =>
   syn_skel_internal(ctx, skel, seq, ~pattern_syn)
-and syn_skel = syn_skel_internal(~pattern_syn=Unknown)
+and syn_skel = syn_skel_internal(~pattern_syn=Internal)
 and syn_skel_internal =
     (
       ctx: Contexts.t,
@@ -69,7 +69,7 @@ and syn_skel_internal =
     (ty, ctx);
   };
 }
-and syn_operand = syn_operand_internal(~pattern_syn=Unknown)
+and syn_operand = syn_operand_internal(~pattern_syn=Internal)
 and syn_operand_internal =
     (ctx: Contexts.t, operand: UHPat.operand, ~pattern_syn: pattern_syn)
     : option((HTyp.t, Contexts.t)) => {
@@ -105,7 +105,7 @@ and syn_operand_internal =
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_syn) {
     | Moded => Some((unknown, ctx))
-    | Unknown =>
+    | Internal =>
       let ty = unknown;
       Var.check_valid(x, Some((ty, Contexts.extend_gamma(ctx, (x, ty)))));
     }
@@ -128,12 +128,12 @@ and syn_operand_internal =
     (ty_ann, op_ctx);
   };
 }
-and ana = ana_internal(~pattern_syn=Unknown)
+and ana = ana_internal(~pattern_syn=Internal)
 and ana_internal =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, ~pattern_syn: pattern_syn)
     : option(Contexts.t) =>
   ana_opseq_internal(ctx, p, ty, ~pattern_syn)
-and ana_opseq = ana_opseq_internal(~pattern_syn=Unknown)
+and ana_opseq = ana_opseq_internal(~pattern_syn=Internal)
 and ana_opseq_internal =
     (
       ctx: Contexts.t,
@@ -162,7 +162,7 @@ and ana_opseq_internal =
          Some(ctx),
        )
   }
-and ana_skel = ana_skel_internal(~pattern_syn=Unknown)
+and ana_skel = ana_skel_internal(~pattern_syn=Internal)
 and ana_skel_internal =
     (
       ctx: Contexts.t,
@@ -194,7 +194,7 @@ and ana_skel_internal =
     ana_skel_internal(ctx, skel2, seq, HTyp.List(ty_elt), ~pattern_syn);
   };
 }
-and ana_operand = ana_operand_internal(~pattern_syn=Unknown)
+and ana_operand = ana_operand_internal(~pattern_syn=Internal)
 and ana_operand_internal =
     (
       ctx: Contexts.t,
@@ -263,7 +263,7 @@ let rec syn_nth_type_mode_internal =
   syn_nth_type_mode'(~pattern_syn, ctx, n, skel, seq)
 and syn_nth_type_mode =
     (ctx: Contexts.t, n: int, opseq: UHPat.opseq): option(Statics.type_mode) =>
-  syn_nth_type_mode_internal(ctx, n, opseq, ~pattern_syn=Unknown)
+  syn_nth_type_mode_internal(ctx, n, opseq, ~pattern_syn=Internal)
 and syn_nth_type_mode' =
     (
       ~pattern_syn: pattern_syn,
@@ -303,7 +303,7 @@ and syn_nth_type_mode' =
   go(skel);
 }
 and ana_nth_type_mode = (ctx, n, opseq, ty) =>
-  ana_nth_type_mode_internal(ctx, n, opseq, ty, ~pattern_syn=Unknown)
+  ana_nth_type_mode_internal(ctx, n, opseq, ty, ~pattern_syn=Internal)
 and ana_nth_type_mode_internal =
     (
       ~pattern_syn: pattern_syn,
@@ -365,7 +365,7 @@ and ana_nth_type_mode' =
   go(skel, ty);
 };
 
-let rec syn_fix_holes = syn_fix_holes_internal(~pattern_syn=Unknown)
+let rec syn_fix_holes = syn_fix_holes_internal(~pattern_syn=Internal)
 and syn_fix_holes_internal =
     (
       ctx: Contexts.t,
@@ -586,7 +586,7 @@ and syn_fix_holes_operand =
     (UHPat.TypeAnn(NotInHole, op, ann), ty, ctx, id_gen);
   };
 }
-and ana_fix_holes = ana_fix_holes_internal(~pattern_syn=Unknown)
+and ana_fix_holes = ana_fix_holes_internal(~pattern_syn=Internal)
 and ana_fix_holes_internal =
     (
       ctx: Contexts.t,
@@ -605,7 +605,7 @@ and ana_fix_holes_internal =
     p,
     ty,
   )
-and ana_fix_holes_opseq = ana_fix_holes_opseq_internal(~pattern_syn=Unknown)
+and ana_fix_holes_opseq = ana_fix_holes_opseq_internal(~pattern_syn=Internal)
 and ana_fix_holes_opseq_internal =
     (
       ctx: Contexts.t,
@@ -841,7 +841,7 @@ and ana_fix_holes_skel =
   };
 }
 and ana_fix_holes_operand =
-  ana_fix_holes_operand_internal(~pattern_syn=Unknown)
+  ana_fix_holes_operand_internal(~pattern_syn=Internal)
 and ana_fix_holes_operand_internal =
     (
       ctx: Contexts.t,
@@ -989,7 +989,7 @@ let syn_fix_holes_z_internal =
   (zp, ty, ctx, id_gen);
 };
 
-let syn_fix_holes_z = syn_fix_holes_z_internal(~pattern_syn=Unknown);
+let syn_fix_holes_z = syn_fix_holes_z_internal(~pattern_syn=Internal);
 
 let ana_fix_holes_z_internal =
     (
@@ -1014,4 +1014,4 @@ let ana_fix_holes_z_internal =
   (zp, ctx, id_gen);
 };
 
-let ana_fix_holes_z = ana_fix_holes_z_internal(~pattern_syn=Unknown);
+let ana_fix_holes_z = ana_fix_holes_z_internal(~pattern_syn=Internal);

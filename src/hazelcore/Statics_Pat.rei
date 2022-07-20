@@ -8,7 +8,7 @@
 [@deriving sexp]
 type pattern_syn =
   | Moded
-  | Unknown;
+  | Internal;
 
 let unknown: pattern_syn => HTyp.t;
 

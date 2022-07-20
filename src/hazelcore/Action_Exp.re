@@ -1915,7 +1915,7 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, id_gen)));
     }
   | (_, FunZP(_, zp, body)) =>
-    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp, ~pattern_syn=Unknown)) {
+    switch (Action_Pat.syn_perform(ctx, id_gen, a, zp, ~pattern_syn=Internal)) {
     | Failed => Failed
     | CursorEscaped(side) =>
       syn_perform_operand(
@@ -2155,7 +2155,14 @@ and syn_perform_rules =
   /* Zipper */
   | (_, RuleZP(zp, clause)) =>
     switch (
-      Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty, ~pattern_syn=Unknown)
+      Action_Pat.ana_perform(
+        ctx,
+        id_gen,
+        a,
+        zp,
+        pat_ty,
+        ~pattern_syn=Internal,
+      )
     ) {
     | Failed => Failed
     | CursorEscaped(side) => escape(side)
@@ -2307,7 +2314,14 @@ and ana_perform_rules =
   /* Zipper */
   | (_, RuleZP(zp, clause)) =>
     switch (
-      Action_Pat.ana_perform(ctx, id_gen, a, zp, pat_ty, ~pattern_syn=Unknown)
+      Action_Pat.ana_perform(
+        ctx,
+        id_gen,
+        a,
+        zp,
+        pat_ty,
+        ~pattern_syn=Internal,
+      )
     ) {
     | Failed => Failed
     | CursorEscaped(side) => escape(side)
@@ -3493,7 +3507,7 @@ and ana_perform_operand_internal =
           a,
           zp,
           ty1_given,
-          ~pattern_syn=Unknown,
+          ~pattern_syn=Internal,
         )
       ) {
       | Failed => Failed
