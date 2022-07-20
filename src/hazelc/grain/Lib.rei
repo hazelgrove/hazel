@@ -2,7 +2,7 @@ open Expr;
 open Module;
 
 module type M = {
-  let name: var;
+  let name: ident;
   let path: import_path;
 };
 
@@ -14,26 +14,29 @@ module type META = {
 
   let import: import;
 
-  let ident: var => var;
-  let var: var => expr;
+  let ident: ident => ident;
+  let var: ident => expr;
+  let pat_var: ident => pat;
 
-  let ap: (var, list(expr)) => expr;
-  let ap1: (var, expr) => expr;
-  let ap2: (var, expr, expr) => expr;
-  let ap3: (var, expr, expr, expr) => expr;
-  let ap4: (var, expr, expr, expr, expr) => expr;
+  let ap: (ident, args) => expr;
+  let ap1: (ident, expr) => expr;
+  let ap2: (ident, expr, expr) => expr;
+  let ap3: (ident, expr, expr, expr) => expr;
+  let ap4: (ident, expr, expr, expr, expr) => expr;
 
-  let ctor: (var, list(expr)) => expr;
-  let ctor1: (var, expr) => expr;
-  let ctor2: (var, expr, expr) => expr;
-  let ctor3: (var, expr, expr, expr) => expr;
-  let ctor4: (var, expr, expr, expr, expr) => expr;
+  let ctor: (ident, args) => expr;
+  let ctor0: ident => expr;
+  let ctor1: (ident, expr) => expr;
+  let ctor2: (ident, expr, expr) => expr;
+  let ctor3: (ident, expr, expr, expr) => expr;
+  let ctor4: (ident, expr, expr, expr, expr) => expr;
 
-  let pat_ctor: (var, list(pat)) => pat;
-  let pat_ctor1: (var, pat) => pat;
-  let pat_ctor2: (var, pat, pat) => pat;
-  let pat_ctor3: (var, pat, pat, pat) => pat;
-  let pat_ctor4: (var, pat, pat, pat, pat) => pat;
+  let pat_ctor: (ident, params) => pat;
+  let pat_ctor0: ident => pat;
+  let pat_ctor1: (ident, pat) => pat;
+  let pat_ctor2: (ident, pat, pat) => pat;
+  let pat_ctor3: (ident, pat, pat, pat) => pat;
+  let pat_ctor4: (ident, pat, pat, pat, pat) => pat;
 };
 
 module Make: (M: M) => META;

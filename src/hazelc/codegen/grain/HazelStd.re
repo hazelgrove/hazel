@@ -1,8 +1,8 @@
 open Grain;
 
 module type M = {
-  let name: var;
-  let path: var;
+  let name: ident;
+  let path: string;
 };
 
 module Make = (M: M) => {

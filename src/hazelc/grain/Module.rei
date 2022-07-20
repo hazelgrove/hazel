@@ -9,7 +9,7 @@ and top_stmt =
   | TDecl(decl)
 
 [@deriving sexp]
-and import = (var, import_path)
+and import = (ident, import_path)
 
 [@deriving sexp]
 and import_path =
@@ -23,15 +23,15 @@ and decl =
 
 [@deriving sexp]
 and enum = {
-  name: var,
-  type_vars: list(var),
+  name: ident,
+  type_vars: list(ident),
   variants: list(enum_variant),
 }
 
 [@deriving sexp]
 and enum_variant = {
-  ctor: var,
-  params: list(var),
+  ctor: ident,
+  params: list(ident),
 };
 
 module TopBlock: {let join: list(top_block) => top_block;};

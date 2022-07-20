@@ -1,5 +1,5 @@
 [@deriving sexp]
-type var = string;
+type ident = string;
 
 [@deriving sexp]
 type bin_op =
@@ -14,7 +14,7 @@ type params = list(pat)
 [@deriving sexp]
 and pat =
   | PWild
-  | PVar(var)
+  | PVar(ident)
   | PInt(int)
   | PFloat(float)
   | PBool(bool)
@@ -22,7 +22,7 @@ and pat =
   | PCons(pat, pat)
   | PTuple(list(pat))
   | PTriv
-  | PCtor(var, list(pat))
+  | PCtor(ident, params)
 
 [@deriving sexp]
 and block = list(stmt)
@@ -47,10 +47,10 @@ and expr =
   | ETriv
   | ECons(expr, expr)
   | ETuple(list(expr))
-  | EVar(var)
+  | EVar(ident)
   | ELam(params, expr)
   | EAp(expr, args)
-  | ECtor(var, args)
+  | ECtor(ident, args)
   | EMatch(expr, list(rule))
   | EBlock(block)
 
@@ -63,5 +63,9 @@ and rule =
 
 module Block: {let join: list(block) => block;};
 
-let mk_var: var => expr;
+let mk_var: ident => expr;
 let mk_ap: (expr, args) => expr;
+let mk_ctor: (ident, args) => expr;
+
+let mk_pat_var: ident => pat;
+let mk_pat_ctor: (ident, params) => pat;

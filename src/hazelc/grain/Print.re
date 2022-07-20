@@ -66,23 +66,23 @@ and print_decl = (decl: Module.decl) =>
   }
 
 and print_enum = ({name, type_vars, variants}: Module.enum) => {
-  let type_vars =
+  let type_idents =
     List.length(type_vars) == 0
       ? "" : type_vars |> print_comma_sep |> sprintf("<%s>");
-  let variants =
+  let identiants =
     variants
-    |> List.map((variant: Module.enum_variant) =>
-         if (List.length(variant.params) == 0) {
-           variant.ctor;
+    |> List.map((identiant: Module.enum_variant) =>
+         if (List.length(identiant.params) == 0) {
+           identiant.ctor;
          } else {
-           variant.params
+           identiant.params
            |> print_comma_sep
-           |> sprintf("%s(%s)", variant.ctor);
+           |> sprintf("%s(%s)", identiant.ctor);
          }
        )
     |> print_comma_sep;
 
-  sprintf("enum %s%s { %s }", name, type_vars, variants);
+  sprintf("enum %s%s { %s }", name, type_idents, identiants);
 }
 
 and print_block_nowrap = (b: Expr.block) => {
@@ -123,7 +123,7 @@ and print_expr = (e: Expr.expr) =>
   | ETriv => Consts.voidlit
   | ECons(e1, e2) => print_cons(e1, e2)
   | ETuple(els) => print_tuple(els)
-  | EVar(var) => print_var(var)
+  | EVar(ident) => print_ident(ident)
   | ELam(params, e') => print_fn(params, e')
   | EAp(fn, args) => print_ap(fn, args)
   | ECtor(ctor, args) => print_ctor(ctor, args)
@@ -160,7 +160,7 @@ and print_tuple = (els: list(Expr.expr)) => {
   sprintf("(%s)", els);
 }
 
-and print_var = (var: Expr.var) => var
+and print_ident = (ident: Expr.ident) => ident
 and print_params = (ps: Expr.params) =>
   ps |> List.map(print_pat) |> String.concat(", ")
 
@@ -176,8 +176,8 @@ and print_ap = (fn: Expr.expr, args: Expr.args) => {
   sprintf("%s(%s)", fn, args);
 }
 
-and print_ctor = (ctor: Expr.var, args: Expr.args) => {
-  let ctor = print_var(ctor);
+and print_ctor = (ctor: Expr.ident, args: Expr.args) => {
+  let ctor = print_ident(ctor);
   let args = print_args(args);
   sprintf("%s(%s)", ctor, args);
 }
@@ -199,8 +199,8 @@ and print_rule = (rule: Expr.rule) => {
 and print_pat = (p: Expr.pat) => {
   switch (p) {
   | PWild => Consts.pat_wild
-  // TODO: Check if var conflicts with a keyword?
-  | PVar(var) => var
+  // TODO: Check if ident conflicts with a keyword?
+  | PVar(ident) => ident
   | PInt(i) => string_of_int(i)
   | PFloat(f) => string_of_float(f)
   | PBool(b) => string_of_bool(b)
