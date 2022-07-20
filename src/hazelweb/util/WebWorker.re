@@ -18,7 +18,7 @@ module type M = {
     type state;
     let init_state: unit => state;
 
-    let on_request: (state, Request.t) => (state, Lwt.t(Response.t));
+    let on_request: (state, Request.t) => (Lwt.t(Response.t), state);
   };
 };
 
@@ -35,8 +35,7 @@ module type ClientS = {
 
   let cancel_last: t => t;
 
-  /* FIXME: Reverse return member order. */
-  let request: (t, Request.t) => (t, Lwt.t(Response.t));
+  let request: (t, Request.t) => (Lwt.t(Response.t), t);
   let terminate: t => unit;
 };
 
@@ -93,7 +92,7 @@ module Make = (M: M) => {
         lwt,
         fun
         | Lwt.Canceled => ()
-        /* FIXME: Print error. */
+        /* FIXME: Propogate error. */
         | _exn => (),
       );
 
@@ -107,7 +106,7 @@ module Make = (M: M) => {
       /* Post request to worker. */
       worker##postMessage(req |> Request.serialize);
 
-      ({worker, last: Some(lwt)}, lwt);
+      (lwt, {worker, last: Some(lwt)});
     };
 
     let terminate = ({worker, _}: t) => worker##terminate;
@@ -131,7 +130,7 @@ module Make = (M: M) => {
       let req = req |> Request.deserialize;
 
       /* Pass callback. */
-      let (state, res) = req |> M.Worker.on_request(state);
+      let (res, state) = req |> M.Worker.on_request(state);
 
       /* Send response. */
       res >|= respond |> ignore;

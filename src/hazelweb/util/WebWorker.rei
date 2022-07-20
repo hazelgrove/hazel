@@ -38,7 +38,7 @@ module type M = {
     /**
        [on_request state req] is [(state, res)] where [res] is the deferred response.
      */
-    let on_request: (state, Request.t) => (state, Lwt.t(Response.t));
+    let on_request: (state, Request.t) => (Lwt.t(Response.t), state);
   };
 };
 
@@ -71,7 +71,7 @@ module type ClientS = {
   /**
      [request t req] is [(t, res)] where [res] is the deferred response.
    */
-  let request: (t, Request.t) => (t, Lwt.t(Response.t));
+  let request: (t, Request.t) => (Lwt.t(Response.t), t);
 
   /**
     [terminate t] terminates the worker.

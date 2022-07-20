@@ -46,7 +46,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
        );
 
   /* Run evaluation asynchronously, returning deferred update action. */
-  let (evaluator, deferred_result) =
+  let (deferred_result, evaluator) =
     model |> get_program |> ProgramEvaluator.get_result(model.evaluator);
   let model = model |> put_evaluator(evaluator);
   let deferred_action =

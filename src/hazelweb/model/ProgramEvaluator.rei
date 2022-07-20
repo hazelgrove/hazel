@@ -6,7 +6,7 @@ module type M = {
 
   let init: unit => t;
 
-  let get_result: (t, Program.t) => (t, deferred_result);
+  let get_result: (t, Program.t) => (deferred_result, t);
 };
 
 module Sync: M;

@@ -51,12 +51,5 @@ module Make = (W: WebWorker.S) => {
   };
 
   let request = ({pool, timeout}: t, req: Request.t) =>
-    TimedLwtPool.use(
-      pool,
-      timeout,
-      client => {
-        let (client, res) = req |> Client.request(client);
-        (res, client);
-      },
-    );
+    TimedLwtPool.use(pool, timeout, client => req |> Client.request(client));
 };
