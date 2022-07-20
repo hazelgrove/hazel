@@ -5,13 +5,13 @@ export enum MaybeIndet<t> {
   Indet(Ast),
 }
 
-export let isValue = m =>
+export let is_value = m =>
   match (m) {
     Value(_) => true,
     Indet(_) => false,
   }
 
-export let isIndet = m =>
+export let is_indet = m =>
   match (m) {
     Value(_) => false,
     Indet(_) => true,
