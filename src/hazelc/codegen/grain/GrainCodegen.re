@@ -116,7 +116,7 @@ and codegen_stmt = (stmt: Mir.stmt): t(Grain.stmt) => {
   | SLet(p, c) =>
     let* p' = codegen_pat(p);
     let* c' = codegen_comp(c);
-    SLet([p'], c') |> return;
+    SLet(p', c') |> return;
 
   | SLetRec(x, c) =>
     let* p' =
@@ -126,7 +126,7 @@ and codegen_stmt = (stmt: Mir.stmt): t(Grain.stmt) => {
         pat_label: dummy_label,
       });
     let* c' = codegen_comp(c);
-    SLetRec([p'], c') |> return;
+    SLetRec(p', c') |> return;
   };
 }
 

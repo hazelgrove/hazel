@@ -93,14 +93,14 @@ and print_block = (b: Expr.block) => {
 
 and print_statement = (stmt: Expr.stmt) =>
   switch (stmt) {
-  | SLet(params, e) =>
-    let params = print_params(params);
+  | SLet(p, e) =>
+    let p = print_pat(p);
     let e = print_expr(e);
-    sprintf("let %s = %s", params, e);
-  | SLetRec(params, e) =>
-    let params = print_params(params);
+    sprintf("let %s = %s", p, e);
+  | SLetRec(p, e) =>
+    let p = print_pat(p);
     let e = print_expr(e);
-    sprintf("let rec %s = %s", params, e);
+    sprintf("let rec %s = %s", p, e);
   | SExpr(e) => print_expr(e)
   }
 

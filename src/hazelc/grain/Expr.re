@@ -31,8 +31,8 @@ and block = list(stmt)
 
 [@deriving sexp]
 and stmt =
-  | SLet(params, expr)
-  | SLetRec(params, expr)
+  | SLet(pat, expr)
+  | SLetRec(pat, expr)
   | SExpr(expr)
 
 [@deriving sexp]
