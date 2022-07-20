@@ -104,10 +104,9 @@ and syn_operand_internal =
     Some((unknown, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     switch (pattern_syn) {
-    | Moded => Some((unknown, ctx))
+    | Moded => Var.check_valid(x, Some((unknown, ctx)))
     | Internal =>
-      let ty = unknown;
-      Var.check_valid(x, Some((ty, Contexts.extend_gamma(ctx, (x, ty)))));
+      Var.check_valid(x, Some((unknown, Contexts.extend_gamma(ctx, (x, ty)))));
     }
   | IntLit(NotInHole, _) => Some((Int, ctx))
   | FloatLit(NotInHole, _) => Some((Float, ctx))
