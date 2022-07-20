@@ -5,8 +5,11 @@ type top_block = list(top_stmt)
 
 [@deriving sexp]
 and top_stmt =
-  | TImport(var, import_path)
+  | TImport(import)
   | TDecl(decl)
+
+[@deriving sexp]
+and import = (var, import_path)
 
 [@deriving sexp]
 and import_path =
@@ -16,6 +19,7 @@ and import_path =
 [@deriving sexp]
 and decl =
   | DEnum(enum)
+  | DStmt(stmt)
 
 [@deriving sexp]
 and enum = {
@@ -34,3 +38,8 @@ module TopBlock: {let join: list(top_block) => top_block;};
 
 [@deriving sexp]
 type prog = (top_block, Expr.block);
+
+/**
+  [empty] is an empty module.
+ */
+let empty: prog;

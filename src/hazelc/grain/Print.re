@@ -44,15 +44,16 @@ and print_top_block = (tb: Module.top_block) => {
 
 and print_top_statement = (tstmt: Module.top_stmt) =>
   switch (tstmt) {
-  | TImport(name, path) => print_import(name, path)
+  | TImport(import) => print_import(import)
   | TDecl(decl) => print_decl(decl)
   }
 
-and print_import = (name: Expr.var, path: Module.import_path) => {
+and print_import = ((name, path): Module.import) => {
   let path =
     switch (path) {
     | ImportStd(path) => path
     // TODO: Pass lib base path as argument.
+    /* FIXME: Use Filename.concat. */
     | ImportRel(path) => sprintf("./%s", path)
     };
   sprintf("import %s from \"%s\"", name, path);
@@ -61,6 +62,7 @@ and print_import = (name: Expr.var, path: Module.import_path) => {
 and print_decl = (decl: Module.decl) =>
   switch (decl) {
   | DEnum(en) => print_enum(en)
+  | DStmt(stmt) => print_stmt(stmt)
   }
 
 and print_enum = ({name, type_vars, variants}: Module.enum) => {

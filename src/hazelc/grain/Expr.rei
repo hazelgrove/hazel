@@ -62,3 +62,6 @@ and rule =
   | RRule(pat, expr);
 
 module Block: {let join: list(block) => block;};
+
+let mk_var: var => expr;
+let mk_ap: (expr, args) => expr;

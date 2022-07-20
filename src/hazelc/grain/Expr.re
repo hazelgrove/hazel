@@ -66,3 +66,6 @@ and rule =
 module Block = {
   let join = bs => List.concat(bs);
 };
+
+let mk_var = x => EVar(x);
+let mk_ap = (fn, args) => EAp(fn, args);

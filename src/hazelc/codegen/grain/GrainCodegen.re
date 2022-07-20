@@ -66,7 +66,7 @@ module Imports = {
       |> add(float32, [Grain.Std.Float32.import])
       |> add(float64, [Grain.Std.Float32.import]);
 
-    imps |> List.map(((x, path)) => TImport(x, path));
+    imps |> List.map(((x, path)) => TImport((x, path)));
   };
 };
 
