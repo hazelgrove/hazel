@@ -85,12 +85,16 @@ let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
 let syn_fix_holes_zlines:
   (Contexts.t, IDGen.t, ZExp.zblock) => (ZExp.zblock, Contexts.t, IDGen.t);
+let syn_fix_holes_zopseq:
+  (Contexts.t, IDGen.t, ZExp.zopseq) => (ZExp.zopseq, HTyp.t, IDGen.t);
 let syn_fix_holes_zrules:
   (Contexts.t, IDGen.t, ZExp.zrules, HTyp.t) =>
   (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t);
 
 let ana_fix_holes_z:
   (Contexts.t, IDGen.t, ZExp.t, HTyp.t) => (ZExp.t, IDGen.t);
+let ana_fix_holes_zopseq:
+  (Contexts.t, IDGen.t, ZExp.zopseq, HTyp.t) => (ZExp.zopseq, IDGen.t);
 
 let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, IDGen.t);

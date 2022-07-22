@@ -353,11 +353,7 @@ and syn_elab_operand =
   | ListLit(err, None) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
-    Elaborates(
-      ListLit(0, 0, sigma, err, List(Hole), []),
-      List(Hole),
-      delta,
-    );
+    Elaborates(ListLit(0, 0, sigma, err, Hole, []), List(Hole), delta);
   | ListLit(err, Some(opseq)) =>
     let OpSeq(skel, seq) = opseq;
     let subskels = UHExp.get_tuple_elements(skel);
@@ -804,7 +800,7 @@ and ana_elab_operand =
       let gamma = Contexts.gamma(ctx);
       let sigma = Environment.id_env(gamma);
       Elaborates(
-        ListLit(0, 0, sigma, StandardErrStatus(NotInHole), List(Hole), []),
+        ListLit(0, 0, sigma, StandardErrStatus(NotInHole), Hole, []),
         List(elt_ty),
         delta,
       );
@@ -824,7 +820,7 @@ and ana_elab_operand =
             0,
             sigma,
             StandardErrStatus(NotInHole),
-            List(elt_ty),
+            elt_ty,
             elt_list,
           ),
           List(elt_ty),

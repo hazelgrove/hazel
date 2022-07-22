@@ -180,7 +180,7 @@ and syn_elab_operand =
     let (types, deltas) = List.split(syn_subskels(subskels));
     switch (Statics_common.lub(types)) {
     | Some(ty) => Elaborates(ListLit(ty, deltas), List(ty), ctx, delta)
-    | _ => Elaborates(ListLit(Hole, deltas), List(Hole), ctx, delta)
+    | None => DoesNotElaborate
     };
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {
@@ -416,7 +416,7 @@ and ana_elab_operand =
         let glb_ty = Statics_common.lub(tys);
         switch (glb_ty) {
         | Some(ty) => Elaborates(ListLit(ty, lst), List(ty), ctx, delta)
-        | None => Elaborates(ListLit(Hole, lst), List(Hole), ctx, delta)
+        | None => DoesNotElaborate
         };
       | DoesNotElaborate => DoesNotElaborate
       };

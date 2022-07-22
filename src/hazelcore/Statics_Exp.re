@@ -1375,6 +1375,23 @@ let syn_fix_holes_z =
   (ze, ty, id_gen);
 };
 
+let syn_fix_holes_zopseq =
+    (ctx: Contexts.t, id_gen: IDGen.t, zopseq: ZExp.zopseq)
+    : (ZExp.zopseq, HTyp.t, IDGen.t) => {
+  let path = CursorPath_Exp.of_zopseq(zopseq);
+  let (opseq, ty, id_gen) =
+    syn_fix_holes_opseq(ctx, id_gen, ZExp.erase_zopseq(zopseq));
+  let zopseq =
+    CursorPath_Exp.follow_opseq(path, opseq)
+    |> OptUtil.get(() =>
+         failwith(
+           "syn_fix_holes did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zopseq, ty, id_gen);
+};
+
 let syn_fix_holes_zlines =
     (ctx: Contexts.t, id_gen: IDGen.t, zlines: ZExp.zblock)
     : (ZExp.zblock, Contexts.t, IDGen.t) => {
@@ -1424,6 +1441,23 @@ let ana_fix_holes_z =
          )
        );
   (ze, id_gen);
+};
+
+let ana_fix_holes_zopseq =
+    (ctx: Contexts.t, id_gen: IDGen.t, zopseq: ZExp.zopseq, ty: HTyp.t)
+    : (ZExp.zopseq, IDGen.t) => {
+  let path = CursorPath_Exp.of_zopseq(zopseq);
+  let (opseq, id_gen) =
+    ana_fix_holes_opseq(ctx, id_gen, ZExp.erase_zopseq(zopseq), ty);
+  let zopseq =
+    CursorPath_Exp.follow_opseq(path, opseq)
+    |> OptUtil.get(() =>
+         failwith(
+           "ana_fix_holes did not preserve path "
+           ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
+         )
+       );
+  (zopseq, id_gen);
 };
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */

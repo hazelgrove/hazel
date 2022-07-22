@@ -1534,6 +1534,44 @@ and ana_perform_operand =
       );
     let new_zp = ZPat.ParenthesizedZ(zopseq) |> ZOpSeq.wrap;
     mk_ana_result(ctx, id_gen, new_zp, ty);
+
+  | (Construct(SListLit), CursorP(_, EmptyHole(_))) =>
+    let zp =
+      ZPat.CursorP(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
+      |> ZOpSeq.wrap;
+    switch (HTyp.matched_list(ty)) {
+    | Some(_) => Succeeded((zp, ctx, id_gen))
+    | None =>
+      let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
+      Succeeded((zp, ctx, id_gen));
+    };
+  | (Construct(SListLit), CursorP(_)) =>
+    switch (HTyp.matched_list(ty)) {
+    | Some(body_ty) =>
+      let (zbody, ctx, id_gen) =
+        Statics_Pat.ana_fix_holes_z(
+          ctx,
+          id_gen,
+          ZOpSeq.wrap(zoperand),
+          body_ty,
+        );
+      let zp =
+        ZOpSeq.wrap(ZPat.ListLitZ(StandardErrStatus(NotInHole), zbody));
+      Succeeded((zp, ctx, id_gen));
+    | None =>
+      let (zbody, _, ctx, id_gen) =
+        Statics_Pat.syn_fix_holes_z(ctx, id_gen, ZOpSeq.wrap(zoperand));
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
+      let zp =
+        ZOpSeq.wrap(
+          ZPat.ListLitZ(
+            StandardErrStatus(InHole(TypeInconsistent, u)),
+            zbody,
+          ),
+        );
+      Succeeded((zp, ctx, id_gen));
+    }
+
   | (Construct(SParenthesized), CursorP(_)) =>
     let new_zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(ZOpSeq.wrap(zoperand)));
     mk_ana_result(ctx, id_gen, new_zp, ty);
@@ -1717,17 +1755,6 @@ and ana_perform_operand =
         Succeeded((new_zopseq, ctx, id_gen));
       };
     }
-  /* Subsumption */
-  | (Construct(SListLit), _) =>
-    switch (syn_perform_operand(ctx, id_gen, a, zoperand)) {
-    | (Failed | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, id_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, id_gen));
-      } else {
-        let (zp, id_gen) = zp |> ZPat.mk_inconsistent(id_gen);
-        Succeeded((zp, ctx, id_gen));
-      }
-    }
+
   | (Init, _) => failwith("Init action should not be performed.")
   };
