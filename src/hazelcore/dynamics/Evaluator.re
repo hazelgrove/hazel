@@ -918,17 +918,14 @@ and evaluate_case =
   };
 }
 
-/* This function extends an ClosureEnvironment.t with new bindings
-   (an Environment.t from match()).  */
+/**
+  [evaluate_extend_env env' env] extends [env] with bindings from [env']
+ */
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : m(ClosureEnvironment.t) => {
   let map =
-    new_bindings
-    |> Environment.fold(
-         ((x, d), new_env) => Environment.extend(new_env, (x, d)),
-         ClosureEnvironment.map_of(to_extend),
-       );
+    Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
 
   with_eig(eig => {
     let (ei, eig) = EnvironmentIdGen.next(eig);
