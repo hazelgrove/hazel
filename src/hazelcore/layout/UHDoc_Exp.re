@@ -231,6 +231,27 @@ module Make = (Memo: Memo.S) => {
                    );
               UHDoc_common.mk_Case(scrut, rules);
             }
+          | TypFun(_, tp, body) =>
+            let p =
+              UHDoc_TPat.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=0,
+                tp,
+              );
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=1, body);
+            UHDoc_common.mk_TypFun(p, body);
+          | TypApp(_, exp, arg) =>
+            let exp = mk_child(~memoize, ~enforce_inline, ~child_step=0, exp);
+            let arg =
+              UHDoc_Typ.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=1,
+                arg,
+              );
+            UHDoc_common.mk_TypApp(exp, arg);
           }: UHDoc.t
         )
       )

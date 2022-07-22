@@ -46,6 +46,15 @@ module Delim = {
   let open_Fun = (): t => mk(~index=1, Doc_common.Delim.open_Fun);
   let close_Fun = (): t => mk(~index=2, Doc_common.Delim.close_Fun);
 
+  let sym_TypFun = (): t => mk(~index=0, Doc_common.Delim.sym_TypFun);
+  let open_TypFun = (): t => mk(~index=1, Doc_common.Delim.open_TypFun);
+  let close_TypFun = (): t => mk(~index=2, Doc_common.Delim.close_TypFun);
+
+  let sym_TypApp = (): t => mk(~index=0, "@");
+
+  let sym_Forall = (): t => mk(~index=0, Doc_common.Delim.sym_Forall);
+  let arrow_Forall = (): t => mk(~index=1, Doc_common.Delim.arrow_Forall);
+
   let open_Case = (): t => mk(~index=0, "case");
   let close_Case = (): t => mk(~index=1, "end");
   let close_Case_ann = (): t => mk(~index=1, "end :");
@@ -311,6 +320,49 @@ let mk_Fun = (p: formatted_child, body: formatted_child): t => {
   let close_group = Delim.close_Fun() |> annot_Tessera;
   Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
   |> annot_Operand(~sort=Exp);
+};
+
+let mk_TypFun = (tp: formatted_child, body: formatted_child): t => {
+  let open_group = {
+    let fun_delim = Delim.sym_TypFun();
+    let open_delim = Delim.open_TypFun();
+    Doc.hcats([
+      fun_delim,
+      tp |> pad_closed_child(~inline_padding=(space_, space_), ~sort=TPat),
+      open_delim,
+    ])
+    |> annot_Tessera;
+  };
+  let close_group = Delim.close_TypFun() |> annot_Tessera;
+  Doc.hcats([open_group, body |> pad_bidelimited_open_child, close_group])
+  |> annot_Operand(~sort=Exp);
+};
+
+let mk_TypApp = (exp: formatted_child, arg: formatted_child): t => {
+  Doc.hcats([
+    exp |> pad_right_delimited_open_child,
+    Doc.hcats([
+      Delim.sym_TypApp(),
+      arg |> pad_left_delimited_closed_child(~sort=Typ),
+    ])
+    |> annot_Tessera,
+  ])
+  |> annot_Operand(~sort=Exp);
+};
+
+let mk_Forall = (p: formatted_child, body: formatted_child): t => {
+  let open_group = {
+    let forall_delim = Delim.sym_Forall();
+    let arrow_delim = Delim.arrow_Forall();
+    Doc.hcats([
+      forall_delim,
+      p |> pad_closed_child(~inline_padding=(space_, space_), ~sort=TPat),
+      arrow_delim,
+    ])
+    |> annot_Tessera;
+  };
+  Doc.hcats([open_group, body |> pad_left_delimited_open_child])
+  |> annot_Operand(~sort=Typ);
 };
 
 let mk_Case = (scrut: formatted_child, rules: list(t)): t => {

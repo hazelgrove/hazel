@@ -132,6 +132,29 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         ]),
         parenthesize,
       );
+    | Forall(tp, ty_body) => (
+        hcats([
+          mk_delim("forall"),
+          annot(
+            HTypAnnot.Step(0),
+            // TODO: (poly) copied from DHDoc_TPat
+            // changed all DHAnnot to HTypAnnot
+            switch (tp) {
+            | TPat.EmptyHole =>
+              annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
+            | TPat.TyVar(NotInHole, name) => text(name)
+            | TPat.TyVar(InHole(_reason, _u), name) =>
+              annot(HTypAnnot.TyVarHole, text(name))
+            },
+          ),
+          hcats([
+            choices([linebreak(), space()]),
+            text(Unicode.typeArrowSym ++ " "),
+          ]),
+          annot(HTypAnnot.Step(1), mk'(HTyp.of_syntax(ty_body))),
+        ]),
+        parenthesize,
+      )
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
