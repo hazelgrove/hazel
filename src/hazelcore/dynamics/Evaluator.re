@@ -513,10 +513,10 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(DHExp.t) =>
   switch (op, b1) {
-  | (Or, true) => Some(BoxedValue(BoolLit(true)))
-  | (And, false) => Some(BoxedValue(BoolLit(false)))
+  | (Or, true) => Some(BoolLit(true))
+  | (And, false) => Some(BoolLit(false))
   | _ => None
   };
 
@@ -630,7 +630,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       switch (r1) {
       | BoxedValue(BoolLit(b1) as d1') =>
         switch (eval_bin_bool_op_short_circuit(op, b1)) {
-        | Some(b3) => b3 |> return
+        | Some(b3) => BoxedValue(b3) |> return
         | None =>
           let* r2 = evaluate(env, d2);
           switch (r2) {
