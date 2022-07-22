@@ -40,6 +40,10 @@ module Delim: {
   let open_Fun: DHDoc.t;
   let close_Fun: DHDoc.t;
 
+  let sym_TypFun: DHDoc.t;
+  let open_TypFun: DHDoc.t;
+  let close_TypFun: DHDoc.t;
+
   let fix_FixF: DHDoc.t;
   let colon_FixF: DHDoc.t;
   let open_FixF: DHDoc.t;
