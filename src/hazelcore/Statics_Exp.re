@@ -866,6 +866,45 @@ and syn_fix_holes_operand =
     let (body, ty_body, id_gen) =
       syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
     (Fun(NotInHole, p, body), HTyp.arrow(ty_p, ty_body), id_gen);
+  | TypFun(_, tp, body) =>
+    let (ctx_body, tp, id_gen) =
+      Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+    let (body, ty_body, id_gen) =
+      syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
+    (TypFun(NotInHole, tp, body), HTyp.forall(tp, ty_body), id_gen);
+  | TypApp(_, body, ty) =>
+    let (body, ty_body, id_gen) =
+      syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
+    switch (HTyp.matched_forall(ctx, ty_body)) {
+    | Some((tp, ty_def)) =>
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
+      | Some((hty, _k, _)) =>
+        let ty_body = HTyp.subst_tpat(ctx, ty_def, tp, hty);
+        (TypApp(NotInHole, body, ty), ty_body, id_gen);
+      // TODO: (poly) check correctness
+      | None => (TypApp(NotInHole, body, ty), HTyp.hole(), id_gen)
+      }
+    | None =>
+      // TODO: (poly) check correctness
+      (TypApp(NotInHole, body, ty), HTyp.hole(), id_gen)
+    };
+  // let (ty, k, id_gen) =
+  //   Statics_UHTyp.ana_fix_holes(ctx, id_gen, ty, Kind.Type);
+  // TypApp(NotInHole, body, ty);
+  // let (ty, k) =
+  //   switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
+  //   | Some((ty, k, _)) => (ty, k)
+  //   | None => (HTyp.hole(), Kind.Type)
+  //   };
+  // let tyvar_ref =
+  //   switch (tp) {
+  //   | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
+  //   | _ => None
+  //   };
+  // switch (tyvar_ref) {
+  // | Some(tyvar_ref) => (UHExp.subst_tyvars(), HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg)]), id_gen)
+  // | None => (e_nih, ty_def, id_gen)
+  // };
   | Inj(_, side, body) =>
     let (body, ty1, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
@@ -1263,6 +1302,9 @@ and ana_fix_holes_operand =
         id_gen,
       );
     }
+  // | TypFun(_, tp, body) =>
+  //   syn_fix_holes(ctx, idgen, ~renumber_empty_holes, body)
+  // | TypApp(_, body, ty_) =>
   | Inj(_, side, body) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | Some((ty1, ty2)) =>
