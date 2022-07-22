@@ -5,14 +5,13 @@ type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleInstanceParents.t)));
 
 let empty: t = MetaVarMap.empty;
 
-let num_unique_hcs = (hci: t, u: MetaVar.t): int => {
-  switch (hci |> MetaVarMap.find_opt(u)) {
-  | Some(hcs) => hcs |> List.length
-  | None => 0
-  };
-};
+let num_instances = (hii: t, u: MetaVar.t): int =>
+  hii
+  |> MetaVarMap.find_opt(u)
+  |> Option.map(his => List.length(his))
+  |> Option.value(~default=0);
 
-let find_hc_opt =
+let find_instance =
     (hci: t, u: MetaVar.t, i: HoleInstanceId.t)
     : option((ClosureEnvironment.t, HoleInstanceParents.t)) => {
   switch (hci |> MetaVarMap.find_opt(u)) {
@@ -21,8 +20,6 @@ let find_hc_opt =
   };
 };
 
-/* Add a parent to a hole. Assumes both the parent and the hole exist
-   in the HoleInstanceInfo_.t. */
 let add_parent =
     ((u, i): HoleInstance.t, parent: HoleInstanceParents.t_, hci: t): t => {
   let u_hole_closures = hci |> MetaVarMap.find(u);

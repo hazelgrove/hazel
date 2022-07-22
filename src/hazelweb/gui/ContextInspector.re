@@ -76,7 +76,7 @@ let view =
     Panel.view_of_other_title_bar("Closure above observed at ");
 
   let hci_summary = (hci, (u, i) as inst) => {
-    let num_instances = HoleInstanceInfo.num_unique_hcs(hci, u);
+    let num_instances = HoleInstanceInfo.num_instances(hci, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -248,7 +248,7 @@ let view =
         switch (selected_hole_closure) {
         | None => Environment.empty
         | Some((u, i)) =>
-          switch (HoleInstanceInfo.find_hc_opt(hci, u, i)) {
+          switch (HoleInstanceInfo.find_instance(hci, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
@@ -298,7 +298,7 @@ let view =
             ]
           | Some((u', i) as inst) =>
             if (MetaVar.eq(u, u')) {
-              switch (HoleInstanceInfo.find_hc_opt(hci, u, i)) {
+              switch (HoleInstanceInfo.find_instance(hci, u, i)) {
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
