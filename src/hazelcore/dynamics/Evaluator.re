@@ -304,7 +304,9 @@ and matches_cast_Cons =
       | None => DoesNotMatch
       | Some(lst) =>
         lst
-        |> List.map(((dp, d)) => matches(dp, d))
+        |> List.map(((dp, d)) =>
+             matches(dp, DHExp.apply_casts(d, elt_casts))
+           )
         |> List.fold_left(
              (match1, match2) =>
                switch (match1, match2) {

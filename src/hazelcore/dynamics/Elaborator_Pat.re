@@ -160,17 +160,11 @@ and syn_elab_operand =
   | ListLit(StandardErrStatus(NotInHole), None) =>
     Elaborates(ListLit(Hole, []), List(Hole), ctx, delta)
   | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
-  | ListLit(_, Some(opseq)) =>
-    let OpSeq(skel, seq) = opseq;
+  | ListLit(_, Some(OpSeq(skel, seq))) =>
     let subskels = UHPat.get_tuple_elements(skel);
     let rec syn_subskels = subskels =>
       switch (subskels) {
-      | [] => failwith("invalid")
-      | [hd] =>
-        switch (syn_elab_skel(ctx, delta, hd, seq)) {
-        | DoesNotElaborate => failwith("invalid")
-        | Elaborates(d1, ty1, _, _) => [(ty1, d1)]
-        }
+      | [] => []
       | [hd, ...tl] =>
         switch (syn_elab_skel(ctx, delta, hd, seq)) {
         | DoesNotElaborate => failwith("invalid")
