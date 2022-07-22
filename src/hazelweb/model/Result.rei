@@ -12,12 +12,12 @@
    from a previous evaluation result in fill-and-resume.
    */
 [@deriving sexp]
-type t = (DHExp.t, HoleClosureInfo.t, EvaluatorResult.t, EvaluatorState.t);
+type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp: t => DHExp.t;
-let get_hole_closure_info: t => HoleClosureInfo.t;
+let get_hole_closure_info: t => HoleInstanceInfo.t;
 let get_eval_state: t => EvaluatorState.t;
 
 /* See DHExp.fast_equals. Also checks that all environments
-   in the HoleClosureInfo.t are equal. */
+   in the HoleInstanceInfo.t are equal. */
 let fast_equals: (t, t) => bool;

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t_ = (Var.t, HoleClosure.t)
+type t_ = (Var.t, HoleInstance.t)
 and t = list(t_);
 
 let add_parent = (hcp: t, new_parent: t_) => [

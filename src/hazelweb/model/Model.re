@@ -154,7 +154,7 @@ let get_selected_hole_closure = model =>
     Some((u, i));
   };
 
-let select_hole_closure = ((u, i): HoleClosure.t, model: t): t =>
+let select_hole_closure = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
        let action = Program.move_to_hole(u, program);

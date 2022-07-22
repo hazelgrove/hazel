@@ -33,7 +33,7 @@ let view_of_layout =
                          ...selected ? ["selected"] : [],
                        ]),
                        Attr.on_click(_ =>
-                         inject(ModelAction.SelectHoleClosure(hc))
+                         inject(ModelAction.SelectHoleInstance(hc))
                        ),
                      ],
                      txt,
@@ -76,7 +76,7 @@ let view =
     (
       ~inject,
       ~settings: Settings.Evaluation.t,
-      ~selected_hole_closure: option(HoleClosure.t),
+      ~selected_hole_closure: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -100,7 +100,7 @@ let view_of_hole_closure =
       ~selected_hole_closure,
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
-      (u, i): HoleClosure.t,
+      (u, i): HoleInstance.t,
     )
     : Node.t => {
   view(

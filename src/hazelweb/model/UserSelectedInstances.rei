@@ -6,5 +6,5 @@
 type t;
 
 let init: t;
-let find_opt: (MetaVar.t, t) => option(HoleClosureId.t);
-let add: (MetaVar.t, HoleClosureId.t, t) => t;
+let find_opt: (MetaVar.t, t) => option(HoleInstanceId.t);
+let add: (MetaVar.t, HoleInstanceId.t, t) => t;

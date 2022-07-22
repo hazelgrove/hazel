@@ -100,7 +100,7 @@ let rec mk =
           ~settings: DHSettings.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_hole_closure: option(HoleClosure.t),
+          ~selected_hole_closure: option(HoleInstance.t),
           d: DHExp.t,
         )
         : DHDoc.t => {

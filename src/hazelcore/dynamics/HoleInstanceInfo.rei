@@ -2,9 +2,9 @@
    by a program's evaluation result. Used in the context
    inspector.
 
-   Constructed using HoleClosureInfo_.t. */
+   Constructed using HoleInstanceInfo_.t. */
 [@deriving sexp]
-type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleClosureParents.t)));
+type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleInstanceParents.t)));
 
 let empty: t;
 
@@ -14,7 +14,7 @@ let num_unique_hcs: (t, MetaVar.t) => int;
 /* Returns the information for a given hole and hole closure
    id, if found. */
 let find_hc_opt:
-  (t, MetaVar.t, HoleClosureId.t) =>
-  option((ClosureEnvironment.t, HoleClosureParents.t));
+  (t, MetaVar.t, HoleInstanceId.t) =>
+  option((ClosureEnvironment.t, HoleInstanceParents.t));
 
-let add_parent: (HoleClosure.t, HoleClosureParents.t_, t) => t;
+let add_parent: (HoleInstance.t, HoleInstanceParents.t_, t) => t;

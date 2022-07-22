@@ -887,7 +887,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
 and evaluate_case =
     (
       env: ClosureEnvironment.t,
-      inconsistent_info: option(HoleClosure.t),
+      inconsistent_info: option(HoleInstance.t),
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,

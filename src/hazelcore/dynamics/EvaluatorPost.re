@@ -14,11 +14,11 @@ type t = EnvironmentIdMap.t(ClosureEnvironment.t);
 let rec pp_uneval =
         (
           pe: t,
-          hci: HoleClosureInfo_.t,
+          hci: HoleInstanceInfo_.t,
           env: ClosureEnvironment.t,
           d: DHExp.t,
         )
-        : (t, HoleClosureInfo_.t, DHExp.t) =>
+        : (t, HoleInstanceInfo_.t, DHExp.t) =>
   switch (d) {
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
@@ -106,25 +106,25 @@ let rec pp_uneval =
      - Recurse through inner expression (if any).
      */
   | EmptyHole(u, _) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, EmptyHole(u, i)));
   | NonEmptyHole(reason, u, _, d') =>
     let (pe, hci, d') = pp_uneval(pe, hci, env, d');
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d')));
   | ExpandingKeyword(u, _, kw) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, ExpandingKeyword(u, i, kw)));
   | FreeVar(u, _, x) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, FreeVar(u, i, x)));
   | InvalidText(u, _, text) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (pe, hci, Closure(env, InvalidText(u, i, text)));
   | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
     let (pe, hci, scrut) = pp_uneval(pe, hci, env, scrut);
     let (pe, hci, rules) = pp_uneval_rules(pe, hci, env, rules);
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
     (
       pe,
       hci,
@@ -135,11 +135,11 @@ let rec pp_uneval =
 and pp_uneval_rules =
     (
       pe: t,
-      hci: HoleClosureInfo_.t,
+      hci: HoleInstanceInfo_.t,
       env: ClosureEnvironment.t,
       rules: list(DHExp.rule),
     )
-    : (t, HoleClosureInfo_.t, list(DHExp.rule)) =>
+    : (t, HoleInstanceInfo_.t, list(DHExp.rule)) =>
   List.fold_right(
     (DHExp.Rule(dp, d), (pe, hci, rules)) => {
       let (pe, hci, d') = pp_uneval(pe, hci, env, d);
@@ -150,8 +150,8 @@ and pp_uneval_rules =
   )
 
 and pp_eval =
-    (pe: t, hci: HoleClosureInfo_.t, d: DHExp.t)
-    : (t, HoleClosureInfo_.t, DHExp.t) =>
+    (pe: t, hci: HoleInstanceInfo_.t, d: DHExp.t)
+    : (t, HoleInstanceInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | BoolLit(_)
@@ -254,11 +254,11 @@ and pp_eval =
        */
     | NonEmptyHole(reason, u, _, d) =>
       let (pe, hci, d) = pp_eval(pe, hci, d);
-      let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+      let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
       (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d)));
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let (pe, hci, scrut) = pp_eval(pe, hci, scrut);
-      let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
+      let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
       (pe, hci, InconsistentBranches(u, i, Case(scrut, rules, case_i)));
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -271,8 +271,8 @@ and pp_eval =
   }
 
 and pp_eval_env =
-    (pe: t, hci: HoleClosureInfo_.t, env: ClosureEnvironment.t)
-    : (t, HoleClosureInfo_.t, ClosureEnvironment.t) => {
+    (pe: t, hci: HoleInstanceInfo_.t, env: ClosureEnvironment.t)
+    : (t, HoleInstanceInfo_.t, ClosureEnvironment.t) => {
   let ei = env |> ClosureEnvironment.id_of;
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hci, env)
@@ -300,8 +300,8 @@ and pp_eval_env =
 };
 
 let rec track_children_of_hole =
-        (hci: HoleClosureInfo.t, parent: HoleClosureParents.t_, d: DHExp.t)
-        : HoleClosureInfo.t =>
+        (hci: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
+        : HoleInstanceInfo.t =>
   switch (d) {
   | Triv
   | ListNil(_)
@@ -339,16 +339,16 @@ let rec track_children_of_hole =
   /* Hole types */
   | NonEmptyHole(_, u, i, d) =>
     let hci = track_children_of_hole(hci, parent, d);
-    hci |> HoleClosureInfo.add_parent((u, i), parent);
+    hci |> HoleInstanceInfo.add_parent((u, i), parent);
   | InconsistentBranches(u, i, Case(scrut, rules, _)) =>
     let hci = track_children_of_hole(hci, parent, scrut);
     let hci = track_children_of_hole_rules(hci, parent, rules);
-    hci |> HoleClosureInfo.add_parent((u, i), parent);
+    hci |> HoleInstanceInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
   | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
-    hci |> HoleClosureInfo.add_parent((u, i), parent)
+    hci |> HoleInstanceInfo.add_parent((u, i), parent)
 
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for
@@ -358,11 +358,11 @@ let rec track_children_of_hole =
 
 and track_children_of_hole_rules =
     (
-      hci: HoleClosureInfo.t,
-      parent: HoleClosureParents.t_,
+      hci: HoleInstanceInfo.t,
+      parent: HoleInstanceParents.t_,
       rules: list(DHExp.rule),
     )
-    : HoleClosureInfo.t =>
+    : HoleInstanceInfo.t =>
   List.fold_right(
     (DHExp.Rule(_, d), hci) => track_children_of_hole(hci, parent, d),
     rules,
@@ -370,8 +370,8 @@ and track_children_of_hole_rules =
   );
 
 /* Driver for hole parent tracking; iterate through all hole closures
-   in the HoleClosureInfo, and call `track_children_of_hole` on them. */
-let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
+   in the HoleInstanceInfo, and call `track_children_of_hole` on them. */
+let track_children = (hci: HoleInstanceInfo.t): HoleInstanceInfo.t =>
   MetaVarMap.fold(
     (u, hcs, hci) =>
       List.fold_right(
@@ -395,17 +395,17 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
     hci,
   );
 
-let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
+let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
   let (_, hci, d) =
-    pp_eval(EnvironmentIdMap.empty, HoleClosureInfo_.empty, d);
+    pp_eval(EnvironmentIdMap.empty, HoleInstanceInfo_.empty, d);
 
-  /* Convert HoleClosureInfo_.t to HoleClosureInfo.t */
-  let hci = hci |> HoleClosureInfo_.to_hole_closure_info;
+  /* Convert HoleInstanceInfo_.t to HoleInstanceInfo.t */
+  let hci = hci |> HoleInstanceInfo_.to_hole_closure_info;
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
-  let (u_result, _) = HoleClosure.result_hc;
+  let (u_result, _) = HoleInstance.result_hc;
   let hci =
     MetaVarMap.add(
       u_result,

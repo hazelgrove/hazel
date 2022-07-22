@@ -4,7 +4,7 @@
    */
 
 [@deriving sexp]
-type t_ = (Var.t, HoleClosure.t)
+type t_ = (Var.t, HoleInstance.t)
 and t = list(t_);
 
 let add_parent: (t, t_) => t;

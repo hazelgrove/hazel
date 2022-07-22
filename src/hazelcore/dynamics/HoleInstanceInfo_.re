@@ -2,23 +2,23 @@
 type t =
   MetaVarMap.t(
     EnvironmentIdMap.t(
-      (HoleClosureId.t, ClosureEnvironment.t, HoleClosureParents.t),
+      (HoleInstanceId.t, ClosureEnvironment.t, HoleInstanceParents.t),
     ),
   );
 
 let empty: t = MetaVarMap.empty;
 
 let number_hole_closure =
-    (hci: t, u: MetaVar.t, env: ClosureEnvironment.t): (t, HoleClosureId.t) => {
+    (hci: t, u: MetaVar.t, env: ClosureEnvironment.t): (t, HoleInstanceId.t) => {
   let ei = env |> ClosureEnvironment.id_of;
   switch (hci |> MetaVarMap.find_opt(u)) {
-  /* Hole already exists in the HoleClosureInfo_.t */
+  /* Hole already exists in the HoleInstanceInfo_.t */
   | Some(hcs) =>
     switch (hcs |> EnvironmentIdMap.find_opt(ei)) {
-    /* Hole closure already exists in the HoleClosureInfo_.t, simply
+    /* Hole closure already exists in the HoleInstanceInfo_.t, simply
        return the hole closure number */
     | Some((i, _, _)) => (hci, i)
-    /* Hole exists in the HoleClosureInfo_.t but closure doesn't.
+    /* Hole exists in the HoleInstanceInfo_.t but closure doesn't.
        Create a new hole closure with closure id equal to the number
        of unique hole closures for the hole. Return a None environment */
     | None =>
@@ -29,7 +29,7 @@ let number_hole_closure =
         i,
       );
     }
-  /* Hole doesn't exist in the HoleClosureInfo_.t */
+  /* Hole doesn't exist in the HoleInstanceInfo_.t */
   | None => (
       hci |> MetaVarMap.add(u, EnvironmentIdMap.singleton(ei, (0, env, []))),
       0,
@@ -37,7 +37,7 @@ let number_hole_closure =
   };
 };
 
-let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
+let to_hole_closure_info = (hci: t): HoleInstanceInfo.t =>
   /* For each hole, arrange closures in order of increasing hole
      closure id. */
   hci
@@ -45,7 +45,7 @@ let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
        (
          hcs:
            EnvironmentIdMap.t(
-             (HoleClosureId.t, ClosureEnvironment.t, HoleClosureParents.t),
+             (HoleInstanceId.t, ClosureEnvironment.t, HoleInstanceParents.t),
            ),
        ) =>
        hcs
