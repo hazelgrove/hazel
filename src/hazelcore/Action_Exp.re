@@ -1174,7 +1174,7 @@ and syn_perform_line =
     | Succeeded((new_zp, _, id_gen)) =>
       // NOTE: Need to fix holes since ana_perform may have created
       // holes if ty_def is inconsistent with pattern type
-      let (new_zp, ty_p, _, id_gen) =
+      let (new_zp, ty_p, _, id_gen, _) =
         Statics_Pat.syn_fix_holes_z(ctx, id_gen, new_zp);
       let ty_p = HTyp.rescope(ctx, ty_p);
       let p = ZPat.erase(new_zp);
@@ -1189,7 +1189,7 @@ and syn_perform_line =
   | (_, LetLineZE(p, zdef)) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => Failed
-    | Some((ty_p, _)) =>
+    | Some((ty_p, _, _)) =>
       let def = ZExp.erase(zdef);
       let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       switch (ana_perform(def_ctx, a, (zdef, id_gen), ty_p)) {
@@ -1670,7 +1670,7 @@ and syn_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Fun(_, p, body))) =>
-    let (p, body_ctx, id_gen) =
+    let (p, body_ctx, id_gen, _) =
       Statics_Pat.ana_fix_holes(ctx, id_gen, p, HTyp.hole());
     let (body, body_ty, id_gen) =
       Statics_Exp.syn_fix_holes(body_ctx, id_gen, body);
@@ -1991,7 +1991,7 @@ and syn_perform_operand =
     | Some((ty_p, ty_body)) =>
       switch (Statics_Pat.syn(ctx, p)) {
       | None => Failed
-      | Some((_, body_ctx)) =>
+      | Some((_, body_ctx, _)) =>
         switch (syn_perform(body_ctx, a, (zbody, ty_body, id_gen))) {
         | Failed => Failed
         | CursorEscaped(side) =>
@@ -2044,7 +2044,7 @@ and syn_perform_operand =
           (zoperand, ty, id_gen),
         )
       | Succeeded((zscrut, ty1, id_gen)) =>
-        let (rules, id_gen, rule_types, common_type) =
+        let (rules, id_gen, rule_types, common_type, xis) =
           Statics_Exp.syn_fix_holes_rules(ctx, id_gen, rules, ty1);
         switch (common_type) {
         | None =>
@@ -2055,10 +2055,7 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.hole(), id_gen)));
         | Some(ty) =>
-          let pats = UHExp.get_pats(rules);
-          let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
-          let flags = Incon.generate_redundancy_list(cons);
-          let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+          let flags = Incon.generate_redundancy_list(xis);
           let (u, id_gen) = IDGen.next_hole(id_gen);
           let new_rules =
             List.map2(
@@ -2075,7 +2072,9 @@ and syn_perform_operand =
               flags,
             );
           let (case_err, id_gen) =
-            if (Incon.is_exhaustive(con)) {
+            if (Incon.is_exhaustive(
+                  Constraints.or_constraints(List.rev(xis)),
+                )) {
               (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
             } else {
               let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -2099,7 +2098,7 @@ and syn_perform_operand =
           (zoperand, ty, id_gen),
         )
       | Succeeded((new_zrules, id_gen)) =>
-        let (new_zrules, rule_types, common_type, id_gen) =
+        let (new_zrules, rule_types, common_type, id_gen, xis) =
           Statics_Exp.syn_fix_holes_zrules(ctx, id_gen, new_zrules, pat_ty);
         switch (common_type) {
         | None =>
@@ -2110,11 +2109,7 @@ and syn_perform_operand =
             );
           Succeeded(SynDone((new_ze, HTyp.hole(), id_gen)));
         | Some(ty) =>
-          let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
-          let cons =
-            Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
-          let flags = Incon.generate_redundancy_list(cons);
-          let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+          let flags = Incon.generate_redundancy_list(xis);
           let (u, id_gen) = IDGen.next_hole(id_gen);
           let (new_zrules, _) =
             List.fold_left(
@@ -2131,7 +2126,9 @@ and syn_perform_operand =
               flags,
             );
           let (case_err, id_gen) =
-            if (Incon.is_exhaustive(con)) {
+            if (Incon.is_exhaustive(
+                  Constraints.or_constraints(List.rev(xis)),
+                )) {
               (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
             } else {
               let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -2275,7 +2272,7 @@ and syn_perform_rules =
   | (_, RuleZE(err, p, zclause)) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => Failed
-    | Some(ctx) =>
+    | Some((ctx, _)) =>
       switch (syn_perform(ctx, a, (zclause, pat_ty, id_gen))) {
       | Failed => Failed
       | CursorEscaped(side) => escape(side)
@@ -2427,7 +2424,7 @@ and ana_perform_rules =
   | (_, RuleZE(err, p, zclause)) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => Failed
-    | Some(ctx) =>
+    | Some((ctx, _)) =>
       switch (ana_perform(ctx, a, (zclause, id_gen), clause_ty)) {
       | Failed => Failed
       | CursorEscaped(side) => escape(side)
@@ -3241,7 +3238,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
-      let (p, body_ctx, id_gen) =
+      let (p, body_ctx, id_gen, _) =
         Statics_Pat.ana_fix_holes(ctx, id_gen, p, ty1);
       let (body, id_gen) =
         Statics_Exp.ana_fix_holes(body_ctx, id_gen, body, ty2);
@@ -3605,7 +3602,7 @@ and ana_perform_operand =
     | Some((ty1_given, ty2)) =>
       switch (Statics_Pat.ana(ctx, p, ty1_given)) {
       | None => Failed
-      | Some(ctx_body) =>
+      | Some((ctx_body, _)) =>
         switch (ana_perform(ctx_body, a, (zbody, id_gen), ty2)) {
         | Failed => Failed
         | CursorEscaped(side) =>
@@ -3654,12 +3651,9 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((zscrut, ty1, id_gen)) =>
-        let (rules, id_gen) =
+        let (rules, id_gen, xis) =
           Statics_Exp.ana_fix_holes_rules(ctx, id_gen, rules, ty1, ty);
-        let pats = UHExp.get_pats(rules);
-        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, ty1);
-        let flags = Incon.generate_redundancy_list(cons);
-        let con = Statics_Pat.generate_one_constraints(ctx, pats, ty1);
+        let flags = Incon.generate_redundancy_list(xis);
         let (u, id_gen) = IDGen.next_hole(id_gen);
         let new_rules =
           List.map2(
@@ -3671,7 +3665,7 @@ and ana_perform_operand =
             flags,
           );
         let (case_err, id_gen) =
-          if (Incon.is_exhaustive(con)) {
+          if (Incon.is_exhaustive(Constraints.or_constraints(List.rev(xis)))) {
             (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
           } else {
             let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -3695,7 +3689,7 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((new_zrules, id_gen)) =>
-        let (new_zrules, id_gen) =
+        let (new_zrules, id_gen, xis) =
           Statics_Exp.ana_fix_holes_zrules(
             ctx,
             id_gen,
@@ -3703,10 +3697,7 @@ and ana_perform_operand =
             pat_ty,
             ty,
           );
-        let pats = UHExp.get_pats(new_zrules |> ZExp.erase_zrules);
-        let cons = Statics_Pat.generate_rules_constraints(ctx, pats, pat_ty);
-        let flags = Incon.generate_redundancy_list(cons);
-        let con = Statics_Pat.generate_one_constraints(ctx, pats, pat_ty);
+        let flags = Incon.generate_redundancy_list(xis);
         let (u, id_gen) = IDGen.next_hole(id_gen);
         let (new_zrules, _) =
           List.fold_left(
@@ -3723,7 +3714,7 @@ and ana_perform_operand =
             flags,
           );
         let (case_err, id_gen) =
-          if (Incon.is_exhaustive(con)) {
+          if (Incon.is_exhaustive(Constraints.or_constraints(List.rev(xis)))) {
             (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
           } else {
             let (u, id_gen) = IDGen.next_hole(id_gen);

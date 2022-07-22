@@ -22,8 +22,11 @@ let syn_lines: (Context.t, list(UHExp.line)) => option(Context.t);
 let syn_opseq: (Context.t, UHExp.opseq) => option(HTyp.t);
 let syn_skel: (Context.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
 let syn_operand: (Context.t, UHExp.operand) => option(HTyp.t);
-let syn_rules: (Context.t, UHExp.rules, HTyp.t) => option(HTyp.t);
-let syn_rule: (Context.t, UHExp.rule, HTyp.t) => option(HTyp.t);
+let syn_rules:
+  (Context.t, UHExp.rules, HTyp.t) => option((HTyp.t, Constraints.t));
+let syn_rule:
+  (Context.t, UHExp.rule, HTyp.t, Constraints.t) =>
+  option((HTyp.t, Constraints.t));
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
@@ -50,7 +53,7 @@ let syn_fix_holes_opseq:
   (UHExp.opseq, HTyp.t, IDGen.t);
 let syn_fix_holes_rules:
   (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.rules, HTyp.t) =>
-  (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t));
+  (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t), list(Constraints.t));
 
 /**
  * Given a pattern `e` in analytic position under context `ctx`,
@@ -76,7 +79,7 @@ let ana_fix_holes_rules:
     HTyp.t,
     HTyp.t
   ) =>
-  (UHExp.rules, IDGen.t);
+  (UHExp.rules, IDGen.t, list(Constraints.t));
 
 let syn_fix_holes_z:
   (Context.t, IDGen.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
@@ -84,12 +87,13 @@ let syn_fix_holes_zlines:
   (Context.t, IDGen.t, ZExp.zblock) => (ZExp.zblock, Context.t, IDGen.t);
 let syn_fix_holes_zrules:
   (Context.t, IDGen.t, ZExp.zrules, HTyp.t) =>
-  (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t);
+  (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t, list(Constraints.t));
 
 let ana_fix_holes_z:
   (Context.t, IDGen.t, ZExp.t, HTyp.t) => (ZExp.t, IDGen.t);
 let ana_fix_holes_zrules:
-  (Context.t, IDGen.t, ZExp.zrules, HTyp.t, HTyp.t) => (ZExp.zrules, IDGen.t);
+  (Context.t, IDGen.t, ZExp.zrules, HTyp.t, HTyp.t) =>
+  (ZExp.zrules, IDGen.t, list(Constraints.t));
 
 let fix_and_renumber_holes:
   (Context.t, UHExp.t) => (UHExp.t, HTyp.t, IDGen.t);

@@ -77,7 +77,7 @@ and syn_cursor_info_zopseq =
            | Some((rev_tys, ctx)) =>
              switch (Statics_Pat.syn_skel(ctx, skel, seq)) {
              | None => None
-             | Some((ty, ctx)) => Some(([ty, ...rev_tys], ctx))
+             | Some((ty, ctx, _)) => Some(([ty, ...rev_tys], ctx))
              }
            },
          Some(([], ctx)),
@@ -104,7 +104,7 @@ and syn_cursor_info_zopseq =
              | None => None
              | Some(ctx) =>
                Statics_Pat.syn_skel(ctx, skel, seq)
-               |> Option.map(((_, ctx)) => ctx)
+               |> Option.map(((_, ctx, _)) => ctx)
              },
            Some(ctx),
          );
@@ -138,7 +138,7 @@ and syn_cursor_info_skel =
       )
     | ZOperator(_) =>
       Statics_Pat.syn_skel(ctx, skel, seq)
-      |> Option.map(((ty, _)) => {
+      |> Option.map(((ty, _, _)) => {
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatSynthesized(ty),
@@ -162,7 +162,7 @@ and syn_cursor_info_skel =
       | None =>
         switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole())) {
         | None => None
-        | Some(ctx) =>
+        | Some((ctx, _)) =>
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole())
         }
       }
@@ -172,7 +172,7 @@ and syn_cursor_info_skel =
       | None =>
         switch (Statics_Pat.syn_skel(ctx, skel1, seq)) {
         | None => None
-        | Some((ty_elt, ctx)) =>
+        | Some((ty_elt, ctx, _)) =>
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.list(ty_elt))
         }
       }
@@ -195,7 +195,7 @@ and syn_cursor_info_zoperand =
     )
   | CursorP(_, Var(NotInHole, NotInVarHole, x) as p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) => {
+    |> Option.map(((ty, _, _)) => {
          CursorInfo_common.CursorOnDeferredVarPat(
            uses =>
              CursorInfo_common.mk(
@@ -209,7 +209,7 @@ and syn_cursor_info_zoperand =
        })
   | CursorP(_, p) =>
     Statics_Pat.syn_operand(ctx, p)
-    |> Option.map(((ty, _)) => {
+    |> Option.map(((ty, _, _)) => {
          CursorInfo_common.CursorNotOnDeferredVarPat(
            CursorInfo_common.mk(
              PatSynthesized(ty),
@@ -285,7 +285,7 @@ and ana_cursor_info_zopseq =
     | InHole(TypeInconsistent, _) =>
       let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
       Statics_Pat.syn_opseq(ctx, opseq')
-      |> Option.map(((ty', _)) => {
+      |> Option.map(((ty', _, _)) => {
            CursorInfo_common.CursorNotOnDeferredVarPat(
              CursorInfo_common.mk(
                PatAnaTypeInconsistent(ty, ty'),
@@ -314,7 +314,8 @@ and ana_cursor_info_zopseq =
              (opt_ctx, (skel, ty)) =>
                switch (opt_ctx) {
                | None => None
-               | Some(ctx) => Statics_Pat.ana_skel(ctx, skel, seq, ty)
+               | Some(ctx) =>
+                 Statics_Pat.ana_skel(ctx, skel, seq, ty) |> Option.map(fst)
                },
              Some(ctx),
            );
@@ -375,7 +376,7 @@ and ana_cursor_info_skel =
       | InHole(TypeInconsistent, _) =>
         let opseq' = UHPat.set_err_status_opseq(NotInHole, opseq);
         Statics_Pat.syn_opseq(ctx, opseq')
-        |> Option.map(((ty', _)) => {
+        |> Option.map(((ty', _, _)) => {
              CursorInfo_common.CursorNotOnDeferredVarPat(
                CursorInfo_common.mk(
                  PatAnaTypeInconsistent(ty, ty'),
@@ -402,7 +403,7 @@ and ana_cursor_info_skel =
       | None =>
         switch (Statics_Pat.ana_skel(ctx, skel1, seq, HTyp.hole())) {
         | None => None
-        | Some(ctx) =>
+        | Some((ctx, _)) =>
           ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.hole())
         }
       }
@@ -415,7 +416,7 @@ and ana_cursor_info_skel =
         | None =>
           switch (Statics_Pat.ana_skel(ctx, skel1, seq, ty_elt)) {
           | None => None
-          | Some(ctx) =>
+          | Some((ctx, _)) =>
             ana_cursor_info_skel(~steps, ctx, skel2, zseq, HTyp.list(ty_elt))
           }
         }
@@ -458,7 +459,7 @@ and ana_cursor_info_zoperand =
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       switch (Statics_Pat.syn_operand(ctx, operand')) {
       | None => None
-      | Some((ty', _)) =>
+      | Some((ty', _, _)) =>
         Some(
           CursorNotOnDeferredVarPat(
             CursorInfo_common.mk(

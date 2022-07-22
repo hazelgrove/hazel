@@ -81,7 +81,7 @@ and syn_elab_line =
   | LetLine(p, def) =>
     switch (Statics_Pat.syn(ctx, p)) {
     | None => LinesDoNotElaborate
-    | Some((ty_p, _)) =>
+    | Some((ty_p, _, _)) =>
       let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       let ty1 = HTyp.rescope(ctx1, ty_p);
       switch (ana_elab(ctx1, delta, def, ty1)) {
@@ -414,7 +414,7 @@ and syn_elab_rules =
     : option((list(DHExp.rule), HTyp.t, Delta.t)) =>
   switch (Statics_Exp.syn_rules(ctx, rules, pat_ty)) {
   | None => None
-  | Some(glb) =>
+  | Some((glb, _)) =>
     let elabed_rule_info =
       List.fold_left(
         (b, r) =>
@@ -718,7 +718,7 @@ and ana_elab_operand =
       let ty1_ann =
         switch (Statics_Pat.syn(ctx, p)) {
         | None => ty1_given
-        | Some((ty_p, _)) => ty_p
+        | Some((ty_p, _, _)) => ty_p
         };
       switch (HTyp.consistent(ctx, ty1_ann, ty1_given)) {
       | false => DoesNotElaborate

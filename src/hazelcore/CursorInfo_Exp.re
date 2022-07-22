@@ -352,7 +352,7 @@ and syn_cursor_info_line =
   | LetLineZE(p, zdef) =>
     let def = ZExp.erase(zdef);
     let def_ctx = Statics_Exp.extend_let_def_ctx(ctx, p, def);
-    let* (ty_p, _) = Statics_Pat.syn(ctx, p);
+    let* (ty_p, _, _) = Statics_Pat.syn(ctx, p);
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   | TyAliasLineP(zp, _) =>
@@ -592,7 +592,7 @@ and syn_cursor_info_zoperand =
     | CursorOnDeferredTyVarPat(_) => failwith("deferred impossible")
     };
   | FunZE(_, p, zbody) =>
-    let* (_, body_ctx) = Statics_Pat.syn_opseq(ctx, p);
+    let* (_, body_ctx, _) = Statics_Pat.syn_opseq(ctx, p);
     syn_cursor_info(~steps=steps @ [1], body_ctx, zbody);
   | InjZ(_, _, zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | CaseZE(_, zscrut, rules) =>
@@ -620,15 +620,17 @@ and syn_cursor_info_zoperand =
               (types_opt, r) =>
                 switch (types_opt) {
                 | None => None
-                | Some(types) =>
-                  switch (Statics_Exp.syn_rule(ctx, r, pat_ty)) {
+                | Some((types, xi)) =>
+                  switch (Statics_Exp.syn_rule(ctx, r, pat_ty, xi)) {
                   | None => None
-                  | Some(r_ty) => Some([r_ty, ...types])
+                  | Some((r_ty, r_xi)) =>
+                    Some(([r_ty, ...types], Constraints.Or(r_xi, xi)))
                   }
                 },
-              Some([]),
+              Some(([], Falsity)),
               other_branches,
-            );
+            )
+            |> Option.map(fst);
           switch (clause_types) {
           | None => None
           | Some(types) =>
@@ -972,7 +974,7 @@ and ana_cursor_info_zoperand =
          )
 
     | Fun(NotInHole, p, body) =>
-      let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
+      let* (ty_p, body_ctx, _) = Statics_Pat.syn(ctx, p);
       let+ ty_body = Statics_Exp.syn(body_ctx, body);
       CursorInfo_common.mk(
         AnaAnnotatedFun(ctx, ty, HTyp.arrow(ty_p, ty_body)),
@@ -1023,7 +1025,7 @@ and ana_cursor_info_zoperand =
     let* (ty_p_given, ty_body_given) = HTyp.matched_arrow(ctx, ty);
     switch (Statics_Pat.ana(ctx, p, ty_p_given)) {
     | None => None
-    | Some(body_ctx) =>
+    | Some((body_ctx, _)) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
   | InjZ(NotInHole, position, zbody) =>
@@ -1087,7 +1089,7 @@ and syn_cursor_info_rule =
   | RuleZE(_, p, zclause) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) =>
+    | Some((ctx, _)) =>
       let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
       /* Check if the cursor is on the outermost form of the clause */
       let is_outer = ZExp.is_outer(zclause);
@@ -1135,7 +1137,7 @@ and ana_cursor_info_rule =
   | RuleZE(_, p, zclause) =>
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) =>
+    | Some((ctx, _)) =>
       let+ cursor_info =
         ana_cursor_info(~steps=steps @ [1], ctx, zclause, clause_ty);
       CursorInfo_common.set_after_branch_clause(

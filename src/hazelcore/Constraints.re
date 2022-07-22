@@ -108,3 +108,10 @@ let rec or_constraints = (lst: list(t)): t =>
   | [xi] => xi
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
+
+let rec pair_constraints = (lst: list(t)): t =>
+  switch (lst) {
+  | [] => failwith("should have at least one constraint")
+  | [xi] => xi
+  | [xi, ...xis] => Pair(xi, pair_constraints(xis))
+  };

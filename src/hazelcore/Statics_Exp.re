@@ -11,7 +11,7 @@ let recursive_let_id =
       [ExpLine(OpSeq(_, S(Fun(_), E)))],
     ) =>
     open OptUtil.Syntax;
-    let* (ty_p, ctx_p) = Statics_Pat.syn(ctx, p);
+    let* (ty_p, ctx_p, _) = Statics_Pat.syn(ctx, p);
     let+ _ = HTyp.matched_arrow(ctx_p, ty_p);
     x;
   | _ => None
@@ -21,14 +21,14 @@ let extend_let_def_ctx = (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t =
   {
     open OptUtil.Syntax;
     let* id = recursive_let_id(ctx, p, def);
-    let+ (ty_p, _) = Statics_Pat.syn(ctx, p);
+    let+ (ty_p, _, _) = Statics_Pat.syn(ctx, p);
     let ty_p = HTyp.rescope(ctx, ty_p);
     Context.add_var(ctx, id, ty_p);
   }
   |> Option.value(~default=ctx);
 
 let get_pattern_type = (ctx, UHExp.Rule(_, p, _)) =>
-  p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _)) => ty);
+  p |> Statics_Pat.syn(ctx) |> Option.map(((ty, _, _)) => ty);
 
 let joined_pattern_type = (ctx, rules) => {
   let* tys = rules |> List.map(get_pattern_type(ctx)) |> OptUtil.sequence;
@@ -66,7 +66,8 @@ and syn_line = (ctx: Context.t, line: UHExp.line): option(Context.t) =>
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let* def_ty = syn(def_ctx, def);
     let ty = HTyp.rescope(ctx, def_ty);
-    Statics_Pat.ana(ctx, p, ty);
+    let+ (ctx, _) = Statics_Pat.ana(ctx, p, ty);
+    ctx;
   | TyAliasLine(tp, ty) =>
     open OptUtil.Syntax;
     let+ (_, k, _) = Elaborator_Typ.syn_elab(ctx, Delta.empty, ty);
@@ -159,9 +160,9 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     let correct_rule_types =
       List.for_all2(
         (rule_ty, rule) => {
-          switch (syn_rule(ctx, rule, pat_ty)) {
+          switch (syn_rule(ctx, rule, pat_ty, Constraints.Falsity)) {
           | None => false
-          | Some(syn_ty) => HTyp.equivalent(ctx, rule_ty, syn_ty)
+          | Some((syn_ty, _)) => HTyp.equivalent(ctx, rule_ty, syn_ty)
           }
         },
         rule_types,
@@ -176,7 +177,7 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(NotInHole, _) => Some(HTyp.bool())
   | ListNil(NotInHole) => Some(HTyp.list(HTyp.hole()))
   | Fun(NotInHole, p, body) =>
-    let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
+    let* (ty_p, body_ctx, _) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.arrow(ty_p, ty_body);
   | Inj(NotInHole, side, body) =>
@@ -187,30 +188,39 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     };
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* clause_ty = syn(ctx, scrut);
-    syn_rules(ctx, rules, clause_ty);
+    let+ (ty, xi) = syn_rules(ctx, rules, clause_ty);
+    Incon.is_exhaustive(xi) ? ty : HTyp.hole();
   | Parenthesized(body) => syn(ctx, body)
   }
 
+/* TODO: (eric) rename Constraints to Constraint */
 and syn_rules =
-    (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
-  let* clause_types =
+    (ctx: Context.t, rules: UHExp.rules, pat_ty: HTyp.t)
+    : option((HTyp.t, Constraints.t)) => {
+  let* (clause_types, xi) =
     List.fold_left(
-      (types_opt, r) => {
-        let* types = types_opt;
-        let+ r_ty = syn_rule(ctx, r, pat_ty);
-        [r_ty, ...types];
+      (acc_opt, r) => {
+        let* (types, xi) = acc_opt;
+        let+ (r_ty, r_xi) = syn_rule(ctx, r, pat_ty, xi);
+        ([r_ty, ...types], Constraints.Or(r_xi, xi));
       },
-      Some([]),
+      Some(([], Constraints.Falsity)),
       rules,
     );
-  HTyp.join_all(ctx, GLB, clause_types);
+  let+ ty = HTyp.join_all(ctx, GLB, clause_types);
+  (ty, xi);
 }
 
 and syn_rule =
-    (ctx: Context.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
-  let Rule(_, p, clause) = rule;
-  let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
-  syn(ctx, clause);
+    (ctx: Context.t, rule: UHExp.rule, pat_ty: HTyp.t, xi: Constraints.t)
+    : option((HTyp.t, Constraints.t)) => {
+  let Rule(err, p, clause) = rule;
+  let* (ctx, xi_p) = Statics_Pat.ana(ctx, p, pat_ty);
+  let* ty = syn(ctx, clause);
+  switch (err) {
+  | NotRedundant => Incon.is_redundant(xi, xi_p) ? None : Some((ty, xi_p))
+  | Redundant(_) => Incon.is_redundant(xi, xi_p) ? Some((ty, xi_p)) : None
+  };
 }
 
 and ana = (ctx: Context.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
@@ -323,7 +333,7 @@ and ana_operand =
     HTyp.consistent(ctx, ty, ty') ? Some() : None;
   | Fun(NotInHole, p, body) =>
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ctx, ty);
-    let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
+    let* (ctx_body, _) = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ctx, ty);
@@ -354,7 +364,7 @@ and ana_rule =
       clause_ty: HTyp.t,
     )
     : option(unit) => {
-  let* ctx = Statics_Pat.ana(ctx, p, pat_ty);
+  let* (ctx, _) = Statics_Pat.ana(ctx, p, pat_ty);
   ana(ctx, clause, clause_ty);
 };
 
@@ -597,7 +607,7 @@ and syn_fix_holes_line =
       (TyAliasLine(p, ty), ctx, id_gen);
     };
   | LetLine(p, def) =>
-    let (p, ty_p, _, id_gen) =
+    let (p, ty_p, _, id_gen, _a) =
       Statics_Pat.syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
     let def_ctx = extend_let_def_ctx(ctx, p, def);
     let (def, id_gen) =
@@ -837,7 +847,7 @@ and syn_fix_holes_operand =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, id_gen);
   | Fun(_, p, body) =>
-    let (p, ty_p, ctx_body, id_gen) =
+    let (p, ty_p, ctx_body, id_gen, _) =
       Statics_Pat.syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
     let (body, ty_body, id_gen) =
       syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
@@ -854,7 +864,7 @@ and syn_fix_holes_operand =
   | Case(_, scrut, rules) =>
     let (scrut, ty1, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, scrut);
-    let (rules, id_gen, rule_types, common_type) =
+    let (rules, id_gen, rule_types, common_type, xis) =
       syn_fix_holes_rules(ctx, id_gen, ~renumber_empty_holes, rules, ty1);
     switch (common_type) {
     | None =>
@@ -865,11 +875,8 @@ and syn_fix_holes_operand =
         id_gen,
       );
     | Some(common_type) =>
-      let pats = UHExp.get_pats(rules);
-      let cons =
-        Statics_Pat.generate_rules_constraints(ctx, pats, common_type);
-      let flags = Incon.generate_redundancy_list(cons);
-      let con = Statics_Pat.generate_one_constraints(ctx, pats, common_type);
+      let flags = Incon.generate_redundancy_list(xis);
+      let xi = Constraints.or_constraints(List.rev(xis));
       let (u, id_gen) = IDGen.next_hole(id_gen);
       let new_rules =
         List.map2(
@@ -886,7 +893,7 @@ and syn_fix_holes_operand =
           flags,
         );
       let (case_err, id_gen) =
-        if (Incon.is_exhaustive(con)) {
+        if (Incon.is_exhaustive(xi)) {
           (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
         } else {
           let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -905,19 +912,44 @@ and syn_fix_holes_rules =
       rules: UHExp.rules,
       pat_ty: HTyp.t,
     )
-    : (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t)) => {
-  let (rev_fixed_rules, id_gen, rule_types) =
+    : (
+        UHExp.rules,
+        IDGen.t,
+        list(HTyp.t),
+        option(HTyp.t),
+        list(Constraints.t),
+      ) => {
+  let (rev_fixed_rules, id_gen, rule_types, _, xis) =
     List.fold_left(
-      ((rules, id_gen, rule_types), r) => {
-        let (r, id_gen, r_ty) =
-          syn_fix_holes_rule(ctx, id_gen, ~renumber_empty_holes, r, pat_ty);
-        ([r, ...rules], id_gen, [r_ty, ...rule_types]);
+      ((rules, id_gen, rule_types, xi, xis), r) => {
+        let (r, id_gen, r_ty, r_xi) =
+          syn_fix_holes_rule(
+            ctx,
+            id_gen,
+            ~renumber_empty_holes,
+            r,
+            pat_ty,
+            xi,
+          );
+        (
+          [r, ...rules],
+          id_gen,
+          [r_ty, ...rule_types],
+          Constraints.Or(r_xi, xi),
+          [r_xi, ...xis],
+        );
       },
-      ([], id_gen, []),
+      ([], id_gen, [], Falsity, []),
       rules,
     );
   let common_type = HTyp.join_all(ctx, GLB, rule_types);
-  (List.rev(rev_fixed_rules), id_gen, List.rev(rule_types), common_type);
+  (
+    List.rev(rev_fixed_rules),
+    id_gen,
+    List.rev(rule_types),
+    common_type,
+    xis,
+  );
 }
 
 and syn_fix_holes_rule =
@@ -927,14 +959,26 @@ and syn_fix_holes_rule =
       ~renumber_empty_holes=false,
       rule: UHExp.rule,
       pat_ty: HTyp.t,
+      xi: Constraints.t,
     )
-    : (UHExp.rule, IDGen.t, HTyp.t) => {
-  let Rule(err, p, clause) = rule;
-  let (p, ctx, id_gen) =
+    : (UHExp.rule, IDGen.t, HTyp.t, Constraints.t) => {
+  let Rule(_, p, clause) = rule;
+  let (p, ctx, id_gen, _) =
     Statics_Pat.ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p, pat_ty);
-  let (clause, clause_ty, id_gen) =
-    syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, clause);
-  (Rule(err, p, clause), id_gen, clause_ty);
+  switch (Statics_Pat.ana(ctx, p, pat_ty)) {
+  | None => assert(false)
+  | Some((_, xi_p)) =>
+    let (clause, clause_ty, id_gen) =
+      syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, clause);
+    let (err, id_gen) =
+      if (Incon.is_redundant(xi, xi_p)) {
+        let (u, id_gen) = IDGen.next_hole(id_gen);
+        (RuleErrStatus.Redundant(u), id_gen);
+      } else {
+        (NotRedundant, id_gen);
+      };
+    (Rule(err, p, clause), id_gen, clause_ty, xi);
+  };
 }
 
 and ana_fix_holes_rules =
@@ -946,11 +990,11 @@ and ana_fix_holes_rules =
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : (UHExp.rules, IDGen.t) => {
-  let (rev_fixed_rules, id_gen) =
+    : (UHExp.rules, IDGen.t, list(Constraints.t)) => {
+  let (rev_fixed_rules, id_gen, _, xis) =
     List.fold_left(
-      ((rules, id_gen), r) => {
-        let (r, id_gen) =
+      ((rules, id_gen, xi, xis), r) => {
+        let (r, id_gen, xi_r) =
           ana_fix_holes_rule(
             ctx,
             id_gen,
@@ -959,12 +1003,12 @@ and ana_fix_holes_rules =
             pat_ty,
             clause_ty,
           );
-        ([r, ...rules], id_gen);
+        ([r, ...rules], id_gen, Constraints.Or(xi, xi_r), [xi_r, ...xis]);
       },
-      ([], id_gen),
+      ([], id_gen, Constraints.Falsity, []),
       rules,
     );
-  (List.rev(rev_fixed_rules), id_gen);
+  (List.rev(rev_fixed_rules), id_gen, xis);
 }
 
 and ana_fix_holes_rule =
@@ -976,12 +1020,12 @@ and ana_fix_holes_rule =
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : (UHExp.rule, IDGen.t) => {
-  let (p, ctx, id_gen) =
+    : (UHExp.rule, IDGen.t, Constraints.t) => {
+  let (p, ctx, id_gen, xi) =
     Statics_Pat.ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p, pat_ty);
   let (clause, id_gen) =
     ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, clause, clause_ty);
-  (Rule(err, p, clause), id_gen);
+  (Rule(err, p, clause), id_gen, xi);
 }
 
 and ana_fix_holes =
@@ -1243,7 +1287,7 @@ and ana_fix_holes_operand =
   | Fun(_, p, def) =>
     switch (HTyp.matched_arrow(ctx, ty)) {
     | Some((ty1_given, ty2)) =>
-      let (p, ctx, id_gen) =
+      let (p, ctx, id_gen, _) =
         Statics_Pat.ana_fix_holes(
           ctx,
           id_gen,
@@ -1291,7 +1335,7 @@ and ana_fix_holes_operand =
   | Case(_, scrut, rules) =>
     let (scrut, scrut_ty, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, scrut);
-    let (rules, id_gen) =
+    let (rules, id_gen, xis) =
       ana_fix_holes_rules(
         ctx,
         id_gen,
@@ -1300,10 +1344,7 @@ and ana_fix_holes_operand =
         scrut_ty,
         ty,
       );
-    let pats = UHExp.get_pats(rules);
-    let cons = Statics_Pat.generate_rules_constraints(ctx, pats, scrut_ty);
-    let flags = Incon.generate_redundancy_list(cons);
-    let con = Statics_Pat.generate_one_constraints(ctx, pats, scrut_ty);
+    let flags = Incon.generate_redundancy_list(xis);
     let (u, id_gen) = IDGen.next_hole(id_gen);
     let new_rules =
       List.map2(
@@ -1320,7 +1361,7 @@ and ana_fix_holes_operand =
         flags,
       );
     let (case_err, id_gen) =
-      if (Incon.is_exhaustive(con)) {
+      if (Incon.is_exhaustive(Constraints.or_constraints(List.rev(xis)))) {
         (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
       } else {
         let (u, id_gen) = IDGen.next_hole(id_gen);
@@ -1337,7 +1378,12 @@ and extend_let_body_ctx =
   def
   |> syn(def_ctx)
   |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible syn"))
-  |> (ty_p => Statics_Pat.ana(ctx, p, ty_p))
+  |> (
+    ty_p => {
+      let+ (ctx, _) = Statics_Pat.ana(ctx, p, ty_p);
+      ctx;
+    }
+  )
   |> OptUtil.get(_ => failwith("extend_let_body_ctx: impossible ana"));
 };
 
@@ -1375,10 +1421,16 @@ let syn_fix_holes_zlines =
 
 let syn_fix_holes_zrules =
     (ctx: Context.t, id_gen: IDGen.t, zrules: ZExp.zrules, pat_ty: HTyp.t)
-    : (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t) => {
+    : (
+        ZExp.zrules,
+        list(HTyp.t),
+        option(HTyp.t),
+        IDGen.t,
+        list(Constraints.t),
+      ) => {
   let path = CursorPath_Exp.of_zrules(zrules);
   let rules = ZExp.erase_zrules(zrules);
-  let (rules, id_gen, rule_types, common_type) =
+  let (rules, id_gen, rule_types, common_type, xis) =
     syn_fix_holes_rules(ctx, id_gen, rules, pat_ty);
   let zrules =
     CursorPath_Exp.follow_rules(path, rules)
@@ -1388,7 +1440,7 @@ let syn_fix_holes_zrules =
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
-  (zrules, rule_types, common_type, id_gen);
+  (zrules, rule_types, common_type, id_gen, xis);
 };
 
 let ana_fix_holes_z =
@@ -1415,10 +1467,11 @@ let ana_fix_holes_zrules =
       pat_ty: HTyp.t,
       ty: HTyp.t,
     )
-    : (ZExp.zrules, IDGen.t) => {
+    : (ZExp.zrules, IDGen.t, list(Constraints.t)) => {
   let path = CursorPath_Exp.of_zrules(zrules);
   let rules = ZExp.erase_zrules(zrules);
-  let (rules, id_gen) = ana_fix_holes_rules(ctx, id_gen, rules, pat_ty, ty);
+  let (rules, id_gen, xis) =
+    ana_fix_holes_rules(ctx, id_gen, rules, pat_ty, ty);
   let zrules =
     CursorPath_Exp.follow_rules(path, rules)
     |> OptUtil.get(() =>
@@ -1427,7 +1480,7 @@ let ana_fix_holes_zrules =
            ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path)),
          )
        );
-  (zrules, id_gen);
+  (zrules, id_gen, xis);
 };
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
