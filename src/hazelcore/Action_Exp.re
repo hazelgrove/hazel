@@ -3605,7 +3605,8 @@ and ana_perform_operand =
     | None => Failed
     | Some(ty_el) =>
       let length = List.length(UHExp.get_tuple_elements(skel));
-      let ty_prod = HTyp.Prod(List.init(length, _ => ty_el));
+      let ty_prod =
+        length > 1 ? HTyp.Prod(List.init(length, _ => ty_el)) : ty_el;
       switch (ana_perform_opseq(ctx, a, (zopseq, id_gen), ty_prod)) {
       | CursorEscaped(side) =>
         ana_perform_operand(
