@@ -36,37 +36,37 @@ let ground_cases_of = (ty: HTyp.t): ground_cases =>
 type match_result =
   | Matches(Environment.t)
   | DoesNotMatch
-  | Indet;
+  | IndetMatch;
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_, _), _)
-  | (NonEmptyHole(_, _, _, _), _) => Indet
+  | (NonEmptyHole(_, _, _, _), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_, _, _), _) => DoesNotMatch
-  | (InvalidText(_), _) => Indet
+  | (InvalidText(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
-  | (_, EmptyHole(_, _)) => Indet
-  | (_, NonEmptyHole(_, _, _, _)) => Indet
-  | (_, FailedCast(_, _, _)) => Indet
-  | (_, InvalidOperation(_)) => Indet
-  | (_, FreeVar(_, _, _)) => Indet
-  | (_, InvalidText(_)) => Indet
-  | (_, Let(_, _, _)) => Indet
+  | (_, EmptyHole(_, _)) => IndetMatch
+  | (_, NonEmptyHole(_, _, _, _)) => IndetMatch
+  | (_, FailedCast(_, _, _)) => IndetMatch
+  | (_, InvalidOperation(_)) => IndetMatch
+  | (_, FreeVar(_, _, _)) => IndetMatch
+  | (_, InvalidText(_)) => IndetMatch
+  | (_, Let(_, _, _)) => IndetMatch
   | (_, FixF(_, _, _)) => DoesNotMatch
   | (_, Fun(_, _, _)) => DoesNotMatch
-  | (_, Ap(_, _)) => Indet
-  | (_, BinBoolOp(_, _, _)) => Indet
-  | (_, BinIntOp(_, _, _)) => Indet
-  | (_, BinFloatOp(_, _, _)) => Indet
-  | (_, ConsistentCase(Case(_, _, _))) => Indet
+  | (_, Ap(_, _)) => IndetMatch
+  | (_, BinBoolOp(_, _, _)) => IndetMatch
+  | (_, BinIntOp(_, _, _)) => IndetMatch
+  | (_, BinFloatOp(_, _, _)) => IndetMatch
+  | (_, ConsistentCase(Case(_, _, _))) => IndetMatch
 
   /* Closure should match like underlying expression */
   | (_, Closure(_, Fun(_))) => DoesNotMatch
-  | (_, Closure(_, _)) => Indet
+  | (_, Closure(_, _)) => IndetMatch
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -109,16 +109,16 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Pair(dp1, dp2), Pair(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet =>
+    | IndetMatch =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
+      | IndetMatch
+      | Matches(_) => IndetMatch
       }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
+      | IndetMatch => IndetMatch
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
@@ -148,16 +148,16 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(dp1, dp2), Cons(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
-    | Indet =>
+    | IndetMatch =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
+      | IndetMatch
+      | Matches(_) => IndetMatch
       }
     | Matches(env1) =>
       switch (matches(dp2, d2)) {
       | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
+      | IndetMatch => IndetMatch
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
@@ -201,16 +201,16 @@ and matches_cast_Inj =
   | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _) => Indet
-  | InvalidText(_) => Indet
-  | ExpandingKeyword(_, _, _) => Indet
-  | Let(_, _, _) => Indet
+  | FreeVar(_, _, _) => IndetMatch
+  | InvalidText(_) => IndetMatch
+  | ExpandingKeyword(_, _, _) => IndetMatch
+  | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
-  | Closure(_, _) => Indet
-  | Ap(_, _) => Indet
-  | ApBuiltin(_, _) => Indet
+  | Closure(_, _) => IndetMatch
+  | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -222,11 +222,11 @@ and matches_cast_Inj =
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _) => Indet
-  | NonEmptyHole(_, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
+  | InconsistentBranches(_) => IndetMatch
+  | EmptyHole(_, _) => IndetMatch
+  | NonEmptyHole(_, _, _, _) => IndetMatch
+  | FailedCast(_, _, _) => IndetMatch
+  | InvalidOperation(_) => IndetMatch
   }
 and matches_cast_Pair =
     (
@@ -241,16 +241,16 @@ and matches_cast_Pair =
   | Pair(d1, d2) =>
     switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
     | DoesNotMatch => DoesNotMatch
-    | Indet =>
+    | IndetMatch =>
       switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
       | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
+      | IndetMatch
+      | Matches(_) => IndetMatch
       }
     | Matches(env1) =>
       switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
       | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
+      | IndetMatch => IndetMatch
       | Matches(env2) => Matches(Environment.union(env1, env2))
       }
     }
@@ -269,16 +269,16 @@ and matches_cast_Pair =
     matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _) => Indet
-  | InvalidText(_) => Indet
-  | ExpandingKeyword(_, _, _) => Indet
-  | Let(_, _, _) => Indet
+  | FreeVar(_, _, _) => IndetMatch
+  | InvalidText(_) => IndetMatch
+  | ExpandingKeyword(_, _, _) => IndetMatch
+  | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
-  | Closure(_, _) => Indet
-  | Ap(_, _) => Indet
-  | ApBuiltin(_, _) => Indet
+  | Closure(_, _) => IndetMatch
+  | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -290,11 +290,11 @@ and matches_cast_Pair =
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _) => Indet
-  | NonEmptyHole(_, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
+  | InconsistentBranches(_) => IndetMatch
+  | EmptyHole(_, _) => IndetMatch
+  | NonEmptyHole(_, _, _, _) => IndetMatch
+  | FailedCast(_, _, _) => IndetMatch
+  | InvalidOperation(_) => IndetMatch
   }
 and matches_cast_Cons =
     (
@@ -308,7 +308,7 @@ and matches_cast_Cons =
   | Cons(d1, d2) =>
     switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
     | DoesNotMatch => DoesNotMatch
-    | Indet =>
+    | IndetMatch =>
       let list_casts =
         List.map(
           (c: (HTyp.t, HTyp.t)) => {
@@ -319,8 +319,8 @@ and matches_cast_Cons =
         );
       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
       | DoesNotMatch => DoesNotMatch
-      | Indet
-      | Matches(_) => Indet
+      | IndetMatch
+      | Matches(_) => IndetMatch
       };
     | Matches(env1) =>
       let list_casts =
@@ -333,7 +333,7 @@ and matches_cast_Cons =
         );
       switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
       | DoesNotMatch => DoesNotMatch
-      | Indet => Indet
+      | IndetMatch => IndetMatch
       | Matches(env2) => Matches(Environment.union(env1, env2))
       };
     }
@@ -343,15 +343,15 @@ and matches_cast_Cons =
   | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
-  | FreeVar(_, _, _) => Indet
-  | InvalidText(_) => Indet
-  | ExpandingKeyword(_, _, _) => Indet
-  | Let(_, _, _) => Indet
+  | FreeVar(_, _, _) => IndetMatch
+  | InvalidText(_) => IndetMatch
+  | ExpandingKeyword(_, _, _) => IndetMatch
+  | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Ap(_, _) => Indet
-  | ApBuiltin(_, _) => Indet
+  | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -363,11 +363,11 @@ and matches_cast_Cons =
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
-  | InconsistentBranches(_) => Indet
-  | EmptyHole(_, _) => Indet
-  | NonEmptyHole(_, _, _, _) => Indet
-  | FailedCast(_, _, _) => Indet
-  | InvalidOperation(_) => Indet
+  | InconsistentBranches(_) => IndetMatch
+  | EmptyHole(_, _) => IndetMatch
+  | NonEmptyHole(_, _, _, _) => IndetMatch
+  | FailedCast(_, _, _) => IndetMatch
+  | InvalidOperation(_) => IndetMatch
   };
 
 /* closed substitution [d1/x]d2
@@ -539,7 +539,6 @@ let eval_bin_float_op =
   };
 };
 
-open EvaluatorResult;
 type t('a) = EvaluatorMonad.t('a);
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
@@ -563,7 +562,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
       | BoxedValue(d1)
       | Indet(d1) =>
         switch (matches(dp, d1)) {
-        | Indet
+        | IndetMatch
         | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
@@ -587,7 +586,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
         | Indet(d2) =>
           switch (matches(dp, d2)) {
           | DoesNotMatch
-          | Indet => Indet(Ap(d1, d2)) |> return
+          | IndetMatch => Indet(Ap(d1, d2)) |> return
           | Matches(env') =>
             // evaluate a closure: extend the closure environment with the
             // new bindings introduced by the function application.
@@ -887,7 +886,7 @@ and evaluate_case =
       |> return;
     | Some(Rule(dp, d)) =>
       switch (matches(dp, scrut)) {
-      | Indet =>
+      | IndetMatch =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         (
           switch (inconsistent_info) {
