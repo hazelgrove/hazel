@@ -1,8 +1,8 @@
 [@deriving sexp]
-type map = DHExp.map;
+type map = DHExp.closure_map;
 
 [@deriving sexp]
-type t = DHExp.env;
+type t = DHExp.closure_env;
 
 let id_of = ((ei, _)) => ei;
 let map_of = ((_, map)) => map;

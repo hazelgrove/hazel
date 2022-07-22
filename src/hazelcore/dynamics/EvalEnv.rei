@@ -22,10 +22,10 @@
    */
 
 [@deriving sexp]
-type map = DHExp.map;
+type map = DHExp.closure_map;
 
 [@deriving sexp]
-type t = DHExp.env;
+type t = DHExp.closure_env;
 
 /**
   [id_of env] is the id of [env].
