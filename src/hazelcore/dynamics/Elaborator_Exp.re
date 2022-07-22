@@ -813,19 +813,24 @@ and ana_elab_operand =
       let sigma = Environment.id_env(gamma);
       switch (ana_elab_list(ctx, delta, opseq, elt_ty)) {
       | None => DoesNotElaborate
-      | Some((elt_list, delta)) =>
-        Elaborates(
-          ListLit(
-            0,
-            0,
-            sigma,
-            StandardErrStatus(NotInHole),
-            elt_ty,
-            elt_list,
-          ),
-          List(elt_ty),
-          delta,
-        )
+      | Some((elt_list, ty_list, delta)) =>
+        let glb_ty = Statics_common.lub(ty_list);
+        switch (glb_ty) {
+        | Some(glb_ty) =>
+          Elaborates(
+            ListLit(
+              0,
+              0,
+              sigma,
+              StandardErrStatus(NotInHole),
+              glb_ty,
+              elt_list,
+            ),
+            List(glb_ty),
+            delta,
+          )
+        | None => DoesNotElaborate
+        };
       };
     }
   | Fun(NotInHole, p, body) =>
@@ -896,18 +901,19 @@ and ana_elab_operand =
   }
 and ana_elab_list =
     (ctx: Contexts.t, delta: Delta.t, opseq: UHExp.opseq, ele_ty: HTyp.t)
-    : option((list(DHExp.t), Delta.t)) =>
+    : option((list(DHExp.t), list(HTyp.t), Delta.t)) =>
   switch (opseq) {
   | OpSeq(skel, seq) =>
     let subskels = UHExp.get_tuple_elements(skel);
     let rec ana_elab_subskels = (subskels, del) =>
       switch (subskels) {
-      | [] => Some(([], del))
+      | [] => Some(([], [], del))
       | [hd, ...tl] =>
         switch (ana_elab_skel(ctx, del, hd, seq, ele_ty)) {
-        | Elaborates(hd, _, del) =>
+        | Elaborates(hd, ty, del) =>
           switch (ana_elab_subskels(tl, del)) {
-          | Some((tl, del)) => Some(([hd, ...tl], del))
+          | Some((tl, ty_list, del)) =>
+            Some(([hd, ...tl], [ty, ...ty_list], del))
           | None => None
           }
         | DoesNotElaborate => None
