@@ -34,7 +34,7 @@ let view =
    * Shows runtime value for a context entry.
    */
   let dynamic_info = (sigma: Environment.t, x) =>
-    switch (VarMap.lookup(sigma, x)) {
+    switch (Environment.lookup(sigma, x)) {
     | None => None
     | Some(d) =>
       Some(
@@ -253,7 +253,7 @@ let view =
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
             Environment.empty;
-          | Some((sigma, _)) => sigma |> ClosureEnvironment.to_environment
+          | Some((sigma, _)) => sigma |> ClosureEnvironment.map_of
           }
         };
       } else {

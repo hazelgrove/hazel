@@ -487,20 +487,13 @@ and subst_var_rules =
      )
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, sigma: ClosureEnvironment.t): ClosureEnvironment.t =>
-  ClosureEnvironment.map_keep_id(
-    ((_, dr)) =>
-      switch (dr) {
-      | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
-      | Indet(d) => Indet(subst_var(d1, x, d))
-      },
-    sigma,
-  );
+    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t =>
+  env |> ClosureEnvironment.map_keep_id(((_, d)) => subst_var(d1, x, d));
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
-  |> List.fold_left(
-       (d2, xd: (Var.t, DHExp.t)) => {
+  |> Environment.fold(
+       (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(d1, x, d2);
        },
@@ -546,7 +539,7 @@ let eval_bin_float_op =
   };
 };
 
-open DHExp;
+open EvaluatorResult;
 type t('a) = EvaluatorMonad.t('a);
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
@@ -556,16 +549,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
 
     switch (d) {
     | BoundVar(x) =>
-      let dr =
+      let d =
         x
         |> ClosureEnvironment.lookup(env)
         |> OptUtil.get(_ =>
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            );
-      switch (dr) {
-      | BoxedValue(FixF(_) as d) => evaluate(env, d)
-      | _ => dr |> return
-      };
+      evaluate(env, d);
 
     | Let(dp, d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -581,22 +571,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
         }
       };
 
-    | FixF(f, ty, d) =>
-      let* r = evaluate(env, d);
-      switch (r) {
-      | BoxedValue(Closure(env', Fun(_) as d''') as d'') =>
-        let* env'' =
-          with_eig(eig =>
-            ClosureEnvironment.extend(
-              env',
-              (f, BoxedValue(FixF(f, ty, d''))),
-              eig,
-            )
-          );
-        BoxedValue(Closure(env'', d''')) |> return;
-      | _ =>
-        raise(EvaluatorError.Exception(EvaluatorError.FixFWithoutLambda))
-      };
+    | FixF(f, _, _) as d =>
+      let* env' = with_eig(ClosureEnvironment.extend(env, (f, d)));
+      evaluate(env', d);
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
@@ -945,18 +922,10 @@ and evaluate_case =
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : t(ClosureEnvironment.t) => {
-  let* new_bindings =
-    new_bindings
-    |> List.map(((x, d)) => {
-         let* r = evaluate(ClosureEnvironment.placeholder, d);
-         (x, r) |> return;
-       })
-    |> sequence;
-
   let map =
     new_bindings
-    |> List.fold_left(
-         (new_env, (x, r)) => VarBstMap.extend(new_env, (x, r)),
+    |> Environment.fold(
+         ((x, d), new_env) => Environment.extend(new_env, (x, d)),
          ClosureEnvironment.map_of(to_extend),
        );
 

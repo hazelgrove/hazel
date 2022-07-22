@@ -5,14 +5,6 @@ let get_dhexp = ((d, _, _, _): t) => d;
 let get_hole_closure_info = ((_, hci, _, _): t) => hci;
 let get_eval_state = ((_, _, _, state): t) => state;
 
-let final_dhexp_equals = (r1: EvaluatorResult.t, r2: EvaluatorResult.t): bool => {
-  switch (r1, r2) {
-  | (BoxedValue(d1), BoxedValue(d2))
-  | (Indet(d1), Indet(d2)) => DHExp.fast_equals(d1, d2)
-  | _ => false
-  };
-};
-
 let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
   /* Check that HoleInstanceInstances are equal */
   MetaVarMap.cardinal(hci1) == MetaVarMap.cardinal(hci2)
@@ -28,8 +20,8 @@ let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
                 == ClosureEnvironment.id_of(sigma2)
                 && List.for_all2(
                      /* Check that variable mappings in ClosureEnvironment are equal */
-                     ((x1, r1), (x2, r2)) =>
-                       x1 == x2 && final_dhexp_equals(r1, r2),
+                     ((x1, d1), (x2, d2)) =>
+                       x1 == x2 && DHExp.fast_equals(d1, d2),
                      ClosureEnvironment.to_list(sigma1),
                      ClosureEnvironment.to_list(sigma2),
                    ),
@@ -40,5 +32,5 @@ let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
        MetaVarMap.bindings(hci2),
      )
   /* Check that r1, r2 are equal */
-  && final_dhexp_equals(r1, r2);
+  && EvaluatorResult.fast_equal(r1, r2);
 };

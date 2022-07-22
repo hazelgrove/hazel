@@ -24,8 +24,7 @@ let rec pp_uneval =
      environment. If lookup fails, then variable is not bound. */
   | BoundVar(x) =>
     switch (ClosureEnvironment.lookup(env, x)) {
-    | Some(Indet(d'))
-    | Some(BoxedValue(d')) => (pe, hci, d')
+    | Some(d') => (pe, hci, d')
     | None => (pe, hci, d)
     }
 
@@ -278,20 +277,12 @@ and pp_eval_env =
   | Some(env) => (pe, hci, env)
   | None =>
     let (pe, hci, result_map) =
-      VarBstMap.fold(
-        ((x, r: EvaluatorResult.t), (pe, hci, new_env)) => {
-          let (pe, hci, r: EvaluatorResult.t) =
-            switch (r) {
-            | BoxedValue(d) =>
-              let (pe, hci, d) = pp_eval(pe, hci, d);
-              (pe, hci, BoxedValue(d));
-            | Indet(d) =>
-              let (pe, hci, d) = pp_eval(pe, hci, d);
-              (pe, hci, Indet(d));
-            };
-          (pe, hci, VarBstMap.extend(new_env, (x, r)));
+      Environment.fold(
+        ((x, d), (pe, hci, new_env)) => {
+          let (pe, hci, d) = pp_eval(pe, hci, d);
+          (pe, hci, Environment.extend(new_env, (x, d)));
         },
-        (pe, hci, VarBstMap.empty),
+        (pe, hci, Environment.empty),
         env |> ClosureEnvironment.map_of,
       );
     let env = (ei, result_map);
@@ -376,15 +367,8 @@ let track_children = (hci: HoleInstanceInfo.t): HoleInstanceInfo.t =>
     (u, hcs, hci) =>
       List.fold_right(
         ((i, (env, _)), hci) =>
-          VarBstMap.fold(
-            ((x, r: EvaluatorResult.t), hci) => {
-              let d =
-                switch (r) {
-                | BoxedValue(d) => d
-                | Indet(d) => d
-                };
-              track_children_of_hole(hci, (x, (u, i)), d);
-            },
+          Environment.fold(
+            ((x, d), hci) => track_children_of_hole(hci, (x, (u, i)), d),
             hci,
             env |> ClosureEnvironment.map_of,
           ),
@@ -409,7 +393,7 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   let hci =
     MetaVarMap.add(
       u_result,
-      [(((-1), VarBstMap.singleton(("", DHExp.BoxedValue(d)))), [])],
+      [(((-1), Environment.singleton(("", d))), [])],
       hci,
     );
 
