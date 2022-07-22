@@ -106,25 +106,25 @@ let rec pp_uneval =
      - Recurse through inner expression (if any).
      */
   | EmptyHole(u, _) =>
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (pe, hci, Closure(env, EmptyHole(u, i)));
   | NonEmptyHole(reason, u, _, d') =>
     let (pe, hci, d') = pp_uneval(pe, hci, env, d');
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d')));
   | ExpandingKeyword(u, _, kw) =>
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (pe, hci, Closure(env, ExpandingKeyword(u, i, kw)));
   | FreeVar(u, _, x) =>
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (pe, hci, Closure(env, FreeVar(u, i, x)));
   | InvalidText(u, _, text) =>
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (pe, hci, Closure(env, InvalidText(u, i, text)));
   | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
     let (pe, hci, scrut) = pp_uneval(pe, hci, env, scrut);
     let (pe, hci, rules) = pp_uneval_rules(pe, hci, env, rules);
-    let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+    let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
     (
       pe,
       hci,
@@ -254,11 +254,11 @@ and pp_eval =
        */
     | NonEmptyHole(reason, u, _, d) =>
       let (pe, hci, d) = pp_eval(pe, hci, d);
-      let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+      let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
       (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d)));
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let (pe, hci, scrut) = pp_eval(pe, hci, scrut);
-      let (hci, i) = HoleInstanceInfo_.number_hole_closure(hci, u, env);
+      let (hci, i) = HoleInstanceInfo_.add_instance(hci, u, env);
       (pe, hci, InconsistentBranches(u, i, Case(scrut, rules, case_i)));
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -401,7 +401,7 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
     pp_eval(EnvironmentIdMap.empty, HoleInstanceInfo_.empty, d);
 
   /* Convert HoleInstanceInfo_.t to HoleInstanceInfo.t */
-  let hci = hci |> HoleInstanceInfo_.to_hole_closure_info;
+  let hci = hci |> HoleInstanceInfo_.to_hole_instance_info;
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */

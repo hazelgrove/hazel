@@ -1,11 +1,8 @@
-/* HoleInstanceInfo_.re: Auxiliary data structure for constructing a
-   HoleInstanceInfo.t.
+/**
+  Auxiliary data structure for constructing a {!type:HoleInstanceInfo.t}.
+ */
 
-   Useful for building the HoleInstanceInfo, because we can index/lookup
-   by EnvironmentId. However, when using it we want sequential numbers
-   (HoleInstanceId) to identify the hole closures
-   (similar to HoleInstanceInfo.t).
-   */
+/* FIXME: Make this abstract. */
 [@deriving sexp]
 type t =
   MetaVarMap.t(
@@ -14,13 +11,24 @@ type t =
     ),
   );
 
+/**
+  [empty] is the empty info map.
+ */
 let empty: t;
 
-/* Assign a unique hole closure ID for the (u, env) pair representing
-   a hole closure. If the pair already exists, return the existing value;
-   otherwise, assign a new ID to the pair. */
-let number_hole_closure:
+/**
+  [add_instance info u env] binds a unique hole instance id for the
+  [(u, env)] pair representing a hole instance, assocating it in the [info] map
+  and returning [(map', i)], where [map'] is the augmented [map] and [i] is the
+  hole instance id.
+
+  If the pair already exists in [info], the existing id is returned as [i];
+  otherwise, a unique id is assigned and returned as [i].
+ */
+let add_instance:
   (t, MetaVar.t, ClosureEnvironment.t) => (t, HoleInstanceId.t);
 
-/* Converts HoleInstanceInfo_.t to HoleInstanceInfo.t */
-let to_hole_closure_info: t => HoleInstanceInfo.t;
+/**
+  [to_hole_instance_info info] converts [info] into {!type:HoleInstanceInfo.t}.
+ */
+let to_hole_instance_info: t => HoleInstanceInfo.t;
