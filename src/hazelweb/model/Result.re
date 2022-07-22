@@ -24,13 +24,14 @@ let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
          && List.for_all2(
               /* Check that all hole closures are equal */
               ((sigma1, _), (sigma2, _)) =>
-                EvalEnv.id_of(sigma1) == EvalEnv.id_of(sigma2)
+                ClosureEnvironment.id_of(sigma1)
+                == ClosureEnvironment.id_of(sigma2)
                 && List.for_all2(
-                     /* Check that variable mappings in evalenv are equal */
+                     /* Check that variable mappings in ClosureEnvironment are equal */
                      ((x1, r1), (x2, r2)) =>
                        x1 == x2 && final_dhexp_equals(r1, r2),
-                     EvalEnv.to_list(sigma1),
-                     EvalEnv.to_list(sigma2),
+                     ClosureEnvironment.to_list(sigma1),
+                     ClosureEnvironment.to_list(sigma2),
                    ),
               hcs1,
               hcs2,

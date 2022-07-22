@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = MetaVarMap.t(list((EvalEnv.t, HoleClosureParents.t)));
+type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleClosureParents.t)));
 
 let empty: t = MetaVarMap.empty;
 
@@ -14,7 +14,7 @@ let num_unique_hcs = (hci: t, u: MetaVar.t): int => {
 
 let find_hc_opt =
     (hci: t, u: MetaVar.t, i: HoleClosureId.t)
-    : option((EvalEnv.t, HoleClosureParents.t)) => {
+    : option((ClosureEnvironment.t, HoleClosureParents.t)) => {
   switch (hci |> MetaVarMap.find_opt(u)) {
   | Some(hcs) => List.nth_opt(hcs, i)
   | None => None

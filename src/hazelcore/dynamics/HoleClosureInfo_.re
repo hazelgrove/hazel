@@ -1,14 +1,16 @@
 [@deriving sexp]
 type t =
   MetaVarMap.t(
-    EnvironmentIdMap.t((HoleClosureId.t, EvalEnv.t, HoleClosureParents.t)),
+    EnvironmentIdMap.t(
+      (HoleClosureId.t, ClosureEnvironment.t, HoleClosureParents.t),
+    ),
   );
 
 let empty: t = MetaVarMap.empty;
 
 let number_hole_closure =
-    (hci: t, u: MetaVar.t, env: EvalEnv.t): (t, HoleClosureId.t) => {
-  let ei = env |> EvalEnv.id_of;
+    (hci: t, u: MetaVar.t, env: ClosureEnvironment.t): (t, HoleClosureId.t) => {
+  let ei = env |> ClosureEnvironment.id_of;
   switch (hci |> MetaVarMap.find_opt(u)) {
   /* Hole already exists in the HoleClosureInfo_.t */
   | Some(hcs) =>
@@ -43,7 +45,7 @@ let to_hole_closure_info = (hci: t): HoleClosureInfo.t =>
        (
          hcs:
            EnvironmentIdMap.t(
-             (HoleClosureId.t, EvalEnv.t, HoleClosureParents.t),
+             (HoleClosureId.t, ClosureEnvironment.t, HoleClosureParents.t),
            ),
        ) =>
        hcs

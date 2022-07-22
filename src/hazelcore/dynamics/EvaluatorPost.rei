@@ -52,16 +52,16 @@ type error =
 exception Exception(error);
 
 /* Memoize postprocessed environments */
-type t = EnvironmentIdMap.t(EvalEnv.t);
+type t = EnvironmentIdMap.t(ClosureEnvironment.t);
 
 /* Postprocess inside evaluation boundary. Environment should already
    be postprocessed */
 let pp_uneval:
-  (t, HoleClosureInfo_.t, EvalEnv.t, DHExp.t) =>
+  (t, HoleClosureInfo_.t, ClosureEnvironment.t, DHExp.t) =>
   (t, HoleClosureInfo_.t, DHExp.t);
 
 let pp_uneval_rules:
-  (t, HoleClosureInfo_.t, EvalEnv.t, list(DHExp.rule)) =>
+  (t, HoleClosureInfo_.t, ClosureEnvironment.t, list(DHExp.rule)) =>
   (t, HoleClosureInfo_.t, list(DHExp.rule));
 
 /* Postprocess inside evaluation boundary */
@@ -70,7 +70,8 @@ let pp_eval:
 
 /* Recurse through environments, using memoized result if available. */
 let pp_eval_env:
-  (t, HoleClosureInfo_.t, EvalEnv.t) => (t, HoleClosureInfo_.t, EvalEnv.t);
+  (t, HoleClosureInfo_.t, ClosureEnvironment.t) =>
+  (t, HoleClosureInfo_.t, ClosureEnvironment.t);
 
 /* Tracking children of hole closures. A hole closure is a child of
    another hole closure if it exists in the hole environment of the parent.

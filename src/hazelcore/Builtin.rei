@@ -1,12 +1,14 @@
 [@deriving sexp]
-type evaluate = (EvalEnv.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
+type evaluate =
+  (ClosureEnvironment.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
 type eval =
-  (EvalEnv.t, args, evaluate) => EvaluatorMonad.t(EvaluatorResult.t);
+  (ClosureEnvironment.t, args, evaluate) =>
+  EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type elab = DHExp.t;

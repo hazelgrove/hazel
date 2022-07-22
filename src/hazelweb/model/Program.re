@@ -108,7 +108,7 @@ exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
 let evaluate = d => {
   let (env, _) =
-    EvaluatorState.init |> EvaluatorState.with_eig(EvalEnv.empty);
+    EvaluatorState.init |> EvaluatorState.with_eig(ClosureEnvironment.empty);
   Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
 };
 let get_result = (program: t): Result.t => {

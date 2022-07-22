@@ -4,7 +4,7 @@
 
    Constructed using HoleClosureInfo_.t. */
 [@deriving sexp]
-type t = MetaVarMap.t(list((EvalEnv.t, HoleClosureParents.t)));
+type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleClosureParents.t)));
 
 let empty: t;
 
@@ -15,6 +15,6 @@ let num_unique_hcs: (t, MetaVar.t) => int;
    id, if found. */
 let find_hc_opt:
   (t, MetaVar.t, HoleClosureId.t) =>
-  option((EvalEnv.t, HoleClosureParents.t));
+  option((ClosureEnvironment.t, HoleClosureParents.t));
 
 let add_parent: (HoleClosure.t, HoleClosureParents.t_, t) => t;

@@ -9,16 +9,21 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-type t = EnvironmentIdMap.t(EvalEnv.t);
+type t = EnvironmentIdMap.t(ClosureEnvironment.t);
 
 let rec pp_uneval =
-        (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
+        (
+          pe: t,
+          hci: HoleClosureInfo_.t,
+          env: ClosureEnvironment.t,
+          d: DHExp.t,
+        )
         : (t, HoleClosureInfo_.t, DHExp.t) =>
   switch (d) {
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
   | BoundVar(x) =>
-    switch (EvalEnv.lookup(env, x)) {
+    switch (ClosureEnvironment.lookup(env, x)) {
     | Some(Indet(d'))
     | Some(BoxedValue(d')) => (pe, hci, d')
     | None => (pe, hci, d)
@@ -128,7 +133,12 @@ let rec pp_uneval =
   }
 
 and pp_uneval_rules =
-    (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, rules: list(DHExp.rule))
+    (
+      pe: t,
+      hci: HoleClosureInfo_.t,
+      env: ClosureEnvironment.t,
+      rules: list(DHExp.rule),
+    )
     : (t, HoleClosureInfo_.t, list(DHExp.rule)) =>
   List.fold_right(
     (DHExp.Rule(dp, d), (pe, hci, rules)) => {
@@ -261,9 +271,9 @@ and pp_eval =
   }
 
 and pp_eval_env =
-    (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t)
-    : (t, HoleClosureInfo_.t, EvalEnv.t) => {
-  let ei = env |> EvalEnv.id_of;
+    (pe: t, hci: HoleClosureInfo_.t, env: ClosureEnvironment.t)
+    : (t, HoleClosureInfo_.t, ClosureEnvironment.t) => {
+  let ei = env |> ClosureEnvironment.id_of;
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hci, env)
   | None =>
@@ -282,7 +292,7 @@ and pp_eval_env =
           (pe, hci, VarBstMap.extend(new_env, (x, r)));
         },
         (pe, hci, VarBstMap.empty),
-        env |> EvalEnv.map_of,
+        env |> ClosureEnvironment.map_of,
       );
     let env = (ei, result_map);
     (pe |> EnvironmentIdMap.add(ei, env), hci, env);
@@ -376,7 +386,7 @@ let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
               track_children_of_hole(hci, (x, (u, i)), d);
             },
             hci,
-            env |> EvalEnv.map_of,
+            env |> ClosureEnvironment.map_of,
           ),
         hcs |> List.mapi((i, hc) => (i, hc)),
         hci,

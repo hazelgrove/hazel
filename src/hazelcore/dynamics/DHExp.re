@@ -296,7 +296,7 @@ let rec fast_equals = (d1: t, d2: t): bool => {
   | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
     u1 == u2 && i1 == i2 && text1 == text2
   | (Closure((ei1, _), d1), Closure((ei2, _), d2)) =>
-    /* Cannot use EvalEnv.equals here because it will create a dependency loop. */
+    /* Cannot use ClosureEnvironment.equals here because it will create a dependency loop. */
     ei1 == ei2 && fast_equals(d1, d2)
   | (
       InconsistentBranches(u1, i1, case1),

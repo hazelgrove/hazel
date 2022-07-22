@@ -486,8 +486,9 @@ and subst_var_rules =
        }
      )
 
-and subst_var_env = (d1: DHExp.t, x: Var.t, sigma: EvalEnv.t): EvalEnv.t =>
-  EvalEnv.map_keep_id(
+and subst_var_env =
+    (d1: DHExp.t, x: Var.t, sigma: ClosureEnvironment.t): ClosureEnvironment.t =>
+  ClosureEnvironment.map_keep_id(
     ((_, dr)) =>
       switch (dr) {
       | BoxedValue(d) => BoxedValue(subst_var(d1, x, d))
@@ -548,7 +549,7 @@ let eval_bin_float_op =
 open DHExp;
 type t('a) = EvaluatorMonad.t('a);
 
-let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
+let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
@@ -557,7 +558,7 @@ let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
     | BoundVar(x) =>
       let dr =
         x
-        |> EvalEnv.lookup(env)
+        |> ClosureEnvironment.lookup(env)
         |> OptUtil.get(_ =>
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            );
@@ -586,7 +587,11 @@ let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
       | BoxedValue(Closure(env', Fun(_) as d''') as d'') =>
         let* env'' =
           with_eig(eig =>
-            EvalEnv.extend(env', (f, BoxedValue(FixF(f, ty, d''))), eig)
+            ClosureEnvironment.extend(
+              env',
+              (f, BoxedValue(FixF(f, ty, d''))),
+              eig,
+            )
           );
         BoxedValue(Closure(env'', d''')) |> return;
       | _ =>
@@ -881,7 +886,7 @@ let rec evaluate: (EvalEnv.t, DHExp.t) => t(EvaluatorResult.t) =
   }
 and evaluate_case =
     (
-      env: EvalEnv.t,
+      env: ClosureEnvironment.t,
       inconsistent_info: option(HoleClosure.t),
       scrut: DHExp.t,
       rules: list(DHExp.rule),
@@ -933,16 +938,17 @@ and evaluate_case =
   };
 }
 
-/* This function extends an EvalEnv.t with new bindings
+/* This function extends an ClosureEnvironment.t with new bindings
    (an Environment.t from match()). We need to wrap the new bindings
    in a final judgment (BoxedValue or Indet), so we call evaluate()
    on it again, but it shouldn't change the value of the expression. */
 and evaluate_extend_env =
-    (new_bindings: Environment.t, to_extend: EvalEnv.t): t(EvalEnv.t) => {
+    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
+    : t(ClosureEnvironment.t) => {
   let* new_bindings =
     new_bindings
     |> List.map(((x, d)) => {
-         let* r = evaluate(EvalEnv.placeholder, d);
+         let* r = evaluate(ClosureEnvironment.placeholder, d);
          (x, r) |> return;
        })
     |> sequence;
@@ -951,7 +957,7 @@ and evaluate_extend_env =
     new_bindings
     |> List.fold_left(
          (new_env, (x, r)) => VarBstMap.extend(new_env, (x, r)),
-         EvalEnv.map_of(to_extend),
+         ClosureEnvironment.map_of(to_extend),
        );
 
   with_eig(eig => {
@@ -962,7 +968,7 @@ and evaluate_extend_env =
 
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
-    (env: EvalEnv.t, ident: string, args: list(DHExp.t))
+    (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
     : t(EvaluatorResult.t) => {
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => eval(env, args, evaluate)

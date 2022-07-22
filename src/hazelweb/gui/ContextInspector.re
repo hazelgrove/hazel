@@ -253,7 +253,7 @@ let view =
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
             Environment.empty;
-          | Some((sigma, _)) => sigma |> EvalEnv.to_environment
+          | Some((sigma, _)) => sigma |> ClosureEnvironment.to_environment
           }
         };
       } else {
