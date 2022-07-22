@@ -4,12 +4,7 @@
 
 /* FIXME: Make this abstract. */
 [@deriving sexp]
-type t =
-  MetaVarMap.t(
-    EnvironmentIdMap.t(
-      (HoleInstanceId.t, ClosureEnvironment.t, HoleInstanceParents.t),
-    ),
-  );
+type t;
 
 /**
   [empty] is the empty info map.
