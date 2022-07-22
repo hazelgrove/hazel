@@ -3259,18 +3259,22 @@ and ana_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
     Succeeded(AnaDone((new_ze, id_gen)));
   | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
-    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
-    switch (ana_perform_operand(ctx, a, (zhole, id_gen), HTyp.Hole)) {
-    | (Failed | CursorEscaped(_)) as failed => failed
-    | Succeeded(AnaDone((zp, id_gen))) =>
-      switch (zp) {
-      | ([], ExpLineZ(z), []) =>
-        let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
-        Succeeded(AnaDone((new_ze, id_gen)));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ty_el) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      switch (ana_perform_operand(ctx, a, (zhole, id_gen), ty_el)) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded(AnaDone((zp, id_gen))) =>
+        switch (zp) {
+        | ([], ExpLineZ(z), []) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
+          Succeeded(AnaDone((new_ze, id_gen)));
+        | _ => Failed
+        }
       | _ => Failed
-      }
-    | _ => Failed
-    };
+      };
+    }
   | (Construct(SCommentLine), _) =>
     if (ZExp.is_before_zoperand(zoperand)) {
       let operand = ZExp.erase_zoperand(zoperand);
