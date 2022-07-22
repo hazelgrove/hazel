@@ -1,5 +1,11 @@
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
+open EvaluatorResult;
+
+/**
+  Alias for EvaluatorMonad.
+ */
+type m('a) = EvaluatorMonad.t('a);
 
 [@deriving sexp]
 type ground_cases =
@@ -539,9 +545,7 @@ let eval_bin_float_op =
   };
 };
 
-type t('a) = EvaluatorMonad.t('a);
-
-let rec evaluate: (ClosureEnvironment.t, DHExp.t) => t(EvaluatorResult.t) =
+let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
@@ -868,7 +872,7 @@ and evaluate_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
     )
-    : t(EvaluatorResult.t) => {
+    : m(EvaluatorResult.t) => {
   let* rscrut = evaluate(env, scrut);
   switch (rscrut) {
   | BoxedValue(scrut)
@@ -915,12 +919,10 @@ and evaluate_case =
 }
 
 /* This function extends an ClosureEnvironment.t with new bindings
-   (an Environment.t from match()). We need to wrap the new bindings
-   in a final judgment (BoxedValue or Indet), so we call evaluate()
-   on it again, but it shouldn't change the value of the expression. */
+   (an Environment.t from match()).  */
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
-    : t(ClosureEnvironment.t) => {
+    : m(ClosureEnvironment.t) => {
   let map =
     new_bindings
     |> Environment.fold(
@@ -937,7 +939,7 @@ and evaluate_extend_env =
 /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
     (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
-    : t(EvaluatorResult.t) => {
+    : m(EvaluatorResult.t) => {
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => eval(env, args, evaluate)
   | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
