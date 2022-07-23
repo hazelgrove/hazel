@@ -440,7 +440,7 @@ and ana_cursor_info_zoperand =
     | IntLit(InHole(TypeInconsistent, _), _)
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
-    | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), None)
+    | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
     | TypeAnn(InHole(TypeInconsistent, _), _, _)
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
@@ -576,10 +576,17 @@ and ana_cursor_info_zoperand =
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty)
-  | ListLitZ(_, zbody) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => None
-    | Some(ty_el) => ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_el)
+  | ListLitZ(err, zbody) =>
+    switch (err) {
+    | StandardErrStatus(NotInHole) =>
+      switch (HTyp.matched_list(ty)) {
+      | None => None
+      | Some(ty_el) =>
+        ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty_el)
+      }
+    | StandardErrStatus(InHole(TypeInconsistent, _)) =>
+      syn_cursor_info_zoperand(~steps, ctx, zoperand)
+    | _ => None
     }
   | TypeAnnZP(err, zop, ann) =>
     switch (err) {
