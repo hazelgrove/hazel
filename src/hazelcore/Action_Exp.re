@@ -3255,16 +3255,27 @@ and ana_perform_operand =
 
   /* Construction */
   | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
-    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
-    let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
-    Succeeded(AnaDone((new_ze, id_gen)));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    }
   | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
     switch (HTyp.matched_list(ty)) {
     | None => Failed
     | Some(ty_el) =>
       let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
       switch (ana_perform_operand(ctx, a, (zhole, id_gen), ty_el)) {
-      | (Failed | CursorEscaped(_)) as failed => failed
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, id_gen),
+          ty,
+        )
       | Succeeded(AnaDone((zp, id_gen))) =>
         switch (zp) {
         | ([], ExpLineZ(z), []) =>
