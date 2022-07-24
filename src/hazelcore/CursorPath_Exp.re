@@ -443,7 +443,8 @@ and holes_operand =
   | FloatLit(err, _)
   | BoolLit(err, _) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
-  | ListLit(StandardErrStatus(err), Some(opseq)) =>
+  | ListLit(err, None) => hs |> holes_list_err(err, rev_steps)
+  | ListLit(err, Some(opseq)) =>
     hs
     |> CursorPath_common.holes_opseq(
          ~holes_operand,
@@ -452,18 +453,7 @@ and holes_operand =
          ~rev_steps=[0, ...rev_steps],
          opseq,
        )
-    |> holes_err(err, rev_steps)
-  | ListLit(inconsistent_branches_err, Some(opseq)) =>
-    hs
-    |> CursorPath_common.holes_opseq(
-         ~holes_operand,
-         ~hole_sort=hole_sort(TypeErr),
-         ~is_space=Operators_Exp.is_Space,
-         ~rev_steps=[0, ...rev_steps],
-         opseq,
-       )
-    |> holes_list_err(inconsistent_branches_err, rev_steps)
-  | ListLit(_, None) => []
+    |> holes_list_err(err, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Fun(err, p, body) =>

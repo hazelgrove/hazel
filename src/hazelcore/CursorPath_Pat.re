@@ -192,6 +192,8 @@ let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   PatHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+let holes_list_err =
+  CursorPath_common.holes_list_err(~hole_sort=hole_sort(TypeErr));
 
 let rec holes =
         (
@@ -244,12 +246,11 @@ and holes_operand =
   | InvalidText(u, _) => [
       mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps)),
     ]
-  | ListLit(StandardErrStatus(InHole(_, u)), None) => [
-      mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps)),
-      ...hs,
-    ]
-  | ListLit(_, None) => hs
-  | ListLit(_, Some(body))
+  | ListLit(err, None) => hs |> holes_list_err(err, rev_steps)
+  | ListLit(err, Some(body)) =>
+    hs
+    |> holes_list_err(err, [0, ...rev_steps])
+    |> holes(body, [0, ...rev_steps])
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> holes_err(err, rev_steps) |> holes(body, [0, ...rev_steps])

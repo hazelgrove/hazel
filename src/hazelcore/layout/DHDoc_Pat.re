@@ -13,7 +13,6 @@ let precedence = (dp: DHPat.t) =>
   | BoolLit(_)
   | Inj(_)
   | Triv
-  // | ListNil
   | ListLit(_)
   | Pair(_) => DHDoc_common.precedence_const
   | Cons(_) => DHDoc_common.precedence_Cons
