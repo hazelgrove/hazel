@@ -252,7 +252,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), None)
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
