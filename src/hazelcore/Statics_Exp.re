@@ -79,10 +79,10 @@ and syn_skel =
   | Placeholder(n) =>
     let en = Seq.nth_operand(n, seq);
     syn_operand(ctx, en);
-  | BinOp(InHole(_), op, skel1, skel2) =>
+  | BinOp(InHole(_, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     let+ _ = syn_skel(ctx, skel_not_in_hole, seq);
-    HTyp.Unknown(Internal);
+    HTyp.Unknown(Internal(ExpPatHole(u)));
   | BinOp(NotInHole, Minus | Plus | Times | Divide, skel1, skel2) =>
     let+ _ = ana_skel(ctx, skel1, seq, HTyp.Int)
     and+ _ = ana_skel(ctx, skel2, seq, Int);
@@ -123,18 +123,18 @@ and syn_skel =
 and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   switch (operand) {
   /* in hole */
-  | EmptyHole(_) => Some(Unknown(Internal))
-  | InvalidText(_) => Some(Unknown(Internal))
-  | Var(InHole(TypeInconsistent, _), _, _)
-  | IntLit(InHole(TypeInconsistent, _), _)
-  | FloatLit(InHole(TypeInconsistent, _), _)
-  | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _))
-  | Fun(InHole(TypeInconsistent, _), _, _)
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | EmptyHole(u) => Some(Unknown(Internal(ExpPatHole(u))))
+  | InvalidText(u, _) => Some(Unknown(Internal(ExpPatHole(u))))
+  | Var(InHole(TypeInconsistent, u), _, _)
+  | IntLit(InHole(TypeInconsistent, u), _)
+  | FloatLit(InHole(TypeInconsistent, u), _)
+  | BoolLit(InHole(TypeInconsistent, u), _)
+  | ListNil(InHole(TypeInconsistent, u))
+  | Fun(InHole(TypeInconsistent, u), _, _)
+  | Inj(InHole(TypeInconsistent, u), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
-    HTyp.Unknown(Internal);
+    HTyp.Unknown(Internal(ExpPatHole(u)));
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -142,24 +142,25 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) => None
-  | Case(InconsistentBranches(_, Syn), scrut, rules) =>
+  | Case(InconsistentBranches(u, Syn), scrut, rules) =>
     let* ty_scrut = syn(ctx, scrut);
     let* clause_types = syn_rule_types(ctx, ty_scrut, rules);
     switch (HTyp.join_all(GLB, clause_types)) {
-    | None => Some(HTyp.Unknown(Internal))
+    | None => Some(HTyp.Unknown(Internal(ExpPatHole(u))))
     | Some(_) => None
     };
-  | Case(InconsistentBranches(_, Ana), scrut, rules) =>
+  | Case(InconsistentBranches(u, Ana), scrut, rules) =>
     let* ty_scrut = syn(ctx, scrut);
     let* _clause_types = syn_rule_types(ctx, ty_scrut, rules);
-    Some(HTyp.Unknown(Internal));
+    Some(HTyp.Unknown(Internal(ExpPatHole(u))));
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
-  | Var(NotInHole, InVarHole(_), _) => Some(Unknown(Internal))
+  | Var(NotInHole, InVarHole(_, u), _) =>
+    Some(Unknown(Internal(ExpPatHole(u))))
   | IntLit(NotInHole, _) => Some(Int)
   | FloatLit(NotInHole, _) => Some(Float)
   | BoolLit(NotInHole, _) => Some(Bool)
-  | ListNil(NotInHole) => Some(List(Unknown(Internal)))
+  | ListNil(NotInHole) => Some(List(Unknown(Internal(Wildcard))))
   | Fun(NotInHole, p, body) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);

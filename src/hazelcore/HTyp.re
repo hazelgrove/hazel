@@ -4,12 +4,16 @@ open Sexplib.Std;
 type unknown_type_provenance =
   | TypHole(MetaVar.t)
   | ModeSwitch
-  | Internal(internal_provenance)
+  | Internal(internal_provenance) // TODO anand raef: consider renaming to TypeInference, and adding a new case for "Useless" or "None" or something
 and internal_provenance =
   // enumerate other base cases here if applicable; try to avoid
-  | ExpPatHole(MetaVar.t) // TODO anand raef: rename this possibly
+  | ExpPatHole(MetaVar.t) // TODO anand raef: consider renaming this to Base
   | Wildcard
-  | Dummy
+  | DummyAna
+  | DummySyn
+  | DummyView
+  | DummyElab
+  | DummyEval
   | Matched_arrow_L(unknown_type_provenance)
   | Matched_arrow_R(unknown_type_provenance)
   | Matched_sum_L(unknown_type_provenance)

@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Unknown(Internal)),
+      HTypCode.view(HTyp.Unknown(Internal(DummyView))),
       emphasize_text(")"),
     ],
   );

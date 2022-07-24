@@ -163,13 +163,13 @@ and syn_cursor_info_skel =
           ctx,
           skel1,
           zseq,
-          HTyp.Unknown(Internal(Dummy)),
+          HTyp.Unknown(Internal(DummyAna)),
         )
       ) {
       | Some(_) as res => res
       | None =>
         switch (
-          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(Dummy)))
+          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(DummyAna)))
         ) {
         | None => None
         | Some(ctx) =>
@@ -178,7 +178,7 @@ and syn_cursor_info_skel =
             ctx,
             skel2,
             zseq,
-            Unknown(Internal(Dummy)),
+            Unknown(Internal(DummyAna)),
           )
         }
       }
@@ -404,14 +404,28 @@ and ana_cursor_info_skel =
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (
-        ana_cursor_info_skel(~steps, ctx, skel1, zseq, Unknown(Internal))
+        ana_cursor_info_skel(
+          ~steps,
+          ctx,
+          skel1,
+          zseq,
+          Unknown(Internal(DummyAna)),
+        )
       ) {
       | Some(_) as res => res
       | None =>
-        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal))) {
+        switch (
+          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(DummyAna)))
+        ) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Unknown(Internal))
+          ana_cursor_info_skel(
+            ~steps,
+            ctx,
+            skel2,
+            zseq,
+            Unknown(Internal(DummyAna)),
+          )
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -448,7 +462,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ty, Unknown(Internal)),
+            PatAnaSubsumed(ty, Unknown(Internal(DummyAna))),
             ctx,
             cursor_term,
           ),

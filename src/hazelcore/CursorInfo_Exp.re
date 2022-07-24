@@ -452,20 +452,33 @@ and syn_cursor_info_skel =
           |> Option.map(ty =>
                mk(
                  SynErrorArrow(
-                   Arrow(Unknown(Internal), Unknown(Internal)),
+                   Arrow(
+                     Unknown(Internal(DummySyn)),
+                     Unknown(Internal(DummySyn)),
+                   ),
                    ty,
                  ),
                )
              );
         | Some(VarErr(Free)) =>
           Some(
-            mk(SynFreeArrow(Arrow(Unknown(Internal), Unknown(Internal)))),
+            mk(
+              SynFreeArrow(
+                Arrow(
+                  Unknown(Internal(DummySyn)),
+                  Unknown(Internal(DummySyn)),
+                ),
+              ),
+            ),
           )
         | Some(VarErr(Keyword(k))) =>
           Some(
             mk(
               SynKeywordArrow(
-                Arrow(Unknown(Internal), Unknown(Internal)),
+                Arrow(
+                  Unknown(Internal(DummySyn)),
+                  Unknown(Internal(DummySyn)),
+                ),
                 k,
               ),
             ),
@@ -482,7 +495,10 @@ and syn_cursor_info_skel =
             Some(
               mk(
                 SynInvalidArrow(
-                  Arrow(Unknown(Internal), Unknown(Internal)),
+                  Arrow(
+                    Unknown(Internal(DummySyn)),
+                    Unknown(Internal(DummySyn)),
+                  ),
                 ),
               ),
             )
@@ -583,7 +599,7 @@ and syn_cursor_info_zoperand =
     let ty_join =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
-      | _ => HTyp.Unknown(Internal)
+      | _ => HTyp.Unknown(Internal(DummySyn))
       };
     /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to
