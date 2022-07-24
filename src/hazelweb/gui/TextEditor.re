@@ -58,6 +58,18 @@ let editor_switch_button = (inject, te_model: TextEditorModel.t) => {
   );
 };
 
+let text_box_height_css = (model: Model.t) => {
+  let row_height = model.font_metrics.row_height;
+  Css_gen.(
+    height(
+      `Px(
+        (TextEditorModel.line_count(model.text_editor) + 1)
+        * Float.to_int(row_height),
+      ),
+    )
+  );
+};
+
 let text_editor_body = (inject, model: Model.t) => {
   Vdom.(
     Node.div(
@@ -67,6 +79,7 @@ let text_editor_body = (inject, model: Model.t) => {
         Node.textarea(
           [
             Attr.id("text-editor-text-box"),
+            Attr.style(text_box_height_css(model)),
             ...textbox_keyhandlers(inject, model),
           ],
           [Node.text(model.text_editor.current_text)],

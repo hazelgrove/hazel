@@ -416,7 +416,8 @@ body {
 
 #text-editor-text-box {
   width: 100%;
-  min-height: 16em;
+  min-height: var(--code-line-height);
+  overflow: hidden;
   box-sizing: border-box;
   resize: none;
   border: 2px solid #CCC;
@@ -426,6 +427,7 @@ body {
   margin-bottom: 0;
   font-family: var(--code-font-family);
   font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
 }
 
 #text-editor-errors {

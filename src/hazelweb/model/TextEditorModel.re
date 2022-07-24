@@ -45,3 +45,7 @@ let apply_update = (update, t) => {
   | SetErrorText(s) => {...t, valid_text: false, error_text: s}
   };
 };
+
+let line_count = t => {
+  String.split_on_char('\n', t.current_text) |> List.length |> (x => x + 0);
+};

@@ -17,3 +17,5 @@ type update =
 let init: t;
 
 let apply_update: (update, t) => t;
+
+let line_count: t => int;
