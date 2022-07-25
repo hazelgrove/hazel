@@ -112,7 +112,6 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | ListNil(_) => indicate_words_view("empty list")
     | Fun(_) => indicate_words_view("function")
-
     | Inj(_, side, _) =>
       switch (side) {
       | L => indicate_words_view("left injection")
@@ -120,6 +119,8 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
+    | TypFun(_) => indicate_words_view("type function")
+    | TypApp(_) => indicate_words_view("type application")
     };
   };
 
@@ -245,6 +246,17 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       )
     | Parenthesized(_) => indicate_words_view("parentheses")
     | List(_) => code_keywords_view("[ ]")
+    | Forall(_tp, _ty_body) =>
+      // Vdom.(
+      //   Node.span(
+      //     [],
+      //     [
+      //       indicate_words_view("type: "),
+      //       code_keywords_view("forall " ++ TPat.to_string(tp) ++ typ_view(ty_body)),
+      //     ],
+      //   )
+      // )
+      indicate_words_view("forall")
     };
   };
 
@@ -344,8 +356,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     | SCloseParens
     | SCloseBraces
     | SCloseSquareBracket
-    | SParenthesized =>
-      indicate_words_view(Action_common.shape_to_string(shape))
+    | SParenthesized
+    | STypFun
+    | STypApp
+    | SForall => indicate_words_view(Action_common.shape_to_string(shape))
     | SChar(_) => code_view(Action_common.shape_to_string(shape))
     | SOp(op) =>
       switch (op) {
