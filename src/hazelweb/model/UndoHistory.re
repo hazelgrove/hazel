@@ -504,6 +504,9 @@ let get_new_action_group =
       | SList
       | SAnn
       | SFun
+      | SForall
+      | STypFun
+      | STypApp
       | SListNil
       | SInj(_)
       | SLet
