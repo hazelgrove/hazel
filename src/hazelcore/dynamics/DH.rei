@@ -139,92 +139,93 @@ and ClosureEnvironment: {
   type t = (EnvironmentId.t, Environment.t);
 
   /**
-  [id_of env] is the id of [env].
- */
+    [id_of env] is the id of [env].
+   */
   let id_of: t => EnvironmentId.t;
 
   /**
-  [map_of env] is the {!type:map} of [env].
- */
+    [map_of env] is the {!type:map} of [env].
+   */
   let map_of: t => Environment.t;
 
   /**
-  [to_list env] is the list of bindings in [env].
- */
+    [to_list env] is the list of bindings in [env].
+   */
   let to_list: t => list((Var.t, DHExp.t));
 
   /**
-  [id_equal env1 env2] is [true] if and only if [env1] and [env2] have the same
-  id.
- */
+    [id_equal env1 env2] is [true] if and only if [env1] and [env2] have the same
+    id.
+   */
   let id_equal: (t, t) => bool;
 
   /**
-  [empty eig] is [(env, eig')] where [env] is an empty environment.
- */
+    [empty eig] is [(env, eig')] where [env] is an empty environment.
+   */
   let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
 
   /**
-  [is_empty env] is [true] if and only if [env] has no bindings.
- */
+    [is_empty env] is [true] if and only if [env] has no bindings.
+   */
   let is_empty: t => bool;
 
   /**
-  [length env] is the number of bindings in [env].
- */
+    [length env] is the number of bindings in [env].
+   */
   let length: t => int;
 
   /**
-  [lookup env x] is [Some d] if [d] is bound for [x] in [env] and [None] otherwise.
- */
+    [lookup env x] is [Some d] if [d] is bound for [x] in [env] and [None]
+    otherwise.
+   */
   let lookup: (t, Var.t) => option(DHExp.t);
 
   /**
-  [contains env x] is [true] if [x] is bound in [env].
- */
+    [contains env x] is [true] if [x] is bound in [env].
+   */
   let contains: (t, Var.t) => bool;
 
   /**
-  [extend env (x, d) eig] is [(env', eig')], where [env'] is [env] extended
-  with the binding of [d] for [x].
- */
+    [extend env (x, d) eig] is [(env', eig')], where [env'] is [env] extended
+    with the binding of [d] for [x].
+   */
   let extend:
     (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
 
   /**
-  [union env1 env2 eig] is [(env, eig)] where [env] is [env2] extended with
-  [env1]. See {!val:VarBstMap.union}.
- */
+    [union env1 env2 eig] is [(env, eig)] where [env] is [env2] extended with
+    [env1]. See {!val:VarBstMap.union}.
+   */
   let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
 
   /**
-  [map f env eig] is [(env', eig')] where [env'] contains the bindings of
-  [env] mapped by [f].
- */
+    [map f env eig] is [(env', eig')] where [env'] contains the bindings of
+    [env] mapped by [f].
+   */
   let map:
     (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
 
   /**
-  [map_keep_id] is [map], but the id of the given environment is maintained.
+    [map_keep_id] is [map], but the id of the given environment is maintained.
 
-  (This is used when transforming an environment, such as in the closure ->
-  lambda stage after evaluation. More functions may be added like this
-  as-needed for similar purposes.)
- */
+    (This is used when transforming an environment, such as in the closure ->
+    lambda stage after evaluation. More functions may be added like this
+    as-needed for similar purposes.)
+   */
   let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
 
   /**
-  [filter f env eig] is [(env', eig')] where [env'] contains the bindings of
-  [env] filtered by [f].
- */
+    [filter f env eig] is [(env', eig')] where [env'] contains the bindings of
+    [env] filtered by [f].
+   */
   let filter:
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
 
   /**
-  Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only
-  used for display purposes.
- */
+    Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only
+    used for display purposes.
+   */
   let placeholder: t;
 };
