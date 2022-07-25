@@ -9,7 +9,7 @@ type ground_cases =
   [es] is the accumulated state.
  */
 let evaluate:
-  (ClosureEnvironment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
+  (Environment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
 
 /* closed substitution [d1/x]d2;
    Not needed for evaluation with environments,

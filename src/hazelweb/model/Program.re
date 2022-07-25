@@ -106,12 +106,11 @@ let get_elaboration = (program: t): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let evaluate = d => {
-  /* FIXME: Need to use same env id generator outside and in. */
-  let (env, _) =
-    EvaluatorState.init |> EvaluatorState.with_eig(ClosureEnvironment.empty);
-  Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
-};
+let evaluate =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(Environment.empty),
+  );
 let get_result = (program: t): ProgramResult.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>

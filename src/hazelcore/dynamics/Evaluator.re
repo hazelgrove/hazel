@@ -961,4 +961,9 @@ and evaluate_ap_builtin =
   };
 };
 
-let evaluate = (env, d) => evaluate(env, d, EvaluatorState.init);
+let evaluate = (env, d) => {
+  let es = EvaluatorState.init;
+  let (env, es) =
+    es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
+  evaluate(env, d, es);
+};

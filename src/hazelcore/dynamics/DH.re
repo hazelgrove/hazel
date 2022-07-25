@@ -424,6 +424,9 @@ and ClosureEnvironment: {
 
   let to_list: t => list((Var.t, DHExp.t));
 
+  let of_environment:
+    (Environment.t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+
   let id_equal: (t, t) => bool;
 
   let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
@@ -453,10 +456,16 @@ and ClosureEnvironment: {
 
   let to_list = ((_, map)) => map |> VarBstMap.to_list;
 
+  let of_environment = (map, eig) => {
+    let (ei, eig) = EnvironmentIdGen.next(eig);
+    ((ei, map), eig);
+  };
+
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
   let id_equal = (env1, env2) => id_of(env1) == id_of(env2);
 
+  /* FIXME: Use of_environment. */
   let empty = eig => {
     let (ei, eig) = EnvironmentIdGen.next(eig);
     ((ei, VarBstMap.empty), eig);
