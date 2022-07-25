@@ -50,8 +50,8 @@ let is_cell_focused: t => bool;
  * Update selected instances when user clicks on a hole
  * instance (in result or context inspector)
  */
-let select_hole_closure: (HoleInstance.t, t) => t;
-let get_selected_hole_closure: t => option(HoleInstance.t);
+let select_hole_instance: (HoleInstance.t, t) => t;
+let get_selected_hole_instance: t => option(HoleInstance.t);
 
 let prev_card: t => t;
 let next_card: t => t;

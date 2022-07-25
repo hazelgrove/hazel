@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_hole_closure: option(HoleInstance.t),
+      ~selected_hole_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
@@ -47,7 +47,7 @@ let view =
                 DHCode.view(
                   ~inject,
                   ~settings,
-                  ~selected_hole_closure,
+                  ~selected_hole_instance,
                   ~font_metrics,
                   ~width=30,
                   d,
@@ -73,7 +73,7 @@ let view =
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
 
   let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
+    Panel.view_of_other_title_bar("Instance above observed at ");
 
   let hii_summary = (hii, (u, i) as inst) => {
     let num_instances = HoleInstanceInfo.num_instances(hii, u);
@@ -87,10 +87,10 @@ let view =
               Node.div(
                 [Attr.classes(["hii-summary-inst"])],
                 [
-                  DHCode.view_of_hole_closure(
+                  DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_hole_closure,
+                    ~selected_hole_instance,
                     ~settings,
                     ~font_metrics,
                     inst,
@@ -204,10 +204,10 @@ let view =
                            Node.div(
                              [Attr.classes(["inst"])],
                              [
-                               DHCode.view_of_hole_closure(
+                               DHCode.view_of_hole_instance(
                                  ~inject,
                                  ~width=30,
-                                 ~selected_hole_closure,
+                                 ~selected_hole_instance,
                                  ~settings,
                                  ~font_metrics,
                                  (u, i),
@@ -229,7 +229,7 @@ let view =
     Node.div(
       [],
       [
-        Panel.view_of_other_title_bar("Hole closure parents"),
+        Panel.view_of_other_title_bar("Hole instance parents"),
         ...parents_info,
       ],
     );
@@ -245,7 +245,7 @@ let view =
       if (settings.evaluate) {
         let hii =
           program |> Program.get_result |> ProgramResult.get_hole_instance_info;
-        switch (selected_hole_closure) {
+        switch (selected_hole_instance) {
         | None => Environment.empty
         | Some((u, i)) =>
           switch (HoleInstanceInfo.find_instance(hii, u, i)) {
@@ -279,7 +279,7 @@ let view =
   };
 
   /**
-   * Shows the `HoleInstanceParents.t` for the currently selected hole closure.
+    Shows the `HoleInstanceParents.t` for the currently selected hole instance.
    */
   let path_viewer =
     if (settings.evaluate) {
@@ -289,11 +289,11 @@ let view =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
             instructional_msg(
-              "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+              "Move cursor to a hole, or click a hole instance in the result, to see instances.",
             ),
           ]
         | Some(u) =>
-          switch (selected_hole_closure) {
+          switch (selected_hole_instance) {
           | None => [
               instructional_msg("Click on a hole instance in the result"),
             ]

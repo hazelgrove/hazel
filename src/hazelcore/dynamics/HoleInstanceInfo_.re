@@ -31,7 +31,7 @@ let add_instance =
     /* Hole instance already exists in the map, simply return the hole instance
      * id. */
     | Some((i, _, _)) => (hii, i)
-    /* Hole exists in the info map, but closure doesn't; create a new hole
+    /* Hole exists in the info map, but instance doesn't; create a new hole
      * instance with next unique instance id. */
     | None =>
       let i = his |> EnvironmentIdMap.cardinal;

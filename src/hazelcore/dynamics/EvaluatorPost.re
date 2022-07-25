@@ -286,7 +286,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
 
   /* Hole expressions:
      - Use the closure environment as the hole environment.
-     - Number the hole closure appropriately.
+     - Number the hole instance appropriately.
      - Recurse through inner expression (if any).
      */
   | EmptyHole(u, _) =>
@@ -330,14 +330,14 @@ and pp_uneval_rules =
 };
 
 /**
-  Tracking children of hole closures. A hole closure is a child of another hole
-  closure if it exists in the hole environment of the parent.
+  Tracking children of hole instances. A hole instance is a child of another hole
+  instance if it exists in the hole environment of the parent.
 
   This is the second stage of postprocessing, separate from hole numbering and
   substitution, since memoization becomes much more convoluted if these two
   stages are combined.
 
-  This works by simply iterating over all the (postprocessed) hole closure
+  This works by simply iterating over all the (postprocessed) hole instance
   environments in the HoleInstanceInfo_.t and looking for "child" holes.
  */
 let rec track_children_of_hole =
@@ -411,7 +411,7 @@ and track_children_of_hole_rules =
   );
 
 /**
-  Driver for hole parent tracking; iterate through all hole closures in the
+  Driver for hole parent tracking; iterate through all hole instances in the
   [HoleInstanceInfo.t], and call [track_children_of_hole] on them.
  */
 let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>

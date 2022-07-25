@@ -12,7 +12,7 @@ exception InvalidInstance;
 let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
-    ~selected_hole_closure: option(HoleInstance.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
     Program.t

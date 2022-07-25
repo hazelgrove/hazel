@@ -132,7 +132,7 @@ let apply_action =
       | LoadCardstack(idx) => Model.load_cardstack(model, idx)
       | NextCard => Model.next_card(model)
       | PrevCard => Model.prev_card(model)
-      | SelectHoleInstance(hc) => model |> Model.select_hole_closure(hc)
+      | SelectHoleInstance(hc) => model |> Model.select_hole_instance(hc)
       | SelectCaseBranch(path_to_case, branch_index) =>
         Model.select_case_branch(path_to_case, branch_index, model)
       | FocusCell => model |> Model.focus_cell

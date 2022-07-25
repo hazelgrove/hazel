@@ -8,7 +8,7 @@
       expression bodies), by looking up bound variables and assigning hole
       environments.
     - Number holes and generate a HoleInstanceInfo.t that holds information
-    about all unique hole closures in the result.
+      about all unique hole instances in the result.
 
   The postprocessing steps are partially memoized by environments. (Only
   memoized among hole instances which share the same environment.)

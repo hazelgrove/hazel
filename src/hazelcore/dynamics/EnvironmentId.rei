@@ -14,7 +14,7 @@ type t = int;
 let init: t;
 
 /**
-  [init ei ei'] is true if and only if [ei] and [ei'] are equal.
+  [equal ei ei'] is true if and only if [ei] and [ei'] are equal.
  */
 let equal: (t, t) => bool;
 

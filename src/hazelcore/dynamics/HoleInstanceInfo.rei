@@ -1,5 +1,5 @@
 /**
-  Stores information about all hole closures reachable by a program's
+  Stores information about all hole instances reachable by a program's
   evaluation result. Used in the context inspector.
 
   Constructed using {!val:HoleInstanceInfo_.to_hole_instance_info}.
