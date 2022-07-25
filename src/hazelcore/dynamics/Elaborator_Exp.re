@@ -280,6 +280,8 @@ and syn_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypFun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypApp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -297,6 +299,8 @@ and syn_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate
@@ -382,6 +386,31 @@ and syn_elab_operand =
       | Elaborates(d1, ty2, delta) =>
         let d = DHExp.Fun(dp, (ctx, ty1), d1);
         Elaborates(d, HTyp.arrow(ty1, ty2), delta);
+      }
+    }
+  | TypFun(NotInHole, tp, body) =>
+    let ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    switch (syn_elab(ctx, delta, body)) {
+    | DoesNotElaborate => DoesNotElaborate
+    | Elaborates(body, ty_body, delta) =>
+      let d = DHExp.TypFun(tp, body);
+      Elaborates(d, HTyp.forall(tp, ty_body), delta);
+    };
+  | TypApp(NotInHole, body, ty) =>
+    switch (Elaborator_Typ.syn_elab(ctx, delta, ty)) {
+    | None => DoesNotElaborate
+    | Some((ty, _k, delta)) =>
+      switch (syn_elab(ctx, delta, body)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(body, ty_body, delta) =>
+        switch (HTyp.matched_forall(ctx, ty_body)) {
+        | None => DoesNotElaborate
+        | Some((tp, ty_def)) =>
+          let d = DHExp.TypApp(body, (ctx, ty));
+          let ctx = Statics_TPat.ana(ctx, tp, S(HTyp.to_syntax(ty)));
+          let ty_body = HTyp.subst_tpat(ctx, ty_def, tp, ty);
+          Elaborates(d, ty_body, delta);
+        }
       }
     }
   | Inj(NotInHole, side, body) =>
@@ -669,6 +698,8 @@ and ana_elab_operand =
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
   | Fun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypFun(InHole(TypeInconsistent as reason, u), _, _)
+  | TypApp(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
@@ -692,6 +723,8 @@ and ana_elab_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     DoesNotElaborate /* not in hole */
@@ -733,6 +766,18 @@ and ana_elab_operand =
             Elaborates(d, ty, delta);
           }
         }
+      };
+    }
+  | TypFun(NotInHole, tp, body) =>
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | None => DoesNotElaborate
+    | Some((_tp_given, ty_def)) =>
+      let ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      switch (ana_elab(ctx, delta, body, ty_def)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(body, ty_body, delta) =>
+        let d = DHExp.TypFun(tp, body);
+        Elaborates(d, HTyp.forall(tp, ty_body), delta);
       };
     }
   | Inj(NotInHole, side, body) =>
@@ -777,7 +822,8 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
-  | FloatLit(NotInHole, _) =>
+  | FloatLit(NotInHole, _)
+  | TypApp(NotInHole, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
   }

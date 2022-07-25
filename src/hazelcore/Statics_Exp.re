@@ -1324,16 +1324,16 @@ and ana_fix_holes_operand =
   | TypApp(_, _, _) =>
     // TODO: (poly) is a subsumption enough for TypApp?
     let (e', ty', id_gen) =
-        syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
-      if (HTyp.consistent(ctx, ty, ty')) {
-        (UHExp.set_err_status_operand(NotInHole, e'), id_gen);
-      } else {
-        let (u, id_gen) = IDGen.next_hole(id_gen);
-        (
-          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
-          id_gen,
-        );
-      };
+      syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
+    if (HTyp.consistent(ctx, ty, ty')) {
+      (UHExp.set_err_status_operand(NotInHole, e'), id_gen);
+    } else {
+      let (u, id_gen) = IDGen.next_hole(id_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        id_gen,
+      );
+    };
   | Inj(_, side, body) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | Some((ty1, ty2)) =>
