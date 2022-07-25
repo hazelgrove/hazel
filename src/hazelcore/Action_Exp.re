@@ -91,7 +91,7 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   | Case => Construct(SCase)
   | TyAlias => Construct(STyAlias)
   | TypFun => Construct(STypFun)
-  | Forall => failwith("Forall in expression")
+  | Forall => failwith(__LOC__ ++ "Forall in expression")
   };
 
 //TBD
@@ -453,7 +453,7 @@ let syn_split_text =
       | Case => mk_SynExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_SynExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
       | TypFun => mk_SynExpandsToTypFun(~id_gen, ~param=subject, ())
-      | Forall => failwith("Forall in expression")
+      | Forall => failwith(__LOC__ ++ "Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -497,7 +497,7 @@ let ana_split_text =
       | Case => mk_AnaExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_AnaExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
       | TypFun => mk_AnaExpandsToTypFun(~id_gen, ~param=subject, ())
-      | Forall => failwith("Forall in expression")
+      | Forall => failwith(__LOC__ ++ "Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -683,7 +683,7 @@ let rec syn_perform =
     let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze));
   | Succeeded(SynExpands({kw: Forall, _})) =>
-    failwith("Forall in expression")
+    failwith(__LOC__ ++ "Forall in expression")
   }
 
 and syn_perform_block =
@@ -2581,7 +2581,7 @@ and ana_perform =
     let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty));
   | Succeeded(AnaExpands({kw: Forall, _})) =>
-    failwith("Forall in expression")
+    failwith(__LOC__ ++ "Forall in expression")
   }
 
 and ana_perform_block =
