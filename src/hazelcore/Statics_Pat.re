@@ -34,13 +34,10 @@ and syn_skel =
     let+ ctx = ana_skel(ctx, skel2, seq, HTyp.Hole);
     (HTyp.Hole, ctx);
   | BinOp(NotInHole, Cons, skel1, skel2) =>
-    let* (ty2, ctx) = syn_skel(ctx, skel2, seq);
-    switch (ty2) {
-    | HTyp.List(ty) =>
-      let+ ctx = ana_skel(ctx, skel1, seq, ty);
-      (ty2, ctx);
-    | _ => Some((HTyp.List(HTyp.Hole), ctx))
-    };
+    let* (ty1, ctx) = syn_skel(ctx, skel1, seq);
+    let ty = HTyp.List(ty1);
+    let+ ctx = ana_skel(ctx, skel2, seq, ty);
+    (ty, ctx);
   }
 and syn_operand =
     (ctx: Contexts.t, operand: UHPat.operand): option((HTyp.t, Contexts.t)) =>
@@ -411,25 +408,13 @@ and syn_fix_holes_skel =
     let ty = HTyp.Hole;
     (skel, seq, ty, ctx, id_gen);
   | BinOp(_, Cons, skel1, skel2) =>
-    let (skel2, seq, ty, ctx, id_gen) =
-      syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel2, seq);
-    switch (ty) {
-    | HTyp.List(ty_elt) =>
-      let (skel1, seq, ctx, id_gen) =
-        ana_fix_holes_skel(
-          ctx,
-          id_gen,
-          ~renumber_empty_holes,
-          skel1,
-          seq,
-          ty_elt,
-        );
-      let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
-      (skel, seq, ty, ctx, id_gen);
-    | _ =>
-      let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
-      (skel, seq, HTyp.List(Hole), ctx, id_gen);
-    };
+    let (skel1, seq, ty_elt, ctx, id_gen) =
+      syn_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel1, seq);
+    let ty = HTyp.List(ty_elt);
+    let (skel2, seq, ctx, id_gen) =
+      ana_fix_holes_skel(ctx, id_gen, ~renumber_empty_holes, skel2, seq, ty);
+    let skel = Skel.BinOp(NotInHole, Operators_Pat.Cons, skel1, skel2);
+    (skel, seq, ty, ctx, id_gen);
   }
 and syn_fix_holes_operand =
     (
