@@ -99,9 +99,9 @@ module rec DHExp: {
      is true if comparing within a program evaluation (since
      EnvironmentId.t numbers don't get reused within a single program
      evaluation) or if all the environments are checked to be
-     equal (see Result.fast_equals).
+     equal (see Result.fast_equal).
      */
-  let fast_equals: (t, t) => bool;
+  let fast_equal: (t, t) => bool;
 }
 
 and Environment: {

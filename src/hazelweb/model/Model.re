@@ -169,7 +169,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
     let old_result = Program.get_result(old_program);
     let new_result = Program.get_result(new_program);
     let si =
-      Result.fast_equals(old_result, new_result)
+      Result.fast_equal(old_result, new_result)
         ? si : UserSelectedInstances.init;
 
     switch (

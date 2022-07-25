@@ -11,6 +11,7 @@
    steps) and may serve as an initial state to resume evaluation
    from a previous evaluation result in fill-and-resume.
    */
+/* FIXME: Why does this contain both DHExp and EvaluatorResult? */
 [@deriving sexp]
 type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
@@ -18,6 +19,8 @@ let get_dhexp: t => DHExp.t;
 let get_hole_instance_info: t => HoleInstanceInfo.t;
 let get_eval_state: t => EvaluatorState.t;
 
-/* See DHExp.fast_equals. Also checks that all environments
-   in the HoleInstanceInfo.t are equal. */
-let fast_equals: (t, t) => bool;
+/**
+  [fast_equal (r1, hii1, _, _) (r2, hii2, _, _) ] is checks if [hii1] and
+  [hii2] are equal and computes [EvaluatorResult.fast_equal r1 r2].
+ */
+let fast_equal: (t, t) => bool;
