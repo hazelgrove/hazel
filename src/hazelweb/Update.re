@@ -65,7 +65,7 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
   | UpdateFontMetrics(_)
   | SerializeToConsole(_)
   | Import(_)
-  | UpdateLastResult(_)
+  | UpdateCurrentResult(_)
   | LoadPermalink =>
     Logger.append(
       Sexp.to_string(
@@ -229,12 +229,18 @@ let apply_action =
           |> Js.string
           |> JSUtil.log
         | DHExp =>
-          let (d, _, _) = model |> Model.get_last_result;
-          d
-          |> DHExp.sexp_of_t
-          |> Sexplib.Sexp.to_string
-          |> Js.string
-          |> JSUtil.log;
+          switch (model |> Model.get_current_result |> ModelResult.get_current) {
+          /* TODO: Print a message? */
+          | ResultFail
+          | ResultTimedOut => ()
+          | ResultOk(r) =>
+            r
+            |> ProgramResult.get_dhexp
+            |> DHExp.sexp_of_t
+            |> Sexplib.Sexp.to_string
+            |> Js.string
+            |> JSUtil.log
+          }
         | ZExp =>
           model
           |> Model.get_program
@@ -244,6 +250,8 @@ let apply_action =
           |> JSUtil.log
         };
         model;
+      | UpdateCurrentResult(current) =>
+        model |> Model.update_current_result(current)
       | Import(e) => Import.import(e, model)
       | LoadPermalink =>
         switch (Permalink.get_current()) {
@@ -252,8 +260,6 @@ let apply_action =
         | None => JSUtil.log("[Permalink.EmptyCurrent]")
         };
         model;
-      | UpdateLastResult(last_result) =>
-        model |> Model.put_last_result(last_result)
       };
     },
   );

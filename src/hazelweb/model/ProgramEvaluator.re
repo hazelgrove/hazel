@@ -1,16 +1,11 @@
 open Lwt.Infix;
-open Sexplib;
 
-/**
-   The type of the evaluation result. [None] indicates some error was
-   encountered.
- */
-type program_result = option(ProgramResult.t);
+[@deriving sexp]
+type evaluation_result =
+  | EvaluationOk(ProgramResult.t)
+  | EvaluationFail;
 
-/**
-   The type of the deferred evaluation result. See {!type:program_result}.
- */
-type deferred_result = Lwt.t(program_result);
+type deferred_result = Lwt.t(option(evaluation_result));
 
 module type M = {
   type t;
@@ -26,7 +21,11 @@ module Sync: M = {
   let init = () => ();
 
   let get_result = (t: t, program: Program.t) => {
-    let lwt = Lwt.return(program) >|= Program.get_result >|= Option.some;
+    /* FIXME: Handle exceptions. */
+    let lwt =
+      Lwt.return(program)
+      >|= Program.get_result
+      >|= (r => Some(EvaluationOk(r)));
     (lwt, t);
   };
 };
@@ -39,22 +38,27 @@ module Worker = {
         type u = string;
 
         let serialize = program =>
-          program |> Program.sexp_of_t |> Sexp.to_string;
-        let deserialize = sexp => sexp |> Sexp.of_string |> Program.t_of_sexp;
+          program |> Program.sexp_of_t |> Sexplib.Sexp.to_string;
+        let deserialize = sexp =>
+          sexp |> Sexplib.Sexp.of_string |> Program.t_of_sexp;
       };
 
       module Response = {
-        type t = program_result;
+        type t = option(evaluation_result);
         type u = string;
 
         let serialize = r =>
-          r
-          |> Sexplib.Conv.sexp_of_option(ProgramResult.sexp_of_t)
-          |> Sexp.to_string;
+          Sexplib.(
+            r
+            |> Conv.sexp_of_option(sexp_of_evaluation_result)
+            |> Sexp.to_string
+          );
         let deserialize = sexp =>
-          sexp
-          |> Sexp.of_string
-          |> Sexplib.Conv.option_of_sexp(ProgramResult.t_of_sexp);
+          Sexplib.(
+            sexp
+            |> Sexp.of_string
+            |> Conv.option_of_sexp(evaluation_result_of_sexp)
+          );
       };
 
       module Worker = {

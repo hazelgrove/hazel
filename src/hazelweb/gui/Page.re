@@ -39,7 +39,10 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let result =
     settings.evaluation.show_unevaluated_elaboration
       ? program |> Program.get_elaboration
-      : model |> Model.get_last_result |> ProgramResult.get_dhexp;
+      : model
+        |> Model.get_current_result
+        |> ModelResult.get_current_or_prev_dhexp;
+
   div(
     [],
     [
@@ -86,7 +89,8 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
-  let (_, hii, _) = model |> Model.get_last_result;
+  let (_, hii, _) =
+    model |> Model.get_current_result |> ModelResult.get_current_or_prev_result;
   let selected_instance = Model.get_selected_hole_instance(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [

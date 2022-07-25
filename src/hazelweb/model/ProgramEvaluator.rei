@@ -1,5 +1,16 @@
-type program_result = option(ProgramResult.t);
-type deferred_result = Lwt.t(program_result);
+/**
+  The type of the evaluation result. [EvaluationFail] indicates some error was
+  encountered.
+ */
+[@deriving sexp]
+type evaluation_result =
+  | EvaluationOk(ProgramResult.t)
+  | EvaluationFail;
+
+/**
+  The type of the deferred evaluation result. See {!type:evaluation_result}.
+ */
+type deferred_result = Lwt.t(option(evaluation_result));
 
 module type M = {
   type t;

@@ -1,7 +1,7 @@
 module ProgramEvaluator: ProgramEvaluator.M;
 
 type t = {
-  last_result: ProgramResult.t,
+  current_result: ModelResult.t,
   evaluator: ProgramEvaluator.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -30,8 +30,8 @@ let cardstack_info: list(CardstackInfo.t);
 let cutoff: (t, t) => bool;
 let init: unit => t;
 
-let get_last_result: t => ProgramResult.t;
-let put_last_result: (ProgramResult.t, t) => t;
+let get_current_result: t => ModelResult.t;
+let update_current_result: (ModelResult.current, t) => t;
 
 let get_evaluator: t => ProgramEvaluator.t;
 let put_evaluator: (ProgramEvaluator.t, t) => t;

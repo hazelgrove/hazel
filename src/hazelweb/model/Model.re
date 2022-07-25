@@ -1,8 +1,7 @@
 module ProgramEvaluator = ProgramEvaluator.Worker.Client;
 
 type t = {
-  /* FIXME: Make this an option? */
-  last_result: ProgramResult.t,
+  current_result: ModelResult.t,
   evaluator: ProgramEvaluator.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
@@ -72,7 +71,7 @@ let init = (): t => {
     };
   };
   {
-    last_result: ProgramResult.empty,
+    current_result: ModelResult.init,
     evaluator: ProgramEvaluator.init(),
     cardstacks,
     cell_width,
@@ -92,10 +91,14 @@ let init = (): t => {
   };
 };
 
-let get_last_result = (model: t): ProgramResult.t => model.last_result;
-let put_last_result = (last_result: ProgramResult.t, model: t): t => {
+let get_current_result = (model: t): ModelResult.t => model.current_result;
+let put_current_result = (cr: ModelResult.t, model: t): t => {
   ...model,
-  last_result,
+  current_result: cr,
+};
+let update_current_result = (current: ModelResult.current, model: t): t => {
+  let cr = model |> get_current_result |> ModelResult.update(current);
+  model |> put_current_result(cr);
 };
 
 let get_evaluator = (model: t): ProgramEvaluator.t => model.evaluator;
