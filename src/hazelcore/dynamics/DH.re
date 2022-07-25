@@ -424,7 +424,7 @@ and ClosureEnvironment: {
 
   let to_list: t => list((Var.t, DHExp.t));
 
-  let equal: (t, t) => bool;
+  let id_equal: (t, t) => bool;
 
   let empty: EnvironmentIdGen.t => (t, EnvironmentIdGen.t);
   let is_empty: t => bool;
@@ -455,7 +455,7 @@ and ClosureEnvironment: {
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
-  let equal = (env1, env2) => id_of(env1) == id_of(env2);
+  let id_equal = (env1, env2) => id_of(env1) == id_of(env2);
 
   let empty = eig => {
     let (ei, eig) = EnvironmentIdGen.next(eig);

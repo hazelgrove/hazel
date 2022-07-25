@@ -154,10 +154,10 @@ and ClosureEnvironment: {
   let to_list: t => list((Var.t, DHExp.t));
 
   /**
-  [equal env1 env2] is [true] if and only if [env1] and [env2] have the same
+  [id_equal env1 env2] is [true] if and only if [env1] and [env2] have the same
   id.
  */
-  let equal: (t, t) => bool;
+  let id_equal: (t, t) => bool;
 
   /**
   [empty eig] is [(env, eig')] where [env] is an empty environment.
