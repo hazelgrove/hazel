@@ -8,7 +8,7 @@ module type S = {
   let get: t(state);
   let put: state => t(unit);
   let update: (state => state) => t(unit);
-  let modify: (state => ('a, state)) => t('a);
+  let modify': (state => ('a, state)) => t('a);
 };
 
 module Make = (ST: STATE) => {
@@ -31,7 +31,7 @@ module Make = (ST: STATE) => {
 
     let update = f => bind(get, s => put(f(s)));
 
-    let modify = f =>
+    let modify' = f =>
       bind(
         get,
         s => {

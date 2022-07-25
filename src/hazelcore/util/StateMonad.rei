@@ -28,15 +28,13 @@ module type S = {
   /**
     [update f] is an action that updates the state [s] to the result of [f s].
    */
-  /* FIXME: Rename to modify. */
   let update: (state => state) => t(unit);
 
   /**
     [modify f] is an action that updates the state [s] to the result of [snd (f
     s)] and returns the monad with the value [fst (f s)].
    */
-  /* FIXME: Rename to modify'. */
-  let modify: (state => ('a, state)) => t('a);
+  let modify': (state => ('a, state)) => t('a);
 };
 
 /**
