@@ -45,6 +45,7 @@ let get_model_action_from_kc =
   | LeftBracket when cursor_on_type => construct(SList)
   | LeftBracket => construct(SListNil)
   | Semicolon => construct(SOp(SCons))
+  | AtSign => construct(STypApp)
   | Alt_L => construct(SInj(L))
   | Alt_R => construct(SInj(R))
   | Alt_C => construct(SCase)
