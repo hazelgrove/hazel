@@ -329,6 +329,17 @@ and pp_uneval_rules =
   |> sequence;
 };
 
+/**
+  Tracking children of hole closures. A hole closure is a child of another hole
+  closure if it exists in the hole environment of the parent.
+
+  This is the second stage of postprocessing, separate from hole numbering and
+  substitution, since memoization becomes much more convoluted if these two
+  stages are combined.
+
+  This works by simply iterating over all the (postprocessed) hole closure
+  environments in the HoleInstanceInfo_.t and looking for "child" holes.
+ */
 let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
@@ -399,8 +410,10 @@ and track_children_of_hole_rules =
     hii,
   );
 
-/* Driver for hole parent tracking; iterate through all hole closures
-   in the HoleInstanceInfo, and call `track_children_of_hole` on them. */
+/**
+  Driver for hole parent tracking; iterate through all hole closures in the
+  [HoleInstanceInfo.t], and call [track_children_of_hole] on them.
+ */
 let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
   MetaVarMap.fold(
     (u, his, hii) =>
@@ -423,7 +436,7 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   let ((_, hii), d) =
     pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty));
 
-  /* Convert HoleInstanceInfo_.t to HoleInstanceInfo.t */
+  /* Build hole instance info. */
   let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;
 
   /* Add special hole acting as top-level expression (to act as parent
@@ -438,6 +451,6 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
       hii,
     );
 
-  /* Perform hole parent tracking */
+  /* Perform hole parent tracking. */
   (hii |> track_children, d);
 };

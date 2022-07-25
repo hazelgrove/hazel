@@ -564,7 +564,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let d =
         x
         |> ClosureEnvironment.lookup(env)
-        |> OptUtil.get(_ =>
+        |> OptUtil.get(() =>
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            );
       evaluate(env, d);
@@ -943,7 +943,6 @@ and evaluate_extend_env =
   map |> ClosureEnvironment.of_environment |> with_eig;
 }
 
-/* Evaluate the application of a built-in function. */
 /**
   [evaluate_ap_builtin env ident args] evaluates the builtin function given by
   [ident] with [args].
