@@ -1,9 +1,9 @@
 [@deriving sexp]
-type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t, EvaluatorState.t);
+type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
-let get_dhexp = ((d, _, _, _): t) => d;
-let get_hole_instance_info = ((_, hii, _, _): t) => hii;
-let get_eval_state = ((_, _, _, state): t) => state;
+let get_dhexp = ((r, _, _): t) => EvaluatorResult.unwrap(r);
+let get_hole_instance_info = ((_, _, hii): t) => hii;
+let get_state = ((_, es, _): t) => es;
 
 let fast_equal_hii = (hii1, hii2) => {
   let fast_equal_his = (his1, his2) =>
@@ -23,5 +23,5 @@ let fast_equal_hii = (hii1, hii2) => {
   MetaVarMap.equal(fast_equal_his, hii1, hii2);
 };
 
-let fast_equal = ((_, hii1, r1, _): t, (_, hii2, r2, _): t): bool =>
+let fast_equal = ((r1, _, hii1): t, (r2, _, hii2): t): bool =>
   fast_equal_hii(hii1, hii2) && EvaluatorResult.fast_equal(r1, r2);

@@ -12,6 +12,11 @@ type t =
   | Indet(DHExp.t);
 
 /**
+  [unwrap r] is the inner expression.
+ */
+let unwrap: t => DHExp.t;
+
+/**
   See {!val:DHExp.fast_equal}.
  */
 let fast_equal: (t, t) => bool;
