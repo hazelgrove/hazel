@@ -61,6 +61,11 @@ let fold: (((Var.t, 'a), 'b) => 'b, 'b, t_('a)) => 'b;
 let length: t_('a) => int;
 
 /**
-   [to_list ctx] is [ctx] is a list of pairs.
+   [to_list ctx] is the list of bindings.
  */
 let to_list: t_('a) => list((Var.t, 'a));
+
+/**
+  [of_list bindings] is the map given by the list of bindings.
+ */
+let of_list: list((Var.t, 'a)) => t_('a);
