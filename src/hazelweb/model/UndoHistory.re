@@ -621,7 +621,9 @@ let get_new_action_group =
                         | Fun => SFun
                         | Let => SLet
                         | TyAlias
-                        | Case => failwith("impossible")
+                        | Case
+                        | TypFun
+                        | Forall => failwith("impossible")
                         },
                       ),
                     );
@@ -662,6 +664,20 @@ let get_new_action_group =
                 | OnDelim(_)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
+              | TypFun =>
+                switch (
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
+                ) {
+                | OnText(6) =>
+                  /* the caret is at the end of "typfun" */
+                  Some(ConstructEdit(STypFun))
+                | OnText(_)
+                | OnDelim(_)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
+              | Forall => Some(ConstructEdit(SOp(SSpace)))
               }
             | Var(_, _, var) =>
               switch (pos) {
@@ -682,6 +698,21 @@ let get_new_action_group =
               | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
               }
 
+            | _ => Some(ConstructEdit(SOp(SSpace)))
+            }
+          | TypOperand(pos, utyp_operand) =>
+            switch (utyp_operand) {
+            | TyVar(TyVarErrStatus.InHole(Reserved, _), tyvar) =>
+              switch (pos) {
+              | OnText(index) =>
+                let (left_tyvar, _) = TyVar.split(index, tyvar);
+                if (TyVar.is_forall(left_tyvar)) {
+                  Some(ConstructEdit(SForall));
+                } else {
+                  Some(ConstructEdit(SOp(SSpace)));
+                };
+              | _ => Some(ConstructEdit(SOp(SSpace)))
+              }
             | _ => Some(ConstructEdit(SOp(SSpace)))
             }
           | _ => Some(ConstructEdit(SOp(SSpace)))

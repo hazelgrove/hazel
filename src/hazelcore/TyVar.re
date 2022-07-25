@@ -24,7 +24,13 @@ let keyword: string => bool =
   | "let"
   | "case"
   | "type"
-  | "fun" => true
+  | "fun"
+  | "typfun"
+  | "forall" => true
   | _ => false;
 
 let reserved_word = (s: string): bool => builtin_type(s) || keyword(s);
+
+let is_forall = equal("forall");
+
+let split = Var.split;
