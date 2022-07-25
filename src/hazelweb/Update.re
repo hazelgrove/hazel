@@ -227,7 +227,7 @@ let apply_action =
             model
             |> Model.get_program
             |> Program.get_result
-            |> Result.get_dhexp;
+            |> ProgramResult.get_dhexp;
           d
           |> DHExp.sexp_of_t
           |> Sexplib.Sexp.to_string

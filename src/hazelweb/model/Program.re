@@ -111,7 +111,7 @@ let evaluate = d => {
     EvaluatorState.init |> EvaluatorState.with_eig(ClosureEnvironment.empty);
   Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
 };
-let get_result = (program: t): Result.t => {
+let get_result = (program: t): ProgramResult.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>
     let (hii, d) =
