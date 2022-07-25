@@ -220,10 +220,6 @@ and ClosureEnvironment: {
 
   /**
     [map_keep_id] is [map], but the id of the given environment is maintained.
-
-    (This is used when transforming an environment, such as in the closure ->
-    lambda stage after evaluation. More functions may be added like this
-    as-needed for similar purposes.)
    */
   let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
 
@@ -234,6 +230,11 @@ and ClosureEnvironment: {
   let filter:
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
+
+  /**
+    [filter_keep_id] is like [map_keep_id], but for [filter].
+   */
+  let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
 
   /**
     Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only

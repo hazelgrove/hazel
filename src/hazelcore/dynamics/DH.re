@@ -446,68 +446,69 @@ and ClosureEnvironment: {
   let filter:
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
+  let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
 
   let placeholder: t;
 } = {
-  [@deriving sexp]
-  type t = (EnvironmentId.t, Environment.t);
+  module Inner: {
+    [@deriving sexp]
+    type t;
 
-  let wrap = (ei, map) => (ei, map);
+    let wrap: (EnvironmentId.t, Environment.t) => t;
 
-  let id_of = ((ei, _)) => ei;
-  let map_of = ((_, map)) => map;
+    let id_of: t => EnvironmentId.t;
+    let map_of: t => Environment.t;
+  } = {
+    [@deriving sexp]
+    type t = (EnvironmentId.t, Environment.t);
 
-  let to_list = ((_, map)) => map |> VarBstMap.to_list;
+    let wrap = (ei, map): t => (ei, map);
+
+    let id_of = ((ei, _)) => ei;
+    let map_of = ((_, map)) => map;
+  };
+  include Inner;
+
+  let to_list = env => env |> map_of |> Environment.to_list;
 
   let of_environment = (map, eig) => {
     let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, map), eig);
+    (wrap(ei, map), eig);
   };
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
   let id_equal = (env1, env2) => id_of(env1) == id_of(env2);
 
-  /* FIXME: Use of_environment. */
-  let empty = eig => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, VarBstMap.empty), eig);
-  };
+  let empty = Environment.empty |> of_environment;
 
-  let is_empty = env => env |> map_of |> VarBstMap.is_empty;
+  let is_empty = env => env |> map_of |> Environment.is_empty;
 
-  let length = env => VarBstMap.length(map_of(env));
+  let length = env => Environment.length(map_of(env));
 
   let lookup = (env, x) =>
-    env |> map_of |> (map => VarBstMap.lookup(map, x));
+    env |> map_of |> (map => Environment.lookup(map, x));
 
   let contains = (env, x) =>
-    env |> map_of |> (map => VarBstMap.contains(map, x));
+    env |> map_of |> (map => Environment.contains(map, x));
 
-  let extend = (env, xr, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, VarBstMap.extend(map_of(env), xr)), eig);
-  };
+  let extend = (env, xr) =>
+    Environment.extend(env |> map_of, xr) |> of_environment;
 
-  let union = (env1, env2, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, VarBstMap.union(map_of(env1), map_of(env2))), eig);
-  };
+  let union = (env1, env2) =>
+    Environment.union(env1 |> map_of, env2 |> map_of) |> of_environment;
 
-  let map = (f, env, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, env |> map_of |> VarBstMap.map(f)), eig);
-  };
+  let map = (f, env) =>
+    env |> map_of |> Environment.map(f) |> of_environment;
 
-  let map_keep_id = (f, env) => (
-    id_of(env),
-    VarBstMap.map(f, map_of(env)),
-  );
+  let map_keep_id = (f, env) =>
+    env |> map_of |> Environment.map(f) |> wrap(env |> id_of);
 
-  let filter = (f, env, eig) => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, env |> map_of |> VarBstMap.filter(f)), eig);
-  };
+  let filter = (f, env) =>
+    env |> map_of |> Environment.filter(f) |> of_environment;
 
-  let placeholder = (EnvironmentId.invalid, VarBstMap.empty);
+  let filter_keep_id = (f, env) =>
+    env |> map_of |> Environment.filter(f) |> wrap(env |> id_of);
+
+  let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
 };
