@@ -114,21 +114,21 @@ let evaluate = d => {
 let get_result = (program: t): Result.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>
-    let (hci, d) =
+    let (hii, d) =
       switch (d |> EvaluatorPost.postprocess) {
       | d => d
       | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, BoxedValue(d), es);
+    (d, hii, BoxedValue(d), es);
   | (es, Indet(d)) =>
-    let (hci, d) =
+    let (hii, d) =
       switch (d |> EvaluatorPost.postprocess) {
       | d => d
       | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, Indet(d), es);
+    (d, hii, Indet(d), es);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

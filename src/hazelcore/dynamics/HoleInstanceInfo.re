@@ -12,21 +12,21 @@ let num_instances = (hii: t, u: MetaVar.t): int =>
   |> Option.value(~default=0);
 
 let find_instance =
-    (hci: t, u: MetaVar.t, i: HoleInstanceId.t)
+    (hii: t, u: MetaVar.t, i: HoleInstanceId.t)
     : option((ClosureEnvironment.t, HoleInstanceParents.t)) => {
-  switch (hci |> MetaVarMap.find_opt(u)) {
-  | Some(hcs) => List.nth_opt(hcs, i)
+  switch (hii |> MetaVarMap.find_opt(u)) {
+  | Some(his) => List.nth_opt(his, i)
   | None => None
   };
 };
 
 let add_parent =
-    ((u, i): HoleInstance.t, parent: HoleInstanceParents.t_, hci: t): t => {
-  let u_hole_closures = hci |> MetaVarMap.find(u);
-  hci
+    ((u, i): HoleInstance.t, parent: HoleInstanceParents.t_, hii: t): t => {
+  let u_instances = hii |> MetaVarMap.find(u);
+  hii
   |> MetaVarMap.add(
        u,
-       u_hole_closures
+       u_instances
        |> List.mapi((i', (env, parents)) =>
             if (i' == i) {
               (env, parent |> HoleInstanceParents.add_parent(parents));

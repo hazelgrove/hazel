@@ -36,8 +36,8 @@ let add_instance =
     | None =>
       let i = his |> EnvironmentIdMap.cardinal;
       let his = his |> EnvironmentIdMap.add(ei, (i, env, []));
-      let hci = hii |> MetaVarMap.add(u, his);
-      (hci, i);
+      let hii = hii |> MetaVarMap.add(u, his);
+      (hii, i);
     }
   /* Hole doesn't exist in the map. */
   | None =>

@@ -75,8 +75,8 @@ let view =
   let path_view_titlebar =
     Panel.view_of_other_title_bar("Closure above observed at ");
 
-  let hci_summary = (hci, (u, i) as inst) => {
-    let num_instances = HoleInstanceInfo.num_instances(hci, u);
+  let hii_summary = (hii, (u, i) as inst) => {
+    let num_instances = HoleInstanceInfo.num_instances(hii, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -85,7 +85,7 @@ let view =
             [],
             [
               Node.div(
-                [Attr.classes(["hci-summary-inst"])],
+                [Attr.classes(["hii-summary-inst"])],
                 [
                   DHCode.view_of_hole_closure(
                     ~inject,
@@ -243,12 +243,12 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let hci =
-          program |> Program.get_result |> Result.get_hole_closure_info;
+        let hii =
+          program |> Program.get_result |> Result.get_hole_instance_info;
         switch (selected_hole_closure) {
         | None => Environment.empty
         | Some((u, i)) =>
-          switch (HoleInstanceInfo.find_instance(hci, u, i)) {
+          switch (HoleInstanceInfo.find_instance(hii, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
@@ -283,7 +283,7 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      let hci = program |> Program.get_result |> Result.get_hole_closure_info;
+      let hii = program |> Program.get_result |> Result.get_hole_instance_info;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
@@ -298,13 +298,13 @@ let view =
             ]
           | Some((u', i) as inst) =>
             if (MetaVar.eq(u, u')) {
-              switch (HoleInstanceInfo.find_instance(hci, u, i)) {
+              switch (HoleInstanceInfo.find_instance(hii, u, i)) {
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
               | Some((_, hc_parents)) => [
                   path_view_titlebar,
-                  hci_summary(hci, inst),
+                  hii_summary(hii, inst),
                   hc_parents_view(hc_parents),
                 ]
               };

@@ -2,17 +2,18 @@
 type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp = ((d, _, _, _): t) => d;
-let get_hole_closure_info = ((_, hci, _, _): t) => hci;
+let get_hole_instance_info = ((_, hii, _, _): t) => hii;
 let get_eval_state = ((_, _, _, state): t) => state;
 
-let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
+/* FIXME: Clean this up. */
+let fast_equals = ((_, hii1, r1, _): t, (_, hii2, r2, _): t): bool => {
   /* Check that HoleInstanceInstances are equal */
-  MetaVarMap.cardinal(hci1) == MetaVarMap.cardinal(hci2)
+  MetaVarMap.cardinal(hii1) == MetaVarMap.cardinal(hii2)
   && List.for_all2(
        /* Check that all holes are equal */
-       ((u1, hcs1), (u2, hcs2)) =>
+       ((u1, his1), (u2, his2)) =>
          u1 == u2
-         && List.length(hcs1) == List.length(hcs2)
+         && List.length(his1) == List.length(his2)
          && List.for_all2(
               /* Check that all hole closures are equal */
               ((sigma1, _), (sigma2, _)) =>
@@ -25,11 +26,11 @@ let fast_equals = ((_, hci1, r1, _): t, (_, hci2, r2, _): t): bool => {
                      ClosureEnvironment.to_list(sigma1),
                      ClosureEnvironment.to_list(sigma2),
                    ),
-              hcs1,
-              hcs2,
+              his1,
+              his2,
             ),
-       MetaVarMap.bindings(hci1),
-       MetaVarMap.bindings(hci2),
+       MetaVarMap.bindings(hii1),
+       MetaVarMap.bindings(hii2),
      )
   /* Check that r1, r2 are equal */
   && EvaluatorResult.fast_equal(r1, r2);

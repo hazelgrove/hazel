@@ -15,7 +15,7 @@
 type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t, EvaluatorState.t);
 
 let get_dhexp: t => DHExp.t;
-let get_hole_closure_info: t => HoleInstanceInfo.t;
+let get_hole_instance_info: t => HoleInstanceInfo.t;
 let get_eval_state: t => EvaluatorState.t;
 
 /* See DHExp.fast_equals. Also checks that all environments
