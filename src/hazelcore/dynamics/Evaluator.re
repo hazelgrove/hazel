@@ -219,6 +219,8 @@ and matches_cast_Inj =
   | TyAlias(_) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -290,6 +292,8 @@ and matches_cast_Pair =
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => Indet
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -373,6 +377,8 @@ and matches_cast_Cons =
   | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -437,6 +443,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | ApBuiltin(ident, args) =>
     let args = List.map(subst_var(d1, x), args);
     ApBuiltin(ident, args);
+  | TypFun(dp, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    TypFun(dp, d3);
+  | TypApp(d3, dty) =>
+    let d3 = subst_var(d1, x, d3);
+    TypApp(d3, dty);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -630,6 +642,8 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       }
     };
   | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
+  | TypFun(_, _) => BoxedValue(d)
+  | TypApp(d, _) => evaluate(d)
   | ListNil(_)
   | BoolLit(_)
   | IntLit(_)
