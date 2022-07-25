@@ -11,146 +11,9 @@ exception Exception(error);
 
 type t = EnvironmentIdMap.t(ClosureEnvironment.t);
 
-let rec pp_uneval =
-        (
-          pe: t,
-          hii: HoleInstanceInfo_.t,
-          env: ClosureEnvironment.t,
-          d: DHExp.t,
-        )
+let rec pp_eval =
+        (pe: t, hii: HoleInstanceInfo_.t, d: DHExp.t)
         : (t, HoleInstanceInfo_.t, DHExp.t) =>
-  switch (d) {
-  /* Bound variables should be looked up within the closure
-     environment. If lookup fails, then variable is not bound. */
-  | BoundVar(x) =>
-    switch (ClosureEnvironment.lookup(env, x)) {
-    | Some(d') => (pe, hii, d')
-    | None => (pe, hii, d)
-    }
-
-  /* Non-hole expressions: expand recursively */
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => (pe, hii, d)
-  | Let(dp, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Let(dp, d1', d2'));
-  | FixF(f, ty, d1) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    (pe, hii, FixF(f, ty, d1'));
-  | Fun(dp, ty, d') =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Fun(dp, ty, d''));
-  | Ap(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Ap(d1', d2'));
-  | ApBuiltin(f, args) =>
-    let (pe, hii, args') =
-      List.fold_right(
-        (arg, (pe, hii, args)) => {
-          let (pe, hii, arg') = pp_uneval(pe, hii, env, arg);
-          (pe, hii, [arg', ...args]);
-        },
-        args,
-        (pe, hii, []),
-      );
-    (pe, hii, ApBuiltin(f, args'));
-  | BinBoolOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinBoolOp(op, d1', d2'));
-  | BinIntOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinIntOp(op, d1', d2'));
-  | BinFloatOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinFloatOp(op, d1', d2'));
-  | Cons(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Cons(d1', d2'));
-  | Inj(ty, side, d') =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Inj(ty, side, d''));
-  | Pair(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Pair(d1', d2'));
-  | Cast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Cast(d'', ty1, ty2));
-  | FailedCast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, FailedCast(d'', ty1, ty2));
-  | InvalidOperation(d', reason) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, InvalidOperation(d'', reason));
-  | ConsistentCase(Case(scrut, rules, i)) =>
-    let (pe, hii, scrut') = pp_uneval(pe, hii, env, scrut);
-    let (pe, hii, rules') = pp_uneval_rules(pe, hii, env, rules);
-    (pe, hii, ConsistentCase(Case(scrut', rules', i)));
-
-  /* Closures shouldn't exist inside other closures */
-  | Closure(_) => raise(Exception(ClosureInsideClosure))
-
-  /* Hole expressions:
-     - Use the closure environment as the hole environment.
-     - Number the hole closure appropriately.
-     - Recurse through inner expression (if any).
-     */
-  | EmptyHole(u, _) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, EmptyHole(u, i)));
-  | NonEmptyHole(reason, u, _, d') =>
-    let (pe, hii, d') = pp_uneval(pe, hii, env, d');
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, NonEmptyHole(reason, u, i, d')));
-  | ExpandingKeyword(u, _, kw) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, ExpandingKeyword(u, i, kw)));
-  | FreeVar(u, _, x) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, FreeVar(u, i, x)));
-  | InvalidText(u, _, text) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, InvalidText(u, i, text)));
-  | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
-    let (pe, hii, scrut) = pp_uneval(pe, hii, env, scrut);
-    let (pe, hii, rules) = pp_uneval_rules(pe, hii, env, rules);
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (
-      pe,
-      hii,
-      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i))),
-    );
-  }
-
-and pp_uneval_rules =
-    (
-      pe: t,
-      hii: HoleInstanceInfo_.t,
-      env: ClosureEnvironment.t,
-      rules: list(DHExp.rule),
-    )
-    : (t, HoleInstanceInfo_.t, list(DHExp.rule)) =>
-  List.fold_right(
-    (DHExp.Rule(dp, d), (pe, hii, rules)) => {
-      let (pe, hii, d') = pp_uneval(pe, hii, env, d);
-      (pe, hii, [DHExp.Rule(dp, d'), ...rules]);
-    },
-    rules,
-    (pe, hii, []),
-  )
-
-and pp_eval =
-    (pe: t, hii: HoleInstanceInfo_.t, d: DHExp.t)
-    : (t, HoleInstanceInfo_.t, DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | BoolLit(_)
@@ -288,7 +151,139 @@ and pp_eval_env =
     let env = ClosureEnvironment.wrap(ei, env_map);
     (pe |> EnvironmentIdMap.add(ei, env), hii, env);
   };
-};
+}
+
+and pp_uneval =
+    (pe: t, hii: HoleInstanceInfo_.t, env: ClosureEnvironment.t, d: DHExp.t)
+    : (t, HoleInstanceInfo_.t, DHExp.t) =>
+  switch (d) {
+  /* Bound variables should be looked up within the closure
+     environment. If lookup fails, then variable is not bound. */
+  | BoundVar(x) =>
+    switch (ClosureEnvironment.lookup(env, x)) {
+    | Some(d') => (pe, hii, d')
+    | None => (pe, hii, d)
+    }
+
+  /* Non-hole expressions: expand recursively */
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => (pe, hii, d)
+  | Let(dp, d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, Let(dp, d1', d2'));
+  | FixF(f, ty, d1) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    (pe, hii, FixF(f, ty, d1'));
+  | Fun(dp, ty, d') =>
+    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
+    (pe, hii, Fun(dp, ty, d''));
+  | Ap(d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, Ap(d1', d2'));
+  | ApBuiltin(f, args) =>
+    let (pe, hii, args') =
+      List.fold_right(
+        (arg, (pe, hii, args)) => {
+          let (pe, hii, arg') = pp_uneval(pe, hii, env, arg);
+          (pe, hii, [arg', ...args]);
+        },
+        args,
+        (pe, hii, []),
+      );
+    (pe, hii, ApBuiltin(f, args'));
+  | BinBoolOp(op, d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, BinBoolOp(op, d1', d2'));
+  | BinIntOp(op, d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, BinIntOp(op, d1', d2'));
+  | BinFloatOp(op, d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, BinFloatOp(op, d1', d2'));
+  | Cons(d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, Cons(d1', d2'));
+  | Inj(ty, side, d') =>
+    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
+    (pe, hii, Inj(ty, side, d''));
+  | Pair(d1, d2) =>
+    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
+    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
+    (pe, hii, Pair(d1', d2'));
+  | Cast(d', ty1, ty2) =>
+    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
+    (pe, hii, Cast(d'', ty1, ty2));
+  | FailedCast(d', ty1, ty2) =>
+    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
+    (pe, hii, FailedCast(d'', ty1, ty2));
+  | InvalidOperation(d', reason) =>
+    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
+    (pe, hii, InvalidOperation(d'', reason));
+  | ConsistentCase(Case(scrut, rules, i)) =>
+    let (pe, hii, scrut') = pp_uneval(pe, hii, env, scrut);
+    let (pe, hii, rules') = pp_uneval_rules(pe, hii, env, rules);
+    (pe, hii, ConsistentCase(Case(scrut', rules', i)));
+
+  /* Closures shouldn't exist inside other closures */
+  | Closure(_) => raise(Exception(ClosureInsideClosure))
+
+  /* Hole expressions:
+     - Use the closure environment as the hole environment.
+     - Number the hole closure appropriately.
+     - Recurse through inner expression (if any).
+     */
+  | EmptyHole(u, _) =>
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (pe, hii, Closure(env, EmptyHole(u, i)));
+  | NonEmptyHole(reason, u, _, d') =>
+    let (pe, hii, d') = pp_uneval(pe, hii, env, d');
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (pe, hii, Closure(env, NonEmptyHole(reason, u, i, d')));
+  | ExpandingKeyword(u, _, kw) =>
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (pe, hii, Closure(env, ExpandingKeyword(u, i, kw)));
+  | FreeVar(u, _, x) =>
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (pe, hii, Closure(env, FreeVar(u, i, x)));
+  | InvalidText(u, _, text) =>
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (pe, hii, Closure(env, InvalidText(u, i, text)));
+  | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
+    let (pe, hii, scrut) = pp_uneval(pe, hii, env, scrut);
+    let (pe, hii, rules) = pp_uneval_rules(pe, hii, env, rules);
+    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+    (
+      pe,
+      hii,
+      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i))),
+    );
+  }
+
+and pp_uneval_rules =
+    (
+      pe: t,
+      hii: HoleInstanceInfo_.t,
+      env: ClosureEnvironment.t,
+      rules: list(DHExp.rule),
+    )
+    : (t, HoleInstanceInfo_.t, list(DHExp.rule)) =>
+  List.fold_right(
+    (DHExp.Rule(dp, d), (pe, hii, rules)) => {
+      let (pe, hii, d') = pp_uneval(pe, hii, env, d);
+      (pe, hii, [DHExp.Rule(dp, d'), ...rules]);
+    },
+    rules,
+    (pe, hii, []),
+  );
 
 let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
