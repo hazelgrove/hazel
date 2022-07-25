@@ -21,6 +21,7 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
+module UHDoc_TPat = UHDoc_TPat.Make(Memo.DummyMemo);
 module Make = (Memo: Memo.S) => {
   let rec mk =
     lazy(
