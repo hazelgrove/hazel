@@ -26,12 +26,12 @@ module type S = {
   let put: state => t(unit);
 
   /**
-    [update f] is an action that updates the state [s] to the result of [f s].
+    [modify f] is an action that updates the state [s] to the result of [f s].
    */
-  let update: (state => state) => t(unit);
+  let modify: (state => state) => t(unit);
 
   /**
-    [modify f] is an action that updates the state [s] to the result of [snd (f
+    [modify' f] is an action that updates the state [s] to the result of [snd (f
     s)] and returns the monad with the value [fst (f s)].
    */
   let modify': (state => ('a, state)) => t('a);
