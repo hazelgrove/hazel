@@ -434,6 +434,26 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
         ]),
       ],
     ),
+    section(
+      "Polymorphism",
+      [
+        info([
+          text("Type \""),
+          mono_text("typfun "),
+          text("\" to add a type function"),
+        ]),
+        combo_and_cursor(
+          ~on_type=false,
+          AtSign,
+          [text("Create a type application")],
+        ),
+        info([
+          text("Type \""),
+          mono_text("forall "),
+          text("\" to add a forall type"),
+        ]),
+      ],
+    ),
   ];
 };
 
@@ -503,6 +523,9 @@ let _check_actions = (a: Action.t) =>
   | Construct(STyAlias) => Added
   | Construct(SOp(SVBar)) => Added
   | Construct(SChar(_)) => Added
+  | Construct(STypFun) => Added
+  | Construct(STypApp) => Added
+  | Construct(SForall) => Added
   | SwapUp => Added
   | SwapDown => Added
   | SwapLeft => Added

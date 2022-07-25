@@ -36,6 +36,7 @@ let semicolon: t;
 let comma: t;
 let vbar: t;
 let ampersand: t;
+let at_sign: t;
 let alt_L: t;
 let alt_R: t;
 let alt_C: t;
