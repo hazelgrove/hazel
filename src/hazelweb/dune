@@ -17,8 +17,8 @@
 (library
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
- (modules :standard \ Main)
- (libraries hazelcore incr_dom)
+ (modules :standard \ Main2)
+ (libraries hazelcore incr_dom web)
  (wrapped false)
  (js_of_ocaml
   (flags
@@ -27,8 +27,8 @@
   (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
 
 (executable
- (name main)
- (modules Main)
+ (name main2)
+ (modules Main2)
  (libraries hazelweb)
  (modes js)
  (js_of_ocaml
