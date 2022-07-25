@@ -373,9 +373,8 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
       u1 == u2 && i1 == i2 && text1 == text2
-    | (Closure((ei1, _), d1), Closure((ei2, _), d2)) =>
-      /* Cannot use ClosureEnvironment.equals here because it will create a dependency loop. */
-      ei1 == ei2 && fast_equal(d1, d2)
+    | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
+      ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (
         InconsistentBranches(u1, i1, case1),
         InconsistentBranches(u2, i2, case2),
@@ -417,7 +416,9 @@ and Environment: {
 
 and ClosureEnvironment: {
   [@deriving sexp]
-  type t = (EnvironmentId.t, Environment.t);
+  type t;
+
+  let wrap: (EnvironmentId.t, Environment.t) => t;
 
   let id_of: t => EnvironmentId.t;
   let map_of: t => Environment.t;
@@ -450,6 +451,8 @@ and ClosureEnvironment: {
 } = {
   [@deriving sexp]
   type t = (EnvironmentId.t, Environment.t);
+
+  let wrap = (ei, map) => (ei, map);
 
   let id_of = ((ei, _)) => ei;
   let map_of = ((_, map)) => map;

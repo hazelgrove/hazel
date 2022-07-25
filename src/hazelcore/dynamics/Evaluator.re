@@ -940,11 +940,7 @@ and evaluate_extend_env =
     : m(ClosureEnvironment.t) => {
   let map =
     Environment.union(new_bindings, ClosureEnvironment.map_of(to_extend));
-
-  with_eig(eig => {
-    let (ei, eig) = EnvironmentIdGen.next(eig);
-    ((ei, map), eig);
-  });
+  map |> ClosureEnvironment.of_environment |> with_eig;
 }
 
 /* Evaluate the application of a built-in function. */

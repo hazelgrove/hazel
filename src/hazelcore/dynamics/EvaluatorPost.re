@@ -276,7 +276,7 @@ and pp_eval_env =
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => (pe, hii, env)
   | None =>
-    let (pe, hii, result_map) =
+    let (pe, hii, env_map) =
       Environment.fold(
         ((x, d), (pe, hii, new_env)) => {
           let (pe, hii, d) = pp_eval(pe, hii, d);
@@ -285,7 +285,7 @@ and pp_eval_env =
         (pe, hii, Environment.empty),
         env |> ClosureEnvironment.map_of,
       );
-    let env = (ei, result_map);
+    let env = ClosureEnvironment.wrap(ei, env_map);
     (pe |> EnvironmentIdMap.add(ei, env), hii, env);
   };
 };
@@ -389,11 +389,13 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
+  /* FIXME: Better way to do this? */
   let (u_result, _) = HoleInstance.result;
   let hii =
     MetaVarMap.add(
       u_result,
-      [(((-1), Environment.singleton(("", d))), [])],
+      /* FIXME: Don't hardcode -1. */
+      [(ClosureEnvironment.wrap(-1, Environment.singleton(("", d))), [])],
       hii,
     );
 

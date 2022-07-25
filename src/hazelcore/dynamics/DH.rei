@@ -136,7 +136,12 @@ and Environment: {
  */
 and ClosureEnvironment: {
   [@deriving sexp]
-  type t = (EnvironmentId.t, Environment.t);
+  type t;
+
+  /**
+    [wrap ei map] is the environment with id [ei] and map [map].
+   */
+  let wrap: (EnvironmentId.t, Environment.t) => t;
 
   /**
     [id_of env] is the id of [env].
@@ -153,6 +158,10 @@ and ClosureEnvironment: {
    */
   let to_list: t => list((Var.t, DHExp.t));
 
+  /**
+    [of_environment map eig] is [(env, eig')] where [env] is the environment
+    with a new id and map [map].
+   */
   let of_environment:
     (Environment.t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
 
