@@ -90,6 +90,8 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   | Let => Construct(SLet)
   | Case => Construct(SCase)
   | TyAlias => Construct(STyAlias)
+  | TypFun => Construct(STypFun)
+  | Forall => failwith("Forall in expression")
   };
 
 //TBD
@@ -252,6 +254,8 @@ let mk_SynExpandsToTyAlias = (~id_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
   SynExpands({kw: TyAlias, id_gen, prefix, suffix, subject: nextLine});
 let mk_SynExpandsToFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
   SynExpands({kw: Fun, id_gen, prefix, suffix, subject: param});
+let mk_SynExpandsToTypFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  SynExpands({kw: TypFun, id_gen, prefix, suffix, subject: param});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -274,6 +278,8 @@ let mk_AnaExpandsToTyAlias = (~id_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
   AnaExpands({kw: TyAlias, id_gen, prefix, suffix, subject: nextLine});
 let mk_AnaExpandsToFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
   AnaExpands({kw: Let, id_gen, prefix, suffix, subject: param});
+let mk_AnaExpandsToTypFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  AnaExpands({kw: TypFun, id_gen, prefix, suffix, subject: param});
 let wrap_in_AnaDone:
   ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
@@ -446,6 +452,8 @@ let syn_split_text =
       | Let => mk_SynExpandsToLet(~id_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_SynExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
+      | TypFun => mk_SynExpandsToTypFun(~id_gen, ~param=subject, ())
+      | Forall => failwith("Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -488,6 +496,8 @@ let ana_split_text =
       | Let => mk_AnaExpandsToLet(~id_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_AnaExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
+      | TypFun => mk_AnaExpandsToTypFun(~id_gen, ~param=subject, ())
+      | Forall => failwith("Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -666,6 +676,14 @@ let rec syn_perform =
     let new_ze =
       ZExp.ZBlock.wrap(FunZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze));
+  | Succeeded(
+      SynExpands({kw: TypFun, prefix: _, subject, suffix: _, id_gen}),
+    ) =>
+    let ztp = ZTPat.place_before(TPat.EmptyHole);
+    let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze));
+  | Succeeded(SynExpands({kw: Forall, _})) =>
+    failwith("Forall in expression")
   }
 
 and syn_perform_block =
@@ -2556,6 +2574,14 @@ and ana_perform =
     let new_ze =
       ZExp.ZBlock.wrap(FunZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty));
+  | Succeeded(
+      AnaExpands({kw: TypFun, prefix: _, subject, suffix: _, id_gen}),
+    ) =>
+    let ztp = ZTPat.place_before(TPat.EmptyHole);
+    let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty));
+  | Succeeded(AnaExpands({kw: Forall, _})) =>
+    failwith("Forall in expression")
   }
 
 and ana_perform_block =

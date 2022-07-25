@@ -96,15 +96,25 @@ let mk_syn_text =
     let zty = ZOpSeq.wrap(ZTyp.CursorT(text_cursor, Float));
     Succeeded((zty, id_gen));
   | Some(ExpandingKeyword(kw)) =>
-    let (u, id_gen) = id_gen |> IDGen.next_hole;
-    let zty =
-      ZOpSeq.wrap(
-        ZTyp.CursorT(
-          text_cursor,
-          UHTyp.TyVar(InHole(Reserved, u), ExpandingKeyword.to_string(kw)),
-        ),
-      );
-    Succeeded((zty, id_gen));
+    switch (kw) {
+    | ExpandingKeyword.Forall =>
+      let ztp = ZTPat.place_before(TPat.EmptyHole);
+      let zty = ZOpSeq.wrap(ZTyp.ForallZP(ztp, OpSeq.wrap(UHTyp.Hole)));
+      Succeeded((zty, id_gen));
+    | _ =>
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
+      let zty =
+        ZOpSeq.wrap(
+          ZTyp.CursorT(
+            text_cursor,
+            UHTyp.TyVar(
+              InHole(Reserved, u),
+              ExpandingKeyword.to_string(kw),
+            ),
+          ),
+        );
+      Succeeded((zty, id_gen));
+    }
   | Some(TyVar(t)) =>
     let (status: TyVarErrStatus.t, id_gen) =
       switch (Context.tyvar_ref(ctx, t)) {
