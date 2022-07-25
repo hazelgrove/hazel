@@ -477,7 +477,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
   }
-
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
   rules
@@ -491,7 +490,6 @@ and subst_var_rules =
          }
        }
      )
-
 and subst_var_env =
     (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t =>
   env |> ClosureEnvironment.map_keep_id(((_, d)) => subst_var(d1, x, d));
@@ -506,12 +504,19 @@ let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
        d,
      );
 
+/**
+  [eval_bin_bool_op op b1 b2] is the result of applying [op] to [b1] and [b2].
+ */
 let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   switch (op) {
   | And => BoolLit(b1 && b2)
   | Or => BoolLit(b1 || b2)
   };
 
+/**
+  [eval_bin_bool_op_short_circuit op b1] is [Some b] if [op b1 b2] can be
+  resolved with just [b1].
+ */
 let eval_bin_bool_op_short_circuit =
     (op: DHExp.BinBoolOp.t, b1: bool): option(DHExp.t) =>
   switch (op, b1) {
@@ -520,7 +525,10 @@ let eval_bin_bool_op_short_circuit =
   | _ => None
   };
 
-let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
+/**
+  [eval_bin_int_op op n1 n2] is the result of applying [op] to [n1] and [n2].
+ */
+let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t =>
   switch (op) {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
@@ -530,10 +538,12 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | GreaterThan => BoolLit(n1 > n2)
   | Equals => BoolLit(n1 == n2)
   };
-};
 
+/**
+  [eval_bin_float_op op f1 f2] is the result of applying [op] to [f1] and [f2].
+ */
 let eval_bin_float_op =
-    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t => {
+    (op: DHExp.BinFloatOp.t, f1: float, f2: float): DHExp.t =>
   switch (op) {
   | FPlus => FloatLit(f1 +. f2)
   | FMinus => FloatLit(f1 -. f2)
@@ -543,7 +553,6 @@ let eval_bin_float_op =
   | FGreaterThan => BoolLit(f1 > f2)
   | FEquals => BoolLit(f1 == f2)
   };
-};
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
@@ -864,6 +873,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | InvalidOperation(d, err) => Indet(InvalidOperation(d, err)) |> return
     };
   }
+
+/**
+  [evaluate_case env inconsistent_info scrut rules current_rule_index]
+  evaluates a case expression.
+ */
 and evaluate_case =
     (
       env: ClosureEnvironment.t,
@@ -919,7 +933,7 @@ and evaluate_case =
 }
 
 /**
-  [evaluate_extend_env env' env] extends [env] with bindings from [env']
+  [evaluate_extend_env env' env] extends [env] with bindings from [env'].
  */
 and evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
@@ -934,6 +948,10 @@ and evaluate_extend_env =
 }
 
 /* Evaluate the application of a built-in function. */
+/**
+  [evaluate_ap_builtin env ident args] evaluates the builtin function given by
+  [ident] with [args].
+ */
 and evaluate_ap_builtin =
     (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
     : m(EvaluatorResult.t) => {
