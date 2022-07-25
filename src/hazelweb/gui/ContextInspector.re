@@ -190,7 +190,7 @@ let view =
     let parents_info =
       hc_parents
       |> List.map(((x, (u, i))) =>
-           (u, i) == HoleInstance.result_hc
+           (u, i) == HoleInstance.result
              ? Node.div([], [Node.text("directly in result")])
              : Node.div(
                  [Attr.classes(["path-area-parent"])],

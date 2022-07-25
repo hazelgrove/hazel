@@ -389,7 +389,7 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
-  let (u_result, _) = HoleInstance.result_hc;
+  let (u_result, _) = HoleInstance.result;
   let hci =
     MetaVarMap.add(
       u_result,

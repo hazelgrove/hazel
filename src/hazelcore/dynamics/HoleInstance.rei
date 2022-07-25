@@ -1,18 +1,23 @@
-/* Representation of a unique hole closure/instantiation (the set of hole
-   instances with the same hole number and environment)
-
-   Replacement for HoleInstance.t (due to performance issue,
-   should group instances with the same environment together)
-   */
+/**
+  Representation of a unique hole instantiation (the set of hole instances with
+  the same hole number and environment).
+ */
 [@deriving sexp]
 type t = (MetaVar.t, HoleInstanceId.t);
 
-let u_of_hc: t => MetaVar.t;
-let i_of_hc: t => HoleInstanceId.t;
+/**
+  [u_of (u, i)] is [u], where [u] is the hole metavariable.
+ */
+let u_of: t => MetaVar.t;
 
-/* Special HoleInstance.t used to represent the parent
-   "hole instance" of the result. That is to say, if a hole
-   instance has this value as its parent, then it is
-   directly in the result.
-   */
-let result_hc: t;
+/**
+  [i_of (u, i)] is [i], where [i] is the hole instance id.
+ */
+let i_of: t => HoleInstanceId.t;
+
+/**
+  [result] is the special instance used to represent the parent "hole instance"
+  of the result; that is to say, if a hole instance has this value as its
+  parent, then it is directly in the result.
+ */
+let result: t;
