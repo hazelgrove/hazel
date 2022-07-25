@@ -1,3 +1,32 @@
+module PpMonad = {
+  include StateMonad.Make({
+    [@deriving sexp]
+    type t = (EnvironmentIdMap.t(ClosureEnvironment.t), HoleInstanceInfo_.t);
+  });
+
+  open Syntax;
+
+  let modify_pe = f => modify(((pe, hii)) => (pe |> f, hii));
+  /* let modify_hii = f => modify(((pe, hii)) => (pe, hii |> f)); */
+
+  let get_pe = get >>| (((pe, _)) => pe);
+  /* let get_hii = get >>| (((_, hii)) => hii); */
+
+  let pe_add = (ei, env) => modify_pe(EnvironmentIdMap.add(ei, env));
+
+  let hii_add_instance = (u, env) =>
+    modify'(((pe, hii)) => {
+      let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+      (i, (pe, hii));
+    });
+};
+
+open PpMonad;
+open PpMonad.Syntax;
+open DHExp;
+
+type m('a) = PpMonad.t('a);
+
 [@deriving sexp]
 type error =
   | ClosureInsideClosure
@@ -9,68 +38,71 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-type t = EnvironmentIdMap.t(ClosureEnvironment.t);
-
-let rec pp_eval =
-        (pe: t, hii: HoleInstanceInfo_.t, d: DHExp.t)
-        : (t, HoleInstanceInfo_.t, DHExp.t) =>
+/**
+  Postprocess inside evaluation boundary.
+ */
+let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (pe, hii, d)
+  | Triv => d |> return
+
   | FixF(f, ty, d1) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    (pe, hii, FixF(f, ty, d1'));
+    let* d1' = pp_eval(d1);
+    FixF(f, ty, d1') |> return;
+
   | Ap(d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, Ap(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Ap(d1', d2') |> return;
+
   | ApBuiltin(f, args) =>
-    let (pe, hii, args') =
-      List.fold_right(
-        (arg, (pe, hii, args)) => {
-          let (pe, hii, arg') = pp_eval(pe, hii, arg);
-          (pe, hii, [arg', ...args]);
-        },
-        args,
-        (pe, hii, []),
-      );
-    (pe, hii, ApBuiltin(f, args'));
+    let* args' = args |> List.map(pp_eval) |> sequence;
+    ApBuiltin(f, args') |> return;
+
   | BinBoolOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, BinBoolOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinBoolOp(op, d1', d2') |> return;
+
   | BinIntOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, BinIntOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinIntOp(op, d1', d2') |> return;
+
   | BinFloatOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, BinFloatOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinFloatOp(op, d1', d2') |> return;
+
   | Cons(d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, Cons(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Cons(d1', d2') |> return;
+
   | Inj(ty, side, d') =>
-    let (pe, hii, d'') = pp_eval(pe, hii, d');
-    (pe, hii, Inj(ty, side, d''));
+    let* d'' = pp_eval(d');
+    Inj(ty, side, d'') |> return;
+
   | Pair(d1, d2) =>
-    let (pe, hii, d1') = pp_eval(pe, hii, d1);
-    let (pe, hii, d2') = pp_eval(pe, hii, d2);
-    (pe, hii, Pair(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Pair(d1', d2') |> return;
+
   | Cast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_eval(pe, hii, d');
-    (pe, hii, Cast(d'', ty1, ty2));
+    let* d'' = pp_eval(d');
+    Cast(d'', ty1, ty2) |> return;
+
   | FailedCast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_eval(pe, hii, d');
-    (pe, hii, FailedCast(d'', ty1, ty2));
+    let* d'' = pp_eval(d');
+    FailedCast(d'', ty1, ty2) |> return;
+
   | InvalidOperation(d', reason) =>
-    let (pe, hii, d'') = pp_eval(pe, hii, d');
-    (pe, hii, InvalidOperation(d'', reason));
+    let* d'' = pp_eval(d');
+    InvalidOperation(d'', reason) |> return;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
@@ -90,22 +122,24 @@ let rec pp_eval =
      use `pp_eval` and `pp_uneval` as necessary.
      */
   | Closure(env, d) =>
-    let (pe, hii, env) = pp_eval_env(pe, hii, env);
+    let* env = pp_eval_env(env);
     switch (d) {
     /* Non-hole constructs inside closures. */
     | Fun(dp, ty, d) =>
-      let (pe, hii, d) = pp_uneval(pe, hii, env, d);
-      (pe, hii, Fun(dp, ty, d));
+      let* d = pp_uneval(env, d);
+      Fun(dp, ty, d) |> return;
+
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
-      let (pe, hii, d1) = pp_eval(pe, hii, d1);
-      let (pe, hii, d2) = pp_uneval(pe, hii, env, d2);
-      (pe, hii, Let(dp, d1, d2));
+      let* d1 = pp_eval(d1);
+      let* d2 = pp_uneval(env, d2);
+      Let(dp, d1, d2) |> return;
+
     | ConsistentCase(Case(scrut, rules, i)) =>
       /* scrut should already be evaluated, rule bodies are not */
-      let (pe, hii, scrut) = pp_eval(pe, hii, scrut);
-      let (pe, hii, rules) = pp_uneval_rules(pe, hii, env, rules);
-      (pe, hii, ConsistentCase(Case(scrut, rules, i)));
+      let* scrut = pp_eval(scrut);
+      let* rules = pp_uneval_rules(env, rules);
+      ConsistentCase(Case(scrut, rules, i)) |> return;
 
     /* Hole constructs inside closures.
 
@@ -115,54 +149,62 @@ let rec pp_eval =
        subexpressions and we can use `pp_uneval`.
        */
     | NonEmptyHole(reason, u, _, d) =>
-      let (pe, hii, d) = pp_eval(pe, hii, d);
-      let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-      (pe, hii, Closure(env, NonEmptyHole(reason, u, i, d)));
+      let* d = pp_eval(d);
+      let* i = hii_add_instance(u, env);
+      Closure(env, NonEmptyHole(reason, u, i, d)) |> return;
+
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
-      let (pe, hii, scrut) = pp_eval(pe, hii, scrut);
-      let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-      (pe, hii, InconsistentBranches(u, i, Case(scrut, rules, case_i)));
+      let* scrut = pp_eval(scrut);
+      let* i = hii_add_instance(u, env);
+      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+
     | EmptyHole(_)
     | ExpandingKeyword(_)
     | FreeVar(_)
-    | InvalidText(_) => pp_uneval(pe, hii, env, d)
+    | InvalidText(_) => pp_uneval(env, d)
 
     /* Other expression forms cannot be directly in a closure. */
     | _ => raise(Exception(InvalidClosureBody))
     };
   }
 
-and pp_eval_env =
-    (pe: t, hii: HoleInstanceInfo_.t, env: ClosureEnvironment.t)
-    : (t, HoleInstanceInfo_.t, ClosureEnvironment.t) => {
+/* Recurse through environments, using memoized result if available. */
+and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
+  /* FIXME: Have a ClosureEnvironment.update_keep_id or something? */
   let ei = env |> ClosureEnvironment.id_of;
+
+  let* pe = get_pe;
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
-  | Some(env) => (pe, hii, env)
+  | Some(env) => env |> return
   | None =>
-    let (pe, hii, env_map) =
-      Environment.fold(
-        ((x, d), (pe, hii, new_env)) => {
-          let (pe, hii, d) = pp_eval(pe, hii, d);
-          (pe, hii, Environment.extend(new_env, (x, d)));
-        },
-        (pe, hii, Environment.empty),
-        env |> ClosureEnvironment.map_of,
-      );
-    let env = ClosureEnvironment.wrap(ei, env_map);
-    (pe |> EnvironmentIdMap.add(ei, env), hii, env);
+    let* env_bindings =
+      env
+      |> ClosureEnvironment.to_list
+      |> List.map(((x, d)) => {
+           let* d' = pp_eval(d);
+           (x, d') |> return;
+         })
+      |> sequence;
+    let env =
+      env_bindings |> Environment.of_list |> ClosureEnvironment.wrap(ei);
+
+    let* () = pe_add(ei, env);
+    env |> return;
   };
 }
 
-and pp_uneval =
-    (pe: t, hii: HoleInstanceInfo_.t, env: ClosureEnvironment.t, d: DHExp.t)
-    : (t, HoleInstanceInfo_.t, DHExp.t) =>
+/**
+  Postprocess inside evaluation boundary. Environment should already be
+  postprocessed.
+ */
+and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
   | BoundVar(x) =>
     switch (ClosureEnvironment.lookup(env, x)) {
-    | Some(d') => (pe, hii, d')
-    | None => (pe, hii, d)
+    | Some(d') => d' |> return
+    | None => d |> return
     }
 
   /* Non-hole expressions: expand recursively */
@@ -170,68 +212,74 @@ and pp_uneval =
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (pe, hii, d)
+  | Triv => d |> return
+
   | Let(dp, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Let(dp, d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Let(dp, d1', d2') |> return;
+
   | FixF(f, ty, d1) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    (pe, hii, FixF(f, ty, d1'));
+    let* d1' = pp_uneval(env, d1);
+    FixF(f, ty, d1') |> return;
+
   | Fun(dp, ty, d') =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Fun(dp, ty, d''));
+    let* d'' = pp_uneval(env, d');
+    Fun(dp, ty, d'') |> return;
+
   | Ap(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Ap(d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Ap(d1', d2') |> return;
+
   | ApBuiltin(f, args) =>
-    let (pe, hii, args') =
-      List.fold_right(
-        (arg, (pe, hii, args)) => {
-          let (pe, hii, arg') = pp_uneval(pe, hii, env, arg);
-          (pe, hii, [arg', ...args]);
-        },
-        args,
-        (pe, hii, []),
-      );
-    (pe, hii, ApBuiltin(f, args'));
+    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
+    ApBuiltin(f, args') |> return;
+
   | BinBoolOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinBoolOp(op, d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinBoolOp(op, d1', d2') |> return;
   | BinIntOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinIntOp(op, d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinIntOp(op, d1', d2') |> return;
+
   | BinFloatOp(op, d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, BinFloatOp(op, d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinFloatOp(op, d1', d2') |> return;
+
   | Cons(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Cons(d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Cons(d1', d2') |> return;
+
   | Inj(ty, side, d') =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Inj(ty, side, d''));
+    let* d'' = pp_uneval(env, d');
+    Inj(ty, side, d'') |> return;
+
   | Pair(d1, d2) =>
-    let (pe, hii, d1') = pp_uneval(pe, hii, env, d1);
-    let (pe, hii, d2') = pp_uneval(pe, hii, env, d2);
-    (pe, hii, Pair(d1', d2'));
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Pair(d1', d2') |> return;
+
   | Cast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, Cast(d'', ty1, ty2));
+    let* d'' = pp_uneval(env, d');
+    Cast(d'', ty1, ty2) |> return;
+
   | FailedCast(d', ty1, ty2) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, FailedCast(d'', ty1, ty2));
+    let* d'' = pp_uneval(env, d');
+    FailedCast(d'', ty1, ty2) |> return;
+
   | InvalidOperation(d', reason) =>
-    let (pe, hii, d'') = pp_uneval(pe, hii, env, d');
-    (pe, hii, InvalidOperation(d'', reason));
+    let* d'' = pp_uneval(env, d');
+    InvalidOperation(d'', reason) |> return;
+
   | ConsistentCase(Case(scrut, rules, i)) =>
-    let (pe, hii, scrut') = pp_uneval(pe, hii, env, scrut);
-    let (pe, hii, rules') = pp_uneval_rules(pe, hii, env, rules);
-    (pe, hii, ConsistentCase(Case(scrut', rules', i)));
+    let* scrut' = pp_uneval(env, scrut);
+    let* rules' = pp_uneval_rules(env, rules);
+    ConsistentCase(Case(scrut', rules', i)) |> return;
 
   /* Closures shouldn't exist inside other closures */
   | Closure(_) => raise(Exception(ClosureInsideClosure))
@@ -242,48 +290,44 @@ and pp_uneval =
      - Recurse through inner expression (if any).
      */
   | EmptyHole(u, _) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, EmptyHole(u, i)));
+    let* i = hii_add_instance(u, env);
+    Closure(env, EmptyHole(u, i)) |> return;
+
   | NonEmptyHole(reason, u, _, d') =>
-    let (pe, hii, d') = pp_uneval(pe, hii, env, d');
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, NonEmptyHole(reason, u, i, d')));
+    let* d' = pp_uneval(env, d');
+    let* i = hii_add_instance(u, env);
+    Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
+
   | ExpandingKeyword(u, _, kw) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, ExpandingKeyword(u, i, kw)));
+    let* i = hii_add_instance(u, env);
+    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
+
   | FreeVar(u, _, x) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, FreeVar(u, i, x)));
+    let* i = hii_add_instance(u, env);
+    Closure(env, FreeVar(u, i, x)) |> return;
+
   | InvalidText(u, _, text) =>
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (pe, hii, Closure(env, InvalidText(u, i, text)));
+    let* i = hii_add_instance(u, env);
+    Closure(env, InvalidText(u, i, text)) |> return;
+
   | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
-    let (pe, hii, scrut) = pp_uneval(pe, hii, env, scrut);
-    let (pe, hii, rules) = pp_uneval_rules(pe, hii, env, rules);
-    let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-    (
-      pe,
-      hii,
-      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i))),
-    );
+    let* scrut = pp_uneval(env, scrut);
+    let* rules = pp_uneval_rules(env, rules);
+    let* i = hii_add_instance(u, env);
+    Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+    |> return;
   }
 
 and pp_uneval_rules =
-    (
-      pe: t,
-      hii: HoleInstanceInfo_.t,
-      env: ClosureEnvironment.t,
-      rules: list(DHExp.rule),
-    )
-    : (t, HoleInstanceInfo_.t, list(DHExp.rule)) =>
-  List.fold_right(
-    (DHExp.Rule(dp, d), (pe, hii, rules)) => {
-      let (pe, hii, d') = pp_uneval(pe, hii, env, d);
-      (pe, hii, [DHExp.Rule(dp, d'), ...rules]);
-    },
-    rules,
-    (pe, hii, []),
-  );
+    (env: ClosureEnvironment.t, rules: list(DHExp.rule))
+    : m(list(DHExp.rule)) => {
+  rules
+  |> List.map((Rule(dp, d)) => {
+       let* d' = pp_uneval(env, d);
+       Rule(dp, d') |> return;
+     })
+  |> sequence;
+};
 
 let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
@@ -376,8 +420,8 @@ let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
 
 let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let (_, hii, d) =
-    pp_eval(EnvironmentIdMap.empty, HoleInstanceInfo_.empty, d);
+  let ((_, hii), d) =
+    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty));
 
   /* Convert HoleInstanceInfo_.t to HoleInstanceInfo.t */
   let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;

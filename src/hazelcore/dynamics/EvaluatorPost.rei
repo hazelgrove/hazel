@@ -51,28 +51,6 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-/* Memoize postprocessed environments */
-type t = EnvironmentIdMap.t(ClosureEnvironment.t);
-
-/* Postprocess inside evaluation boundary. Environment should already
-   be postprocessed */
-let pp_uneval:
-  (t, HoleInstanceInfo_.t, ClosureEnvironment.t, DHExp.t) =>
-  (t, HoleInstanceInfo_.t, DHExp.t);
-
-let pp_uneval_rules:
-  (t, HoleInstanceInfo_.t, ClosureEnvironment.t, list(DHExp.rule)) =>
-  (t, HoleInstanceInfo_.t, list(DHExp.rule));
-
-/* Postprocess inside evaluation boundary */
-let pp_eval:
-  (t, HoleInstanceInfo_.t, DHExp.t) => (t, HoleInstanceInfo_.t, DHExp.t);
-
-/* Recurse through environments, using memoized result if available. */
-let pp_eval_env:
-  (t, HoleInstanceInfo_.t, ClosureEnvironment.t) =>
-  (t, HoleInstanceInfo_.t, ClosureEnvironment.t);
-
 /* Tracking children of hole closures. A hole closure is a child of
    another hole closure if it exists in the hole environment of the parent.
 
