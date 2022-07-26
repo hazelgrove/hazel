@@ -4,11 +4,7 @@ open Lwtutil;
 /**
   [Lwt_timed] implementation for browser.
  */
-module Lwt_timed =
-  Lwt_timed.Make({
-    let delay = (f, timeout) =>
-      Js_of_ocaml.Dom_html.setTimeout(f, float_of_int(timeout)) |> ignore;
-  });
+module Lwt_timed = Lwt_timed.Make(Delay);
 module Lwt_timed_pool = Lwt_timed_pool.Make(Lwt_timed);
 
 module type S = {
