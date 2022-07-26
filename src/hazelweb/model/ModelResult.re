@@ -1,4 +1,7 @@
 [@deriving sexp]
+type previous = ProgramResult.t;
+
+[@deriving sexp]
 type current =
   | ResultOk(ProgramResult.t)
   | ResultFail(ProgramEvaluator.evaluation_exn)
@@ -7,15 +10,16 @@ type current =
 
 [@deriving sexp]
 type t = {
-  prev: ProgramResult.t,
+  previous,
   current,
 };
 
-let init = {prev: ProgramResult.empty, current: ResultPending};
+let init = {previous: ProgramResult.empty, current: ResultPending};
 
-let get_prev_result = ({prev, _}) => prev;
-let put_prev_result = (prev, cr) => {...cr, prev};
-let get_prev_dhexp = cr => cr |> get_prev_result |> ProgramResult.get_dhexp;
+let get_previous_result = ({previous, _}) => previous;
+let put_previous_result = (previous, cr) => {...cr, previous};
+let get_previous_dhexp = cr =>
+  cr |> get_previous_result |> ProgramResult.get_dhexp;
 
 let get_current = ({current, _}) => current;
 let put_current = (current, cr) => {...cr, current};
@@ -30,14 +34,14 @@ let get_current_result = cr =>
 let get_current_dhexp = cr =>
   cr |> get_current_result |> Option.map(ProgramResult.get_dhexp);
 
-let get_current_or_prev_result = cr =>
-  cr |> get_current_result |> OptUtil.get(() => cr |> get_prev_result);
-let get_current_or_prev_dhexp = cr =>
-  cr |> get_current_dhexp |> OptUtil.get(() => cr |> get_prev_dhexp);
+let get_current_or_previous_result = cr =>
+  cr |> get_current_result |> OptUtil.get(() => cr |> get_previous_result);
+let get_current_or_previous_dhexp = cr =>
+  cr |> get_current_dhexp |> OptUtil.get(() => cr |> get_previous_dhexp);
 let update = (current, cr) => {
   let cr =
     switch (cr.current) {
-    | ResultOk(r) => put_prev_result(r, cr)
+    | ResultOk(r) => put_previous_result(r, cr)
     | ResultFail(_)
     | ResultTimedOut
     | ResultPending => cr
