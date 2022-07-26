@@ -64,6 +64,16 @@ let prev_card: t => t;
 let next_card: t => t;
 let nth_card: (int, t) => t;
 
+let perform_edit_action: (Action.t, t) => t;
+
+let move_via_key: (MoveKey.t, t) => t;
+let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
+
+/**
+ * See `Program.move_to_case_branch`
+ */
+let select_case_branch: (CursorPath.steps, int, t) => t;
+
 /**
  * Show/hide sidebars
  */
