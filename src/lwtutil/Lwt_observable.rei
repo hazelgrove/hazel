@@ -2,14 +2,6 @@ type next('a) = 'a => unit;
 type complete = unit => unit;
 
 /**
-  The type for an observer configuration.
- */
-type observer('a) = {
-  next: next('a),
-  complete,
-};
-
-/**
   The type for a subscription.
  */
 type subscription('a);
@@ -36,9 +28,25 @@ let next: (t('a), 'a) => unit;
 let complete: t('a) => unit;
 
 /**
-  [subscribe o {next, complete}] subscribes the observable.
+  [subscribe o {next, complete}] subscribes the observable. [unsubscribe] may
+  be used to unsubscribe the observer.
+
+  If the observable is already completed, a completion signal is forwarded to
+  the observer.
  */
-let subscribe: (t('a), observer('a)) => subscription('a);
+let subscribe: (t('a), next('a), complete) => subscription('a);
+
+/**
+  [subscribe' o next] is [subscribe o {next, complete: () => ()}].
+ */
+let subscribe': (t('a), next('a)) => subscription('a);
+
+/**
+  [wait o] is a promise that resolves when the observable's execution
+  completes. There is no guarantee that all observers have received a
+  completion signal by then.
+ */
+let wait: t('a) => Lwt.t(unit);
 
 /**
   [unsubscribe s] removes a subscription.

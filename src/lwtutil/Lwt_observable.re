@@ -1,4 +1,5 @@
 open Lwt.Infix;
+open Lwt.Syntax;
 
 module Subscriptions = Map.Make(Int);
 
@@ -15,6 +16,7 @@ type t('a) = {
   push: option('a) => unit,
   observers: ref(Subscriptions.t(observer('a))),
   count: ref(int),
+  is_complete: ref(bool),
 }
 
 and subscription('a) = {
@@ -59,7 +61,7 @@ let next = ({stream, _} as o: t('a)) => {
 
   Lwt.try_bind(
     () => q,
-    v => Option.is_some(v) |> Lwt.return,
+    v => v |> Option.is_some |> Lwt.return,
     _exn => Lwt.return_false,
   );
 };
@@ -79,7 +81,10 @@ let loop = (o: t('a)) => {
         }
     );
 
-  loop'();
+  let* () = loop'();
+  o.is_complete := true;
+
+  Lwt.return_unit;
 };
 
 let create = () => {
@@ -89,6 +94,7 @@ let create = () => {
     push,
     observers: ref(Subscriptions.empty),
     count: ref(0),
+    is_complete: ref(false),
   };
 
   let _ = loop(o);
@@ -98,11 +104,30 @@ let create = () => {
 let next = ({push, _}: t('a), v: 'a) => push(Some(v));
 let complete = ({push, _}: t('a)) => push(None);
 
-let subscribe = ({observers, count, _} as o: t('a), ob: observer('a)) => {
+let subscribe =
+    (
+      {observers, count, is_complete, _} as o: t('a),
+      next: next('a),
+      complete: complete,
+    ) => {
+  let ob = {next, complete};
   let s = {id: count^, observable: ref(o)};
-  observers := Subscriptions.add(s.id, ob, observers^);
-  count := count^ + 1;
+
+  if (is_complete^) {
+    ob.complete();
+  } else {
+    observers := Subscriptions.add(s.id, ob, observers^);
+    count := count^ + 1;
+  };
   s;
+};
+
+let subscribe' = (o: t('a), next: next('a)) => subscribe(o, next, () => ());
+
+let wait = (o: t('a)) => {
+  let (q, r) = Lwt.wait();
+  let _ = subscribe(o, ignore, () => Lwt.wakeup_later(r, ()));
+  q;
 };
 
 let unsubscribe = ({id, observable}: subscription('a)) => {
