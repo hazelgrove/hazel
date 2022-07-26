@@ -36,6 +36,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
   let selected_instance = Model.get_selected_hole_instance(model);
   let (_, ty, _) = program.edit_state;
+  /* FIXME: Pass ModelResult.current directly and show correct ui for each case. */
   let result =
     settings.evaluation.show_unevaluated_elaboration
       ? program |> Program.get_elaboration

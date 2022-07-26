@@ -2,7 +2,8 @@
 type current =
   | ResultOk(ProgramResult.t)
   | ResultFail
-  | ResultTimedOut;
+  | ResultTimedOut
+  | ResultPending;
 
 [@deriving sexp]
 type t = {
@@ -23,7 +24,8 @@ let get_current_result = cr =>
   switch (cr |> get_current) {
   | ResultOk(r) => Some(r)
   | ResultFail
-  | ResultTimedOut => None
+  | ResultTimedOut
+  | ResultPending => None
   };
 let get_current_dhexp = cr =>
   cr |> get_current_result |> Option.map(ProgramResult.get_dhexp);
@@ -32,13 +34,13 @@ let get_current_or_prev_result = cr =>
   cr |> get_current_result |> OptUtil.get(() => cr |> get_prev_result);
 let get_current_or_prev_dhexp = cr =>
   cr |> get_current_dhexp |> OptUtil.get(() => cr |> get_prev_dhexp);
-
 let update = (current, cr) => {
   let cr =
     switch (cr.current) {
     | ResultOk(r) => put_prev_result(r, cr)
     | ResultFail
-    | ResultTimedOut => cr
+    | ResultTimedOut
+    | ResultPending => cr
     };
 
   put_current(current, cr);
