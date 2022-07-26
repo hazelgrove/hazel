@@ -79,7 +79,9 @@ let apply_action =
     (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
   let schedule_deferred_action = deferred_action =>
-    Lwt.Infix.(deferred_action >|= Option.map(schedule_action)) |> ignore;
+    Lwt.Infix.(deferred_action >|= schedule_action) |> ignore;
+  let schedule_deferred_actions = deferred_actions =>
+    deferred_actions |> List.map(schedule_deferred_action) |> ignore;
 
   let settings = model.settings;
   if (settings.performance.measure) {
@@ -94,8 +96,8 @@ let apply_action =
       switch (action) {
       | EditAction(a) =>
         switch (model |> ModelUpdate.perform_edit_action(a)) {
-        | (new_model, deferred_action) =>
-          schedule_deferred_action(deferred_action);
+        | (new_model, deferred_actions) =>
+          schedule_deferred_actions(deferred_actions);
           new_model;
         | exception Program.FailedAction =>
           JSUtil.log("[Program.FailedAction]");
@@ -117,17 +119,17 @@ let apply_action =
         }
       | MoveAction(Key(move_key)) =>
         switch (model |> ModelUpdate.move_via_key(move_key)) {
-        | (new_model, deferred_action) =>
-          schedule_deferred_action(deferred_action);
+        | (new_model, deferred_actions) =>
+          schedule_deferred_actions(deferred_actions);
           new_model;
         | exception Program.CursorEscaped =>
           JSUtil.log("[Program.CursorEscaped]");
           model;
         }
       | MoveAction(Click(row_col)) =>
-        let (new_model, deferred_action) =
+        let (new_model, deferred_actions) =
           model |> ModelUpdate.move_via_click(row_col);
-        schedule_deferred_action(deferred_action);
+        schedule_deferred_actions(deferred_actions);
         new_model;
       | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
       | ToggleRightSidebar => Model.toggle_right_sidebar(model)
@@ -137,9 +139,9 @@ let apply_action =
       | PrevCard => Model.prev_card(model)
       | SelectHoleInstance(inst) => model |> Model.select_hole_instance(inst)
       | SelectCaseBranch(path_to_case, branch_index) =>
-        let (new_model, deferred_action) =
+        let (new_model, deferred_actions) =
           ModelUpdate.select_case_branch(path_to_case, branch_index, model);
-        schedule_deferred_action(deferred_action);
+        schedule_deferred_actions(deferred_actions);
         new_model;
       | FocusCell => model |> Model.focus_cell
       | BlurCell => model |> Model.blur_cell
@@ -232,7 +234,8 @@ let apply_action =
           switch (model |> Model.get_current_result |> ModelResult.get_current) {
           /* TODO: Print a message? */
           | ResultFail
-          | ResultTimedOut => ()
+          | ResultTimedOut
+          | ResultPending => ()
           | ResultOk(r) =>
             r
             |> ProgramResult.get_dhexp

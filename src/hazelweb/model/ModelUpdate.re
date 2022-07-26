@@ -2,7 +2,8 @@ open Lwt.Infix;
 
 open Model;
 
-type deferred_action = Lwt.t(option(ModelAction.t));
+type deferred_action = Lwt.t(ModelAction.t);
+type deferred_actions = list(deferred_action);
 
 let update_program = (a: ModelAction.t, new_program, model) => {
   /* let old_program = model |> get_program; */
@@ -45,11 +46,16 @@ let update_program = (a: ModelAction.t, new_program, model) => {
          },
        );
 
-  /* Run evaluation asynchronously, returning deferred update action. */
+  /* Run evaluation asynchronously. */
   let (deferred_result, evaluator) =
     model |> get_program |> ProgramEvaluator.get_result(model.evaluator);
+  /* Update evaluator state. */
   let model = model |> put_evaluator(evaluator);
-  let deferred_action =
+
+  let deferred_actions = [
+    /* Set evaluation to pending. */
+    ModelAction.UpdateCurrentResult(ResultPending) |> Lwt.return,
+    /* Set evaluation to finished. */
     deferred_result
     >|= (
       fun
@@ -57,9 +63,10 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       | Some(EvaluationOk(r)) => ResultOk(r)
       | Some(EvaluationFail) => ResultFail
     )
-    >|= (cr => Some(ModelAction.UpdateCurrentResult(cr)));
+    >|= (cr => ModelAction.UpdateCurrentResult(cr)),
+  ];
 
-  (model, deferred_action);
+  (model, deferred_actions);
 };
 
 let perform_edit_action = (a: Action.t, model: t) => {
