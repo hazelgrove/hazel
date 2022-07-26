@@ -1,7 +1,7 @@
 module ProgramEvaluator = {
   open ProgramEvaluator;
 
-  include Streamed((Memoized(Worker.Client)));
+  include Streamed(Worker.Client);
 };
 
 type t = {evaluator: ProgramEvaluator.t};
