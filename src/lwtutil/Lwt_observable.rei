@@ -37,7 +37,7 @@ let complete: t('a) => unit;
 let subscribe: (t('a), next('a), complete) => subscription('a);
 
 /**
-  [subscribe' o next] is [subscribe o {next, complete: () => ()}].
+  [subscribe' o next] is [subscribe o next (() => ())].
  */
 let subscribe': (t('a), next('a)) => subscription('a);
 
