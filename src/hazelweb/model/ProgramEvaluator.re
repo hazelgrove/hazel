@@ -1,21 +1,18 @@
 /* FIXME: Somehow filter out obsolete results. */
-open Sexplib.Std;
 open Lwt.Infix;
 open Lwt.Syntax;
 open Lwtutil;
 
 [@deriving sexp]
 type evaluation_exn =
-  | ProgramEvalError(EvaluatorError.t)
-  | ProgramDoesNotElaborate;
+  | Program_EvalError(EvaluatorError.t)
+  | Program_DoesNotElaborate;
 
 [@deriving sexp]
-type evaluation_result_ =
+type evaluation_result =
   | EvaluationOk(ProgramResult.t)
-  | EvaluationFail(evaluation_exn);
-
-[@deriving sexp]
-type evaluation_result = option(evaluation_result_);
+  | EvaluationFail(evaluation_exn)
+  | EvaluationTimeout;
 
 type deferred_result = Lwt.t(evaluation_result);
 
@@ -34,14 +31,17 @@ module Sync: M = {
 
   let get_result = (t: t, program: Program.t) => {
     let lwt = {
-      let+ r = Lwt.return(program) >|= Program.get_result;
-      switch (r) {
-      | r => Some(EvaluationOk(r))
-      | exception (Program.EvalError(error)) =>
-        Some(EvaluationFail(ProgramEvalError(error)))
-      | exception Program.DoesNotElaborate =>
-        Some(EvaluationFail(ProgramDoesNotElaborate))
-      };
+      let+ r = Lwt.wrap(() => program |> Program.get_result);
+      let r =
+        switch (r) {
+        | r => EvaluationOk(r)
+        | exception (Program.EvalError(error)) =>
+          EvaluationFail(Program_EvalError(error))
+        | exception Program.DoesNotElaborate =>
+          EvaluationFail(Program_DoesNotElaborate)
+        };
+
+      r;
     };
 
     (lwt, t);

@@ -5,17 +5,15 @@ type evaluation_exn =
   | ProgramEvalError(EvaluatorError.t)
   | ProgramDoesNotElaborate;
 
-[@deriving sexp]
-type evaluation_result_ =
-  | EvaluationOk(ProgramResult.t)
-  | EvaluationFail(evaluation_exn);
-
 /**
   The type of the evaluation result. [EvaluationFail] indicates some error was
   encountered.
  */
 [@deriving sexp]
-type evaluation_result = option(evaluation_result_);
+type evaluation_result =
+  | EvaluationOk(ProgramResult.t)
+  | EvaluationFail(evaluation_exn)
+  | EvaluationTimeout;
 
 /**
   The type of the deferred evaluation result. See {!type:evaluation_result}.
