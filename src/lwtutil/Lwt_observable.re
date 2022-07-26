@@ -26,18 +26,11 @@ and subscription('a) = {
 };
 
 /** [forward f o] applies [f] to all the observers of [o]. */
-let forward = (f, {observers, _}: t('a)) => {
-  let rec forward' =
-    fun
-    | [] => ()
-    | [ob, ...observers] => {
-        f(ob);
-        forward'(observers);
-      };
-
-  let observers = observers^ |> Subscriptions.bindings |> List.map(snd);
-  forward'(observers);
-};
+let forward = (f, {observers, _}: t('a)) =>
+  observers^
+  |> Subscriptions.bindings
+  |> List.map(snd)
+  |> Lwt_list.map_s(ob => Lwt.wrap(() => f(ob)));
 
 /** [forward v o] calls [next v] for all observers of [o]. */
 let forward_next = v => forward((ob: observer('a)) => ob.next(v));
@@ -54,8 +47,8 @@ let next = ({stream, _} as o: t('a)) => {
   Lwt.on_any(
     q,
     fun
-    | Some(v) => o |> forward_next(v)
-    | None => o |> forward_complete(),
+    | Some(v) => o |> forward_next(v) |> ignore
+    | None => o |> forward_complete() |> ignore,
     /* Failures from [q] should not be possible (according to Lwt_stream docs). */
     ignore,
   );
@@ -115,8 +108,11 @@ let subscribe =
   let s = {id: count^, observable: ref(o)};
 
   if (is_complete^) {
+    /* If execution is already complete, send signal to new observer without
+     * adding a new subscription. */
     ob.complete();
   } else {
+    /* Otherwise, add the new subscription. */
     observers := Subscriptions.add(s.id, ob, observers^);
     count := count^ + 1;
   };
