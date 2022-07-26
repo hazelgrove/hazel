@@ -85,18 +85,22 @@ module Worker = {
 
   module Client: M = {
     module Pool = WebWorkerPool.Make(W);
-    include Pool;
+    type t = Pool.t;
 
     let max = 5;
+    let timeout = 2000; /* ms */
 
     let init = () => {
-      let pool = Pool.init(~timeout=2000, ~max);
+      let pool = Pool.init(~timeout, ~max);
       let _ = Pool.fill(pool, max);
       pool;
     };
 
     let get_result = (t: t, program: Program.t) => {
-      let res = program |> request(t) >|= Option.join;
+      let res =
+        program
+        |> Pool.request(t)
+        >|= Option.value(~default=EvaluationTimeout);
       (res, t);
     };
   };
@@ -149,12 +153,14 @@ module Streamed = (M: M) => {
 
   let next = ({inner, observable}, program) => {
     let _ = {
-      /* Compute result and push to stream. */
-      let (r, inner') = program |> M.get_result(inner^);
-      let+ () = r >|= Lwt_observable.next(observable);
+      /* Compute result. */
+      let* (r, inner') = Lwt.wrap(() => program |> M.get_result(inner^));
 
       /* Update inner state. */
       inner := inner';
+
+      /* Push to stream. */
+      r >|= Lwt_observable.next(observable);
     };
 
     ();
@@ -163,11 +169,11 @@ module Streamed = (M: M) => {
   let complete = ({inner: _, observable}) =>
     Lwt_observable.complete(observable);
 
-  let subscribe = ({inner: _, observable}, next, complete) =>
-    Lwt_observable.subscribe(observable, next, complete);
+  let subscribe = ({inner: _, observable}) =>
+    Lwt_observable.subscribe(observable);
 
-  let subscribe' = ({inner: _, observable}, next) =>
-    Lwt_observable.subscribe'(observable, next);
+  let subscribe' = ({inner: _, observable}) =>
+    Lwt_observable.subscribe'(observable);
 
   let wait = ({inner: _, observable}) => Lwt_observable.wait(observable);
 
