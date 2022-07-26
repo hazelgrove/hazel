@@ -56,9 +56,15 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
   | Ap(fn, arg) =>
     let (fn, fn_ty) = transform_exp(ctx, fn);
     let (arg, _) = transform_exp(ctx, arg);
-    switch (fn_ty) {
-    | Arrow(_, ty') => ({expr_kind: EAp(fn, arg)}, ty')
-    | _ => raise(WrongTypeError)
+    switch (fn.expr_kind) {
+      // TODO: expand arrow casts and do transform_exp recursively here
+    | ECast(_fn, _ty1, _ty2) => failwith("FnCastExpansion")
+    | EFun(_, _, _) =>
+      switch (fn_ty) {
+      | Arrow(_, ty') => ({expr_kind: EAp(fn, arg)}, ty')
+      | _ => raise(WrongTypeError)
+      }
+    | _ => failwith("NotImplemented")
     };
 
   | ApBuiltin(name, args) =>
@@ -132,8 +138,21 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
     ({expr_kind: EInconsistentBranches(u, i, sigma, case)}, Hole);
 
   | Cast(d', ty, ty') =>
-    let (d', _) = transform_exp(ctx, d');
-    ({expr_kind: ECast(d', ty, ty')}, ty');
+    // FIXME: default implementation of Cast
+    // let (d', _) = transform_exp(ctx, d');
+    // ({expr_kind: ECast(d', ty, ty')}, ty');
+    switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
+    | (GNotGroundOrHole(_), GNotGroundOrHole(_)) =>
+      if (HTyp.eq(ty, ty')) {
+        transform_exp(ctx, d');
+      } else {
+        let (d', _) = transform_exp(ctx, d');
+        ({expr_kind: ECast(d', ty, ty')}, ty');
+      }
+    | _ =>
+      let (d', _) = transform_exp(ctx, d);
+      ({expr_kind: ECast(d', ty, ty')}, ty');
+    }
 
   | FailedCast(d', ty, ty') =>
     let (d', _) = transform_exp(ctx, d');
