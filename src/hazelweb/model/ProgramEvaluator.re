@@ -31,7 +31,7 @@ module Sync: M = {
 };
 
 module Worker = {
-  module Inner =
+  module W =
     WebWorker.Make({
       module Request = {
         type t = Program.t;
@@ -75,7 +75,7 @@ module Worker = {
     });
 
   module Client: M = {
-    module Pool = WebWorkerPool.Make(Inner);
+    module Pool = WebWorkerPool.Make(W);
     include Pool;
 
     let max = 5;
@@ -92,5 +92,5 @@ module Worker = {
     };
   };
 
-  module Worker = Inner.Worker;
+  module Worker = W.Worker;
 };
