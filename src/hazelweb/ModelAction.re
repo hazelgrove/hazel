@@ -28,6 +28,7 @@ type serialize_object =
 
 [@deriving sexp]
 type t =
+  | UpdateResult(ModelResult.current)
   | EditAction(EditAction.t)
   | MoveAction(move_input)
   | ToggleLeftSidebar
@@ -50,7 +51,6 @@ type t =
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
   | SerializeToConsole(serialize_object)
-  | UpdateCurrentResult(ModelResult.current)
   | /**
      * Import a {UHExp.t} into the editor.
      */

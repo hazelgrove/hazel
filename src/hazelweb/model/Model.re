@@ -1,9 +1,5 @@
-module ProgramEvaluator =
-  ProgramEvaluator.Memoized(ProgramEvaluator.Worker.Client);
-
 type t = {
   current_result: ModelResult.t,
-  evaluator: ProgramEvaluator.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -73,7 +69,6 @@ let init = (): t => {
   };
   {
     current_result: ModelResult.init,
-    evaluator: ProgramEvaluator.init(),
     cardstacks,
     cell_width,
     selected_instances,
@@ -100,12 +95,6 @@ let put_current_result = (cr: ModelResult.t, model: t): t => {
 let update_current_result = (current: ModelResult.current, model: t): t => {
   let cr = model |> get_current_result |> ModelResult.update(current);
   model |> put_current_result(cr);
-};
-
-let get_evaluator = (model: t): ProgramEvaluator.t => model.evaluator;
-let put_evaluator = (evaluator: ProgramEvaluator.t, model: t): t => {
-  ...model,
-  evaluator,
 };
 
 let get_program = (model: t): Program.t =>

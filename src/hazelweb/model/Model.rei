@@ -1,8 +1,5 @@
-module ProgramEvaluator: ProgramEvaluator.M;
-
 type t = {
   current_result: ModelResult.t,
-  evaluator: ProgramEvaluator.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -32,9 +29,6 @@ let init: unit => t;
 
 let get_current_result: t => ModelResult.t;
 let update_current_result: (ModelResult.current, t) => t;
-
-let get_evaluator: t => ProgramEvaluator.t;
-let put_evaluator: (ProgramEvaluator.t, t) => t;
 
 let get_program: t => Program.t;
 

@@ -17,6 +17,25 @@ module State = State;
 
 // see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
+  /* initialize state. */
+  let state = State.init();
+
+  /* create subscription to evaluator, updating model on each result. */
+  let _ =
+    State.subscribe_evaluator(
+      state,
+      r => {
+        let cr =
+          switch (r) {
+          | Some(EvaluationOk(r)) => ModelResult.ResultOk(r)
+          | Some(EvaluationFail) => ModelResult.ResultFail
+          | None => ModelResult.ResultTimedOut
+          };
+        schedule_action(ModelAction.UpdateResult(cr));
+      },
+      () => (),
+    );
+
   /* check URL for code permalink. */
   switch (Permalink.get_current()) {
   | Some(url) when !Permalink.is_empty(url) =>
@@ -64,7 +83,7 @@ let on_startup = (~schedule_action, _) => {
     });
   UHCode.focus();
 
-  Async_kernel.Deferred.return(State.State);
+  Async_kernel.Deferred.return(state);
 };
 
 let restart_cursor_animation = () =>
