@@ -1,6 +1,6 @@
 open Lwt.Infix;
 
-module Subscriptions = IntMap;
+module Subscriptions = Map.Make(Int);
 
 type next('a) = 'a => unit;
 type complete = unit => unit;

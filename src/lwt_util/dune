@@ -1,0 +1,5 @@
+(include_subdirs unqualified)
+
+(library
+ (name lwtutil)
+ (libraries lwt lwt-dllist))
