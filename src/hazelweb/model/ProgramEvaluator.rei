@@ -1,16 +1,21 @@
+open Lwtutil;
+
+[@deriving sexp]
+type evaluation_result_ =
+  | EvaluationOk(ProgramResult.t)
+  | EvaluationFail;
+
 /**
   The type of the evaluation result. [EvaluationFail] indicates some error was
   encountered.
  */
 [@deriving sexp]
-type evaluation_result =
-  | EvaluationOk(ProgramResult.t)
-  | EvaluationFail;
+type evaluation_result = option(evaluation_result_);
 
 /**
   The type of the deferred evaluation result. See {!type:evaluation_result}.
  */
-type deferred_result = Lwt.t(option(evaluation_result));
+type deferred_result = Lwt.t(evaluation_result);
 
 module type M = {
   type t;
@@ -26,3 +31,25 @@ module Worker: {
   module Client: M;
   module Worker: WebWorker.WorkerS;
 };
+
+module type STREAMED = {
+  type next = Lwt_observable.next(evaluation_result);
+  type complete = Lwt_observable.complete;
+
+  type t;
+  type subscription;
+
+  let init: unit => t;
+
+  let next: (t, Program.t) => unit;
+  let complete: t => unit;
+
+  let subscribe: (t, next, complete) => subscription;
+  let subscribe': (t, next) => subscription;
+
+  let wait: t => Lwt.t(unit);
+
+  let unsubscribe: subscription => unit;
+};
+
+module Streamed: (M: M) => STREAMED;
