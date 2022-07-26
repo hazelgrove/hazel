@@ -76,14 +76,14 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 };
 
 let evaluate_and_schedule =
-    (state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
+    (state: State.t, ~schedule_action, model: Model.t): Model.t => {
   /* Send evaluation request. */
   State.ProgramEvaluator.next(state.evaluator, model |> Model.get_program);
 
   /* Set evaluation to pending after short timeout. */
   Delay.delay(
-  () => schedule_action(ModelAction.UpdateResult(ResultPending)),
-  300,
+    () => schedule_action(ModelAction.UpdateResult(ResultPending)),
+    300,
   );
 
   model;
