@@ -5,9 +5,14 @@ open Lwt.Syntax;
 open Lwtutil;
 
 [@deriving sexp]
+type evaluation_exn =
+  | ProgramEvalError(EvaluatorError.t)
+  | ProgramDoesNotElaborate;
+
+[@deriving sexp]
 type evaluation_result_ =
   | EvaluationOk(ProgramResult.t)
-  | EvaluationFail;
+  | EvaluationFail(evaluation_exn);
 
 [@deriving sexp]
 type evaluation_result = option(evaluation_result_);
@@ -28,11 +33,17 @@ module Sync: M = {
   let init = () => ();
 
   let get_result = (t: t, program: Program.t) => {
-    /* FIXME: Handle exceptions. */
-    let lwt =
-      Lwt.return(program)
-      >|= Program.get_result
-      >|= (r => Some(EvaluationOk(r)));
+    let lwt = {
+      let+ r = Lwt.return(program) >|= Program.get_result;
+      switch (r) {
+      | r => Some(EvaluationOk(r))
+      | exception (Program.EvalError(error)) =>
+        Some(EvaluationFail(ProgramEvalError(error)))
+      | exception Program.DoesNotElaborate =>
+        Some(EvaluationFail(ProgramDoesNotElaborate))
+      };
+    };
+
     (lwt, t);
   };
 };
@@ -68,7 +79,6 @@ module Worker = {
 
         let init_state = Sync.init;
 
-        /* FIXME: Handle exceptions. */
         let on_request = Sync.get_result;
       };
     });

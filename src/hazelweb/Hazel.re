@@ -28,7 +28,7 @@ let on_startup = (~schedule_action, _) => {
         let cr =
           switch (r) {
           | Some(EvaluationOk(r)) => ModelResult.ResultOk(r)
-          | Some(EvaluationFail) => ModelResult.ResultFail
+          | Some(EvaluationFail(reason)) => ModelResult.ResultFail(reason)
           | None => ModelResult.ResultTimedOut
           };
         schedule_action(ModelAction.UpdateResult(cr));

@@ -1,7 +1,7 @@
 [@deriving sexp]
 type current =
   | ResultOk(ProgramResult.t)
-  | ResultFail
+  | ResultFail(ProgramEvaluator.evaluation_exn)
   | ResultTimedOut
   | ResultPending;
 
@@ -11,7 +11,7 @@ type t = {
   current,
 };
 
-let init = {prev: ProgramResult.empty, current: ResultFail};
+let init = {prev: ProgramResult.empty, current: ResultPending};
 
 let get_prev_result = ({prev, _}) => prev;
 let put_prev_result = (prev, cr) => {...cr, prev};
@@ -23,7 +23,7 @@ let put_current = (current, cr) => {...cr, current};
 let get_current_result = cr =>
   switch (cr |> get_current) {
   | ResultOk(r) => Some(r)
-  | ResultFail
+  | ResultFail(_)
   | ResultTimedOut
   | ResultPending => None
   };
@@ -38,7 +38,7 @@ let update = (current, cr) => {
   let cr =
     switch (cr.current) {
     | ResultOk(r) => put_prev_result(r, cr)
-    | ResultFail
+    | ResultFail(_)
     | ResultTimedOut
     | ResultPending => cr
     };

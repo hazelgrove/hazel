@@ -78,9 +78,21 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 let apply_action =
     (model: Model.t, action: ModelAction.t, state: State.t, ~schedule_action)
     : Model.t => {
-  /* FIXME: Catch branches can't handle exceptions in web worker. */
   switch (action) {
-  | UpdateResult(current) => model |> Model.update_current_result(current)
+  | UpdateResult(current) =>
+    /* If error, print a message. */
+    switch (current) {
+    | ResultFail(ProgramEvalError(reason)) =>
+      let serialized =
+        reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+      JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
+    | ResultFail(ProgramDoesNotElaborate) =>
+      JSUtil.log("[Program.DoesNotElaborate]")
+    | _ => ()
+    };
+    /* Update result in model. */
+    model |> Model.update_current_result(current);
+
   | EditAction(a) =>
     /* FIXME: Move movement exceptions catches to UpdateProgram. */
     switch (
@@ -95,14 +107,6 @@ let apply_action =
       model;
     | exception Program.MissingCursorInfo =>
       JSUtil.log("[Program.MissingCursorInfo]");
-      model;
-    | exception (Program.EvalError(reason)) =>
-      let serialized =
-        reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-      JSUtil.log("[EvaluatorError.Exception(" ++ serialized ++ ")]");
-      model;
-    | exception Program.DoesNotElaborate =>
-      JSUtil.log("[Program.DoesNotElaborate]");
       model;
     }
   | MoveAction(Key(move_key)) =>
@@ -224,7 +228,7 @@ let apply_action =
     | DHExp =>
       switch (model |> Model.get_current_result |> ModelResult.get_current) {
       /* TODO: Print a message? */
-      | ResultFail
+      | ResultFail(_)
       | ResultTimedOut
       | ResultPending => ()
       | ResultOk(r) =>

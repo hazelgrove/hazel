@@ -1,9 +1,14 @@
 open Lwtutil;
 
 [@deriving sexp]
+type evaluation_exn =
+  | ProgramEvalError(EvaluatorError.t)
+  | ProgramDoesNotElaborate;
+
+[@deriving sexp]
 type evaluation_result_ =
   | EvaluationOk(ProgramResult.t)
-  | EvaluationFail;
+  | EvaluationFail(evaluation_exn);
 
 /**
   The type of the evaluation result. [EvaluationFail] indicates some error was
