@@ -1,4 +1,15 @@
 open Lwt.Syntax;
+open Lwtutil;
+
+/**
+  [Lwt_timed] implementation for browser.
+ */
+module Lwt_timed =
+  Lwt_timed.Make({
+    let delay = (f, timeout) =>
+      Js_of_ocaml.Dom_html.setTimeout(f, float_of_int(timeout)) |> ignore;
+  });
+module Lwt_timed_pool = Lwt_timed_pool.Make(Lwt_timed);
 
 module type S = {
   module Request: WebWorker.Serializable;
@@ -19,7 +30,7 @@ module Make = (W: WebWorker.S) => {
 
   type t = {
     timeout: int,
-    pool: TimedLwtPool.t(Client.t),
+    pool: Lwt_timed_pool.t(Client.t),
   };
 
   let create = () => Lwt.wrap(Client.init);
@@ -30,7 +41,8 @@ module Make = (W: WebWorker.S) => {
   let check = _client => Lwt.return_true;
 
   let init = (~timeout, ~max) => {
-    let pool = TimedLwtPool.init(~max, ~create, ~validate, ~check, ~dispose);
+    let pool =
+      Lwt_timed_pool.init(~max, ~create, ~validate, ~check, ~dispose);
     {pool, timeout};
   };
 
@@ -39,7 +51,7 @@ module Make = (W: WebWorker.S) => {
       fun
       | 0 => Lwt.return_unit
       | n => {
-          let* created = TimedLwtPool.add(pool);
+          let* created = Lwt_timed_pool.add(pool);
           if (created) {
             fill(n - 1);
           } else {
@@ -51,5 +63,7 @@ module Make = (W: WebWorker.S) => {
   };
 
   let request = ({pool, timeout}: t, req: Request.t) =>
-    TimedLwtPool.use(pool, timeout, client => req |> Client.request(client));
+    Lwt_timed_pool.use(pool, timeout, client =>
+      req |> Client.request(client)
+    );
 };
