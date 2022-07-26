@@ -93,6 +93,13 @@ module Worker = {
   module Worker = W.Worker;
 };
 
+module Memoized = (M: M) => {
+  include M;
+
+  module Memo = Core_kernel.Memo;
+  /* FIXME: Not sure if this just works?? */
+  let get_result = Memo.general(~cache_size_bound=5000, get_result);
+};
 
 module type STREAMED = {
   type next = Lwt_observable.next(evaluation_result);

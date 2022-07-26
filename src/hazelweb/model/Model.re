@@ -1,4 +1,5 @@
-module ProgramEvaluator = ProgramEvaluator.Worker.Client;
+module ProgramEvaluator =
+  ProgramEvaluator.Memoized(ProgramEvaluator.Worker.Client);
 
 type t = {
   current_result: ModelResult.t,

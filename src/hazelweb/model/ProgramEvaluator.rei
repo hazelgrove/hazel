@@ -32,6 +32,8 @@ module Worker: {
   module Worker: WebWorker.WorkerS;
 };
 
+module Memoized: (M: M) => M;
+
 module type STREAMED = {
   type next = Lwt_observable.next(evaluation_result);
   type complete = Lwt_observable.complete;
