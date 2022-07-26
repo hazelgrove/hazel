@@ -5,7 +5,6 @@ all: dev
 
 deps:
 	opam switch import opam.export
-
 change-deps:
 	opam switch export opam.export
 
@@ -58,9 +57,11 @@ repl:
 test:
 	dune build @src/fmt --auto-promote || true
 	dune exec src/hazeltest/hazeltest.exe -- --regression-dir src/hazeltest/regressions
+	dune exec src/lwt_util/test.exe -- --regression-dir src/lwt_util/regressions
 
 reset-regression-tests:
-	dune exec src/hazeltest/hazeltest.exe -- regression --regression-dir src/hazeltest/regressions --reset-regressions
+	dune exec src/hazeltest/hazeltest.exe -- regression --regression-dir src/hazeltest/regressions --reset-regressions || true
+	dune exec src/lwt_util/test.exe -- regression --regression-dir src/lwt_util/regressions --reset-regressions
 
 fix-test-answers:
 	dune promote || true
