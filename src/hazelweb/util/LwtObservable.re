@@ -1,5 +1,7 @@
 open Lwt.Infix;
 
+module Subscriptions = IntMap;
+
 type next('a) = 'a => unit;
 type complete = unit => unit;
 
@@ -11,7 +13,13 @@ type observer('a) = {
 type t('a) = {
   stream: Lwt_stream.t('a),
   push: option('a) => unit,
-  observers: ref(list(observer('a))),
+  observers: ref(Subscriptions.t(observer('a))),
+  count: ref(int),
+}
+
+and subscription('a) = {
+  id: int,
+  observable: ref(t('a)),
 };
 
 /** [forward f o] applies [f] to all the observers of [o]. */
@@ -24,7 +32,8 @@ let forward = (f, {observers, _}: t('a)) => {
         forward'(observers);
       };
 
-  forward'(observers^);
+  let observers = observers^ |> Subscriptions.bindings |> List.map(snd);
+  forward'(observers);
 };
 
 /** [forward v o] calls [next v] for all observers of [o]. */
@@ -75,7 +84,12 @@ let loop = (o: t('a)) => {
 
 let create = () => {
   let (stream, push) = Lwt_stream.create();
-  let o = {stream, push, observers: ref([])};
+  let o = {
+    stream,
+    push,
+    observers: ref(Subscriptions.empty),
+    count: ref(0),
+  };
 
   let _ = loop(o);
   o;
@@ -84,5 +98,13 @@ let create = () => {
 let next = ({push, _}: t('a), v: 'a) => push(Some(v));
 let complete = ({push, _}: t('a)) => push(None);
 
-let subscribe = ({observers, _}: t('a), ob: observer('a)) =>
-  observers := [ob, ...observers^];
+let subscribe = ({observers, count, _} as o: t('a), ob: observer('a)) => {
+  let s = {id: count^, observable: ref(o)};
+  observers := Subscriptions.add(s.id, ob, observers^);
+  count := count^ + 1;
+  s;
+};
+
+let unsubscribe = ({id, observable}: subscription('a)) => {
+  observable^.observers := Subscriptions.remove(id, observable^.observers^);
+};

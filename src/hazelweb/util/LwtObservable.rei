@@ -1,11 +1,22 @@
 type next('a) = 'a => unit;
 type complete = unit => unit;
 
+/**
+  The type for an observer configuration.
+ */
 type observer('a) = {
   next: next('a),
   complete,
 };
 
+/**
+  The type for a subscription.
+ */
+type subscription('a);
+
+/**
+  The type for an observable.
+ */
 type t('a);
 
 /**
@@ -25,6 +36,11 @@ let next: (t('a), 'a) => unit;
 let complete: t('a) => unit;
 
 /**
-  [subscribe o {next, complete}] attaches an observer to the observable.
+  [subscribe o {next, complete}] subscribes the observable.
  */
-let subscribe: (t('a), observer('a)) => unit;
+let subscribe: (t('a), observer('a)) => subscription('a);
+
+/**
+  [unsubscribe s] removes a subscription.
+ */
+let unsubscribe: subscription('a) => unit;
