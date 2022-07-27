@@ -125,8 +125,8 @@ module type STREAMED = {
 
   let init: unit => t;
 
-  let next: (t, Program.t) => unit;
-  let complete: t => unit;
+  let next: (t, Program.t) => Lwt.t(unit);
+  let complete: t => Lwt.t(unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;
@@ -152,22 +152,22 @@ module Streamed = (M: M) => {
   };
 
   let next = ({inner, observable}, program) => {
-    let _ = {
-      /* Compute result. */
-      let* (r, inner') = Lwt.wrap(() => program |> M.get_result(inner^));
+    /* Compute result. */
+    let (r, inner') = program |> M.get_result(inner^);
 
-      /* Update inner state. */
-      inner := inner';
+    /* Update inner state. */
+    inner := inner';
 
-      /* Push to stream. */
-      r >|= Lwt_observable.next(observable);
-    };
-
-    ();
+    /* Push to stream. */
+    Lwt.try_bind(
+      () => r,
+      r => r |> Lwt_observable.next(observable) |> Lwt.return,
+      exn => Lwt.fail(exn),
+    );
   };
 
   let complete = ({inner: _, observable}) =>
-    Lwt_observable.complete(observable);
+    Lwt_observable.complete(observable) |> Lwt.return;
 
   let subscribe = ({inner: _, observable}) =>
     Lwt_observable.subscribe(observable);

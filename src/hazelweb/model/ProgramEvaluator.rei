@@ -58,8 +58,8 @@ module type STREAMED = {
 
   let init: unit => t;
 
-  let next: (t, Program.t) => unit;
-  let complete: t => unit;
+  let next: (t, Program.t) => Lwt.t(unit);
+  let complete: t => Lwt.t(unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;

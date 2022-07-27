@@ -78,7 +78,15 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 let evaluate_and_schedule =
     (state: State.t, ~schedule_action, model: Model.t): Model.t => {
   /* Send evaluation request. */
-  State.ProgramEvaluator.next(state.evaluator, model |> Model.get_program);
+  let q =
+    State.ProgramEvaluator.next(state.evaluator, model |> Model.get_program);
+  Lwt.on_any(
+    q,
+    () => (),
+    /* Exception here should not be one of the ones handled below or in
+     * ProgramEvaluator. */
+    exn => raise(exn),
+  );
 
   /* Set evaluation to pending after short timeout. */
   Delay.delay(
