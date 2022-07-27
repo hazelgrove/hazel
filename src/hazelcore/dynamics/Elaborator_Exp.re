@@ -821,3 +821,118 @@ let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
   | DoesNotElaborate => DoesNotElaborate
   };
 };
+
+//let blah = Core.Term.UExp.OpBool;
+
+let rec htyp_of_typ: Core.Typ.t => HTyp.t =
+  fun
+  | Unknown(_) => Hole
+  | Int => Int
+  | Bool => Bool
+  | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
+  | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
+
+let _id_env = (ctx: Core.Ctx.t): Environment.t =>
+  VarMap.map(
+    xt => {
+      let (x, _) = xt;
+      DHExp.BoundVar(x);
+    },
+    ctx,
+  );
+
+let ctx_to_varctx = (ctx: Core.Ctx.t): VarCtx.t =>
+  List.map(
+    ((k, {typ, _}: Core.Ctx.entry)) => (k, htyp_of_typ(typ)),
+    ctx,
+  );
+
+[@warning "-32"]
+let rec dhexp_of_uexp =
+        (~delta=Delta.empty, m: Core.Statics.info_map, uexp: Core.Term.UExp.t)
+        : ElaborationResult.t => {
+  /*
+    simplifications:
+    0. leave MetaVarInst, VarMap empty for now?
+    1. leave sigma empty for now
+
+     run info check at top level to determine if in nonempty hole.
+   */
+  switch (Core.Id.Map.find_opt(uexp.id, m)) {
+  | Some(InfoExp({ctx, _}) as ci) =>
+    open Core;
+    let maybe_reason: option(ErrStatus.HoleReason.t) =
+      switch (Statics.error_status(ci)) {
+      | AtLeast(_) => None
+      | NotInHole => None
+      | InHole => Some(TypeInconsistent)
+      };
+    let hole_blah = {
+      let u = uexp.id;
+      let gamma = ctx_to_varctx(ctx);
+      let sigma = Environment.id_env(gamma);
+      let ty = HTyp.Hole;
+      let delta =
+        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+      (sigma, delta, ty, u);
+    };
+    let wrap = (d, ty): ElaborationResult.t =>
+      switch (maybe_reason) {
+      | None => Elaborates(d, ty, delta)
+      | Some(reason) =>
+        let (sigma, delta, ty, u) = hole_blah;
+        Elaborates(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+      };
+    switch (uexp.term) {
+    | Invalid(_) => DoesNotElaborate // TODO
+    | EmptyHole =>
+      let (sigma, delta, ty, u) = hole_blah;
+      Elaborates(EmptyHole(u, 0, sigma), ty, delta);
+    | Bool(b) => wrap(BoolLit(b), Bool)
+    | Int(n) => wrap(IntLit(n), Int)
+    | Fun(pat, body)
+    | FunAnn(pat, _, body) =>
+      switch (dhpat_of_upat(~delta, m, pat)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp, ty1, _, delta) =>
+        switch (dhexp_of_uexp(~delta, m, body)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty2, delta) =>
+          //TODO: use type directly from ci?
+          // in fact, could ditch types entirely in ret
+          // just rewrap with type at top-level
+          Elaborates(DHExp.Fun(dp, ty1, d1), Arrow(ty1, ty2), delta)
+        }
+      }
+    | Pair(_)
+    | Var(_)
+    | Let(_)
+    | LetAnn(_)
+    | Ap(_)
+    | If(_) => Elaborates(Triv, Hole, delta) // TODO
+    | OpInt(_op, _, _) => Elaborates(Triv, Hole, delta) // TODO
+    | OpBool(_op, _, _) => Elaborates(Triv, Hole, delta) // TODO
+    };
+  | Some(InfoPat(_) | InfoTyp(_) | Invalid)
+  | None => DoesNotElaborate
+  };
+}
+[@warning "-32"]
+and dhpat_of_upat =
+    (~delta=Delta.empty, m: Core.Statics.info_map, upat: Core.Term.UPat.t)
+    : Elaborator_Pat.ElaborationResult.t =>
+  switch (Core.Id.Map.find_opt(upat.id, m)) {
+  | Some(InfoPat(_) as _ci) =>
+    let gamma = VarCtx.empty; //TODO
+    switch (upat.term) {
+    | Invalid(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | EmptyHole => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | Wild => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | Int(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | Bool(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | Var(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
+    | Pair(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
+    };
+  | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+  | None => DoesNotElaborate
+  };
