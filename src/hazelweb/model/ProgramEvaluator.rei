@@ -1,6 +1,18 @@
 open Lwtutil;
 
 /**
+  The type of an evaluation request id.
+ */
+[@deriving sexp]
+type evaluation_request_id = int;
+
+/**
+  The type of an evaluation request.
+ */
+[@deriving sexp]
+type evaluation_request = (evaluation_request_id, Program.t);
+
+/**
   The type of an evaluation exception.
  */
 [@deriving sexp]
@@ -12,18 +24,21 @@ type evaluation_exn =
   | /** Caught {!exception:Program.DoesNotElaborate}. */
     Program_DoesNotElaborate;
 
-/**
-  The type of the evaluation result. [EvaluationFail] indicates some error was
-  encountered.
- */
 [@deriving sexp]
-type evaluation_result =
+type evaluation_result_ =
   | /** Evaluation succeeded. */
     EvaluationOk(ProgramResult.t)
   | /** Evaluation failed. */
     EvaluationFail(evaluation_exn)
   | /** Evaluation timed out. */
     EvaluationTimeout;
+
+/**
+  The type of the evaluation result. [EvaluationFail] indicates some error was
+  encountered.
+ */
+[@deriving sexp]
+type evaluation_result = (evaluation_request_id, evaluation_result_);
 
 /**
   The type of the deferred evaluation result. See {!type:evaluation_result}.
@@ -48,7 +63,7 @@ module type M = {
     [get_result t program] is [(q, t')], where [t'] contains the new evaluator
     state and [q] is a promise that resolves with an {!type:evaluation_result}.
    */
-  let get_result: (t, Program.t) => (deferred_result, t);
+  let get_result: (t, evaluation_request) => (deferred_result, t);
 };
 
 /**
@@ -74,16 +89,9 @@ module Worker: {
   module Worker: WebWorker.WorkerS;
 };
 
-/**
-  Functor to create a memoized evaluator.
- */
 module Memoized: (M: M) => M;
 
-/**
-  Output of the [Streamed] functor. It is a wrapper around
-  {!module:Lwt_observable} and should generally be used like one.
- */
-module type STREAMED = {
+module type STREAMED_ = {
   type next = Lwt_observable.next(evaluation_result);
   type complete = Lwt_observable.complete;
 
@@ -102,7 +110,7 @@ module type STREAMED = {
     [next program] asynchronously evaluates [program] and pushes the result to
     the stream. [complete ()] completes the internal stream.
    */
-  let create: unit => (t, Program.t => unit, unit => unit);
+  let create: unit => (t, evaluation_request => unit, unit => unit);
 
   /**
     See {!val:Lwt_observable.subscribe}.
@@ -115,17 +123,40 @@ module type STREAMED = {
   let subscribe': (t, next) => subscription;
 
   /**
+    See {!val:Lwt_observable.unsubscribe}.
+   */
+  let unsubscribe: subscription => unit;
+
+  /**
     See {!val:Lwt_observable.wait}.
    */
   let wait: t => Lwt.t(unit);
 
   /**
-    See {!val:Lwt_observable.unsubscribe}.
+    See {!val:Lwt_observable.pipe}.
    */
-  let unsubscribe: subscription => unit;
+  let pipe:
+    (Lwt_stream.t(evaluation_result) => Lwt_stream.t('b), t) =>
+    Lwt_observable.t('b);
 };
 
 /**
-  Functor to create a streaming evaluator.
+  Output of the [Streamed] functor. It is a wrapper around
+  {!module:Lwt_observable} and should generally be used like one.
+
+  See {!modtype:STREAMED_}.
+ */
+module type STREAMED = {
+  include STREAMED_;
+
+  /**
+    An evaluator stream in which obsolute results (determined by comparison to
+    highest seen id value) are filtered out.
+   */
+  module Filtered: STREAMED_;
+};
+
+/**
+  Functor to create an evaluator stream.
  */
 module Streamed: (M: M) => STREAMED;

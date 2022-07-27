@@ -1,7 +1,14 @@
 /* FIXME: Somehow filter out obsolete results. */
+open Sexplib.Std;
 open Lwt.Infix;
 open Lwt.Syntax;
 open Lwtutil;
+
+[@deriving sexp]
+type evaluation_request_id = int;
+
+[@deriving sexp]
+type evaluation_request = (evaluation_request_id, Program.t);
 
 [@deriving sexp]
 type evaluation_exn =
@@ -9,10 +16,13 @@ type evaluation_exn =
   | Program_DoesNotElaborate;
 
 [@deriving sexp]
-type evaluation_result =
+type evaluation_result_ =
   | EvaluationOk(ProgramResult.t)
   | EvaluationFail(evaluation_exn)
   | EvaluationTimeout;
+
+[@deriving sexp]
+type evaluation_result = (evaluation_request_id, evaluation_result_);
 
 type deferred_result = Lwt.t(evaluation_result);
 
@@ -21,18 +31,18 @@ module type M = {
 
   let init: unit => t;
 
-  let get_result: (t, Program.t) => (deferred_result, t);
+  let get_result: (t, evaluation_request) => (deferred_result, t);
 };
 
 module Sync: M = {
-  type t = unit;
+  type t = {latest: evaluation_request_id};
 
-  let init = () => ();
+  let init = () => {latest: 0};
 
-  let get_result = (t: t, program: Program.t) => {
+  let get_result = ({latest}: t, (id, program): evaluation_request) => {
     let lwt = {
       let+ r = Lwt.wrap(() => program |> Program.get_result);
-      let r =
+      let res =
         switch (r) {
         | r => EvaluationOk(r)
         | exception (Program.EvalError(error)) =>
@@ -40,11 +50,10 @@ module Sync: M = {
         | exception Program.DoesNotElaborate =>
           EvaluationFail(Program_DoesNotElaborate)
         };
-
-      r;
+      (id, res);
     };
 
-    (lwt, t);
+    (lwt, {latest: latest});
   };
 };
 
@@ -52,23 +61,23 @@ module Worker = {
   module W =
     WebWorker.Make({
       module Request = {
-        type t = Program.t;
+        [@deriving sexp]
+        type t = evaluation_request;
         type u = string;
 
         let serialize = program =>
-          program |> Program.sexp_of_t |> Sexplib.Sexp.to_string;
-        let deserialize = sexp =>
-          sexp |> Sexplib.Sexp.of_string |> Program.t_of_sexp;
+          program |> sexp_of_t |> Sexplib.Sexp.to_string;
+        let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
       };
 
       module Response = {
+        [@deriving sexp]
         type t = evaluation_result;
         type u = string;
 
-        let serialize = r =>
-          Sexplib.(r |> sexp_of_evaluation_result |> Sexp.to_string);
+        let serialize = r => Sexplib.(r |> sexp_of_t |> Sexp.to_string);
         let deserialize = sexp =>
-          Sexplib.(sexp |> Sexp.of_string |> evaluation_result_of_sexp);
+          Sexplib.(sexp |> Sexp.of_string |> t_of_sexp);
       };
 
       module Worker = {
@@ -87,7 +96,7 @@ module Worker = {
     module Pool = WebWorkerPool.Make(W.Client);
     type t = Pool.t;
 
-    let max = 5;
+    let max = 10;
     let timeout = 2000; /* ms */
 
     let init = () => {
@@ -96,12 +105,12 @@ module Worker = {
       pool;
     };
 
-    let get_result = (t: t, program: Program.t) => {
+    let get_result = (pool: t, (id, program): evaluation_request) => {
       let res =
-        program
-        |> Pool.request(t)
-        >|= Option.value(~default=EvaluationTimeout);
-      (res, t);
+        (id, program)
+        |> Pool.request(pool)
+        >|= Option.value(~default=(id, EvaluationTimeout));
+      (res, pool);
     };
   };
 
@@ -116,21 +125,31 @@ module Memoized = (M: M) => {
   let get_result = Memo.general(~cache_size_bound=5000, get_result);
 };
 
-module type STREAMED = {
+module type STREAMED_ = {
   type next = Lwt_observable.next(evaluation_result);
   type complete = Lwt_observable.complete;
 
   type t;
   type subscription;
 
-  let create: unit => (t, Program.t => unit, unit => unit);
+  let create: unit => (t, evaluation_request => unit, unit => unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;
 
+  let unsubscribe: subscription => unit;
+
   let wait: t => Lwt.t(unit);
 
-  let unsubscribe: subscription => unit;
+  let pipe:
+    (Lwt_stream.t(evaluation_result) => Lwt_stream.t('b), t) =>
+    Lwt_observable.t('b);
+};
+
+module type STREAMED = {
+  include STREAMED_;
+
+  module Filtered: STREAMED_;
 };
 
 module Streamed = (M: M) => {
@@ -144,8 +163,8 @@ module Streamed = (M: M) => {
 
   type subscription = Lwt_observable.subscription(evaluation_result);
 
-  let map_program = (inner, program) => {
-    let (r, inner') = program |> M.get_result(inner^);
+  let map_program = (inner, (id, program)) => {
+    let (r, inner') = (id, program) |> M.get_result(inner^);
     inner := inner';
 
     /* No clue why this is necessary but it doesn't work otherwise? */
@@ -157,12 +176,14 @@ module Streamed = (M: M) => {
     let inner = ref(M.init());
     let (observable, next, complete) = Lwt_observable.create();
 
-    let observable =
-      observable
-      |> Lwt_observable.pipe(
-           /* FIXME: Promise failures are lost here, I think? */
-           Lwt_stream.map_s(map_program(inner)),
-         );
+    let next = ((id, program)) =>
+      Lwt.on_any(
+        (id, program) |> map_program(inner),
+        next,
+        /* FIXME: Promise failures are lost. */
+        _exn =>
+        ()
+      );
 
     ({inner, observable}, next, complete);
   };
@@ -173,7 +194,51 @@ module Streamed = (M: M) => {
   let subscribe' = ({inner: _, observable}) =>
     Lwt_observable.subscribe'(observable);
 
+  let unsubscribe = Lwt_observable.unsubscribe;
+
   let wait = ({inner: _, observable}) => Lwt_observable.wait(observable);
 
-  let unsubscribe = Lwt_observable.unsubscribe;
+  let pipe = (f, {inner: _, observable}) =>
+    Lwt_observable.pipe(f, observable);
+
+  module Filtered = {
+    type nonrec next = next;
+    type nonrec complete = complete;
+
+    type nonrec t = {
+      inner: t,
+      max: ref(evaluation_request_id),
+    };
+
+    type nonrec subscription = subscription;
+
+    let create = () => {
+      let max = ref(Int.min_int);
+
+      let ({inner, observable}, next, complete) = create();
+      let observable =
+        observable
+        |> Lwt_observable.pipe(
+             Lwt_stream.filter(((id, _)) =>
+               if (id < max^) {
+                 false;
+               } else {
+                 max := id;
+                 true;
+               }
+             ),
+           );
+
+      let inner = {inner, observable};
+      ({inner, max}, next, complete);
+    };
+
+    let subscribe = ({inner, _}) => subscribe(inner);
+    let subscribe' = ({inner, _}) => subscribe'(inner);
+    let unsubscribe = unsubscribe;
+
+    let wait = ({inner, _}) => wait(inner);
+
+    let pipe = (f, {inner, _}) => pipe(f, inner);
+  };
 };
