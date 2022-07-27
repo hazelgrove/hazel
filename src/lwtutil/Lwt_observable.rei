@@ -12,24 +12,20 @@ type subscription('a);
 type t('a);
 
 /**
-  [create ()] is an observable.
+  [of_stream stream] is an observable that uses [stream].
  */
-let create: unit => t('a);
+let of_stream: Lwt_stream.t('a) => t('a);
 
 /**
-  [next o v] pushes [v] to the observable.
+  [create f] is an observable. [f] is a function which takes [next]; [next v]
+  pushes [v] to the stream. When the promise [f next] resolves, the stream is
+  completed. Note that any failures in the promise are discarded.
  */
-let next: (t('a), 'a) => unit;
+let create: unit => (t('a), next('a), complete);
 
 /**
-  [complete o] pushes the completion signal to the observable. The observable's
-  execution then ends.
- */
-let complete: t('a) => unit;
-
-/**
-  [subscribe o {next, complete}] subscribes the observable. [unsubscribe] may
-  be used to unsubscribe the observer.
+  [subscribe o {next, complete}] subscribes to the observable. [unsubscribe]
+  may be used to unsubscribe the observer.
 
   If the observable is already completed, a completion signal is forwarded to
   the observer.
@@ -42,6 +38,11 @@ let subscribe: (t('a), next('a), complete) => subscription('a);
 let subscribe': (t('a), next('a)) => subscription('a);
 
 /**
+  [unsubscribe s] removes a subscription.
+ */
+let unsubscribe: subscription('a) => unit;
+
+/**
   [wait o] is a promise that resolves when the observable's execution
   completes. There is no guarantee that all observers have received a
   completion signal by then.
@@ -49,6 +50,6 @@ let subscribe': (t('a), next('a)) => subscription('a);
 let wait: t('a) => Lwt.t(unit);
 
 /**
-  [unsubscribe s] removes a subscription.
+  [pipe f o] is a new observable created by mapping the stream via [f].
  */
-let unsubscribe: subscription('a) => unit;
+let pipe: (Lwt_stream.t('a) => Lwt_stream.t('b), t('a)) => t('b);

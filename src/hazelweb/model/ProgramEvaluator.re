@@ -123,10 +123,7 @@ module type STREAMED = {
   type t;
   type subscription;
 
-  let init: unit => t;
-
-  let next: (t, Program.t) => Lwt.t(unit);
-  let complete: t => Lwt.t(unit);
+  let create: unit => (t, Program.t => unit, unit => unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;
@@ -144,30 +141,31 @@ module Streamed = (M: M) => {
     inner: ref(M.t),
     observable: Lwt_observable.t(evaluation_result),
   };
+
   type subscription = Lwt_observable.subscription(evaluation_result);
 
-  let init = () => {
-    inner: ref(M.init()),
-    observable: Lwt_observable.create(),
-  };
-
-  let next = ({inner, observable}, program) => {
-    /* Compute result. */
+  let map_program = (inner, program) => {
     let (r, inner') = program |> M.get_result(inner^);
-
-    /* Update inner state. */
     inner := inner';
 
-    /* Push to stream. */
-    Lwt.try_bind(
-      () => r,
-      r => r |> Lwt_observable.next(observable) |> Lwt.return,
-      exn => Lwt.fail(exn),
-    );
+    /* No clue why this is necessary but it doesn't work otherwise? */
+    let+ r = r;
+    r;
   };
 
-  let complete = ({inner: _, observable}) =>
-    Lwt_observable.complete(observable) |> Lwt.return;
+  let create = () => {
+    let inner = ref(M.init());
+    let (observable, next, complete) = Lwt_observable.create();
+
+    let observable =
+      observable
+      |> Lwt_observable.pipe(
+           /* FIXME: Promise failures are lost here, I think? */
+           Lwt_stream.map_s(map_program(inner)),
+         );
+
+    ({inner, observable}, next, complete);
+  };
 
   let subscribe = ({inner: _, observable}) =>
     Lwt_observable.subscribe(observable);

@@ -98,21 +98,11 @@ module type STREAMED = {
   type subscription;
 
   /**
-    [init] is a new streaming evaluator.
+    [create ()] is (t, next, complete), where [t] is a new program evaluator.
+    [next program] asynchronously evaluates [program] and pushes the result to
+    the stream. [complete ()] completes the internal stream.
    */
-  let init: unit => t;
-
-  /**
-    [next t program] asynchronously evaluates [program] and pushes the result
-    to the stream. It returns a promise that resolves when the result has been
-    pushed (or fails, propogating an exception from the inner evaluator).
-   */
-  let next: (t, Program.t) => Lwt.t(unit);
-
-  /**
-    See {!val:Lwt_observable.complete}.
-   */
-  let complete: t => Lwt.t(unit);
+  let create: unit => (t, Program.t => unit, unit => unit);
 
   /**
     See {!val:Lwt_observable.subscribe}.

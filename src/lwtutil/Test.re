@@ -29,13 +29,13 @@ module Lwt_observable = {
       [],
       () => {
         let ns = ns_empty();
-        let o = create();
+        let (o, next, complete) = create();
         let _ = subscribe'(o, ns_push(ns));
 
-        next(o, 0);
-        next(o, 1);
-        next(o, 2);
-        complete(o);
+        next(0);
+        next(1);
+        next(2);
+        complete();
 
         let+ () = wait(o);
         ns_equal(ns, [2, 1, 0]);
@@ -48,17 +48,18 @@ module Lwt_observable = {
       [],
       () => {
         let ns = ns_empty();
-        let o = create();
-        let o' = create();
+        let (o, next, complete) = create();
+        let (o', next', complete') = create();
 
         let _ = subscribe'(o, ns_push(ns));
         let _ = subscribe'(o', ns_push(ns));
 
-        next(o, 0);
-        next(o', 1);
-        next(o, 2);
-        next(o', 3);
-        complete(o);
+        next(0);
+        next'(1);
+        next(2);
+        next'(3);
+        complete();
+        complete'();
 
         let+ () = wait(o);
         ns_equal(ns, [3, 2, 1, 0]);
@@ -71,16 +72,16 @@ module Lwt_observable = {
       [],
       () => {
         let ns = ns_empty();
-        let o = create();
-        let o' = create();
+        let (o, next, complete) = create();
+        let (o', next', complete') = create();
 
-        let _ = subscribe(o, o' |> next, () => complete(o'));
+        let _ = subscribe(o, next', () => complete'());
         let _ = subscribe'(o', ns_push(ns));
 
-        next(o, 0);
-        next(o, 1);
-        next(o, 2);
-        complete(o);
+        next(0);
+        next(1);
+        next(2);
+        complete();
 
         let+ () = wait(o');
         ns_equal(ns, [2, 1, 0]);
@@ -97,15 +98,78 @@ module Lwt_observable = {
       [],
       () => {
         let flag = ref(C);
-        let o = create();
+        let (o, next, complete) = create();
         let s = subscribe(o, _ => flag := A, () => flag := B);
 
-        next(o, 0);
+        next(0);
         let () = unsubscribe(s);
-        complete(o);
+        complete();
 
         let+ () = wait(o);
         flag^ == A;
+      },
+    );
+
+  let () =
+    register_test(
+      "pipe map observable",
+      [],
+      () => {
+        let ns = ns_empty();
+        let (o, next, complete) = create();
+        let o' = o |> pipe(Lwt_stream.map(n => n + 1));
+        let _ = subscribe'(o', ns_push(ns));
+
+        next(0);
+        next(1);
+        next(2);
+        complete();
+
+        let+ () = wait(o');
+        ns_equal(ns, [3, 2, 1]);
+      },
+    );
+
+  let () =
+    register_test(
+      "pipe map observable twice",
+      [],
+      () => {
+        let ns = ns_empty();
+        let (o, next, complete) = create();
+        let o' = o |> pipe(Lwt_stream.map(n => n + 1));
+        let o'' = o' |> pipe(Lwt_stream.map(n => n * n));
+        let _ = subscribe'(o'', ns_push(ns));
+
+        next(0);
+        next(1);
+        next(2);
+        complete();
+
+        let+ () = wait(o'');
+        ns_equal(ns, [9, 4, 1]);
+      },
+    );
+
+  let () =
+    register_test(
+      "pipe filter observable",
+      [],
+      () => {
+        let ns = ns_empty();
+        let (o, next, complete) = create();
+        let o' = o |> pipe(Lwt_stream.filter(n => n >= 0));
+        let _ = subscribe'(o', ns_push(ns));
+
+        next(-1);
+        next(0);
+        next(1);
+        next(0);
+        next(-1);
+        complete();
+
+        let+ () = wait(o');
+        ns_equal(ns, [0, 1, 0]);
       },
     );
 };

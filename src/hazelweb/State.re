@@ -1,14 +1,36 @@
 module ProgramEvaluator = {
-  open ProgramEvaluator;
+  module Inner = ProgramEvaluator.Streamed(ProgramEvaluator.Worker.Client);
 
-  include Streamed(Worker.Client);
+  type t = {
+    inner: Inner.t,
+    next: Program.t => unit,
+    complete: unit => unit,
+  };
+
+  let create = () => {
+    let (inner, next, complete) = Inner.create();
+    {inner, next, complete};
+  };
+
+  let next = ({next, _}: t, model: Model.t) =>
+    model |> Model.get_program |> next;
+  let complete = ({complete, _}: t) => complete();
+
+  let subscribe = ({inner, _}: t) => Inner.subscribe(inner);
+  let subscribe' = ({inner, _}: t) => Inner.subscribe(inner);
 };
 
 type t = {evaluator: ProgramEvaluator.t};
 
-let init = () => {evaluator: ProgramEvaluator.init()};
+let init = () => {
+  let evaluator = ProgramEvaluator.create();
+  {evaluator: evaluator};
+};
 
-let subscribe_evaluator = ({evaluator}: t) =>
-  ProgramEvaluator.subscribe(evaluator);
-let subscribe_evaluator' = ({evaluator}: t) =>
-  ProgramEvaluator.subscribe(evaluator);
+let evaluator = ({evaluator}: t) => evaluator;
+
+let evaluator_next = state => state |> evaluator |> ProgramEvaluator.next;
+let evaluator_subscribe = state =>
+  state |> evaluator |> ProgramEvaluator.subscribe;
+let evaluator_subscribe' = state =>
+  state |> evaluator |> ProgramEvaluator.subscribe';

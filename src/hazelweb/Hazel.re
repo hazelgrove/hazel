@@ -22,7 +22,7 @@ let on_startup = (~schedule_action, _) => {
 
   /* create subscription to evaluator, updating model on each result. */
   let _ =
-    State.subscribe_evaluator(
+    State.evaluator_subscribe(
       state,
       r => {
         let cr =

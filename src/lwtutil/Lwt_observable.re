@@ -14,7 +14,6 @@ type observer('a) = {
 
 type t('a) = {
   stream: Lwt_stream.t('a),
-  push: option('a) => unit,
   observers: ref(Subscriptions.t(observer('a))),
   count: ref(int),
   is_complete: ref(bool),
@@ -38,10 +37,10 @@ let forward_next = v => forward((ob: observer('a)) => ob.next(v));
 let forward_complete = () => forward((ob: observer('a)) => ob.complete());
 
 /**
-  [next o] consumes the next stream item and forwards it to the observers
-  of [o].
+  [next_and_forward o] consumes the next stream item and forwards it to the
+  observers of [o].
  */
-let next = ({stream, _} as o: t('a)) => {
+let next_and_forward = ({stream, _} as o: t('a)) => {
   let q = Lwt_stream.get(stream);
 
   Lwt.on_any(
@@ -65,10 +64,10 @@ let next = ({stream, _} as o: t('a)) => {
  */
 let loop = (o: t('a)) => {
   let rec loop' = () =>
-    next(o)
+    next_and_forward(o)
     >>= (
-      continue =>
-        if (continue) {
+      not_complete =>
+        if (not_complete) {
           loop'();
         } else {
           Lwt.return_unit;
@@ -81,22 +80,28 @@ let loop = (o: t('a)) => {
   Lwt.return_unit;
 };
 
-let create = () => {
-  let (stream, push) = Lwt_stream.create();
+let of_stream = (stream: Lwt_stream.t('a)) => {
   let o = {
     stream,
-    push,
     observers: ref(Subscriptions.empty),
     count: ref(0),
     is_complete: ref(false),
   };
 
+  /* Initialize listener. */
   let _ = loop(o);
+
   o;
 };
 
-let next = ({push, _}: t('a), v: 'a) => push(Some(v));
-let complete = ({push, _}: t('a)) => push(None);
+let create = () => {
+  let (stream, push) = Lwt_stream.create();
+  let o = of_stream(stream);
+
+  let next = v => push(Some(v));
+  let complete = () => push(None);
+  (o, next, complete);
+};
 
 let subscribe =
     (
@@ -127,3 +132,9 @@ let unsubscribe = ({id, observable}: subscription('a)) => {
   observable^.observers := Subscriptions.remove(id, observable^.observers^);
 };
 
+let pipe =
+    (
+      f: Lwt_stream.t('a) => Lwt_stream.t('b),
+      {stream, observers: _, count: _, is_complete: _}: t('a),
+    ) =>
+  stream |> f |> of_stream;
