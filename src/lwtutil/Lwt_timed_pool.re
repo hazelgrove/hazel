@@ -31,6 +31,8 @@ module type S = {
   let use: (t('a), int, 'a => (Lwt.t('b), 'a)) => Lwt.t(option('b));
 
   let add: t('a) => Lwt.t(bool);
+
+  let clear: t('a) => Lwt.t(unit);
 };
 
 module Make = (Lwt_timed: Lwt_timed.S) => {
@@ -39,6 +41,8 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     max: int,
     /** Size of the pool. */
     mutable count: int,
+    /** Flag indicating if members have been cleared out. */
+    cleared: ref(ref(bool)),
     /** Queue of available members. */
     queue: Queue.t('a),
     /** Resolvers waiting for an available member. */
@@ -51,9 +55,10 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
 
   let init = (~max, ~create, ~dispose, ~check, ~validate) => {
     let count = 0;
+    let cleared = ref(ref(false));
     let queue = Queue.create();
     let waiters = Lwt_dllist.create();
-    {max, count, queue, waiters, create, dispose, check, validate};
+    {max, count, cleared, queue, waiters, create, dispose, check, validate};
   };
 
   /**
@@ -96,11 +101,13 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     Check a member after [use] resulted in a failed computation and release it if
     it is still valid.
    */
-  let check_release = (pool, c) => {
+  let check_release = (pool, c, cleared) => {
     let* ok = pool.check(c);
-    if (ok) {
+    if (cleared || !ok) {
+      /* Member is not ok or pool was cleared; dispose. */
       dispose(pool, c);
     } else {
+      /* Member is ok and pool was not cleared; release. */
       release(pool, c);
       Lwt.return_unit;
     };
@@ -161,6 +168,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   let use = (pool, timeout, f) => {
     /* Acquire a member. */
     let* c = acquire(pool);
+    let cleared = pool.cleared^;
 
     /* Run [f] with the member and wrap a timeout. */
     let (q, c) = f(c);
@@ -168,10 +176,22 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
       Lwt.catch(
         () => q |> Lwt_timed.wrap(timeout),
         /* If failure, check for validaty and release. */
-        exn => check_release(pool, c) >>= (() => Lwt.fail(exn)),
+        exn => check_release(pool, c, cleared^) >>= (() => Lwt.fail(exn)),
       );
 
     let* x = q;
+    let* () =
+      if (cleared^) {
+        /* Pool was cleared while promise was resolving; dispose. */
+        dispose(
+          pool,
+          c,
+        );
+      } else {
+        release(pool, c);
+        Lwt.return_unit;
+      };
+
     switch (x) {
     /* Succeeded, release the member and return. */
     | Some(x) =>
@@ -189,4 +209,16 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     } else {
       Lwt.return_false;
     };
+
+  let clear = pool => {
+    let members = Queue.fold((ms, m) => [m, ...ms], [], pool.queue);
+    Queue.clear(pool.queue);
+
+    /* Honestly I don't really get this code ¯\_(ツ)_/¯. */
+    let old_cleared = pool.cleared^;
+    old_cleared := true;
+    pool.cleared := ref(false);
+
+    Lwt_list.iter_s(dispose(pool), members);
+  };
 };

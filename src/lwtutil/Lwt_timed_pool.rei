@@ -43,6 +43,11 @@ module type S = {
     as available, returning [Lwt.return_true] if succeeded.
    */
   let add: t('a) => Lwt.t(bool);
+
+  /**
+    [clear pool] clears all members of the pool.
+   */
+  let clear: t('a) => Lwt.t(unit);
 };
 
 module Make: (Lwt_timed.S) => S;
