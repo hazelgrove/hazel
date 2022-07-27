@@ -2,6 +2,28 @@ open Virtual_dom.Vdom;
 open Node;
 open Core;
 
+module Memo = Core_kernel.Memo;
+
+let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+
+let get_result_str = (elab): string => {
+  print_endline("elaboration:");
+  print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(elab)));
+  switch (elab |> evaluate) {
+  | BoxedValue(d) =>
+    let res_string = Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d));
+    print_endline("boxedval:");
+    print_endline(res_string);
+    res_string;
+  | Indet(d) =>
+    let res_string = Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d));
+    print_endline("indet:");
+    print_endline(res_string);
+    res_string;
+  | exception _ => "EXCEPTION"
+  };
+};
+
 let view =
     (
       ~font_metrics,
@@ -19,13 +41,11 @@ let view =
       let map = map;
       let show_backpack_targets = show_backpack_targets;
     });
-
+  let term = zipper |> Term.of_zipper;
+  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
   let ci =
     switch (zipper |> Indicated.index) {
-    | Some(index) =>
-      let (_, _, info_map) =
-        zipper |> Term.of_zipper |> Statics.uexp_to_info_map;
-      Id.Map.find_opt(index, info_map);
+    | Some(index) => Id.Map.find_opt(index, info_map)
     | None => None
     };
   let ci_text =
@@ -38,6 +58,11 @@ let view =
     | None => "??"
     | Some(ci) => Statics.show_error_status(Statics.error_status(ci))
     };
+  let res_text =
+    switch (term |> Elaborator.uexp_elab(info_map)) {
+    | Elaborates(d, _, _) => get_result_str(d)
+    | _ => "NO ELABORATION"
+    };
   //TODO(andrew): new div name/class
   div(
     [Attr.class_("code"), Attr.id("under-the-rail")],
@@ -45,6 +70,8 @@ let view =
     @ Deco.all(zipper, sel_seg)
     //@ [text(zipper |> Term.of_zipper |> Term.show_uexp)]
     @ [text(ci_is_wrapped)]
-    @ [text(ci_text)],
+    @ [text(ci_text)]
+    @ [br([])]
+    @ [text("RES:" ++ res_text)],
   );
 };

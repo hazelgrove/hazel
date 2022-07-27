@@ -1,14 +1,9 @@
 (include_subdirs unqualified)
 
-(alias
- (name default)
- (deps
-  (glob_files www/*)))
-
 (library
  (name web)
  (modules :standard \ Main)
- (libraries incr_dom util core ppx_deriving_yojson.runtime)
+ (libraries incr_dom util core ppx_deriving_yojson.runtime hazelweb)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
