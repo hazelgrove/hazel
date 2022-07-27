@@ -33,8 +33,6 @@ module type ClientS = {
   let get_worker: t => Js.t(Worker.worker(Request.u, Response.u));
   let get_last: t => option(Lwt.t(Response.t));
 
-  let cancel_last: t => t;
-
   let request: (t, Request.t) => (Lwt.t(Response.t), t);
   let terminate: t => unit;
 };
@@ -77,11 +75,6 @@ module Make = (M: M) => {
 
     let get_worker = ({worker, _}: t) => worker;
     let get_last = ({last, _}: t) => last;
-
-    let cancel_last = ({last, _} as t: t) => {
-      last |> Option.map(Lwt.cancel) |> ignore;
-      {...t, last: None};
-    };
 
     let request = ({worker, last: _}: t, req: Request.t) => {
       /* Start up new task, resolved when response is received. */

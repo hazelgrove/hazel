@@ -64,11 +64,6 @@ module type ClientS = {
   let get_last: t => option(Lwt.t(Response.t));
 
   /**
-     [cancel_last t] cancels the last request. See {!val:Lwt.cancel}.
-   */
-  let cancel_last: t => t;
-
-  /**
      [request t req] is [(t, res)] where [res] is the deferred response.
    */
   let request: (t, Request.t) => (Lwt.t(Response.t), t);
