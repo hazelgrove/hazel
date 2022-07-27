@@ -36,17 +36,21 @@ module type S = {
 };
 
 module Make = (Lwt_timed: Lwt_timed.S) => {
+  type member('a) = (int, 'a);
+
   type t('a) = {
     /** Maximum size of the pool. */
     max: int,
     /** Size of the pool. */
     mutable count: int,
+    /** Current latest member id. */
+    mutable id: int,
     /** Flag indicating if members have been cleared out. */
     cleared: ref(ref(bool)),
     /** Queue of available members. */
-    queue: Queue.t('a),
+    queue: Queue.t(member('a)),
     /** Resolvers waiting for an available member. */
-    waiters: Lwt_dllist.t(Lwt.u('a)),
+    waiters: Lwt_dllist.t(Lwt.u(member('a))),
     create: create('a),
     dispose: dispose('a),
     check: check('a),
@@ -55,10 +59,28 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
 
   let init = (~max, ~create, ~dispose, ~check, ~validate) => {
     let count = 0;
+    let id = 0;
     let cleared = ref(ref(false));
     let queue = Queue.create();
     let waiters = Lwt_dllist.create();
-    {max, count, cleared, queue, waiters, create, dispose, check, validate};
+    {
+      max,
+      count,
+      id,
+      cleared,
+      queue,
+      waiters,
+      create,
+      dispose,
+      check,
+      validate,
+    };
+  };
+
+  let create_replacement = pool => {
+    pool.id = pool.id + 1;
+    let+ c = pool.create();
+    (pool.id, c);
   };
 
   /**
@@ -68,7 +90,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     Lwt.catch(
       () => {
         pool.count = pool.count + 1;
-        pool.create();
+        create_replacement(pool);
       },
       exn => {
         pool.count = pool.count - 1;
@@ -79,7 +101,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   /**
     Dispose of a pool member.
    */
-  let dispose = (pool, c) => {
+  let dispose = (pool, (_id, c)) => {
     let* () = pool.dispose(c);
     pool.count = pool.count - 1;
     Lwt.return_unit;
@@ -88,12 +110,12 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   /**
     Release a pool member.
    */
-  let release = (pool, c) => {
+  let release = (pool, (id, c)) => {
     /* If there are waiters, fulfill the oldest; otherwise, restore back to
      * queue. */
     switch (Lwt_dllist.take_opt_l(pool.waiters)) {
-    | Some(r) => Lwt.wakeup_later(r, c)
-    | None => Queue.push(c, pool.queue)
+    | Some(r) => Lwt.wakeup_later(r, (id, c))
+    | None => Queue.push((id, c), pool.queue)
     };
   };
 
@@ -101,14 +123,17 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     Check a member after [use] resulted in a failed computation and release it if
     it is still valid.
    */
-  let check_release = (pool, c, cleared) => {
+  let check_release = (pool, (id, c), cleared) => {
     let* ok = pool.check(c);
     if (cleared || !ok) {
       /* Member is not ok or pool was cleared; dispose. */
-      dispose(pool, c);
+      dispose(
+        pool,
+        (id, c),
+      );
     } else {
       /* Member is ok and pool was not cleared; release. */
-      release(pool, c);
+      release(pool, (id, c));
       Lwt.return_unit;
     };
   };
@@ -118,7 +143,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     | None => ()
     | Some(r) =>
       Lwt.on_any(
-        Lwt.apply(pool.create, ()),
+        Lwt.apply(create_replacement, pool),
         c => Lwt.wakeup_later(r, c),
         exn => Lwt.wakeup_later_exn(r, exn),
       )
@@ -127,17 +152,17 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   /**
     Validate a member is still valid before using it.
    */
-  let validate_return = (pool, c) =>
+  let validate_return = (pool, (id, c)) =>
     Lwt.try_bind(
       () => pool.validate(c),
       fun
       /* Validation ok; return. */
-      | true => c |> Lwt.return
+      | true => (id, c) |> Lwt.return
       /* Validation failed; create a new one. */
-      | false => dispose(pool, c) >>= (() => create(pool)),
+      | false => dispose(pool, (id, c)) >>= (() => create(pool)),
       /* Validation failed; create a new one if there is a waiter. */
       exn => {
-        let* () = dispose(pool, c);
+        let* () = dispose(pool, (id, c));
         replace_disposed(pool);
         Lwt.fail(exn);
       },
@@ -150,7 +175,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     /* Try to take from the available queue. */
     switch (Queue.take_opt(pool.queue)) {
     /* Validate the available member. */
-    | Some(c) => c |> validate_return(pool)
+    | Some((id, c)) => (id, c) |> validate_return(pool)
     | None =>
       /* No available members. */
       if (pool.count < pool.max) {
@@ -167,7 +192,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
 
   let use = (pool, timeout, f) => {
     /* Acquire a member. */
-    let* c = acquire(pool);
+    let* (id, c) = acquire(pool);
     let cleared = pool.cleared^;
 
     /* Run [f] with the member and wrap a timeout. */
@@ -176,29 +201,24 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
       Lwt.catch(
         () => q |> Lwt_timed.wrap(timeout),
         /* If failure, check for validaty and release. */
-        exn => check_release(pool, c, cleared^) >>= (() => Lwt.fail(exn)),
+        exn =>
+          check_release(pool, (id, c), cleared^) >>= (() => Lwt.fail(exn)),
       );
 
     let* x = q;
-    let* () =
-      if (cleared^) {
-        /* Pool was cleared while promise was resolving; dispose. */
-        dispose(
-          pool,
-          c,
-        );
-      } else {
-        release(pool, c);
-        Lwt.return_unit;
+    if (cleared^) {
+      /* Pool was cleared while promise was resolving; dispose. */
+      let* () = dispose(pool, (id, c));
+      Lwt.return_none;
+    } else {
+      switch (x) {
+      /* Succeeded, release the member and return. */
+      | Some(x) =>
+        release(pool, (id, c));
+        x |> Lwt.return_some;
+      /* Timed out; dispose of the member. */
+      | None => dispose(pool, (id, c)) >>= (_ => Lwt.return_none)
       };
-
-    switch (x) {
-    /* Succeeded, release the member and return. */
-    | Some(x) =>
-      release(pool, c);
-      x |> Lwt.return_some;
-    /* Timed out; dispose of the member. */
-    | None => dispose(pool, c) >>= (_ => Lwt.return_none)
     };
   };
 
