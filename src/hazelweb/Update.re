@@ -109,7 +109,7 @@ let apply_action =
       | _ => ()
       };
       /* Update result in model. */
-      model |> Model.update_current_result(current);
+      model |> Model.update_result(current);
 
     | EditAction(a) =>
       switch (model |> Model.perform_edit_action(a)) {
@@ -267,10 +267,10 @@ let apply_action =
         |> Js.string
         |> JSUtil.log
       | DHExp =>
-        switch (model |> Model.get_current_result |> ModelResult.get_current) {
+        switch (model |> Model.get_result |> ModelResult.get_current) {
         /* TODO: Print a message? */
         | ResultFail(_)
-        | ResultTimedOut
+        | ResultTimeout
         | ResultPending => ()
         | ResultOk(r) =>
           r

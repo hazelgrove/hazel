@@ -8,10 +8,19 @@ let view =
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
-      hii: HoleInstanceInfo.t,
+      res: ModelResult.t,
     )
     : Vdom.Node.t => {
   open Vdom;
+
+  /* TODO: Fade out when not current? */
+  let hii =
+    switch (res.current) {
+    | ResultOk(r) => r |> ProgramResult.get_hii
+    | ResultFail(_)
+    | ResultTimeout
+    | ResultPending => res.previous |> ProgramResult.get_hii
+    };
 
   /**
    * Shows typing info for a context entry.

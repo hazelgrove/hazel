@@ -29,7 +29,7 @@ let on_startup = (~schedule_action, _) => {
           switch (r) {
           | EvaluationOk(r) => ModelResult.ResultOk(r)
           | EvaluationFail(reason) => ModelResult.ResultFail(reason)
-          | EvaluationTimeout => ModelResult.ResultTimedOut
+          | EvaluationTimeout => ModelResult.ResultTimeout
           };
         schedule_action(ModelAction.UpdateResult(cr));
       },

@@ -1,5 +1,5 @@
 type t = {
-  current_result: ModelResult.t,
+  res: ModelResult.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -68,7 +68,7 @@ let init = (): t => {
     };
   };
   {
-    current_result: ModelResult.init,
+    res: ModelResult.init,
     cardstacks,
     cell_width,
     selected_instances,
@@ -87,14 +87,11 @@ let init = (): t => {
   };
 };
 
-let get_current_result = (model: t): ModelResult.t => model.current_result;
-let put_current_result = (cr: ModelResult.t, model: t): t => {
-  ...model,
-  current_result: cr,
-};
-let update_current_result = (current: ModelResult.current, model: t): t => {
-  let cr = model |> get_current_result |> ModelResult.update(current);
-  model |> put_current_result(cr);
+let get_result = (model: t): ModelResult.t => model.res;
+let put_result = (res: ModelResult.t, model: t): t => {...model, res};
+let update_result = (current: ModelResult.current, model: t): t => {
+  let res = model |> get_result |> ModelResult.update_current(current);
+  model |> put_result(res);
 };
 
 let get_program = (model: t): Program.t =>

@@ -16,6 +16,6 @@ let view:
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
     Program.t,
-    HoleInstanceInfo.t
+    ModelResult.t
   ) =>
   Vdom.Node.t;

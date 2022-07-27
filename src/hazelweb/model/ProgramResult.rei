@@ -7,6 +7,11 @@ type t = (DHExp.t, HoleInstanceInfo.t, EvaluatorResult.t);
 let get_dhexp: t => DHExp.t;
 
 /**
+  [get_hii r] is the {!type:HoleInstanceInfo.t} in [r].
+ */
+let get_hii: t => HoleInstanceInfo.t;
+
+/**
   [empty] is the empty result.
  */
 let empty: t;
