@@ -110,7 +110,7 @@ module type STREAMED_ = {
     [next program] asynchronously evaluates [program] and pushes the result to
     the stream. [complete ()] completes the internal stream.
    */
-  let create: unit => (t, evaluation_request => unit, unit => unit);
+  let create: unit => (t, evaluation_request => Lwt.t(unit), unit => unit);
 
   /**
     See {!val:Lwt_observable.subscribe}.

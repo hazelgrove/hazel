@@ -132,7 +132,7 @@ module type STREAMED_ = {
   type t;
   type subscription;
 
-  let create: unit => (t, evaluation_request => unit, unit => unit);
+  let create: unit => (t, evaluation_request => Lwt.t(unit), unit => unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;
@@ -177,12 +177,10 @@ module Streamed = (M: M) => {
     let (observable, next, complete) = Lwt_observable.create();
 
     let next = ((id, program)) =>
-      Lwt.on_any(
-        (id, program) |> map_program(inner),
-        next,
-        /* FIXME: Promise failures are lost. */
-        _exn =>
-        ()
+      Lwt.try_bind(
+        () => (id, program) |> map_program(inner),
+        r => r |> next |> Lwt.return,
+        exn => Lwt.fail(exn),
       );
 
     ({inner, observable}, next, complete);

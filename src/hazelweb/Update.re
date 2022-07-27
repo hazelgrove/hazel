@@ -78,12 +78,16 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 let evaluate_and_schedule =
     (state: State.t, ~schedule_action, model: Model.t): Model.t => {
   /* Send evaluation request. */
-  let () = model |> State.evaluator_next(state);
+  let pushed = model |> State.evaluator_next(state);
 
   /* Set evaluation to pending after short timeout. */
-  /* FIXME: Need to do prevent if evaluation is faster than delay. */
+  /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
+   * updated before below action is scheduled. */
   Delay.delay(
-    () => schedule_action(ModelAction.UpdateResult(ResultPending)),
+    () =>
+      if (pushed |> Lwt.is_sleeping) {
+        schedule_action(ModelAction.UpdateResult(ResultPending));
+      },
     300,
   );
 

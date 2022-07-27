@@ -4,7 +4,7 @@ module ProgramEvaluator = {
 
   type t = {
     inner: Inner.t,
-    next: ProgramEvaluator.evaluation_request => unit,
+    next: ProgramEvaluator.evaluation_request => Lwt.t(unit),
     complete: Inner.complete,
     count: ref(int),
   };
