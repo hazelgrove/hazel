@@ -1,11 +1,4 @@
 open Lwt.Syntax;
-open Lwtutil;
-
-/**
-  [Lwt_timed] implementation for browser.
- */
-module Lwt_timed = Lwt_timed.Make(Delay);
-module Lwt_timed_pool = Lwt_timed_pool.Make(Lwt_timed);
 
 module type S = {
   module Request: WebWorker.Serializable;
@@ -24,7 +17,7 @@ module Make = (W: WebWorker.ClientS) => {
 
   type t = {
     timeout: int,
-    pool: Lwt_timed_pool.t(W.t),
+    pool: Lwt_timed_pool_js.t(W.t),
   };
 
   let create = () => Lwt.wrap(W.init);
@@ -36,7 +29,7 @@ module Make = (W: WebWorker.ClientS) => {
 
   let init = (~timeout, ~max) => {
     let pool =
-      Lwt_timed_pool.init(~max, ~create, ~validate, ~check, ~dispose);
+      Lwt_timed_pool_js.init(~max, ~create, ~validate, ~check, ~dispose);
     {pool, timeout};
   };
 
@@ -45,7 +38,7 @@ module Make = (W: WebWorker.ClientS) => {
       fun
       | 0 => Lwt.return_unit
       | n => {
-          let* created = Lwt_timed_pool.add(pool);
+          let* created = Lwt_timed_pool_js.add(pool);
           if (created) {
             fill(n - 1);
           } else {
@@ -57,5 +50,5 @@ module Make = (W: WebWorker.ClientS) => {
   };
 
   let request = ({pool, timeout}: t, req: Request.t) =>
-    Lwt_timed_pool.use(pool, timeout, client => req |> W.request(client));
+    Lwt_timed_pool_js.use(pool, timeout, client => req |> W.request(client));
 };
