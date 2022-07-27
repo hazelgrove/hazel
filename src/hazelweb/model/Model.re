@@ -176,11 +176,11 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> focus_cell;
 
 let update_program = (a: ModelAction.t, new_program, model) => {
-  let old_program = model |> get_program;
-  let update_selected_instances = si => {
+  /* let old_program = model |> get_program; */
+  let update_selected_instances = _si => {
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
+      /* Program.get_result(old_program) == Program.get_result(new_program) ? si :  */
+      UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,
       new_program |> Program.cursor_on_exp_hole,
