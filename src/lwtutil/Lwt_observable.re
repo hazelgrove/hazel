@@ -121,12 +121,9 @@ let subscribe =
 
 let subscribe' = (o: t('a), next: next('a)) => subscribe(o, next, () => ());
 
-let wait = (o: t('a)) => {
-  let (q, r) = Lwt.wait();
-  let _ = subscribe(o, ignore, () => Lwt.wakeup_later(r, ()));
-  q;
-};
+let wait = ({stream, _}: t('a)) => Lwt_stream.closed(stream);
 
 let unsubscribe = ({id, observable}: subscription('a)) => {
   observable^.observers := Subscriptions.remove(id, observable^.observers^);
 };
+
