@@ -1,5 +1,10 @@
 (include_subdirs unqualified)
 
+(alias
+ (name default)
+ (deps
+  (glob_files www/*)))
+
 (library
  (name web)
  (modules :standard \ Main)

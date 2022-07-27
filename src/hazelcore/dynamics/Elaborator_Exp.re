@@ -832,107 +832,153 @@ let rec htyp_of_typ: Core.Typ.t => HTyp.t =
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
 
-let _id_env = (ctx: Core.Ctx.t): Environment.t =>
-  VarMap.map(
-    xt => {
-      let (x, _) = xt;
-      DHExp.BoundVar(x);
-    },
-    ctx,
-  );
-
 let ctx_to_varctx = (ctx: Core.Ctx.t): VarCtx.t =>
   List.map(
     ((k, {typ, _}: Core.Ctx.entry)) => (k, htyp_of_typ(typ)),
     ctx,
   );
 
+let get_pat_ty = (m: Core.Statics.info_map, pat: Core.Term.UPat.t) =>
+  switch (Core.Id.Map.find_opt(pat.id, m)) {
+  | Some(InfoPat({mode, self, _})) =>
+    Some(Core.Typ.reconcile(mode, self) |> htyp_of_typ)
+  | _ => None
+  };
+
+let get_exp_ty = (m: Core.Statics.info_map, exp: Core.Term.UExp.t) =>
+  switch (Core.Id.Map.find_opt(exp.id, m)) {
+  | Some(InfoExp({mode, self, _})) =>
+    Some(Core.Typ.reconcile(mode, self) |> htyp_of_typ)
+  | _ => None
+  };
+
 [@warning "-32"]
 let rec dhexp_of_uexp =
-        (~delta=Delta.empty, m: Core.Statics.info_map, uexp: Core.Term.UExp.t)
-        : ElaborationResult.t => {
+        (m: Core.Statics.info_map, uexp: Core.Term.UExp.t): option(DHExp.t) => {
   /*
     simplifications:
-    0. leave MetaVarInst, VarMap empty for now?
-    1. leave sigma empty for now
-
-     run info check at top level to determine if in nonempty hole.
+    1. leave out delta for now
    */
   switch (Core.Id.Map.find_opt(uexp.id, m)) {
   | Some(InfoExp({ctx, _}) as ci) =>
     open Core;
+    open OptUtil.Syntax;
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (Statics.error_status(ci)) {
       | AtLeast(_) => None
       | NotInHole => None
       | InHole => Some(TypeInconsistent)
       };
-    let hole_blah = {
-      let u = uexp.id;
-      let gamma = ctx_to_varctx(ctx);
-      let sigma = Environment.id_env(gamma);
-      let ty = HTyp.Hole;
-      let delta =
-        MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      (sigma, delta, ty, u);
-    };
-    let wrap = (d, ty): ElaborationResult.t =>
+    let u = uexp.id; //NOTE: using term uids for hole ids
+    let gamma = ctx_to_varctx(ctx);
+    let sigma = Environment.id_env(gamma);
+    //let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
+    let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
-      | None => Elaborates(d, ty, delta)
-      | Some(reason) =>
-        let (sigma, delta, ty, u) = hole_blah;
-        Elaborates(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+      | None => Some(d)
+      | Some(reason) => Some(NonEmptyHole(reason, u, 0, sigma, d))
       };
     switch (uexp.term) {
-    | Invalid(_) => DoesNotElaborate // TODO
-    | EmptyHole =>
-      let (sigma, delta, ty, u) = hole_blah;
-      Elaborates(EmptyHole(u, 0, sigma), ty, delta);
-    | Bool(b) => wrap(BoolLit(b), Bool)
-    | Int(n) => wrap(IntLit(n), Int)
+    | Invalid(_) // NOTE: treating invalid as a hole for now.
+    | EmptyHole => Some(EmptyHole(u, 0, sigma))
+    | Bool(b) => wrap(BoolLit(b))
+    | Int(n) => wrap(IntLit(n))
     | Fun(pat, body)
     | FunAnn(pat, _, body) =>
-      switch (dhpat_of_upat(~delta, m, pat)) {
-      | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(dp, ty1, _, delta) =>
-        switch (dhexp_of_uexp(~delta, m, body)) {
-        | DoesNotElaborate => DoesNotElaborate
-        | Elaborates(d1, ty2, delta) =>
-          //TODO: use type directly from ci?
-          // in fact, could ditch types entirely in ret
-          // just rewrap with type at top-level
-          Elaborates(DHExp.Fun(dp, ty1, d1), Arrow(ty1, ty2), delta)
-        }
-      }
-    | Pair(_)
-    | Var(_)
-    | Let(_)
-    | LetAnn(_)
-    | Ap(_)
-    | If(_) => Elaborates(Triv, Hole, delta) // TODO
-    | OpInt(_op, _, _) => Elaborates(Triv, Hole, delta) // TODO
-    | OpBool(_op, _, _) => Elaborates(Triv, Hole, delta) // TODO
+      // TODO: annotated ty should already be incl in map ty; check this
+      let* dpat = dhpat_of_upat(m, pat);
+      let* d1 = dhexp_of_uexp(m, body);
+      let* ty1 = get_pat_ty(m, pat);
+      wrap(DHExp.Fun(dpat, ty1, d1));
+    | Pair(e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      wrap(Pair(d1, d2));
+    | Var(name) =>
+      //TODO: specialize freevar case
+      wrap(BoundVar(name))
+    | Let(pat, def, body)
+    | LetAnn(pat, _, def, body) =>
+      //TODO: recursive def
+      let* dpat = dhpat_of_upat(m, pat);
+      let* ddef = dhexp_of_uexp(m, def);
+      let* dbody = dhexp_of_uexp(m, body);
+      wrap(Let(dpat, ddef, dbody));
+    | Ap(fn, arg) =>
+      let* d_fn = dhexp_of_uexp(m, fn);
+      let* d_arg = dhexp_of_uexp(m, arg);
+      let* ty_fn = get_exp_ty(m, fn);
+      let* ty_arg = get_exp_ty(m, arg);
+      let* (ty_in, ty_out) = HTyp.matched_arrow(ty_fn);
+      let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
+      let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
+      wrap(Ap(c_fn, c_arg));
+    | If(cond, e1, e2) =>
+      let* d_cond = dhexp_of_uexp(m, cond);
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      //TODO: handle non-consistent case properly
+      wrap(
+        DHExp.ConsistentCase(
+          DHExp.Case(
+            d_cond,
+            [Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)],
+            0,
+          ),
+        ),
+      );
+    | OpInt(Plus, e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      let* ty1 = get_exp_ty(m, e1);
+      let* ty2 = get_exp_ty(m, e2);
+      let dc1 = DHExp.cast(d1, ty1, Int);
+      let dc2 = DHExp.cast(d2, ty2, Int);
+      wrap(BinIntOp(Plus, dc1, dc2));
+    | OpInt(Lt, e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      let* ty1 = get_exp_ty(m, e1);
+      let* ty2 = get_exp_ty(m, e2);
+      let dc1 = DHExp.cast(d1, ty1, Int);
+      let dc2 = DHExp.cast(d2, ty2, Int);
+      wrap(BinIntOp(LessThan, dc1, dc2));
+    | OpBool(And, e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      let* ty1 = get_exp_ty(m, e1);
+      let* ty2 = get_exp_ty(m, e2);
+      let dc1 = DHExp.cast(d1, ty1, Bool);
+      let dc2 = DHExp.cast(d2, ty2, Bool);
+      wrap(BinBoolOp(And, dc1, dc2));
     };
   | Some(InfoPat(_) | InfoTyp(_) | Invalid)
-  | None => DoesNotElaborate
+  | None => None
   };
 }
 [@warning "-32"]
 and dhpat_of_upat =
-    (~delta=Delta.empty, m: Core.Statics.info_map, upat: Core.Term.UPat.t)
-    : Elaborator_Pat.ElaborationResult.t =>
+    (m: Core.Statics.info_map, upat: Core.Term.UPat.t): option(DHPat.t) =>
   switch (Core.Id.Map.find_opt(upat.id, m)) {
   | Some(InfoPat(_) as _ci) =>
-    let gamma = VarCtx.empty; //TODO
+    //let gamma = VarCtx.empty; //TODO
     switch (upat.term) {
-    | Invalid(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | EmptyHole => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | Wild => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | Int(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | Bool(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | Var(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
-    | Pair(_) => Elaborates(Triv, Hole, gamma, delta) // TODO
-    };
+    | Invalid(_) => Some(Triv) // TODO
+    | EmptyHole => Some(Triv) // TODO
+    | Wild => Some(Triv) // TODO
+    | Int(_) => Some(Triv) // TODO
+    | Bool(_) => Some(Triv) // TODO
+    | Var(_) => Some(Triv) // TODO
+    | Pair(_) => Some(Triv) // TODO
+    }
   | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+  | None => None
+  };
+
+[@warning "-32"]
+let uexp_elab =
+    (m: Core.Statics.info_map, uexp: Core.Term.UExp.t): ElaborationResult.t =>
+  switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
+  | Some(d) => Elaborates(d, HTyp.Hole, Delta.empty) //TODO: type from ci
   };

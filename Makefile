@@ -1,4 +1,5 @@
 HTML_DIR=$(shell pwd)/_build/default/src/hazelweb/www
+TYLR_HTML_FILE=$(shell pwd)/_build/default/src/web/www/index.html
 HTML_FILE=$(HTML_DIR)/index.html
 
 all: dev
@@ -51,6 +52,9 @@ xdg-open:
 
 open:
 	open "$(HTML_FILE)"
+
+tylr:
+	open "$(TYLR_HTML_FILE)"
 
 repl:
 	dune utop src/hazelcore
