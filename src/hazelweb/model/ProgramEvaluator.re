@@ -84,7 +84,7 @@ module Worker = {
     });
 
   module Client: M = {
-    module Pool = WebWorkerPool.Make(W);
+    module Pool = WebWorkerPool.Make(W.Client);
     type t = Pool.t;
 
     let max = 5;

@@ -18,20 +18,18 @@ module type S = {
   let request: (t, Request.t) => Lwt.t(option(Response.t));
 };
 
-module Make = (W: WebWorker.S) => {
-  open W;
-
+module Make = (W: WebWorker.ClientS) => {
   module Request = W.Request;
   module Response = W.Response;
 
   type t = {
     timeout: int,
-    pool: Lwt_timed_pool.t(Client.t),
+    pool: Lwt_timed_pool.t(W.t),
   };
 
-  let create = () => Lwt.wrap(Client.init);
+  let create = () => Lwt.wrap(W.init);
 
-  let dispose = client => Lwt.wrap(() => Client.terminate(client));
+  let dispose = client => Lwt.wrap(() => W.terminate(client));
 
   let validate = _client => Lwt.return_true;
   let check = _client => Lwt.return_true;
@@ -59,7 +57,5 @@ module Make = (W: WebWorker.S) => {
   };
 
   let request = ({pool, timeout}: t, req: Request.t) =>
-    Lwt_timed_pool.use(pool, timeout, client =>
-      req |> Client.request(client)
-    );
+    Lwt_timed_pool.use(pool, timeout, client => req |> W.request(client));
 };

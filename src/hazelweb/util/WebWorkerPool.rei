@@ -31,5 +31,5 @@ module type S = {
   implementation.
  */
 module Make:
-  (W: WebWorker.S) =>
+  (W: WebWorker.ClientS) =>
    S with module Request = W.Request and module Response = W.Response;
