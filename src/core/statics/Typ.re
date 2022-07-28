@@ -15,7 +15,7 @@ type t =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
-  // is this just a list??
+  // This type is suspiciously listlike
   | Just(t)
   | Joined(list(t))
   | Free;

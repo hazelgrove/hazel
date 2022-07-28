@@ -55,8 +55,10 @@ let view =
     };
   let ci_is_wrapped =
     switch (ci) {
-    | None => "??"
-    | Some(ci) => Statics.show_error_status(Statics.error_status(ci))
+    | Some(InfoPat({mode, self, _}))
+    | Some(InfoExp({mode, self, _})) =>
+      Statics.show_error_status(Statics.error_status(mode, self))
+    | _ => "??"
     };
   let res_text =
     switch (term |> Elaborator.uexp_elab(info_map)) {

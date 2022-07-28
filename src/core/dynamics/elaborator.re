@@ -12,14 +12,14 @@ let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
 let pat_htyp = (m: Statics.info_map, pat: Term.UPat.t) =>
   switch (Id.Map.find_opt(pat.id, m)) {
   | Some(InfoPat({mode, self, _})) =>
-    Some(Typ.reconcile(mode, self) |> htyp_of_typ)
+    Some(htyp_of_typ(Statics.typ_after_fix(mode, self)))
   | _ => None
   };
 
 let exp_htyp = (m: Statics.info_map, exp: Term.UExp.t) =>
   switch (Id.Map.find_opt(exp.id, m)) {
   | Some(InfoExp({mode, self, _})) =>
-    Some(Typ.reconcile(mode, self) |> htyp_of_typ)
+    Some(htyp_of_typ(Statics.typ_after_fix(mode, self)))
   | _ => None
   };
 
@@ -40,14 +40,13 @@ let rec dhexp_of_uexp =
     1. leave out delta for now
    */
   switch (Id.Map.find_opt(uexp.id, m)) {
-  | Some(InfoExp({ctx, self, _}) as ci) =>
+  | Some(InfoExp({ctx, mode, self, _})) =>
     open OptUtil.Syntax;
-    let err_status = Statics.error_status(ci);
+    let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
-      | AtLeast(_) => None
-      | NotInHole => None
-      | InHole => Some(TypeInconsistent)
+      | NotInHole(_) => None
+      | InHole(_) => Some(TypeInconsistent)
       };
     let u = uexp.id; //NOTE: using term uids for hole ids
     let gamma = ctx_to_varctx(ctx);
@@ -134,14 +133,13 @@ let rec dhexp_of_uexp =
 [@warning "-32"]
 and dhpat_of_upat = (m: Statics.info_map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(upat.id, m)) {
-  | Some(InfoPat(_) as ci) =>
+  | Some(InfoPat({mode, self, _})) =>
     open OptUtil.Syntax;
-    let err_status = Statics.error_status(ci);
+    let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
-      | AtLeast(_) => None
-      | NotInHole => None
-      | InHole => Some(TypeInconsistent)
+      | NotInHole(_) => None
+      | InHole(_) => Some(TypeInconsistent)
       };
     let u = upat.id; //NOTE: using term uids for hole ids
     let wrap = (d: DHPat.t): option(DHPat.t) =>

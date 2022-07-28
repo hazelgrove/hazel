@@ -1,25 +1,13 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error =
-  | FreeVariable
-  | InconsistentBranches(list(Typ.t))
-  //| InconsistentBranchesAna(list(Typ.t))
-  | TypeInconsistent(Typ.t, Typ.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type error_status =
-  | InHole(error)
-  | NotInHole(Typ.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type info_exp = {
   cls: Term.UExp.cls,
   mode: Typ.mode,
   self: Typ.self,
   ctx: Ctx.t,
   free: Ctx.co,
-  // derived attributes:
+  // add derived attributes?
   //err: error_status,
   //typ: Typ.t,
 };
@@ -47,72 +35,48 @@ type info =
 
 type info_map = Id.Map.t(info);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | FreeVariable
+  | InconsistentBranches(list(Typ.t))
+  //| InconsistentBranchesAna(list(Typ.t))
+  | TypeInconsistent(Typ.t, Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_status =
+  | InHole(error)
+  | NotInHole(Typ.t);
+
 let union_m =
   List.fold_left(
     (m1, m2) => Id.Map.union((_, _, b) => Some(b), m1, m2),
     Id.Map.empty,
   );
 
-// TODO: clarify
-let of_mode: Typ.mode => Typ.t =
-  fun
-  | Syn => Unknown(Internal) //TODO
-  | Ana(ty) => ty;
-
-// TODO: clarify; compare to Statics.error_status
-let of_self: Typ.self => Typ.t =
-  fun
-  | Free => Unknown(Internal) //TODO
-  | Just(t) => t
-  | Joined(tys) =>
-    switch (Typ.join_all(tys)) {
-    | None => Unknown(Internal) //TODO
-    | Some(t) => t
-    };
-
-// What the type would be as if after hole-fixing
-let reconcile = (mode: Typ.mode, self: Typ.self): Typ.t =>
-  switch (mode) {
-  | Syn => of_self(self)
-  | Ana(ty) =>
-    switch (Typ.join(ty, of_self(self))) {
-    | None => Unknown(Internal) //TODO
-    | Some(ty) => ty
-    }
-  };
-
-//TODO(andrew): refactor (compare Typ.reconcile/of_self)
-let error_status = (info: info): error_status =>
-  switch (info) {
-  | InfoExp({mode: _, self: Free, _})
-  | InfoPat({mode: _, self: Free, _}) => InHole(FreeVariable)
-  | InfoExp({mode: Syn, self: Joined(tys_syn), _})
-  | InfoPat({mode: Syn, self: Joined(tys_syn), _}) =>
+let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
+  switch (mode, self) {
+  | (Syn | Ana(_), Free) => InHole(FreeVariable)
+  | (Syn, Just(ty)) => NotInHole(ty)
+  | (Syn, Joined(tys_syn)) =>
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(InconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(ty_joined)
     }
-  | InfoExp({mode: Syn, self: Just(ty), _})
-  | InfoPat({mode: Syn, self: Just(ty), _}) => NotInHole(ty)
-  | InfoExp({mode: Ana(ty_ana), self: Just(ty_syn), _})
-  | InfoPat({mode: Ana(ty_ana), self: Just(ty_syn), _}) =>
+  | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
-    | Some(ty) => NotInHole(reconcile(Ana(ty_ana), Just(ty_syn)))
-    }
-  | InfoExp({mode: Ana(ty_ana), self: Joined(ty_syn), _})
-  | InfoPat({mode: Ana(ty_ana), self: Joined(ty_syn), _}) =>
-    switch (Typ.join_all([ty_ana] @ ty_syn)) {
-    | None => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
     | Some(ty) => NotInHole(ty)
     }
-  | InfoTyp(_) => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
-  | Invalid => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
+  | (Ana(ty_ana), Joined(ty_syn)) =>
+    switch (Typ.join_all([ty_ana] @ ty_syn)) {
+    | None => NotInHole(Unknown(Internal)) //TODO: clarify this case
+    | Some(ty) => NotInHole(ty)
+    }
   };
 
-let typ_after_fixing = (err: error_status): Typ.t =>
-  switch (err) {
-  | InHole(e) => Unknown(Internal)
+let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
+  switch (error_status(mode, self)) {
+  | InHole(_) => Unknown(Internal)
   | NotInHole(t) => t
   };
 
@@ -122,12 +86,12 @@ let rec uexp_to_info_map =
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
-    Typ.reconcile(mode, self),
+    typ_after_fix(mode, self),
     free,
     Id.Map.add(id, InfoExp({cls, self, mode, ctx, free}), m),
   );
   let atomic = self => (
-    Typ.reconcile(mode, self),
+    typ_after_fix(mode, self),
     [],
     Id.Map.singleton(id, InfoExp({cls, self, mode, ctx, free: []})),
   );
@@ -252,7 +216,7 @@ and upat_to_info_map =
     : (Typ.t, Ctx.t, info_map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (self: Typ.self) => (
-    Typ.reconcile(mode, self),
+    typ_after_fix(mode, self),
     [],
     Id.Map.singleton(id, InfoPat({cls, mode, self})),
   );
@@ -263,7 +227,7 @@ and upat_to_info_map =
   | Int(_) => add(Just(Int))
   | Bool(_) => add(Just(Bool))
   | Var(name) =>
-    let typ = Typ.of_mode(mode);
+    let typ = typ_after_fix(mode, Just(Unknown(ModeSwitch)));
     (
       typ,
       [(name, Ctx.{id, typ})],
