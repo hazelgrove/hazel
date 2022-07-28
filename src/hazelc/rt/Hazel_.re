@@ -1,13 +1,15 @@
-let here_path = "hazel";
+open Grain;
 
-module WithoutImpl = (M: Make.M) =>
-  Make.WithoutImpl({
-    let name = M.name;
-    let path = Filename.concat(here_path, M.path);
+let here = "hazel";
+let amend = (prepend, path) =>
+  path |> Path.strip_root' |> Path.append(prepend |> Path.v);
+
+module Stub = (M: Make.M) =>
+  Make.Stub({
+    let path = amend(here, M.path);
   });
 
-module WithImpl = (M: Make.M) =>
-  Make.WithImpl({
-    let name = M.name;
-    let path = Filename.concat(here_path, M.path);
+module Gen = (M: Make.M) =>
+  Make.Gen({
+    let path = amend(here, M.path);
   });

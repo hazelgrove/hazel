@@ -2,23 +2,25 @@ open Cmdliner;
 
 open Grain;
 
-let mds = Modules.list;
+let fmodls = Modules.list;
 
-let gen_md = (outdir, path, md) => {
+let gen_ = (outdir, fmodl) => {
   module Unix = Core.Unix;
 
+  let outdir = outdir |> Path.v;
   let path =
-    switch (path) {
-    | ImportRel(path)
-    | ImportStd(path) => path
-    };
-  let path = Filename.concat(outdir, path ++ ".gr");
-  let dir = Filename.dirname(path);
+    fmodl
+    |> FileModule.Full.path
+    |> Path.append(outdir)
+    |> Path.add_ext("gr");
+  let dir = path |> Path.split_base |> fst |> Path.to_string;
+  let path = path |> Path.to_string;
+
+  let modl = fmodl |> FileModule.Full.modl;
+  let contents = modl |> Grain.print;
 
   /* Create output directory if it doesn't exist. */
   Unix.mkdir_p(dir);
-
-  let contents = md |> Grain.print;
 
   /* Write the file. */
   let _ =
@@ -42,9 +44,7 @@ let gen_md = (outdir, path, md) => {
 
 let gen = outdir => {
   /* Generate files. */
-  mds
-  |> List.map(md => FileModule.(path(md), to_module(md)))
-  |> List.iter(((path, md)) => gen_md(outdir, path, md));
+  fmodls |> List.iter(fmodl => gen_(outdir, fmodl));
 };
 
 let cmd = {

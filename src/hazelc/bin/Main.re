@@ -147,7 +147,7 @@ let hazelc =
 
     | Gir =>
       Compile.resume_until_grainized(~opts, source)
-      |> Result.map(Grain.sexp_of_prog |> write_sexp_output)
+      |> Result.map(Grain.sexp_of_modl |> write_sexp_output)
       |> Result.map_error(convert_error)
 
     | Wasm

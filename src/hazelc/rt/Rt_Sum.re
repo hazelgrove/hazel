@@ -1,22 +1,25 @@
 /**
   "hazel/rt/sum.gr", handwritten.
  */
-open Rt_.WithoutImpl({
-       let name = "Sum";
-       let path = "sum";
+open Grain;
+open Grain.Ident;
+open Rt_.Stub({
+       let path = "sum" |> Path.v;
      });
-/**
-  Import statement.
- */
-let import = import;
 
 /**
   Implementation module.
  */
-let impl_md = impl_md;
+let impl = impl;
 
-let inj_l = e => ctor1("L", e);
-let inj_r = e => ctor1("R", e);
+module Use = (I: Make.I) => {
+  include Use(I);
 
-let inj_l_pat = p => pctor1("L", p);
-let inj_r_pat = p => pctor1("R", p);
+  let imp = imp;
+
+  let inj_l = e => ctor1(v("L"), e);
+  let inj_r = e => ctor1(v("R"), e);
+
+  let inj_l_pat = p => pctor1(v("L"), p);
+  let inj_r_pat = p => pctor1(v("R"), p);
+};

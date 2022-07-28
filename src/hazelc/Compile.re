@@ -109,7 +109,7 @@ type state =
   | Transformed(Hir.expr)
   | Linearized(Mir.Anf.prog)
   | Optimized(Mir.Anf.prog)
-  | Grainized(Grain.prog)
+  | Grainized(Grain.modl)
   | Printed(string);
 
 [@deriving sexp]

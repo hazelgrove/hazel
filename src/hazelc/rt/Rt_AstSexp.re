@@ -1,18 +1,21 @@
 /**
   "ast_sexp.gr", handwritten.
  */
-open Rt_.WithoutImpl({
-       let name = "AstSexp";
-       let path = "ast_sexp";
+open Grain;
+open Grain.Ident;
+open Rt_.Stub({
+       let path = "ast_sexp" |> Path.v;
      });
-/**
-  Import statement.
- */
-let import = import;
 
 /**
   Implementation module.
  */
-let impl_md = impl_md;
+let impl = impl;
 
-let sexp_of_ast = ap1("sexpOfAst");
+module Use = (I: Make.I) => {
+  open Use(I);
+
+  let imp = imp;
+
+  let sexp_of_ast = ap1(v("sexpOfAst"));
+};

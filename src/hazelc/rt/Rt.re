@@ -5,6 +5,7 @@ module Hazel = {
     module AstPrint = Rt_AstPrint;
     module AstSexp = Rt_AstSexp;
     module MaybeIndet = Rt_MaybeIndet;
+    module Ops = Rt_Ops;
     module Sum = Rt_Sum;
   };
 };
