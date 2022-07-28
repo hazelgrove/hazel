@@ -1,4 +1,16 @@
-//open Sexplib.Std;
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | FreeVariable
+  | InconsistentBranches(list(Typ.t))
+  //| InconsistentBranchesAna(list(Typ.t))
+  | TypeInconsistent(Typ.t, Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_status =
+  | InHole(error)
+  | NotInHole(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_exp = {
@@ -7,6 +19,9 @@ type info_exp = {
   self: Typ.self,
   ctx: Ctx.t,
   free: Ctx.co,
+  // derived attributes:
+  //err: error_status,
+  //typ: Typ.t,
 };
 
 //TODO(andrew): ctx-like fields to detect duplicates
@@ -32,39 +47,73 @@ type info =
 
 type info_map = Id.Map.t(info);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type error_status =
-  | InHole
-  | NotInHole
-  | AtLeast(Typ.t);
-
 let union_m =
   List.fold_left(
     (m1, m2) => Id.Map.union((_, _, b) => Some(b), m1, m2),
     Id.Map.empty,
   );
 
+// TODO: clarify
+let of_mode: Typ.mode => Typ.t =
+  fun
+  | Syn => Unknown(Internal) //TODO
+  | Ana(ty) => ty;
+
+// TODO: clarify; compare to Statics.error_status
+let of_self: Typ.self => Typ.t =
+  fun
+  | Free => Unknown(Internal) //TODO
+  | Just(t) => t
+  | Joined(tys) =>
+    switch (Typ.join_all(tys)) {
+    | None => Unknown(Internal) //TODO
+    | Some(t) => t
+    };
+
+// What the type would be as if after hole-fixing
+let reconcile = (mode: Typ.mode, self: Typ.self): Typ.t =>
+  switch (mode) {
+  | Syn => of_self(self)
+  | Ana(ty) =>
+    switch (Typ.join(ty, of_self(self))) {
+    | None => Unknown(Internal) //TODO
+    | Some(ty) => ty
+    }
+  };
+
 //TODO(andrew): refactor (compare Typ.reconcile/of_self)
 let error_status = (info: info): error_status =>
   switch (info) {
-  | InfoExp({mode: Syn, _})
-  | InfoPat({mode: Syn, _}) => AtLeast(Unknown(Internal))
-  | InfoExp({mode: Ana(_), self: Free, _})
-  | InfoPat({mode: Ana(_), self: Free, _}) => InHole
+  | InfoExp({mode: _, self: Free, _})
+  | InfoPat({mode: _, self: Free, _}) => InHole(FreeVariable)
+  | InfoExp({mode: Syn, self: Joined(tys_syn), _})
+  | InfoPat({mode: Syn, self: Joined(tys_syn), _}) =>
+    switch (Typ.join_all(tys_syn)) {
+    | None => InHole(InconsistentBranches(tys_syn))
+    | Some(ty_joined) => NotInHole(ty_joined)
+    }
+  | InfoExp({mode: Syn, self: Just(ty), _})
+  | InfoPat({mode: Syn, self: Just(ty), _}) => NotInHole(ty)
   | InfoExp({mode: Ana(ty_ana), self: Just(ty_syn), _})
   | InfoPat({mode: Ana(ty_ana), self: Just(ty_syn), _}) =>
     switch (Typ.join(ty_ana, ty_syn)) {
-    | None => InHole
-    | Some(ty) => AtLeast(ty)
+    | None => InHole(TypeInconsistent(ty_syn, ty_ana))
+    | Some(ty) => NotInHole(reconcile(Ana(ty_ana), Just(ty_syn)))
     }
   | InfoExp({mode: Ana(ty_ana), self: Joined(ty_syn), _})
   | InfoPat({mode: Ana(ty_ana), self: Joined(ty_syn), _}) =>
     switch (Typ.join_all([ty_ana] @ ty_syn)) {
-    | None => InHole
-    | Some(ty) => AtLeast(ty)
+    | None => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
+    | Some(ty) => NotInHole(ty)
     }
-  | InfoTyp(_) => NotInHole
-  | Invalid => InHole
+  | InfoTyp(_) => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
+  | Invalid => NotInHole(Unknown(Internal)) //TODO: this doesnt quite make sense
+  };
+
+let typ_after_fixing = (err: error_status): Typ.t =>
+  switch (err) {
+  | InHole(e) => Unknown(Internal)
+  | NotInHole(t) => t
   };
 
 let rec uexp_to_info_map =

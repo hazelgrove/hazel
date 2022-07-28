@@ -86,31 +86,3 @@ let matched_prod_mode: mode => (mode, mode) =
       let (ty_l, ty_r) = matched_prod(ty);
       (Ana(ty_l), Ana(ty_r));
     };
-
-// TODO: clarify
-let of_mode: mode => t =
-  fun
-  | Syn => Unknown(Internal) //TODO
-  | Ana(ty) => ty;
-
-// TODO: clarify; compare to Statics.error_status
-let of_self: self => t =
-  fun
-  | Free => Unknown(Internal) //TODO
-  | Just(t) => t
-  | Joined(tys) =>
-    switch (join_all(tys)) {
-    | None => Unknown(Internal) //TODO
-    | Some(t) => t
-    };
-
-// What the type would be as if after hole-fixing
-let reconcile = (mode: mode, self: self): t =>
-  switch (mode) {
-  | Syn => of_self(self)
-  | Ana(ty) =>
-    switch (join(ty, of_self(self))) {
-    | None => Unknown(Internal) //TODO
-    | Some(ty) => ty
-    }
-  };
