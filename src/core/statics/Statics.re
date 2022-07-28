@@ -92,6 +92,7 @@ let rec uexp_to_info_map =
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
+  | Float(_) => atomic(Just(Float))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -100,6 +101,8 @@ let rec uexp_to_info_map =
     }
   | OpInt(Plus, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Int))
   | OpInt(Lt, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
+  | OpFloat(Plus, e1, e2) =>
+    binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
   | OpBool(And, e1, e2) => binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
   | Pair(e1, e2) =>
     let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
@@ -212,6 +215,7 @@ and upat_to_info_map =
   | EmptyHole => add(Just(Unknown(ModeSwitch)))
   | Wild => add(Just(Unknown(ModeSwitch)))
   | Int(_) => add(Just(Int))
+  | Float(_) => add(Just(Float))
   | Bool(_) => add(Just(Bool))
   | Var(name) =>
     let typ = Typ.of_mode(mode);
@@ -247,6 +251,7 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, info_map) => {
   | Invalid(_)
   | EmptyHole
   | Int
+  | Float
   | Bool => ret(Id.Map.empty)
   | Arrow(t1, t2)
   | Prod(t1, t2) =>
