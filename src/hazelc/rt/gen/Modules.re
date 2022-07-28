@@ -6,6 +6,7 @@ let list =
     Hazel.Rt.AstMk.impl_md,
     Hazel.Rt.AstPrint.impl_md,
     Hazel.Rt.AstPrint.impl_md,
+    Hazel.Rt.MaybeIndet.impl_md,
     Hazel.Rt.Sum.impl_md,
   ]
   |> List.filter_map(f => f());
