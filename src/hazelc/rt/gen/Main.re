@@ -1,17 +1,8 @@
 open Cmdliner;
 
 open Grain;
-open Rt;
 
-let mds =
-  [
-    Hazel.Rt.Ast.impl_md,
-    Hazel.Rt.AstMk.impl_md,
-    Hazel.Rt.AstPrint.impl_md,
-    Hazel.Rt.AstPrint.impl_md,
-    Hazel.Rt.Sum.impl_md,
-  ]
-  |> List.filter_map(f => f());
+let mds = Modules.list;
 
 let gen_md = (outdir, path, md) => {
   module Unix = Core.Unix;
