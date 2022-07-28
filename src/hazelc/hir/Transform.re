@@ -57,7 +57,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
     let (fn, fn_ty) = transform_exp(ctx, fn);
     let (arg, _) = transform_exp(ctx, arg);
     switch (fn.expr_kind) {
-      // TODO: expand arrow casts and do transform_exp recursively here
+    // TODO: expand arrow casts and do transform_exp recursively here
     | ECast(_fn, _ty1, _ty2) => failwith("FnCastExpansion")
     | EFun(_, _, _) =>
       switch (fn_ty) {
