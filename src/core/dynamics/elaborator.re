@@ -73,8 +73,8 @@ let rec dhexp_of_uexp =
       let* d2 = dhexp_of_uexp(m, e2);
       wrap(Pair(d1, d2));
     | Var(name) =>
-      switch (self) {
-      | Free => Some(FreeVar(u, 0, sigma, name))
+      switch (err_status) {
+      | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
     | Let(p, def, body)
@@ -103,8 +103,8 @@ let rec dhexp_of_uexp =
           [Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)],
           0,
         );
-      switch (self) {
-      | Joined([ty1, ty2]) when Typ.join(ty1, ty2) == None =>
+      switch (err_status) {
+      | InHole(InconsistentBranches(_)) =>
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };

@@ -14,10 +14,16 @@ type t =
   | Prod(t, t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type source = {
+  id: int,
+  ty: t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   // This type is suspiciously listlike
   | Just(t)
-  | Joined(list(t))
+  | Joined(list(source))
   | Free;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,6 +31,8 @@ type mode =
   //| FunPos?
   | Syn
   | Ana(t);
+
+let source_tys = List.map((source: source) => source.ty);
 
 let rec join = (ty1: t, ty2: t): option(t) =>
   switch (ty1, ty2) {

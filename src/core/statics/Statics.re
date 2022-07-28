@@ -59,18 +59,19 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn, Just(ty)) => NotInHole(ty)
   | (Syn, Joined(tys_syn))
   | (Ana(Unknown(ModeSwitch)), Joined(tys_syn)) =>
+    let tys_syn = Typ.source_tys(tys_syn);
     //TODO: clarify ModeSwitch case
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(InconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(ty_joined)
-    }
+    };
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty) => NotInHole(ty)
     }
-  | (Ana(ty_ana), Joined(ty_syn)) =>
-    switch (Typ.join_all([ty_ana] @ ty_syn)) {
+  | (Ana(ty_ana), Joined(tys_syn)) =>
+    switch (Typ.join_all([ty_ana] @ Typ.source_tys(tys_syn))) {
     | None => NotInHole(Unknown(Internal)) //TODO: clarify this case
     | Some(ty) => NotInHole(ty)
     }
@@ -130,7 +131,7 @@ let rec uexp_to_info_map =
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     add(
-      ~self=Joined([ty_e1, ty_e2]),
+      ~self=Joined([{id: e1.id, ty: ty_e1}, {id: e2.id, ty: ty_e2}]),
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
