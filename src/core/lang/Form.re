@@ -37,7 +37,8 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
 
 let is_var = regexp("^[a-z][A-Za-z0-9_]*$");
 let is_int = regexp("^[0-9]*$");
-let is_typ_lit = regexp("^Int|Bool$");
+let is_float = regexp("^[0-9]*\\.[0-9]*$");
+let is_typ_lit = regexp("^Int|Float|Bool$");
 let is_typ_lit_partial = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_wild = regexp("^_$");
 let is_bool = regexp("^true|false$");
@@ -55,6 +56,7 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
   // TODO(andrew): above thing: color same as sort inconsistency errors
   // ("whatever", (regexp("#*$"), [mk_op(Nul, [])])),
   // ("whatever", (regexp("@*$"), [mk_op(Rul, [])])),
+  ("fnum", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("num", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
 ];
@@ -64,6 +66,7 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
   ("plus", mk_infix("+", Exp, P.plus)),
+  ("fplus", mk_infix("+.", Exp, P.plus)),
   ("equals", mk_infix("=", Exp, P.eqs)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("bitwise_and", mk_infix("&", Exp, 5)), // substring req

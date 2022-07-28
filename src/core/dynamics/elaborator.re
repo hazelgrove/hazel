@@ -2,6 +2,7 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
   | Unknown(_) => Hole
   | Int => Int
+  | Float => Float
   | Bool => Bool
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
@@ -27,6 +28,10 @@ let int_op_of: Term.UExp.exp_op_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
   | Lt => LessThan;
+
+let float_op_of: Term.UExp.exp_op_float => DHExp.BinFloatOp.t =
+  fun
+  | Plus => FPlus;
 
 let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
   fun
@@ -62,6 +67,7 @@ let rec dhexp_of_uexp =
     | EmptyHole => Some(EmptyHole(u, 0, sigma))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
+    | Float(n) => wrap(FloatLit(n))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -116,6 +122,14 @@ let rec dhexp_of_uexp =
       let dc1 = DHExp.cast(d1, ty1, Int);
       let dc2 = DHExp.cast(d2, ty2, Int);
       wrap(BinIntOp(int_op_of(op), dc1, dc2));
+    | OpFloat(op, e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      let* ty1 = exp_htyp(m, e1);
+      let* ty2 = exp_htyp(m, e2);
+      let dc1 = DHExp.cast(d1, ty1, Int);
+      let dc2 = DHExp.cast(d2, ty2, Int);
+      wrap(BinFloatOp(float_op_of(op), dc1, dc2));
     | OpBool(op, e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
@@ -151,6 +165,7 @@ and dhpat_of_upat = (m: Statics.info_map, upat: Term.UPat.t): option(DHPat.t) =>
     | EmptyHole => Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
     | Int(n) => wrap(IntLit(n))
+    | Float(n) => wrap(FloatLit(n))
     | Bool(b) => Some(BoolLit(b))
     | Var(name) => Some(Var(name))
     | Pair(p1, p2) =>

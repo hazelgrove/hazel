@@ -10,6 +10,7 @@ module UTyp = {
     | Invalid
     | EmptyHole
     | Int
+    | Float
     | Bool
     | Arrow
     | Prod;
@@ -19,6 +20,7 @@ module UTyp = {
     | Invalid(Piece.t)
     | EmptyHole
     | Int
+    | Float
     | Bool
     | Arrow(t, t)
     | Prod(t, t)
@@ -32,6 +34,7 @@ module UTyp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | Int => Int
+    | Float => Float
     | Bool => Bool
     | Arrow(_) => Arrow
     | Prod(_) => Prod;
@@ -44,6 +47,7 @@ module UPat = {
     | EmptyHole
     | Wild
     | Int
+    | Float
     | Bool
     | Var
     | Pair;
@@ -54,6 +58,7 @@ module UPat = {
     | EmptyHole
     | Wild
     | Int(int)
+    | Float(float)
     | Bool(bool)
     | Var(Token.t)
     | Pair(t, t)
@@ -68,6 +73,7 @@ module UPat = {
     | EmptyHole => EmptyHole
     | Wild => Wild
     | Int(_) => Int
+    | Float(_) => Float
     | Bool(_) => Bool
     | Var(_) => Var
     | Pair(_) => Pair;
@@ -80,6 +86,10 @@ module UExp = {
     | Lt;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type exp_op_float =
+    | Plus;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type exp_op_bool =
     | And;
 
@@ -89,6 +99,7 @@ module UExp = {
     | EmptyHole
     | Bool
     | Int
+    | Float
     | Fun
     | FunAnn
     | Pair
@@ -98,6 +109,7 @@ module UExp = {
     | Ap
     | If
     | OpInt(exp_op_int)
+    | OpFloat(exp_op_float)
     | OpBool(exp_op_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +119,7 @@ module UExp = {
     | EmptyHole
     | Bool(bool)
     | Int(int)
+    | Float(float)
     | Fun(UPat.t, t)
     | FunAnn(UPat.t, UTyp.t, t)
     | Pair(t, t)
@@ -118,6 +131,7 @@ module UExp = {
     // maybe everything with fn semantics should be a builtin e.g. plus??
     | If(t, t, t)
     | OpInt(exp_op_int, t, t)
+    | OpFloat(exp_op_float, t, t)
     | OpBool(exp_op_bool, t, t)
   and t = {
     id: Id.t,
@@ -130,6 +144,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | Bool(_) => Bool
     | Int(_) => Int
+    | Float(_) => Float
     | Fun(_) => Fun
     | FunAnn(_) => FunAnn
     | Pair(_) => Pair
@@ -139,6 +154,7 @@ module UExp = {
     | Ap(_) => Ap
     | If(_) => If
     | OpInt(x, _, _) => OpInt(x)
+    | OpFloat(x, _, _) => OpFloat(x)
     | OpBool(x, _, _) => OpBool(x);
 };
 
@@ -148,6 +164,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Invalid(_)
     | EmptyHole => Unknown(Internal) //TODO: is this correct?
     | Int => Int
+    | Float => Float
     | Bool => Bool
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
@@ -197,10 +214,13 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | _ when !Tile.is_complete(t) => Invalid(p)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
+      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
+      | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([","], [l, r], []) => Pair(l, r)
       | (["+"], [l, r], []) => OpInt(Plus, l, r)
+      | (["+."], [l, r], []) => OpFloat(Plus, l, r)
       | (["<"], [l, r], []) => OpInt(Lt, l, r)
       | (["&&"], [l, r], []) => OpBool(And, l, r)
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
@@ -236,6 +256,8 @@ and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
       | ([","], [l, r], []) => Pair(l, r)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
+      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
+      | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
@@ -259,6 +281,7 @@ and of_piece_typ = (p: Piece.t, children_h: list(UTyp.t)): UTyp.t => {
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) => Invalid(p)
       | (["Int"], [], []) => Int
+      | (["Float"], [], []) => Float
       | (["Bool"], [], []) => Bool
       | (["->"], [l, r], []) => Arrow(l, r)
       | ([","], [l, r], []) => Prod(l, r)

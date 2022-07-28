@@ -9,6 +9,7 @@ type type_provenance =
 type t =
   | Unknown(type_provenance)
   | Int
+  | Float
   | Bool
   | Arrow(t, t)
   | Prod(t, t);
@@ -41,6 +42,7 @@ let rec join = (ty1: t, ty2: t): option(t) =>
   | (Unknown(_), a)
   | (a, Unknown(_)) => Some(a)
   | (Int, Int) => Some(Int)
+  | (Float, Float) => Some(Float)
   | (Bool, Bool) => Some(Bool)
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
     switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
