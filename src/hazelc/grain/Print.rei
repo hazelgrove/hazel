@@ -1,6 +1,5 @@
 /*
    Print an expression into textual Grain code.
  */
-let print: Module.prog => string;
-
-let print_expr: Expr.expr => string;
+let print: Module.t => string;
+let print_expr: Expr.t => string;
