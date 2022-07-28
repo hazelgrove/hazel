@@ -57,7 +57,9 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn, Just(ty)) => NotInHole(ty)
-  | (Syn, Joined(tys_syn)) =>
+  | (Syn, Joined(tys_syn))
+  | (Ana(Unknown(ModeSwitch)), Joined(tys_syn)) =>
+    //TODO: clarify ModeSwitch case
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(InconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(ty_joined)

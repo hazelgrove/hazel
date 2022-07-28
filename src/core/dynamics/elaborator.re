@@ -64,7 +64,6 @@ let rec dhexp_of_uexp =
     | Int(n) => wrap(IntLit(n))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
-      // TODO: annotated ty should already be incl in map ty; check this
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let* ty1 = pat_htyp(m, p);
