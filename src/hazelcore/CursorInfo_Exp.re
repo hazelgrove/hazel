@@ -977,7 +977,9 @@ and ana_cursor_info_zoperand =
     | Var(NotInHole, NotInVarHole, _)
     | IntLit(NotInHole, _)
     | FloatLit(NotInHole, _)
-    | BoolLit(NotInHole, _) =>
+    | BoolLit(NotInHole, _)
+    // TODO: (poly) Where to put TypApp? AnaSubsumed or Analyzed?
+    | TypApp(NotInHole, _, _) =>
       switch (Statics_Exp.syn_operand(ctx, e)) {
       | None => None
       | Some(ty') =>
@@ -1003,11 +1005,14 @@ and ana_cursor_info_zoperand =
         ctx,
         cursor_term,
       );
-    | TypFun(NotInHole, _tp, _body) =>
-      failwith("How to ana cursor_info on TypFun?")
-    | TypApp(NotInHole, _body, _ty) =>
-      // TODO: (poly) how to check?
-      failwith("How to ana cursor_info on TypApp?")
+    | TypFun(NotInHole, tp, body) =>
+      let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      let+ ty_body = Statics_Exp.syn(body_ctx, body);
+      CursorInfo_common.mk(
+        Analyzed(HTyp.forall(tp, ty_body)),
+        ctx,
+        cursor_term,
+      );
     }
   /* zipper cases */
   | ParenthesizedZ(zbody) =>
@@ -1063,18 +1068,24 @@ and ana_cursor_info_zoperand =
     | Some(body_ctx) =>
       ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given)
     };
-  | TypFunZP(NotInHole, _ztp, _body) =>
-    // TODO: (poly) what to do?
-    failwith("How to get cursor_info for TypFun?")
-  | TypFunZE(NotInHole, _tp, _zbody) =>
-    // TODO: (poly) what to do?
-    failwith("How to get cursor_info for TypFun?")
-  | TypAppZE(NotInHole, _zbody, _ty) =>
-    // TODO: (poly) what to do?
-    failwith("How to get cursor_info for TypApp?")
-  | TypAppZT(NotInHole, _body, _zty) =>
-    // TODO: (poly) what to do?
-    failwith("How to get cursor_info for TypApp?")
+  | TypFunZP(NotInHole, ztp, body) =>
+    let+ defferrable =
+      CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, ztp);
+    switch (defferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredVarPat(_) => failwith("deferred impossible")
+    | CursorOnDeferredTyVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_tyuses(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
+    };
+  | TypFunZE(NotInHole, tp, zbody) =>
+    let* (_tp_given, ty_body_given) = HTyp.matched_forall(ctx, ty);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    ana_cursor_info(~steps=steps @ [1], body_ctx, zbody, ty_body_given);
+  | TypAppZE(NotInHole, zbody, _ty) =>
+    syn_cursor_info(~steps=steps @ [0], ctx, zbody)
+  | TypAppZT(NotInHole, _body, zty) =>
+    CursorInfo_Typ.cursor_info(~steps=steps @ [0], ctx, zty)
   | InjZ(NotInHole, position, zbody) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | None => None
