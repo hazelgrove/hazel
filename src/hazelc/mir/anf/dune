@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name mir)
- (libraries hir label sexplib)
+ (name mir_anf)
+ (libraries sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

@@ -96,7 +96,7 @@ module Monad = {
 open Monad;
 open Monad.Syntax;
 
-let dummy_label = Mir.Label.init;
+let dummy_label = Mir.AnfLabel.init;
 
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;

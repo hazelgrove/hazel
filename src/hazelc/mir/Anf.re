@@ -7,7 +7,7 @@ open Sexplib.Std;
 type completeness = Completeness.t;
 
 [@deriving sexp]
-type label = Label.t;
+type label = AnfLabel.t;
 
 [@deriving sexp]
 type bin_op =

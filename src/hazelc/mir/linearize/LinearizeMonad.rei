@@ -8,7 +8,7 @@ module State: {
 
   let next_tmp_named: (string, t) => (string, t);
 
-  let next_label: t => (Label.t, t);
+  let next_label: t => (AnfLabel.t, t);
 };
 
 include Monads.MONAD with type t('a) = State.t => (State.t, 'a);
@@ -22,4 +22,4 @@ let init: State.t;
 
 let next_tmp: t(string);
 let next_tmp_named: string => t(string);
-let next_label: t(Label.t);
+let next_label: t(AnfLabel.t);
