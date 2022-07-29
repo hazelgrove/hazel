@@ -53,7 +53,14 @@ module Imports = {
       []
       |> add(
            indet,
-           [Ast.imp, AstMk.imp, AstPrint.imp, AstSexp.imp, Std.Map.imp],
+           [
+             Ast.imp,
+             AstMk.imp,
+             AstPrint.imp,
+             AstSexp.imp,
+             Ops.imp,
+             Std.Map.imp,
+           ],
          )
       |> add(sum, [Sum.imp])
       |> add(int32, [Std.Int32.imp])
