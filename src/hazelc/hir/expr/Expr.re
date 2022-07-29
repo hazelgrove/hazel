@@ -73,7 +73,8 @@ and kind =
   | ECons(t, t)
   /* Sum injection */
   | EInj(HTyp.t, InjSide.t, t)
-  /* Immediate tessions; we can deduce the type and indet-ness of these trivially. */
+  /* Immediate expressions */
+  /* FIXME: Remove type. */
   | EBoundVar(HTyp.t, Var.t)
   | EBoolLit(bool)
   | EIntLit(int)
