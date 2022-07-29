@@ -1,5 +1,5 @@
 open Grain;
-open Rt.Hazel.Rt;
+open Rt_grain.Hazel.Rt;
 
 /* Dummy path since we include the lib directory. */
 let here = "." |> Path.v;

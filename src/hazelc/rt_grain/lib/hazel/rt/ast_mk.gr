@@ -1,0 +1,60 @@
+import Ast from "./ast"
+import AstUtil from "./ast_util"
+
+export let mkEmptyHole = (u : Ast.MetaVar, i : Ast.MetaVarInst, sigma : Ast.VarMap<Ast.Ast>) => {
+    AstUtil.astToHazel(Ast.EmptyHole(u, i, sigma))
+}
+
+export let mkBoolLit = (x : Bool) => {
+    AstUtil.astToHazel(Ast.BoolLit(x))
+}
+
+export let mkIntLit = (x : Int32) => {
+    AstUtil.astToHazel(Ast.IntLit(x))
+}
+
+export let mkFloatLit = (x : Float32) => {
+    AstUtil.astToHazel(Ast.FloatLit(x))
+}
+
+export let mkBinBoolOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinBoolOp(op, x, y))
+}
+
+export let mkBinIntOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinIntOp(op, x, y))
+}
+
+export let mkBinFloatOp = (op, x, y) => {
+    let x = AstUtil.hazelToAst(x)
+    let y = AstUtil.hazelToAst(y)
+    AstUtil.astToHazel(Ast.BinFloatOp(op, x, y))
+}
+
+export let convertToBoolLit = (x : AstUtil.Hazel) => {
+    if (AstUtil.isIndet(x)) {
+        x
+    } else {
+        mkBoolLit(AstUtil.hazelToBool(x))
+    }
+}
+
+export let convertToIntLit = (x : AstUtil.Hazel) => {
+    if (AstUtil.isIndet(x)) {
+        x
+    } else {
+        mkIntLit(AstUtil.hazelToInt32(x))
+    }
+}
+
+export let convertToFloatLit = (x : AstUtil.Hazel) => {
+    if (AstUtil.isIndet(x)) {
+        x
+    } else {
+        mkFloatLit(AstUtil.hazelToFloat32(x))
+    }
+}
