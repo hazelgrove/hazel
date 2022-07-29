@@ -1,3 +1,5 @@
+open Hir_expr;
+
 module ExprLabelGen: Label.Gen.S with type label = Expr.Label.t;
 module RuleLabelGen: Label.Gen.S with type label = Expr.RuleLabel.t;
 module PatLabelGen: Label.Gen.S with type label = Pat.Label.t;

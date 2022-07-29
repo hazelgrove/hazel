@@ -1,6 +1,8 @@
+open Hir_expr;
+open Hir_expr.Expr;
+
 open TransformMonad;
 open TransformMonad.Syntax;
-open Expr;
 open HTyp;
 
 type m('a) = TransformMonad.t('a);

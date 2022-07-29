@@ -19,8 +19,8 @@ type opts = {
 
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);
 let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
-let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.expr;
-let linearize: (~opts: opts, Hir.expr) => Mir.Anf.block;
+let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.Expr.expr;
+let linearize: (~opts: opts, Hir.Expr.expr) => Mir.Anf.block;
 let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
 let grainize: (~opts: opts, Mir.Anf.block) => Grain.modl;
 let print: (~opts: opts, Grain.modl) => string;
@@ -46,7 +46,7 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
-  | Transformed(Hir.expr)
+  | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
   | Grainized(Grain.modl)
@@ -98,7 +98,7 @@ let resume_until_elaborated:
   Resume from a given state until Hir.
  */
 let resume_until_transformed:
-  (~opts: opts, state) => result(Hir.expr, next_error);
+  (~opts: opts, state) => result(Hir.Expr.expr, next_error);
 
 /**
   Resume from a given state until Anf.

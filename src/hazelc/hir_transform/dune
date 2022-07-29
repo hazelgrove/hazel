@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name hir)
- (libraries hir_expr hir_transform sexplib)
+ (name hir_transform)
+ (libraries hir_expr sexplib)
  (preprocess
   (pps ppx_sexp_conv)))
