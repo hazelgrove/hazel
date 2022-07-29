@@ -13,4 +13,4 @@ type level =
 [@deriving sexp]
 type opts = {level};
 
-let analyze: (~opts: opts, Anf.prog) => Anf.prog;
+let analyze: (~opts: opts, Mir_anf.prog) => Mir_anf.prog;

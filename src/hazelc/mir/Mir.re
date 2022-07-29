@@ -1,10 +1,4 @@
-module Label_ = Anf.Label_;
-
 module Linearize = Linearize;
 
-module Optimize = Optimize;
-module IndetAnalysis = Optimize.IndetAnalysis;
-
-module Anf = Anf;
-
-let optimize = Optimize.optimize;
+module Anf = Mir_anf;
+module Optimize = Mir_optimize;

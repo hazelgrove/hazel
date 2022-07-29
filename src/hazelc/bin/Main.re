@@ -37,8 +37,8 @@ type error =
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
   let indet_analysis_level =
     switch (optimize) {
-    | 0 => Mir.IndetAnalysis.NoAnalysis
-    | _ => Mir.IndetAnalysis.GlobalAnalysis
+    | 0 => Mir.Optimize.IndetAnalysis.NoAnalysis
+    | _ => Mir.Optimize.IndetAnalysis.GlobalAnalysis
     };
 
   let opts: Compile.opts = {

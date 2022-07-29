@@ -306,7 +306,7 @@
 /* }; */
 /* }; */
 
-let analyze = (prog: Anf.prog): Anf.prog => {
+let analyze = (prog: Mir_anf.prog): Mir_anf.prog => {
   /* let facts = analyze_calls_prog(prog, Facts.init, StmtLoc.init); */
   /* let prog = analyze_fix_prog(prog, facts, StmtLoc.init); */
   prog;
