@@ -1,5 +1,5 @@
 module Label_ = Label;
 
-module Completeness = Completeness;
+module Complete = Complete;
 module Label = AnfLabel;
 include Anf;

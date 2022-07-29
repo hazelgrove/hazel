@@ -248,7 +248,7 @@ and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
 }
 
 and codegen_bin_op =
-    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.completeness)
+    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.complete)
     : t(Grain.expr) => {
   let* e1 = codegen_imm(im1);
   let* e2 = codegen_imm(im2);

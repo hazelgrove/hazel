@@ -4,7 +4,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type completeness = Completeness.t;
+type complete = Complete.t;
 
 [@deriving sexp]
 type label = AnfLabel.t;
@@ -31,7 +31,7 @@ type bin_op =
 [@deriving sexp]
 type pat = {
   pat_kind,
-  pat_complete: completeness,
+  pat_complete: complete,
   pat_label: label,
 }
 
@@ -60,7 +60,7 @@ and constant =
 and imm = {
   imm_kind,
   imm_ty: HTyp.t,
-  imm_complete: completeness,
+  imm_complete: complete,
   imm_label: label,
 }
 
@@ -73,7 +73,7 @@ and imm_kind =
 and comp = {
   comp_kind,
   comp_ty: HTyp.t,
-  comp_complete: completeness,
+  comp_complete: complete,
   comp_label: label,
 }
 
@@ -106,14 +106,14 @@ and inj_side =
 and rule = {
   rule_pat: pat,
   rule_branch: block,
-  rule_complete: completeness,
+  rule_complete: complete,
   rule_label: label,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_complete: completeness,
+  stmt_complete: complete,
   stmt_label: label,
 }
 
@@ -126,6 +126,6 @@ and stmt_kind =
 and block = {
   block_body: (list(stmt), imm),
   block_ty: HTyp.t,
-  block_complete: completeness,
+  block_complete: complete,
   block_label: label,
 };
