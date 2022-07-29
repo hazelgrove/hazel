@@ -15,6 +15,8 @@ let t_of_sexp = sexp =>
 let to_string = Fpath.to_string;
 
 let of_fpath = Fpath.normalize;
+let to_fpath = path => path;
+
 let v = str => str |> Fpath.v |> of_fpath;
 let of_string = str =>
   str

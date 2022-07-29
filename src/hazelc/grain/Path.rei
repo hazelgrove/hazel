@@ -1,6 +1,9 @@
 [@deriving sexp]
 type t;
 
+let of_fpath: Fpath.t => t;
+let to_fpath: t => Fpath.t;
+
 let v: string => t;
 let to_string: t => string;
 let of_string: string => result(t, string);
