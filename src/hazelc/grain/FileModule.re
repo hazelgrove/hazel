@@ -1,11 +1,14 @@
 let import = (path, ~name, ~from) => {
-  let path =
-    path
-    |> Path.relativize(~root=from)
-    |> Option.value(~default=path)
-    |> ImportPath.of_path;
+  let (path_dir, path_base) = Path.split_base(path);
+  let (from_dir, _) = Path.split_base(from);
 
-  Import.mk(name, path);
+  let dir =
+    path_dir
+    |> Path.relativize(~root=from_dir)
+    |> Option.value(~default=path_dir);
+  let path = Path.append(dir, path_base);
+
+  Import.mk(name, path |> ImportPath.of_path);
 };
 
 module Full = {
