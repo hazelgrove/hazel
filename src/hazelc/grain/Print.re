@@ -42,8 +42,8 @@ and print_decls = (decls: list(Decl.t)) =>
 
 and print_decl = (decl: Decl.t) =>
   switch (decl) {
-  | DEnum(en) => en |> print_enum
-  | DStmt(stmt) => stmt |> print_stmt
+  | DEnum(ex, en) => en |> print_enum(ex)
+  | DStmt(ex, stmt) => stmt |> print_decl_stmt(ex)
   | DImport(imp) => imp |> print_import
   }
 
@@ -58,7 +58,7 @@ and print_import_path = (path: ImportPath.t) =>
 
 and print_path = (path: Path.t) => path |> Path.to_string
 
-and print_enum = ({name, type_vars, variants}: Enum.t) => {
+and print_enum = (ex: Decl.export, {name, type_vars, variants}: Enum.t) => {
   let name = name |> print_ident;
   let type_idents =
     List.length(type_vars) == 0
@@ -82,8 +82,29 @@ and print_enum = ({name, type_vars, variants}: Enum.t) => {
        })
     |> print_comma_sep;
 
-  sprintf("enum %s%s { %s }", name, type_idents, variants);
+  let ex =
+    ex
+    |> print_export
+    |> Option.map(s => s ++ " ")
+    |> Option.value(~default="");
+  sprintf("%senum %s%s { %s }", ex, name, type_idents, variants);
 }
+
+and print_decl_stmt = (ex: Decl.export, stmt: Expr.stmt) => {
+  let ex =
+    ex
+    |> print_export
+    |> Option.map(s => s ++ " ")
+    |> Option.value(~default="");
+  let stmt = stmt |> print_stmt;
+  sprintf("%s%s", ex, stmt);
+}
+
+and print_export = (ex: Decl.export) =>
+  switch (ex) {
+  | ExPublic => Some("export")
+  | ExPrivate => None
+  }
 
 and print_expr = (e: Expr.t) =>
   switch (e) {

@@ -1,5 +1,10 @@
 [@deriving sexp]
+type export =
+  | ExPublic
+  | ExPrivate;
+
+[@deriving sexp]
 type t =
-  | DEnum(Enum.t)
-  | DStmt(Expr.stmt)
+  | DEnum(export, Enum.t)
+  | DStmt(export, Expr.stmt)
   | DImport(Import.t);
