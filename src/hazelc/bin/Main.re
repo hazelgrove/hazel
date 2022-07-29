@@ -26,7 +26,7 @@ let prefix = "hazelc";
 let default_optimize = 1;
 
 /* Default std path, via dune-site. */
-let default_std = Hazelcrt_files.Sites.lib |> List.hd;
+let default_std = Rt_grain_files.location;
 
 [@deriving sexp]
 type error =

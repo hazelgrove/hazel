@@ -1,5 +1,4 @@
 open Hazelc;
-module GrainCli = Grain.Cli;
 
 [@deriving sexp]
 type profile =
@@ -9,7 +8,7 @@ type profile =
 module Compile = {
   let temp_prefix = "hazelc_test";
 
-  let std = Hazelcrt_files.Sites.lib |> List.hd;
+  let std = Rt_grain_files.location;
 
   let mk_opts = profile => {
     switch (profile) {
@@ -91,10 +90,10 @@ module Compile = {
     let (_opts, wasm_opts) = mk_opts(profile);
 
     let cmd =
-      GrainCli.Run.(
-        GrainCli.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
+      Grain.Cli.Run.(
+        Grain.Cli.make(~grain=wasm_opts.grain) |> make(~modl) |> to_command
       );
-    switch (cmd |> GrainCli.execute(~capture_stdout=true)) {
+    switch (cmd |> Grain.Cli.execute(~capture_stdout=true)) {
     | {stdout: output, status: Ok(_)} => output |> String.trim
     | {stdout: _, status: Error(_)} => failwith("execution failed")
     };
