@@ -5,7 +5,7 @@ open Grain.Ident;
 open Grain.Expr;
 open Grain.Pat;
 
-open RtModules;
+open GrainRt;
 
 [@deriving sexp]
 type opts = {print_final_expr: bool};
