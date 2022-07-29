@@ -31,14 +31,16 @@ let gen_ = (outdir, fmodl) => {
     );
 
   /* Format the file. */
+  let grain = Grain.Cli.make(~grain="grain");
   let _ =
     Grain.Cli.Format.(
-      Grain.Cli.make(~grain="grain")
+      grain
       |> make(~source=path)
       |> with_output(path)
       |> to_command
       |> Grain.Cli.execute(~capture_stdout=false)
     );
+
   ();
 };
 
