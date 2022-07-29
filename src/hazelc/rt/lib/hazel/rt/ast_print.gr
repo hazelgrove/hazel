@@ -1,14 +1,17 @@
 import Ast from "./ast"
-import AstUtil from "./ast_util"
 import AstSexp from "./ast_sexp"
+import MaybeIndet from "./maybe_indet"
 
 import Sexp from "../../sexplib/sexp"
 
-export let print = v => 
-  if (AstUtil.isIndet(v)) {
-    let ast = AstUtil.hazelToAst(v)
-    print(Sexp.toString(AstSexp.sexpOfAst(ast)))
-  } else {
-    print(v)
+export let print_p = v => print(v)
+export let print_i = e => {
+  let sexp = AstSexp.sexpOfAst(e)
+  let str = Sexp.toString(sexp)
+  print(str)
+}
+export let print_m = m =>
+  match (m) {
+    MaybeIndet.Value(v) => print_p(v),
+    MaybeIndet.Indet(e) => print_i(e),
   }
-

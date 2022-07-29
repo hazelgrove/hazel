@@ -3,9 +3,9 @@ import List from "list"
 import Ast from "./ast"
 
 import Sexp from "../../sexplib/sexp"
-import * from "../../sexplib/sexpconv"
+import SexpConv from "../../sexplib/sexpconv"
 
-export let sexpOfVar = sexpOfString
+export let sexpOfVar = SexpConv.sexpOfString
 
 export let sexpOfHoleReason = reason =>
   match (reason) {
@@ -13,8 +13,8 @@ export let sexpOfHoleReason = reason =>
     Ast.WrongLength => Sexp.Atom("WrongLength"),
   }
 
-export let sexpOfMetaVar = sexpOfNumber
-export let sexpOfMetaVarInst = sexpOfNumber
+export let sexpOfMetaVar = SexpConv.sexpOfNumber
+export let sexpOfMetaVarInst = SexpConv.sexpOfNumber
 
 export let rec sexpOfHTyp = t =>
   match (t) {
@@ -62,9 +62,9 @@ export let rec sexpOfAst = ast =>
       Sexp.List(
         [
           Sexp.Atom("EmptyHole"),
-          sexpOfNumber(u),
-          sexpOfNumber(i),
-          sexpOfMap(sexpOfVar, sexpOfAst, sigma),
+          sexpOfMetaVar(u),
+          sexpOfMetaVarInst(i),
+          sexpOfHoleEnvironment(sigma),
         ]
       ),
     Ast.NonEmptyHole(reason, u, i, sigma, ast) =>
@@ -74,7 +74,7 @@ export let rec sexpOfAst = ast =>
           sexpOfHoleReason(reason),
           sexpOfMetaVar(u),
           sexpOfMetaVarInst(i),
-          sexpOfMap(sexpOfVar, sexpOfAst, sigma),
+          sexpOfHoleEnvironment(sigma),
           sexpOfAst(ast),
         ]
       ),
@@ -83,9 +83,9 @@ export let rec sexpOfAst = ast =>
     Ast.FailedCast(ast, t1, t2) =>
       Sexp.List([Sexp.Atom("FailedCast"), sexpOfAst(ast), sexpOfHTyp(t1), sexpOfHTyp(t2)]),
     Ast.Ap(fn, arg) => Sexp.List([Sexp.Atom("Ap"), sexpOfAst(fn), sexpOfAst(arg)]),
-    Ast.BoolLit(b) => Sexp.List([Sexp.Atom("BoolLit"), sexpOfBool(b)]),
-    Ast.IntLit(b) => Sexp.List([Sexp.Atom("IntLit"), sexpOfNumber(b)]),
-    Ast.FloatLit(b) => Sexp.List([Sexp.Atom("FloatLit"), sexpOfFloat(b)]),
+    Ast.BoolLit(b) => Sexp.List([Sexp.Atom("BoolLit"), SexpConv.sexpOfBool(b)]),
+    Ast.IntLit(b) => Sexp.List([Sexp.Atom("IntLit"), SexpConv.sexpOfNumber(b)]),
+    Ast.FloatLit(b) => Sexp.List([Sexp.Atom("FloatLit"), SexpConv.sexpOfFloat(b)]),
     Ast.BinBoolOp(op, ast1, ast2) =>
       Sexp.List(
         [Sexp.Atom("BinBoolOp"), sexpOfBinBoolOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
@@ -98,4 +98,5 @@ export let rec sexpOfAst = ast =>
       Sexp.List(
         [Sexp.Atom("BinFloatOp"), sexpOfBinFloatOp(op), sexpOfAst(ast1), sexpOfAst(ast2)]
       ),
-  }
+  }, 
+sexpOfHoleEnvironment = sigma => SexpConv.sexpOfMap(sexpOfVar, sexpOfAst, sigma)

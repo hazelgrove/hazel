@@ -22,8 +22,8 @@ let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
 let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.expr;
 let linearize: (~opts: opts, Hir.expr) => Mir.Anf.block;
 let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
-let grainize: (~opts: opts, Mir.Anf.block) => Grain.prog;
-let print: (~opts: opts, Grain.prog) => string;
+let grainize: (~opts: opts, Mir.Anf.block) => Grain.modl;
+let print: (~opts: opts, Grain.modl) => string;
 
 [@deriving sexp]
 type wasm_opts = {
@@ -49,7 +49,7 @@ type state =
   | Transformed(Hir.expr)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
-  | Grainized(Grain.prog)
+  | Grainized(Grain.modl)
   | Printed(string);
 
 /**
@@ -116,7 +116,7 @@ let resume_until_optimized:
   Resume from a given state until Grain IR.
  */
 let resume_until_grainized:
-  (~opts: opts, state) => result(Grain.prog, next_error);
+  (~opts: opts, state) => result(Grain.modl, next_error);
 
 /**
   Resume from a given state until textual Grain.

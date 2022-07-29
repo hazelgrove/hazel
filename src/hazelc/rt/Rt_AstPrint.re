@@ -1,18 +1,21 @@
 /**
   "ast_print.gr", handwritten.
  */
-open Rt_.WithoutImpl({
-       let name = "AstPrint";
-       let path = "ast_print";
+open Grain;
+open Grain.Ident;
+open Rt_.Stub({
+       let path = "./ast_print" |> Path.v;
      });
-/**
-  Import statement.
- */
-let import = import;
 
 /**
   Implementation module.
  */
-let impl_md = impl_md;
+let impl = impl;
 
-let print = ap1("print");
+module Use = (I: Make.I) => {
+  include Use(I);
+
+  let imp = imp;
+
+  let print = ap1(v("print"));
+};

@@ -1,8 +1,8 @@
-import { Ast } from "./ast"
+import Ast from "./ast"
 
 export enum MaybeIndet<t> {
   Value(t),
-  Indet(Ast),
+  Indet(Ast.Ast),
 }
 
 export let is_value = m =>

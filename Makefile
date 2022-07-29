@@ -13,6 +13,7 @@ dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 	dune build @install
+	dune exec src/hazelc/rt/gen/main.exe
 
 watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
@@ -20,6 +21,7 @@ watch:
 release:
 	dune build src --profile release
 	dune build @install
+	dune exec src/hazelc/rt/gen/main.exe
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"

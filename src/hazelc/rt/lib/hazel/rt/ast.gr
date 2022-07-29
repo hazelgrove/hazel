@@ -5,7 +5,6 @@ export type VarMap<v> = Map.Map<Var, v>
 
 export type MetaVar = Int32
 export type MetaVarInst = Int32
-export type HoleEnvironment = VarMap<Ast>
 
 export enum HoleReason {
   TypeInconsistent,
@@ -60,4 +59,6 @@ export enum Ast {
   BinBoolOp(BinBoolOp, Ast, Ast),
   BinIntOp(BinIntOp, Ast, Ast),
   BinFloatOp(BinFloatOp, Ast, Ast),
-}
+},
+
+export type HoleEnvironment = VarMap<Ast>

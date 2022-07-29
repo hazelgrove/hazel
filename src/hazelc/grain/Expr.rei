@@ -1,7 +1,4 @@
 [@deriving sexp]
-type ident = string;
-
-[@deriving sexp]
 type bin_op =
   | OpAnd
   | OpOr
@@ -9,32 +6,10 @@ type bin_op =
   | OpNotEquals;
 
 [@deriving sexp]
-type params = list(pat)
+type params = list(Pat.t);
 
 [@deriving sexp]
-and pat =
-  | PWild
-  | PVar(ident)
-  | PInt(int)
-  | PFloat(float)
-  | PBool(bool)
-  | PNil
-  | PCons(pat, pat)
-  | PTuple(list(pat))
-  | PTriv
-  | PCtor(ident, params)
-
-[@deriving sexp]
-and block = list(stmt)
-
-[@deriving sexp]
-and stmt =
-  | SLet(pat, expr)
-  | SLetRec(pat, expr)
-  | SExpr(expr)
-
-[@deriving sexp]
-and expr =
+type t =
   | EBoolLit(bool)
   | EInt32Lit(int)
   | EInt64Lit(int)
@@ -42,30 +17,34 @@ and expr =
   | EFloat64Lit(float)
   | ECharLit(char)
   | EStringLit(string)
-  | EBinOp(bin_op, expr, expr)
-  | EList(list(expr))
+  | EBinOp(bin_op, t, t)
+  | EList(list(t))
   | ETriv
-  | ECons(expr, expr)
-  | ETuple(list(expr))
-  | EVar(ident)
-  | ELam(params, expr)
-  | EAp(expr, args)
-  | ECtor(ident, args)
-  | EMatch(expr, list(rule))
+  | ECons(t, t)
+  | ETuple(list(t))
+  | EVar(Ident.t)
+  | ELam(params, t)
+  | EAp(t, args)
+  | ECtor(Ident.t, args)
+  | EMatch(t, list(rule))
   | EBlock(block)
 
 [@deriving sexp]
-and args = list(expr)
+and args = list(t)
 
 [@deriving sexp]
 and rule =
-  | RRule(pat, expr);
+  | RRule(Pat.t, t)
 
-module Block: {let join: list(block) => block;};
+[@deriving sexp]
+and block = list(stmt)
 
-let var: ident => expr;
-let ap: (expr, args) => expr;
-let ctor: (ident, args) => expr;
+[@deriving sexp]
+and stmt =
+  | SLet(Pat.t, t)
+  | SLetRec(Pat.t, t)
+  | SExpr(t);
 
-let pvar: ident => pat;
-let pctor: (ident, params) => pat;
+let var: Ident.t => t;
+let ap: (t, args) => t;
+let ctor: (Ident.t, args) => t;

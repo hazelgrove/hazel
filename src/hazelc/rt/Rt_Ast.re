@@ -1,133 +1,136 @@
 /**
   "hazel/rt/ast.gr", handwritten.
  */
-open Rt_.WithoutImpl({
-       let name = "Ast";
-       let path = "ast";
+open Grain;
+open Grain.Ident;
+open Rt_.Stub({
+       let path = "./ast" |> Path.v;
      });
-/**
-  Import statement.
- */
-let import = import;
 
 /**
   Implementation module.
  */
-let impl_md = impl_md;
+let impl = impl;
 
-/**
-  [Var] type.
- */
-module Var = {
-  let ty = ident("Var");
-};
+module Use = (I: Make.I) => {
+  open Use(I);
 
-/**
-  [MetaVar] type.
- */
-module MetaVar = {
-  let ty = ident("MetaVar");
-};
+  let imp = imp;
 
-/**
-  [MetaVarInst] type.
- */
-module MetaVarInst = {
-  let ty = ident("MetaVarInst");
-};
+  /**
+    [Var] type.
+   */
+  module Var = {
+    let ty = ident(v("Var"));
+  };
 
-/**
-  [HoleEnvironment] type.
- */
-module HoleEnvironment = {
-  let ty = ident("HoleEnvironment");
-};
+  /**
+    [MetaVar] type.
+   */
+  module MetaVar = {
+    let ty = ident(v("MetaVar"));
+  };
 
-/**
-  [HoleReason] type.
- */
-module HoleReason = {
-  let ty = ident("HoleReason");
+  /**
+    [MetaVarInst] type.
+   */
+  module MetaVarInst = {
+    let ty = ident(v("MetaVarInst"));
+  };
 
-  let type_inconsistent = ctor0("TypeInconsistent");
-  let wrong_length = ctor0("WrongLength");
-};
+  /**
+    [HoleEnvironment] type.
+   */
+  module HoleEnvironment = {
+    let ty = ident(v("HoleEnvironment"));
+  };
 
-/**
-  [HTyp] type.
- */
-module HTyp = {
-  let ty = ident("HTyp");
+  /**
+    [HoleReason] type.
+   */
+  module HoleReason = {
+    let ty = ident(v("HoleReason"));
 
-  let hole = ctor0("Hole");
-  let int = ctor0("Int");
-  let float = ctor0("Float");
-  let bool = ctor0("Bool");
-  let arrow = (t1, t2) => ctor2("Arrow", t1, t2);
-  let sum = (t1, t2) => ctor2("Sum", t1, t2);
-  let prod = ts => ctor("Prod", ts);
-  let list = t => ctor1("List", t);
-};
+    let type_inconsistent = ctor0(v("TypeInconsistent"));
+    let wrong_length = ctor0(v("WrongLength"));
+  };
 
-/**
-  [BinBoolOp] type.
- */
-module BinBoolOp = {
-  let ty = ident("BinBoolOp");
+  /**
+    [HTyp] type.
+   */
+  module HTyp = {
+    let ty = ident(v("HTyp"));
 
-  let and_ = ctor0("And");
-  let or_ = ctor0("Or");
-};
+    let hole = ctor0(v("Hole"));
+    let int = ctor0(v("Int"));
+    let float = ctor0(v("Float"));
+    let bool = ctor0(v("Bool"));
+    let arrow = (t1, t2) => ctor2(v("Arrow"), t1, t2);
+    let sum = (t1, t2) => ctor2(v("Sum"), t1, t2);
+    let prod = ts => ctor(v("Prod"), ts);
+    let list = t => ctor1(v("List"), t);
+  };
 
-/**
-  [BinIntOp] type.
- */
-module BinIntOp = {
-  let ty = ident("BinIntOp");
+  /**
+    [BinBoolOp] type.
+   */
+  module BinBoolOp = {
+    let ty = ident(v("BinBoolOp"));
 
-  let minus = ctor0("Minus");
-  let plus = ctor0("Plus");
-  let times = ctor0("Times");
-  let divide = ctor0("Divide");
-  let less_than = ctor0("LessThan");
-  let greater_than = ctor0("GreaterThan");
-  let equals = ctor0("Equals");
-};
+    let and_ = ctor0(v("And"));
+    let or_ = ctor0(v("Or"));
+  };
 
-/**
-  [BinFloatOp] type.
- */
-module BinFloatOp = {
-  let ty = ident("BinFloatOp");
+  /**
+    [BinIntOp] type.
+   */
+  module BinIntOp = {
+    let ty = ident(v("BinIntOp"));
 
-  let minus = ctor0("FMinus");
-  let plus = ctor0("FPlus");
-  let times = ctor0("FTimes");
-  let divide = ctor0("FDivide");
-  let less_than = ctor0("FLessThan");
-  let greater_than = ctor0("FGreaterThan");
-  let equals = ctor0("FEquals");
-};
+    let minus = ctor0(v("Minus"));
+    let plus = ctor0(v("Plus"));
+    let times = ctor0(v("Times"));
+    let divide = ctor0(v("Divide"));
+    let less_than = ctor0(v("LessThan"));
+    let greater_than = ctor0(v("GreaterThan"));
+    let equals = ctor0(v("Equals"));
+  };
 
-/**
-  [Ast] type.
- */
-module Ast = {
-  let ty = ident("Ast");
+  /**
+    [BinFloatOp] type.
+   */
+  module BinFloatOp = {
+    let ty = ident(v("BinFloatOp"));
 
-  let empty_hole = ctor3("EmptyHole");
-  let non_empty_hole = ctor5("NonEmptyHole");
+    let minus = ctor0(v("FMinus"));
+    let plus = ctor0(v("FPlus"));
+    let times = ctor0(v("FTimes"));
+    let divide = ctor0(v("FDivide"));
+    let less_than = ctor0(v("FLessThan"));
+    let greater_than = ctor0(v("FGreaterThan"));
+    let equals = ctor0(v("FEquals"));
+  };
 
-  let cast = ctor3("Cast");
-  let failed_cast = ctor3("FailedCast");
+  /**
+    [Ast] type.
+   */
+  module Ast = {
+    let ty = ident(v("Ast"));
 
-  let ap = ctor2("Ap");
+    let empty_hole = ctor3(v("EmptyHole"));
+    let non_empty_hole = ctor5(v("NonEmptyHole"));
 
-  let bool_lit = ctor1("BoolLit");
-  let int_lit = ctor1("IntLit");
-  let float_lit = ctor1("FloatLit");
+    let cast = ctor3(v("Cast"));
+    let failed_cast = ctor3(v("FailedCast"));
 
-  let bin_bool_op = ctor3("BinBoolOp");
-  let bin_int_op = ctor3("BinIntOp");
-  let bin_float_op = ctor3("BinFloatOp");
+    let ap = ctor2(v("Ap"));
+
+    let bool_lit = ctor1(v("BoolLit"));
+    let int_lit = ctor1(v("IntLit"));
+    let float_lit = ctor1(v("FloatLit"));
+
+    let bin_bool_op = ctor3(v("BinBoolOp"));
+    let bin_int_op = ctor3(v("BinIntOp"));
+    let bin_float_op = ctor3(v("BinFloatOp"));
+  };
 };

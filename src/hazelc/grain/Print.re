@@ -23,103 +23,101 @@ module Consts = {
 
 /* Some utilities for printing things. */
 let print_infix = (o1, op, o2) => sprintf("%s %s %s", o1, op, o2);
-let print_surround = (s1, o, s2) => sprintf("%s%s%s", s1, o, s2);
 let print_lines = ss => ss |> String.concat("\n");
 let print_sep = (delim, ss) => ss |> String.concat(delim);
 let print_comma_sep = print_sep(", ");
 
-let rec print = ((tb, b): Module.prog) => {
-  let tb = print_top_block(tb);
-  let b = print_block_nowrap(b);
-  if (tb != "") {
-    [tb, "", b] |> print_lines;
+let rec print = ((decls, b): Module.t) => {
+  let decls = decls |> print_decls;
+  let b = b |> print_block_unwrapped;
+  if (decls != "") {
+    [decls, "", b] |> print_lines;
   } else {
     [b] |> print_lines;
   };
 }
 
-and print_top_block = (tb: Module.top_block) => {
-  tb |> List.map(print_top_statement) |> print_lines;
-}
+and print_decls = (decls: list(Decl.t)) =>
+  decls |> List.map(print_decl) |> print_lines
 
-and print_top_statement = (tstmt: Module.top_stmt) =>
-  switch (tstmt) {
-  | TImport(import) => print_import(import)
-  | TDecl(decl) => print_decl(decl)
+and print_decl = (decl: Decl.t) =>
+  switch (decl) {
+  | DEnum(ex, en) => en |> print_enum(ex)
+  | DStmt(ex, stmt) => stmt |> print_decl_stmt(ex)
+  | DImport(imp) => imp |> print_import
   }
 
-and print_import = ((name, path): Module.import) => {
-  let path =
-    switch (path) {
-    | ImportStd(path) => path
-    // TODO: Pass lib base path as argument.
-    /* FIXME: Use Filename.concat. */
-    | ImportRel(path) => sprintf("./%s", path)
-    };
+and print_import = (imp: Import.t) => {
+  let name = imp |> Import.name |> print_ident;
+  let path = imp |> Import.path |> print_import_path;
   sprintf("import %s from \"%s\"", name, path);
 }
 
-and print_decl = (decl: Module.decl) =>
-  switch (decl) {
-  | DEnum(en) => print_enum(en)
-  | DStmt(stmt) => print_stmt(stmt)
-  }
+and print_import_path = (path: ImportPath.t) =>
+  path |> ImportPath.to_path |> print_path
 
-and print_enum = ({name, type_vars, variants}: Module.enum) => {
+and print_path = (path: Path.t) => path |> Path.to_string
+
+and print_enum = (ex: Decl.export, {name, type_vars, variants}: Enum.t) => {
+  let name = name |> print_ident;
   let type_idents =
     List.length(type_vars) == 0
-      ? "" : type_vars |> print_comma_sep |> sprintf("<%s>");
-  let identiants =
+      ? ""
+      : type_vars
+        |> List.map(print_ident)
+        |> print_comma_sep
+        |> sprintf("<%s>");
+  let variants =
     variants
-    |> List.map((identiant: Module.enum_variant) =>
-         if (List.length(identiant.params) == 0) {
-           identiant.ctor;
+    |> List.map(({ctor, params}: Enum.variant) => {
+         let ctor = ctor |> print_ident;
+         if (List.length(params) == 0) {
+           ctor;
          } else {
-           identiant.params
+           params
+           |> List.map(print_ident)
            |> print_comma_sep
-           |> sprintf("%s(%s)", identiant.ctor);
-         }
-       )
+           |> sprintf("%s(%s)", ctor);
+         };
+       })
     |> print_comma_sep;
 
-  sprintf("enum %s%s { %s }", name, type_idents, identiants);
+  let ex =
+    ex
+    |> print_export
+    |> Option.map(s => s ++ " ")
+    |> Option.value(~default="");
+  sprintf("%senum %s%s { %s }", ex, name, type_idents, variants);
 }
 
-and print_block_nowrap = (b: Expr.block) => {
-  b |> List.map(print_stmt) |> print_lines;
-}
-and print_block = (b: Expr.block) => {
-  let s = print_block_nowrap(b);
-  sprintf("{ %s }", s);
+and print_decl_stmt = (ex: Decl.export, stmt: Expr.stmt) => {
+  let ex =
+    ex
+    |> print_export
+    |> Option.map(s => s ++ " ")
+    |> Option.value(~default="");
+  let stmt = stmt |> print_stmt;
+  sprintf("%s%s", ex, stmt);
 }
 
-and print_stmt = (stmt: Expr.stmt) =>
-  switch (stmt) {
-  | SLet(p, e) =>
-    let p = print_pat(p);
-    let e = print_expr(e);
-    sprintf("let %s = %s", p, e);
-  | SLetRec(p, e) =>
-    let p = print_pat(p);
-    let e = print_expr(e);
-    sprintf("let rec %s = %s", p, e);
-  | SExpr(e) => print_expr(e)
+and print_export = (ex: Decl.export) =>
+  switch (ex) {
+  | ExPublic => Some("export")
+  | ExPrivate => None
   }
 
-and print_expr = (e: Expr.expr) =>
+and print_expr = (e: Expr.t) =>
   switch (e) {
-  | EBoolLit(b) => b ? Consts.truelit : Consts.falselit
-  | EInt32Lit(n) => string_of_int(n) ++ "l"
-  | EInt64Lit(n) => string_of_int(n) ++ "L"
-  // TODO: NaN?
-  | EFloat32Lit(f) => string_of_float(f) ++ "f"
-  | EFloat64Lit(f) => string_of_float(f) ++ "d"
-  | ECharLit(c) => print_char(c)
-  | EStringLit(s) => print_string(s)
+  | EBoolLit(b) => print_bool_lit(b)
+  | EInt32Lit(n) => print_int32_lit(n)
+  | EInt64Lit(n) => print_int64_lit(n)
+  | EFloat32Lit(f) => print_float32_lit(f)
+  | EFloat64Lit(f) => print_float64_lit(f)
+  | ECharLit(c) => print_char_lit(c)
+  | EStringLit(s) => print_string_lit(s)
   | EBinOp(op, e1, e2) => print_bin_op(op, e1, e2)
   | EList(es) =>
-    let es = es |> List.map(print_expr) |> String.concat(", ");
-    sprintf("[%s]", es);
+    es |> List.map(print_expr) |> String.concat(", ") |> sprintf("[%s]")
   | ETriv => Consts.voidlit
   | ECons(e1, e2) => print_cons(e1, e2)
   | ETuple(els) => print_tuple(els)
@@ -128,17 +126,41 @@ and print_expr = (e: Expr.expr) =>
   | EAp(fn, args) => print_ap(fn, args)
   | ECtor(ctor, args) => print_ctor(ctor, args)
   | EMatch(scrut, rules) => print_match(scrut, rules)
-  | EBlock(b) => print_block(b)
+  | EBlock(b) => print_block_wrapped(b)
   }
 
-and print_char = (c: char) => print_surround("'", String.make(1, c), "'")
+and print_block_unwrapped = (b: Expr.block) =>
+  b |> List.map(print_stmt) |> print_lines
 
-and print_string = (s: string) => print_surround("\"", s, "\"")
+and print_block_wrapped = (b: Expr.block) =>
+  b |> print_block_unwrapped |> sprintf("{ %s }")
+
+and print_stmt = (stmt: Expr.stmt) =>
+  switch (stmt) {
+  | SLet(p, e) =>
+    let p = p |> print_pat;
+    let e = e |> print_expr;
+    sprintf("let %s = %s", p, e);
+  | SLetRec(p, e) =>
+    let p = p |> print_pat;
+    let e = e |> print_expr;
+    sprintf("let rec %s = %s", p, e);
+  | SExpr(e) => e |> print_expr
+  }
+
+and print_bool_lit = (b: bool) => b ? Consts.truelit : Consts.falselit
+and print_int32_lit = (n: int) => string_of_int(n) ++ "l"
+and print_int64_lit = (n: int) => string_of_int(n) ++ "L"
+/* TODO: NaN? */
+and print_float32_lit = (f: float) => string_of_float(f) ++ "f"
+and print_float64_lit = (f: float) => string_of_float(f) ++ "d"
+and print_char_lit = (c: char) => sprintf("'%c'", c)
+and print_string_lit = (s: string) => sprintf("\"%s\"", s)
 
 and print_args = (args: Expr.args) =>
   args |> List.map(print_expr) |> print_comma_sep
 
-and print_bin_op = (op: Expr.bin_op, e1: Expr.expr, e2: Expr.expr) =>
+and print_bin_op = (op: Expr.bin_op, e1: Expr.t, e2: Expr.t) =>
   switch (op) {
   | OpAnd => print_infix(print_expr(e1), Consts.prim_and_op, print_expr(e2))
   | OpOr => print_infix(print_expr(e1), Consts.prim_or_op, print_expr(e2))
@@ -149,58 +171,56 @@ and print_bin_op = (op: Expr.bin_op, e1: Expr.expr, e2: Expr.expr) =>
     print_infix(print_expr(e1), Consts.prim_not_equals_op, print_expr(e2))
   }
 
-and print_cons = (e1: Expr.expr, e2: Expr.expr) => {
-  let e1 = print_expr(e1);
-  let e2 = print_expr(e2);
+and print_cons = (e1: Expr.t, e2: Expr.t) => {
+  let e1 = e1 |> print_expr;
+  let e2 = e2 |> print_expr;
   sprintf("[%s, ...%s]", e1, e2);
 }
 
-and print_tuple = (els: list(Expr.expr)) => {
-  let els = els |> List.map(print_expr) |> print_comma_sep;
-  sprintf("(%s)", els);
+and print_tuple = (els: list(Expr.t)) =>
+  els |> List.map(print_expr) |> print_comma_sep |> sprintf("(%s)")
+
+and print_ident = (ident: Ident.t) => ident |> Ident.to_string
+
+and print_fn = (params: Expr.params, e': Expr.t) => {
+  let params = params |> print_params;
+  let e' = e' |> print_expr;
+  sprintf("((%s) => { %s })", params, e');
 }
 
-and print_ident = (ident: Expr.ident) => ident
-and print_params = (ps: Expr.params) =>
-  ps |> List.map(print_pat) |> String.concat(", ")
-
-and print_fn = (params: Expr.params, e': Expr.expr) => {
-  let params = print_params(params);
-  let e' = print_expr(e');
-  sprintf("(%s) => { %s }", params, e');
-}
-
-and print_ap = (fn: Expr.expr, args: Expr.args) => {
-  let fn = print_expr(fn);
-  let args = print_args(args);
+and print_ap = (fn: Expr.t, args: Expr.args) => {
+  let fn = fn |> print_expr;
+  let args = args |> print_args;
   sprintf("%s(%s)", fn, args);
 }
 
-and print_ctor = (ctor: Expr.ident, args: Expr.args) => {
-  let ctor = print_ident(ctor);
-  let args = print_args(args);
+and print_ctor = (ctor: Ident.t, args: Expr.args) => {
+  let ctor = ctor |> print_ident;
+  let args = args |> print_args;
   sprintf("%s(%s)", ctor, args);
 }
 
-and print_match = (scrut: Expr.expr, rules: list(Expr.rule)) => {
-  let scrut = print_expr(scrut);
+and print_match = (scrut: Expr.t, rules: list(Expr.rule)) => {
+  let scrut = scrut |> print_expr;
   let rules = rules |> List.map(print_rule) |> print_comma_sep;
   sprintf("match (%s) { %s }", scrut, rules);
 }
-and print_rule = (rule: Expr.rule) => {
+and print_rule = (rule: Expr.rule) =>
   switch (rule) {
   | RRule(p, rhs) =>
-    let p = print_pat(p);
-    let rhs = print_expr(rhs);
+    let p = p |> print_pat;
+    let rhs = rhs |> print_expr;
     sprintf("%s => %s", p, rhs);
-  };
-}
+  }
 
-and print_pat = (p: Expr.pat) => {
+and print_params = (ps: Expr.params) =>
+  ps |> List.map(print_pat) |> String.concat(", ")
+
+and print_pat = (p: Pat.t) => {
   switch (p) {
   | PWild => Consts.pat_wild
   // TODO: Check if ident conflicts with a keyword?
-  | PVar(ident) => ident
+  | PVar(ident) => ident |> print_ident
   | PInt(i) => string_of_int(i)
   | PFloat(f) => string_of_float(f)
   | PBool(b) => string_of_bool(b)
@@ -208,13 +228,13 @@ and print_pat = (p: Expr.pat) => {
   | PTriv => Consts.pat_triv
   // TODO: Optimize this?
   | PCons(p1, p2) =>
-    let p1 = print_pat(p1);
-    let p2 = print_pat(p2);
+    let p1 = p1 |> print_pat;
+    let p2 = p2 |> print_pat;
     sprintf("[%s, ...%s]", p1, p2);
   | PTuple(ps) =>
-    let ps = ps |> List.map(print_pat) |> print_comma_sep;
-    sprintf("(%s)", ps);
+    ps |> List.map(print_pat) |> print_comma_sep |> sprintf("(%s)")
   | PCtor(ctor, ps) =>
+    let ctor = ctor |> print_ident;
     let ps = ps |> List.map(print_pat) |> print_comma_sep;
     sprintf("%s(%s)", ctor, ps);
   };

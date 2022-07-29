@@ -1,13 +1,11 @@
-let here_path = "rt";
+let here = "rt";
 
-module WithoutImpl = (M: Make.M) =>
-  Hazel_.WithoutImpl({
-    let name = M.name;
-    let path = Filename.concat(here_path, M.path);
+module Stub = (M: Make.M) =>
+  Hazel_.Stub({
+    let path = Hazel_.amend(here, M.path);
   });
 
-module WithImpl = (M: Make.M) =>
-  Hazel_.WithImpl({
-    let name = M.name;
-    let path = Filename.concat(here_path, M.path);
+module Gen = (M: Make.M) =>
+  Hazel_.Gen({
+    let path = Hazel_.amend(here, M.path);
   });

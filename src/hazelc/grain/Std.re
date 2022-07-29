@@ -4,140 +4,145 @@
    To create an interface for a module:
 
       module ModuleName = {
-        let name = "ModuleName";
-        let path = ImportStd("module-path");
+        include Make({
+          let path = "module_path";
+        });
 
-        let fmd = FileModule.mk_lib(path);
-        let file_mod_import = FileModuleImport.mk(fmd, name);
+        module Use = (I: I) => {
+          include Use(I);
 
-        let do_something = (x, y) => ap("doSomething", [x, y]);
-
-        ...
+          let do_something = (x, y) => ap2("doSomething", x, y);
+          ...
+        };
       }
 
    Then, the following contains a call to the "doSomething" function in the
    "ModuleName" module:
 
-      let do_something_call: Expr.expr = Std.ModuleName.do_something(x, y);
+      let here = ...;
+      module ModuleName = Std.ModuleName.Use({ let name = Ident.v("ModuleName"); let path = here; });
+
+      let do_something_call: Expr.expr = ModuleName.do_something(x, y);
 
    See existing modules below for examples.
  */
-open Expr;
-open Module;
+let v = Ident.v;
 
-module type M = {
-  let name: ident;
-  let path: string;
+module type I = {
+  let name: Ident.t;
+  let from: Path.t;
 };
 
+module type USE_META = {let imp: Import.t;};
+module type META = {let fmodl: FileModule.stub;};
+
+module type M = {let path: string;};
 module Make = (M: M) => {
-  include Lib.Make({
-    let name = M.name;
-    let path = ImportStd(M.path);
+  let path = "/" ++ M.path |> Path.v;
+  let fmodl = FileModule.Stub.mk(path);
+
+  include FileModuleStatic.Stub.Make({
+    let fmodl = fmodl;
   });
 };
 
 module Num_ = {
-  [@deriving sexp]
-  type num_ty =
-    | Int
-    | Float;
+  module type NUM = {let ty: [> | `Int | `Float];};
+  module type SIZED = {let sz: [> | `S32 | `S64];};
 
-  [@deriving sexp]
-  type num_sz =
-    | S32
-    | S64;
+  module SizedNum = (N: NUM, S: SIZED) => {
+    let name_ =
+      (
+        switch (N.ty) {
+        | `Int => "Int"
+        | `Float => "Float"
+        }
+      )
+      ++ (
+        switch (S.sz) {
+        | `S32 => "32"
+        | `S64 => "64"
+        }
+      );
 
-  [@deriving sexp]
-  type sized = {
-    ty: num_ty,
-    sz: num_sz,
-  };
+    let path = name_ |> String.lowercase_ascii;
 
-  module type SIZED = {
-    let ty: num_ty;
-    let sz: num_sz;
-  };
-
-  module SizedNum = (X: SIZED) => {
     include Make({
-      let name =
-        (
-          switch (X.ty) {
-          | Int => "Int"
-          | Float => "Float"
-          }
-        )
-        ++ (
-          switch (X.sz) {
-          | S32 => "32"
-          | S64 => "64"
-          }
-        );
-
-      let path = String.lowercase_ascii(name);
+      let path = path;
     });
 
-    open FileModuleImport;
-    let add = ap2(file_mod_import, "add");
-    let sub = ap2(file_mod_import, "sub");
-    let mul = ap2(file_mod_import, "mul");
-    let div = ap2(file_mod_import, "div");
+    module Use = (I: I) => {
+      include Use(I);
 
-    let lt = ap2(file_mod_import, "lt");
-    let gt = ap2(file_mod_import, "gt");
-    let lte = ap2(file_mod_import, "lte");
-    let gte = ap2(file_mod_import, "gte");
+      let add = ap2("add" |> v);
+      let sub = ap2("sub" |> v);
+      let mul = ap2("mul" |> v);
+      let div = ap2("div" |> v);
+
+      let lt = ap2("lt" |> v);
+      let gt = ap2("gt" |> v);
+      let lte = ap2("lte" |> v);
+      let gte = ap2("gte" |> v);
+    };
   };
 
-  module type SizedIntType = {let sz: num_sz;};
-  module SizedInt = (X: SizedIntType) => {
-    include SizedNum({
-      let ty = Int;
-      let sz = X.sz;
-    });
+  module SizedInt = (S: SIZED) => {
+    include SizedNum(
+              {
+                let ty = `Int;
+              },
+              S,
+            );
 
-    open FileModuleImport;
-    let incr = ap1(file_mod_import, "incr");
-    let decr = ap1(file_mod_import, "decr");
+    module Use = (I: I) => {
+      include Use(I);
 
-    let div_u = ap2(file_mod_import, "divU");
+      let incr = ap1("incr" |> v);
+      let decr = ap1("decr" |> v);
 
-    let eq = ap2(file_mod_import, "eq");
+      let div_u = ap2("divU" |> v);
+
+      let eq = ap2("eq" |> v);
+    };
   };
 
-  module type SizedFloatType = SizedIntType;
-  module SizedFloat = (X: SizedFloatType) => {
-    include SizedNum({
-      let ty = Float;
-      let sz = X.sz;
-    });
+  module SizedFloat = (S: SIZED) => {
+    include SizedNum(
+              {
+                let ty = `Float;
+              },
+              S,
+            );
 
-    let eq = (n1, n2) => Expr.EBinOp(OpEquals, n1, n2);
+    module Use = (I: I) => {
+      include Use(I);
+
+      let eq = (n1, n2) => Expr.EBinOp(OpEquals, n1, n2);
+    };
   };
 
   /* Int32 module. */
   module Int32 =
     SizedInt({
-      let sz = S32;
+      let sz = `S32;
     });
 
   /* Int64 module. */
   module Int64 =
     SizedInt({
-      let sz = S64;
+      let sz = `S64;
     });
 
   /* Float32 module. */
   module Float32 =
     SizedFloat({
-      let sz = S32;
+      let sz = `S32;
     });
 
   /* Float64 module. */
   module Float64 =
     SizedFloat({
-      let sz = S64;
+      let sz = `S64;
     });
 };
 
@@ -148,10 +153,21 @@ module Float64 = Num_.Float64;
 
 module Map = {
   include Make({
-    let name = "Map";
     let path = "map";
   });
 
-  open FileModuleImport;
-  let from_list = ap1(file_mod_import, "fromList");
+  module Use = (I: I) => {
+    include Use(I);
+
+    let from_list = ap1("fromList" |> v);
+  };
 };
+
+/* Pervasives */
+let print = x => Expr.(ap(var(v("print")), [x]));
+
+let and_ = (b1, b2) => Expr.(EBinOp(OpAnd, b1, b2));
+let or_ = (b1, b2) => Expr.(EBinOp(OpOr, b1, b2));
+
+let eq = (x1, x2) => Expr.(EBinOp(OpEquals, x1, x2));
+let neq = (x1, x2) => Expr.(EBinOp(OpNotEquals, x1, x2));
