@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name mir)
- (libraries mir_anf mir_linearize mir_optimize sexplib)
+ (name mir_linearize)
+ (libraries mir_anf hir_expr sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

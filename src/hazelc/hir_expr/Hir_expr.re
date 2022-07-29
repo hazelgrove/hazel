@@ -1,6 +1,10 @@
 module Expr = Expr;
 [@deriving sexp]
 type expr = Expr.t;
+[@deriving sexp]
+type case = Expr.case;
+[@deriving sexp]
+type rule = Expr.rule;
 
 module Pat = Pat;
 [@deriving sexp]

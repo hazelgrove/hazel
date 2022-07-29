@@ -1,13 +1,14 @@
-module AnfLabelGen = Anf.Label_.Gen.Make(Anf.Label);
+open Mir_anf;
 
+module LabelGen = Label_.Gen.Make(Label);
 module State = {
   [@deriving sexp]
   type t = {
     t_gen: TmpVarGen.t,
-    l_gen: AnfLabelGen.t,
+    l_gen: LabelGen.t,
   };
 
-  let init = {t_gen: TmpVarGen.init, l_gen: AnfLabelGen.init};
+  let init = {t_gen: TmpVarGen.init, l_gen: LabelGen.init};
 
   let next_tmp = state => {
     let (x, t_gen) = TmpVarGen.next(state.t_gen);
@@ -20,7 +21,7 @@ module State = {
   };
 
   let next_label = state => {
-    let (l, l_gen) = AnfLabelGen.next(state.l_gen);
+    let (l, l_gen) = LabelGen.next(state.l_gen);
     (l, {...state, l_gen});
   };
 };
