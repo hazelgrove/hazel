@@ -1,3 +1,5 @@
+module Label = PatLabel;
+
 [@deriving sexp]
 type t = {kind}
 

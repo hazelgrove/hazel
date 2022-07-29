@@ -5,3 +5,5 @@ type expr = Expr.t;
 module Pat = Pat;
 [@deriving sexp]
 type pat = Pat.t;
+
+module Label_ = Label;

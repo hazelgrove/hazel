@@ -3,6 +3,9 @@
   expression form.
  */
 
+module Label = ExprLabel;
+module RuleLabel = RuleLabel;
+
 [@deriving sexp]
 type bin_bool_op =
   | OpAnd
