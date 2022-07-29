@@ -1,6 +1,7 @@
 open Grain;
 open Rt.Hazel.Rt;
 
+/* Dummy path since we include the lib directory. */
 let here = "." |> Path.v;
 
 module Ast =
@@ -26,6 +27,11 @@ module AstSexp =
 module Ops =
   Ops.Use({
     let name = "Ops" |> Ident.v;
+    let from = here;
+  });
+module MaybeIndet =
+  MaybeIndet.Use({
+    let name = "MaybeIndet" |> Ident.v;
     let from = here;
   });
 module Sum =
