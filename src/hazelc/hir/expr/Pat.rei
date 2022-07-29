@@ -1,7 +1,10 @@
 module Label = PatLabel;
 
 [@deriving sexp]
-type t = {kind}
+type t = {
+  kind,
+  label: PatLabel.t,
+}
 
 [@deriving sexp]
 and kind =

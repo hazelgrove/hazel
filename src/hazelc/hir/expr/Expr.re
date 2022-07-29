@@ -29,7 +29,10 @@ type bin_float_op =
   | OpFEquals;
 
 [@deriving sexp]
-type t = {kind}
+type t = {
+  kind,
+  label: ExprLabel.t,
+}
 
 [@deriving sexp]
 and kind =
@@ -81,12 +84,16 @@ and kind =
 [@deriving sexp]
 and case = {case_kind}
 
+/* FIXME: Remove int */
 [@deriving sexp]
 and case_kind =
   | ECase(t, list(rule), int)
 
 [@deriving sexp]
-and rule = {rule_kind}
+and rule = {
+  rule_kind,
+  rule_label: RuleLabel.t,
+}
 
 [@deriving sexp]
 and rule_kind =
