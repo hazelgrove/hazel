@@ -3,6 +3,7 @@ open Cmdliner;
 open Grain;
 
 let fmodls = Modules.list;
+let destination = Modules.destination;
 
 let gen_ = (outdir, fmodl) => {
   module Unix = Core.Unix;
@@ -50,13 +51,10 @@ let gen = outdir => {
 };
 
 let cmd = {
-  /* Use install lib directory by default. */
-  let lib_directory = Hazelcrt_files.Sites.lib |> List.hd;
-
   let outdir = {
     let doc = "Output directory.";
     let docv = "OUTDIR";
-    Arg.(value & pos(0, string, lib_directory) & info([], ~docv, ~doc));
+    Arg.(value & pos(0, string, destination) & info([], ~docv, ~doc));
   };
 
   let doc = "hazelc runtime file generator.";

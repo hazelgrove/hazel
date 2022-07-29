@@ -2,4 +2,4 @@
 
 (executable
  (name main)
- (libraries rt_grain hazelcrt_files core cmdliner))
+ (libraries rt_grain rt_grain_files core cmdliner))

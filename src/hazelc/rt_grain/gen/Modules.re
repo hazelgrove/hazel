@@ -13,3 +13,5 @@ let list =
   ]
   |> List.map(f => f())
   |> List.filter_map(FileModule.to_full);
+
+let destination = Rt_grain_files.location;

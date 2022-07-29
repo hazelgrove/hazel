@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name hazelcrt_files)
+ (name rt_grain_files)
  (libraries dune-site))
 
 (install
@@ -19,5 +19,5 @@
   (sexplib/sexpconv.gr as sexplib/sexpconv.gr)))
 
 (generate_sites_module
- (module hazelcrt_files)
+ (module sites)
  (sites hazelc))
