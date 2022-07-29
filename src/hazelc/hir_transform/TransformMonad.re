@@ -1,3 +1,5 @@
+open Hir_expr;
+
 module ExprLabelGen = Label_.Gen.Make(Expr.Label);
 module RuleLabelGen = Label_.Gen.Make(Expr.RuleLabel);
 module PatLabelGen = Label_.Gen.Make(Pat.Label);

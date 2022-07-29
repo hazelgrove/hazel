@@ -19,7 +19,7 @@ let elaborate' = (e: UHExp.t) => {
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform' = ctx => Hir.transform(ctx);
+let transform' = ctx => Hir.Transform.transform(ctx);
 
 let linearize' = Mir.Linearize.linearize;
 
@@ -106,7 +106,7 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
-  | Transformed(Hir.expr)
+  | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
   | Grainized(Grain.prog)
