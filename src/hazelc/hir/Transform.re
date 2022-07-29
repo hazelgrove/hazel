@@ -2,32 +2,32 @@ exception FixFError;
 exception FreeVarError;
 exception WrongTypeError;
 
-let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
+let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.t, HTyp.t) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
     let sigma = transform_var_map(ctx, sigma);
-    ({expr_kind: EEmptyHole(u, i, sigma)}, Hole);
+    ({kind: EEmptyHole(u, i, sigma)}, Hole);
 
   | NonEmptyHole(reason, u, i, sigma, d') =>
     let sigma = transform_var_map(ctx, sigma);
     let (d', _) = transform_exp(ctx, d');
-    ({expr_kind: ENonEmptyHole(reason, u, i, sigma, d')}, Hole);
+    ({kind: ENonEmptyHole(reason, u, i, sigma, d')}, Hole);
 
   | ExpandingKeyword(u, i, sigma, k) =>
     let sigma = transform_var_map(ctx, sigma);
-    ({expr_kind: EKeyword(u, i, sigma, k)}, Hole);
+    ({kind: EKeyword(u, i, sigma, k)}, Hole);
 
   | FreeVar(u, i, sigma, k) =>
     let sigma = transform_var_map(ctx, sigma);
-    ({expr_kind: EFreeVar(u, i, sigma, k)}, Hole);
+    ({kind: EFreeVar(u, i, sigma, k)}, Hole);
 
   | InvalidText(u, i, sigma, text) =>
     let sigma = transform_var_map(ctx, sigma);
-    ({expr_kind: EInvalidText(u, i, sigma, text)}, Hole);
+    ({kind: EInvalidText(u, i, sigma, text)}, Hole);
 
   | BoundVar(x) =>
     switch (VarMap.lookup(Contexts.gamma(ctx), x)) {
-    | Some(ty) => ({expr_kind: EBoundVar(ty, x)}, ty)
+    | Some(ty) => ({kind: EBoundVar(ty, x)}, ty)
     | None => raise(FreeVarError)
     }
 
@@ -39,29 +39,29 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
 
     let (d3, _) = transform_exp(ctx, d3);
     let (body, body_ty) = transform_exp(ctx, body);
-    ({expr_kind: ELetRec(x, dp, dp_ty, d3, body)}, body_ty);
+    ({kind: ELetRec(x, dp, dp_ty, d3, body)}, body_ty);
 
   | Let(dp, d', body) =>
     let (d', d'_ty) = transform_exp(ctx, d');
     let (dp, body_ctx) = transform_pat(ctx, dp, d'_ty);
     let (body, body_ty) = transform_exp(body_ctx, body);
-    ({expr_kind: ELet(dp, d', body)}, body_ty);
+    ({kind: ELet(dp, d', body)}, body_ty);
 
   | Fun(dp, dp_ty, body) =>
     // TODO: Can't assume anything about indet-ness of argument when called?
     let (dp, body_ctx) = transform_pat(ctx, dp, dp_ty);
     let (body, body_ty) = transform_exp(body_ctx, body);
-    ({expr_kind: EFun(dp, dp_ty, body)}, Arrow(dp_ty, body_ty));
+    ({kind: EFun(dp, dp_ty, body)}, Arrow(dp_ty, body_ty));
 
   | Ap(fn, arg) =>
     let (fn, fn_ty) = transform_exp(ctx, fn);
     let (arg, _) = transform_exp(ctx, arg);
-    switch (fn.expr_kind) {
-      // TODO: expand arrow casts and do transform_exp recursively here
+    switch (fn.kind) {
+    // TODO: expand arrow casts and do transform_exp recursively here
     | ECast(_fn, _ty1, _ty2) => failwith("FnCastExpansion")
     | EFun(_, _, _) =>
       switch (fn_ty) {
-      | Arrow(_, ty') => ({expr_kind: EAp(fn, arg)}, ty')
+      | Arrow(_, ty') => ({kind: EAp(fn, arg)}, ty')
       | _ => raise(WrongTypeError)
       }
     | _ => failwith("NotImplemented")
@@ -77,7 +77,7 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
          );
 
     switch (VarMap.lookup(Contexts.gamma(ctx), name)) {
-    | Some(Arrow(_, ty')) => ({expr_kind: EApBuiltin(name, args)}, ty')
+    | Some(Arrow(_, ty')) => ({kind: EApBuiltin(name, args)}, ty')
     | _ => raise(WrongTypeError)
     };
 
@@ -85,29 +85,29 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
     let (d1, _) = transform_exp(ctx, d1);
     let (d2, _) = transform_exp(ctx, d2);
     let op = transform_bool_op(op);
-    ({expr_kind: EBinBoolOp(op, d1, d2)}, Bool);
+    ({kind: EBinBoolOp(op, d1, d2)}, Bool);
 
   | BinIntOp(op, d1, d2) =>
     let (d1, _) = transform_exp(ctx, d1);
     let (d2, _) = transform_exp(ctx, d2);
     let op = transform_int_op(op);
-    ({expr_kind: EBinIntOp(op, d1, d2)}, Int);
+    ({kind: EBinIntOp(op, d1, d2)}, Int);
 
   | BinFloatOp(op, d1, d2) =>
     let (d1, _) = transform_exp(ctx, d1);
     let (d2, _) = transform_exp(ctx, d2);
     let op = transform_float_op(op);
-    ({expr_kind: EBinFloatOp(op, d1, d2)}, Float);
+    ({kind: EBinFloatOp(op, d1, d2)}, Float);
 
   | Pair(d1, d2) =>
     let (d1, d1_ty) = transform_exp(ctx, d1);
     let (d2, d2_ty) = transform_exp(ctx, d2);
-    ({expr_kind: EPair(d1, d2)}, Prod([d1_ty, d2_ty]));
+    ({kind: EPair(d1, d2)}, Prod([d1_ty, d2_ty]));
 
   | Cons(d1, d2) =>
     let (d1, _) = transform_exp(ctx, d1);
     let (d2, d2_ty) = transform_exp(ctx, d2);
-    ({expr_kind: ECons(d1, d2)}, d2_ty);
+    ({kind: ECons(d1, d2)}, d2_ty);
 
   | Inj(other_ty, side, d') =>
     let (d', d'_ty) = transform_exp(ctx, d');
@@ -116,51 +116,51 @@ let rec transform_exp = (ctx: Contexts.t, d: DHExp.t): (Expr.expr, HTyp.t) => {
       | L => Sum(d'_ty, other_ty)
       | R => Sum(other_ty, d'_ty)
       };
-    ({expr_kind: EInj(ty, side, d')}, ty);
+    ({kind: EInj(ty, side, d')}, ty);
 
-  | BoolLit(b) => ({expr_kind: EBoolLit(b)}, Bool)
+  | BoolLit(b) => ({kind: EBoolLit(b)}, Bool)
 
-  | IntLit(i) => ({expr_kind: EIntLit(i)}, Int)
+  | IntLit(i) => ({kind: EIntLit(i)}, Int)
 
-  | FloatLit(f) => ({expr_kind: EFloatLit(f)}, Float)
+  | FloatLit(f) => ({kind: EFloatLit(f)}, Float)
 
-  | ListNil(ty) => ({expr_kind: ENil(ty)}, List(ty))
+  | ListNil(ty) => ({kind: ENil(ty)}, List(ty))
 
-  | Triv => ({expr_kind: ETriv}, Prod([]))
+  | Triv => ({kind: ETriv}, Prod([]))
 
   | ConsistentCase(case) =>
     let (case, case_ty) = transform_case(ctx, case);
-    ({expr_kind: EConsistentCase(case)}, case_ty);
+    ({kind: EConsistentCase(case)}, case_ty);
 
   | InconsistentBranches(u, i, sigma, case) =>
     let sigma = transform_var_map(ctx, sigma);
     let (case, _) = transform_case(ctx, case);
-    ({expr_kind: EInconsistentBranches(u, i, sigma, case)}, Hole);
+    ({kind: EInconsistentBranches(u, i, sigma, case)}, Hole);
 
   | Cast(d', ty, ty') =>
     // FIXME: default implementation of Cast
     // let (d', _) = transform_exp(ctx, d');
-    // ({expr_kind: ECast(d', ty, ty')}, ty');
+    // ({kind: ECast(d', ty, ty')}, ty');
     switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
     | (GNotGroundOrHole(_), GNotGroundOrHole(_)) =>
       if (HTyp.eq(ty, ty')) {
         transform_exp(ctx, d');
       } else {
         let (d', _) = transform_exp(ctx, d');
-        ({expr_kind: ECast(d', ty, ty')}, ty');
+        ({kind: ECast(d', ty, ty')}, ty');
       }
     | _ =>
       let (d', _) = transform_exp(ctx, d);
-      ({expr_kind: ECast(d', ty, ty')}, ty');
+      ({kind: ECast(d', ty, ty')}, ty');
     }
 
   | FailedCast(d', ty, ty') =>
     let (d', _) = transform_exp(ctx, d');
-    ({expr_kind: EFailedCast(d', ty, ty')}, ty');
+    ({kind: EFailedCast(d', ty, ty')}, ty');
 
   | InvalidOperation(d', err) =>
     let (d', d'_ty) = transform_exp(ctx, d');
-    ({expr_kind: EInvalidOperation(d', err)}, d'_ty);
+    ({kind: EInvalidOperation(d', err)}, d'_ty);
   };
 }
 
@@ -227,7 +227,7 @@ and transform_rule =
 }
 
 and transform_var_map =
-    (ctx: Contexts.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(Expr.expr) =>
+    (ctx: Contexts.t, sigma: VarMap.t_(DHExp.t)): VarMap.t_(Expr.t) =>
   sigma
   |> List.map(((x, d)) => {
        let (d, _) = transform_exp(ctx, d);
@@ -235,19 +235,19 @@ and transform_var_map =
      })
 
 and transform_pat =
-    (ctx: Contexts.t, dp: DHPat.t, ty: HTyp.t): (Expr.pat, Contexts.t) => {
+    (ctx: Contexts.t, dp: DHPat.t, ty: HTyp.t): (Pat.t, Contexts.t) => {
   switch (dp) {
-  | EmptyHole(u, i) => ({pat_kind: PEmptyHole(u, i)}, ctx)
+  | EmptyHole(u, i) => ({kind: PEmptyHole(u, i)}, ctx)
 
   | NonEmptyHole(reason, u, i, dp) =>
     let (dp, ctx) = transform_pat(ctx, dp, ty);
-    ({pat_kind: PNonEmptyHole(reason, u, i, dp)}, ctx);
+    ({kind: PNonEmptyHole(reason, u, i, dp)}, ctx);
 
-  | ExpandingKeyword(u, i, k) => ({pat_kind: PKeyword(u, i, k)}, ctx)
+  | ExpandingKeyword(u, i, k) => ({kind: PKeyword(u, i, k)}, ctx)
 
-  | InvalidText(u, i, t) => ({pat_kind: PInvalidText(u, i, t)}, ctx)
+  | InvalidText(u, i, t) => ({kind: PInvalidText(u, i, t)}, ctx)
 
-  | Wild => ({pat_kind: PWild}, ctx)
+  | Wild => ({kind: PWild}, ctx)
 
   | Ap(dp1, dp2) =>
     /* FIXME: Hole type scrutinee? */
@@ -255,7 +255,7 @@ and transform_pat =
     | Arrow(dp1_ty, dp2_ty) =>
       let (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
       let (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
-      ({pat_kind: PAp(dp1, dp2)}, ctx);
+      ({kind: PAp(dp1, dp2)}, ctx);
     | _ => raise(WrongTypeError)
     }
 
@@ -264,7 +264,7 @@ and transform_pat =
     | Prod([dp1_ty, dp2_ty]) =>
       let (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
       let (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
-      ({pat_kind: PPair(dp1, dp2)}, ctx);
+      ({kind: PPair(dp1, dp2)}, ctx);
     | _ => raise(WrongTypeError)
     }
 
@@ -273,36 +273,36 @@ and transform_pat =
     | List(ty') =>
       let (dp, ctx) = transform_pat(ctx, dp, ty');
       let (dps, ctx) = transform_pat(ctx, dps, ty);
-      ({pat_kind: PCons(dp, dps)}, ctx);
+      ({kind: PCons(dp, dps)}, ctx);
     | _ => raise(WrongTypeError)
     }
 
   | Var(x) =>
     let gamma' = VarMap.extend(Contexts.gamma(ctx), (x, ty));
-    ({pat_kind: PVar(x)}, gamma');
+    ({kind: PVar(x)}, gamma');
 
-  | IntLit(i) => ({pat_kind: PIntLit(i)}, ctx)
+  | IntLit(i) => ({kind: PIntLit(i)}, ctx)
 
-  | FloatLit(f) => ({pat_kind: PFloatLit(f)}, ctx)
+  | FloatLit(f) => ({kind: PFloatLit(f)}, ctx)
 
-  | BoolLit(b) => ({pat_kind: PBoolLit(b)}, ctx)
+  | BoolLit(b) => ({kind: PBoolLit(b)}, ctx)
 
   | Inj(side, dp') =>
     switch (side, ty) {
     | (L, Sum(ty, _))
     | (R, Sum(_, ty)) =>
       let (dp', ctx) = transform_pat(ctx, dp', ty);
-      ({pat_kind: PInj(side, dp')}, ctx);
+      ({kind: PInj(side, dp')}, ctx);
     | _ => raise(WrongTypeError)
     }
 
-  | ListNil => ({pat_kind: PNil}, ctx)
+  | ListNil => ({kind: PNil}, ctx)
 
-  | Triv => ({pat_kind: PTriv}, ctx)
+  | Triv => ({kind: PTriv}, ctx)
   };
 };
 
-let transform = (ctx: Contexts.t, d: DHExp.t): Expr.expr => {
+let transform = (ctx: Contexts.t, d: DHExp.t): Expr.t => {
   let (d, _) = transform_exp(ctx, d);
   d;
 };

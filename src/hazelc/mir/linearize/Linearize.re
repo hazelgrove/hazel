@@ -72,7 +72,7 @@ let rec linearize_prog = (d: Hir.expr, vctx): t(Anf.prog) => {
 }
 
 and linearize_exp = (d: Hir.expr, vctx): t((Anf.imm, list(bind))) => {
-  switch (d.expr_kind) {
+  switch (d.kind) {
   | EBoundVar(ty, x) =>
     let x' =
       switch (VarMap.lookup(vctx, x)) {
@@ -416,7 +416,7 @@ and linearize_bin_op =
   (bin_var, binds) |> return;
 }
 
-and linearize_case = (case: Hir.case, vctx): t((Anf.imm, list(bind))) => {
+and linearize_case = (case: Hir.Expr.case, vctx): t((Anf.imm, list(bind))) => {
   switch (case.case_kind) {
   | ECase(scrut, rules, _) =>
     let* (scrut_imm, scrut_binds) = linearize_exp(scrut, vctx);
@@ -438,10 +438,10 @@ and linearize_case = (case: Hir.case, vctx): t((Anf.imm, list(bind))) => {
   };
 }
 
-and linearize_rules = (rules: list(Hir.rule), vctx): t(list(Anf.rule)) =>
+and linearize_rules = (rules: list(Hir.Expr.rule), vctx): t(list(Anf.rule)) =>
   rules |> List.map(rule => linearize_rule(rule, vctx)) |> sequence
 
-and linearize_rule = (rule: Hir.rule, vctx): t(Anf.rule) => {
+and linearize_rule = (rule: Hir.Expr.rule, vctx): t(Anf.rule) => {
   switch (rule.rule_kind) {
   | ERule(p, branch) =>
     let* (p, vctx) = linearize_pat(p, vctx);
@@ -467,7 +467,7 @@ and linearize_pat = (p: Hir.pat, vctx): t((Anf.pat, var_remapping)) =>
   linearize_pat_hole(p, vctx)
 
 and linearize_pat_hole = (p: Hir.pat, vctx): t((Anf.pat, var_remapping)) => {
-  switch (p.pat_kind) {
+  switch (p.kind) {
   | PPair(p1, p2) =>
     let* (p1, vctx) = linearize_pat_hole(p1, vctx);
     let* (p2, vctx) = linearize_pat_hole(p2, vctx);
