@@ -4,7 +4,7 @@
 open Grain;
 open Grain.Ident;
 open Rt_.Stub({
-       let path = "sum" |> Path.v;
+       let path = "./sum" |> Path.v;
      });
 
 /**

@@ -4,7 +4,7 @@
 open Grain;
 open Grain.Ident;
 open Rt_.Stub({
-       let path = "maybe_indet" |> Path.v;
+       let path = "./maybe_indet" |> Path.v;
      });
 
 /**
@@ -13,7 +13,7 @@ open Rt_.Stub({
 let impl = impl;
 
 module Use = (I: Make.I) => {
-  include Use(I);
+  open Use(I);
 
   let imp = imp;
 

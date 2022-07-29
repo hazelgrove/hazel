@@ -4,7 +4,7 @@
 open Grain;
 open Grain.Ident;
 open Rt_.Stub({
-       let path = "ast" |> Path.v;
+       let path = "./ast" |> Path.v;
      });
 
 /**
