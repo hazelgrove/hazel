@@ -31,6 +31,7 @@ module Make = (ST: STATE) => {
 
     let update = f => bind(get, s => put(f(s)));
 
+    /* FIXME: Rename to update' */
     let modify = f =>
       bind(
         get,
