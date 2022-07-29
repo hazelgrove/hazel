@@ -14,7 +14,7 @@
 [@deriving sexp]
 type opts = {
   optimize: Mir.Optimize.opts,
-  codegen: Codegen.GrainCodegen.opts,
+  codegen: Codegen.Grain.opts,
 };
 
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);

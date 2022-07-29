@@ -3,12 +3,10 @@ open Sexplib.Std;
 open ResultSexp;
 open Hazeltext;
 
-module GrainCli = Grain.Cli;
-
 [@deriving sexp]
 type opts = {
   optimize: Mir.Optimize.opts,
-  codegen: Codegen.GrainCodegen.opts,
+  codegen: Codegen.Grain.opts,
 };
 
 let parse' = (source: Source.t) =>
@@ -25,7 +23,7 @@ let linearize' = Mir.Linearize.linearize;
 
 let optimize' = opts => Mir.Optimize.optimize(~opts);
 
-let grainize' = opts => Codegen.GrainCodegen.codegen(~opts);
+let grainize' = opts => Codegen.Grain.codegen(~opts);
 
 let print' = Grain.print;
 
@@ -49,8 +47,8 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
   // TODO: Add necessary includes.
   // TODO: Add option for alternative stdlib path.
   let cmd =
-    GrainCli.Compile.(
-      GrainCli.make(~grain=opts.grain)
+    Grain.Cli.Compile.(
+      Grain.Cli.make(~grain=opts.grain)
       |> make(~source)
       |> with_output(output)
       |> with_includes(opts.includes)
@@ -60,7 +58,7 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
       |> to_command
     );
 
-  switch (cmd |> GrainCli.execute(~capture_stdout=false)) {
+  switch (cmd |> Grain.Cli.execute(~capture_stdout=false)) {
   | {stdout: _, status: Ok(_)} => Ok()
   | {stdout: _, status: Error(_)} => Error()
   };
