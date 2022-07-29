@@ -43,7 +43,7 @@ and analyze_stmt = (stmt: Anf.stmt, ictx): (Anf.stmt, complete_context) => {
       let (p, ictx) = analyze_pat(p, c.comp_complete, ictx);
       (
         Anf.SLet(p, c),
-        Completeness.join(p.pat_complete, c.comp_complete),
+        Anf.Completeness.join(p.pat_complete, c.comp_complete),
         ictx,
       );
 
@@ -76,13 +76,16 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       let im2 = analyze_imm(im2, ictx);
       (
         CBinOp(op, im1, im2),
-        Completeness.join(im1.imm_complete, im2.imm_complete),
+        Anf.Completeness.join(im1.imm_complete, im2.imm_complete),
       );
 
     | CAp(fn, arg) =>
       let fn = analyze_imm(fn, ictx);
       let arg = analyze_imm(arg, ictx);
-      (CAp(fn, arg), Completeness.join(fn.imm_complete, arg.imm_complete));
+      (
+        CAp(fn, arg),
+        Anf.Completeness.join(fn.imm_complete, arg.imm_complete),
+      );
 
     | CFun(param, body) =>
       let (param, ictx) =
@@ -90,7 +93,7 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       let body = analyze_prog(body, ictx);
       (
         CFun(param, body),
-        Completeness.join(body.prog_complete, param.pat_complete),
+        Anf.Completeness.join(body.prog_complete, param.pat_complete),
       );
 
     | CCons(im1, im2) =>
@@ -98,7 +101,7 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       let im2 = analyze_imm(im2, ictx);
       (
         CCons(im1, im2),
-        Completeness.join(im1.imm_complete, im2.imm_complete),
+        Anf.Completeness.join(im1.imm_complete, im2.imm_complete),
       );
 
     | CPair(im1, im2) =>
@@ -106,7 +109,7 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       let im2 = analyze_imm(im2, ictx);
       (
         CPair(im1, im2),
-        Completeness.join(im1.imm_complete, im2.imm_complete),
+        Anf.Completeness.join(im1.imm_complete, im2.imm_complete),
       );
 
     | CInj(side, im) =>
@@ -120,10 +123,10 @@ and analyze_comp = (c: Anf.comp, ictx): Anf.comp => {
       let rules_complete =
         rules
         |> List.map((rule: Anf.rule) => rule.rule_complete)
-        |> Completeness.join_fold;
+        |> Anf.Completeness.join_fold;
       (
         CCase(scrut, rules),
-        Completeness.join(scrut.imm_complete, rules_complete),
+        Anf.Completeness.join(scrut.imm_complete, rules_complete),
       );
 
     | CEmptyHole(u, i, sigma) =>
@@ -155,7 +158,7 @@ and analyze_rule = (scrut: Anf.imm, rule: Anf.rule, ictx): Anf.rule => {
     rule_pat,
     rule_branch,
     rule_complete:
-      Completeness.join(rule_pat.pat_complete, rule_branch.prog_complete),
+      Anf.Completeness.join(rule_pat.pat_complete, rule_branch.prog_complete),
     rule_label,
   };
 }
@@ -225,7 +228,7 @@ and analyze_pat' =
       let (p2, ictx) = analyze_pat'(p2, matchee_complete, in_hole, ictx);
       (
         PCons(p1, p2),
-        Completeness.join(p1.pat_complete, p2.pat_complete),
+        Anf.Completeness.join(p1.pat_complete, p2.pat_complete),
         ictx,
       );
     | PPair(p1, p2) =>
@@ -233,7 +236,7 @@ and analyze_pat' =
       let (p2, ictx) = analyze_pat'(p2, matchee_complete, in_hole, ictx);
       (
         PPair(p1, p2),
-        Completeness.join(p1.pat_complete, p2.pat_complete),
+        Anf.Completeness.join(p1.pat_complete, p2.pat_complete),
         ictx,
       );
     };

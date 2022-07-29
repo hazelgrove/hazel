@@ -1,4 +1,4 @@
-module AnfLabelGen = Label.Gen.Make(AnfLabel);
+module AnfLabelGen = Anf.Label_.Gen.Make(Anf.Label);
 
 module State = {
   [@deriving sexp]

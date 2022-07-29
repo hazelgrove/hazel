@@ -5,7 +5,7 @@ type bind =
   | BLet(Anf.pat, Anf.comp)
   | BLetRec(Var.t, Anf.comp);
 
-let default_completeness = Completeness.IndeterminatelyIncomplete;
+let default_completeness = Anf.Completeness.IndeterminatelyIncomplete;
 
 let mk_bind = (p: Anf.pat, c: Anf.comp) => BLet(p, c);
 
