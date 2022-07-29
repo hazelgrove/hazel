@@ -102,9 +102,14 @@ let dummy_label = Anf.Label.init;
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;
 
-let rec codegen_prog =
+let rec codegen_block =
         (
-          {prog_body: (body, im), prog_ty: _, prog_complete: _, prog_label: _}: Anf.prog,
+          {
+            block_body: (body, im),
+            block_ty: _,
+            block_complete: _,
+            block_label: _,
+          }: Anf.block,
         )
         : t((Grain.block, Grain.expr)) => {
   let* stmts = codegen_fold(codegen_stmt, body);
@@ -144,7 +149,7 @@ and codegen_comp = (c: Anf.comp): t(Grain.expr) => {
 
   | CFun(param, body) =>
     let* param' = codegen_pat(param);
-    let* (body', c) = codegen_prog(body);
+    let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
     ELam([param'], EBlock(body')) |> return;
 
@@ -263,7 +268,7 @@ and codegen_rules = (rules: list(Anf.rule)): t(list(Grain.rule)) => {
 
 and codegen_rule = (rule: Anf.rule): t(Grain.rule) => {
   let* pat = codegen_pat(rule.rule_pat);
-  let* (branch_stmts, branch_expr) = codegen_prog(rule.rule_branch);
+  let* (branch_stmts, branch_expr) = codegen_block(rule.rule_branch);
   let branch = branch_stmts @ [SExpr(branch_expr)];
   RRule(pat, EBlock(branch)) |> return;
 }
@@ -428,8 +433,8 @@ and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(Grain.expr) => {
   HazelStd.Rt.Ast.cast(e, ty1', ty2') |> return;
 };
 
-let codegen = (~opts, prog: Anf.prog): Grain.prog => {
-  let (State.{imps}, (body, c)) = codegen_prog(prog, State.init);
+let codegen = (~opts, block: Anf.block): Grain.prog => {
+  let (State.{imps}, (body, c)) = codegen_block(block, State.init);
   let tb = Imports.codegen(imps);
 
   let b =
@@ -437,7 +442,7 @@ let codegen = (~opts, prog: Anf.prog): Grain.prog => {
       /* TODO: Clean this up. */
       /* FIXME: Probably doesn't work all the time. */
       let print_ap: Grain.expr =
-        switch (prog.prog_complete) {
+        switch (block.block_complete) {
         | NecessarilyComplete => EAp(EVar("print"), [c])
         | NecessarilyIncomplete
         | IndeterminatelyIncomplete => HazelStd.Rt.AstPrint.print(c)

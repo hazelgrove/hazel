@@ -107,8 +107,8 @@ type state =
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, DHExp.t)
   | Transformed(Hir.expr)
-  | Linearized(Mir.Anf.prog)
-  | Optimized(Mir.Anf.prog)
+  | Linearized(Mir.Anf.block)
+  | Optimized(Mir.Anf.block)
   | Grainized(Grain.prog)
   | Printed(string);
 

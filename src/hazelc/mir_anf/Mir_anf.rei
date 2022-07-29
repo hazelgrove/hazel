@@ -9,4 +9,4 @@ module Label_ = Label;
 module Completeness = Completeness;
 module Label = AnfLabel;
 
-include  (module type of Anf) with type prog = Anf.prog;
+include  (module type of Anf) with type block = Anf.block;

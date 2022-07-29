@@ -126,7 +126,7 @@ let hazelc =
 
     | Anf =>
       Compile.resume_until_optimized(~opts, source)
-      |> Result.map(write_sexp_output(Mir.Anf.sexp_of_prog))
+      |> Result.map(write_sexp_output(Mir.Anf.sexp_of_block))
       |> Result.map_error(convert_error)
 
     | Grain =>

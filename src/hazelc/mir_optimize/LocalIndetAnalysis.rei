@@ -5,6 +5,6 @@
  */
 
 /**
- * Perform static analysis and return annotated program.
+ * Perform static analysis and return annotated blockram.
  */
-let analyze: Mir_anf.prog => Mir_anf.prog;
+let analyze: Mir_anf.block => Mir_anf.block;

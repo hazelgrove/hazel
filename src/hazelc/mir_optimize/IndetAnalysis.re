@@ -7,14 +7,14 @@ type level =
 [@deriving sexp]
 type opts = {level};
 
-let no_analyze = prog => prog;
+let no_analyze = block => block;
 let local_analyze = LocalIndetAnalysis.analyze;
 let global_analyze = LocalIndetAnalysis.analyze;
 
-let analyze = (~opts, prog) => {
+let analyze = (~opts, block) => {
   switch (opts.level) {
-  | NoAnalysis => prog |> no_analyze
-  | LocalAnalysis => prog |> local_analyze
-  | GlobalAnalysis => prog |> global_analyze
+  | NoAnalysis => block |> no_analyze
+  | LocalAnalysis => block |> local_analyze
+  | GlobalAnalysis => block |> global_analyze
   };
 };

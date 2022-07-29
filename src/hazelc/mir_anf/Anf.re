@@ -82,7 +82,7 @@ and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
   | CAp(imm, imm)
-  | CFun(pat, prog)
+  | CFun(pat, block)
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
@@ -105,7 +105,7 @@ and inj_side =
 [@deriving sexp]
 and rule = {
   rule_pat: pat,
-  rule_branch: prog,
+  rule_branch: block,
   rule_complete: completeness,
   rule_label: label,
 }
@@ -123,12 +123,9 @@ and stmt_kind =
   | SLetRec(Var.t, comp)
 
 [@deriving sexp]
-and prog = {
-  prog_body,
-  prog_ty: HTyp.t,
-  prog_complete: completeness,
-  prog_label: label,
-}
-
-[@deriving sexp]
-and prog_body = (list(stmt), imm);
+and block = {
+  block_body: (list(stmt), imm),
+  block_ty: HTyp.t,
+  block_complete: completeness,
+  block_label: label,
+};

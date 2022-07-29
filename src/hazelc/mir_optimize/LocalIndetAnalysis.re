@@ -7,17 +7,17 @@ open Mir_anf;
 [@deriving sexp]
 type complete_context = VarMap.t_(completeness);
 
-let rec analyze_prog = (prog: prog, ictx): prog => {
-  let {prog_body: (body, im), prog_ty, prog_complete: _, prog_label}: prog = prog;
+let rec analyze_block = (block: block, ictx): block => {
+  let {block_body: (body, im), block_ty, block_complete: _, block_label}: block = block;
 
   let (body, ictx) = analyze_body(body, ictx);
   let im = analyze_imm(im, ictx);
 
   {
-    prog_body: (body, im),
-    prog_ty,
-    prog_complete: im.imm_complete,
-    prog_label,
+    block_body: (body, im),
+    block_ty,
+    block_complete: im.imm_complete,
+    block_label,
   };
 }
 
@@ -88,10 +88,10 @@ and analyze_comp = (c: comp, ictx): comp => {
     | CFun(param, body) =>
       let (param, ictx) =
         analyze_pat(param, IndeterminatelyIncomplete, ictx);
-      let body = analyze_prog(body, ictx);
+      let body = analyze_block(body, ictx);
       (
         CFun(param, body),
-        Completeness.join(body.prog_complete, param.pat_complete),
+        Completeness.join(body.block_complete, param.pat_complete),
       );
 
     | CCons(im1, im2) =>
@@ -150,12 +150,12 @@ and analyze_rules = (scrut: imm, rules: list(rule), ictx): list(rule) => {
 and analyze_rule = (scrut: imm, rule: rule, ictx): rule => {
   let {rule_pat, rule_branch, rule_complete: _, rule_label}: rule = rule;
   let (rule_pat, ictx) = analyze_pat(rule_pat, scrut.imm_complete, ictx);
-  let rule_branch = analyze_prog(rule_branch, ictx);
+  let rule_branch = analyze_block(rule_branch, ictx);
   {
     rule_pat,
     rule_branch,
     rule_complete:
-      Completeness.join(rule_pat.pat_complete, rule_branch.prog_complete),
+      Completeness.join(rule_pat.pat_complete, rule_branch.block_complete),
     rule_label,
   };
 }
@@ -240,4 +240,4 @@ and analyze_pat' =
   ({pat_kind, pat_complete, pat_label}, ictx);
 };
 
-let analyze = (prog: prog): prog => analyze_prog(prog, VarMap.empty);
+let analyze = (block: block): block => analyze_block(block, VarMap.empty);

@@ -56,16 +56,16 @@ let convert_bind = (bn: bind): t(stmt) => {
 /** Context of variable remappings (e.g. x -> t124_x). */
 type var_remapping = VarMap.t_(Var.t);
 
-let rec linearize_prog = (d: Hir_expr.expr, vctx): t(prog) => {
+let rec linearize_block = (d: Hir_expr.expr, vctx): t(block) => {
   let* (im, im_binds) = linearize_exp(d, vctx);
   let* body = im_binds |> List.map(convert_bind) |> sequence;
 
   let* l = next_label;
   {
-    prog_body: (body, im),
-    prog_ty: im.imm_ty,
-    prog_complete: default_completeness,
-    prog_label: l,
+    block_body: (body, im),
+    block_ty: im.imm_ty,
+    block_complete: default_completeness,
+    block_label: l,
   }
   |> return;
 }
@@ -111,14 +111,14 @@ and linearize_exp = (d: Hir_expr.expr, vctx): t((imm, list(bind))) => {
     let vctx = VarMap.extend(vctx, (x, x'));
 
     let* (p, vctx) = linearize_pat(dp, vctx);
-    let* body = linearize_prog(body, vctx);
+    let* body = linearize_block(body, vctx);
 
     let* (im, im_binds) = linearize_exp(d', vctx);
 
     let* fn_label = next_label;
     let fn = {
       comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.prog_ty),
+      comp_ty: Arrow(dp_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
@@ -128,12 +128,12 @@ and linearize_exp = (d: Hir_expr.expr, vctx): t((imm, list(bind))) => {
 
   | EFun(dp, dp_ty, body) =>
     let* (p, vctx) = linearize_pat(dp, vctx);
-    let* body = linearize_prog(body, vctx);
+    let* body = linearize_block(body, vctx);
 
     let* fn_label = next_label;
     let fn = {
       comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.prog_ty),
+      comp_ty: Arrow(dp_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
@@ -410,7 +410,7 @@ and linearize_case = (case: Hir_expr.case, vctx): t((imm, list(bind))) => {
     let* (scrut_imm, scrut_binds) = linearize_exp(scrut, vctx);
     let* rules = linearize_rules(rules, vctx);
 
-    let rules_ty = List.hd(rules).rule_branch.prog_ty;
+    let rules_ty = List.hd(rules).rule_branch.block_ty;
     let* case_label = next_label;
     let case = {
       comp_kind: CCase(scrut_imm, rules),
@@ -432,7 +432,7 @@ and linearize_rule = (rule: Hir_expr.rule, vctx): t(rule) => {
   switch (rule.rule_kind) {
   | ERule(p, branch) =>
     let* (p, vctx) = linearize_pat(p, vctx);
-    let* branch = linearize_prog(branch, vctx);
+    let* branch = linearize_block(branch, vctx);
 
     let* l = next_label;
     {
@@ -576,8 +576,8 @@ and linearize_inj_side = (side: InjSide.t): inj_side => {
   };
 };
 
-let linearize = (d: Hir_expr.expr): prog => {
+let linearize = (d: Hir_expr.expr): block => {
   // TODO: Can't pass empty vctx once builtins are supported.
-  let (_, prog) = linearize_prog(d, VarMap.empty, init);
-  prog;
+  let (_, block) = linearize_block(d, VarMap.empty, init);
+  block;
 };
