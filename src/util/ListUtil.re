@@ -305,3 +305,9 @@ let rotate = (xs: list('x)): list('x) =>
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
+
+let single_elem = (xs: list('x)): option('x) =>
+  switch (xs) {
+  | [] => None
+  | [hd, ...tl] => List.for_all((==)(hd), tl) ? Some(hd) : None
+  };

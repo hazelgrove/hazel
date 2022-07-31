@@ -28,6 +28,21 @@ let get = (label: Label.t): list(Mold.t) =>
     [];
   };
 
+// make sure that molds as defined in forms obey remolding optimization assumptions
+let check_labels_have_consistent_right_nibs = {
+  let consistent =
+    Form.forms
+    |> List.map(((_, form: Form.t)) =>
+         get(form.label) |> List.map((m: Mold.t) => snd(m.nibs).shape)
+       )
+    |> List.for_all(shapes => Option.is_some(ListUtil.single_elem(shapes)));
+  if (!consistent) {
+    failwith(
+      "ERROR: not all labels have consistent right nibs (currently assumed for remolding optimization)",
+    );
+  };
+};
+
 let delayed_completes: completions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>

@@ -80,10 +80,10 @@ let is_whitespace: t => bool =
   | Whitespace(_) => true
   | _ => false;
 
-let is_tile: t => bool =
+let is_tile: t => option(Tile.t) =
   fun
-  | Whitespace(_) => true
-  | _ => false;
+  | Tile(t) => Some(t)
+  | _ => None;
 
 let monotile: t => option(Token.t) =
   fun

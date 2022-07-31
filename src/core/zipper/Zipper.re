@@ -83,18 +83,7 @@ let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
 let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) => {
   assert(Selection.is_empty(z.selection));
   open IdGen.Syntax;
-  let* state = IdGen.get;
-  let ls_relatives =
-    Relatives.remold(z.relatives)
-    |> List.map(rs => Relatives.regrout(d, rs, state))
-    |> List.sort(((rel, _), (rel', _)) => {
-         open Relatives;
-         let c = Int.compare(sort_rank(rel), sort_rank(rel'));
-         c != 0 ? c : Int.compare(shape_rank(rel), shape_rank(rel'));
-       });
-  assert(ls_relatives != []);
-  let (relatives, state) = List.hd(ls_relatives);
-  let+ () = IdGen.put(state);
+  let+ relatives = Relatives.regrout(d, Relatives.remold(z.relatives));
   {...z, relatives};
 };
 
