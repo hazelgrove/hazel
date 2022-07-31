@@ -8,6 +8,7 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
+let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
 
@@ -31,12 +32,8 @@ let concat = (sibss: list(t)): t =>
 //   |> List.for_all(((_, shards)) => Shard.consistent_molds(shards) != []);
 // };
 
-let remold = ((pre, suf): t, s): list(t) => {
-  open ListUtil.Syntax;
-  let+ pre = Segment.remold(pre, s)
-  and+ suf = Segment.remold(suf, s);
-  (pre, suf);
-};
+let remold = ((pre, _) as sibs: t, s: Sort.t): t =>
+  Segment.remold(zip(sibs), s) |> unzip(List.length(pre));
 
 let shapes = ((pre, suf): t) => {
   let s = Nib.Shape.concave();
