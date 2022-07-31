@@ -168,7 +168,7 @@ let forms: list((string, t)) = [
   //("rule_rest", mk(ds, ["|", "->"], mk_bin(9, Exp, [Pat]))),
 ];
 
-let get: Token.t => t = name => List.assoc(name, forms);
+let get: String.t => t = name => List.assoc(name, forms);
 
 let delims: list(Token.t) =
   forms
