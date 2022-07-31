@@ -39,6 +39,8 @@ let associativity_map: IntMap.t(Direction.t) =
     (prod, Right),
     (ann, Left),
     (eqs, Left),
+    (rule_arr, Right),
+    (rule_sep, Right),
   ]
   |> List.to_seq
   |> IntMap.of_seq;
