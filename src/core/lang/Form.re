@@ -95,6 +95,52 @@ let forms: list((string, t)) = [
       mk_pre(P.let_, Exp, [Pat, Typ, Exp]),
     ),
   ),
+  (
+    "typeann",
+    mk(
+      ss,
+      [":"],
+      {
+        out: Pat,
+        in_: [],
+        nibs: (
+          {shape: Concave(P.ann), sort: Pat},
+          {shape: Concave(P.ann), sort: Typ},
+        ),
+      },
+    ),
+  ),
+  (
+    "case",
+    mk(
+      ds,
+      ["case", "of"],
+      {
+        out: Exp,
+        in_: [Exp],
+        nibs: (
+          {shape: Convex, sort: Exp},
+          {shape: Concave(P.case_), sort: Rul},
+        ),
+      },
+    ),
+  ),
+  (
+    "rule_arr",
+    mk(
+      ss,
+      ["=>"],
+      {
+        out: Rul,
+        in_: [],
+        nibs: (
+          {shape: Concave(P.rule_arr), sort: Pat},
+          {shape: Concave(P.rule_arr), sort: Exp},
+        ),
+      },
+    ),
+  ),
+  ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
   //("times", mk_infix("*", Exp, P.mult)),
   //("divide", mk_infix("/", Exp, P.mult)),
   //("not_equals", mk_infix("!=", Exp, 5)),
