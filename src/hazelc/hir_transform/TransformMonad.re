@@ -1,8 +1,8 @@
 open Hir_expr;
 
-module ExprLabelGen = Label_.Gen.Make(Expr.Label);
-module RuleLabelGen = Label_.Gen.Make(Expr.RuleLabel);
-module PatLabelGen = Label_.Gen.Make(Pat.Label);
+module ExprLabelGen = Label.Gen.Make(Expr.Label);
+module RuleLabelGen = Label.Gen.Make(Expr.RuleLabel);
+module PatLabelGen = Label.Gen.Make(Pat.Label);
 
 module State = {
   [@deriving sexp]
