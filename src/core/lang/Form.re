@@ -95,6 +95,7 @@ let forms: list((string, t)) = [
       mk_pre(P.let_, Exp, [Pat, Typ, Exp]),
     ),
   ),
+  ("test", mk(ds, ["test", "of"], mk_pre(P.let_, Exp, [Nul]))),
   //("times", mk_infix("*", Exp, P.mult)),
   //("divide", mk_infix("/", Exp, P.mult)),
   //("not_equals", mk_infix("!=", Exp, 5)),
@@ -144,7 +145,7 @@ let is_delim = t => List.mem(t, delims);
 let is_valid_token = t =>
   is_convex_mono(t) || is_whitespace(t) || is_delim(t);
 
-let is_valid_char = is_valid_token; //TODO(andrew): betterify this
+let is_valid_char = c => List.mem(c, ["$", "\""]) || is_valid_token(c); //TODO(andrew): betterify this
 
 let mk_convex_mono = (sort: Sort.t, t: Token.t) => {
   assert(is_convex_mono(t));

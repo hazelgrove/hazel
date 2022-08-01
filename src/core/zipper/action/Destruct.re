@@ -14,10 +14,11 @@ let destruct =
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Outer.destruct |> IdGen.id(id_gen) |> Option.some
-  | (Left, Inner(_, c_idx), (_, Some(t))) =>
+  | (Left, Inner(_, c_idx), (_, Some((t, _)))) =>
     let z = Caret.update(Caret.decrement, z);
     Outer.replace(Right, [Token.rm_nth(c_idx, t)], (z, id_gen));
-  | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
+  | (Right, Inner(_, c_idx), (_, Some((t, _))))
+      when c_idx == last_inner_pos(t) =>
     Outer.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
     |> OptUtil.and_then(((z, id_gen)) =>
          z
@@ -26,7 +27,7 @@ let destruct =
          |> Option.map(IdGen.id(id_gen))
        )
   /* If not on last inner position */
-  | (Right, Inner(_, c_idx), (_, Some(t))) =>
+  | (Right, Inner(_, c_idx), (_, Some((t, _)))) =>
     Outer.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
@@ -37,10 +38,10 @@ let destruct =
     |> Outer.directional_destruct(Right)
     |> Option.map(IdGen.id(id_gen))
   //| (_, Inner(_), (_, None)) => None
-  | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
+  | (Left, Outer, (Some((t, _)), _)) when Token.length(t) > 1 =>
     //Option.map(IdGen.id(id_gen)
     Outer.replace(Left, [Token.rm_last(t)], (z, id_gen))
-  | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
+  | (Right, Outer, (_, Some((t, _)))) when Token.length(t) > 1 =>
     Outer.replace(Right, [Token.rm_first(t)], (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) =>
@@ -60,7 +61,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
   let z_trimmed = update_siblings(Siblings.trim_whitespace_and_grout, z);
   switch (z.caret, neighbor_monotiles(z_trimmed.relatives.siblings)) {
-  | (Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+  | (Outer, (Some((l, _)), Some((r, _)))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))
   };

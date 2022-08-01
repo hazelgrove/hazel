@@ -24,8 +24,8 @@ let get = (label: Label.t): list(Mold.t) =>
     Form.convex_mono_molds(t)
   | (_, Some(molds)) => molds
   | (lbl, None) =>
-    Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
-    [];
+    Printf.printf("MOLD FALLTHRU: %s\n", Label.show(lbl));
+    [Mold.mk_op(Nul, [])];
   };
 
 let delayed_completes: completions =

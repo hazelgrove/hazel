@@ -10,9 +10,11 @@ type appendability =
 let sibling_appendability: (string, Siblings.t) => appendability =
   (char, siblings) =>
     switch (neighbor_monotiles(siblings)) {
-    | (Some(t), _) when Form.is_valid_token(t ++ char) =>
+    | (Some((t, sort)), _)
+        when Form.is_valid_token(t ++ char) || sort == Nul =>
       AppendLeft(t ++ char)
-    | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
+    | (_, Some((t, sort)))
+        when Form.is_valid_token(char ++ t) || sort == Nul =>
       AppendRight(char ++ t)
     | _ => AppendNeither
     };
@@ -22,7 +24,7 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
      is down (removing the rest of the set from backpack on edit) as something
      like this is necessary for backspace to act as undo after kw-expansion */
   switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) =>
+  | (Some((kw, _)), _) =>
     let (new_label, direction) = Molds.delayed_completion(kw, Left);
     Outer.replace(direction, new_label, state);
   | _ => Some(state)
@@ -81,11 +83,11 @@ let go =
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Outer.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
-  | (Inner(d_idx, n), (_, Some(t))) =>
+  | (Inner(d_idx, n), (_, Some((t, sort)))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
     /* If inserting wouldn't produce a valid token, split */
-    Form.is_valid_token(new_t)
+    Form.is_valid_token(new_t) || sort == Nul
       ? z
         |> Caret.set(Inner(d_idx, idx))
         |> (z => Outer.replace(Right, [new_t], (z, id_gen)))

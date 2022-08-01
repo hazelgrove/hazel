@@ -85,15 +85,15 @@ let is_tile: t => bool =
   | Whitespace(_) => true
   | _ => false;
 
-let monotile: t => option(Token.t) =
+let monotile: t => option((Token.t, Sort.t)) =
   fun
-  | Tile({label: [t], _}) => Some(t)
+  | Tile({label: [t], mold: {out, _}, _}) => Some((t, out))
   | _ => None;
 
 let is_length_one_monotile: t => bool =
   p =>
     switch (monotile(p)) {
-    | Some(t) => String.length(t) == 1
+    | Some((t, _)) => String.length(t) == 1
     | None => false
     };
 

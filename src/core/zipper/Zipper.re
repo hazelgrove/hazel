@@ -71,7 +71,8 @@ let sibs_with_sel =
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
-let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
+let neighbor_monotiles:
+  Siblings.t => (option((Token.t, Sort.t)), option((Token.t, Sort.t))) =
   siblings =>
     switch (Siblings.neighbors(siblings)) {
     | (Some(l), Some(r)) => (Piece.monotile(l), Piece.monotile(r))
