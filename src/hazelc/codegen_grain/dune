@@ -2,6 +2,6 @@
 
 (library
  (name codegen_grain)
- (libraries mir grain sexplib)
+ (libraries mir grain util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

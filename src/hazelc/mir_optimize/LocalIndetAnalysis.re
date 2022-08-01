@@ -5,7 +5,7 @@ open Mir_anf;
  * refers.
  */
 [@deriving sexp]
-type complete_context = VarMap.t_(complete);
+type completes = Ident.Map.t(complete);
 
 let rec analyze_block = (block: block, ictx): block => {
   let {block_body: (body, im), block_ty, block_complete: _, block_label}: block = block;
@@ -21,7 +21,7 @@ let rec analyze_block = (block: block, ictx): block => {
   };
 }
 
-and analyze_body = (body: list(stmt), ictx): (list(stmt), complete_context) => {
+and analyze_body = (body: list(stmt), ictx): (list(stmt), completes) => {
   let (rev_body, ictx) =
     List.fold_left(
       ((body, ictx), stmt) => {
@@ -35,7 +35,7 @@ and analyze_body = (body: list(stmt), ictx): (list(stmt), complete_context) => {
   (List.rev(rev_body), ictx);
 }
 
-and analyze_stmt = (stmt: stmt, ictx): (stmt, complete_context) => {
+and analyze_stmt = (stmt: stmt, ictx): (stmt, completes) => {
   let {stmt_kind, stmt_complete: _, stmt_label}: stmt = stmt;
   let (stmt_kind, stmt_complete, ictx) =
     switch (stmt_kind) {
@@ -49,8 +49,7 @@ and analyze_stmt = (stmt: stmt, ictx): (stmt, complete_context) => {
         x,
         {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _, comp_label: _} as c,
       ) =>
-      /* TODO: Funbda analysis */
-      let ictx = VarMap.extend(ictx, (x, IndeterminatelyIncomplete));
+      let ictx = Ident.Map.add(x, Complete.IndeterminatelyIncomplete, ictx);
       let c = analyze_comp(c, ictx);
       (SLetRec(x, c), c.comp_complete, ictx);
 
@@ -150,7 +149,7 @@ and analyze_rule = (scrut: imm, rule: rule, ictx): rule => {
   };
 }
 
-and analyze_sigma = (sigma: VarMap.t_(imm), _ictx): VarMap.t_(imm) => {
+and analyze_sigma = (sigma: Ident.Map.t(imm), _ictx): Ident.Map.t(imm) => {
   /* TODO: Not sure if we need to do anything to this. */
   sigma;
 }
@@ -163,9 +162,9 @@ and analyze_imm = (im: imm, ictx): imm => {
       let const = analyze_const(const, ictx);
       (IConst(const), NecessarilyComplete);
     | IVar(x) =>
-      switch (VarMap.lookup(ictx, x)) {
+      switch (Ident.Map.find_opt(x, ictx)) {
       | Some(x_complete) => (IVar(x), x_complete)
-      | None => failwith("bad free variable " ++ x)
+      | None => failwith("bad free variable " ++ Ident.to_string(x))
       }
     };
 
@@ -177,12 +176,12 @@ and analyze_const = (const: constant, _ictx): constant => {
 }
 
 and analyze_pat =
-    (p: pat, matchee_complete: complete, ictx): (pat, complete_context) =>
+    (p: pat, matchee_complete: complete, ictx): (pat, completes) =>
   analyze_pat'(p, matchee_complete, false, ictx)
 
 and analyze_pat' =
     (p: pat, matchee_complete: complete, in_hole: bool, ictx)
-    : (pat, complete_context) => {
+    : (pat, completes) => {
   let {pat_kind, pat_complete: _, pat_label}: pat = p;
   let (pat_kind, pat_complete: complete, ictx) =
     switch (pat_kind) {
@@ -190,15 +189,12 @@ and analyze_pat' =
       /* We mark that the variable x refers to a possibly indeterminate
        * expression if the matchee is possible indeterminate or we are in a
        * non-empty pattern hole. */
-      let ictx =
-        VarMap.extend(
-          ictx,
-          (
-            x,
-            /* TODO: Not sure if this could be more specific. */
-            if (in_hole) {IndeterminatelyIncomplete} else {matchee_complete},
-          ),
-        );
+      /* TODO: Not sure if this could be more specific. */
+      let x_complete =
+        if (in_hole) {Complete.IndeterminatelyIncomplete} else {
+          matchee_complete
+        };
+      let ictx = Ident.Map.add(x, x_complete, ictx);
       (pat_kind, NecessarilyComplete, ictx);
     | PWild
     | PInt(_)
@@ -230,4 +226,4 @@ and analyze_pat' =
   ({pat_kind, pat_complete, pat_label}, ictx);
 };
 
-let analyze = (block: block): block => analyze_block(block, VarMap.empty);
+let analyze = (block: block): block => analyze_block(block, Ident.Map.empty);

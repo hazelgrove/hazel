@@ -26,7 +26,7 @@ module State = {
   };
 };
 
-include StateMonad.Make(State);
+include Util.StateMonad.Make(State);
 open Syntax;
 
 let sequence = ms => {

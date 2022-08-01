@@ -34,7 +34,7 @@ module State = {
   };
 };
 
-include StateMonad.Make(State);
+include Util.StateMonad.Make(State);
 
 let init = State.init;
 

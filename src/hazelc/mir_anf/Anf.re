@@ -3,6 +3,8 @@
  */
 open Sexplib.Std;
 
+open Holes;
+
 [@deriving sexp]
 type complete = Complete.t;
 
@@ -38,7 +40,7 @@ type pat = {
 [@deriving sexp]
 and pat_kind =
   | PWild
-  | PVar(Var.t)
+  | PVar(Ident.t)
   | PInt(int)
   | PFloat(float)
   | PBool(bool)
@@ -53,13 +55,13 @@ and constant =
   | ConstInt(int)
   | ConstFloat(float)
   | ConstBool(bool)
-  | ConstNil(HTyp.t)
+  | ConstNil(Typ.t)
   | ConstTriv
 
 [@deriving sexp]
 and imm = {
   imm_kind,
-  imm_ty: HTyp.t,
+  imm_ty: Typ.t,
   imm_complete: complete,
   imm_label: label,
 }
@@ -67,12 +69,12 @@ and imm = {
 [@deriving sexp]
 and imm_kind =
   | IConst(constant)
-  | IVar(Var.t)
+  | IVar(Ident.t)
 
 [@deriving sexp]
 and comp = {
   comp_kind,
-  comp_ty: HTyp.t,
+  comp_ty: Typ.t,
   comp_complete: complete,
   comp_label: label,
 }
@@ -87,15 +89,15 @@ and comp_kind =
   | CPair(imm, imm)
   | CInj(inj_side, imm)
   | CCase(imm, list(rule))
-  | CEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(imm))
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, Ident.Map.t(imm))
   | CNonEmptyHole(
-      ErrStatus.HoleReason.t,
+      HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(imm),
+      Ident.Map.t(imm),
       imm,
     )
-  | CCast(imm, HTyp.t, HTyp.t)
+  | CCast(imm, Typ.t, Typ.t)
 
 [@deriving sexp]
 and inj_side =
@@ -120,12 +122,12 @@ and stmt = {
 [@deriving sexp]
 and stmt_kind =
   | SLet(pat, comp)
-  | SLetRec(Var.t, comp)
+  | SLetRec(Ident.t, comp)
 
 [@deriving sexp]
 and block = {
   block_body: (list(stmt), imm),
-  block_ty: HTyp.t,
+  block_ty: Typ.t,
   block_complete: complete,
   block_label: label,
 };

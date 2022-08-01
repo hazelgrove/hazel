@@ -86,7 +86,7 @@ module State = {
 };
 
 module Monad = {
-  include StateMonad.Make(State);
+  include Util.StateMonad.Make(State);
 
   let with_incomplete_import = update(State.with_incomplete_import);
   let with_sum_import = update(State.with_sum_import);
@@ -281,7 +281,8 @@ and codegen_imm = (im: Anf.imm): t(Grain.expr) => {
   };
 }
 
-and codegen_var = (x: Var.t): t(Grain.expr) => EVar(x) |> return
+and codegen_var = (x: Ident.t): t(Grain.expr) =>
+  EVar(x |> Ident.to_string) |> return
 
 and codegen_const = (const: Anf.constant): t(Grain.expr) => {
   (
@@ -299,7 +300,7 @@ and codegen_const = (const: Anf.constant): t(Grain.expr) => {
 and codegen_pat = (p: Anf.pat): t(Grain.pat) => {
   switch (p.pat_kind) {
   | PWild => PWild |> return
-  | PVar(x) => PVar(x) |> return
+  | PVar(x) => PVar(x |> Ident.to_string) |> return
   | PInt(n) => PInt(n) |> return
   | PFloat(f) => PFloat(f) |> return
   | PBool(b) => PBool(b) |> return
@@ -346,7 +347,7 @@ and codegen_inj_side_pat = (side: Anf.inj_side): t(Grain.pat => Grain.pat) => {
   side' |> return;
 }
 
-and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(Grain.expr) => {
+and codegen_hole_reason = (reason: Holes.HoleReason.t): t(Grain.expr) => {
   let reason' =
     HazelStd.Rt.Ast.(
       switch (reason) {
@@ -358,16 +359,18 @@ and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(Grain.expr) => {
   let* () = with_incomplete_import;
   EVar(reason') |> return;
 }
-and codegen_meta_var = (u: MetaVar.t): t(Grain.expr) =>
+and codegen_meta_var = (u: Holes.MetaVar.t): t(Grain.expr) =>
   EInt32Lit(u) |> return
 
-and codegen_meta_var_inst = (i: MetaVarInst.t): t(Grain.expr) =>
+and codegen_meta_var_inst = (i: Holes.MetaVarInst.t): t(Grain.expr) =>
   EInt32Lit(i) |> return
 
-and codegen_sigma = (sigma: VarMap.t_(Anf.imm)): t(Grain.expr) => {
+and codegen_sigma = (sigma: Ident.Map.t(Anf.imm)): t(Grain.expr) => {
   let* sigma' =
     sigma
+    |> Ident.Map.bindings
     |> codegen_fold(((x, im)) => {
+         let x = Ident.to_string(x);
          let* im' = codegen_imm(im);
          Grain.ETuple([Grain.EStringLit(x), im']) |> return;
        });
@@ -395,8 +398,8 @@ and codegen_non_empty_hole = (reason, u, i, sigma, im): t(Grain.expr) => {
   HazelStd.Rt.Ast.non_empty_hole(reason', u', i', sigma', e') |> return;
 }
 
-and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(Grain.expr) => {
-  let rec codegen_htyp = (t: HTyp.t): t(Grain.expr) => {
+and codegen_cast = (im: Anf.imm, ty1: Anf.typ, ty2: Anf.typ): t(Grain.expr) => {
+  let rec codegen_htyp = (t: Anf.typ): t(Grain.expr) => {
     HazelStd.Rt.(
       switch (t) {
       | Hole => Ast.HTyp.hole |> return

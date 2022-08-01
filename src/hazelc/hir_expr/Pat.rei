@@ -1,3 +1,5 @@
+open Holes;
+
 module Label = PatLabel;
 
 [@deriving sexp]
@@ -10,7 +12,7 @@ type t = {
 and kind =
   /* Holes */
   | PEmptyHole(MetaVar.t, MetaVarInst.t)
-  | PNonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
+  | PNonEmptyHole(HoleReason.t, MetaVar.t, MetaVarInst.t, t)
   | PKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | PInvalidText(MetaVar.t, MetaVarInst.t, string)
   /* Non-holes */
@@ -19,7 +21,7 @@ and kind =
   | PCons(t, t)
   | PInj(InjSide.t, t)
   | PWild
-  | PVar(Var.t)
+  | PVar(Ident.t)
   | PIntLit(int)
   | PFloatLit(float)
   | PBoolLit(bool)
