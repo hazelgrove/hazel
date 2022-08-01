@@ -1,3 +1,8 @@
+module InjSide = InjSide;
+
+module Typ = Typ;
+[@deriving sexp]
+type typ = Typ.t;
 module Expr = Expr;
 [@deriving sexp]
 type expr = Expr.t;
