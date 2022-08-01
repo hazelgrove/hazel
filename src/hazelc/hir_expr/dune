@@ -2,6 +2,6 @@
 
 (library
  (name hir_expr)
- (libraries hazelcore label sexplib)
+ (libraries ident holes label sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

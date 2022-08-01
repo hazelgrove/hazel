@@ -45,7 +45,7 @@ module type MonadS = {
   [@deriving sexp]
   type gen;
 
-  include StateMonad.S with type state = gen;
+  include Util.StateMonad.S with type state = gen;
 
   let init: gen;
   let next: t(label);
@@ -58,7 +58,7 @@ module Monad = (G: S) : (MonadS with type label = G.label and type gen = G.t) =>
   [@deriving sexp]
   type gen = G.t;
 
-  include StateMonad.Make({
+  include Util.StateMonad.Make({
     [@deriving sexp]
     type t = gen;
   });

@@ -2,6 +2,6 @@
 
 (library
  (name mir_anf)
- (libraries label sexplib)
+ (libraries holes ident label util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

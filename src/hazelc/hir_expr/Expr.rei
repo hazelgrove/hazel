@@ -2,6 +2,7 @@
   This module defines the high-level intermediate representation, which has an
   expression form.
  */
+open Holes;
 
 module Label = ExprLabel;
 module RuleLabel = RuleLabel;
@@ -40,32 +41,26 @@ type t = {
 [@deriving sexp]
 and kind =
   /* Holes */
-  | EEmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
-  | ENonEmptyHole(
-      ErrStatus.HoleReason.t,
-      MetaVar.t,
-      MetaVarInst.t,
-      VarMap.t_(t),
-      t,
-    )
-  | EKeyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
-  | EFreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | EInvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
+  | EEmptyHole(MetaVar.t, MetaVarInst.t, Ident.Map.t(t))
+  | ENonEmptyHole(HoleReason.t, MetaVar.t, MetaVarInst.t, Ident.Map.t(t), t)
+  | EKeyword(MetaVar.t, MetaVarInst.t, Ident.Map.t(t), ExpandingKeyword.t)
+  | EFreeVar(MetaVar.t, MetaVarInst.t, Ident.Map.t(t), Ident.t)
+  | EInvalidText(MetaVar.t, MetaVarInst.t, Ident.Map.t(t), string)
   | EInvalidOperation(t, InvalidOperationError.t)
   /* Casts */
-  | ECast(t, HTyp.t, HTyp.t)
-  | EFailedCast(t, HTyp.t, HTyp.t)
+  | ECast(t, Typ.t, Typ.t)
+  | EFailedCast(t, Typ.t, Typ.t)
   /* Case */
   | EConsistentCase(case)
-  | EInconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
+  | EInconsistentBranches(MetaVar.t, MetaVarInst.t, Ident.Map.t(t), case)
   /* Let bindings */
   | ELet(Pat.t, t, t)
-  | ELetRec(Var.t, Pat.t, HTyp.t, t, t)
+  | ELetRec(Ident.t, Pat.t, Typ.t, t, t)
   /* Function */
-  | EFun(Pat.t, HTyp.t, t)
+  | EFun(Pat.t, Typ.t, t)
   /* Application */
   | EAp(t, t)
-  | EApBuiltin(Var.t, list(t))
+  | EApBuiltin(Ident.t, list(t))
   /* Binary operations */
   | EBinBoolOp(bin_bool_op, t, t)
   | EBinIntOp(bin_int_op, t, t)
@@ -75,13 +70,14 @@ and kind =
   /* Cons */
   | ECons(t, t)
   /* Sum injection */
-  | EInj(HTyp.t, InjSide.t, t)
-  /* Immediate tessions; we can deduce the type and indet-ness of these trivially. */
-  | EBoundVar(HTyp.t, Var.t)
+  | EInj(Typ.t, InjSide.t, t)
+  /* Immediate expressions */
+  /* FIXME: Remove type. */
+  | EBoundVar(Typ.t, Ident.t)
   | EBoolLit(bool)
   | EIntLit(int)
   | EFloatLit(float)
-  | ENil(HTyp.t)
+  | ENil(Typ.t)
   | ETriv
 
 [@deriving sexp]

@@ -1,3 +1,3 @@
-module Grain = Codegen_grain;
+let codegen_grain = Codegen_grain.codegen;
 
-let codegen_grain = Grain.codegen;
+module Grain = Codegen_grain;

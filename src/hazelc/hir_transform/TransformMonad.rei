@@ -15,7 +15,7 @@ module State: {
   let init: t;
 };
 
-include StateMonad.S with type state = State.t;
+include Util.StateMonad.S with type state = State.t;
 
 let init: State.t;
 

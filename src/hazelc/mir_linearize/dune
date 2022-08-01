@@ -2,6 +2,6 @@
 
 (library
  (name mir_linearize)
- (libraries mir_anf hir_expr sexplib)
+ (libraries mir_anf hir_expr util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

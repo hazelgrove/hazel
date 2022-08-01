@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name hir_transform)
- (libraries hazelcore hir_expr sexplib)
+ (name holes)
+ (libraries util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))

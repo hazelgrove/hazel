@@ -32,7 +32,7 @@ module type MonadS = {
   [@deriving sexp]
   type gen;
 
-  include StateMonad.S with type state = gen;
+  include Util.StateMonad.S with type state = gen;
 
   let init: gen;
   let next: t(label);

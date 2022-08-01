@@ -3,7 +3,6 @@ open Sexplib.Std;
 module Anf = Mir.Anf;
 
 open Grain;
-open Grain.Ident;
 open Grain.Expr;
 open Grain.Pat;
 
@@ -89,7 +88,7 @@ module State = {
 };
 
 module Monad = {
-  include StateMonad.Make(State);
+  include Util.StateMonad.Make(State);
 
   let with_incomplete_import = update(State.with_incomplete_import);
   let with_sum_import = update(State.with_sum_import);
@@ -283,7 +282,7 @@ and codegen_imm = (im: Anf.imm): t(expr) => {
   };
 }
 
-and codegen_var = (x: Var.t): t(expr) => EVar(v(x)) |> return
+and codegen_var = (x: Ident.t): t(expr) => EVar(x) |> return
 
 and codegen_const = (const: Anf.constant): t(expr) => {
   (
@@ -301,7 +300,7 @@ and codegen_const = (const: Anf.constant): t(expr) => {
 and codegen_pat = (p: Anf.pat): t(pat) => {
   switch (p.pat_kind) {
   | PWild => PWild |> return
-  | PVar(x) => PVar(v(x)) |> return
+  | PVar(x) => PVar(x) |> return
   | PInt(n) => PInt(n) |> return
   | PFloat(f) => PFloat(f) |> return
   | PBool(b) => PBool(b) |> return
@@ -337,7 +336,7 @@ and codegen_inj_side = (side: Anf.inj_side): t(expr => expr) => {
   side' |> return;
 }
 
-and codegen_inj_side_pat = (side: Anf.inj_side): t(Grain.pat => Grain.pat) => {
+and codegen_inj_side_pat = (side: Anf.inj_side): t(pat => pat) => {
   let side' =
     switch (side) {
     | CInjL => Sum.inj_l_pat
@@ -348,7 +347,7 @@ and codegen_inj_side_pat = (side: Anf.inj_side): t(Grain.pat => Grain.pat) => {
   side' |> return;
 }
 
-and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(expr) => {
+and codegen_hole_reason = (reason: Holes.HoleReason.t): t(expr) => {
   let reason' =
     Ast.(
       switch (reason) {
@@ -360,15 +359,18 @@ and codegen_hole_reason = (reason: ErrStatus.HoleReason.t): t(expr) => {
   let* () = with_incomplete_import;
   reason' |> return;
 }
-and codegen_meta_var = (u: MetaVar.t): t(expr) => EInt32Lit(u) |> return
+and codegen_meta_var = (u: Holes.MetaVar.t): t(expr) =>
+  EInt32Lit(u) |> return
 
-and codegen_meta_var_inst = (i: MetaVarInst.t): t(expr) =>
+and codegen_meta_var_inst = (i: Holes.MetaVarInst.t): t(expr) =>
   EInt32Lit(i) |> return
 
-and codegen_sigma = (sigma: VarMap.t_(Anf.imm)): t(expr) => {
+and codegen_sigma = (sigma: Ident.Map.t(Anf.imm)): t(expr) => {
   let* sigma' =
     sigma
+    |> Ident.Map.bindings
     |> codegen_fold(((x, im)) => {
+         let x = Ident.to_string(x);
          let* im' = codegen_imm(im);
          ETuple([EStringLit(x), im']) |> return;
        });
@@ -396,14 +398,13 @@ and codegen_non_empty_hole = (reason, u, i, sigma, im): t(expr) => {
   Ast.Ast.non_empty_hole(reason', u', i', sigma', e') |> return;
 }
 
-and codegen_cast = (im: Anf.imm, ty1: HTyp.t, ty2: HTyp.t): t(expr) => {
-  let rec codegen_htyp = (t: HTyp.t): t(expr) => {
+and codegen_cast = (im: Anf.imm, ty1: Anf.typ, ty2: Anf.typ): t(expr) => {
+  let rec codegen_htyp = (t: Anf.typ): t(expr) => {
     switch (t) {
     | Hole => Ast.HTyp.hole |> return
     | Int => Ast.HTyp.int |> return
     | Float => Ast.HTyp.float |> return
     | Bool => Ast.HTyp.bool |> return
-
     | Arrow(ty1, ty2) =>
       let* ty1' = codegen_htyp(ty1);
       let* ty2' = codegen_htyp(ty2);

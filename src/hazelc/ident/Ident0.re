@@ -4,6 +4,10 @@ module Inner: {
   [@deriving sexp]
   type t;
 
+  let equal: (t, t) => bool;
+  let compare: (t, t) => int;
+  let length: t => int;
+
   let v: string => t;
   let to_string: t => string;
   let of_string: string => t;
@@ -14,6 +18,10 @@ module Inner: {
 } = {
   [@deriving sexp]
   type t = string;
+
+  let equal = String.equal;
+  let compare = String.compare;
+  let length = String.length;
 
   let v = str => str;
   let to_string = ident => ident;
@@ -26,6 +34,10 @@ module Inner: {
 
 [@deriving sexp]
 type t = Inner.t;
+
+let equal = Inner.equal;
+let compare = Inner.compare;
+let length = Inner.length;
 
 let v = Inner.v;
 let to_string = Inner.to_string;
