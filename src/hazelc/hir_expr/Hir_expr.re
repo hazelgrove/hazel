@@ -15,3 +15,5 @@ module Pat = Pat;
 [@deriving sexp]
 type pat = Pat.t;
 
+module Syn = Syn;
+let syn = Syn.syn;
