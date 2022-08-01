@@ -72,13 +72,14 @@ let parse = (~opts, source) => {
 let elaborate = (~opts, e) => {
   let _ = opts;
   switch (elaborate'(e)) {
-  | (ctx, Elaborates(d, _ty, _delta)) => Ok((ctx, d))
+  | (ctx, Elaborates(d, _ty, delta)) => Ok((ctx, delta, d))
   | (_, DoesNotElaborate) => Error()
   };
 };
 
-let transform = (~opts, ctx, d) => {
+let transform = (~opts, ctx, _delta, d) => {
   let _ = opts;
+  /* TODO: Transform delta and perform check that transform' is correct. */
   transform'(ctx, d);
 };
 
@@ -103,7 +104,7 @@ let wasmize = (~opts, ~source, ~output, g) =>
 type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
-  | Elaborated(Contexts.t, DHExp.t)
+  | Elaborated(Contexts.t, Delta.t, DHExp.t)
   | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
@@ -127,10 +128,11 @@ let next = (~opts, state): next_result => {
 
   | Parsed(e) =>
     elaborate(~opts, e)
-    |> Result.map(((ctx, d)) => Some(Elaborated(ctx, d)))
+    |> Result.map(((ctx, delta, d)) => Some(Elaborated(ctx, delta, d)))
     |> Result.map_error(() => ElaborateError)
 
-  | Elaborated(ctx, d) => Ok(Some(Transformed(transform(~opts, ctx, d))))
+  | Elaborated(ctx, delta, d) =>
+    Ok(Some(Transformed(transform(~opts, ctx, delta, d))))
 
   | Transformed(u) => Ok(Some(Linearized(linearize(~opts, u))))
 
@@ -198,7 +200,7 @@ let rec resume = (~opts, ~hook=stop_after_printed, state) => {
 
 let resume_until_elaborated = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_elaborated, state)) {
-  | Ok(Some(Elaborated(_, d))) => Ok(d)
+  | Ok(Some(Elaborated(_, _, d))) => Ok(d)
   | Error(err) => Error(err)
   | Ok(_) =>
     failwith("resume_until_elaborated did not stop with Elaborated state")

@@ -45,7 +45,7 @@ let wasmize:
 type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
-  | Elaborated(Contexts.t, DHExp.t)
+  | Elaborated(Contexts.t, Delta.t, DHExp.t)
   | Transformed(Hir.Expr.expr)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
