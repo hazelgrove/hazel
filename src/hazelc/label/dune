@@ -2,6 +2,6 @@
 
 (library
  (name label)
- (libraries hazelcore sexplib)
+ (libraries util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))
