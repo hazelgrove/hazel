@@ -2,6 +2,6 @@
 
 (library
  (name ident)
- (libraries sexplib)
+ (libraries util sexplib)
  (preprocess
   (pps ppx_sexp_conv)))
