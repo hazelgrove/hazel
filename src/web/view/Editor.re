@@ -7,18 +7,12 @@ module Memo = Core_kernel.Memo;
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 let get_result_str = (elab): string => {
-  print_endline("elaboration:");
-  print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(elab)));
   switch (elab |> evaluate) {
   | BoxedValue(d) =>
     let res_string = Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d));
-    print_endline("boxedval:");
-    print_endline(res_string);
     res_string;
   | Indet(d) =>
     let res_string = Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d));
-    print_endline("indet:");
-    print_endline(res_string);
     res_string;
   | exception _ => "EXCEPTION"
   };
