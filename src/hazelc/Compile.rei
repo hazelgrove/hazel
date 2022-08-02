@@ -18,8 +18,9 @@ type opts = {
 };
 
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);
-let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
-let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.Expr.expr;
+let elaborate:
+  (~opts: opts, UHExp.t) => result((Contexts.t, Delta.t, DHExp.t), unit);
+let transform: (~opts: opts, Contexts.t, Delta.t, DHExp.t) => Hir.Expr.expr;
 let linearize: (~opts: opts, Hir.Expr.expr) => Mir.Anf.block;
 let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
 let grainize: (~opts: opts, Mir.Anf.block) => Grain.prog;
