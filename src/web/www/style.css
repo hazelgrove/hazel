@@ -987,19 +987,42 @@ svg {
 }
 
 
-/* STATICS + DYNAMICS */
+/* STATICS */
 
 .cursor-inspector {
+  padding-right: 0.25em;
   position: fixed;
   top: 4em;
   left: 2em;
   display: flex;
-  gap: 0.5em; 
+  gap: 0.5em;
+  border-radius: 0.2em;
+  border: 1px solid #ebdfc5;
+  height: 1.2em;
 }
 
-.cursor-inspector .id {
+.cursor-inspector.error {
+  border-color: red;
+}
+
+.cursor-inspector .extra {
+  position: absolute;
+  top: -2em;
+  left: 0.5em;
+  display: none;
+  gap: 0.5em;
   font-size: 0.5em;
+}
+.cursor-inspector:hover .extra {
+  display: flex;
+}
+
+.cursor-inspector .extra .syntax-class {
   color: #c7b480;
+}
+
+.cursor-inspector .extra .id {
+  color: #8f8054;
 }
 
 .typ-view {
@@ -1029,15 +1052,19 @@ svg {
 }
 
 .term-tag {
-  padding: 0.1em;
+  padding: 0.1em 0.3em 0.1em 0.3em;
   height: fit-content;
   display: flex;
-  border-radius: 20%;
+  border-radius: 15%;
   color: #0006;
   font-size: 0.75em;
   font-weight: bolder;
-  text-transform: capitalize;
+  text-transform: uppercase;
   align-items: center;
+}
+.term-tag.error {
+  background-color: rgb(255 0 0);
+  color: #830000;
 }
 .term-tag-typ{
   background-color:rgb(197, 253, 197);
@@ -1045,9 +1072,21 @@ svg {
 }
 .term-tag-pat{
   background-color:#baf1fe;
-  color: #00568666;
+  color: #609bbc;
 }
 .term-tag-exp{
-  background-color:rgb(223, 223, 223);
-  color: #51515166;
+  background-color:rgb(235 223 197);
+  color: #b1a47f;
+}
+
+/* DYNAMICS */
+
+.result {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding-left: 1em;
+  background-color: #c7b480;
+  color: #fdf6e3;
 }

@@ -292,6 +292,19 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, info_map) => {
   };
 };
 
+let is_error = (ci: info): bool => {
+  switch (ci) {
+  | Invalid => true
+  | InfoExp({mode, self, _})
+  | InfoPat({mode, self, _}) =>
+    switch (error_status(mode, self)) {
+    | InHole(_) => true
+    | NotInHole(_) => false
+    }
+  | InfoTyp(_) => false
+  };
+};
+
 /*
 
  planning for a better let:
