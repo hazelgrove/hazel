@@ -1,8 +1,8 @@
 [@deriving sexp]
-type types = ExprLabel.Map.t(Typ.t);
+type syn_types = ExprLabel.Map.t(Typ.t);
 
 [@deriving sexp]
-type syn_ok = {types};
+type syn_ok = {types: syn_types};
 
 [@deriving sexp]
 type syn_error =
@@ -19,4 +19,4 @@ type syn_error =
 [@deriving sexp]
 type syn_result = result(syn_ok, syn_error);
 
-let syn: (Ident.Map.t(Typ.t), Delta.t, Expr.t) => syn_result;
+let syn: (TypContext.t, Delta.t, Expr.t) => syn_result;

@@ -23,7 +23,7 @@ let elaborate:
 let transform:
   (~opts: opts, Contexts.t, Delta.t, DHExp.t) =>
   result(
-    (Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.types),
+    (Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.syn_types),
     Hir.Expr.syn_error,
   );
 let linearize: (~opts: opts, Hir.Expr.expr) => Mir.Anf.block;
@@ -52,7 +52,7 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, Delta.t, DHExp.t)
-  | Transformed(Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.types)
+  | Transformed(Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.syn_types)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
   | Grainized(Grain.prog)
@@ -106,7 +106,7 @@ let resume_until_elaborated:
  */
 let resume_until_transformed:
   (~opts: opts, state) =>
-  result((Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.types), next_error);
+  result((Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.syn_types), next_error);
 
 /**
   Resume from a given state until Anf.

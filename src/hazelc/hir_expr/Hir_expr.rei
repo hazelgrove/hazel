@@ -24,7 +24,7 @@ module Syn = Syn;
 let syn: (Ident.Map.t(Typ.t), Delta.t, Expr.t) => Syn.syn_result;
 
 [@deriving sexp]
-type types = Syn.types;
+type syn_types = Syn.syn_types;
 [@deriving sexp]
 type syn_ok = Syn.syn_ok;
 [@deriving sexp]
