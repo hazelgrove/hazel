@@ -15,5 +15,4 @@ type t =
   | InHole(HoleReason.t, MetaVar.t);
 
 /* creates an InHole error status, recycling the metavar from the given err status if available */
-let make_recycled_InHole:
-  (t, HoleReason.t, MetaVarGen.t) => (t, MetaVarGen.t);
+let make_recycled_InHole: (t, HoleReason.t, IDGen.t) => (t, IDGen.t);

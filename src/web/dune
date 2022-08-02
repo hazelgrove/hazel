@@ -8,8 +8,12 @@
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_deriving_yojson js_of_ocaml-ppx ppx_let ppx_sexp_conv
-    ppx_deriving.show)))
+  (pps
+   ppx_deriving_yojson
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show)))
 
 (executable
  (name main)
@@ -20,8 +24,12 @@
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_deriving_yojson js_of_ocaml-ppx ppx_let ppx_sexp_conv
-    ppx_deriving.show)))
+  (pps
+   ppx_deriving_yojson
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show)))
 
 (rule
  (write-file js-of-ocaml-flags-dev "(:standard)"))
