@@ -463,7 +463,7 @@ let transform = (ctx: Contexts.t, delta: HDelta.t, d: DHExp.t) => {
     |> VarCtx.to_list
     |> List.map(((x, ty)) => (transform_var(x), transform_typ(ty)))
     |> List.to_seq
-    |> Ident.Map.of_seq;
+    |> TypContext.of_seq;
 
   let m = {
     let* delta = transform_delta(delta);
@@ -472,5 +472,5 @@ let transform = (ctx: Contexts.t, delta: HDelta.t, d: DHExp.t) => {
   };
 
   let (_, (delta, e)) = m(TransformMonad.init);
-  (delta, e);
+  (ctx, delta, e);
 };

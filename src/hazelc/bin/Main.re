@@ -123,7 +123,7 @@ let hazelc =
 
     | Hir =>
       Compile.resume_until_transformed(~opts, source)
-      |> Result.map(((_delta, e, _types)) =>
+      |> Result.map(((_ctx, _delta, e, _types)) =>
            write_sexp_output(Hir.Expr.sexp_of_expr, e)
          )
       |> Result.map_error(convert_error)
