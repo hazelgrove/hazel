@@ -67,7 +67,6 @@ let update_settings =
 let apply =
     (model: Model.t, update: t, _: State.t, ~schedule_action as _)
     : Result.t(Model.t) => {
-  //print_endline("Update.apply");
   switch (update) {
   | Set(s_action) =>
     Ok({...model, settings: update_settings(s_action, model.settings)})
