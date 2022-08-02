@@ -5,7 +5,8 @@ open Zipper;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type move =
   | Extreme(planar)
-  | Local(planar);
+  | Local(planar)
+  | Target(Measured.point);
 
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,6 +48,20 @@ let put_down = (z: t): option(t) =>
 
 let move = (d, z, id_gen) =>
   switch (d) {
+  | Target(target) =>
+    let cursorpos = Caret.point(Measured.of_segment(unselect_and_zip(z)));
+    let p = cursorpos(z);
+    let d =
+      p.row < target.row || p.row == target.row && p.col < target.col
+        ? Direction.Left : Right;
+    let res =
+      Caret.do_towards(Move.primary(ByChar, d), d, cursorpos, target, z, z);
+    (
+      Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res)
+    )
+    |> Option.map(update_target)
+    |> Option.map(IdGen.id(id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Extreme(d) =>
     Caret.do_extreme(Move.primary(ByToken, Zipper.from_plane(d)), d, z)
     |> Option.map(update_target)
@@ -88,6 +103,26 @@ let select_vertical = (d: Direction.t, z: t): option(t) =>
 let select = (d, z, id_gen) =>
   (
     switch (d) {
+    | Target(target) =>
+      let cursorpos = Caret.point(Measured.of_segment(unselect_and_zip(z)));
+      let p = cursorpos(z);
+      let d =
+        p.row < target.row || p.row == target.row && p.col < target.col
+          ? Direction.Left : Right;
+      let res =
+        Caret.do_towards(
+          Move.primary(ByToken, d),
+          d,
+          cursorpos,
+          target,
+          z,
+          z,
+        );
+      (
+        Measured.point_equals(cursorpos(res), cursorpos(z))
+          ? None : Some(res)
+      )
+      |> Option.map(update_target);
     | Extreme(d) =>
       Caret.do_extreme(select_primary(Zipper.from_plane(d)), d, z)
       |> Option.map(update_target)
