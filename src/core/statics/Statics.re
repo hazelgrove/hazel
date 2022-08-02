@@ -38,14 +38,20 @@ type info_map = Id.Map.t(info);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | FreeVariable
-  | InconsistentBranches(list(Typ.t))
-  //| InconsistentBranchesAna(list(Typ.t))
+  | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type happy =
+  | SynConsistent(Typ.t)
+  | AnaConsistent(Typ.t, Typ.t, Typ.t) //ana, syn, join
+  | AnaInternalInconsistent(Typ.t, list(Typ.t)) // ana, branches
+  | AnaExternalInconsistent(Typ.t, Typ.t); // ana, syn
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_status =
   | InHole(error)
-  | NotInHole(Typ.t);
+  | NotInHole(happy);
 
 let union_m =
   List.fold_left(
@@ -56,31 +62,40 @@ let union_m =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
-  | (Syn, Just(ty)) => NotInHole(ty)
+  | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(tys_syn))
   | (Ana(Unknown(ModeSwitch)), Joined(tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
     //TODO: clarify ModeSwitch case
     switch (Typ.join_all(tys_syn)) {
-    | None => InHole(InconsistentBranches(tys_syn))
-    | Some(ty_joined) => NotInHole(ty_joined)
+    | None => InHole(SynInconsistentBranches(tys_syn))
+    | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
     };
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
-    | Some(ty) => NotInHole(ty)
+    | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
   | (Ana(ty_ana), Joined(tys_syn)) =>
-    switch (Typ.join_all([ty_ana] @ Typ.source_tys(tys_syn))) {
-    | None => NotInHole(Unknown(Internal)) //TODO: clarify this case
-    | Some(ty) => NotInHole(ty)
+    // TODO: review logic of these cases
+    switch (Typ.join_all(Typ.source_tys(tys_syn))) {
+    | Some(ty_syn) =>
+      switch (Typ.join(ty_syn, ty_ana)) {
+      | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
+      | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+      }
+    | None =>
+      NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
     }
   };
 
 let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
   switch (error_status(mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(t) => t
+  | NotInHole(SynConsistent(t)) => t
+  | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
+  | NotInHole(AnaExternalInconsistent(ty_ana, _)) => ty_ana
+  | NotInHole(AnaInternalInconsistent(ty_ana, _)) => ty_ana
   };
 
 let rec uexp_to_info_map =
@@ -274,6 +289,19 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, info_map) => {
     let (_, m_t1) = utyp_to_info_map(t1);
     let (_, m_t2) = utyp_to_info_map(t2);
     ret(union_m([m_t1, m_t2]));
+  };
+};
+
+let is_error = (ci: info): bool => {
+  switch (ci) {
+  | Invalid => true
+  | InfoExp({mode, self, _})
+  | InfoPat({mode, self, _}) =>
+    switch (error_status(mode, self)) {
+    | InHole(_) => true
+    | NotInHole(_) => false
+    }
+  | InfoTyp(_) => false
   };
 };
 

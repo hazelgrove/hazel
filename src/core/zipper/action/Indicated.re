@@ -5,8 +5,9 @@ type relation =
   | Parent
   | Sibling;
 
-let piece = (z: Zipper.t): option((Piece.t, Direction.t, relation)) => {
-  let ws = p => Piece.(is_whitespace(p) || is_grout(p));
+let piece' =
+    (ws: Piece.t => bool, z: Zipper.t)
+    : option((Piece.t, Direction.t, relation)) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
@@ -46,6 +47,8 @@ let piece = (z: Zipper.t): option((Piece.t, Direction.t, relation)) => {
   };
 };
 
+let piece = piece'(p => Piece.(is_whitespace(p) || is_grout(p)));
+
 let shard_index = (z: Zipper.t): option(int) =>
   switch (piece(z)) {
   | None => None
@@ -75,7 +78,7 @@ let shard_index = (z: Zipper.t): option(int) =>
   };
 
 let index = (z: Zipper.t): option(int) =>
-  switch (piece(z)) {
+  switch (piece'(Piece.is_whitespace, z)) {
   | None => None
   | Some((p, _, _)) =>
     switch (p) {
