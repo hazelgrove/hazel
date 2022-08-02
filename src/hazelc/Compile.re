@@ -64,29 +64,17 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
   };
 };
 
-let parse = (~opts, source) => {
-  let _ = opts;
-  parse'(source);
-};
+let parse = (~opts as _, source) => parse'(source);
 
-let elaborate = (~opts, e) => {
-  let _ = opts;
+let elaborate = (~opts as _, e) =>
   switch (elaborate'(e)) {
   | (ctx, Elaborates(d, _ty, delta)) => Ok((ctx, delta, d))
   | (_, DoesNotElaborate) => Error()
   };
-};
 
-let transform = (~opts, ctx, _delta, d) => {
-  let _ = opts;
-  /* TODO: Transform delta and perform check that transform' is correct. */
-  transform'(ctx, d);
-};
+let transform = (~opts as _, ctx, _delta, d) => transform'(ctx, d);
 
-let linearize = (~opts, d) => {
-  let _ = opts;
-  linearize'(d);
-};
+let linearize = (~opts as _, d) => linearize'(d);
 
 let optimize = (~opts, a) => optimize'(opts.optimize, a);
 
