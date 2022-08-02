@@ -32,6 +32,7 @@ let default_std = Rt_grain_files.location;
 type error =
   | ParseError(string)
   | ElaborateError
+  | TransformError(Hir.Expr.syn_error)
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
@@ -110,6 +111,7 @@ let hazelc =
     switch (err) {
     | ParseError(err) => ParseError(err)
     | ElaborateError => ElaborateError
+    | TransformError(err) => TransformError(err)
     };
 
   let res =
@@ -121,7 +123,9 @@ let hazelc =
 
     | Hir =>
       Compile.resume_until_transformed(~opts, source)
-      |> Result.map(write_sexp_output(Hir.Expr.sexp_of_expr))
+      |> Result.map(((_delta, e, _types)) =>
+           write_sexp_output(Hir.Expr.sexp_of_expr, e)
+         )
       |> Result.map_error(convert_error)
 
     | Anf =>
@@ -173,6 +177,8 @@ let hazelc =
     switch (err) {
     | ParseError(err) => print_endline(err)
     | ElaborateError => print_endline("elaboration error")
+    | TransformError(_err) =>
+      print_endline("transformation result did not type-check")
     | GrainError => ()
     }
   };

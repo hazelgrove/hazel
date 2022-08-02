@@ -5,7 +5,10 @@ open Holes;
 exception NotImplemented;
 
 [@deriving sexp]
-type syn_ok = {types: ExprLabel.Map.t(Typ.t)};
+type types = ExprLabel.Map.t(Typ.t);
+
+[@deriving sexp]
+type syn_ok = {types};
 
 /* FIXME: These error names are not very good. */
 [@deriving sexp]

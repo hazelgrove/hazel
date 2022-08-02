@@ -1,3 +1,4 @@
+module HDelta = Delta;
 module HInjSide = InjSide;
 
 open Hir_expr;
@@ -40,6 +41,28 @@ let transform_invalid_operation_error:
   InvalidOperationError.t => Holes.InvalidOperationError.t =
   fun
   | DivideByZero => DivideByZero;
+
+let transform_delta = (delta: HDelta.t): m(Delta.t) =>
+  delta
+  |> MetaVarMap.bindings
+  |> List.map(((u, (sort, ty, gamma))) => {
+       let sort =
+         switch (sort) {
+         | HDelta.ExpressionHole => Delta.ExpressionHole
+         | HDelta.PatternHole => Delta.PatternHole
+         };
+       let ty = transform_typ(ty);
+       let gamma =
+         gamma
+         |> VarCtx.to_list
+         |> List.map(((x, ty)) => (transform_var(x), transform_typ(ty)))
+         |> List.to_seq
+         |> Ident.Map.of_seq;
+       (u, (sort, ty, gamma));
+     })
+  |> List.to_seq
+  |> Holes.MetaVarMap.of_seq
+  |> return;
 
 let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
   switch (d) {
@@ -430,7 +453,7 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
   );
 };
 
-let transform = (ctx: Contexts.t, d: DHExp.t) => {
+let transform = (ctx: Contexts.t, delta: HDelta.t, d: DHExp.t) => {
   let ctx =
     ctx
     |> VarCtx.to_list
@@ -438,6 +461,12 @@ let transform = (ctx: Contexts.t, d: DHExp.t) => {
     |> List.to_seq
     |> Ident.Map.of_seq;
 
-  let (_, (e, _)) = transform_exp(ctx, d, TransformMonad.init);
-  e;
+  let m = {
+    let* delta = transform_delta(delta);
+    let+ (e, _) = transform_exp(ctx, d);
+    (delta, e);
+  };
+
+  let (_, (delta, e)) = m(TransformMonad.init);
+  (delta, e);
 };

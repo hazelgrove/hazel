@@ -1,5 +1,8 @@
 [@deriving sexp]
-type syn_ok = {types: ExprLabel.Map.t(Typ.t)};
+type types = ExprLabel.Map.t(Typ.t);
+
+[@deriving sexp]
+type syn_ok = {types};
 
 [@deriving sexp]
 type syn_error =

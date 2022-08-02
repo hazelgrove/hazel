@@ -13,11 +13,21 @@ let parse' = (source: Source.t) =>
   source |> Source.to_lexbuf |> Parsing.ast_of_lexbuf;
 
 let elaborate' = (e: UHExp.t) => {
+  /* TODO: Return ctx. */
   let ctx = Contexts.initial;
   (ctx, Elaborator_Exp.elab(ctx, Delta.empty, e));
 };
 
-let transform' = ctx => Hir.Transform.transform(ctx);
+let transform' = (ctx, delta, d) => {
+  /* TODO: Transform initial ctx and return as well. */
+  let (delta, e) = Hir.Transform.transform(ctx, delta, d);
+
+  /* Verify that transformation result type-checks. */
+  /* TODO: Use above ctx instead (after transformed). */
+  let ctx = Ident.Map.empty;
+  Hir.Expr.syn(ctx, delta, e)
+  |> Result.map((Hir.Expr.Syn.{types}) => (delta, e, types));
+};
 
 let linearize' = Mir.Linearize.linearize;
 
@@ -70,7 +80,7 @@ let elaborate = (~opts as _, e) =>
   | (_, DoesNotElaborate) => Error()
   };
 
-let transform = (~opts as _, ctx, _delta, d) => transform'(ctx, d);
+let transform = (~opts as _, ctx, delta, d) => transform'(ctx, delta, d);
 
 let linearize = (~opts as _, d) => linearize'(d);
 
@@ -91,7 +101,7 @@ type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
   | Elaborated(Contexts.t, Delta.t, DHExp.t)
-  | Transformed(Hir.Expr.expr)
+  | Transformed(Hir.Expr.Delta.t, Hir.Expr.expr, Hir.Expr.types)
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
   | Grainized(Grain.prog)
@@ -100,7 +110,8 @@ type state =
 [@deriving sexp]
 type next_error =
   | ParseError(string)
-  | ElaborateError;
+  | ElaborateError
+  | TransformError(Hir.Expr.syn_error);
 
 [@deriving sexp]
 type next_result = result(option(state), next_error);
@@ -118,9 +129,14 @@ let next = (~opts, state): next_result => {
     |> Result.map_error(() => ElaborateError)
 
   | Elaborated(ctx, delta, d) =>
-    Ok(Some(Transformed(transform(~opts, ctx, delta, d))))
+    transform(~opts, ctx, delta, d)
+    |> Result.map(((delta, e, types)) =>
+         Some(Transformed(delta, e, types))
+       )
+    |> Result.map_error(err => TransformError(err))
 
-  | Transformed(u) => Ok(Some(Linearized(linearize(~opts, u))))
+  | Transformed(_delta, e, _types) =>
+    Ok(Some(Linearized(linearize(~opts, e))))
 
   | Linearized(a) => Ok(Some(Optimized(optimize(~opts, a))))
 
@@ -195,7 +211,7 @@ let resume_until_elaborated = (~opts, state) => {
 
 let resume_until_transformed = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_transformed, state)) {
-  | Ok(Some(Transformed(d))) => Ok(d)
+  | Ok(Some(Transformed(delta, e, types))) => Ok((delta, e, types))
   | Error(err) => Error(err)
   | Ok(_) =>
     failwith("resume_until_transformed did not stop with Transformed state")
