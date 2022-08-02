@@ -52,13 +52,11 @@ let move = (d, z, id_gen) =>
     let cursorpos = Caret.point(Measured.of_segment(unselect_and_zip(z)));
     let p = cursorpos(z);
     let d =
-      p.row < target.row || p.row == target.row && p.col < target.col
+      target.row < p.row || target.row == p.row && target.col < p.col
         ? Direction.Left : Right;
     let res =
       Caret.do_towards(Move.primary(ByChar, d), d, cursorpos, target, z, z);
-    (
-      Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res)
-    )
+    (Measured.point_equals(cursorpos(res), p) ? None : Some(res))
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
