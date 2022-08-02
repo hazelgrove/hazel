@@ -19,6 +19,8 @@ module Pat = Pat;
 type pat = Pat.t;
 
 module Delta = Delta;
+[@deriving sexp]
+type delta = Delta.t;
 
 module Syn = Syn;
 let syn = Syn.syn;
