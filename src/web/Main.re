@@ -120,11 +120,8 @@ module App = {
   let create = (model: Incr.t(Web.Model.t), ~old_model as _, ~inject) => {
     open Incr.Let_syntax;
     let%map model = model;
-    // print_endline("writing lol");
-    //write_to_clipboard("{roflmao:look at me im json 2 electric boogaloo}");
     Component.create(
       ~apply_action=apply(model),
-      // ~on_display= (_, ~schedule_action as _) => {print_endline("on_display")},
       model,
       Web.Page.view(~inject, ~handlers, model),
     );

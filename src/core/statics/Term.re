@@ -38,6 +38,16 @@ module UTyp = {
     | Bool => Bool
     | Arrow(_) => Arrow
     | Prod(_) => Prod;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type"
+    | EmptyHole => "Empty Type Hole"
+    | Int
+    | Float
+    | Bool => "Concrete Type"
+    | Arrow => "Arrow Type"
+    | Prod => "Product Type";
 };
 
 module UPat = {
@@ -77,6 +87,17 @@ module UPat = {
     | Bool(_) => Bool
     | Var(_) => Var
     | Pair(_) => Pair;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Pattern"
+    | EmptyHole => "Empty Pattern Hole"
+    | Wild => "Wildcard Pattern"
+    | Int => "Integer Literal"
+    | Float => "Float Literal"
+    | Bool => "Boolean Literal"
+    | Var => "Pattern Variable"
+    | Pair => "Pair Pattern";
 };
 
 module UExp = {
@@ -156,6 +177,26 @@ module UExp = {
     | OpInt(x, _, _) => OpInt(x)
     | OpFloat(x, _, _) => OpFloat(x)
     | OpBool(x, _, _) => OpBool(x);
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Expression"
+    | EmptyHole => "Empty Expression Hole"
+    | Bool => "Boolean Literal"
+    | Int => "Integer Literal"
+    | Float => "Float Literal"
+    | Fun => "Function Literal"
+    | FunAnn => "Annotated Function Literal"
+    | Pair => "Pair Literal"
+    | Var => "Variable Reference"
+    | Let => "Let Expression"
+    | LetAnn => "Annotated Let Expression"
+    | Ap => "Function Application"
+    | If => "If Expression"
+    | OpInt(Plus) => "Integer Addition"
+    | OpInt(Lt) => "Integer Less-Than"
+    | OpFloat(Plus) => "Float Addition"
+    | OpBool(And) => "Boolean Conjunction";
 };
 
 let rec utyp_to_ty: UTyp.t => Typ.t =

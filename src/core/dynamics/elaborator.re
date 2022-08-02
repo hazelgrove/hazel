@@ -110,7 +110,7 @@ let rec dhexp_of_uexp =
           0,
         );
       switch (err_status) {
-      | InHole(InconsistentBranches(_)) =>
+      | InHole(SynInconsistentBranches(_)) =>
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };
