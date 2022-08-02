@@ -169,6 +169,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> focus_cell;
 
 let update_program = (a: ModelAction.t, new_program, model) => {
+  print_endline("update_program");
   let old_program = model |> get_program;
   let update_selected_instances = si => {
     let si =
@@ -187,6 +188,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       }
     };
   };
+  let _ = print_endline("update_program 2");
   model
   |> put_program(new_program)
   |> map_selected_instances(update_selected_instances)
@@ -196,6 +198,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
          let prev_cardstacks = model |> get_cardstacks;
          let new_cardstacks =
            model |> put_program(new_program) |> get_cardstacks;
+         let _ = print_endline("update_program finished");
          UndoHistory.push_edit_state(
            history,
            prev_cardstacks,

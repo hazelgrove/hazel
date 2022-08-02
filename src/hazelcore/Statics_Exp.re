@@ -826,6 +826,7 @@ and syn_fix_holes_operand =
       e: UHExp.operand,
     )
     : (UHExp.operand, HTyp.t, IDGen.t) => {
+  print_endline("syn_fix_holes_operand");
   let e_nih = UHExp.set_err_status_operand(NotInHole, e);
   switch (e) {
   | EmptyHole(_) =>
@@ -1243,7 +1244,8 @@ and ana_fix_holes_operand =
       e: UHExp.operand,
       ty: HTyp.t,
     )
-    : (UHExp.operand, IDGen.t) =>
+    : (UHExp.operand, IDGen.t) => {
+  print_endline("ana_fix_holes_operand");
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1372,7 +1374,8 @@ and ana_fix_holes_operand =
         ty,
       );
     (Case(StandardErrStatus(NotInHole), scrut, rules), id_gen);
-  }
+  };
+}
 
 and extend_let_body_ctx =
     (ctx: Context.t, p: UHPat.t, def: UHExp.t): Context.t => {

@@ -449,10 +449,12 @@ exception FailedAction;
 exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
+  print_endline("perform_edit_action");
   switch (Action_Exp.syn_perform(InitialContext.ctx, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    print_endline("perform_edit_action: succeeded");
     let (ze, ty, id_gen) = new_edit_state;
     let new_edit_state =
       if (UHExp.is_complete(ZExp.erase(ze))) {
@@ -460,6 +462,7 @@ let perform_edit_action = (a, program) => {
       } else {
         (ze, ty, id_gen);
       };
+    print_endline("perform_edit_action: finished");
     program |> put_edit_state(new_edit_state);
   };
   // };

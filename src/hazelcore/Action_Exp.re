@@ -3543,10 +3543,13 @@ and ana_perform_operand =
     switch (HTyp.matched_forall(ctx, ty)) {
     | Some((tp, ty_body)) =>
       let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      print_endline("Construct(STypFun): after Statics_TPat.ana");
       let (body, id_gen) =
         Statics_Exp.ana_fix_holes(body_ctx, id_gen, body, ty_body);
+      print_endline("Construct(STypFun): after Statics_Exp.ana_fix_holes");
       let ztp = ZTPat.place_before(TPat.EmptyHole);
       let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, body));
+      print_endline("Construct(STypFun): finished");
       Succeeded(AnaDone((new_ze, id_gen)));
     | None =>
       let (body, _, id_gen) = Statics_Exp.syn_fix_holes(ctx, id_gen, body);
