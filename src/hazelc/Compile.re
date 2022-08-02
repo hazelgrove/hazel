@@ -44,8 +44,6 @@ let wasmize' = (opts: wasm_opts, source, output, g) => {
     Printf.fprintf(f, "%s\n", g);
   };
 
-  // TODO: Add necessary includes.
-  // TODO: Add option for alternative stdlib path.
   let cmd =
     Grain.Cli.Compile.(
       Grain.Cli.make(~grain=opts.grain)
