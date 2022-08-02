@@ -72,7 +72,7 @@ let code_svg =
     ) => {
   // Using a viewBox of 0 0 1 1 seems to trigger Chrome rounding bug
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
-  // causes miaslignment between piece decorations and caret.
+  // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
   let scale = 2.;
   create_svg(
