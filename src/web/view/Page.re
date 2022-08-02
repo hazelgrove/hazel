@@ -134,11 +134,15 @@ let top_bar_view = (~inject, model: Model.t) =>
   );
 
 let editor_view =
-    ({font_metrics, show_backpack_targets, settings, _} as model: Model.t) =>
+    (
+      ~inject,
+      {font_metrics, show_backpack_targets, settings, _} as model: Model.t,
+    ) =>
   div(
     [Attr.id("code-container")],
     [
       Editor.view(
+        ~inject,
         ~font_metrics,
         ~show_backpack_targets,
         ~zipper=Model.get_zipper(model),
@@ -180,7 +184,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       DecUtil.filters,
       top_bar_view(~inject, model),
       editor_caption_view(model),
-      editor_view(model),
+      editor_view(~inject, model),
     ],
   );
 };

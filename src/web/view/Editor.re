@@ -26,6 +26,7 @@ let get_result_str = (elab): string => {
 
 let view =
     (
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper: Zipper.t,
@@ -67,7 +68,28 @@ let view =
     };
   //TODO(andrew): new div name/class
   div(
-    [Attr.class_("code"), Attr.id("under-the-rail")],
+    Attr.[
+      id("under-the-rail"),
+      class_("code"),
+      on_click(e => {
+        let rect =
+          JSUtil.force_get_elem_by_id("under-the-rail")##getBoundingClientRect;
+        let target_x = float_of_int(e##.clientX);
+        let target_y = float_of_int(e##.clientY);
+        let target =
+          Measured.{
+            row:
+              Float.to_int(
+                (target_y -. rect##.top) /. font_metrics.row_height,
+              ),
+            col:
+              Float.to_int(
+                (target_x -. rect##.left) /. font_metrics.col_width,
+              ),
+          };
+        inject(Update.PerformAction(Move(Target(target))));
+      }),
+    ],
     [Code.view(~font_metrics, ~sel_seg, ~unsel_seg, ~map, ~settings)]
     @ Deco.all(zipper, sel_seg)
     //@ [text(zipper |> Term.of_zipper |> Term.show_uexp)]
