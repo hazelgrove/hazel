@@ -985,3 +985,69 @@ svg {
     opacity: 0%;
   }
 }
+
+
+/* STATICS + DYNAMICS */
+
+.cursor-inspector {
+  position: fixed;
+  top: 4em;
+  left: 2em;
+  display: flex;
+  gap: 0.5em; 
+}
+
+.cursor-inspector .id {
+  font-size: 0.5em;
+  color: #c7b480;
+}
+
+.typ-view {
+  display: flex;
+  gap: 0.5em;
+}
+
+.cursor-inspector .info{
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.info .happy, .info .error {
+  display: flex;
+  gap: 0.5em;
+}
+
+.info .happy,
+.info .happy .typ-view {
+  color: #3aa144;
+}
+
+.info .error,
+.info .error .typ-view {
+  color: red ;
+}
+
+.term-tag {
+  padding: 0.1em;
+  height: fit-content;
+  display: flex;
+  border-radius: 20%;
+  color: #0006;
+  font-size: 0.75em;
+  font-weight: bolder;
+  text-transform: capitalize;
+  align-items: center;
+}
+.term-tag-typ{
+  background-color:rgb(197, 253, 197);
+  color: #02860066;
+}
+.term-tag-pat{
+  background-color:#baf1fe;
+  color: #00568666;
+}
+.term-tag-exp{
+  background-color:rgb(223, 223, 223);
+  color: #51515166;
+}

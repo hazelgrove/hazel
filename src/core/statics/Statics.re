@@ -39,7 +39,6 @@ type info_map = Id.Map.t(info);
 type error =
   | FreeVariable
   | SynInconsistentBranches(list(Typ.t))
-  //| InconsistentBranchesAna(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -43,6 +43,11 @@ let view =
     });
   let term = zipper |> Term.of_zipper;
   let (_, _, info_map) = term |> Statics.uexp_to_info_map;
+  let index =
+    switch (zipper |> Indicated.index) {
+    | Some(index) => index
+    | None => (-1)
+    };
   let ci =
     switch (zipper |> Indicated.index) {
     | Some(index) => Id.Map.find_opt(index, info_map)
@@ -60,6 +65,11 @@ let view =
       Statics.show_error_status(Statics.error_status(mode, self))
     | _ => "??"
     };
+  let ci_view =
+    switch (ci) {
+    | None => []
+    | Some(ci) => [CursorInspector.view(index, ci)]
+    };
   let res_text =
     switch (term |> Elaborator.uexp_elab(info_map)) {
     | Elaborates(d, _, _) => get_result_str(d)
@@ -74,6 +84,7 @@ let view =
     @ [text(ci_is_wrapped)]
     @ [text(ci_text)]
     @ [br([])]
-    @ [text("RES:" ++ res_text)],
+    @ [text("RES:" ++ res_text)]
+    @ ci_view,
   );
 };
