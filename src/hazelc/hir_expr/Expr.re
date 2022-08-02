@@ -68,7 +68,7 @@ and kind =
   /* Cons */
   | ECons(t, t)
   /* Sum injection */
-  | EInj(Typ.t, InjSide.t, t)
+  | EInj(Typ.t, inj_side, t)
   /* Immediate expressions */
   /* FIXME: Remove type. */
   | EBoundVar(Typ.t, Ident.t)
@@ -77,6 +77,11 @@ and kind =
   | EFloatLit(float)
   | ENil(Typ.t)
   | ETriv
+
+[@deriving sexp]
+and inj_side =
+  | L
+  | R
 
 [@deriving sexp]
 and case = {case_kind}

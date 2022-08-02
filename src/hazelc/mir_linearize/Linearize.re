@@ -312,7 +312,11 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
   | EInj(other_ty, side, d) =>
     let* (im, im_binds) = linearize_exp(d, renamings);
-    let side = linearize_inj_side(side);
+    let side =
+      switch (side) {
+      | L => CInjL
+      | R => CInjR
+      };
 
     let other_ty = linearize_typ(other_ty);
     let inj_ty: typ =
@@ -513,7 +517,11 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
     |> return;
 
   | PInj(side, p') =>
-    let side = linearize_inj_side(side);
+    let side =
+      switch (side) {
+      | L => CInjL
+      | R => CInjR
+      };
     let* (p', renamings) = linearize_pat_hole(p', renamings);
 
     let* l = next_label;
@@ -591,13 +599,6 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
   | PKeyword(_)
   | PInvalidText(_)
   | PAp(_) => failwith("not implemented")
-  };
-}
-
-and linearize_inj_side = (side: Hir_expr.InjSide.t): inj_side => {
-  switch (side) {
-  | L => CInjL
-  | R => CInjR
   };
 };
 

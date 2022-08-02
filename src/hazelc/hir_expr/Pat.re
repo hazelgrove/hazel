@@ -21,11 +21,16 @@ and kind =
   | PAp(t, t)
   | PPair(t, t)
   | PCons(t, t)
-  | PInj(InjSide.t, t)
+  | PInj(inj_side, t)
   | PWild
   | PVar(Ident.t)
   | PIntLit(int)
   | PFloatLit(float)
   | PBoolLit(bool)
   | PNil
-  | PTriv;
+  | PTriv
+
+[@deriving sexp]
+and inj_side =
+  | L
+  | R;

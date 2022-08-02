@@ -24,10 +24,6 @@ let rec transform_typ: HTyp.t => Typ.t =
   | Prod(ts) => Prod(ts |> List.map(transform_typ))
   | List(t') => List(transform_typ(t'));
 let transform_var = Ident.v;
-let transform_inj_side: HInjSide.t => Hir_expr.InjSide.t =
-  fun
-  | L => L
-  | R => R;
 let transform_hole_reason: ErrStatus.HoleReason.t => Holes.HoleReason.t =
   fun
   | TypeInconsistent => TypeInconsistent
@@ -205,7 +201,11 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | Inj(other_ty, side, d') =>
     let other_ty = transform_typ(other_ty);
-    let side = transform_inj_side(side);
+    let side =
+      switch (side) {
+      | L => L
+      | R => R
+      };
     let* (d', d'_ty) = transform_exp(ctx, d');
     let ty =
       switch (side) {
@@ -435,7 +435,11 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
       switch (side, ty) {
       | (L, Sum(ty, _))
       | (R, Sum(_, ty)) =>
-        let side = transform_inj_side(side);
+        let side =
+          switch (side) {
+          | L => L
+          | R => R
+          };
         let* (dp', ctx) = transform_pat(ctx, dp', ty);
         let+ label = next_pat_label;
         ({kind: PInj(side, dp'), label}, ctx);

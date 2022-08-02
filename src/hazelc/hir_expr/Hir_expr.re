@@ -1,5 +1,3 @@
-module InjSide = InjSide;
-
 module Typ = Typ;
 [@deriving sexp]
 type typ = Typ.t;
