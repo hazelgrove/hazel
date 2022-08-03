@@ -59,144 +59,123 @@ let transform_delta = (delta: HDelta.t): m(Delta.t) =>
   |> Holes.MetaVarMap.of_seq
   |> return;
 
-let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
+let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
-    let* sigma = transform_var_map(ctx, sigma);
+    let* sigma = transform_var_map(sigma);
     let+ label = next_expr_label;
-    ({kind: EEmptyHole(u, i, sigma), label}, THole);
+    {kind: EEmptyHole(u, i, sigma), label};
 
   | NonEmptyHole(reason, u, i, sigma, d') =>
     let reason = transform_hole_reason(reason);
-    let* sigma = transform_var_map(ctx, sigma);
-    let* (d', _) = transform_exp(ctx, d');
+    let* sigma = transform_var_map(sigma);
+    let* d' = transform_exp(d');
     let+ label = next_expr_label;
-    ({kind: ENonEmptyHole(reason, u, i, sigma, d'), label}, THole);
+    {kind: ENonEmptyHole(reason, u, i, sigma, d'), label};
 
   | ExpandingKeyword(u, i, sigma, k) =>
     let k = transform_expanding_keyword(k);
-    let* sigma = transform_var_map(ctx, sigma);
+    let* sigma = transform_var_map(sigma);
     let+ label = next_expr_label;
-    ({kind: EKeyword(u, i, sigma, k), label}, THole);
+    {kind: EKeyword(u, i, sigma, k), label};
 
   | FreeVar(u, i, sigma, x) =>
-    let* sigma = transform_var_map(ctx, sigma);
+    let* sigma = transform_var_map(sigma);
     let x = Ident.v(x);
     let+ label = next_expr_label;
-    ({kind: EFreeVar(u, i, sigma, x), label}, THole);
+    {kind: EFreeVar(u, i, sigma, x), label};
 
   | InvalidText(u, i, sigma, text) =>
-    let* sigma = transform_var_map(ctx, sigma);
+    let* sigma = transform_var_map(sigma);
     let+ label = next_expr_label;
-    ({kind: EInvalidText(u, i, sigma, text), label}, THole);
+    {kind: EInvalidText(u, i, sigma, text), label};
 
   | BoundVar(x) =>
     let x = transform_var(x);
-    switch (TypContext.find_opt(x, ctx)) {
-    | Some(ty) =>
-      let+ label = next_expr_label;
-      ({kind: EBoundVar(x), label}, ty);
-    | None => failwith("free bound variable " ++ Ident.to_string(x))
-    };
+    let+ label = next_expr_label;
+    {kind: EBoundVar(x), label};
 
   | FixF(_) => failwith("lone FixF")
-  | Let(Var(_), FixF(x, ty, Fun(dp, dp_ty, d3)), body) =>
+  | Let(Var(_), FixF(x, _ty, Fun(dp, dp_ty, d3)), body) =>
     let x = transform_var(x);
-    let ty = transform_typ(ty);
     let dp_ty = transform_typ(dp_ty);
 
     // TODO: Not really sure if any of this recursive function handling is right...
-    let* (dp, ctx) = transform_pat(ctx, dp, ty);
-    let ctx = TypContext.add(x, ty, ctx);
+    let* dp = transform_pat(dp);
 
-    let* (d3, _) = transform_exp(ctx, d3);
-    let* (body, body_ty) = transform_exp(ctx, body);
+    let* d3 = transform_exp(d3);
+    let* body = transform_exp(body);
     let+ label = next_expr_label;
-    ({kind: ELetRec(x, dp, dp_ty, d3, body), label}, body_ty);
+    {kind: ELetRec(x, dp, dp_ty, d3, body), label};
 
   | Let(dp, d', body) =>
-    let* (d', d'_ty) = transform_exp(ctx, d');
-    let* (dp, body_ctx) = transform_pat(ctx, dp, d'_ty);
-    let* (body, body_ty) = transform_exp(body_ctx, body);
+    let* d' = transform_exp(d');
+    let* dp = transform_pat(dp);
+    let* body = transform_exp(body);
     let+ label = next_expr_label;
-    ({kind: ELet(dp, d', body), label}, body_ty);
+    {kind: ELet(dp, d', body), label};
 
   | Fun(dp, dp_ty, body) =>
     let dp_ty = transform_typ(dp_ty);
-    let* (dp, body_ctx) = transform_pat(ctx, dp, dp_ty);
-    let* (body, body_ty) = transform_exp(body_ctx, body);
+    let* dp = transform_pat(dp);
+    let* body = transform_exp(body);
     let+ label = next_expr_label;
-    ({kind: EFun(dp, dp_ty, body), label}, TArrow(dp_ty, body_ty));
+    {kind: EFun(dp, dp_ty, body), label};
 
   | Ap(fn, arg) =>
-    let* (fn, fn_ty) = transform_exp(ctx, fn);
-    let* (arg, _) = transform_exp(ctx, arg);
+    let* fn = transform_exp(fn);
+    let* arg = transform_exp(arg);
     switch (fn.kind) {
     // TODO: expand arrow casts and do transform_exp recursively here
     | ECast(_fn, _ty1, _ty2) => failwith("FnCastExpansion")
     | EFun(_, _, _) =>
-      switch (fn_ty) {
-      | TArrow(_, ty') =>
-        let+ label = next_expr_label;
-        ({kind: EAp(fn, arg), label}, ty');
-      | _ => failwith("wrong function type")
-      }
+      let+ label = next_expr_label;
+      {kind: EAp(fn, arg), label};
     | _ => failwith("NotImplemented")
     };
 
   | ApBuiltin(name, args) =>
     let name = transform_var(name);
-    let* args =
-      args
-      |> List.map(arg => {
-           let+ (arg, _) = transform_exp(ctx, arg);
-           arg;
-         })
-      |> sequence;
+    let* args = args |> List.map(transform_exp) |> sequence;
 
-    switch (TypContext.find_opt(name, ctx)) {
-    | Some(TArrow(_, ty')) =>
-      let+ label = next_expr_label;
-      ({kind: EApBuiltin(name, args), label}, ty');
-    | Some(_) => failwith("wrong type of builtin")
-    | None => failwith("unbound builtin " ++ Ident.to_string(name))
-    };
+    let+ label = next_expr_label;
+    {kind: EApBuiltin(name, args), label};
 
   | BinBoolOp(op, d1, d2) =>
     let op = transform_bool_op(op);
-    let* (d1, _) = transform_exp(ctx, d1);
-    let* (d2, _) = transform_exp(ctx, d2);
+    let* d1 = transform_exp(d1);
+    let* d2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinBoolOp(op, d1, d2), label}, TBool);
+    {kind: EBinBoolOp(op, d1, d2), label};
 
   | BinIntOp(op, d1, d2) =>
     let op = transform_int_op(op);
-    let* (d1, _) = transform_exp(ctx, d1);
-    let* (d2, _) = transform_exp(ctx, d2);
+    let* d1 = transform_exp(d1);
+    let* d2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinIntOp(op, d1, d2), label}, TInt);
+    {kind: EBinIntOp(op, d1, d2), label};
 
   | BinFloatOp(op, d1, d2) =>
     let op = transform_float_op(op);
-    let* (d1, _) = transform_exp(ctx, d1);
-    let* (d2, _) = transform_exp(ctx, d2);
+    let* d1 = transform_exp(d1);
+    let* d2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinFloatOp(op, d1, d2), label}, TFloat);
+    {kind: EBinFloatOp(op, d1, d2), label};
 
   | Pair(d1, d2) =>
-    let* (d1, d1_ty) = transform_exp(ctx, d1);
-    let* (d2, d2_ty) = transform_exp(ctx, d2);
+    let* d1 = transform_exp(d1);
+    let* d2 = transform_exp(d2);
     let+ label = next_expr_label;
-    ({kind: EPair(d1, d2), label}, TPair(d1_ty, d2_ty));
+    {kind: EPair(d1, d2), label};
 
   | Cons(d1, d2) =>
-    let* (d1, _) = transform_exp(ctx, d1);
-    let* (d2, d2_ty) = transform_exp(ctx, d2);
+    let* d1 = transform_exp(d1);
+    let* d2 = transform_exp(d2);
     let+ label = next_expr_label;
-    ({kind: ECons(d1, d2), label}, d2_ty);
+    {kind: ECons(d1, d2), label};
 
   | Inj(other_ty, side, d') =>
     let other_ty = transform_typ(other_ty);
@@ -205,83 +184,79 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
       | L => L
       | R => R
       };
-    let* (d', d'_ty) = transform_exp(ctx, d');
-    let ty =
-      switch (side) {
-      | L => TSum(d'_ty, other_ty)
-      | R => TSum(other_ty, d'_ty)
-      };
+    let* e' = transform_exp(d');
 
     let+ label = next_expr_label;
-    ({kind: EInj(ty, side, d'), label}, ty);
+    {kind: EInj(other_ty, side, e'), label};
 
   | BoolLit(b) =>
     let+ label = next_expr_label;
-    ({kind: EBoolLit(b), label}, TBool);
+    {kind: EBoolLit(b), label};
 
   | IntLit(i) =>
     let+ label = next_expr_label;
-    ({kind: EIntLit(i), label}, TInt);
+    {kind: EIntLit(i), label};
 
   | FloatLit(f) =>
     let+ label = next_expr_label;
-    ({kind: EFloatLit(f), label}, TFloat);
+    {kind: EFloatLit(f), label};
 
   | ListNil(ty) =>
     let ty = transform_typ(ty);
     let+ label = next_expr_label;
-    ({kind: ENil(ty), label}, TList(ty));
+    {kind: ENil(ty), label};
 
   | Triv =>
     let+ label = next_expr_label;
-    ({kind: ETriv, label}, TUnit);
+    {kind: ETriv, label};
 
   | ConsistentCase(case) =>
-    let* (case, case_ty) = transform_case(ctx, case);
+    let* case = transform_case(case);
     let+ label = next_expr_label;
-    ({kind: EConsistentCase(case), label}, case_ty);
+    {kind: EConsistentCase(case), label};
 
   | InconsistentBranches(u, i, sigma, case) =>
-    let* sigma = transform_var_map(ctx, sigma);
-    let* (case, _) = transform_case(ctx, case);
+    let* sigma = transform_var_map(sigma);
+    let* case = transform_case(case);
     let+ label = next_expr_label;
-    ({kind: EInconsistentBranches(u, i, sigma, case), label}, THole);
+    {kind: EInconsistentBranches(u, i, sigma, case), label};
 
   | Cast(d', ty, ty') =>
     // FIXME: default implementation of Cast
-    // let (d', _) = transform_exp(ctx, d');
+    // let (d', _) = transform_exp(d');
     // ({kind: ECast(d', ty, ty')}, ty');
     switch (HTyp.ground_cases_of(ty), HTyp.ground_cases_of(ty')) {
     | (GNotGroundOrHole(_), GNotGroundOrHole(_)) =>
       if (HTyp.eq(ty, ty')) {
-        transform_exp(ctx, d');
+        transform_exp(d');
       } else {
-        let* (d', _) = transform_exp(ctx, d');
+        let* d' = transform_exp(d');
         let ty = transform_typ(ty);
         let ty' = transform_typ(ty');
         let+ label = next_expr_label;
-        ({kind: ECast(d', ty, ty'), label}, ty');
+        {kind: ECast(d', ty, ty'), label};
       }
+
     | _ =>
-      let* (d', _) = transform_exp(ctx, d);
+      let* d' = transform_exp(d);
       let ty = transform_typ(ty);
       let ty' = transform_typ(ty');
       let+ label = next_expr_label;
-      ({kind: ECast(d', ty, ty'), label}, ty');
+      {kind: ECast(d', ty, ty'), label};
     }
 
   | FailedCast(d', ty, ty') =>
-    let* (d', _) = transform_exp(ctx, d');
+    let* d' = transform_exp(d');
     let ty = transform_typ(ty);
     let ty' = transform_typ(ty');
     let+ label = next_expr_label;
-    ({kind: EFailedCast(d', ty, ty'), label}, ty');
+    {kind: EFailedCast(d', ty, ty'), label};
 
   | InvalidOperation(d', err) =>
-    let* (d', d'_ty) = transform_exp(ctx, d');
+    let* d' = transform_exp(d');
     let err = transform_invalid_operation_error(err);
     let+ label = next_expr_label;
-    ({kind: EInvalidOperation(d', err), label}, d'_ty);
+    {kind: EInvalidOperation(d', err), label};
   };
 }
 
@@ -315,146 +290,115 @@ and transform_float_op = (op: DHExp.BinFloatOp.t): Expr.bin_float_op => {
   };
 }
 
-and transform_case =
-    (ctx: TypContext.t, case: DHExp.case): m((Expr.case, Typ.t)) => {
+and transform_case = (case: DHExp.case) => {
   switch (case) {
   // TODO: Check that all rules have same type?
   | Case(scrut, rules, _) =>
-    let* (scrut, scrut_ty) = transform_exp(ctx, scrut);
-    let+ rules =
-      rules
-      |> List.map(rule => transform_rule(ctx, rule, scrut_ty))
-      |> sequence;
-
-    let rules_ty = rules |> List.hd |> snd;
-    let rules = rules |> List.map(fst);
-
-    ({case_kind: ECase(scrut, rules)}, rules_ty);
+    let* scrut = transform_exp(scrut);
+    let+ rules = rules |> List.map(transform_rule) |> sequence;
+    {case_kind: ECase(scrut, rules)};
   };
 }
 
-and transform_rule =
-    (ctx: TypContext.t, rule: DHExp.rule, scrut_ty: Typ.t)
-    : m((Expr.rule, Typ.t)) => {
+and transform_rule = (rule: DHExp.rule) => {
   switch (rule) {
   | Rule(dp, d) =>
-    let* (dp, ctx') = transform_pat(ctx, dp, scrut_ty);
-    let* (d, d_ty) = transform_exp(ctx', d);
+    let* dp = transform_pat(dp);
+    let* d = transform_exp(d);
     let+ rule_label = next_rule_label;
-    ({rule_kind: ERule(dp, d), rule_label}, d_ty);
+    {rule_kind: ERule(dp, d), rule_label};
   };
 }
 
-and transform_var_map =
-    (ctx: TypContext.t, sigma: VarMap.t_(DHExp.t)): m(Sigma.t) =>
+and transform_var_map = (sigma: VarMap.t_(DHExp.t)): m(Sigma.t) =>
   sigma
   |> List.map(((x, d)) => {
        let x = transform_var(x);
-       let+ (d, _) = transform_exp(ctx, d);
+       let+ d = transform_exp(d);
        (x, d);
      })
   |> sequence
   >>| List.to_seq
   >>| Sigma.of_seq
 
-and transform_pat =
-    (ctx: TypContext.t, dp: DHPat.t, ty: Typ.t): m((Pat.t, TypContext.t)) => {
+and transform_pat = (dp: DHPat.t): m(Pat.t) => {
   Pat.(
     switch (dp) {
     | EmptyHole(u, i) =>
       let+ label = next_pat_label;
-      (Pat.{kind: PEmptyHole(u, i), label}, ctx);
+      Pat.{kind: PEmptyHole(u, i), label};
 
     | NonEmptyHole(reason, u, i, dp) =>
       let reason = transform_hole_reason(reason);
-      let* (dp, ctx) = transform_pat(ctx, dp, ty);
+      let* dp = transform_pat(dp);
       let+ label = next_pat_label;
-      ({kind: PNonEmptyHole(reason, u, i, dp), label}, ctx);
+      {kind: PNonEmptyHole(reason, u, i, dp), label};
 
     | ExpandingKeyword(u, i, k) =>
       let k = transform_expanding_keyword(k);
       let+ label = next_pat_label;
-      ({kind: PKeyword(u, i, k), label}, ctx);
+      {kind: PKeyword(u, i, k), label};
 
     | InvalidText(u, i, t) =>
       let+ label = next_pat_label;
-      ({kind: PInvalidText(u, i, t), label}, ctx);
+      {kind: PInvalidText(u, i, t), label};
 
     | Wild =>
       let+ label = next_pat_label;
-      ({kind: PWild, label}, ctx);
+      {kind: PWild, label};
 
     | Ap(dp1, dp2) =>
-      /* FIXME: Hole type scrutinee? */
-      switch (ty) {
-      | TArrow(dp1_ty, dp2_ty) =>
-        let* (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
-        let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
-        let+ label = next_pat_label;
-        ({kind: PAp(dp1, dp2), label}, ctx);
-      | _ => failwith("wrong type of ap pattern scrutinee")
-      }
+      let* dp1 = transform_pat(dp1);
+      let* dp2 = transform_pat(dp2);
+      let+ label = next_pat_label;
+      {kind: PAp(dp1, dp2), label};
 
     | Pair(dp1, dp2) =>
-      switch (ty) {
-      | TPair(dp1_ty, dp2_ty) =>
-        let* (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
-        let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
-        let+ label = next_pat_label;
-        ({kind: PPair(dp1, dp2), label}, ctx);
-      | _ => failwith("wrong type of pair pattern scrutinee")
-      }
+      let* dp1 = transform_pat(dp1);
+      let* dp2 = transform_pat(dp2);
+      let+ label = next_pat_label;
+      {kind: PPair(dp1, dp2), label};
 
     | Cons(dp, dps) =>
-      switch (ty) {
-      | TList(ty') =>
-        let* (dp, ctx) = transform_pat(ctx, dp, ty');
-        let* (dps, ctx) = transform_pat(ctx, dps, ty);
-        let+ label = next_pat_label;
-        ({kind: PCons(dp, dps), label}, ctx);
-      | _ => failwith("wrong type of cons pattern scrutinee")
-      }
+      let* dp = transform_pat(dp);
+      let* dps = transform_pat(dps);
+      let+ label = next_pat_label;
+      {kind: PCons(dp, dps), label};
 
     | Var(x) =>
       let x = transform_var(x);
-      let gamma' = TypContext.add(x, ty, ctx);
       let+ label = next_pat_label;
-      ({kind: PVar(x), label}, gamma');
+      {kind: PVar(x), label};
 
     | IntLit(i) =>
       let+ label = next_pat_label;
-      ({kind: PIntLit(i), label}, ctx);
+      {kind: PIntLit(i), label};
 
     | FloatLit(f) =>
       let+ label = next_pat_label;
-      ({kind: PFloatLit(f), label}, ctx);
+      {kind: PFloatLit(f), label};
 
     | BoolLit(b) =>
       let+ label = next_pat_label;
-      ({kind: PBoolLit(b), label}, ctx);
+      {kind: PBoolLit(b), label};
 
     | Inj(side, dp') =>
-      switch (side, ty) {
-      | (L, TSum(ty, _))
-      | (R, TSum(_, ty)) =>
-        let side =
-          switch (side) {
-          | L => L
-          | R => R
-          };
-        let* (dp', ctx) = transform_pat(ctx, dp', ty);
-        let+ label = next_pat_label;
-        ({kind: PInj(side, dp'), label}, ctx);
-      | _ => failwith("wrong type of injection pattern scrutinee")
-      }
+      let side =
+        switch (side) {
+        | L => L
+        | R => R
+        };
+      let* dp' = transform_pat(dp');
+      let+ label = next_pat_label;
+      {kind: PInj(side, dp'), label};
 
     | ListNil =>
       let+ label = next_pat_label;
-      ({kind: PNil, label}, ctx);
+      {kind: PNil, label};
 
     | Triv =>
       let+ label = next_pat_label;
-      ({kind: PTriv, label}, ctx);
+      {kind: PTriv, label};
     }
   );
 };
@@ -469,7 +413,7 @@ let transform = (ctx: Contexts.t, delta: HDelta.t, d: DHExp.t) => {
 
   let m = {
     let* delta = transform_delta(delta);
-    let+ (e, _) = transform_exp(ctx, d);
+    let+ e = transform_exp(d);
     (delta, e);
   };
 
