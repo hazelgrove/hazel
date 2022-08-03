@@ -395,25 +395,25 @@ and codegen_cast = (im: Anf.imm, ty1: Anf.typ, ty2: Anf.typ): t(Grain.expr) => {
   let rec codegen_htyp = (t: Anf.typ): t(Grain.expr) => {
     HazelStd.Rt.(
       switch (t) {
-      | Hole => Ast.HTyp.hole |> return
-      | Int => Ast.HTyp.int |> return
-      | Float => Ast.HTyp.float |> return
-      | Bool => Ast.HTyp.bool |> return
+      | THole => Ast.HTyp.hole |> return
+      | TInt => Ast.HTyp.int |> return
+      | TFloat => Ast.HTyp.float |> return
+      | TBool => Ast.HTyp.bool |> return
 
-      | Arrow(ty1, ty2) =>
+      | TArrow(ty1, ty2) =>
         let* ty1' = codegen_htyp(ty1);
         let* ty2' = codegen_htyp(ty2);
         Ast.HTyp.arrow(ty1', ty2') |> return;
 
-      | Sum(ty1, ty2) =>
+      | TSum(ty1, ty2) =>
         let* ty1' = codegen_htyp(ty1);
         let* ty2' = codegen_htyp(ty2);
         Ast.HTyp.sum(ty1', ty2') |> return;
-      | Prod(tys) =>
+      | TProd(tys) =>
         let* tys' = tys |> codegen_fold(codegen_htyp);
         Ast.HTyp.prod(tys') |> return;
 
-      | List(ty) =>
+      | TList(ty) =>
         let* ty' = codegen_htyp(ty);
         Ast.HTyp.list(ty') |> return;
       }

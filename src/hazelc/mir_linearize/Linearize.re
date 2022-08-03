@@ -49,15 +49,15 @@ module Renamings = {
 
 let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   switch (ty) {
-  | THole => Hole
-  | TInt => Int
-  | TFloat => Float
-  | TBool => Bool
-  | TArrow(t1, t2) => Arrow(linearize_typ(t1), linearize_typ(t2))
-  | TSum(t1, t2) => Sum(linearize_typ(t1), linearize_typ(t2))
-  | TPair(t1, t2) => Prod([linearize_typ(t1), linearize_typ(t2)])
-  | TUnit => Prod([])
-  | TList(t') => List(linearize_typ(t'))
+  | THole => THole
+  | TInt => TInt
+  | TFloat => TFloat
+  | TBool => TBool
+  | TArrow(t1, t2) => TArrow(linearize_typ(t1), linearize_typ(t2))
+  | TSum(t1, t2) => TSum(linearize_typ(t1), linearize_typ(t2))
+  | TPair(t1, t2) => TProd([linearize_typ(t1), linearize_typ(t2)])
+  | TUnit => TProd([])
+  | TList(t') => TList(linearize_typ(t'))
   };
 
 let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
@@ -186,7 +186,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* fn_label = next_expr_label;
     let fn = {
       comp_kind: CFun(x, body),
-      comp_ty: Arrow(p_ty, body.block_ty),
+      comp_ty: TArrow(p_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
@@ -230,7 +230,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* ap_label = next_expr_label;
     let ap_ty =
       switch (fn.imm_ty) {
-      | Arrow(_, ty') => ty'
+      | TArrow(_, ty') => ty'
       | _ => failwith("EAp calling non-function type")
       };
     let ap = {
@@ -249,7 +249,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstBool(b)),
-        imm_ty: Bool,
+        imm_ty: TBool,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -262,7 +262,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstInt(i)),
-        imm_ty: Int,
+        imm_ty: TInt,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -275,7 +275,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstFloat(f)),
-        imm_ty: Float,
+        imm_ty: TFloat,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -289,7 +289,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstNil(ty)),
-        imm_ty: List(ty),
+        imm_ty: TList(ty),
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -302,7 +302,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstTriv),
-        imm_ty: Prod([]),
+        imm_ty: TProd([]),
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -316,7 +316,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, Typ.Bool, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TBool, d1, d2, renamings);
 
   | EBinIntOp(op, d1, d2) =>
     let op: bin_op =
@@ -329,7 +329,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, Typ.Int, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TInt, d1, d2, renamings);
 
   | EBinFloatOp(op, d1, d2) =>
     let op: bin_op =
@@ -342,7 +342,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, Typ.Float, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TFloat, d1, d2, renamings);
 
   | EPair(d1, d2) =>
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
@@ -351,7 +351,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* pair_label = next_expr_label;
     let pair = {
       comp_kind: CPair(im1, im2),
-      comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
+      comp_ty: TProd([im1.imm_ty, im2.imm_ty]),
       comp_complete: default_completeness,
       comp_label: pair_label,
     };
@@ -388,8 +388,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let other_ty = linearize_typ(other_ty);
     let inj_ty: typ =
       switch (side) {
-      | CInjL => Sum(im.imm_ty, other_ty)
-      | CInjR => Sum(other_ty, im.imm_ty)
+      | CInjL => TSum(im.imm_ty, other_ty)
+      | CInjR => TSum(other_ty, im.imm_ty)
       };
 
     let* inj_label = next_expr_label;
@@ -412,7 +412,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CEmptyHole(u, i, sigma),
-      comp_ty: Hole,
+      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };
@@ -428,7 +428,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
-      comp_ty: Hole,
+      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };
