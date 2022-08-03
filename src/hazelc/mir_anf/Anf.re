@@ -39,7 +39,6 @@ type constant =
 [@deriving sexp]
 and imm = {
   imm_kind,
-  imm_ty: Typ.t,
   imm_complete: Complete.t,
   imm_label: ExprLabel.t,
 }
@@ -52,7 +51,6 @@ and imm_kind =
 [@deriving sexp]
 and comp = {
   comp_kind,
-  comp_ty: Typ.t,
   comp_complete: Complete.t,
   comp_label: ExprLabel.t,
 }
@@ -102,7 +100,6 @@ and stmt_kind =
 [@deriving sexp]
 and block = {
   block_body: (list(stmt), imm),
-  block_ty: Typ.t,
   block_complete: Complete.t,
   block_label: ExprLabel.t,
 };

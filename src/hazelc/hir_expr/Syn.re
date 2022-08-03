@@ -278,7 +278,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     | R => extend(l, TSum(other_ty, this_ty))
     };
 
-  | EBoundVar(_, x) =>
+  | EBoundVar(x) =>
     switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) => extend(l, ty)
     | None => UnboundVar(l) |> fail

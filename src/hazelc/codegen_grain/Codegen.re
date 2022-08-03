@@ -104,12 +104,7 @@ let codegen_fold = (codegen_f, xs) =>
 
 let rec codegen_block =
         (
-          {
-            block_body: (body, im),
-            block_ty: _,
-            block_complete: _,
-            block_label: _,
-          }: Anf.block,
+          {block_body: (body, im), block_complete: _, block_label: _}: Anf.block,
         )
         : t((block, expr)) => {
   let* stmts = codegen_fold(codegen_stmt, body);

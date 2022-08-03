@@ -56,6 +56,7 @@ and kind =
   | EInconsistentBranches(MetaVar.t, MetaVarInst.t, sigma, case)
   /* Let bindings */
   | ELet(Pat.t, t, t)
+  /* FIXME: Include output type. */
   | ELetRec(Ident.t, Pat.t, Typ.t, t, t)
   /* Function */
   | EFun(Pat.t, Typ.t, t)
@@ -73,8 +74,7 @@ and kind =
   /* Sum injection */
   | EInj(Typ.t, inj_side, t)
   /* Immediate expressions */
-  /* FIXME: Remove type. */
-  | EBoundVar(Typ.t, Ident.t)
+  | EBoundVar(Ident.t)
   | EBoolLit(bool)
   | EIntLit(int)
   | EFloatLit(float)

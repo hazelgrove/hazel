@@ -10,12 +10,7 @@ let default_completeness = Complete.IndeterminatelyIncomplete;
 let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
   let+ imm_label = next_expr_label;
   (
-    {
-      imm_kind: IVar(x),
-      imm_ty: c.comp_ty,
-      imm_complete: default_completeness,
-      imm_label,
-    },
+    {imm_kind: IVar(x), imm_complete: default_completeness, imm_label},
     SLet(x, c),
   );
 };
@@ -60,24 +55,23 @@ let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   | TList(t') => TList(linearize_typ(t'))
   };
 
-let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
-  let* (im, im_binds) = linearize_exp(d, renamings);
+let rec linearize_block = (e: Hir_expr.expr, renamings): t(block) => {
+  let* (im, im_binds) = linearize_exp(e, renamings);
   let* body = im_binds |> List.map(convert_bind) |> sequence;
 
   let* l = next_expr_label;
   {
     block_body: (body, im),
-    block_ty: im.imm_ty,
     block_complete: default_completeness,
     block_label: l,
   }
   |> return;
 }
 
-and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
-  switch (d.kind) {
-  | EBoundVar(ty, x) =>
-    let ty = linearize_typ(ty);
+and linearize_exp =
+    ({kind, label: _}: Hir_expr.expr, renamings): t((imm, list(bind))) => {
+  switch (kind) {
+  | EBoundVar(x) =>
     let x' =
       switch (Renamings.find_opt(x, renamings)) {
       | Some(x') => x'
@@ -86,19 +80,14 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
     let* l = next_expr_label;
     (
-      {
-        imm_kind: IVar(x'),
-        imm_ty: ty,
-        imm_complete: default_completeness,
-        imm_label: l,
-      },
+      {imm_kind: IVar(x'), imm_complete: default_completeness, imm_label: l},
       [],
     )
     |> return;
 
   /* Linearize let with variable pattern into plain let. */
-  | ELet({kind: PVar(x), label: _}, d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
+  | ELet({kind: PVar(x), label: _}, e', body) =>
+    let* (im1, im1_binds) = linearize_exp(e', renamings);
 
     let* comp_label = next_expr_label;
     let* (bind_x, _, bind) =
@@ -107,22 +96,21 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
         {
           comp_kind: CImm(im1),
           comp_complete: default_completeness,
-          comp_ty: im1.imm_ty,
           comp_label,
         },
       );
 
     let renamings' = Renamings.add(x, bind_x, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings');
+    let* (im2, im2_binds) = linearize_exp(body, renamings');
 
     let binds = im1_binds @ [bind] @ im2_binds;
     (im2, binds) |> return;
 
   /* Linearize let with arbitrary pattern into case. */
-  | ELet(dp, d1, d2) =>
+  | ELet(p, e', body) =>
     let* rule_label = next_hir_rule_label;
-    let rules = Hir_expr.Expr.[{rule_kind: ERule(dp, d2), rule_label}];
-    linearize_case(Hir_expr.Expr.{case_kind: ECase(d1, rules)}, renamings);
+    let rules = Hir_expr.Expr.[{rule_kind: ERule(p, body), rule_label}];
+    linearize_case(Hir_expr.Expr.{case_kind: ECase(e', rules)}, renamings);
 
   | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
     /* Rename bound variable. */
@@ -155,7 +143,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       Hir_expr.Expr.(
         {
           let* scrut_label = next_hir_expr_label;
-          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+          let scrut = {kind: EBoundVar(param), label: scrut_label};
 
           let* rule_label = next_hir_rule_label;
           let rules = [{rule_kind: ERule(p, body), rule_label}];
@@ -185,7 +173,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* fn_label = next_expr_label;
     let fn = {
       comp_kind: CFun(x, param_ty, body),
-      comp_ty: TArrow(param_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
@@ -200,7 +187,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       Hir_expr.Expr.(
         {
           let* scrut_label = next_hir_expr_label;
-          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+          let scrut = {kind: EBoundVar(param), label: scrut_label};
 
           let* rule_label = next_hir_rule_label;
           let rules = [{rule_kind: ERule(p, body), rule_label}];
@@ -226,14 +213,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (arg, arg_binds) = linearize_exp(arg, renamings);
 
     let* ap_label = next_expr_label;
-    let ap_ty =
-      switch (fn.imm_ty) {
-      | TArrow(_, ty') => ty'
-      | _ => failwith("EAp calling non-function type")
-      };
     let ap = {
       comp_kind: CAp(fn, arg),
-      comp_ty: ap_ty,
       comp_complete: default_completeness,
       comp_label: ap_label,
     };
@@ -247,7 +228,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstBool(b)),
-        imm_ty: TBool,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -260,7 +240,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstInt(i)),
-        imm_ty: TInt,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -273,7 +252,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstFloat(f)),
-        imm_ty: TFloat,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -287,7 +265,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstNil(ty)),
-        imm_ty: TList(ty),
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -300,7 +277,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstTriv),
-        imm_ty: TUnit,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -308,15 +284,15 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     )
     |> return;
 
-  | EBinBoolOp(op, d1, d2) =>
+  | EBinBoolOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, Typ.TBool, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EBinIntOp(op, d1, d2) =>
+  | EBinIntOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpPlus => OpPlus
@@ -327,9 +303,9 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, Typ.TInt, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EBinFloatOp(op, d1, d2) =>
+  | EBinFloatOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpFPlus => OpFPlus
@@ -340,16 +316,15 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, Typ.TFloat, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EPair(d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings);
+  | EPair(e1, e2) =>
+    let* (im1, im1_binds) = linearize_exp(e1, renamings);
+    let* (im2, im2_binds) = linearize_exp(e2, renamings);
 
     let* pair_label = next_expr_label;
     let pair = {
       comp_kind: CPair(im1, im2),
-      comp_ty: TPair(im1.imm_ty, im2.imm_ty),
       comp_complete: default_completeness,
       comp_label: pair_label,
     };
@@ -358,14 +333,13 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = im1_binds @ im2_binds @ [pair_bind];
     (pair_var, binds) |> return;
 
-  | ECons(d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings);
+  | ECons(hd, tl) =>
+    let* (im1, im1_binds) = linearize_exp(hd, renamings);
+    let* (im2, im2_binds) = linearize_exp(tl, renamings);
 
     let* cons_label = next_expr_label;
     let cons = {
       comp_kind: CCons(im1, im2),
-      comp_ty: im2.imm_ty,
       comp_complete: default_completeness,
       comp_label: cons_label,
     };
@@ -375,25 +349,19 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
     (cons_var, binds) |> return;
 
-  | EInj(other_ty, side, d) =>
-    let* (im, im_binds) = linearize_exp(d, renamings);
+  | EInj(other_ty, side, e') =>
+    let other_ty = linearize_typ(other_ty);
     let side =
       switch (side) {
       | L => CInjL
       | R => CInjR
       };
 
-    let other_ty = linearize_typ(other_ty);
-    let inj_ty: typ =
-      switch (side) {
-      | CInjL => TSum(im.imm_ty, other_ty)
-      | CInjR => TSum(other_ty, im.imm_ty)
-      };
+    let* (im, im_binds) = linearize_exp(e', renamings);
 
     let* inj_label = next_expr_label;
     let inj = {
       comp_kind: CInj(other_ty, side, im),
-      comp_ty: inj_ty,
       comp_complete: default_completeness,
       comp_label: inj_label,
     };
@@ -410,7 +378,6 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CEmptyHole(u, i, sigma),
-      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };
@@ -419,14 +386,13 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = sigma_binds @ [hole_bind];
     (hole_var, binds) |> return;
 
-  | ENonEmptyHole(reason, u, i, sigma, d') =>
+  | ENonEmptyHole(reason, u, i, sigma, e') =>
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
-    let* (im, im_binds) = linearize_exp(d', renamings);
+    let* (im, im_binds) = linearize_exp(e', renamings);
 
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
-      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };
@@ -435,15 +401,14 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = sigma_binds @ im_binds @ [hole_bind];
     (hole_var, binds) |> return;
 
-  | ECast(d', ty1, ty2) =>
-    let* (im, im_binds) = linearize_exp(d', renamings);
+  | ECast(e', ty1, ty2) =>
+    let* (im, im_binds) = linearize_exp(e', renamings);
     let ty1 = linearize_typ(ty1);
     let ty2 = linearize_typ(ty2);
 
     let* cast_label = next_expr_label;
     let cast = {
       comp_kind: CCast(im, ty1, ty2),
-      comp_ty: ty2,
       comp_complete: default_completeness,
       comp_label: cast_label,
     };
@@ -467,8 +432,8 @@ and linearize_sigma =
   let+ bindings =
     sigma
     |> Hir_expr.Sigma.bindings
-    |> List.map(((x, d)) => {
-         let+ (im, im_binds) = linearize_exp(d, renamings);
+    |> List.map(((x, e)) => {
+         let+ (im, im_binds) = linearize_exp(e, renamings);
          ((x, im), im_binds);
        })
     |> sequence;
@@ -481,14 +446,13 @@ and linearize_sigma =
 }
 
 and linearize_bin_op =
-    (op: bin_op, ty: typ, d1: Hir_expr.expr, d2: Hir_expr.expr, renamings) => {
-  let* (im1, im1_binds) = linearize_exp(d1, renamings);
-  let* (im2, im2_binds) = linearize_exp(d2, renamings);
+    (op: bin_op, e1: Hir_expr.expr, e2: Hir_expr.expr, renamings) => {
+  let* (im1, im1_binds) = linearize_exp(e1, renamings);
+  let* (im2, im2_binds) = linearize_exp(e2, renamings);
 
   let* bin_label = next_expr_label;
   let bin = {
     comp_kind: CBinOp(op, im1, im2),
-    comp_ty: ty,
     comp_complete: default_completeness,
     comp_label: bin_label,
   };
@@ -506,11 +470,9 @@ and linearize_case = (case: Hir_expr.case, renamings): t((imm, list(bind))) => {
      * catch-all. */
     let* rules = linearize_rules(rules, renamings);
 
-    let rules_ty = List.hd(rules).rule_branch.block_ty;
     let* case_label = next_expr_label;
     let case = {
       comp_kind: CCase(scrut_imm, rules),
-      comp_ty: rules_ty,
       comp_complete: default_completeness,
       comp_label: case_label,
     };
