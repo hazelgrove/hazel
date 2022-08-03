@@ -1,3 +1,3 @@
-module Grain = Codegen_grain;
+let codegen_grain: (~opts: Codegen_grain.opts, Mir.Anf.block) => Grain.prog;
 
-let codegen_grain: (~opts: Grain.opts, Mir.Anf.block) => Grain.Grain_.prog;
+module Grain = Codegen_grain;
