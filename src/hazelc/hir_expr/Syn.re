@@ -80,11 +80,11 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
 
   | PPair(p1, p2) =>
     switch (ty) {
-    | TProd([ty1, ty2]) =>
+    | TPair(ty1, ty2) =>
       let* ctx = ana_pat(ctx, p1, ty1);
       ana_pat(ctx, p2, ty2);
     /* FIXME: THole is just a placeholder. */
-    | ty => PatTypesNotEqual(l, ty, TProd([THole, THole])) |> fail
+    | ty => PatTypesNotEqual(l, ty, TPair(THole, THole)) |> fail
     }
 
   | PCons(p1, p2) =>
@@ -135,9 +135,8 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
 
   | PTriv =>
     switch (ty) {
-    | TProd([]) => ctx |> return
-    /* FIXME: [] is just a placeholder. */
-    | _ => PatTypesNotEqual(l, ty, TProd([])) |> fail
+    | TUnit => ctx |> return
+    | _ => PatTypesNotEqual(l, ty, TUnit) |> fail
     }
   };
 };
@@ -259,7 +258,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
   | EPair(e1, e2) =>
     let* ty1 = syn(ctx, delta, e1);
     let* ty2 = syn(ctx, delta, e2);
-    extend(l, TProd([ty1, ty2]));
+    extend(l, TPair(ty1, ty2));
 
   /* Cons */
   | ECons(e1, e2) =>
@@ -289,7 +288,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
   | EIntLit(_) => extend(l, TInt)
   | EFloatLit(_) => extend(l, TFloat)
   | ENil(ty') => extend(l, TList(ty'))
-  | ETriv => extend(l, TProd([]))
+  | ETriv => extend(l, TUnit)
   }
 
 and syn_case =

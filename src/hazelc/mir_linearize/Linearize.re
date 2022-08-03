@@ -55,7 +55,8 @@ let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   | TBool => Bool
   | TArrow(t1, t2) => Arrow(linearize_typ(t1), linearize_typ(t2))
   | TSum(t1, t2) => Sum(linearize_typ(t1), linearize_typ(t2))
-  | TProd(ts) => Prod(ts |> List.map(linearize_typ))
+  | TPair(t1, t2) => Prod([linearize_typ(t1), linearize_typ(t2)])
+  | TUnit => Prod([])
   | TList(t') => List(linearize_typ(t'))
   };
 

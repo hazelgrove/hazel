@@ -18,7 +18,9 @@ let rec transform_typ: HTyp.t => Typ.t =
   | Bool => TBool
   | Arrow(t1, t2) => TArrow(transform_typ(t1), transform_typ(t2))
   | Sum(t1, t2) => TSum(transform_typ(t1), transform_typ(t2))
-  | Prod(ts) => TProd(ts |> List.map(transform_typ))
+  | Prod([t1, t2]) => TPair(transform_typ(t1), transform_typ(t2))
+  | Prod([]) => TUnit
+  | Prod(_) => failwith("non-pair or unit product type not supported")
   | List(t') => TList(transform_typ(t'));
 let transform_var = Ident.v;
 let transform_hole_reason: ErrStatus.HoleReason.t => Holes.HoleReason.t =
@@ -188,7 +190,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (d1, d1_ty) = transform_exp(ctx, d1);
     let* (d2, d2_ty) = transform_exp(ctx, d2);
     let+ label = next_expr_label;
-    ({kind: EPair(d1, d2), label}, TProd([d1_ty, d2_ty]));
+    ({kind: EPair(d1, d2), label}, TPair(d1_ty, d2_ty));
 
   | Cons(d1, d2) =>
     let* (d1, _) = transform_exp(ctx, d1);
@@ -232,7 +234,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | Triv =>
     let+ label = next_expr_label;
-    ({kind: ETriv, label}, TProd([]));
+    ({kind: ETriv, label}, TUnit);
 
   | ConsistentCase(case) =>
     let* (case, case_ty) = transform_case(ctx, case);
@@ -395,7 +397,7 @@ and transform_pat =
 
     | Pair(dp1, dp2) =>
       switch (ty) {
-      | TProd([dp1_ty, dp2_ty]) =>
+      | TPair(dp1_ty, dp2_ty) =>
         let* (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
         let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
         let+ label = next_pat_label;
