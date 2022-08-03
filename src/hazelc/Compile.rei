@@ -27,7 +27,9 @@ let transform:
     (Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr, Hir.Expr.syn_types),
     Hir.Expr.syn_error,
   );
-let linearize: (~opts: opts, Hir.Expr.expr) => Mir.Anf.block;
+let linearize:
+  (~opts: opts, Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr) =>
+  Mir.Anf.block;
 let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
 let grainize: (~opts: opts, Mir.Anf.block) => Grain.prog;
 let print: (~opts: opts, Grain.prog) => string;

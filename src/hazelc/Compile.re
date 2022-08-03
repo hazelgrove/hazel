@@ -25,7 +25,8 @@ let transform' = (ctx, delta, d) => {
   |> Result.map((Hir.Expr.Syn.{types}) => (ctx, delta, e, types));
 };
 
-let linearize' = Mir.Linearize.linearize;
+/* FIXME: Pass ctx, delta to linearize. */
+let linearize' = (_ctx, _delta) => Mir.Linearize.linearize;
 
 let optimize' = opts => Mir.Optimize.optimize(~opts);
 
@@ -78,7 +79,7 @@ let elaborate = (~opts as _, ctx, e) =>
 
 let transform = (~opts as _, ctx, delta, d) => transform'(ctx, delta, d);
 
-let linearize = (~opts as _, d) => linearize'(d);
+let linearize = (~opts as _, ctx, delta, d) => linearize'(ctx, delta, d);
 
 let optimize = (~opts, a) => optimize'(opts.optimize, a);
 
@@ -136,9 +137,8 @@ let next = (~opts, state): next_result => {
        )
     |> Result.map_error(err => TransformError(err))
 
-  /* FIXME: Pass ctx, delta to linearization. */
-  | Transformed(_ctx, _delta, e, _types) =>
-    Ok(Some(Linearized(linearize(~opts, e))))
+  | Transformed(ctx, delta, e, _types) =>
+    Ok(Some(Linearized(linearize(~opts, ctx, delta, e))))
 
   | Linearized(a) => Ok(Some(Optimized(optimize(~opts, a))))
 
