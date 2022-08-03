@@ -141,13 +141,16 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
   };
 };
 
-let rec ana = (ctx, delta, e: Expr.t, ty: Typ.t): m(unit) => {
-  let* e_ty = syn(ctx, delta, e);
-  if (Typ.equal(e_ty, ty)) {
+let rec ana = (label, actual_ty, expected_ty) =>
+  if (Typ.equal(actual_ty, expected_ty)) {
     () |> return;
   } else {
-    TypesNotEqual(e.label, e_ty, ty) |> fail;
-  };
+    TypesNotEqual(label, actual_ty, expected_ty) |> fail;
+  }
+
+and ana_imm = (ctx, delta, e: Expr.t, ty: Typ.t): m(unit) => {
+  let* e_ty = syn(ctx, delta, e);
+  ana(e.label, e_ty, ty);
 }
 
 and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
@@ -195,7 +198,16 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     let* ty2 = syn(ctx, delta, e2);
     extend(l, TArrow(ty1, ty2));
 
-  | ELetRec(_x, _p, _p_ty, _body, _e') => raise(NotImplemented)
+  | ELetRec(x, p, p_ty, o_ty, body, e') =>
+    let ty = Typ.TArrow(p_ty, o_ty);
+    let ctx = TypContext.add(x, ty, ctx);
+
+    /* Type-check function. */
+    let* ctx' = ana_pat(ctx, p, p_ty);
+    let* () = ana_imm(ctx', delta, body, o_ty);
+
+    let* e'_ty = syn(ctx, delta, e');
+    extend(l, e'_ty);
 
   | EFun(p, p_ty, body) =>
     let* ctx = ana_pat(ctx, p, p_ty);
@@ -240,18 +252,18 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
   /* Binary operations */
   | EBinBoolOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TBool);
-    let* () = ana(ctx, delta, e2, TBool);
+    let* () = ana_imm(ctx, delta, e1, TBool);
+    let* () = ana_imm(ctx, delta, e2, TBool);
     extend(l, TBool);
 
   | EBinIntOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TInt);
-    let* () = ana(ctx, delta, e2, TInt);
+    let* () = ana_imm(ctx, delta, e1, TInt);
+    let* () = ana_imm(ctx, delta, e2, TInt);
     extend(l, TInt);
 
   | EBinFloatOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TFloat);
-    let* () = ana(ctx, delta, e2, TFloat);
+    let* () = ana_imm(ctx, delta, e1, TFloat);
+    let* () = ana_imm(ctx, delta, e2, TFloat);
     extend(l, TBool);
 
   /* Pair */

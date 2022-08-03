@@ -2,8 +2,6 @@ open Util.ResultSexp;
 
 open Holes;
 
-exception NotImplemented;
-
 [@deriving sexp]
 type syn_types = ExprLabel.Map.t(Typ.t);
 
@@ -136,13 +134,21 @@ let rec ana_pat =
   };
 };
 
-let rec ana = (ctx, delta, im: Anf.imm, ty): m(unit) => {
-  let* e_ty = syn_imm(ctx, delta, im);
-  if (Typ.equal(e_ty, ty)) {
+let rec ana' = (label, actual_ty, expected_ty) =>
+  if (Typ.equal(actual_ty, expected_ty)) {
     () |> return;
   } else {
-    TypesNotEqual(im.imm_label, e_ty, ty) |> fail;
-  };
+    TypesNotEqual(label, actual_ty, expected_ty) |> fail;
+  }
+
+and ana_block = (ctx, delta, block: Anf.block, ty): m(unit) => {
+  let* block_ty = syn_block(ctx, delta, block);
+  ana'(block.block_label, block_ty, ty);
+}
+
+and ana_imm = (ctx, delta, im: Anf.imm, ty): m(unit) => {
+  let* im_ty = syn_imm(ctx, delta, im);
+  ana'(im.imm_label, im_ty, ty);
 }
 
 and syn_block =
@@ -173,7 +179,14 @@ and syn_stmt = (ctx, delta, {stmt_kind, stmt_label: _, _}: Anf.stmt) => {
     let ctx = TypContext.add(x, ty, ctx);
     ctx;
 
-  | SLetRec(_x, _param, _param_ty, _body) => raise(NotImplemented)
+  | SLetRec(x, param, param_ty, o_ty, body) =>
+    let ty = Typ.TArrow(param_ty, o_ty);
+    let ctx = TypContext.add(x, ty, ctx);
+
+    let ctx' = TypContext.add(param, param_ty, ctx);
+    let+ () = ana_block(ctx', delta, body, o_ty);
+
+    ctx;
   };
 }
 
@@ -265,8 +278,8 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
       | OpFGreaterThan
       | OpFEquals => TFloat
       };
-    let* () = ana(ctx, delta, im1, ana_ty);
-    let* () = ana(ctx, delta, im2, ana_ty);
+    let* () = ana_imm(ctx, delta, im1, ana_ty);
+    let* () = ana_imm(ctx, delta, im2, ana_ty);
     extend(l, ana_ty);
 
   /* Pair */

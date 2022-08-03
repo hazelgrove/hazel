@@ -58,7 +58,7 @@ and kind =
   | EInconsistentBranches(MetaVar.t, MetaVarInst.t, sigma, case)
   /* Let bindings */
   | ELet(Pat.t, t, t)
-  | ELetRec(Ident.t, Pat.t, Typ.t, t, t)
+  | ELetRec(Ident.t, Pat.t, Typ.t, Typ.t, t, t)
   /* Function */
   | EFun(Pat.t, Typ.t, t)
   /* Application */
