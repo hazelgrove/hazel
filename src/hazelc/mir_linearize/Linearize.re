@@ -11,8 +11,8 @@ let default_completeness = Complete.IndeterminatelyIncomplete;
 let mk_bind = (p: pat, c: comp) => BLet(p, c);
 
 let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
-  let* imm_label = next_label;
-  let* pat_label = next_label;
+  let* imm_label = next_expr_label;
+  let* pat_label = next_pat_label;
   (
     {
       imm_kind: IVar(x),
@@ -21,7 +21,7 @@ let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
       imm_label,
     },
     mk_bind(
-      {pat_kind: PVar(x), pat_complete: default_completeness, pat_label},
+      {kind: PVar(x), complete: default_completeness, label: pat_label},
       c,
     ),
   )
@@ -35,7 +35,7 @@ let mk_bind_var_tmp = (c: comp) => {
 };
 
 let convert_bind = (bn: bind): t(stmt) => {
-  let* l = next_label;
+  let* l = next_stmt_label;
   (
     switch (bn) {
     | BLet(p, c) => {
@@ -72,7 +72,7 @@ let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
   let* (im, im_binds) = linearize_exp(d, renamings);
   let* body = im_binds |> List.map(convert_bind) |> sequence;
 
-  let* l = next_label;
+  let* l = next_expr_label;
   {
     block_body: (body, im),
     block_ty: im.imm_ty,
@@ -92,7 +92,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | None => failwith("bad free variable " ++ Ident.to_string(x))
       };
 
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IVar(x'),
@@ -109,7 +109,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (p, renamings') = linearize_pat(dp, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings');
 
-    let* c1_label = next_label;
+    let* c1_label = next_expr_label;
     let c1 = {
       comp_kind: CImm(im1),
       comp_ty: im1.imm_ty,
@@ -129,7 +129,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
     let* (im, im_binds) = linearize_exp(d', renamings);
 
-    let* fn_label = next_label;
+    let* fn_label = next_expr_label;
     let fn = {
       comp_kind: CFun(p, body),
       comp_ty: Arrow(dp_ty, body.block_ty),
@@ -145,7 +145,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let dp_ty = linearize_typ(dp_ty);
     let* body = linearize_block(body, renamings);
 
-    let* fn_label = next_label;
+    let* fn_label = next_expr_label;
     let fn = {
       comp_kind: CFun(p, body),
       comp_ty: Arrow(dp_ty, body.block_ty),
@@ -160,7 +160,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (fn, fn_binds) = linearize_exp(fn, renamings);
     let* (arg, arg_binds) = linearize_exp(arg, renamings);
 
-    let* ap_label = next_label;
+    let* ap_label = next_expr_label;
     let ap_ty =
       switch (fn.imm_ty) {
       | Arrow(_, ty') => ty'
@@ -178,7 +178,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (ap_var, binds) |> return;
 
   | EBoolLit(b) =>
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IConst(ConstBool(b)),
@@ -191,7 +191,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     |> return;
 
   | EIntLit(i) =>
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IConst(ConstInt(i)),
@@ -204,7 +204,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     |> return;
 
   | EFloatLit(f) =>
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IConst(ConstFloat(f)),
@@ -218,7 +218,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
   | ENil(ty) =>
     let ty = linearize_typ(ty);
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IConst(ConstNil(ty)),
@@ -231,7 +231,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     |> return;
 
   | ETriv =>
-    let* l = next_label;
+    let* l = next_expr_label;
     (
       {
         imm_kind: IConst(ConstTriv),
@@ -281,7 +281,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings);
 
-    let* pair_label = next_label;
+    let* pair_label = next_expr_label;
     let pair = {
       comp_kind: CPair(im1, im2),
       comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
@@ -297,7 +297,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings);
 
-    let* cons_label = next_label;
+    let* cons_label = next_expr_label;
     let cons = {
       comp_kind: CCons(im1, im2),
       comp_ty: im2.imm_ty,
@@ -325,7 +325,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | CInjR => Sum(other_ty, im.imm_ty)
       };
 
-    let* inj_label = next_label;
+    let* inj_label = next_expr_label;
     let inj = {
       comp_kind: CInj(side, im),
       comp_ty: inj_ty,
@@ -342,7 +342,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
   | EEmptyHole(u, i, sigma) =>
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
 
-    let* hole_label = next_label;
+    let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CEmptyHole(u, i, sigma),
       comp_ty: Hole,
@@ -358,7 +358,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
     let* (im, im_binds) = linearize_exp(d', renamings);
 
-    let* hole_label = next_label;
+    let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
       comp_ty: Hole,
@@ -375,7 +375,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let ty1 = linearize_typ(ty1);
     let ty2 = linearize_typ(ty2);
 
-    let* cast_label = next_label;
+    let* cast_label = next_expr_label;
     let cast = {
       comp_kind: CCast(im, ty1, ty2),
       comp_ty: ty2,
@@ -421,7 +421,7 @@ and linearize_bin_op =
   let* (im1, im1_binds) = linearize_exp(d1, renamings);
   let* (im2, im2_binds) = linearize_exp(d2, renamings);
 
-  let* bin_label = next_label;
+  let* bin_label = next_expr_label;
   let bin = {
     comp_kind: CBinOp(op, im1, im2),
     comp_ty: ty,
@@ -441,7 +441,7 @@ and linearize_case = (case: Hir_expr.case, renamings): t((imm, list(bind))) => {
     let* rules = linearize_rules(rules, renamings);
 
     let rules_ty = List.hd(rules).rule_branch.block_ty;
-    let* case_label = next_label;
+    let* case_label = next_expr_label;
     let case = {
       comp_kind: CCase(scrut_imm, rules),
       comp_ty: rules_ty,
@@ -465,7 +465,7 @@ and linearize_rule = (rule: Hir_expr.rule, renamings): t(rule) => {
     let* (p, renamings) = linearize_pat(p, renamings);
     let* branch = linearize_block(branch, renamings);
 
-    let* l = next_label;
+    let* l = next_rule_label;
     {
       rule_pat: p,
       rule_branch: branch,
@@ -485,121 +485,99 @@ and linearize_pat = (p: Hir_expr.pat, renamings): t((pat, renamings)) =>
   linearize_pat_hole(p, renamings)
 
 and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
-  switch (p.kind) {
-  | PPair(p1, p2) =>
-    let* (p1, renamings) = linearize_pat_hole(p1, renamings);
-    let* (p2, renamings) = linearize_pat_hole(p2, renamings);
+  Pat.(
+    switch (p.kind) {
+    | PPair(p1, p2) =>
+      let* (p1, renamings) = linearize_pat_hole(p1, renamings);
+      let* (p2, renamings) = linearize_pat_hole(p2, renamings);
 
-    let* l = next_label;
-    (
-      {
-        pat_kind: PPair(p1, p2),
-        pat_complete: default_completeness,
-        pat_label: l,
-      },
-      renamings,
-    )
-    |> return;
+      let* l = next_pat_label;
+      (
+        {kind: PPair(p1, p2), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PCons(p1, p2) =>
-    let* (p1, renamings) = linearize_pat_hole(p1, renamings);
-    let* (p2, renamings) = linearize_pat_hole(p2, renamings);
+    | PCons(p1, p2) =>
+      let* (p1, renamings) = linearize_pat_hole(p1, renamings);
+      let* (p2, renamings) = linearize_pat_hole(p2, renamings);
 
-    let* l = next_label;
-    (
-      {
-        pat_kind: PCons(p1, p2),
-        pat_complete: default_completeness,
-        pat_label: l,
-      },
-      renamings,
-    )
-    |> return;
+      let* l = next_pat_label;
+      (
+        {kind: PCons(p1, p2), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PInj(side, p') =>
-    let side =
-      switch (side) {
-      | L => CInjL
-      | R => CInjR
-      };
-    let* (p', renamings) = linearize_pat_hole(p', renamings);
+    | PInj(side, p') =>
+      let side =
+        switch (side) {
+        | L => PInjL
+        | R => PInjR
+        };
+      let* (p', renamings) = linearize_pat_hole(p', renamings);
 
-    let* l = next_label;
-    (
-      {
-        pat_kind: PInj(side, p'),
-        pat_complete: default_completeness,
-        pat_label: l,
-      },
-      renamings,
-    )
-    |> return;
+      let* l = next_pat_label;
+      (
+        {kind: PInj(side, p'), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PWild =>
-    let* l = next_label;
-    (
-      {pat_kind: PWild, pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PWild =>
+      let* l = next_pat_label;
+      ({kind: PWild, complete: default_completeness, label: l}, renamings)
+      |> return;
 
-  | PVar(x) =>
-    let* x' = next_tmp_named(x);
-    let renamings = Ident.Map.add(x, x', renamings);
+    | PVar(x) =>
+      let* x' = next_tmp_named(x);
+      let renamings = Ident.Map.add(x, x', renamings);
 
-    let* l = next_label;
-    (
-      {pat_kind: PVar(x'), pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+      let* l = next_pat_label;
+      (
+        {kind: PVar(x'), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PIntLit(i) =>
-    let* l = next_label;
-    (
-      {pat_kind: PInt(i), pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PIntLit(i) =>
+      let* l = next_pat_label;
+      ({kind: PInt(i), complete: default_completeness, label: l}, renamings)
+      |> return;
 
-  | PFloatLit(f) =>
-    let* l = next_label;
-    (
-      {pat_kind: PFloat(f), pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PFloatLit(f) =>
+      let* l = next_pat_label;
+      (
+        {kind: PFloat(f), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PBoolLit(b) =>
-    let* l = next_label;
-    (
-      {pat_kind: PBool(b), pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PBoolLit(b) =>
+      let* l = next_pat_label;
+      (
+        {kind: PBool(b), complete: default_completeness, label: l},
+        renamings,
+      )
+      |> return;
 
-  | PNil =>
-    let* l = next_label;
-    (
-      {pat_kind: PNil, pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PNil =>
+      let* l = next_pat_label;
+      ({kind: PNil, complete: default_completeness, label: l}, renamings)
+      |> return;
 
-  | PTriv =>
-    let* l = next_label;
-    (
-      {pat_kind: PTriv, pat_complete: default_completeness, pat_label: l},
-      renamings,
-    )
-    |> return;
+    | PTriv =>
+      let* l = next_pat_label;
+      ({kind: PTriv, complete: default_completeness, label: l}, renamings)
+      |> return;
 
-  | PEmptyHole(_)
-  | PNonEmptyHole(_)
-  | PKeyword(_)
-  | PInvalidText(_)
-  | PAp(_) => failwith("not implemented")
-  };
+    | PEmptyHole(_)
+    | PNonEmptyHole(_)
+    | PKeyword(_)
+    | PInvalidText(_)
+    | PAp(_) => failwith("not implemented")
+    }
+  );
 };
 
 let linearize = (d: Hir_expr.expr): block => {

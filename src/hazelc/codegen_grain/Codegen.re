@@ -97,7 +97,7 @@ module Monad = {
 open Monad;
 open Monad.Syntax;
 
-let dummy_label = Anf.Label.init;
+let dummy_pat_label = Anf.Pat.Label.init;
 
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;
@@ -127,9 +127,9 @@ and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
   | SLetRec(x, c) =>
     let* p' =
       codegen_pat({
-        pat_kind: PVar(x),
-        pat_complete: NecessarilyComplete,
-        pat_label: dummy_label,
+        kind: PVar(x),
+        complete: NecessarilyComplete,
+        label: dummy_pat_label,
       });
     let* c' = codegen_comp(c);
     SLetRec(p', c') |> return;
@@ -248,7 +248,7 @@ and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
 }
 
 and codegen_bin_op =
-    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.complete)
+    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.Complete.t)
     : t(Grain.expr) => {
   let* e1 = codegen_imm(im1);
   let* e2 = codegen_imm(im2);
@@ -298,7 +298,7 @@ and codegen_const = (const: Anf.constant): t(Grain.expr) => {
 }
 
 and codegen_pat = (p: Anf.pat): t(Grain.pat) => {
-  switch (p.pat_kind) {
+  switch (p.kind) {
   | PWild => PWild |> return
   | PVar(x) => PVar(x |> Ident.to_string) |> return
   | PInt(n) => PInt(n) |> return
@@ -336,11 +336,12 @@ and codegen_inj_side = (side: Anf.inj_side): t(Grain.expr => Grain.expr) => {
   side' |> return;
 }
 
-and codegen_inj_side_pat = (side: Anf.inj_side): t(Grain.pat => Grain.pat) => {
+and codegen_inj_side_pat =
+    (side: Anf.Pat.inj_side): t(Grain.pat => Grain.pat) => {
   let side' =
     switch (side) {
-    | CInjL => HazelStd.Rt.Sum.inj_l_pat
-    | CInjR => HazelStd.Rt.Sum.inj_r_pat
+    | PInjL => HazelStd.Rt.Sum.inj_l_pat
+    | PInjR => HazelStd.Rt.Sum.inj_r_pat
     };
 
   let* () = with_sum_import;

@@ -9,7 +9,10 @@ module State: {
   let next_tmp: t => (Ident.t, t);
   let next_tmp_named: (Ident.t, t) => (Ident.t, t);
 
-  let next_label: t => (Label.t, t);
+  let next_expr_label: t => (ExprLabel.t, t);
+  let next_rule_label: t => (RuleLabel.t, t);
+  let next_stmt_label: t => (StmtLabel.t, t);
+  let next_pat_label: t => (Pat.Label.t, t);
 };
 
 include Util.Monads.MONAD with type t('a) = State.t => (State.t, 'a);
@@ -24,4 +27,7 @@ let init: State.t;
 let next_tmp: t(Ident.t);
 let next_tmp_named: Ident.t => t(Ident.t);
 
-let next_label: t(Label.t);
+let next_expr_label: t(ExprLabel.t);
+let next_rule_label: t(RuleLabel.t);
+let next_stmt_label: t(StmtLabel.t);
+let next_pat_label: t(Pat.Label.t);
