@@ -1,11 +1,11 @@
-module IndetAnalysis = IndetAnalysis;
+open Sexplib.Std;
 
 open Mir_anf;
 
 [@deriving sexp]
-type opts = {indet_analysis: IndetAnalysis.opts};
+type opts = unit;
 
-let passes = [opts => IndetAnalysis.analyze(~opts=opts.indet_analysis)];
+let passes = [];
 
 let optimize = (~opts, block: block): block => {
   List.fold_left((block, pass) => pass(opts, block), block, passes);

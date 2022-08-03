@@ -1,10 +1,8 @@
-module IndetAnalysis = IndetAnalysis;
-
 /**
   Optimization passes.
  */
 [@deriving sexp]
-type opts = {indet_analysis: IndetAnalysis.opts};
+type opts = unit;
 
 /**
   The list of passes.

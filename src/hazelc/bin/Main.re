@@ -36,18 +36,19 @@ type error =
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
-  let indet_analysis_level =
+  let completes_level =
     switch (optimize) {
-    | 0 => Mir.Optimize.IndetAnalysis.NoAnalysis
-    | _ => Mir.Optimize.IndetAnalysis.GlobalAnalysis
+    | 0 => Mir.Analyze.CompletesAnalysis.NoAnalysis
+    | _ => Mir.Analyze.CompletesAnalysis.GlobalAnalysis
     };
 
   let opts: Compile.opts = {
-    optimize: {
-      indet_analysis: {
-        level: indet_analysis_level,
+    analyze: {
+      completes: {
+        level: completes_level,
       },
     },
+    optimize: (),
     codegen: {
       print_final_expr: true,
     },
