@@ -91,10 +91,9 @@ and inj_side =
 [@deriving sexp]
 and case = {case_kind}
 
-/* FIXME: Remove int */
 [@deriving sexp]
 and case_kind =
-  | ECase(t, list(rule), int)
+  | ECase(t, list(rule))
 
 [@deriving sexp]
 and rule = {

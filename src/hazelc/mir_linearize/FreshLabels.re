@@ -70,7 +70,7 @@ and fresh_labels = ({kind, label}: Hir_expr.expr, acc) => {
 
 and fresh_labels_case = ({case_kind}, acc) =>
   switch (case_kind) {
-  | ECase(scrut, rules, _n) =>
+  | ECase(scrut, rules) =>
     acc |> fresh_labels(scrut) |> fresh_labels_rules(rules)
   }
 

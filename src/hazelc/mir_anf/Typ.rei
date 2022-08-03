@@ -9,3 +9,7 @@ type t =
   | TPair(t, t)
   | TUnit
   | TList(t);
+
+let equal: (t, t) => bool;
+
+let consistent: (t, t) => bool;

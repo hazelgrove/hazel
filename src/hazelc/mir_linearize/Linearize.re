@@ -122,10 +122,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
   | ELet(dp, d1, d2) =>
     let* rule_label = next_hir_rule_label;
     let rules = Hir_expr.Expr.[{rule_kind: ERule(dp, d2), rule_label}];
-    linearize_case(
-      Hir_expr.Expr.{case_kind: ECase(d1, rules, 1)},
-      renamings,
-    );
+    linearize_case(Hir_expr.Expr.{case_kind: ECase(d1, rules)}, renamings);
 
   | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
     /* Rename bound variable. */
@@ -164,7 +161,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
           let rules = [{rule_kind: ERule(p, body), rule_label}];
 
           let* label = next_hir_expr_label;
-          let case = {case_kind: ECase(scrut, rules, 1)};
+          let case = {case_kind: ECase(scrut, rules)};
           linearize_block(
             Hir_expr.Expr.{kind: EConsistentCase(case), label},
             renamings',
@@ -207,8 +204,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
           let* rule_label = next_hir_rule_label;
           let rules = [{rule_kind: ERule(p, body), rule_label}];
-
-          let case = {case_kind: ECase(scrut, rules, 1)};
+          let case = {case_kind: ECase(scrut, rules)};
 
           let+ label = next_hir_expr_label;
           {kind: EConsistentCase(case), label};
@@ -396,7 +392,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
     let* inj_label = next_expr_label;
     let inj = {
-      comp_kind: CInj(side, im),
+      comp_kind: CInj(other_ty, side, im),
       comp_ty: inj_ty,
       comp_complete: default_completeness,
       comp_label: inj_label,
@@ -504,7 +500,7 @@ and linearize_bin_op =
 
 and linearize_case = (case: Hir_expr.case, renamings): t((imm, list(bind))) => {
   switch (case.case_kind) {
-  | ECase(scrut, rules, _) =>
+  | ECase(scrut, rules) =>
     let* (scrut_imm, scrut_binds) = linearize_exp(scrut, renamings);
     /* FIXME: Add wildcard rule that returns entire case expression as final
      * catch-all. */

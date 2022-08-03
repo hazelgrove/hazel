@@ -157,7 +157,7 @@ and codegen_comp = (c: Anf.comp): t(expr) => {
     let* e2 = codegen_imm(im2);
     ETuple([e1, e2]) |> return;
 
-  | CInj(side, im) =>
+  | CInj(_other_ty, side, im) =>
     let* ctor = codegen_inj_side(side);
     let* e = codegen_imm(im);
     ctor(e) |> return;

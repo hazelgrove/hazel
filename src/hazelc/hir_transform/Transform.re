@@ -319,7 +319,7 @@ and transform_case =
     (ctx: TypContext.t, case: DHExp.case): m((Expr.case, Typ.t)) => {
   switch (case) {
   // TODO: Check that all rules have same type?
-  | Case(scrut, rules, i) =>
+  | Case(scrut, rules, _) =>
     let* (scrut, scrut_ty) = transform_exp(ctx, scrut);
     let+ rules =
       rules
@@ -329,7 +329,7 @@ and transform_case =
     let rules_ty = rules |> List.hd |> snd;
     let rules = rules |> List.map(fst);
 
-    ({case_kind: ECase(scrut, rules, i)}, rules_ty);
+    ({case_kind: ECase(scrut, rules)}, rules_ty);
   };
 }
 
