@@ -99,8 +99,6 @@ module Monad = {
 open Monad;
 open Monad.Syntax;
 
-let dummy_label = Anf.Label.init;
-
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;
 
@@ -121,20 +119,15 @@ let rec codegen_block =
 
 and codegen_stmt = (stmt: Anf.stmt): t(stmt) => {
   switch (stmt.stmt_kind) {
-  | SLet(p, c) =>
-    let* p' = codegen_pat(p);
+  | SLet(x, c) =>
     let* c' = codegen_comp(c);
-    SLet(p', c') |> return;
+    SLet(PVar(x), c') |> return;
 
-  | SLetRec(x, c) =>
-    let* p' =
-      codegen_pat({
-        pat_kind: PVar(x),
-        pat_complete: NecessarilyComplete,
-        pat_label: dummy_label,
-      });
-    let* c' = codegen_comp(c);
-    SLetRec(p', c') |> return;
+  | SLetRec(x, param, body) =>
+    let* (body', c) = codegen_block(body);
+    let body' = body' @ [SExpr(c)];
+    let fn = ELam([PVar(param)], EBlock(body'));
+    SLetRec(PVar(x), fn) |> return;
   };
 }
 
@@ -150,10 +143,9 @@ and codegen_comp = (c: Anf.comp): t(expr) => {
     EAp(fn', [arg']) |> return;
 
   | CFun(param, body) =>
-    let* param' = codegen_pat(param);
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
-    ELam([param'], EBlock(body')) |> return;
+    ELam([PVar(param)], EBlock(body')) |> return;
 
   | CCons(im1, im2) =>
     let* e1 = codegen_imm(im1);
@@ -249,7 +241,7 @@ and codegen_bin_op_incomplete = (op: Anf.bin_op) => {
 }
 
 and codegen_bin_op =
-    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.complete)
+    (op: Anf.bin_op, im1: Anf.imm, im2: Anf.imm, indet: Anf.Complete.t)
     : t(expr) => {
   let* e1 = codegen_imm(im1);
   let* e2 = codegen_imm(im2);
@@ -298,7 +290,7 @@ and codegen_const = (const: Anf.constant): t(expr) => {
 }
 
 and codegen_pat = (p: Anf.pat): t(pat) => {
-  switch (p.pat_kind) {
+  switch (p.kind) {
   | PWild => PWild |> return
   | PVar(x) => PVar(x) |> return
   | PInt(n) => PInt(n) |> return
@@ -336,11 +328,11 @@ and codegen_inj_side = (side: Anf.inj_side): t(expr => expr) => {
   side' |> return;
 }
 
-and codegen_inj_side_pat = (side: Anf.inj_side): t(pat => pat) => {
+and codegen_inj_side_pat = (side: Anf.Pat.inj_side): t(pat => pat) => {
   let side' =
     switch (side) {
-    | CInjL => Sum.inj_l_pat
-    | CInjR => Sum.inj_r_pat
+    | PInjL => Sum.inj_l_pat
+    | PInjR => Sum.inj_r_pat
     };
 
   let* () = with_sum_import;

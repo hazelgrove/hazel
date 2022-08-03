@@ -5,11 +5,9 @@ open Sexplib.Std;
 
 open Holes;
 
-[@deriving sexp]
-type complete = Complete.t;
-
-[@deriving sexp]
-type label = AnfLabel.t;
+module ExprLabel = ExprLabel;
+module RuleLabel = RuleLabel;
+module StmtLabel = StmtLabel;
 
 [@deriving sexp]
 type bin_op =
@@ -31,27 +29,7 @@ type bin_op =
   | OpFEquals;
 
 [@deriving sexp]
-type pat = {
-  pat_kind,
-  pat_complete: complete,
-  pat_label: label,
-}
-
-[@deriving sexp]
-and pat_kind =
-  | PWild
-  | PVar(Ident.t)
-  | PInt(int)
-  | PFloat(float)
-  | PBool(bool)
-  | PNil
-  | PInj(inj_side, pat)
-  | PCons(pat, pat)
-  | PPair(pat, pat)
-  | PTriv
-
-[@deriving sexp]
-and constant =
+type constant =
   | ConstInt(int)
   | ConstFloat(float)
   | ConstBool(bool)
@@ -62,8 +40,8 @@ and constant =
 and imm = {
   imm_kind,
   imm_ty: Typ.t,
-  imm_complete: complete,
-  imm_label: label,
+  imm_complete: Complete.t,
+  imm_label: ExprLabel.t,
 }
 
 [@deriving sexp]
@@ -75,8 +53,8 @@ and imm_kind =
 and comp = {
   comp_kind,
   comp_ty: Typ.t,
-  comp_complete: complete,
-  comp_label: label,
+  comp_complete: Complete.t,
+  comp_label: ExprLabel.t,
 }
 
 [@deriving sexp]
@@ -84,20 +62,18 @@ and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
   | CAp(imm, imm)
-  | CFun(pat, block)
+  /* FIXME: Store parameter type in here. */
+  | CFun(Ident.t, block)
   | CCons(imm, imm)
   | CPair(imm, imm)
   | CInj(inj_side, imm)
   | CCase(imm, list(rule))
-  | CEmptyHole(MetaVar.t, MetaVarInst.t, Ident.Map.t(imm))
-  | CNonEmptyHole(
-      HoleReason.t,
-      MetaVar.t,
-      MetaVarInst.t,
-      Ident.Map.t(imm),
-      imm,
-    )
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, sigma)
+  | CNonEmptyHole(HoleReason.t, MetaVar.t, MetaVarInst.t, sigma, imm)
   | CCast(imm, Typ.t, Typ.t)
+
+[@deriving sexp]
+and sigma = Ident.Map.t(imm)
 
 [@deriving sexp]
 and inj_side =
@@ -106,28 +82,28 @@ and inj_side =
 
 [@deriving sexp]
 and rule = {
-  rule_pat: pat,
+  rule_pat: Pat.t,
   rule_branch: block,
-  rule_complete: complete,
-  rule_label: label,
+  rule_complete: Complete.t,
+  rule_label: RuleLabel.t,
 }
 
 [@deriving sexp]
 and stmt = {
   stmt_kind,
-  stmt_complete: complete,
-  stmt_label: label,
+  stmt_complete: Complete.t,
+  stmt_label: StmtLabel.t,
 }
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(pat, comp)
-  | SLetRec(Ident.t, comp)
+  | SLet(Ident.t, comp)
+  | SLetRec(Ident.t, Ident.t, block)
 
 [@deriving sexp]
 and block = {
   block_body: (list(stmt), imm),
   block_ty: Typ.t,
-  block_complete: complete,
-  block_label: label,
+  block_complete: Complete.t,
+  block_label: ExprLabel.t,
 };

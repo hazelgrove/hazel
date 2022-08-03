@@ -82,6 +82,8 @@ module Compile = {
       switch (err) {
       | ParseError(err) => failwith(err)
       | ElaborateError => failwith("elaboration failed")
+      | TransformError(_err) =>
+        failwith("transformation result did not type-check")
       }
     };
   };

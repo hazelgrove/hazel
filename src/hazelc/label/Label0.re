@@ -11,3 +11,5 @@ let next = l => l + 1;
 
 let compare = Int.compare;
 let equal = Int.equal;
+
+let max = Int.max;

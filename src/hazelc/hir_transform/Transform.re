@@ -1,3 +1,4 @@
+module HDelta = Delta;
 module HInjSide = InjSide;
 
 open Hir_expr;
@@ -8,14 +9,6 @@ open TransformMonad;
 open TransformMonad.Syntax;
 
 type m('a) = TransformMonad.t('a);
-
-/* FIXME: Remove these and use failwith. */
-exception FixFError;
-exception FreeVarError;
-exception WrongTypeError;
-
-[@deriving sexp]
-type ctx = Ident.Map.t(Typ.t);
 
 let rec transform_typ: HTyp.t => Typ.t =
   fun
@@ -28,10 +21,6 @@ let rec transform_typ: HTyp.t => Typ.t =
   | Prod(ts) => Prod(ts |> List.map(transform_typ))
   | List(t') => List(transform_typ(t'));
 let transform_var = Ident.v;
-let transform_inj_side: HInjSide.t => Hir_expr.InjSide.t =
-  fun
-  | L => L
-  | R => R;
 let transform_hole_reason: ErrStatus.HoleReason.t => Holes.HoleReason.t =
   fun
   | TypeInconsistent => TypeInconsistent
@@ -46,7 +35,29 @@ let transform_invalid_operation_error:
   fun
   | DivideByZero => DivideByZero;
 
-let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
+let transform_delta = (delta: HDelta.t): m(Delta.t) =>
+  delta
+  |> MetaVarMap.bindings
+  |> List.map(((u, (sort, ty, gamma))) => {
+       let sort =
+         switch (sort) {
+         | HDelta.ExpressionHole => Delta.ExpressionHole
+         | HDelta.PatternHole => Delta.PatternHole
+         };
+       let ty = transform_typ(ty);
+       let gamma =
+         gamma
+         |> VarCtx.to_list
+         |> List.map(((x, ty)) => (transform_var(x), transform_typ(ty)))
+         |> List.to_seq
+         |> TypContext.of_seq;
+       (u, (sort, ty, gamma));
+     })
+  |> List.to_seq
+  |> Holes.MetaVarMap.of_seq
+  |> return;
+
+let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
     let* sigma = transform_var_map(ctx, sigma);
@@ -79,14 +90,14 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | BoundVar(x) =>
     let x = transform_var(x);
-    switch (Ident.Map.find_opt(x, ctx)) {
+    switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) =>
       let+ label = next_expr_label;
       ({kind: EBoundVar(ty, x), label}, ty);
-    | None => raise(FreeVarError)
+    | None => failwith("free bound variable " ++ Ident.to_string(x))
     };
 
-  | FixF(_) => raise(FixFError)
+  | FixF(_) => failwith("lone FixF")
   | Let(Var(_), FixF(x, ty, Fun(dp, dp_ty, d3)), body) =>
     let x = transform_var(x);
     let ty = transform_typ(ty);
@@ -94,7 +105,7 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
     // TODO: Not really sure if any of this recursive function handling is right...
     let* (dp, ctx) = transform_pat(ctx, dp, ty);
-    let ctx = Ident.Map.add(x, ty, ctx);
+    let ctx = TypContext.add(x, ty, ctx);
 
     let* (d3, _) = transform_exp(ctx, d3);
     let* (body, body_ty) = transform_exp(ctx, body);
@@ -126,7 +137,7 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
       | Arrow(_, ty') =>
         let+ label = next_expr_label;
         ({kind: EAp(fn, arg), label}, ty');
-      | _ => raise(WrongTypeError)
+      | _ => failwith("wrong function type")
       }
     | _ => failwith("NotImplemented")
     };
@@ -141,12 +152,12 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
          })
       |> sequence;
 
-    switch (Ident.Map.find_opt(name, ctx)) {
+    switch (TypContext.find_opt(name, ctx)) {
     | Some(Arrow(_, ty')) =>
       let+ label = next_expr_label;
       ({kind: EApBuiltin(name, args), label}, ty');
-    | Some(_) => raise(FreeVarError)
-    | None => raise(WrongTypeError)
+    | Some(_) => failwith("wrong type of builtin")
+    | None => failwith("unbound builtin " ++ Ident.to_string(name))
     };
 
   | BinBoolOp(op, d1, d2) =>
@@ -187,7 +198,11 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | Inj(other_ty, side, d') =>
     let other_ty = transform_typ(other_ty);
-    let side = transform_inj_side(side);
+    let side =
+      switch (side) {
+      | L => L
+      | R => R
+      };
     let* (d', d'_ty) = transform_exp(ctx, d');
     let ty =
       switch (side) {
@@ -298,7 +313,8 @@ and transform_float_op = (op: DHExp.BinFloatOp.t): Expr.bin_float_op => {
   };
 }
 
-and transform_case = (ctx: ctx, case: DHExp.case): m((Expr.case, Typ.t)) => {
+and transform_case =
+    (ctx: TypContext.t, case: DHExp.case): m((Expr.case, Typ.t)) => {
   switch (case) {
   // TODO: Check that all rules have same type?
   | Case(scrut, rules, i) =>
@@ -316,7 +332,8 @@ and transform_case = (ctx: ctx, case: DHExp.case): m((Expr.case, Typ.t)) => {
 }
 
 and transform_rule =
-    (ctx: ctx, rule: DHExp.rule, scrut_ty: Typ.t): m((Expr.rule, Typ.t)) => {
+    (ctx: TypContext.t, rule: DHExp.rule, scrut_ty: Typ.t)
+    : m((Expr.rule, Typ.t)) => {
   switch (rule) {
   | Rule(dp, d) =>
     let* (dp, ctx') = transform_pat(ctx, dp, scrut_ty);
@@ -327,7 +344,7 @@ and transform_rule =
 }
 
 and transform_var_map =
-    (ctx: ctx, sigma: VarMap.t_(DHExp.t)): m(Ident.Map.t(Expr.t)) =>
+    (ctx: TypContext.t, sigma: VarMap.t_(DHExp.t)): m(Sigma.t) =>
   sigma
   |> List.map(((x, d)) => {
        let x = transform_var(x);
@@ -336,9 +353,10 @@ and transform_var_map =
      })
   |> sequence
   >>| List.to_seq
-  >>| Ident.Map.of_seq
+  >>| Sigma.of_seq
 
-and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
+and transform_pat =
+    (ctx: TypContext.t, dp: DHPat.t, ty: Typ.t): m((Pat.t, TypContext.t)) => {
   Pat.(
     switch (dp) {
     | EmptyHole(u, i) =>
@@ -372,7 +390,7 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
         let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
         let+ label = next_pat_label;
         ({kind: PAp(dp1, dp2), label}, ctx);
-      | _ => raise(WrongTypeError)
+      | _ => failwith("wrong type of ap pattern scrutinee")
       }
 
     | Pair(dp1, dp2) =>
@@ -382,7 +400,7 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
         let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
         let+ label = next_pat_label;
         ({kind: PPair(dp1, dp2), label}, ctx);
-      | _ => raise(WrongTypeError)
+      | _ => failwith("wrong type of pair pattern scrutinee")
       }
 
     | Cons(dp, dps) =>
@@ -392,12 +410,12 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
         let* (dps, ctx) = transform_pat(ctx, dps, ty);
         let+ label = next_pat_label;
         ({kind: PCons(dp, dps), label}, ctx);
-      | _ => raise(WrongTypeError)
+      | _ => failwith("wrong type of cons pattern scrutinee")
       }
 
     | Var(x) =>
       let x = transform_var(x);
-      let gamma' = Ident.Map.add(x, ty, ctx);
+      let gamma' = TypContext.add(x, ty, ctx);
       let+ label = next_pat_label;
       ({kind: PVar(x), label}, gamma');
 
@@ -417,11 +435,15 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
       switch (side, ty) {
       | (L, Sum(ty, _))
       | (R, Sum(_, ty)) =>
-        let side = transform_inj_side(side);
+        let side =
+          switch (side) {
+          | L => L
+          | R => R
+          };
         let* (dp', ctx) = transform_pat(ctx, dp', ty);
         let+ label = next_pat_label;
         ({kind: PInj(side, dp'), label}, ctx);
-      | _ => raise(WrongTypeError)
+      | _ => failwith("wrong type of injection pattern scrutinee")
       }
 
     | ListNil =>
@@ -435,14 +457,20 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
   );
 };
 
-let transform = (ctx: Contexts.t, d: DHExp.t) => {
+let transform = (ctx: Contexts.t, delta: HDelta.t, d: DHExp.t) => {
   let ctx =
     ctx
     |> VarCtx.to_list
     |> List.map(((x, ty)) => (transform_var(x), transform_typ(ty)))
     |> List.to_seq
-    |> Ident.Map.of_seq;
+    |> TypContext.of_seq;
 
-  let (_, (e, _)) = transform_exp(ctx, d, TransformMonad.init);
-  e;
+  let m = {
+    let* delta = transform_delta(delta);
+    let+ (e, _) = transform_exp(ctx, d);
+    (delta, e);
+  };
+
+  let (_, (delta, e)) = m(TransformMonad.init);
+  (ctx, delta, e);
 };

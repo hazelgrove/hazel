@@ -15,8 +15,8 @@ type action =
   | DHExp
   | Hir
   | Anf
-  | Grain
   | Gir
+  | Grain
   | Wasm
   | Wat;
 
@@ -32,6 +32,7 @@ let default_std = Rt_grain_files.location;
 type error =
   | ParseError(string)
   | ElaborateError
+  | TransformError(Hir.Expr.syn_error)
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
@@ -86,10 +87,10 @@ let hazelc =
         let ext =
           switch (action) {
           | DHExp => "hz.dhexp"
-          | Hir => "hz.ihexp"
+          | Hir => "hz.hir"
           | Anf => "hz.anf"
-          | Grain => "gr"
           | Gir => "hz.gir"
+          | Grain => "gr"
           | Wasm => "wasm"
           | Wat => "wat"
           };
@@ -110,6 +111,7 @@ let hazelc =
     switch (err) {
     | ParseError(err) => ParseError(err)
     | ElaborateError => ElaborateError
+    | TransformError(err) => TransformError(err)
     };
 
   let res =
@@ -121,7 +123,9 @@ let hazelc =
 
     | Hir =>
       Compile.resume_until_transformed(~opts, source)
-      |> Result.map(write_sexp_output(Hir.Expr.sexp_of_expr))
+      |> Result.map(((_ctx, _delta, e, _types)) =>
+           write_sexp_output(Hir.Expr.sexp_of_expr, e)
+         )
       |> Result.map_error(convert_error)
 
     | Anf =>
@@ -173,6 +177,8 @@ let hazelc =
     switch (err) {
     | ParseError(err) => print_endline(err)
     | ElaborateError => print_endline("elaboration error")
+    | TransformError(_err) =>
+      print_endline("transformation result did not type-check")
     | GrainError => ()
     }
   };
@@ -201,7 +207,7 @@ let action_flag = {
     let doc = "Emit DHExp sexp.";
     (DHExp, Arg.info(["dhexp"], ~doc));
   };
-  let ihexp = {
+  let hir = {
     let doc = "Emit Hir sexp.";
     (Hir, Arg.info(["hir"], ~doc));
   };
@@ -209,13 +215,13 @@ let action_flag = {
     let doc = "Emit Anf sexp.";
     (Anf, Arg.info(["anf"], ~doc));
   };
-  let grain = {
-    let doc = "Emit Grain code.";
-    (Grain, Arg.info(["grain"], ~doc));
-  };
   let gir = {
     let doc = "Emit Grain IR sexp.";
     (Gir, Arg.info(["gir"], ~doc));
+  };
+  let grain = {
+    let doc = "Emit Grain code.";
+    (Grain, Arg.info(["grain"], ~doc));
   };
   let wasm = {
     let doc = "Emit WebAssembly.";
@@ -225,9 +231,7 @@ let action_flag = {
     let doc = "Emit WebAssembly text.";
     (Wat, Arg.info(["wat"], ~doc));
   };
-  Arg.(
-    last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, gir, wasm, wat])
-  );
+  Arg.(last & vflag_all([Wasm], [dhexp, hir, anf, gir, grain, wasm, wat]));
 };
 
 /* Verbosity flag. */

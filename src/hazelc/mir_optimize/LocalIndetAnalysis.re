@@ -1,11 +1,16 @@
+/* FIXME: Monadize this? */
 open Mir_anf;
 
-/**
- * Context mapping variables to the indet-ness of the expression to which it
- * refers.
- */
-[@deriving sexp]
-type completes = Ident.Map.t(complete);
+module Completes = {
+  include Ident.Map;
+
+  /**
+    Context mapping variables to the indet-ness of the expression to which it
+    refers.
+   */
+  [@deriving sexp]
+  type t = Ident.Map.t(Complete.t);
+};
 
 let rec analyze_block = (block: block, cctx): block => {
   let {block_body: (body, im), block_ty, block_complete: _, block_label}: block = block;
@@ -21,7 +26,7 @@ let rec analyze_block = (block: block, cctx): block => {
   };
 }
 
-and analyze_body = (body: list(stmt), cctx): (list(stmt), completes) => {
+and analyze_body = (body: list(stmt), cctx): (list(stmt), Completes.t) => {
   let (rev_body, cctx) =
     List.fold_left(
       ((body, cctx), stmt) => {
@@ -35,33 +40,32 @@ and analyze_body = (body: list(stmt), cctx): (list(stmt), completes) => {
   (List.rev(rev_body), cctx);
 }
 
-and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
+and analyze_stmt = (stmt: stmt, cctx): (stmt, Completes.t) => {
   let {stmt_kind, stmt_complete: _, stmt_label}: stmt = stmt;
-  let (stmt_kind, stmt_complete, cctx) =
-    switch (stmt_kind) {
-    | SLet(p, c) =>
-      let c = analyze_comp(c, cctx);
-      let (p, cctx) = analyze_pat(p, c.comp_complete, cctx);
-      (SLet(p, c), Complete.join(p.pat_complete, c.comp_complete), cctx);
+  switch (stmt_kind) {
+  | SLet(x, c) =>
+    let c = analyze_comp(c, cctx);
 
-    /* SLetRec rhs can only be a lambda. */
-    | SLetRec(
-        x,
-        {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _, comp_label: _} as c,
-      ) =>
-      let cctx = Ident.Map.add(x, Complete.IndeterminatelyIncomplete, cctx);
-      let c = analyze_comp(c, cctx);
-      (SLetRec(x, c), c.comp_complete, cctx);
+    let stmt_complete = c.comp_complete;
+    let cctx = Completes.add(x, stmt_complete, cctx);
 
-    | SLetRec(_, _) => failwith("bad let rec without function rhs")
-    };
+    ({stmt_kind: SLet(x, c), stmt_label, stmt_complete}, cctx);
 
-  ({stmt_kind, stmt_complete, stmt_label}, cctx);
+  | SLetRec(x, param, body) =>
+    /* Parameter completeness is unknown locally. */
+    let cctx = Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
+
+    let stmt_complete = Complete.IndeterminatelyIncomplete;
+    let cctx = Completes.add(x, stmt_complete, cctx);
+
+    let body = analyze_block(body, cctx);
+    ({stmt_kind: SLetRec(x, param, body), stmt_label, stmt_complete}, cctx);
+  };
 }
 
 and analyze_comp = (c: comp, cctx): comp => {
   let {comp_kind, comp_ty, comp_complete: _, comp_label}: comp = c;
-  let (comp_kind, comp_complete): (comp_kind, complete) =
+  let (comp_kind, comp_complete) =
     switch (comp_kind) {
     | CImm(im) =>
       let im = analyze_imm(im, cctx);
@@ -81,12 +85,12 @@ and analyze_comp = (c: comp, cctx): comp => {
       (CAp(fn, arg), Complete.join(fn.imm_complete, arg.imm_complete));
 
     | CFun(param, body) =>
-      let (param, cctx) =
-        analyze_pat(param, IndeterminatelyIncomplete, cctx);
+      let cctx =
+        Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
       let body = analyze_block(body, cctx);
       (
         CFun(param, body),
-        Complete.join(body.block_complete, param.pat_complete),
+        Complete.join(body.block_complete, IndeterminatelyIncomplete),
       );
 
     | CCons(im1, im2) =>
@@ -144,25 +148,25 @@ and analyze_rule = (scrut: imm, rule: rule, cctx): rule => {
     rule_pat,
     rule_branch,
     rule_complete:
-      Complete.join(rule_pat.pat_complete, rule_branch.block_complete),
+      Complete.join(rule_pat.complete, rule_branch.block_complete),
     rule_label,
   };
 }
 
-and analyze_sigma = (sigma: Ident.Map.t(imm), _cctx): Ident.Map.t(imm) => {
+and analyze_sigma = (sigma: Sigma.t, _cctx): Sigma.t => {
   /* TODO: Not sure if we need to do anything to this. */
   sigma;
 }
 
 and analyze_imm = (im: imm, cctx): imm => {
   let {imm_kind, imm_ty, imm_complete: _, imm_label}: imm = im;
-  let (imm_kind, imm_complete): (imm_kind, complete) =
+  let (imm_kind, imm_complete) =
     switch (imm_kind) {
     | IConst(const) =>
       let const = analyze_const(const, cctx);
-      (IConst(const), NecessarilyComplete);
+      (IConst(const), Complete.NecessarilyComplete);
     | IVar(x) =>
-      switch (Ident.Map.find_opt(x, cctx)) {
+      switch (Completes.find_opt(x, cctx)) {
       | Some(x_complete) => (IVar(x), x_complete)
       | None => failwith("bad free variable " ++ Ident.to_string(x))
       }
@@ -176,15 +180,15 @@ and analyze_const = (const: constant, _cctx): constant => {
 }
 
 and analyze_pat =
-    (p: pat, matchee_complete: complete, cctx): (pat, completes) =>
+    (p: pat, matchee_complete: Complete.t, cctx): (pat, Completes.t) =>
   analyze_pat'(p, matchee_complete, false, cctx)
 
 and analyze_pat' =
-    (p: pat, matchee_complete: complete, in_hole: bool, cctx)
-    : (pat, completes) => {
-  let {pat_kind, pat_complete: _, pat_label}: pat = p;
-  let (pat_kind, pat_complete: complete, cctx) =
-    switch (pat_kind) {
+    (p: pat, matchee_complete: Complete.t, in_hole: bool, cctx)
+    : (pat, Completes.t) => {
+  let {kind, complete: _, label}: pat = p;
+  let (kind, complete, cctx) =
+    switch (kind) {
     | PVar(x) =>
       /* We mark that the variable x refers to a possibly indeterminate
        * expression if the matchee is possible indeterminate or we are in a
@@ -194,36 +198,28 @@ and analyze_pat' =
         if (in_hole) {Complete.IndeterminatelyIncomplete} else {
           matchee_complete
         };
-      let cctx = Ident.Map.add(x, x_complete, cctx);
-      (pat_kind, NecessarilyComplete, cctx);
+      let cctx = Completes.add(x, x_complete, cctx);
+      (kind, Complete.NecessarilyComplete, cctx);
     | PWild
     | PInt(_)
     | PFloat(_)
     | PBool(_)
     | PNil
-    | PTriv => (pat_kind, NecessarilyComplete, cctx)
+    | PTriv => (kind, NecessarilyComplete, cctx)
     | PInj(side, p') =>
       let (p', cctx) = analyze_pat'(p', matchee_complete, in_hole, cctx);
-      (PInj(side, p'), p'.pat_complete, cctx);
+      (PInj(side, p'), p'.complete, cctx);
     | PCons(p1, p2) =>
       let (p1, cctx) = analyze_pat'(p1, matchee_complete, in_hole, cctx);
       let (p2, cctx) = analyze_pat'(p2, matchee_complete, in_hole, cctx);
-      (
-        PCons(p1, p2),
-        Complete.join(p1.pat_complete, p2.pat_complete),
-        cctx,
-      );
+      (PCons(p1, p2), Complete.join(p1.complete, p2.complete), cctx);
     | PPair(p1, p2) =>
       let (p1, cctx) = analyze_pat'(p1, matchee_complete, in_hole, cctx);
       let (p2, cctx) = analyze_pat'(p2, matchee_complete, in_hole, cctx);
-      (
-        PPair(p1, p2),
-        Complete.join(p1.pat_complete, p2.pat_complete),
-        cctx,
-      );
+      (PPair(p1, p2), Complete.join(p1.complete, p2.complete), cctx);
     };
 
-  ({pat_kind, pat_complete, pat_label}, cctx);
+  ({kind, complete, label}, cctx);
 };
 
-let analyze = (block: block): block => analyze_block(block, Ident.Map.empty);
+let analyze = (block: block): block => analyze_block(block, Completes.empty);

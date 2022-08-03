@@ -2,7 +2,7 @@ module type L = {
   [@deriving sexp]
   type t;
 
-  let of_int: t => int;
+  let of_int: int => t;
   let to_int: t => int;
 
   let init: t;
@@ -10,6 +10,8 @@ module type L = {
 
   let compare: (t, t) => int;
   let equal: (t, t) => bool;
+
+  let max: (t, t) => t;
 };
 
 module type S = {
@@ -21,6 +23,8 @@ module type S = {
 
   let init: t;
   let next: t => (label, t);
+
+  let of_label: label => t;
 };
 
 module Make: (L: L) => S with type label = L.t;

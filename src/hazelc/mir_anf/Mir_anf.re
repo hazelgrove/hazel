@@ -1,9 +1,17 @@
-module Label_ = Label;
-
 module Typ = Typ;
 [@deriving sexp]
 type typ = Typ.t;
 
 module Complete = Complete;
-module Label = AnfLabel;
+
+module Pat = Pat;
+[@deriving sexp]
+type pat = Pat.t;
+
+module Sigma = Sigma;
+
+module Delta = Delta;
+[@deriving sexp]
+type delta = Delta.t;
+
 include Anf;

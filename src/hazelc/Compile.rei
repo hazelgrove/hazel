@@ -18,9 +18,18 @@ type opts = {
 };
 
 let parse: (~opts: opts, Source.t) => result(UHExp.t, string);
-let elaborate: (~opts: opts, UHExp.t) => result((Contexts.t, DHExp.t), unit);
-let transform: (~opts: opts, Contexts.t, DHExp.t) => Hir.Expr.expr;
-let linearize: (~opts: opts, Hir.Expr.expr) => Mir.Anf.block;
+let elaborate:
+  (~opts: opts, Contexts.t, UHExp.t) =>
+  result((Contexts.t, Delta.t, DHExp.t), unit);
+let transform:
+  (~opts: opts, Contexts.t, Delta.t, DHExp.t) =>
+  result(
+    (Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr, Hir.Expr.syn_types),
+    Hir.Expr.syn_error,
+  );
+let linearize:
+  (~opts: opts, Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr) =>
+  Mir.Anf.block;
 let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
 let grainize: (~opts: opts, Mir.Anf.block) => Grain.modl;
 let print: (~opts: opts, Grain.modl) => string;
@@ -45,8 +54,13 @@ let wasmize:
 type state =
   | Source(Source.t)
   | Parsed(UHExp.t)
-  | Elaborated(Contexts.t, DHExp.t)
-  | Transformed(Hir.Expr.expr)
+  | Elaborated(Contexts.t, Delta.t, DHExp.t)
+  | Transformed(
+      Hir.Expr.typ_context,
+      Hir.Expr.delta,
+      Hir.Expr.expr,
+      Hir.Expr.syn_types,
+    )
   | Linearized(Mir.Anf.block)
   | Optimized(Mir.Anf.block)
   | Grainized(Grain.modl)
@@ -58,7 +72,8 @@ type state =
 [@deriving sexp]
 type next_error =
   | ParseError(string)
-  | ElaborateError;
+  | ElaborateError
+  | TransformError(Hir.Expr.syn_error);
 
 [@deriving sexp]
 type next_result = result(option(state), next_error);
@@ -98,7 +113,11 @@ let resume_until_elaborated:
   Resume from a given state until Hir.
  */
 let resume_until_transformed:
-  (~opts: opts, state) => result(Hir.Expr.expr, next_error);
+  (~opts: opts, state) =>
+  result(
+    (Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr, Hir.Expr.syn_types),
+    next_error,
+  );
 
 /**
   Resume from a given state until Anf.
