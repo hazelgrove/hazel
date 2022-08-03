@@ -14,6 +14,10 @@ type case = Expr.case;
 [@deriving sexp]
 type rule = Expr.rule;
 
+module Sigma = Sigma;
+[@deriving sexp]
+type sigma = Sigma.t;
+
 module Pat = Pat;
 [@deriving sexp]
 type pat = Pat.t;

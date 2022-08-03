@@ -86,7 +86,7 @@ and fresh_labels_rule = ({rule_kind, rule_label}: Hir_expr.rule, acc) => {
 }
 
 and fresh_labels_sigma = (sigma, acc) =>
-  acc |> Ident.Map.fold((_x, e, acc) => acc |> fresh_labels(e), sigma)
+  acc |> Hir_expr.Sigma.fold((_x, e, acc) => acc |> fresh_labels(e), sigma)
 
 and fresh_labels_pat = ({kind, label}, acc) => {
   let acc = acc |> fresh_labels_put_pat(label);
