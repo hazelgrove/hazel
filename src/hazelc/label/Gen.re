@@ -10,6 +10,8 @@ module type L = {
 
   let compare: (t, t) => int;
   let equal: (t, t) => bool;
+
+  let max: (t, t) => t;
 };
 
 module type S = {
@@ -21,6 +23,8 @@ module type S = {
 
   let init: t;
   let next: t => (label, t);
+
+  let of_label: label => t;
 };
 
 module Make = (L: L) : (S with type label = L.t) => {
@@ -36,6 +40,8 @@ module Make = (L: L) : (S with type label = L.t) => {
     let l = L.next(gen);
     (l, l);
   };
+
+  let of_label = l => l;
 };
 
 module type MonadS = {

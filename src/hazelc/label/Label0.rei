@@ -9,3 +9,5 @@ let next: t => t;
 
 let compare: (t, t) => int;
 let equal: (t, t) => bool;
+
+let max: (t, t) => t;
