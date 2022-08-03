@@ -10,9 +10,6 @@ open TransformMonad.Syntax;
 
 type m('a) = TransformMonad.t('a);
 
-[@deriving sexp]
-type ctx = Ident.Map.t(Typ.t);
-
 let rec transform_typ: HTyp.t => Typ.t =
   fun
   | Hole => Hole
@@ -53,14 +50,14 @@ let transform_delta = (delta: HDelta.t): m(Delta.t) =>
          |> VarCtx.to_list
          |> List.map(((x, ty)) => (transform_var(x), transform_typ(ty)))
          |> List.to_seq
-         |> Ident.Map.of_seq;
+         |> TypContext.of_seq;
        (u, (sort, ty, gamma));
      })
   |> List.to_seq
   |> Holes.MetaVarMap.of_seq
   |> return;
 
-let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
+let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
     let* sigma = transform_var_map(ctx, sigma);
@@ -93,7 +90,7 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | BoundVar(x) =>
     let x = transform_var(x);
-    switch (Ident.Map.find_opt(x, ctx)) {
+    switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) =>
       let+ label = next_expr_label;
       ({kind: EBoundVar(ty, x), label}, ty);
@@ -108,7 +105,7 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
     // TODO: Not really sure if any of this recursive function handling is right...
     let* (dp, ctx) = transform_pat(ctx, dp, ty);
-    let ctx = Ident.Map.add(x, ty, ctx);
+    let ctx = TypContext.add(x, ty, ctx);
 
     let* (d3, _) = transform_exp(ctx, d3);
     let* (body, body_ty) = transform_exp(ctx, body);
@@ -155,7 +152,7 @@ let rec transform_exp = (ctx: ctx, d: DHExp.t): m((Expr.t, Typ.t)) => {
          })
       |> sequence;
 
-    switch (Ident.Map.find_opt(name, ctx)) {
+    switch (TypContext.find_opt(name, ctx)) {
     | Some(Arrow(_, ty')) =>
       let+ label = next_expr_label;
       ({kind: EApBuiltin(name, args), label}, ty');
@@ -316,7 +313,8 @@ and transform_float_op = (op: DHExp.BinFloatOp.t): Expr.bin_float_op => {
   };
 }
 
-and transform_case = (ctx: ctx, case: DHExp.case): m((Expr.case, Typ.t)) => {
+and transform_case =
+    (ctx: TypContext.t, case: DHExp.case): m((Expr.case, Typ.t)) => {
   switch (case) {
   // TODO: Check that all rules have same type?
   | Case(scrut, rules, i) =>
@@ -334,7 +332,8 @@ and transform_case = (ctx: ctx, case: DHExp.case): m((Expr.case, Typ.t)) => {
 }
 
 and transform_rule =
-    (ctx: ctx, rule: DHExp.rule, scrut_ty: Typ.t): m((Expr.rule, Typ.t)) => {
+    (ctx: TypContext.t, rule: DHExp.rule, scrut_ty: Typ.t)
+    : m((Expr.rule, Typ.t)) => {
   switch (rule) {
   | Rule(dp, d) =>
     let* (dp, ctx') = transform_pat(ctx, dp, scrut_ty);
@@ -345,7 +344,7 @@ and transform_rule =
 }
 
 and transform_var_map =
-    (ctx: ctx, sigma: VarMap.t_(DHExp.t)): m(Ident.Map.t(Expr.t)) =>
+    (ctx: TypContext.t, sigma: VarMap.t_(DHExp.t)): m(Sigma.t) =>
   sigma
   |> List.map(((x, d)) => {
        let x = transform_var(x);
@@ -354,9 +353,10 @@ and transform_var_map =
      })
   |> sequence
   >>| List.to_seq
-  >>| Ident.Map.of_seq
+  >>| Sigma.of_seq
 
-and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
+and transform_pat =
+    (ctx: TypContext.t, dp: DHPat.t, ty: Typ.t): m((Pat.t, TypContext.t)) => {
   Pat.(
     switch (dp) {
     | EmptyHole(u, i) =>
@@ -415,7 +415,7 @@ and transform_pat = (ctx: ctx, dp: DHPat.t, ty: Typ.t): m((Pat.t, ctx)) => {
 
     | Var(x) =>
       let x = transform_var(x);
-      let gamma' = Ident.Map.add(x, ty, ctx);
+      let gamma' = TypContext.add(x, ty, ctx);
       let+ label = next_pat_label;
       ({kind: PVar(x), label}, gamma');
 

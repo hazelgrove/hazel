@@ -70,8 +70,7 @@ let extend = (l, ty) => {
   ty;
 };
 
-let rec ana_pat =
-        (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(Ident.Map.t(Typ.t)) => {
+let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => {
   switch (kind) {
   | PEmptyHole(_u, _i) => ctx |> return
   | PNonEmptyHole(_reason, _u, _i, p') => ana_pat(ctx, p', Hole)
@@ -108,7 +107,7 @@ let rec ana_pat =
     }
 
   | PWild => ctx |> return
-  | PVar(x) => Ident.Map.add(x, ty, ctx) |> return
+  | PVar(x) => TypContext.add(x, ty, ctx) |> return
 
   | PBoolLit(_b) =>
     switch (ty) {
@@ -217,7 +216,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
   | EApBuiltin(name, args) =>
     let* fn_ty =
-      switch (Ident.Map.find_opt(name, ctx)) {
+      switch (TypContext.find_opt(name, ctx)) {
       | Some(fn_ty) => fn_ty |> return
       | None => SynUnbound(l) |> fail
       };
@@ -281,7 +280,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     };
 
   | EBoundVar(_, x) =>
-    switch (Ident.Map.find_opt(x, ctx)) {
+    switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) => extend(l, ty)
     | None => SynUnbound(l) |> fail
     }
@@ -328,8 +327,7 @@ and syn_case =
   }
 
 and syn_hole =
-    (ctx, delta, l: ExprLabel.t, u: MetaVar.t, sigma: Ident.Map.t(Expr.t))
-    : m(Typ.t) =>
+    (ctx, delta, l: ExprLabel.t, u: MetaVar.t, sigma: Sigma.t): m(Typ.t) =>
   switch (MetaVarMap.find_opt(u, delta)) {
   | Some((sort, hole_ty, gamma')) =>
     switch (sort) {
@@ -342,21 +340,15 @@ and syn_hole =
   }
 
 and ana_hole_sigma =
-    (
-      ctx,
-      delta,
-      l: ExprLabel.t,
-      sigma: Ident.Map.t(Expr.t),
-      gamma': Ident.Map.t(Typ.t),
-    )
+    (ctx, delta, l: ExprLabel.t, sigma: Sigma.t, gamma': TypContext.t)
     : m(unit) =>
   gamma'
-  |> Ident.Map.bindings
+  |> TypContext.bindings
   |> List.fold_left(
        (acc, (x, gamma_ty)) => {
          let* () = acc;
 
-         switch (Ident.Map.find_opt(x, sigma)) {
+         switch (Sigma.find_opt(x, sigma)) {
          | None => SynHoleSigmaUnbound(l, x) |> fail
          | Some(e) =>
            let* sigma_ty = syn(ctx, delta, e);
