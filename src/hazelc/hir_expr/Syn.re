@@ -10,7 +10,6 @@ type syn_types = ExprLabel.Map.t(Typ.t);
 [@deriving sexp]
 type syn_ok = {types: syn_types};
 
-/* FIXME: These error names are not very good. */
 [@deriving sexp]
 type syn_error =
   | CaseEmptyRules(ExprLabel.t)
