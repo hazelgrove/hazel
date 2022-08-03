@@ -111,6 +111,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     )
     |> return;
 
+  /* Linearize let with variable pattern into plain let. */
   | ELet({kind: PVar(x), label: _}, d1, d2) =>
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
 
@@ -132,6 +133,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = im1_binds @ [bind] @ im2_binds;
     (im2, binds) |> return;
 
+  /* Linearize let with arbitrary pattern into case. */
   | ELet(dp, d1, d2) =>
     let* rule_label = next_hir_rule_label;
     let rules = Hir_expr.Expr.[{rule_kind: ERule(dp, d2), rule_label}];
@@ -140,42 +142,125 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       renamings,
     );
 
-  | ELetRec(x, dp, dp_ty, body, d') =>
-    let* x' = next_tmp;
-    let renamings = Renamings.add(x, x', renamings);
+  | ELetRec(x, {kind: PVar(param), label: _}, p_ty, body, e') =>
+    let* x' = next_tmp_named(x);
+    let renamings' = Renamings.add(x, x', renamings);
 
-    let* (p, renamings) = linearize_pat(dp, renamings);
-    let dp_ty = linearize_typ(dp_ty);
+    let* fn = {
+      /* Create temporary for parameter identifier. */
+      let* param = next_tmp_named(param);
+
+      /* Linearize body. */
+      let* body = linearize_block(body, renamings');
+
+      let p_ty = linearize_typ(p_ty);
+      let+ fn_label = next_expr_label;
+      {
+        comp_kind: CFun(param, body),
+        comp_ty: Arrow(p_ty, body.block_ty),
+        comp_complete: default_completeness,
+        comp_label: fn_label,
+      };
+    };
+
+    /* Create binding for function. */
+    let fn_bind = BLetRec(x', fn);
+
+    /* Linearize rest of let. */
+    let+ (im', im'_binds) = linearize_exp(e', renamings');
+    (im', [fn_bind] @ im'_binds);
+
+  /* Recursive let with arbitrary pattern becomes a recursive let of a function
+   * wrapping a case. */
+  | ELetRec(x, p, p_ty, body, e') =>
+    /* Generate named temporary for bound variable. */
+    let* x' = next_tmp_named(x);
+    let renamings' = Renamings.add(x, x', renamings);
+
+    let* fn = {
+      /* Create temporary for parameter identifier. */
+      let* param = next_tmp;
+      /* Wrap body in case. */
+      let* body =
+        Hir_expr.Expr.(
+          {
+            let* scrut_label = next_hir_expr_label;
+            let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+
+            let* rule_label = next_hir_rule_label;
+            let rules = [{rule_kind: ERule(p, body), rule_label}];
+
+            let* label = next_hir_expr_label;
+            let case = {case_kind: ECase(scrut, rules, 1)};
+            linearize_block(
+              Hir_expr.Expr.{kind: EConsistentCase(case), label},
+              renamings',
+            );
+          }
+        );
+
+      /* Wrap case in function. */
+      let p_ty = linearize_typ(p_ty);
+      let+ fn_label = next_expr_label;
+      {
+        comp_kind: CFun(param, body),
+        comp_ty: Arrow(p_ty, body.block_ty),
+        comp_complete: default_completeness,
+        comp_label: fn_label,
+      };
+    };
+
+    /* Create binding for function. */
+    let fn_bind = BLetRec(x', fn);
+
+    /* Linearize rest of let. */
+    let+ (im', im'_binds) = linearize_exp(e', renamings');
+    (im', [fn_bind] @ im'_binds);
+
+  /* Transform function with variable pattern into plain function. */
+  | EFun({kind: PVar(x), label: _}, p_ty, body) =>
+    let p_ty = linearize_typ(p_ty);
     let* body = linearize_block(body, renamings);
-
-    let* (im, im_binds) = linearize_exp(d', renamings);
 
     let* fn_label = next_expr_label;
     let fn = {
-      comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.block_ty),
+      comp_kind: CFun(x, body),
+      comp_ty: Arrow(p_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
 
-    let binds = [BLetRec(x', fn), ...im_binds];
-    (im, binds) |> return;
+    let+ (fn_var, fn_bind) = mk_bind_var_tmp(fn);
+    (fn_var, [fn_bind]);
 
-  | EFun(dp, dp_ty, body) =>
-    let* (p, renamings) = linearize_pat(dp, renamings);
-    let dp_ty = linearize_typ(dp_ty);
-    let* body = linearize_block(body, renamings);
+  /* Transform function with arbitrary pattern into function wrapping a case. */
+  | EFun(p, p_ty, body) =>
+    let* param = next_tmp;
+    let* case =
+      Hir_expr.Expr.(
+        {
+          let* scrut_label = next_hir_expr_label;
+          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
 
-    let* fn_label = next_expr_label;
-    let fn = {
-      comp_kind: CFun(p, body),
-      comp_ty: Arrow(dp_ty, body.block_ty),
-      comp_complete: default_completeness,
-      comp_label: fn_label,
-    };
+          let* rule_label = next_hir_rule_label;
+          let rules = [{rule_kind: ERule(p, body), rule_label}];
 
-    let* (fn_var, fn_bind) = mk_bind_var_tmp(fn);
-    (fn_var, [fn_bind]) |> return;
+          let case = {case_kind: ECase(scrut, rules, 1)};
+
+          let+ label = next_hir_expr_label;
+          {kind: EConsistentCase(case), label};
+        }
+      );
+
+    let* param_label = next_hir_pat_label;
+    let* fn_label = next_hir_expr_label;
+    let fn =
+      Hir_expr.Expr.{
+        kind: EFun({kind: PVar(param), label: param_label}, p_ty, case),
+        label: fn_label,
+      };
+
+    linearize_exp(fn, renamings);
 
   | EAp(fn, arg) =>
     let* (fn, fn_binds) = linearize_exp(fn, renamings);

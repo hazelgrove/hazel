@@ -139,10 +139,9 @@ and codegen_comp = (c: Anf.comp): t(Grain.expr) => {
     EAp(fn', [arg']) |> return;
 
   | CFun(param, body) =>
-    let* param' = codegen_pat(param);
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
-    ELam([param'], EBlock(body')) |> return;
+    ELam([PVar(param |> Ident.to_string)], EBlock(body')) |> return;
 
   | CCons(im1, im2) =>
     let* e1 = codegen_imm(im1);

@@ -86,12 +86,10 @@ and analyze_comp = (c: comp, cctx): comp => {
       (CAp(fn, arg), Complete.join(fn.imm_complete, arg.imm_complete));
 
     | CFun(param, body) =>
-      let (param, cctx) =
-        analyze_pat(param, Complete.IndeterminatelyIncomplete, cctx);
       let body = analyze_block(body, cctx);
       (
         CFun(param, body),
-        Complete.join(body.block_complete, param.complete),
+        Complete.join(body.block_complete, IndeterminatelyIncomplete),
       );
 
     | CCons(im1, im2) =>
