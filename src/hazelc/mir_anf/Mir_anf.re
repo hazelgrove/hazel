@@ -10,4 +10,8 @@ type pat = Pat.t;
 
 module Sigma = Sigma;
 
+module Delta = Delta;
+[@deriving sexp]
+type delta = Delta.t;
+
 include Anf;
