@@ -59,7 +59,7 @@ and analyze_stmt = (ctx, {stmt_kind, stmt_label: _, _}) =>
     let ctx = CompleteContext.add(x, cc, ctx);
     (ctx, cc);
 
-  | SLetRec(x, param, _param_ty, body) =>
+  | SLetRec(x, param, _param_ty, _o_ty, body) =>
     /* Parameter completeness is unknown locally. */
     let ctx = CompleteContext.add(param, IndeterminatelyIncomplete, ctx);
     let ctx = CompleteContext.add(x, IndeterminatelyIncomplete, ctx);

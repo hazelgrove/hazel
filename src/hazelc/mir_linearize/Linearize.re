@@ -112,7 +112,7 @@ and linearize_exp =
     let rules = Hir_expr.Expr.[{rule_kind: ERule(p, body), rule_label}];
     linearize_case(Hir_expr.Expr.{case_kind: ECase(e', rules)}, renamings);
 
-  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, _o_ty, body, e') =>
+  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, o_ty, body, e') =>
     /* Rename bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
@@ -120,10 +120,11 @@ and linearize_exp =
     /* Create temporary for parameter variable. */
     let* param = next_tmp_named(param);
     let param_ty = linearize_typ(param_ty);
+    let o_ty = linearize_typ(o_ty);
     /* Linearize body. */
     let* body = linearize_block(body, renamings');
     /* Create binding for function. */
-    let fn_bind = SLetRec(x', param, param_ty, body);
+    let fn_bind = SLetRec(x', param, param_ty, o_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
@@ -131,7 +132,7 @@ and linearize_exp =
 
   /* Recursive let with arbitrary pattern becomes a recursive let of a function
    * wrapping a case. */
-  | ELetRec(x, p, p_ty, _o_ty, body, e') =>
+  | ELetRec(x, p, p_ty, o_ty, body, e') =>
     /* Generate named temporary for bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
@@ -159,7 +160,8 @@ and linearize_exp =
 
     /* Create binding for function. */
     let param_ty = linearize_typ(p_ty);
-    let fn_bind = SLetRec(x', param, param_ty, body);
+    let o_ty = linearize_typ(o_ty);
+    let fn_bind = SLetRec(x', param, param_ty, o_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
