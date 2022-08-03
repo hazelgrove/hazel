@@ -60,13 +60,13 @@ include SynMonad;
 include SynMonad.Syntax;
 type m('a) = SynMonad.t('a);
 
-let extend = (l, cc) => {
+let extend = (l, ty) => {
   let+ () =
     update(({types}) => {
-      let types = ExprLabel.Map.add(l, cc, types);
+      let types = ExprLabel.Map.add(l, ty, types);
       {types: types};
     });
-  cc;
+  ty;
 };
 
 let rec ana_pat =
