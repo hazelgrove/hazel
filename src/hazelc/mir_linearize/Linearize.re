@@ -49,14 +49,15 @@ module Renamings = {
 
 let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   switch (ty) {
-  | Hole => Hole
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Arrow(t1, t2) => Arrow(linearize_typ(t1), linearize_typ(t2))
-  | Sum(t1, t2) => Sum(linearize_typ(t1), linearize_typ(t2))
-  | Prod(ts) => Prod(ts |> List.map(linearize_typ))
-  | List(t') => List(linearize_typ(t'))
+  | THole => THole
+  | TInt => TInt
+  | TFloat => TFloat
+  | TBool => TBool
+  | TArrow(t1, t2) => TArrow(linearize_typ(t1), linearize_typ(t2))
+  | TSum(t1, t2) => TSum(linearize_typ(t1), linearize_typ(t2))
+  | TPair(t1, t2) => TPair(linearize_typ(t1), linearize_typ(t2))
+  | TUnit => TUnit
+  | TList(t') => TList(linearize_typ(t'))
   };
 
 let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
@@ -126,17 +127,18 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       renamings,
     );
 
-  | ELetRec(x, {kind: PVar(param), label: _}, _p_ty, body, e') =>
+  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
     /* Rename bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
 
     /* Create temporary for parameter variable. */
     let* param = next_tmp_named(param);
+    let param_ty = linearize_typ(param_ty);
     /* Linearize body. */
     let* body = linearize_block(body, renamings');
     /* Create binding for function. */
-    let fn_bind = SLetRec(x', param, body);
+    let fn_bind = SLetRec(x', param, param_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
@@ -171,21 +173,22 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       );
 
     /* Create binding for function. */
-    let fn_bind = SLetRec(x', param, body);
+    let param_ty = linearize_typ(p_ty);
+    let fn_bind = SLetRec(x', param, param_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
     (im', [fn_bind] @ im'_binds);
 
   /* Transform function with variable pattern into plain function. */
-  | EFun({kind: PVar(x), label: _}, p_ty, body) =>
-    let p_ty = linearize_typ(p_ty);
+  | EFun({kind: PVar(x), label: _}, param_ty, body) =>
+    let param_ty = linearize_typ(param_ty);
     let* body = linearize_block(body, renamings);
 
     let* fn_label = next_expr_label;
     let fn = {
-      comp_kind: CFun(x, body),
-      comp_ty: Arrow(p_ty, body.block_ty),
+      comp_kind: CFun(x, param_ty, body),
+      comp_ty: TArrow(param_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };
@@ -229,7 +232,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* ap_label = next_expr_label;
     let ap_ty =
       switch (fn.imm_ty) {
-      | Arrow(_, ty') => ty'
+      | TArrow(_, ty') => ty'
       | _ => failwith("EAp calling non-function type")
       };
     let ap = {
@@ -248,7 +251,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstBool(b)),
-        imm_ty: Bool,
+        imm_ty: TBool,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -261,7 +264,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstInt(i)),
-        imm_ty: Int,
+        imm_ty: TInt,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -274,7 +277,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstFloat(f)),
-        imm_ty: Float,
+        imm_ty: TFloat,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -288,7 +291,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstNil(ty)),
-        imm_ty: List(ty),
+        imm_ty: TList(ty),
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -301,7 +304,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstTriv),
-        imm_ty: Prod([]),
+        imm_ty: TUnit,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -315,7 +318,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, Typ.Bool, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TBool, d1, d2, renamings);
 
   | EBinIntOp(op, d1, d2) =>
     let op: bin_op =
@@ -328,7 +331,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, Typ.Int, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TInt, d1, d2, renamings);
 
   | EBinFloatOp(op, d1, d2) =>
     let op: bin_op =
@@ -341,7 +344,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, Typ.Float, d1, d2, renamings);
+    linearize_bin_op(op, Typ.TFloat, d1, d2, renamings);
 
   | EPair(d1, d2) =>
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
@@ -350,7 +353,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* pair_label = next_expr_label;
     let pair = {
       comp_kind: CPair(im1, im2),
-      comp_ty: Prod([im1.imm_ty, im2.imm_ty]),
+      comp_ty: TPair(im1.imm_ty, im2.imm_ty),
       comp_complete: default_completeness,
       comp_label: pair_label,
     };
@@ -387,8 +390,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let other_ty = linearize_typ(other_ty);
     let inj_ty: typ =
       switch (side) {
-      | CInjL => Sum(im.imm_ty, other_ty)
-      | CInjR => Sum(other_ty, im.imm_ty)
+      | CInjL => TSum(im.imm_ty, other_ty)
+      | CInjR => TSum(other_ty, im.imm_ty)
       };
 
     let* inj_label = next_expr_label;
@@ -411,7 +414,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CEmptyHole(u, i, sigma),
-      comp_ty: Hole,
+      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };
@@ -427,7 +430,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* hole_label = next_expr_label;
     let hole = {
       comp_kind: CNonEmptyHole(reason, u, i, sigma, im),
-      comp_ty: Hole,
+      comp_ty: THole,
       comp_complete: default_completeness,
       comp_label: hole_label,
     };

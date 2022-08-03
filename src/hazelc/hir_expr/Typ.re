@@ -1,37 +1,37 @@
-open Sexplib.Std;
-
 [@deriving sexp]
 type t =
-  | Hole
-  | Int
-  | Float
-  | Bool
-  | Arrow(t, t)
-  | Sum(t, t)
-  | Prod(list(t))
-  | List(t);
+  | THole
+  | TInt
+  | TFloat
+  | TBool
+  | TArrow(t, t)
+  | TSum(t, t)
+  | TPair(t, t)
+  | TUnit
+  | TList(t);
 
 let equal = (==);
 
 let rec consistent = (x, y) =>
   switch (x, y) {
-  | (Hole, _)
-  | (_, Hole) => true
-  | (Int, Int) => true
-  | (Int, _) => false
-  | (Float, Float) => true
-  | (Float, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+  | (THole, _)
+  | (_, THole) => true
+  | (TInt, TInt) => true
+  | (TInt, _) => false
+  | (TFloat, TFloat) => true
+  | (TFloat, _) => false
+  | (TBool, TBool) => true
+  | (TBool, _) => false
+  | (TArrow(ty1, ty2), TArrow(ty1', ty2'))
+  | (TSum(ty1, ty2), TSum(ty1', ty2')) =>
     consistent(ty1, ty1') && consistent(ty2, ty2')
-  | (Arrow(_, _), _) => false
-  | (Sum(_, _), _) => false
-  | (Prod(tys1), Prod(tys2)) =>
-    Util.ListUtil.for_all2_opt(consistent, tys1, tys2)
-    |> Option.value(~default=false)
-  | (Prod(_), _) => false
-  | (List(ty), List(ty')) => consistent(ty, ty')
-  | (List(_), _) => false
+  | (TArrow(_, _), _) => false
+  | (TSum(_, _), _) => false
+  | (TPair(ty1, ty2), TPair(ty1', ty2')) =>
+    consistent(ty1, ty1') && consistent(ty2, ty2')
+  | (TPair(_, _), _) => false
+  | (TUnit, TUnit) => true
+  | (TUnit, _) => false
+  | (TList(ty), TList(ty')) => consistent(ty, ty')
+  | (TList(_), _) => false
   };

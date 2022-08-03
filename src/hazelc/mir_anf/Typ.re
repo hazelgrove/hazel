@@ -1,12 +1,11 @@
-open Sexplib.Std;
-
 [@deriving sexp]
 type t =
-  | Hole
-  | Int
-  | Float
-  | Bool
-  | Arrow(t, t)
-  | Sum(t, t)
-  | Prod(list(t))
-  | List(t);
+  | THole
+  | TInt
+  | TFloat
+  | TBool
+  | TArrow(t, t)
+  | TSum(t, t)
+  | TPair(t, t)
+  | TUnit
+  | TList(t);

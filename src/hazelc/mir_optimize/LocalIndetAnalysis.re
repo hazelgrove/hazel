@@ -51,7 +51,7 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, Completes.t) => {
 
     ({stmt_kind: SLet(x, c), stmt_label, stmt_complete}, cctx);
 
-  | SLetRec(x, param, body) =>
+  | SLetRec(x, param, param_ty, body) =>
     /* Parameter completeness is unknown locally. */
     let cctx = Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
 
@@ -59,7 +59,14 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, Completes.t) => {
     let cctx = Completes.add(x, stmt_complete, cctx);
 
     let body = analyze_block(body, cctx);
-    ({stmt_kind: SLetRec(x, param, body), stmt_label, stmt_complete}, cctx);
+    (
+      {
+        stmt_kind: SLetRec(x, param, param_ty, body),
+        stmt_label,
+        stmt_complete,
+      },
+      cctx,
+    );
   };
 }
 
@@ -84,12 +91,12 @@ and analyze_comp = (c: comp, cctx): comp => {
       let arg = analyze_imm(arg, cctx);
       (CAp(fn, arg), Complete.join(fn.imm_complete, arg.imm_complete));
 
-    | CFun(param, body) =>
+    | CFun(param, param_ty, body) =>
       let cctx =
         Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
       let body = analyze_block(body, cctx);
       (
-        CFun(param, body),
+        CFun(param, param_ty, body),
         Complete.join(body.block_complete, IndeterminatelyIncomplete),
       );
 

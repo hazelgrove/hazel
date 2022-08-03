@@ -123,7 +123,7 @@ and codegen_stmt = (stmt: Anf.stmt): t(stmt) => {
     let* c' = codegen_comp(c);
     SLet(PVar(x), c') |> return;
 
-  | SLetRec(x, param, body) =>
+  | SLetRec(x, param, _param_ty, body) =>
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
     let fn = ELam([PVar(param)], EBlock(body'));
@@ -142,7 +142,7 @@ and codegen_comp = (c: Anf.comp): t(expr) => {
     let* arg' = codegen_imm(arg);
     EAp(fn', [arg']) |> return;
 
-  | CFun(param, body) =>
+  | CFun(param, _param_ty, body) =>
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
     ELam([PVar(param)], EBlock(body')) |> return;
@@ -391,26 +391,31 @@ and codegen_non_empty_hole = (reason, u, i, sigma, im): t(expr) => {
 }
 
 and codegen_cast = (im: Anf.imm, ty1: Anf.typ, ty2: Anf.typ): t(expr) => {
-  let rec codegen_htyp = (t: Anf.typ): t(expr) => {
+  let rec codegen_htyp = (t: Anf.typ): t(Grain.expr) => {
     switch (t) {
-    | Hole => Ast.HTyp.hole |> return
-    | Int => Ast.HTyp.int |> return
-    | Float => Ast.HTyp.float |> return
-    | Bool => Ast.HTyp.bool |> return
-    | Arrow(ty1, ty2) =>
+    | THole => Ast.HTyp.hole |> return
+    | TInt => Ast.HTyp.int |> return
+    | TFloat => Ast.HTyp.float |> return
+    | TBool => Ast.HTyp.bool |> return
+
+    | TArrow(ty1, ty2) =>
       let* ty1' = codegen_htyp(ty1);
       let* ty2' = codegen_htyp(ty2);
       Ast.HTyp.arrow(ty1', ty2') |> return;
 
-    | Sum(ty1, ty2) =>
+    | TSum(ty1, ty2) =>
       let* ty1' = codegen_htyp(ty1);
       let* ty2' = codegen_htyp(ty2);
       Ast.HTyp.sum(ty1', ty2') |> return;
-    | Prod(tys) =>
-      let* tys' = tys |> codegen_fold(codegen_htyp);
-      Ast.HTyp.prod(tys') |> return;
 
-    | List(ty) =>
+    | TPair(ty1, ty2) =>
+      let* ty1' = codegen_htyp(ty1);
+      let* ty2' = codegen_htyp(ty2);
+      Ast.HTyp.prod([ty1', ty2']) |> return;
+
+    | TUnit => Ast.HTyp.prod([]) |> return
+
+    | TList(ty) =>
       let* ty' = codegen_htyp(ty);
       Ast.HTyp.list(ty') |> return;
     };

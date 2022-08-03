@@ -12,14 +12,16 @@ type m('a) = TransformMonad.t('a);
 
 let rec transform_typ: HTyp.t => Typ.t =
   fun
-  | Hole => Hole
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Arrow(t1, t2) => Arrow(transform_typ(t1), transform_typ(t2))
-  | Sum(t1, t2) => Sum(transform_typ(t1), transform_typ(t2))
-  | Prod(ts) => Prod(ts |> List.map(transform_typ))
-  | List(t') => List(transform_typ(t'));
+  | Hole => THole
+  | Int => TInt
+  | Float => TFloat
+  | Bool => TBool
+  | Arrow(t1, t2) => TArrow(transform_typ(t1), transform_typ(t2))
+  | Sum(t1, t2) => TSum(transform_typ(t1), transform_typ(t2))
+  | Prod([t1, t2]) => TPair(transform_typ(t1), transform_typ(t2))
+  | Prod([]) => TUnit
+  | Prod(_) => failwith("non-pair or unit product type not supported")
+  | List(t') => TList(transform_typ(t'));
 let transform_var = Ident.v;
 let transform_hole_reason: ErrStatus.HoleReason.t => Holes.HoleReason.t =
   fun
@@ -62,31 +64,31 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
   | EmptyHole(u, i, sigma) =>
     let* sigma = transform_var_map(ctx, sigma);
     let+ label = next_expr_label;
-    ({kind: EEmptyHole(u, i, sigma), label}, Hole);
+    ({kind: EEmptyHole(u, i, sigma), label}, THole);
 
   | NonEmptyHole(reason, u, i, sigma, d') =>
     let reason = transform_hole_reason(reason);
     let* sigma = transform_var_map(ctx, sigma);
     let* (d', _) = transform_exp(ctx, d');
     let+ label = next_expr_label;
-    ({kind: ENonEmptyHole(reason, u, i, sigma, d'), label}, Hole);
+    ({kind: ENonEmptyHole(reason, u, i, sigma, d'), label}, THole);
 
   | ExpandingKeyword(u, i, sigma, k) =>
     let k = transform_expanding_keyword(k);
     let* sigma = transform_var_map(ctx, sigma);
     let+ label = next_expr_label;
-    ({kind: EKeyword(u, i, sigma, k), label}, Hole);
+    ({kind: EKeyword(u, i, sigma, k), label}, THole);
 
   | FreeVar(u, i, sigma, x) =>
     let* sigma = transform_var_map(ctx, sigma);
     let x = Ident.v(x);
     let+ label = next_expr_label;
-    ({kind: EFreeVar(u, i, sigma, x), label}, Hole);
+    ({kind: EFreeVar(u, i, sigma, x), label}, THole);
 
   | InvalidText(u, i, sigma, text) =>
     let* sigma = transform_var_map(ctx, sigma);
     let+ label = next_expr_label;
-    ({kind: EInvalidText(u, i, sigma, text), label}, Hole);
+    ({kind: EInvalidText(u, i, sigma, text), label}, THole);
 
   | BoundVar(x) =>
     let x = transform_var(x);
@@ -124,7 +126,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (dp, body_ctx) = transform_pat(ctx, dp, dp_ty);
     let* (body, body_ty) = transform_exp(body_ctx, body);
     let+ label = next_expr_label;
-    ({kind: EFun(dp, dp_ty, body), label}, Arrow(dp_ty, body_ty));
+    ({kind: EFun(dp, dp_ty, body), label}, TArrow(dp_ty, body_ty));
 
   | Ap(fn, arg) =>
     let* (fn, fn_ty) = transform_exp(ctx, fn);
@@ -134,7 +136,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     | ECast(_fn, _ty1, _ty2) => failwith("FnCastExpansion")
     | EFun(_, _, _) =>
       switch (fn_ty) {
-      | Arrow(_, ty') =>
+      | TArrow(_, ty') =>
         let+ label = next_expr_label;
         ({kind: EAp(fn, arg), label}, ty');
       | _ => failwith("wrong function type")
@@ -153,7 +155,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
       |> sequence;
 
     switch (TypContext.find_opt(name, ctx)) {
-    | Some(Arrow(_, ty')) =>
+    | Some(TArrow(_, ty')) =>
       let+ label = next_expr_label;
       ({kind: EApBuiltin(name, args), label}, ty');
     | Some(_) => failwith("wrong type of builtin")
@@ -166,7 +168,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (d2, _) = transform_exp(ctx, d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinBoolOp(op, d1, d2), label}, Bool);
+    ({kind: EBinBoolOp(op, d1, d2), label}, TBool);
 
   | BinIntOp(op, d1, d2) =>
     let op = transform_int_op(op);
@@ -174,7 +176,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (d2, _) = transform_exp(ctx, d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinIntOp(op, d1, d2), label}, Int);
+    ({kind: EBinIntOp(op, d1, d2), label}, TInt);
 
   | BinFloatOp(op, d1, d2) =>
     let op = transform_float_op(op);
@@ -182,13 +184,13 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (d2, _) = transform_exp(ctx, d2);
 
     let+ label = next_expr_label;
-    ({kind: EBinFloatOp(op, d1, d2), label}, Float);
+    ({kind: EBinFloatOp(op, d1, d2), label}, TFloat);
 
   | Pair(d1, d2) =>
     let* (d1, d1_ty) = transform_exp(ctx, d1);
     let* (d2, d2_ty) = transform_exp(ctx, d2);
     let+ label = next_expr_label;
-    ({kind: EPair(d1, d2), label}, Prod([d1_ty, d2_ty]));
+    ({kind: EPair(d1, d2), label}, TPair(d1_ty, d2_ty));
 
   | Cons(d1, d2) =>
     let* (d1, _) = transform_exp(ctx, d1);
@@ -206,8 +208,8 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* (d', d'_ty) = transform_exp(ctx, d');
     let ty =
       switch (side) {
-      | L => Sum(d'_ty, other_ty)
-      | R => Sum(other_ty, d'_ty)
+      | L => TSum(d'_ty, other_ty)
+      | R => TSum(other_ty, d'_ty)
       };
 
     let+ label = next_expr_label;
@@ -215,24 +217,24 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
 
   | BoolLit(b) =>
     let+ label = next_expr_label;
-    ({kind: EBoolLit(b), label}, Bool);
+    ({kind: EBoolLit(b), label}, TBool);
 
   | IntLit(i) =>
     let+ label = next_expr_label;
-    ({kind: EIntLit(i), label}, Int);
+    ({kind: EIntLit(i), label}, TInt);
 
   | FloatLit(f) =>
     let+ label = next_expr_label;
-    ({kind: EFloatLit(f), label}, Float);
+    ({kind: EFloatLit(f), label}, TFloat);
 
   | ListNil(ty) =>
     let ty = transform_typ(ty);
     let+ label = next_expr_label;
-    ({kind: ENil(ty), label}, List(ty));
+    ({kind: ENil(ty), label}, TList(ty));
 
   | Triv =>
     let+ label = next_expr_label;
-    ({kind: ETriv, label}, Prod([]));
+    ({kind: ETriv, label}, TUnit);
 
   | ConsistentCase(case) =>
     let* (case, case_ty) = transform_case(ctx, case);
@@ -243,7 +245,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     let* sigma = transform_var_map(ctx, sigma);
     let* (case, _) = transform_case(ctx, case);
     let+ label = next_expr_label;
-    ({kind: EInconsistentBranches(u, i, sigma, case), label}, Hole);
+    ({kind: EInconsistentBranches(u, i, sigma, case), label}, THole);
 
   | Cast(d', ty, ty') =>
     // FIXME: default implementation of Cast
@@ -385,7 +387,7 @@ and transform_pat =
     | Ap(dp1, dp2) =>
       /* FIXME: Hole type scrutinee? */
       switch (ty) {
-      | Arrow(dp1_ty, dp2_ty) =>
+      | TArrow(dp1_ty, dp2_ty) =>
         let* (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
         let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
         let+ label = next_pat_label;
@@ -395,7 +397,7 @@ and transform_pat =
 
     | Pair(dp1, dp2) =>
       switch (ty) {
-      | Prod([dp1_ty, dp2_ty]) =>
+      | TPair(dp1_ty, dp2_ty) =>
         let* (dp1, ctx) = transform_pat(ctx, dp1, dp1_ty);
         let* (dp2, ctx) = transform_pat(ctx, dp2, dp2_ty);
         let+ label = next_pat_label;
@@ -405,7 +407,7 @@ and transform_pat =
 
     | Cons(dp, dps) =>
       switch (ty) {
-      | List(ty') =>
+      | TList(ty') =>
         let* (dp, ctx) = transform_pat(ctx, dp, ty');
         let* (dps, ctx) = transform_pat(ctx, dps, ty);
         let+ label = next_pat_label;
@@ -433,8 +435,8 @@ and transform_pat =
 
     | Inj(side, dp') =>
       switch (side, ty) {
-      | (L, Sum(ty, _))
-      | (R, Sum(_, ty)) =>
+      | (L, TSum(ty, _))
+      | (R, TSum(_, ty)) =>
         let side =
           switch (side) {
           | L => L
