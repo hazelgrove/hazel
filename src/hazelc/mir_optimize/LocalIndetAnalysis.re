@@ -39,10 +39,9 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
   let {stmt_kind, stmt_complete: _, stmt_label}: stmt = stmt;
   let (stmt_kind, stmt_complete, cctx) =
     switch (stmt_kind) {
-    | SLet(p, c) =>
+    | SLet(x, c) =>
       let c = analyze_comp(c, cctx);
-      let (p, cctx) = analyze_pat(p, c.comp_complete, cctx);
-      (SLet(p, c), Complete.join(p.complete, c.comp_complete), cctx);
+      (SLet(x, c), c.comp_complete, cctx);
 
     /* SLetRec rhs can only be a lambda. */
     | SLetRec(
@@ -54,6 +53,11 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
       (SLetRec(x, c), c.comp_complete, cctx);
 
     | SLetRec(_, _) => failwith("bad let rec without function rhs")
+
+    | SLetPat(p, im) =>
+      let im = analyze_imm(im, cctx);
+      let (p, cctx) = analyze_pat(p, im.imm_complete, cctx);
+      (SLetPat(p, im), Complete.join(p.complete, im.imm_complete), cctx);
     };
 
   ({stmt_kind, stmt_complete, stmt_label}, cctx);

@@ -3,16 +3,16 @@ open LinearizeMonad;
 open LinearizeMonad.Syntax;
 
 type bind =
-  | BLet(pat, comp)
-  | BLetRec(Ident.t, comp);
+  | BLet(Ident.t, comp)
+  | BLetRec(Ident.t, comp)
+  | BLetPat(Pat.t, imm);
 
 let default_completeness = Complete.IndeterminatelyIncomplete;
 
-let mk_bind = (p: pat, c: comp) => BLet(p, c);
+let mk_bind_pat = (p: pat, im: imm) => BLetPat(p, im);
 
 let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
-  let* imm_label = next_expr_label;
-  let* pat_label = next_pat_label;
+  let+ imm_label = next_expr_label;
   (
     {
       imm_kind: IVar(x),
@@ -20,12 +20,8 @@ let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
       imm_complete: default_completeness,
       imm_label,
     },
-    mk_bind(
-      {kind: PVar(x), complete: default_completeness, label: pat_label},
-      c,
-    ),
-  )
-  |> return;
+    BLet(x, c),
+  );
 };
 
 let mk_bind_var_tmp = (c: comp) => {
@@ -38,13 +34,18 @@ let convert_bind = (bn: bind): t(stmt) => {
   let* l = next_stmt_label;
   (
     switch (bn) {
-    | BLet(p, c) => {
-        stmt_kind: SLet(p, c),
+    | BLet(x, c) => {
+        stmt_kind: SLet(x, c),
         stmt_complete: default_completeness,
         stmt_label: l,
       }
-    | BLetRec(p, c) => {
-        stmt_kind: SLetRec(p, c),
+    | BLetRec(x, c) => {
+        stmt_kind: SLetRec(x, c),
+        stmt_complete: default_completeness,
+        stmt_label: l,
+      }
+    | BLetPat(p, c) => {
+        stmt_kind: SLetPat(p, c),
         stmt_complete: default_completeness,
         stmt_label: l,
       }
@@ -109,14 +110,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* (p, renamings') = linearize_pat(dp, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings');
 
-    let* c1_label = next_expr_label;
-    let c1 = {
-      comp_kind: CImm(im1),
-      comp_ty: im1.imm_ty,
-      comp_complete: default_completeness,
-      comp_label: c1_label,
-    };
-    let binds = im1_binds @ [mk_bind(p, c1)] @ im2_binds;
+    let binds = im1_binds @ [mk_bind_pat(p, im1)] @ im2_binds;
     (im2, binds) |> return;
 
   | ELetRec(x, dp, dp_ty, body, d') =>

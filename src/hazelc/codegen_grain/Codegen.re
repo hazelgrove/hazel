@@ -97,8 +97,6 @@ module Monad = {
 open Monad;
 open Monad.Syntax;
 
-let dummy_pat_label = Anf.Pat.Label.init;
-
 let codegen_fold = (codegen_f, xs) =>
   List.map(codegen_f, xs) |> Monad.sequence;
 
@@ -119,20 +117,18 @@ let rec codegen_block =
 
 and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
   switch (stmt.stmt_kind) {
-  | SLet(p, c) =>
-    let* p' = codegen_pat(p);
+  | SLet(x, c) =>
     let* c' = codegen_comp(c);
-    SLet(p', c') |> return;
+    SLet(PVar(x |> Ident.to_string), c') |> return;
 
   | SLetRec(x, c) =>
-    let* p' =
-      codegen_pat({
-        kind: PVar(x),
-        complete: NecessarilyComplete,
-        label: dummy_pat_label,
-      });
     let* c' = codegen_comp(c);
-    SLetRec(p', c') |> return;
+    SLetRec(PVar(x |> Ident.to_string), c') |> return;
+
+  | SLetPat(p, im) =>
+    let* p' = codegen_pat(p);
+    let* im' = codegen_imm(im);
+    SLet(p', im') |> return;
   };
 }
 

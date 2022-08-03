@@ -99,8 +99,10 @@ and stmt = {
 
 [@deriving sexp]
 and stmt_kind =
-  | SLet(Pat.t, comp)
+  | SLet(Ident.t, comp)
   | SLetRec(Ident.t, comp)
+  /* TODO: Remove this (only allowing pattern matching in case) */
+  | SLetPat(Pat.t, imm)
 
 [@deriving sexp]
 and block = {
