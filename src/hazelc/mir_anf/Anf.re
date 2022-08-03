@@ -67,15 +67,12 @@ and comp_kind =
   | CPair(imm, imm)
   | CInj(inj_side, imm)
   | CCase(imm, list(rule))
-  | CEmptyHole(MetaVar.t, MetaVarInst.t, Ident.Map.t(imm))
-  | CNonEmptyHole(
-      HoleReason.t,
-      MetaVar.t,
-      MetaVarInst.t,
-      Ident.Map.t(imm),
-      imm,
-    )
+  | CEmptyHole(MetaVar.t, MetaVarInst.t, sigma)
+  | CNonEmptyHole(HoleReason.t, MetaVar.t, MetaVarInst.t, sigma, imm)
   | CCast(imm, Typ.t, Typ.t)
+
+[@deriving sexp]
+and sigma = Ident.Map.t(imm)
 
 [@deriving sexp]
 and inj_side =

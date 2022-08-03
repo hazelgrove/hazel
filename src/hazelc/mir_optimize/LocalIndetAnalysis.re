@@ -1,11 +1,16 @@
+/* FIXME: Monadize this? */
 open Mir_anf;
 
-/**
- * Context mapping variables to the indet-ness of the expression to which it
- * refers.
- */
-[@deriving sexp]
-type completes = Ident.Map.t(Complete.t);
+module Completes = {
+  include Ident.Map;
+
+  /**
+    Context mapping variables to the indet-ness of the expression to which it
+    refers.
+   */
+  [@deriving sexp]
+  type t = Ident.Map.t(Complete.t);
+};
 
 let rec analyze_block = (block: block, cctx): block => {
   let {block_body: (body, im), block_ty, block_complete: _, block_label}: block = block;
@@ -21,7 +26,7 @@ let rec analyze_block = (block: block, cctx): block => {
   };
 }
 
-and analyze_body = (body: list(stmt), cctx): (list(stmt), completes) => {
+and analyze_body = (body: list(stmt), cctx): (list(stmt), Completes.t) => {
   let (rev_body, cctx) =
     List.fold_left(
       ((body, cctx), stmt) => {
@@ -35,13 +40,13 @@ and analyze_body = (body: list(stmt), cctx): (list(stmt), completes) => {
   (List.rev(rev_body), cctx);
 }
 
-and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
+and analyze_stmt = (stmt: stmt, cctx): (stmt, Completes.t) => {
   let {stmt_kind, stmt_complete: _, stmt_label}: stmt = stmt;
   let (stmt_kind, stmt_complete, cctx) =
     switch (stmt_kind) {
     | SLet(x, c) =>
       let c = analyze_comp(c, cctx);
-      let cctx = Ident.Map.add(x, c.comp_complete, cctx);
+      let cctx = Completes.add(x, c.comp_complete, cctx);
       (SLet(x, c), c.comp_complete, cctx);
 
     /* SLetRec rhs can only be a lambda. */
@@ -49,7 +54,7 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
         x,
         {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _, comp_label: _} as c,
       ) =>
-      let cctx = Ident.Map.add(x, Complete.IndeterminatelyIncomplete, cctx);
+      let cctx = Completes.add(x, Complete.IndeterminatelyIncomplete, cctx);
       let c = analyze_comp(c, cctx);
       (SLetRec(x, c), c.comp_complete, cctx);
 
@@ -149,7 +154,7 @@ and analyze_rule = (scrut: imm, rule: rule, cctx): rule => {
   };
 }
 
-and analyze_sigma = (sigma: Ident.Map.t(imm), _cctx): Ident.Map.t(imm) => {
+and analyze_sigma = (sigma: Sigma.t, _cctx): Sigma.t => {
   /* TODO: Not sure if we need to do anything to this. */
   sigma;
 }
@@ -162,7 +167,7 @@ and analyze_imm = (im: imm, cctx): imm => {
       let const = analyze_const(const, cctx);
       (IConst(const), Complete.NecessarilyComplete);
     | IVar(x) =>
-      switch (Ident.Map.find_opt(x, cctx)) {
+      switch (Completes.find_opt(x, cctx)) {
       | Some(x_complete) => (IVar(x), x_complete)
       | None => failwith("bad free variable " ++ Ident.to_string(x))
       }
@@ -176,12 +181,12 @@ and analyze_const = (const: constant, _cctx): constant => {
 }
 
 and analyze_pat =
-    (p: pat, matchee_complete: Complete.t, cctx): (pat, completes) =>
+    (p: pat, matchee_complete: Complete.t, cctx): (pat, Completes.t) =>
   analyze_pat'(p, matchee_complete, false, cctx)
 
 and analyze_pat' =
     (p: pat, matchee_complete: Complete.t, in_hole: bool, cctx)
-    : (pat, completes) => {
+    : (pat, Completes.t) => {
   let {kind, complete: _, label}: pat = p;
   let (kind, complete, cctx) =
     switch (kind) {
@@ -194,7 +199,7 @@ and analyze_pat' =
         if (in_hole) {Complete.IndeterminatelyIncomplete} else {
           matchee_complete
         };
-      let cctx = Ident.Map.add(x, x_complete, cctx);
+      let cctx = Completes.add(x, x_complete, cctx);
       (kind, Complete.NecessarilyComplete, cctx);
     | PWild
     | PInt(_)
@@ -218,4 +223,4 @@ and analyze_pat' =
   ({kind, complete, label}, cctx);
 };
 
-let analyze = (block: block): block => analyze_block(block, Ident.Map.empty);
+let analyze = (block: block): block => analyze_block(block, Completes.empty);

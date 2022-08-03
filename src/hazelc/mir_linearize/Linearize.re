@@ -53,8 +53,15 @@ let convert_bind = (bn: bind): t(stmt) => {
   |> return;
 };
 
-/** Context of variable remappings (e.g. x -> t124_x). */
-type renamings = Ident.Map.t(Ident.t);
+module Renamings = {
+  include Ident.Map;
+
+  /**
+    Context of variable remappings (e.g. x -> t124_x).
+   */
+  [@deriving sexp]
+  type t = Ident.Map.t(Ident.t);
+};
 
 let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   switch (ty) {
@@ -87,7 +94,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
   | EBoundVar(ty, x) =>
     let ty = linearize_typ(ty);
     let x' =
-      switch (Ident.Map.find_opt(x, renamings)) {
+      switch (Renamings.find_opt(x, renamings)) {
       | Some(x') => x'
       | None => failwith("bad free variable " ++ Ident.to_string(x))
       };
@@ -119,7 +126,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
         },
       );
 
-    let renamings' = Ident.Map.add(x, bind_x, renamings);
+    let renamings' = Renamings.add(x, bind_x, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings');
 
     let binds = im1_binds @ [bind] @ im2_binds;
@@ -135,7 +142,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
   | ELetRec(x, dp, dp_ty, body, d') =>
     let* x' = next_tmp;
-    let renamings = Ident.Map.add(x, x', renamings);
+    let renamings = Renamings.add(x, x', renamings);
 
     let* (p, renamings) = linearize_pat(dp, renamings);
     let dp_ty = linearize_typ(dp_ty);
@@ -412,11 +419,10 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 }
 
 and linearize_sigma =
-    (sigma: Ident.Map.t(Hir_expr.expr), renamings)
-    : t((Ident.Map.t(imm), list(bind))) => {
+    (sigma: Hir_expr.sigma, renamings): t((sigma, list(bind))) => {
   let+ bindings =
     sigma
-    |> Ident.Map.bindings
+    |> Hir_expr.Sigma.bindings
     |> List.map(((x, d)) => {
          let+ (im, im_binds) = linearize_exp(d, renamings);
          ((x, im), im_binds);
@@ -426,7 +432,7 @@ and linearize_sigma =
   let binds =
     bindings
     |> List.fold_left((binds, (_, im_binds)) => binds @ im_binds, []);
-  let sigma = bindings |> List.map(fst) |> List.to_seq |> Ident.Map.of_seq;
+  let sigma = bindings |> List.map(fst) |> List.to_seq |> Sigma.of_seq;
   (sigma, binds);
 }
 
@@ -497,10 +503,10 @@ and linearize_rule = (rule: Hir_expr.rule, renamings): t(rule) => {
  * Note that the pat_complete property of pat indicates the indet-ness of the
  * pattern alone, irrespective of the matchee.
  */
-and linearize_pat = (p: Hir_expr.pat, renamings): t((pat, renamings)) =>
+and linearize_pat = (p: Hir_expr.pat, renamings): t((pat, Renamings.t)) =>
   linearize_pat_hole(p, renamings)
 
-and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
+and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, Renamings.t)) => {
   Pat.(
     switch (p.kind) {
     | PPair(p1, p2) =>
@@ -547,7 +553,7 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
 
     | PVar(x) =>
       let* x' = next_tmp_named(x);
-      let renamings = Ident.Map.add(x, x', renamings);
+      let renamings = Renamings.add(x, x', renamings);
 
       let* l = next_pat_label;
       (
@@ -601,6 +607,6 @@ let linearize = (e: Hir_expr.expr): block => {
   let state = init(fresh_labels);
 
   // TODO: Can't pass empty renamings once builtins are supported.
-  let (_, block) = linearize_block(e, Ident.Map.empty, state);
+  let (_, block) = linearize_block(e, Renamings.empty, state);
   block;
 };
