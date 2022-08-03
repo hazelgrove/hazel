@@ -42,26 +42,25 @@ and analyze_body = (body: list(stmt), cctx): (list(stmt), Completes.t) => {
 
 and analyze_stmt = (stmt: stmt, cctx): (stmt, Completes.t) => {
   let {stmt_kind, stmt_complete: _, stmt_label}: stmt = stmt;
-  let (stmt_kind, stmt_complete, cctx) =
-    switch (stmt_kind) {
-    | SLet(x, c) =>
-      let c = analyze_comp(c, cctx);
-      let cctx = Completes.add(x, c.comp_complete, cctx);
-      (SLet(x, c), c.comp_complete, cctx);
+  switch (stmt_kind) {
+  | SLet(x, c) =>
+    let c = analyze_comp(c, cctx);
 
-    /* SLetRec rhs can only be a lambda. */
-    | SLetRec(
-        x,
-        {comp_kind: CFun(_, _), comp_ty: _, comp_complete: _, comp_label: _} as c,
-      ) =>
-      let cctx = Completes.add(x, Complete.IndeterminatelyIncomplete, cctx);
-      let c = analyze_comp(c, cctx);
-      (SLetRec(x, c), c.comp_complete, cctx);
+    let stmt_complete = c.comp_complete;
+    let cctx = Completes.add(x, stmt_complete, cctx);
 
-    | SLetRec(_, _) => failwith("bad let rec without function rhs")
-    };
+    ({stmt_kind: SLet(x, c), stmt_label, stmt_complete}, cctx);
 
-  ({stmt_kind, stmt_complete, stmt_label}, cctx);
+  | SLetRec(x, param, body) =>
+    /* Parameter completeness is unknown locally. */
+    let cctx = Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
+
+    let stmt_complete = Complete.IndeterminatelyIncomplete;
+    let cctx = Completes.add(x, stmt_complete, cctx);
+
+    let body = analyze_block(body, cctx);
+    ({stmt_kind: SLetRec(x, param, body), stmt_label, stmt_complete}, cctx);
+  };
 }
 
 and analyze_comp = (c: comp, cctx): comp => {
@@ -86,6 +85,8 @@ and analyze_comp = (c: comp, cctx): comp => {
       (CAp(fn, arg), Complete.join(fn.imm_complete, arg.imm_complete));
 
     | CFun(param, body) =>
+      let cctx =
+        Completes.add(param, Complete.IndeterminatelyIncomplete, cctx);
       let body = analyze_block(body, cctx);
       (
         CFun(param, body),

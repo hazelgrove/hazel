@@ -3,9 +3,7 @@ open LinearizeMonad;
 open LinearizeMonad.Syntax;
 
 [@deriving sexp]
-type bind =
-  | BLet(Ident.t, comp)
-  | BLetRec(Ident.t, comp);
+type bind = stmt_kind;
 
 let default_completeness = Complete.IndeterminatelyIncomplete;
 
@@ -18,7 +16,7 @@ let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
       imm_complete: default_completeness,
       imm_label,
     },
-    BLet(x, c),
+    SLet(x, c),
   );
 };
 
@@ -34,23 +32,9 @@ let mk_bind_var_tmp = (c: comp) => {
   (var, bind);
 };
 
-let convert_bind = (bn: bind): t(stmt) => {
-  let* l = next_stmt_label;
-  (
-    switch (bn) {
-    | BLet(x, c) => {
-        stmt_kind: SLet(x, c),
-        stmt_complete: default_completeness,
-        stmt_label: l,
-      }
-    | BLetRec(x, c) => {
-        stmt_kind: SLetRec(x, c),
-        stmt_complete: default_completeness,
-        stmt_label: l,
-      }
-    }
-  )
-  |> return;
+let convert_bind = (stmt_kind: bind): t(stmt) => {
+  let+ l = next_stmt_label;
+  {stmt_kind, stmt_complete: default_completeness, stmt_label: l};
 };
 
 module Renamings = {
@@ -142,29 +126,17 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       renamings,
     );
 
-  | ELetRec(x, {kind: PVar(param), label: _}, p_ty, body, e') =>
+  | ELetRec(x, {kind: PVar(param), label: _}, _p_ty, body, e') =>
+    /* Rename bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
 
-    let* fn = {
-      /* Create temporary for parameter identifier. */
-      let* param = next_tmp_named(param);
-
-      /* Linearize body. */
-      let* body = linearize_block(body, renamings');
-
-      let p_ty = linearize_typ(p_ty);
-      let+ fn_label = next_expr_label;
-      {
-        comp_kind: CFun(param, body),
-        comp_ty: Arrow(p_ty, body.block_ty),
-        comp_complete: default_completeness,
-        comp_label: fn_label,
-      };
-    };
-
+    /* Create temporary for parameter variable. */
+    let* param = next_tmp_named(param);
+    /* Linearize body. */
+    let* body = linearize_block(body, renamings');
     /* Create binding for function. */
-    let fn_bind = BLetRec(x', fn);
+    let fn_bind = SLetRec(x', param, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
@@ -177,41 +149,29 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
 
-    let* fn = {
-      /* Create temporary for parameter identifier. */
-      let* param = next_tmp;
-      /* Wrap body in case. */
-      let* body =
-        Hir_expr.Expr.(
-          {
-            let* scrut_label = next_hir_expr_label;
-            let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+    /* Create temporary for parameter identifier. */
+    let* param = next_tmp;
+    /* Wrap body in case. */
+    let* body =
+      Hir_expr.Expr.(
+        {
+          let* scrut_label = next_hir_expr_label;
+          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
 
-            let* rule_label = next_hir_rule_label;
-            let rules = [{rule_kind: ERule(p, body), rule_label}];
+          let* rule_label = next_hir_rule_label;
+          let rules = [{rule_kind: ERule(p, body), rule_label}];
 
-            let* label = next_hir_expr_label;
-            let case = {case_kind: ECase(scrut, rules, 1)};
-            linearize_block(
-              Hir_expr.Expr.{kind: EConsistentCase(case), label},
-              renamings',
-            );
-          }
-        );
-
-      /* Wrap case in function. */
-      let p_ty = linearize_typ(p_ty);
-      let+ fn_label = next_expr_label;
-      {
-        comp_kind: CFun(param, body),
-        comp_ty: Arrow(p_ty, body.block_ty),
-        comp_complete: default_completeness,
-        comp_label: fn_label,
-      };
-    };
+          let* label = next_hir_expr_label;
+          let case = {case_kind: ECase(scrut, rules, 1)};
+          linearize_block(
+            Hir_expr.Expr.{kind: EConsistentCase(case), label},
+            renamings',
+          );
+        }
+      );
 
     /* Create binding for function. */
-    let fn_bind = BLetRec(x', fn);
+    let fn_bind = SLetRec(x', param, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');

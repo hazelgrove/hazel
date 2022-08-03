@@ -62,6 +62,7 @@ and comp_kind =
   | CImm(imm)
   | CBinOp(bin_op, imm, imm)
   | CAp(imm, imm)
+  /* FIXME: Store parameter type in here. */
   | CFun(Ident.t, block)
   | CCons(imm, imm)
   | CPair(imm, imm)
@@ -97,8 +98,7 @@ and stmt = {
 [@deriving sexp]
 and stmt_kind =
   | SLet(Ident.t, comp)
-  /* FIXME: Not sure if this should be like this. */
-  | SLetRec(Ident.t, comp)
+  | SLetRec(Ident.t, Ident.t, block)
 
 [@deriving sexp]
 and block = {
