@@ -2,6 +2,10 @@ module Typ = Typ;
 [@deriving sexp]
 type typ = Typ.t;
 
+module TypContext = TypContext;
+[@deriving sexp]
+type typ_context = TypContext.t;
+
 module Complete = Complete;
 
 module Pat = Pat;
