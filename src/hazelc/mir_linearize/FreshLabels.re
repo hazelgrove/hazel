@@ -95,7 +95,6 @@ and fresh_labels_pat = ({kind, label}, acc) => {
   | PNonEmptyHole(_reason, _u, _i, p') => acc |> fresh_labels_pat(p')
   | PKeyword(_u, _i, _k) => acc
   | PInvalidText(_u, _i, _text) => acc
-  /* Non-holes */
   | PAp(p1, p2)
   | PPair(p1, p2)
   | PCons(p1, p2) => acc |> fresh_labels_pat(p1) |> fresh_labels_pat(p2)
