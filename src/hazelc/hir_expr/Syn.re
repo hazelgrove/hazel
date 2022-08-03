@@ -294,7 +294,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 and syn_case =
     (ctx, delta, {case_kind}: Expr.case, l: ExprLabel.t): m(Typ.t) =>
   switch (case_kind) {
-  | ECase(scrut, rules, _n) =>
+  | ECase(scrut, rules) =>
     let* scrut_ty = syn(ctx, delta, scrut);
     let syn_rule = (ctx, {rule_kind, rule_label: _}: Expr.rule): m(Typ.t) =>
       switch (rule_kind) {
