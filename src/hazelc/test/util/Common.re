@@ -19,7 +19,6 @@ module Compile = {
             level: LocalAnalysis,
           },
         },
-        optimize: (),
         codegen: {
           print_final_expr: true,
         },
@@ -40,7 +39,6 @@ module Compile = {
             level: LocalAnalysis,
           },
         },
-        optimize: (),
         codegen: {
           print_final_expr: false,
         },
@@ -86,6 +84,10 @@ module Compile = {
       | ElaborateError => failwith("elaboration failed")
       | TransformError(_err) =>
         failwith("transformation result did not type-check")
+      | LinearizeError(_err) =>
+        failwith("linearization result did not type-check")
+      | OptimizeError(_err) =>
+        failwith("optimization result did not type-check")
       }
     };
   };

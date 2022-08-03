@@ -33,6 +33,8 @@ type error =
   | ParseError(string)
   | ElaborateError
   | TransformError(Hir.Expr.syn_error)
+  | LinearizeError(Mir.Anf.syn_error)
+  | OptimizeError(Mir.Anf.syn_error)
   | GrainError;
 
 let mk_opts = (action, _verbose, optimize, _debug, std) => {
@@ -48,7 +50,6 @@ let mk_opts = (action, _verbose, optimize, _debug, std) => {
         level: completes_level,
       },
     },
-    optimize: (),
     codegen: {
       print_final_expr: true,
     },
@@ -113,6 +114,8 @@ let hazelc =
     | ParseError(err) => ParseError(err)
     | ElaborateError => ElaborateError
     | TransformError(err) => TransformError(err)
+    | LinearizeError(err) => LinearizeError(err)
+    | OptimizeError(err) => OptimizeError(err)
     };
 
   let res =
@@ -131,7 +134,9 @@ let hazelc =
 
     | Anf =>
       Compile.resume_until_optimized(~opts, source)
-      |> Result.map(write_sexp_output(Mir.Anf.sexp_of_block))
+      |> Result.map(((_ctx, _delta, block, _types)) =>
+           write_sexp_output(Mir.Anf.sexp_of_block, block)
+         )
       |> Result.map_error(convert_error)
 
     | Grain =>
@@ -180,6 +185,10 @@ let hazelc =
     | ElaborateError => print_endline("elaboration error")
     | TransformError(_err) =>
       print_endline("transformation result did not type-check")
+    | LinearizeError(_err) =>
+      print_endline("linearization result did not type-check")
+    | OptimizeError(_err) =>
+      print_endline("optimization result did not type-check")
     | GrainError => ()
     }
   };

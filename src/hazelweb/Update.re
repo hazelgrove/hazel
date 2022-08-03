@@ -242,7 +242,6 @@ let apply_action =
                     level: LocalAnalysis,
                   },
                 },
-                optimize: (),
                 codegen: {
                   print_final_expr: false,
                 },

@@ -14,7 +14,6 @@
 [@deriving sexp]
 type opts = {
   analyze: Mir.Analyze.opts,
-  optimize: Mir.Optimize.opts,
   codegen: Codegen.Grain.opts,
 };
 
@@ -30,8 +29,22 @@ let transform:
   );
 let linearize:
   (~opts: opts, Hir.Expr.typ_context, Hir.Expr.delta, Hir.Expr.expr) =>
-  Mir.Anf.block;
-let optimize: (~opts: opts, Mir.Anf.block) => Mir.Anf.block;
+  result(
+    (Mir.Anf.typ_context, Mir.Anf.delta, Mir.Anf.block, Mir.Anf.syn_types),
+    Mir.Anf.syn_error,
+  );
+let optimize:
+  (
+    ~opts: opts,
+    Mir.Anf.typ_context,
+    Mir.Anf.delta,
+    Mir.Anf.block,
+    Mir.Anf.syn_types
+  ) =>
+  result(
+    (Mir.Anf.typ_context, Mir.Anf.delta, Mir.Anf.block, Mir.Anf.syn_types),
+    Mir.Anf.syn_error,
+  );
 let grainize: (~opts: opts, Mir.Anf.block) => Grain.modl;
 let print: (~opts: opts, Grain.modl) => string;
 
@@ -62,8 +75,18 @@ type state =
       Hir.Expr.expr,
       Hir.Expr.syn_types,
     )
-  | Linearized(Mir.Anf.block)
-  | Optimized(Mir.Anf.block)
+  | Linearized(
+      Mir.Anf.typ_context,
+      Mir.Anf.delta,
+      Mir.Anf.block,
+      Mir.Anf.syn_types,
+    )
+  | Optimized(
+      Mir.Anf.typ_context,
+      Mir.Anf.delta,
+      Mir.Anf.block,
+      Mir.Anf.syn_types,
+    )
   | Grainized(Grain.modl)
   | Printed(string);
 
@@ -74,7 +97,9 @@ type state =
 type next_error =
   | ParseError(string)
   | ElaborateError
-  | TransformError(Hir.Expr.syn_error);
+  | TransformError(Hir.Expr.syn_error)
+  | LinearizeError(Mir.Anf.syn_error)
+  | OptimizeError(Mir.Anf.syn_error);
 
 [@deriving sexp]
 type next_result = result(option(state), next_error);
@@ -124,13 +149,21 @@ let resume_until_transformed:
   Resume from a given state until Anf.
  */
 let resume_until_linearized:
-  (~opts: opts, state) => result(Mir.Anf.block, next_error);
+  (~opts: opts, state) =>
+  result(
+    (Mir.Anf.typ_context, Mir.Anf.delta, Mir.Anf.block, Mir.Anf.syn_types),
+    next_error,
+  );
 
 /**
   Resume from a given state until optimized Anf.
  */
 let resume_until_optimized:
-  (~opts: opts, state) => result(Mir.Anf.block, next_error);
+  (~opts: opts, state) =>
+  result(
+    (Mir.Anf.typ_context, Mir.Anf.delta, Mir.Anf.block, Mir.Anf.syn_types),
+    next_error,
+  );
 
 /**
   Resume from a given state until Grain IR.
