@@ -1,7 +1,7 @@
 open Mir_anf;
 open Mir_anf.Complete;
 
-module CompleteMonad = {
+module CompletesMonad = {
   module State = {
     [@deriving sexp]
     type t = {completes: Completes.t};
@@ -14,8 +14,8 @@ module CompleteMonad = {
   let init = State.init;
 };
 
-open CompleteMonad;
-open CompleteMonad.Syntax;
+open CompletesMonad;
+open CompletesMonad.Syntax;
 
 let extend = (l, cc) => {
   let+ () =
@@ -197,6 +197,6 @@ and analyze_pat' =
 
 let analyze = block => {
   let (State.{completes}, cc) =
-    analyze_block(CompleteContext.empty, block, CompleteMonad.init);
+    analyze_block(CompleteContext.empty, block, CompletesMonad.init);
   (cc, completes);
 };
