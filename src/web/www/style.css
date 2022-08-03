@@ -185,6 +185,16 @@
   font-size: 13pt;
 }
 
+#mousedown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: transparent;
+  z-index: 9999;
+}
+
 #code-container {
   padding: 1em 6em 6em 6em;
 }

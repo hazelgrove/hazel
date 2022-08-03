@@ -11,6 +11,8 @@ type settings_action =
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
+  | Mousedown
+  | Mouseup
   | LoadInit
   | LoadDefault
   | Load
@@ -71,6 +73,8 @@ let apply =
   | Set(s_action) =>
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
+  | Mousedown => Ok({...model, mousedown: true})
+  | Mouseup => Ok({...model, mousedown: false})
   | LoadInit =>
     let (zs, id_gen) =
       List.fold_left(

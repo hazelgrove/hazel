@@ -18,10 +18,39 @@ let get_result_str = (elab): string => {
   };
 };
 
+let get_target = (~font_metrics: FontMetrics.t, e) => {
+  let rect =
+    JSUtil.force_get_elem_by_id("under-the-rail")##getBoundingClientRect;
+  let target_x = float_of_int(e##.clientX);
+  let target_y = float_of_int(e##.clientY);
+  Measured.{
+    row: Float.to_int((target_y -. rect##.top) /. font_metrics.row_height),
+    col: Float.to_int((target_x -. rect##.left) /. font_metrics.col_width),
+  };
+};
+
+let mousedown_overlay = (~inject, ~font_metrics, ~mousedown) =>
+  mousedown
+    ? [
+      div(
+        Attr.[
+          id("mousedown-overlay"),
+          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mousemove(e => {
+            let target = get_target(~font_metrics, e);
+            inject(Update.PerformAction(Select(Target(target))));
+          }),
+        ],
+        [],
+      ),
+    ]
+    : [];
+
 let view =
     (
       ~inject,
       ~font_metrics,
+      ~mousedown,
       ~show_backpack_targets,
       ~zipper: Zipper.t,
       ~settings: Model.settings,
@@ -65,26 +94,16 @@ let view =
     Attr.[
       id("under-the-rail"),
       class_("code"),
-      on_click(e => {
-        let rect =
-          JSUtil.force_get_elem_by_id("under-the-rail")##getBoundingClientRect;
-        let target_x = float_of_int(e##.clientX);
-        let target_y = float_of_int(e##.clientY);
-        let target =
-          Measured.{
-            row:
-              Float.to_int(
-                (target_y -. rect##.top) /. font_metrics.row_height,
-              ),
-            col:
-              Float.to_int(
-                (target_x -. rect##.left) /. font_metrics.col_width,
-              ),
-          };
-        inject(Update.PerformAction(Move(Target(target))));
+      on_mousedown(e => {
+        let target = get_target(~font_metrics, e);
+        Event.Many([
+          inject(Update.Mousedown),
+          inject(Update.PerformAction(Move(Target(target)))),
+        ]);
       }),
     ],
-    [Code.view(~font_metrics, ~sel_seg, ~unsel_seg, ~map, ~settings)]
+    mousedown_overlay(~inject, ~font_metrics, ~mousedown)
+    @ [Code.view(~font_metrics, ~sel_seg, ~unsel_seg, ~map, ~settings)]
     @ Deco.all(zipper, sel_seg)
     //@ [text(zipper |> Term.of_zipper |> Term.show_uexp)]
     @ [text(ci_is_wrapped)]

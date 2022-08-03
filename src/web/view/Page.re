@@ -144,6 +144,7 @@ let editor_view =
       Editor.view(
         ~inject,
         ~font_metrics,
+        ~mousedown=model.mousedown,
         ~show_backpack_targets,
         ~zipper=Model.get_zipper(model),
         ~settings,
