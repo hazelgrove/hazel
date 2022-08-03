@@ -141,13 +141,16 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
   };
 };
 
-let rec ana = (ctx, delta, e: Expr.t, ty: Typ.t): m(unit) => {
-  let* e_ty = syn(ctx, delta, e);
-  if (Typ.equal(e_ty, ty)) {
+let rec ana = (label, actual_ty, expected_ty) =>
+  if (Typ.equal(actual_ty, expected_ty)) {
     () |> return;
   } else {
-    TypesNotEqual(e.label, e_ty, ty) |> fail;
-  };
+    TypesNotEqual(label, actual_ty, expected_ty) |> fail;
+  }
+
+and ana_imm = (ctx, delta, e: Expr.t, ty: Typ.t): m(unit) => {
+  let* e_ty = syn(ctx, delta, e);
+  ana(e.label, e_ty, ty);
 }
 
 and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
@@ -201,7 +204,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
     /* Type-check function. */
     let* ctx' = ana_pat(ctx, p, p_ty);
-    let* () = ana(ctx', delta, body, o_ty);
+    let* () = ana_imm(ctx', delta, body, o_ty);
 
     let* e'_ty = syn(ctx, delta, e');
     extend(l, e'_ty);
@@ -249,18 +252,18 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
   /* Binary operations */
   | EBinBoolOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TBool);
-    let* () = ana(ctx, delta, e2, TBool);
+    let* () = ana_imm(ctx, delta, e1, TBool);
+    let* () = ana_imm(ctx, delta, e2, TBool);
     extend(l, TBool);
 
   | EBinIntOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TInt);
-    let* () = ana(ctx, delta, e2, TInt);
+    let* () = ana_imm(ctx, delta, e1, TInt);
+    let* () = ana_imm(ctx, delta, e2, TInt);
     extend(l, TInt);
 
   | EBinFloatOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, TFloat);
-    let* () = ana(ctx, delta, e2, TFloat);
+    let* () = ana_imm(ctx, delta, e1, TFloat);
+    let* () = ana_imm(ctx, delta, e2, TFloat);
     extend(l, TBool);
 
   /* Pair */
