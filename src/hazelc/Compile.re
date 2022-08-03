@@ -26,10 +26,19 @@ let transform' = (ctx, delta, d) => {
   |> Result.map((Hir.Expr.Syn.{types}) => (ctx, delta, e, types));
 };
 
-/* FIXME: Pass ctx, delta to linearize. */
-let linearize' = (_ctx, _delta) => Mir.Linearize.linearize;
+let linearize' = (ctx, delta, e) => {
+  let (ctx, delta, e) = Mir.Linearize.linearize(ctx, delta, e);
 
-let optimize' = opts => Mir.Optimize.optimize(~opts);
+  Mir.Anf.syn(ctx, delta, e)
+  |> Result.map((Mir.Anf.Syn.{types}) => (ctx, delta, e, types));
+};
+
+let optimize' = (ctx, delta, block, types) => {
+  Ok
+    ((ctx, delta, block, types));
+    /* Mir.Anf.syn(ctx, delta, e) */
+    /* |> Result.map((Mir.Anf.Syn.{types}) => (ctx, delta, e, types)); */
+};
 
 let grainize' = opts => Codegen.Grain.codegen(~opts);
 
@@ -80,9 +89,10 @@ let elaborate = (~opts as _, ctx, e) =>
 
 let transform = (~opts as _, ctx, delta, d) => transform'(ctx, delta, d);
 
-let linearize = (~opts as _, ctx, delta, d) => linearize'(ctx, delta, d);
+let linearize = (~opts as _, ctx, delta, e) => linearize'(ctx, delta, e);
 
-let optimize = (~opts, a) => optimize'(opts.optimize, a);
+let optimize = (~opts as _, ctx, delta, block, types) =>
+  optimize'(ctx, delta, block, types);
 
 let grainize = (~opts, a) => grainize'(opts.codegen, a);
 
@@ -105,8 +115,18 @@ type state =
       Hir.Expr.expr,
       Hir.Expr.syn_types,
     )
-  | Linearized(Mir.Anf.block)
-  | Optimized(Mir.Anf.block)
+  | Linearized(
+      Mir.Anf.typ_context,
+      Mir.Anf.delta,
+      Mir.Anf.block,
+      Mir.Anf.syn_types,
+    )
+  | Optimized(
+      Mir.Anf.typ_context,
+      Mir.Anf.delta,
+      Mir.Anf.block,
+      Mir.Anf.syn_types,
+    )
   | Grainized(Grain.prog)
   | Printed(string);
 
@@ -114,7 +134,9 @@ type state =
 type next_error =
   | ParseError(string)
   | ElaborateError
-  | TransformError(Hir.Expr.syn_error);
+  | TransformError(Hir.Expr.syn_error)
+  | LinearizeError(Mir.Anf.syn_error)
+  | OptimizeError(Mir.Anf.syn_error);
 
 [@deriving sexp]
 type next_result = result(option(state), next_error);
@@ -139,11 +161,21 @@ let next = (~opts, state): next_result => {
     |> Result.map_error(err => TransformError(err))
 
   | Transformed(ctx, delta, e, _types) =>
-    Ok(Some(Linearized(linearize(~opts, ctx, delta, e))))
+    linearize(~opts, ctx, delta, e)
+    |> Result.map(((ctx, delta, block, types)) =>
+         Some(Linearized(ctx, delta, block, types))
+       )
+    |> Result.map_error(err => LinearizeError(err))
 
-  | Linearized(a) => Ok(Some(Optimized(optimize(~opts, a))))
+  | Linearized(ctx, delta, block, types) =>
+    optimize(~opts, ctx, delta, block, types)
+    |> Result.map(((ctx, delta, block, types)) =>
+         Some(Optimized(ctx, delta, block, types))
+       )
+    |> Result.map_error(err => OptimizeError(err))
 
-  | Optimized(a) => Ok(Some(Grainized(grainize(~opts, a))))
+  | Optimized(_ctx, _delta, block, _types) =>
+    Ok(Some(Grainized(grainize(~opts, block))))
 
   | Grainized(g) => Ok(Some(Printed(print(~opts, g))))
 
@@ -224,7 +256,8 @@ let resume_until_transformed = (~opts, state) => {
 
 let resume_until_linearized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_linearized, state)) {
-  | Ok(Some(Linearized(a))) => Ok(a)
+  | Ok(Some(Linearized(ctx, delta, block, types))) =>
+    Ok((ctx, delta, block, types))
   | Error(err) => Error(err)
   | Ok(_) =>
     failwith("resume_until_linearized did not stop with Linearized state")
@@ -233,7 +266,8 @@ let resume_until_linearized = (~opts, state) => {
 
 let resume_until_optimized = (~opts, state) => {
   switch (resume(~opts, ~hook=stop_after_optimized, state)) {
-  | Ok(Some(Optimized(a))) => Ok(a)
+  | Ok(Some(Optimized(ctx, delta, block, types))) =>
+    Ok((ctx, delta, block, types))
   | Error(err) => Error(err)
   | Ok(_) =>
     failwith("resume_until_optimized did not stop with Optimized state")

@@ -1,6 +1,6 @@
 /**
- * Linearize Hir into Anf.
- *
- * In this pass, all indet markers are initialized to true.
+  Linearize Hir into Anf.
  */
-let linearize: Hir_expr.expr => Mir_anf.block;
+let linearize:
+  (Hir_expr.typ_context, Hir_expr.delta, Hir_expr.expr) =>
+  (Mir_anf.typ_context, Mir_anf.delta, Mir_anf.block);

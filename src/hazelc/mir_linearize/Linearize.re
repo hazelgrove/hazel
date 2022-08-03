@@ -608,11 +608,46 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, Renamings.t)) => 
   );
 };
 
-let linearize = (e: Hir_expr.expr): block => {
+let linearize_delta = (delta: Hir_expr.delta) =>
+  delta
+  |> Holes.MetaVarMap.bindings
+  |> List.map(((u, (sort, ty, gamma))) => {
+       let sort =
+         switch (sort) {
+         | Hir_expr.Delta.ExpressionHole => Delta.ExpressionHole
+         | Hir_expr.Delta.PatternHole => Delta.PatternHole
+         };
+       let ty = linearize_typ(ty);
+       let gamma =
+         gamma
+         |> Hir_expr.TypContext.bindings
+         /* FIXME: Variables are renamed... */
+         |> List.map(((x, ty)) => (x, linearize_typ(ty)))
+         |> List.to_seq
+         |> TypContext.of_seq;
+       (u, (sort, ty, gamma));
+     })
+  |> List.to_seq
+  |> Holes.MetaVarMap.of_seq
+  |> return;
+
+let linearize = (ctx, delta, e: Hir_expr.expr) => {
+  let ctx =
+    ctx
+    |> Hir_expr.TypContext.bindings
+    |> List.map(((x, ty)) => (x, linearize_typ(ty)))
+    |> List.to_seq
+    |> TypContext.of_seq;
+
+  let m = {
+    let* delta = linearize_delta(delta);
+    let+ e = linearize_block(e, Renamings.empty);
+    (delta, e);
+  };
+
   let fresh_labels = FreshLabels.fresh_labels(e);
   let state = init(fresh_labels);
+  let (_, (delta, block)) = m(state);
 
-  // TODO: Can't pass empty renamings once builtins are supported.
-  let (_, block) = linearize_block(e, Renamings.empty, state);
-  block;
+  (ctx, delta, block);
 };
