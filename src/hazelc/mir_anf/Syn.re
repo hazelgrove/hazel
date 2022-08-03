@@ -134,23 +134,21 @@ let rec ana_pat =
   };
 };
 
-let rec ana_block = (ctx, delta, block: Anf.block, ty): m(unit) => {
-  let* e_ty = syn_block(ctx, delta, block);
-  if (Typ.equal(e_ty, ty)) {
+let rec ana' = (label, actual_ty, expected_ty) =>
+  if (Typ.equal(actual_ty, expected_ty)) {
     () |> return;
   } else {
-    TypesNotEqual(block.block_label, e_ty, ty) |> fail;
-  };
+    TypesNotEqual(label, actual_ty, expected_ty) |> fail;
+  }
+
+and ana_block = (ctx, delta, block: Anf.block, ty): m(unit) => {
+  let* block_ty = syn_block(ctx, delta, block);
+  ana'(block.block_label, block_ty, ty);
 }
 
-/* FIXME: Rename to ana_imm. */
-and ana = (ctx, delta, im: Anf.imm, ty): m(unit) => {
-  let* e_ty = syn_imm(ctx, delta, im);
-  if (Typ.equal(e_ty, ty)) {
-    () |> return;
-  } else {
-    TypesNotEqual(im.imm_label, e_ty, ty) |> fail;
-  };
+and ana_imm = (ctx, delta, im: Anf.imm, ty): m(unit) => {
+  let* im_ty = syn_imm(ctx, delta, im);
+  ana'(im.imm_label, im_ty, ty);
 }
 
 and syn_block =
@@ -280,8 +278,8 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
       | OpFGreaterThan
       | OpFEquals => TFloat
       };
-    let* () = ana(ctx, delta, im1, ana_ty);
-    let* () = ana(ctx, delta, im2, ana_ty);
+    let* () = ana_imm(ctx, delta, im1, ana_ty);
+    let* () = ana_imm(ctx, delta, im2, ana_ty);
     extend(l, ana_ty);
 
   /* Pair */
