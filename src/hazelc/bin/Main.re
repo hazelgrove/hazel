@@ -15,8 +15,8 @@ type action =
   | DHExp
   | Hir
   | Anf
-  | Grain
   | Gir
+  | Grain
   | Wasm
   | Wat;
 
@@ -87,10 +87,10 @@ let hazelc =
         let ext =
           switch (action) {
           | DHExp => "hz.dhexp"
-          | Hir => "hz.ihexp"
+          | Hir => "hz.hir"
           | Anf => "hz.anf"
-          | Grain => "gr"
           | Gir => "hz.gir"
+          | Grain => "gr"
           | Wasm => "wasm"
           | Wat => "wat"
           };
@@ -207,7 +207,7 @@ let action_flag = {
     let doc = "Emit DHExp sexp.";
     (DHExp, Arg.info(["dhexp"], ~doc));
   };
-  let ihexp = {
+  let hir = {
     let doc = "Emit Hir sexp.";
     (Hir, Arg.info(["hir"], ~doc));
   };
@@ -215,13 +215,13 @@ let action_flag = {
     let doc = "Emit Anf sexp.";
     (Anf, Arg.info(["anf"], ~doc));
   };
-  let grain = {
-    let doc = "Emit Grain code.";
-    (Grain, Arg.info(["grain"], ~doc));
-  };
   let gir = {
     let doc = "Emit Grain IR sexp.";
     (Gir, Arg.info(["gir"], ~doc));
+  };
+  let grain = {
+    let doc = "Emit Grain code.";
+    (Grain, Arg.info(["grain"], ~doc));
   };
   let wasm = {
     let doc = "Emit WebAssembly.";
@@ -231,9 +231,7 @@ let action_flag = {
     let doc = "Emit WebAssembly text.";
     (Wat, Arg.info(["wat"], ~doc));
   };
-  Arg.(
-    last & vflag_all([Wasm], [dhexp, ihexp, anf, grain, gir, wasm, wat])
-  );
+  Arg.(last & vflag_all([Wasm], [dhexp, hir, anf, gir, grain, wasm, wat]));
 };
 
 /* Verbosity flag. */
