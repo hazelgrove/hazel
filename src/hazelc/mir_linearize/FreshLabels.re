@@ -59,7 +59,7 @@ and fresh_labels = ({kind, label}: Hir_expr.expr, acc) => {
   /* Sum injection */
   | EInj(_other_ty, _side, e') => acc |> fresh_labels(e')
   /* Immediate expressions */
-  | EBoundVar(_ty, _x) => acc
+  | EBoundVar(_x) => acc
   | EBoolLit(_b) => acc
   | EIntLit(_n) => acc
   | EFloatLit(_f) => acc

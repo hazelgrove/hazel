@@ -75,8 +75,7 @@ and kind =
   /* Sum injection */
   | EInj(Typ.t, inj_side, t)
   /* Immediate expressions */
-  /* FIXME: Remove type. */
-  | EBoundVar(Typ.t, Ident.t)
+  | EBoundVar(Ident.t)
   | EBoolLit(bool)
   | EIntLit(int)
   | EFloatLit(float)

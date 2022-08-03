@@ -95,7 +95,7 @@ let rec transform_exp = (ctx: TypContext.t, d: DHExp.t): m((Expr.t, Typ.t)) => {
     switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) =>
       let+ label = next_expr_label;
-      ({kind: EBoundVar(ty, x), label}, ty);
+      ({kind: EBoundVar(x), label}, ty);
     | None => failwith("free bound variable " ++ Ident.to_string(x))
     };
 

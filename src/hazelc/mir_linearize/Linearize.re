@@ -70,7 +70,7 @@ let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
 
 and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
   switch (d.kind) {
-  | EBoundVar(_ty, x) =>
+  | EBoundVar(x) =>
     let x' =
       switch (Renamings.find_opt(x, renamings)) {
       | Some(x') => x'
@@ -142,7 +142,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       Hir_expr.Expr.(
         {
           let* scrut_label = next_hir_expr_label;
-          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+          let scrut = {kind: EBoundVar(param), label: scrut_label};
 
           let* rule_label = next_hir_rule_label;
           let rules = [{rule_kind: ERule(p, body), rule_label}];
@@ -186,7 +186,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       Hir_expr.Expr.(
         {
           let* scrut_label = next_hir_expr_label;
-          let scrut = {kind: EBoundVar(p_ty, param), label: scrut_label};
+          let scrut = {kind: EBoundVar(param), label: scrut_label};
 
           let* rule_label = next_hir_rule_label;
           let rules = [{rule_kind: ERule(p, body), rule_label}];
