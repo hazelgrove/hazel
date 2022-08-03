@@ -2,6 +2,7 @@ open Mir_anf;
 open LinearizeMonad;
 open LinearizeMonad.Syntax;
 
+[@deriving sexp]
 type bind =
   | BLet(Ident.t, comp)
   | BLetRec(Ident.t, comp);
@@ -125,12 +126,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (im2, binds) |> return;
 
   | ELet(dp, d1, d2) =>
-    /* FIXME: Need to create a label generator based off given expr and produce
-     * new label here.  */
-    let rules =
-      Hir_expr.Expr.[
-        {rule_kind: ERule(dp, d2), rule_label: RuleLabel.of_int(-1)},
-      ];
+    let* rule_label = next_hir_rule_label;
+    let rules = Hir_expr.Expr.[{rule_kind: ERule(dp, d2), rule_label}];
     linearize_case(
       Hir_expr.Expr.{case_kind: ECase(d1, rules, 1)},
       renamings,
@@ -599,8 +596,11 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, renamings)) => {
   );
 };
 
-let linearize = (d: Hir_expr.expr): block => {
+let linearize = (e: Hir_expr.expr): block => {
+  let fresh_labels = FreshLabels.fresh_labels(e);
+  let state = init(fresh_labels);
+
   // TODO: Can't pass empty renamings once builtins are supported.
-  let (_, block) = linearize_block(d, Ident.Map.empty, init);
+  let (_, block) = linearize_block(e, Ident.Map.empty, state);
   block;
 };
