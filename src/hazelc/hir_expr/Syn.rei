@@ -6,15 +6,15 @@ type syn_ok = {types: syn_types};
 
 [@deriving sexp]
 type syn_error =
-  | SynNoRules(ExprLabel.t)
-  | SynUnbound(ExprLabel.t)
-  | SynHoleUnbound(ExprLabel.t)
-  | SynHolePatternHole(ExprLabel.t)
-  | SynHoleSigmaUnbound(ExprLabel.t, Ident.t)
-  | AnaNotEqual(ExprLabel.t, Typ.t, Typ.t)
-  | AnaEqual(ExprLabel.t, Typ.t, Typ.t)
-  | AnaInconsistent(ExprLabel.t, Typ.t, Typ.t)
-  | AnaPatNotEqual(PatLabel.t, Typ.t, Typ.t);
+  | CaseEmptyRules(ExprLabel.t)
+  | UnboundVar(ExprLabel.t)
+  | UnboundHole(ExprLabel.t)
+  | WrongHoleSort(ExprLabel.t)
+  | SigmaUnboundVar(ExprLabel.t, Ident.t)
+  | TypesNotEqual(ExprLabel.t, Typ.t, Typ.t)
+  | TypesEqual(ExprLabel.t, Typ.t, Typ.t)
+  | TypesInconsistent(ExprLabel.t, Typ.t, Typ.t)
+  | PatTypesNotEqual(PatLabel.t, Typ.t, Typ.t);
 
 [@deriving sexp]
 type syn_result = result(syn_ok, syn_error);

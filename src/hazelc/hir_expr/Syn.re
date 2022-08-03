@@ -13,15 +13,15 @@ type syn_ok = {types: syn_types};
 /* FIXME: These error names are not very good. */
 [@deriving sexp]
 type syn_error =
-  | SynNoRules(ExprLabel.t)
-  | SynUnbound(ExprLabel.t)
-  | SynHoleUnbound(ExprLabel.t)
-  | SynHolePatternHole(ExprLabel.t)
-  | SynHoleSigmaUnbound(ExprLabel.t, Ident.t)
-  | AnaNotEqual(ExprLabel.t, Typ.t, Typ.t)
-  | AnaEqual(ExprLabel.t, Typ.t, Typ.t)
-  | AnaInconsistent(ExprLabel.t, Typ.t, Typ.t)
-  | AnaPatNotEqual(PatLabel.t, Typ.t, Typ.t);
+  | CaseEmptyRules(ExprLabel.t)
+  | UnboundVar(ExprLabel.t)
+  | UnboundHole(ExprLabel.t)
+  | WrongHoleSort(ExprLabel.t)
+  | SigmaUnboundVar(ExprLabel.t, Ident.t)
+  | TypesNotEqual(ExprLabel.t, Typ.t, Typ.t)
+  | TypesEqual(ExprLabel.t, Typ.t, Typ.t)
+  | TypesInconsistent(ExprLabel.t, Typ.t, Typ.t)
+  | PatTypesNotEqual(PatLabel.t, Typ.t, Typ.t);
 
 [@deriving sexp]
 type syn_result = result(syn_ok, syn_error);
@@ -85,7 +85,7 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
       let* ctx = ana_pat(ctx, p1, ty1);
       ana_pat(ctx, p2, ty2);
     /* FIXME: Hole is just a placeholder. */
-    | ty => AnaPatNotEqual(l, ty, Prod([Hole, Hole])) |> fail
+    | ty => PatTypesNotEqual(l, ty, Prod([Hole, Hole])) |> fail
     }
 
   | PCons(p1, p2) =>
@@ -94,7 +94,7 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
       let* ctx = ana_pat(ctx, p1, ty);
       ana_pat(ctx, p2, List(ty'));
     /* FIXME: Hole is just a placeholder. */
-    | ty => AnaPatNotEqual(l, ty, List(Hole)) |> fail
+    | ty => PatTypesNotEqual(l, ty, List(Hole)) |> fail
     }
 
   | PInj(side, p') =>
@@ -102,8 +102,8 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
     | (L, Sum(ty, _))
     | (R, Sum(_, ty)) => ana_pat(ctx, p', ty)
     /* FIXME: Hole is just a placeholder. */
-    | (L, ty) => AnaPatNotEqual(l, ty, Sum(Hole, Hole)) |> fail
-    | (R, ty) => AnaPatNotEqual(l, ty, Sum(Hole, Hole)) |> fail
+    | (L, ty) => PatTypesNotEqual(l, ty, Sum(Hole, Hole)) |> fail
+    | (R, ty) => PatTypesNotEqual(l, ty, Sum(Hole, Hole)) |> fail
     }
 
   | PWild => ctx |> return
@@ -112,33 +112,33 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
   | PBoolLit(_b) =>
     switch (ty) {
     | Bool => ctx |> return
-    | _ => AnaPatNotEqual(l, ty, Bool) |> fail
+    | _ => PatTypesNotEqual(l, ty, Bool) |> fail
     }
 
   | PIntLit(_n) =>
     switch (ty) {
     | Int => ctx |> return
-    | _ => AnaPatNotEqual(l, ty, Int) |> fail
+    | _ => PatTypesNotEqual(l, ty, Int) |> fail
     }
 
   | PFloatLit(_f) =>
     switch (ty) {
     | Float => ctx |> return
-    | _ => AnaPatNotEqual(l, ty, Float) |> fail
+    | _ => PatTypesNotEqual(l, ty, Float) |> fail
     }
 
   | PNil =>
     switch (ty) {
     | List(_) => ctx |> return
     /* FIXME: Hole is just a placeholder. */
-    | _ => AnaPatNotEqual(l, ty, List(Hole)) |> fail
+    | _ => PatTypesNotEqual(l, ty, List(Hole)) |> fail
     }
 
   | PTriv =>
     switch (ty) {
     | Prod([]) => ctx |> return
     /* FIXME: [] is just a placeholder. */
-    | _ => AnaPatNotEqual(l, ty, Prod([])) |> fail
+    | _ => PatTypesNotEqual(l, ty, Prod([])) |> fail
     }
   };
 };
@@ -148,7 +148,7 @@ let rec ana = (ctx, delta, e: Expr.t, ty: Typ.t): m(unit) => {
   if (Typ.equal(e_ty, ty)) {
     () |> return;
   } else {
-    AnaNotEqual(e.label, e_ty, ty) |> fail;
+    TypesNotEqual(e.label, e_ty, ty) |> fail;
   };
 }
 
@@ -169,7 +169,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     if (Typ.consistent(ty', ty1)) {
       extend(l, ty2);
     } else {
-      AnaInconsistent(l', ty', ty1) |> fail;
+      TypesInconsistent(l', ty', ty1) |> fail;
     };
 
   | EFailedCast(e', ty1, ty2) =>
@@ -177,7 +177,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     if (!Typ.equal(ty', ty1)) {
       extend(l, ty2);
     } else {
-      AnaEqual(e'.label, ty', ty1) |> fail;
+      TypesEqual(e'.label, ty', ty1) |> fail;
     };
 
   | EConsistentCase(case) =>
@@ -188,7 +188,8 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
   | EInconsistentBranches(u, _i, sigma, case) =>
     let* ty = syn_case(ctx, delta, case, l);
     Typ.equal(ty, Hole)
-      ? syn_hole(ctx, delta, l, u, sigma) : AnaNotEqual(l, ty, Hole) |> fail;
+      ? syn_hole(ctx, delta, l, u, sigma)
+      : TypesNotEqual(l, ty, Hole) |> fail;
 
   | ELet(p, e1, e2) =>
     let* ty1 = syn(ctx, delta, e1);
@@ -209,16 +210,16 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     let* arg_ty = syn(ctx, delta, arg);
     switch (fn_ty) {
     | Arrow(ty1, ty2) when Typ.equal(arg_ty, ty1) => extend(l, ty2)
-    | Arrow(ty1, _ty2) => AnaNotEqual(arg.label, arg_ty, ty1) |> fail
+    | Arrow(ty1, _ty2) => TypesNotEqual(arg.label, arg_ty, ty1) |> fail
     /* FIXME: Hole here is just a placeholder for unknown. */
-    | _ => AnaNotEqual(fn.label, fn_ty, Arrow(arg_ty, Hole)) |> fail
+    | _ => TypesNotEqual(fn.label, fn_ty, Arrow(arg_ty, Hole)) |> fail
     };
 
   | EApBuiltin(name, args) =>
     let* fn_ty =
       switch (TypContext.find_opt(name, ctx)) {
       | Some(fn_ty) => fn_ty |> return
-      | None => SynUnbound(l) |> fail
+      | None => UnboundVar(l) |> fail
       };
     let* arg_tys =
       args
@@ -230,10 +231,10 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
       | ([(arg_l, arg_ty), ...arg_tys], Arrow(ty1, ty2)) =>
         Typ.equal(arg_ty, ty1)
           ? syn_builtin(ty2, arg_tys)
-          : AnaNotEqual(arg_l, arg_ty, ty1) |> fail
+          : TypesNotEqual(arg_l, arg_ty, ty1) |> fail
       /* FIXME: Hole here is just a placeholder. */
       /* FIXME: Label here is wrong. */
-      | (_, fn_ty) => AnaNotEqual(l, fn_ty, Arrow(Hole, Hole)) |> fail
+      | (_, fn_ty) => TypesNotEqual(l, fn_ty, Arrow(Hole, Hole)) |> fail
       };
 
     let* ty = syn_builtin(fn_ty, arg_tys);
@@ -267,8 +268,8 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     let* ty2 = syn(ctx, delta, e2);
     switch (ty2) {
     | List(ty2') when Typ.equal(ty1, ty2') => extend(l, List(ty1))
-    | List(ty2') => AnaNotEqual(e1.label, ty1, ty2') |> fail
-    | ty2 => AnaNotEqual(e2.label, ty2, List(ty1)) |> fail
+    | List(ty2') => TypesNotEqual(e1.label, ty1, ty2') |> fail
+    | ty2 => TypesNotEqual(e2.label, ty2, List(ty1)) |> fail
     };
 
   /* Sum injection */
@@ -282,7 +283,7 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
   | EBoundVar(_, x) =>
     switch (TypContext.find_opt(x, ctx)) {
     | Some(ty) => extend(l, ty)
-    | None => SynUnbound(l) |> fail
+    | None => UnboundVar(l) |> fail
     }
 
   | EBoolLit(_) => extend(l, Bool)
@@ -306,7 +307,7 @@ and syn_case =
 
     let* ty =
       switch (rules) {
-      | [] => SynNoRules(l) |> fail
+      | [] => CaseEmptyRules(l) |> fail
       | [rule, ...rules] =>
         rules
         |> List.fold_left(
@@ -317,7 +318,7 @@ and syn_case =
                let* body_ty = syn(ctx', delta, body);
                Typ.equal(acc_ty, body_ty)
                  ? acc_ty |> return
-                 : AnaNotEqual(body.label, body_ty, acc_ty) |> fail;
+                 : TypesNotEqual(body.label, body_ty, acc_ty) |> fail;
              },
              syn_rule(ctx, rule),
            )
@@ -334,9 +335,9 @@ and syn_hole =
     | Delta.ExpressionHole =>
       let* () = ana_hole_sigma(ctx, delta, l, sigma, gamma');
       extend(l, hole_ty);
-    | Delta.PatternHole => SynHolePatternHole(l) |> fail
+    | Delta.PatternHole => WrongHoleSort(l) |> fail
     }
-  | None => SynHoleUnbound(l) |> fail
+  | None => UnboundHole(l) |> fail
   }
 
 and ana_hole_sigma =
@@ -349,11 +350,12 @@ and ana_hole_sigma =
          let* () = acc;
 
          switch (Sigma.find_opt(x, sigma)) {
-         | None => SynHoleSigmaUnbound(l, x) |> fail
+         | None => SigmaUnboundVar(l, x) |> fail
          | Some(e) =>
            let* sigma_ty = syn(ctx, delta, e);
            Typ.equal(sigma_ty, gamma_ty)
-             ? () |> return : AnaNotEqual(e.label, sigma_ty, gamma_ty) |> fail;
+             ? () |> return
+             : TypesNotEqual(e.label, sigma_ty, gamma_ty) |> fail;
          };
        },
        return(),
