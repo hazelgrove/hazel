@@ -55,8 +55,8 @@ let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   | TList(t') => TList(linearize_typ(t'))
   };
 
-let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
-  let* (im, im_binds) = linearize_exp(d, renamings);
+let rec linearize_block = (e: Hir_expr.expr, renamings): t(block) => {
+  let* (im, im_binds) = linearize_exp(e, renamings);
   let* body = im_binds |> List.map(convert_bind) |> sequence;
 
   let* l = next_expr_label;
@@ -68,8 +68,9 @@ let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
   |> return;
 }
 
-and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
-  switch (d.kind) {
+and linearize_exp =
+    ({kind, label: _}: Hir_expr.expr, renamings): t((imm, list(bind))) => {
+  switch (kind) {
   | EBoundVar(x) =>
     let x' =
       switch (Renamings.find_opt(x, renamings)) {
@@ -85,8 +86,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     |> return;
 
   /* Linearize let with variable pattern into plain let. */
-  | ELet({kind: PVar(x), label: _}, d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
+  | ELet({kind: PVar(x), label: _}, e', body) =>
+    let* (im1, im1_binds) = linearize_exp(e', renamings);
 
     let* comp_label = next_expr_label;
     let* (bind_x, _, bind) =
@@ -100,16 +101,16 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       );
 
     let renamings' = Renamings.add(x, bind_x, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings');
+    let* (im2, im2_binds) = linearize_exp(body, renamings');
 
     let binds = im1_binds @ [bind] @ im2_binds;
     (im2, binds) |> return;
 
   /* Linearize let with arbitrary pattern into case. */
-  | ELet(dp, d1, d2) =>
+  | ELet(p, e', body) =>
     let* rule_label = next_hir_rule_label;
-    let rules = Hir_expr.Expr.[{rule_kind: ERule(dp, d2), rule_label}];
-    linearize_case(Hir_expr.Expr.{case_kind: ECase(d1, rules)}, renamings);
+    let rules = Hir_expr.Expr.[{rule_kind: ERule(p, body), rule_label}];
+    linearize_case(Hir_expr.Expr.{case_kind: ECase(e', rules)}, renamings);
 
   | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
     /* Rename bound variable. */
@@ -283,15 +284,15 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     )
     |> return;
 
-  | EBinBoolOp(op, d1, d2) =>
+  | EBinBoolOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpAnd => OpAnd
       | OpOr => OpOr
       };
-    linearize_bin_op(op, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EBinIntOp(op, d1, d2) =>
+  | EBinIntOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpPlus => OpPlus
@@ -302,9 +303,9 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpGreaterThan => OpGreaterThan
       | OpEquals => OpEquals
       };
-    linearize_bin_op(op, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EBinFloatOp(op, d1, d2) =>
+  | EBinFloatOp(op, e1, e2) =>
     let op: bin_op =
       switch (op) {
       | OpFPlus => OpFPlus
@@ -315,11 +316,11 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       | OpFGreaterThan => OpFGreaterThan
       | OpFEquals => OpFEquals
       };
-    linearize_bin_op(op, d1, d2, renamings);
+    linearize_bin_op(op, e1, e2, renamings);
 
-  | EPair(d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings);
+  | EPair(e1, e2) =>
+    let* (im1, im1_binds) = linearize_exp(e1, renamings);
+    let* (im2, im2_binds) = linearize_exp(e2, renamings);
 
     let* pair_label = next_expr_label;
     let pair = {
@@ -332,9 +333,9 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = im1_binds @ im2_binds @ [pair_bind];
     (pair_var, binds) |> return;
 
-  | ECons(d1, d2) =>
-    let* (im1, im1_binds) = linearize_exp(d1, renamings);
-    let* (im2, im2_binds) = linearize_exp(d2, renamings);
+  | ECons(hd, tl) =>
+    let* (im1, im1_binds) = linearize_exp(hd, renamings);
+    let* (im2, im2_binds) = linearize_exp(tl, renamings);
 
     let* cons_label = next_expr_label;
     let cons = {
@@ -385,9 +386,9 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = sigma_binds @ [hole_bind];
     (hole_var, binds) |> return;
 
-  | ENonEmptyHole(reason, u, i, sigma, d') =>
+  | ENonEmptyHole(reason, u, i, sigma, e') =>
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
-    let* (im, im_binds) = linearize_exp(d', renamings);
+    let* (im, im_binds) = linearize_exp(e', renamings);
 
     let* hole_label = next_expr_label;
     let hole = {
@@ -400,8 +401,8 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let binds = sigma_binds @ im_binds @ [hole_bind];
     (hole_var, binds) |> return;
 
-  | ECast(d', ty1, ty2) =>
-    let* (im, im_binds) = linearize_exp(d', renamings);
+  | ECast(e', ty1, ty2) =>
+    let* (im, im_binds) = linearize_exp(e', renamings);
     let ty1 = linearize_typ(ty1);
     let ty2 = linearize_typ(ty2);
 
@@ -431,8 +432,8 @@ and linearize_sigma =
   let+ bindings =
     sigma
     |> Hir_expr.Sigma.bindings
-    |> List.map(((x, d)) => {
-         let+ (im, im_binds) = linearize_exp(d, renamings);
+    |> List.map(((x, e)) => {
+         let+ (im, im_binds) = linearize_exp(e, renamings);
          ((x, im), im_binds);
        })
     |> sequence;
@@ -445,9 +446,9 @@ and linearize_sigma =
 }
 
 and linearize_bin_op =
-    (op: bin_op, d1: Hir_expr.expr, d2: Hir_expr.expr, renamings) => {
-  let* (im1, im1_binds) = linearize_exp(d1, renamings);
-  let* (im2, im2_binds) = linearize_exp(d2, renamings);
+    (op: bin_op, e1: Hir_expr.expr, e2: Hir_expr.expr, renamings) => {
+  let* (im1, im1_binds) = linearize_exp(e1, renamings);
+  let* (im2, im2_binds) = linearize_exp(e2, renamings);
 
   let* bin_label = next_expr_label;
   let bin = {
