@@ -94,17 +94,24 @@ let rec transform_exp = (d: DHExp.t) => {
     {kind: EBoundVar(x), label};
 
   | FixF(_) => failwith("lone FixF")
-  | Let(Var(_), FixF(x, _ty, Fun(dp, dp_ty, d3)), body) =>
+
+  /* TODO: Not really sure if any of this recursive function handling is
+   * right... */
+  | Let(Var(_), FixF(x, ty, Fun(dp, dp_ty, d3)), body) =>
     let x = transform_var(x);
     let p_ty = transform_typ(dp_ty);
-
-    // TODO: Not really sure if any of this recursive function handling is right...
     let* p = transform_pat(dp);
+
+    let o_ty =
+      switch (ty) {
+      | Arrow(i_ty, o_ty) when HTyp.eq(i_ty, dp_ty) => transform_typ(o_ty)
+      | _ => failwith("invalid function fixf type")
+      };
 
     let* e3 = transform_exp(d3);
     let* body = transform_exp(body);
     let+ label = next_expr_label;
-    {kind: ELetRec(x, p, p_ty, e3, body), label};
+    {kind: ELetRec(x, p, p_ty, o_ty, e3, body), label};
 
   | Let(dp, d', body) =>
     let* e' = transform_exp(d');

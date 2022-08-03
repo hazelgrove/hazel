@@ -195,7 +195,16 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     let* ty2 = syn(ctx, delta, e2);
     extend(l, TArrow(ty1, ty2));
 
-  | ELetRec(_x, _p, _p_ty, _body, _e') => raise(NotImplemented)
+  | ELetRec(x, p, p_ty, o_ty, body, e') =>
+    let ty = Typ.TArrow(p_ty, o_ty);
+    let ctx = TypContext.add(x, ty, ctx);
+
+    /* Type-check function. */
+    let* ctx' = ana_pat(ctx, p, p_ty);
+    let* () = ana(ctx', delta, body, o_ty);
+
+    let* e'_ty = syn(ctx, delta, e');
+    extend(l, e'_ty);
 
   | EFun(p, p_ty, body) =>
     let* ctx = ana_pat(ctx, p, p_ty);

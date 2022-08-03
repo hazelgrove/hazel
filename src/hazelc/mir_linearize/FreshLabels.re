@@ -40,7 +40,7 @@ and fresh_labels = ({kind, label}: Hir_expr.expr, acc) => {
     acc |> fresh_labels_sigma(sigma) |> fresh_labels_case(case)
   /* Let bindings */
   | ELet(p, _p_ty, e') => acc |> fresh_labels_pat(p) |> fresh_labels(e')
-  | ELetRec(_x, p, _p_ty, e1, e2) =>
+  | ELetRec(_x, p, _p_ty, _o_ty, e1, e2) =>
     acc |> fresh_labels_pat(p) |> fresh_labels(e1) |> fresh_labels(e2)
   /* Function */
   | EFun(p, _p_ty, body) => acc |> fresh_labels_pat(p) |> fresh_labels(body)

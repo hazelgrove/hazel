@@ -112,7 +112,7 @@ and linearize_exp =
     let rules = Hir_expr.Expr.[{rule_kind: ERule(p, body), rule_label}];
     linearize_case(Hir_expr.Expr.{case_kind: ECase(e', rules)}, renamings);
 
-  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
+  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, _o_ty, body, e') =>
     /* Rename bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
@@ -131,7 +131,7 @@ and linearize_exp =
 
   /* Recursive let with arbitrary pattern becomes a recursive let of a function
    * wrapping a case. */
-  | ELetRec(x, p, p_ty, body, e') =>
+  | ELetRec(x, p, p_ty, _o_ty, body, e') =>
     /* Generate named temporary for bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
