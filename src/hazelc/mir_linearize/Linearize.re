@@ -127,17 +127,18 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       renamings,
     );
 
-  | ELetRec(x, {kind: PVar(param), label: _}, _p_ty, body, e') =>
+  | ELetRec(x, {kind: PVar(param), label: _}, param_ty, body, e') =>
     /* Rename bound variable. */
     let* x' = next_tmp_named(x);
     let renamings' = Renamings.add(x, x', renamings);
 
     /* Create temporary for parameter variable. */
     let* param = next_tmp_named(param);
+    let param_ty = linearize_typ(param_ty);
     /* Linearize body. */
     let* body = linearize_block(body, renamings');
     /* Create binding for function. */
-    let fn_bind = SLetRec(x', param, body);
+    let fn_bind = SLetRec(x', param, param_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
@@ -172,21 +173,22 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
       );
 
     /* Create binding for function. */
-    let fn_bind = SLetRec(x', param, body);
+    let param_ty = linearize_typ(p_ty);
+    let fn_bind = SLetRec(x', param, param_ty, body);
 
     /* Linearize rest of let. */
     let+ (im', im'_binds) = linearize_exp(e', renamings');
     (im', [fn_bind] @ im'_binds);
 
   /* Transform function with variable pattern into plain function. */
-  | EFun({kind: PVar(x), label: _}, p_ty, body) =>
-    let p_ty = linearize_typ(p_ty);
+  | EFun({kind: PVar(x), label: _}, param_ty, body) =>
+    let param_ty = linearize_typ(param_ty);
     let* body = linearize_block(body, renamings);
 
     let* fn_label = next_expr_label;
     let fn = {
-      comp_kind: CFun(x, body),
-      comp_ty: TArrow(p_ty, body.block_ty),
+      comp_kind: CFun(x, param_ty, body),
+      comp_ty: TArrow(param_ty, body.block_ty),
       comp_complete: default_completeness,
       comp_label: fn_label,
     };

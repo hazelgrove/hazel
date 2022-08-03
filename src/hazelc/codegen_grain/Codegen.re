@@ -121,7 +121,7 @@ and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
     let* c' = codegen_comp(c);
     SLet(PVar(x |> Ident.to_string), c') |> return;
 
-  | SLetRec(x, param, body) =>
+  | SLetRec(x, param, _param_ty, body) =>
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
     let fn = ELam([PVar(param |> Ident.to_string)], EBlock(body'));
@@ -140,7 +140,7 @@ and codegen_comp = (c: Anf.comp): t(Grain.expr) => {
     let* arg' = codegen_imm(arg);
     EAp(fn', [arg']) |> return;
 
-  | CFun(param, body) =>
+  | CFun(param, _param_ty, body) =>
     let* (body', c) = codegen_block(body);
     let body' = body' @ [SExpr(c)];
     ELam([PVar(param |> Ident.to_string)], EBlock(body')) |> return;
