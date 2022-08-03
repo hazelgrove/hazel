@@ -72,7 +72,7 @@ let extend = (l, ty) => {
 let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => {
   switch (kind) {
   | PEmptyHole(_u, _i) => ctx |> return
-  | PNonEmptyHole(_reason, _u, _i, p') => ana_pat(ctx, p', Hole)
+  | PNonEmptyHole(_reason, _u, _i, p') => ana_pat(ctx, p', THole)
   | PKeyword(_u, _i, _k) => ctx |> return
   | PInvalidText(_u, _i, _text) => ctx |> return
 
@@ -80,29 +80,29 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
 
   | PPair(p1, p2) =>
     switch (ty) {
-    | Prod([ty1, ty2]) =>
+    | TProd([ty1, ty2]) =>
       let* ctx = ana_pat(ctx, p1, ty1);
       ana_pat(ctx, p2, ty2);
-    /* FIXME: Hole is just a placeholder. */
-    | ty => PatTypesNotEqual(l, ty, Prod([Hole, Hole])) |> fail
+    /* FIXME: THole is just a placeholder. */
+    | ty => PatTypesNotEqual(l, ty, TProd([THole, THole])) |> fail
     }
 
   | PCons(p1, p2) =>
     switch (ty) {
-    | List(ty') =>
+    | TList(ty') =>
       let* ctx = ana_pat(ctx, p1, ty);
-      ana_pat(ctx, p2, List(ty'));
-    /* FIXME: Hole is just a placeholder. */
-    | ty => PatTypesNotEqual(l, ty, List(Hole)) |> fail
+      ana_pat(ctx, p2, TList(ty'));
+    /* FIXME: THole is just a placeholder. */
+    | ty => PatTypesNotEqual(l, ty, TList(THole)) |> fail
     }
 
   | PInj(side, p') =>
     switch (side, ty) {
-    | (L, Sum(ty, _))
-    | (R, Sum(_, ty)) => ana_pat(ctx, p', ty)
-    /* FIXME: Hole is just a placeholder. */
-    | (L, ty) => PatTypesNotEqual(l, ty, Sum(Hole, Hole)) |> fail
-    | (R, ty) => PatTypesNotEqual(l, ty, Sum(Hole, Hole)) |> fail
+    | (L, TSum(ty, _))
+    | (R, TSum(_, ty)) => ana_pat(ctx, p', ty)
+    /* FIXME: THole is just a placeholder. */
+    | (L, ty) => PatTypesNotEqual(l, ty, TSum(THole, THole)) |> fail
+    | (R, ty) => PatTypesNotEqual(l, ty, TSum(THole, THole)) |> fail
     }
 
   | PWild => ctx |> return
@@ -110,34 +110,34 @@ let rec ana_pat = (ctx, {kind, label: l}: Pat.t, ty: Typ.t): m(TypContext.t) => 
 
   | PBoolLit(_b) =>
     switch (ty) {
-    | Bool => ctx |> return
-    | _ => PatTypesNotEqual(l, ty, Bool) |> fail
+    | TBool => ctx |> return
+    | _ => PatTypesNotEqual(l, ty, TBool) |> fail
     }
 
   | PIntLit(_n) =>
     switch (ty) {
-    | Int => ctx |> return
-    | _ => PatTypesNotEqual(l, ty, Int) |> fail
+    | TInt => ctx |> return
+    | _ => PatTypesNotEqual(l, ty, TInt) |> fail
     }
 
   | PFloatLit(_f) =>
     switch (ty) {
-    | Float => ctx |> return
-    | _ => PatTypesNotEqual(l, ty, Float) |> fail
+    | TFloat => ctx |> return
+    | _ => PatTypesNotEqual(l, ty, TFloat) |> fail
     }
 
   | PNil =>
     switch (ty) {
-    | List(_) => ctx |> return
-    /* FIXME: Hole is just a placeholder. */
-    | _ => PatTypesNotEqual(l, ty, List(Hole)) |> fail
+    | TList(_) => ctx |> return
+    /* FIXME: THole is just a placeholder. */
+    | _ => PatTypesNotEqual(l, ty, TList(THole)) |> fail
     }
 
   | PTriv =>
     switch (ty) {
-    | Prod([]) => ctx |> return
+    | TProd([]) => ctx |> return
     /* FIXME: [] is just a placeholder. */
-    | _ => PatTypesNotEqual(l, ty, Prod([])) |> fail
+    | _ => PatTypesNotEqual(l, ty, TProd([])) |> fail
     }
   };
 };
@@ -186,32 +186,32 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
   /* FIXME: Refer to Statics_DHExp in livelits branch. */
   | EInconsistentBranches(u, _i, sigma, case) =>
     let* ty = syn_case(ctx, delta, case, l);
-    Typ.equal(ty, Hole)
+    Typ.equal(ty, THole)
       ? syn_hole(ctx, delta, l, u, sigma)
-      : TypesNotEqual(l, ty, Hole) |> fail;
+      : TypesNotEqual(l, ty, THole) |> fail;
 
   | ELet(p, e1, e2) =>
     let* ty1 = syn(ctx, delta, e1);
     let* ctx = ana_pat(ctx, p, ty1);
     let* ty2 = syn(ctx, delta, e2);
-    extend(l, Arrow(ty1, ty2));
+    extend(l, TArrow(ty1, ty2));
 
   | ELetRec(_x, _p, _p_ty, _body, _e') => raise(NotImplemented)
 
   | EFun(p, p_ty, body) =>
     let* ctx = ana_pat(ctx, p, p_ty);
     let* body_ty = syn(ctx, delta, body);
-    extend(l, Arrow(p_ty, body_ty));
+    extend(l, TArrow(p_ty, body_ty));
 
   /* Application */
   | EAp(fn, arg) =>
     let* fn_ty = syn(ctx, delta, fn);
     let* arg_ty = syn(ctx, delta, arg);
     switch (fn_ty) {
-    | Arrow(ty1, ty2) when Typ.equal(arg_ty, ty1) => extend(l, ty2)
-    | Arrow(ty1, _ty2) => TypesNotEqual(arg.label, arg_ty, ty1) |> fail
-    /* FIXME: Hole here is just a placeholder for unknown. */
-    | _ => TypesNotEqual(fn.label, fn_ty, Arrow(arg_ty, Hole)) |> fail
+    | TArrow(ty1, ty2) when Typ.equal(arg_ty, ty1) => extend(l, ty2)
+    | TArrow(ty1, _ty2) => TypesNotEqual(arg.label, arg_ty, ty1) |> fail
+    /* FIXME: THole here is just a placeholder for unknown. */
+    | _ => TypesNotEqual(fn.label, fn_ty, TArrow(arg_ty, THole)) |> fail
     };
 
   | EApBuiltin(name, args) =>
@@ -227,13 +227,13 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     let rec syn_builtin = (fn_ty: Typ.t, arg_tys) =>
       switch (arg_tys, fn_ty) {
       | ([], fn_ty) => fn_ty |> return
-      | ([(arg_l, arg_ty), ...arg_tys], Arrow(ty1, ty2)) =>
+      | ([(arg_l, arg_ty), ...arg_tys], TArrow(ty1, ty2)) =>
         Typ.equal(arg_ty, ty1)
           ? syn_builtin(ty2, arg_tys)
           : TypesNotEqual(arg_l, arg_ty, ty1) |> fail
-      /* FIXME: Hole here is just a placeholder. */
+      /* FIXME: THole here is just a placeholder. */
       /* FIXME: Label here is wrong. */
-      | (_, fn_ty) => TypesNotEqual(l, fn_ty, Arrow(Hole, Hole)) |> fail
+      | (_, fn_ty) => TypesNotEqual(l, fn_ty, TArrow(THole, THole)) |> fail
       };
 
     let* ty = syn_builtin(fn_ty, arg_tys);
@@ -241,42 +241,42 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
   /* Binary operations */
   | EBinBoolOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, Bool);
-    let* () = ana(ctx, delta, e2, Bool);
-    extend(l, Bool);
+    let* () = ana(ctx, delta, e1, TBool);
+    let* () = ana(ctx, delta, e2, TBool);
+    extend(l, TBool);
 
   | EBinIntOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, Int);
-    let* () = ana(ctx, delta, e2, Int);
-    extend(l, Int);
+    let* () = ana(ctx, delta, e1, TInt);
+    let* () = ana(ctx, delta, e2, TInt);
+    extend(l, TInt);
 
   | EBinFloatOp(_op, e1, e2) =>
-    let* () = ana(ctx, delta, e1, Float);
-    let* () = ana(ctx, delta, e2, Float);
-    extend(l, Bool);
+    let* () = ana(ctx, delta, e1, TFloat);
+    let* () = ana(ctx, delta, e2, TFloat);
+    extend(l, TBool);
 
   /* Pair */
   | EPair(e1, e2) =>
     let* ty1 = syn(ctx, delta, e1);
     let* ty2 = syn(ctx, delta, e2);
-    extend(l, Prod([ty1, ty2]));
+    extend(l, TProd([ty1, ty2]));
 
   /* Cons */
   | ECons(e1, e2) =>
     let* ty1 = syn(ctx, delta, e1);
     let* ty2 = syn(ctx, delta, e2);
     switch (ty2) {
-    | List(ty2') when Typ.equal(ty1, ty2') => extend(l, List(ty1))
-    | List(ty2') => TypesNotEqual(e1.label, ty1, ty2') |> fail
-    | ty2 => TypesNotEqual(e2.label, ty2, List(ty1)) |> fail
+    | TList(ty2') when Typ.equal(ty1, ty2') => extend(l, TList(ty1))
+    | TList(ty2') => TypesNotEqual(e1.label, ty1, ty2') |> fail
+    | ty2 => TypesNotEqual(e2.label, ty2, TList(ty1)) |> fail
     };
 
-  /* Sum injection */
+  /* TSum injection */
   | EInj(other_ty, side, e') =>
     let* this_ty = syn(ctx, delta, e');
     switch (side) {
-    | L => extend(l, Sum(this_ty, other_ty))
-    | R => extend(l, Sum(other_ty, this_ty))
+    | L => extend(l, TSum(this_ty, other_ty))
+    | R => extend(l, TSum(other_ty, this_ty))
     };
 
   | EBoundVar(_, x) =>
@@ -285,11 +285,11 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
     | None => UnboundVar(l) |> fail
     }
 
-  | EBoolLit(_) => extend(l, Bool)
-  | EIntLit(_) => extend(l, Int)
-  | EFloatLit(_) => extend(l, Float)
-  | ENil(ty') => extend(l, List(ty'))
-  | ETriv => extend(l, Prod([]))
+  | EBoolLit(_) => extend(l, TBool)
+  | EIntLit(_) => extend(l, TInt)
+  | EFloatLit(_) => extend(l, TFloat)
+  | ENil(ty') => extend(l, TList(ty'))
+  | ETriv => extend(l, TProd([]))
   }
 
 and syn_case =

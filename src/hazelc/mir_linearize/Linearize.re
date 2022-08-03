@@ -49,14 +49,14 @@ module Renamings = {
 
 let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   switch (ty) {
-  | Hole => Hole
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | Arrow(t1, t2) => Arrow(linearize_typ(t1), linearize_typ(t2))
-  | Sum(t1, t2) => Sum(linearize_typ(t1), linearize_typ(t2))
-  | Prod(ts) => Prod(ts |> List.map(linearize_typ))
-  | List(t') => List(linearize_typ(t'))
+  | THole => Hole
+  | TInt => Int
+  | TFloat => Float
+  | TBool => Bool
+  | TArrow(t1, t2) => Arrow(linearize_typ(t1), linearize_typ(t2))
+  | TSum(t1, t2) => Sum(linearize_typ(t1), linearize_typ(t2))
+  | TProd(ts) => Prod(ts |> List.map(linearize_typ))
+  | TList(t') => List(linearize_typ(t'))
   };
 
 let rec linearize_block = (d: Hir_expr.expr, renamings): t(block) => {
