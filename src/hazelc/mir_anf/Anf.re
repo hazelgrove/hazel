@@ -65,7 +65,7 @@ and comp_kind =
   | CFun(Ident.t, Typ.t, block)
   | CCons(imm, imm)
   | CPair(imm, imm)
-  | CInj(inj_side, imm)
+  | CInj(Typ.t, inj_side, imm)
   | CCase(imm, list(rule))
   | CEmptyHole(MetaVar.t, MetaVarInst.t, sigma)
   | CNonEmptyHole(HoleReason.t, MetaVar.t, MetaVarInst.t, sigma, imm)

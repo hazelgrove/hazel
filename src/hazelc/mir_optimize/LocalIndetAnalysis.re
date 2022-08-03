@@ -110,9 +110,9 @@ and analyze_comp = (c: comp, cctx): comp => {
       let im2 = analyze_imm(im2, cctx);
       (CPair(im1, im2), Complete.join(im1.imm_complete, im2.imm_complete));
 
-    | CInj(side, im) =>
+    | CInj(other_ty, side, im) =>
       let im = analyze_imm(im, cctx);
-      (CInj(side, im), im.imm_complete);
+      (CInj(other_ty, side, im), im.imm_complete);
 
     | CCase(scrut, rules) =>
       let scrut = analyze_imm(scrut, cctx);

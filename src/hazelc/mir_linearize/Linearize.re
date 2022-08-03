@@ -392,7 +392,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
 
     let* inj_label = next_expr_label;
     let inj = {
-      comp_kind: CInj(side, im),
+      comp_kind: CInj(other_ty, side, im),
       comp_ty: inj_ty,
       comp_complete: default_completeness,
       comp_label: inj_label,
