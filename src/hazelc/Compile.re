@@ -6,7 +6,6 @@ open Hazeltext;
 [@deriving sexp]
 type opts = {
   analyze: Mir.Analyze.opts,
-  optimize: Mir.Optimize.opts,
   codegen: Codegen.Grain.opts,
 };
 

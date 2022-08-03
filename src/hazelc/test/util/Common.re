@@ -19,7 +19,6 @@ module Compile = {
             level: LocalAnalysis,
           },
         },
-        optimize: (),
         codegen: {
           print_final_expr: true,
         },
@@ -40,7 +39,6 @@ module Compile = {
             level: LocalAnalysis,
           },
         },
-        optimize: (),
         codegen: {
           print_final_expr: false,
         },

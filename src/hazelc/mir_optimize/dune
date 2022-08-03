@@ -1,7 +1,0 @@
-(include_subdirs unqualified)
-
-(library
- (name mir_optimize)
- (libraries mir_anf sexplib)
- (preprocess
-  (pps ppx_sexp_conv)))

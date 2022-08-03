@@ -50,7 +50,6 @@ let mk_opts = (action, _verbose, optimize, _debug, std) => {
         level: completes_level,
       },
     },
-    optimize: (),
     codegen: {
       print_final_expr: true,
     },
