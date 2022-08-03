@@ -6,5 +6,6 @@ type t =
   | TBool
   | TArrow(t, t)
   | TSum(t, t)
-  | TProd(list(t))
+  | TPair(t, t)
+  | TUnit
   | TList(t);

@@ -55,8 +55,8 @@ let rec linearize_typ = (ty: Hir_expr.typ): typ =>
   | TBool => TBool
   | TArrow(t1, t2) => TArrow(linearize_typ(t1), linearize_typ(t2))
   | TSum(t1, t2) => TSum(linearize_typ(t1), linearize_typ(t2))
-  | TPair(t1, t2) => TProd([linearize_typ(t1), linearize_typ(t2)])
-  | TUnit => TProd([])
+  | TPair(t1, t2) => TPair(linearize_typ(t1), linearize_typ(t2))
+  | TUnit => TUnit
   | TList(t') => TList(linearize_typ(t'))
   };
 
@@ -302,7 +302,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     (
       {
         imm_kind: IConst(ConstTriv),
-        imm_ty: TProd([]),
+        imm_ty: TUnit,
         imm_complete: default_completeness,
         imm_label: l,
       },
@@ -351,7 +351,7 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     let* pair_label = next_expr_label;
     let pair = {
       comp_kind: CPair(im1, im2),
-      comp_ty: TProd([im1.imm_ty, im2.imm_ty]),
+      comp_ty: TPair(im1.imm_ty, im2.imm_ty),
       comp_complete: default_completeness,
       comp_label: pair_label,
     };

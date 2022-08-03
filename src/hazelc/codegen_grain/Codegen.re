@@ -409,9 +409,13 @@ and codegen_cast = (im: Anf.imm, ty1: Anf.typ, ty2: Anf.typ): t(Grain.expr) => {
         let* ty1' = codegen_htyp(ty1);
         let* ty2' = codegen_htyp(ty2);
         Ast.HTyp.sum(ty1', ty2') |> return;
-      | TProd(tys) =>
-        let* tys' = tys |> codegen_fold(codegen_htyp);
-        Ast.HTyp.prod(tys') |> return;
+
+      | TPair(ty1, ty2) =>
+        let* ty1' = codegen_htyp(ty1);
+        let* ty2' = codegen_htyp(ty2);
+        Ast.HTyp.prod([ty1', ty2']) |> return;
+
+      | TUnit => Ast.HTyp.prod([]) |> return
 
       | TList(ty) =>
         let* ty' = codegen_htyp(ty);
