@@ -237,11 +237,12 @@ let apply_action =
           Hazelc.(
             {
               let opts: Compile.opts = {
-                optimize: {
-                  indet_analysis: {
+                analyze: {
+                  completes: {
                     level: LocalAnalysis,
                   },
                 },
+                optimize: (),
                 codegen: {
                   print_final_expr: false,
                 },

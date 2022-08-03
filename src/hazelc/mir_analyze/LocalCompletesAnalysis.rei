@@ -7,4 +7,4 @@
 /**
  * Perform static analysis and return annotated blockram.
  */
-let analyze: Mir_anf.block => Mir_anf.block;
+let analyze: Mir_anf.block => (Mir_anf.complete, Completes.t);

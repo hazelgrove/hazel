@@ -1,3 +1,5 @@
+open Mir_anf;
+
 [@deriving sexp]
 type level =
   | NoAnalysis
@@ -7,9 +9,12 @@ type level =
 [@deriving sexp]
 type opts = {level};
 
-let no_analyze = block => block;
-let local_analyze = LocalIndetAnalysis.analyze;
-let global_analyze = LocalIndetAnalysis.analyze;
+let no_analyze = _block => (
+  Complete.IndeterminatelyIncomplete,
+  Completes.empty,
+);
+let local_analyze = LocalCompletesAnalysis.analyze;
+let global_analyze = LocalCompletesAnalysis.analyze;
 
 let analyze = (~opts, block) => {
   switch (opts.level) {

@@ -2,7 +2,17 @@ module Typ = Typ;
 [@deriving sexp]
 type typ = Typ.t;
 
+module TypContext = TypContext;
+[@deriving sexp]
+type typ_context = TypContext.t;
+
 module Complete = Complete;
+[@deriving sexp]
+type complete = Complete.t;
+
+module CompleteContext = CompleteContext;
+[@deriving sexp]
+type complete_context = CompleteContext.t;
 
 module Pat = Pat;
 [@deriving sexp]

@@ -14,11 +14,12 @@ module Compile = {
     switch (profile) {
     | Test =>
       let opts: Compile.opts = {
-        optimize: {
-          indet_analysis: {
+        analyze: {
+          completes: {
             level: LocalAnalysis,
           },
         },
+        optimize: (),
         codegen: {
           print_final_expr: true,
         },
@@ -34,11 +35,12 @@ module Compile = {
 
     | Bench =>
       let opts: Compile.opts = {
-        optimize: {
-          indet_analysis: {
+        analyze: {
+          completes: {
             level: LocalAnalysis,
           },
         },
+        optimize: (),
         codegen: {
           print_final_expr: false,
         },

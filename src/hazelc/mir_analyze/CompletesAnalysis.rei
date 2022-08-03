@@ -1,3 +1,5 @@
+open Mir_anf;
+
 /**
  * Analysis level.
  */
@@ -13,4 +15,4 @@ type level =
 [@deriving sexp]
 type opts = {level};
 
-let analyze: (~opts: opts, Mir_anf.block) => Mir_anf.block;
+let analyze: (~opts: opts, Mir_anf.block) => (Complete.t, Completes.t);
