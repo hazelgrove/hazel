@@ -8,8 +8,6 @@ open Hir_expr.Typ;
 open TransformMonad;
 open TransformMonad.Syntax;
 
-type m('a) = TransformMonad.t('a);
-
 let rec transform_typ: HTyp.t => Typ.t =
   fun
   | Hole => THole
@@ -37,7 +35,7 @@ let transform_invalid_operation_error:
   fun
   | DivideByZero => DivideByZero;
 
-let transform_delta = (delta: HDelta.t): m(Delta.t) =>
+let transform_delta = (delta: HDelta.t) =>
   delta
   |> MetaVarMap.bindings
   |> List.map(((u, (sort, ty, gamma))) => {
@@ -59,7 +57,7 @@ let transform_delta = (delta: HDelta.t): m(Delta.t) =>
   |> Holes.MetaVarMap.of_seq
   |> return;
 
-let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
+let rec transform_exp = (d: DHExp.t) => {
   switch (d) {
   | EmptyHole(u, i, sigma) =>
     let* sigma = transform_var_map(sigma);
@@ -69,9 +67,9 @@ let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
   | NonEmptyHole(reason, u, i, sigma, d') =>
     let reason = transform_hole_reason(reason);
     let* sigma = transform_var_map(sigma);
-    let* d' = transform_exp(d');
+    let* e' = transform_exp(d');
     let+ label = next_expr_label;
-    {kind: ENonEmptyHole(reason, u, i, sigma, d'), label};
+    {kind: ENonEmptyHole(reason, u, i, sigma, e'), label};
 
   | ExpandingKeyword(u, i, sigma, k) =>
     let k = transform_expanding_keyword(k);
@@ -98,29 +96,29 @@ let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
   | FixF(_) => failwith("lone FixF")
   | Let(Var(_), FixF(x, _ty, Fun(dp, dp_ty, d3)), body) =>
     let x = transform_var(x);
-    let dp_ty = transform_typ(dp_ty);
+    let p_ty = transform_typ(dp_ty);
 
     // TODO: Not really sure if any of this recursive function handling is right...
-    let* dp = transform_pat(dp);
+    let* p = transform_pat(dp);
 
-    let* d3 = transform_exp(d3);
+    let* e3 = transform_exp(d3);
     let* body = transform_exp(body);
     let+ label = next_expr_label;
-    {kind: ELetRec(x, dp, dp_ty, d3, body), label};
+    {kind: ELetRec(x, p, p_ty, e3, body), label};
 
   | Let(dp, d', body) =>
-    let* d' = transform_exp(d');
-    let* dp = transform_pat(dp);
+    let* e' = transform_exp(d');
+    let* p = transform_pat(dp);
     let* body = transform_exp(body);
     let+ label = next_expr_label;
-    {kind: ELet(dp, d', body), label};
+    {kind: ELet(p, e', body), label};
 
   | Fun(dp, dp_ty, body) =>
-    let dp_ty = transform_typ(dp_ty);
-    let* dp = transform_pat(dp);
+    let p_ty = transform_typ(dp_ty);
+    let* p = transform_pat(dp);
     let* body = transform_exp(body);
     let+ label = next_expr_label;
-    {kind: EFun(dp, dp_ty, body), label};
+    {kind: EFun(p, p_ty, body), label};
 
   | Ap(fn, arg) =>
     let* fn = transform_exp(fn);
@@ -143,39 +141,39 @@ let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
 
   | BinBoolOp(op, d1, d2) =>
     let op = transform_bool_op(op);
-    let* d1 = transform_exp(d1);
-    let* d2 = transform_exp(d2);
+    let* e1 = transform_exp(d1);
+    let* e2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    {kind: EBinBoolOp(op, d1, d2), label};
+    {kind: EBinBoolOp(op, e1, e2), label};
 
   | BinIntOp(op, d1, d2) =>
     let op = transform_int_op(op);
-    let* d1 = transform_exp(d1);
-    let* d2 = transform_exp(d2);
+    let* e1 = transform_exp(d1);
+    let* e2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    {kind: EBinIntOp(op, d1, d2), label};
+    {kind: EBinIntOp(op, e1, e2), label};
 
   | BinFloatOp(op, d1, d2) =>
     let op = transform_float_op(op);
-    let* d1 = transform_exp(d1);
-    let* d2 = transform_exp(d2);
+    let* e1 = transform_exp(d1);
+    let* e2 = transform_exp(d2);
 
     let+ label = next_expr_label;
-    {kind: EBinFloatOp(op, d1, d2), label};
+    {kind: EBinFloatOp(op, e1, e2), label};
 
   | Pair(d1, d2) =>
-    let* d1 = transform_exp(d1);
-    let* d2 = transform_exp(d2);
+    let* e1 = transform_exp(d1);
+    let* e2 = transform_exp(d2);
     let+ label = next_expr_label;
-    {kind: EPair(d1, d2), label};
+    {kind: EPair(e1, e2), label};
 
   | Cons(d1, d2) =>
-    let* d1 = transform_exp(d1);
-    let* d2 = transform_exp(d2);
+    let* e1 = transform_exp(d1);
+    let* e2 = transform_exp(d2);
     let+ label = next_expr_label;
-    {kind: ECons(d1, d2), label};
+    {kind: ECons(e1, e2), label};
 
   | Inj(other_ty, side, d') =>
     let other_ty = transform_typ(other_ty);
@@ -230,33 +228,33 @@ let rec transform_exp = (d: DHExp.t): m(Expr.t) => {
       if (HTyp.eq(ty, ty')) {
         transform_exp(d');
       } else {
-        let* d' = transform_exp(d');
+        let* e' = transform_exp(d');
         let ty = transform_typ(ty);
         let ty' = transform_typ(ty');
         let+ label = next_expr_label;
-        {kind: ECast(d', ty, ty'), label};
+        {kind: ECast(e', ty, ty'), label};
       }
 
     | _ =>
-      let* d' = transform_exp(d);
+      let* e' = transform_exp(d);
       let ty = transform_typ(ty);
       let ty' = transform_typ(ty');
       let+ label = next_expr_label;
-      {kind: ECast(d', ty, ty'), label};
+      {kind: ECast(e', ty, ty'), label};
     }
 
   | FailedCast(d', ty, ty') =>
-    let* d' = transform_exp(d');
+    let* e' = transform_exp(d');
     let ty = transform_typ(ty);
     let ty' = transform_typ(ty');
     let+ label = next_expr_label;
-    {kind: EFailedCast(d', ty, ty'), label};
+    {kind: EFailedCast(e', ty, ty'), label};
 
   | InvalidOperation(d', err) =>
-    let* d' = transform_exp(d');
+    let* e' = transform_exp(d');
     let err = transform_invalid_operation_error(err);
     let+ label = next_expr_label;
-    {kind: EInvalidOperation(d', err), label};
+    {kind: EInvalidOperation(e', err), label};
   };
 }
 
@@ -303,25 +301,25 @@ and transform_case = (case: DHExp.case) => {
 and transform_rule = (rule: DHExp.rule) => {
   switch (rule) {
   | Rule(dp, d) =>
-    let* dp = transform_pat(dp);
-    let* d = transform_exp(d);
+    let* p = transform_pat(dp);
+    let* e = transform_exp(d);
     let+ rule_label = next_rule_label;
-    {rule_kind: ERule(dp, d), rule_label};
+    {rule_kind: ERule(p, e), rule_label};
   };
 }
 
-and transform_var_map = (sigma: VarMap.t_(DHExp.t)): m(Sigma.t) =>
+and transform_var_map = (sigma: VarMap.t_(DHExp.t)) =>
   sigma
   |> List.map(((x, d)) => {
        let x = transform_var(x);
-       let+ d = transform_exp(d);
-       (x, d);
+       let+ e = transform_exp(d);
+       (x, e);
      })
   |> sequence
   >>| List.to_seq
   >>| Sigma.of_seq
 
-and transform_pat = (dp: DHPat.t): m(Pat.t) => {
+and transform_pat = (dp: DHPat.t) => {
   Pat.(
     switch (dp) {
     | EmptyHole(u, i) =>
@@ -330,9 +328,9 @@ and transform_pat = (dp: DHPat.t): m(Pat.t) => {
 
     | NonEmptyHole(reason, u, i, dp) =>
       let reason = transform_hole_reason(reason);
-      let* dp = transform_pat(dp);
+      let* p = transform_pat(dp);
       let+ label = next_pat_label;
-      {kind: PNonEmptyHole(reason, u, i, dp), label};
+      {kind: PNonEmptyHole(reason, u, i, p), label};
 
     | ExpandingKeyword(u, i, k) =>
       let k = transform_expanding_keyword(k);
@@ -348,22 +346,22 @@ and transform_pat = (dp: DHPat.t): m(Pat.t) => {
       {kind: PWild, label};
 
     | Ap(dp1, dp2) =>
-      let* dp1 = transform_pat(dp1);
-      let* dp2 = transform_pat(dp2);
+      let* p1 = transform_pat(dp1);
+      let* p2 = transform_pat(dp2);
       let+ label = next_pat_label;
-      {kind: PAp(dp1, dp2), label};
+      {kind: PAp(p1, p2), label};
 
     | Pair(dp1, dp2) =>
-      let* dp1 = transform_pat(dp1);
-      let* dp2 = transform_pat(dp2);
+      let* p1 = transform_pat(dp1);
+      let* p2 = transform_pat(dp2);
       let+ label = next_pat_label;
-      {kind: PPair(dp1, dp2), label};
+      {kind: PPair(p1, p2), label};
 
     | Cons(dp, dps) =>
-      let* dp = transform_pat(dp);
-      let* dps = transform_pat(dps);
+      let* p = transform_pat(dp);
+      let* ps = transform_pat(dps);
       let+ label = next_pat_label;
-      {kind: PCons(dp, dps), label};
+      {kind: PCons(p, ps), label};
 
     | Var(x) =>
       let x = transform_var(x);
@@ -388,9 +386,9 @@ and transform_pat = (dp: DHPat.t): m(Pat.t) => {
         | L => L
         | R => R
         };
-      let* dp' = transform_pat(dp');
+      let* p' = transform_pat(dp');
       let+ label = next_pat_label;
-      {kind: PInj(side, dp'), label};
+      {kind: PInj(side, p'), label};
 
     | ListNil =>
       let+ label = next_pat_label;
