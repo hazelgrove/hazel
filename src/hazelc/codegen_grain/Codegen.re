@@ -124,11 +124,6 @@ and codegen_stmt = (stmt: Anf.stmt): t(Grain.stmt) => {
   | SLetRec(x, c) =>
     let* c' = codegen_comp(c);
     SLetRec(PVar(x |> Ident.to_string), c') |> return;
-
-  | SLetPat(p, im) =>
-    let* p' = codegen_pat(p);
-    let* im' = codegen_imm(im);
-    SLet(p', im') |> return;
   };
 }
 

@@ -4,12 +4,9 @@ open LinearizeMonad.Syntax;
 
 type bind =
   | BLet(Ident.t, comp)
-  | BLetRec(Ident.t, comp)
-  | BLetPat(Pat.t, imm);
+  | BLetRec(Ident.t, comp);
 
 let default_completeness = Complete.IndeterminatelyIncomplete;
-
-let mk_bind_pat = (p: pat, im: imm) => BLetPat(p, im);
 
 let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
   let+ imm_label = next_expr_label;
@@ -24,10 +21,16 @@ let mk_bind_var = (x: Ident.t, c: comp): t((imm, bind)) => {
   );
 };
 
+let mk_bind_var_named = (x: Ident.t, c: comp) => {
+  let* x' = next_tmp_named(x);
+  let+ (var, bind) = mk_bind_var(x', c);
+  (x', var, bind);
+};
+
 let mk_bind_var_tmp = (c: comp) => {
   let* x = next_tmp;
-  let* (var, bind) = mk_bind_var(x, c);
-  (var, bind) |> return;
+  let+ (var, bind) = mk_bind_var(x, c);
+  (var, bind);
 };
 
 let convert_bind = (bn: bind): t(stmt) => {
@@ -41,11 +44,6 @@ let convert_bind = (bn: bind): t(stmt) => {
       }
     | BLetRec(x, c) => {
         stmt_kind: SLetRec(x, c),
-        stmt_complete: default_completeness,
-        stmt_label: l,
-      }
-    | BLetPat(p, c) => {
-        stmt_kind: SLetPat(p, c),
         stmt_complete: default_completeness,
         stmt_label: l,
       }
@@ -105,13 +103,38 @@ and linearize_exp = (d: Hir_expr.expr, renamings): t((imm, list(bind))) => {
     )
     |> return;
 
-  | ELet(dp, d1, d2) =>
+  | ELet({kind: PVar(x), label: _}, d1, d2) =>
     let* (im1, im1_binds) = linearize_exp(d1, renamings);
-    let* (p, renamings') = linearize_pat(dp, renamings);
+
+    let* comp_label = next_expr_label;
+    let* (bind_x, _, bind) =
+      mk_bind_var_named(
+        x,
+        {
+          comp_kind: CImm(im1),
+          comp_complete: default_completeness,
+          comp_ty: im1.imm_ty,
+          comp_label,
+        },
+      );
+
+    let renamings' = Ident.Map.add(x, bind_x, renamings);
     let* (im2, im2_binds) = linearize_exp(d2, renamings');
 
-    let binds = im1_binds @ [mk_bind_pat(p, im1)] @ im2_binds;
+    let binds = im1_binds @ [bind] @ im2_binds;
     (im2, binds) |> return;
+
+  | ELet(dp, d1, d2) =>
+    /* FIXME: Need to create a label generator based off given expr and produce
+     * new label here.  */
+    let rules =
+      Hir_expr.Expr.[
+        {rule_kind: ERule(dp, d2), rule_label: RuleLabel.of_int(-1)},
+      ];
+    linearize_case(
+      Hir_expr.Expr.{case_kind: ECase(d1, rules, 1)},
+      renamings,
+    );
 
   | ELetRec(x, dp, dp_ty, body, d') =>
     let* x' = next_tmp;
@@ -432,6 +455,8 @@ and linearize_case = (case: Hir_expr.case, renamings): t((imm, list(bind))) => {
   switch (case.case_kind) {
   | ECase(scrut, rules, _) =>
     let* (scrut_imm, scrut_binds) = linearize_exp(scrut, renamings);
+    /* FIXME: Add wildcard rule that returns entire case expression as final
+     * catch-all. */
     let* rules = linearize_rules(rules, renamings);
 
     let rules_ty = List.hd(rules).rule_branch.block_ty;

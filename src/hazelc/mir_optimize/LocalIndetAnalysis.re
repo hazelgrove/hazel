@@ -54,11 +54,6 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
       (SLetRec(x, c), c.comp_complete, cctx);
 
     | SLetRec(_, _) => failwith("bad let rec without function rhs")
-
-    | SLetPat(p, im) =>
-      let im = analyze_imm(im, cctx);
-      let (p, cctx) = analyze_pat(p, im.imm_complete, cctx);
-      (SLetPat(p, im), Complete.join(p.complete, im.imm_complete), cctx);
     };
 
   ({stmt_kind, stmt_complete, stmt_label}, cctx);
@@ -87,7 +82,7 @@ and analyze_comp = (c: comp, cctx): comp => {
 
     | CFun(param, body) =>
       let (param, cctx) =
-        analyze_pat(param, IndeterminatelyIncomplete, cctx);
+        analyze_pat(param, Complete.IndeterminatelyIncomplete, cctx);
       let body = analyze_block(body, cctx);
       (
         CFun(param, body),
