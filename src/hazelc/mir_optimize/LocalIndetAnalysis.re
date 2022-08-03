@@ -41,6 +41,7 @@ and analyze_stmt = (stmt: stmt, cctx): (stmt, completes) => {
     switch (stmt_kind) {
     | SLet(x, c) =>
       let c = analyze_comp(c, cctx);
+      let cctx = Ident.Map.add(x, c.comp_complete, cctx);
       (SLet(x, c), c.comp_complete, cctx);
 
     /* SLetRec rhs can only be a lambda. */
