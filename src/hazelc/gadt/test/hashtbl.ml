@@ -3,9 +3,7 @@ open Tezt.Base
 open Gadt
 
 let register_test title tags f =
-  Test.register ~__FILE__ ~title
-    ~tags:([ "hazelc"; "query"; "dhashtbl" ] @ tags)
-    f
+  Test.register ~__FILE__ ~title ~tags:([ "gadt"; "hashtbl" ] @ tags) f
 
 let ensure b = if b then () else Test.fail "hashtbl behavior was incrorect"
 
@@ -42,11 +40,49 @@ let () =
       unit)
 
 let () =
-  register_test "single" [] (fun () ->
+  register_test "add single" [] (fun () ->
       let tbl = Tbl.create 10 in
 
       Tbl.add tbl (A 0) 10;
       ensure (Tbl.find_opt tbl (A 0) = Some 10);
+      ensure (Tbl.length tbl == 1);
+
+      ensure (Tbl.find_opt tbl (A 1) = None);
+      ensure (Tbl.find_opt tbl (B 0.) = None);
+      ensure (Tbl.find_opt tbl (C '0') = None);
+      ensure (Tbl.find_opt tbl (D 0) = None);
+
+      unit)
+
+let () =
+  register_test "add overwrite" [] (fun () ->
+      let tbl = Tbl.create 10 in
+
+      Tbl.add tbl (A 0) 10;
+      ensure (Tbl.find_opt tbl (A 0) = Some 10);
+      ensure (Tbl.length tbl == 1);
+
+      Tbl.add tbl (A 0) 20;
+      ensure (Tbl.find_opt tbl (A 0) = Some 20);
+      ensure (Tbl.length tbl == 2);
+
+      ensure (Tbl.find_opt tbl (A 1) = None);
+      ensure (Tbl.find_opt tbl (B 0.) = None);
+      ensure (Tbl.find_opt tbl (C '0') = None);
+      ensure (Tbl.find_opt tbl (D 0) = None);
+
+      unit)
+
+let () =
+  register_test "replace" [] (fun () ->
+      let tbl = Tbl.create 10 in
+
+      Tbl.add tbl (A 0) 10;
+      ensure (Tbl.find_opt tbl (A 0) = Some 10);
+      ensure (Tbl.length tbl == 1);
+
+      Tbl.replace tbl (A 0) 20;
+      ensure (Tbl.find_opt tbl (A 0) = Some 20);
       ensure (Tbl.length tbl == 1);
 
       ensure (Tbl.find_opt tbl (A 1) = None);
