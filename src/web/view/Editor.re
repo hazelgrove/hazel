@@ -140,11 +140,6 @@ let column_view =
               print_endline(string_of_int(i));
               inject(Update.SwitchEditor(i));
             }),
-            /*Attr.on_focus(_ => {
-                print_endline("focussing editor");
-                print_endline(string_of_int(i));
-                inject(Update.SwitchEditor(i));
-              }),*/
           ],
           [
             code_container(

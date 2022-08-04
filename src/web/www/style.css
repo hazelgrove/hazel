@@ -1125,6 +1125,9 @@ svg {
 /* DYNAMICS - test panel */
 
 .test-panel {
+  position: fixed;
+  right: 0;
+  top: 4em;
   width: 15em;
   padding: 0.25em;
   /* flex-grow: 1; */
