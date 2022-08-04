@@ -11,7 +11,7 @@ module Query = struct
     | _, _ -> None
 end
 
-module F = Fecchen.Make (Query)
+module F = Fetch.Make (Query)
 
 let rules F.{ fetch; pure; io = _ } q =
   let open Query in

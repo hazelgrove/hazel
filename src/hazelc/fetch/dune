@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name fecchen)
+ (name fetch)
  (libraries gadt ocamlgraph)
  (preprocess
   (pps ppx_let ppx_deriving.eq ppx_deriving.ord)))

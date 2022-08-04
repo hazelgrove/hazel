@@ -2,4 +2,4 @@
 
 (test
  (name main)
- (libraries fecchen tezt))
+ (libraries fetch tezt))
