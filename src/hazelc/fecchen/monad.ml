@@ -2,8 +2,9 @@ module type S = sig
   type 'd query
 
   module Memo : Memo.S with type 'd key = 'd query
+  module Depgraph : Depgraph.S with type 'd query = 'd query
 
-  type 'd state = { memo : 'd Memo.t }
+  type 'd state = { memo : 'd Memo.t; depgraph : Depgraph.t }
 
   val init : unit -> 'd state
 
@@ -12,6 +13,7 @@ module type S = sig
   val return : 'a -> ('d, 'a) t
   val bind : ('d, 'a) t -> ('a -> ('d, 'b) t) -> ('d, 'b) t
   val map : ('d, 'a) t -> ('a -> 'b) -> ('d, 'b) t
+  val sequence : ('d, 'a) t list -> ('d, 'a list) t
 
   module Syntax : sig
     val ( let* ) : ('d, 'a) t -> ('a -> ('d, 'b) t) -> ('d, 'b) t
@@ -31,10 +33,11 @@ module Make (Query : Query.T) : S with type 'd query = 'd Query.t = struct
   type 'd query = 'd Query.t
 
   module Memo = Memo.Make (Query)
+  module Depgraph = Depgraph.Make (Query)
 
-  type 'd state = { memo : 'd Memo.t }
+  type 'd state = { memo : 'd Memo.t; depgraph : Depgraph.t }
 
-  let init () = { memo = Memo.create 50 }
+  let init () = { memo = Memo.create 50; depgraph = Depgraph.create () }
 
   type ('d, 'a) t = 'd state -> 'd state * 'a
 
@@ -45,6 +48,16 @@ module Make (Query : Query.T) : S with type 'd query = 'd Query.t = struct
     f x s'
 
   let map x f = bind x (fun a -> return (f a))
+
+  let sequence ms =
+    let rec sequence' ms acc =
+      match ms with
+      | [] -> acc
+      | m :: ms ->
+          bind m (fun x -> sequence' ms (map acc (fun acc -> x :: acc)))
+    in
+
+    map (sequence' ms ([] |> return)) List.rev
 
   module Syntax = struct
     let ( let* ) = bind
