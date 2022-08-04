@@ -149,7 +149,7 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Fun(DHPat.t, HTyp.t, t, string)
+  | Fun(DHPat.t, HTyp.t, t, option(Var.t))
   | Ap(t, t)
   | ApBuiltin(string, list(t))
   | BoolLit(bool)

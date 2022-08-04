@@ -54,7 +54,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, InvalidText(_)) => Indet
   | (_, Let(_, _, _)) => Indet
   | (_, FixF(_, _, _)) => DoesNotMatch
-  | (_, Fun(_, _, _)) => DoesNotMatch
+  | (_, Fun(_, _, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => Indet
   | (_, BinBoolOp(_, _, _)) => Indet
   | (_, BinIntOp(_, _, _)) => Indet
@@ -198,7 +198,7 @@ and matches_cast_Inj =
   | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -264,7 +264,7 @@ and matches_cast_Pair =
   | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -336,7 +336,7 @@ and matches_cast_Cons =
   | ExpandingKeyword(_, _, _, _) => Indet
   | Let(_, _, _) => Indet
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Ap(_, _) => Indet
   | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
@@ -386,12 +386,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Fun(dp, ty, d3) =>
+  | Fun(dp, ty, d3, s) =>
     if (DHPat.binds_var(x, dp)) {
       d2;
     } else {
       let d3 = subst_var(d1, x, d3);
-      Fun(dp, ty, d3);
+      Fun(dp, ty, d3, s);
     }
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -540,10 +540,10 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       }
     }
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Fun(_, _, _) => BoxedValue(d)
+  | Fun(_, _, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     switch (evaluate(d1)) {
-    | BoxedValue(Fun(dp, _, d3)) =>
+    | BoxedValue(Fun(dp, _, d3, _)) =>
       switch (evaluate(d2)) {
       | BoxedValue(d2)
       | Indet(d2) =>

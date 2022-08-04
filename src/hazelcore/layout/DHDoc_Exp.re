@@ -294,7 +294,7 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      | Fun(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody, _) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));

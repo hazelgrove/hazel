@@ -353,14 +353,14 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Fun(NotInHole, p, body, s) =>
+  | Fun(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Fun(dp, ty1, d1, s);
+        let d = DHExp.Fun(dp, ty1, d1, None);
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
@@ -689,7 +689,7 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Fun(NotInHole, p, body, s) =>
+  | Fun(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
@@ -708,7 +708,7 @@ and ana_elab_operand =
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Fun(dp, ty1p, d1, s);
+            let d = DHExp.Fun(dp, ty1p, d1, None);
             Elaborates(d, ty, delta);
           }
         }
