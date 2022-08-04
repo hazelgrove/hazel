@@ -1,8 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-//open Core;
-
-let clss = Attr.classes;
+open Util.Web;
 
 let ty_view = (cls: string, s: string): Node.t =>
   div([clss(["typ-view", cls])], [text(s)]);

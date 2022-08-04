@@ -257,6 +257,8 @@
 }
 
 .editor.column {
+  position: relative;
+  top: 7em;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -277,6 +279,7 @@
 .cell{
   border-radius: 0.4em;
   width: fit-content;
+  min-width: 50vw;
   padding-left: 1em;
   padding: 0.5em;
   padding-left: 1.2em;
@@ -285,6 +288,14 @@
 
 .cell.selected{
   background-color: #fffcf3;
+}
+
+.cell-caption {
+  font-size: 0.8em;
+  padding: 0.1em 0 1em 0em;
+  font-size: 0.8em;
+  font-family: 'Helvetica Neue';
+  color: var(--top-bar-text);
 }
 
 .code-text {
@@ -923,6 +934,7 @@
 }
 
 .topbar-icon {
+  cursor: pointer;
   color: var(--top_bar_icon_fill);
 }
 .topbar-icon:hover {
@@ -980,12 +992,6 @@
   /*TODO(andrew): unhack*/
   stroke: #ce9600;
     fill: #ce9600;
-}
-
-.editor-caption {
-  padding: 8em 6em 1em 6.5em;
-  font-family: 'Helvetica Neue';
-  color: var(--top-bar-text);
 }
 
 svg {
@@ -1127,7 +1133,7 @@ svg {
 .test-panel {
   position: fixed;
   right: 0;
-  top: 4em;
+  top: 0em;
   width: 15em;
   padding: 0.25em;
   /* flex-grow: 1; */

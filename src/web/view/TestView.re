@@ -1,11 +1,11 @@
 open Virtual_dom.Vdom;
 open Node;
-open ViewUtil;
+open Util.Web;
 
 let test_instance_view =
     (dhcode_view, (d, status): TestMap.test_instance_report) => {
   let status = TestStatus.to_string(status);
-  div([Attr.classes(["test-instance", status])], [dhcode_view(d)]);
+  div([clss(["test-instance", status])], [dhcode_view(d)]);
 };
 
 let jump_to_test = (~inject as _, _) => Event.Ignore;
@@ -23,7 +23,7 @@ let test_report_view =
     [Attr.class_("test-report"), Attr.on_click(jump_to_test(~inject))],
     [
       div(
-        [Attr.classes(["test-id", "Test" ++ status])],
+        [clss(["test-id", "Test" ++ status])],
         // note: prints lexical index, not id
         [text(string_of_int(i + 1))],
       ),
@@ -38,7 +38,7 @@ let test_report_view =
 let test_reports_view =
     (~inject, ~dhcode_view: DHExp.t => Node.t, test_map: TestMap.t) =>
   div(
-    [Attr.classes(["panel-body", "test-reports"])],
+    [clss(["panel-body", "test-reports"])],
     List.mapi(test_report_view(~inject, ~dhcode_view), test_map),
   );
 
@@ -51,7 +51,7 @@ let test_bar = (~inject, ~test_map: TestMap.t) =>
           instance_reports |> TestMap.joint_status |> TestStatus.to_string;
         div(
           [
-            Attr.classes(["segment", status]),
+            clss(["segment", status]),
             Attr.on_click(jump_to_test(~inject)),
           ],
           [],
@@ -93,12 +93,7 @@ let test_percentage = (test_map: TestMap.t): t => {
   let passing = TestMap.count_status(Pass, test_map);
   let percentage = 100. *. float_of_int(passing) /. float_of_int(total);
   div(
-    [
-      Attr.classes([
-        "test-percent",
-        total == passing ? "all-pass" : "some-fail",
-      ]),
-    ],
+    [clss(["test-percent", total == passing ? "all-pass" : "some-fail"])],
     [text(Printf.sprintf("%.0f%%", percentage))],
   );
 };
@@ -123,12 +118,15 @@ let test_summary = (~inject, ~test_map) => {
     | _ => "Fail"
     };
   div(
-    [Attr.classes(["test-summary", "instructional-msg", status_class])],
+    [clss(["test-summary", "instructional-msg", status_class])],
     [test_text(test_map), test_bar(~inject, ~test_map)],
   );
 };
 
 let dhcode_view = (~font_metrics) => Interface.dhcode_view(~font_metrics);
+
+let view_of_main_title_bar = (title_text: string) =>
+  div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
 
 let view =
     (~inject=(), ~font_metrics, d: Elaborator_Exp.ElaborationResult.t): t => {
@@ -139,9 +137,9 @@ let view =
   | Some((_, test_map)) =>
     div_if(
       test_map != [],
-      [Attr.classes(["panel", "test-panel"])],
+      [clss(["panel", "test-panel"])],
       [
-        Panel.view_of_main_title_bar("Tests"),
+        view_of_main_title_bar("Student Tests"),
         test_reports_view(~inject, ~dhcode_view, test_map),
         test_summary(~inject, ~test_map),
       ],

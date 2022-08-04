@@ -25,29 +25,6 @@ true && f(a) && f(b) && g(true)",
   "",
 ];
 
-let school_defaults = [
-  "let student, implentation = 666 in",
-  "let student, tests = 777 in",
-];
-
-//TODO(andrew): hack, see num_editors too
-let num_schools = List.length(school_defaults);
-
-let editor_captions = [
-  "The zeroth editor. Silent; Serene.",
-  "A Foo calculator",
-  "Another method of calculating foos",
-  "A circle centerer",
-  "The fourth editor. Blocky; Staward",
-  "The fifth editor. Hums with numinous portent.",
-  "The sixth editor. Holds forbidden knowledge",
-  "The seventh editor. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-  "The eigth editor. Spidery.",
-  "The ninth editor: The final gate.",
-];
-
-assert(List.length(editor_captions) == List.length(editor_defaults));
-
 let num_editors = List.length(editor_defaults);
 
 let get_localstore = (k: string): option(string) =>

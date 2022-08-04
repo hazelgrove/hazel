@@ -2,8 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Core;
 open Util;
-
-let span_c = cls => span([Attr.class_(cls)]);
+open Util.Web;
 
 module Text = (M: {
                  let map: Measured.t;

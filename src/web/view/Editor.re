@@ -1,36 +1,9 @@
 open Virtual_dom.Vdom;
 open Node;
 open Core;
+open Util.Web;
 
-/*
- let res_view = (term, info_map) => {
-   let res_text =
-     switch (get_result(term, info_map)) {
-     | Some(d) => Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d))
-     | None => "NO_RESULT"
-     | exception _ => "EXCEPTION"
-     };
-   div([Attr.classes(["result"])], [text("RES:" ++ res_text)]);
- };
- */
-
-let ci_view = (zipper: Zipper.t, info_map) => {
-  let index =
-    switch (zipper |> Indicated.index) {
-    | Some(index) => index
-    | None => (-1)
-    };
-  let ci =
-    switch (zipper |> Indicated.index) {
-    | Some(index) => Id.Map.find_opt(index, info_map)
-    | None => None
-    };
-  switch (ci) {
-  | None => div([], [])
-  | Some(ci) => CursorInspector.view(index, ci)
-  };
-};
-
+/* zipper plus derived data. this is a convenience to help avoid recomputation */
 type fat_zipper = {
   zipper: Zipper.t,
   tile_map: Measured.t,
@@ -47,6 +20,23 @@ let fat_zipper = (zipper: Zipper.t) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   let tile_map = Measured.of_segment(unselected);
   {zipper, term, info_map, segment, unselected, tile_map};
+};
+
+let ci_view = (zipper: Zipper.t, info_map) => {
+  let index =
+    switch (zipper |> Indicated.index) {
+    | Some(index) => index
+    | None => (-1)
+    };
+  let ci =
+    switch (zipper |> Indicated.index) {
+    | Some(index) => Id.Map.find_opt(index, info_map)
+    | None => None
+    };
+  switch (ci) {
+  | None => div([], [])
+  | Some(ci) => CursorInspector.view(index, ci)
+  };
 };
 
 let deco = (~fat_zipper, ~font_metrics, show_backpack_targets) => {
@@ -84,7 +74,7 @@ let code_container =
   );
 };
 
-let single_view =
+let single_editor =
     (
       ~font_metrics,
       ~show_backpack_targets,
@@ -113,7 +103,49 @@ let single_view =
   );
 };
 
-let column_view =
+let cell_captions = ["Student Implementation", "Student Tests"];
+
+let cell_caption_view = (settings: Model.settings, n) =>
+  div(
+    [clss(["cell-caption"])],
+    settings.captions ? [text(List.nth(cell_captions, n))] : [],
+  );
+
+let cell_view =
+    (
+      idx,
+      fat_zipper,
+      ~settings: Model.settings,
+      ~inject,
+      ~font_metrics,
+      ~selected,
+      ~show_backpack_targets,
+    ) =>
+  div(
+    [
+      Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
+      Attr.create("tabindex", "0"),
+      Attr.on_click(_ => {
+        //print_endline("clicking editor");
+        //print_endline(string_of_int(i));
+        inject(
+          Update.SwitchEditor(idx),
+        )
+      }),
+    ],
+    [
+      cell_caption_view(settings, idx),
+      code_container(
+        ~font_metrics,
+        ~fat_zipper,
+        ~settings,
+        ~show_backpack_targets,
+        ~show_deco=idx == selected,
+      ),
+    ],
+  );
+
+let multi_editor =
     (
       ~font_metrics,
       ~show_backpack_targets,
@@ -130,27 +162,13 @@ let column_view =
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(
-      (i, fz) =>
-        div(
-          [
-            Attr.classes(["cell"] @ (selected == i ? ["selected"] : [])),
-            Attr.create("tabindex", "0"),
-            Attr.on_click(_ => {
-              print_endline("clicking editor");
-              print_endline(string_of_int(i));
-              inject(Update.SwitchEditor(i));
-            }),
-          ],
-          [
-            code_container(
-              ~font_metrics,
-              ~fat_zipper=fz,
-              ~settings,
-              ~show_backpack_targets,
-              ~show_deco=i == selected,
-            ),
-          ],
-        ),
+      cell_view(
+        ~settings,
+        ~inject,
+        ~font_metrics,
+        ~selected,
+        ~show_backpack_targets,
+      ),
       fat_zippers,
     )
     @ [
@@ -159,7 +177,6 @@ let column_view =
         ~font_metrics,
         Elaborator.uexp_elab(fat_zipper.info_map, fat_zipper.term),
       ),
-      //text(string_of_int(selected)),
       Interface.res_view(~font_metrics, fat_zipper.term, fat_zipper.info_map),
     ],
   );
@@ -178,14 +195,14 @@ let view =
   switch (editor_model) {
   | Simple(_)
   | Study(_) =>
-    single_view(
+    single_editor(
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper=focal_zipper,
       ~settings,
     )
   | School(selected, stages) =>
-    column_view(
+    multi_editor(
       ~font_metrics,
       ~show_backpack_targets,
       ~stages,

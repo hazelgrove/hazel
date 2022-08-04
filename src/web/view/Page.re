@@ -27,6 +27,15 @@ open Node;
 
 let unless = (p, a) => p ? Event.Many([]) : a;
 
+let button = (icon, action) =>
+  div([Attr.class_("topbar-icon"), Attr.on_mousedown(action)], [icon]);
+
+let link = (str, url, icon) =>
+  div(
+    [Attr.id(str)],
+    [a(Attr.[href(url), create("target", "_blank")], [icon])],
+  );
+
 let undo = (~inject, ~disabled: bool) => {
   let clss = disabled ? ["disabled"] : [];
   let undo = _ => unless(disabled, inject(Update.Undo));
@@ -59,31 +68,6 @@ let copy_log_to_clipboard = _ => {
   Event.Ignore;
 };
 
-let left_panel_view = (~inject, history) =>
-  div(
-    [Attr.id("history-button-container")],
-    [
-      undo(~inject, ~disabled=!ActionHistory.can_undo(history)),
-      redo(~inject, ~disabled=!ActionHistory.can_redo(history)),
-      div(
-        [
-          Attr.class_("topbar-icon"),
-          Attr.on_mousedown(copy_log_to_clipboard),
-        ],
-        [Icons.export],
-      ),
-    ],
-  );
-
-let button = (icon, action) =>
-  div([Attr.class_("topbar-icon"), Attr.on_mousedown(action)], [icon]);
-
-let link = (str, url, icon) =>
-  div(
-    [Attr.id(str)],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
-  );
-
 let center_panel_view = (~inject, cur_idx) => {
   let increment_editor = _ => {
     let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
@@ -114,12 +98,19 @@ let right_panel_view = (~inject) =>
     [
       button(Icons.eye, _ => inject(Update.Set(WhitespaceIcons))),
       button(Icons.trash, _ => inject(Update.LoadDefault)),
-      link("github", "https://github.com/hazelgrove/tylr", Icons.github),
-      link(
-        "help",
-        "https://twitter.com/dm_0ney/status/1414742742530498566?s=20",
-        Icons.circle_question,
-      ),
+      link("github", "https://github.com/hazelgrove/hazel", Icons.github),
+    ],
+  );
+
+let left_panel_view = (~inject, model: Model.t) =>
+  div(
+    [Attr.id("history-button-container")],
+    [
+      undo(~inject, ~disabled=!ActionHistory.can_undo(model.history)),
+      redo(~inject, ~disabled=!ActionHistory.can_redo(model.history)),
+      center_panel_view(~inject, Model.current_editor(model)),
+      button(Icons.export, copy_log_to_clipboard),
+      right_panel_view(~inject),
     ],
   );
 
@@ -127,9 +118,9 @@ let top_bar_view = (~inject, model: Model.t) =>
   div(
     [Attr.id("top-bar")],
     [
-      left_panel_view(~inject, model.history),
-      center_panel_view(~inject, Model.current_editor(model)),
-      right_panel_view(~inject),
+      left_panel_view(~inject, model),
+      //center_panel_view(~inject, Model.current_editor(model)),
+      //right_panel_view(~inject),
     ],
   );
 
@@ -142,21 +133,6 @@ let editor_view =
     ~font_metrics,
     ~show_backpack_targets,
     ~settings,
-  );
-
-let editor_caption_view = (model: Model.t) =>
-  div(
-    [Attr.class_("editor-caption")],
-    model.settings.captions
-      ? [
-        text(
-          List.nth(
-            LocalStorage.editor_captions,
-            Model.current_editor(model),
-          ),
-        ),
-      ]
-      : [],
   );
 
 let view = (~inject, ~handlers, model: Model.t) => {
@@ -176,7 +152,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       //FontSpecimen.view("logo-font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
-      editor_caption_view(model),
+      //editor_caption_view(model),
       editor_view(~inject, model),
     ],
   );
