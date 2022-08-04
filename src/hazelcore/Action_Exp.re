@@ -2069,6 +2069,7 @@ and syn_perform_operand =
       let (body, ty_body, id_gen) =
         Statics_Exp.syn_fix_holes(body_ctx, id_gen, body);
       let new_ty = HTyp.forall(tp, ty_body);
+      new_ty |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
       let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, body));
       Succeeded(SynDone((new_ze, new_ty, id_gen)));
     }
@@ -3778,10 +3779,10 @@ and ana_perform_operand =
         Succeeded(AnaDone((new_ze, id_gen)));
       }
     }
-  | (_, TypFunZE(_, _tp, zbody)) =>
+  | (_, TypFunZE(_, tp, zbody)) =>
     switch (HTyp.matched_forall(ctx, ty)) {
     | None => Failed
-    | Some((tp, ty_def)) =>
+    | Some((_tp, ty_def)) =>
       let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
       switch (ana_perform(body_ctx, a, (zbody, id_gen), ty_def)) {
       | Failed => Failed

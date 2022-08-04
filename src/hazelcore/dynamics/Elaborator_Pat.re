@@ -104,80 +104,91 @@ and syn_elab_skel =
 
 and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHPat.operand)
-    : ElaborationResult.t =>
-  switch (operand) {
-  | Wild(InHole(TypeInconsistent as reason, u))
-  | Var(InHole(TypeInconsistent as reason, u), _, _)
-  | IntLit(InHole(TypeInconsistent as reason, u), _)
-  | FloatLit(InHole(TypeInconsistent as reason, u), _)
-  | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
-  | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
-    let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
-    switch (syn_elab_operand(ctx, delta, operand')) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, _, ctx, delta) =>
-      let delta =
-        MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole(), ctx), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, dp), HTyp.hole(), ctx, delta);
-    };
-  | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
-  | IntLit(InHole(WrongLength, _), _)
-  | FloatLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
-  | EmptyHole(u) =>
-    let dp = DHPat.EmptyHole(u, 0);
-    let ty = HTyp.hole();
-    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
-    Elaborates(dp, ty, ctx, delta);
-  | InvalidText(u, t) =>
-    let dp = DHPat.InvalidText(u, 0, t);
-    let ty = HTyp.hole();
-    let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
-    Elaborates(dp, ty, ctx, delta);
-  | Wild(NotInHole) => Elaborates(Wild, HTyp.hole(), ctx, delta)
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-    Elaborates(Keyword(u, 0, k), HTyp.hole(), ctx, delta)
-  | Var(NotInHole, NotInVarHole, x) =>
-    let ctx = Context.add_var(ctx, x, HTyp.hole());
-    Elaborates(Var(x), HTyp.hole(), ctx, delta);
-  | IntLit(NotInHole, n) =>
-    switch (int_of_string_opt(n)) {
-    | Some(n) => Elaborates(IntLit(n), HTyp.int(), ctx, delta)
-    | None => DoesNotElaborate
-    }
-  | FloatLit(NotInHole, f) =>
-    switch (TextShape.hazel_float_of_string_opt(f)) {
-    | Some(f) => Elaborates(FloatLit(f), HTyp.float(), ctx, delta)
-    | None => DoesNotElaborate
-    }
-  | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), HTyp.bool(), ctx, delta)
-  | ListNil(NotInHole) =>
-    Elaborates(ListNil, HTyp.list(HTyp.hole()), ctx, delta)
-  | Parenthesized(p1) => syn_elab(ctx, delta, p1)
-  | Inj(NotInHole, side, p) =>
-    switch (syn_elab(ctx, delta, p)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp1, ty1, ctx, delta) =>
-      let dp = DHPat.Inj(side, dp1);
-      let ty =
-        switch (side) {
-        | L => HTyp.sum(ty1, HTyp.hole())
-        | R => HTyp.sum(HTyp.hole(), ty1)
-        };
+    : ElaborationResult.t => {
+  print_endline("enter Pat.syn_elab_operand");
+  let res: ElaborationResult.t =
+    switch (operand) {
+    | Wild(InHole(TypeInconsistent as reason, u))
+    | Var(InHole(TypeInconsistent as reason, u), _, _)
+    | IntLit(InHole(TypeInconsistent as reason, u), _)
+    | FloatLit(InHole(TypeInconsistent as reason, u), _)
+    | BoolLit(InHole(TypeInconsistent as reason, u), _)
+    | ListNil(InHole(TypeInconsistent as reason, u))
+    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+      let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
+      switch (syn_elab_operand(ctx, delta, operand')) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp, _, ctx, delta) =>
+        let delta =
+          MetaVarMap.add(u, Delta.Hole.Pattern(HTyp.hole(), ctx), delta);
+        Elaborates(NonEmptyHole(reason, u, 0, dp), HTyp.hole(), ctx, delta);
+      };
+    | Wild(InHole(WrongLength, _))
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
+    | EmptyHole(u) =>
+      let dp = DHPat.EmptyHole(u, 0);
+      let ty = HTyp.hole();
+      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
       Elaborates(dp, ty, ctx, delta);
-    }
-  | TypeAnn(_, p1, ty1) =>
-    switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
-    | None => DoesNotElaborate
-    | Some((ty1, _, _)) => ana_elab_operand(ctx, delta, p1, ty1)
-    }
-  }
+    | InvalidText(u, t) =>
+      let dp = DHPat.InvalidText(u, 0, t);
+      let ty = HTyp.hole();
+      let delta = MetaVarMap.add(u, Delta.Hole.Pattern(ty, ctx), delta);
+      Elaborates(dp, ty, ctx, delta);
+    | Wild(NotInHole) => Elaborates(Wild, HTyp.hole(), ctx, delta)
+    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
+      Elaborates(Keyword(u, 0, k), HTyp.hole(), ctx, delta)
+    | Var(NotInHole, NotInVarHole, x) =>
+      let ctx = Context.add_var(ctx, x, HTyp.hole());
+      Elaborates(Var(x), HTyp.hole(), ctx, delta);
+    | IntLit(NotInHole, n) =>
+      switch (int_of_string_opt(n)) {
+      | Some(n) => Elaborates(IntLit(n), HTyp.int(), ctx, delta)
+      | None => DoesNotElaborate
+      }
+    | FloatLit(NotInHole, f) =>
+      switch (TextShape.hazel_float_of_string_opt(f)) {
+      | Some(f) => Elaborates(FloatLit(f), HTyp.float(), ctx, delta)
+      | None => DoesNotElaborate
+      }
+    | BoolLit(NotInHole, b) =>
+      Elaborates(BoolLit(b), HTyp.bool(), ctx, delta)
+    | ListNil(NotInHole) =>
+      Elaborates(ListNil, HTyp.list(HTyp.hole()), ctx, delta)
+    | Parenthesized(p1) => syn_elab(ctx, delta, p1)
+    | Inj(NotInHole, side, p) =>
+      switch (syn_elab(ctx, delta, p)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(dp1, ty1, ctx, delta) =>
+        let dp = DHPat.Inj(side, dp1);
+        let ty =
+          switch (side) {
+          | L => HTyp.sum(ty1, HTyp.hole())
+          | R => HTyp.sum(HTyp.hole(), ty1)
+          };
+        Elaborates(dp, ty, ctx, delta);
+      }
+    | TypeAnn(_, p1, ty1) =>
+      print_endline("enter TypeAnn");
+      switch (Elaborator_Typ.syn_elab(ctx, delta, ty1)) {
+      | None => DoesNotElaborate
+      | Some((ty1, _, _)) =>
+        print_endline("finished TypeAnn.Elaborator_Typ.syn_elab");
+        let res = ana_elab_operand(ctx, delta, p1, ty1);
+        print_endline("finished TypeAnn.ana_elab_operand");
+        res;
+      };
+    };
 
+  print_endline("exit Pat.syn_elab_operand");
+  res;
+}
 and ana_elab =
     (ctx: Context.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t)
     : ElaborationResult.t =>

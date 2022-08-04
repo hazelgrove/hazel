@@ -29,8 +29,11 @@ module ElaborationResult = {
 module Let_syntax = ElaborationResult;
 
 let rec syn_elab =
-        (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
-  syn_elab_block(ctx, delta, e)
+        (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
+  print_endline("enter syn_elab");
+  e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+  syn_elab_block(ctx, delta, e);
+}
 
 and syn_elab_block =
     (ctx: Context.t, delta: Delta.t, block: UHExp.block): ElaborationResult.t =>
@@ -51,7 +54,8 @@ and syn_elab_block =
 
 and syn_elab_lines =
     (ctx: Context.t, delta: Delta.t, lines: list(UHExp.line))
-    : elab_result_lines =>
+    : elab_result_lines => {
+  print_endline("enter syn_elab_lines");
   switch (lines) {
   | [] => LinesElaborate(d => d, ctx, delta)
   | [line, ...lines] =>
@@ -64,10 +68,12 @@ and syn_elab_lines =
         LinesElaborate(d => prelude_line(prelude_lines(d)), ctx, delta)
       }
     }
-  }
+  };
+}
 
 and syn_elab_line =
-    (ctx: Context.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
+    (ctx: Context.t, delta: Delta.t, line: UHExp.line): elab_result_lines => {
+  print_endline("enter syn_elab_line");
   switch (line) {
   | ExpLine(e1) =>
     switch (syn_elab_opseq(ctx, delta, e1)) {
@@ -84,9 +90,11 @@ and syn_elab_line =
     | Some((ty_p, _)) =>
       let ctx1 = Statics_Exp.extend_let_def_ctx(ctx, p, def);
       let ty1 = HTyp.rescope(ctx1, ty_p);
+      print_endline("enter syn_elab_line.LetLine");
       switch (ana_elab(ctx1, delta, def, ty1)) {
       | DoesNotElaborate => LinesDoNotElaborate
       | Elaborates(d1, ty1', delta) =>
+        print_endline("finished syn_elab_line.LetLine.ana_elab");
         let dty1 = (ctx1, ty1);
         let dty1' = (ctx1, ty1');
         let d1 =
@@ -120,7 +128,8 @@ and syn_elab_line =
       let prelude = d => DHExp.TyAlias(tp, dty, d);
       LinesElaborate(prelude, ctx1, delta);
     }
-  }
+  };
+}
 
 and syn_elab_opseq =
     (ctx: Context.t, delta: Delta.t, OpSeq(skel, seq): UHExp.opseq)
@@ -271,7 +280,12 @@ and syn_elab_skel =
 
 and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHExp.operand)
-    : ElaborationResult.t =>
+    : ElaborationResult.t => {
+  print_endline("enter syn_elab_operand");
+  operand
+  |> UHExp.sexp_of_operand
+  |> Sexplib.Sexp.to_string_hum
+  |> print_endline;
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -437,7 +451,8 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  }
+  };
+}
 
 and syn_elab_rules =
     (ctx: Context.t, delta: Delta.t, rules: list(UHExp.rule), pat_ty: HTyp.t)
@@ -493,8 +508,10 @@ and syn_elab_rule =
 
 and ana_elab =
     (ctx: Context.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t)
-    : ElaborationResult.t =>
-  ana_elab_block(ctx, delta, e, ty)
+    : ElaborationResult.t => {
+  print_endline("enter ana_elab");
+  ana_elab_block(ctx, delta, e, ty);
+}
 
 and ana_elab_block =
     (ctx: Context.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
@@ -505,10 +522,11 @@ and ana_elab_block =
     switch (syn_elab_lines(ctx, delta, leading)) {
     | LinesDoNotElaborate => DoesNotElaborate
     | LinesElaborate(prelude, new_ctx, delta) =>
+      print_endline("Finished ana_elab_block.syn_elab_lines");
       switch (ana_elab_opseq(new_ctx, delta, conclusion, ty)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d, ty, delta) => Elaborates(prelude(d), ty, delta)
-      }
+      };
     }
   }
 
