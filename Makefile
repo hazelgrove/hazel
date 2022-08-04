@@ -63,6 +63,7 @@ bench:
 test:
 	dune build @src/fmt --auto-promote || true
 	dune exec src/hazeltest/hazeltest.exe -- --regression-dir src/hazeltest/regressions
+	dune exec src/hazelc/dhashtbl/test/main.exe -- --regression-dir src/hazeltest/regressions
 	dune exec src/hazelc/test/test/main.exe -- --regression-dir src/hazelc/test/test/regressions
 
 reset-regression-tests:
