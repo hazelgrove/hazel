@@ -186,12 +186,12 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
-  let hc_parents_view = (hc_parents: HoleInstanceParents.t) => {
+  let hi_parents_view = (hi_parents: HoleInstanceParents.t) => {
     let parents_info =
-      hc_parents
+      hi_parents
       |> List.map(((x, (u, i))) =>
            (u, i) == HoleInstance.result
-             ? Node.div([], [Node.text("directly in result")])
+             ? Node.div([], [Node.text("immediately")])
              : Node.div(
                  [Attr.classes(["path-area-parent"])],
                  [
@@ -303,10 +303,10 @@ let view =
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
-              | Some((_, hc_parents)) => [
+              | Some((_, hi_parents)) => [
                   path_view_titlebar,
                   hii_summary(hii, inst),
-                  hc_parents_view(hc_parents),
+                  hi_parents_view(hi_parents),
                 ]
               };
             } else {
