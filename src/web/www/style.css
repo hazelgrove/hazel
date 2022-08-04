@@ -65,6 +65,8 @@
   --top-bar-text: #a79f89;
   --delim-color: #586e75; /*#aeb5b8;*/ /*#657b83;*/
 
+  --err-color:#c00;
+
   --selection-color: #fae294;
   --selection-shadow-color: rosybrown;
 
@@ -178,22 +180,15 @@
   font-weight: bold;
   font-size: 16pt;
 }
-#font-specimen, #code-container {
+#font-specimen, .code-container, .result {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
 }
 
-#code-container {
-  padding: 1em 6em 6em 6em;
-}
-#code-container:focus {
-  outline: none;
-}
-
 @media screen and (min-height: 800px) {
-  #code-container {
+  .code-container {
     top: max(min(30%, 100vh - 350px), 64px);
   }
 }
@@ -256,10 +251,30 @@
   fill: var(--light-text-color);
 }
 
-.code {
+.editor {
+  display: flex;
+  justify-content: space-between;
+}
+
+.editor.column {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-left: 1em;
+}
+
+.code-container {
   position: relative;
-  line-height: var(--line-height);
-  white-space: nowrap
+  margin-bottom: 2em;;
+}
+
+.code {
+  /*position: relative;*/
+  /*white-space: nowrap;*/
+}
+
+.cell{
+  
 }
 
 .code-text {
@@ -276,7 +291,7 @@
    a hack to display incomplete delims in
    selections */
 .code-text-shards {
-  position: absolute;
+  /*position: absolute;*/
   z-index: var(--code-text-shards-z);
 }
 .code-text-shards span {
@@ -990,6 +1005,11 @@ svg {
 /* STATICS */
 
 .cursor-inspector {
+  /*TODO(andrew): move fontshit */
+  line-height: var(--line-height);
+  font-family: "Source Code Pro", monospace;
+  font-weight: normal;
+  font-size: 13pt;
   padding-right: 0.25em;
   position: fixed;
   top: 4em;
@@ -1089,4 +1109,170 @@ svg {
   padding-left: 1em;
   background-color: #c7b480;
   color: #fdf6e3;
+}
+
+/* DYNAMICS - test panel */
+
+.test-panel {
+  width: 15em;
+  padding: 0.25em;
+  /* flex-grow: 1; */
+  /*TODO(andrew): move fontshit */
+  line-height: var(--line-height);
+  font-family: "Source Code Pro", monospace;
+  font-size: 13pt;
+  background-color: #f8ebc6;
+}
+
+.test-reports {
+  position: relative;
+}
+
+.test-report {
+  cursor: pointer;
+  display: flex;
+  gap: 1em;
+  padding: 0.3em;
+  align-items: baseline;
+  /* background-color: #f0fff3; */
+  border: 1px outset #c7b480;
+  border-style: dotted;
+  border-left: 0px;
+  border-right: 0px;
+  border-top: 0;
+}
+
+.test-report:hover {
+  background-color: #cfd;
+}
+
+.test-id {
+}
+
+.test-id.Pass{
+  color: green;
+}
+
+.test-id.Fail{
+  color: var(--err-color);
+}
+
+.test-instances {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+.test-report .DHCode {
+  display: inline-block;
+}
+
+.test-instance {
+  margin-left: 0.5em;
+  border-radius: 0.5em;
+  padding: 0 0.2em 0 0.2em;
+}
+
+.test-instance .DHCode {
+  border-radius: 0.5em;
+  padding: 0 0.2em 0 0.2em;
+}
+
+.test-instance.Pass .DHCode {
+  color: green;
+}
+
+.test-instance.Fail .DHCode {
+  color: var(--err-color);
+  border: dotted 1px var(--err-color);
+}
+
+.test-instance.Indet .DHCode {
+}
+
+.test-summary {
+  display: flex;
+  flex-direction: column;
+  padding: 1em;
+  gap: 1em;
+}
+
+.test-text {
+  display: flex;
+  gap: 0.5em;
+}
+
+.test-percent {
+  font-weight: bold;
+}
+
+.test-percent.all-pass {
+  color: #7cb;
+}
+
+.test-percent.some-fail {
+  color: tan;
+}
+
+.test-bar {
+  display: flex;
+  width: 100%;
+  gap: 1px;
+}
+
+.test-bar .segment:first-child {
+  border-radius: 0.3em 0 0 0.3em;
+}
+
+.test-bar .segment:last-child {
+  border-radius: 0 0.3em 0.3em 0;
+}
+
+.test-bar .segment {
+  flex-grow: 1;
+  height: 0.5em;
+  cursor: pointer;
+}
+
+.test-bar .segment.Pass {
+  background-color: #7cb;
+}
+
+.test-bar .segment.Pass:hover {
+  background-color: rgb(81, 242, 194);
+}
+
+.test-bar .segment.Fail {
+  background-color: #f66;
+}
+
+.test-bar .segment.Fail:hover {
+  background-color: rgb(244, 0, 0);
+}
+
+.test-bar .segment.Indet {
+  background-color: tan;
+}
+
+.test-bar .segment.Indet:hover {
+  background-color: rgb(255, 199, 125);
+}
+
+.test-inspector {
+  background-color: #444;
+  border-radius: 0.25em;
+}
+
+.test-inspector .test-instance {
+  margin: 0;
+  padding: 0;
+}
+
+.test-inspector .test-instance.Pass .DHCode {
+  color: rgb(203, 255, 203);
+}
+
+.test-inspector  .test-instance.Fail .DHCode {
+  color: rgb(255, 183, 183);
+  border: none;
 }

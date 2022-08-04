@@ -25,6 +25,14 @@ true && f(a) && f(b) && g(true)",
   "",
 ];
 
+let school_defaults = [
+  "let student, implentation = 666 in",
+  "let student, tests = 777 in",
+];
+
+//TODO(andrew): hack, see num_editors too
+let num_schools = List.length(school_defaults);
+
 let editor_captions = [
   "The zeroth editor. Silent; Serene.",
   "A Foo calculator",
@@ -67,6 +75,7 @@ let save_settings_key: string = "SETTINGS";
 let action_log_key: string = "ACTION_LOG";
 let keystoke_log_key: string = "KEYSTROKE_LOG";
 let zipper_log_key: string = "ZIPPER_LOG";
+let save_school_key: string = "SAVE_SCHOOL";
 
 let insert_to_zid: (Zipper.state, string) => Zipper.state =
   (z_id, c) => {
@@ -141,6 +150,20 @@ let load_settings = (): Model.settings =>
     }
   };
 
+let save_school = (school: Model.school): unit =>
+  set_localstore(
+    save_school_key,
+    school |> Model.sexp_of_school |> Sexplib.Sexp.to_string,
+  );
+
+let load_school = (): Model.school =>
+  switch (get_localstore(save_school_key)) {
+  | None => Model.school_init
+  | Some(flag) =>
+    try(flag |> Sexplib.Sexp.of_string |> Model.school_of_sexp) {
+    | _ => Model.school_init
+    }
+  };
 /*
  let get_string_log = log_key =>
    switch (get_localstore(log_key)) {

@@ -48,6 +48,9 @@ let save = (model: Model.t): unit =>
   | Study(n, zs) =>
     assert(n < List.length(zs));
     LocalStorage.save_syntax(n, List.nth(zs, n));
+  | School(n, zs) =>
+    assert(n < List.length(zs));
+    LocalStorage.save_school((n, zs));
   };
 
 let update_settings =
@@ -72,24 +75,35 @@ let apply =
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
   | LoadInit =>
-    let (zs, id_gen) =
-      List.fold_left(
-        ((z_acc, id_gen: IdGen.state), n) =>
-          switch (LocalStorage.load_syntax(n, id_gen)) {
-          | Some((z, id_gen)) => (z_acc @ [z], id_gen)
-          | None => (z_acc @ [Model.empty_zipper], id_gen)
-          },
-        ([], model.id_gen),
-        List.init(LocalStorage.num_editors, n => n),
-      );
-    let zs = List.map(Move.to_start, zs);
+    let (idx, stages) = LocalStorage.load_school();
+    //TODO: id_gen
     Ok({
       ...model,
       history: ActionHistory.empty,
-      id_gen,
+      id_gen: 6666,
       settings: LocalStorage.load_settings(),
-      editor_model: Study(LocalStorage.load_editor_idx(), zs),
+      editor_model: School(idx, stages),
     });
+  /*
+   | LoadInit =>
+     let (zs, id_gen) =
+       List.fold_left(
+         ((z_acc, id_gen: IdGen.state), n) =>
+           switch (LocalStorage.load_syntax(n, id_gen)) {
+           | Some((z, id_gen)) => (z_acc @ [z], id_gen)
+           | None => (z_acc @ [Model.empty_zipper], id_gen)
+           },
+         ([], model.id_gen),
+         List.init(LocalStorage.num_editors, n => n),
+       );
+     let zs = List.map(Move.to_start, zs);
+     Ok({
+       ...model,
+       history: ActionHistory.empty,
+       id_gen,
+       settings: LocalStorage.load_settings(),
+       editor_model: Study(LocalStorage.load_editor_idx(), zs),
+     });*/
   | LoadDefault =>
     let n = Model.current_editor(model);
     switch (LocalStorage.load_default_syntax(n, model.id_gen)) {
@@ -129,10 +143,28 @@ let apply =
         LocalStorage.save_editor_idx(n);
         Ok({
           ...model,
+          //TODO: factor out history
           history: ActionHistory.empty,
           editor_model: Study(n, zs),
         });
       }
+    | School(m, _) when m == n => Error(FailedToSwitch)
+    | School(_, zs) =>
+      print_endline(string_of_int(List.length(zs)));
+      print_endline("switching school editor");
+      print_endline(string_of_int(n));
+      switch (n < List.length(zs)) {
+      | false => Error(FailedToSwitch)
+      | true =>
+        assert(n < List.length(zs));
+        LocalStorage.save_school((n, zs));
+        Ok({
+          ...model,
+          //TODO: factor out history
+          history: ActionHistory.empty,
+          editor_model: School(n, zs),
+        });
+      };
     }
   | SetShowBackpackTargets(b) =>
     Ok({

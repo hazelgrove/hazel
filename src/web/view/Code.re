@@ -112,7 +112,7 @@ let view =
       let settings = settings;
     });
   div(
-    [Attr.class_("code"), Attr.id("under-the-rail")],
+    [Attr.class_("code")],
     [
       span_c("code-text", Text.of_segment(unsel_seg)),
       span_c("code-text-shards", Text.of_segment(sel_seg)),

@@ -141,6 +141,15 @@ let forms: list((string, t)) = [
     ),
   ),
   ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
+  ("test", mk(ds, ["test", "then"], mk_pre(P.let_, Exp, [Exp]))),
+  (
+    "stage",
+    mk(
+      ds,
+      ["STAGE", "ATTEMPT", "TESTS", "HIDDEN", "END"],
+      mk_op(Exp, [Exp, Exp, Exp, Exp]),
+    ),
+  ),
   //("times", mk_infix("*", Exp, P.mult)),
   //("divide", mk_infix("/", Exp, P.mult)),
   //("not_equals", mk_infix("!=", Exp, 5)),

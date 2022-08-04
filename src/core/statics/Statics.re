@@ -144,6 +144,14 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
+  | Test(test, body) =>
+    let (_, free_test, m1) = go(~mode=Syn, test);
+    let (ty_body, free_body, m2) = go(~mode, body);
+    add(
+      ~self=Just(ty_body),
+      ~free=Ctx.union([free_test, free_body]),
+      union_m([m1, m2]),
+    );
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);

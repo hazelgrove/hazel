@@ -134,17 +134,14 @@ let top_bar_view = (~inject, model: Model.t) =>
   );
 
 let editor_view =
-    ({font_metrics, show_backpack_targets, settings, _} as model: Model.t) =>
-  div(
-    [Attr.id("code-container")],
-    [
-      Editor.view(
-        ~font_metrics,
-        ~show_backpack_targets,
-        ~zipper=Model.get_zipper(model),
-        ~settings,
-      ),
-    ],
+    (
+      {editor_model, font_metrics, show_backpack_targets, settings, _}: Model.t,
+    ) =>
+  Editor.view(
+    ~editor_model,
+    ~font_metrics,
+    ~show_backpack_targets,
+    ~settings,
   );
 
 let editor_caption_view = (model: Model.t) =>

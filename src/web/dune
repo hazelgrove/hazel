@@ -14,7 +14,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries web ppx_deriving_yojson.runtime)
+ (libraries web ppx_deriving_yojson.runtime hazelweb)
  (modes js)
  (js_of_ocaml
   (flags

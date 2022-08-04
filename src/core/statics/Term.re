@@ -129,6 +129,7 @@ module UExp = {
     | LetAnn
     | Ap
     | If
+    | Test
     | OpInt(exp_op_int)
     | OpFloat(exp_op_float)
     | OpBool(exp_op_bool);
@@ -151,6 +152,7 @@ module UExp = {
     //| ApBuiltin(Token.t, list(t))
     // maybe everything with fn semantics should be a builtin e.g. plus??
     | If(t, t, t)
+    | Test(t, t)
     | OpInt(exp_op_int, t, t)
     | OpFloat(exp_op_float, t, t)
     | OpBool(exp_op_bool, t, t)
@@ -174,6 +176,7 @@ module UExp = {
     | LetAnn(_) => LetAnn
     | Ap(_) => Ap
     | If(_) => If
+    | Test(_) => Test
     | OpInt(x, _, _) => OpInt(x)
     | OpFloat(x, _, _) => OpFloat(x)
     | OpBool(x, _, _) => OpBool(x);
@@ -193,6 +196,7 @@ module UExp = {
     | LetAnn => "Annotated Let Expression"
     | Ap => "Function Application"
     | If => "If Expression"
+    | Test => "Test"
     | OpInt(Plus) => "Integer Addition"
     | OpInt(Lt) => "Integer Less-Than"
     | OpFloat(Plus) => "Float Addition"
@@ -225,7 +229,7 @@ let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   of_piece(p, List.map(of_seg_and_skel(ps), kids));
 }
-and uhexp_of_seg = (ps: Segment.t): UExp.t =>
+and uexp_of_seg = (ps: Segment.t): UExp.t =>
   ps |> Segment.skel |> of_seg_and_skel(ps)
 and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
   let (p, kids) = piece_and_kids(ps, skel);
@@ -246,7 +250,8 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
   | Grout({id, shape}) =>
     switch (shape) {
     | Convex => {id, term: EmptyHole}
-    | Concave => invalid(p)
+    | Concave => {id, term: EmptyHole}
+    //TODO(andrew): do something better with concave holes
     }
   | Tile({id, label, children, mold: _, shards: _} as t) =>
     // TODO(andrew): do better than switching label
@@ -264,16 +269,18 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | (["+."], [l, r], []) => OpFloat(Plus, l, r)
       | (["<"], [l, r], []) => OpInt(Lt, l, r)
       | (["&&"], [l, r], []) => OpBool(And, l, r)
+      | (["test", "then"], [body], [test]) =>
+        Test(uexp_of_seg(test), body)
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
       | (["funann", ":", "->"], [body], [pat, typ]) =>
         FunAnn(upat_of_seg(pat), utyp_of_seg(typ), body)
       | (["let", "=", "in"], [body], [pat, def]) =>
-        Let(upat_of_seg(pat), uhexp_of_seg(def), body)
+        Let(upat_of_seg(pat), uexp_of_seg(def), body)
       | (["letann", ":", "=", "in"], [body], [pat, typ, def]) =>
-        LetAnn(upat_of_seg(pat), utyp_of_seg(typ), uhexp_of_seg(def), body)
+        LetAnn(upat_of_seg(pat), utyp_of_seg(typ), uexp_of_seg(def), body)
       | (["if", "then", "else"], [alt], [cond, conseq]) =>
-        If(uhexp_of_seg(cond), uhexp_of_seg(conseq), alt)
-      | (["(", ")"], [fn], [arg]) => Ap(fn, uhexp_of_seg(arg))
+        If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
+      | (["(", ")"], [fn], [arg]) => Ap(fn, uexp_of_seg(arg))
       //TODO(andrew): more cases
       | _ => Invalid(p)
       };
@@ -332,4 +339,4 @@ and of_piece_typ = (p: Piece.t, children_h: list(UTyp.t)): UTyp.t => {
   };
 };
 
-let of_zipper = (z: Zipper.t): UExp.t => z |> Zipper.zip |> uhexp_of_seg;
+let of_zipper = (z: Zipper.t): UExp.t => z |> Zipper.zip |> uexp_of_seg;

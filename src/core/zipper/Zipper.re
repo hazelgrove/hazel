@@ -17,6 +17,20 @@ type t = {
   caret_col_target: int,
 };
 
+let init: t = {
+  selection: {
+    focus: Left,
+    content: [],
+  },
+  backpack: [],
+  relatives: {
+    siblings: ([], [Grout({id: 0, shape: Convex})]),
+    ancestors: [],
+  },
+  caret: Outer,
+  caret_col_target: 0,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (t, IdGen.state);
 
