@@ -18,6 +18,6 @@ module Make (K : Hashtbl.KEY) : S with type 'a key = 'a K.t = struct
   type 'v t = 'v Tbl.t
 
   let create n = Tbl.create ~random:false n
-  let store = Tbl.add
+  let store = Tbl.replace
   let retrieve = Tbl.find_opt
 end
