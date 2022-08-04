@@ -261,6 +261,7 @@
   flex-direction: column;
   justify-content: space-between;
   padding-left: 1em;
+  gap: 0.5em;
 }
 
 .code-container {
@@ -274,7 +275,16 @@
 }
 
 .cell{
-  
+  border-radius: 0.4em;
+  width: fit-content;
+  padding-left: 1em;
+  padding: 0.5em;
+  padding-left: 1.2em;
+  border-left: 1px solid #c7b480;
+}
+
+.cell.selected{
+  background-color: #fffcf3;
 }
 
 .code-text {
@@ -1019,6 +1029,7 @@ svg {
   border-radius: 0.2em;
   border: 1px solid #ebdfc5;
   height: 1.2em;
+  background-color: #fefcf3;
 }
 
 .cursor-inspector.error {

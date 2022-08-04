@@ -177,7 +177,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       DecUtil.filters,
       top_bar_view(~inject, model),
       editor_caption_view(model),
-      editor_view(model),
+      editor_view(~inject, model),
     ],
   );
 };

@@ -65,6 +65,7 @@ let code_container =
       ~fat_zipper: fat_zipper,
       ~settings,
       ~show_backpack_targets,
+      ~show_deco,
     ) => {
   div(
     [Attr.class_("code-container")],
@@ -77,7 +78,9 @@ let code_container =
         ~settings,
       ),
     ]
-    @ deco(~fat_zipper, ~font_metrics, show_backpack_targets),
+    @ (
+      show_deco ? deco(~fat_zipper, ~font_metrics, show_backpack_targets) : []
+    ),
   );
 };
 
@@ -98,6 +101,7 @@ let single_view =
         ~fat_zipper,
         ~settings,
         ~show_backpack_targets,
+        ~show_deco=true,
       ),
       ci_view(fat_zipper.zipper, fat_zipper.info_map),
       TestView.view(
@@ -114,9 +118,10 @@ let column_view =
       ~font_metrics,
       ~show_backpack_targets,
       ~stages: list(Model.stage),
-      ~selected as _,
+      ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,
+      ~inject,
     ) => {
   let fat_zippers =
     List.map((stage: Model.stage) => fat_zipper(stage.z), stages);
@@ -124,16 +129,30 @@ let column_view =
   //TODO(andrew): now these just point at selected one
   div(
     [Attr.classes(["editor", "column"])],
-    List.map(
-      fz =>
+    List.mapi(
+      (i, fz) =>
         div(
-          [Attr.class_("cell")],
+          [
+            Attr.classes(["cell"] @ (selected == i ? ["selected"] : [])),
+            Attr.create("tabindex", "0"),
+            Attr.on_click(_ => {
+              print_endline("clicking editor");
+              print_endline(string_of_int(i));
+              inject(Update.SwitchEditor(i));
+            }),
+            /*Attr.on_focus(_ => {
+                print_endline("focussing editor");
+                print_endline(string_of_int(i));
+                inject(Update.SwitchEditor(i));
+              }),*/
+          ],
           [
             code_container(
               ~font_metrics,
               ~fat_zipper=fz,
               ~settings,
               ~show_backpack_targets,
+              ~show_deco=i == selected,
             ),
           ],
         ),
@@ -157,6 +176,7 @@ let view =
       ~show_backpack_targets,
       ~settings: Model.settings,
       ~editor_model: Model.editor_model,
+      ~inject,
     )
     : Node.t => {
   let focal_zipper = Model.get_zipper'(editor_model);
@@ -177,6 +197,7 @@ let view =
       ~selected,
       ~settings,
       ~focal_zipper,
+      ~inject,
     )
   };
 };
