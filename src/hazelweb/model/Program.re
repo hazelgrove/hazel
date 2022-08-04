@@ -397,16 +397,23 @@ let get_elaboration = (program: t): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
-let get_result = (program: t): Result.t =>
-  switch (program |> get_elaboration |> evaluate) {
+let get_result = (program: t): Result.t => {
+  let _ = print_endline("get_result 1");
+  let res = program |> get_elaboration;
+  let _ = print_endline("get_result elab");
+  let res = res |> evaluate;
+  switch (res) {
   | BoxedValue(d) =>
+    let _ = print_endline("get_result boxed");
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, BoxedValue(d_renumbered));
   | Indet(d) =>
+    let _ = print_endline("get_result indet");
     let (d_renumbered, hii) = renumber([], HoleInstanceInfo.empty, d);
     (d_renumbered, hii, Indet(d_renumbered));
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
+};
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(

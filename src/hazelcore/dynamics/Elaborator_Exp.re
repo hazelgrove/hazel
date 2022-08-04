@@ -394,7 +394,8 @@ and syn_elab_operand =
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(body, ty_body, delta) =>
       let d = DHExp.TypFun(tp, body);
-      Elaborates(d, HTyp.forall(tp, ty_body), delta);
+      let ty = HTyp.forall(tp, ty_body);
+      Elaborates(d, ty, delta);
     };
   | TypApp(NotInHole, body, ty) =>
     switch (Elaborator_Typ.syn_elab(ctx, delta, ty)) {

@@ -188,17 +188,17 @@ let update_program = (a: ModelAction.t, new_program, model) => {
       }
     };
   };
-  let _ = print_endline("update_program 2");
+  let model =
+    model
+    |> put_program(new_program)
+    |> map_selected_instances(update_selected_instances);
   model
-  |> put_program(new_program)
-  |> map_selected_instances(update_selected_instances)
   |> put_undo_history(
        {
          let history = model |> get_undo_history;
          let prev_cardstacks = model |> get_cardstacks;
          let new_cardstacks =
            model |> put_program(new_program) |> get_cardstacks;
-         let _ = print_endline("update_program finished");
          UndoHistory.push_edit_state(
            history,
            prev_cardstacks,

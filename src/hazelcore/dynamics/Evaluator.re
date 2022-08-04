@@ -575,7 +575,8 @@ let eval_bin_float_op =
   };
 };
 
-let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
+let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
+  let _ = d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
   switch (d) {
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
@@ -590,7 +591,9 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     }
   | TyAlias(_, _, d) => evaluate(d)
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Fun(_, _, _) => BoxedValue(d)
+  | Fun(_, _, _) =>
+    // d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+    BoxedValue(d)
   | Ap(d1, d2) =>
     let result = evaluate(d1);
     switch (result) {
@@ -642,7 +645,9 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
       }
     };
   | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
-  | TypFun(_, _) => BoxedValue(d)
+  | TypFun(_, d) =>
+    // d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+    BoxedValue(d)
   | TypApp(d, _) => evaluate(d)
   | ListNil(_)
   | BoolLit(_)
@@ -772,6 +777,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
           raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        let _ = print_endline("?");
         /* ITExpand rule */
         let dty'_grounded = (
           InitialContext.ctx,
@@ -781,6 +787,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
+        let _ = print_endline("??");
         /* ITGround rule */
         let dty_grounded = (
           InitialContext.ctx,
@@ -821,6 +828,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
         | _ => Indet(Cast(d1', dty, dty'))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
+        let _ = print_endline("???");
         /* ITExpand rule */
         let dty'_grounded = (
           InitialContext.ctx,
@@ -830,6 +838,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
+        let _ = print_endline("????");
         /* ITGround rule */
         let dty_grounded = (
           InitialContext.ctx,
@@ -857,7 +866,8 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t =>
     | Indet(d1') => Indet(FailedCast(d1', ty, ty'))
     }
   | InvalidOperation(d, err) => Indet(InvalidOperation(d, err))
-  }
+  };
+}
 and evaluate_case =
     (
       inconsistent_info,
