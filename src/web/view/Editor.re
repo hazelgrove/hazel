@@ -29,22 +29,18 @@ let get_target = (~font_metrics: FontMetrics.t, e) => {
   };
 };
 
-let mousedown_overlay = (~inject, ~font_metrics, ~mousedown) =>
-  mousedown
-    ? [
-      div(
-        Attr.[
-          id("mousedown-overlay"),
-          on_mouseup(_ => inject(Update.Mouseup)),
-          on_mousemove(e => {
-            let target = get_target(~font_metrics, e);
-            inject(Update.PerformAction(Select(Target(target))));
-          }),
-        ],
-        [],
-      ),
-    ]
-    : [];
+let mousedown_overlay = (~inject, ~font_metrics) =>
+  div(
+    Attr.[
+      id("mousedown-overlay"),
+      on_mouseup(_ => inject(Update.Mouseup)),
+      on_mousemove(e => {
+        let target = get_target(~font_metrics, e);
+        inject(Update.PerformAction(Select(Target(target))));
+      }),
+    ],
+    [],
+  );
 
 let ci_view = (zipper: Zipper.t, info_map) => {
   let index =
@@ -106,7 +102,7 @@ let view =
         ]);
       }),
     ],
-    mousedown_overlay(~inject, ~font_metrics, ~mousedown)
+    (mousedown ? [mousedown_overlay(~inject, ~font_metrics)] : [])
     @ [Code.view(~font_metrics, ~sel_seg, ~unsel_seg, ~map, ~settings)]
     @ Deco.all(zipper, sel_seg)
     //@ [text(zipper |> Term.of_zipper |> Term.show_uexp)]
