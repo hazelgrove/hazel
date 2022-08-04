@@ -134,7 +134,10 @@ let top_bar_view = (~inject, model: Model.t) =>
   );
 
 let editor_view =
-    (~inject, {font_metrics, show_backpack_targets, settings, _} as model: Model.t) =>
+    (
+      ~inject,
+      {font_metrics, show_backpack_targets, settings, _} as model: Model.t,
+    ) =>
   div(
     [Attr.id("code-container")],
     [

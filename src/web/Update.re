@@ -11,6 +11,8 @@ type settings_action =
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
+  | Mousedown
+  | Mouseup
   | LoadInit
   | LoadDefault
   | Load
