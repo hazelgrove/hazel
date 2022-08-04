@@ -49,10 +49,11 @@ let put_down = (z: t): option(t) =>
 let move = (d, z, id_gen) =>
   switch (d) {
   | Target(target) =>
+    let z = Selection.is_empty(z.selection) ? z : Outer.unselect(z);
     Caret.do_towards(Move.primary(ByChar), target, z)
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Extreme(d) =>
     Caret.do_extreme(Move.primary(ByToken), d, z)
     |> Option.map(update_target)
