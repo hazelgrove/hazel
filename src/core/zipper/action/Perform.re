@@ -49,19 +49,12 @@ let put_down = (z: t): option(t) =>
 let move = (d, z, id_gen) =>
   switch (d) {
   | Target(target) =>
-    let cursorpos = Caret.point(Measured.of_segment(unselect_and_zip(z)));
-    let p = cursorpos(z);
-    let d =
-      target.row < p.row || target.row == p.row && target.col < p.col
-        ? Direction.Left : Right;
-    let res =
-      Caret.do_towards(Move.primary(ByChar, d), d, cursorpos, target, z, z);
-    (Measured.point_equals(cursorpos(res), p) ? None : Some(res))
+    Caret.do_towards(Move.primary(ByChar), target, z)
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_move);
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Extreme(d) =>
-    Caret.do_extreme(Move.primary(ByToken, Zipper.from_plane(d)), d, z)
+    Caret.do_extreme(Move.primary(ByToken), d, z)
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
@@ -96,27 +89,16 @@ let select_primary = (d: Direction.t, z: t): option(t) =>
   };
 
 let select_vertical = (d: Direction.t, z: t): option(t) =>
-  Caret.do_vertical(select_primary(d), d, z);
+  Caret.do_vertical(select_primary, d, z);
 
 let select = (d, z, id_gen) =>
   (
     switch (d) {
     | Target(target) =>
-      let cursorpos = Caret.point(Measured.of_segment(unselect_and_zip(z)));
-      let p = cursorpos(z);
-      let d =
-        target.row < p.row || target.row == p.row && target.col < p.col
-          ? Direction.Left : Right;
-      let res =
-        Caret.do_towards(select_primary(d), d, cursorpos, target, z, z);
-      (
-        Measured.point_equals(cursorpos(res), cursorpos(z))
-          ? None : Some(res)
-      )
-      |> Option.map(update_target);
-    | Extreme(d) =>
-      Caret.do_extreme(select_primary(Zipper.from_plane(d)), d, z)
+      Caret.do_towards(select_primary, target, z)
       |> Option.map(update_target)
+    | Extreme(d) =>
+      Caret.do_extreme(select_primary, d, z) |> Option.map(update_target)
     | Local(d) =>
       /* Note: Don't update target on vertical selection */
       switch (d) {
