@@ -3,22 +3,22 @@ module Js = Js_of_ocaml.Js;
 module Parsing = Hazeltext.Parsing;
 module Print = Hazeltext.Print;
 
-let ast_from_texteditor_box = (te_model: TextEditorModel.t) => {
-  Parsing.ast_of_string(te_model.current_text);
-};
+let ast_from_text = Parsing.ast_of_string;
 
-let switch_button_clickhandler = (inject, te_model: TextEditorModel.t, _) => {
+let switch_button_clickhandler =
+    (inject: ModelAction.t => Ui_event.t, te_model: TextEditorModel.t, _) => {
   Vdom.Event.Many([
     inject(ModelAction.UpdateTextEditor(TextEditorModel.CloseEditor)),
     inject(
       ModelAction.Import(
-        ast_from_texteditor_box(te_model) |> Stdlib.Result.get_ok,
+        ast_from_text(te_model.current_text) |> Stdlib.Result.get_ok,
       ),
     ),
   ]);
 };
 
-let textbox_keyhandlers = (inject, model: Model.t) => {
+let textbox_keyhandlers =
+    (inject: ModelAction.t => Ui_event.t, model: Model.t) => {
   Vdom.[
     Attr.on_input((_, s) =>
       inject(
@@ -26,7 +26,7 @@ let textbox_keyhandlers = (inject, model: Model.t) => {
       )
     ),
     Attr.on_keyup(_ => {
-      let result = ast_from_texteditor_box(model.text_editor);
+      let result = ast_from_text(model.text_editor.current_text);
       inject(
         ModelAction.UpdateTextEditor(
           Stdlib.Result.(
@@ -40,7 +40,8 @@ let textbox_keyhandlers = (inject, model: Model.t) => {
   ];
 };
 
-let editor_switch_button = (inject, te_model: TextEditorModel.t) => {
+let editor_switch_button =
+    (inject: ModelAction.t => Ui_event.t, te_model: TextEditorModel.t) => {
   Vdom.(
     Node.span(
       [Attr.id("button-span")],
@@ -48,7 +49,12 @@ let editor_switch_button = (inject, te_model: TextEditorModel.t) => {
         Node.button(
           [
             Attr.id("editor-switch-button"),
-            Attr.on_click(switch_button_clickhandler(inject, te_model)),
+            Attr.on_click(
+              switch_button_clickhandler(
+                inject: ModelAction.t => Ui_event.t,
+                te_model,
+              ),
+            ),
             ...te_model.valid_text ? [] : [Attr.disabled],
           ],
           [Node.text("Switch to Structural Editor")],
@@ -60,17 +66,15 @@ let editor_switch_button = (inject, te_model: TextEditorModel.t) => {
 
 let text_box_height_css = (model: Model.t) => {
   let row_height = model.font_metrics.row_height;
-  Css_gen.(
-    height(
-      `Px(
-        (TextEditorModel.line_count(model.text_editor) + 1)
-        * Float.to_int(row_height),
-      ),
-    )
+  Css_gen.height(
+    `Px(
+      (TextEditorModel.line_count(model.text_editor) + 1)
+      * Float.to_int(row_height),
+    ),
   );
 };
 
-let text_editor_body = (inject, model: Model.t) => {
+let text_editor_body = (inject: ModelAction.t => Ui_event.t, model: Model.t) => {
   Vdom.(
     Node.div(
       [Attr.classes(["page"])],
@@ -93,7 +97,7 @@ let text_editor_body = (inject, model: Model.t) => {
   );
 };
 
-let view = (~inject, ~model: Model.t) => {
+let view = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
   Vdom.(
     Node.div([Attr.id("page-area")], [text_editor_body(inject, model)])
   );

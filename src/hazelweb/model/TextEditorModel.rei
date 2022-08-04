@@ -18,4 +18,7 @@ let init: t;
 
 let apply_update: (update, t) => t;
 
+/*
+ * Returns the count of newlines in current_text
+ */
 let line_count: t => int;

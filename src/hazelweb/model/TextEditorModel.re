@@ -23,29 +23,34 @@ let init = {
   error_text: "",
 };
 
-let toggle_valid = m => {...m, valid_text: !m.valid_text};
+let toggle_valid = (te_model: t) => {
+  ...te_model,
+  valid_text: !te_model.valid_text,
+};
 
-let extract_program_string = prog => {
+let extract_program_string = (prog: Program.t) => {
   let lay = Program.get_layout(~settings=Settings.init, prog);
   Hazeltext.Print.string_of_layout(lay);
 };
 
-let apply_update = (update, t) => {
-  switch (update) {
+let apply_update = (u: update, te_model: t) => {
+  switch (u) {
   | OpenEditor(p) => {
       active: true,
       valid_text: true,
       current_text: extract_program_string(p),
       error_text: "",
     }
-  | CloseEditor => {...t, active: false, valid_text: true}
-  | ToggleValid => toggle_valid(t)
-  | ClearError => {...t, valid_text: true, error_text: ""}
-  | SetCurrentText(s) => {...t, current_text: s}
-  | SetErrorText(s) => {...t, valid_text: false, error_text: s}
+  | CloseEditor => {...te_model, active: false, valid_text: true}
+  | ToggleValid => toggle_valid(te_model)
+  | ClearError => {...te_model, valid_text: true, error_text: ""}
+  | SetCurrentText(s) => {...te_model, current_text: s}
+  | SetErrorText(s) => {...te_model, valid_text: false, error_text: s}
   };
 };
 
-let line_count = t => {
-  String.split_on_char('\n', t.current_text) |> List.length |> (x => x + 0);
+let line_count = (te_model: t) => {
+  String.split_on_char('\n', te_model.current_text)
+  |> List.length
+  |> (x => x + 0);
 };
