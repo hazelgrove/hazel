@@ -69,7 +69,7 @@ type settings = {
   whitespace_icons: bool,
 };
 
-let settings_init = {captions: false, whitespace_icons: false};
+let settings_init = {captions: true, whitespace_icons: false};
 
 type t = {
   editor_model,
