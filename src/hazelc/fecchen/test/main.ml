@@ -1,5 +1,5 @@
 module Query = struct
-  type 'd t = A : int t | B : int t | C : int t
+  type 'd t = A : int t | B : int t | C : int t | D : int t
 
   let equal : type a b. a t -> b t -> (a t, b t) Gadt.Eq.t option =
    fun x x' ->
@@ -7,6 +7,7 @@ module Query = struct
     | A, A -> Some Refl
     | B, B -> Some Refl
     | C, C -> Some Refl
+    | D, D -> Some Refl
     | _, _ -> None
 end
 
@@ -24,6 +25,10 @@ let rules F.{ fetch; pure; io = _ } q =
       fetch A >>= fun n -> pure (n + 10)
   | C ->
       print_endline "fetching C";
-      fetch B >>= fun n -> pure (n + 10)
+      fetch B >>= fun n ->
+      fetch A >>= fun n' -> pure (n + n')
+  | D ->
+      print_endline "fetching D";
+      fetch C >>= fun n -> pure (n + 10)
 
-let () = F.run rules Query.C |> string_of_int |> print_endline
+let () = F.run_with_memo rules Query.D |> string_of_int |> print_endline
