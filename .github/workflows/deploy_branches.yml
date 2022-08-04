@@ -26,7 +26,7 @@ jobs:
         run: |
           sudo apt --assume-yes install m4 opam
           export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.4.12.1
+          opam init --compiler=ocaml-base-compiler.4.13.1
           eval $(opam env)
           make deps 
           make release
@@ -41,7 +41,7 @@ jobs:
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
       - name: Copy in the newly built source # STEP 6
-        run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/hazelweb/www"/* "./server/${BRANCH_NAME}"
+        run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/web/www"/* "./server/${BRANCH_NAME}"
       - name : Commit to the website aka deploy # STEP 7
         run: |
           git config user.name github-deploy-action
