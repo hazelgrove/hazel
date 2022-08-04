@@ -144,14 +144,9 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Test(test, body) =>
-    let (_, free_test, m1) = go(~mode=Syn, test);
-    let (ty_body, free_body, m2) = go(~mode, body);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_test, free_body]),
-      union_m([m1, m2]),
-    );
+  | Test(test) =>
+    let (ty_test, free_test, m1) = go(~mode=Ana(Bool), test);
+    add(~self=Just(ty_test), ~free=free_test, m1);
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
@@ -160,6 +155,14 @@ let rec uexp_to_info_map =
       ~self=Joined([{id: e1.id, ty: ty_e1}, {id: e2.id, ty: ty_e2}]),
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
+    );
+  | Seq(e1, e2) =>
+    let (_, free1, m1) = go(~mode=Syn, e1);
+    let (ty2, free2, m2) = go(~mode, e2);
+    add(
+      ~self=Just(ty2),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
     // NOTE: funpos currently set to Ana instead of Syn

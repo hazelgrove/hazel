@@ -129,21 +129,33 @@ let view_of_main_title_bar = (title_text: string) =>
   div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
 
 let view =
-    (~inject=(), ~font_metrics, d: Elaborator_Exp.ElaborationResult.t): t => {
+    (
+      ~title: string,
+      ~inject=(),
+      ~font_metrics,
+      d: Elaborator_Exp.ElaborationResult.t,
+    )
+    : t => {
   let dhcode_view = dhcode_view(~font_metrics);
   let result = Interface.get_result(d);
   switch (result) {
-  | None => div([], [])
+  | None =>
+    print_endline("WARNING: TESTVIREW: no result");
+    div([], []);
   | Some((_, test_map)) =>
+    print_endline("TESTVIEW: some result");
+    if (test_map == []) {
+      print_endline("TESTMAP EMPTY");
+    };
     div_if(
       test_map != [],
       [clss(["panel", "test-panel"])],
       [
-        view_of_main_title_bar("Student Tests"),
+        view_of_main_title_bar(title),
         test_reports_view(~inject, ~dhcode_view, test_map),
         test_summary(~inject, ~test_map),
       ],
-    )
+    );
   };
 };
 

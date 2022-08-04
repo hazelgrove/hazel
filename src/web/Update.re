@@ -50,7 +50,7 @@ let save = (model: Model.t): unit =>
     LocalStorage.save_syntax(n, List.nth(zs, n));
   | School(n, zs) =>
     assert(n < List.length(zs));
-    LocalStorage.save_school((n, zs));
+    LocalStorage.save_school((model.id_gen, n, zs));
   };
 
 let update_settings =
@@ -75,12 +75,12 @@ let apply =
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
   | LoadInit =>
-    let (idx, stages) = LocalStorage.load_school();
+    let (id_gen, idx, stages) = LocalStorage.load_school();
     //TODO: id_gen
     Ok({
       ...model,
       history: ActionHistory.empty,
-      id_gen: 6666,
+      id_gen,
       settings: LocalStorage.load_settings(),
       editor_model: School(idx, stages),
     });
@@ -105,17 +105,29 @@ let apply =
        editor_model: Study(LocalStorage.load_editor_idx(), zs),
      });*/
   | LoadDefault =>
-    let n = Model.current_editor(model);
-    switch (LocalStorage.load_default_syntax(n, model.id_gen)) {
-    | Some((z, id_gen)) =>
+    switch (model.editor_model) {
+    | Simple(_)
+    | Study(_) =>
+      let n = Model.current_editor(model);
+      switch (LocalStorage.load_default_syntax(n, model.id_gen)) {
+      | Some((z, id_gen)) =>
+        Ok({
+          ...model,
+          history: ActionHistory.empty, //TODO: history
+          editor_model: Model.put_zipper(model, Move.to_start(z)),
+          id_gen,
+        })
+      | None => Error(FailedToLoad)
+      };
+    | School(_) =>
+      let (id_gen, idx, stages) = Model.school_init;
       Ok({
         ...model,
-        history: ActionHistory.empty,
-        editor_model: Model.put_zipper(model, Move.to_start(z)),
+        history: ActionHistory.empty, //TODO: history
+        editor_model: School(idx, stages),
         id_gen,
-      })
-    | None => Error(FailedToLoad)
-    };
+      });
+    }
   | Load =>
     let n = Model.current_editor(model);
     switch (LocalStorage.load_syntax(n, model.id_gen)) {
@@ -157,7 +169,7 @@ let apply =
       | false => Error(FailedToSwitch)
       | true =>
         assert(n < List.length(zs));
-        LocalStorage.save_school((n, zs));
+        LocalStorage.save_school((model.id_gen, n, zs));
         Ok({
           ...model,
           //TODO: factor out history

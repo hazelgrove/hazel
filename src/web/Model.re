@@ -46,9 +46,19 @@ type editor_model =
   | School(int, list(stage));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (int, list(stage));
+type school = (Id.t, int, list(stage));
 
-let school_init = (1, [{z: Zipper.init}, {z: Zipper.init}]);
+let cell_captions = [
+  "Student Implementation",
+  "Student Tests",
+  "Teacher Tests",
+];
+
+let school_init = (
+  3,
+  0,
+  [{z: Zipper.init(0)}, {z: Zipper.init(1)}, {z: Zipper.init(2)}],
+);
 
 [@deriving (show({with_path: false}), yojson)]
 type timestamp = float;

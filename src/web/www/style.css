@@ -187,6 +187,11 @@
   font-size: 13pt;
 }
 
+.cell-caption, .test-panel {
+  font-size: 0.8em;
+  font-family: 'Helvetica Neue';
+}
+
 @media screen and (min-height: 800px) {
   .code-container {
     top: max(min(30%, 100vh - 350px), 64px);
@@ -1028,9 +1033,10 @@ svg {
   font-size: 13pt;
   padding-right: 0.25em;
   position: fixed;
-  top: 4em;
-  left: 2em;
+  top: 3.5em;
+  left: 1em;
   display: flex;
+  align-items: center;
   gap: 0.5em;
   border-radius: 0.2em;
   border: 1px solid #ebdfc5;
@@ -1092,7 +1098,7 @@ svg {
   padding: 0.1em 0.3em 0.1em 0.3em;
   height: fit-content;
   display: flex;
-  border-radius: 15%;
+  border-radius: 0.2em;
   color: #0006;
   font-size: 0.75em;
   font-weight: bolder;
@@ -1130,18 +1136,24 @@ svg {
 
 /* DYNAMICS - test panel */
 
-.test-panel {
+.test-multi-panel {
   position: fixed;
   right: 0;
   top: 0em;
-  width: 15em;
-  padding: 0.25em;
+  max-width: 40em;
+  display: flex;
+  flex-direction: column;
+}
+
+.test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em;
   /* flex-grow: 1; */
   /*TODO(andrew): move fontshit */
-  line-height: var(--line-height);
-  font-family: "Source Code Pro", monospace;
-  font-size: 13pt;
   background-color: #f8ebc6;
+  border-bottom: 0.5px solid #c7b480;
 }
 
 .test-reports {
@@ -1213,7 +1225,7 @@ svg {
 .test-summary {
   display: flex;
   flex-direction: column;
-  padding: 1em;
+  /*padding: 1em;*/
   gap: 1em;
 }
 

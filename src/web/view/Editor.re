@@ -22,19 +22,19 @@ let fat_zipper = (zipper: Zipper.t) => {
   {zipper, term, info_map, segment, unselected, tile_map};
 };
 
-let ci_view = (zipper: Zipper.t, info_map) => {
+let ci_view = (index': option(int), info_map) => {
   let index =
-    switch (zipper |> Indicated.index) {
+    switch (index') {
     | Some(index) => index
     | None => (-1)
     };
   let ci =
-    switch (zipper |> Indicated.index) {
+    switch (index') {
     | Some(index) => Id.Map.find_opt(index, info_map)
     | None => None
     };
   switch (ci) {
-  | None => div([], [])
+  | None => div([clss(["cursor-inspector"])], [text("No Static Data")])
   | Some(ci) => CursorInspector.view(index, ci)
   };
 };
@@ -93,8 +93,9 @@ let single_editor =
         ~show_backpack_targets,
         ~show_deco=true,
       ),
-      ci_view(fat_zipper.zipper, fat_zipper.info_map),
+      ci_view(fat_zipper.zipper |> Indicated.index, fat_zipper.info_map),
       TestView.view(
+        ~title="Tests",
         ~font_metrics,
         Elaborator.uexp_elab(fat_zipper.info_map, fat_zipper.term),
       ),
@@ -103,12 +104,10 @@ let single_editor =
   );
 };
 
-let cell_captions = ["Student Implementation", "Student Tests"];
-
 let cell_caption_view = (settings: Model.settings, n) =>
   div(
     [clss(["cell-caption"])],
-    settings.captions ? [text(List.nth(cell_captions, n))] : [],
+    settings.captions ? [text(List.nth(Model.cell_captions, n))] : [],
   );
 
 let cell_view =
@@ -145,6 +144,35 @@ let cell_view =
     ],
   );
 
+let join_tile = (id): Tile.t => {
+  id,
+  label: [";"],
+  mold: Mold.mk_bin(10, Exp, []),
+  shards: [0],
+  children: [],
+};
+
+let splice_stages = (stages: list(Model.stage)): Segment.t =>
+  stages
+  |> List.map((stage: Model.stage) => Zipper.unselect_and_zip(stage.z))
+  |> (
+    xs =>
+      Util.ListUtil.interleave(
+        xs,
+        List.init(List.length(stages) - 1, i =>
+          [Piece.Tile(join_tile(i + 100000))]
+        ),
+      )
+  )
+  |> List.flatten;
+
+let elab_splicer = (stages: list(Model.stage)) => {
+  let term = stages |> splice_stages |> Term.uexp_of_seg;
+  //print_endline(Segment.show(stages |> splice_stages));
+  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
+  (term, info_map);
+};
+
 let multi_editor =
     (
       ~font_metrics,
@@ -159,6 +187,33 @@ let multi_editor =
     List.map((stage: Model.stage) => fat_zipper(stage.z), stages);
   let fat_zipper = fat_zipper(focal_zipper);
   //TODO(andrew): now these just point at selected one
+  let (_combined_term, combined_info_map) = elab_splicer(stages);
+  let stuff =
+    switch (stages) {
+    | [student_impl, student_tests, teacher_tests] =>
+      let (implement_term, implement_map) = elab_splicer([student_impl]);
+      let (teacher_term, teacher_map) =
+        elab_splicer([student_impl, teacher_tests]);
+      let (student_term, student_map) =
+        elab_splicer([student_impl, student_tests]);
+      div(
+        [clss(["test-multi-panel"])],
+        [
+          TestView.view(
+            ~title="Student Tests",
+            ~font_metrics,
+            Elaborator.uexp_elab(student_map, student_term),
+          ),
+          TestView.view(
+            ~title="Teacher Tests",
+            ~font_metrics,
+            Elaborator.uexp_elab(teacher_map, teacher_term),
+          ),
+          Interface.res_view(~font_metrics, implement_term, implement_map),
+        ],
+      );
+    | _ => div([], [])
+    };
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(
@@ -172,12 +227,8 @@ let multi_editor =
       fat_zippers,
     )
     @ [
-      ci_view(fat_zipper.zipper, fat_zipper.info_map),
-      TestView.view(
-        ~font_metrics,
-        Elaborator.uexp_elab(fat_zipper.info_map, fat_zipper.term),
-      ),
-      Interface.res_view(~font_metrics, fat_zipper.term, fat_zipper.info_map),
+      ci_view(fat_zipper.zipper |> Indicated.index, combined_info_map),
+      stuff,
     ],
   );
 };

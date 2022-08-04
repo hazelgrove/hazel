@@ -108,7 +108,7 @@ let left_panel_view = (~inject, model: Model.t) =>
     [
       undo(~inject, ~disabled=!ActionHistory.can_undo(model.history)),
       redo(~inject, ~disabled=!ActionHistory.can_redo(model.history)),
-      center_panel_view(~inject, Model.current_editor(model)),
+      //center_panel_view(~inject, Model.current_editor(model)),
       button(Icons.export, copy_log_to_clipboard),
       right_panel_view(~inject),
     ],

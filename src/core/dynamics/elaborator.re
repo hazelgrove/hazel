@@ -99,10 +99,13 @@ let rec dhexp_of_uexp =
       let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
-    | Test(test, body) =>
+    | Test(test) =>
       let* dtest = dhexp_of_uexp(m, test);
-      let* dbody = dhexp_of_uexp(m, body);
-      wrap(Let(Wild, Ap(TestLit(u), dtest), dbody));
+      wrap(Ap(TestLit(u), dtest));
+    | Seq(e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      wrap(Sequence(d1, d2));
     | If(cond, e1, e2) =>
       let* d_cond = dhexp_of_uexp(m, cond);
       let* d1 = dhexp_of_uexp(m, e1);

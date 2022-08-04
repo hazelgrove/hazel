@@ -129,6 +129,7 @@ module UExp = {
     | LetAnn
     | Ap
     | If
+    | Seq
     | Test
     | OpInt(exp_op_int)
     | OpFloat(exp_op_float)
@@ -152,7 +153,8 @@ module UExp = {
     //| ApBuiltin(Token.t, list(t))
     // maybe everything with fn semantics should be a builtin e.g. plus??
     | If(t, t, t)
-    | Test(t, t)
+    | Seq(t, t)
+    | Test(t)
     | OpInt(exp_op_int, t, t)
     | OpFloat(exp_op_float, t, t)
     | OpBool(exp_op_bool, t, t)
@@ -176,6 +178,7 @@ module UExp = {
     | LetAnn(_) => LetAnn
     | Ap(_) => Ap
     | If(_) => If
+    | Seq(_) => Seq
     | Test(_) => Test
     | OpInt(x, _, _) => OpInt(x)
     | OpFloat(x, _, _) => OpFloat(x)
@@ -196,6 +199,7 @@ module UExp = {
     | LetAnn => "Annotated Let Expression"
     | Ap => "Function Application"
     | If => "If Expression"
+    | Seq => "Sequence Expression"
     | Test => "Test"
     | OpInt(Plus) => "Integer Addition"
     | OpInt(Lt) => "Integer Less-Than"
@@ -257,7 +261,10 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
     // TODO(andrew): do better than switching label
     let term: UExp.term =
       switch (/*mold.out,*/ label, children_h, children) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
+      | _ when !Tile.is_complete(t) =>
+        //TODO(andrew): more principled handling of incomplete tiles
+        EmptyHole
+      //Invalid(p)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
@@ -269,8 +276,8 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | (["+."], [l, r], []) => OpFloat(Plus, l, r)
       | (["<"], [l, r], []) => OpInt(Lt, l, r)
       | (["&&"], [l, r], []) => OpBool(And, l, r)
-      | (["test", "then"], [body], [test]) =>
-        Test(uexp_of_seg(test), body)
+      | ([";"], [l, r], []) => Seq(l, r)
+      | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
       | (["funann", ":", "->"], [body], [pat, typ]) =>
         FunAnn(upat_of_seg(pat), utyp_of_seg(typ), body)

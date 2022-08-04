@@ -65,10 +65,12 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
    Order in this list determines relative remolding
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
+  ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("equals", mk_infix("=", Exp, P.eqs)),
-  ("lt", mk_infix("<", Exp, P.eqs)),
+  ("lt", mk_infix("<", Exp, P.eqs)), // substring req
+  ("gt", mk_infix(">", Exp, P.eqs)),
   ("bitwise_and", mk_infix("&", Exp, 5)), // substring req
   ("logical_and", mk_infix("&&", Exp, 5)),
   ("type-arrow", mk_infix("->", Typ, 6)), // bad sorts
@@ -141,7 +143,8 @@ let forms: list((string, t)) = [
     ),
   ),
   ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
-  ("test", mk(ds, ["test", "then"], mk_pre(P.let_, Exp, [Exp]))),
+  //("test", mk(ds, ["test", "then"], mk_pre(P.let_, Exp, [Exp]))),
+  ("test2", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   (
     "stage",
     mk(

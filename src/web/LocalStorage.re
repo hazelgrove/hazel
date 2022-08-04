@@ -141,27 +141,3 @@ let load_school = (): Model.school =>
     | _ => Model.school_init
     }
   };
-/*
- let get_string_log = log_key =>
-   switch (get_localstore(log_key)) {
-   | None => ""
-   | Some(str) => str
-   };
-
- let reset_string_log = log_key => set_localstore(log_key, "");
-
- let append_string_log = (log_key, new_entry_str) =>
-   set_localstore(log_key, get_string_log(log_key) ++ "\n" ++ new_entry_str);
-
- let get_action_log = () => get_string_log(action_log_key);
- let reset_action_log = () => reset_string_log(action_log_key);
- let append_action_log = append_string_log(action_log_key);
-
- let get_keystoke_log = () => get_string_log(keystoke_log_key);
- let reset_keystoke_log = () => reset_string_log(keystoke_log_key);
- let append_keystroke_log = append_string_log(keystoke_log_key);
-
- let get_zipper_log = () => get_string_log(zipper_log_key);
- let reset_zipper_log = () => reset_string_log(zipper_log_key);
- let append_zipper_log = append_string_log(zipper_log_key);
- */
