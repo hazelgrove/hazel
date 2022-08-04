@@ -2,7 +2,7 @@ open Js_of_ocaml;
 open Incr_dom;
 open Web;
 
-let write_to_clipboard = (_string: string) => {
+let _write_to_clipboard = (_string: string) => {
   //let _ = Dom_html.window##.navigator##.clipboard##writeText(string);
   let _ =
     Dom_html.document##execCommand(

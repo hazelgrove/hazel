@@ -46,27 +46,29 @@ let set_err_status =
 
 let mk_inconsistent =
     (
-      ~mk_inconsistent_operand:
-         (MetaVarGen.t, 'operand) => ('operand, MetaVarGen.t),
-      u_gen: MetaVarGen.t,
+      ~mk_inconsistent_operand: (IDGen.t, 'operand) => ('operand, IDGen.t),
+      id_gen: IDGen.t,
       opseq: t('operand, 'operator),
     )
-    : (t('operand, 'operator), MetaVarGen.t) =>
+    : (t('operand, 'operator), IDGen.t) =>
   switch (opseq) {
   | OpSeq(Placeholder(n) as skel, seq) =>
-    let (set_operand, u_gen) =
-      seq |> Seq.nth_operand(n) |> mk_inconsistent_operand(u_gen);
+    let (set_operand, id_gen) =
+      seq |> Seq.nth_operand(n) |> mk_inconsistent_operand(id_gen);
     let set_seq = seq |> Seq.update_nth_operand(n, set_operand);
-    (OpSeq(skel, set_seq), u_gen);
-  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (opseq, u_gen)
+    (OpSeq(skel, set_seq), id_gen);
+  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) => (
+      opseq,
+      id_gen,
+    )
   | OpSeq(
       BinOp(NotInHole, op, skel1, skel2) |
       BinOp(InHole(WrongLength, _), op, skel1, skel2),
       seq,
     ) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let (u, id_gen) = id_gen |> IDGen.next_hole;
     let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
-    (OpSeq(set_skel, seq), u_gen);
+    (OpSeq(set_skel, seq), id_gen);
   };
 
 let rec is_complete_skel =

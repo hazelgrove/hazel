@@ -1,24 +1,22 @@
 module Doc = Pretty.Doc;
-
-[@deriving sexp]
-type t = Doc.t(DHAnnot.t);
+open DHDoc;
 
 type formattable_child = (~enforce_inline: bool) => t;
 
-let precedence_const = DHDoc_common.precedence_const;
-let precedence_Ap = DHDoc_common.precedence_Ap;
-let precedence_Times = DHDoc_common.precedence_Times;
-let precedence_Divide = DHDoc_common.precedence_Divide;
-let precedence_Plus = DHDoc_common.precedence_Plus;
-let precedence_Minus = DHDoc_common.precedence_Minus;
-let precedence_Cons = DHDoc_common.precedence_Cons;
-let precedence_Equals = DHDoc_common.precedence_Equals;
-let precedence_LessThan = DHDoc_common.precedence_LessThan;
-let precedence_GreaterThan = DHDoc_common.precedence_GreaterThan;
-let precedence_And = DHDoc_common.precedence_And;
-let precedence_Or = DHDoc_common.precedence_Or;
-let precedence_Comma = DHDoc_common.precedence_Comma;
-let precedence_max = DHDoc_common.precedence_max;
+let precedence_const = Operators_Exp.precedence_const;
+let precedence_Ap = Operators_Exp.precedence_Ap;
+let precedence_Times = Operators_Exp.precedence(Times);
+let precedence_Divide = Operators_Exp.precedence(Divide);
+let precedence_Plus = Operators_Exp.precedence(Plus);
+let precedence_Minus = Operators_Exp.precedence(Minus);
+let precedence_Cons = Operators_Exp.precedence(Cons);
+let precedence_Equals = Operators_Exp.precedence(Equals);
+let precedence_LessThan = Operators_Exp.precedence(LessThan);
+let precedence_GreaterThan = Operators_Exp.precedence(GreaterThan);
+let precedence_And = Operators_Exp.precedence(And);
+let precedence_Or = Operators_Exp.precedence(Or);
+let precedence_Comma = Operators_Exp.precedence(Comma);
+let precedence_max = Operators_Exp.precedence_max;
 
 let pad_child =
     (
@@ -58,10 +56,10 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  let sym_Fun = mk(Unicode.lamSym);
-  let colon_Fun = mk(":");
-  let open_Fun = mk("{");
-  let close_Fun = mk("}");
+  let sym_Fun = mk(Doc_common.Delim.sym_Fun);
+  let colon_Fun = mk(Doc_common.Delim.colon_Fun);
+  let open_Fun = mk(Doc_common.Delim.open_Fun);
+  let close_Fun = mk(Doc_common.Delim.close_Fun);
 
   let fix_FixF = mk("fix");
   let colon_FixF = mk(":");
@@ -92,9 +90,12 @@ let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
-let mk_Keyword = (u, i, k) =>
+let mk_ExpandingKeyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(Keyword(k), (u, i)));
+  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), (u, i)));
+
+let mk_InvalidText = (t, (u, i)) =>
+  Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
