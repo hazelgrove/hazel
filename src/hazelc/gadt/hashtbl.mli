@@ -7,7 +7,7 @@ module type KEY = sig
   type 'a t
   (** The type for the key. *)
 
-  val equal : 'a t -> 'b t -> ('a t, 'b t) Gadt.Eq.t option
+  val equal : 'a t -> 'b t -> ('a t, 'b t) Eq.t option
   (** [equal x x'] is [Some refl], where [refl] is an equality witness, or
       [None]. *)
 end

@@ -1,4 +1,6 @@
-module type K = Dhashtbl.KEY
+open Gadt
+
+module type K = Gadt.Hashtbl.KEY
 
 module type S = sig
   type 'a key
@@ -9,8 +11,8 @@ module type S = sig
   val retrieve : 'v t -> 'a key -> 'v option
 end
 
-module Make (K : Dhashtbl.KEY) : S with type 'a key = 'a K.t = struct
-  module Tbl = Dhashtbl.Make (K)
+module Make (K : Hashtbl.KEY) : S with type 'a key = 'a K.t = struct
+  module Tbl = Hashtbl.Make (K)
 
   type 'a key = 'a Tbl.key
   type 'v t = 'v Tbl.t

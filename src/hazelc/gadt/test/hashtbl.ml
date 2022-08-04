@@ -1,5 +1,6 @@
 open Tezt
 open Tezt.Base
+open Gadt
 
 let register_test title tags f =
   Test.register ~__FILE__ ~title
@@ -25,7 +26,7 @@ module K = struct
     | _, _ -> None
 end
 
-module Tbl = Dhashtbl.Make (K)
+module Tbl = Hashtbl.Make (K)
 
 let () =
   register_test "empty" [] (fun () ->
@@ -54,5 +55,3 @@ let () =
       ensure (Tbl.find_opt tbl (D 0) = None);
 
       unit)
-
-let () = Test.run ()

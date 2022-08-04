@@ -2,4 +2,4 @@
 
 (test
  (name main)
- (libraries dhashtbl tezt))
+ (libraries gadt tezt))

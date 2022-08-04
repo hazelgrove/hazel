@@ -1,7 +1,7 @@
 module type KEY = sig
   type 'a t
 
-  val equal : 'a t -> 'b t -> ('a t, 'b t) Gadt.Eq.t option
+  val equal : 'a t -> 'b t -> ('a t, 'b t) Eq.t option
 end
 
 module type S = sig
@@ -19,6 +19,8 @@ module type S = sig
 end
 
 module Make (K : KEY) : S with type 'a key = 'a K.t = struct
+  module Hashtbl = Stdlib.Hashtbl
+
   type 'a key = 'a K.t
   type ex = K : 'a K.t -> ex
   type 'v t = (ex, ex * 'v) Hashtbl.t
