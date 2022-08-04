@@ -606,53 +606,42 @@ and syn_cursor_info_zoperand =
      * the user in the case where some of pattern branches are already
      * populated with patterns having a consistent type. */
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
+
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
-    switch (Statics_Exp.syn(ctx, scrut)) {
-    | None => None
-    | Some(pat_ty) =>
-      /* lub of all of the branches except the one with the cursor */
-      let lub_opt: option(CursorInfo.join_of_branches) =
-        switch (prefix @ suffix) {
-        | [] => Some(NoBranches)
-        | other_branches =>
-          let clause_types =
-            List.fold_left(
-              (types_opt, r) =>
-                switch (types_opt) {
-                | None => None
-                | Some((types, xi)) =>
-                  switch (Statics_Exp.syn_rule(ctx, r, pat_ty, xi)) {
-                  | None => None
-                  | Some((r_ty, r_xi)) =>
-                    Some(([r_ty, ...types], Constraints.Or(r_xi, xi)))
-                  }
-                },
-              Some(([], Falsity)),
-              other_branches,
-            )
-            |> Option.map(fst);
-          switch (clause_types) {
-          | None => None
-          | Some(types) =>
-            switch (HTyp.join_all(ctx, LUB, types)) {
-            | None => Some(InconsistentBranchTys(List.rev(types), steps))
-            | Some(lub) => Some(JoinTy(lub))
-            }
-          };
+    let* ty_pat = Statics_Exp.syn(ctx, scrut);
+    /* lub of all of the branches except the one with the cursor */
+    let lub_opt =
+      switch (prefix @ suffix) {
+      | [] => Some(CursorInfo.NoBranches)
+      | other_branches =>
+        let* (tys, _xis) =
+          List.fold_left(
+            (acc_opt, r) => {
+              let* (tys, xis) = acc_opt;
+              let+ (ty_r, xi_r) = Statics_Exp.syn_rule(ctx, r, ty_pat);
+              ([ty_r, ...tys], [xi_r, ...xis]);
+            },
+            Some(([], [])),
+            other_branches,
+          );
+        switch (HTyp.join_all(ctx, LUB, tys)) {
+        | None =>
+          Some(CursorInfo.InconsistentBranchTys(List.rev(tys), steps))
+        | Some(lub) => Some(JoinTy(lub))
         };
-      switch (lub_opt) {
-      | None => None
-      | Some(lub) =>
-        syn_cursor_info_rule(
-          ~steps=steps @ [1 + List.length(prefix)],
-          ctx,
-          zrule,
-          pat_ty,
-          lub,
-          List.length(prefix),
-        )
       };
-    }
+    switch (lub_opt) {
+    | None => None
+    | Some(lub) =>
+      syn_cursor_info_rule(
+        ~steps=steps @ [1 + List.length(prefix)],
+        ctx,
+        zrule,
+        ty_pat,
+        lub,
+        List.length(prefix),
+      )
+    };
   };
 }
 

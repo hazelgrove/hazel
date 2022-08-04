@@ -74,10 +74,10 @@ module Filter = {
     };
 };
 
-let watch_list =
-  Filter.(
-    md(pre("Action")) /^ fn(eq("subst_tyvars")) /^ fn(eq("rescope"))
-  );
+let watch_list = Filter.(md(pre("Statics_Pat")));
+/* Filter.( */
+/*   md(pre("Action")) /^ fn(eq("subst_tyvars")) /^ fn(eq("rescope")) */
+/* ); */
 
 let watching = (fn, arg_opt) =>
   Filter.matches(
@@ -197,7 +197,7 @@ let reporter = ppf => {
       Format.kfprintf(
         k,
         ppf,
-        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@?",
+        "%a %+04.0f %s @[" ^^ fmt ^^ "@]@.",
         Logs.pp_header,
         (level, h),
         ts,

@@ -1,3 +1,6 @@
+/* Logs.set_reporter(Log.reporter(Format.std_formatter)); */
+/* Logs.set_level(Some(Logs.Debug)); */
+
 open Tezt;
 open Tezt.Base;
 
@@ -186,13 +189,13 @@ let () =
     "block within case",
     [],
     {|case 2; 3 | ? => ? end;
-      case
-      let a = 3 in
-      let b = 2 in
-      a+b
-      | 5 => true
-      | _ => false
-      end|},
+             case
+             let a = 3 in
+             let b = 2 in
+             a+b
+             | 5 => true
+             | _ => false
+             end|},
   );
 
 let () =

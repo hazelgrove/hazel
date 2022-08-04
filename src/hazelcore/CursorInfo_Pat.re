@@ -315,7 +315,9 @@ and ana_cursor_info_zopseq =
                switch (opt_ctx) {
                | None => None
                | Some(ctx) =>
-                 Statics_Pat.ana_skel(ctx, skel, seq, ty) |> Option.map(fst)
+                 open OptUtil.Syntax;
+                 let+ (ctx, _) = Statics_Pat.ana_skel(ctx, skel, seq, ty);
+                 ctx;
                },
              Some(ctx),
            );

@@ -16,25 +16,25 @@ let ana_nth_type_mode:
  * Under context `ctx`, `syn(ctx, p)` synthesizes a type for `p` and
  * produces a new context with bindings introduced by `p` (if possible)
  */
-let syn: (Context.t, UHPat.t) => option((HTyp.t, Context.t, Constraints.t));
+let syn: (Context.t, UHPat.t) => option((HTyp.t, Context.t, Constraint.t));
 let syn_opseq:
-  (Context.t, UHPat.opseq) => option((HTyp.t, Context.t, Constraints.t));
+  (Context.t, UHPat.opseq) => option((HTyp.t, Context.t, Constraint.t));
 let syn_skel:
   (Context.t, UHPat.skel, UHPat.seq) =>
-  option((HTyp.t, Context.t, Constraints.t));
+  option((HTyp.t, Context.t, Constraint.t));
 let syn_operand:
-  (Context.t, UHPat.operand) => option((HTyp.t, Context.t, Constraints.t));
+  (Context.t, UHPat.operand) => option((HTyp.t, Context.t, Constraint.t));
 
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `p` against `ty` and
  * produces a new context with bindings introduced by `p` if successful
  */
-let ana: (Context.t, UHPat.t, HTyp.t) => option((Context.t, Constraints.t));
+let ana: (Context.t, UHPat.t, HTyp.t) => option((Context.t, Constraint.t));
 let ana_operand:
-  (Context.t, UHPat.operand, HTyp.t) => option((Context.t, Constraints.t));
+  (Context.t, UHPat.operand, HTyp.t) => option((Context.t, Constraint.t));
 let ana_skel:
   (Context.t, UHPat.skel, UHPat.seq, HTyp.t) =>
-  option((Context.t, Constraints.t));
+  option((Context.t, Constraint.t));
 
 /**
  * Given a pattern `p` in synthetic position under context `ctx`,
@@ -43,7 +43,7 @@ let ana_skel:
  */
 let syn_fix_holes:
   (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t) =>
-  (UHPat.t, HTyp.t, Context.t, IDGen.t, Constraints.t);
+  (UHPat.t, HTyp.t, Context.t, IDGen.t);
 
 /**
  * Given a pattern `p` in analytic position under context `ctx`,
@@ -53,17 +53,15 @@ let syn_fix_holes:
  */
 let ana_fix_holes:
   (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.t, HTyp.t) =>
-  (UHPat.t, Context.t, IDGen.t, Constraints.t);
+  (UHPat.t, Context.t, IDGen.t);
 let ana_fix_holes_opseq:
   (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.opseq, HTyp.t) =>
-  (UHPat.opseq, Context.t, IDGen.t, Constraints.t);
+  (UHPat.opseq, Context.t, IDGen.t);
 let ana_fix_holes_operand:
   (Context.t, IDGen.t, ~renumber_empty_holes: bool=?, UHPat.operand, HTyp.t) =>
-  (UHPat.operand, Context.t, IDGen.t, Constraints.t);
+  (UHPat.operand, Context.t, IDGen.t);
 let syn_fix_holes_z:
-  (Context.t, IDGen.t, ZPat.t) =>
-  (ZPat.t, HTyp.t, Context.t, IDGen.t, Constraints.t);
+  (Context.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Context.t, IDGen.t);
 
 let ana_fix_holes_z:
-  (Context.t, IDGen.t, ZPat.t, HTyp.t) =>
-  (ZPat.t, Context.t, IDGen.t, Constraints.t);
+  (Context.t, IDGen.t, ZPat.t, HTyp.t) => (ZPat.t, Context.t, IDGen.t);

@@ -1,7 +1,6 @@
 open Sexplib.Std;
 
 module ContextRef = {
-  /* TODO: (eric) is there a way to incorporate peer type info? */
   [@deriving sexp]
   type s('idx) = {
     index: Index.t('idx),

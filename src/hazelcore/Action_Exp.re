@@ -1174,7 +1174,7 @@ and syn_perform_line =
     | Succeeded((new_zp, _, id_gen)) =>
       // NOTE: Need to fix holes since ana_perform may have created
       // holes if ty_def is inconsistent with pattern type
-      let (new_zp, ty_p, _, id_gen, _) =
+      let (new_zp, ty_p, _, id_gen) =
         Statics_Pat.syn_fix_holes_z(ctx, id_gen, new_zp);
       let ty_p = HTyp.rescope(ctx, ty_p);
       let p = ZPat.erase(new_zp);
@@ -1670,7 +1670,7 @@ and syn_perform_operand =
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Fun(_, p, body))) =>
-    let (p, body_ctx, id_gen, _) =
+    let (p, body_ctx, id_gen) =
       Statics_Pat.ana_fix_holes(ctx, id_gen, p, HTyp.hole());
     let (body, body_ty, id_gen) =
       Statics_Exp.syn_fix_holes(body_ctx, id_gen, body);
@@ -2043,53 +2043,22 @@ and syn_perform_operand =
           Action_common.escape(side),
           (zoperand, ty, id_gen),
         )
-      | Succeeded((zscrut, ty1, id_gen)) =>
-        let (rules, id_gen, rule_types, common_type, xis) =
-          Statics_Exp.syn_fix_holes_rules(ctx, id_gen, rules, ty1);
-        switch (common_type) {
-        | None =>
-          let (u, id_gen) = IDGen.next_hole(id_gen);
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              CaseZE(InconsistentBranches(rule_types, u), zscrut, rules),
-            );
-          Succeeded(SynDone((new_ze, HTyp.hole(), id_gen)));
-        | Some(ty) =>
-          let flags = Incon.generate_redundancy_list(xis);
-          let (u, id_gen) = IDGen.next_hole(id_gen);
-          let new_rules =
-            List.map2(
-              (rule, flag) => {
-                let err =
-                  if (flag == 1) {
-                    RuleErrStatus.Redundant(u);
-                  } else {
-                    NotRedundant;
-                  };
-                UHExp.set_err_status_rule(err, rule);
-              },
-              rules,
-              flags,
-            );
-          let (case_err, id_gen) =
-            if (Incon.is_exhaustive(
-                  Constraints.or_constraints(List.rev(xis)),
-                )) {
-              (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
-            } else {
-              let (u, id_gen) = IDGen.next_hole(id_gen);
-              (NotExhaustive(u), id_gen);
-            };
-          let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
-          Succeeded(SynDone((new_ze, ty, id_gen)));
-        };
+      | Succeeded((zscrut, _, id_gen)) =>
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            ZExp.CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
+          );
+        let (new_ze, ty, id_gen) =
+          Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze);
+        Succeeded(SynDone((new_ze, ty, id_gen)));
+      /* }; */
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
-    | Some(pat_ty) =>
-      switch (syn_perform_rules(ctx, a, (zrules, id_gen), pat_ty)) {
+    | Some(ty_scrut) =>
+      switch (syn_perform_rules(ctx, a, (zrules, id_gen), ty_scrut)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         syn_perform_operand(
@@ -2098,45 +2067,14 @@ and syn_perform_operand =
           (zoperand, ty, id_gen),
         )
       | Succeeded((new_zrules, id_gen)) =>
-        let (new_zrules, rule_types, common_type, id_gen, xis) =
-          Statics_Exp.syn_fix_holes_zrules(ctx, id_gen, new_zrules, pat_ty);
-        switch (common_type) {
-        | None =>
-          let (u, id_gen) = IDGen.next_hole(id_gen);
-          let new_ze =
-            ZExp.ZBlock.wrap(
-              CaseZR(InconsistentBranches(rule_types, u), scrut, new_zrules),
-            );
-          Succeeded(SynDone((new_ze, HTyp.hole(), id_gen)));
-        | Some(ty) =>
-          let flags = Incon.generate_redundancy_list(xis);
-          let (u, id_gen) = IDGen.next_hole(id_gen);
-          let (new_zrules, _) =
-            List.fold_left(
-              ((rs, idx), flag) => {
-                let err =
-                  if (flag == 1) {
-                    RuleErrStatus.Redundant(u);
-                  } else {
-                    NotRedundant;
-                  };
-                (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
-              },
-              (new_zrules, 0),
-              flags,
-            );
-          let (case_err, id_gen) =
-            if (Incon.is_exhaustive(
-                  Constraints.or_constraints(List.rev(xis)),
-                )) {
-              (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
-            } else {
-              let (u, id_gen) = IDGen.next_hole(id_gen);
-              (NotExhaustive(u), id_gen);
-            };
-          let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
-          Succeeded(SynDone((new_ze, ty, id_gen)));
-        };
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            CaseZR(StandardErrStatus(NotInHole), scrut, new_zrules),
+          );
+        let (new_ze, new_ty, id_gen) =
+          Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze);
+        Succeeded(SynDone((new_ze, new_ty, id_gen)));
+      /* }; */
       }
     }
   | (Init, _) => failwith("Init action should not be performed.")
@@ -3238,7 +3176,7 @@ and ana_perform_operand =
     switch (HTyp.matched_arrow(ctx, ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
-      let (p, body_ctx, id_gen, _) =
+      let (p, body_ctx, id_gen) =
         Statics_Pat.ana_fix_holes(ctx, id_gen, p, ty1);
       let (body, id_gen) =
         Statics_Exp.ana_fix_holes(body_ctx, id_gen, body, ty2);
@@ -3650,36 +3588,22 @@ and ana_perform_operand =
           (zoperand, id_gen),
           ty,
         )
-      | Succeeded((zscrut, ty1, id_gen)) =>
-        let (rules, id_gen, xis) =
-          Statics_Exp.ana_fix_holes_rules(ctx, id_gen, rules, ty1, ty);
-        let flags = Incon.generate_redundancy_list(xis);
-        let (u, id_gen) = IDGen.next_hole(id_gen);
-        let new_rules =
-          List.map2(
-            (rule, flag) => {
-              let err = flag == 1 ? RuleErrStatus.Redundant(u) : NotRedundant;
-              UHExp.set_err_status_rule(err, rule);
-            },
-            rules,
-            flags,
+      | Succeeded((zscrut, _, id_gen)) =>
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            CaseZE(StandardErrStatus(NotInHole), zscrut, rules),
           );
-        let (case_err, id_gen) =
-          if (Incon.is_exhaustive(Constraints.or_constraints(List.rev(xis)))) {
-            (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
-          } else {
-            let (u, id_gen) = IDGen.next_hole(id_gen);
-            (NotExhaustive(u), id_gen);
-          };
-        let new_ze = ZExp.ZBlock.wrap(CaseZE(case_err, zscrut, new_rules));
-        Succeeded(AnaDone((new_ze, id_gen)));
+        let (new_ze, new_ty, id_gen) =
+          Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze);
+        HTyp.consistent(ctx, ty, new_ty)
+          ? Succeeded(AnaDone((new_ze, id_gen))) : Failed;
       }
     }
   | (_, CaseZR(_, scrut, zrules)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
     | None => Failed
-    | Some(pat_ty) =>
-      switch (ana_perform_rules(ctx, a, (zrules, id_gen), pat_ty, ty)) {
+    | Some(ty_pat) =>
+      switch (ana_perform_rules(ctx, a, (zrules, id_gen), ty_pat, ty)) {
       | Failed => Failed
       | CursorEscaped(side) =>
         ana_perform_operand(
@@ -3688,39 +3612,13 @@ and ana_perform_operand =
           (zoperand, id_gen),
           ty,
         )
-      | Succeeded((new_zrules, id_gen)) =>
-        let (new_zrules, id_gen, xis) =
-          Statics_Exp.ana_fix_holes_zrules(
-            ctx,
-            id_gen,
-            new_zrules,
-            pat_ty,
-            ty,
+      | Succeeded((zrules, id_gen)) =>
+        let new_ze =
+          ZExp.ZBlock.wrap(
+            CaseZR(StandardErrStatus(NotInHole), scrut, zrules),
           );
-        let flags = Incon.generate_redundancy_list(xis);
-        let (u, id_gen) = IDGen.next_hole(id_gen);
-        let (new_zrules, _) =
-          List.fold_left(
-            ((rs, idx), flag) => {
-              let err =
-                if (flag == 1) {
-                  RuleErrStatus.Redundant(u);
-                } else {
-                  NotRedundant;
-                };
-              (ZExp.set_err_status_zrules(err, idx, rs), idx + 1);
-            },
-            (new_zrules, 0),
-            flags,
-          );
-        let (case_err, id_gen) =
-          if (Incon.is_exhaustive(Constraints.or_constraints(List.rev(xis)))) {
-            (CaseErrStatus.StandardErrStatus(NotInHole), id_gen);
-          } else {
-            let (u, id_gen) = IDGen.next_hole(id_gen);
-            (NotExhaustive(u), id_gen);
-          };
-        let new_ze = ZExp.ZBlock.wrap(CaseZR(case_err, scrut, new_zrules));
+        let (new_ze, id_gen) =
+          Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty);
         Succeeded(AnaDone((new_ze, id_gen)));
       }
     }
