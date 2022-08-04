@@ -97,10 +97,20 @@ and syn_elab_line =
         print_endline("finished syn_elab_line.LetLine.ana_elab");
         let dty1 = (ctx1, ty1);
         let dty1' = (ctx1, ty1');
+        line
+        |> UHExp.sexp_of_line
+        |> Sexplib.Sexp.to_string_hum
+        |> print_endline;
+        ctx |> Context.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+        print_endline("ty1");
+        ty1 |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+        print_endline("ty1'");
+        ty1' |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => DHExp.cast(d1, dty1', dty1)
           | Some(x) =>
+            print_endline("finished syn_elab_line.LetLine.ana_elab??");
             FixF(
               x,
               dty1',
@@ -109,11 +119,14 @@ and syn_elab_line =
                 x,
                 d1,
               ),
-            )
+            );
           };
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
         | Elaborates(dp, _, ctx_dp, delta) =>
+          print_endline(
+            "finished syn_elab_line.LetLine.ana_elab.Pat.ana_elab",
+          );
           let prelude = d2 => DHExp.Let(dp, d1, d2);
           LinesElaborate(prelude, ctx_dp, delta);
         };
@@ -392,25 +405,33 @@ and syn_elab_operand =
     Elaborates(ListNil((ctx, elt_ty)), HTyp.list(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
-    switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(dp, ty1, ctx, delta) =>
-      switch (syn_elab(ctx, delta, body)) {
+    print_endline("enter syn_elab Fun");
+    let res: ElaborationResult.t =
+      switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
       | DoesNotElaborate => DoesNotElaborate
-      | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Fun(dp, (ctx, ty1), d1);
-        Elaborates(d, HTyp.arrow(ty1, ty2), delta);
-      }
-    }
+      | Elaborates(dp, ty1, ctx, delta) =>
+        switch (syn_elab(ctx, delta, body)) {
+        | DoesNotElaborate => DoesNotElaborate
+        | Elaborates(d1, ty2, delta) =>
+          let d = DHExp.Fun(dp, (ctx, ty1), d1);
+          Elaborates(d, HTyp.arrow(ty1, ty2), delta);
+        }
+      };
+    print_endline("exit syn_elab Fun");
+    res;
   | TypFun(NotInHole, tp, body) =>
     let ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
-    switch (syn_elab(ctx, delta, body)) {
-    | DoesNotElaborate => DoesNotElaborate
-    | Elaborates(body, ty_body, delta) =>
-      let d = DHExp.TypFun(tp, body);
-      let ty = HTyp.forall(tp, ty_body);
-      Elaborates(d, ty, delta);
-    };
+    print_endline("enter syn_elab TypFun");
+    let res: ElaborationResult.t =
+      switch (syn_elab(ctx, delta, body)) {
+      | DoesNotElaborate => DoesNotElaborate
+      | Elaborates(body, ty_body, delta) =>
+        let d = DHExp.TypFun(tp, body);
+        let ty = HTyp.forall(tp, ty_body);
+        Elaborates(d, ty, delta);
+      };
+    print_endline("enter syn_elab TypFun");
+    res;
   | TypApp(NotInHole, body, ty) =>
     switch (Elaborator_Typ.syn_elab(ctx, delta, ty)) {
     | None => DoesNotElaborate

@@ -9,8 +9,12 @@ let normalize = ((ctx, ty): t): HTyp.normalized => HTyp.normalize(ctx, ty);
 let head_normalize = ((ctx, ty): t): HTyp.head_normalized =>
   HTyp.head_normalize(ctx, ty);
 
-let equivalent = (dty1: t, dty2: t): bool =>
-  HTyp.normalized_equivalent(normalize(dty1), normalize(dty2));
+let equivalent = (dty1: t, dty2: t): bool => {
+  print_endline("enter DHTyp.equiv");
+  let res = HTyp.normalized_equivalent(normalize(dty1), normalize(dty2));
+  print_endline("exit DHTyp.equiv");
+  res;
+};
 
 let consistent = (dty1: t, dty2: t): bool =>
   HTyp.normalized_consistent(normalize(dty1), normalize(dty2));
