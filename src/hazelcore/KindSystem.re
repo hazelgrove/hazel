@@ -1015,7 +1015,15 @@ and HTyp: {
     | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
-    | Forall(tp, ty) => Forall(tp, normalize(ctx, ty))
+    | Forall(tp, ty) =>
+      let k = Kind_core.Type;
+      let ctx =
+        switch (tp) {
+        | EmptyHole
+        | TyVar(InHole(_), _) => ctx
+        | TyVar(NotInHole, tyvar) => Context.add_tyvar(ctx, tyvar, k)
+        };
+      Forall(tp, normalize(ctx, ty));
     };
 
   /* Properties of Normalized HTyp */
