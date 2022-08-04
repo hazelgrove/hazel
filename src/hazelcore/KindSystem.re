@@ -1089,6 +1089,8 @@ and HTyp: {
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
     | List(Hole)
+    // TODO: (poly) does TPat needs to be an EmptyHole?
+    | Forall(EmptyHole, Hole)
     | TyVar(_) => Ground
     | Prod(tys) =>
       let equiv = ty => normalized_equivalent(Hole, ty);
