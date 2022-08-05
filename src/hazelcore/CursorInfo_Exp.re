@@ -622,17 +622,14 @@ and syn_cursor_info_skel =
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
-      switch (syn_cursor_info_skel(~steps, ctx, skel2, zseq)) {
+      switch (syn_cursor_info_skel(~steps, ctx, skel1, zseq)) {
       | Some(_) as result => result
       | None =>
-        switch (Statics_Exp.syn_skel(ctx, skel2, seq)) {
+        switch (Statics_Exp.syn_skel(ctx, skel1, seq)) {
         | None => None
-        | Some(ty_list) =>
-          switch (HTyp.matched_list(ty_list)) {
-          | Some(ty_elt) =>
-            ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)
-          | None => None
-          }
+        | Some(ty_elt) =>
+          let ty_list = HTyp.List(ty_elt);
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_list);
         }
       }
     };
