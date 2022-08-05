@@ -134,6 +134,8 @@ let rec uexp_to_info_map =
   | OpInt(Lt, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
   | OpFloat(Plus, e1, e2) =>
     binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
+  | OpFloat(Lt, e1, e2) =>
+    binop(e1, e2, Ana(Float), Ana(Float), Just(Bool))
   | OpBool(And, e1, e2) => binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
   | Pair(e1, e2) =>
     let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
