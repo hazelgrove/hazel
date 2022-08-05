@@ -112,27 +112,20 @@ and Environment: {
 }
 
 /**
-  ClosureEnvironment is an environment (mapping variables to expressions) that
-  are used during evaluation. It is different from Environment.t in two ways:
+  [ClosureEnvironment] is an {!module:Environment} associated with an id, used
+  for the environments of {!DHExp.Closure}s.
 
-  1. It maps Var.t to Evaluator.result (rather than to DHExp.t) 2. Each
-  ClosureEnvironment has an ID associated with it (if evaluation reaches it),
-  or is unreachable. (i.e., a placeholder environment)
+  ClosureEnvironments are numbered so that operations on them (e.g., during
+  hole numbering) can be memoized; the id allows for quick equality checking
+  and allows environments to be comparable (e.g., so that they can be stored in
+  a map).
 
-  Environment.t may be useful in certain cases, namely pattern matching, when
-  an evaluated result is not needed. ClosureEnvironment is used for environents
-  during evaluation, including in closures. ClosureEnvironments are numbered so
-  that operations on them (e.g., during hole numbering) can be memoized; the id
-  allows for quick equality checking and allows environments to be comparable
-  (e.g., so that they can be stored in a map).
+  Both [ClosureEnvironment.t] and {!type:Environment.t} are often named sigma
+  (for hole environments) or env.
 
-  Both ClosureEnvironment.t and Environment.t are often named sigma (usually
-  for hole environments) or env.
-
-  This mimicks the VarMap interface on the extended ClosureEnvironment.t type.
-  Most operations require an EvaluatorState.t parameter, which is used to
-  generate unique ID's for each environment, and is created using
-  ClosureEnvironment.empty (at the beginning of evaluation).
+  This module mimicks the {!VarBstMap} interface, but most operations require
+  an extra {!EnvironmentIdGen.t} parameter, which is used to generate unique
+  id's for each environment.
  */
 and ClosureEnvironment: {
   [@deriving sexp]
