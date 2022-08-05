@@ -71,9 +71,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, BinFloatOp(_, _, _)) => IndetMatch
   | (_, ConsistentCase(Case(_, _, _))) => IndetMatch
 
-  /* Closure should match like underlying expression */
-  | (_, Closure(_, Fun(_))) => DoesNotMatch
-  | (_, Closure(_, _)) => IndetMatch
+  /* Closure should match like underlying expression. */
+  | (_, Closure(_, d')) => matches(dp, d')
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
