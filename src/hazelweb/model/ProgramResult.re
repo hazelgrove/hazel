@@ -1,7 +1,7 @@
 [@deriving sexp]
 type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
-let get_dhexp = ((r, _, _): t) => EvaluatorResult.unwrap(r);
+let get_dhexp = ((r, _, _): t) => EvaluatorResult.unbox(r);
 let get_state = ((_, es, _): t) => es;
 let get_hole_instance_info = ((_, _, hii): t) => hii;
 
