@@ -145,6 +145,7 @@ let rec dhexp_of_uexp =
       let dc1 = DHExp.cast(d1, ty1, Bool);
       let dc2 = DHExp.cast(d2, ty2, Bool);
       wrap(BinBoolOp(bool_op_of(op), dc1, dc2));
+    | Parens(e) => dhexp_of_uexp(m, e)
     };
   | Some(InfoPat(_) | InfoTyp(_) | Invalid)
   | None => None
@@ -179,6 +180,7 @@ and dhpat_of_upat = (m: Statics.info_map, upat: Term.UPat.t): option(DHPat.t) =>
       let* d1 = dhpat_of_upat(m, p1);
       let* d2 = dhpat_of_upat(m, p2);
       wrap(Pair(d1, d2));
+    | Parens(p) => dhpat_of_upat(m, p)
     };
   | Some(InfoExp(_) | InfoTyp(_) | Invalid)
   | None => None

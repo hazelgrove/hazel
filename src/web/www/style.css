@@ -140,9 +140,10 @@
 
 #top-bar {
   position: fixed;
+  left: 2.75em;
   box-sizing: border-box;
   width: 100vw;
-  padding: 0.8em;
+  padding: 0.7em;
   display: flex;
   justify-content: space-between;
 }
@@ -938,6 +939,25 @@
   transform: scale(100%);
 }
 
+.menu-icon {
+  width: 2.75em;
+  height: 2.75em;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #c7b480;
+  cursor: pointer;
+}
+.menu-icon-inner {
+
+}
+.menu-icon-inner.topbar-icon svg {
+  fill: #fefcf3;
+}
+
 .topbar-icon {
   cursor: pointer;
   color: var(--top_bar_icon_fill);
@@ -1033,7 +1053,7 @@ svg {
   font-size: 13pt;
   padding-right: 0.25em;
   position: fixed;
-  top: 3.5em;
+  top: 3.75em;
   left: 1em;
   display: flex;
   align-items: center;
@@ -1050,6 +1070,7 @@ svg {
 
 .cursor-inspector .extra {
   position: absolute;
+  width: max-content;
   top: -2em;
   left: 0.5em;
   display: none;

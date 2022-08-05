@@ -135,6 +135,9 @@ let rec uexp_to_info_map =
   | OpFloat(Plus, e1, e2) =>
     binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
   | OpBool(And, e1, e2) => binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
+  | Parens(e) =>
+    let (ty, free, m) = go(~mode, e);
+    add(~self=Just(ty), ~free, m);
   | Pair(e1, e2) =>
     let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_l, e1);
@@ -283,6 +286,10 @@ and upat_to_info_map =
         union_m([m_p1, m_p2]),
       ),
     );
+  | Parens(p) =>
+    let (ty, ctx, m) = upat_to_info_map(~mode, p);
+    let m = Id.Map.add(id, InfoPat({cls, mode, self: Just(ty)}), m);
+    (ty, ctx, m);
   };
 }
 and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, info_map) => {

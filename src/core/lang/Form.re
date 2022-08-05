@@ -73,20 +73,27 @@ let forms: list((string, t)) = [
   ("gt", mk_infix(">", Exp, P.eqs)),
   ("bitwise_and", mk_infix("&", Exp, 5)), // substring req
   ("logical_and", mk_infix("&&", Exp, 5)),
+  //("times", mk_infix("*", Exp, P.mult)),
+  //("divide", mk_infix("/", Exp, P.mult)),
+  //("not_equals", mk_infix("!=", Exp, 5)),
+  //("gt", mk_infix(">", Exp, P.eqs)),
+  //("gte", mk_infix("<=", Exp, P.eqs)),
+  //("lte", mk_infix(">=", Exp, P.eqs)),
+  //("bitwise_or", mk_infix("|", Exp, 5)),
+  //("logical_or", mk_infix("||", Exp, 5)),
   ("type-arrow", mk_infix("->", Typ, 6)), // bad sorts
   ("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))), // substring req
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
-  ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))), // construction req
-  //("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
+  ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))), // construction req for ap
+  ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   (
     "funann",
     mk(ds, ["funann", ":", "->"], mk_pre(P.let_, Exp, [Pat, Typ])),
   ),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
   ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  /* Something must instant on => as not valid monotile on its own */
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
@@ -97,70 +104,14 @@ let forms: list((string, t)) = [
       mk_pre(P.let_, Exp, [Pat, Typ, Exp]),
     ),
   ),
-  (
-    "typeann",
-    mk(
-      ss,
-      [":"],
-      {
-        out: Pat,
-        in_: [],
-        nibs: (
-          {shape: Concave(P.ann), sort: Pat},
-          {shape: Concave(P.ann), sort: Typ},
-        ),
-      },
-    ),
-  ),
+  ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   (
     "case",
-    mk(
-      ds,
-      ["case", "of"],
-      {
-        out: Exp,
-        in_: [Exp],
-        nibs: (
-          {shape: Convex, sort: Exp},
-          {shape: Concave(P.case_), sort: Rul},
-        ),
-      },
-    ),
+    mk(ds, ["case", "of"], mk_pre'(P.case_, Exp, Exp, [Exp], Rul)),
   ),
-  (
-    "rule_arr",
-    mk(
-      ss,
-      ["=>"],
-      {
-        out: Rul,
-        in_: [],
-        nibs: (
-          {shape: Concave(P.rule_arr), sort: Pat},
-          {shape: Concave(P.rule_arr), sort: Exp},
-        ),
-      },
-    ),
-  ),
+  ("rule_arr", mk(ss, ["=>"], mk_bin'(P.rule_arr, Rul, Pat, [], Exp))),
   ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
-  //("test", mk(ds, ["test", "then"], mk_pre(P.let_, Exp, [Exp]))),
-  ("test2", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
-  (
-    "stage",
-    mk(
-      ds,
-      ["STAGE", "ATTEMPT", "TESTS", "HIDDEN", "END"],
-      mk_op(Exp, [Exp, Exp, Exp, Exp]),
-    ),
-  ),
-  //("times", mk_infix("*", Exp, P.mult)),
-  //("divide", mk_infix("/", Exp, P.mult)),
-  //("not_equals", mk_infix("!=", Exp, 5)),
-  //("gt", mk_infix(">", Exp, P.eqs)),
-  //("gte", mk_infix("<=", Exp, P.eqs)),
-  //("lte", mk_infix(">=", Exp, P.eqs)),
-  //("bitwise_or", mk_infix("|", Exp, 5)),
-  //("logical_or", mk_infix("||", Exp, 5)),
+  ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   //("cons", mk_infix("::", Exp, 5)),

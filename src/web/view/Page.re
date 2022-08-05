@@ -102,10 +102,27 @@ let right_panel_view = (~inject) =>
     ],
   );
 
+let menu_icon =
+  div(
+    [Attr.classes(["menu-icon"]), Attr.on_mousedown(copy_log_to_clipboard)],
+    [
+      div(
+        [Attr.classes(["topbar-icon", "menu-icon-inner"])],
+        [
+          a(
+            Attr.[href("http://hazel.org"), create("target", "_blank")],
+            [Icons.hazelnut],
+          ),
+        ],
+      ),
+    ],
+  );
+
 let left_panel_view = (~inject, model: Model.t) =>
   div(
     [Attr.id("history-button-container")],
     [
+      menu_icon,
       undo(~inject, ~disabled=!ActionHistory.can_undo(model.history)),
       redo(~inject, ~disabled=!ActionHistory.can_redo(model.history)),
       //center_panel_view(~inject, Model.current_editor(model)),

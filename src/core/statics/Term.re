@@ -60,7 +60,8 @@ module UPat = {
     | Float
     | Bool
     | Var
-    | Pair;
+    | Pair
+    | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -72,6 +73,7 @@ module UPat = {
     | Bool(bool)
     | Var(Token.t)
     | Pair(t, t)
+    | Parens(t)
   and t = {
     id: Id.t,
     term,
@@ -86,7 +88,8 @@ module UPat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | Var(_) => Var
-    | Pair(_) => Pair;
+    | Pair(_) => Pair
+    | Parens(_) => Parens;
 
   let show_cls: cls => string =
     fun
@@ -97,7 +100,8 @@ module UPat = {
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
     | Var => "Pattern Variable"
-    | Pair => "Pair Pattern";
+    | Pair => "Pair Pattern"
+    | Parens => "Parenthesized Pattern";
 };
 
 module UExp = {
@@ -131,6 +135,7 @@ module UExp = {
     | If
     | Seq
     | Test
+    | Parens
     | OpInt(exp_op_int)
     | OpFloat(exp_op_float)
     | OpBool(exp_op_bool);
@@ -155,6 +160,7 @@ module UExp = {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Parens(t)
     | OpInt(exp_op_int, t, t)
     | OpFloat(exp_op_float, t, t)
     | OpBool(exp_op_bool, t, t)
@@ -180,6 +186,7 @@ module UExp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | Parens(_) => Parens
     | OpInt(x, _, _) => OpInt(x)
     | OpFloat(x, _, _) => OpFloat(x)
     | OpBool(x, _, _) => OpBool(x);
@@ -200,7 +207,8 @@ module UExp = {
     | Ap => "Function Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
-    | Test => "Test"
+    | Test => "Test (Effectful)"
+    | Parens => "Parenthesized Expression"
     | OpInt(Plus) => "Integer Addition"
     | OpInt(Lt) => "Integer Less-Than"
     | OpFloat(Plus) => "Float Addition"
@@ -262,7 +270,9 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
     let term: UExp.term =
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) =>
-        //TODO(andrew): more principled handling of incomplete tiles
+        /* TODO(andrew): more principled handling of incomplete tiles.
+           Like maybe, given a segment, we filter out all incomplete tiles,
+           then regrout, then do the semantics based on that. */
         EmptyHole
       //Invalid(p)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
@@ -288,6 +298,7 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | (["if", "then", "else"], [alt], [cond, conseq]) =>
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [fn], [arg]) => Ap(fn, uexp_of_seg(arg))
+      | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
       //TODO(andrew): more cases
       | _ => Invalid(p)
       };
@@ -308,6 +319,7 @@ and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
     let term: UPat.term =
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) => Invalid(p)
+      | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
       | ([","], [l, r], []) => Pair(l, r)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
