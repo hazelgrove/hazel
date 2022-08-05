@@ -29,6 +29,7 @@ jobs:
           opam init --compiler=ocaml-base-compiler.4.13.1
           eval $(opam env)
           make deps 
+          make test
           make release
         working-directory: ./source
       - name: Checkout the website build artifacts repo # STEP 4
