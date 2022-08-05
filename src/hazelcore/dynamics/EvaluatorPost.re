@@ -1,3 +1,32 @@
+module PpMonad = {
+  include StateMonad.Make({
+    [@deriving sexp]
+    type t = (EnvironmentIdMap.t(ClosureEnvironment.t), HoleInstanceInfo_.t);
+  });
+
+  open Syntax;
+
+  let modify_pe = f => modify(((pe, hii)) => (pe |> f, hii));
+  /* let modify_hii = f => modify(((pe, hii)) => (pe, hii |> f)); */
+
+  let get_pe = get >>| (((pe, _)) => pe);
+  /* let get_hii = get >>| (((_, hii)) => hii); */
+
+  let pe_add = (ei, env) => modify_pe(EnvironmentIdMap.add(ei, env));
+
+  let hii_add_instance = (u, env) =>
+    modify'(((pe, hii)) => {
+      let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
+      (i, (pe, hii));
+    });
+};
+
+open PpMonad;
+open PpMonad.Syntax;
+open DHExp;
+
+type m('a) = PpMonad.t('a);
+
 [@deriving sexp]
 type error =
   | ClosureInsideClosure
@@ -9,206 +38,77 @@ type error =
 [@deriving sexp]
 exception Exception(error);
 
-type t = EnvironmentIdMap.t(EvalEnv.t);
-
-let rec pp_uneval =
-        (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, d: DHExp.t)
-        : (t, HoleClosureInfo_.t, DHExp.t) =>
-  switch (d) {
-  /* Bound variables should be looked up within the closure
-     environment. If lookup fails, then variable is not bound. */
-  | BoundVar(x) =>
-    switch (EvalEnv.lookup(env, x)) {
-    | Some(Indet(d'))
-    | Some(BoxedValue(d')) => (pe, hci, d')
-    | None => (pe, hci, d)
-    }
-
-  /* Non-hole expressions: expand recursively */
-  | TestLit(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListNil(_)
-  | Triv => (pe, hci, d)
-  | Sequence(d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, Sequence(d1', d2'));
-  | Let(dp, d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, Let(dp, d1', d2'));
-  | FixF(f, ty, d1) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    (pe, hci, FixF(f, ty, d1'));
-  | Fun(dp, ty, d') =>
-    let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, Fun(dp, ty, d''));
-  | Ap(d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, Ap(d1', d2'));
-  | ApBuiltin(f, args) =>
-    let (pe, hci, args') =
-      List.fold_right(
-        (arg, (pe, hci, args)) => {
-          let (pe, hci, arg') = pp_uneval(pe, hci, env, arg);
-          (pe, hci, [arg', ...args]);
-        },
-        args,
-        (pe, hci, []),
-      );
-    (pe, hci, ApBuiltin(f, args'));
-  | BinBoolOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, BinBoolOp(op, d1', d2'));
-  | BinIntOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, BinIntOp(op, d1', d2'));
-  | BinFloatOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, BinFloatOp(op, d1', d2'));
-  | Cons(d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, Cons(d1', d2'));
-  | Inj(ty, side, d') =>
-    let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, Inj(ty, side, d''));
-  | Pair(d1, d2) =>
-    let (pe, hci, d1') = pp_uneval(pe, hci, env, d1);
-    let (pe, hci, d2') = pp_uneval(pe, hci, env, d2);
-    (pe, hci, Pair(d1', d2'));
-  | Cast(d', ty1, ty2) =>
-    let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, Cast(d'', ty1, ty2));
-  | FailedCast(d', ty1, ty2) =>
-    let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, FailedCast(d'', ty1, ty2));
-  | InvalidOperation(d', reason) =>
-    let (pe, hci, d'') = pp_uneval(pe, hci, env, d');
-    (pe, hci, InvalidOperation(d'', reason));
-  | ConsistentCase(Case(scrut, rules, i)) =>
-    let (pe, hci, scrut') = pp_uneval(pe, hci, env, scrut);
-    let (pe, hci, rules') = pp_uneval_rules(pe, hci, env, rules);
-    (pe, hci, ConsistentCase(Case(scrut', rules', i)));
-
-  /* Closures shouldn't exist inside other closures */
-  | Closure(_) => raise(Exception(ClosureInsideClosure))
-
-  /* Hole expressions:
-     - Use the closure environment as the hole environment.
-     - Number the hole closure appropriately.
-     - Recurse through inner expression (if any).
-     */
-  | EmptyHole(u, _) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, EmptyHole(u, i)));
-  | NonEmptyHole(reason, u, _, d') =>
-    let (pe, hci, d') = pp_uneval(pe, hci, env, d');
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d')));
-  | ExpandingKeyword(u, _, kw) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, ExpandingKeyword(u, i, kw)));
-  | FreeVar(u, _, x) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, FreeVar(u, i, x)));
-  | InvalidText(u, _, text) =>
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (pe, hci, Closure(env, InvalidText(u, i, text)));
-  | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
-    let (pe, hci, scrut) = pp_uneval(pe, hci, env, scrut);
-    let (pe, hci, rules) = pp_uneval_rules(pe, hci, env, rules);
-    let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-    (
-      pe,
-      hci,
-      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i))),
-    );
-  }
-
-and pp_uneval_rules =
-    (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t, rules: list(DHExp.rule))
-    : (t, HoleClosureInfo_.t, list(DHExp.rule)) =>
-  List.fold_right(
-    (DHExp.Rule(dp, d), (pe, hci, rules)) => {
-      let (pe, hci, d') = pp_uneval(pe, hci, env, d);
-      (pe, hci, [DHExp.Rule(dp, d'), ...rules]);
-    },
-    rules,
-    (pe, hci, []),
-  )
-
-and pp_eval =
-    (pe: t, hci: HoleClosureInfo_.t, d: DHExp.t)
-    : (t, HoleClosureInfo_.t, DHExp.t) =>
+/**
+  Postprocess inside evaluation boundary.
+ */
+let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
-  | Sequence(d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, Sequence(d1', d2'));
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
   | ListNil(_)
-  | Triv => (pe, hci, d)
+  | Triv => d |> return
+
+  | Sequence(d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let+ d2' = pp_eval(d2);
+    Sequence(d1', d2');
+
   | FixF(f, ty, d1) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    (pe, hci, FixF(f, ty, d1'));
+    let* d1' = pp_eval(d1);
+    FixF(f, ty, d1') |> return;
+
   | Ap(d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, Ap(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Ap(d1', d2') |> return;
+
   | ApBuiltin(f, args) =>
-    let (pe, hci, args') =
-      List.fold_right(
-        (arg, (pe, hci, args)) => {
-          let (pe, hci, arg') = pp_eval(pe, hci, arg);
-          (pe, hci, [arg', ...args]);
-        },
-        args,
-        (pe, hci, []),
-      );
-    (pe, hci, ApBuiltin(f, args'));
+    let* args' = args |> List.map(pp_eval) |> sequence;
+    ApBuiltin(f, args') |> return;
+
   | BinBoolOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, BinBoolOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinBoolOp(op, d1', d2') |> return;
+
   | BinIntOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, BinIntOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinIntOp(op, d1', d2') |> return;
+
   | BinFloatOp(op, d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, BinFloatOp(op, d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinFloatOp(op, d1', d2') |> return;
+
   | Cons(d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, Cons(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Cons(d1', d2') |> return;
+
   | Inj(ty, side, d') =>
-    let (pe, hci, d'') = pp_eval(pe, hci, d');
-    (pe, hci, Inj(ty, side, d''));
+    let* d'' = pp_eval(d');
+    Inj(ty, side, d'') |> return;
+
   | Pair(d1, d2) =>
-    let (pe, hci, d1') = pp_eval(pe, hci, d1);
-    let (pe, hci, d2') = pp_eval(pe, hci, d2);
-    (pe, hci, Pair(d1', d2'));
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    Pair(d1', d2') |> return;
+
   | Cast(d', ty1, ty2) =>
-    let (pe, hci, d'') = pp_eval(pe, hci, d');
-    (pe, hci, Cast(d'', ty1, ty2));
+    let* d'' = pp_eval(d');
+    Cast(d'', ty1, ty2) |> return;
+
   | FailedCast(d', ty1, ty2) =>
-    let (pe, hci, d'') = pp_eval(pe, hci, d');
-    (pe, hci, FailedCast(d'', ty1, ty2));
+    let* d'' = pp_eval(d');
+    FailedCast(d'', ty1, ty2) |> return;
+
   | InvalidOperation(d', reason) =>
-    let (pe, hci, d'') = pp_eval(pe, hci, d');
-    (pe, hci, InvalidOperation(d'', reason));
+    let* d'' = pp_eval(d');
+    InvalidOperation(d'', reason) |> return;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
@@ -228,22 +128,24 @@ and pp_eval =
      use `pp_eval` and `pp_uneval` as necessary.
      */
   | Closure(env, d) =>
-    let (pe, hci, env) = pp_eval_env(pe, hci, env);
+    let* env = pp_eval_env(env);
     switch (d) {
     /* Non-hole constructs inside closures. */
     | Fun(dp, ty, d) =>
-      let (pe, hci, d) = pp_uneval(pe, hci, env, d);
-      (pe, hci, Fun(dp, ty, d));
+      let* d = pp_uneval(env, d);
+      Fun(dp, ty, d) |> return;
+
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
-      let (pe, hci, d1) = pp_eval(pe, hci, d1);
-      let (pe, hci, d2) = pp_uneval(pe, hci, env, d2);
-      (pe, hci, Let(dp, d1, d2));
+      let* d1 = pp_eval(d1);
+      let* d2 = pp_uneval(env, d2);
+      Let(dp, d1, d2) |> return;
+
     | ConsistentCase(Case(scrut, rules, i)) =>
       /* scrut should already be evaluated, rule bodies are not */
-      let (pe, hci, scrut) = pp_eval(pe, hci, scrut);
-      let (pe, hci, rules) = pp_uneval_rules(pe, hci, env, rules);
-      (pe, hci, ConsistentCase(Case(scrut, rules, i)));
+      let* scrut = pp_eval(scrut);
+      let* rules = pp_uneval_rules(env, rules);
+      ConsistentCase(Case(scrut, rules, i)) |> return;
 
     /* Hole constructs inside closures.
 
@@ -253,55 +155,206 @@ and pp_eval =
        subexpressions and we can use `pp_uneval`.
        */
     | NonEmptyHole(reason, u, _, d) =>
-      let (pe, hci, d) = pp_eval(pe, hci, d);
-      let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-      (pe, hci, Closure(env, NonEmptyHole(reason, u, i, d)));
+      let* d = pp_eval(d);
+      let* i = hii_add_instance(u, env);
+      Closure(env, NonEmptyHole(reason, u, i, d)) |> return;
+
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
-      let (pe, hci, scrut) = pp_eval(pe, hci, scrut);
-      let (hci, i) = HoleClosureInfo_.number_hole_closure(hci, u, env);
-      (pe, hci, InconsistentBranches(u, i, Case(scrut, rules, case_i)));
+      let* scrut = pp_eval(scrut);
+      let* i = hii_add_instance(u, env);
+      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+
     | EmptyHole(_)
     | ExpandingKeyword(_)
     | FreeVar(_)
-    | InvalidText(_) => pp_uneval(pe, hci, env, d)
+    | InvalidText(_) => pp_uneval(env, d)
 
     /* Other expression forms cannot be directly in a closure. */
     | _ => raise(Exception(InvalidClosureBody))
     };
   }
 
-and pp_eval_env =
-    (pe: t, hci: HoleClosureInfo_.t, env: EvalEnv.t)
-    : (t, HoleClosureInfo_.t, EvalEnv.t) => {
-  let ei = env |> EvalEnv.id_of;
+/* Recurse through environments, using memoized result if available. */
+and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
+  /* FIXME: Have a ClosureEnvironment.update_keep_id or something? */
+  let ei = env |> ClosureEnvironment.id_of;
+
+  let* pe = get_pe;
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
-  | Some(env) => (pe, hci, env)
+  | Some(env) => env |> return
   | None =>
-    let (pe, hci, result_map) =
-      VarBstMap.fold(
-        ((x, r: EvaluatorResult.t), (pe, hci, new_env)) => {
-          let (pe, hci, r: EvaluatorResult.t) =
-            switch (r) {
-            | BoxedValue(d) =>
-              let (pe, hci, d) = pp_eval(pe, hci, d);
-              (pe, hci, BoxedValue(d));
-            | Indet(d) =>
-              let (pe, hci, d) = pp_eval(pe, hci, d);
-              (pe, hci, Indet(d));
-            };
-          (pe, hci, VarBstMap.extend(new_env, (x, r)));
-        },
-        (pe, hci, VarBstMap.empty),
-        env |> EvalEnv.map_of,
-      );
-    let env = (ei, result_map);
-    (pe |> EnvironmentIdMap.add(ei, env), hci, env);
+    let* env_bindings =
+      env
+      |> ClosureEnvironment.to_list
+      |> List.map(((x, d)) => {
+           let* d' = pp_eval(d);
+           (x, d') |> return;
+         })
+      |> sequence;
+    let env =
+      env_bindings |> Environment.of_list |> ClosureEnvironment.wrap(ei);
+
+    let* () = pe_add(ei, env);
+    env |> return;
   };
+}
+
+/**
+  Postprocess inside evaluation boundary. Environment should already be
+  postprocessed.
+ */
+and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
+  switch (d) {
+  /* Bound variables should be looked up within the closure
+     environment. If lookup fails, then variable is not bound. */
+  | BoundVar(x) =>
+    switch (ClosureEnvironment.lookup(env, x)) {
+    | Some(d') => d' |> return
+    | None => d |> return
+    }
+
+  /* Non-hole expressions: expand recursively */
+  | TestLit(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | ListNil(_)
+  | Triv => d |> return
+
+  | Sequence(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let+ d2' = pp_uneval(env, d2);
+    Sequence(d1', d2');
+
+  | Let(dp, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Let(dp, d1', d2') |> return;
+
+  | FixF(f, ty, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    FixF(f, ty, d1') |> return;
+
+  | Fun(dp, ty, d') =>
+    let* d'' = pp_uneval(env, d');
+    Fun(dp, ty, d'') |> return;
+
+  | Ap(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Ap(d1', d2') |> return;
+
+  | ApBuiltin(f, args) =>
+    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
+    ApBuiltin(f, args') |> return;
+
+  | BinBoolOp(op, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinBoolOp(op, d1', d2') |> return;
+  | BinIntOp(op, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinIntOp(op, d1', d2') |> return;
+
+  | BinFloatOp(op, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinFloatOp(op, d1', d2') |> return;
+
+  | Cons(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Cons(d1', d2') |> return;
+
+  | Inj(ty, side, d') =>
+    let* d'' = pp_uneval(env, d');
+    Inj(ty, side, d'') |> return;
+
+  | Pair(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Pair(d1', d2') |> return;
+
+  | Cast(d', ty1, ty2) =>
+    let* d'' = pp_uneval(env, d');
+    Cast(d'', ty1, ty2) |> return;
+
+  | FailedCast(d', ty1, ty2) =>
+    let* d'' = pp_uneval(env, d');
+    FailedCast(d'', ty1, ty2) |> return;
+
+  | InvalidOperation(d', reason) =>
+    let* d'' = pp_uneval(env, d');
+    InvalidOperation(d'', reason) |> return;
+
+  | ConsistentCase(Case(scrut, rules, i)) =>
+    let* scrut' = pp_uneval(env, scrut);
+    let* rules' = pp_uneval_rules(env, rules);
+    ConsistentCase(Case(scrut', rules', i)) |> return;
+
+  /* Closures shouldn't exist inside other closures */
+  | Closure(_) => raise(Exception(ClosureInsideClosure))
+
+  /* Hole expressions:
+     - Use the closure environment as the hole environment.
+     - Number the hole instance appropriately.
+     - Recurse through inner expression (if any).
+     */
+  | EmptyHole(u, _) =>
+    let* i = hii_add_instance(u, env);
+    Closure(env, EmptyHole(u, i)) |> return;
+
+  | NonEmptyHole(reason, u, _, d') =>
+    let* d' = pp_uneval(env, d');
+    let* i = hii_add_instance(u, env);
+    Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
+
+  | ExpandingKeyword(u, _, kw) =>
+    let* i = hii_add_instance(u, env);
+    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
+
+  | FreeVar(u, _, x) =>
+    let* i = hii_add_instance(u, env);
+    Closure(env, FreeVar(u, i, x)) |> return;
+
+  | InvalidText(u, _, text) =>
+    let* i = hii_add_instance(u, env);
+    Closure(env, InvalidText(u, i, text)) |> return;
+
+  | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
+    let* scrut = pp_uneval(env, scrut);
+    let* rules = pp_uneval_rules(env, rules);
+    let* i = hii_add_instance(u, env);
+    Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+    |> return;
+  }
+
+and pp_uneval_rules =
+    (env: ClosureEnvironment.t, rules: list(DHExp.rule))
+    : m(list(DHExp.rule)) => {
+  rules
+  |> List.map((Rule(dp, d)) => {
+       let* d' = pp_uneval(env, d);
+       Rule(dp, d') |> return;
+     })
+  |> sequence;
 };
 
+/**
+  Tracking children of hole instances. A hole instance is a child of another hole
+  instance if it exists in the hole environment of the parent.
+
+  This is the second stage of postprocessing, separate from hole numbering and
+  substitution, since memoization becomes much more convoluted if these two
+  stages are combined.
+
+  This works by simply iterating over all the (postprocessed) hole instance
+  environments in the HoleInstanceInfo_.t and looking for "child" holes.
+ */
 let rec track_children_of_hole =
-        (hci: HoleClosureInfo.t, parent: HoleClosureParents.t_, d: DHExp.t)
-        : HoleClosureInfo.t =>
+        (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
+        : HoleInstanceInfo.t =>
   switch (d) {
   | Triv
   | ListNil(_)
@@ -309,13 +362,13 @@ let rec track_children_of_hole =
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | BoundVar(_) => hci
+  | BoundVar(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d)
   | Inj(_, _, d)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
-  | InvalidOperation(d, _) => track_children_of_hole(hci, parent, d)
+  | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
   | Ap(d1, d2)
@@ -324,97 +377,94 @@ let rec track_children_of_hole =
   | BinFloatOp(_, d1, d2)
   | Cons(d1, d2)
   | Pair(d1, d2) =>
-    let hci = track_children_of_hole(hci, parent, d1);
-    track_children_of_hole(hci, parent, d2);
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
   | ConsistentCase(Case(scrut, rules, _)) =>
-    let hci = track_children_of_hole(hci, parent, scrut);
-    track_children_of_hole_rules(hci, parent, rules);
+    let hii = track_children_of_hole(hii, parent, scrut);
+    track_children_of_hole_rules(hii, parent, rules);
 
   | ApBuiltin(_, args) =>
     List.fold_right(
-      (arg, hci) => track_children_of_hole(hci, parent, arg),
+      (arg, hii) => track_children_of_hole(hii, parent, arg),
       args,
-      hci,
+      hii,
     )
 
   /* Hole types */
   | NonEmptyHole(_, u, i, d) =>
-    let hci = track_children_of_hole(hci, parent, d);
-    hci |> HoleClosureInfo.add_parent((u, i), parent);
+    let hii = track_children_of_hole(hii, parent, d);
+    hii |> HoleInstanceInfo.add_parent((u, i), parent);
   | InconsistentBranches(u, i, Case(scrut, rules, _)) =>
-    let hci = track_children_of_hole(hci, parent, scrut);
-    let hci = track_children_of_hole_rules(hci, parent, rules);
-    hci |> HoleClosureInfo.add_parent((u, i), parent);
+    let hii = track_children_of_hole(hii, parent, scrut);
+    let hii = track_children_of_hole_rules(hii, parent, rules);
+    hii |> HoleInstanceInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
   | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
-    hci |> HoleClosureInfo.add_parent((u, i), parent)
+    hii |> HoleInstanceInfo.add_parent((u, i), parent)
 
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for
      parent tracking. */
-  | Closure(_, d) => track_children_of_hole(hci, parent, d)
+  | Closure(_, d) => track_children_of_hole(hii, parent, d)
   }
 
 and track_children_of_hole_rules =
     (
-      hci: HoleClosureInfo.t,
-      parent: HoleClosureParents.t_,
+      hii: HoleInstanceInfo.t,
+      parent: HoleInstanceParents.t_,
       rules: list(DHExp.rule),
     )
-    : HoleClosureInfo.t =>
+    : HoleInstanceInfo.t =>
   List.fold_right(
-    (DHExp.Rule(_, d), hci) => track_children_of_hole(hci, parent, d),
+    (DHExp.Rule(_, d), hii) => track_children_of_hole(hii, parent, d),
     rules,
-    hci,
+    hii,
   );
 
-/* Driver for hole parent tracking; iterate through all hole closures
-   in the HoleClosureInfo, and call `track_children_of_hole` on them. */
-let track_children = (hci: HoleClosureInfo.t): HoleClosureInfo.t =>
+/**
+  Driver for hole parent tracking; iterate through all hole instances in the
+  [HoleInstanceInfo.t], and call [track_children_of_hole] on them.
+ */
+let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
   MetaVarMap.fold(
-    (u, hcs, hci) =>
+    (u, his, hii) =>
       List.fold_right(
-        ((i, (env, _)), hci) =>
-          VarBstMap.fold(
-            ((x, r: EvaluatorResult.t), hci) => {
-              let d =
-                switch (r) {
-                | BoxedValue(d) => d
-                | Indet(d) => d
-                };
-              track_children_of_hole(hci, (x, (u, i)), d);
-            },
-            hci,
-            env |> EvalEnv.map_of,
+        ((i, (env, _)), hii) =>
+          Environment.fold(
+            ((x, d), hii) => track_children_of_hole(hii, (x, (u, i)), d),
+            hii,
+            env |> ClosureEnvironment.map_of,
           ),
-        hcs |> List.mapi((i, hc) => (i, hc)),
-        hci,
+        his |> List.mapi((i, hc) => (i, hc)),
+        hii,
       ),
-    hci,
-    hci,
+    hii,
+    hii,
   );
 
-let postprocess = (d: DHExp.t): (HoleClosureInfo.t, DHExp.t) => {
+let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
   /* Substitution and hole numbering postprocessing */
-  let (_, hci, d) =
-    pp_eval(EnvironmentIdMap.empty, HoleClosureInfo_.empty, d);
+  let ((_, hii), d) =
+    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty));
 
-  /* Convert HoleClosureInfo_.t to HoleClosureInfo.t */
-  let hci = hci |> HoleClosureInfo_.to_hole_closure_info;
+  /* Build hole instance info. */
+  let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
-  let (u_result, _) = HoleClosure.result_hc;
-  let hci =
+  /* FIXME: Better way to do this? */
+  let (u_result, _) = HoleInstance.result;
+  let hii =
     MetaVarMap.add(
       u_result,
-      [(((-1), VarBstMap.singleton(("", DHExp.BoxedValue(d)))), [])],
-      hci,
+      /* FIXME: Don't hardcode -1. */
+      [(ClosureEnvironment.wrap(-1, Environment.singleton(("", d))), [])],
+      hii,
     );
 
-  /* Perform hole parent tracking */
-  (hci |> track_children, d);
+  /* Perform hole parent tracking. */
+  (hii |> track_children, d);
 };

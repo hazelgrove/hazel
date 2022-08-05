@@ -107,29 +107,29 @@ let get_elaboration = (program: t): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let evaluate = d => {
-  let (env, _) =
-    EvaluatorState.init |> EvaluatorState.with_eig(EvalEnv.empty);
-  Memo.general(~cache_size_bound=1000, Evaluator.evaluate(env), d);
-};
-let get_result = (program: t): Result.t => {
+let evaluate =
+  Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(Environment.empty),
+  );
+let get_result = (program: t): ProgramResult.t => {
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>
-    let (hci, d) =
+    let (hii, d) =
       switch (d |> EvaluatorPost.postprocess) {
       | d => d
       | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, BoxedValue(d), es);
+    (BoxedValue(d), es, hii);
   | (es, Indet(d)) =>
-    let (hci, d) =
+    let (hii, d) =
       switch (d |> EvaluatorPost.postprocess) {
       | d => d
       | exception (EvaluatorPost.Exception(reason)) =>
         raise(PostprocessError(reason))
       };
-    (d, hci, Indet(d), es);
+    (Indet(d), es, hii);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 };

@@ -102,7 +102,7 @@ let rec mk =
           ~settings: DHSettings.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_hole_closure: option(HoleClosure.t),
+          ~selected_hole_instance: option(HoleInstance.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -141,7 +141,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_hole_closure)),
+            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -167,7 +167,7 @@ let rec mk =
         switch (d') {
         | EmptyHole(u, i) =>
           let selected =
-            switch (selected_hole_closure) {
+            switch (selected_hole_instance) {
             | None => false
             | Some((u', i')) => u == u' && i == i'
             };
@@ -372,10 +372,10 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_hole_closure, Rule(dp, dclause): DHExp.rule)
+    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
     : DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_hole_closure);
+  let mk' = mk(~settings, ~selected_hole_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses

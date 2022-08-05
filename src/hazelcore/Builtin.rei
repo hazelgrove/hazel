@@ -1,28 +1,30 @@
 [@deriving sexp]
-type evaluate = (EvalEnv.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
+type evaluate =
+  (ClosureEnvironment.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval =
-  (EvalEnv.t, args, evaluate) => EvaluatorMonad.t(EvaluatorResult.t);
+type builtin_evaluate =
+  (ClosureEnvironment.t, args, evaluate) =>
+  EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
-type elab = DHExp.t;
+type builtin_elaboration = DHExp.t;
 
 [@deriving sexp]
 type t = {
   ident: Var.t,
   ty: HTyp.t,
-  eval,
-  elab,
+  eval: builtin_evaluate,
+  elab: builtin_elaboration,
 };
 
 /*
    Create a built-in function.
  */
-let mk: (Var.t, HTyp.t, eval) => t;
+let mk: (Var.t, HTyp.t, builtin_evaluate) => t;
 
 /*
    Create a built-in constant.

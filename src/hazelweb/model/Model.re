@@ -143,7 +143,7 @@ let is_cell_focused = model => {
   program.is_focused;
 };
 
-let get_selected_hole_closure = model =>
+let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
   | None => None
   | Some(u) =>
@@ -154,7 +154,7 @@ let get_selected_hole_closure = model =>
     Some((u, i));
   };
 
-let select_hole_closure = ((u, i): HoleClosure.t, model: t): t =>
+let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   model
   |> map_program(program => {
        let action = Program.move_to_hole(u, program);
@@ -169,7 +169,7 @@ let update_program = (a: ModelAction.t, new_program, model) => {
     let old_result = Program.get_result(old_program);
     let new_result = Program.get_result(new_program);
     let si =
-      Result.fast_equals(old_result, new_result)
+      ProgramResult.fast_equal(old_result, new_result)
         ? si : UserSelectedInstances.init;
 
     switch (

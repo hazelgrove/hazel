@@ -42,3 +42,5 @@ let fold = (f, init, ctx) =>
 let length = Inner.cardinal;
 
 let to_list = ctx => ctx |> Inner.to_seq |> List.of_seq;
+
+let of_list = bindings => bindings |> List.to_seq |> Inner.of_seq;

@@ -47,7 +47,7 @@ let get_elaboration: t => DHExp.t;
  */
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let get_result: t => Result.t;
+let get_result: t => ProgramResult.t;
 
 /**
  * Raised when an attempted edit action does not succeed

@@ -26,7 +26,7 @@ let pad_child:
 module Delim: {
   let mk: string => DHDoc.t;
 
-  let empty_hole: HoleClosure.t => DHDoc.t;
+  let empty_hole: HoleInstance.t => DHDoc.t;
 
   let list_nil: DHDoc.t;
   let triv: DHDoc.t;
@@ -64,12 +64,12 @@ module Delim: {
 };
 
 let mk_EmptyHole:
-  (~selected: bool=?, HoleClosure.t) => Pretty.Doc.t(DHAnnot.t);
+  (~selected: bool=?, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_ExpandingKeyword:
-  (HoleClosure.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
+  (HoleInstance.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_InvalidText: (string, HoleClosure.t) => Pretty.Doc.t(DHAnnot.t);
+let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

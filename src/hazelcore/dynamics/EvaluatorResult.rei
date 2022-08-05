@@ -7,6 +7,16 @@
   v} judgment (boxed value or indeterminate).
  */
 [@deriving sexp]
-type t = DHExp.result;
+type t =
+  | BoxedValue(DHExp.t)
+  | Indet(DHExp.t);
 
-let unbox: t => DHExp.t;
+/**
+  [unwrap r] is the inner expression.
+ */
+let unwrap: t => DHExp.t;
+
+/**
+  See {!val:DHExp.fast_equal}.
+ */
+let fast_equal: (t, t) => bool;

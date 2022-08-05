@@ -1,14 +1,14 @@
 open Virtual_dom;
 
-let view_of_hole_closure:
+let view_of_hole_instance:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~width: int,
     ~pos: int=?,
-    ~selected_hole_closure: option(HoleClosure.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
-    HoleClosure.t
+    HoleInstance.t
   ) =>
   Vdom.Node.t;
 
@@ -18,7 +18,7 @@ let view:
   (
     ~inject: ModelAction.t => Vdom.Event.t,
     ~settings: Settings.Evaluation.t,
-    ~selected_hole_closure: option(HoleClosure.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,

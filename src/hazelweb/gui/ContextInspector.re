@@ -4,7 +4,7 @@ exception InvalidInstance;
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
-      ~selected_hole_closure: option(HoleClosure.t),
+      ~selected_hole_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
@@ -34,7 +34,7 @@ let view =
    * Shows runtime value for a context entry.
    */
   let dynamic_info = (sigma: Environment.t, x) =>
-    switch (VarMap.lookup(sigma, x)) {
+    switch (Environment.lookup(sigma, x)) {
     | None => None
     | Some(d) =>
       Some(
@@ -47,7 +47,7 @@ let view =
                 DHCode.view(
                   ~inject,
                   ~settings,
-                  ~selected_hole_closure,
+                  ~selected_hole_instance,
                   ~font_metrics,
                   ~width=30,
                   d,
@@ -73,10 +73,10 @@ let view =
     Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)]);
 
   let path_view_titlebar =
-    Panel.view_of_other_title_bar("Closure above observed at ");
+    Panel.view_of_other_title_bar("Instance above observed at ");
 
-  let hci_summary = (hci, (u, i) as inst) => {
-    let num_instances = HoleClosureInfo.num_unique_hcs(hci, u);
+  let hii_summary = (hii, (u, i) as inst) => {
+    let num_instances = HoleInstanceInfo.num_instances(hii, u);
     let msg =
       Node.div(
         [Attr.classes(["instance-info"])],
@@ -85,12 +85,12 @@ let view =
             [],
             [
               Node.div(
-                [Attr.classes(["hci-summary-inst"])],
+                [Attr.classes(["hii-summary-inst"])],
                 [
-                  DHCode.view_of_hole_closure(
+                  DHCode.view_of_hole_instance(
                     ~inject,
                     ~width=30,
-                    ~selected_hole_closure,
+                    ~selected_hole_instance,
                     ~settings,
                     ~font_metrics,
                     inst,
@@ -130,11 +130,11 @@ let view =
           [
             Attr.create("title", prev_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleClosure(prev_inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(prev_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(prev_key, ev)
-                  ? [inject(SelectHoleClosure(prev_inst))] : [];
+                  ? [inject(SelectHoleInstance(prev_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -157,11 +157,11 @@ let view =
           [
             Attr.create("title", next_title),
             Attr.classes(["instance-button-wrapper"]),
-            Attr.on_click(_ => inject(SelectHoleClosure(next_inst))),
+            Attr.on_click(_ => inject(SelectHoleInstance(next_inst))),
             Attr.on_keydown(ev => {
               let updates =
                 KeyCombo.matches(next_key, ev)
-                  ? [inject(SelectHoleClosure(next_inst))] : [];
+                  ? [inject(SelectHoleInstance(next_inst))] : [];
               Event.Many([Event.Prevent_default, ...updates]);
             }),
           ],
@@ -186,12 +186,12 @@ let view =
     Node.div([Attr.classes(["path-summary"])], [msg, controls]);
   };
 
-  let hc_parents_view = (hc_parents: HoleClosureParents.t) => {
+  let hi_parents_view = (hi_parents: HoleInstanceParents.t) => {
     let parents_info =
-      hc_parents
+      hi_parents
       |> List.map(((x, (u, i))) =>
-           (u, i) == HoleClosure.result_hc
-             ? Node.div([], [Node.text("directly in result")])
+           (u, i) == HoleInstance.result
+             ? Node.div([], [Node.text("immediately")])
              : Node.div(
                  [Attr.classes(["path-area-parent"])],
                  [
@@ -204,10 +204,10 @@ let view =
                            Node.div(
                              [Attr.classes(["inst"])],
                              [
-                               DHCode.view_of_hole_closure(
+                               DHCode.view_of_hole_instance(
                                  ~inject,
                                  ~width=30,
-                                 ~selected_hole_closure,
+                                 ~selected_hole_instance,
                                  ~settings,
                                  ~font_metrics,
                                  (u, i),
@@ -229,7 +229,7 @@ let view =
     Node.div(
       [],
       [
-        Panel.view_of_other_title_bar("Hole closure parents"),
+        Panel.view_of_other_title_bar("Hole instance parents"),
         ...parents_info,
       ],
     );
@@ -243,17 +243,17 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let hci =
-          program |> Program.get_result |> Result.get_hole_closure_info;
-        switch (selected_hole_closure) {
+        let hii =
+          program |> Program.get_result |> ProgramResult.get_hole_instance_info;
+        switch (selected_hole_instance) {
         | None => Environment.empty
         | Some((u, i)) =>
-          switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
+          switch (HoleInstanceInfo.find_instance(hii, u, i)) {
           | None =>
             // raise(InvalidInstance)
             print_endline("[InvalidInstance]");
             Environment.empty;
-          | Some((sigma, _)) => sigma |> EvalEnv.to_environment
+          | Some((sigma, _)) => sigma |> ClosureEnvironment.map_of
           }
         };
       } else {
@@ -279,33 +279,34 @@ let view =
   };
 
   /**
-   * Shows the `HoleClosureParents.t` for the currently selected hole closure.
+    Shows the `HoleInstanceParents.t` for the currently selected hole instance.
    */
   let path_viewer =
     if (settings.evaluate) {
-      let hci = program |> Program.get_result |> Result.get_hole_closure_info;
+      let hii =
+        program |> Program.get_result |> ProgramResult.get_hole_instance_info;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [
             instructional_msg(
-              "Move cursor to a hole, or click a hole instance in the result, to see closures.",
+              "Move cursor to a hole, or click a hole instance in the result, to see instances.",
             ),
           ]
         | Some(u) =>
-          switch (selected_hole_closure) {
+          switch (selected_hole_instance) {
           | None => [
               instructional_msg("Click on a hole instance in the result"),
             ]
           | Some((u', i) as inst) =>
             if (MetaVar.eq(u, u')) {
-              switch (HoleClosureInfo.find_hc_opt(hci, u, i)) {
+              switch (HoleInstanceInfo.find_instance(hii, u, i)) {
               | None =>
                 // raise(InvalidInstance)
                 [instructional_msg("Internal Error: InvalidInstance")]
-              | Some((_, hc_parents)) => [
+              | Some((_, hi_parents)) => [
                   path_view_titlebar,
-                  hci_summary(hci, inst),
-                  hc_parents_view(hc_parents),
+                  hii_summary(hii, inst),
+                  hi_parents_view(hi_parents),
                 ]
               };
             } else {

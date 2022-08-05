@@ -43,5 +43,5 @@ let split = (pos, name) => {
   (left_var, right_var);
 };
 
-/* Used for VarMap */
+/* Used for VarBstMap */
 let compare = (x: t, y: t) => compare(x, y);
