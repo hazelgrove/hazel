@@ -11,32 +11,32 @@ type evaluate =
 type args = list(DHExp.t);
 
 [@deriving sexp]
-type eval =
+type builtin_evaluate =
   (ClosureEnvironment.t, args, evaluate) =>
   EvaluatorMonad.t(EvaluatorResult.t);
 
 [@deriving sexp]
-type elab = DHExp.t;
+type builtin_elaboration = DHExp.t;
 
 [@deriving sexp]
 type t = {
   ident: Var.t,
   ty: HTyp.t,
-  eval,
-  elab,
+  eval: builtin_evaluate,
+  elab: builtin_elaboration,
 };
 
 /*
    Build the elaborated DHExp for a built-in function.
 
    For example:
-   mk_elab("mod", Arrow(Int, Arrow(Int, Int)))
-   =>
-   Lam("x0", Arrow(Int, Arrow(Int, Int)),
-   Lam("x1", Arrow(Int, Int),
-   Apbuilt-in("mod", [BoundVar("x0"), BoundVar("x1")])
-   )
-   )
+     mk_elab("mod", Arrow(Int, Arrow(Int, Int)))
+       =>
+     Lam("x0", Arrow(Int, Arrow(Int, Int)),
+       Lam("x1", Arrow(Int, Int),
+         ApBuiltin("mod", [BoundVar("x0"), BoundVar("x1")])
+       )
+     )
  */
 let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
   let rec mk_elab_inner =
@@ -54,7 +54,7 @@ let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
   mk_elab_inner(ty, 0, []);
 };
 
-let mk = (ident: Var.t, ty: HTyp.t, eval: eval): t => {
+let mk = (ident: Var.t, ty: HTyp.t, eval: builtin_evaluate): t => {
   let elab = mk_elab(ident, ty);
   {ident, ty, eval, elab};
 };
