@@ -266,7 +266,6 @@ svg {
 
 /* END TOP BAR */
 
-
 .editor {
   display: flex;
   justify-content: space-between;
@@ -321,11 +320,6 @@ svg {
 .code-text {
   position: absolute;
   z-index: var(--code-text-z);
-}
-
-/* TODO(andrew): refactor to make this unnecessary */
-.backpack .code-text {
-  position: relative;
 }
 
 /* NOTE(andrew): below 3 styles are part of
@@ -650,15 +644,6 @@ svg {
   background-color: var(--pat-shadow-color);
 }
 
-#backpack-pre, #backpack-suf {
-  position: absolute;
-  display: grid;
-  grid-auto-flow: column;
-}
-.restructuring-selection.unfocused {
-  opacity: 0.6;
-}
-
 .sort-label {
   border-radius: 2px;
   font-weight: 600;
@@ -707,6 +692,12 @@ svg {
   position: fixed;
 }
 
+/* BACKPACK */
+
+/* TODO(andrew): refactor to make this unnecessary */
+.backpack .code-text {
+  position: relative;
+}
 .backpack.cant-put-down {
   opacity: 40%;
 }
@@ -729,6 +720,8 @@ svg {
   width: 2px;
   background-color: var(--selection-color);
 }
+
+/* BACKPACK END */
 
 .Exp.caret-position-path.sibling{
   /*TODO(andrew): unhack*/
