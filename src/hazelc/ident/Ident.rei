@@ -1,13 +1,11 @@
 module Ident0: {
-  [@deriving sexp]
+  [@deriving (sexp, eq, ord)]
   type t;
 
   let v: string => t;
   let of_string: string => t;
   let to_string: t => string;
 
-  let equal: (t, t) => bool;
-  let compare: (t, t) => int;
   let length: t => int;
 
   let concat: (t, t) => t;
