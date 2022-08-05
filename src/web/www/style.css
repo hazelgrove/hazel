@@ -145,8 +145,10 @@
   width: 100vw;
   padding: 0.7em;
   display: flex;
-  justify-content: space-between;
+  gap: 1em;
+  /*justify-content: space-between;*/
 }
+
 
 #editor-id {
   color: var(--top-bar-text);
@@ -214,11 +216,6 @@
 }
 #bar rect {
   fill: var(--bar-color);
-}
-
-#history-button-container {
-    display: flex;
-    gap: 1em;
 }
 
 .history-button {

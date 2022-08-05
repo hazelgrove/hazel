@@ -1,40 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-
-// let logo = (~font_metrics) => {
-//   let piece = (step, color: Sort.t, shape: PieceDec.piece_shape, s): Measured.t =>
-//     Measured.annot(Piece({color, shape, step}), Text(s));
-//   let l =
-//     Measured.(
-//       spaces(
-//         Selected,
-//         [
-//           piece(0, Exp, ((Convex, 0), (Convex, 0)), "t"),
-//           piece(1, Pat, ((Concave, 0), (Convex, 0)), "y"),
-//           piece(2, Typ, ((Concave, 0), (Concave, 0)), "l"),
-//           piece(3, Selected, ((Convex, 0), (Concave, 1)), "r"),
-//         ],
-//       )
-//     );
-//   Code.view_of_layout(
-//     ~id="logo",
-//     ~text_id="logo-text",
-//     ~font_metrics,
-//     DecPaths.mk(~logo_pieces=[0, 1, 2, 3], ()),
-//     l,
-//   );
-// };
-
-let unless = (p, a) => p ? Event.Many([]) : a;
-
-let button = (icon, action) =>
-  div([Attr.class_("topbar-icon"), Attr.on_mousedown(action)], [icon]);
-
-let link = (str, url, icon) =>
-  div(
-    [Attr.id(str)],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
-  );
+open Util.Web;
 
 let undo = (~inject, ~disabled: bool) => {
   let clss = disabled ? ["disabled"] : [];
@@ -68,7 +34,8 @@ let copy_log_to_clipboard = _ => {
   Event.Ignore;
 };
 
-let center_panel_view = (~inject, cur_idx) => {
+let editor_mode_view = (~inject, cur_idx) => {
+  //TODO(andrew): update as general editor mode controls
   let increment_editor = _ => {
     let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
     Log.append_json_updates_log();
@@ -85,29 +52,19 @@ let center_panel_view = (~inject, cur_idx) => {
   div(
     [Attr.id("editor-id")],
     [
-      button(Icons.back, decrement_editor),
+      button("topbar-icon", Icons.back, decrement_editor),
       div([Attr.on_mousedown(toggle_captions)], [text(current_editor)]),
-      button(Icons.forward, increment_editor),
+      button("topbar-icon", Icons.forward, increment_editor),
     ],
   );
 };
 
-let right_panel_view = (~inject) =>
-  div(
-    [Attr.id("about-button-container")],
-    [
-      button(Icons.eye, _ => inject(Update.Set(WhitespaceIcons))),
-      button(Icons.trash, _ => inject(Update.LoadDefault)),
-      link("github", "https://github.com/hazelgrove/hazel", Icons.github),
-    ],
-  );
-
 let menu_icon =
   div(
-    [Attr.classes(["menu-icon"]), Attr.on_mousedown(copy_log_to_clipboard)],
+    [clss(["menu-icon"]), Attr.on_mousedown(copy_log_to_clipboard)],
     [
       div(
-        [Attr.classes(["topbar-icon", "menu-icon-inner"])],
+        [clss(["topbar-icon", "menu-icon-inner"])],
         [
           a(
             Attr.[href("http://hazel.org"), create("target", "_blank")],
@@ -118,26 +75,18 @@ let menu_icon =
     ],
   );
 
-let left_panel_view = (~inject, model: Model.t) =>
+let top_bar_view = (~inject: Update.t => 'a, model: Model.t) =>
   div(
-    [Attr.id("history-button-container")],
+    [Attr.id("top-bar")],
     [
       menu_icon,
       undo(~inject, ~disabled=!ActionHistory.can_undo(model.history)),
       redo(~inject, ~disabled=!ActionHistory.can_redo(model.history)),
-      //center_panel_view(~inject, Model.current_editor(model)),
-      button(Icons.export, copy_log_to_clipboard),
-      right_panel_view(~inject),
-    ],
-  );
-
-let top_bar_view = (~inject, model: Model.t) =>
-  div(
-    [Attr.id("top-bar")],
-    [
-      left_panel_view(~inject, model),
-      //center_panel_view(~inject, Model.current_editor(model)),
-      //right_panel_view(~inject),
+      button("topbar-icon", Icons.export, copy_log_to_clipboard),
+      button("topbar-icon", Icons.eye, _ => inject(Set(WhitespaceIcons))),
+      button("topbar-icon", Icons.trash, _ => inject(Update.LoadDefault)),
+      link("github", "https://github.com/hazelgrove/hazel", Icons.github),
+      //editor_mode_view(~inject, Model.current_editor(model)),
     ],
   );
 
