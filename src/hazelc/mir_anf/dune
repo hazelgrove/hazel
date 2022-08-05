@@ -4,4 +4,4 @@
  (name mir_anf)
  (libraries holes ident label util sexplib)
  (preprocess
-  (pps ppx_sexp_conv)))
+  (pps ppx_deriving.eq ppx_deriving.ord ppx_sexp_conv)))

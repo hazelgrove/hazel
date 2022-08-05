@@ -1,5 +1,5 @@
 module Typ = Typ;
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type typ = Typ.t;
 
 module TypContext = TypContext;
@@ -7,7 +7,7 @@ module TypContext = TypContext;
 type typ_context = TypContext.t;
 
 module Complete = Complete;
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type complete = Complete.t;
 
 module CompleteContext = CompleteContext;

@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type t =
   | NecessarilyComplete
   | NecessarilyIncomplete
