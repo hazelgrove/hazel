@@ -1,5 +1,8 @@
 open Js_of_ocaml;
 open Core;
+open Sexplib.Std;
+
+//TODO(andrew): cleanup this module
 
 let default_editor_idx = 1;
 
@@ -53,6 +56,8 @@ let action_log_key: string = "ACTION_LOG";
 let keystoke_log_key: string = "KEYSTROKE_LOG";
 let zipper_log_key: string = "ZIPPER_LOG";
 let save_school_key: string = "SAVE_SCHOOL";
+let save_study_key: string = "SAVE_STUDY";
+let save_simple_key: string = "SAVE_SIMPLE";
 
 let insert_to_zid: (Zipper.state, string) => Zipper.state =
   (z_id, c) => {
@@ -68,7 +73,7 @@ let parse_to_zid = (id_gen: IdGen.state, str: string): option(Zipper.state) =>
   try(
     str
     |> Util.StringUtil.to_list
-    |> List.fold_left(insert_to_zid, (Model.empty_zipper, id_gen))
+    |> List.fold_left(insert_to_zid, (Zipper.init(0), id_gen))
     |> Option.some
   ) {
   | e =>
@@ -127,17 +132,107 @@ let load_settings = (): Model.settings =>
     }
   };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type simple_without_history = (Id.t, Zipper.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type study_without_history = (Id.t, int, list(Zipper.t));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type school_without_history = study_without_history;
+
+let save_simple = (simple: Model.simple): unit =>
+  set_localstore(
+    save_simple_key,
+    simple
+    |> (((id_gen, ed: Model.editor)) => (id_gen, ed.zipper))
+    |> sexp_of_simple_without_history
+    |> Sexplib.Sexp.to_string,
+  );
+
+let load_simple = (): Model.simple =>
+  switch (get_localstore(save_simple_key)) {
+  | None => Model.simple_init
+  | Some(flag) =>
+    try(
+      flag
+      |> Sexplib.Sexp.of_string
+      |> simple_without_history_of_sexp
+      |> (
+        ((id_gen, zipper: Zipper.t)) => (
+          id_gen,
+          Model.{zipper, history: ActionHistory.empty},
+        )
+      )
+    ) {
+    | _ => Model.simple_init
+    }
+  };
+
+let trim_histories: list(Model.editor) => list(Zipper.t) =
+  List.map((ed: Model.editor) => ed.zipper);
+let add_histories: list(Zipper.t) => list(Model.editor) =
+  List.map((zipper: Zipper.t) =>
+    Model.{zipper, history: ActionHistory.empty}
+  );
+
+let prep_school_in =
+    ((id_gen, idx, eds): Model.school): school_without_history => (
+  id_gen,
+  idx,
+  trim_histories(eds),
+);
+let prep_school_out =
+    ((id_gen, idx, eds): school_without_history): Model.school => (
+  id_gen,
+  idx,
+  add_histories(eds),
+);
+let prep_study_in = prep_school_in;
+let prep_study_out = prep_school_out;
+
+let save_study = (study: Model.study): unit =>
+  set_localstore(
+    save_study_key,
+    study
+    |> prep_study_in
+    |> sexp_of_study_without_history
+    |> Sexplib.Sexp.to_string,
+  );
+
+let load_study = (): Model.study =>
+  switch (get_localstore(save_study_key)) {
+  | None => Model.study_init
+  | Some(flag) =>
+    try(
+      flag
+      |> Sexplib.Sexp.of_string
+      |> study_without_history_of_sexp
+      |> prep_study_out
+    ) {
+    | _ => Model.study_init
+    }
+  };
+
 let save_school = (school: Model.school): unit =>
   set_localstore(
     save_school_key,
-    school |> Model.sexp_of_school |> Sexplib.Sexp.to_string,
+    school
+    |> prep_school_in
+    |> sexp_of_school_without_history
+    |> Sexplib.Sexp.to_string,
   );
 
 let load_school = (): Model.school =>
   switch (get_localstore(save_school_key)) {
   | None => Model.school_init
   | Some(flag) =>
-    try(flag |> Sexplib.Sexp.of_string |> Model.school_of_sexp) {
+    try(
+      flag
+      |> Sexplib.Sexp.of_string
+      |> school_without_history_of_sexp
+      |> prep_school_out
+    ) {
     | _ => Model.school_init
     }
   };

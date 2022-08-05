@@ -10,12 +10,3 @@ let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
 let span_if = (p, ats, ns) => p ? span(ats, ns) : span([], []);
 
 let unless = (p, a) => p ? Event.Many([]) : a;
-
-let button = (cls, icon, action) =>
-  div([Attr.class_(cls), Attr.on_mousedown(action)], [icon]);
-
-let link = (id, url, icon) =>
-  div(
-    [Attr.id(id)],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
-  );

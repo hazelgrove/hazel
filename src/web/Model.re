@@ -1,52 +1,17 @@
 open Core;
 open Sexplib.Std;
 
-/*
- school editor design:
- a stack is a list of editors
- each editor index has a name and a
- one editor can be focussed at a time,
- this determines where keyboard input goes,
- and determines cursor-info displayed
- each editor can take a list of earlier-indexed editors as includes
- that editor will be treated by eval as splice of includes+it in index-order
- each editor can be marked as hidden or visible or editable
- this determines the way it will be shown to student
- whole stack designates a list of indices to produce results for
- result/test-panel
-
- note: hidden prelude can leak via hole insertion
-
- */
-
-//[@deriving (show({with_path: false}), sexp, yojson)]
-//type mini_editor = Zipper.t;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type stage_names =
-  | StudentAttempt
-  | StudentTests;
-//hidden_prelude: mini_editor,
-//teacher_attempt: mini_editor,
-//teacher_tests: mini_editor,
-//wrong_attempts: mini_editor,
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type stage = {z: Zipper.t};
-
-let get_stage_idx: stage_names => int =
-  fun
-  | StudentAttempt => 0
-  | StudentTests => 1;
+type editor = {
+  zipper: Zipper.t,
+  history: ActionHistory.t,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type editor_model =
-  | Simple(Zipper.t)
-  | Study(int, list(Zipper.t))
-  | School(int, list(stage));
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type school = (Id.t, int, list(stage));
+  | Simple(editor)
+  | Study(int, list(editor))
+  | School(int, list(editor));
 
 let cell_captions = [
   "Student Implementation",
@@ -54,10 +19,32 @@ let cell_captions = [
   "Teacher Tests",
 ];
 
-let school_init = (
+[@deriving (show({with_path: false}), sexp, yojson)]
+type simple = (Id.t, editor);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type study = (Id.t, int, list(editor));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type school = (Id.t, int, list(editor));
+
+let mk_editor = (id): editor => {
+  zipper: Zipper.init(id),
+  history: ActionHistory.empty,
+};
+
+let simple_init: simple = (1, mk_editor(0));
+
+let school_init: school = (
   3,
   0,
-  [{z: Zipper.init(0)}, {z: Zipper.init(1)}, {z: Zipper.init(2)}],
+  [mk_editor(0), mk_editor(1), mk_editor(2)],
+);
+
+let study_init: study = (
+  3,
+  0,
+  [mk_editor(0), mk_editor(1), mk_editor(2)],
 );
 
 [@deriving (show({with_path: false}), yojson)]
@@ -67,14 +54,18 @@ type timestamp = float;
 type settings = {
   captions: bool,
   whitespace_icons: bool,
+  //editor_model: editor_model,
 };
 
-let settings_init = {captions: true, whitespace_icons: false};
+let settings_init = {
+  captions: true,
+  whitespace_icons: false,
+  //editor_model: Simple(mk_editor(0)),
+};
 
 type t = {
   editor_model,
   id_gen: IdGen.state,
-  history: ActionHistory.t, // TODO: move to editor-level?
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool, // current?
@@ -84,25 +75,10 @@ type t = {
 
 let cutoff = (===);
 
-let empty_zipper: Zipper.t = {
-  selection: {
-    focus: Left,
-    content: [],
-  },
-  backpack: [],
-  relatives: {
-    siblings: ([], [Grout({id: 0, shape: Convex})]),
-    ancestors: [],
-  },
-  caret: Outer,
-  caret_col_target: 0,
-};
-
 let mk = editor_model => {
   id_gen: 1,
   editor_model,
   settings: settings_init,
-  history: ActionHistory.empty,
   // TODO: move below to 'internals'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
@@ -110,36 +86,40 @@ let mk = editor_model => {
   double_tap: None,
 };
 
-let blank = mk(Simple(empty_zipper));
+let blank = mk(School(0, []));
+
+let get_editor' = (editor_model: editor_model): editor =>
+  switch (editor_model) {
+  | Simple(editor) => editor
+  | Study(n, eds) =>
+    assert(n < List.length(eds));
+    List.nth(eds, n);
+  | School(n, eds) =>
+    assert(n < List.length(eds));
+    List.nth(eds, n);
+  };
+
+let get_editor = (model: t): editor => get_editor'(model.editor_model);
+
+let put_editor = (model: t, ed: editor): editor_model =>
+  switch (model.editor_model) {
+  | Simple(_) => Simple(ed)
+  | Study(n, eds) =>
+    assert(n < List.length(eds));
+    Study(n, Util.ListUtil.put_nth(n, ed, eds));
+  | School(n, eds) =>
+    assert(n < List.length(eds));
+    School(n, Util.ListUtil.put_nth(n, ed, eds));
+  };
 
 let get_zipper' = (editor_model: editor_model): Zipper.t =>
-  switch (editor_model) {
-  | Simple(zipper) => zipper
-  | Study(n, zs) =>
-    assert(n < List.length(zs));
-    List.nth(zs, n);
-  | School(n, zs) =>
-    assert(n < List.length(zs));
-    List.nth(zs, n).z;
-  };
+  get_editor'(editor_model).zipper;
+let get_history' = (editor_model: editor_model): ActionHistory.t =>
+  get_editor'(editor_model).history;
 
 let get_zipper = (model: t): Zipper.t => get_zipper'(model.editor_model);
-
-let put_zipper = (model: t, z: Zipper.t): editor_model =>
-  switch (model.editor_model) {
-  | Simple(_) => Simple(z)
-  | Study(n, zs) =>
-    assert(n < List.length(zs));
-    Study(n, Util.ListUtil.put_nth(n, z, zs));
-  | School(n, zs) =>
-    assert(n < List.length(zs));
-    School(n, Util.ListUtil.put_nth(n, {z: z}, zs));
-  };
-
-let update_zipper = (f: Zipper.state => Zipper.state, model: t): t => {
-  let (z, id_gen) = f((get_zipper(model), model.id_gen));
-  {...model, id_gen, editor_model: put_zipper(model, z)};
-};
+let get_history = (model: t): ActionHistory.t =>
+  get_history'(model.editor_model);
 
 let current_editor = (model: t): int =>
   switch (model.editor_model) {

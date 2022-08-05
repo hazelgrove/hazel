@@ -140,13 +140,13 @@ let view =
   let result = Interface.get_result(d);
   switch (result) {
   | None =>
-    print_endline("WARNING: TESTVIREW: no result");
-    div([], []);
+    //print_endline("WARNING: TESTVIREW: no result");
+    div([], [])
   | Some((_, test_map)) =>
-    print_endline("TESTVIEW: some result");
-    if (test_map == []) {
-      print_endline("TESTMAP EMPTY");
-    };
+    /*print_endline("TESTVIEW: some result");
+      if (test_map == []) {
+        print_endline("TESTMAP EMPTY");
+      };*/
     div_if(
       test_map != [],
       [clss(["panel", "test-panel"])],
@@ -155,7 +155,7 @@ let view =
         test_reports_view(~inject, ~dhcode_view, test_map),
         test_summary(~inject, ~test_map),
       ],
-    );
+    )
   };
 };
 

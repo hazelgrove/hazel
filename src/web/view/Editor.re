@@ -84,7 +84,7 @@ let single_editor =
     : Node.t => {
   let fat_zipper = fat_zipper(zipper);
   div(
-    [Attr.class_("editor")],
+    [clss(["editor", "single"])],
     [
       code_container(
         ~font_metrics,
@@ -152,23 +152,22 @@ let join_tile = (id): Tile.t => {
   children: [],
 };
 
-let splice_stages = (stages: list(Model.stage)): Segment.t =>
-  stages
-  |> List.map((stage: Model.stage) => Zipper.unselect_and_zip(stage.z))
+let splice_editors = (editors: list(Model.editor)): Segment.t =>
+  editors
+  |> List.map((ed: Model.editor) => Zipper.unselect_and_zip(ed.zipper))
   |> (
     xs =>
       Util.ListUtil.interleave(
         xs,
-        List.init(List.length(stages) - 1, i =>
+        List.init(List.length(editors) - 1, i =>
           [Piece.Tile(join_tile(i + 100000))]
         ),
       )
   )
   |> List.flatten;
 
-let elab_splicer = (stages: list(Model.stage)) => {
-  let term = stages |> splice_stages |> Term.uexp_of_seg;
-  //print_endline(Segment.show(stages |> splice_stages));
+let elab_splicer = (eds: list(Model.editor)) => {
+  let term = eds |> splice_editors |> Term.uexp_of_seg;
   let (_, _, info_map) = term |> Statics.uexp_to_info_map;
   (term, info_map);
 };
@@ -177,19 +176,19 @@ let multi_editor =
     (
       ~font_metrics,
       ~show_backpack_targets,
-      ~stages: list(Model.stage),
+      ~editors: list(Model.editor),
       ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,
       ~inject,
     ) => {
   let fat_zippers =
-    List.map((stage: Model.stage) => fat_zipper(stage.z), stages);
+    List.map((editor: Model.editor) => fat_zipper(editor.zipper), editors);
   let fat_zipper = fat_zipper(focal_zipper);
   //TODO(andrew): now these just point at selected one
-  let (_combined_term, combined_info_map) = elab_splicer(stages);
+  let (_combined_term, combined_info_map) = elab_splicer(editors);
   let stuff =
-    switch (stages) {
+    switch (editors) {
     | [student_impl, student_tests, teacher_tests] =>
       let (implement_term, implement_map) = elab_splicer([student_impl]);
       let (teacher_term, teacher_map) =
@@ -252,11 +251,11 @@ let view =
       ~zipper=focal_zipper,
       ~settings,
     )
-  | School(selected, stages) =>
+  | School(selected, editors) =>
     multi_editor(
       ~font_metrics,
       ~show_backpack_targets,
-      ~stages,
+      ~editors,
       ~selected,
       ~settings,
       ~focal_zipper,

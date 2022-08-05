@@ -143,20 +143,20 @@
   left: 2.75em;
   box-sizing: border-box;
   width: 100vw;
-  padding: 0.7em;
+  padding: 0.75em;
   display: flex;
   gap: 1em;
   /*justify-content: space-between;*/
 }
 
 
-#editor-id {
+#editor-mode {
   color: var(--top-bar-text);
   display: flex;
+  align-items: center;
   gap: 0.5em;
   cursor: pointer;
   user-select: none;
-  font-family: "Helvetica Neue";
 }
 
 #logo {
@@ -190,7 +190,7 @@
   font-size: 13pt;
 }
 
-.cell-caption, .test-panel {
+.cell-caption, .test-panel, #editor-mode {
   font-size: 0.8em;
   font-family: 'Helvetica Neue';
 }
@@ -267,6 +267,12 @@
   justify-content: space-between;
   padding-left: 1em;
   gap: 0.5em;
+}
+
+.editor.single {
+  position: relative;
+  top: 7em;
+  padding-left: 1em;
 }
 
 .code-container {
@@ -958,6 +964,7 @@
 .topbar-icon {
   cursor: pointer;
   color: var(--top_bar_icon_fill);
+  height: 20px;
 }
 .topbar-icon:hover {
   transform: scale(120%);

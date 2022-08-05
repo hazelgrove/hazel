@@ -1,7 +1,12 @@
 open Core;
+open Sexplib.Std;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  succeeded: (list((Perform.Action.t, Zipper.state)) as 'affix, 'affix),
+  succeeded: (
+    list((Perform.Action.t, Zipper.state)),
+    list((Perform.Action.t, Zipper.state)),
+  ),
   just_failed: option(FailedInput.t),
   // TODO(d): forgetting why we need this...
   // not seeing it get read anywhere. possibly
