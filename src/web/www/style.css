@@ -126,6 +126,46 @@
   --error-message-z: 17;
 }
 
+/* BASE ELEMENTS */
+
+svg {
+  overflow: visible;
+}
+
+/* ANIMATIONS */
+
+@keyframes jello {
+	0% {
+		transform: scale3d(1, 1, 1);
+	}
+
+	30% {
+		transform: scale3d(1.25, 0.75, 1);
+	}
+
+	40% {
+		transform: scale3d(0.75, 1.25, 1);
+	}
+
+	50% {
+		transform: scale3d(1.15, 0.85, 1);
+	}
+
+	65% {
+		transform: scale3d(0.95, 1.05, 1);
+	}
+
+	75% {
+		transform: scale3d(1.05, 0.95, 1);
+	}
+
+	100% {
+		transform: scale3d(1, 1, 1);
+	}
+}
+
+/* PAGE */
+
 #page {
   overflow-x: auto;
   overflow-y: auto;
@@ -138,51 +178,11 @@
   color: var(--light-text-color);
 }
 
-#top-bar {
-  position: fixed;
-  left: 2.75em;
-  box-sizing: border-box;
-  width: 100vw;
-  padding: 0.75em;
-  display: flex;
-  gap: 1em;
-  /*justify-content: space-between;*/
-}
-
-
-#editor-mode {
-  color: var(--top-bar-text);
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  cursor: pointer;
-  user-select: none;
-}
-
-#logo {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-#logo-text {
-  position: relative;
-  vertical-align: middle;
-  z-index: var(--code-text-z);
-  /* deviate from font-specimen as hack to vertically center */
-  line-height: 1.7;
-}
-
-#font-specimen, #logo-font-specimen {
+#font-specimen {
   position: fixed;
   left: 100%;
 }
 
-#logo-font-specimen, #logo {
-  font-family: "Fira Code", monospace;
-  font-weight: bold;
-  font-size: 16pt;
-}
 #font-specimen, .code-container, .result {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
@@ -201,58 +201,71 @@
   }
 }
 
-#bar {
-  z-index: var(--bar-z);
-  position: absolute;
-  left: 0;
-  width: 100%;
-}
-#bar svg {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-}
-#bar rect {
-  fill: var(--bar-color);
+/* TOP BAR */
+
+#top-bar {
+  position: fixed;
+  left: 2.75em;
+  box-sizing: border-box;
+  width: 100vw;
+  padding: 0.75em;
+  display: flex;
+  gap: 1em;
+  /*justify-content: space-between;*/
 }
 
-.history-button {
-  font: 14pt 'Helvetica Neue';
-  font-weight: bold;
-}
-.history-button.disabled {
-  opacity: 0.35;
-}
-.history-button path {
-  fill: var(--top_bar_icon_fill);
-  stroke-width: 2px;
-}
-.history-button:hover {
+#top-bar .menu-icon {
+  width: 2.75em;
+  height: 2.75em;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #c7b480;
   cursor: pointer;
 }
-.history-button.disabled:hover {
-  cursor: default;
+
+#top-bar .menu-icon:hover .menu-icon-inner {
+  animation: jello 0.6s ease 0s 1 normal forwards;
 }
-.history-button:hover svg {
-  transform: scale(110%);
+#top-bar .icon:hover svg,
+.menu-icon:hover .menu-icon-inner svg {
+  transform: scale(130%);
 }
-.history-button.disabled:hover svg {
-  transform: none;
+#top-bar .menu-icon-inner.icon svg {
+  fill: #fefcf3;
 }
-.history-button:active svg {
+
+#top-bar .icon {
+  cursor: pointer;
+  color: var(--top_bar_icon_fill);
+  height: 20px;
+}
+#top-bar .icon svg {
+  fill: var(--top_bar_icon_fill);
+}
+
+#top-bar .icon.disabled {
+  opacity: 0.35;  
+}
+#top-bar .icon.disabled:hover svg {
   transform: scale(100%);
+  cursor: not-allowed;
 }
-.history-button.disabled:active svg {
-  transform: scale(100%);
+
+#top-bar #editor-mode {
+  color: var(--top-bar-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+  user-select: none;
 }
-.history-button:hover path {
-  fill: var(--action-text-color);
-}
-.history-button.disabled:hover path {
-  fill: var(--light-text-color);
-}
+
+/* END TOP BAR */
+
 
 .editor {
   display: flex;
@@ -281,7 +294,6 @@
 }
 
 .code {
-  /*position: relative;*/
   /*white-space: nowrap;*/
 }
 
@@ -303,7 +315,6 @@
   font-size: 0.8em;
   padding: 0.1em 0 1em 0em;
   font-size: 0.8em;
-  font-family: 'Helvetica Neue';
   color: var(--top-bar-text);
 }
 
@@ -440,12 +451,6 @@
   font-weight: bold;
 }
 
-/*.tile-path {
-  stroke-width: 0.4;
-  fill-rule: evenodd;
-  fill: var(--nul-bg-color);
-}*/
-
 .tile-path.selected {
   fill: var(--selection-color);
 }
@@ -464,7 +469,6 @@
 #raised-drop-shadow-unsorted .tile-drop-shadow {
   flood-color: var(--unsorted-shadow-color);
 }
-
 
 /* TODO(andrew): hack important */
 .tile-path.raised.selected {
@@ -625,62 +629,6 @@
   fill: var(--unsorted-shadow-color);
 }
 
-.caret-position-path.Exp.current-caret-pos.just-failed-0 {
-  animation: failedexppos0 var(--err-flash-duration);
-}
-.caret-position-path.Exp.current-caret-pos.just-failed-1 {
-  animation: failedexppos1 var(--err-flash-duration);
-}
-.caret-position-path.Pat.current-caret-pos.just-failed-0 {
-  animation: failedpatpos0 var(--err-flash-duration);
-}
-.caret-position-path.Pat.current-caret-pos.just-failed-1 {
-  animation: failedpatpos1 var(--err-flash-duration);
-}
-
-@keyframes failedexppos0 {
-  0% {
-    stroke: var(--hole-stroke-color);
-    fill: var(--hole-stroke-color);
-  }
-  100% {
-    stroke: var(--exp-shadow-color);
-    fill: var(--exp-shadow-color);
-  }
-}
-
-@keyframes failedexppos1 {
-  0% {
-    stroke: var(--hole-stroke-color);
-    fill: var(--hole-stroke-color);
-  }
-  100% {
-    stroke: var(--exp-shadow-color);
-    fill: var(--exp-shadow-color);
-  }
-}
-
-@keyframes failedpatpos0 {
-  0% {
-    stroke: var(--hole-stroke-color);
-    fill: var(--hole-stroke-color);
-  }
-  100% {
-    stroke: var(--pat-shadow-color);
-    fill: var(--pat-shadow-color);
-  }
-}
-@keyframes failedpatpos1 {
-  0% {
-    stroke: var(--hole-stroke-color);
-    fill: var(--hole-stroke-color);
-  }
-  100% {
-    stroke: var(--pat-shadow-color);
-    fill: var(--pat-shadow-color);
-  }
-}
-
 @property --color {
   syntax: '<color>'; /* <- defined as type number for the transition to work */
   initial-value: #000000;
@@ -700,91 +648,6 @@
 }
 #caret-bar.Pat {
   background-color: var(--pat-shadow-color);
-}
-#caret-bar.Exp.just-failed-0 {
-  animation: failedexpbar0 var(--err-flash-duration);
-}
-#caret-bar.Exp.just-failed-1 {
-  animation: failedexpbar1 var(--err-flash-duration);
-}
-#caret-bar.Pat.just-failed-0 {
-  animation: failedpatbar0 var(--err-flash-duration);
-}
-#caret-bar.Pat.just-failed-1 {
-  animation: failedpatbar1 var(--err-flash-duration);
-}
-
-@keyframes failedexpbar0 {
-  0% {
-    background-color: var(--hole-stroke-color);
-  }
-  100% {
-    background-color: var(--exp-shadow-color);
-  }
-}
-@keyframes failedexpbar1 {
-  0% {
-    background-color: var(--hole-stroke-color);
-  }
-  100% {
-    background-color: var(--exp-shadow-color);
-  }
-}
-
-@keyframes failedpatbar0 {
-  0% {
-    background-color: var(--hole-stroke-color);
-  }
-  100% {
-    background-color: var(--pat-shadow-color);
-  }
-}
-@keyframes failedpatbar1 {
-  0% {
-    background-color: var(--hole-stroke-color);
-  }
-  100% {
-    background-color: var(--pat-shadow-color);
-  }
-}
-
-#error-message {
-  opacity: 0%;
-  position: absolute;
-  z-index: var(--error-message-z);
-  color: var(--action-text-color);/*#cb4b16;*/
-  font: 10pt "Helvetica Neue";
-  /*font-weight: 500;*/
-  white-space: nowrap;
-}
-#error-message.just-failed-0 {
-  animation: failederrmsg0 var(--err-msg-duration);
-}
-#error-message.just-failed-1 {
-  animation: failederrmsg1 var(--err-msg-duration);
-}
-
-@keyframes failederrmsg0 {
-  0% {
-    opacity: 100%;
-  }
-  80% {
-    opacity: 100%;
-  }
-  100% {
-    opacity: 0%;
-  }
-}
-@keyframes failederrmsg1 {
-  0% {
-    opacity: 100%;
-  }
-  80% {
-    opacity: 100%;
-  }
-  100% {
-    opacity: 0%;
-  }
 }
 
 #backpack-pre, #backpack-suf {
@@ -818,89 +681,6 @@
   color: var(--pat-shadow-color);
 }
 
-#action-table {
-  position: relative;
-  left: -128px;
-  top: min(100px, max(15%, 80px));
-  font: 10pt "Helvetica Neue";
-  display: grid;
-  grid-template-columns: 120px auto;
-  grid-template-rows: repeat(3, auto 24px) auto 4px auto 24px auto 4px repeat(6, auto 4px) auto; /*24px auto 4px auto;*/
-  column-gap: 16px;
-  color: var(--action-text-color);
-  z-index: var(--action-table-z);
-  display: none;
-}
-
-#action-table .keys-container {
-  justify-self: right;
-  align-self: center;
-  width: 100%;
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-template-columns: auto;
-  grid-auto-columns: min-content;
-  justify-items: right;
-  justify-content: right;
-  grid-auto-flow: column;
-}
-#action-table .keys {
-  box-shadow: 0 0 8px -2px var(--light-page-color);
-  border-radius: 3px;
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-auto-flow: column;
-  column-gap: 4px;
-}
-#action-table .keys.with-hyphen {
-  column-gap: 2px;
-}
-#action-table .key {
-  background-color: var(--key-bg-color);
-  color: var(--key-text-color);
-  border-radius: 3px;
-  padding: 2px 4px;
-  min-width: 12px;
-  display: grid;
-  justify-content: center;
-  align-content: center;
-  font-family: Karla;
-}
-
-#action-table .action-type {
-  font-weight: bold;
-  justify-self: left;
-  align-self: center;
-  white-space: nowrap;
-}
-.action-type.disabled,
-.action-type .disabled {
-  opacity: 0.5;
-}
-
-#action-table .construct-shape {
-  justify-self: left;
-  /* text-decoration-line: underline;
-  text-decoration-thickness: 2px; */
-  font-weight: normal;
-}
-#action-table .construct-shape.disabled {
-  /* text-decoration: none; */
-  opacity: 0.5;
-}
-.construct-shape-row {
-  white-space: nowrap;
-}
-.construct-shape-row .disabled {
-  opacity: 0.5;
-}
-#action-table.Exp .construct-shape {
-  text-decoration-color: var(--exp-rail-color);
-}
-#action-table.Pat .construct-shape {
-  text-decoration-color: var(--pat-rail-color);
-}
-
 .keyboard-arrow {
   position: relative;
   font-family: 'Fira Code';
@@ -909,73 +689,6 @@
 
 .delete-action-arrow {
   font-family: 'Fira Code';
-}
-
-#about-button-container {
-  display: flex;
-  gap: 1em;
-}
-
-/* #help {
-  position: absolute;
-  top: 50%;
-  right: max(16px, min(2%, 32px));
-  transform: translate(0%, -50%);
-} */
-#help svg {
-  fill: var(--top_bar_icon_fill);
-}
-#help:hover svg {
-  transform: scale(120%);
-}
-#help:active svg {
-  transform: scale(100%);
-}
-
-#github svg {
-  fill: var(--top_bar_icon_fill);
-}
-#github:hover svg {
-  transform: scale(120%);
-}
-#github:active  svg {
-  transform: scale(100%);
-}
-
-.menu-icon {
-  width: 2.75em;
-  height: 2.75em;
-  position: fixed;
-  top: 0;
-  left: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #c7b480;
-  cursor: pointer;
-}
-.menu-icon-inner {
-
-}
-.menu-icon-inner.topbar-icon svg {
-  fill: #fefcf3;
-}
-
-.topbar-icon {
-  cursor: pointer;
-  color: var(--top_bar_icon_fill);
-  height: 20px;
-}
-.topbar-icon:hover {
-  transform: scale(120%);
-  /*fill: #dca100;*/
-}
-.topbar-icon svg {
-  fill: var(--top_bar_icon_fill);
-}
-.topbar-icon:hover svg {
-  transform: scale(120%);
-  /*fill: #dca100;*/
 }
 
 .whitespace {
@@ -1021,10 +734,6 @@
   /*TODO(andrew): unhack*/
   stroke: #ce9600;
     fill: #ce9600;
-}
-
-svg {
-  overflow: visible;
 }
 
 #caret {

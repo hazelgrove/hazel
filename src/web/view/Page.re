@@ -2,40 +2,23 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let button = (cls, icon, action) =>
-  div([clss(["topbar-icon", cls]), Attr.on_mousedown(action)], [icon]);
+let button = (icon, action) =>
+  div([clss(["icon"]), Attr.on_mousedown(action)], [icon]);
 
-let link = (id, url, icon) =>
+let button_d = (icon, action, ~disabled: bool) =>
   div(
-    [Attr.id(id), clss(["topbar-icon"])],
+    [
+      clss(["icon"] @ (disabled ? ["disabled"] : [])),
+      Attr.on_mousedown(_ => unless(disabled, action)),
+    ],
+    [icon],
+  );
+
+let link = (icon, url) =>
+  div(
+    [clss(["icon"])],
     [a(Attr.[href(url), create("target", "_blank")], [icon])],
   );
-
-let undo = (~inject, ~disabled: bool) => {
-  let clss = disabled ? ["disabled"] : [];
-  let undo = _ => unless(disabled, inject(Update.Undo));
-  span(
-    Attr.[
-      id("undo"),
-      classes(["topbar-icon", "history-button", ...clss]),
-      on_mousedown(undo),
-    ],
-    [Icons.undo],
-  );
-};
-
-let redo = (~inject, ~disabled: bool) => {
-  let clss = disabled ? ["disabled"] : [];
-  let redo = _ => unless(disabled, inject(Update.Redo));
-  span(
-    Attr.[
-      id("redo"),
-      classes(["topbar-icon", "history-button", ...clss]),
-      on_mousedown(redo),
-    ],
-    [Icons.redo],
-  );
-};
 
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
@@ -43,54 +26,45 @@ let copy_log_to_clipboard = _ => {
   Event.Ignore;
 };
 
+let increment_editor = (~inject: Update.t => 'a, cur_idx, _) => {
+  let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
+  Log.append_json_updates_log();
+  inject(SwitchEditor(next_ed));
+};
+
+let decrement_editor = (~inject: Update.t => 'a, cur_idx, _) => {
+  let prev_ed = Util.IntUtil.modulo(cur_idx - 1, LocalStorage.num_editors);
+  Log.append_json_updates_log();
+  inject(SwitchEditor(prev_ed));
+};
+
 let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
+  let id = Attr.id("editor-mode");
+  let toggle = Attr.on_mousedown(_ => inject(ToggleMode));
   switch (model.editor_model) {
-  | Simple(_) =>
-    div(
-      [Attr.id("editor-mode"), Attr.on_mousedown(_ => inject(ToggleMode))],
-      [text("Simple")],
-    )
-  | Study(_n, _zs) =>
+  | Simple(_) => div([id, toggle], [text("Simple")])
+  | School(_) => div([id, toggle], [text("School")])
+  | Study(_) =>
     let cur_idx = Model.current_editor(model);
-    //TODO(andrew): update as general editor mode controls
-    let increment_editor = _ => {
-      let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
-      Log.append_json_updates_log();
-      inject(Update.SwitchEditor(next_ed));
-    };
-    let decrement_editor = _ => {
-      let prev_ed =
-        Util.IntUtil.modulo(cur_idx - 1, LocalStorage.num_editors);
-      Log.append_json_updates_log();
-      inject(Update.SwitchEditor(prev_ed));
-    };
     let current_editor =
       Printf.sprintf("%d / %d", cur_idx + 1, LocalStorage.num_editors);
     div(
-      [Attr.id("editor-mode")],
+      [id],
       [
-        button("topbar-icon", Icons.back, decrement_editor),
-        div(
-          [Attr.on_mousedown(_ => inject(ToggleMode))],
-          [text(current_editor)],
-        ),
-        button("topbar-icon", Icons.forward, increment_editor),
+        button(Icons.back, decrement_editor(~inject, cur_idx)),
+        div([toggle], [text(current_editor)]),
+        button(Icons.forward, increment_editor(~inject, cur_idx)),
       ],
     );
-  | School(_n, _zs) =>
-    div(
-      [Attr.id("editor-mode"), Attr.on_mousedown(_ => inject(ToggleMode))],
-      [text("School")],
-    )
   };
 };
 
 let menu_icon =
   div(
-    [clss(["menu-icon"]), Attr.on_mousedown(copy_log_to_clipboard)],
+    [clss(["menu-icon"])],
     [
       div(
-        [clss(["topbar-icon", "menu-icon-inner"])],
+        [clss(["icon", "menu-icon-inner"])],
         [
           a(
             Attr.[href("http://hazel.org"), create("target", "_blank")],
@@ -103,16 +77,18 @@ let menu_icon =
 
 let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
   let history = Model.get_history(model);
+  let can_undo = ActionHistory.can_undo(history);
+  let can_redo = ActionHistory.can_redo(history);
   div(
     [Attr.id("top-bar")],
     [
       menu_icon,
-      undo(~inject, ~disabled=!ActionHistory.can_undo(history)),
-      redo(~inject, ~disabled=!ActionHistory.can_redo(history)),
-      button("topbar-icon", Icons.export, copy_log_to_clipboard),
-      button("topbar-icon", Icons.eye, _ => inject(Set(WhitespaceIcons))),
-      button("topbar-icon", Icons.trash, _ => inject(Update.LoadDefault)),
-      link("github", "https://github.com/hazelgrove/hazel", Icons.github),
+      button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
+      button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
+      button(Icons.export, copy_log_to_clipboard),
+      button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
+      button(Icons.trash, _ => inject(LoadDefault)),
+      link(Icons.github, "https://github.com/hazelgrove/hazel"),
       editor_mode_view(~inject, ~model),
     ],
   );
@@ -143,10 +119,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
     ],
     [
       FontSpecimen.view("font-specimen"),
-      //FontSpecimen.view("logo-font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
-      //editor_caption_view(model),
       editor_view(~inject, model),
     ],
   );
