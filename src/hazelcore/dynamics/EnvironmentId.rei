@@ -19,11 +19,6 @@ let init: t;
 let equal: (t, t) => bool;
 
 /**
-  [next ei] is the next identifier after [ei].
- */
-let next: t => t;
-
-/**
   [invalid] is an invalid identifier.
  */
 let invalid: t;
