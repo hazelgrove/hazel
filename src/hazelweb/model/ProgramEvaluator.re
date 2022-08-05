@@ -1,11 +1,36 @@
-/* FIXME: Somehow filter out obsolete results. */
 open Sexplib.Std;
 open Lwt.Infix;
 open Lwt.Syntax;
 open Lwtutil;
 
+module Id: {
+  [@deriving sexp]
+  type t;
+
+  let equal: (t, t) => bool;
+  let compare: (t, t) => int;
+  let max: (t, t) => t;
+
+  let to_int: t => int;
+
+  let init: t;
+  let next: t => t;
+} = {
+  [@deriving sexp]
+  type t = int;
+
+  let equal = Int.equal;
+  let compare = Int.compare;
+  let max = Int.max;
+
+  let to_int = id => id;
+
+  let init = 0;
+  let next = id => id + 1;
+};
+
 [@deriving sexp]
-type evaluation_request_id = int;
+type evaluation_request_id = Id.t;
 
 [@deriving sexp]
 type evaluation_request = (evaluation_request_id, Program.t);
@@ -37,7 +62,7 @@ module type M = {
 module Sync: M = {
   type t = {latest: evaluation_request_id};
 
-  let init = () => {latest: 0};
+  let init = () => {latest: Id.init};
 
   let get_result = ({latest}: t, (id, program): evaluation_request) => {
     let lwt = {
@@ -211,20 +236,23 @@ module Streamed = (M: M) => {
     type nonrec subscription = subscription;
 
     let create = () => {
-      let max = ref(Int.min_int);
+      let max = ref(Id.init);
 
       let ({inner, observable}, next, complete) = create();
+
+      let next = ((id, program)) =>
+        if (Id.compare(id, max^) > 0) {
+          max := id;
+          next((id, program));
+        } else {
+          Lwt.return_unit;
+        };
+
+      /* Filter out obsolete results as they come in. */
       let observable =
         observable
         |> Lwt_observable.pipe(
-             Lwt_stream.filter(((id, _)) =>
-               if (id < max^) {
-                 false;
-               } else {
-                 max := id;
-                 true;
-               }
-             ),
+             Lwt_stream.filter(((id, _)) => Id.compare(id, max^) >= 0),
            );
 
       let inner = {inner, observable};

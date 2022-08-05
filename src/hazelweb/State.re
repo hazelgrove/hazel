@@ -6,17 +6,17 @@ module ProgramEvaluator = {
     inner: Inner.t,
     next: ProgramEvaluator.evaluation_request => Lwt.t(unit),
     complete: Inner.complete,
-    count: ref(int),
+    count: ref(ProgramEvaluator.evaluation_request_id),
   };
 
   let create = () => {
     let (inner, next, complete) = Inner.create();
-    {inner, next, complete, count: ref(0)};
+    {inner, next, complete, count: ref(ProgramEvaluator.Id.init)};
   };
 
   let next = ({next, count, _}: t, model: Model.t) => {
     let id = count^;
-    count := count^ + 1;
+    count := ProgramEvaluator.Id.next(count^);
     (id, model |> Model.get_program) |> next;
   };
   let complete = ({complete, _}: t) => complete();

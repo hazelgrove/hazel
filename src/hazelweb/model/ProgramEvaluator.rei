@@ -1,10 +1,41 @@
 open Lwtutil;
 
+module Id: {
+  /**
+    The type of an evaluation request id.
+   */
+  [@deriving sexp]
+  type t;
+
+  let equal: (t, t) => bool;
+  let compare: (t, t) => int;
+
+  /**
+    [max id id'] is the id that is larger (and more recent) of the two.
+   */
+  let max: (t, t) => t;
+
+  /**
+    [to_int id] is the integer for the id.
+   */
+  let to_int: t => int;
+
+  /**
+    [init] is the initial id.
+   */
+  let init: t;
+
+  /**
+    [next id] is the next id after [id].
+   */
+  let next: t => t;
+};
+
 /**
   The type of an evaluation request id.
  */
 [@deriving sexp]
-type evaluation_request_id = int;
+type evaluation_request_id = Id.t;
 
 /**
   The type of an evaluation request.
