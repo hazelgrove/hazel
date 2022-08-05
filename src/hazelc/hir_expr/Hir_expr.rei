@@ -1,5 +1,5 @@
 module Typ = Typ;
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type typ = Typ.t;
 
 module TypContext = TypContext;
