@@ -46,7 +46,8 @@ type match_result =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, BoundVar(_)) => DoesNotMatch
+  /* Fail, since we assume that `d` is final. */
+  | (_, BoundVar(x)) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | (EmptyHole(_, _), _)
   | (NonEmptyHole(_, _, _, _), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
