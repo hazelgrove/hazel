@@ -1,3 +1,6 @@
+/**
+  Program evaluator state.
+ */
 module ProgramEvaluator = {
   module Inner' = ProgramEvaluator.Streamed(ProgramEvaluator.Worker.Client);
   module Inner = Inner'.Filtered;
@@ -29,15 +32,32 @@ module ProgramEvaluator = {
 
 type t = {evaluator: ProgramEvaluator.t};
 
+/**
+  [init ()] is the initial state.
+ */
 let init = () => {
   let evaluator = ProgramEvaluator.create();
   {evaluator: evaluator};
 };
 
+/**
+  [evaluator state] is the program evaluator.
+ */
 let evaluator = ({evaluator}: t) => evaluator;
 
+/**
+  See {!ProgramEvaluator.next}.
+ */
 let evaluator_next = state => state |> evaluator |> ProgramEvaluator.next;
+
+/**
+  See {!ProgramEvaluator.subscribe}.
+ */
 let evaluator_subscribe = state =>
   state |> evaluator |> ProgramEvaluator.subscribe;
+
+/**
+  See {!ProgramEvaluator.subscribe'}.
+ */
 let evaluator_subscribe' = state =>
   state |> evaluator |> ProgramEvaluator.subscribe';
