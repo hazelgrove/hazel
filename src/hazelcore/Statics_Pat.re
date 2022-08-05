@@ -88,28 +88,25 @@ and syn_operand =
       };
     (ty, ctx);
   | Parenthesized(p) => syn(ctx, p)
-  | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
-    switch (opseq) {
-    | OpSeq(skel, seq) =>
-      let subskels = UHPat.get_tuple_elements(skel);
-      let rec syn_subskels = (subskels, ctx) =>
-        switch (subskels) {
-        | [] => Some([])
-        | [hd, ...tl] =>
-          switch (syn_skel(ctx, hd, seq)) {
-          | Some((ty, ctx)) =>
-            switch (syn_subskels(tl, ctx)) {
-            | Some(ty_list) => Some([ty, ...ty_list])
-            | None => None
-            }
+  | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, seq))) =>
+    let subskels = UHPat.get_tuple_elements(skel);
+    let rec syn_subskels = (subskels, ctx) =>
+      switch (subskels) {
+      | [] => Some([])
+      | [hd, ...tl] =>
+        switch (syn_skel(ctx, hd, seq)) {
+        | Some((ty, ctx)) =>
+          switch (syn_subskels(tl, ctx)) {
+          | Some(ty_list) => Some([ty, ...ty_list])
           | None => None
           }
-        };
-      switch (OptUtil.bind(syn_subskels(subskels, ctx), Statics_common.lub)) {
-      | Some(ty) => Some((List(ty), ctx))
-      | None => Some((List(Hole), ctx))
+        | None => None
+        }
       };
-    }
+    switch (OptUtil.bind(syn_subskels(subskels, ctx), Statics_common.lub)) {
+    | Some(ty) => Some((List(ty), ctx))
+    | None => None
+    };
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     let+ op_ctx = ana_operand(ctx, op, ty_ann);
@@ -197,35 +194,28 @@ and ana_operand =
   | Wild(NotInHole) => Some(ctx)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | ListLit(StandardErrStatus(NotInHole), None) =>
     let* (ty', ctx') = syn_operand(ctx, operand);
     HTyp.consistent(ty, ty') ? Some(ctx') : None;
-  | ListLit(StandardErrStatus(NotInHole), None) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => None
-    | Some(_) => Some(ctx)
-    }
   | Inj(NotInHole, side, p1) =>
     let* (tyL, tyR) = HTyp.matched_sum(ty);
     let ty1 = InjSide.pick(side, tyL, tyR);
     ana(ctx, p1, ty1);
   | Parenthesized(p) => ana(ctx, p, ty)
   | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, seq))) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => None
-    | Some(ty_el) =>
-      let subskels = UHPat.get_tuple_elements(skel);
-      let rec ana_subskels = (subskels, ctx) =>
-        switch (subskels) {
-        | [] => Some(ctx)
-        | [hd, ...tl] =>
-          switch (ana_skel(ctx, hd, seq, ty_el)) {
-          | Some(ctx) => ana_subskels(tl, ctx)
-          | None => None
-          }
-        };
-      ana_subskels(subskels, ctx);
-    }
+    let* ty_el = HTyp.matched_list(ty);
+    let subskels = UHPat.get_tuple_elements(skel);
+    let rec ana_subskels = (subskels, ctx) =>
+      switch (subskels) {
+      | [] => Some(ctx)
+      | [hd, ...tl] =>
+        switch (ana_skel(ctx, hd, seq, ty_el)) {
+        | Some(ctx) => ana_subskels(tl, ctx)
+        | None => None
+        }
+      };
+    ana_subskels(subskels, ctx);
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
     HTyp.consistent(ty, ty_ann) ? ana_operand(ctx, op, ty_ann) : None;
@@ -453,51 +443,48 @@ and syn_fix_holes_operand =
     let (p, ty, ctx, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p);
     (Parenthesized(p), ty, ctx, id_gen);
-  | ListLit(_, Some(opseq)) =>
-    switch (opseq) {
-    | OpSeq(skel, seq) =>
-      let subskels = UHPat.get_tuple_elements(skel);
-      let (skels_list, seq_final, ctx, id_gen, list_types) =
-        List.fold_left(
-          ((skels_list_f, seq_f, ctx_f, id_gen_f, list_types_f), skel_f) =>
-            switch (
-              syn_fix_holes_skel(
-                ctx_f,
-                id_gen_f,
-                ~renumber_empty_holes,
-                skel_f,
-                seq_f,
-              )
-            ) {
-            | (skel_t, seq_t, common_ty_t, ctx_t, id_gen_t) => (
-                skels_list_f @ [skel_t],
-                seq_t,
-                ctx_t,
-                id_gen_t,
-                list_types_f @ [common_ty_t],
-              )
-            },
-          ([], seq, ctx, id_gen, []),
-          subskels,
-        );
-      let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
-      switch (Statics_common.lub(list_types)) {
-      | None =>
-        let (u, id_gen) = IDGen.next_hole(id_gen);
-        (
-          ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
-          HTyp.Hole,
-          ctx,
-          id_gen,
-        );
-      | Some(common_type) => (
-          ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
-          List(common_type),
-          ctx,
-          id_gen,
-        )
-      };
-    }
+  | ListLit(_, Some(OpSeq(skel, seq))) =>
+    let subskels = UHPat.get_tuple_elements(skel);
+    let (skels_list, seq_final, ctx, id_gen, list_types) =
+      List.fold_left(
+        ((skels_list_f, seq_f, ctx_f, id_gen_f, list_types_f), skel_f) =>
+          switch (
+            syn_fix_holes_skel(
+              ctx_f,
+              id_gen_f,
+              ~renumber_empty_holes,
+              skel_f,
+              seq_f,
+            )
+          ) {
+          | (skel_t, seq_t, common_ty_t, ctx_t, id_gen_t) => (
+              skels_list_f @ [skel_t],
+              seq_t,
+              ctx_t,
+              id_gen_t,
+              list_types_f @ [common_ty_t],
+            )
+          },
+        ([], seq, ctx, id_gen, []),
+        subskels,
+      );
+    let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
+    switch (Statics_common.lub(list_types)) {
+    | None =>
+      let (u, id_gen) = IDGen.next_hole(id_gen);
+      (
+        ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
+        HTyp.Hole,
+        ctx,
+        id_gen,
+      );
+    | Some(common_type) => (
+        ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
+        List(common_type),
+        ctx,
+        id_gen,
+      )
+    };
   | Inj(_, side, p1) =>
     let (p1, ty1, ctx, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, p1);
@@ -758,7 +745,8 @@ and ana_fix_holes_operand =
     (operand_nih, ctx, id_gen);
   | IntLit(_, _)
   | FloatLit(_, _)
-  | BoolLit(_, _) =>
+  | BoolLit(_, _)
+  | ListLit(_, None) =>
     let (operand', ty', ctx, id_gen) =
       syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, operand);
     if (HTyp.consistent(ty, ty')) {
@@ -771,57 +759,43 @@ and ana_fix_holes_operand =
         id_gen,
       );
     };
-  | ListLit(_, None) =>
-    switch (HTyp.matched_list(ty)) {
-    | Some(_) => (ListLit(StandardErrStatus(NotInHole), None), ctx, id_gen)
-    | None =>
-      let (u, id_gen) = IDGen.next_hole(id_gen);
-      (
-        ListLit(StandardErrStatus(InHole(TypeInconsistent, u)), None),
-        ctx,
-        id_gen,
-      );
-    }
   | Parenthesized(p1) =>
     let (p1, ctx, id_gen) =
       ana_fix_holes(ctx, id_gen, ~renumber_empty_holes, p1, ty);
     (Parenthesized(p1), ctx, id_gen);
-  | ListLit(_, Some(opseq)) =>
+  | ListLit(_, Some(OpSeq(skel, seq) as opseq)) =>
     switch (HTyp.matched_list(ty)) {
     | Some(ty_el) =>
-      switch (opseq) {
-      | OpSeq(skel, seq) =>
-        let subskels = UHPat.get_tuple_elements(skel);
-        let (skels_list, seq_final, ctx, id_gen) =
-          List.fold_left(
-            ((skels_list_f, seq_f, ctx_f, id_gen_f), skel_f) =>
-              switch (
-                ana_fix_holes_skel(
-                  ctx_f,
-                  id_gen_f,
-                  ~renumber_empty_holes,
-                  skel_f,
-                  seq_f,
-                  ty_el,
-                )
-              ) {
-              | (skel_t, seq_t, ctx_t, id_gen_t) => (
-                  skels_list_f @ [skel_t],
-                  seq_t,
-                  ctx_t,
-                  id_gen_t,
-                )
-              },
-            ([], seq, ctx, id_gen),
-            subskels,
-          );
-        let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
-        (
-          ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
-          ctx,
-          id_gen,
+      let subskels = UHPat.get_tuple_elements(skel);
+      let (skels_list, seq_final, ctx, id_gen) =
+        List.fold_left(
+          ((skels_list_f, seq_f, ctx_f, id_gen_f), skel_f) =>
+            switch (
+              ana_fix_holes_skel(
+                ctx_f,
+                id_gen_f,
+                ~renumber_empty_holes,
+                skel_f,
+                seq_f,
+                ty_el,
+              )
+            ) {
+            | (skel_t, seq_t, ctx_t, id_gen_t) => (
+                skels_list_f @ [skel_t],
+                seq_t,
+                ctx_t,
+                id_gen_t,
+              )
+            },
+          ([], seq, ctx, id_gen),
+          subskels,
         );
-      }
+      let new_opseq = OpSeq.OpSeq(UHPat.mk_tuple(skels_list), seq_final);
+      (
+        ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
+        ctx,
+        id_gen,
+      );
     | None =>
       let (opseq, _, ctx, id_gen) =
         syn_fix_holes_opseq(ctx, id_gen, ~renumber_empty_holes, opseq);

@@ -935,7 +935,6 @@ and syn_perform_operand =
       switch (ele_ty) {
       | None =>
         let (u, id_gen) = id_gen |> IDGen.next_hole;
-
         Succeeded((
           ZOpSeq.wrap(
             ZPat.ListLitZ(InconsistentBranches(prod_ty, u), zbody),
@@ -1409,14 +1408,18 @@ and ana_perform_operand =
         ),
       ),
     ) =>
-    let zp =
-      ZOpSeq.wrap(
-        ZPat.CursorP(
-          OnText(1),
-          ListLit(StandardErrStatus(NotInHole), None),
-        ),
-      );
-    Succeeded((zp, ctx, id_gen));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let zp =
+        ZOpSeq.wrap(
+          ZPat.CursorP(
+            OnText(1),
+            ListLit(StandardErrStatus(NotInHole), None),
+          ),
+        );
+      Succeeded((zp, ctx, id_gen));
+    }
 
   /* Construct */
   | (Construct(SOp(SSpace)), CursorP(OnText(1), ListLit(err, None))) =>
@@ -1685,7 +1688,7 @@ and ana_perform_operand =
       let zp = ZOpSeq.wrap(ZPat.ParenthesizedZ(zbody));
       Succeeded((zp, ctx, id_gen));
     }
-  | (_, ListLitZ(err, ZOpSeq(skel, _) as zbody)) =>
+  | (_, ListLitZ(_, ZOpSeq(skel, _) as zbody)) =>
     switch (HTyp.matched_list(ty)) {
     | None => Failed
     | Some(ty_el) =>
@@ -1702,7 +1705,8 @@ and ana_perform_operand =
           ty,
         )
       | Succeeded((zbody, ctx, id_gen)) =>
-        let zpat = ZOpSeq.wrap(ZPat.ListLitZ(err, zbody));
+        let zpat =
+          ZOpSeq.wrap(ZPat.ListLitZ(StandardErrStatus(NotInHole), zbody));
         Succeeded((zpat, ctx, id_gen));
       };
     }

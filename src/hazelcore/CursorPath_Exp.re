@@ -613,6 +613,17 @@ and holes_zoperand =
         (),
       )
     }
+  | CursorE(OnText(_), ListLit(err, None)) =>
+    switch (err) {
+    | StandardErrStatus(NotInHole) => CursorPath_common.no_holes
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
+        (),
+      )
+    }
   | CursorE(OnDelim(k, _), Parenthesized(body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
@@ -697,11 +708,63 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Fun(_) | Case(_)) =>
+  | CursorE(OnDelim(_), ListLit(_, None))
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | Fun(_) | Case(_) | ListLit(_, Some(_)),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
-  | CursorE(_, ListLit(_, _)) => CursorPath_common.no_holes
-  | ListLitZ(_, zopseq) => holes_zopseq(zopseq, [0, ...rev_steps])
+  | CursorE(OnDelim(k, _), ListLit(err, Some(opseq))) =>
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
+        Some(
+          mk_hole_sort(
+            CursorPath.ExpHole(u, TypeErr),
+            List.rev([0, ...rev_steps]),
+          ),
+        )
+      };
+    let opseq_holes = holes_opseq([0, ...rev_steps], opseq, []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~holes_after=opseq_holes,
+        ~hole_selected,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_before=opseq_holes,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
+  | ListLitZ(err, zopseq) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
+          mk_hole_sort(
+            CursorPath.ExpHole(u, TypeErr),
+            List.rev([0, ...rev_steps]),
+          ),
+        ]
+      };
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_zopseq(zopseq, [0, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
+
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | FunZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =

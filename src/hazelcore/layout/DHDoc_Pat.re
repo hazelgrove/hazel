@@ -48,9 +48,9 @@ let rec mk =
         inj_side,
         mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
       )
-    | ListLit(_, types) =>
-      let new_list = List.map(mk', types);
-      DHDoc_common.mk_ListLit(new_list, new_list);
+    | ListLit(_, d_list) =>
+      let ol = List.map(mk', d_list);
+      DHDoc_common.mk_ListLit(ol, ol);
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);

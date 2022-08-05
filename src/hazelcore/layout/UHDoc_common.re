@@ -60,8 +60,6 @@ let annot_Tessera: t => t = Doc.annot(UHAnnot.Tessera);
 let annot_ClosedChild = (~is_inline: bool, ~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.ClosedChild({is_inline, sort}));
 let annot_Step = (step: int): (t => t) => Doc.annot(UHAnnot.Step(step));
-// let annot_List = (~sort: TermSort.t, ~err: ListErrStatus.t): (t => t) =>
-//   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
 let annot_Operand = (~sort: TermSort.t): (t => t) =>
   Doc.annot(UHAnnot.mk_Term(~sort, ~shape=Operand, ()));
 let annot_Case: t => t =
@@ -91,7 +89,6 @@ let user_newline: t =
     ])
   );
 
-[@deriving sexp]
 type formatted_child =
   | UserNewline(t)
   | EnforcedInline(t)
@@ -274,9 +271,7 @@ let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   |> annot_Operand(~sort);
 };
 
-let mk_ListLit =
-    // (~sort: TermSort.t, ~err: ListErrStatus.t, body: option(formatted_child))
-    (~sort: TermSort.t, body: option(formatted_child)): t => {
+let mk_ListLit = (~sort: TermSort.t, body: option(formatted_child)): t => {
   switch (body) {
   | None => mk_text("[]") |> annot_Tessera |> annot_Operand(~sort)
   | Some(body) => body |> pad_bidelimited_open_child |> annot_Operand(~sort)

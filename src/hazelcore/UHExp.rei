@@ -48,8 +48,6 @@ let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 
-// let listnil: (~err: ErrStatus.t=?, unit) => operand;
-
 let listlit:
   (~err: ListErrStatus.t=?, ~elems: option(opseq)=?, unit) => operand;
 

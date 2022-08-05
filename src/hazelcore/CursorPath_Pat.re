@@ -316,8 +316,7 @@ and holes_zoperand =
   | CursorP(_, Wild(err))
   | CursorP(_, IntLit(err, _))
   | CursorP(_, FloatLit(err, _))
-  | CursorP(_, BoolLit(err, _))
-  | CursorP(_, ListLit(StandardErrStatus(err), None)) =>
+  | CursorP(_, BoolLit(err, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
@@ -327,8 +326,40 @@ and holes_zoperand =
         (),
       )
     }
-  | CursorP(OnDelim(_, _), ListLit(InconsistentBranches(_, _), None)) => CursorPath_common.no_holes
-  | CursorP(OnDelim(k, _), Parenthesized(body) | ListLit(_, Some(body))) =>
+  | CursorP(OnText(_), ListLit(err, None)) =>
+    switch (err) {
+    | StandardErrStatus(NotInHole) => CursorPath_common.no_holes
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(mk_hole_sort(PatHole(u, TypeErr), List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorP(OnDelim(k, _), ListLit(err, Some(body))) =>
+    let body_holes = holes(body, [0, ...rev_steps], []);
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
+        Some(
+          mk_hole_sort(PatHole(u, TypeErr), List.rev([0, ...rev_steps])),
+        )
+      };
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(~holes_after=body_holes, ~hole_selected, ())
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_before=body_holes,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
+  | CursorP(OnDelim(k, _), Parenthesized(body)) =>
     let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
     | 0 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
@@ -364,14 +395,27 @@ and holes_zoperand =
       CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
     | _ => CursorPath_common.no_holes
     };
+  | CursorP(OnDelim(_), ListLit(_, None))
   | CursorP(
       OnText(_),
-      Parenthesized(_) | Inj(_, _, _) | ListLit(_, _) | TypeAnn(_),
+      Parenthesized(_) | Inj(_, _, _) | ListLit(_, Some(_)) | TypeAnn(_),
     ) =>
     // invalid cursor position
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
-  | ListLitZ(_, zbody) => holes_z(zbody, [0, ...rev_steps])
+  | ListLitZ(err, zbody) =>
+    let zbody_holes = holes_z(zbody, [0, ...rev_steps]);
+    switch (err) {
+    | StandardErrStatus(NotInHole) => zbody_holes
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) => {
+        ...zbody_holes,
+        holes_before: [
+          mk_hole_sort(PatHole(u, TypeErr), List.rev([0, ...rev_steps])),
+          ...zbody_holes.holes_before,
+        ],
+      }
+    };
   | InjZ(err, _, zbody) =>
     let zbody_holes = holes_z(zbody, [0, ...rev_steps]);
     switch (err) {
