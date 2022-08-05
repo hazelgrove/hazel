@@ -216,6 +216,30 @@ let rec uexp_to_info_map =
     let (ty_ann, m_typ) = utyp_to_info_map(typ);
     let (ty_pat, _ctx_pat, m_pat) =
       upat_to_info_map(~mode=Ana(ty_ann), pat);
+    let ctx =
+      switch (pat.term, ty_ann, body.term) {
+      | (Var(x), Arrow(_), Fun(_) | FunAnn(_)) =>
+        VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
+      | (
+          Invalid(_) | EmptyHole | Wild | Int(_) | Float(_) | Bool(_) | Pair(_),
+          _,
+          _,
+        )
+      | (_, Unknown(_) | Int | Float | Bool | Prod(_), _)
+      | (
+          _,
+          _,
+          Invalid(_) | EmptyHole | Bool(_) | Int(_) | Float(_) | Pair(_) |
+          Var(_) |
+          Let(_) |
+          LetAnn(_) |
+          Ap(_) |
+          If(_) |
+          OpInt(_) |
+          OpFloat(_) |
+          OpBool(_),
+        ) => ctx
+      };
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_pat), def);
     // join if consistent, otherwise pattern type wins
@@ -232,6 +256,7 @@ let rec uexp_to_info_map =
     );
   };
 }
+
 and upat_to_info_map =
     (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t)
     : (Typ.t, Ctx.t, info_map) => {
