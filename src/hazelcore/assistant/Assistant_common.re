@@ -59,7 +59,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
 
   | SynErrorArrow(_, actual)
   | SynMatchingArrow(actual, _) => (
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
       Some(actual),
       Synthetic,
     )
@@ -68,7 +68,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
   | Synthesized(actual) => (
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
       Some(actual),
       Synthetic,
     )
@@ -76,8 +76,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynInvalid
   | SynFree
   | SynKeyword(_) => (
-      Some(Unknown(Internal)),
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
+      Some(Unknown(Internal2)),
       Synthetic,
     )
 
@@ -85,7 +85,7 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
       if (HTyp.consistent(ty, got_ty)) {
-        (Some(Unknown(Internal)), Some(got_ty), Synthetic);
+        (Some(Unknown(Internal2)), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
@@ -93,8 +93,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
     }
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (
-      Some(Unknown(Internal)),
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
+      Some(Unknown(Internal2)),
       Synthetic,
     )
 
@@ -111,14 +111,14 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
   | PatSynthesized(actual) => (
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
       Some(actual),
       Synthetic,
     )
 
   | PatSynKeyword(_) => (
-      Some(Unknown(Internal)),
-      Some(Unknown(Internal)),
+      Some(Unknown(Internal2)),
+      Some(Unknown(Internal2)),
       Synthetic,
     )
 

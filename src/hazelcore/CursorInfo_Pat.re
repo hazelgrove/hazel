@@ -163,23 +163,15 @@ and syn_cursor_info_skel =
           ctx,
           skel1,
           zseq,
-          HTyp.Unknown(Internal(DummyAna)),
+          HTyp.Unknown(Internal2),
         )
       ) {
       | Some(_) as res => res
       | None =>
-        switch (
-          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(DummyAna)))
-        ) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal2))) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(
-            ~steps,
-            ctx,
-            skel2,
-            zseq,
-            Unknown(Internal(DummyAna)),
-          )
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Unknown(Internal2))
         }
       }
     | BinOp(_, Cons, skel1, skel2) =>
@@ -404,28 +396,14 @@ and ana_cursor_info_skel =
       )
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (
-        ana_cursor_info_skel(
-          ~steps,
-          ctx,
-          skel1,
-          zseq,
-          Unknown(Internal(DummyAna)),
-        )
+        ana_cursor_info_skel(~steps, ctx, skel1, zseq, Unknown(Internal2))
       ) {
       | Some(_) as res => res
       | None =>
-        switch (
-          Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal(DummyAna)))
-        ) {
+        switch (Statics_Pat.ana_skel(ctx, skel1, seq, Unknown(Internal2))) {
         | None => None
         | Some(ctx) =>
-          ana_cursor_info_skel(
-            ~steps,
-            ctx,
-            skel2,
-            zseq,
-            Unknown(Internal(DummyAna)),
-          )
+          ana_cursor_info_skel(~steps, ctx, skel2, zseq, Unknown(Internal2))
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
@@ -462,7 +440,7 @@ and ana_cursor_info_zoperand =
       Some(
         CursorNotOnDeferredVarPat(
           CursorInfo_common.mk(
-            PatAnaSubsumed(ty, Unknown(Internal(DummyAna))),
+            PatAnaSubsumed(ty, Unknown(Internal2)),
             ctx,
             cursor_term,
           ),

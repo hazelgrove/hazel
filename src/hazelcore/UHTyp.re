@@ -57,7 +57,7 @@ let contract = (ty: HTyp.t): t => {
     let seq =
       switch (ty) {
       | Unknown(ModeSwitch)
-      | Unknown(Internal) => Seq.wrap(Hole(0)) // TODO anand raef: this is a placeholder to get it to compile
+      | Unknown(Internal2) => Seq.wrap(Hole(0)) // TODO anand raef: this is a placeholder to get it to compile
       | Unknown(TypHole(u)) => Seq.wrap(Hole(u))
       | Int => Seq.wrap(Int)
       | Float => Seq.wrap(Float)

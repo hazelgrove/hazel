@@ -135,12 +135,12 @@ and syn_elab_skel =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
+          (Delta.ExpressionHole, HTyp.Unknown(Internal2), gamma),
           delta,
         );
       Elaborates(
         NonEmptyHole(reason, u, 0, sigma, d),
-        Unknown(Internal),
+        Unknown(Internal2),
         delta,
       );
     };
@@ -282,12 +282,12 @@ and syn_elab_operand =
       let delta =
         MetaVarMap.add(
           u,
-          (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
+          (Delta.ExpressionHole, HTyp.Unknown(Internal2), gamma),
           delta,
         );
       Elaborates(
         NonEmptyHole(reason, u, 0, sigma, d),
-        Unknown(Internal),
+        Unknown(Internal2),
         delta,
       );
     };
@@ -321,13 +321,13 @@ and syn_elab_operand =
         let delta =
           MetaVarMap.add(
             u,
-            (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
+            (Delta.ExpressionHole, HTyp.Unknown(Internal2), gamma),
             delta,
           );
         let d = DHExp.Case(d1, drs, 0);
         Elaborates(
           InconsistentBranches(u, 0, sigma, d),
-          Unknown(Internal),
+          Unknown(Internal2),
           delta,
         );
       };
@@ -336,14 +336,14 @@ and syn_elab_operand =
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.EmptyHole(u, 0, sigma);
-    let ty = HTyp.Unknown(Internal);
+    let ty = HTyp.Unknown(Internal2);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
     let d = DHExp.InvalidText(u, 0, sigma, t);
-    let ty = HTyp.Unknown(Internal);
+    let ty = HTyp.Unknown(Internal2);
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
   | Var(NotInHole, NotInVarHole, x) =>
@@ -358,7 +358,7 @@ and syn_elab_operand =
     let delta =
       MetaVarMap.add(
         u,
-        (Delta.ExpressionHole, HTyp.Unknown(Internal), gamma),
+        (Delta.ExpressionHole, HTyp.Unknown(Internal2), gamma),
         delta,
       );
     let d =
@@ -366,7 +366,7 @@ and syn_elab_operand =
       | Free => DHExp.FreeVar(u, 0, sigma, x)
       | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
       };
-    Elaborates(d, Unknown(Internal), delta);
+    Elaborates(d, Unknown(Internal2), delta);
   | IntLit(NotInHole, n) =>
     switch (int_of_string_opt(n)) {
     | Some(n) => Elaborates(IntLit(n), Int, delta)
@@ -379,7 +379,7 @@ and syn_elab_operand =
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
   | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Unknown(Internal);
+    let elt_ty = HTyp.Unknown(Internal2);
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
   | Fun(NotInHole, p, body) =>
@@ -399,11 +399,11 @@ and syn_elab_operand =
     switch (syn_elab(ctx, delta, body)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(d1, ty1, delta) =>
-      let d = DHExp.Inj(Unknown(Internal), side, d1);
+      let d = DHExp.Inj(Unknown(Internal2), side, d1);
       let ty =
         switch (side) {
-        | L => HTyp.Sum(ty1, Unknown(Internal))
-        | R => HTyp.Sum(Unknown(Internal), ty1)
+        | L => HTyp.Sum(ty1, Unknown(Internal2))
+        | R => HTyp.Sum(Unknown(Internal2), ty1)
         };
       Elaborates(d, ty, delta);
     }
@@ -488,9 +488,9 @@ and ana_elab_block =
     : ElaborationResult.t =>
   switch (ty) {
   | Unknown(ModeSwitch) => syn_elab_block(ctx, delta, block)
-  | _ => ana_elab_block_internal(ctx, delta, block, ty)
+  | _ => ana_elab_block_Internal2(ctx, delta, block, ty)
   }
-and ana_elab_block_internal =
+and ana_elab_block_Internal2 =
     (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (block |> UHExp.Block.split_conclusion) {
@@ -510,9 +510,9 @@ and ana_elab_opseq =
     : ElaborationResult.t =>
   switch (ty) {
   | Unknown(ModeSwitch) => syn_elab_opseq(ctx, delta, opseq)
-  | _ => ana_elab_opseq_internal(ctx, delta, opseq, ty)
+  | _ => ana_elab_opseq_Internal2(ctx, delta, opseq, ty)
   }
-and ana_elab_opseq_internal =
+and ana_elab_opseq_Internal2 =
     (
       ctx: Contexts.t,
       delta: Delta.t,
@@ -608,7 +608,7 @@ and ana_elab_opseq_internal =
             MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
           Elaborates(
             NonEmptyHole(reason, u, 0, sigma, d),
-            Unknown(Internal),
+            Unknown(Internal2),
             delta,
           );
         }
@@ -626,9 +626,9 @@ and ana_elab_skel =
     : ElaborationResult.t =>
   switch (ty) {
   | Unknown(ModeSwitch) => syn_elab_skel(ctx, delta, skel, seq)
-  | _ => ana_elab_skel_internal(ctx, delta, skel, seq, ty)
+  | _ => ana_elab_skel_Internal2(ctx, delta, skel, seq, ty)
   }
-and ana_elab_skel_internal =
+and ana_elab_skel_Internal2 =
     (
       ctx: Contexts.t,
       delta: Delta.t,
@@ -655,7 +655,7 @@ and ana_elab_skel_internal =
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-      Elaborates(d, Unknown(Internal), delta);
+      Elaborates(d, Unknown(Internal2), delta);
     };
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
@@ -706,9 +706,9 @@ and ana_elab_operand =
     : ElaborationResult.t =>
   switch (ty) {
   | Unknown(ModeSwitch) => syn_elab_operand(ctx, delta, operand)
-  | _ => ana_elab_operand_internal(ctx, delta, operand, ty)
+  | _ => ana_elab_operand_Internal2(ctx, delta, operand, ty)
   }
-and ana_elab_operand_internal =
+and ana_elab_operand_Internal2 =
     (ctx: Contexts.t, delta: Delta.t, operand: UHExp.operand, ty: HTyp.t)
     : ElaborationResult.t =>
   switch (operand) {
@@ -730,7 +730,7 @@ and ana_elab_operand_internal =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(
         NonEmptyHole(reason, u, 0, sigma, d),
-        Unknown(Internal),
+        Unknown(Internal2),
         delta,
       );
     };

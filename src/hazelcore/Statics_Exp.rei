@@ -15,35 +15,21 @@ let ana_nth_type_mode:
  * Under context `ctx`, `syn(ctx, e)` synthesizes a type for `e`
  * (if possible)
  */
-let syn:
-  (Contexts.t, UHExp.t, MetaVarGen.t) => option((HTyp.t, MetaVarGen.t));
-let syn_block: (Contexts.t, UHExp.block) => option((HTyp.t, MetaVarGen.t));
-let syn_lines:
-  (Contexts.t, list(UHExp.line), MetaVarGen.t) =>
-  option((Contexts.t, MetaVarGen.t));
-let syn_opseq:
-  (Contexts.t, UHExp.opseq, MetaVarGen.t) => option((HTyp.t, MetaVarGen.t));
-let syn_skel:
-  (Contexts.t, UHExp.skel, UHExp.seq, MetaVarGen.t) =>
-  option((HTyp.t, MetaVarGen.t));
-let syn_operand:
-  (Contexts.t, UHExp.operand, MetaVarGen.t) => option((HTyp.t, MetaVarGen.t));
-let syn_rules:
-  (Contexts.t, HTyp.t, UHExp.rules, MetaVarGen.t) =>
-  option((HTyp.t, MetaVarGen.t));
-let syn_rule:
-  (Contexts.t, HTyp.t, MetaVarGen.t, UHExp.rule) =>
-  option((HTyp.t, MetaVarGen.t));
+let syn: (Contexts.t, UHExp.t) => option(HTyp.t);
+let syn_block: (Contexts.t, UHExp.block) => option(HTyp.t);
+let syn_lines: (Contexts.t, list(UHExp.line)) => option(Contexts.t);
+let syn_opseq: (Contexts.t, UHExp.opseq) => option(HTyp.t);
+let syn_skel: (Contexts.t, UHExp.skel, UHExp.seq) => option(HTyp.t);
+let syn_operand: (Contexts.t, UHExp.operand) => option(HTyp.t);
+let syn_rules: (Contexts.t, HTyp.t, UHExp.rules) => option(HTyp.t);
+let syn_rule: (Contexts.t, HTyp.t, UHExp.rule) => option(HTyp.t);
 let syn_rule_types:
-  (Contexts.t, HTyp.t, UHExp.rules, MetaVarGen.t) =>
-  option(list((HTyp.t, MetaVarGen.t)));
+  (Contexts.t, HTyp.t, UHExp.rules) => option(list(HTyp.t));
 /**
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
  */
-let ana: (Contexts.t, UHExp.t, HTyp.t, MetaVarGen.t) => option(MetaVarGen.t);
-let ana_skel:
-  (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t, MetaVarGen.t) =>
-  option(MetaVarGen.t);
+let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
+let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 
 /**
  * Given a pattern `e` in synthetic position under context `ctx`,
@@ -155,5 +141,4 @@ let recursive_let_id: (Contexts.t, UHPat.t, UHExp.t) => option(Var.t);
  * with the type of the defining expression.
  * Precondition: provided pattern and expression have consistent types
  */
-let extend_let_body_ctx:
-  (Contexts.t, UHPat.t, UHExp.t, MetaVarGen.t) => (Contexts.t, MetaVarGen.t);
+let extend_let_body_ctx: (Contexts.t, UHPat.t, UHExp.t) => Contexts.t;

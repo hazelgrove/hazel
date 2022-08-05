@@ -40,7 +40,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   );
   let (doc, parenthesize) =
     switch (ty) {
-    | Unknown(TypHole(_) | Internal(_) | ModeSwitch) => (
+    | Unknown(TypHole(_) | Internal2 | ModeSwitch) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
       )

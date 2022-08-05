@@ -49,16 +49,15 @@ let get_steps = program => {
 };
 
 exception MissingCursorInfo;
-let cursor_info = (u_gen: MetaVarGen.t) => {
+let cursor_info =
   Memo.general(
     ~cache_size_bound=1000,
     CursorInfo_Exp.syn_cursor_info(Contexts.initial),
   );
-};
 let get_cursor_info = (program: t) => {
   program
   |> get_zexp
-  |> cursor_info(u_gen)
+  |> cursor_info
   |> OptUtil.get(() => raise(MissingCursorInfo));
 };
 
