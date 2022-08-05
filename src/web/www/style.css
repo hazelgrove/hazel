@@ -1056,7 +1056,7 @@ svg {
   align-items: center;
   gap: 0.5em;
   border-radius: 0.2em;
-  border: 1px solid #ebdfc5;
+  border-bottom: 1px solid #daca9f;
   height: 1.2em;
   background-color: #fefcf3;
 }
