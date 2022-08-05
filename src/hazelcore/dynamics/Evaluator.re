@@ -456,7 +456,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | FixF(f, _, _) as d =>
-      let* env' = with_eig(ClosureEnvironment.extend(env, (f, d)));
+      let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d);
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
