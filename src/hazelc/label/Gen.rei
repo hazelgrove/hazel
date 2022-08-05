@@ -1,5 +1,5 @@
 module type L = {
-  [@deriving sexp]
+  [@deriving (sexp, eq, ord)]
   type t;
 
   let of_int: int => t;
@@ -7,9 +7,6 @@ module type L = {
 
   let init: t;
   let next: t => t;
-
-  let compare: (t, t) => int;
-  let equal: (t, t) => bool;
 
   let max: (t, t) => t;
 };
