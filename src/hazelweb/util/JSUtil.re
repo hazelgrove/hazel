@@ -206,13 +206,7 @@ let get_elems_with_cls = cls => {
 
 let force_get_elem_by_id = id => {
   let doc = Dom_html.document;
-  Js.Opt.get(
-    doc##getElementById(Js.string(id)),
-    () => {
-      log(id);
-      assert(false);
-    },
-  );
+  Js.Opt.get(doc##getElementById(Js.string(id)), () => {assert(false)});
 };
 
 let get_elem_by_cls = cls =>
@@ -229,9 +223,7 @@ let force_get_elem_by_cls = cls =>
     Dom_html.document##getElementsByClassName(Js.string(cls))
     |> Dom.list_of_nodeList
   ) {
-  | [] =>
-    log(cls);
-    assert(false);
+  | [] => assert(false)
   | [elem, ..._] => elem
   };
 
