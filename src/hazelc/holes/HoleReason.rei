@@ -1,6 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type t =
   | TypeInconsistent
   | WrongLength;
-
-let equal: (t, t) => bool;
