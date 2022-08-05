@@ -17,7 +17,6 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  // | ListNil(ErrStatus.t)
   | ListLit(ListErrStatus.t, option(opseq))
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
@@ -96,7 +95,7 @@ and get_err_status_operand =
   | TypeAnn(err, _, _)
   | Inj(err, _, _) => err
   | ListLit(StandardErrStatus(err), _) => err
-  | ListLit(_, _) => NotInHole
+  | ListLit(InconsistentBranches(_), _) => NotInHole
   | Parenthesized(p) => get_err_status(p);
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
@@ -112,7 +111,6 @@ and set_err_status_operand = (err, operand) =>
   | IntLit(_, n) => IntLit(err, n)
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
-  // | ListNil(_) => ListNil(err)
   | ListLit(_, opseq) => ListLit(StandardErrStatus(err), opseq)
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
@@ -211,7 +209,8 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(NotInHole, _) => true
   | ListLit(StandardErrStatus(InHole(_)) | InconsistentBranches(_, _), _) =>
     false
-  | ListLit(StandardErrStatus(NotInHole), _) => true
+  | ListLit(StandardErrStatus(NotInHole), None) => true
+  | ListLit(StandardErrStatus(NotInHole), Some(body)) => is_complete(body)
   | Parenthesized(body) => is_complete(body)
   | TypeAnn(_, op, ann) => is_complete_operand(op) && UHTyp.is_complete(ann)
   | Inj(InHole(_), _, _) => false

@@ -1357,58 +1357,6 @@ and syn_perform_opseq =
     }
   | (Construct(SOp(os)), ZOperand(zoperand, surround))
       when
-        ty == HTyp.Float
-        && (
-          ZExp.is_before_zoperand(zoperand)
-          || ZExp.is_after_zoperand(zoperand)
-        ) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let (zseq, id_gen) =
-        switch (int_to_float_operator(operator)) {
-        | None => construct_operator(id_gen, operator, zoperand, surround)
-        | Some(float_op) =>
-          construct_operator(id_gen, float_op, zoperand, surround)
-        };
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, id_gen, zseq)));
-    }
-  // synthesize operator's type from opposing zoperand when cursor on hole
-  | (
-      Construct(SOp(os)),
-      ZOperand(
-        CursorE(_, EmptyHole(_)) as zoperand,
-        (prefix, suffix) as surround,
-      ),
-    )
-      when
-        ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
-    switch (operator_of_shape(os)) {
-    | None => Failed
-    | Some(operator) =>
-      let construct_operator =
-        ZExp.is_before_zoperand(zoperand)
-          ? construct_operator_before_zoperand
-          : construct_operator_after_zoperand;
-      let opp_operand = ZExp.is_before_zoperand(zoperand) ? prefix : suffix;
-      let (zseq, id_gen) =
-        switch (opp_operand) {
-        | Seq.A(_, Seq.S(FloatLit(_), _)) =>
-          switch (int_to_float_operator(operator)) {
-          | None => construct_operator(id_gen, operator, zoperand, surround)
-          | Some(float_op) =>
-            construct_operator(id_gen, float_op, zoperand, surround)
-          }
-        | _ => construct_operator(id_gen, operator, zoperand, surround)
-        };
-      Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, id_gen, zseq)));
-    }
-  | (Construct(SOp(os)), ZOperand(zoperand, surround))
-      when
         ZExp.is_before_zoperand(zoperand) || ZExp.is_after_zoperand(zoperand) =>
     switch (operator_of_shape(os)) {
     | None => Failed
@@ -1588,15 +1536,6 @@ and syn_perform_operand =
   | (Delete, _) when ZExp.is_after_zoperand(zoperand) =>
     CursorEscaped(After)
 
-  | (
-      Backspace,
-      ListLitZ(_, ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), _))),
-    ) =>
-    let new_ze =
-      ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
-      |> ZExp.ZBlock.wrap;
-    let new_ty = HTyp.List(Hole);
-    Succeeded(SynDone((new_ze, new_ty, id_gen)));
   | (Backspace, CursorE(_, EmptyHole(_) as operand)) =>
     let ze = UHExp.Block.wrap(operand) |> ZExp.place_before;
     ze |> ZExp.is_after
@@ -1683,6 +1622,27 @@ and syn_perform_operand =
       };
     let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
+  | (
+      Backspace,
+      ListLitZ(
+        _,
+        ZOpSeq(
+          Placeholder(0),
+          ZOperand(CursorE(OnDelim(0, After), EmptyHole(_)), (E, E)),
+        ),
+      ),
+    ) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let new_ze =
+        ZExp.CursorE(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        )
+        |> ZExp.ZBlock.wrap;
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
+    }
 
   /* TODO consider deletion of type ascription on case */
 
@@ -1735,22 +1695,31 @@ and syn_perform_operand =
     syn_split_text(ctx, id_gen, j, sop, f)
 
   | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
-    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
-    let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
-    Succeeded(SynDone((new_ze, ty, id_gen)));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+
+      Succeeded(SynDone((new_ze, ty, id_gen)));
+    }
   | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
-    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
-    switch (syn_perform_operand(ctx, a, (zhole, HTyp.Hole, id_gen))) {
-    | (Failed | CursorEscaped(_)) as failed => failed
-    | Succeeded(SynDone((zp, ty', id_gen))) =>
-      switch (zp) {
-      | ([], ExpLineZ(z), []) =>
-        let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
-        Succeeded(SynDone((new_ze, List(ty'), id_gen)));
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ele_ty) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      switch (syn_perform_operand(ctx, a, (zhole, ele_ty, id_gen))) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded(SynDone((zp, ty', id_gen))) =>
+        switch (zp) {
+        | ([], ExpLineZ(z), []) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
+          Succeeded(SynDone((new_ze, List(ty'), id_gen)));
+        | _ => Failed
+        }
       | _ => Failed
-      }
-    | _ => Failed
-    };
+      };
+    }
 
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
@@ -3244,12 +3213,21 @@ and ana_perform_operand =
         ZOpSeq(_, ZOperand(CursorE(OnDelim(0, After), EmptyHole(_)), _)),
       ),
     ) =>
-    let new_ze =
-      ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
-      |> ZExp.ZBlock.wrap;
-    Succeeded(
-      AnaDone(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, List(Hole))),
-    );
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let new_ze =
+        ZExp.CursorE(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        )
+        |> ZExp.ZBlock.wrap;
+      Succeeded(
+        AnaDone(
+          Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, List(Hole)),
+        ),
+      );
+    }
 
   /* TODO consider deletion of type ascription on case */
 

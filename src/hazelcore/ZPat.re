@@ -171,7 +171,6 @@ and is_after_zoperand =
   fun
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_)) => cursor == OnDelim(0, After)
-  // | CursorP(cursor, ListNil(_))
   | CursorP(cursor, InvalidText(_, t)) =>
     cursor == OnText(String.length(t))
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
@@ -286,7 +285,6 @@ and move_cursor_left_zoperand =
   | CursorP(OnDelim(_k, Before), Parenthesized(p)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p)))
-  | CursorP(OnDelim(_k, Before), ListLit(_, None)) => None
   | CursorP(OnDelim(_k, Before), ListLit(err, Some(p))) =>
     // _k == 1
     Some(ListLitZ(err, place_after(p)))
@@ -298,7 +296,8 @@ and move_cursor_left_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _),
+      FloatLit(_, _) |
+      ListLit(_, None),
     ) =>
     // invalid cursor position
     None
@@ -359,7 +358,6 @@ and move_cursor_right_zoperand =
   | CursorP(OnDelim(_k, After), Parenthesized(p)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(p)))
-  | CursorP(OnDelim(_k, After), ListLit(_, None)) => None
   | CursorP(OnDelim(_k, After), ListLit(err, Some(p))) =>
     // _k == 0
     Some(ListLitZ(err, place_before(p)))
@@ -369,7 +367,8 @@ and move_cursor_right_zoperand =
   | CursorP(
       OnDelim(_, _),
       InvalidText(_, _) | Var(_, _, _) | BoolLit(_, _) | IntLit(_, _) |
-      FloatLit(_, _),
+      FloatLit(_, _) |
+      ListLit(_, None),
     ) =>
     // invalid cursor position
     None

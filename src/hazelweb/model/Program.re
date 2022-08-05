@@ -107,10 +107,17 @@ let rec renumber_result_only =
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
   | ListLit(u, _, sigma, err, t, deltas) =>
-    let (new_deltas, _) =
-      List.split(List.map(renumber_result_only(path, hii), deltas));
+    let (d_list, hii) =
+      deltas
+      |> List.fold_left(
+           ((d_list, hii), d) => {
+             let (d, hii) = renumber_result_only(path, hii, d);
+             (d_list @ [d], hii);
+           },
+           ([], hii),
+         );
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-    (ListLit(u, i, sigma, err, t, new_deltas), hii);
+    (ListLit(u, i, sigma, err, t, d_list), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -220,11 +227,18 @@ let rec renumber_sigmas_only =
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
   | ListLit(u, i, sigma, err, t, deltas) =>
-    let (new_deltas, _) =
-      List.split(List.map(renumber_sigmas_only(path, hii), deltas));
+    let (d_list, hii) =
+      deltas
+      |> List.fold_left(
+           ((d_list, hii), d) => {
+             let (d, hii) = renumber_sigmas_only(path, hii, d);
+             (d_list @ [d], hii);
+           },
+           ([], hii),
+         );
     let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
     let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-    (ListLit(u, i, sigma, err, t, new_deltas), hii);
+    (ListLit(u, i, sigma, err, t, d_list), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);

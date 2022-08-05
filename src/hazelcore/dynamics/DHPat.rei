@@ -10,7 +10,6 @@ type t =
   | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
-  // | ListNil
   | ListLit(HTyp.t, list(t))
   | Cons(t, t)
   | Pair(t, t)

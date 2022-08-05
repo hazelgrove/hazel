@@ -10,9 +10,7 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Pat);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Pat);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Pat);
-let mk_ListLit:
-  // (~err: ListErrStatus.t, option(UHDoc_common.formatted_child)) => UHDoc.t =
-  option(UHDoc_common.formatted_child) => UHDoc.t =
+let mk_ListLit: option(UHDoc_common.formatted_child) => UHDoc.t =
   UHDoc_common.mk_ListLit(~sort=Pat);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Pat);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =

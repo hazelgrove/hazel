@@ -206,25 +206,22 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | ListLit(StandardErrStatus(NotInHole), None) => Some(List(Hole))
   }
 and syn_list_body =
-    (ctx: Contexts.t, body: UHExp.opseq): option(list(HTyp.t)) => {
-  switch (body) {
-  | OpSeq(skel, seq) =>
-    let subskels = UHExp.get_tuple_elements(skel);
-    let syn_subskels = List.map(hd => syn_skel(ctx, hd, seq), subskels);
-    List.fold_right(
-      (ty_opt, ty_list_opt) =>
-        switch (ty_list_opt) {
-        | Some(ty_list) =>
-          switch (ty_opt) {
-          | Some(ty) => Some([ty, ...ty_list])
-          | None => None
-          }
+    (ctx: Contexts.t, OpSeq(skel, seq): UHExp.opseq): option(list(HTyp.t)) => {
+  let subskels = UHExp.get_tuple_elements(skel);
+  let syn_subskels = List.map(hd => syn_skel(ctx, hd, seq), subskels);
+  List.fold_right(
+    (ty_opt, ty_list_opt) =>
+      switch (ty_list_opt) {
+      | Some(ty_list) =>
+        switch (ty_opt) {
+        | Some(ty) => Some([ty, ...ty_list])
         | None => None
-        },
-      syn_subskels,
-      Some([]),
-    );
-  };
+        }
+      | None => None
+      },
+    syn_subskels,
+    Some([]),
+  );
 }
 and syn_rules =
     (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) => {
@@ -353,22 +350,19 @@ and ana_operand =
   | Case(StandardErrStatus(NotInHole), scrut, rules) =>
     let* ty1 = syn(ctx, scrut);
     ana_rules(ctx, rules, ty1, ty);
-  | ListLit(StandardErrStatus(NotInHole), Some(body)) =>
-    switch (body) {
-    | OpSeq(skel, seq) =>
-      let* ty_el = HTyp.matched_list(ty);
-      let subskels = UHExp.get_tuple_elements(skel);
-      subskels
-      |> List.fold_left(
-           (acc: option(unit), skel) => {
-             switch (acc) {
-             | Some () => ana_skel(ctx, skel, seq, ty_el)
-             | None => None
-             }
-           },
-           Some(),
-         );
-    }
+  | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, seq))) =>
+    let* ty_el = HTyp.matched_list(ty);
+    let subskels = UHExp.get_tuple_elements(skel);
+    subskels
+    |> List.fold_left(
+         (acc: option(unit), skel) => {
+           switch (acc) {
+           | Some () => ana_skel(ctx, skel, seq, ty_el)
+           | None => None
+           }
+         },
+         Some(),
+       );
   | Parenthesized(body) => ana(ctx, body, ty)
   }
 and ana_rules =
@@ -844,48 +838,45 @@ and syn_fix_holes_operand =
     let (block, ty, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
     (Parenthesized(block), ty, id_gen);
-  | ListLit(_, Some(opseq)) =>
-    switch (opseq) {
-    | OpSeq(skel, seq) =>
-      let subskels = UHExp.get_tuple_elements(skel);
-      let (skels_list, seq_final, id_gen, list_types) =
-        List.fold_left(
-          ((skels_list_f, seq_f, id_gen_f, list_types_f), skel_f) =>
-            switch (
-              syn_fix_holes_skel(
-                ctx,
-                id_gen_f,
-                ~renumber_empty_holes,
-                skel_f,
-                seq_f,
-              )
-            ) {
-            | (skel_t, seq_t, common_ty_t, id_gen_t) => (
-                skels_list_f @ [skel_t],
-                seq_t,
-                id_gen_t,
-                list_types_f @ [common_ty_t],
-              )
-            },
-          ([], seq, id_gen, []),
-          subskels,
-        );
-      let new_opseq = OpSeq.OpSeq(UHExp.mk_tuple(skels_list), seq_final);
-      switch (Statics_common.lub(list_types)) {
-      | None =>
-        let (u, id_gen) = id_gen |> IDGen.next_hole;
-        (
-          ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
-          List(HTyp.Hole),
-          id_gen,
-        );
-      | Some(common_type) => (
-          ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
-          List(common_type),
-          id_gen,
-        )
-      };
-    }
+  | ListLit(_, Some(OpSeq(skel, seq))) =>
+    let subskels = UHExp.get_tuple_elements(skel);
+    let (skels_list, seq_final, id_gen, list_types) =
+      List.fold_left(
+        ((skels_list_f, seq_f, id_gen_f, list_types_f), skel_f) =>
+          switch (
+            syn_fix_holes_skel(
+              ctx,
+              id_gen_f,
+              ~renumber_empty_holes,
+              skel_f,
+              seq_f,
+            )
+          ) {
+          | (skel_t, seq_t, common_ty_t, id_gen_t) => (
+              skels_list_f @ [skel_t],
+              seq_t,
+              id_gen_t,
+              list_types_f @ [common_ty_t],
+            )
+          },
+        ([], seq, id_gen, []),
+        subskels,
+      );
+    let new_opseq = OpSeq.OpSeq(UHExp.mk_tuple(skels_list), seq_final);
+    switch (Statics_common.lub(list_types)) {
+    | None =>
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
+      (
+        ListLit(InconsistentBranches(list_types, u), Some(new_opseq)),
+        List(HTyp.Hole),
+        id_gen,
+      );
+    | Some(common_type) => (
+        ListLit(StandardErrStatus(NotInHole), Some(new_opseq)),
+        List(common_type),
+        id_gen,
+      )
+    };
   | ListLit(_, None) => (e_nih, List(Hole), id_gen)
   | Fun(_, p, body) =>
     let (p, ty_p, ctx_body, id_gen) =

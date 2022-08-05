@@ -70,9 +70,7 @@ let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   fun
   /* outer nodes - delimiter */
-  | EmptyHole(_) =>
-    // | ListNil(_)
-    CursorPosition.delim_cursors(1)
+  | EmptyHole(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
@@ -143,13 +141,13 @@ and is_before_zoperand =
   | CursorE(cursor, Var(_))
   | CursorE(cursor, IntLit(_))
   | CursorE(cursor, FloatLit(_))
-  | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
+  | CursorE(cursor, BoolLit(_))
+  | CursorE(cursor, ListLit(_, None)) => cursor == OnText(0)
   | CursorE(cursor, Fun(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
-  | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
+  | CursorE(cursor, Parenthesized(_))
   | CursorE(cursor, ListLit(_, Some(_))) => cursor == OnDelim(0, Before)
-  | CursorE(cursor, ListLit(_, None)) => cursor == OnText(0)
   | ListLitZ(_, _)
   | ParenthesizedZ(_)
   | FunZP(_)
@@ -491,8 +489,7 @@ and set_err_status_zoperand = (err, zoperand) =>
   | CursorE(cursor, operand) =>
     CursorE(cursor, UHExp.set_err_status_operand(err, operand))
   | ParenthesizedZ(zbody) => ParenthesizedZ(set_err_status(err, zbody))
-  | ListLitZ(_, zopseq) =>
-    ListLitZ(StandardErrStatus(err), set_err_status_zopseq(err, zopseq))
+  | ListLitZ(_, zopseq) => ListLitZ(StandardErrStatus(err), zopseq)
   | FunZP(_, zp, body) => FunZP(err, zp, body)
   | FunZE(_, p, zbody) => FunZE(err, p, zbody)
   | InjZ(_, inj_side, zbody) => InjZ(err, inj_side, zbody)
@@ -654,19 +651,13 @@ and move_cursor_left_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
-  | CursorE(
-      OnDelim(_, Before),
-      EmptyHole(_),
-      // | ListNil(_)
-    ) =>
-    None
+  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListLit(_, None)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(body)))
   | CursorE(OnDelim(_, Before), ListLit(err, Some(opseq))) =>
     // _k == 1
     Some(ListLitZ(err, place_after_opseq(opseq)))
-  | CursorE(OnDelim(_, Before), ListLit(_, None)) => None
   | CursorE(OnDelim(_k, Before), Inj(err, side, body)) =>
     // _k == 1
     Some(InjZ(err, side, place_after(body)))
@@ -705,10 +696,12 @@ and move_cursor_left_zoperand =
     switch (move_cursor_left_zopseq(zopseq)) {
     | Some(zopseq) => Some(ListLitZ(err, zopseq))
     | None =>
-      switch (erase_zopseq(zopseq)) {
-      | opseq =>
-        Some(CursorE(OnDelim(0, After), ListLit(err, Some(opseq))))
-      }
+      Some(
+        CursorE(
+          OnDelim(0, After),
+          ListLit(err, Some(erase_zopseq(zopseq))),
+        ),
+      )
     }
   | InjZ(err, side, zbody) =>
     switch (move_cursor_left(zbody)) {
@@ -851,14 +844,13 @@ and move_cursor_right_zoperand =
   | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
-  | CursorE(OnDelim(_, After), EmptyHole(_)) => None
+  | CursorE(OnDelim(_, After), EmptyHole(_) | ListLit(_, None)) => None
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(body)))
-  | CursorE(OnDelim(_, After), ListLit(err, Some(opseq))) =>
+  | CursorE(OnDelim(_k, After), ListLit(err, Some(opseq))) =>
     // _k == 0
     Some(ListLitZ(err, place_before_opseq(opseq)))
-  | CursorE(OnDelim(_, After), ListLit(_, None)) => None
   | CursorE(OnDelim(_k, After), Inj(err, side, body)) =>
     // _k == 0
     Some(InjZ(err, side, place_before(body)))
