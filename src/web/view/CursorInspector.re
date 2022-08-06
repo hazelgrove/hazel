@@ -24,7 +24,7 @@ let rec typ_view = (ty: Core.Typ.t): Node.t =>
     )
   };
 
-let cls_str = (ci: Core.Statics.info): string =>
+let cls_str = (ci: Core.Statics.t): string =>
   switch (ci) {
   | Invalid => "No Semantics for Syntax"
   | InfoExp({cls, _}) => Core.Term.UExp.show_cls(cls)
@@ -94,7 +94,7 @@ let term_tag = (is_err, sort) =>
     [text(sort)],
   );
 
-let view_of_info = (ci: Core.Statics.info): Node.t => {
+let view_of_info = (ci: Core.Statics.t): Node.t => {
   let is_err = Core.Statics.is_error(ci);
   switch (ci) {
   | Invalid => div([clss([infoc, "unknown"])], [text("? No Info")])
@@ -115,17 +115,17 @@ let view_of_info = (ci: Core.Statics.info): Node.t => {
   };
 };
 
-let cls_view = (ci: Core.Statics.info): Node.t =>
+let cls_view = (ci: Core.Statics.t): Node.t =>
   div([clss(["syntax-class"])], [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
   div([clss(["id"])], [text(string_of_int(id))]);
 
-let extra_view = (id: int, ci: Core.Statics.info): Node.t =>
+let extra_view = (id: int, ci: Core.Statics.t): Node.t =>
   div([clss(["extra"])], [id_view(id), cls_view(ci)]);
 
 let print_ci = (ci, _) => {
-  print_endline(Core.Statics.show_info(ci));
+  print_endline(Core.Statics.show(ci));
   switch (ci) {
   | InfoPat({mode, self, _})
   | InfoExp({mode, self, _}) =>
@@ -137,7 +137,7 @@ let print_ci = (ci, _) => {
   Event.Ignore;
 };
 
-let view = (id: int, ci: Core.Statics.info): Node.t =>
+let view = (id: int, ci: Core.Statics.t): Node.t =>
   div(
     [
       clss(

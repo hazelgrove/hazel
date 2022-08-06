@@ -10,14 +10,14 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
 let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
   List.map(((k, {typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
 
-let pat_htyp = (m: Statics.info_map, pat: Term.UPat.t) =>
+let pat_htyp = (m: Statics.map, pat: Term.UPat.t) =>
   switch (Id.Map.find_opt(pat.id, m)) {
   | Some(InfoPat({mode, self, _})) =>
     Some(htyp_of_typ(Statics.typ_after_fix(mode, self)))
   | _ => None
   };
 
-let exp_htyp = (m: Statics.info_map, exp: Term.UExp.t) =>
+let exp_htyp = (m: Statics.map, exp: Term.UExp.t) =>
   switch (Id.Map.find_opt(exp.id, m)) {
   | Some(InfoExp({mode, self, _})) =>
     Some(htyp_of_typ(Statics.typ_after_fix(mode, self)))
@@ -38,8 +38,7 @@ let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
   | And => And;
 
 [@warning "-32"]
-let rec dhexp_of_uexp =
-        (m: Statics.info_map, uexp: Term.UExp.t): option(DHExp.t) => {
+let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /*
     simplifications:
     1. leave out delta for now
@@ -152,7 +151,7 @@ let rec dhexp_of_uexp =
   };
 }
 [@warning "-32"]
-and dhpat_of_upat = (m: Statics.info_map, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(upat.id, m)) {
   | Some(InfoPat({mode, self, _})) =>
     open OptUtil.Syntax;
@@ -189,8 +188,7 @@ and dhpat_of_upat = (m: Statics.info_map, upat: Term.UPat.t): option(DHPat.t) =>
 
 [@warning "-32"]
 let uexp_elab =
-    (m: Statics.info_map, uexp: Term.UExp.t)
-    : Elaborator_Exp.ElaborationResult.t =>
+    (m: Statics.map, uexp: Term.UExp.t): Elaborator_Exp.ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) => Elaborates(d, HTyp.Hole, Delta.empty) //TODO: get type from ci

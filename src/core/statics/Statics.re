@@ -48,14 +48,14 @@ type info_typ = {
 
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info =
+type t =
   | Invalid
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ);
 
 /* The InfoMap collating all info for a composite term */
-type info_map = Id.Map.t(info);
+type map = Id.Map.t(t);
 
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,7 +116,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
    be in error, and Invalids (things to which Term was unable to assign a
    parse) are always in error. The error status of expressions and patterns
    are determined by error_status above. */
-let is_error = (ci: info): bool => {
+let is_error = (ci: t): bool => {
   switch (ci) {
   | Invalid => true
   | InfoExp({mode, self, _})
@@ -150,7 +150,7 @@ let union_m =
 /* Generates the InfoMap for an expression term */
 let rec uexp_to_info_map =
         (~ctx=Ctx.empty, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
-        : (Typ.t, Ctx.co, info_map) => {
+        : (Typ.t, Ctx.co, map) => {
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
@@ -297,8 +297,7 @@ let rec uexp_to_info_map =
   };
 }
 and upat_to_info_map =
-    (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t)
-    : (Typ.t, Ctx.t, info_map) => {
+    (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t): (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (self: Typ.self) => (
     typ_after_fix(mode, self),
@@ -342,7 +341,7 @@ and upat_to_info_map =
     (ty, ctx, m);
   };
 }
-and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, info_map) => {
+and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
   let ret = m => (ty, Id.Map.add(id, InfoTyp({cls, ty}), m));
