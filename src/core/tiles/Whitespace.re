@@ -4,9 +4,15 @@ type t = {
   id: Id.t,
   content: string,
 };
+/*
+type content =
+  | Whitespace(string)
+  | Comment(string)
+*/
 
 let space = " ";
 let linebreak = "⏎"; //alternative: "¶"
+// "##"
 
 let mk_space = id => {content: space, id};
 

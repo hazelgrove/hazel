@@ -35,7 +35,13 @@ let barf_or_construct =
   switch (barfed) {
   | Some(z) => IdGen.return(z)
   | None =>
+    // TODO: create a switch on the result of `Molds.instant_completion`
+    // to either do normal tile construction (below) or your new comment
+    // construction logic
+
+    // look up the expansion for a reserved/expanding keyword (eg "let")
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
+    // ["let", "=", "in"]
     Outer.construct(direction, lbl, z);
   };
 };
