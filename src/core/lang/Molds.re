@@ -1,7 +1,14 @@
 open Sexplib.Std;
 open Util;
 
+/**
+ type completion =
+   | Comment
+   | Tile((list(Token.t), Direction.t)))
+ */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
+// eg [("let", (["let", "=", "in"], Left)), ("in", (["let", "=", "in"], Right))]
 type completions = list((Token.t, (list(Token.t), Direction.t)));
 
 let forms_assoc: list((Label.t, list(Mold.t))) =
@@ -62,6 +69,7 @@ let delayed_completes: completions =
   |> List.flatten
   |> List.sort_uniq(compare);
 
+// TODO append to the end of this list something like ("#", (["#", "#"], Left))
 let instant_completes: completions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
