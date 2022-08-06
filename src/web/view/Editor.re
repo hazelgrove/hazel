@@ -23,15 +23,10 @@ let fat_zipper = (zipper: Zipper.t) => {
 };
 
 let ci_view = (index': option(int), info_map) => {
-  let index =
+  let (index, ci) =
     switch (index') {
-    | Some(index) => index
-    | None => (-1)
-    };
-  let ci =
-    switch (index') {
-    | Some(index) => Id.Map.find_opt(index, info_map)
-    | None => None
+    | Some(index) => (index, Id.Map.find_opt(index, info_map))
+    | None => ((-1), None)
     };
   switch (ci) {
   | None => div([clss(["cursor-inspector"])], [text("No Static Data")])
@@ -93,7 +88,7 @@ let single_editor =
         ~show_backpack_targets,
         ~show_deco=true,
       ),
-      ci_view(fat_zipper.zipper |> Indicated.index, fat_zipper.info_map),
+      ci_view(Indicated.index(fat_zipper.zipper), fat_zipper.info_map),
       TestView.view(
         ~title="Tests",
         ~font_metrics,
@@ -104,18 +99,21 @@ let single_editor =
   );
 };
 
-let cell_caption_view = (settings: Model.settings, n) =>
-  div(
-    [clss(["cell-caption"])],
-    settings.captions ? [text(List.nth(Model.cell_captions, n))] : [],
-  );
+let cell_captions = [
+  "Student Implementation",
+  "Student Tests",
+  "Teacher Tests",
+];
+
+let cell_caption_view = (_settings: Model.settings, n) =>
+  div([clss(["cell-caption"])], [text(List.nth(cell_captions, n))]);
 
 let cell_view =
     (
       idx,
-      fat_zipper,
+      editor: Model.editor,
       ~settings: Model.settings,
-      ~inject,
+      ~inject: Update.t => 'a,
       ~font_metrics,
       ~selected,
       ~show_backpack_targets,
@@ -123,20 +121,13 @@ let cell_view =
   div(
     [
       Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-      Attr.create("tabindex", "0"),
-      Attr.on_click(_ => {
-        //print_endline("clicking editor");
-        //print_endline(string_of_int(i));
-        inject(
-          Update.SwitchEditor(idx),
-        )
-      }),
+      Attr.on_click(_ => inject(SwitchEditor(idx))),
     ],
     [
       cell_caption_view(settings, idx),
       code_container(
         ~font_metrics,
-        ~fat_zipper,
+        ~fat_zipper=fat_zipper(editor.zipper),
         ~settings,
         ~show_backpack_targets,
         ~show_deco=idx == selected,
@@ -166,10 +157,38 @@ let splice_editors = (editors: list(Model.editor)): Segment.t =>
   )
   |> List.flatten;
 
-let elab_splicer = (eds: list(Model.editor)) => {
+let spliced_statics = (eds: list(Model.editor)) => {
   let term = eds |> splice_editors |> Term.uexp_of_seg;
   let (_, _, info_map) = term |> Statics.uexp_to_info_map;
   (term, info_map);
+};
+
+let test_multi_panel = (~font_metrics, editors) => {
+  switch (editors) {
+  | [student_impl, student_tests, teacher_tests] =>
+    let (implement_term, implement_map) = spliced_statics([student_impl]);
+    let (teacher_term, teacher_map) =
+      spliced_statics([student_impl, teacher_tests]);
+    let (student_term, student_map) =
+      spliced_statics([student_impl, student_tests]);
+    div(
+      [clss(["test-multi-panel"])],
+      [
+        TestView.view(
+          ~title="Student Tests",
+          ~font_metrics,
+          Elaborator.uexp_elab(student_map, student_term),
+        ),
+        TestView.view(
+          ~title="Teacher Tests",
+          ~font_metrics,
+          Elaborator.uexp_elab(teacher_map, teacher_term),
+        ),
+        Interface.res_view(~font_metrics, implement_term, implement_map),
+      ],
+    );
+  | _ => div([], [])
+  };
 };
 
 let multi_editor =
@@ -182,37 +201,8 @@ let multi_editor =
       ~focal_zipper: Zipper.t,
       ~inject,
     ) => {
-  let fat_zippers =
-    List.map((editor: Model.editor) => fat_zipper(editor.zipper), editors);
-  let fat_zipper = fat_zipper(focal_zipper);
-  //TODO(andrew): now these just point at selected one
-  let (_combined_term, combined_info_map) = elab_splicer(editors);
-  let stuff =
-    switch (editors) {
-    | [student_impl, student_tests, teacher_tests] =>
-      let (implement_term, implement_map) = elab_splicer([student_impl]);
-      let (teacher_term, teacher_map) =
-        elab_splicer([student_impl, teacher_tests]);
-      let (student_term, student_map) =
-        elab_splicer([student_impl, student_tests]);
-      div(
-        [clss(["test-multi-panel"])],
-        [
-          TestView.view(
-            ~title="Student Tests",
-            ~font_metrics,
-            Elaborator.uexp_elab(student_map, student_term),
-          ),
-          TestView.view(
-            ~title="Teacher Tests",
-            ~font_metrics,
-            Elaborator.uexp_elab(teacher_map, teacher_term),
-          ),
-          Interface.res_view(~font_metrics, implement_term, implement_map),
-        ],
-      );
-    | _ => div([], [])
-    };
+  let (_, combined_info_map) = spliced_statics(editors);
+  let focal_zipper = fat_zipper(focal_zipper);
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(
@@ -223,11 +213,11 @@ let multi_editor =
         ~selected,
         ~show_backpack_targets,
       ),
-      fat_zippers,
+      editors,
     )
     @ [
-      ci_view(fat_zipper.zipper |> Indicated.index, combined_info_map),
-      stuff,
+      ci_view(Indicated.index(focal_zipper.zipper), combined_info_map),
+      test_multi_panel(~font_metrics, editors),
     ],
   );
 };

@@ -26,14 +26,14 @@ let copy_log_to_clipboard = _ => {
   Event.Ignore;
 };
 
-let increment_editor = (~inject: Update.t => 'a, cur_idx, _) => {
-  let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
+let increment_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
+  let next_ed = (cur_idx + 1) mod num_editors;
   Log.append_json_updates_log();
   inject(SwitchEditor(next_ed));
 };
 
-let decrement_editor = (~inject: Update.t => 'a, cur_idx, _) => {
-  let prev_ed = Util.IntUtil.modulo(cur_idx - 1, LocalStorage.num_editors);
+let decrement_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
+  let prev_ed = Util.IntUtil.modulo(cur_idx - 1, num_editors);
   Log.append_json_updates_log();
   inject(SwitchEditor(prev_ed));
 };
@@ -41,19 +41,22 @@ let decrement_editor = (~inject: Update.t => 'a, cur_idx, _) => {
 let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
   let toggle = Attr.on_mousedown(_ => inject(ToggleMode));
+  let num_editors = Model.num_editors(model);
   switch (model.editor_model) {
   | Simple(_) => div([id, toggle], [text("Simple")])
   | School(_) => div([id, toggle], [text("School")])
   | Study(_) =>
     let cur_idx = Model.current_editor(model);
-    let current_editor =
-      Printf.sprintf("%d / %d", cur_idx + 1, LocalStorage.num_editors);
+    let current_editor = Printf.sprintf("%d / %d", cur_idx + 1, num_editors);
     div(
       [id],
       [
-        button(Icons.back, decrement_editor(~inject, cur_idx)),
+        button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
         div([toggle], [text(current_editor)]),
-        button(Icons.forward, increment_editor(~inject, cur_idx)),
+        button(
+          Icons.forward,
+          increment_editor(~inject, cur_idx, num_editors),
+        ),
       ],
     );
   };

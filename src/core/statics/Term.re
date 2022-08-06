@@ -241,8 +241,12 @@ let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   of_piece(p, List.map(of_seg_and_skel(ps), kids));
 }
-and uexp_of_seg = (ps: Segment.t): UExp.t =>
-  ps |> Segment.skel |> of_seg_and_skel(ps)
+and uexp_of_seg = (ps: Segment.t): UExp.t => {
+  //NOTE(andrew): filter out incomplete tiles for now
+  //TODO(andrew): better approach which still provides feedback inside incomplete tile children
+  let ps = List.filter(Piece.is_complete, ps);
+  ps |> Segment.skel |> of_seg_and_skel(ps);
+}
 and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   of_piece_pat(p, List.map(of_seg_and_skel_pat(ps), kids));
@@ -270,11 +274,8 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
     let term: UExp.term =
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) =>
-        /* TODO(andrew): more principled handling of incomplete tiles.
-           Like maybe, given a segment, we filter out all incomplete tiles,
-           then regrout, then do the semantics based on that. */
+        /* TODO(andrew): more principled handling of incomplete tiles  */
         EmptyHole
-      //Invalid(p)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
@@ -299,7 +300,6 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [fn], [arg]) => Ap(fn, uexp_of_seg(arg))
       | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
-      //TODO(andrew): more cases
       | _ => Invalid(p)
       };
     {id, term};

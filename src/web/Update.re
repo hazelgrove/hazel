@@ -13,7 +13,6 @@ type t =
   | UpdateDoubleTap(option(float))
   | LoadInit
   | LoadDefault
-  | Load
   | Save
   | ToggleMode
   | SwitchEditor(int)
@@ -89,25 +88,6 @@ let apply =
   | LoadInit =>
     let model = load_editor(model);
     Ok({...model, settings: LocalStorage.load_settings()});
-  /*
-   | LoadInit =>
-     let (zs, id_gen) =
-       List.fold_left(
-         ((z_acc, id_gen: IdGen.state), n) =>
-           switch (LocalStorage.load_syntax(n, id_gen)) {
-           | Some((z, id_gen)) => (z_acc @ [z], id_gen)
-           | None => (z_acc @ [Model.empty_zipper], id_gen)
-           },
-         ([], model.id_gen),
-         List.init(LocalStorage.num_editors, n => n),
-       );
-     let zs = List.map(Move.to_start, zs);
-     Ok({
-       ...model,
-       id_gen,
-       settings: LocalStorage.load_settings(),
-       editor_model: Study(LocalStorage.load_editor_idx(), zs),
-     });*/
   | LoadDefault =>
     switch (model.editor_model) {
     | Simple(_) =>
@@ -120,22 +100,6 @@ let apply =
       let (id_gen, idx, editors) = Model.school_init;
       Ok({...model, editor_model: School(idx, editors), id_gen});
     }
-  | Load =>
-    //TODO(andrew): update or remove this
-    let n = Model.current_editor(model);
-    switch (LocalStorage.load_syntax(n, model.id_gen)) {
-    | Some((z, id_gen)) =>
-      Ok({
-        ...model,
-        editor_model:
-          Model.put_editor(
-            model,
-            {zipper: Move.to_start(z), history: ActionHistory.empty},
-          ),
-        id_gen,
-      })
-    | None => Error(FailedToLoad)
-    };
   | Save =>
     save(model);
     Ok(model);
@@ -147,7 +111,7 @@ let apply =
       switch (n < List.length(zs)) {
       | false => Error(FailedToSwitch)
       | true =>
-        LocalStorage.save_editor_idx(n);
+        LocalStorage.save_study((model.id_gen, n, zs));
         Ok({...model, editor_model: Study(n, zs)});
       }
     | School(m, _) when m == n => Error(FailedToSwitch)
@@ -160,21 +124,18 @@ let apply =
       }
     }
   | ToggleMode =>
-    //TODO(andrew): more careful id_gen?
-    //note: empty values will be filled in by load
+    // NOTE: (hacky) empty values will be filled in by load
     let model =
       switch (model.editor_model) {
       | Simple(_) => {...model, editor_model: Study(0, [])}
       | Study(_) => {...model, editor_model: School(0, [])}
-      | School(_) => {...model, editor_model: Simple(Model.mk_editor(0))}
+      | School(_) => {
+          ...model,
+          editor_model: Simple(snd(Model.simple_init)),
+        }
       };
     Ok(load_editor(model));
-  | SetShowBackpackTargets(b) =>
-    Ok({
-      ...model,
-      //history: ActionHistory.clear_just_failed(model.history),
-      show_backpack_targets: b,
-    })
+  | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
   | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})

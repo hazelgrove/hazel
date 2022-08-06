@@ -13,12 +13,6 @@ type editor_model =
   | Study(int, list(editor))
   | School(int, list(editor));
 
-let cell_captions = [
-  "Student Implementation",
-  "Student Tests",
-  "Teacher Tests",
-];
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type simple = (Id.t, editor);
 
@@ -28,25 +22,6 @@ type study = (Id.t, int, list(editor));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type school = (Id.t, int, list(editor));
 
-let mk_editor = (id): editor => {
-  zipper: Zipper.init(id),
-  history: ActionHistory.empty,
-};
-
-let simple_init: simple = (1, mk_editor(0));
-
-let school_init: school = (
-  3,
-  0,
-  [mk_editor(0), mk_editor(1), mk_editor(2)],
-);
-
-let study_init: study = (
-  3,
-  0,
-  [mk_editor(0), mk_editor(1), mk_editor(2)],
-);
-
 [@deriving (show({with_path: false}), yojson)]
 type timestamp = float;
 
@@ -54,21 +29,16 @@ type timestamp = float;
 type settings = {
   captions: bool,
   whitespace_icons: bool,
-  //editor_model: editor_model,
 };
 
-let settings_init = {
-  captions: true,
-  whitespace_icons: false,
-  //editor_model: Simple(mk_editor(0)),
-};
+let settings_init = {captions: true, whitespace_icons: false};
 
 type t = {
   editor_model,
   id_gen: IdGen.state,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
-  show_backpack_targets: bool, // current?
+  show_backpack_targets: bool,
   double_tap: option(timestamp),
   settings,
 };
@@ -87,6 +57,8 @@ let mk = editor_model => {
 };
 
 let blank = mk(School(0, []));
+
+let mk_editor = (zipper): editor => {zipper, history: ActionHistory.empty};
 
 let get_editor' = (editor_model: editor_model): editor =>
   switch (editor_model) {
@@ -114,12 +86,9 @@ let put_editor = (model: t, ed: editor): editor_model =>
 
 let get_zipper' = (editor_model: editor_model): Zipper.t =>
   get_editor'(editor_model).zipper;
-let get_history' = (editor_model: editor_model): ActionHistory.t =>
-  get_editor'(editor_model).history;
-
 let get_zipper = (model: t): Zipper.t => get_zipper'(model.editor_model);
 let get_history = (model: t): ActionHistory.t =>
-  get_history'(model.editor_model);
+  get_editor'(model.editor_model).history;
 
 let current_editor = (model: t): int =>
   switch (model.editor_model) {
@@ -131,3 +100,81 @@ let current_editor = (model: t): int =>
     assert(n < List.length(zs));
     n;
   };
+
+let num_editors = (model: t): int =>
+  switch (model.editor_model) {
+  | Simple(_) => 1
+  | Study(_, zs)
+  | School(_, zs) => List.length(zs)
+  };
+
+let zipper_of_string =
+    (id_gen: IdGen.state, str: string): option(Zipper.state) => {
+  let insert_to_zid: (Zipper.state, string) => Zipper.state =
+    (z_id, c) => {
+      switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
+      | Error(err) =>
+        print_endline(
+          "WARNING: zipper_of_string: insert: "
+          ++ Perform.Action.Failure.show(err),
+        );
+        z_id;
+      | Ok(r) => r
+      };
+    };
+  try(
+    str
+    |> Util.StringUtil.to_list
+    |> List.fold_left(insert_to_zid, (Zipper.init(0), id_gen))
+    |> Option.some
+  ) {
+  | e =>
+    print_endline(
+      "WARNING: zipper_of_string: exception during parse: "
+      ++ Printexc.to_string(e),
+    );
+    None;
+  };
+};
+
+let simple_init: simple = (1, mk_editor(Zipper.init(0)));
+
+let school_init: school = (
+  3,
+  0,
+  [
+    mk_editor(Zipper.init(0)),
+    mk_editor(Zipper.init(1)),
+    mk_editor(Zipper.init(2)),
+  ],
+);
+
+let study_defaults = [
+  "let a = 2 in
+letann b : Bool = 2 in
+letann g : Int -> Int =
+fun x -> x + 1
+in
+let x =
+fun q -> if q < 0 then a else true in
+let f =
+funann x : Int -> x + 5 < 0 in
+true && f(a) && f(b) && g(true)",
+  "blog",
+  "2525",
+];
+
+let study_init: study = {
+  let (id_gen, zs) =
+    List.fold_left(
+      ((acc_id, acc_zs), str) => {
+        switch (zipper_of_string(acc_id, str)) {
+        | None => (acc_id, acc_zs @ [Zipper.init(0)])
+        | Some((z, new_id)) => (new_id, acc_zs @ [z])
+        }
+      },
+      (0, []),
+      study_defaults,
+    );
+  (id_gen, 0, List.map(mk_editor, zs));
+};
