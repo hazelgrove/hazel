@@ -40,7 +40,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystoke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => [Load]
+    | "F6" => []
     | "F7" => []
     | "F8" => []
     | "F10" =>

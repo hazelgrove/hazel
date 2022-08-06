@@ -5,7 +5,10 @@ open Core;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
-  | WhitespaceIcons;
+  | WhitespaceIcons
+  | Statics
+  | Dynamics
+  | Mode(Model.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -13,8 +16,8 @@ type t =
   | UpdateDoubleTap(option(float))
   | LoadInit
   | LoadDefault
-  | Load
   | Save
+  | ToggleMode
   | SwitchEditor(int)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
@@ -44,25 +47,69 @@ module Result = {
 
 let save = (model: Model.t): unit =>
   switch (model.editor_model) {
-  | Simple(z) => LocalStorage.save_syntax(0, z)
-  | Study(n, zs) =>
-    assert(n < List.length(zs));
-    LocalStorage.save_syntax(n, List.nth(zs, n));
+  | Simple(ed) => LocalStorage.save_simple((model.id_gen, ed))
+  | Study(n, eds) => LocalStorage.save_study((model.id_gen, n, eds))
+  | School(n, eds) =>
+    assert(n < List.length(eds));
+    LocalStorage.save_school((model.id_gen, n, eds));
   };
 
 let update_settings =
     (a: settings_action, settings: Model.settings): Model.settings => {
   let settings =
     switch (a) {
+    | Statics =>
+      /* NOTE: dynamics depends on statics, so if dynamics is on and
+         we're turning statics off, turn dynamics off as well */
+      {
+        ...settings,
+        statics: !settings.statics,
+        dynamics: !settings.statics && settings.dynamics,
+      }
+    | Dynamics => {...settings, dynamics: !settings.dynamics}
     | Captions => {...settings, captions: !settings.captions}
     | WhitespaceIcons => {
         ...settings,
         whitespace_icons: !settings.whitespace_icons,
       }
+    | Mode(mode) => {...settings, mode}
     };
   LocalStorage.save_settings(settings);
   settings;
 };
+
+let load_editor = (model: Model.t): Model.t =>
+  switch (model.settings.mode) {
+  | Simple =>
+    let (id_gen, editor) = LocalStorage.load_simple();
+    {...model, id_gen, editor_model: Simple(editor)};
+  | Study =>
+    let (id_gen, idx, editors) = LocalStorage.load_study();
+    {...model, id_gen, editor_model: Study(idx, editors)};
+  | School =>
+    let (id_gen, idx, editors) = LocalStorage.load_school();
+    {...model, id_gen, editor_model: School(idx, editors)};
+  };
+
+let load_default_editor = (model: Model.t): Model.t =>
+  switch (model.settings.mode) {
+  | Simple =>
+    let (id_gen, editor) = Model.simple_init;
+    {...model, editor_model: Simple(editor), id_gen};
+  | Study =>
+    let (id_gen, idx, editors) = Model.study_init;
+    {...model, editor_model: Study(idx, editors), id_gen};
+  | School =>
+    let (id_gen, idx, editors) = Model.school_init;
+    {...model, editor_model: School(idx, editors), id_gen};
+  };
+
+let rotate_mode = (mode: Model.mode): Model.mode =>
+  switch (mode) {
+  | Simple => Study
+  | Study => School
+  | School => Simple
+  };
 
 let apply =
     (model: Model.t, update: t, _: State.t, ~schedule_action as _)
@@ -72,48 +119,10 @@ let apply =
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
   | LoadInit =>
-    let (zs, id_gen) =
-      List.fold_left(
-        ((z_acc, id_gen: IdGen.state), n) =>
-          switch (LocalStorage.load_syntax(n, id_gen)) {
-          | Some((z, id_gen)) => (z_acc @ [z], id_gen)
-          | None => (z_acc @ [Model.empty_zipper], id_gen)
-          },
-        ([], model.id_gen),
-        List.init(LocalStorage.num_editors, n => n),
-      );
-    let zs = List.map(Move.to_start, zs);
-    Ok({
-      ...model,
-      history: ActionHistory.empty,
-      id_gen,
-      settings: LocalStorage.load_settings(),
-      editor_model: Study(LocalStorage.load_editor_idx(), zs),
-    });
-  | LoadDefault =>
-    let n = Model.current_editor(model);
-    switch (LocalStorage.load_default_syntax(n, model.id_gen)) {
-    | Some((z, id_gen)) =>
-      Ok({
-        ...model,
-        history: ActionHistory.empty,
-        editor_model: Model.put_zipper(model, Move.to_start(z)),
-        id_gen,
-      })
-    | None => Error(FailedToLoad)
-    };
-  | Load =>
-    let n = Model.current_editor(model);
-    switch (LocalStorage.load_syntax(n, model.id_gen)) {
-    | Some((z, id_gen)) =>
-      Ok({
-        ...model,
-        history: ActionHistory.empty,
-        editor_model: Model.put_zipper(model, Move.to_start(z)),
-        id_gen,
-      })
-    | None => Error(FailedToLoad)
-    };
+    // NOTE: load settings first to get last editor mode
+    let model = {...model, settings: LocalStorage.load_settings()};
+    Ok(load_editor(model));
+  | LoadDefault => Ok(load_default_editor(model))
   | Save =>
     save(model);
     Ok(model);
@@ -125,62 +134,68 @@ let apply =
       switch (n < List.length(zs)) {
       | false => Error(FailedToSwitch)
       | true =>
-        assert(n < List.length(zs));
-        LocalStorage.save_editor_idx(n);
-        Ok({
-          ...model,
-          history: ActionHistory.empty,
-          editor_model: Study(n, zs),
-        });
+        LocalStorage.save_study((model.id_gen, n, zs));
+        Ok({...model, editor_model: Study(n, zs)});
+      }
+    | School(m, _) when m == n => Error(FailedToSwitch)
+    | School(_, zs) =>
+      switch (n < List.length(zs)) {
+      | false => Error(FailedToSwitch)
+      | true =>
+        LocalStorage.save_school((model.id_gen, n, zs));
+        Ok({...model, editor_model: School(n, zs)});
       }
     }
-  | SetShowBackpackTargets(b) =>
-    Ok({
+  | ToggleMode =>
+    let model = {
       ...model,
-      history: ActionHistory.clear_just_failed(model.history),
-      show_backpack_targets: b,
-    })
+      settings:
+        update_settings(
+          Mode(rotate_mode(model.settings.mode)),
+          model.settings,
+        ),
+    };
+    Ok(load_editor(model));
+  | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
   | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
-    let z_id = (Model.get_zipper(model), model.id_gen);
+    let Model.{zipper, history} = Model.get_editor(model);
+    let z_id = (zipper, model.id_gen);
     switch (Perform.go(a, z_id)) {
     | Error(err) => Error(FailedToPerform(err))
-    // TODO(andrew): refactor history
-    | Ok((z, id_gen)) =>
+    | Ok((zipper, id_gen)) =>
+      let history = ActionHistory.succeeded(a, z_id, history);
       Ok({
         ...model,
-        editor_model: Model.put_zipper(model, z),
         id_gen,
-        history: ActionHistory.succeeded(a, z_id, model.history),
-      })
+        editor_model: Model.put_editor(model, {zipper, history}),
+      });
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Undo =>
-    // TODO(andrew): refactor history
-    let z_id = (Model.get_zipper(model), model.id_gen);
-    switch (ActionHistory.undo(z_id, model.history)) {
+    let Model.{zipper, history} = Model.get_editor(model);
+    let z_id = (zipper, model.id_gen);
+    switch (ActionHistory.undo(z_id, history)) {
     | None => Error(CantUndo)
-    | Some(((z, id_gen), history)) =>
+    | Some(((zipper, id_gen), history)) =>
       Ok({
         ...model,
-        editor_model: Model.put_zipper(model, z),
         id_gen,
-        history,
+        editor_model: Model.put_editor(model, {zipper, history}),
       })
     };
   | Redo =>
-    // TODO(andrew): refactor history
-    let z_id = (Model.get_zipper(model), model.id_gen);
-    switch (ActionHistory.redo(z_id, model.history)) {
+    let Model.{zipper, history} = Model.get_editor(model);
+    let z_id = (zipper, model.id_gen);
+    switch (ActionHistory.redo(z_id, history)) {
     | None => Error(CantRedo)
-    | Some(((z, id_gen), history)) =>
+    | Some(((zipper, id_gen), history)) =>
       Ok({
         ...model,
-        editor_model: Model.put_zipper(model, z),
         id_gen,
-        history,
+        editor_model: Model.put_editor(model, {zipper, history}),
       })
     };
   | MoveToNextHole(_d) =>
