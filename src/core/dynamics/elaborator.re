@@ -31,7 +31,8 @@ let int_op_of: Term.UExp.exp_op_int => DHExp.BinIntOp.t =
 
 let float_op_of: Term.UExp.exp_op_float => DHExp.BinFloatOp.t =
   fun
-  | Plus => FPlus;
+  | Plus => FPlus
+  | Lt => FLessThan;
 
 let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
   fun

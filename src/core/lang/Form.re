@@ -70,6 +70,7 @@ let forms: list((string, t)) = [
   ("equals", mk_infix("=", Exp, P.eqs)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
+  ("flt", mk_infix("<.", Exp, P.eqs)),
   ("bitwise_and", mk_infix("&", Exp, 5)), // substring req
   ("logical_and", mk_infix("&&", Exp, 5)),
   ("type-arrow", mk_infix("->", Typ, 6)), // bad sorts

@@ -108,7 +108,8 @@ module UExp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exp_op_float =
-    | Plus;
+    | Plus
+    | Lt;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exp_op_bool =
@@ -196,6 +197,7 @@ module UExp = {
     | OpInt(Plus) => "Integer Addition"
     | OpInt(Lt) => "Integer Less-Than"
     | OpFloat(Plus) => "Float Addition"
+    | OpFloat(Lt) => "Float Less-Than"
     | OpBool(And) => "Boolean Conjunction";
 };
 
@@ -263,6 +265,7 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | (["+"], [l, r], []) => OpInt(Plus, l, r)
       | (["+."], [l, r], []) => OpFloat(Plus, l, r)
       | (["<"], [l, r], []) => OpInt(Lt, l, r)
+      | (["<."], [l, r], []) => OpFloat(Lt, l, r)
       | (["&&"], [l, r], []) => OpBool(And, l, r)
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
       | (["funann", ":", "->"], [body], [pat, typ]) =>
