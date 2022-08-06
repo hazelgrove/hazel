@@ -57,7 +57,13 @@ let update_settings =
     (a: settings_action, settings: Model.settings): Model.settings => {
   let settings =
     switch (a) {
-    | Statics => {...settings, statics: !settings.statics}
+    | Statics =>
+      //NOTE: if dynamics is on and we're turning statics off, turn dynamics off
+      {
+        ...settings,
+        statics: !settings.statics,
+        dynamics: settings.dynamics && !settings.statics,
+      }
     | Dynamics => {...settings, dynamics: !settings.dynamics}
     | Captions => {...settings, captions: !settings.captions}
     | WhitespaceIcons => {

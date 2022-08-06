@@ -158,6 +158,34 @@ svg {
 	}
 }
 
+@keyframes wobble {
+	0%,
+	100% {
+		transform: translateX(0%);
+		transform-origin: 50% 50%;
+	}
+
+	15% {
+		transform: translateX(10%) rotate(-6deg);
+	}
+
+	30% {
+		transform: translateX(5%) rotate(6deg);
+	}
+
+	45% {
+		transform: translateX(5%) rotate(-3.6deg);
+	}
+
+	60% {
+		transform: translateX(3%) rotate(2.4deg);
+	}
+
+	75% {
+		transform: translateX(-2%) rotate(-1.2deg);
+	}
+}
+
 /* PAGE */
 
 #page {
@@ -1048,7 +1076,8 @@ svg {
 }
 
 .toggle-switch:hover {
-  transform: scale(120%);
+  animation: wobble 0.4s ease 0s 1 normal none;
+  /*transform: scale(120%);*/
 }
 
 .toggle-switch .toggle-knob {
@@ -1078,3 +1107,40 @@ svg {
 }
 
 /* END TOGGLE */
+
+/* DHEXP */
+
+.DHCode {
+  position: relative;
+}
+
+.DHCode .decoration-container {
+  position: absolute;
+}
+
+.DHCode svg.err-hole {
+  fill: #d000;
+  transform: scale(0.9); /* HACK(andrew) */
+  stroke-dasharray: 1,1;
+  stroke: red;
+  stroke-width: 1.2px;
+  /* mix-blend-mode: color; */
+}
+
+.DHCode .InVarHole {
+  border: 1px dotted red;
+  border-radius: 0.3em;
+  color: red
+}
+
+.DHCode .EmptyHole {
+  background-color: #f1e8cd;
+  border-radius: 0.3em;
+  color: #c7b480;
+}
+
+.DHCode .Collapsed {
+  color: #493c15;
+}
+
+/* END DHEXP */
