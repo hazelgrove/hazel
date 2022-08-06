@@ -27,6 +27,7 @@ let exp_htyp = (m: Statics.info_map, exp: Term.UExp.t) =>
 let int_op_of: Term.UExp.exp_op_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
+  | Minus => Minus
   | Lt => LessThan;
 
 let float_op_of: Term.UExp.exp_op_float => DHExp.BinFloatOp.t =
@@ -90,38 +91,14 @@ let rec dhexp_of_uexp =
         {term: Fun(_), _} as def,
         body,
       ) =>
-      let pat_typ =
-        switch (Id.Map.find_opt(p.id, m)) {
-        | Some(InfoPat({mode, self, _})) =>
-          htyp_of_typ(Statics.typ_after_fix(mode, self))
-        | Some(InfoExp(_) | InfoTyp(_) | Invalid)
-        | None => failwith(__LOC__ ++ ": XXX")
-        };
-      let def_typ =
-        switch (Id.Map.find_opt(def.id, m)) {
-        | Some(InfoExp({mode, self, _})) =>
-          htyp_of_typ(Statics.typ_after_fix(mode, self))
-        | Some(InfoPat(_) | InfoTyp(_) | Invalid)
-        | None => failwith(__LOC__ ++ ": XXX")
-        };
-      let* dp = dhpat_of_upat(m, p);
-      let* ddef = dhexp_of_uexp(m, def);
-      let* dbody = dhexp_of_uexp(m, body);
-      wrap(
-        Let(
-          dp,
-          FixF(
-            x,
-            def_typ,
-            Evaluator.subst_var(
-              DHExp.cast(BoundVar(x), def_typ, pat_typ),
-              x,
-              ddef,
-            ),
-          ),
-          dbody,
-        ),
-      );
+      let pat_typ = htyp_of_typ(Statics.pat_typ(m, p));
+      let def_typ = htyp_of_typ(Statics.exp_typ(m, def));
+      let* p = dhpat_of_upat(m, p);
+      let* def = dhexp_of_uexp(m, def);
+      let* body = dhexp_of_uexp(m, body);
+      let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
+      let def_subst = Evaluator.subst_var(cast_var, x, def);
+      wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body)
     | LetAnn(p, _, def, body) =>
       let* dp = dhpat_of_upat(m, p);
