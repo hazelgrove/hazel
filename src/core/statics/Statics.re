@@ -129,7 +129,7 @@ let is_error = (ci: t): bool => {
   };
 };
 
-/* Determined the type of an expression or pattern 'after hole fixing';
+/* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
 let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
@@ -141,11 +141,35 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
   | NotInHole(AnaInternalInconsistent(ty_ana, _)) => ty_ana
   };
 
+/* The type of an expression after hole wrapping */
+let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
+  switch (Id.Map.find_opt(e.id, m)) {
+  | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoPat(_) | InfoTyp(_) | Invalid)
+  | None => failwith(__LOC__ ++ ": XXX")
+  };
+
+/* The type of a pattern after hole wrapping */
+let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
+  switch (Id.Map.find_opt(p.id, m)) {
+  | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+  | None => failwith(__LOC__ ++ ": XXX")
+  };
+
 let union_m =
   List.fold_left(
     (m1, m2) => Id.Map.union((_, _, b) => Some(b), m1, m2),
     Id.Map.empty,
   );
+
+let extend_let_def_ctx =
+    (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
+  switch (pat.term, ty_ann, def.term) {
+  | (Var(x), Arrow(_), Fun(_) | FunAnn(_)) =>
+    VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
+  | _ => ctx
+  };
 
 /* Generates the InfoMap for an expression term */
 let rec uexp_to_info_map =
@@ -180,10 +204,13 @@ let rec uexp_to_info_map =
     | Some(ce) =>
       add(~self=Just(ce.typ), ~free=[(name, [{id, mode}])], Id.Map.empty)
     }
-  | OpInt(Plus, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Int))
+  | OpInt(Plus | Minus, e1, e2) =>
+    binop(e1, e2, Ana(Int), Ana(Int), Just(Int))
   | OpInt(Lt, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
   | OpFloat(Plus, e1, e2) =>
     binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
+  | OpFloat(Lt, e1, e2) =>
+    binop(e1, e2, Ana(Float), Ana(Float), Just(Bool))
   | OpBool(And, e1, e2) => binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
@@ -280,13 +307,14 @@ let rec uexp_to_info_map =
     let (ty_ann, m_typ) = utyp_to_info_map(typ);
     let (ty_pat, _ctx_pat, m_pat) =
       upat_to_info_map(~mode=Ana(ty_ann), pat);
+    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_ann);
     let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx, ~mode=Ana(ty_pat), def);
+      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     // join if consistent, otherwise pattern type wins
     let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
     // ana pat to incorporate def type into ctx
     let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
-    let ctx_body = VarMap.union(ctx, ctx_pat_ana);
+    let ctx_body = VarMap.union(def_ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
@@ -296,6 +324,7 @@ let rec uexp_to_info_map =
     );
   };
 }
+
 and upat_to_info_map =
     (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t): (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);

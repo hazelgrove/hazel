@@ -27,11 +27,13 @@ let exp_htyp = (m: Statics.map, exp: Term.UExp.t) =>
 let int_op_of: Term.UExp.exp_op_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
+  | Minus => Minus
   | Lt => LessThan;
 
 let float_op_of: Term.UExp.exp_op_float => DHExp.BinFloatOp.t =
   fun
-  | Plus => FPlus;
+  | Plus => FPlus
+  | Lt => FLessThan;
 
 let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
   fun
@@ -82,9 +84,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
+    | LetAnn(
+        {term: Var(x), _} as p,
+        {term: Arrow(_), _},
+        {term: Fun(_), _} as def,
+        body,
+      ) =>
+      let pat_typ = htyp_of_typ(Statics.pat_typ(m, p));
+      let def_typ = htyp_of_typ(Statics.exp_typ(m, def));
+      let* p = dhpat_of_upat(m, p);
+      let* def = dhexp_of_uexp(m, def);
+      let* body = dhexp_of_uexp(m, body);
+      let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
+      let def_subst = Evaluator.subst_var(cast_var, x, def);
+      wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body)
     | LetAnn(p, _, def, body) =>
-      //TODO: recursive def
       let* dp = dhpat_of_upat(m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);

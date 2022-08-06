@@ -90,10 +90,12 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
 let forms: list((string, t)) = [
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
+  ("minus", mk_infix("-", Exp, P.plus)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("equals", mk_infix("=", Exp, P.eqs)),
-  ("lt", mk_infix("<", Exp, P.eqs)), // substring req
+  ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
+  ("flt", mk_infix("<.", Exp, P.eqs)),
   ("bitwise_and", mk_infix("&", Exp, 5)), // substring req
   ("logical_and", mk_infix("&&", Exp, 5)),
   //("times", mk_infix("*", Exp, P.mult)),
@@ -105,7 +107,7 @@ let forms: list((string, t)) = [
   //("bitwise_or", mk_infix("|", Exp, 5)),
   //("logical_or", mk_infix("||", Exp, 5)),
   ("type-arrow", mk_infix("->", Typ, 6)), // bad sorts
-  ("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))), // substring req
+  //("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))), // substring req
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
@@ -141,7 +143,6 @@ let forms: list((string, t)) = [
   //("type-ann", mk_infix(":", Exp, 5)), // bad sorts
   //("dot-access", mk_infix(".", Exp, 5)), // bad sorts
   //("assign_incr", mk_infix("+=", Exp, 10)), // bad sorts
-  //("minus", mk_infix("-", Exp, P.plus)),
   //("semi", mk_infix(";", Exp, P.semi)),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   // ("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
