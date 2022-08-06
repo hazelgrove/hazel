@@ -25,3 +25,16 @@ let view:
     DHExp.t
   ) =>
   Vdom.Node.t;
+
+let view_tylr:
+  (
+    ~settings: Settings.Evaluation.t,
+    ~selected_instance: option(HoleInstance.t),
+    ~font_metrics: FontMetrics.t,
+    ~width: int,
+    ~pos: int=?,
+    DHExp.t
+  ) =>
+  Vdom.Node.t;
+
+type font_metrics = FontMetrics.t;

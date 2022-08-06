@@ -98,3 +98,8 @@ let is_length_one_monotile: t => bool =
     };
 
 let has_ends = get(_ => true, _ => true, Tile.has_ends);
+
+let is_complete: t => bool =
+  fun
+  | Tile(t) => Tile.is_complete(t)
+  | _ => true;
