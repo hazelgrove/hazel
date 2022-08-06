@@ -7,7 +7,8 @@ type settings_action =
   | Captions
   | WhitespaceIcons
   | Statics
-  | Dynamics;
+  | Dynamics
+  | Mode(Model.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -58,11 +59,12 @@ let update_settings =
   let settings =
     switch (a) {
     | Statics =>
-      //NOTE: if dynamics is on and we're turning statics off, turn dynamics off
+      /* NOTE: dynamics depends on statics, so if dynamics is on and
+         we're turning statics off, turn dynamics off as well */
       {
         ...settings,
         statics: !settings.statics,
-        dynamics: settings.dynamics && !settings.statics,
+        dynamics: !settings.statics && settings.dynamics,
       }
     | Dynamics => {...settings, dynamics: !settings.dynamics}
     | Captions => {...settings, captions: !settings.captions}
@@ -70,22 +72,43 @@ let update_settings =
         ...settings,
         whitespace_icons: !settings.whitespace_icons,
       }
+    | Mode(mode) => {...settings, mode}
     };
   LocalStorage.save_settings(settings);
   settings;
 };
 
-let load_editor = (model: Model.t) =>
-  switch (model.editor_model) {
-  | Simple(_) =>
+let load_editor = (model: Model.t): Model.t =>
+  switch (model.settings.mode) {
+  | Simple =>
     let (id_gen, editor) = LocalStorage.load_simple();
     {...model, id_gen, editor_model: Simple(editor)};
-  | Study(_) =>
+  | Study =>
     let (id_gen, idx, editors) = LocalStorage.load_study();
     {...model, id_gen, editor_model: Study(idx, editors)};
-  | School(_) =>
+  | School =>
     let (id_gen, idx, editors) = LocalStorage.load_school();
     {...model, id_gen, editor_model: School(idx, editors)};
+  };
+
+let load_default_editor = (model: Model.t): Model.t =>
+  switch (model.settings.mode) {
+  | Simple =>
+    let (id_gen, editor) = Model.simple_init;
+    {...model, editor_model: Simple(editor), id_gen};
+  | Study =>
+    let (id_gen, idx, editors) = Model.study_init;
+    {...model, editor_model: Study(idx, editors), id_gen};
+  | School =>
+    let (id_gen, idx, editors) = Model.school_init;
+    {...model, editor_model: School(idx, editors), id_gen};
+  };
+
+let rotate_mode = (mode: Model.mode): Model.mode =>
+  switch (mode) {
+  | Simple => Study
+  | Study => School
+  | School => Simple
   };
 
 let apply =
@@ -96,20 +119,10 @@ let apply =
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
   | LoadInit =>
-    let model = load_editor(model);
-    Ok({...model, settings: LocalStorage.load_settings()});
-  | LoadDefault =>
-    switch (model.editor_model) {
-    | Simple(_) =>
-      let (id_gen, editor) = Model.simple_init;
-      Ok({...model, editor_model: Simple(editor), id_gen});
-    | Study(_) =>
-      let (id_gen, idx, editors) = Model.study_init;
-      Ok({...model, editor_model: Study(idx, editors), id_gen});
-    | School(_) =>
-      let (id_gen, idx, editors) = Model.school_init;
-      Ok({...model, editor_model: School(idx, editors), id_gen});
-    }
+    // NOTE: load settings first to get last editor mode
+    let model = {...model, settings: LocalStorage.load_settings()};
+    Ok(load_editor(model));
+  | LoadDefault => Ok(load_default_editor(model))
   | Save =>
     save(model);
     Ok(model);
@@ -134,16 +147,14 @@ let apply =
       }
     }
   | ToggleMode =>
-    // NOTE: (hacky) empty values will be filled in by load
-    let model =
-      switch (model.editor_model) {
-      | Simple(_) => {...model, editor_model: Study(0, [])}
-      | Study(_) => {...model, editor_model: School(0, [])}
-      | School(_) => {
-          ...model,
-          editor_model: Simple(snd(Model.simple_init)),
-        }
-      };
+    let model = {
+      ...model,
+      settings:
+        update_settings(
+          Mode(rotate_mode(model.settings.mode)),
+          model.settings,
+        ),
+    };
     Ok(load_editor(model));
   | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
   | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})

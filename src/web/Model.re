@@ -26,11 +26,18 @@ type school = (Id.t, int, list(editor));
 type timestamp = float;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Simple
+  | Study
+  | School;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
   captions: bool,
   whitespace_icons: bool,
   statics: bool,
   dynamics: bool,
+  mode,
 };
 
 let settings_init = {
@@ -38,6 +45,7 @@ let settings_init = {
   whitespace_icons: false,
   statics: true,
   dynamics: true,
+  mode: Simple,
 };
 
 type t = {
