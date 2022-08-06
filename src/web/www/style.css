@@ -205,7 +205,7 @@ svg {
   left: 100%;
 }
 
-#font-specimen, .code-container, .result {
+#font-specimen, .code-container, .DHCode {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
@@ -880,6 +880,45 @@ svg {
   color: #fdf6e3;
 }
 
+/* DYNAMICS - DHEXP */
+
+.DHCode {
+  position: relative;
+}
+
+.DHCode .decoration-container {
+  position: absolute;
+}
+
+.DHCode svg.err-hole {
+  fill: #d000;
+  transform: scaleY(0.8); /* HACK(andrew) */
+  stroke-dasharray: 1,1;
+  stroke: red;
+  stroke-width: 1.2px;
+  /* mix-blend-mode: color; */
+}
+
+.DHCode .InVarHole {
+  border: 1px dotted red;
+  border-radius: 0.2em;
+  color: red
+}
+
+.DHCode .EmptyHole {
+  background-color: #f1e8cd;
+  border-radius: 0.2em;
+  color: #c7b480;
+}
+
+.DHCode .Collapsed {
+  color: #493c15;
+}
+
+.DHCode .Align {
+  display: inline-block;
+}
+
 /* DYNAMICS - test panel */
 
 .test-multi-panel {
@@ -887,7 +926,7 @@ svg {
   position: fixed;
   right: 0;
   top: 0em;
-  max-width: 40em;
+  max-width: 21em;
   display: flex;
   flex-direction: column;
 }
@@ -926,9 +965,6 @@ svg {
   background-color: #cfd;
 }
 
-.test-id {
-}
-
 .test-id.Pass{
   color: green;
 }
@@ -955,8 +991,18 @@ svg {
 
 .test-instance .DHCode {
   border-radius: 0.5em;
-  padding: 0 0.2em 0 0.2em;
 }
+
+/*
+.test-instance .DHCode:before {
+  content:'';
+  width:100%;
+  height:100%;    
+  position:absolute;
+  left:0;
+  top:0;
+  background: linear-gradient(90deg, #0000 170px, #f8ebc6);
+}*/
 
 .test-instance.Pass .DHCode {
   color: green;
@@ -968,12 +1014,12 @@ svg {
 }
 
 .test-instance.Indet .DHCode {
+  color: #d2b48c;
 }
 
 .test-summary {
   display: flex;
   flex-direction: column;
-  /*padding: 1em;*/
   gap: 1em;
 }
 
@@ -1107,40 +1153,3 @@ svg {
 }
 
 /* END TOGGLE */
-
-/* DHEXP */
-
-.DHCode {
-  position: relative;
-}
-
-.DHCode .decoration-container {
-  position: absolute;
-}
-
-.DHCode svg.err-hole {
-  fill: #d000;
-  transform: scale(0.9); /* HACK(andrew) */
-  stroke-dasharray: 1,1;
-  stroke: red;
-  stroke-width: 1.2px;
-  /* mix-blend-mode: color; */
-}
-
-.DHCode .InVarHole {
-  border: 1px dotted red;
-  border-radius: 0.3em;
-  color: red
-}
-
-.DHCode .EmptyHole {
-  background-color: #f1e8cd;
-  border-radius: 0.3em;
-  color: #c7b480;
-}
-
-.DHCode .Collapsed {
-  color: #493c15;
-}
-
-/* END DHEXP */

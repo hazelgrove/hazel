@@ -36,3 +36,5 @@ let view_tylr:
     DHExp.t
   ) =>
   Vdom.Node.t;
+
+type font_metrics = FontMetrics.t;

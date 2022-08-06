@@ -123,7 +123,8 @@ let test_summary = (~inject, ~test_map) => {
   );
 };
 
-let dhcode_view = (~font_metrics) => Interface.dhcode_view(~font_metrics);
+let dhcode_view = (~font_metrics) =>
+  Interface.dhcode_view(~font_metrics, ~width=40);
 
 let view_of_main_title_bar = (title_text: string) =>
   div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);

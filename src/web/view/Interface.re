@@ -5,6 +5,11 @@ open Core;
 let evaluate =
   Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
+let convert_metrics = (font_metrics: FontMetrics.t): DHCode.font_metrics => {
+  row_height: font_metrics.row_height,
+  col_width: font_metrics.col_width,
+};
+
 let get_result =
     (d: Elaborator_Exp.ElaborationResult.t): option((DHExp.t, TestMap.t)) => {
   switch (d) {
@@ -18,16 +23,11 @@ let get_result =
   };
 };
 
-let dhcode_view = (~font_metrics: FontMetrics.t, result) => {
+let dhcode_view = (~font_metrics: FontMetrics.t) => {
   DHCode.view_tylr(
-    ~selected_instance=None,
-    ~font_metrics={
-      row_height: font_metrics.row_height,
-      col_width: font_metrics.col_width,
-    },
+    ~selected_instance=None, //option((int, int)) // hole, hole_inst
+    ~font_metrics=convert_metrics(font_metrics),
     ~settings=Settings.Evaluation.init,
-    ~width=80,
-    result,
   );
 };
 
@@ -37,7 +37,7 @@ let res_view = (~font_metrics: FontMetrics.t, term, info_map): Node.t => {
     [Attr.classes(["result"])],
     switch (result) {
     | None => []
-    | Some((result, _)) => [dhcode_view(~font_metrics, result)]
+    | Some((result, _)) => [dhcode_view(~font_metrics, ~width=80, result)]
     },
   );
 };

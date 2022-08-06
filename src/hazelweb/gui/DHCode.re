@@ -226,3 +226,5 @@ let view_tylr =
      )
   |> view_of_layout_tylr(~font_metrics);
 };
+
+type font_metrics = FontMetrics.t;
