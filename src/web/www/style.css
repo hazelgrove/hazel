@@ -327,10 +327,11 @@ svg {
   padding-left: 1em;
   padding: 0.5em;
   padding-left: 1.2em;
-  border-left: 1px solid var(--extra-light-page-color);
+  border-left: 1px solid var(--top_bar_icon_fill);
 }
 
 .cell.selected{
+  border-left: 1px solid red; /*#ffc300;*/
   background-color: #fffcf3;
 }
 

@@ -2,20 +2,41 @@ open Sexplib.Std;
 open Mold;
 module P = Precedence;
 
+/* FORM
+
+   This module determines the syntactic extent of the language; the
+   entire Syntax module is driven by the below definitions. Adding
+   a new syntactic form is simply a matter of adding a new line to either
+   the 'convex_monos' table, for single-token forms, or the 'forms'
+   table, for compound forms.
+
+   The wrapping functions seen in both of those tables determine the
+   shape, precedence, and expansion behavior of the form. */
+
 let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
 
+/* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type label = list(Token.t);
 
+/* The construction of a compound forms can be triggered by inserting
+   one of its delimiters through a process called expansion. Expansion
+   can either occur (Instant)ly upon delimiter creation, or be (Delayed)
+   until after a token boundary event is triggered (say by pressing
+   space after entering 'let'). The (Static) case is used for monos
+   aka single-token forms. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion_time =
   | Static
   | Instant
   | Delayed;
 
+/* Expansion can be triggered by either/both the first or last token
+   of a form, represented here by the first/last elements of this pair. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion = (expansion_time, expansion_time);
 
+/* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   label,
@@ -23,6 +44,9 @@ type t = {
   mold: Mold.t,
 };
 
+let mk = (expansion, label, mold) => {label, mold, expansion};
+
+/* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
 let ii: expansion = (Instant, Instant);
 let id: expansion = (Instant, Delayed);
@@ -30,11 +54,10 @@ let is: expansion = (Instant, Static);
 let ds: expansion = (Delayed, Static);
 let di: expansion = (Delayed, Instant);
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
-
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
+/* Regular expressions which determine monotiles */
 let is_var = regexp("^[a-z][A-Za-z0-9_]*$");
 let is_int = regexp("^[0-9]*$");
 let is_float = regexp("^[0-9]*\\.[0-9]*$");

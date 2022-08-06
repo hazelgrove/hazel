@@ -1,6 +1,27 @@
 open Sexplib.Std;
 
-/* cls = SYNTAX CLASSES: source of truth for supported forms
+/* TERM
+
+   These data structures define the term structures on which
+   the static and dynamic semantics of the language are based.
+   Each sort has a corresponding U<Sort> module.
+
+   The contained cls type lists the terms of that sort, and
+   should be in 1-1 correspondance with the term type which
+   is used to build composite terms.
+
+   This is wrapped in a record type to associate a unique id
+   with each term. These unique ids are the same as from the
+   tile structure from the syntax module, as there is a 1-1
+   correspondance between terms and tiles.
+
+   The below functions exist to parse tile structure into
+   term structure. The language syntax, as determined by
+   Syntax.Form, is an open, data-driven system, so adding
+   a syntactic form there will not trigger a static error
+   here; you must remember to add a case below for each
+   new form added tot the syntax.
+
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
@@ -215,6 +236,7 @@ module UExp = {
     | OpBool(And) => "Boolean Conjunction";
 };
 
+/* Converts a syntactic type into a semantic type */
 let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
@@ -227,7 +249,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
     };
 
-let piece_and_kids = (ps, skel: Skel.t): (Piece.t, list(Skel.t)) => {
+let piece_and_kids = (ps: Segment.t, skel: Skel.t): (Piece.t, list(Skel.t)) => {
   let at = List.nth(ps);
   switch (skel) {
   | Op(idx) => (at(idx), [])
@@ -237,6 +259,7 @@ let piece_and_kids = (ps, skel: Skel.t): (Piece.t, list(Skel.t)) => {
   };
 };
 
+/* Converts syntactic segments into terms */
 let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   of_piece(p, List.map(of_seg_and_skel(ps), kids));
