@@ -205,8 +205,8 @@ let splice_editors = (editors: list(Model.editor)): Segment.t =>
   |> List.flatten;
 
 let spliced_statics = (eds: list(Model.editor)) => {
-  let term = eds |> splice_editors |> Term.uexp_of_seg;
-  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
+  let term = eds |> splice_editors |> Semantics.Term.uexp_of_seg;
+  let (_, _, info_map) = term |> Semantics.Statics.uexp_to_info_map;
   (term, info_map);
 };
 
@@ -224,12 +224,12 @@ let school_panel = (~font_metrics, editors) => {
         view(
           ~title="Student Tests",
           ~font_metrics,
-          Elaborator.uexp_elab(student_map, student_term),
+          Semantics.Elaborator.uexp_elab(student_map, student_term),
         ),
         view(
           ~title="Teacher Tests",
           ~font_metrics,
-          Elaborator.uexp_elab(teacher_map, teacher_term),
+          Semantics.Elaborator.uexp_elab(teacher_map, teacher_term),
         ),
         Interface.res_view(~font_metrics, implement_term, implement_map),
       ],

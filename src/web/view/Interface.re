@@ -1,6 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core;
 
 let evaluate =
   Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
@@ -32,7 +31,7 @@ let dhcode_view = (~font_metrics: FontMetrics.t) => {
 };
 
 let res_view = (~font_metrics: FontMetrics.t, term, info_map): Node.t => {
-  let result = get_result(Elaborator.uexp_elab(info_map, term));
+  let result = get_result(Semantics.Elaborator.uexp_elab(info_map, term));
   div(
     [Attr.classes(["result"])],
     switch (result) {

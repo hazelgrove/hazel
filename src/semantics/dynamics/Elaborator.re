@@ -1,3 +1,5 @@
+open Core;
+
 let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
   | Unknown(_) => Hole

@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Core;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {

@@ -50,7 +50,7 @@ let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
     TestView.view(
       ~title="Tests",
       ~font_metrics,
-      Elaborator.uexp_elab(info_map, term),
+      Semantics.Elaborator.uexp_elab(info_map, term),
     ),
     Interface.res_view(~font_metrics, term, info_map),
   ];
@@ -58,8 +58,8 @@ let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
 
 let single_editor_semantics_views =
     (~settings: Model.settings, ~font_metrics, ~index, ~unselected) => {
-  let term = Term.uexp_of_seg(unselected);
-  let (_, _, info_map) = Statics.uexp_to_info_map(term);
+  let term = Semantics.Term.uexp_of_seg(unselected);
+  let (_, _, info_map) = Semantics.Statics.uexp_to_info_map(term);
   [ci_view(index, info_map)]
   @ (
     settings.dynamics
