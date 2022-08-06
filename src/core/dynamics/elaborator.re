@@ -84,9 +84,46 @@ let rec dhexp_of_uexp =
       | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
+    | LetAnn(
+        {term: Var(x), _} as p,
+        {term: Arrow(_), _},
+        {term: Fun(_), _} as def,
+        body,
+      ) =>
+      let pat_typ =
+        switch (Id.Map.find_opt(p.id, m)) {
+        | Some(InfoPat({mode, self, _})) =>
+          htyp_of_typ(Statics.typ_after_fix(mode, self))
+        | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+        | None => failwith(__LOC__ ++ ": XXX")
+        };
+      let def_typ =
+        switch (Id.Map.find_opt(def.id, m)) {
+        | Some(InfoExp({mode, self, _})) =>
+          htyp_of_typ(Statics.typ_after_fix(mode, self))
+        | Some(InfoPat(_) | InfoTyp(_) | Invalid)
+        | None => failwith(__LOC__ ++ ": XXX")
+        };
+      let* dp = dhpat_of_upat(m, p);
+      let* ddef = dhexp_of_uexp(m, def);
+      let* dbody = dhexp_of_uexp(m, body);
+      wrap(
+        Let(
+          dp,
+          FixF(
+            x,
+            def_typ,
+            Evaluator.subst_var(
+              DHExp.cast(BoundVar(x), def_typ, pat_typ),
+              x,
+              ddef,
+            ),
+          ),
+          dbody,
+        ),
+      );
     | Let(p, def, body)
     | LetAnn(p, _, def, body) =>
-      //TODO: recursive def
       let* dp = dhpat_of_upat(m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);
