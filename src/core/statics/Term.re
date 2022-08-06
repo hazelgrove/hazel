@@ -104,6 +104,7 @@ module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exp_op_int =
     | Plus
+    | Minus
     | Lt;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -195,6 +196,7 @@ module UExp = {
     | Ap => "Function Application"
     | If => "If Expression"
     | OpInt(Plus) => "Integer Addition"
+    | OpInt(Minus) => "Integer Subtraction"
     | OpInt(Lt) => "Integer Less-Than"
     | OpFloat(Plus) => "Float Addition"
     | OpFloat(Lt) => "Float Less-Than"
@@ -263,6 +265,7 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([","], [l, r], []) => Pair(l, r)
       | (["+"], [l, r], []) => OpInt(Plus, l, r)
+      | (["-"], [l, r], []) => OpInt(Minus, l, r)
       | (["+."], [l, r], []) => OpFloat(Plus, l, r)
       | (["<"], [l, r], []) => OpInt(Lt, l, r)
       | (["<."], [l, r], []) => OpFloat(Lt, l, r)
