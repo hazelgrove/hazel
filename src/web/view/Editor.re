@@ -3,25 +3,6 @@ open Node;
 open Core;
 open Util.Web;
 
-/* zipper plus derived data. this is a convenience to help avoid recomputation */
-type fat_zipper = {
-  zipper: Zipper.t,
-  tile_map: Measured.t,
-  segment: Segment.t,
-  unselected: Segment.t,
-  term: Term.UExp.t,
-  info_map: Statics.info_map,
-};
-
-let fat_zipper = (zipper: Zipper.t) => {
-  let term = zipper |> Term.of_zipper;
-  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
-  let segment = Zipper.zip(zipper);
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let tile_map = Measured.of_segment(unselected);
-  {zipper, term, info_map, segment, unselected, tile_map};
-};
-
 let ci_view = (index': option(int), info_map) => {
   let (index, ci) =
     switch (index') {
@@ -34,38 +15,55 @@ let ci_view = (index': option(int), info_map) => {
   };
 };
 
-let deco = (~fat_zipper, ~font_metrics, show_backpack_targets) => {
+let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
-      let map = fat_zipper.tile_map;
+      let map = map;
       let show_backpack_targets = show_backpack_targets;
     });
-  Deco.all(fat_zipper.zipper, fat_zipper.segment);
+  Deco.all(zipper, segment);
 };
 
 let code_container =
     (
       ~font_metrics,
-      ~fat_zipper: fat_zipper,
+      ~zipper,
+      ~unselected,
       ~settings,
       ~show_backpack_targets,
       ~show_deco,
     ) => {
-  div(
-    [Attr.class_("code-container")],
-    [
-      Code.view(
-        ~font_metrics,
-        ~sel_seg=fat_zipper.segment,
-        ~unsel_seg=fat_zipper.unselected,
-        ~map=fat_zipper.tile_map,
-        ~settings,
-      ),
-    ]
-    @ (
-      show_deco ? deco(~fat_zipper, ~font_metrics, show_backpack_targets) : []
+  let segment = Zipper.zip(zipper);
+  let map = Measured.of_segment(unselected);
+  let code_view =
+    Code.view(~font_metrics, ~segment, ~unselected, ~map, ~settings);
+  let deco_view =
+    show_deco
+      ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
+      : [];
+  div([Attr.class_("code-container")], [code_view] @ deco_view);
+};
+
+let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
+  [
+    TestView.view(
+      ~title="Tests",
+      ~font_metrics,
+      Elaborator.uexp_elab(info_map, term),
     ),
+    Interface.res_view(~font_metrics, term, info_map),
+  ];
+};
+
+let single_editor_semantics_views =
+    (~settings: Model.settings, ~font_metrics, ~index, ~unselected) => {
+  let term = Term.uexp_of_seg(unselected);
+  let (_, _, info_map) = Statics.uexp_to_info_map(term);
+  [ci_view(index, info_map)]
+  @ (
+    settings.dynamics
+      ? single_editor_dynamics_views(~font_metrics, term, info_map) : []
   );
 };
 
@@ -77,26 +75,26 @@ let single_editor =
       ~settings: Model.settings,
     )
     : Node.t => {
-  let fat_zipper = fat_zipper(zipper);
-  div(
-    [clss(["editor", "single"])],
-    [
-      code_container(
-        ~font_metrics,
-        ~fat_zipper,
-        ~settings,
-        ~show_backpack_targets,
-        ~show_deco=true,
-      ),
-      ci_view(Indicated.index(fat_zipper.zipper), fat_zipper.info_map),
-      TestView.view(
-        ~title="Tests",
-        ~font_metrics,
-        Elaborator.uexp_elab(fat_zipper.info_map, fat_zipper.term),
-      ),
-      Interface.res_view(~font_metrics, fat_zipper.term, fat_zipper.info_map),
-    ],
-  );
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let code_view =
+    code_container(
+      ~font_metrics,
+      ~zipper,
+      ~unselected,
+      ~settings,
+      ~show_backpack_targets,
+      ~show_deco=true,
+    );
+  let statics_view =
+    settings.statics
+      ? single_editor_semantics_views(
+          ~settings,
+          ~font_metrics,
+          ~index=Indicated.index(zipper),
+          ~unselected,
+        )
+      : [];
+  div([clss(["editor", "single"])], [code_view] @ statics_view);
 };
 
 let cell_captions = [
@@ -104,9 +102,6 @@ let cell_captions = [
   "Student Tests",
   "Teacher Tests",
 ];
-
-let cell_caption_view = (_settings: Model.settings, n) =>
-  div([clss(["cell-caption"])], [text(List.nth(cell_captions, n))]);
 
 let cell_view =
     (
@@ -117,78 +112,36 @@ let cell_view =
       ~font_metrics,
       ~selected,
       ~show_backpack_targets,
-    ) =>
+    ) => {
+  let zipper = editor.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let cell_caption_view =
+    div([clss(["cell-caption"])], [text(List.nth(cell_captions, idx))]);
+  let code_view =
+    code_container(
+      ~font_metrics,
+      ~zipper,
+      ~unselected,
+      ~settings,
+      ~show_backpack_targets,
+      ~show_deco=idx == selected,
+    );
   div(
     [
       Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
       Attr.on_click(_ => inject(SwitchEditor(idx))),
     ],
-    [
-      cell_caption_view(settings, idx),
-      code_container(
-        ~font_metrics,
-        ~fat_zipper=fat_zipper(editor.zipper),
-        ~settings,
-        ~show_backpack_targets,
-        ~show_deco=idx == selected,
-      ),
-    ],
+    [cell_caption_view, code_view],
   );
-
-let join_tile = (id): Tile.t => {
-  id,
-  label: [";"],
-  mold: Mold.mk_bin(10, Exp, []),
-  shards: [0],
-  children: [],
 };
 
-let splice_editors = (editors: list(Model.editor)): Segment.t =>
-  editors
-  |> List.map((ed: Model.editor) => Zipper.unselect_and_zip(ed.zipper))
-  |> (
-    xs =>
-      Util.ListUtil.interleave(
-        xs,
-        List.init(List.length(editors) - 1, i =>
-          [Piece.Tile(join_tile(i + 100000))]
-        ),
-      )
-  )
-  |> List.flatten;
-
-let spliced_statics = (eds: list(Model.editor)) => {
-  let term = eds |> splice_editors |> Term.uexp_of_seg;
-  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
-  (term, info_map);
-};
-
-let test_multi_panel = (~font_metrics, editors) => {
-  switch (editors) {
-  | [student_impl, student_tests, teacher_tests] =>
-    let (implement_term, implement_map) = spliced_statics([student_impl]);
-    let (teacher_term, teacher_map) =
-      spliced_statics([student_impl, teacher_tests]);
-    let (student_term, student_map) =
-      spliced_statics([student_impl, student_tests]);
-    div(
-      [clss(["test-multi-panel"])],
-      [
-        TestView.view(
-          ~title="Student Tests",
-          ~font_metrics,
-          Elaborator.uexp_elab(student_map, student_term),
-        ),
-        TestView.view(
-          ~title="Teacher Tests",
-          ~font_metrics,
-          Elaborator.uexp_elab(teacher_map, teacher_term),
-        ),
-        Interface.res_view(~font_metrics, implement_term, implement_map),
-      ],
-    );
-  | _ => div([], [])
-  };
+let multi_editor_semantics_views =
+    (~settings: Model.settings, ~font_metrics, ~focal_zipper, ~editors) => {
+  let (_, combined_info_map) = TestView.spliced_statics(editors);
+  [ci_view(Indicated.index(focal_zipper), combined_info_map)]
+  @ (
+    settings.dynamics ? [TestView.school_panel(~font_metrics, editors)] : []
+  );
 };
 
 let multi_editor =
@@ -201,24 +154,26 @@ let multi_editor =
       ~focal_zipper: Zipper.t,
       ~inject,
     ) => {
-  let (_, combined_info_map) = spliced_statics(editors);
-  let focal_zipper = fat_zipper(focal_zipper);
+  let cell_view =
+    cell_view(
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      ~selected,
+      ~show_backpack_targets,
+    );
+  let semantics_view =
+    settings.statics
+      ? multi_editor_semantics_views(
+          ~settings,
+          ~font_metrics,
+          ~focal_zipper,
+          ~editors,
+        )
+      : [];
   div(
     [Attr.classes(["editor", "column"])],
-    List.mapi(
-      cell_view(
-        ~settings,
-        ~inject,
-        ~font_metrics,
-        ~selected,
-        ~show_backpack_targets,
-      ),
-      editors,
-    )
-    @ [
-      ci_view(Indicated.index(focal_zipper.zipper), combined_info_map),
-      test_multi_panel(~font_metrics, editors),
-    ],
+    List.mapi(cell_view, editors) @ semantics_view,
   );
 };
 

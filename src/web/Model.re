@@ -29,9 +29,16 @@ type timestamp = float;
 type settings = {
   captions: bool,
   whitespace_icons: bool,
+  statics: bool,
+  dynamics: bool,
 };
 
-let settings_init = {captions: true, whitespace_icons: false};
+let settings_init = {
+  captions: true,
+  whitespace_icons: false,
+  statics: true,
+  dynamics: true,
+};
 
 type t = {
   editor_model,

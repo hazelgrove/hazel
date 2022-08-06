@@ -5,7 +5,9 @@ open Core;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
-  | WhitespaceIcons;
+  | WhitespaceIcons
+  | Statics
+  | Dynamics;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -55,6 +57,8 @@ let update_settings =
     (a: settings_action, settings: Model.settings): Model.settings => {
   let settings =
     switch (a) {
+    | Statics => {...settings, statics: !settings.statics}
+    | Dynamics => {...settings, dynamics: !settings.dynamics}
     | Captions => {...settings, captions: !settings.captions}
     | WhitespaceIcons => {
         ...settings,

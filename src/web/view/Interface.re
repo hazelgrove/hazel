@@ -2,10 +2,11 @@ open Virtual_dom.Vdom;
 open Node;
 open Core;
 
+let evaluate =
+  Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+
 let get_result =
     (d: Elaborator_Exp.ElaborationResult.t): option((DHExp.t, TestMap.t)) => {
-  let evaluate =
-    Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
   switch (d) {
   | Elaborates(elab, _, _) =>
     switch (elab |> evaluate) {

@@ -20,6 +20,15 @@ let link = (icon, url) =>
     [a(Attr.[href(url), create("target", "_blank")], [icon])],
   );
 
+let toggle = (label, active, action) =>
+  div(
+    [
+      clss(["toggle-switch"] @ (active ? ["active"] : [])),
+      Attr.on_click(action),
+    ],
+    [div([clss(["toggle-knob"])], [text(label)])],
+  );
+
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
   JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
@@ -93,6 +102,8 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
       button(Icons.trash, _ => inject(LoadDefault)),
       link(Icons.github, "https://github.com/hazelgrove/hazel"),
       editor_mode_view(~inject, ~model),
+      toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
+      toggle("𝛿", model.settings.dynamics, _ => inject(Set(Dynamics))),
     ],
   );
 };

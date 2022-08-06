@@ -178,3 +178,61 @@ let inspector_view =
   | _ => None
   };
 };
+
+open Core;
+
+let join_tile = (id): Tile.t => {
+  id,
+  label: [";"],
+  mold: Mold.mk_bin(10, Exp, []),
+  shards: [0],
+  children: [],
+};
+
+let splice_editors = (editors: list(Model.editor)): Segment.t =>
+  editors
+  |> List.map((ed: Model.editor) => Zipper.unselect_and_zip(ed.zipper))
+  |> (
+    xs =>
+      Util.ListUtil.interleave(
+        xs,
+        List.init(List.length(editors) - 1, i =>
+          [Piece.Tile(join_tile(i + 100000))]
+        ) //TODO(andrew): id_gen hack
+      )
+  )
+  |> List.flatten;
+
+let spliced_statics = (eds: list(Model.editor)) => {
+  let term = eds |> splice_editors |> Term.uexp_of_seg;
+  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
+  (term, info_map);
+};
+
+let school_panel = (~font_metrics, editors) => {
+  switch (editors) {
+  | [student_impl, student_tests, teacher_tests] =>
+    let (implement_term, implement_map) = spliced_statics([student_impl]);
+    let (teacher_term, teacher_map) =
+      spliced_statics([student_impl, teacher_tests]);
+    let (student_term, student_map) =
+      spliced_statics([student_impl, student_tests]);
+    div(
+      [clss(["test-multi-panel"])],
+      [
+        view(
+          ~title="Student Tests",
+          ~font_metrics,
+          Elaborator.uexp_elab(student_map, student_term),
+        ),
+        view(
+          ~title="Teacher Tests",
+          ~font_metrics,
+          Elaborator.uexp_elab(teacher_map, teacher_term),
+        ),
+        Interface.res_view(~font_metrics, implement_term, implement_map),
+      ],
+    );
+  | _ => div([], [])
+  };
+};
