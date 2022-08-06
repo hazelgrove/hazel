@@ -24,20 +24,30 @@ let exp_htyp = (m: Statics.map, exp: Term.UExp.t) =>
   | _ => None
   };
 
-let int_op_of: Term.UExp.exp_op_int => DHExp.BinIntOp.t =
+let int_op_of: Term.UExp.op_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
   | Minus => Minus
-  | Lt => LessThan;
+  | Times => Times
+  | Divide => Divide
+  | LessThan => LessThan
+  | GreaterThan => GreaterThan
+  | Equals => Equals;
 
-let float_op_of: Term.UExp.exp_op_float => DHExp.BinFloatOp.t =
+let float_op_of: Term.UExp.op_float => DHExp.BinFloatOp.t =
   fun
   | Plus => FPlus
-  | Lt => FLessThan;
+  | Minus => FMinus
+  | Times => FTimes
+  | Divide => FDivide
+  | LessThan => FLessThan
+  | GreaterThan => FGreaterThan
+  | Equals => FEquals;
 
-let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
+let bool_op_of: Term.UExp.op_bool => DHExp.BinBoolOp.t =
   fun
-  | And => And;
+  | And => And
+  | Or => Or;
 
 [@warning "-32"]
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
