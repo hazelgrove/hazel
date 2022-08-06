@@ -81,7 +81,7 @@
   --rul-bg-color: #f3caf4;
   --rul-shadow-color: #d461d0;
 
-  --nul-bg-color: #b6b6b6;
+  --nul-bg-color: #ffacac
   --nul-shadow-color: #a97804;
 
   --unsorted-bg-color: #ffd0e6;
@@ -586,6 +586,12 @@ svg {
   filter: url(#drop-shadow-Nul);
 }
 .tile-path.Nul.indicated {
+  fill: var(--nul-bg-color);
+}
+.tile-path.Nul.indicated-caret {
+  fill: var(--nul-bg-color);
+}
+.Nul.indicated-child {
   fill: var(--nul-bg-color);
 }
 .tile-path.Nul.raised {

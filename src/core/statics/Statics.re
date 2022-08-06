@@ -204,14 +204,16 @@ let rec uexp_to_info_map =
     | Some(ce) =>
       add(~self=Just(ce.typ), ~free=[(name, [{id, mode}])], Id.Map.empty)
     }
-  | OpInt(Plus | Minus, e1, e2) =>
+  | OpInt(Plus | Minus | Times | Divide, e1, e2) =>
     binop(e1, e2, Ana(Int), Ana(Int), Just(Int))
-  | OpInt(Lt, e1, e2) => binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
-  | OpFloat(Plus, e1, e2) =>
+  | OpInt(LessThan | GreaterThan | Equals, e1, e2) =>
+    binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
+  | OpFloat(Plus | Minus | Times | Divide, e1, e2) =>
     binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
-  | OpFloat(Lt, e1, e2) =>
+  | OpFloat(LessThan | GreaterThan | Equals, e1, e2) =>
     binop(e1, e2, Ana(Float), Ana(Float), Just(Bool))
-  | OpBool(And, e1, e2) => binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
+  | OpBool(And | Or, e1, e2) =>
+    binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);

@@ -127,19 +127,29 @@ module UPat = {
 
 module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type exp_op_int =
+  type op_bool =
+    | And
+    | Or;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_int =
     | Plus
     | Minus
-    | Lt;
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type exp_op_float =
+  type op_float =
     | Plus
-    | Lt;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type exp_op_bool =
-    | And;
+    | Minus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -159,9 +169,9 @@ module UExp = {
     | Seq
     | Test
     | Parens
-    | OpInt(exp_op_int)
-    | OpFloat(exp_op_float)
-    | OpBool(exp_op_bool);
+    | OpBool(op_bool)
+    | OpInt(op_int)
+    | OpFloat(op_float);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -184,9 +194,9 @@ module UExp = {
     | Seq(t, t)
     | Test(t)
     | Parens(t)
-    | OpInt(exp_op_int, t, t)
-    | OpFloat(exp_op_float, t, t)
-    | OpBool(exp_op_bool, t, t)
+    | OpBool(op_bool, t, t)
+    | OpInt(op_int, t, t)
+    | OpFloat(op_float, t, t)
   and t = {
     id: Id.t,
     term,
@@ -214,6 +224,31 @@ module UExp = {
     | OpFloat(x, _, _) => OpFloat(x)
     | OpBool(x, _, _) => OpBool(x);
 
+  let show_op_bool: op_bool => string =
+    fun
+    | And => "Boolean Conjunction"
+    | Or => "Boolean Disjunction";
+
+  let show_op_int: op_int => string =
+    fun
+    | Plus => "Integer Addition"
+    | Minus => "Integer Subtraction"
+    | Times => "Integer Multiplication"
+    | Divide => "Integer Division"
+    | LessThan => "Integer Less Than"
+    | GreaterThan => "Integer Greater Than"
+    | Equals => "Integer Equality";
+
+  let show_op_float: op_float => string =
+    fun
+    | Plus => "Float Addition"
+    | Minus => "Float Subtraction"
+    | Times => "Float Multiplication"
+    | Divide => "Float Division"
+    | LessThan => "Float Less Than"
+    | GreaterThan => "Float Greater Than"
+    | Equals => "Float Equality";
+
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid Expression"
@@ -232,12 +267,9 @@ module UExp = {
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
-    | OpInt(Plus) => "Integer Addition"
-    | OpInt(Minus) => "Integer Subtraction"
-    | OpInt(Lt) => "Integer Less-Than"
-    | OpFloat(Plus) => "Float Addition"
-    | OpFloat(Lt) => "Float Less-Than"
-    | OpBool(And) => "Boolean Conjunction";
+    | OpInt(op) => show_op_int(op)
+    | OpFloat(op) => show_op_float(op)
+    | OpBool(op) => show_op_bool(op);
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -312,10 +344,20 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | ([","], [l, r], []) => Pair(l, r)
       | (["+"], [l, r], []) => OpInt(Plus, l, r)
       | (["-"], [l, r], []) => OpInt(Minus, l, r)
+      | (["*"], [l, r], []) => OpInt(Times, l, r)
+      | (["/"], [l, r], []) => OpInt(Divide, l, r)
+      | (["<"], [l, r], []) => OpInt(LessThan, l, r)
+      | ([">"], [l, r], []) => OpInt(GreaterThan, l, r)
+      | (["=="], [l, r], []) => OpInt(Equals, l, r)
       | (["+."], [l, r], []) => OpFloat(Plus, l, r)
-      | (["<"], [l, r], []) => OpInt(Lt, l, r)
-      | (["<."], [l, r], []) => OpFloat(Lt, l, r)
+      | (["-."], [l, r], []) => OpFloat(Minus, l, r)
+      | (["*."], [l, r], []) => OpFloat(Times, l, r)
+      | (["/."], [l, r], []) => OpFloat(Divide, l, r)
+      | (["<."], [l, r], []) => OpFloat(LessThan, l, r)
+      | ([">."], [l, r], []) => OpFloat(GreaterThan, l, r)
+      | (["==."], [l, r], []) => OpFloat(Equals, l, r)
       | (["&&"], [l, r], []) => OpBool(And, l, r)
+      | (["||"], [l, r], []) => OpBool(Or, l, r)
       | ([";"], [l, r], []) => Seq(l, r)
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
