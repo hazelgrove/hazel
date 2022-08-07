@@ -87,9 +87,9 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(tys_syn))
-  | (Ana(Unknown(ModeSwitch)), Joined(tys_syn)) =>
+  | (Ana(Unknown(SynSwitch)), Joined(tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
-    //TODO: clarify ModeSwitch case
+    //TODO: clarify SynSwitch case
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
@@ -257,11 +257,11 @@ let rec uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
-    // NOTE: funpos currently set to Ana instead of Syn
+    /* NOTE: Function position mode is Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(
         ~ctx,
-        ~mode=Ana(Arrow(Unknown(ModeSwitch), Unknown(ModeSwitch))),
+        ~mode=Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))),
         fn,
       );
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -306,10 +306,11 @@ let rec uexp_to_info_map =
     let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_pat), def);
-    // ana pat to incorporate def type into ctx
+    /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx = VarMap.union(ctx, ctx_pat_ana);
-    let (ty_body, free_body, m_body) = uexp_to_info_map(~ctx, ~mode, body);
+    let ctx_body = VarMap.union(ctx, ctx_pat_ana);
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
       ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
@@ -322,9 +323,9 @@ let rec uexp_to_info_map =
     let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_ann);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
-    // join if consistent, otherwise pattern type wins
+    /* Join if pattern and def are consistent, otherwise pattern wins */
     let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
-    // ana pat to incorporate def type into ctx
+    /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
     let ctx_body = VarMap.union(def_ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
@@ -350,20 +351,20 @@ and upat_to_info_map =
     Id.Map.add(id, InfoPat({cls, self, mode}), m),
   );
   switch (term) {
-  | Invalid(_p) => add(Just(Unknown(ModeSwitch))) //TODO
-  | EmptyHole => add(Just(Unknown(ModeSwitch)))
-  | Wild => add(Just(Unknown(ModeSwitch)))
+  | Invalid(_) => add(Just(Unknown(SynSwitch))) //TODO: ?
+  | EmptyHole => add(Just(Unknown(SynSwitch)))
+  | Wild => add(Just(Unknown(SynSwitch)))
   | Int(_) => add(Just(Int))
   | Float(_) => add(Just(Float))
   | Bool(_) => add(Just(Bool))
   | Var(name) =>
-    let typ = typ_after_fix(mode, Just(Unknown(ModeSwitch)));
+    let typ = typ_after_fix(mode, Just(Unknown(SynSwitch)));
     (
       typ,
       [(name, Ctx.{id, typ})],
       Id.Map.singleton(
         id,
-        InfoPat({cls, mode, self: Just(Unknown(ModeSwitch))}),
+        InfoPat({cls, mode, self: Just(Unknown(SynSwitch))}),
       ),
     );
   | Pair(p1, p2) =>
@@ -386,8 +387,8 @@ and upat_to_info_map =
     (ty, ctx, m);
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
-    let (ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
-    add'(~self=Just(ty), ~ctx, union_m([m, m_typ]));
+    let (_ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
+    add'(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
 and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
@@ -411,5 +412,5 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   };
 };
 
-let uexp_to_info_map =
+let mk_map =
   Core_kernel.Memo.general(~cache_size_bound=1000, uexp_to_info_map);

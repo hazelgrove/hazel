@@ -243,7 +243,7 @@ module Deco =
       switch (zipper |> Indicated.index) {
       | Some(index) =>
         let (_, _, info_map) =
-          zipper |> Term.of_zipper |> Statics.uexp_to_info_map;
+          zipper |> Zipper.zip |> MakeTerm.go |> Statics.mk_map;
         Id.Map.find_opt(index, info_map);
       | None => None
       };
