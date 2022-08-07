@@ -120,6 +120,7 @@ let forms: list((string, t)) = [
   ("type-arrow", mk_infix("->", Typ, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
+  ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
   (
     "funann",
     mk(ds, ["funann", ":", "->"], mk_pre(P.let_, Exp, [Pat, Typ])),
@@ -143,22 +144,16 @@ let forms: list((string, t)) = [
   ),
   ("rule_arr", mk(ss, ["=>"], mk_bin'(P.rule_arr, Rul, Pat, [], Exp))),
   ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
+  //("rule_sep_pre", mk(ss, ["|"], mk_pre(P.let_, Rul, []))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   //("cons", mk_infix("::", Exp, 5)),
-  //("type-ann", mk_infix(":", Exp, 5)), // bad sorts
-  //("dot-access", mk_infix(".", Exp, 5)), // bad sorts
-  //("assign_incr", mk_infix("+=", Exp, 10)), // bad sorts
-  //("semi", mk_infix(";", Exp, P.semi)),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("list_lit", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
-  //("case", mk(ds, ["case", "of"], mk_pre(9, Exp, [Exp]))),
-  //("rule_first", mk(ds, ["|", "->"], mk_pre(9, Exp, [Pat]))),
-  //("rule_rest", mk(ds, ["|", "->"], mk_bin(9, Exp, [Pat]))),
 ];
 
 let get: String.t => t = name => List.assoc(name, forms);

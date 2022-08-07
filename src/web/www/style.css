@@ -81,7 +81,7 @@
   --rul-bg-color: #f3caf4;
   --rul-shadow-color: #d461d0;
 
-  --nul-bg-color: #ffacac
+  --nul-bg-color: #ffacac;
   --nul-shadow-color: #a97804;
 
   --unsorted-bg-color: #ffd0e6;
@@ -447,11 +447,22 @@ svg {
 .code .text-Pat {
   color: #236eac;
 }
+.code .delim.text-Pat {
+  color: #b5cee4;
+  font-weight: bold;
+}
 .code .text-Exp {
   color: #576d75;
 }
 .code .text-Typ {
-  color: #36a468;
+  color: #24ae62;
+}
+.code .delim.text-Typ {
+  color: #aee5c6;
+  font-weight: bold;
+}
+.code .text-Rul {
+  color: #6f36a4;
 }
 .code .delim {
   color: var(--delim-color);
@@ -572,6 +583,12 @@ svg {
   filter: url(#drop-shadow-Rul);
 }
 .tile-path.Rul.indicated {
+  fill: var(--rul-bg-color);
+}
+.tile-path.Rul.indicated-caret {
+  fill: var(--rul-bg-color);
+}
+.Rul.indicated-child {
   fill: var(--rul-bg-color);
 }
 .tile-path.Rul.raised {
@@ -839,7 +856,7 @@ svg {
 
 .info .happy,
 .info .happy .typ-view {
-  color: #3aa144;
+  color: #24ae62;
 }
 
 .info .error,
@@ -898,7 +915,7 @@ svg {
 }
 
 .DHCode svg.err-hole {
-  fill: #d000;
+  fill: #d001;
   transform: scaleY(0.8); /* HACK(andrew) */
   stroke-dasharray: 1,1;
   stroke: red;
@@ -913,9 +930,10 @@ svg {
 }
 
 .DHCode .EmptyHole {
-  background-color: #f1e8cd;
+  background-color: #ac9a6a;
   border-radius: 0.2em;
-  color: #c7b480;
+  color: #75572e;
+  border-bottom: 1px solid #382100;
 }
 
 .DHCode .Collapsed {
@@ -1024,6 +1042,13 @@ svg {
   color: #d2b48c;
 }
 
+.test-instance .DHCode .EmptyHole {
+  border-bottom: 1px solid rgb(216 177 110);
+  background-color: #ecdaa5;
+  border-radius: 0.2em;
+  color: #fefcf3;
+}
+
 .test-summary {
   display: flex;
   flex-direction: column;
@@ -1059,6 +1084,10 @@ svg {
 
 .test-bar .segment:last-child {
   border-radius: 0 0.3em 0.3em 0;
+}
+
+.test-bar .segment:only-child {
+  border-radius: 0.3em 0.3em 0.3em 0.3em;
 }
 
 .test-bar .segment {
