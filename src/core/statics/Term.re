@@ -160,6 +160,12 @@ module UExp = {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin =
+    | Int(op_int)
+    | Float(op_float)
+    | Bool(op_bool);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -177,9 +183,7 @@ module UExp = {
     | Seq
     | Test
     | Parens
-    | OpBool(op_bool)
-    | OpInt(op_int)
-    | OpFloat(op_float);
+    | BinOp(op_bin);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -202,9 +206,7 @@ module UExp = {
     | Seq(t, t)
     | Test(t)
     | Parens(t)
-    | OpBool(op_bool, t, t)
-    | OpInt(op_int, t, t)
-    | OpFloat(op_float, t, t)
+    | BinOp(op_bin, t, t)
   and t = {
     id: Id.t,
     term,
@@ -228,9 +230,7 @@ module UExp = {
     | Seq(_) => Seq
     | Test(_) => Test
     | Parens(_) => Parens
-    | OpInt(x, _, _) => OpInt(x)
-    | OpFloat(x, _, _) => OpFloat(x)
-    | OpBool(x, _, _) => OpBool(x);
+    | BinOp(op, _, _) => BinOp(op);
 
   let show_op_bool: op_bool => string =
     fun
@@ -257,6 +257,12 @@ module UExp = {
     | GreaterThan => "Float Greater Than"
     | Equals => "Float Equality";
 
+  let show_binop: op_bin => string =
+    fun
+    | Int(op) => show_op_int(op)
+    | Float(op) => show_op_float(op)
+    | Bool(op) => show_op_bool(op);
+
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid Expression"
@@ -275,9 +281,7 @@ module UExp = {
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
-    | OpInt(op) => show_op_int(op)
-    | OpFloat(op) => show_op_float(op)
-    | OpBool(op) => show_op_bool(op);
+    | BinOp(op) => show_binop(op);
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -327,6 +331,7 @@ and uexp_of_seg = (ps: Segment.t): UExp.t => {
 }
 and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
   let (p, kids) = piece_and_kids(ps, skel);
+  //TODO(andrew): fix this utter nonsense
   let sorts =
     switch (p) {
     | Whitespace(_) => []
@@ -350,6 +355,7 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
     };
   let guy: list(ty_temp) =
     switch (sorts, kids) {
+    | _ when !Piece.is_complete(p) => [] //TODO(HACK)
     | ([], []) => []
     | ([Pat], [p]) => [Pat(of_seg_and_skel_pat(ps, p))]
     | ([Typ], [t]) => [Typ(of_seg_and_skel_typ(ps, t))]
@@ -368,6 +374,7 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
     | _ =>
       print_endline(show_temp1(sorts));
       print_endline(show_temp2(kids));
+      // in particular, need to handle incomplete tiles
       failwith("Term nonsense TODO(andrew)");
     };
   of_piece_pat(p, guy);
@@ -404,22 +411,22 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([","], [l, r], []) => Pair(l, r)
-      | (["+"], [l, r], []) => OpInt(Plus, l, r)
-      | (["-"], [l, r], []) => OpInt(Minus, l, r)
-      | (["*"], [l, r], []) => OpInt(Times, l, r)
-      | (["/"], [l, r], []) => OpInt(Divide, l, r)
-      | (["<"], [l, r], []) => OpInt(LessThan, l, r)
-      | ([">"], [l, r], []) => OpInt(GreaterThan, l, r)
-      | (["=="], [l, r], []) => OpInt(Equals, l, r)
-      | (["+."], [l, r], []) => OpFloat(Plus, l, r)
-      | (["-."], [l, r], []) => OpFloat(Minus, l, r)
-      | (["*."], [l, r], []) => OpFloat(Times, l, r)
-      | (["/."], [l, r], []) => OpFloat(Divide, l, r)
-      | (["<."], [l, r], []) => OpFloat(LessThan, l, r)
-      | ([">."], [l, r], []) => OpFloat(GreaterThan, l, r)
-      | (["==."], [l, r], []) => OpFloat(Equals, l, r)
-      | (["&&"], [l, r], []) => OpBool(And, l, r)
-      | (["||"], [l, r], []) => OpBool(Or, l, r)
+      | (["+"], [l, r], []) => BinOp(Int(Plus), l, r)
+      | (["-"], [l, r], []) => BinOp(Int(Minus), l, r)
+      | (["*"], [l, r], []) => BinOp(Int(Times), l, r)
+      | (["/"], [l, r], []) => BinOp(Int(Divide), l, r)
+      | (["<"], [l, r], []) => BinOp(Int(LessThan), l, r)
+      | ([">"], [l, r], []) => BinOp(Int(GreaterThan), l, r)
+      | (["=="], [l, r], []) => BinOp(Int(Equals), l, r)
+      | (["+."], [l, r], []) => BinOp(Float(Plus), l, r)
+      | (["-."], [l, r], []) => BinOp(Float(Minus), l, r)
+      | (["*."], [l, r], []) => BinOp(Float(Times), l, r)
+      | (["/."], [l, r], []) => BinOp(Float(Divide), l, r)
+      | (["<."], [l, r], []) => BinOp(Float(LessThan), l, r)
+      | ([">."], [l, r], []) => BinOp(Float(GreaterThan), l, r)
+      | (["==."], [l, r], []) => BinOp(Float(Equals), l, r)
+      | (["&&"], [l, r], []) => BinOp(Bool(And), l, r)
+      | (["||"], [l, r], []) => BinOp(Bool(Or), l, r)
       | ([";"], [l, r], []) => Seq(l, r)
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)

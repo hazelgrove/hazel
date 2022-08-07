@@ -171,6 +171,22 @@ let extend_let_def_ctx =
   | _ => ctx
   };
 
+let typ_exp_binop_int: Term.UExp.op_int => Typ.t =
+  fun
+  | (Plus | Minus | Times | Divide) as _op => Int
+  | (LessThan | GreaterThan | Equals) as _op => Bool;
+
+let typ_exp_binop_float: Term.UExp.op_float => Typ.t =
+  fun
+  | (Plus | Minus | Times | Divide) as _op => Int
+  | (LessThan | GreaterThan | Equals) as _op => Bool;
+
+let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
+  fun
+  | Bool(And | Or) => (Bool, Bool, Bool)
+  | Int(op) => (Int, Int, typ_exp_binop_int(op))
+  | Float(op) => (Float, Float, typ_exp_binop_float(op));
+
 /* Generates the InfoMap for an expression term */
 let rec uexp_to_info_map =
         (~ctx=Ctx.empty, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
@@ -187,11 +203,6 @@ let rec uexp_to_info_map =
     [],
     Id.Map.singleton(id, InfoExp({cls, self, mode, ctx, free: []})),
   );
-  let binop = (e1, e2, ty1, ty2, ty_out) => {
-    let (_, free1, m1) = go(~mode=ty1, e1);
-    let (_, free2, m2) = go(~mode=ty2, e2);
-    add(~self=ty_out, ~free=Ctx.union([free1, free2]), union_m([m1, m2]));
-  };
   switch (term) {
   | Invalid(_p) => (Unknown(Internal), [], Id.Map.singleton(id, Invalid))
   | EmptyHole => atomic(Just(Unknown(Internal)))
@@ -204,16 +215,15 @@ let rec uexp_to_info_map =
     | Some(ce) =>
       add(~self=Just(ce.typ), ~free=[(name, [{id, mode}])], Id.Map.empty)
     }
-  | OpInt(Plus | Minus | Times | Divide, e1, e2) =>
-    binop(e1, e2, Ana(Int), Ana(Int), Just(Int))
-  | OpInt(LessThan | GreaterThan | Equals, e1, e2) =>
-    binop(e1, e2, Ana(Int), Ana(Int), Just(Bool))
-  | OpFloat(Plus | Minus | Times | Divide, e1, e2) =>
-    binop(e1, e2, Ana(Float), Ana(Float), Just(Float))
-  | OpFloat(LessThan | GreaterThan | Equals, e1, e2) =>
-    binop(e1, e2, Ana(Float), Ana(Float), Just(Bool))
-  | OpBool(And | Or, e1, e2) =>
-    binop(e1, e2, Ana(Bool), Ana(Bool), Just(Bool))
+  | BinOp(op, e1, e2) =>
+    let (ty1, ty2, ty_out) = typ_exp_binop(op);
+    let (_, free1, m1) = go(~mode=Ana(ty1), e1);
+    let (_, free2, m2) = go(~mode=Ana(ty2), e2);
+    add(
+      ~self=Just(ty_out),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
+    );
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -326,7 +336,6 @@ let rec uexp_to_info_map =
     );
   };
 }
-
 and upat_to_info_map =
     (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t): (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
@@ -334,6 +343,11 @@ and upat_to_info_map =
     typ_after_fix(mode, self),
     [],
     Id.Map.singleton(id, InfoPat({cls, mode, self})),
+  );
+  let add' = (~self, ~ctx, m) => (
+    typ_after_fix(mode, self),
+    ctx,
+    Id.Map.add(id, InfoPat({cls, self, mode}), m),
   );
   switch (term) {
   | Invalid(_p) => add(Free)
@@ -372,14 +386,8 @@ and upat_to_info_map =
     (ty, ctx, m);
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
-    let (_ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
-    let m =
-      Id.Map.add(
-        id,
-        InfoPat({cls, mode, self: Just(ty_ann)}),
-        union_m([m, m_typ]),
-      );
-    (ty_ann, ctx, m);
+    let (ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
+    add'(~self=Just(ty), ~ctx, union_m([m, m_typ]));
   };
 }
 and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {

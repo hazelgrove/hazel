@@ -447,11 +447,19 @@ svg {
 .code .text-Pat {
   color: #236eac;
 }
+.code .delim.text-Pat {
+  color: #b5cee4;
+  font-weight: bold;
+}
 .code .text-Exp {
   color: #576d75;
 }
 .code .text-Typ {
-  color: #36a468;
+  color: #aee5c6;
+}
+.code .delim.text-Typ {
+  color: #7acd9f;
+  font-weight: bold;
 }
 .code .text-Rul {
   color: #6f36a4;

@@ -120,6 +120,7 @@ let forms: list((string, t)) = [
   ("type-arrow", mk_infix("->", Typ, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
+  ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
   (
     "funann",
     mk(ds, ["funann", ":", "->"], mk_pre(P.let_, Exp, [Pat, Typ])),
