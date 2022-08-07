@@ -1,6 +1,7 @@
 let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
   | Unknown(_) => Hole
+  | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool

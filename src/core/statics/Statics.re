@@ -227,8 +227,8 @@ let rec uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Test(test) =>
-    let (ty_test, free_test, m1) = go(~mode=Ana(Bool), test);
-    add(~self=Just(ty_test), ~free=free_test, m1);
+    let (_, free_test, m1) = go(~mode=Ana(Bool), test);
+    add(~self=Just(Unit), ~free=free_test, m1);
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
@@ -389,3 +389,6 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     ret(union_m([m_t1, m_t2]));
   };
 };
+
+let uexp_to_info_map =
+  Core_kernel.Memo.general(~cache_size_bound=1000, uexp_to_info_map);

@@ -430,3 +430,6 @@ and of_piece_typ = (p: Piece.t, children_h: list(UTyp.t)): UTyp.t => {
 };
 
 let of_zipper = (z: Zipper.t): UExp.t => z |> Zipper.zip |> uexp_of_seg;
+
+let uexp_of_seg =
+  Core_kernel.Memo.general(~cache_size_bound=1000, uexp_of_seg);

@@ -9,6 +9,7 @@ let rec typ_view = (ty: Core.Typ.t): Node.t =>
   //TODO(andrew): parens on ops when ambiguous
   switch (ty) {
   | Unknown(_prov) => ty_view("unknown", "?")
+  | Unit => ty_view("()", "()")
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | Bool => ty_view("Bool", "Bool")
