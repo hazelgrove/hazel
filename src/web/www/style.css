@@ -455,10 +455,10 @@ svg {
   color: #576d75;
 }
 .code .text-Typ {
-  color: #aee5c6;
+  color: #24ae62;
 }
 .code .delim.text-Typ {
-  color: #7acd9f;
+  color: #aee5c6;
   font-weight: bold;
 }
 .code .text-Rul {
@@ -856,7 +856,7 @@ svg {
 
 .info .happy,
 .info .happy .typ-view {
-  color: #3aa144;
+  color: #24ae62;
 }
 
 .info .error,

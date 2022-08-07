@@ -318,6 +318,30 @@ type temp1 = list(Sort.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type temp2 = list(Skel.t);
 
+let get_outside_sorts = (p: Piece.t): list(Sort.t) =>
+  switch (p) {
+  | Whitespace(_) => []
+  | Grout(_) => [] //TODO(andrew): handle concave
+  | Tile({
+      mold: {
+        nibs: (
+          {sort: sort_l, shape: shape_l},
+          {sort: sort_r, shape: shape_r},
+        ),
+        _,
+      },
+      _,
+    }) =>
+    //TODO(andrew): handle incomplete
+    //TODO(andrew): handle concave
+    switch (shape_l, shape_r) {
+    | (Convex, Convex) => []
+    | (Convex, Concave(_)) => [sort_r]
+    | (Concave(_), Convex) => [sort_l]
+    | (Concave(_), Concave(_)) => [sort_l, sort_r]
+    }
+  };
+
 /* Converts syntactic segments into terms */
 let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
   let (p, kids) = piece_and_kids(ps, skel);
@@ -329,64 +353,47 @@ and uexp_of_seg = (ps: Segment.t): UExp.t => {
   let ps = List.filter(Piece.is_complete, ps);
   ps |> Segment.skel |> of_seg_and_skel(ps);
 }
+and sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): ty_temp =>
+  switch (s) {
+  | Pat => Pat(of_seg_and_skel_pat(ps, kid))
+  | Typ => Typ(of_seg_and_skel_typ(ps, kid))
+  | Exp => Exp(of_seg_and_skel(ps, kid))
+  | Rul
+  | Nul
+  | Any => Pat(of_seg_and_skel_pat(ps, kid)) //TODO(andrew): variable default
+  }
 and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   //TODO(andrew): fix this utter nonsense
-  let sorts =
-    switch (p) {
-    | Whitespace(_) => []
-    | Grout(_) => [] //TODO(andrew): handle concave
-    | Tile({
-        mold: {
-          nibs: (
-            {sort: sort_l, shape: shape_l},
-            {sort: sort_r, shape: shape_r},
-          ),
-          _,
-        },
-        _,
-      }) =>
-      switch (shape_l, shape_r) {
-      | (Convex, Convex) => []
-      | (Convex, Concave(_)) => [sort_r]
-      | (Concave(_), Convex) => [sort_l]
-      | (Concave(_), Concave(_)) => [sort_l, sort_r]
-      }
-    };
+  let sorts = get_outside_sorts(p);
   let guy: list(ty_temp) =
     switch (sorts, kids) {
-    | _ when !Piece.is_complete(p) => [] //TODO(HACK)
-    | ([], []) => []
-    | ([Pat], [p]) => [Pat(of_seg_and_skel_pat(ps, p))]
-    | ([Typ], [t]) => [Typ(of_seg_and_skel_typ(ps, t))]
-    | ([Pat, Typ], [p, ty]) => [
-        Pat(of_seg_and_skel_pat(ps, p)),
-        Typ(of_seg_and_skel_typ(ps, ty)),
-      ]
-    | ([Pat, Pat], [p1, p2]) => [
-        Pat(of_seg_and_skel_pat(ps, p1)),
-        Pat(of_seg_and_skel_pat(ps, p2)),
-      ]
-    | ([Typ, Typ], [t1, t2]) => [
-        Typ(of_seg_and_skel_typ(ps, t1)),
-        Typ(of_seg_and_skel_typ(ps, t2)),
-      ]
-    | _ =>
-      print_endline(show_temp1(sorts));
-      print_endline(show_temp2(kids));
-      // in particular, need to handle incomplete tiles
-      failwith("Term nonsense TODO(andrew)");
+    | _ when !Piece.is_complete(p) =>
+      print_endline("WARNING: of_seg_and_skel_pat: not complete tile");
+      []; //TODO(HACK)
+    | _ when List.length(sorts) != List.length(kids) =>
+      print_endline("WARNING: of_seg_and_skel_pat: list mismatch");
+      []; //TODO(HACK)
+    | _ => List.map2(sort_dispatch(ps), kids, sorts)
     };
   of_piece_pat(p, guy);
 }
-and upat_of_seg = (ps: Segment.t): UPat.t =>
-  ps |> Segment.skel |> of_seg_and_skel_pat(ps)
+and upat_of_seg = (ps: Segment.t): UPat.t => {
+  //NOTE(andrew): filter out incomplete tiles for now
+  //TODO(andrew): better approach which still provides feedback inside incomplete tile children
+  let ps = List.filter(Piece.is_complete, ps);
+  ps |> Segment.skel |> of_seg_and_skel_pat(ps);
+}
 and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_kids(ps, skel);
   of_piece_typ(p, List.map(of_seg_and_skel_typ(ps), kids));
 }
-and utyp_of_seg = (ps: Segment.t): UTyp.t =>
-  ps |> Segment.skel |> of_seg_and_skel_typ(ps)
+and utyp_of_seg = (ps: Segment.t): UTyp.t => {
+  //NOTE(andrew): filter out incomplete tiles for now
+  //TODO(andrew): better approach which still provides feedback inside incomplete tile children
+  let ps = List.filter(Piece.is_complete, ps);
+  ps |> Segment.skel |> of_seg_and_skel_typ(ps);
+}
 and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
   let invalid = (p: Piece.t): UExp.t => {id: (-1), term: Invalid(p)};
   switch (p) {

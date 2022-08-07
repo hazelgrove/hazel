@@ -350,7 +350,7 @@ and upat_to_info_map =
     Id.Map.add(id, InfoPat({cls, self, mode}), m),
   );
   switch (term) {
-  | Invalid(_p) => add(Free)
+  | Invalid(_p) => add(Just(Unknown(ModeSwitch))) //TODO
   | EmptyHole => add(Just(Unknown(ModeSwitch)))
   | Wild => add(Just(Unknown(ModeSwitch)))
   | Int(_) => add(Just(Int))
