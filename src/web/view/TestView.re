@@ -205,8 +205,8 @@ let splice_editors = (editors: list(Model.editor)): Segment.t =>
   |> List.flatten;
 
 let spliced_statics = (eds: list(Model.editor)) => {
-  let term = eds |> splice_editors |> Term.uexp_of_seg;
-  let (_, _, info_map) = term |> Statics.uexp_to_info_map;
+  let term = eds |> splice_editors |> MakeTerm.go;
+  let (_, _, info_map) = term |> Statics.mk_map;
   (term, info_map);
 };
 
