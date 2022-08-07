@@ -34,7 +34,8 @@ module UTyp = {
     | Float
     | Bool
     | Arrow
-    | Prod;
+    | Prod
+    | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -45,6 +46,7 @@ module UTyp = {
     | Bool
     | Arrow(t, t)
     | Prod(t, t)
+    | Parens(t)
   and t = {
     id: Id.t,
     term,
@@ -58,7 +60,8 @@ module UTyp = {
     | Float => Float
     | Bool => Bool
     | Arrow(_) => Arrow
-    | Prod(_) => Prod;
+    | Prod(_) => Prod
+    | Parens(_) => Parens;
 
   let show_cls: cls => string =
     fun
@@ -68,7 +71,8 @@ module UTyp = {
     | Float
     | Bool => "Concrete Type"
     | Arrow => "Arrow Type"
-    | Prod => "Product Type";
+    | Prod => "Product Type"
+    | Parens => "Parenthesized Type Term";
 };
 
 module UPat = {
@@ -82,7 +86,8 @@ module UPat = {
     | Bool
     | Var
     | Pair
-    | Parens;
+    | Parens
+    | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -95,6 +100,7 @@ module UPat = {
     | Var(Token.t)
     | Pair(t, t)
     | Parens(t)
+    | TypeAnn(t, UTyp.t)
   and t = {
     id: Id.t,
     term,
@@ -110,7 +116,8 @@ module UPat = {
     | Bool(_) => Bool
     | Var(_) => Var
     | Pair(_) => Pair
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
     fun
@@ -122,7 +129,8 @@ module UPat = {
     | Bool => "Boolean Literal"
     | Var => "Pattern Variable"
     | Pair => "Pair Pattern"
-    | Parens => "Parenthesized Pattern";
+    | Parens => "Parenthesized Pattern"
+    | TypeAnn => "Type Annotation";
 };
 
 module UExp = {
@@ -283,6 +291,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Bool => Bool
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
+    | Parens(u1) => utyp_to_ty(u1)
     };
 
 let piece_and_kids = (ps: Segment.t, skel: Skel.t): (Piece.t, list(Skel.t)) => {
@@ -294,6 +303,16 @@ let piece_and_kids = (ps: Segment.t, skel: Skel.t): (Piece.t, list(Skel.t)) => {
   | Bin(skel_l, idx, skel_r) => (at(idx), [skel_l, skel_r])
   };
 };
+
+type ty_temp =
+  | Exp(UExp.t)
+  | Pat(UPat.t)
+  | Typ(UTyp.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type temp1 = list(Sort.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type temp2 = list(Skel.t);
 
 /* Converts syntactic segments into terms */
 let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
@@ -308,7 +327,50 @@ and uexp_of_seg = (ps: Segment.t): UExp.t => {
 }
 and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
   let (p, kids) = piece_and_kids(ps, skel);
-  of_piece_pat(p, List.map(of_seg_and_skel_pat(ps), kids));
+  let sorts =
+    switch (p) {
+    | Whitespace(_) => []
+    | Grout(_) => [] //TODO(andrew): handle concave
+    | Tile({
+        mold: {
+          nibs: (
+            {sort: sort_l, shape: shape_l},
+            {sort: sort_r, shape: shape_r},
+          ),
+          _,
+        },
+        _,
+      }) =>
+      switch (shape_l, shape_r) {
+      | (Convex, Convex) => []
+      | (Convex, Concave(_)) => [sort_r]
+      | (Concave(_), Convex) => [sort_l]
+      | (Concave(_), Concave(_)) => [sort_l, sort_r]
+      }
+    };
+  let guy: list(ty_temp) =
+    switch (sorts, kids) {
+    | ([], []) => []
+    | ([Pat], [p]) => [Pat(of_seg_and_skel_pat(ps, p))]
+    | ([Typ], [t]) => [Typ(of_seg_and_skel_typ(ps, t))]
+    | ([Pat, Typ], [p, ty]) => [
+        Pat(of_seg_and_skel_pat(ps, p)),
+        Typ(of_seg_and_skel_typ(ps, ty)),
+      ]
+    | ([Pat, Pat], [p1, p2]) => [
+        Pat(of_seg_and_skel_pat(ps, p1)),
+        Pat(of_seg_and_skel_pat(ps, p2)),
+      ]
+    | ([Typ, Typ], [t1, t2]) => [
+        Typ(of_seg_and_skel_typ(ps, t1)),
+        Typ(of_seg_and_skel_typ(ps, t2)),
+      ]
+    | _ =>
+      print_endline(show_temp1(sorts));
+      print_endline(show_temp2(kids));
+      failwith("Term nonsense TODO(andrew)");
+    };
+  of_piece_pat(p, guy);
 }
 and upat_of_seg = (ps: Segment.t): UPat.t =>
   ps |> Segment.skel |> of_seg_and_skel_pat(ps)
@@ -376,7 +438,7 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
     {id, term};
   };
 }
-and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
+and of_piece_pat = (p: Piece.t, children_h: list(ty_temp)): UPat.t => {
   let invalid: UPat.t = {id: (-1), term: Invalid(p)};
   switch (p) {
   | Whitespace(_) => invalid
@@ -391,9 +453,10 @@ and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) => Invalid(p)
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
-      | ([","], [l, r], []) => Pair(l, r)
+      | ([","], [Pat(l), Pat(r)], []) => Pair(l, r)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
       | (["false"], [], []) => Bool(false)
+      | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
@@ -423,6 +486,7 @@ and of_piece_typ = (p: Piece.t, children_h: list(UTyp.t)): UTyp.t => {
       | (["Bool"], [], []) => Bool
       | (["->"], [l, r], []) => Arrow(l, r)
       | ([","], [l, r], []) => Prod(l, r)
+      | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
       | _ => Invalid(p)
       };
     {id, term};

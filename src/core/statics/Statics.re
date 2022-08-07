@@ -370,6 +370,16 @@ and upat_to_info_map =
     let (ty, ctx, m) = upat_to_info_map(~mode, p);
     let m = Id.Map.add(id, InfoPat({cls, mode, self: Just(ty)}), m);
     (ty, ctx, m);
+  | TypeAnn(p, ty) =>
+    let (ty_ann, m_typ) = utyp_to_info_map(ty);
+    let (_ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
+    let m =
+      Id.Map.add(
+        id,
+        InfoPat({cls, mode, self: Just(ty_ann)}),
+        union_m([m, m_typ]),
+      );
+    (ty_ann, ctx, m);
   };
 }
 and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
@@ -387,6 +397,9 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     let (_, m_t1) = utyp_to_info_map(t1);
     let (_, m_t2) = utyp_to_info_map(t2);
     ret(union_m([m_t1, m_t2]));
+  | Parens(t) =>
+    let (_, m) = utyp_to_info_map(t);
+    ret(m);
   };
 };
 

@@ -206,6 +206,12 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d2 = dhpat_of_upat(m, p2);
       wrap(Pair(d1, d2));
     | Parens(p) => dhpat_of_upat(m, p)
+    | TypeAnn(p, _ty) =>
+      //let ann_typ = htyp_of_typ(Term.utyp_to_ty(ty));
+      //let p_typ = htyp_of_typ(Statics.pat_typ(m, p));
+      //DHPat.cast(dp, p_typ, ann_typ)
+      let* dp = dhpat_of_upat(m, p);
+      wrap(dp);
     };
   | Some(InfoExp(_) | InfoTyp(_) | Invalid)
   | None => None
