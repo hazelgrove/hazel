@@ -412,6 +412,16 @@ body {
   border-radius:100%;
 }
 
+.inactive-text {
+  font-family: var(--code-font-family);
+  font-size: var(--code-font-size);
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+}
+
 /* text-editor */
 
 #text-editor-text-box {

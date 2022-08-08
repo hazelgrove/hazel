@@ -7,6 +7,7 @@ let view =
       ~selected_instance: option(HoleInstance.t),
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
+      ~active: bool,
       program: Program.t,
     )
     : Vdom.Node.t => {
@@ -371,14 +372,23 @@ let view =
       Node.div([], []);
     };
 
+  let inactive_view = {
+    Node.div(
+      [Attr.classes(["inactive-text"])],
+      [Node.text("Context Inspector unavailable")],
+    );
+  };
+
   Node.div(
     [Attr.classes(["panel", "context-inspector-panel"])],
     [
       Panel.view_of_main_title_bar("context"),
-      Node.div(
-        [Attr.classes(["panel-body", "context-inspector-body"])],
-        [context_view, path_viewer],
-      ),
+      active
+        ? Node.div(
+            [Attr.classes(["panel-body", "context-inspector-body"])],
+            [context_view, path_viewer],
+          )
+        : inactive_view,
     ],
   );
 };

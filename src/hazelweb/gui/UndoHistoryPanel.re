@@ -4,7 +4,8 @@ module Vdom = Virtual_dom.Vdom;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
 
-let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
+let view =
+    (~inject: ModelAction.t => Vdom.Event.t, ~active: bool, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
   let rec list_map_helper_func = (func_to_list, base, lst) => {
     switch (lst) {
@@ -1083,54 +1084,68 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let inactive_view = {
+    [
+      Panel.view_of_main_title_bar("Edit Action History"),
+      Vdom.(
+        Node.div(
+          [Attr.classes(["inactive-text"])],
+          [Node.text("Undo History unavailable")],
+        )
+      ),
+    ];
+  };
+
   Vdom.(
     Node.div(
       [
         Attr.id("history-panel"),
         Attr.classes(["panel", "context-inspector-panel"]),
       ],
-      [
-        Panel.view_of_main_title_bar("Edit Action History"),
-        button_bar_view(model.undo_history),
-        Node.div(
-          if (model.undo_history.preview_on_hover) {
-            [
-              Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
-              Attr.on_mousemove(evt => {
-                /* update mouse position */
-                model.mouse_position := JSUtil.get_mouse_position(evt);
-                Vdom.Event.Many([inject(FocusCell)]);
-              }),
-              Attr.on("scroll", _ => {
-                /* on_mouseenter/on_mouseleave will not be fired when scrolling,
-                   so we get the history entry under the mouse
-                   and shift to this entry manually  */
-                switch (get_elt_id_under_mouse(model)) {
-                | Some((group_id, elt_id)) =>
-                  Vdom.Event.Many([
-                    inject(
-                      ModelAction.ShiftHistory({
-                        group_id,
-                        elt_id,
-                        call_by_mouseenter: true,
-                      }),
-                    ),
-                    inject(FocusCell),
-                  ])
-                | None => Vdom.Event.Ignore
-                }
-              }),
-            ];
-          } else {
-            [
-              Attr.classes(["panel-body", "context-inspector-body"]),
-              Attr.id("history-body"),
-            ];
-          },
-          [history_view(model)],
-        ),
-      ],
+      active
+        ? [
+          Panel.view_of_main_title_bar("Edit Action History"),
+          button_bar_view(model.undo_history),
+          Node.div(
+            if (model.undo_history.preview_on_hover) {
+              [
+                Attr.classes(["panel-body", "context-inspector-body"]),
+                Attr.id("history-body"),
+                Attr.on_mousemove(evt => {
+                  /* update mouse position */
+                  model.mouse_position := JSUtil.get_mouse_position(evt);
+                  Vdom.Event.Many([inject(FocusCell)]);
+                }),
+                Attr.on("scroll", _ => {
+                  /* on_mouseenter/on_mouseleave will not be fired when scrolling,
+                     so we get the history entry under the mouse
+                     and shift to this entry manually  */
+                  switch (get_elt_id_under_mouse(model)) {
+                  | Some((group_id, elt_id)) =>
+                    Vdom.Event.Many([
+                      inject(
+                        ModelAction.ShiftHistory({
+                          group_id,
+                          elt_id,
+                          call_by_mouseenter: true,
+                        }),
+                      ),
+                      inject(FocusCell),
+                    ])
+                  | None => Vdom.Event.Ignore
+                  }
+                }),
+              ];
+            } else {
+              [
+                Attr.classes(["panel-body", "context-inspector-body"]),
+                Attr.id("history-body"),
+              ];
+            },
+            [history_view(model)],
+          ),
+        ]
+        : inactive_view,
     )
   );
 };

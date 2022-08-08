@@ -78,7 +78,11 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
 let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
   Sidebar.left(~inject, ~is_open=model.left_sidebar_open, () =>
     [
-      UndoHistoryPanel.view(~inject, model),
+      UndoHistoryPanel.view(
+        ~inject,
+        ~active=Model.is_structure_editor_active(model),
+        model,
+      ),
       ActionPanel.view(~inject, model),
     ]
   );
@@ -94,6 +98,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~selected_instance,
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
+        ~active=Model.is_structure_editor_active(model),
         program,
       ),
     ]

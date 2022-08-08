@@ -15,6 +15,7 @@ let view:
     ~selected_instance: option(HoleInstance.t),
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
+    ~active: bool,
     Program.t
   ) =>
   Vdom.Node.t;
