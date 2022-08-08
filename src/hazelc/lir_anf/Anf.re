@@ -84,7 +84,17 @@ and comp_kind =
   | /**
       Wrap a necessarily complete expression into an non-empty hole.
      */
-    CNEHole(
+    CNEHoleNC(
+      HoleReason.t,
+      MetaVar.t,
+      MetaVarInst.t,
+      sigma,
+      imm,
+    )
+  | /**
+      Wrap a necessarily incomplete expression into an non-empty hole.
+     */
+    CNEHoleNI(
       HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,

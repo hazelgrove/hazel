@@ -1,5 +1,7 @@
 open Util.ResultSexp;
 
+open Holes;
+
 [@deriving sexp]
 type syn_types = ExprLabel.Map.t(Typ.t);
 
@@ -10,6 +12,9 @@ type syn_ok = {types: syn_types};
 type syn_error =
   | CaseEmptyRules(ExprLabel.t)
   | UnboundVar(ExprLabel.t)
+  | UnboundHole(ExprLabel.t)
+  | WrongHoleSort(ExprLabel.t)
+  | SigmaUnboundVar(ExprLabel.t, Ident.t)
   | TypeNotNecessarilyComplete(ExprLabel.t, Typ.t)
   | TypeNotIndeterminatelyIncomplete(ExprLabel.t, Typ.t)
   | TypeNotNecessarilyIncomplete(ExprLabel.t, Typ.t)
@@ -310,6 +315,13 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
   | CCaseNI(scrut, rules) =>
     syn_comp_case(ctx, delta, (scrut, rules), l, (ana_imm_ni, Typ.ni))
 
+  | CEHole(u, _i, sigma) => syn_hole(ctx, delta, l, u, sigma)
+
+  | CNEHoleNC(reason, u, i, sigma, im) =>
+    syn_comp_nehole(ctx, delta, (reason, u, i, sigma, im), l, ana_imm_nc)
+  | CNEHoleNI(reason, u, i, sigma, im) =>
+    syn_comp_nehole(ctx, delta, (reason, u, i, sigma, im), l, ana_imm_ni)
+
   | CCastNC(im, ty_, ty_') =>
     syn_comp_cast(ctx, delta, (im, ty_, ty_'), l, ana_imm_nc)
   | CCastNI(im, ty_, ty_') =>
@@ -329,8 +341,6 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
   | CIIWrapNI(im) =>
     let* ty_ = ana_imm_ni(ctx, delta, im, None);
     extend(l, Typ.ii(ty_));
-
-  | _ => failwith("not implemented")
   };
 }
 
@@ -454,6 +464,11 @@ and syn_comp_case = (ctx, delta, (scrut, rules), l, (ana_imm_, wrap_ty_)) => {
   extend(l, ty);
 }
 
+and syn_comp_nehole = (ctx, delta, (_reason, u, _i, sigma, im), l, ana_imm_) => {
+  let* _ = ana_imm_(ctx, delta, im, None);
+  syn_hole(ctx, delta, l, u, sigma);
+}
+
 /* ; Δ ; Γ ⊢ im : υ{τ}
    ; τ ~ τ'
    → Δ ; Γ ⊢ im<τ ⇒ τ'> : ii{τ'} */
@@ -496,7 +511,39 @@ and syn_imm = (ctx, _delta, {imm_kind, imm_label: l, _}: Anf.imm) =>
       | ConstTriv => Typ.nc(TUnit)
       };
     extend(l, ty);
-  };
+  }
+
+and syn_hole = (ctx, delta, l: ExprLabel.t, u: MetaVar.t, sigma: Sigma.t) =>
+  switch (MetaVarMap.find_opt(u, delta)) {
+  | Some((sort, hole_ty, gamma')) =>
+    switch (sort) {
+    | Delta.ExpressionHole =>
+      let* () = ana_hole_sigma(ctx, delta, l, sigma, gamma');
+      extend(l, hole_ty);
+    | Delta.PatternHole => WrongHoleSort(l) |> fail
+    }
+  | None => UnboundHole(l) |> fail
+  }
+
+and ana_hole_sigma =
+    (ctx, delta, l: ExprLabel.t, sigma: Sigma.t, gamma': TypContext.t) =>
+  gamma'
+  |> TypContext.bindings
+  |> List.fold_left(
+       (acc, (x, gamma_ty)) => {
+         let* () = acc;
+
+         switch (Sigma.find_opt(x, sigma)) {
+         | None => SigmaUnboundVar(l, x) |> fail
+         | Some(im) =>
+           let* sigma_ty = syn_imm(ctx, delta, im);
+           Typ.equal(sigma_ty, gamma_ty)
+             ? () |> return
+             : TypesNotEqual(im.imm_label, sigma_ty, gamma_ty) |> fail;
+         };
+       },
+       return(),
+     );
 
 let syn = (ctx, delta, e) => {
   let (ok, r) = syn_block(ctx, delta, e, SynMonad.init);
