@@ -8,6 +8,7 @@ type settings_action =
   | WhitespaceIcons
   | Statics
   | Dynamics
+  | Student
   | Mode(Model.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -72,6 +73,7 @@ let update_settings =
         ...settings,
         whitespace_icons: !settings.whitespace_icons,
       }
+    | Student => {...settings, student: !settings.student}
     | Mode(mode) => {...settings, mode}
     };
   LocalStorage.save_settings(settings);
@@ -97,10 +99,10 @@ let load_default_editor = (model: Model.t): Model.t =>
     let (id_gen, editor) = Model.simple_init;
     {...model, editor_model: Simple(editor), id_gen};
   | Study =>
-    let (id_gen, idx, editors) = Model.study_init;
+    let (id_gen, idx, editors) = Study.init;
     {...model, editor_model: Study(idx, editors), id_gen};
   | School =>
-    let (id_gen, idx, editors) = Model.school_init;
+    let (id_gen, idx, editors) = School.init;
     {...model, editor_model: School(idx, editors), id_gen};
   };
 

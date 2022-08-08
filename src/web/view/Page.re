@@ -49,19 +49,27 @@ let decrement_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
 
 let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
-  let toggle = Attr.on_mousedown(_ => inject(ToggleMode));
+  let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
   switch (model.editor_model) {
-  | Simple(_) => div([id, toggle], [text("Simple")])
-  | School(_) => div([id, toggle], [text("School")])
+  | Simple(_) => div([id, toggle_mode], [text("Simple")])
+  | School(_) =>
+    div(
+      [id],
+      [
+        div([toggle_mode], [text("School")]),
+        toggle("🎓", model.settings.student, _ => inject(Set(Student))),
+      ],
+    )
   | Study(_) =>
     let cur_idx = Model.current_editor(model);
     let current_editor = Printf.sprintf("%d / %d", cur_idx + 1, num_editors);
     div(
       [id],
       [
+        div([toggle_mode], [text("Study")]),
         button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
-        div([toggle], [text(current_editor)]),
+        text(current_editor),
         button(
           Icons.forward,
           increment_editor(~inject, cur_idx, num_editors),
@@ -97,11 +105,11 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
       menu_icon,
       button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
       button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
+      editor_mode_view(~inject, ~model),
       button(Icons.export, copy_log_to_clipboard),
       button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
       button(Icons.trash, _ => inject(LoadDefault)),
-      link(Icons.github, "https://github.com/hazelgrove/hazel"),
-      editor_mode_view(~inject, ~model),
+      //link(Icons.github, "https://github.com/hazelgrove/hazel"),
       toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
       toggle("𝛿", model.settings.dynamics, _ => inject(Set(Dynamics))),
     ],

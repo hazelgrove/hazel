@@ -7,20 +7,13 @@ open Sexplib.Std;
    Each sort has a corresponding U<Sort> module.
 
    The contained cls type lists the terms of that sort, and
-   should be in 1-1 correspondance with the term type which
+   should be in 1-1 correspondence with the term type which
    is used to build composite terms.
 
    This is wrapped in a record type to associate a unique id
    with each term. These unique ids are the same as from the
    tile structure from the syntax module, as there is a 1-1
-   correspondance between terms and tiles.
-
-   The below functions exist to parse tile structure into
-   term structure. The language syntax, as determined by
-   Syntax.Form, is an open, data-driven system, so adding
-   a syntactic form there will not trigger a static error
-   here; you must remember to add a case below for each
-   new form added tot the syntax.
+   correspondence between terms and tiles.
 
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
@@ -34,7 +27,8 @@ module UTyp = {
     | Float
     | Bool
     | Arrow
-    | Prod;
+    | Prod
+    | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -45,6 +39,7 @@ module UTyp = {
     | Bool
     | Arrow(t, t)
     | Prod(t, t)
+    | Parens(t)
   and t = {
     id: Id.t,
     term,
@@ -58,7 +53,8 @@ module UTyp = {
     | Float => Float
     | Bool => Bool
     | Arrow(_) => Arrow
-    | Prod(_) => Prod;
+    | Prod(_) => Prod
+    | Parens(_) => Parens;
 
   let show_cls: cls => string =
     fun
@@ -68,7 +64,8 @@ module UTyp = {
     | Float
     | Bool => "Concrete Type"
     | Arrow => "Arrow Type"
-    | Prod => "Product Type";
+    | Prod => "Product Type"
+    | Parens => "Parenthesized Type Term";
 };
 
 module UPat = {
@@ -82,7 +79,8 @@ module UPat = {
     | Bool
     | Var
     | Pair
-    | Parens;
+    | Parens
+    | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -95,6 +93,7 @@ module UPat = {
     | Var(Token.t)
     | Pair(t, t)
     | Parens(t)
+    | TypeAnn(t, UTyp.t)
   and t = {
     id: Id.t,
     term,
@@ -110,7 +109,8 @@ module UPat = {
     | Bool(_) => Bool
     | Var(_) => Var
     | Pair(_) => Pair
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
     fun
@@ -122,7 +122,8 @@ module UPat = {
     | Bool => "Boolean Literal"
     | Var => "Pattern Variable"
     | Pair => "Pair Pattern"
-    | Parens => "Parenthesized Pattern";
+    | Parens => "Parenthesized Pattern"
+    | TypeAnn => "Type Annotation";
 };
 
 module UExp = {
@@ -152,6 +153,12 @@ module UExp = {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin =
+    | Int(op_int)
+    | Float(op_float)
+    | Bool(op_bool);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -169,9 +176,7 @@ module UExp = {
     | Seq
     | Test
     | Parens
-    | OpBool(op_bool)
-    | OpInt(op_int)
-    | OpFloat(op_float);
+    | BinOp(op_bin);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -182,11 +187,11 @@ module UExp = {
     | Int(int)
     | Float(float)
     | Fun(UPat.t, t)
-    | FunAnn(UPat.t, UTyp.t, t)
+    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Pair(t, t)
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetAnn(UPat.t, UTyp.t, t, t)
+    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
     // maybe everything with fn semantics should be a builtin e.g. plus??
@@ -194,9 +199,7 @@ module UExp = {
     | Seq(t, t)
     | Test(t)
     | Parens(t)
-    | OpBool(op_bool, t, t)
-    | OpInt(op_int, t, t)
-    | OpFloat(op_float, t, t)
+    | BinOp(op_bin, t, t)
   and t = {
     id: Id.t,
     term,
@@ -220,9 +223,7 @@ module UExp = {
     | Seq(_) => Seq
     | Test(_) => Test
     | Parens(_) => Parens
-    | OpInt(x, _, _) => OpInt(x)
-    | OpFloat(x, _, _) => OpFloat(x)
-    | OpBool(x, _, _) => OpBool(x);
+    | BinOp(op, _, _) => BinOp(op);
 
   let show_op_bool: op_bool => string =
     fun
@@ -249,6 +250,12 @@ module UExp = {
     | GreaterThan => "Float Greater Than"
     | Equals => "Float Equality";
 
+  let show_binop: op_bin => string =
+    fun
+    | Int(op) => show_op_int(op)
+    | Float(op) => show_op_float(op)
+    | Bool(op) => show_op_bool(op);
+
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid Expression"
@@ -267,9 +274,7 @@ module UExp = {
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
-    | OpInt(op) => show_op_int(op)
-    | OpFloat(op) => show_op_float(op)
-    | OpBool(op) => show_op_bool(op);
+    | BinOp(op) => show_binop(op);
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -277,159 +282,11 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
-    | EmptyHole => Unknown(Internal) //TODO: is this correct?
+    | EmptyHole => Unknown(TypeHole)
     | Int => Int
     | Float => Float
     | Bool => Bool
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
+    | Parens(u1) => utyp_to_ty(u1)
     };
-
-let piece_and_kids = (ps: Segment.t, skel: Skel.t): (Piece.t, list(Skel.t)) => {
-  let at = List.nth(ps);
-  switch (skel) {
-  | Op(idx) => (at(idx), [])
-  | Pre(idx, skel') => (at(idx), [skel'])
-  | Post(skel', idx) => (at(idx), [skel'])
-  | Bin(skel_l, idx, skel_r) => (at(idx), [skel_l, skel_r])
-  };
-};
-
-/* Converts syntactic segments into terms */
-let rec of_seg_and_skel = (ps: Segment.t, skel: Skel.t): UExp.t => {
-  let (p, kids) = piece_and_kids(ps, skel);
-  of_piece(p, List.map(of_seg_and_skel(ps), kids));
-}
-and uexp_of_seg = (ps: Segment.t): UExp.t => {
-  //NOTE(andrew): filter out incomplete tiles for now
-  //TODO(andrew): better approach which still provides feedback inside incomplete tile children
-  let ps = List.filter(Piece.is_complete, ps);
-  ps |> Segment.skel |> of_seg_and_skel(ps);
-}
-and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
-  let (p, kids) = piece_and_kids(ps, skel);
-  of_piece_pat(p, List.map(of_seg_and_skel_pat(ps), kids));
-}
-and upat_of_seg = (ps: Segment.t): UPat.t =>
-  ps |> Segment.skel |> of_seg_and_skel_pat(ps)
-and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
-  let (p, kids) = piece_and_kids(ps, skel);
-  of_piece_typ(p, List.map(of_seg_and_skel_typ(ps), kids));
-}
-and utyp_of_seg = (ps: Segment.t): UTyp.t =>
-  ps |> Segment.skel |> of_seg_and_skel_typ(ps)
-and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
-  let invalid = (p: Piece.t): UExp.t => {id: (-1), term: Invalid(p)};
-  switch (p) {
-  | Whitespace(_) => invalid(p)
-  | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => {id, term: EmptyHole}
-    //TODO(andrew): do something better with concave holes
-    }
-  | Tile({id, label, children, mold: _, shards: _} as t) =>
-    // TODO(andrew): do better than switching label
-    let term: UExp.term =
-      switch (/*mold.out,*/ label, children_h, children) {
-      | _ when !Tile.is_complete(t) =>
-        /* TODO(andrew): more principled handling of incomplete tiles  */
-        EmptyHole
-      | (["true"], [], []) => Bool(true) //TODO(andrew):generify
-      | (["false"], [], []) => Bool(false)
-      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
-      | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
-      | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
-      | ([t], [], []) when Form.is_var(t) => Var(t)
-      | ([","], [l, r], []) => Pair(l, r)
-      | (["+"], [l, r], []) => OpInt(Plus, l, r)
-      | (["-"], [l, r], []) => OpInt(Minus, l, r)
-      | (["*"], [l, r], []) => OpInt(Times, l, r)
-      | (["/"], [l, r], []) => OpInt(Divide, l, r)
-      | (["<"], [l, r], []) => OpInt(LessThan, l, r)
-      | ([">"], [l, r], []) => OpInt(GreaterThan, l, r)
-      | (["=="], [l, r], []) => OpInt(Equals, l, r)
-      | (["+."], [l, r], []) => OpFloat(Plus, l, r)
-      | (["-."], [l, r], []) => OpFloat(Minus, l, r)
-      | (["*."], [l, r], []) => OpFloat(Times, l, r)
-      | (["/."], [l, r], []) => OpFloat(Divide, l, r)
-      | (["<."], [l, r], []) => OpFloat(LessThan, l, r)
-      | ([">."], [l, r], []) => OpFloat(GreaterThan, l, r)
-      | (["==."], [l, r], []) => OpFloat(Equals, l, r)
-      | (["&&"], [l, r], []) => OpBool(And, l, r)
-      | (["||"], [l, r], []) => OpBool(Or, l, r)
-      | ([";"], [l, r], []) => Seq(l, r)
-      | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
-      | (["fun", "->"], [body], [pat]) => Fun(upat_of_seg(pat), body)
-      | (["funann", ":", "->"], [body], [pat, typ]) =>
-        FunAnn(upat_of_seg(pat), utyp_of_seg(typ), body)
-      | (["let", "=", "in"], [body], [pat, def]) =>
-        Let(upat_of_seg(pat), uexp_of_seg(def), body)
-      | (["letann", ":", "=", "in"], [body], [pat, typ, def]) =>
-        LetAnn(upat_of_seg(pat), utyp_of_seg(typ), uexp_of_seg(def), body)
-      | (["if", "then", "else"], [alt], [cond, conseq]) =>
-        If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
-      | (["(", ")"], [fn], [arg]) => Ap(fn, uexp_of_seg(arg))
-      | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
-      | _ => Invalid(p)
-      };
-    {id, term};
-  };
-}
-and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
-  let invalid: UPat.t = {id: (-1), term: Invalid(p)};
-  switch (p) {
-  | Whitespace(_) => invalid
-  | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => invalid
-    }
-  | Tile({id, label, children, mold: _, shards: _} as t) =>
-    // TODO(andrew): do better than switching label
-    let term: UPat.term =
-      switch (/*mold.out,*/ label, children_h, children) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
-      | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
-      | ([","], [l, r], []) => Pair(l, r)
-      | (["true"], [], []) => Bool(true) //TODO(andrew):generify
-      | (["false"], [], []) => Bool(false)
-      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
-      | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
-      | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
-      | ([t], [], []) when Form.is_var(t) => Var(t)
-      | ([t], [], []) when Form.is_wild(t) => Wild
-      | _ => Invalid(p)
-      };
-    {id, term};
-  };
-}
-and of_piece_typ = (p: Piece.t, children_h: list(UTyp.t)): UTyp.t => {
-  let invalid: UTyp.t = {id: (-1), term: Invalid(p)};
-  switch (p) {
-  | Whitespace(_) => invalid
-  | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => invalid
-    }
-  | Tile({id, label, children, mold: _, shards: _} as t) =>
-    // TODO(andrew): do better than switching label
-    let term: UTyp.term =
-      switch (/*mold.out,*/ label, children_h, children) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
-      | (["Int"], [], []) => Int
-      | (["Float"], [], []) => Float
-      | (["Bool"], [], []) => Bool
-      | (["->"], [l, r], []) => Arrow(l, r)
-      | ([","], [l, r], []) => Prod(l, r)
-      | _ => Invalid(p)
-      };
-    {id, term};
-  };
-};
-
-let of_zipper = (z: Zipper.t): UExp.t => z |> Zipper.zip |> uexp_of_seg;
-
-let uexp_of_seg =
-  Core_kernel.Memo.general(~cache_size_bound=1000, uexp_of_seg);
