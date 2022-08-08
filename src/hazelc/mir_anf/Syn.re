@@ -200,11 +200,14 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
 
   | CCast({imm_label: l', _} as im, ty1, ty2) =>
     let* ty' = syn_imm(ctx, delta, im);
-    if (Typ.consistent(ty', ty1)) {
-      extend(l, ty2);
+    if (Typ.equal(ty', ty1)) {
+      if (Typ.consistent(ty1, ty2)) {
+        extend(l, ty2);
+      } else {
+        TypesInconsistent(l', ty1, ty2) |> fail;
+      };
     } else {
-      /* TODO: More specific error? */
-      TypesInconsistent(l', ty', ty1) |> fail;
+      TypesNotEqual(l', ty', ty1) |> fail;
     };
 
   | CCase(scrut, rules) =>
