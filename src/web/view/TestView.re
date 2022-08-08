@@ -2,6 +2,11 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
+//TODO: cleanup
+
+let dhcode_view = (~font_metrics) =>
+  Interface.dhcode_view(~font_metrics, ~width=40);
+
 let test_instance_view =
     (dhcode_view, (d, status): TestMap.test_instance_report) => {
   let status = TestStatus.to_string(status);
@@ -61,6 +66,61 @@ let test_bar = (~inject, ~test_map: TestMap.t) =>
     ),
   );
 
+let meta_summary_str =
+    (~n, ~p, ~q, ~n_str, ~ns_str, ~p_str, ~q_str, ~r_str): string => {
+  let one_p = "one is " ++ p_str ++ " ";
+  let one_q = "one is " ++ q_str ++ " ";
+  let mny_p = Printf.sprintf("%d are %s ", p, p_str);
+  let mny_q = Printf.sprintf("%d are %s ", q, q_str);
+  let of_n = Printf.sprintf("Out of %d %s, ", n, ns_str);
+  switch (n, p, q) {
+  | (_, 0, 0) => "All " ++ ns_str ++ " " ++ r_str ++ " "
+  | (n, _, c) when n == c => "All " ++ ns_str ++ " " ++ q_str ++ " "
+  | (n, f, _) when n == f => "All " ++ ns_str ++ " " ++ p_str ++ " "
+  | (1, 0, 1) => "One " ++ n_str ++ " " ++ q_str ++ " "
+  | (1, 1, 0) => "One " ++ n_str ++ " " ++ p_str ++ " "
+  | (2, 1, 1) =>
+    "One " ++ n_str ++ " " ++ p_str ++ " and one " ++ q_str ++ " "
+  | (_, 0, 1) => of_n ++ one_q
+  | (_, 1, 0) => of_n ++ one_p
+  | (_, 1, 1) => of_n ++ one_p ++ "and " ++ one_q
+  | (_, 1, _) => of_n ++ one_p ++ "and " ++ mny_q
+  | (_, _, 1) => of_n ++ mny_p ++ "and " ++ one_q
+  | (_, 0, _) => of_n ++ mny_q
+  | (_, _, 0) => of_n ++ mny_p
+  | (_, _, _) => of_n ++ mny_p ++ "and " ++ mny_q
+  };
+};
+
+let _test_summary_str = (~test_map: TestMap.t): string => {
+  let total = TestMap.count(test_map);
+  let failing = TestMap.count_status(Fail, test_map);
+  let unfinished = TestMap.count_status(Indet, test_map);
+  meta_summary_str(
+    ~n=total,
+    ~p=failing,
+    ~q=unfinished,
+    ~n_str="test",
+    ~ns_str="tests",
+    ~p_str="failing",
+    ~q_str="unfinished",
+    ~r_str="passing",
+  );
+};
+
+let buggy_summary_str = (~total, ~found): string => {
+  meta_summary_str(
+    ~n=total,
+    ~p=found,
+    ~q=0,
+    ~n_str="bug",
+    ~ns_str="bugs",
+    ~p_str="found",
+    ~q_str="",
+    ~r_str="unrevealed",
+  );
+};
+
 let test_summary_str = (~test_map: TestMap.t): string => {
   let total = TestMap.count(test_map);
   let failing = TestMap.count_status(Fail, test_map);
@@ -88,14 +148,18 @@ let test_summary_str = (~test_map: TestMap.t): string => {
   };
 };
 
+let percent_view = (n, p) => {
+  let percentage = 100. *. float_of_int(p) /. float_of_int(n);
+  div(
+    [clss(["test-percent", n == p ? "all-pass" : "some-fail"])],
+    [text(Printf.sprintf("%.0f%%", percentage))],
+  );
+};
+
 let test_percentage = (test_map: TestMap.t): t => {
   let total = TestMap.count(test_map);
   let passing = TestMap.count_status(Pass, test_map);
-  let percentage = 100. *. float_of_int(passing) /. float_of_int(total);
-  div(
-    [clss(["test-percent", total == passing ? "all-pass" : "some-fail"])],
-    [text(Printf.sprintf("%.0f%%", percentage))],
-  );
+  percent_view(total, passing);
 };
 
 let test_text = (test_map: TestMap.t): Node.t =>
@@ -123,9 +187,6 @@ let test_summary = (~inject, ~test_map) => {
   );
 };
 
-let dhcode_view = (~font_metrics) =>
-  Interface.dhcode_view(~font_metrics, ~width=40);
-
 let view_of_main_title_bar = (title_text: string) =>
   div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
 
@@ -140,14 +201,8 @@ let view =
   let dhcode_view = dhcode_view(~font_metrics);
   let result = Interface.get_result(d);
   switch (result) {
-  | None =>
-    //print_endline("WARNING: TESTVIREW: no result");
-    div([], [])
+  | None => div([], [])
   | Some((_, test_map)) =>
-    /*print_endline("TESTVIEW: some result");
-      if (test_map == []) {
-        print_endline("TESTMAP EMPTY");
-      };*/
     div_if(
       test_map != [],
       [clss(["panel", "test-panel"])],
@@ -210,26 +265,176 @@ let spliced_statics = (eds: list(Model.editor)) => {
   (term, info_map);
 };
 
-let school_panel = (~font_metrics, editors) => {
+let get_test_map = eds_to_splice => {
+  let (reference_term, reference_map) = spliced_statics(eds_to_splice);
+  let d_reference = Elaborator.uexp_elab(reference_map, reference_term);
+  let result_reference = Interface.get_result(d_reference);
+  switch (result_reference) {
+  | None => []
+  | Some((_, test_map)) => test_map
+  };
+};
+
+[@deriving show({with_path: false})]
+type blah = list(int);
+
+let buggy_text = (~total, ~found): Node.t =>
+  div(
+    [Attr.class_("test-text")],
+    [
+      percent_view(total, found),
+      div([], [text(":")]),
+      text(buggy_summary_str(~total, ~found)),
+    ],
+  );
+
+let buggy_bar = (~inject as _, ~total, ~found) =>
+  //TODO(andrew)
+  div(
+    [Attr.class_("test-bar")],
+    List.map(
+      status => {
+        div([clss(["segment", TestStatus.to_string(status)])], [])
+      },
+      List.init(total, _ =>
+        total == found ? TestStatus.Pass : TestStatus.Fail
+      ),
+    ),
+  );
+
+let buggy_summary = (~inject, ~total, ~found) => {
+  let status_class = total == found ? "Pass" : "Fail";
+  div(
+    [clss(["test-summary", "instructional-msg", status_class])],
+    [buggy_text(~total, ~found), buggy_bar(~inject, ~total, ~found)],
+  );
+};
+
+let buggy_view = (~font_metrics, ~inject, reference, wrongs) => {
+  ///TODO: clean up this dogshit function
+  let reference_test_map = get_test_map(reference);
+  let reference_passing: list(int) =
+    reference_test_map
+    |> List.filter(((_id, reports)) =>
+         List.for_all(((_, status)) => status == TestStatus.Pass, reports)
+       )
+    |> List.split
+    |> fst;
+  let instances =
+    List.map(
+      wrong => {
+        let wrong_test_map = get_test_map(wrong);
+        let wrong_failing: list(int) =
+          wrong_test_map
+          |> List.filter(((_id, reports)) =>
+               List.for_all(
+                 ((_, status)) => status == TestStatus.Fail,
+                 reports,
+               )
+             )
+          |> List.split
+          |> fst;
+        let common =
+          List.filter(x => List.mem(x, reference_passing), wrong_failing);
+        let instance: option(list('a)) =
+          switch (common) {
+          | [] => None
+          | [x, ..._] => List.assoc_opt(x, wrong_test_map)
+          };
+        switch (instance) {
+        | Some([instance, ..._]) => Some(instance)
+        | _ => None
+        };
+      },
+      wrongs,
+    );
+  let instances_view =
+    List.map(
+      instance => {
+        let instance_view =
+          switch (instance) {
+          | Some(instance) =>
+            test_instance_view(dhcode_view(~font_metrics), instance)
+          | None => div([], [])
+          };
+        instance_view;
+      },
+      instances,
+    );
+
+  let total = List.length(instances);
+  let found =
+    List.length(List.filter((x: option('a)) => x != None, instances));
+
+  div(
+    [clss(["panel", "test-panel"])],
+    [
+      view_of_main_title_bar("Reveal Bugs"),
+      div(
+        [clss(["panel-body", "test-reports"])],
+        List.mapi(
+          (i, view) =>
+            div(
+              [
+                Attr.class_("test-report"),
+                Attr.on_click(jump_to_test(~inject)),
+              ],
+              [
+                div(
+                  [clss(["test-id", "Test" ++ "Pass"])], //TODO unhardcode Pass
+                  // note: prints lexical index, not id
+                  [text(string_of_int(i + 1))],
+                ),
+                view,
+              ],
+            ),
+          instances_view,
+        ),
+      ),
+      buggy_summary(~inject, ~total, ~found),
+    ],
+  );
+};
+
+let test_section_view = (~font_metrics, ~title, eds) => {
+  let (term, map) = spliced_statics(eds);
+  view(~title, ~font_metrics, Elaborator.uexp_elab(map, term));
+};
+
+let school_panel = (~inject, ~font_metrics, editors) => {
   switch (editors) {
-  | [student_impl, student_tests, teacher_tests] =>
+  | [
+      student_impl,
+      student_tests,
+      hidden_tests,
+      reference_impl,
+      wrong_impl_1,
+      wrong_impl_2,
+      wrong_impl_3,
+    ] =>
     let (implement_term, implement_map) = spliced_statics([student_impl]);
-    let (teacher_term, teacher_map) =
-      spliced_statics([student_impl, teacher_tests]);
-    let (student_term, student_map) =
-      spliced_statics([student_impl, student_tests]);
     div(
       [clss(["test-multi-panel"])],
       [
-        view(
+        test_section_view(
           ~title="Student Tests",
           ~font_metrics,
-          Elaborator.uexp_elab(student_map, student_term),
+          [student_impl, student_tests],
         ),
-        view(
-          ~title="Teacher Tests",
+        test_section_view(
+          ~title="Hiden Tests",
           ~font_metrics,
-          Elaborator.uexp_elab(teacher_map, teacher_term),
+          [student_impl, hidden_tests],
+        ),
+        buggy_view(
+          ~inject,
+          ~font_metrics,
+          [reference_impl, student_tests],
+          [
+            [wrong_impl_1, student_tests],
+            [wrong_impl_2, student_tests],
+            [wrong_impl_3, student_tests],
+          ],
         ),
         Interface.res_view(~font_metrics, implement_term, implement_map),
       ],

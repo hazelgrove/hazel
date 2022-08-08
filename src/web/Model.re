@@ -154,15 +154,17 @@ let zipper_of_string =
 
 let simple_init: simple = (1, mk_editor(Zipper.init(0)));
 
-let school_init: school = (
-  3,
-  0,
-  [
-    mk_editor(Zipper.init(0)),
-    mk_editor(Zipper.init(1)),
-    mk_editor(Zipper.init(2)),
-  ],
-);
+/*
+ let school_init: school = (
+   3,
+   0,
+   [
+     mk_editor(Zipper.init(0)),
+     mk_editor(Zipper.init(1)),
+     mk_editor(Zipper.init(2)),
+   ],
+ );
+ */
 
 let study_defaults = [
   "let a = 2 in
@@ -190,6 +192,50 @@ let study_init: study = {
       },
       (0, []),
       study_defaults,
+    );
+  (id_gen, 0, List.map(mk_editor, zs));
+};
+
+type school_cell = {
+  caption: string,
+  initial: string,
+};
+
+/* NOTE: num_editors here should agree with TestView.school_panel */
+let school_defaults: list(school_cell) = [
+  {caption: "Student Implementation", initial: "let a = 2 in let b = 3 in b"},
+  {caption: "Student Tests", initial: "test a == 1 end;
+  test a < 1 end"},
+  {caption: "Hidden Tests", initial: "test a == 2 end"},
+  {
+    caption: "Reference Implementation",
+    initial: "let a = 2 in let b = 3 in b",
+  },
+  {caption: "Wrong Implementation 1", initial: "let a = 0 in a"},
+  {
+    caption: "Wrong Implementation 2",
+    initial: "let a = -1 in let b = 1 in a",
+  },
+  {
+    caption: "Wrong Implementation 3",
+    initial: "let a = -2 in let b = 2 in a",
+  },
+];
+
+let cell_captions =
+  List.map((cell: school_cell) => cell.caption, school_defaults);
+
+let school_init: school = {
+  let (id_gen, zs) =
+    List.fold_left(
+      ((acc_id, acc_zs), school_cell) => {
+        switch (zipper_of_string(acc_id, school_cell.initial)) {
+        | None => (acc_id, acc_zs @ [Zipper.init(0)])
+        | Some((z, new_id)) => (new_id, acc_zs @ [z])
+        }
+      },
+      (0, []),
+      school_defaults,
     );
   (id_gen, 0, List.map(mk_editor, zs));
 };

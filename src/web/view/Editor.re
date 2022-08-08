@@ -97,12 +97,6 @@ let single_editor =
   div([clss(["editor", "single"])], [code_view] @ statics_view);
 };
 
-let cell_captions = [
-  "Student Implementation",
-  "Student Tests",
-  "Teacher Tests",
-];
-
 let cell_view =
     (
       idx,
@@ -116,7 +110,10 @@ let cell_view =
   let zipper = editor.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let cell_caption_view =
-    div([clss(["cell-caption"])], [text(List.nth(cell_captions, idx))]);
+    div(
+      [clss(["cell-caption"])],
+      [text(List.nth(Model.cell_captions, idx))],
+    );
   let code_view =
     code_container(
       ~font_metrics,
@@ -136,11 +133,18 @@ let cell_view =
 };
 
 let multi_editor_semantics_views =
-    (~settings: Model.settings, ~font_metrics, ~focal_zipper, ~editors) => {
+    (
+      ~inject,
+      ~settings: Model.settings,
+      ~font_metrics,
+      ~focal_zipper,
+      ~editors,
+    ) => {
   let (_, combined_info_map) = TestView.spliced_statics(editors);
   [ci_view(Indicated.index(focal_zipper), combined_info_map)]
   @ (
-    settings.dynamics ? [TestView.school_panel(~font_metrics, editors)] : []
+    settings.dynamics
+      ? [TestView.school_panel(~inject, ~font_metrics, editors)] : []
   );
 };
 
@@ -165,6 +169,7 @@ let multi_editor =
   let semantics_view =
     settings.statics
       ? multi_editor_semantics_views(
+          ~inject,
           ~settings,
           ~font_metrics,
           ~focal_zipper,
