@@ -112,8 +112,13 @@ let cell_view =
   let cell_caption_view =
     div(
       [clss(["cell-caption"])],
-      [text(List.nth(Model.cell_captions, idx))],
+      [text(List.nth(School.captions, idx))],
     );
+  let cell_chapter_view =
+    switch (List.nth(School.chapters, idx)) {
+    | None => []
+    | Some(chapter) => [div([clss(["cell-chapter"])], [chapter])]
+    };
   let code_view =
     code_container(
       ~font_metrics,
@@ -124,11 +129,17 @@ let cell_view =
       ~show_deco=idx == selected,
     );
   div(
-    [
-      Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-      Attr.on_click(_ => inject(SwitchEditor(idx))),
+    [clss(["cell-container"])],
+    cell_chapter_view
+    @ [
+      div(
+        [
+          Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
+          Attr.on_click(_ => inject(SwitchEditor(idx))),
+        ],
+        [cell_caption_view, code_view],
+      ),
     ],
-    [cell_caption_view, code_view],
   );
 };
 
@@ -176,6 +187,11 @@ let multi_editor =
           ~editors,
         )
       : [];
+  /* Hide hidden editors in student mode */
+  let editors =
+    settings.student
+      ? List.filteri((i, _) => !List.nth(School.hiddens, i), editors)
+      : editors;
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(cell_view, editors) @ semantics_view,
