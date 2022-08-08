@@ -6,7 +6,7 @@ exception NoLayout
 let string_of_layout (l : 'a Layout.t) : string =
   let rec go (indent : int) (col : int) (l : 'a Layout.t) : string * int =
     match l with
-    | Text s -> (s, col + String.length s)
+    | Text s -> (s, col + Unicode.length s)
     | Cat (l1, l2) ->
         let s1, c1 = go indent col l1 in
         let s2, c2 = go indent c1 l2 in
