@@ -304,11 +304,12 @@ let rec uexp_to_info_map =
     );
   | Let(pat, def, body) =>
     let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
+    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
     let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx, ~mode=Ana(ty_pat), def);
+      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx_body = VarMap.union(ctx, ctx_pat_ana);
+    let ctx_body = VarMap.union(def_ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(

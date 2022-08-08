@@ -97,12 +97,6 @@ let single_editor =
   div([clss(["editor", "single"])], [code_view] @ statics_view);
 };
 
-let cell_captions = [
-  "Student Implementation",
-  "Student Tests",
-  "Teacher Tests",
-];
-
 let cell_view =
     (
       idx,
@@ -116,7 +110,15 @@ let cell_view =
   let zipper = editor.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let cell_caption_view =
-    div([clss(["cell-caption"])], [text(List.nth(cell_captions, idx))]);
+    div(
+      [clss(["cell-caption"])],
+      [text(List.nth(School.captions, idx))],
+    );
+  let cell_chapter_view =
+    switch (List.nth(School.chapters, idx)) {
+    | None => []
+    | Some(chapter) => [div([clss(["cell-chapter"])], [chapter])]
+    };
   let code_view =
     code_container(
       ~font_metrics,
@@ -127,20 +129,33 @@ let cell_view =
       ~show_deco=idx == selected,
     );
   div(
-    [
-      Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-      Attr.on_click(_ => inject(SwitchEditor(idx))),
+    [clss(["cell-container"])],
+    cell_chapter_view
+    @ [
+      div(
+        [
+          Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
+          Attr.on_click(_ => inject(SwitchEditor(idx))),
+        ],
+        [cell_caption_view, code_view],
+      ),
     ],
-    [cell_caption_view, code_view],
   );
 };
 
 let multi_editor_semantics_views =
-    (~settings: Model.settings, ~font_metrics, ~focal_zipper, ~editors) => {
+    (
+      ~inject,
+      ~settings: Model.settings,
+      ~font_metrics,
+      ~focal_zipper,
+      ~editors,
+    ) => {
   let (_, combined_info_map) = TestView.spliced_statics(editors);
   [ci_view(Indicated.index(focal_zipper), combined_info_map)]
   @ (
-    settings.dynamics ? [TestView.school_panel(~font_metrics, editors)] : []
+    settings.dynamics
+      ? [TestView.school_panel(~inject, ~font_metrics, editors)] : []
   );
 };
 
@@ -165,12 +180,18 @@ let multi_editor =
   let semantics_view =
     settings.statics
       ? multi_editor_semantics_views(
+          ~inject,
           ~settings,
           ~font_metrics,
           ~focal_zipper,
           ~editors,
         )
       : [];
+  /* Hide hidden editors in student mode */
+  let editors =
+    settings.student
+      ? List.filteri((i, _) => !List.nth(School.hiddens, i), editors)
+      : editors;
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(cell_view, editors) @ semantics_view,
