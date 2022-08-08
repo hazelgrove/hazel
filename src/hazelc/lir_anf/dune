@@ -1,0 +1,7 @@
+(include_subdirs unqualified)
+
+(library
+ (name lir_anf)
+ (libraries holes ident label util sexplib)
+ (preprocess
+  (pps ppx_deriving.eq ppx_deriving.ord ppx_sexp_conv)))
