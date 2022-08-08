@@ -11,7 +11,8 @@ let switch_button_clickhandler =
     inject(ModelAction.UpdateTextEditor(TextEditorModel.CloseEditor)),
     inject(
       ModelAction.Import(
-        ast_from_text(te_model.current_text) |> Stdlib.Result.get_ok,
+        ast_from_text(TextEditorModel.get_current_text(te_model))
+        |> Stdlib.Result.get_ok,
       ),
     ),
   ]);
@@ -26,12 +27,13 @@ let textbox_keyhandlers =
       )
     ),
     Attr.on_keyup(_ => {
-      let result = ast_from_text(model.text_editor.current_text);
+      let result =
+        ast_from_text(TextEditorModel.get_current_text(model.text_editor));
       inject(
         ModelAction.UpdateTextEditor(
           Stdlib.Result.(
             is_error(result)
-              ? TextEditorModel.SetErrorText(get_error(result))
+              ? TextEditorModel.SetError(get_error(result))
               : TextEditorModel.ClearError
           ),
         ),
@@ -55,7 +57,7 @@ let editor_switch_button =
                 te_model,
               ),
             ),
-            ...te_model.valid_text ? [] : [Attr.disabled],
+            ...TextEditorModel.is_valid(te_model) ? [] : [Attr.disabled],
           ],
           [Node.text("Switch to Structural Editor")],
         ),
@@ -86,11 +88,11 @@ let text_editor_body = (inject: ModelAction.t => Ui_event.t, model: Model.t) => 
             Attr.style(text_box_height_css(model)),
             ...textbox_keyhandlers(inject, model),
           ],
-          [Node.text(model.text_editor.current_text)],
+          [Node.text(TextEditorModel.get_current_text(model.text_editor))],
         ),
         Node.textarea(
           [Attr.id("text-editor-errors"), Attr.create("readonly", "")],
-          [Node.text(model.text_editor.error_text)],
+          [Node.text(TextEditorModel.get_error_string(model.text_editor))],
         ),
       ],
     )
