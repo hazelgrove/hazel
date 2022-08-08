@@ -1065,7 +1065,7 @@ svg {
 }
 
 .test-instance .DHCode {
-  border-radius: 0.5em;
+  border-radius: 0.3em;
 }
 
 /*
@@ -1085,7 +1085,8 @@ svg {
 
 .test-instance.Fail .DHCode {
   color: var(--err-color);
-  border: dotted 1px var(--err-color);
+  /* border: dotted 1px var(--err-color); */
+  background-color: #f002;
 }
 
 .test-instance.Indet .DHCode {
