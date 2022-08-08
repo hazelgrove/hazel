@@ -14,8 +14,15 @@ type cell = {
 let defaults: list(cell) = [
   {
     caption: "Student Implementation",
-    initial: "let a = 2 in
-let b = 3 in b",
+    initial: "let not:Bool->Bool=
+fun x -> if x then false else true
+in
+let odd: Int->Bool =
+fun x->
+if x == 0
+then false
+else not(odd(x-1))
+in",
     chapter:
       Some(
         div(
@@ -37,38 +44,66 @@ let b = 3 in b",
   },
   {
     caption: "Student Tests",
-    initial: "test a == b - 1 end;
-test a > 0 end",
+    initial: "test not(odd(4)) end;
+test odd(3) end;
+test odd(5) end",
     chapter: None,
     hidden: false,
   },
   {
     caption: "Hidden Tests",
-    initial: "test a == 2 end",
+    initial: "test not(odd(0)) end;
+test odd(1) end",
     chapter: None,
     hidden: true,
   },
   {
     caption: "Reference Implementation",
-    initial: "let a = 2 in let b = 3 in b",
+    initial: "let a = true in
+let not: Bool->Bool =
+fun x -> if x then false else true
+in
+let odd:Int->Bool =
+fun x ->
+if x == 0
+then false
+else not(odd(x-1))
+in yo",
     chapter: None,
     hidden: true,
   },
   {
     caption: "Wrong Implementation 1",
-    initial: "let a = 0 in a",
+    initial: "let not: Bool->Bool =
+fun x -> if x then false else true in
+let odd: Int->Bool =
+fun x -> false
+in 1",
     chapter: None,
     hidden: true,
   },
   {
     caption: "Wrong Implementation 2",
-    initial: "let a = 1 in let b = 1 in a",
+    initial: "let not: Bool->Bool =
+fun x -> if x then false else true in
+let odd: Int->Bool =
+fun x -> true
+in 2",
     chapter: None,
     hidden: true,
   },
   {
     caption: "Wrong Implementation 3",
-    initial: "let a = 2 in let b = 2 in 65",
+    initial: "let not: Bool->Bool =
+fun x -> if x then false else true
+in let odd_correct:Int->Bool =
+fun x -> if x == 0
+then false
+else not(odd(x-1))
+in let odd: Int->Bool =
+fun x ->
+if x == 5 then false else odd_correct(x)
+in 3",
     chapter: None,
     hidden: true,
   },

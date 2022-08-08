@@ -320,6 +320,8 @@ let buggy_view = (~font_metrics, ~inject, reference, wrongs) => {
        )
     |> List.split
     |> fst;
+  //print_endline("reference passing:");
+  //print_endline(show_blah(reference_passing));
   let instances =
     List.map(
       wrong => {
@@ -334,6 +336,8 @@ let buggy_view = (~font_metrics, ~inject, reference, wrongs) => {
              )
           |> List.split
           |> fst;
+        //print_endline("wrong failing:");
+        //print_endline(show_blah(wrong_failing));
         let common =
           List.filter(x => List.mem(x, reference_passing), wrong_failing);
         let instance: option(list('a)) =
