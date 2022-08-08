@@ -167,10 +167,14 @@ and syn = (ctx, delta, {kind, label: l}: Expr.t): m(Typ.t) =>
 
   | ECast({label: l', _} as e', ty1, ty2) =>
     let* ty' = syn(ctx, delta, e');
-    if (Typ.consistent(ty', ty1)) {
-      extend(l, ty2);
+    if (Typ.equal(ty', ty1)) {
+      if (Typ.consistent(ty1, ty2)) {
+        extend(l, ty2);
+      } else {
+        TypesInconsistent(l', ty1, ty2) |> fail;
+      };
     } else {
-      TypesInconsistent(l', ty', ty1) |> fail;
+      TypesNotEqual(l', ty', ty1) |> fail;
     };
 
   | EFailedCast(e', ty1, ty2) =>
