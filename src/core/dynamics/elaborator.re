@@ -103,10 +103,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
+    | Let(
+        {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
+        {term: Fun(_) | FunAnn(_), _} as def,
+        body,
+      )
     | LetAnn(
         {term: Var(x), _} as p,
         {term: Arrow(_), _},
-        {term: Fun(_), _} as def,
+        {term: Fun(_) | FunAnn(_), _} as def,
         body,
       ) =>
       /* NOTE: recursive case */

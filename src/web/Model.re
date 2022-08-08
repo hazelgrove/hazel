@@ -37,6 +37,7 @@ type settings = {
   whitespace_icons: bool,
   statics: bool,
   dynamics: bool,
+  student: bool,
   mode,
 };
 
@@ -45,6 +46,7 @@ let settings_init = {
   whitespace_icons: false,
   statics: true,
   dynamics: true,
+  student: false,
   mode: Simple,
 };
 
@@ -154,32 +156,7 @@ let zipper_of_string =
 
 let simple_init: simple = (1, mk_editor(Zipper.init(0)));
 
-let school_init: school = (
-  3,
-  0,
-  [
-    mk_editor(Zipper.init(0)),
-    mk_editor(Zipper.init(1)),
-    mk_editor(Zipper.init(2)),
-  ],
-);
-
-let study_defaults = [
-  "let a = 2 in
-letann b : Bool = 2 in
-letann g : Int -> Int =
-fun x -> x + 1
-in
-let x =
-fun q -> if q < 0 then a else true in
-let f =
-funann x : Int -> x + 5 < 0 in
-true && f(a) && f(b) && g(true)",
-  "blog",
-  "2525",
-];
-
-let study_init: study = {
+let editors_of_strings = (xs: list(string)): (Id.t, int, list(editor)) => {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {
@@ -189,7 +166,7 @@ let study_init: study = {
         }
       },
       (0, []),
-      study_defaults,
+      xs,
     );
   (id_gen, 0, List.map(mk_editor, zs));
 };

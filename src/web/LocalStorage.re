@@ -117,7 +117,7 @@ let save_study = (study: Model.study): unit =>
 
 let load_study = (): Model.study =>
   switch (get_localstore(save_study_key)) {
-  | None => Model.study_init
+  | None => Study.init
   | Some(flag) =>
     try(
       flag
@@ -125,7 +125,7 @@ let load_study = (): Model.study =>
       |> study_without_history_of_sexp
       |> prep_study_out
     ) {
-    | _ => Model.study_init
+    | _ => Study.init
     }
   };
 
@@ -140,7 +140,7 @@ let save_school = (school: Model.school): unit =>
 
 let load_school = (): Model.school =>
   switch (get_localstore(save_school_key)) {
-  | None => Model.school_init
+  | None => School.init
   | Some(flag) =>
     try(
       flag
@@ -148,6 +148,6 @@ let load_school = (): Model.school =>
       |> school_without_history_of_sexp
       |> prep_school_out
     ) {
-    | _ => Model.school_init
+    | _ => School.init
     }
   };

@@ -187,11 +187,11 @@ module UExp = {
     | Int(int)
     | Float(float)
     | Fun(UPat.t, t)
-    | FunAnn(UPat.t, UTyp.t, t)
+    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Pair(t, t)
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetAnn(UPat.t, UTyp.t, t, t)
+    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
     // maybe everything with fn semantics should be a builtin e.g. plus??

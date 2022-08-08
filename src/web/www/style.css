@@ -116,7 +116,8 @@
   --anchor-z: 14;
   --current-caret-pos-z: 15;
   --caret-z: 14;
-  --top-ui-z: 15;
+  --top-bar-z: 15;
+  --type-inspector-z: 15;
   --test-panel-z: 16;
 }
 
@@ -205,14 +206,14 @@ svg {
   left: 100%;
 }
 
-#font-specimen, .code-container, .DHCode {
+#font-specimen, .code-container, .DHCode, .cursor-inspector {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
 }
 
-.cell-caption, .test-panel, #editor-mode {
+.cell-caption, .test-panel, #editor-mode, .cell-chapter {
   font-size: 0.8em;
   font-family: 'Helvetica Neue';
 }
@@ -286,6 +287,20 @@ svg {
   gap: 0.5em;
   cursor: pointer;
   user-select: none;
+  background-color: #ebdfc5;
+  border-radius: 1em;
+  padding: 0.2em 0.5em 0.2em 0.5em;
+}
+#top-bar #editor-mode .icon {
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+}
+
+#top-bar #editor-mode .icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 /* END TOP BAR */
@@ -320,10 +335,18 @@ svg {
   /*white-space: nowrap;*/
 }
 
-.cell{
-  border-radius: 0.4em;
+.cell-container {
   width: fit-content;
   min-width: 50vw;
+  max-width: 70vw;
+}
+
+.cell-chapter {
+  padding: 1em;
+}
+
+.cell{
+  border-radius: 0.4em;
   padding-left: 1em;
   padding: 0.5em;
   padding-left: 1.2em;
@@ -795,21 +818,17 @@ svg {
 /* STATICS */
 
 .cursor-inspector {
-  /*TODO(andrew): move fontshit */
-  line-height: var(--line-height);
-  font-family: "Source Code Pro", monospace;
-  font-weight: normal;
-  font-size: 13pt;
-  padding-right: 0.25em;
+  z-index: var(--type-inspector-z);
   position: fixed;
   top: 3.75em;
   left: 1em;
+  height: 1.2em;
+  padding-right: 0.25em;
   display: flex;
   align-items: center;
   gap: 0.5em;
   border-radius: 0.2em;
   border-bottom: 1px solid #daca9f;
-  height: 1.2em;
   background-color: #fefcf3;
 }
 
