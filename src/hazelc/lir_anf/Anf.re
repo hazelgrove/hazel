@@ -151,7 +151,7 @@ and stmt = {
 [@deriving sexp]
 and stmt_kind =
   | SLet(Ident.t, comp)
-  | SLetRec(Ident.t, (Ident.t, Typ.t_), (Typ.t, block))
+  | SLetRec(Ident.t, (Ident.t, Typ.t), (Typ.t, block))
   | /**
       Branching construct that takes an indeterminately incomplete result and
       branches based on its completeness at runtime.
