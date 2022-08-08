@@ -141,7 +141,8 @@ let create =
             | None => ()
             };
           };
-          if (Model.is_cell_focused(model)) {
+          if (Model.is_structure_editor_active(model)
+              && Model.is_cell_focused(model)) {
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
