@@ -436,13 +436,16 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
   let cursor_info = Model.get_cursor_info(model);
 
-  let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
-    | Failed => false
-    | CursorEscaped(_)
-    | Succeeded(_) => true
+  let is_action_allowed = (a: Action.t): bool =>
+    if (Model.is_structure_editor_active(model)) {
+      switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
+      | Failed => false
+      | CursorEscaped(_)
+      | Succeeded(_) => true
+      };
+    } else {
+      false;
     };
-  };
 
   let body = generate_panel_body(is_action_allowed, cursor_info, inject);
 
