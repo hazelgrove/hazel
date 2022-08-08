@@ -154,7 +154,8 @@ let structural_page = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
 let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let settings = model.settings;
   let current_page =
-    model.text_editor.active ? text_editor_page : structural_page;
+    Model.is_structure_editor_active(model)
+      ? structural_page : text_editor_page;
   TimeUtil.measure_time(
     "Page.view",
     settings.performance.measure && settings.performance.page_view,

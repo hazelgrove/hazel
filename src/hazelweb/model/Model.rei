@@ -47,6 +47,11 @@ let focus_cell: t => t;
 let blur_cell: t => t;
 let is_cell_focused: t => bool;
 
+/*
+ * Returns if the main structure editor is active (visible)
+ */
+let is_structure_editor_active: t => bool;
+
 /**
  * Update selected instances when user clicks on a hole
  * instance (in result or context inspector)

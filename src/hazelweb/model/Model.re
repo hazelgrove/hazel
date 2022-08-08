@@ -146,6 +146,10 @@ let is_cell_focused = model => {
   program.is_focused;
 };
 
+let is_structure_editor_active = (model: t): bool => {
+  !model.text_editor.active;
+};
+
 let get_selected_hole_instance = model =>
   switch (model |> get_program |> Program.cursor_on_exp_hole) {
   | None => None
