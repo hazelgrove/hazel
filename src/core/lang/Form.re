@@ -57,11 +57,26 @@ let di: expansion = (Delayed, Instant);
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
-/* Regular expressions which determine monotiles */
+/* Token Recognition Predicates */
+let is_arbitary_int = regexp("^[0-9]*$");
+let is_int = str =>
+  switch (int_of_string_opt(str)) {
+  | Some(_) => true
+  | None => false
+  };
+let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
+let is_float = str =>
+  switch (float_of_string_opt(str)) {
+  | _ when is_arbitary_int(str) =>
+    /* NOTE: As well as making this disjoint from is_int,
+       this case also prevents ints over int_max from being
+       cast as floats */
+    false
+  | Some(_) => true
+  | None => false
+  };
 let is_var = regexp("^[a-z][A-Za-z0-9_]*$");
-let is_int = regexp("^[0-9]*$");
-let is_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
-let is_typ_lit = regexp("^(Int|Float|Bool)$");
+let is_typ_lit = regexp("^Int\\|Float\\|Bool$");
 let is_typ_lit_partial = x =>
   !is_typ_lit(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");
@@ -75,10 +90,11 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    priority for forms with overlapping regexps */
 let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_typ_lit_partial, [mk_op(Typ, [])])),
-  //("type-partial", (is_typ_lit_partial, [mk_op(Nul, [])])),
+  ("type", (is_typ_lit, [mk_op(Typ, [])])),
+  ("type-partial", (is_typ_lit_partial, [mk_op(Nul, [])])),
   ("float", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("bad_int", (is_bad_int, [mk_op(Nul, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
 ];
 
