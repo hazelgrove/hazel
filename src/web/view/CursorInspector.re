@@ -8,7 +8,9 @@ let ty_view = (cls: string, s: string): Node.t =>
 let rec typ_view = (ty: Core.Typ.t): Node.t =>
   //TODO(andrew): parens on ops when ambiguous
   switch (ty) {
-  | Unknown(_prov) => ty_view("unknown", "?")
+  | Unknown(Internal) => ty_view("unknown", "?")
+  | Unknown(TypeHole) => ty_view("unknown", "?[𝜏]")
+  | Unknown(SynSwitch) => ty_view("unknown", "?[⇒]")
   | Unit => ty_view("()", "()")
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
@@ -71,13 +73,13 @@ let happy_view = (suc: Core.Statics.happy) => {
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       [clss([happyc, "ana-consistent"])],
-      [text("⇐"), typ_view(ty_syn), text("≈"), typ_view(ty_ana)],
+      [text("⇐"), typ_view(ty_ana), text("≈"), typ_view(ty_syn)],
     )
   | AnaInternalInconsistent(ty_ana, _)
   | AnaExternalInconsistent(ty_ana, _) =>
     div(
       [clss([happyc, "ana-consistent-external"])],
-      [text("⇐*"), typ_view(ty_ana)],
+      [text("⇐☆"), typ_view(ty_ana)],
     )
   };
 };
