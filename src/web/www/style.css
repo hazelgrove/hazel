@@ -990,6 +990,9 @@ svg {
 /* DYNAMICS - test panel */
 
 .test-multi-panel {
+  min-width: 15em;
+  max-height: 100%;
+  overflow-y: auto;
   z-index: var(--test-panel-z);
   position: fixed;
   right: 0;
