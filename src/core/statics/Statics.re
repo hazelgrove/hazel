@@ -165,8 +165,8 @@ let union_m =
 
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
-  switch (pat.term, ty_ann, def.term) {
-  | (Var(x), Arrow(_), Fun(_) | FunAnn(_)) =>
+  switch (ty_ann, pat.term, def.term) {
+  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_) | FunAnn(_)) =>
     VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
   | _ => ctx
   };
