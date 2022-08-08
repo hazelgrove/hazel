@@ -13,54 +13,57 @@ type cell = {
 /* NOTE: num_editors here should agree with TestView.school_panel */
 let defaults: list(cell) = [
   {
-    caption: "Student Implementation",
-    initial: "let not:Bool->Bool=
-fun x -> if x then false else true
-in
-let odd: Int->Bool =
-fun x->
-if x == 0
-then false
-else not(odd(x-1))
-in",
+    caption: "Your Implementation",
+    initial: "let odd: Int->Bool = in ",
     chapter:
       Some(
         div(
           [],
           [
             text(
-              "Welcome to School mode! Clicking 'school' at the top toggles back to either a single editor
-              or an editor per-page; clicking the toggle switches to the student sub-mode, hiding some of the
-              below cells. In School mode, there are a fixed number of cells displayed in a vertical
-              column. To add or remove cells go to School.re. If you want changes in the number or order
-              of cells to be wired up to the dynamics, you'll also need to modify school_panel in TestView.re.
-              Each cell has a text caption, a boolean flag to say whether it should be hidden in the student
-              sub-mode, and can be optionally preceeded by arbitrary HTML like this section right here.",
+              "Implement the function 'odd' in the 'Your Implementation' cell. Odd only needs to support
+              non-negative integers as input, and should produce a boolean as output. Note that there is
+              no 'not' in Hazel, nor a way to compare booleans for equality, so you may want to implement
+              one or both of these yourself. The name and type signature of the 'odd' function must remain
+              the same, but the return value of the cell is irrelevant.",
+            ),
+            br([]),
+            br([]),
+            text(
+              "Add enough tests to the 'Your Tests' section below to reveal all bugs in our buggy implementations.
+              The syntax for a test is 'test <boolean-expression> end'. You can use semicolons (sequencing operator)
+              to cleanly seperate tests. ",
+            ),
+            br([]),
+            br([]),
+            text(
+              "Known Limitations: If there are any concave holes in your input, your code won't be fully interpreted.
+              If you aren't getting test feedback on the right-hand side, it may be because your program has a type error.
+              Nonempty holes aren't drawn yet, so you'll need to move the caret through the program while watching the
+              cursor inspector in the top left. Test feedback isn't currently very helpful other than pass/fail.
+              Mouse interaction is currently the only way to move between cells, but inside cells keyboard input
+              must be used. If you experience any issues other than the limitations described here, please report
+              them on slack!",
             ),
           ],
         ),
       ),
     hidden: false,
   },
-  {
-    caption: "Student Tests",
-    initial: "test not(odd(4)) end;
-test odd(3) end;
-test odd(5) end",
-    chapter: None,
-    hidden: false,
-  },
+  {caption: "Your Tests", initial: "", chapter: None, hidden: false},
   {
     caption: "Hidden Tests",
-    initial: "test not(odd(0)) end;
+    initial: "let not: Bool->Bool =
+fun x -> if x then false else true
+in
+test not(odd(0)) end;
 test odd(1) end",
     chapter: None,
     hidden: true,
   },
   {
     caption: "Reference Implementation",
-    initial: "let a = true in
-let not: Bool->Bool =
+    initial: "let not: Bool->Bool =
 fun x -> if x then false else true
 in
 let odd:Int->Bool =
@@ -102,7 +105,7 @@ then false
 else not(odd(x-1))
 in let odd: Int->Bool =
 fun x ->
-if x == 5 then false else odd_correct(x)
+if x == 2 then true else odd_correct(x)
 in 3",
     chapter: None,
     hidden: true,
