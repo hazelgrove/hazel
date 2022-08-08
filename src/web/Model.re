@@ -46,7 +46,7 @@ let settings_init = {
   whitespace_icons: false,
   statics: true,
   dynamics: true,
-  student: false,
+  student: true,
   mode: Simple,
 };
 

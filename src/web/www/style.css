@@ -118,6 +118,7 @@
   --caret-z: 14;
   --top-bar-z: 15;
   --type-inspector-z: 15;
+  --result-z: 15;
   --test-panel-z: 16;
 }
 
@@ -938,7 +939,10 @@ svg {
 /* DYNAMICS */
 
 .result {
+  z-index: var(--result-z);
   position: fixed;
+  max-height: 3.2em;
+  overflow-y: auto;
   bottom: 0;
   left: 0;
   width: 100%;
