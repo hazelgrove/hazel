@@ -49,6 +49,12 @@ type syn_error =
       ExprLabel.t,
       Typ.t_,
       Typ.t_,
+    )
+  | /** Synthesized scrutinee type is not equal to expected pattern type.  */
+    PatScrutTypesNotEqual(
+      PatLabel.t,
+      Typ.t_,
+      Typ.t_,
     );
 
 [@deriving sexp]

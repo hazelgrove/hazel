@@ -78,7 +78,8 @@ and comp_kind =
   | CPairNI(imm, imm)
   | CInjNC(Typ.t_, inj_side, imm)
   | CInjNI(Typ.t_, inj_side, imm)
-  | CCase(imm, list(rule))
+  | CCaseNC(imm, list(rule))
+  | CCaseNI(imm, list(rule))
   | CEHole(MetaVar.t, MetaVarInst.t, sigma)
   | /**
       Wrap a necessarily complete expression into an non-empty hole.

@@ -16,7 +16,8 @@ type syn_error =
   | TypesNotEqual(ExprLabel.t, Typ.t, Typ.t)
   | BaseTypesNotEqual(ExprLabel.t, Typ.t_, Typ.t_)
   | BaseTypesEqual(ExprLabel.t, Typ.t_, Typ.t_)
-  | BaseTypesInconsistent(ExprLabel.t, Typ.t_, Typ.t_);
+  | BaseTypesInconsistent(ExprLabel.t, Typ.t_, Typ.t_)
+  | PatScrutTypesNotEqual(PatLabel.t, Typ.t_, Typ.t_);
 
 [@deriving sexp]
 type syn_result = result(syn_ok, syn_error);
@@ -82,6 +83,79 @@ let ty__of_bin_op: Anf.bin_op => Typ.t_ =
   | OpFLessThan
   | OpFGreaterThan
   | OpFEquals => TFloat;
+
+let rec ana_pat =
+        (
+          ctx,
+          {kind, label: l, complete: _}: Pat.t,
+          (scrut_cc, scrut_ty_): Typ.t,
+        ) => {
+  switch (kind) {
+  | PPair(p1, p2) =>
+    switch (scrut_ty_) {
+    | TPair(ty1, ty2) =>
+      let* ctx = ana_pat(ctx, p1, (scrut_cc, ty1));
+      ana_pat(ctx, p2, (scrut_cc, ty2));
+    /* FIXME: Hole is just a placeholder. */
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TPair(THole, THole)) |> fail
+    }
+
+  | PCons(p1, p2) =>
+    switch (scrut_ty_) {
+    | TList(ty_) =>
+      let* ctx = ana_pat(ctx, p1, (scrut_cc, ty_));
+      ana_pat(ctx, p2, (scrut_cc, TList(ty_)));
+
+    /* FIXME: Hole is just a placeholder. */
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TList(THole)) |> fail
+    }
+
+  | PInj(side, p') =>
+    switch (side, scrut_ty_) {
+    | (PInjL, TSum(ty, _))
+    | (PInjR, TSum(_, ty)) => ana_pat(ctx, p', (scrut_cc, ty))
+    /* FIXME: Hole is just a placeholder. */
+    | (PInjL, _) =>
+      PatScrutTypesNotEqual(l, scrut_ty_, TSum(THole, THole)) |> fail
+    | (PInjR, _) =>
+      PatScrutTypesNotEqual(l, scrut_ty_, TSum(THole, THole)) |> fail
+    }
+
+  | PWild => ctx |> return
+  | PVar(x) => TypContext.add(x, (scrut_cc, scrut_ty_), ctx) |> return
+
+  | PBool(_b) =>
+    switch (scrut_ty_) {
+    | TBool => ctx |> return
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TBool) |> fail
+    }
+
+  | PInt(_n) =>
+    switch (scrut_ty_) {
+    | TInt => ctx |> return
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TInt) |> fail
+    }
+
+  | PFloat(_f) =>
+    switch (scrut_ty_) {
+    | TFloat => ctx |> return
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TFloat) |> fail
+    }
+
+  | PNil =>
+    switch (scrut_ty_) {
+    | TList(_) => ctx |> return
+    /* FIXME: Hole is just a placeholder. */
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TList(THole)) |> fail
+    }
+
+  | PTriv =>
+    switch (scrut_ty_) {
+    | TUnit => ctx |> return
+    | _ => PatScrutTypesNotEqual(l, scrut_ty_, TUnit) |> fail
+    }
+  };
+};
 
 let rec ana' = (label, actual_ty, expected_ty) =>
   Typ.equal(actual_ty, expected_ty)
@@ -231,6 +305,11 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
   | CInjNI(other_ty_, side, im) =>
     syn_comp_inj(ctx, delta, (other_ty_, side, im), l, (ana_imm_ni, Typ.ni))
 
+  | CCaseNC(scrut, rules) =>
+    syn_comp_case(ctx, delta, (scrut, rules), l, (ana_imm_nc, Typ.nc))
+  | CCaseNI(scrut, rules) =>
+    syn_comp_case(ctx, delta, (scrut, rules), l, (ana_imm_ni, Typ.ni))
+
   | CCastNC(im, ty_, ty_') =>
     syn_comp_cast(ctx, delta, (im, ty_, ty_'), l, ana_imm_nc)
   | CCastNI(im, ty_, ty_') =>
@@ -332,6 +411,47 @@ and syn_comp_inj =
     | CInjR => TSum(other_ty_, this_ty_)
     };
   extend(l, wrap_ty_(ty));
+}
+
+/* ; Δ ; Γ ⊢ scrut : υ{τ}
+   ; ...
+   → Δ ; Γ ⊢ case scrut of rules : υ{τ'} */
+and syn_comp_case = (ctx, delta, (scrut, rules), l, (ana_imm_, wrap_ty_)) => {
+  let* scrut_ty = ana_imm_(ctx, delta, scrut, None);
+
+  /* ; υ{τ} ▷ p ⇒ Γ'
+     ; Δ ; Γ ∪ Γ' ⊢ b : υ'{τ'}
+     → Δ ; Γ     ⊢ p ⇒ b : υ'{τ'} */
+  let syn_rule =
+      (ctx, delta, {rule_pat, rule_branch, rule_label: _, _}: Anf.rule) => {
+    let* ctx = ana_pat(ctx, rule_pat, wrap_ty_(scrut_ty));
+    syn_block(ctx, delta, rule_branch);
+  };
+
+  let* ty =
+    switch (rules) {
+    | [] => CaseEmptyRules(l) |> fail
+    | [rule, ...rules] =>
+      rules
+      |> List.fold_left(
+           (acc, rule: Anf.rule) => {
+             let* acc_ty = acc;
+
+             let* branch_ty = syn_rule(ctx, delta, rule);
+             Typ.equal(acc_ty, branch_ty)
+               ? acc_ty |> return
+               : TypesNotEqual(
+                   rule.rule_branch.block_label,
+                   branch_ty,
+                   acc_ty,
+                 )
+                 |> fail;
+           },
+           syn_rule(ctx, delta, rule),
+         )
+    };
+
+  extend(l, ty);
 }
 
 /* ; Δ ; Γ ⊢ im : υ{τ}
