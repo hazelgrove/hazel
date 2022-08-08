@@ -59,28 +59,31 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
 
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^[0-9]*$");
-let is_int = str =>
-  switch (int_of_string_opt(str)) {
-  | Some(_) => true
-  | None => false
-  };
+let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
+let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
+/* NOTE: The is_arbitary_int check is necessary to prevent
+   minuses from being parsed as part of the int token. */
 let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
+/* NOTE: As well as making is_float  disjoint from is_int,
+   the is_arbitary_int  also prevents ints over int_max from being
+   cast as floats. The is_arbitary_float check is necessary to prevent
+   minuses from being parsed as part of the float token. */
 let is_float = str =>
-  switch (float_of_string_opt(str)) {
-  | _ when is_arbitary_int(str) =>
-    /* NOTE: As well as making this disjoint from is_int,
-       this case also prevents ints over int_max from being
-       cast as floats */
-    false
-  | Some(_) => true
-  | None => false
-  };
+  !is_arbitary_int(str)
+  && is_arbitary_float(str)
+  && float_of_string_opt(str) != None;
+let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_var = regexp("^[a-z][A-Za-z0-9_]*$");
-let is_typ_lit = regexp("^Int\\|Float\\|Bool$");
-let is_typ_lit_partial = x =>
-  !is_typ_lit(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
+let is_concrete_typ = str =>
+  str == "Int" || str == "Float" || str == "Bool" || str == "Unit";
+let is_partial_concrete_typ = x =>
+  !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");
 let is_bool = regexp("^true|false$");
+/* The below case represents tokens which we want the user to be able to
+   type in, but which have no reasonable semantic interpretation */
+let is_bad_lit = str =>
+  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
 
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
@@ -89,12 +92,11 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
+  ("bad_lit", (is_bad_lit, [mk_op(Nul, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("type", (is_typ_lit, [mk_op(Typ, [])])),
-  ("type-partial", (is_typ_lit_partial, [mk_op(Nul, [])])),
+  ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("float", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("bad_int", (is_bad_int, [mk_op(Nul, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
 ];
 

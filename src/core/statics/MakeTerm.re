@@ -209,9 +209,10 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(sort_dispatch)): UTyp.t => {
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) => Invalid(p)
       // TODO(andrew): Form.re should handle monotile recognition
+      | (["Unit"], [], []) => Unit
+      | (["Bool"], [], []) => Bool
       | (["Int"], [], []) => Int
       | (["Float"], [], []) => Float
-      | (["Bool"], [], []) => Bool
       | (["->"], [Typ(l), Typ(r)], []) => Arrow(l, r)
       | ([","], [Typ(l), Typ(r)], []) => Prod(l, r)
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))

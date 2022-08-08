@@ -399,6 +399,7 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   switch (term) {
   | Invalid(_)
   | EmptyHole
+  | Unit
   | Int
   | Float
   | Bool => ret(Id.Map.empty)

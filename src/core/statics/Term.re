@@ -23,6 +23,7 @@ module UTyp = {
   type cls =
     | Invalid
     | EmptyHole
+    | Unit
     | Int
     | Float
     | Bool
@@ -34,6 +35,7 @@ module UTyp = {
   type term =
     | Invalid(Piece.t)
     | EmptyHole
+    | Unit
     | Int
     | Float
     | Bool
@@ -49,6 +51,7 @@ module UTyp = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | Unit => Unit
     | Int => Int
     | Float => Float
     | Bool => Bool
@@ -60,6 +63,7 @@ module UTyp = {
     fun
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
+    | Unit
     | Int
     | Float
     | Bool => "Concrete Type"
@@ -283,9 +287,10 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     switch (utyp.term) {
     | Invalid(_)
     | EmptyHole => Unknown(TypeHole)
+    | Unit => Unit
+    | Bool => Bool
     | Int => Int
     | Float => Float
-    | Bool => Bool
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
     | Parens(u1) => utyp_to_ty(u1)
