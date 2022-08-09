@@ -7,80 +7,81 @@
    See the existing ones for reference.
  */
 
-module Impls = {
-  open EvaluatorResult;
+/*
+ module Impls = {
+   open EvaluatorResult;
 
-  /* int_of_float implementation. */
-  let int_of_float = (ident, r1) =>
-    switch (r1) {
-    | BoxedValue(FloatLit(f)) =>
-      let i = int_of_float(f);
-      BoxedValue(IntLit(i));
-    | BoxedValue(d1) =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
-    };
+   /* int_of_float implementation. */
+   let int_of_float = (ident, r1) =>
+     switch (r1) {
+     | BoxedValue(FloatLit(f)) =>
+       let i = int_of_float(f);
+       BoxedValue(IntLit(i));
+     | BoxedValue(d1) =>
+       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+     };
 
-  /* float_of_int implementation. */
-  let float_of_int = (ident, r1) =>
-    switch (r1) {
-    | BoxedValue(IntLit(i)) =>
-      let f = float_of_int(i);
-      BoxedValue(FloatLit(f));
-    | BoxedValue(d1) =>
-      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
-    };
+   /* float_of_int implementation. */
+   let float_of_int = (ident, r1) =>
+     switch (r1) {
+     | BoxedValue(IntLit(i)) =>
+       let f = float_of_int(i);
+       BoxedValue(FloatLit(f));
+     | BoxedValue(d1) =>
+       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
+     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+     };
 
-  /* mod implementation */
-  let int_mod = (ident, r1, r2) =>
-    switch (r1) {
-    | BoxedValue(IntLit(n) as d1) =>
-      switch (r2) {
-      | BoxedValue(IntLit(m) as d2) =>
-        switch (n, m) {
-        | (_, 0) =>
-          Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
-        | (n, m) => BoxedValue(IntLit(n mod m))
-        }
-      | BoxedValue(d2) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
-      }
-    | BoxedValue(d1) =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-    | Indet(d1) =>
-      switch (r2) {
-      | BoxedValue(d2)
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
-      }
-    };
+   /* mod implementation */
+   let int_mod = (ident, r1, r2) =>
+     switch (r1) {
+     | BoxedValue(IntLit(n) as d1) =>
+       switch (r2) {
+       | BoxedValue(IntLit(m) as d2) =>
+         switch (n, m) {
+         | (_, 0) =>
+           Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
+         | (n, m) => BoxedValue(IntLit(n mod m))
+         }
+       | BoxedValue(d2) =>
+         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
+       | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+       }
+     | BoxedValue(d1) =>
+       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+     | Indet(d1) =>
+       switch (r2) {
+       | BoxedValue(d2)
+       | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+       }
+     };
 
-  /* PI implementation. */
-  let pi = DHExp.FloatLit(Float.pi);
-};
+   /* PI implementation. */
+   let pi = DHExp.FloatLit(Float.pi);
+ };
+ */
 
-let builtins: list(Builtin.t) = [
-  Builtin.mk_zero(Context.empty(), "PI", HTyp.float(), Impls.pi),
-  Builtin.mk_one(
-    Context.empty(),
-    "int_of_float",
-    HTyp.arrow(HTyp.float(), HTyp.int()),
-    Impls.int_of_float,
-  ),
-  Builtin.mk_one(
-    Context.empty(),
-    "float_of_int",
-    HTyp.arrow(HTyp.int(), HTyp.float()),
-    Impls.float_of_int,
-  ),
-  Builtin.mk_two(
-    Context.empty(),
-    "mod",
-    HTyp.arrow(HTyp.int(), HTyp.arrow(HTyp.int(), HTyp.int())),
-    Impls.int_mod,
-  ),
-];
+let builtins: list(Builtin.t) = []; // Builtin.mk_zero(Context.empty(), "PI", HTyp.float(), Impls.pi),
+// Builtin.mk_one(
+//   Context.empty(),
+//   "int_of_float",
+//   HTyp.arrow(HTyp.float(), HTyp.int()),
+//   Impls.int_of_float,
+// ),
+// Builtin.mk_one(
+//   Context.empty(),
+//   "float_of_int",
+//   HTyp.arrow(HTyp.int(), HTyp.float()),
+//   Impls.float_of_int,
+// ),
+// Builtin.mk_two(
+//   Context.empty(),
+//   "mod",
+//   HTyp.arrow(HTyp.int(), HTyp.arrow(HTyp.int(), HTyp.int())),
+//   Impls.int_mod,
+
+// ),
 
 let vars: VarMap.t(HTyp.t) =
   List.map(({ident, ty, _}: Builtin.t) => (ident, ty), builtins);
