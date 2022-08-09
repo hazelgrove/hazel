@@ -9,6 +9,7 @@ type settings_action =
   | Statics
   | Dynamics
   | Student
+  | ContextInspector
   | Mode(Model.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -74,6 +75,10 @@ let update_settings =
         whitespace_icons: !settings.whitespace_icons,
       }
     | Student => {...settings, student: !settings.student}
+    | ContextInspector => {
+        ...settings,
+        context_inspector: !settings.context_inspector,
+      }
     | Mode(mode) => {...settings, mode}
     };
   LocalStorage.save_settings(settings);

@@ -854,8 +854,9 @@ svg {
 }
 
 .term-tag {
+  /* box-sizing: border-box; */
   padding: 0.1em 0.3em 0.1em 0.3em;
-  height: fit-content;
+  /* height: fit-content; */
   display: flex;
   border-radius: 0.2em;
   color: #0006;
@@ -863,6 +864,10 @@ svg {
   font-weight: bolder;
   text-transform: uppercase;
   align-items: center;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  /* border-bottom: 1px solid #d1c19e; */
+  border-left: 1px solid #d1c19e;
 }
 .term-tag.error {
   background-color: rgb(255 0 0);
@@ -886,8 +891,8 @@ svg {
 .cursor-inspector {
   z-index: var(--type-inspector-z);
   position: fixed;
-  top: 3.75em;
-  left: 1em;
+  top: 2.55em;
+  left: 0.68em;
   height: 1.2em;
   padding-right: 0.25em;
   display: flex;
@@ -895,7 +900,9 @@ svg {
   gap: 0.5em;
   border-radius: 0.2em;
   border-bottom: 1px solid #daca9f;
+  border-right: 1px solid #daca9f;
   background-color: #fefcf3;
+  box-shadow: 0px 2px 0px #77580255;
 }
 
 .cursor-inspector.error {
@@ -906,16 +913,16 @@ svg {
   z-index: 30;
   position: absolute;
   width: max-content;
-  top: 4.3em;
-  left: 0.6em;
+  top: 3.5em;
+  left: 0.75em;
   display: none;
   gap: 0.5em;
   font-size: 0.5em;
 }
-.cursor-inspector:hover .extra {
-  display: flex;
-}
-.cursor-inspector:hover .context-inspector {
+.cursor-inspector:hover .extra,
+.cursor-inspector .extra.visible,
+.cursor-inspector:hover .context-inspector,
+.context-inspector.visible {
   display: flex;
 }
 
@@ -954,8 +961,8 @@ svg {
   display: none; /* for now, only on ci hover */
   z-index: 20;
   position: fixed;
-  left: 1em;
-  top: 5.4em;  
+  left: 0.68em;
+  top: 3.8em;
   min-width: 10em;
   max-width: 12em;
   max-height: 12em;
@@ -967,7 +974,7 @@ svg {
   border-left: 1px solid #daca9f;
   border-right: 1px solid #daca9f;
   background-color: #fefcf3;
-  box-shadow: 0px 4px 0px #77580255;
+  box-shadow: 0px 3px 0px #77580255;
 }
 
 .context-entry {

@@ -25,10 +25,21 @@ let ctx_sorts_view = (ci: Core.Statics.t): Node.t => {
   };
 };
 
-let inspector_view = (_id: int, ci: Core.Statics.t): Node.t =>
-  div([clss(["context-inspector"])], [ctx_sorts_view(ci)]);
+let inspector_view =
+    (~settings: Model.settings, _id: int, ci: Core.Statics.t): Node.t => {
+  let clss =
+    clss(
+      ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
+    );
+  div([clss], [ctx_sorts_view(ci)]);
+};
 
-let view = (index': option(int), info_map: Core.Statics.map) => {
+let view =
+    (
+      ~settings: Model.settings,
+      index': option(int),
+      info_map: Core.Statics.map,
+    ) => {
   let (index, ci) =
     switch (index') {
     | Some(index) => (index, Core.Id.Map.find_opt(index, info_map))
@@ -36,6 +47,6 @@ let view = (index': option(int), info_map: Core.Statics.map) => {
     };
   switch (ci) {
   | None => div([clss(["context-inspector"])], [text("No Static Data")])
-  | Some(ci) => inspector_view(index, ci)
+  | Some(ci) => inspector_view(~settings, index, ci)
   };
 };
