@@ -151,11 +151,11 @@ let multi_editor_semantics_views =
       ~focal_zipper,
       ~editors,
     ) => {
-  let (_, combined_info_map) = TestView.spliced_statics(editors);
+  let (_, combined_info_map) = SchoolView.spliced_statics(editors);
   [ci_view(Indicated.index(focal_zipper), combined_info_map)]
   @ (
     settings.dynamics
-      ? [TestView.school_panel(~inject, ~font_metrics, editors)] : []
+      ? [SchoolView.view(~inject, ~font_metrics, editors)] : []
   );
 };
 
