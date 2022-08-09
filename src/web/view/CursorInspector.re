@@ -99,10 +99,13 @@ let cls_view = (ci: Core.Statics.t): Node.t =>
 let id_view = (id): Node.t =>
   div([clss(["id"])], [text(string_of_int(id))]);
 
-let extra_view = (id: int, ci: Core.Statics.t): Node.t =>
-  div([clss(["extra"])], [id_view(id), cls_view(ci)]);
+let extra_view = (visible: bool, id: int, ci: Core.Statics.t): Node.t =>
+  div(
+    [clss(["extra"] @ (visible ? ["visible"] : []))],
+    [id_view(id), cls_view(ci)],
+  );
 
-let print_ci = (ci, _) => {
+let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   print_endline(Core.Statics.show(ci));
   switch (ci) {
   | InfoPat({mode, self, _})
@@ -112,25 +115,27 @@ let print_ci = (ci, _) => {
     |> print_endline
   | _ => ()
   };
-  Event.Ignore;
+  inject(Set(ContextInspector));
 };
 
-let inspector_view = (id: int, ci: Core.Statics.t): Node.t =>
+let inspector_view =
+    (~inject, ~settings: Model.settings, id: int, ci: Core.Statics.t): Node.t =>
   div(
     [
       clss(
         ["cursor-inspector"] @ [Core.Statics.is_error(ci) ? errorc : happyc],
       ),
-      Attr.on_click(print_ci(ci)),
+      Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
     ],
     [
-      extra_view(id, ci),
+      extra_view(settings.context_inspector, id, ci),
       view_of_info(ci),
-      CtxInspector.inspector_view(id, ci),
+      CtxInspector.inspector_view(~settings, id, ci),
     ],
   );
 
-let view = (index': option(int), info_map: Core.Statics.map) => {
+let view =
+    (~inject, ~settings, index': option(int), info_map: Core.Statics.map) => {
   let (index, ci) =
     switch (index') {
     | Some(index) => (index, Core.Id.Map.find_opt(index, info_map))
@@ -138,6 +143,6 @@ let view = (index': option(int), info_map: Core.Statics.map) => {
     };
   switch (ci) {
   | None => div([clss(["cursor-inspector"])], [text("No Static Data")])
-  | Some(ci) => inspector_view(index, ci)
+  | Some(ci) => inspector_view(~inject, ~settings, index, ci)
   };
 };

@@ -45,11 +45,11 @@ let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
 };
 
 let single_editor_semantics_views =
-    (~settings: Model.settings, ~font_metrics, ~index, ~unselected) => {
+    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
   let term = MakeTerm.go(unselected);
   let (_, _, info_map) = Statics.mk_map(term);
   [
-    CursorInspector.view(index, info_map),
+    CursorInspector.view(~inject, ~settings, index, info_map),
     //CtxInspector.view(index, info_map),
   ]
   @ (
@@ -60,6 +60,7 @@ let single_editor_semantics_views =
 
 let single_editor =
     (
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper: Zipper.t,
@@ -79,6 +80,7 @@ let single_editor =
   let statics_view =
     settings.statics
       ? single_editor_semantics_views(
+          ~inject,
           ~settings,
           ~font_metrics,
           ~index=Indicated.index(zipper),
@@ -151,7 +153,14 @@ let multi_editor_semantics_views =
       ~editors,
     ) => {
   let (_, combined_info_map) = SchoolView.spliced_statics(editors);
-  [CursorInspector.view(Indicated.index(focal_zipper), combined_info_map)]
+  [
+    CursorInspector.view(
+      ~inject,
+      ~settings,
+      Indicated.index(focal_zipper),
+      combined_info_map,
+    ),
+  ]
   @ (
     settings.dynamics
       ? [SchoolView.view(~inject, ~font_metrics, editors)] : []
@@ -211,6 +220,7 @@ let view =
   | Simple(_)
   | Study(_) =>
     single_editor(
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper=focal_zipper,
@@ -218,13 +228,13 @@ let view =
     )
   | School(selected, editors) =>
     multi_editor(
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~editors,
-      ~selected,
-      ~settings,
-      ~focal_zipper,
       ~inject,
+      ~font_metrics,
+      ~settings,
+      ~editors,
+      ~focal_zipper,
+      ~selected,
+      ~show_backpack_targets,
     )
   };
 };
