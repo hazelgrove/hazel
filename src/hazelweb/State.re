@@ -7,19 +7,19 @@ module ProgramEvaluator = {
 
   type t = {
     inner: Inner.t,
-    next: ProgramEvaluator.evaluation_request => Lwt.t(unit),
+    next: ProgramEvaluator.request => Lwt.t(unit),
     complete: Inner.complete,
-    count: ref(ProgramEvaluator.evaluation_request_id),
+    count: ref(ProgramEvaluator.RequestId.t),
   };
 
   let create = () => {
     let (inner, next, complete) = Inner.create();
-    {inner, next, complete, count: ref(ProgramEvaluator.Id.init)};
+    {inner, next, complete, count: ref(ProgramEvaluator.RequestId.init)};
   };
 
   let next = ({next, count, _}: t, model: Model.t) => {
     let id = count^;
-    count := ProgramEvaluator.Id.next(count^);
+    count := ProgramEvaluator.RequestId.next(count^);
     (id, model |> Model.get_program) |> next;
   };
   let complete = ({complete, _}: t) => complete();

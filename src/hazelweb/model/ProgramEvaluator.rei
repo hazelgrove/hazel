@@ -1,6 +1,6 @@
 open Lwtutil;
 
-module Id: {
+module RequestId: {
   /**
     The type of an evaluation request id.
    */
@@ -32,22 +32,16 @@ module Id: {
 };
 
 /**
-  The type of an evaluation request id.
- */
-[@deriving sexp]
-type evaluation_request_id = Id.t;
-
-/**
   The type of an evaluation request.
  */
 [@deriving sexp]
-type evaluation_request = (evaluation_request_id, Program.t);
+type request = (RequestId.t, Program.t);
 
 /**
   The type of an evaluation exception.
  */
 [@deriving sexp]
-type evaluation_exn =
+type exn_error =
   | /** Caught {!exception:Program.EvalError}. */
     Program_EvalError(
       EvaluatorError.t,
@@ -56,25 +50,25 @@ type evaluation_exn =
     Program_DoesNotElaborate;
 
 [@deriving sexp]
-type evaluation_result_ =
+type response_ =
   | /** Evaluation succeeded. */
     EvaluationOk(ProgramResult.t)
   | /** Evaluation failed. */
-    EvaluationFail(evaluation_exn)
+    EvaluationFail(exn_error)
   | /** Evaluation timed out. */
     EvaluationTimeout;
 
 /**
-  The type of the evaluation result. [EvaluationFail] indicates some error was
+  The type of the evaluation response. [EvaluationFail] indicates some error was
   encountered.
  */
 [@deriving sexp]
-type evaluation_result = (evaluation_request_id, evaluation_result_);
+type response = (RequestId.t, response_);
 
 /**
-  The type of the deferred evaluation result. See {!type:evaluation_result}.
+  The type of the deferred evaluation response. See {!type:response}.
  */
-type deferred_result = Lwt.t(evaluation_result);
+type deferred_response = Lwt.t(response);
 
 /**
   The signature of a program evaluator.
@@ -91,10 +85,10 @@ module type M = {
   let init: unit => t;
 
   /**
-    [get_result t program] is [(q, t')], where [t'] contains the new evaluator
-    state and [q] is a promise that resolves with an {!type:evaluation_result}.
+    [get_response t program] is [(q, t')], where [t'] contains the new evaluator
+    state and [q] is a promise that resolves with an {!type:response}.
    */
-  let get_result: (t, evaluation_request) => (deferred_result, t);
+  let get_response: (t, request) => (deferred_response, t);
 };
 
 /**
@@ -126,7 +120,7 @@ module WorkerPool: M;
 module Memoized: (M: M) => M;
 
 module type STREAMED_ = {
-  type next = Lwt_observable.next(evaluation_result);
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
   /**
@@ -141,10 +135,10 @@ module type STREAMED_ = {
 
   /**
     [create ()] is (t, next, complete), where [t] is a new program evaluator.
-    [next program] asynchronously evaluates [program] and pushes the result to
+    [next program] asynchronously evaluates [program] and pushes the response to
     the stream. [complete ()] completes the internal stream.
    */
-  let create: unit => (t, evaluation_request => Lwt.t(unit), unit => unit);
+  let create: unit => (t, request => Lwt.t(unit), unit => unit);
 
   /**
     See {!val:Lwt_observable.subscribe}.
@@ -170,8 +164,7 @@ module type STREAMED_ = {
     See {!val:Lwt_observable.pipe}.
    */
   let pipe:
-    (Lwt_stream.t(evaluation_result) => Lwt_stream.t('b), t) =>
-    Lwt_observable.t('b);
+    (Lwt_stream.t(response) => Lwt_stream.t('b), t) => Lwt_observable.t('b);
 };
 
 /**
@@ -184,7 +177,7 @@ module type STREAMED = {
   include STREAMED_;
 
   /**
-    An evaluator stream in which obsolute results (determined by comparison to
+    An evaluator stream in which obsolute responses (determined by comparison to
     highest seen id value) are filtered out.
    */
   module Filtered: STREAMED_;

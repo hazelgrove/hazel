@@ -4,7 +4,7 @@ type previous = ProgramResult.t;
 [@deriving sexp]
 type current =
   | ResultOk(ProgramResult.t)
-  | ResultFail(ProgramEvaluator.evaluation_exn)
+  | ResultFail(ProgramEvaluator.exn_error)
   | ResultTimeout
   | ResultPending;
 

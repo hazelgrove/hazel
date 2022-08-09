@@ -4,7 +4,7 @@ open Lwt.Infix;
 open Lwt.Syntax;
 open Lwtutil;
 
-module Id: {
+module RequestId: {
   [@deriving sexp]
   type t;
 
@@ -31,41 +31,38 @@ module Id: {
 };
 
 [@deriving sexp]
-type evaluation_request_id = Id.t;
+type request = (RequestId.t, Program.t);
 
 [@deriving sexp]
-type evaluation_request = (evaluation_request_id, Program.t);
-
-[@deriving sexp]
-type evaluation_exn =
+type exn_error =
   | Program_EvalError(EvaluatorError.t)
   | Program_DoesNotElaborate;
 
 [@deriving sexp]
-type evaluation_result_ =
+type response_ =
   | EvaluationOk(ProgramResult.t)
-  | EvaluationFail(evaluation_exn)
+  | EvaluationFail(exn_error)
   | EvaluationTimeout;
 
 [@deriving sexp]
-type evaluation_result = (evaluation_request_id, evaluation_result_);
+type response = (RequestId.t, response_);
 
-type deferred_result = Lwt.t(evaluation_result);
+type deferred_response = Lwt.t(response);
 
 module type M = {
   type t;
 
   let init: unit => t;
 
-  let get_result: (t, evaluation_request) => (deferred_result, t);
+  let get_response: (t, request) => (deferred_response, t);
 };
 
 module Sync: M = {
-  type t = {latest: evaluation_request_id};
+  type t = {latest: RequestId.t};
 
-  let init = () => {latest: Id.init};
+  let init = () => {latest: RequestId.init};
 
-  let get_result = ({latest}: t, (id, program): evaluation_request) => {
+  let get_response = ({latest}: t, (id, program): request) => {
     let lwt = {
       let+ r = Lwt.wrap(() => program |> Program.get_result);
       let res =
@@ -88,7 +85,7 @@ module W =
   WebWorker.Make({
     module Request = {
       [@deriving sexp]
-      type t = evaluation_request;
+      type t = request;
       type u = string;
 
       let serialize = program =>
@@ -98,7 +95,7 @@ module W =
 
     module Response = {
       [@deriving sexp]
-      type t = evaluation_result;
+      type t = response;
       type u = string;
 
       let serialize = r => Sexplib.(r |> sexp_of_t |> Sexp.to_string);
@@ -113,7 +110,7 @@ module W =
 
       let init_state = Sync.init;
 
-      let on_request = Sync.get_result;
+      let on_request = Sync.get_response;
     };
   });
 
@@ -122,7 +119,7 @@ module Worker: M = {
 
   let init = W.Client.init;
 
-  let get_result = W.Client.request;
+  let get_response = W.Client.request;
 };
 
 module WorkerImpl = W.Worker;
@@ -140,7 +137,7 @@ module WorkerPool: M = {
     pool;
   };
 
-  let get_result = (pool: t, (id, program): evaluation_request) => {
+  let get_response = (pool: t, (id, program): request) => {
     let res =
       (id, program)
       |> Pool.request(pool)
@@ -154,17 +151,17 @@ module Memoized = (M: M) => {
 
   module Memo = Core_kernel.Memo;
   /* FIXME: Not sure if this just works?? */
-  let get_result = Memo.general(~cache_size_bound=5000, get_result);
+  let get_response = Memo.general(~cache_size_bound=5000, get_response);
 };
 
 module type STREAMED_ = {
-  type next = Lwt_observable.next(evaluation_result);
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
   type t;
   type subscription;
 
-  let create: unit => (t, evaluation_request => Lwt.t(unit), unit => unit);
+  let create: unit => (t, request => Lwt.t(unit), unit => unit);
 
   let subscribe: (t, next, complete) => subscription;
   let subscribe': (t, next) => subscription;
@@ -174,8 +171,7 @@ module type STREAMED_ = {
   let wait: t => Lwt.t(unit);
 
   let pipe:
-    (Lwt_stream.t(evaluation_result) => Lwt_stream.t('b), t) =>
-    Lwt_observable.t('b);
+    (Lwt_stream.t(response) => Lwt_stream.t('b), t) => Lwt_observable.t('b);
 };
 
 module type STREAMED = {
@@ -185,18 +181,18 @@ module type STREAMED = {
 };
 
 module Streamed = (M: M) => {
-  type next = Lwt_observable.next(evaluation_result);
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
   type t = {
     inner: ref(M.t),
-    observable: Lwt_observable.t(evaluation_result),
+    observable: Lwt_observable.t(response),
   };
 
-  type subscription = Lwt_observable.subscription(evaluation_result);
+  type subscription = Lwt_observable.subscription(response);
 
   let map_program = (inner, (id, program)) => {
-    let (r, inner') = (id, program) |> M.get_result(inner^);
+    let (r, inner') = (id, program) |> M.get_response(inner^);
     inner := inner';
 
     /* No clue why this is necessary but it doesn't work otherwise? */
@@ -237,29 +233,31 @@ module Streamed = (M: M) => {
 
     type nonrec t = {
       inner: t,
-      max: ref(evaluation_request_id),
+      max: ref(RequestId.t),
     };
 
     type nonrec subscription = subscription;
 
     let create = () => {
-      let max = ref(Id.init);
+      let max = ref(RequestId.init);
 
       let ({inner, observable}, next, complete) = create();
 
       let next = ((id, program)) =>
-        if (Id.compare(id, max^) > 0) {
+        if (RequestId.compare(id, max^) > 0) {
           max := id;
           next((id, program));
         } else {
           Lwt.return_unit;
         };
 
-      /* Filter out obsolete results as they come in. */
+      /* Filter out obsolete responses as they come in. */
       let observable =
         observable
         |> Lwt_observable.pipe(
-             Lwt_stream.filter(((id, _)) => Id.compare(id, max^) >= 0),
+             Lwt_stream.filter(((id, _)) =>
+               RequestId.compare(id, max^) >= 0
+             ),
            );
 
       let inner = {inner, observable};
