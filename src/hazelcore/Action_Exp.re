@@ -2074,10 +2074,10 @@ and syn_perform_operand =
       Succeeded(SynDone((new_ze, new_ty, id_gen)));
     }
 
-  | (_, TypFunZE(_, _tp, zbody)) =>
+  | (_, TypFunZE(_, tp, zbody)) =>
     switch (HTyp.matched_forall(ctx, ty)) {
     | None => Failed
-    | Some((tp, ty_body)) =>
+    | Some((_tp, ty_body)) =>
       let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
       switch (syn_perform(body_ctx, a, (zbody, ty_body, id_gen))) {
       | Failed => Failed
