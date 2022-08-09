@@ -118,6 +118,7 @@ module WorkerPool: M with type response = option(response) = {
 
   let get_response = (pool: t, program) => {
     let res = program |> Pool.request(pool);
+    let _ = Pool.add(pool);
     (res, pool);
   };
 };
