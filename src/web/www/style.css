@@ -866,7 +866,7 @@ svg {
 }
 .term-tag.error {
   background-color: rgb(255 0 0);
-  color: #830000;
+  color: #830000 !important; /* HACK(andrew) */
 }
 .term-tag-typ{
   background-color:rgb(197, 253, 197);
@@ -903,10 +903,11 @@ svg {
 }
 
 .cursor-inspector .extra {
+  z-index: 30;
   position: absolute;
   width: max-content;
-  top: -2em;
-  left: 0.5em;
+  top: 4.3em;
+  left: 0.6em;
   display: none;
   gap: 0.5em;
   font-size: 0.5em;
@@ -955,10 +956,12 @@ svg {
   position: fixed;
   left: 1em;
   top: 5.4em;  
+  min-width: 10em;
   max-width: 12em;
   max-height: 12em;
   overflow: auto;
   padding: 0.2em;
+  padding-top: 1.5em;
   white-space: nowrap;
   border-radius: 0.2em;
   border-left: 1px solid #daca9f;
