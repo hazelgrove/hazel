@@ -207,7 +207,12 @@ svg {
   left: 100%;
 }
 
-#font-specimen, .code-container, .DHCode, .cursor-inspector {
+#font-specimen,
+.code-container,
+.DHCode,
+.cursor-inspector,
+.context-entry,
+.typ-view {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
@@ -842,6 +847,42 @@ svg {
 
 /* STATICS */
 
+.typ-view {
+  color: #24ae62;
+  display: flex;
+  gap: 0.5em;
+}
+
+.term-tag {
+  padding: 0.1em 0.3em 0.1em 0.3em;
+  height: fit-content;
+  display: flex;
+  border-radius: 0.2em;
+  color: #0006;
+  font-size: 0.75em;
+  font-weight: bolder;
+  text-transform: uppercase;
+  align-items: center;
+}
+.term-tag.error {
+  background-color: rgb(255 0 0);
+  color: #830000;
+}
+.term-tag-typ{
+  background-color:rgb(197, 253, 197);
+  color: #02860066;
+}
+.term-tag-pat{
+  background-color:#baf1fe;
+  color: #609bbc;
+}
+.term-tag-exp{
+  background-color:rgb(235 223 197);
+  color: #b1a47f;
+}
+
+/* CURSOR INSPECTOR */
+
 .cursor-inspector {
   z-index: var(--type-inspector-z);
   position: fixed;
@@ -873,6 +914,9 @@ svg {
 .cursor-inspector:hover .extra {
   display: flex;
 }
+.cursor-inspector:hover .context-inspector {
+  display: flex;
+}
 
 .cursor-inspector .extra .syntax-class {
   color: var(--top_bar_icon_fill);
@@ -882,59 +926,54 @@ svg {
   color: #8f8054;
 }
 
-.typ-view {
-  display: flex;
-  gap: 0.5em;
-}
-
 .cursor-inspector .info{
   display: flex;
   align-items: center;
   gap: 0.5em;
 }
 
-.info .happy, .info .error {
+.cursor-inspector .info .happy,
+.cursor-inspector .info .error {
   display: flex;
   gap: 0.5em;
 }
 
-.info .happy,
-.info .happy .typ-view {
+.cursor-inspector .info .happy,
+.cursor-inspector .info .happy .typ-view {
   color: #24ae62;
 }
 
-.info .error,
-.info .error .typ-view {
+.cursor-inspector .info .error,
+.cursor-inspector .info .error .typ-view {
   color: red ;
 }
 
-.term-tag {
-  padding: 0.1em 0.3em 0.1em 0.3em;
-  height: fit-content;
-  display: flex;
+/* CONTEXT INSPECTOR */
+.context-inspector {
+  display: none; /* for now, only on ci hover */
+  z-index: 20;
+  position: fixed;
+  left: 1em;
+  top: 5.4em;  
+  max-width: 12em;
+  max-height: 12em;
+  overflow: auto;
+  padding: 0.2em;
+  white-space: nowrap;
   border-radius: 0.2em;
-  color: #0006;
-  font-size: 0.75em;
-  font-weight: bolder;
-  text-transform: uppercase;
-  align-items: center;
+  border-left: 1px solid #daca9f;
+  border-right: 1px solid #daca9f;
+  background-color: #fefcf3;
+  box-shadow: 0px 4px 0px #77580255;
 }
-.term-tag.error {
-  background-color: rgb(255 0 0);
-  color: #830000;
+
+.context-entry {
+  display: flex;
+  width: 10em;
+  gap: 0.5em;
 }
-.term-tag-typ{
-  background-color:rgb(197, 253, 197);
-  color: #02860066;
-}
-.term-tag-pat{
-  background-color:#baf1fe;
-  color: #609bbc;
-}
-.term-tag-exp{
-  background-color:rgb(235 223 197);
-  color: #b1a47f;
-}
+
+/* END STATICS*/
 
 /* DYNAMICS */
 
