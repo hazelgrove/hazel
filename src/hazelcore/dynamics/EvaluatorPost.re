@@ -41,7 +41,7 @@ exception Exception(error);
 /**
   Postprocess inside evaluation boundary.
  */
-let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
+let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | BoolLit(_)
@@ -49,10 +49,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | FloatLit(_)
   | ListNil(_)
   | Triv => d |> return
-
-  | FixF(f, ty, d1) =>
-    let* d1' = pp_eval(d1);
-    FixF(f, ty, d1') |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -107,6 +103,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
+  | FixF(_)
   | ConsistentCase(_)
   | Fun(_)
   | EmptyHole(_)
@@ -134,6 +131,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       let* d1 = pp_eval(d1);
       let* d2 = pp_uneval(env, d2);
       Let(dp, d1, d2) |> return;
+
+    | FixF(f, ty, d) =>
+      let* d = pp_uneval(env, d);
+      FixF(f, ty, d) |> return;
 
     | ConsistentCase(Case(scrut, rules, i)) =>
       /* scrut should already be evaluated, rule bodies are not */
@@ -166,7 +167,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     /* Other expression forms cannot be directly in a closure. */
     | _ => raise(Exception(InvalidClosureBody))
     };
-  }
+  };
+}
 
 /* Recurse through environments, using memoized result if available. */
 and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {

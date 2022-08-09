@@ -439,8 +439,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         |> OptUtil.get(() =>
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            );
-      /* We need to call [evaluate] on [d] again since [env] does not store
-       * final expressions. */
+      /* We need to call [evaluate] on [d] again since [env] does not
+       * necessarily store final expressions. */
       evaluate(env, d);
 
     | Let(dp, d1, d2) =>
@@ -457,9 +457,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | FixF(f, _, _) as d =>
-      let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-      evaluate(env', d);
+    | FixF(f, _, body) =>
+      let d: DHExp.t = Closure(env, d);
+      let* env' = env |> evaluate_extend_env(Environment.singleton((f, d)));
+      evaluate(env', body);
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
@@ -622,9 +623,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Generalized closures evaluate to themselves. Only
        lambda closures are BoxedValues; other closures are all Indet. */
-    | Closure(_, d') =>
+    | Closure(env, d') =>
       switch (d') {
       | Fun(_) => BoxedValue(d) |> return
+      | FixF(_) => evaluate(env, d')
       | _ => Indet(d) |> return
       }
 
