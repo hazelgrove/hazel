@@ -142,7 +142,7 @@ module Memoized = (M: M) : (M with type response = M.response) => {
       let res =
         res
         |> Lwt.map(res => {
-             Hashtbl.add(tbl, program, res);
+             Hashtbl.replace(tbl, program, res);
              res;
            });
 
