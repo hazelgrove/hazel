@@ -1,3 +1,7 @@
+/**
+  Resource pool with timeouts, inspired by {!Lwt.Lwt_pool}.
+ */
+
 /** Create a fresh pool member. */
 type create('a) = unit => Lwt.t('a);
 /** Dispose of a pool member. */

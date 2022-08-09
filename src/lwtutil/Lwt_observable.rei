@@ -1,5 +1,10 @@
-type next('a) = 'a => unit;
-type complete = unit => unit;
+/**
+  Asynchronous reactive streams, in the style of {{: https://rxjs.dev/} RxJS}.
+
+  {{: https://rxjs.dev/guide/overview} Their guide} might be helpful.
+  Also see the tests ([Test.re]) for usage examples.
+ */
+type t('a);
 
 /**
   The type for a subscription.
@@ -7,9 +12,14 @@ type complete = unit => unit;
 type subscription('a);
 
 /**
-  The type for an observable.
+  The type of a subscription callback.
  */
-type t('a);
+type next('a) = 'a => unit;
+
+/**
+  The type of a subscription completion callback.
+ */
+type complete = unit => unit;
 
 /**
   [of_stream stream] is an observable that uses [stream].

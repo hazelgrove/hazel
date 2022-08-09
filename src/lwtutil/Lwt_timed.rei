@@ -1,3 +1,8 @@
+/**
+  Timeout wrapper for {!Lwt.t}.
+ */
+open Lwt;
+
 module type TIMER = {
   /**
     [delay f t] applies [f ()] after [t] milliseconds.
@@ -11,7 +16,7 @@ module type S = {
     yields [Some(x)] when [q] completes within the timeout and [None]
     otherwise.
    */
-  let wrap: (int, Lwt.t('a)) => Lwt.t(option('a));
+  let wrap: (int, t('a)) => t(option('a));
 };
 
 module Make: (T: TIMER) => S;
