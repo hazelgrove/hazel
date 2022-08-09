@@ -79,7 +79,7 @@ let is_concrete_typ = str =>
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");
-let is_bool = regexp("^true|false$");
+let is_bool = str => str == "true" || str == "false";
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
