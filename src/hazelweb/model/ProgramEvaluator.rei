@@ -12,6 +12,7 @@
       in a worker thread. {!WorkerImpl} contains the worker thread implementation.
     - {b worker pool} ({!WorkerPool}): Pool of web worker-based evaluators,
       which uses {b worker} internally.
+    - {b memoized} ({!Memoized}): Functor to memoize the evaluation result.
 
   There is also an interface based on reactive streams (in the style of
   {{: https://rxjs.dev/} RxJS}). It is a thin wrapper around {!Lwt_observable},
@@ -103,9 +104,6 @@ module type M = {
   let get_response: (t, request) => (Lwt.t(response), t);
 };
 
-/* FIXME: Remove this. */
-module Memoized: (M: M) => M;
-
 /**
   Synchronous evaluator. See above module level documentation.
  */
@@ -134,6 +132,11 @@ module WorkerImpl: WebWorker.WorkerS;
   level documentation.
  */
 module WorkerPool: M with type response = option(response);
+
+/**
+  Memoized evaluator. See above module level documentation.
+ */
+module Memoized: (M: M) => M with type response = M.response;
 
 /**
   Output of the {!Stream} functor. It is a wrapper around {!Lwtutil.Lwt_observable}

@@ -26,14 +26,6 @@ module type M = {
   let get_response: (t, request) => (Lwt.t(response), t);
 };
 
-module Memoized = (M: M) => {
-  include M;
-
-  module Memo = Core_kernel.Memo;
-  /* FIXME: Not sure if this just works?? */
-  let get_response = Memo.general(~cache_size_bound=5000, get_response);
-};
-
 module Sync: M with type response = response = {
   [@deriving sexp]
   type nonrec response = response;
@@ -127,6 +119,34 @@ module WorkerPool: M with type response = option(response) = {
   let get_response = (pool: t, program) => {
     let res = program |> Pool.request(pool);
     (res, pool);
+  };
+};
+
+module Memoized = (M: M) : (M with type response = M.response) => {
+  [@deriving sexp]
+  type response = M.response;
+
+  type t = {
+    inner: M.t,
+    tbl: Hashtbl.t(request, response),
+  };
+
+  let init = () => {inner: M.init(), tbl: Hashtbl.create(5000)};
+
+  let get_response = ({inner, tbl}, program) => {
+    switch (Hashtbl.find_opt(tbl, program)) {
+    | Some(res) => (Lwt.return(res), {inner, tbl})
+    | None =>
+      let (res, inner) = M.get_response(inner, program);
+      let res =
+        res
+        |> Lwt.map(res => {
+             Hashtbl.add(tbl, program, res);
+             res;
+           });
+
+      (res, {inner, tbl});
+    };
   };
 };
 
