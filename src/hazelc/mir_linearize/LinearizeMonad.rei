@@ -23,12 +23,7 @@ module State: {
   let get_hole_renamings: t => MetaVarMap.t(Renamings.t);
 };
 
-include Util.Monads.MONAD with type t('a) = State.t => (State.t, 'a);
-
-let get: t(State.t);
-let put: State.t => t(unit);
-
-let sequence: list(t('a)) => t(list('a));
+include Util.StateMonad.S with type state = State.t;
 
 let init: FreshLabels.t => State.t;
 

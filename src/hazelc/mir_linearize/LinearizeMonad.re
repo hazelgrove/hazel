@@ -84,20 +84,6 @@ module State = {
 };
 
 include Util.StateMonad.Make(State);
-open Syntax;
-
-let sequence = ms => {
-  let rec sequence' = (ms, acc) => {
-    switch (ms) {
-    | [] => acc
-    | [m, ...ms] =>
-      let* x = m;
-      sequence'(ms, acc >>| (acc => [x, ...acc]));
-    };
-  };
-
-  sequence'(ms, [] |> return) >>| List.rev;
-};
 
 let init = State.init;
 
