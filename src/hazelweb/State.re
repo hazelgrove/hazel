@@ -9,25 +9,20 @@ module ProgramEvaluator = {
     inner: Inner.t,
     next: ProgramEvaluator.request => Lwt.t(unit),
     complete: Inner.complete,
-    count: ref(ProgramEvaluator.RequestId.t),
   };
 
   let create = () => {
     let (inner, next, complete) = Inner.create(InnerW.init());
-    {inner, next, complete, count: ref(ProgramEvaluator.RequestId.init)};
+    {inner, next, complete};
   };
 
-  let next = ({next, count, _}: t, model: Model.t) => {
-    let id = count^;
-    count := ProgramEvaluator.RequestId.next(count^);
-    (id, model |> Model.get_program) |> next;
+  let next = ({next, _}: t, model: Model.t) => {
+    model |> Model.get_program |> next;
   };
   let complete = ({complete, _}: t) => complete();
 
-  let subscribe = ({inner, _}: t, next) =>
-    Inner.subscribe(inner, ((_, r)) => next(r));
-  let subscribe' = ({inner, _}: t, next) =>
-    Inner.subscribe(inner, ((_, r)) => next(r));
+  let subscribe = ({inner, _}: t, next) => Inner.subscribe(inner, next);
+  let subscribe' = ({inner, _}: t, next) => Inner.subscribe'(inner, next);
 };
 
 type t = {evaluator: ProgramEvaluator.t};

@@ -2,34 +2,8 @@ open Sexplib.Std;
 open Lwt.Syntax;
 open Lwtutil;
 
-module RequestId: {
-  [@deriving sexp]
-  type t;
-
-  let equal: (t, t) => bool;
-  let compare: (t, t) => int;
-  let max: (t, t) => t;
-
-  let to_int: t => int;
-
-  let init: t;
-  let next: t => t;
-} = {
-  [@deriving sexp]
-  type t = int;
-
-  let equal = Int.equal;
-  let compare = Int.compare;
-  let max = Int.max;
-
-  let to_int = id => id;
-
-  let init = 0;
-  let next = id => id + 1;
-};
-
 [@deriving sexp]
-type request = (RequestId.t, Program.t);
+type request = Program.t;
 
 [@deriving sexp]
 type exn_error =
@@ -49,7 +23,7 @@ module type M = {
 
   let init: unit => t;
 
-  let get_response: (t, request) => (Lwt.t((RequestId.t, response)), t);
+  let get_response: (t, request) => (Lwt.t(response), t);
 };
 
 module Memoized = (M: M) => {
@@ -64,11 +38,11 @@ module Sync: M with type response = response = {
   [@deriving sexp]
   type nonrec response = response;
 
-  type t = {latest: RequestId.t};
+  type t = unit;
 
-  let init = () => {latest: RequestId.init};
+  let init = () => ();
 
-  let get_response = ({latest}: t, (id, program): request) => {
+  let get_response = ((): t, program: request) => {
     let lwt = {
       let+ r = Lwt.wrap(() => program |> Program.get_result);
       let res =
@@ -79,10 +53,10 @@ module Sync: M with type response = response = {
         | exception Program.DoesNotElaborate =>
           EvaluationFail(Program_DoesNotElaborate)
         };
-      (id, res);
+      res;
     };
 
-    (lwt, {latest: latest});
+    (lwt, ());
   };
 };
 
@@ -101,7 +75,7 @@ module W =
 
     module Response = {
       [@deriving sexp]
-      type t = (RequestId.t, response);
+      type t = response;
       type u = string;
 
       let serialize = r => Sexplib.(r |> sexp_of_t |> Sexp.to_string);
@@ -150,14 +124,8 @@ module WorkerPool: M with type response = option(response) = {
     pool;
   };
 
-  let get_response = (pool: t, (id, program)) => {
-    let res = {
-      let+ res = (id, program) |> Pool.request(pool);
-      switch (res) {
-      | Some((id, res)) => (id, Some(res))
-      | None => (id, None)
-      };
-    };
+  let get_response = (pool: t, program) => {
+    let res = program |> Pool.request(pool);
     (res, pool);
   };
 };
@@ -171,7 +139,7 @@ module type STREAM = {
   type t;
   type subscription;
 
-  type next = Lwt_observable.next((RequestId.t, response));
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
   let create: t_ => (t, request => Lwt.t(unit), unit => unit);
@@ -183,12 +151,15 @@ module type STREAM = {
 
   let wait: t => Lwt.t(unit);
 
+  /* FIXME: Don't expose id. */
   let pipe:
-    (Lwt_stream.t((RequestId.t, response)) => Lwt_stream.t('b), t) =>
+    (Lwt_stream.t((int, response)) => Lwt_stream.t('b), t) =>
     Lwt_observable.t('b);
 };
 
-module Stream = (M: M) => {
+module Stream =
+       (M: M)
+       : (STREAM with type t_ = M.t and type response = M.response) => {
   type t_ = M.t;
 
   [@deriving sexp]
@@ -196,17 +167,17 @@ module Stream = (M: M) => {
 
   type t = {
     inner: ref(M.t),
-    observable: Lwt_observable.t((RequestId.t, response)),
-    max: ref(RequestId.t),
+    observable: Lwt_observable.t((int, response)),
+    max: ref(int),
   };
 
-  type subscription = Lwt_observable.subscription((RequestId.t, response));
+  type subscription = Lwt_observable.subscription((int, response));
 
-  type next = Lwt_observable.next((RequestId.t, response));
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
-  let map_program = (inner, (id, program)) => {
-    let (r, inner') = (id, program) |> M.get_response(inner^);
+  let map_program = (inner, program) => {
+    let (r, inner') = program |> M.get_response(inner^);
     inner := inner';
 
     /* No clue why this is necessary but it doesn't work otherwise? */
@@ -217,39 +188,33 @@ module Stream = (M: M) => {
   let create = inner => {
     let inner = ref(inner);
     let (observable, next, complete) = Lwt_observable.create();
-
-    let max = ref(RequestId.init);
+    let max = ref(0);
 
     /* Filter out obsolete responses as they come in. */
     let observable =
       observable
       |> Lwt_observable.pipe(
-           Lwt_stream.filter(((id, _)) => RequestId.compare(id, max^) >= 0),
+           Lwt_stream.filter(((id, _)) => Int.compare(id, max^) >= 0),
          );
 
-    let next = ((id, program)) =>
+    let next = program => {
+      incr(max);
+
       Lwt.try_bind(
-        () => (id, program) |> map_program(inner),
-        r => r |> next |> Lwt.return,
+        () => program |> map_program(inner),
+        r => (max^, r) |> next |> Lwt.return,
         exn => Lwt.fail(exn),
       );
-
-    let next = ((id, program)) =>
-      if (RequestId.compare(id, max^) > 0) {
-        max := id;
-        next((id, program));
-      } else {
-        Lwt.return_unit;
-      };
+    };
 
     ({inner, observable, max}, next, complete);
   };
 
-  let subscribe = ({inner: _, observable, max: _}) =>
-    Lwt_observable.subscribe(observable);
+  let subscribe = ({inner: _, observable, max: _}, next) =>
+    Lwt_observable.subscribe(observable, ((_, r)) => next(r));
 
-  let subscribe' = ({inner: _, observable, max: _}) =>
-    Lwt_observable.subscribe'(observable);
+  let subscribe' = ({inner: _, observable, max: _}, next) =>
+    Lwt_observable.subscribe'(observable, ((_, r)) => next(r));
 
   let unsubscribe = Lwt_observable.unsubscribe;
 

@@ -1,41 +1,11 @@
+
 open Lwtutil;
-
-module RequestId: {
-  /**
-    The type of an evaluation request id.
-   */
-  [@deriving sexp]
-  type t;
-
-  let equal: (t, t) => bool;
-  let compare: (t, t) => int;
-
-  /**
-    [max id id'] is the id that is larger (and more recent) of the two.
-   */
-  let max: (t, t) => t;
-
-  /**
-    [to_int id] is the integer for the id.
-   */
-  let to_int: t => int;
-
-  /**
-    [init] is the initial id.
-   */
-  let init: t;
-
-  /**
-    [next id] is the next id after [id].
-   */
-  let next: t => t;
-};
 
 /**
   The type of an evaluation request.
  */
 [@deriving sexp]
-type request = (RequestId.t, Program.t);
+type request = Program.t;
 
 /**
   The type of an evaluation exception.
@@ -85,7 +55,7 @@ module type M = {
     evaluator state and [q] is a promise that resolves with an
     {!type:response}.
    */
-  let get_response: (t, request) => (Lwt.t((RequestId.t, response)), t);
+  let get_response: (t, request) => (Lwt.t(response), t);
 };
 
 module Memoized: (M: M) => M;
@@ -142,7 +112,7 @@ module type STREAM = {
    */
   type subscription;
 
-  type next = Lwt_observable.next((RequestId.t, response));
+  type next = Lwt_observable.next(response);
   type complete = Lwt_observable.complete;
 
   /**
@@ -178,7 +148,7 @@ module type STREAM = {
     See {!val:Lwt_observable.pipe}.
    */
   let pipe:
-    (Lwt_stream.t((RequestId.t, response)) => Lwt_stream.t('b), t) =>
+    (Lwt_stream.t((int, response)) => Lwt_stream.t('b), t) =>
     Lwt_observable.t('b);
 };
 
