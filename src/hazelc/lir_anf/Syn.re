@@ -14,7 +14,7 @@ type syn_error =
   | UnboundVar(ExprLabel.t)
   | UnboundHole(ExprLabel.t)
   | WrongHoleSort(ExprLabel.t)
-  | SigmaUnboundVar(ExprLabel.t, Ident.t)
+  | UnboundVarSigma(ExprLabel.t, Ident.t)
   | TypeNotNecessarilyComplete(ExprLabel.t, Typ.t)
   | TypeNotIndeterminatelyIncomplete(ExprLabel.t, Typ.t)
   | TypeNotNecessarilyIncomplete(ExprLabel.t, Typ.t)
@@ -534,7 +534,7 @@ and ana_hole_sigma =
          let* () = acc;
 
          switch (Sigma.find_opt(x, sigma)) {
-         | None => SigmaUnboundVar(l, x) |> fail
+         | None => UnboundVarSigma(l, x) |> fail
          | Some(im) =>
            let* sigma_ty = syn_imm(ctx, delta, im);
            Typ.equal(sigma_ty, gamma_ty)

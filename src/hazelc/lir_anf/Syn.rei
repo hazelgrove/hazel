@@ -10,6 +10,12 @@ type syn_error =
     CaseEmptyRules(ExprLabel.t)
   | /** Unbound variable. */
     UnboundVar(ExprLabel.t)
+  | /** Hole unbound in delta. */
+    UnboundHole(ExprLabel.t)
+  | /** Wrong hole sort in delta. */
+    WrongHoleSort(ExprLabel.t)
+  | /** Unbound variable inside sigma. */
+    UnboundVarSigma(ExprLabel.t, Ident.t)
   | /** Synthesized type is not necessarily complete. */
     TypeNotNecessarilyComplete(
       ExprLabel.t,
