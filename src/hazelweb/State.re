@@ -24,7 +24,7 @@
     + {!Update.apply_action} performs the necessary UI updates.
  */
 module StateEvaluator = {
-  module W = ProgramEvaluator.WorkerPool;
+  module W = ProgramEvaluator.Memoized(ProgramEvaluator.WorkerPool);
   module Inner = ProgramEvaluator.Stream(W);
 
   /**
