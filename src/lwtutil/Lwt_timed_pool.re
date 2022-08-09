@@ -32,6 +32,8 @@ module type S = {
 
   let add: t('a) => Lwt.t(bool);
 
+  let fill: (t('a), int) => Lwt.t(unit);
+
   let clear: t('a) => Lwt.t(unit);
 };
 
@@ -229,6 +231,22 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
     } else {
       Lwt.return_false;
     };
+
+  let fill = (pool, count) => {
+    let rec fill =
+      fun
+      | 0 => Lwt.return_unit
+      | n => {
+          let* created = add(pool);
+          if (created) {
+            fill(n - 1);
+          } else {
+            Lwt.return_unit;
+          };
+        };
+
+    fill(count);
+  };
 
   let clear = pool => {
     let members = Queue.fold((ms, m) => [m, ...ms], [], pool.queue);

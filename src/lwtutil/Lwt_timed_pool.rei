@@ -49,6 +49,11 @@ module type S = {
   let add: t('a) => Lwt.t(bool);
 
   /**
+    [fill pool n] creates [n] fresh pool members or until capacity is reached.
+   */
+  let fill: (t('a), int) => Lwt.t(unit);
+
+  /**
     [clear pool] clears all members of the pool.
    */
   let clear: t('a) => Lwt.t(unit);

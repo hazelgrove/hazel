@@ -16,7 +16,13 @@ module type S = {
   let init: (~timeout: int, ~max: int) => t;
 
   /**
-    [fill pool count] initializes [count] workers into the pool.
+    [add pool] adds a new worker if capacity is not reached, returning [true];
+    or, if capacity is reached, does nothing and returns [false].
+   */
+  let add: t => Lwt.t(bool);
+
+  /**
+    [fill pool count] adds [count] workers into the pool.
    */
   let fill: (t, int) => Lwt.t(unit);
 

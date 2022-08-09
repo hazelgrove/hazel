@@ -1,5 +1,3 @@
-open Lwt.Syntax;
-
 module type S = {
   module Request: WebWorker.Serializable;
   module Response: WebWorker.Serializable;
@@ -7,6 +5,7 @@ module type S = {
   type t;
 
   let init: (~timeout: int, ~max: int) => t;
+  let add: t => Lwt.t(bool);
   let fill: (t, int) => Lwt.t(unit);
   let request: (t, Request.t) => Lwt.t(option(Response.t));
 };
@@ -33,21 +32,9 @@ module Make = (W: WebWorker.ClientS) => {
     {pool, timeout};
   };
 
-  let fill = ({pool, _}, count) => {
-    let rec fill =
-      fun
-      | 0 => Lwt.return_unit
-      | n => {
-          let* created = Lwt_timed_pool_js.add(pool);
-          if (created) {
-            fill(n - 1);
-          } else {
-            Lwt.return_unit;
-          };
-        };
+  let add = ({pool, _}: t) => Lwt_timed_pool_js.add(pool);
 
-    fill(count);
-  };
+  let fill = ({pool, _}: t) => Lwt_timed_pool_js.fill(pool);
 
   let request = ({pool, timeout}: t, req: Request.t) =>
     Lwt_timed_pool_js.use(pool, timeout, client => req |> W.request(client));
