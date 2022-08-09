@@ -1,4 +1,5 @@
 open Mir_anf;
+open Holes;
 
 module State: {
   [@deriving sexp]
@@ -17,6 +18,9 @@ module State: {
   let next_hir_expr_label: t => (Hir_expr.Expr.Label.t, t);
   let next_hir_rule_label: t => (Hir_expr.Expr.RuleLabel.t, t);
   let next_hir_pat_label: t => (Hir_expr.Pat.Label.t, t);
+
+  let extend_hole_renamings: (MetaVar.t, Renamings.t, t) => t;
+  let get_hole_renamings: t => MetaVarMap.t(Renamings.t);
 };
 
 include Util.Monads.MONAD with type t('a) = State.t => (State.t, 'a);
@@ -39,3 +43,5 @@ let next_pat_label: t(Pat.Label.t);
 let next_hir_expr_label: t(Hir_expr.Expr.Label.t);
 let next_hir_rule_label: t(Hir_expr.Expr.RuleLabel.t);
 let next_hir_pat_label: t(Hir_expr.Pat.Label.t);
+
+let extend_hole_renamings: (MetaVar.t, Renamings.t) => t(unit);

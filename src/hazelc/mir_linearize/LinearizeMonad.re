@@ -1,4 +1,5 @@
 open Mir_anf;
+open Holes;
 
 module TmpIdentGen = Ident.NumberedGen;
 
@@ -13,6 +14,7 @@ module State = {
     hir_expr_l_gen: Hir_expr.Expr.Label.Gen.t,
     hir_rule_l_gen: Hir_expr.Expr.RuleLabel.Gen.t,
     hir_pat_l_gen: Hir_expr.Pat.Label.Gen.t,
+    hole_renamings: MetaVarMap.t(Renamings.t),
   };
 
   let init = ((hir_expr_l, hir_rule_l, hir_pat_l)) => {
@@ -24,6 +26,7 @@ module State = {
     hir_expr_l_gen: Hir_expr.Expr.Label.Gen.of_label(hir_expr_l),
     hir_rule_l_gen: Hir_expr.Expr.RuleLabel.Gen.of_label(hir_rule_l),
     hir_pat_l_gen: Hir_expr.Pat.Label.Gen.of_label(hir_pat_l),
+    hole_renamings: MetaVarMap.empty,
   };
 
   let next_tmp = state => {
@@ -71,6 +74,13 @@ module State = {
     let (l, hir_pat_l_gen) = Hir_expr.Pat.Label.Gen.next(hir_pat_l_gen);
     (l, {...state, hir_pat_l_gen});
   };
+
+  let extend_hole_renamings = (u, renamings, {hole_renamings, _} as state) => {
+    ...state,
+    hole_renamings: hole_renamings |> MetaVarMap.add(u, renamings),
+  };
+
+  let get_hole_renamings = ({hole_renamings, _}) => hole_renamings;
 };
 
 include Util.StateMonad.Make(State);
@@ -101,3 +111,6 @@ let next_pat_label = modify(State.next_pat_label);
 let next_hir_expr_label = modify(State.next_hir_expr_label);
 let next_hir_rule_label = modify(State.next_hir_rule_label);
 let next_hir_pat_label = modify(State.next_hir_pat_label);
+
+let extend_hole_renamings = (u, renamings) =>
+  update(State.extend_hole_renamings(u, renamings));
