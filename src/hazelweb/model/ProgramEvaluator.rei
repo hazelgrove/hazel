@@ -49,31 +49,27 @@ type exn_error =
   | /** Caught {!exception:Program.DoesNotElaborate}. */
     Program_DoesNotElaborate;
 
-[@deriving sexp]
-type response_ =
-  | /** Evaluation succeeded. */
-    EvaluationOk(ProgramResult.t)
-  | /** Evaluation failed. */
-    EvaluationFail(exn_error)
-  | /** Evaluation timed out. */
-    EvaluationTimeout;
-
 /**
   The type of the evaluation response. [EvaluationFail] indicates some error was
   encountered.
  */
 [@deriving sexp]
-type response = (RequestId.t, response_);
-
-/**
-  The type of the deferred evaluation response. See {!type:response}.
- */
-type deferred_response = Lwt.t(response);
+type response =
+  | /** Evaluation succeeded. */
+    EvaluationOk(ProgramResult.t)
+  | /** Evaluation failed. */
+    EvaluationFail(exn_error);
 
 /**
   The signature of a program evaluator.
  */
 module type M = {
+  /**
+    The type of the response.
+   */
+  [@deriving sexp]
+  type response;
+
   /**
     The type for a program evaluator.
    */
@@ -85,22 +81,25 @@ module type M = {
   let init: unit => t;
 
   /**
-    [get_response t program] is [(q, t')], where [t'] contains the new evaluator
-    state and [q] is a promise that resolves with an {!type:response}.
+    [get_response t program] is [(q, t')], where [t'] contains the new
+    evaluator state and [q] is a promise that resolves with an
+    {!type:response}.
    */
-  let get_response: (t, request) => (deferred_response, t);
+  let get_response: (t, request) => (Lwt.t((RequestId.t, response)), t);
 };
+
+module Memoized: (M: M) => M;
 
 /**
   Synchronous evaluator which never times out.
  */
-module Sync: M;
+module Sync: M with type response = response;
 
 /**
   Web worker-based evaluator which uses a worker thread. This is the client
   module, to be used in the main thread.
  */
-module Worker: M;
+module Worker: M with type response = response;
 
 /**
   Web worker thread implementation, to be used in the worker thread.
@@ -115,13 +114,23 @@ module WorkerImpl: WebWorker.WorkerS;
 /**
   Web-worker based evaluator, which uses a pool of workers.
  */
-module WorkerPool: M;
+module WorkerPool: M with type response = option(response);
 
-module Memoized: (M: M) => M;
+/**
+  Output of the {!Stream} functor. It is a wrapper around {!Lwt_observable} and
+  should generally be used like one.
+ */
+module type STREAM = {
+  /**
+    The type of the internal evaluator.
+   */
+  type t_;
 
-module type STREAMED_ = {
-  type next = Lwt_observable.next(response);
-  type complete = Lwt_observable.complete;
+  /**
+    The type of the response.
+   */
+  [@deriving sexp]
+  type response;
 
   /**
     The type for the evaluator.
@@ -133,12 +142,17 @@ module type STREAMED_ = {
    */
   type subscription;
 
+  type next = Lwt_observable.next((RequestId.t, response));
+  type complete = Lwt_observable.complete;
+
   /**
-    [create ()] is (t, next, complete), where [t] is a new program evaluator.
-    [next program] asynchronously evaluates [program] and pushes the response to
-    the stream. [complete ()] completes the internal stream.
+    [create inner], where [inner] is the internal evaluator, is (t, next,
+    complete), where [t] is a new program evaluator.
+
+    [next program] asynchronously evaluates [program] and pushes the response
+    to the stream. [complete ()] completes the stream.
    */
-  let create: unit => (t, request => Lwt.t(unit), unit => unit);
+  let create: t_ => (t, request => Lwt.t(unit), unit => unit);
 
   /**
     See {!val:Lwt_observable.subscribe}.
@@ -164,26 +178,12 @@ module type STREAMED_ = {
     See {!val:Lwt_observable.pipe}.
    */
   let pipe:
-    (Lwt_stream.t(response) => Lwt_stream.t('b), t) => Lwt_observable.t('b);
+    (Lwt_stream.t((RequestId.t, response)) => Lwt_stream.t('b), t) =>
+    Lwt_observable.t('b);
 };
 
 /**
-  Output of the [Streamed] functor. It is a wrapper around
-  {!module:Lwt_observable} and should generally be used like one.
-
-  See {!STREAMED_}.
+  Functor to create {!STREAM}.
  */
-module type STREAMED = {
-  include STREAMED_;
-
-  /**
-    An evaluator stream in which obsolute responses (determined by comparison to
-    highest seen id value) are filtered out.
-   */
-  module Filtered: STREAMED_;
-};
-
-/**
-  Functor to create an evaluator stream.
- */
-module Streamed: (M: M) => STREAMED;
+module Stream:
+  (M: M) => STREAM with type t_ = M.t and type response = M.response;

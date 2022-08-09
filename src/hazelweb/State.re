@@ -2,8 +2,8 @@
   Program evaluator state.
  */
 module ProgramEvaluator = {
-  module Inner' = ProgramEvaluator.Streamed(ProgramEvaluator.WorkerPool);
-  module Inner = Inner'.Filtered;
+  module InnerW = ProgramEvaluator.WorkerPool;
+  module Inner = ProgramEvaluator.Stream(InnerW);
 
   type t = {
     inner: Inner.t,
@@ -13,7 +13,7 @@ module ProgramEvaluator = {
   };
 
   let create = () => {
-    let (inner, next, complete) = Inner.create();
+    let (inner, next, complete) = Inner.create(InnerW.init());
     {inner, next, complete, count: ref(ProgramEvaluator.RequestId.init)};
   };
 

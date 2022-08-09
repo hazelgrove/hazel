@@ -25,11 +25,11 @@ let on_startup = (~schedule_action, _) => {
     State.evaluator_subscribe(
       state,
       r => {
-        let cr =
+        let cr: ModelResult.current =
           switch (r) {
-          | EvaluationOk(r) => ModelResult.ResultOk(r)
-          | EvaluationFail(reason) => ModelResult.ResultFail(reason)
-          | EvaluationTimeout => ModelResult.ResultTimeout
+          | Some(EvaluationOk(r)) => ResultOk(r)
+          | Some(EvaluationFail(reason)) => ResultFail(reason)
+          | None => ResultTimeout
           };
         schedule_action(ModelAction.UpdateResult(cr));
       },
