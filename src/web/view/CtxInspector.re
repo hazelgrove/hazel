@@ -13,13 +13,15 @@ let ctxc = "context-entries";
 let exp_ctx_view = (ctx: Core.Ctx.t): Node.t =>
   div([clss([ctxc, "exp"])], List.map(context_entry_view, ctx));
 
+let pat_ctx_view = (ctx: Core.Ctx.t): Node.t =>
+  div([clss([ctxc, "pat"])], List.map(context_entry_view, ctx));
+
 let ctx_sorts_view = (ci: Core.Statics.t): Node.t => {
   switch (ci) {
-  | Invalid => div([clss([ctxc, "invalid"])], [text("? No Info")])
+  | Invalid => div([clss([ctxc, "invalid"])], [text("")])
   | InfoExp({ctx, _}) => exp_ctx_view(ctx)
-  | InfoPat(_) =>
-    div([clss([ctxc, "pat"])], [text("? Pattern Ctxs TODO")])
-  | InfoTyp(_) => div([clss([ctxc, "typ"])], [text("? No Ctx for Type")])
+  | InfoPat({ctx, _}) => pat_ctx_view(ctx)
+  | InfoTyp(_) => div([clss([ctxc, "typ"])], [])
   };
 };
 
