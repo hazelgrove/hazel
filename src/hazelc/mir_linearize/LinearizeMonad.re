@@ -1,9 +1,11 @@
 open Mir_anf;
 
+module TmpIdentGen = Ident.NumberedGen;
+
 module State = {
   [@deriving sexp]
   type t = {
-    t_gen: TmpVarGen.t,
+    t_gen: TmpIdentGen.t,
     expr_l_gen: ExprLabel.Gen.t,
     rule_l_gen: RuleLabel.Gen.t,
     stmt_l_gen: StmtLabel.Gen.t,
@@ -14,7 +16,7 @@ module State = {
   };
 
   let init = ((hir_expr_l, hir_rule_l, hir_pat_l)) => {
-    t_gen: TmpVarGen.init,
+    t_gen: TmpIdentGen.init(),
     expr_l_gen: ExprLabel.Gen.init,
     rule_l_gen: RuleLabel.Gen.init,
     stmt_l_gen: StmtLabel.Gen.init,
@@ -25,12 +27,12 @@ module State = {
   };
 
   let next_tmp = state => {
-    let (x, t_gen) = TmpVarGen.next(state.t_gen);
+    let (x, t_gen) = TmpIdentGen.next(state.t_gen);
     (x, {...state, t_gen});
   };
 
   let next_tmp_named = (x, state) => {
-    let (x', t_gen) = TmpVarGen.next_named(x, state.t_gen);
+    let (x', t_gen) = TmpIdentGen.next_named(x, state.t_gen);
     (x', {...state, t_gen});
   };
 
