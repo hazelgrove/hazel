@@ -85,8 +85,7 @@ module Make = (M: M) => {
         lwt,
         fun
         | Lwt.Canceled => ()
-        /* FIXME: Propogate error. */
-        | _exn => (),
+        | exn => Lwt.wakeup_later_exn(resolver, exn),
       );
 
       worker##.onmessage :=
