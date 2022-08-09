@@ -1,1 +1,1 @@
-include Label.Gen.L;
+include (module type of Label);

@@ -1,15 +1,11 @@
 open Hir_expr;
 
-module ExprLabelGen: Label.Gen.S with type label = Expr.Label.t;
-module RuleLabelGen: Label.Gen.S with type label = Expr.RuleLabel.t;
-module PatLabelGen: Label.Gen.S with type label = Pat.Label.t;
-
 module State: {
   [@deriving sexp]
   type t = {
-    expr: ExprLabelGen.t,
-    rule: RuleLabelGen.t,
-    pat: PatLabelGen.t,
+    expr: Expr.Label.Gen.t,
+    rule: Expr.RuleLabel.Gen.t,
+    pat: Pat.Label.Gen.t,
   };
 
   let init: t;
