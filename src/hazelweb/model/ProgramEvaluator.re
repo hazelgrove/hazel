@@ -171,10 +171,8 @@ module type STREAM = {
 
   let wait: t => Lwt.t(unit);
 
-  /* FIXME: Don't expose id. */
   let pipe:
-    (Lwt_stream.t((int, response)) => Lwt_stream.t('b), t) =>
-    Lwt_observable.t('b);
+    (Lwt_stream.t(response) => Lwt_stream.t('b), t) => Lwt_observable.t('b);
 };
 
 module Stream =
@@ -242,5 +240,8 @@ module Stream =
     Lwt_observable.wait(observable);
 
   let pipe = (f, {inner: _, observable, max: _}) =>
-    Lwt_observable.pipe(f, observable);
+    Lwt_observable.pipe(
+      stream => stream |> Lwt_stream.map(((_, r)) => r) |> f,
+      observable,
+    );
 };

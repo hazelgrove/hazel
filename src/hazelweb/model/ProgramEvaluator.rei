@@ -238,8 +238,7 @@ module type STREAM = {
     See {!Lwtutil.Lwt_observable.pipe}.
    */
   let pipe:
-    (Lwt_stream.t((int, response)) => Lwt_stream.t('b), t) =>
-    Lwt_observable.t('b);
+    (Lwt_stream.t(response) => Lwt_stream.t('b), t) => Lwt_observable.t('b);
 };
 
 /**
