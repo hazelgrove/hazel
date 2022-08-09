@@ -1,3 +1,4 @@
+/* See ProgramEvaluator.rei for information. */
 open Sexplib.Std;
 open Lwt.Infix;
 open Lwt.Syntax;
@@ -82,64 +83,70 @@ module Sync: M = {
   };
 };
 
-module Worker = {
-  module W =
-    WebWorker.Make({
-      module Request = {
-        [@deriving sexp]
-        type t = evaluation_request;
-        type u = string;
+/** Worker impl. */
+module W =
+  WebWorker.Make({
+    module Request = {
+      [@deriving sexp]
+      type t = evaluation_request;
+      type u = string;
 
-        let serialize = program =>
-          program |> sexp_of_t |> Sexplib.Sexp.to_string;
-        let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
-      };
-
-      module Response = {
-        [@deriving sexp]
-        type t = evaluation_result;
-        type u = string;
-
-        let serialize = r => Sexplib.(r |> sexp_of_t |> Sexp.to_string);
-        let deserialize = sexp =>
-          Sexplib.(sexp |> Sexp.of_string |> t_of_sexp);
-      };
-
-      module Worker = {
-        /* FIXME: Somehow use constant from dune or something? */
-        let file = () => "worker.js";
-
-        type state = Sync.t;
-
-        let init_state = Sync.init;
-
-        let on_request = Sync.get_result;
-      };
-    });
-
-  module Client: M = {
-    module Pool = WebWorkerPool.Make(W.Client);
-    type t = Pool.t;
-
-    let max = 10;
-    let timeout = 2000; /* ms */
-
-    let init = () => {
-      let pool = Pool.init(~timeout, ~max);
-      let _ = Pool.fill(pool, max);
-      pool;
+      let serialize = program =>
+        program |> sexp_of_t |> Sexplib.Sexp.to_string;
+      let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
     };
 
-    let get_result = (pool: t, (id, program): evaluation_request) => {
-      let res =
-        (id, program)
-        |> Pool.request(pool)
-        >|= Option.value(~default=(id, EvaluationTimeout));
-      (res, pool);
+    module Response = {
+      [@deriving sexp]
+      type t = evaluation_result;
+      type u = string;
+
+      let serialize = r => Sexplib.(r |> sexp_of_t |> Sexp.to_string);
+      let deserialize = sexp => Sexplib.(sexp |> Sexp.of_string |> t_of_sexp);
     };
+
+    module Worker = {
+      /* FIXME: Somehow use constant from dune or something? */
+      let file = () => "worker.js";
+
+      type state = Sync.t;
+
+      let init_state = Sync.init;
+
+      let on_request = Sync.get_result;
+    };
+  });
+
+module Worker: M = {
+  type t = W.Client.t;
+
+  let init = W.Client.init;
+
+  let get_result = W.Client.request;
+};
+
+module WorkerImpl = W.Worker;
+
+module WorkerPool: M = {
+  module Pool = WebWorkerPool.Make(W.Client);
+  type t = Pool.t;
+
+  let max = 10;
+  let timeout = 2000; /* ms */
+
+  let init = () => {
+    let pool = Pool.init(~timeout, ~max);
+    let _ = Pool.fill(pool, max);
+    pool;
   };
 
-  module Worker = W.Worker;
+  let get_result = (pool: t, (id, program): evaluation_request) => {
+    let res =
+      (id, program)
+      |> Pool.request(pool)
+      >|= Option.value(~default=(id, EvaluationTimeout));
+    (res, pool);
+  };
 };
 
 module Memoized = (M: M) => {

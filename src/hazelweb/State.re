@@ -2,7 +2,7 @@
   Program evaluator state.
  */
 module ProgramEvaluator = {
-  module Inner' = ProgramEvaluator.Streamed(ProgramEvaluator.Worker.Client);
+  module Inner' = ProgramEvaluator.Streamed(ProgramEvaluator.WorkerPool);
   module Inner = Inner'.Filtered;
 
   type t = {

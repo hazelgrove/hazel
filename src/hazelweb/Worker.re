@@ -1,6 +1,6 @@
 /**
    Web worker thread.
  */;
-open ProgramEvaluator.Worker.Worker;
+open ProgramEvaluator.WorkerImpl;
 
 let () = () |> init |> register;

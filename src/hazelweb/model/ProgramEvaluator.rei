@@ -103,22 +103,25 @@ module type M = {
 module Sync: M;
 
 /**
+  Web worker-based evaluator which uses a worker thread. This is the client
+  module, to be used in the main thread.
+ */
+module Worker: M;
+
+/**
+  Web worker thread implementation, to be used in the worker thread.
+
+  It should be used like so:
+  {[ let () = () |> init |> register ]}.
+
+  Used currently in [Worker.re].
+ */
+module WorkerImpl: WebWorker.WorkerS;
+
+/**
   Web-worker based evaluator, which uses a pool of workers.
  */
-module Worker: {
-  /**
-    Client for the worker, to be used on the main thread.
-   */
-  module Client: M;
-
-  /**
-    Worker thread code. It should be used like so:
-    {[ let () = () |> init |> register ]}.
-
-    Used currently in [Worker.re].
-   */
-  module Worker: WebWorker.WorkerS;
-};
+module WorkerPool: M;
 
 module Memoized: (M: M) => M;
 
@@ -175,7 +178,7 @@ module type STREAMED_ = {
   Output of the [Streamed] functor. It is a wrapper around
   {!module:Lwt_observable} and should generally be used like one.
 
-  See {!modtype:STREAMED_}.
+  See {!STREAMED_}.
  */
 module type STREAMED = {
   include STREAMED_;
