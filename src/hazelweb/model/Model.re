@@ -173,7 +173,7 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> focus_cell;
 
 let update_program = (a: ModelAction.t, new_program, model) => {
-  /* FIXME: Still need to fix this. */
+  /* TODO: Need to fix this since web worker changes, but leaving for haz3l. */
   /* let old_program = model |> get_program; */
   let update_selected_instances = _si => {
     let si =

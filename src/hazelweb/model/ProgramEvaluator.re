@@ -75,7 +75,7 @@ module W =
     };
 
     module Worker = {
-      /* FIXME: Somehow use constant from dune or something? */
+      /* TODO: Somehow use constant from dune or something? */
       let file = () => "worker.js";
 
       type state = Sync.t;
