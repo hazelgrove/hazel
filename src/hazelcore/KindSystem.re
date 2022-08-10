@@ -178,6 +178,7 @@ module rec Context: {
   let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
   let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
+  let add_tpat: (t, TPat.t, Kind.t) => t;
   let reduce_tyvars: (t, t, HTyp.t) => HTyp.t;
   let vars: t => list((ContextRef.t, Var.t, HTyp.t));
   let var: (t, ContextRef.t) => option(Var.t);
@@ -392,6 +393,13 @@ module rec Context: {
     TyVarBinding(t, Kind_core.to_rel(k)),
     ...ctx,
   ];
+
+  let add_tpat = (ctx: t, tp: TPat.t, k: Kind.t): t =>
+    switch (tp) {
+    | EmptyHole
+    | TyVar(InHole(_), _) => ctx
+    | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
+    };
 
   /* Assumes indices in ty are scoped to new_ctx. */
   let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
@@ -1017,12 +1025,7 @@ and HTyp: {
     | List(ty1) => List(normalize(ctx, ty1))
     | Forall(tp, ty) =>
       let k = Kind_core.Type;
-      let ctx =
-        switch (tp) {
-        | EmptyHole
-        | TyVar(InHole(_), _) => ctx
-        | TyVar(NotInHole, tyvar) => Context.add_tyvar(ctx, tyvar, k)
-        };
+      let ctx = Context.add_tpat(ctx, tp, k);
       Forall(tp, normalize(ctx, ty));
     };
 
