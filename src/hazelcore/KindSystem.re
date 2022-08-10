@@ -819,6 +819,7 @@ and HTyp: {
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
       ) {
       | (Some(k), Some(k')) =>
+        // FIXME: (poly) normalize kind before check consistency
         consistent(
           ctx,
           HTyp.to_syntax(Kind.to_htyp(k)),
@@ -844,7 +845,10 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
     | (List(_), _) => false
-    | (Forall(_tp, ty), Forall(_tp', ty')) => consistent(ctx, ty, ty')
+    // TODO: (poly) align tp
+    | (Forall(tp, ty), Forall(_tp', ty')) =>
+      let ctx = Context.add_tpat(ctx, tp, Kind_core.Type);
+      consistent(ctx, ty, ty');
     | (Forall(_), _) => false
     };
 
@@ -1024,8 +1028,7 @@ and HTyp: {
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
     | Forall(tp, ty) =>
-      let k = Kind_core.Type;
-      let ctx = Context.add_tpat(ctx, tp, k);
+      let ctx = Context.add_tpat(ctx, tp, Kind_core.Type);
       Forall(tp, normalize(ctx, ty));
     };
 
