@@ -6,6 +6,8 @@ let compare = Int.compare;
 
 module Map = Util.IntMap;
 
+type s = Map.t(list(t));
+
 module Uf: {
   type store('a);
   let init: unit => store(_);

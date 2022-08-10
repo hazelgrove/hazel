@@ -215,6 +215,7 @@ let rec of_segment' =
           /* indentation at the start of the row */
           ~row_indent=container_indent,
           ~origin=zero,
+          ~ignore_ids: Id.s=Id.Map.empty,
           seg: Segment.t,
         )
         : (int, point, t) =>
@@ -225,79 +226,102 @@ let rec of_segment' =
       empty |> add_row(origin.row, {indent: row_indent, max_col: origin.col}),
     )
   | [hd, ...tl] =>
+    let nothing = (
+      seen_linebreak,
+      contained_indent,
+      row_indent,
+      origin,
+      empty,
+    );
     let (seen_linebreak, contained_indent, row_indent, hd_last, hd_map) =
       switch (hd) {
       | Whitespace(w) when w.content == Whitespace.linebreak =>
-        let concluding = Segment.sameline_whitespace(tl);
-        let indent' =
-          if (concluding) {
-            container_indent;
-          } else if (!seen_linebreak) {
-            container_indent + 2;
-          } else {
-            contained_indent;
-          };
-        let last = {row: origin.row + 1, col: indent'};
-        let map =
-          singleton_w(w, {origin, last})
-          |> add_row(origin.row, {indent: row_indent, max_col: origin.col});
-        (true, indent', indent', last, map);
+        switch (Id.Map.find_opt(w.id, ignore_ids)) {
+        | Some(_) => nothing
+        | None =>
+          let concluding = Segment.sameline_whitespace(tl);
+          let indent' =
+            if (concluding) {
+              container_indent;
+            } else if (!seen_linebreak) {
+              container_indent + 2;
+            } else {
+              contained_indent;
+            };
+          let last = {row: origin.row + 1, col: indent'};
+          let map =
+            singleton_w(w, {origin, last})
+            |> add_row(origin.row, {indent: row_indent, max_col: origin.col});
+          (true, indent', indent', last, map);
+        }
       | Whitespace(w) =>
-        let last = {...origin, col: origin.col + 1};
-        (
-          seen_linebreak,
-          contained_indent,
-          row_indent,
-          last,
-          singleton_w(w, {origin, last}),
-        );
+        switch (Id.Map.find_opt(w.id, ignore_ids)) {
+        | Some(_) => nothing
+        | None =>
+          let last = {...origin, col: origin.col + 1};
+          (
+            seen_linebreak,
+            contained_indent,
+            row_indent,
+            last,
+            singleton_w(w, {origin, last}),
+          );
+        }
       | Grout(g) =>
-        let last = {...origin, col: origin.col + 1};
-        (
-          seen_linebreak,
-          contained_indent,
-          row_indent,
-          last,
-          singleton_g(g, {origin, last}),
-        );
+        switch (Id.Map.find_opt(g.id, ignore_ids)) {
+        | Some(_) => nothing
+        | None =>
+          let last = {...origin, col: origin.col + 1};
+          (
+            seen_linebreak,
+            contained_indent,
+            row_indent,
+            last,
+            singleton_g(g, {origin, last}),
+          );
+        }
       | Tile(t) =>
-        let token = List.nth(t.label);
-        let of_shard = (row_indent, origin, shard) => {
-          let last = {
-            ...origin,
-            col: origin.col + String.length(token(shard)),
+        switch (Id.Map.find_opt(t.id, ignore_ids)) {
+        | Some(_) => failwith("TODO(andrew)")
+        | None =>
+          let token = List.nth(t.label);
+          let of_shard = (row_indent, origin, shard) => {
+            let last = {
+              ...origin,
+              col: origin.col + String.length(token(shard)),
+            };
+            ((row_indent, last), singleton_s(t.id, shard, {origin, last}));
           };
-          ((row_indent, last), singleton_s(t.id, shard, {origin, last}));
-        };
-        let ((row_indent, last), map) =
-          Aba.mk(t.shards, t.children)
-          |> Aba.fold_left_map(
-               of_shard(row_indent, origin),
-               ((row_indent, origin), child, shard) => {
-                 let (row_indent, child_last, child_map) =
-                   of_segment'(
-                     ~seen_linebreak=false,
-                     ~container_indent=contained_indent,
-                     ~row_indent,
-                     ~origin,
-                     child,
-                   );
-                 let ((row_indent, shard_last), shard_map) =
-                   of_shard(row_indent, child_last, shard);
-                 ((row_indent, shard_last), child_map, shard_map);
-               },
-             )
-          |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
-          |> PairUtil.map_snd(union);
-        let contained_indent =
-          if (post_tile_indent(t)) {
-            min(contained_indent + 2, row_indent + 2);
-          } else if (missing_left_extreme(t)) {
-            container_indent;
-          } else {
-            contained_indent;
-          };
-        (seen_linebreak, contained_indent, row_indent, last, map);
+          let ((row_indent, last), map) =
+            Aba.mk(t.shards, t.children)
+            |> Aba.fold_left_map(
+                 of_shard(row_indent, origin),
+                 ((row_indent, origin), child, shard) => {
+                   let (row_indent, child_last, child_map) =
+                     of_segment'(
+                       ~seen_linebreak=false,
+                       ~container_indent=contained_indent,
+                       ~row_indent,
+                       ~origin,
+                       child,
+                     );
+                   let ((row_indent, shard_last), shard_map) =
+                     of_shard(row_indent, child_last, shard);
+                   ((row_indent, shard_last), child_map, shard_map);
+                 },
+               )
+            |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
+            |> PairUtil.map_snd(union);
+          let contained_indent =
+            if (post_tile_indent(t)) {
+              min(contained_indent + 2, row_indent + 2);
+            } else if (missing_left_extreme(t)) {
+              container_indent;
+            } else {
+              contained_indent;
+            };
+          (seen_linebreak, contained_indent, row_indent, last, map);
+        }
       };
     let (row_indent, tl_last, tl_map) =
       of_segment'(

@@ -282,3 +282,8 @@ let is_first_matching = (t: Token.t, bp: t): bool =>
     }
   | _ => false
   };
+
+let ids = (selections: t): Id.s =>
+  selections
+  |> List.map((s: Selection.t) => Segment.ids(s.content))
+  |> List.fold_left(Id.Map.disj_union, Id.Map.empty);

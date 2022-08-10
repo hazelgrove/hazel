@@ -599,3 +599,18 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   };
   seg |> skel |> go(sort);
 };
+
+let rec ids = (seg: t): Id.s =>
+  seg
+  |> List.map(ids_of_piece)
+  |> List.fold_left(Id.Map.disj_union, Id.Map.empty)
+and ids_of_piece: Piece.t => Id.s =
+  fun
+  | Tile({id, shards, children, _}) =>
+    List.fold_left(
+      Id.Map.disj_union,
+      Id.Map.singleton(id, shards),
+      List.map(ids, children),
+    )
+  | Grout({id, _})
+  | Whitespace({id, _}) => Id.Map.singleton(id, []);
