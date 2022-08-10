@@ -47,6 +47,8 @@ let put_down = (z: t): option(t) =>
 
 let drop_it_like_its_hot = (z: Zipper.t, id_gen): (Zipper.t, int) => {
   //TODO(andrew): also need to ignore inserted grout in measured.....?
+  // or actually instead of collecting ids in backpack to ignore,
+  // just use id map from original zipper as whitelist
   let id_zz = ref(id_gen);
   //id_zz := id_gen;
   let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
