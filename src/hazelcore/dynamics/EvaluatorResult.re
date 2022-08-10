@@ -3,7 +3,7 @@ type t =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
 
-let unwrap =
+let unbox =
   fun
   | BoxedValue(d)
   | Indet(d) => d;

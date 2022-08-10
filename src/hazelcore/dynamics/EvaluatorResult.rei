@@ -12,9 +12,9 @@ type t =
   | Indet(DHExp.t);
 
 /**
-  [unwrap r] is the inner expression.
+  [unbox r] is the inner expression.
  */
-let unwrap: t => DHExp.t;
+let unbox: t => DHExp.t;
 
 /**
   See {!val:DHExp.fast_equal}.

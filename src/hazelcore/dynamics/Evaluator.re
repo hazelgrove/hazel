@@ -445,6 +445,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         |> OptUtil.get(() =>
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            );
+      /* We need to call [evaluate] on [d] again since [env] does not store
+       * final expressions. */
       evaluate(env, d);
 
     | Sequence(d1, d2) =>
