@@ -1,9 +1,4 @@
-let ana = (ctx: Context.t, tp: TPat.t, k: Kind.t): Context.t =>
-  switch (tp) {
-  | EmptyHole
-  | TyVar(InHole(_), _) => ctx
-  | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
-  };
+let ana = Context.add_tpat;
 
 let fix_holes =
     (ctx: Context.t, tp: TPat.t, k: Kind.t, id_gen: IDGen.t)

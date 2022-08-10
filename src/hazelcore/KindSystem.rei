@@ -145,6 +145,9 @@ module rec Context: {
   /** Binds the given type variable name to the given [Kind]. */
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
 
+  /** Binds the given type pattern to the given [Kind]; do nothing if it's EmptyHole. */
+  let add_tpat: (t, TPat.t, Kind.t) => t;
+
   /** [reduce_tyvars(new_ctx, old_ctx, ty)] replaces any type variables bound by
      [new_ctx] but not by [old_ctx] in [ty] with equivalent types that have no
      new type variables.
