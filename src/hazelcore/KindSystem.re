@@ -515,7 +515,7 @@ and HTyp: {
   let to_syntax: t => HTyp_syntax.t(Index.absolute);
   let of_syntax: HTyp_syntax.t(Index.absolute) => t;
 
-  let shift_indices: (t, int) => t;
+  let shift_indices: (~above: int=?, t, int) => t;
   let rescope: (Context.t, t) => t;
 
   let hole: unit => t;
@@ -628,10 +628,11 @@ and HTyp: {
   let to_syntax: t => HTyp_syntax.t(Index.absolute) = ty => ty;
   let of_syntax: HTyp_syntax.t(Index.absolute) => t = ty => ty;
 
-  let rec shift_indices = (ty: t, amount: int): t =>
+  // TODO: (poly) should above be -1 in the init case?
+  let rec shift_indices = (~above: int=0, ty: t, amount: int): t =>
     switch (ty) {
     | TyVar(cref, t) =>
-      let index = Index.shift(~above=-1, ~amount, cref.index);
+      let index = Index.shift(~above, ~amount, cref.index);
       let stamp = cref.stamp + amount;
       TyVar({...cref, index, stamp}, t);
     | Hole
@@ -649,7 +650,13 @@ and HTyp: {
       Sum(tyL, tyR);
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
-    | Forall(tp, ty) => Forall(tp, shift_indices(ty, amount))
+    | Forall(tp, ty) =>
+      switch (tp) {
+      | EmptyHole
+      | TyVar(InHole(_), _) => Forall(tp, shift_indices(~above, ty, amount))
+      | TyVar(NotInHole, _) =>
+        Forall(tp, shift_indices(~above=above + 1, ty, amount))
+      }
     };
 
   let hole: unit => t = () => Hole;

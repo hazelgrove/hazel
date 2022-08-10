@@ -247,7 +247,7 @@ and HTyp: {
   /* Index Manipulation */
 
   /** Shifts all indices in the underlying AST by the given amount. */
-  let shift_indices: (t, int) => t;
+  let shift_indices: (~above: int=?, t, int) => t;
 
   /** Scope preserving cross-context index shifting. */
   let rescope: (Context.t, t) => t;
