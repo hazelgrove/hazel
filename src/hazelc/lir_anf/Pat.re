@@ -5,7 +5,6 @@ module Label = PatLabel;
 [@deriving sexp]
 type t = {
   kind,
-  complete: Complete.t,
   label: PatLabel.t,
 }
 

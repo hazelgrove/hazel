@@ -90,11 +90,7 @@ let ty__of_bin_op: Anf.bin_op => Typ.t_ =
   | OpFEquals => TFloat;
 
 let rec ana_pat =
-        (
-          ctx,
-          {kind, label: l, complete: _}: Pat.t,
-          (scrut_cc, scrut_ty_): Typ.t,
-        ) => {
+        (ctx, {kind, label: l}: Pat.t, (scrut_cc, scrut_ty_): Typ.t) => {
   switch (kind) {
   | PPair(p1, p2) =>
     switch (scrut_ty_) {
@@ -355,8 +351,8 @@ and syn_comp_bin_op = (ctx, delta, (op, im1, im2), l, (ana_imm_, wrap_ty_)) => {
   extend(l, wrap_ty_(ana_ty_));
 }
 
-/* ; Δ ; Γ , x : υ{τ} ⊢ b : υ'{τ'}
-   ; Δ ; Γ            ⊢ fun (x : υ{τ}) -> b : nc{u{τ} → u'{τ'}} */
+/* ; Δ ; Γ , x : υ{τ} ⊢ b : ū{τ'}
+   → Δ ; Γ            ⊢ fun (x : υ{τ}) -> b : nc{u{τ} → ū{τ'}} */
 and syn_comp_fun =
     (ctx, delta, ((param, param_ty_), body), l, wrap_param_ty_) => {
   let param_ty = wrap_param_ty_(param_ty_);
