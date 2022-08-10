@@ -137,6 +137,16 @@ and comp_kind =
     CIIWrapNI(
       imm,
     )
+  | /**
+      Branching construct that takes an indeterminately incomplete result and
+      branches based on its completeness at runtime.
+     */
+    CIIBranch(
+      imm,
+      Ident.t,
+      block,
+      block,
+    )
 
 [@deriving sexp]
 and sigma = Ident.Map.t(imm)
@@ -163,16 +173,6 @@ and stmt = {
 and stmt_kind =
   | SLet(Ident.t, comp)
   | SLetRec(Ident.t, (Ident.t, Typ.t), (Typ.t, block))
-  | /**
-      Branching construct that takes an indeterminately incomplete result and
-      branches based on its completeness at runtime.
-     */
-    SSwitch(
-      imm,
-      Ident.t,
-      block,
-      block,
-    )
 
 [@deriving sexp]
 and block = {
