@@ -16,6 +16,7 @@ let infoc = "info";
 
 let error_view = (err: Core.Statics.error) =>
   switch (err) {
+  | Multi => div([clss([errorc, "err-multi"])], [text("⑂ Multi Hole")])
   | FreeVariable =>
     div(
       [clss([errorc, "err-free-variable"])],
@@ -75,7 +76,8 @@ let term_tag = (is_err, sort) =>
 let view_of_info = (ci: Core.Statics.t): Node.t => {
   let is_err = Core.Statics.is_error(ci);
   switch (ci) {
-  | Invalid => div([clss([infoc, "unknown"])], [text("? No Info")])
+  | Invalid =>
+    div([clss([infoc, "unknown"])], [text("🚫 Invalid Syntax")])
   | InfoExp({mode, self, _}) =>
     let error_status = Core.Statics.error_status(mode, self);
     div(
