@@ -83,7 +83,8 @@ let rec holes =
        | Piece.Whitespace(_) => []
        | Tile(t) =>
          t.children |> List.map(holes(~map, ~font_metrics)) |> List.concat
-       | Grout(g) => [
+       | Grout(g) =>
+         try([
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
              {
@@ -91,7 +92,9 @@ let rec holes =
                mold: Mold.of_grout(g, Any),
              },
            ),
-         ],
+         ]) {
+         | _ => []
+         },
      )
   |> List.concat;
 

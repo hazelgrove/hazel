@@ -31,9 +31,14 @@ let piece' =
   /* No L and R is a whitespace and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ws(r) =>
     Some((parent, Left, Parent))
+  /* ANDREW: trying right bias for completion purposes */
+  | ((_, Some(r)), _) when !ws(r) && z.caret == Outer =>
+    Some((r, Right, Sibling))
   /* L is not whitespace and caret is outer => indicate L */
   | ((Some(l), _), _) when !ws(l) && z.caret == Outer =>
     Some((l, Left, Sibling))
+  /* ANDREW: trying right bias for completion purposes */
+  | ((None, Some(r)), _) when z.caret == Outer => Some((r, Right, Sibling))
   /* No L, some P, and caret is outer => indicate R */
   | ((None, _), Some(parent)) when z.caret == Outer =>
     Some((parent, Left, Parent))

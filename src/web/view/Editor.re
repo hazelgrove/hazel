@@ -52,7 +52,7 @@ let code_container_2 =
     );
   let map = Measured.mergeq(map_barf, map1);
   let code_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~map, ~settings);
+    Code.view(~font_metrics, ~segment, ~unselected, ~map=map_barf, ~settings);
   let deco_view =
     show_deco
       ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
