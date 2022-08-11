@@ -61,6 +61,7 @@ type map = Id.Map.t(t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | FreeVariable
+  | Multi
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
@@ -85,6 +86,7 @@ type error_status =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
+  | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(tys_syn))
   | (Ana(Unknown(SynSwitch)), Joined(tys_syn)) =>
@@ -200,6 +202,14 @@ let rec uexp_to_info_map =
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(_p) => (Unknown(Internal), [], Id.Map.singleton(id, Invalid))
+  | MultiHole(ids, es) =>
+    let es = List.map(go(~mode), es);
+    let self = Typ.Multi;
+    let free = Ctx.union(List.map(((_, f, _)) => f, es));
+    let info: t = InfoExp({cls, self, mode, ctx, free});
+    let m = union_m(List.map(((_, _, m)) => m, es));
+    let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
+    (typ_after_fix(mode, self), free, m);
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -345,6 +355,13 @@ and upat_to_info_map =
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
   | Invalid(_) => atomic(Just(Unknown(SynSwitch))) //TODO: ?
+  | MultiHole(ids, ps) =>
+    let ps = List.map(upat_to_info_map(~ctx, ~mode), ps);
+    let self = Typ.Multi;
+    let info: t = InfoPat({cls, self, mode, ctx});
+    let m = union_m(List.map(((_, _, m)) => m, ps));
+    let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
+    (typ_after_fix(mode, self), ctx, m);
   | EmptyHole => atomic(Just(Unknown(SynSwitch)))
   | Wild => atomic(Just(Unknown(SynSwitch)))
   | Int(_) => atomic(Just(Int))
@@ -373,6 +390,16 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let ty = Term.utyp_to_ty(utyp);
   let return = m => (ty, Id.Map.add(id, InfoTyp({cls, ty}), m));
   switch (term) {
+  | MultiHole(ids, ts) =>
+    let ts = List.map(utyp_to_info_map, ts);
+    let ty = Typ.Unknown(Internal);
+    let m =
+      List.fold_left(
+        (m, id) => Id.Map.add(id, InfoTyp({cls, ty}), m),
+        union_m(List.map(((_, m)) => m, ts)),
+        ids,
+      );
+    (ty, m);
   | Invalid(_)
   | EmptyHole
   | Unit
