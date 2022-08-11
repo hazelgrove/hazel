@@ -5,7 +5,7 @@ module State: {
   [@deriving sexp]
   type t;
 
-  let init: FreshLabels.t => t;
+  let init: Hir_expr.FreshLabels.t => t;
 
   let next_tmp: t => (Ident.t, t);
   let next_tmp_named: (Ident.t, t) => (Ident.t, t);
@@ -25,7 +25,7 @@ module State: {
 
 include Util.StateMonad.S with type state = State.t;
 
-let init: FreshLabels.t => State.t;
+let init: Hir_expr.FreshLabels.t => State.t;
 
 let next_tmp: t(Ident.t);
 let next_tmp_named: Ident.t => t(Ident.t);

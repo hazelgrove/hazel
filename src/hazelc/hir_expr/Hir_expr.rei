@@ -26,6 +26,8 @@ module Delta = Delta;
 [@deriving sexp]
 type delta = Delta.t;
 
+module FreshLabels = FreshLabels;
+
 module Syn = Syn;
 let syn: (TypContext.t, Delta.t, Expr.t) => Syn.syn_result;
 

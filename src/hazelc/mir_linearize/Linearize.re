@@ -646,7 +646,7 @@ let linearize = (ctx, delta, e: Hir_expr.expr) => {
     |> List.to_seq
     |> TypContext.of_seq;
 
-  let fresh_labels = FreshLabels.fresh_labels(e);
+  let fresh_labels = Hir_expr.FreshLabels.fresh_labels(e);
   let state = init(fresh_labels);
   let (state, block) = linearize_block(e, Renamings.empty, state);
 
