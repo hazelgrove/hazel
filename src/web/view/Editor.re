@@ -67,7 +67,9 @@ let single_editor =
       ~settings: Model.settings,
     )
     : Node.t => {
-  let unselected = Zipper.unselect_and_zip(zipper);
+  //let unselected = Zipper.unselect_and_zip(zipper);
+  let (z2, _) = Perform.drop_it_like_its_hot(zipper, 66666666);
+  let unselected = Zipper.unselect_and_zip(z2);
   let code_view =
     code_container(
       ~font_metrics,

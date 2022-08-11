@@ -196,68 +196,68 @@ let post_tile_indent = (t: Tile.t) => {
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
 
-let reconcile =
-    (ignore_ids: list(int), shards: list(int), children: list(Segment.t)) => {
-  let shards = List.sort(compare, shards);
-  //TODO(andrew): generalize this to arbitrary number of children
-  assert(List.length(shards) - 1 == List.length(children));
-  switch (shards, children) {
-  | ([], _) => failwith("reconcile: empty shards")
-  | ([_], []) => (shards, children)
-  | ([0, 1], [_]) when List.mem(0, ignore_ids) => ([1], [])
-  | ([0, 1], [_]) when List.mem(1, ignore_ids) => ([0], [])
-  | ([0, 1], [_]) => (shards, children)
-  | ([0, 1, 2], [l, r])
-      when
-        List.mem(0, ignore_ids)
-        && !List.mem(1, ignore_ids)
-        && !List.mem(2, ignore_ids) => (
-      [1, 2],
-      [l @ r],
-    )
-  | ([0, 1, 2], [l, r])
-      when
-        List.mem(2, ignore_ids)
-        && !List.mem(0, ignore_ids)
-        && !List.mem(1, ignore_ids) => (
-      [0, 1],
-      [l @ r],
-    )
-  | ([0, 1, 2], [l, r])
-      when
-        List.mem(1, ignore_ids)
-        && !List.mem(0, ignore_ids)
-        && !List.mem(2, ignore_ids) => (
-      [0, 2],
-      [l @ r],
-    )
-  | ([0, 1, 2], [_l, _r])
-      when
-        List.mem(0, ignore_ids)
-        && List.mem(1, ignore_ids)
-        && !List.mem(2, ignore_ids) => (
-      [2],
-      [],
-    )
-  | ([0, 1, 2], [_l, _r])
-      when
-        !List.mem(0, ignore_ids)
-        && List.mem(1, ignore_ids)
-        && List.mem(2, ignore_ids) => (
-      [0],
-      [],
-    )
-  | ([0, 1, 2], [_l, _r])
-      when
-        List.mem(0, ignore_ids)
-        && !List.mem(1, ignore_ids)
-        && List.mem(2, ignore_ids) => (
-      [1],
-      [],
-    )
-  | _ => (shards, children)
-  };
-};
+/*let reconcile =
+      (ignore_ids: list(int), shards: list(int), children: list(Segment.t)) => {
+    let shards = List.sort(compare, shards);
+    //TODO(andrew): generalize this to arbitrary number of children
+    assert(List.length(shards) - 1 == List.length(children));
+    switch (shards, children) {
+    | ([], _) => failwith("reconcile: empty shards")
+    | ([_], []) => (shards, children)
+    | ([0, 1], [_]) when List.mem(0, ignore_ids) => ([1], [])
+    | ([0, 1], [_]) when List.mem(1, ignore_ids) => ([0], [])
+    | ([0, 1], [_]) => (shards, children)
+    | ([0, 1, 2], [l, r])
+        when
+          List.mem(0, ignore_ids)
+          && !List.mem(1, ignore_ids)
+          && !List.mem(2, ignore_ids) => (
+        [1, 2],
+        [l @ r],
+      )
+    | ([0, 1, 2], [l, r])
+        when
+          List.mem(2, ignore_ids)
+          && !List.mem(0, ignore_ids)
+          && !List.mem(1, ignore_ids) => (
+        [0, 1],
+        [l @ r],
+      )
+    | ([0, 1, 2], [l, r])
+        when
+          List.mem(1, ignore_ids)
+          && !List.mem(0, ignore_ids)
+          && !List.mem(2, ignore_ids) => (
+        [0, 2],
+        [l @ r],
+      )
+    | ([0, 1, 2], [_l, _r])
+        when
+          List.mem(0, ignore_ids)
+          && List.mem(1, ignore_ids)
+          && !List.mem(2, ignore_ids) => (
+        [2],
+        [],
+      )
+    | ([0, 1, 2], [_l, _r])
+        when
+          !List.mem(0, ignore_ids)
+          && List.mem(1, ignore_ids)
+          && List.mem(2, ignore_ids) => (
+        [0],
+        [],
+      )
+    | ([0, 1, 2], [_l, _r])
+        when
+          List.mem(0, ignore_ids)
+          && !List.mem(1, ignore_ids)
+          && List.mem(2, ignore_ids) => (
+        [1],
+        [],
+      )
+    | _ => (shards, children)
+    };
+  };*/
 
 // currently supports indentation imposed by a tile on following
 // remainder of segment (eg indentation after fun tile).
@@ -278,7 +278,7 @@ let rec of_segment' =
           /* indentation at the start of the row */
           ~row_indent=container_indent,
           ~origin=zero,
-          ~ignore_ids: Id.s=Id.Map.empty,
+          ~id_whitelist,
           seg: Segment.t,
         )
         : (int, point, t) =>
@@ -299,9 +299,9 @@ let rec of_segment' =
     let (seen_linebreak, contained_indent, row_indent, hd_last, hd_map) =
       switch (hd) {
       | Whitespace(w) when w.content == Whitespace.linebreak =>
-        switch (Id.Map.find_opt(w.id, ignore_ids)) {
-        | Some(_) => nothing
-        | None =>
+        switch (Id.Map.find_opt(w.id, id_whitelist)) {
+        | None => nothing
+        | Some(_) =>
           let concluding = Segment.sameline_whitespace(tl);
           let indent' =
             if (concluding) {
@@ -318,9 +318,9 @@ let rec of_segment' =
           (true, indent', indent', last, map);
         }
       | Whitespace(w) =>
-        switch (Id.Map.find_opt(w.id, ignore_ids)) {
-        | Some(_) => nothing
-        | None =>
+        switch (Id.Map.find_opt(w.id, id_whitelist)) {
+        | None => nothing
+        | Some(_) =>
           let last = {...origin, col: origin.col + 1};
           (
             seen_linebreak,
@@ -331,9 +331,9 @@ let rec of_segment' =
           );
         }
       | Grout(g) =>
-        switch (Id.Map.find_opt(g.id, ignore_ids)) {
-        | Some(_) => nothing
-        | None =>
+        switch (Id.Map.find_opt(g.id, id_whitelist)) {
+        | None => nothing
+        | Some(_) =>
           let last = {...origin, col: origin.col + 1};
           (
             seen_linebreak,
@@ -344,48 +344,48 @@ let rec of_segment' =
           );
         }
       | Tile(t) =>
-        switch (Id.Map.find_opt(t.id, ignore_ids)) {
-        | Some(_) => failwith("TODO(andrew)")
-        | None =>
-          let (shards, children) = reconcile([], t.shards, t.children);
-          let token = List.nth(t.label);
-          let of_shard = (row_indent, origin, shard) => {
-            let last = {
-              ...origin,
-              col: origin.col + String.length(token(shard)),
+        let token = List.nth(t.label);
+        let of_shard = (row_indent, origin, shard) => {
+          let last =
+            switch (Id.Map.find_opt(t.id, id_whitelist)) {
+            | Some(whitelist_shards) when List.mem(shard, whitelist_shards) => {
+                ...origin,
+                col: origin.col + String.length(token(shard)),
+              }
+            | _ => origin
             };
-            ((row_indent, last), singleton_s(t.id, shard, {origin, last}));
+          ((row_indent, last), singleton_s(t.id, shard, {origin, last}));
+        };
+        let ((row_indent, last), map) =
+          Aba.mk(t.shards, t.children)
+          |> Aba.fold_left_map(
+               of_shard(row_indent, origin),
+               ((row_indent, origin), child, shard) => {
+                 let (row_indent, child_last, child_map) =
+                   of_segment'(
+                     ~seen_linebreak=false,
+                     ~container_indent=contained_indent,
+                     ~row_indent,
+                     ~origin,
+                     ~id_whitelist,
+                     child,
+                   );
+                 let ((row_indent, shard_last), shard_map) =
+                   of_shard(row_indent, child_last, shard);
+                 ((row_indent, shard_last), child_map, shard_map);
+               },
+             )
+          |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
+          |> PairUtil.map_snd(union);
+        let contained_indent =
+          if (post_tile_indent(t)) {
+            min(contained_indent + 2, row_indent + 2);
+          } else if (missing_left_extreme(t)) {
+            container_indent;
+          } else {
+            contained_indent;
           };
-          let ((row_indent, last), map) =
-            Aba.mk(shards, children)
-            |> Aba.fold_left_map(
-                 of_shard(row_indent, origin),
-                 ((row_indent, origin), child, shard) => {
-                   let (row_indent, child_last, child_map) =
-                     of_segment'(
-                       ~seen_linebreak=false,
-                       ~container_indent=contained_indent,
-                       ~row_indent,
-                       ~origin,
-                       child,
-                     );
-                   let ((row_indent, shard_last), shard_map) =
-                     of_shard(row_indent, child_last, shard);
-                   ((row_indent, shard_last), child_map, shard_map);
-                 },
-               )
-            |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
-            |> PairUtil.map_snd(union);
-          let contained_indent =
-            if (post_tile_indent(t)) {
-              min(contained_indent + 2, row_indent + 2);
-            } else if (missing_left_extreme(t)) {
-              container_indent;
-            } else {
-              contained_indent;
-            };
-          (seen_linebreak, contained_indent, row_indent, last, map);
-        }
+        (seen_linebreak, contained_indent, row_indent, last, map);
       };
     let (row_indent, tl_last, tl_map) =
       of_segment'(
@@ -394,12 +394,18 @@ let rec of_segment' =
         ~contained_indent,
         ~row_indent,
         ~origin=hd_last,
+        ~id_whitelist,
         tl,
       );
     (row_indent, tl_last, union2(hd_map, tl_map));
   };
 let of_segment = seg => {
-  let (_, _, map) = of_segment'(seg);
+  let id_whitelist = Segment.ids(seg);
+  let (_, _, map) = of_segment'(seg, ~id_whitelist);
+  map;
+};
+let of_segment_id_whitelist = (~id_whitelist, seg) => {
+  let (_, _, map) = of_segment'(seg, ~id_whitelist);
   map;
 };
 
