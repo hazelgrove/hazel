@@ -87,7 +87,7 @@ let index = (z: Zipper.t): option(int) =>
   | None => None
   | Some((p, _, _)) =>
     switch (p) {
-    | Whitespace(_) => None
+    | Whitespace({id, _}) => Some(id)
     | Grout({id, _}) => Some(id)
     | Tile({id, _}) => Some(id)
     }
