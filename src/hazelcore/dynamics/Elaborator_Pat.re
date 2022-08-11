@@ -159,7 +159,7 @@ and syn_elab_operand =
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
   | ListLit(StandardErrStatus(NotInHole), None) =>
     Elaborates(ListLit(Hole, []), List(Hole), ctx, delta)
-  | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
   | ListLit(_, Some(OpSeq(skel, seq))) =>
     let subskels = UHPat.get_tuple_elements(skel);
     let rec syn_subskels = subskels =>
@@ -174,7 +174,7 @@ and syn_elab_operand =
     let (types, deltas) = List.split(syn_subskels(subskels));
     switch (Statics_common.lub(types)) {
     | Some(ty) => Elaborates(ListLit(ty, deltas), List(ty), ctx, delta)
-    | None => DoesNotElaborate
+    | None => Elaborates(ListLit(Hole, deltas), List(Hole), ctx, delta)
     };
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {
@@ -382,7 +382,7 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | ListLit(InconsistentBranches(_, _), _) => DoesNotElaborate
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
   | ListLit(StandardErrStatus(NotInHole), None) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
@@ -390,7 +390,7 @@ and ana_elab_operand =
       Elaborates(ListLit(ty_elt, []), HTyp.List(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
-  | ListLit(StandardErrStatus(NotInHole), Some(OpSeq(skel, _) as opseq)) =>
+  | ListLit(_, Some(OpSeq(skel, _) as opseq)) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
     | Some(ty_el) =>
@@ -410,7 +410,7 @@ and ana_elab_operand =
         let glb_ty = Statics_common.lub(tys);
         switch (glb_ty) {
         | Some(ty) => Elaborates(ListLit(ty, lst), List(ty), ctx, delta)
-        | None => DoesNotElaborate
+        | None => Elaborates(ListLit(Hole, lst), List(Hole), ctx, delta)
         };
       | DoesNotElaborate => DoesNotElaborate
       };
