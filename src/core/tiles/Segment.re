@@ -358,7 +358,7 @@ module Trim = {
     /* If we're adding a grout, remove a whitespace. Note that
        changes made to the logic here should also take into
        account the other direction in 'regrout' below. */
-    let trim = (rm_up_to_one_space(wss), gs);
+    let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading whitespace on a line */
     //HACK(andrew): commented out below hack to unhack other hack
@@ -374,7 +374,14 @@ module Trim = {
          to the logic here should also take into account the
          conversion of spaces to grout in 'add_grout' above. */
       let new_spaces =
-        List.map(({id, _}: Grout.t) => Whitespace.mk_space(id), gs);
+        List.filter_map(
+          ({id, shape}: Grout.t) =>
+            switch (shape) {
+            | Concave => Some(Whitespace.mk_space(id))
+            | Convex => None
+            },
+          gs,
+        );
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
