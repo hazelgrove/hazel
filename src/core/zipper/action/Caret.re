@@ -103,9 +103,7 @@ let rec do_towards =
           prev: t,
         )
         : t => {
-  print_endline("CCCCC");
   let cur_p = cursorpos(cur);
-  print_endline("DDDDD");
   //Printf.printf("go_towards: current: %s\n", Measured.show_point(cur_p));
   switch (dcomp(d, cur_p.col, goal.col), dcomp(d, cur_p.row, goal.row)) {
   | (Exact, Exact) => cur
@@ -159,15 +157,10 @@ let do_extreme = (f: t => option(t), d: planar, z: t): option(t) => {
   Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
 };
 
-let rec do_towards_no_goal = (f: t => option(t), cur: t): t => {
+let rec fixpoint = (f: t => option(t), cur: t): t => {
   switch (f(cur)) {
   | None => cur
   | Some(next) when next == cur => cur
-  | Some(next) => do_towards_no_goal(f, next)
+  | Some(next) => fixpoint(f, next)
   };
-};
-
-let do_extreme_no_goal = (f: t => option(t), z: t): option(t) => {
-  let res = do_towards_no_goal(f, z);
-  Some(res);
 };

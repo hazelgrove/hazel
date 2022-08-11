@@ -45,6 +45,7 @@ let code_container_2 =
   let (z2, _) = Perform.drop_it_like_its_hot_regrout(zipper, 8000);
   let segment = Zipper.zip(zipper);
   let map1 = Measured.of_segment(unselected);
+  let _segment2 = Zipper.zip(z2);
   let map_barf =
     Measured.of_segment_id_whitelist(
       ~id_whitelist=Segment.ids(unselected),
@@ -55,7 +56,13 @@ let code_container_2 =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=map_barf, ~settings);
   let deco_view =
     show_deco
-      ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
+      ? deco(
+          ~zipper,
+          ~map,
+          ~segment, //=segment2,
+          ~font_metrics,
+          ~show_backpack_targets,
+        )
       : [];
   div([Attr.class_("code-container")], [code_view] /***/ @ deco_view);
 };

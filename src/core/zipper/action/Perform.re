@@ -54,58 +54,18 @@ let drop_it_like_its_hot_regrout = (z: Zipper.t, id_gen): (Zipper.t, int) => {
   let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
     switch (Outer.put_down(z)) {
     | None =>
-      print_endline("DROP: couldnt put down, going to try moving");
-      Move.primary(ByToken, Right, z);
+      //print_endline("DROP: couldnt put down, going to try moving");
+      Move.primary(ByToken, Right, z)
     | Some(z) =>
-      print_endline("DROP: put down");
+      //print_endline("DROP: put down");
       let (z, id_gen) = remold_regrout(Left, z, id_zz^);
-      print_endline("BLOFGACE");
+      //print_endline("BLOFGACE");
       id_zz := id_gen;
       Some(z);
     };
   };
-  print_endline("ABOUUT TO DO EXTREME");
-  switch (Caret.do_extreme_no_goal(drop_or_move, z)) {
-  | Some(z) =>
-    print_endline("DROP: extreme SOME");
-    //assert(z.backpack == []);
-    (z, id_zz^);
-  | _ =>
-    print_endline("DROP: extreme NONE");
-    //assert(z.backpack == []);
-    (z, id_zz^);
-  };
-};
-
-let drop_it_like_its_hot = (z: Zipper.t, id_gen): (Zipper.t, int) => {
-  //TODO(andrew): also need to ignore inserted grout in measured.....?
-  // or actually instead of collecting ids in backpack to ignore,
-  // just use id map from original zipper as whitelist
-  let id_zz = ref(id_gen);
-  //id_zz := id_gen;
-  let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
-    switch (Outer.put_down(z)) {
-    | None =>
-      print_endline("DROP: couldnt put down, going to try moving");
-      Move.primary(ByToken, Right, z);
-    | Some(z) =>
-      print_endline("DROP: put down");
-      print_endline("BLOFGACE");
-      id_zz := id_gen;
-      Some(z);
-    };
-  };
-  print_endline("ABOUUT TO DO EXTREME");
-  switch (Caret.do_extreme_no_goal(drop_or_move, z)) {
-  | Some(z) =>
-    print_endline("DROP: extreme SOME");
-    assert(z.backpack == []);
-    (z, id_zz^);
-  | _ =>
-    print_endline("DROP: extreme NONE");
-    assert(z.backpack == []);
-    (z, id_zz^);
-  };
+  //print_endline("ABOUUT TO DO EXTREME");
+  (Caret.fixpoint(drop_or_move, z), id_zz^);
 };
 
 let move = (d, z, id_gen) =>
@@ -195,9 +155,10 @@ let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) => {
     |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | RotateBackpack =>
+    //TODO(andrew): restore rotation of backpack
     //let (z, id_gen) =
     //  drop_it_like_its_hot(z) |> (z => remold_regrout(Left, z, id_gen));
-    Ok(drop_it_like_its_hot(z, id_gen))
+    Ok(drop_it_like_its_hot_regrout(z, id_gen))
   //Ok(({...z, backpack: Util.ListUtil.rotate(z.backpack)}, id_gen))
   | MoveToBackpackTarget(d) =>
     let map = Measured.of_segment(unselect_and_zip(z));
