@@ -45,7 +45,7 @@ let put_down = (z: t): option(t) =>
   | Outer => Outer.put_down(z)
   };
 
-let drop_it_like_its_hot = (z: Zipper.t, id_gen): (Zipper.t, int) => {
+let drop_it_like_its_hot_regrout = (z: Zipper.t, id_gen): (Zipper.t, int) => {
   //TODO(andrew): also need to ignore inserted grout in measured.....?
   // or actually instead of collecting ids in backpack to ignore,
   // just use id map from original zipper as whitelist
@@ -59,11 +59,44 @@ let drop_it_like_its_hot = (z: Zipper.t, id_gen): (Zipper.t, int) => {
     | Some(z) =>
       print_endline("DROP: put down");
       let (z, id_gen) = remold_regrout(Left, z, id_zz^);
+      print_endline("BLOFGACE");
       id_zz := id_gen;
       Some(z);
     };
   };
-  switch (Caret.do_extreme(drop_or_move, Down, z)) {
+  print_endline("ABOUUT TO DO EXTREME");
+  switch (Caret.do_extreme_no_goal(drop_or_move, z)) {
+  | Some(z) =>
+    print_endline("DROP: extreme SOME");
+    //assert(z.backpack == []);
+    (z, id_zz^);
+  | _ =>
+    print_endline("DROP: extreme NONE");
+    //assert(z.backpack == []);
+    (z, id_zz^);
+  };
+};
+
+let drop_it_like_its_hot = (z: Zipper.t, id_gen): (Zipper.t, int) => {
+  //TODO(andrew): also need to ignore inserted grout in measured.....?
+  // or actually instead of collecting ids in backpack to ignore,
+  // just use id map from original zipper as whitelist
+  let id_zz = ref(id_gen);
+  //id_zz := id_gen;
+  let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
+    switch (Outer.put_down(z)) {
+    | None =>
+      print_endline("DROP: couldnt put down, going to try moving");
+      Move.primary(ByToken, Right, z);
+    | Some(z) =>
+      print_endline("DROP: put down");
+      print_endline("BLOFGACE");
+      id_zz := id_gen;
+      Some(z);
+    };
+  };
+  print_endline("ABOUUT TO DO EXTREME");
+  switch (Caret.do_extreme_no_goal(drop_or_move, z)) {
   | Some(z) =>
     print_endline("DROP: extreme SOME");
     assert(z.backpack == []);

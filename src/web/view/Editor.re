@@ -33,6 +33,33 @@ let code_container =
   div([Attr.class_("code-container")], [code_view] @ deco_view);
 };
 
+let code_container_2 =
+    (
+      ~font_metrics,
+      ~zipper,
+      ~unselected,
+      ~settings,
+      ~show_backpack_targets,
+      ~show_deco,
+    ) => {
+  let (z2, _) = Perform.drop_it_like_its_hot_regrout(zipper, 8000);
+  let segment = Zipper.zip(zipper);
+  let map1 = Measured.of_segment(unselected);
+  let map_barf =
+    Measured.of_segment_id_whitelist(
+      ~id_whitelist=Segment.ids(unselected),
+      Zipper.unselect_and_zip(z2),
+    );
+  let map = Measured.mergeq(map_barf, map1);
+  let code_view =
+    Code.view(~font_metrics, ~segment, ~unselected, ~map, ~settings);
+  let deco_view =
+    show_deco
+      ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
+      : [];
+  div([Attr.class_("code-container")], [code_view] /***/ @ deco_view);
+};
+
 let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
   [
     TestView.view(
@@ -67,11 +94,9 @@ let single_editor =
       ~settings: Model.settings,
     )
     : Node.t => {
-  //let unselected = Zipper.unselect_and_zip(zipper);
-  let (z2, _) = Perform.drop_it_like_its_hot(zipper, 66666666);
-  let unselected = Zipper.unselect_and_zip(z2);
+  let unselected = Zipper.unselect_and_zip(zipper);
   let code_view =
-    code_container(
+    code_container_2(
       ~font_metrics,
       ~zipper,
       ~unselected,
@@ -79,6 +104,8 @@ let single_editor =
       ~show_backpack_targets,
       ~show_deco=true,
     );
+  let (z2, _) = Perform.drop_it_like_its_hot_regrout(zipper, 7000);
+  let unselected2 = Zipper.unselect_and_zip(z2);
   let statics_view =
     settings.statics
       ? single_editor_semantics_views(
@@ -86,7 +113,7 @@ let single_editor =
           ~settings,
           ~font_metrics,
           ~index=Indicated.index(zipper),
-          ~unselected,
+          ~unselected=unselected2,
         )
       : [];
   div([clss(["editor", "single"])], [code_view] @ statics_view);

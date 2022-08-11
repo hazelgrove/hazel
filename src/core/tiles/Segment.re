@@ -361,7 +361,8 @@ module Trim = {
     let trim = (rm_up_to_one_space(wss), gs);
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading whitespace on a line */
-    let wss' = scooch_over_linebreak(wss');
+    //HACK(andrew): commented out below hack to unhack other hack
+    //let wss' = scooch_over_linebreak(wss');
     (wss', gs');
   };
 

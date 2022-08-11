@@ -180,6 +180,58 @@ let union2 = (map: t, map': t) => {
 };
 let union = List.fold_left(union2, empty);
 
+let mergeq = (map: t, map': t) => {
+  tiles:
+    Id.Map.merge(
+      (_, ms, ms') =>
+        switch (ms, ms') {
+        | (Some(ms), _) => Some(ms)
+        | (_, Some(ms')) => Some(ms')
+        | _ => None
+        },
+      map.tiles,
+      map'.tiles,
+    ),
+  grout:
+    Id.Map.merge(
+      (_, ms, ms') =>
+        switch (ms, ms') {
+        | (Some(ms), _) => Some(ms)
+        | (_, Some(ms')) => Some(ms')
+        | _ => None
+        },
+      map.grout,
+      map'.grout,
+    ),
+  whitespace:
+    Id.Map.merge(
+      (_, ms, ms') =>
+        switch (ms, ms') {
+        | (Some(ms), _) => Some(ms)
+        | (_, Some(ms')) => Some(ms')
+        | _ => None
+        },
+      map.whitespace,
+      map'.whitespace,
+    ),
+  rows:
+    //TODO(andrew):
+    Rows.merge(
+      (_, s, s') =>
+        switch (s, s') {
+        | (Some(ms), _) => Some(ms)
+        | (_, Some(ms')) => Some(ms')
+        | _ => None
+        }, /*
+        Some({
+          indent: min(s.indent, s'.indent),
+          max_col: max(s.max_col, s'.max_col),
+        }),*/
+      map.rows,
+      map'.rows,
+    ),
+};
+
 let post_tile_indent = (t: Tile.t) => {
   // hack for indent following fun/if tiles.
   // proper fix involves updating mold datatype
@@ -278,7 +330,7 @@ let rec of_segment' =
           /* indentation at the start of the row */
           ~row_indent=container_indent,
           ~origin=zero,
-          ~id_whitelist,
+          ~id_whitelist: Id.s,
           seg: Segment.t,
         )
         : (int, point, t) =>
@@ -348,7 +400,7 @@ let rec of_segment' =
         let of_shard = (row_indent, origin, shard) => {
           let last =
             switch (Id.Map.find_opt(t.id, id_whitelist)) {
-            | Some(whitelist_shards) when List.mem(shard, whitelist_shards) => {
+            | Some(shard_whitelist) when List.mem(shard, shard_whitelist) => {
                 ...origin,
                 col: origin.col + String.length(token(shard)),
               }
