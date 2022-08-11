@@ -793,19 +793,6 @@ and syn_perform_operand =
     syn_insert_text(ctx, id_gen, (j, s), f)
   | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
     syn_insert_text(ctx, id_gen, (j, s), string_of_bool(b))
-  | (Construct(SChar(_)), CursorP(_)) => Failed
-
-  | (Construct(SListLit), CursorP(_, EmptyHole(_))) =>
-    mk_syn_result(
-      ctx,
-      id_gen,
-      ZOpSeq.wrap(
-        ZPat.CursorP(
-          OnText(1),
-          ListLit(StandardErrStatus(NotInHole), None),
-        ),
-      ),
-    )
   | (Construct(SOp(SSpace)), CursorP(OnText(1), ListLit(err, None))) =>
     let (zhole, id_gen) = ZPat.new_EmptyHole(id_gen);
     mk_syn_result(
@@ -820,6 +807,19 @@ and syn_perform_operand =
     | Succeeded((zp, _, ctx, id_gen)) =>
       mk_syn_result(ctx, id_gen, ZOpSeq.wrap(ZPat.ListLitZ(err, zp)))
     };
+  | (Construct(SChar(_)), CursorP(_)) => Failed
+
+  | (Construct(SListLit), CursorP(_, EmptyHole(_))) =>
+    mk_syn_result(
+      ctx,
+      id_gen,
+      ZOpSeq.wrap(
+        ZPat.CursorP(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        ),
+      ),
+    )
   | (Construct(SListLit), CursorP(_, _)) =>
     mk_syn_result(
       ctx,

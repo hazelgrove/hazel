@@ -105,7 +105,7 @@ and syn_operand =
       };
     switch (OptUtil.bind(syn_subskels(subskels, ctx), Statics_common.lub)) {
     | Some(ty) => Some((List(ty), ctx))
-    | None => None
+    | None => Some((List(Hole), ctx))
     };
   | TypeAnn(NotInHole, op, ann) =>
     let ty_ann = UHTyp.expand(ann);
