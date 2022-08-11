@@ -68,6 +68,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0, sigma))
+    | MultiHole(_) =>
+      // TODO: dhexp, eval for multiholes
+      Some(EmptyHole(u, 0, sigma))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
@@ -176,6 +179,9 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     switch (upat.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0))
+    | MultiHole(_) =>
+      // TODO: dhexp, eval for multiholes
+      Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))

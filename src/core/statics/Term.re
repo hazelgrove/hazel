@@ -23,6 +23,7 @@ module UTyp = {
   type cls =
     | Invalid
     | EmptyHole
+    | MultiHole
     | Unit
     | Int
     | Float
@@ -35,6 +36,7 @@ module UTyp = {
   type term =
     | Invalid(Piece.t)
     | EmptyHole
+    | MultiHole(list(Id.t), list(t))
     | Unit
     | Int
     | Float
@@ -51,6 +53,7 @@ module UTyp = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
     | Unit => Unit
     | Int => Int
     | Float => Float
@@ -63,6 +66,7 @@ module UTyp = {
     fun
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
+    | MultiHole => "Multi Type Hole"
     | Unit
     | Int
     | Float
@@ -77,6 +81,7 @@ module UPat = {
   type cls =
     | Invalid
     | EmptyHole
+    | MultiHole
     | Wild
     | Int
     | Float
@@ -90,6 +95,7 @@ module UPat = {
   type term =
     | Invalid(Piece.t)
     | EmptyHole
+    | MultiHole(list(Id.t), list(t))
     | Wild
     | Int(int)
     | Float(float)
@@ -107,6 +113,7 @@ module UPat = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
     | Wild => Wild
     | Int(_) => Int
     | Float(_) => Float
@@ -120,6 +127,7 @@ module UPat = {
     fun
     | Invalid => "Invalid Pattern"
     | EmptyHole => "Empty Pattern Hole"
+    | MultiHole => "Multi Pattern Hole"
     | Wild => "Wildcard Pattern"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -166,6 +174,7 @@ module UExp = {
   type cls =
     | Invalid
     | EmptyHole
+    | MultiHole
     | Bool
     | Int
     | Float
@@ -187,6 +196,7 @@ module UExp = {
     | Invalid(Piece.t) //everything? text? keyword?
     //| InvalidSegment(Segment.t)
     | EmptyHole
+    | MultiHole(list(Id.t), list(t))
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -213,6 +223,7 @@ module UExp = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -264,6 +275,7 @@ module UExp = {
     fun
     | Invalid => "Invalid Expression"
     | EmptyHole => "Empty Expression Hole"
+    | MultiHole => "Multi Expression Hole"
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -286,6 +298,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
+    | MultiHole(_)
     | EmptyHole => Unknown(TypeHole)
     | Unit => Unit
     | Bool => Bool

@@ -41,6 +41,7 @@ type source = {
 type self =
   | Just(t)
   | Joined(list(source))
+  | Multi
   | Free;
 
 /* MODE: The (analytic) type information derived from a term's
