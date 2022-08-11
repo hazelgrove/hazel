@@ -24,6 +24,8 @@ module Delta = Delta;
 [@deriving sexp]
 type delta = Delta.t;
 
+module FreshLabels = FreshLabels;
+
 module Syn = Syn;
 let syn = Syn.syn;
 
