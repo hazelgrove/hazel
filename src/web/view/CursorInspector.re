@@ -136,13 +136,13 @@ let inspector_view =
 
 let view =
     (~inject, ~settings, index': option(int), info_map: Core.Statics.map) => {
-  let (index, ci) =
-    switch (index') {
-    | Some(index) => (index, Core.Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
-    };
-  switch (ci) {
-  | None => div([clss(["cursor-inspector"])], [text("No Static Data")])
-  | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+  switch (index') {
+  | Some(index) =>
+    switch (Core.Id.Map.find_opt(index, info_map)) {
+    | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+    | None => div([clss(["cursor-inspector"])], [text("No CI for Index")])
+    }
+  | None =>
+    div([clss(["cursor-inspector"])], [text("No Indicated Index")])
   };
 };
