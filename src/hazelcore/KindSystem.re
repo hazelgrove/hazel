@@ -819,6 +819,7 @@ and HTyp: {
     };
 
   let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
+    // TODO: head_normalize both
     switch (ty, ty') {
     | (TyVar(cref, _), TyVar(cref', _)) =>
       switch (
@@ -826,7 +827,7 @@ and HTyp: {
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
       ) {
       | (Some(k), Some(k')) =>
-        // FIXME: (poly) normalize kind before check consistency
+        // FIXME: `k` is either Hole or Type; remove `to_htyp` here
         consistent(
           ctx,
           HTyp.to_syntax(Kind.to_htyp(k)),
