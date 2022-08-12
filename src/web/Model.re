@@ -55,11 +55,12 @@ let settings_init = {
 type t = {
   editor_model,
   id_gen: IdGen.state,
+  settings,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   double_tap: option(timestamp),
-  settings,
+  clipboard: string,
 };
 
 let cutoff = (===);
@@ -68,11 +69,11 @@ let mk = editor_model => {
   id_gen: 1,
   editor_model,
   settings: settings_init,
-  // TODO: move below to 'internals'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   double_tap: None,
+  clipboard: ",",
 };
 
 let blank = mk(School(0, []));
