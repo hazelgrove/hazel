@@ -1,15 +1,26 @@
+/* FIXME: Ensure unique labels. */
 open Util.ResultSexp;
 
 open Holes;
 
 [@deriving sexp]
 type syn_types = ExprLabel.Map.t(Typ.t);
+[@deriving sexp]
+type syn_idents = Ident.Set.t;
 
 [@deriving sexp]
-type syn_ok = {types: syn_types};
+type syn_ok = {
+  types: syn_types,
+  idents: syn_idents,
+};
 
 [@deriving sexp]
 type syn_error =
+  | DuplicateIdent(Ident.t)
+  | DuplicateExprLabel(ExprLabel.t)
+  | DuplicateStmtLabel(StmtLabel.t)
+  | DuplicateRuleLabel(RuleLabel.t)
+  | DuplicatePatLabel(PatLabel.t)
   | CaseEmptyRules(ExprLabel.t)
   | UnboundVar(ExprLabel.t)
   | UnboundHole(ExprLabel.t)
@@ -28,7 +39,7 @@ module SynMonad = {
     [@deriving sexp]
     type t = syn_ok;
 
-    let init = {types: ExprLabel.Map.empty};
+    let init = {types: ExprLabel.Map.empty, idents: Ident.Set.empty};
   };
 
   module StateMonad = Util.StateMonad.Make(State);
@@ -58,13 +69,31 @@ include SynMonad;
 include SynMonad.Syntax;
 type m('a) = SynMonad.t('a);
 
-let extend = (l, ty) => {
+let record_typ = (l, ty) => {
   let+ () =
-    update(({types}) => {
+    update(({types, _} as s) => {
       let types = ExprLabel.Map.add(l, ty, types);
-      {types: types};
+      {...s, types};
     });
   ty;
+};
+
+let record_ident = x => {
+  /* Ensure that identifier. is unique. */
+  let* () =
+    get
+    >>= (
+      ({idents, _}) =>
+        Ident.Set.mem(x, idents) ? DuplicateIdent(x) |> fail : () |> return
+    );
+
+  /* Add identifier. */
+  let+ () =
+    update(({idents, _} as s) => {
+      let idents = Ident.Set.add(x, idents);
+      {...s, idents};
+    });
+  x;
 };
 
 let rec ana_pat =
@@ -99,7 +128,9 @@ let rec ana_pat =
     }
 
   | PWild => ctx |> return
-  | PVar(x) => TypContext.add(x, ty, ctx) |> return
+  | PVar(x) =>
+    let* _ = record_ident(x);
+    TypContext.add(x, ty, ctx) |> return;
 
   | PBool(_b) =>
     switch (ty) {
@@ -155,7 +186,7 @@ and syn_block =
     (ctx, delta, {block_body: (stmts, im), block_label: l, _}: Anf.block) => {
   let* ctx = syn_stmts(ctx, delta, stmts);
   let* ty = syn_imm(ctx, delta, im);
-  extend(l, ty);
+  record_typ(l, ty);
 }
 
 and syn_stmts = (ctx: TypContext.t, delta, stmts) =>
@@ -175,11 +206,16 @@ and syn_stmts = (ctx: TypContext.t, delta, stmts) =>
 and syn_stmt = (ctx, delta, {stmt_kind, stmt_label: _, _}: Anf.stmt) => {
   switch (stmt_kind) {
   | SLet(x, c) =>
+    let* _ = record_ident(x);
+
     let+ ty = syn_comp(ctx, delta, c);
     let ctx = TypContext.add(x, ty, ctx);
     ctx;
 
   | SLetRec(x, param, param_ty, o_ty, body) =>
+    let* _ = record_ident(x);
+    let* _ = record_ident(param);
+
     let ty = Typ.TArrow(param_ty, o_ty);
     let ctx = TypContext.add(x, ty, ctx);
 
@@ -202,7 +238,7 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
     let* ty' = syn_imm(ctx, delta, im);
     if (Typ.equal(ty', ty1)) {
       if (Typ.consistent(ty1, ty2)) {
-        extend(l, ty2);
+        record_typ(l, ty2);
       } else {
         TypesInconsistent(l', ty1, ty2) |> fail;
       };
@@ -242,19 +278,19 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
            )
       };
 
-    extend(l, ty);
+    record_typ(l, ty);
 
   | CFun(param, param_ty, body) =>
     let ctx' = TypContext.add(param, param_ty, ctx);
     let* body_ty = syn_block(ctx', delta, body);
-    extend(l, TArrow(param_ty, body_ty));
+    record_typ(l, TArrow(param_ty, body_ty));
 
   /* Application */
   | CAp(fn, arg) =>
     let* fn_ty = syn_imm(ctx, delta, fn);
     let* arg_ty = syn_imm(ctx, delta, arg);
     switch (fn_ty) {
-    | TArrow(ty1, ty2) when Typ.equal(arg_ty, ty1) => extend(l, ty2)
+    | TArrow(ty1, ty2) when Typ.equal(arg_ty, ty1) => record_typ(l, ty2)
     | TArrow(ty1, _ty2) => TypesNotEqual(arg.imm_label, arg_ty, ty1) |> fail
     /* FIXME: Hole here is just a placeholder for unknown. */
     | _ => TypesNotEqual(fn.imm_label, fn_ty, TArrow(arg_ty, THole)) |> fail
@@ -283,20 +319,20 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
       };
     let* () = ana_imm(ctx, delta, im1, ana_ty);
     let* () = ana_imm(ctx, delta, im2, ana_ty);
-    extend(l, ana_ty);
+    record_typ(l, ana_ty);
 
   /* Pair */
   | CPair(im1, im2) =>
     let* ty1 = syn_imm(ctx, delta, im1);
     let* ty2 = syn_imm(ctx, delta, im2);
-    extend(l, TPair(ty1, ty2));
+    record_typ(l, TPair(ty1, ty2));
 
   /* Cons */
   | CCons(im1, im2) =>
     let* ty1 = syn_imm(ctx, delta, im1);
     let* ty2 = syn_imm(ctx, delta, im2);
     switch (ty2) {
-    | TList(ty2') when Typ.equal(ty1, ty2') => extend(l, TList(ty1))
+    | TList(ty2') when Typ.equal(ty1, ty2') => record_typ(l, TList(ty1))
     | TList(ty2') => TypesNotEqual(im1.imm_label, ty1, ty2') |> fail
     | ty2 => TypesNotEqual(im2.imm_label, ty2, TList(ty1)) |> fail
     };
@@ -309,11 +345,11 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
       | CInjL => TSum(this_ty, other_ty)
       | CInjR => TSum(other_ty, this_ty)
       };
-    extend(l, ty);
+    record_typ(l, ty);
 
   | CImm(im) =>
     let* ty = syn_imm(ctx, delta, im);
-    extend(l, ty);
+    record_typ(l, ty);
   };
 }
 
@@ -321,7 +357,7 @@ and syn_imm = (ctx, _delta, {imm_kind, imm_label: l, _}: Anf.imm) => {
   switch (imm_kind) {
   | IVar(x) =>
     switch (TypContext.find_opt(x, ctx)) {
-    | Some(ty) => extend(l, ty)
+    | Some(ty) => record_typ(l, ty)
     | None => UnboundVar(l) |> fail
     }
 
@@ -334,7 +370,7 @@ and syn_imm = (ctx, _delta, {imm_kind, imm_label: l, _}: Anf.imm) => {
       | ConstNil(ty') => TList(ty')
       | ConstTriv => TUnit
       };
-    extend(l, ty);
+    record_typ(l, ty);
   };
 }
 
@@ -345,7 +381,7 @@ and syn_hole =
     switch (sort) {
     | Delta.ExpressionHole =>
       let* () = ana_hole_sigma(ctx, delta, l, sigma, gamma');
-      extend(l, hole_ty);
+      record_typ(l, hole_ty);
     | Delta.PatternHole => WrongHoleSort(l) |> fail
     }
   | None => UnboundHole(l) |> fail

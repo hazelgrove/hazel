@@ -1,11 +1,21 @@
 [@deriving sexp]
 type syn_types = ExprLabel.Map.t(Typ.t);
+[@deriving sexp]
+type syn_idents = Ident.Set.t;
 
 [@deriving sexp]
-type syn_ok = {types: syn_types};
+type syn_ok = {
+  types: syn_types,
+  idents: syn_idents,
+};
 
 [@deriving sexp]
 type syn_error =
+  | DuplicateIdent(Ident.t)
+  | DuplicateExprLabel(ExprLabel.t)
+  | DuplicateStmtLabel(StmtLabel.t)
+  | DuplicateRuleLabel(RuleLabel.t)
+  | DuplicatePatLabel(PatLabel.t)
   | CaseEmptyRules(ExprLabel.t)
   | UnboundVar(ExprLabel.t)
   | UnboundHole(ExprLabel.t)

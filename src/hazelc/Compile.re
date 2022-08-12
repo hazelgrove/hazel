@@ -29,7 +29,7 @@ let linearize' = (ctx, delta, e) => {
   let (ctx, delta, e) = Mir.Linearize.linearize(ctx, delta, e);
 
   Mir.Anf.syn(ctx, delta, e)
-  |> Result.map((Mir.Anf.Syn.{types}) => (ctx, delta, e, types));
+  |> Result.map((Mir.Anf.Syn.{types, idents: _}) => (ctx, delta, e, types));
 };
 
 let optimize' = (ctx, delta, block, types) => {
