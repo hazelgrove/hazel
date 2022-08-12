@@ -102,6 +102,7 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
   );
 
 let rec remold = (seg: t, s: Sort.t) => {
+  // eagerly remold as container sort
   let (_, s_molded) =
     seg
     |> List.fold_left_map(
@@ -126,6 +127,8 @@ let rec remold = (seg: t, s: Sort.t) => {
          Nib.Shape.concave(),
        );
 
+  // for all molds producing output sort with different unidelimited sort,
+  // identify maximal subranges to remold as the unidelimited sort
   let nth = List.nth(s_molded);
   let sortable = sort =>
     fun
@@ -168,15 +171,53 @@ let rec remold = (seg: t, s: Sort.t) => {
     };
     ranges^;
   };
+  let uni_remolded =
+    transition_ranges
+    |> List.fold_left(
+         (seg, (sort, (i, j))) => {
+           let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
+           let subseg = remold(subseg, sort);
+           List.concat([pre, subseg, suf]);
+         },
+         s_molded,
+       );
 
-  transition_ranges
-  |> List.fold_left(
-       (seg, (sort, (i, j))) => {
-         let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
-         let subseg = remold(subseg, sort);
-         List.concat([pre, subseg, suf]);
-       },
-       s_molded,
+  // remold bidelimited children
+  List.combine(seg, uni_remolded)
+  |> List.map(
+       fun
+       | (Piece.(Grout(_) | Whitespace(_)), p)
+       | (_, Piece.(Grout(_) | Whitespace(_)) as p) => p
+       | (Tile(t_seg), Tile(t_remolded)) => {
+           let children =
+             List.fold_right(
+               ((l, child, r), children) => {
+                 // this optimization avoids remolding bidelimited children
+                 // if they are not freshly contained and container sort
+                 // remains unchanged. may not be necessary now that remolding
+                 // is no longer exponential, could be worth removing to
+                 // reduce complexity + IncompleteBidelim hack
+                 let child =
+                   if (l
+                       + 1 == r
+                       && (
+                         List.nth(t_seg.mold.in_, l)
+                         != List.nth(t_remolded.mold.in_, l)
+                         || IncompleteBidelim.contains(t_remolded.id, l)
+                       )) {
+                     remold(child, List.nth(t_remolded.mold.in_, l));
+                   } else {
+                     child;
+                   };
+                 [child, ...children];
+               },
+               Aba.aba_triples(
+                 Aba.mk(t_remolded.shards, t_remolded.children),
+               ),
+               [],
+             );
+           Tile({...t_remolded, children});
+         },
      );
 };
 
