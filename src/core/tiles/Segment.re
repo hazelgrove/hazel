@@ -479,6 +479,7 @@ module Trim = {
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading whitespace on a line */
     //let wss' = scooch_over_linebreak(wss');
+    /* ANDREW: disabled above hack; with calmer linebreak it seems annoying */
     (wss', gs');
   };
 
