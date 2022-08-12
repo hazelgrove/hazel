@@ -818,21 +818,23 @@ and HTyp: {
     | (Forall(_), _) => false
     };
 
-  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
-    // TODO: head_normalize both
-    switch (ty, ty') {
+  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool => {
+    let head_normalize_ = ty =>
+      ty
+      |> HTyp.of_syntax
+      |> HTyp.head_normalize(ctx)
+      |> HTyp.of_head_normalized
+      |> HTyp.to_syntax;
+    switch (ty |> head_normalize_, ty' |> head_normalize_) {
     | (TyVar(cref, _), TyVar(cref', _)) =>
       switch (
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
       ) {
-      | (Some(k), Some(k')) =>
-        // FIXME: `k` is either Hole or Type; remove `to_htyp` here
-        consistent(
-          ctx,
-          HTyp.to_syntax(Kind.to_htyp(k)),
-          HTyp.to_syntax(Kind.to_htyp(k')),
-        )
+      | (Some(Type), Some(Type)) => ContextRef.equivalent(cref, cref')
+      | (Some(Hole | Type), Some(Hole | Type)) => true
+      | (Some(_), Some(_)) =>
+        failwith(__LOC__ ++ ": singleton kind in head_normalized type")
       | (None, _)
       | (_, None) => false
       }
@@ -859,6 +861,7 @@ and HTyp: {
       consistent(ctx, ty, ty');
     | (Forall(_), _) => false
     };
+  };
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
     !consistent(ctx, ty1, ty2);
