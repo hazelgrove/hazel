@@ -101,109 +101,232 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let rec remold = (seg: t, s: Sort.t): t => {
-  let tiles = List.filter_map(Piece.is_tile, seg);
-
-  let molds =
-    tiles
-    |> List.map((t: Tile.t) => Id.Map.singleton(t.id, Molds.get(t.label)))
-    |> List.fold_left(Id.Map.disj_union, Id.Map.empty);
-
-  let ((molds, _), iss) =
-    tiles
-    |> List.mapi((i, t) => (i, t))
-    |> List.fold_left_map(
-         ((molds, shape), (i, t: Tile.t)) => {
-           let ms = Id.Map.find(t.id, molds);
-           let ms =
-             ms
-             |> List.filter(Mold.fits_shape(Left, shape))
-             |> (
-               fun
-               | [] => ms
-               | [_, ..._] as ms => ms
-             );
-           let molds = Id.Map.update(t.id, _ => Some(ms), molds);
-           let r =
-             snd(Mold.consistent_shapes(ms))
-             |> OptUtil.get_or_fail(
-                  "currently expecting right shapes to be unambiguous for any label",
-                );
-           ((molds, r), (i, (Nib.Shape.flip(shape), r)));
-         },
-         (molds, Nib.Shape.concave()),
-       );
-
-  let rec filter_sorts = (skel: Skel.t, s: Sort.t): Id.Map.t(Mold.t) => {
-    switch (List.nth(tiles, Skel.root_index(skel))) {
-    | exception (Invalid_argument(_)) =>
-      // hole
-      Id.Map.empty
-    | t =>
-      let ms = Id.Map.find(t.id, molds);
-      let mold =
-        ms
-        |> List.filter((m: Mold.t) => Sort.consistent(s, m.out))
-        |> (
-          fun
-          | [] => List.hd(ms)
-          | [m, ..._] => m
-        );
-      let (l, r) = mold.nibs;
-      let inner_molds =
-        switch (skel) {
-        | Op(_) => Id.Map.empty
-        | Pre(_, skel) => filter_sorts(skel, r.sort)
-        | Post(skel, _) => filter_sorts(skel, l.sort)
-        | Bin(skel_l, _, skel_r) =>
-          Id.Map.disj_union(
-            filter_sorts(skel_l, l.sort),
-            filter_sorts(skel_r, r.sort),
+let remold = (seg: t, s: Sort.t) => {
+  let (_, s_molded) =
+    seg
+    |> List.fold_left_map((shape, p) =>
+      switch (p) {
+      | Whitespace(_) | Grout(_) => (shape, p)
+      | Tile(t) =>
+        let mold =
+          Molds.get(t.label)
+          |> List.filter((m: Mold.t) => m.out == s)
+          |> (
+            fun
+            | ([] | [_]) as ms => ms
+            | [_, _, ..._] =>
+              List.filter(Mold.fits_shape(Left, shape), ms)
           )
-        };
-      Id.Map.add(t.id, mold, inner_molds);
-    };
-  };
+          |> ListUtil.hd_opt
+          |> OptUtil.get(() => t.mold);
+        (snd(Mold.nib_shapes(mold)), Tile({...t, mold}));
+      },
+      Nib.Shape.concave(),
+    );
 
-  let skels = Skel.mk_err(iss);
-  let molds =
-    switch (skels) {
-    | [skel] => filter_sorts(skel, s)
-    | _ =>
-      skels
-      |> List.map(skel => filter_sorts(skel, Any))
-      |> List.fold_left(Id.Map.disj_union, Id.Map.empty)
-    };
+  let transition_ranges =
+    s_molded
+    |> List.mapi((i, p) => (i, p))
+    |> ListUtil.elem_splits
+    |> List.map(((pre, (i, p), suf)) =>
+      switch (p) {
+      | Whitespace(_) | Grout(_) => []
+      | Tile(t) when t.mold.out != s => []
+      | Tile(t) =>
+        let (l, r) = t.mold.nibs;
+        let l_range =
+          switch (l) {
+          | {shape: Concave(p), sort} when sort != s =>
+            let handle =
+            pre
+            |> ListUtil.take_until(
+              ((i, p)) =>
+                switch (Piece.is_tile(p)) {
+                | Some({mold:
+                    {in_: _, out, nibs: (_, {shape: Concave(p'), sort})}, _})
+                    when out == s &&
+                      Precedence.(compare(p', p) < 0)
+                    => true
+                | _ => false
+                }
+            );
+            [(sort, (i - List.length(handle), i - 1))]
+          | _ => []
+          };
+        let r_range =
+          switch (r) {
+          | {shape: Concave(p), sort} when sort != s =>
+            let handle =
+              suf
+              |> ListUtil.take_until(
+                ((i, p)) =>
+                  switch (Piece.is_tile(p)) {
+                  | Some({mold:
+                      {in_: _, out, nibs: ({shape: Concave(p'), sort})},
+                      _
+                    })
+                      when out == s && Precedence.compare(p', p) < 0 => true
+                  | _ => false
+                  }
+              );
+            [(sort, (i + 1, List.length(handle) - 1))]
+          | _ => []
+          };
+        l_range @ r_range;
+      };
+    )
+    |> List.concat
+    |> List.fold_left_map(
+      (hwm, (sort, (i, j) as range)) =>
+        i <= hwm ? (hwm, None) : (j, Some(range))
+      -1,
+    )
+    |> snd
+    |> List.filter_map(Fun.id);
 
-  seg
-  |> List.map(
-       fun
-       | Piece.(Grout(_) | Whitespace(_)) as p => p
-       | Tile(t) => {
-           let mold = Id.Map.find(t.id, molds);
-           let children =
-             List.fold_right(
-               ((l, child, r), children) => {
-                 let child =
-                   if (l
-                       + 1 == r
-                       && (
-                         List.nth(mold.in_, l) != List.nth(t.mold.in_, l)
-                         || IncompleteBidelim.contains(t.id, l)
-                       )) {
-                     remold(child, List.nth(mold.in_, l));
-                   } else {
-                     child;
-                   };
-                 [child, ...children];
-               },
-               Aba.aba_triples(Aba.mk(t.shards, t.children)),
-               [],
-             );
-           Tile({...t, mold, children});
-         },
-     );
-};
+  transition_ranges
+  |> List.fold_left(
+    (seg, (sort, (i, j))) => {
+      let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
+      let subseg = remold(subseg, sort);
+      List.concat([pre, subseg, suf])
+    },
+    s_molded
+  );
+}
+
+// let remold = (seg: t, s: Sort.t): t => {
+
+
+
+//   let tiles = List.filter_map(Piece.is_tile, seg);
+
+//   let molds =
+//     tiles
+//     |> List.map((t: Tile.t) => Id.Map.singleton(t.id, Molds.get(t.label)))
+//     |> List.fold_left(Id.Map.disj_union, Id.Map.empty);
+
+//   let l_molds =
+//     tiles
+//     |> List.fold_left_map(
+//       ((hard_sort, soft_sorts), t) => {
+//         let molds
+//         Molds.get(t.label)
+//         |> List.filter(m =>
+//           Sort.consistent(m.out, hard_sort)
+//           || (
+//             soft_sorts
+//             |> List.exists(s => Sort.consistent(m.out, s))
+//           )
+//         )
+//       },
+//       (s, []),
+//     )
+// }
+
+// let rec remold = (seg: t, s: Sort.t): t => {
+//   let tiles = List.filter_map(Piece.is_tile, seg);
+
+//   let molds =
+//     tiles
+//     |> List.map((t: Tile.t) => Id.Map.singleton(t.id, Molds.get(t.label)))
+//     |> List.fold_left(Id.Map.disj_union, Id.Map.empty);
+
+//   let ((molds, _), iss) =
+//     tiles
+//     |> List.mapi((i, t) => (i, t))
+//     |> List.fold_left_map(
+//          ((molds, shape), (i, t: Tile.t)) => {
+//            let ms = Id.Map.find(t.id, molds);
+//            let ms =
+//              ms
+//              |> List.filter(Mold.fits_shape(Left, shape))
+//              |> (
+//                fun
+//                | [] => ms
+//                | [_, ..._] as ms => ms
+//              );
+//            let molds = Id.Map.update(t.id, _ => Some(ms), molds);
+//            let r =
+//              snd(Mold.consistent_shapes(ms))
+//              |> OptUtil.get_or_fail(
+//                   "currently expecting right shapes to be unambiguous for any label",
+//                 );
+//            ((molds, r), (i, (Nib.Shape.flip(shape), r)));
+//          },
+//          (molds, Nib.Shape.concave()),
+//        );
+
+//   let rec filter_sorts = (skel: Skel.t, s: Sort.t): Id.Map.t(Mold.t) => {
+//     switch (List.nth(tiles, Skel.root_index(skel))) {
+//     | exception (Invalid_argument(_)) =>
+//       // hole
+//       Id.Map.empty
+//     | t =>
+//       let ms = Id.Map.find(t.id, molds);
+//       let mold =
+//         ms
+//         |> List.filter((m: Mold.t) => Sort.consistent(s, m.out))
+//         |> (
+//           fun
+//           | [] => List.hd(ms)
+//           | [m, ..._] => m
+//         );
+//       let (l, r) = mold.nibs;
+//       let inner_molds =
+//         switch (skel) {
+//         | Op(_) => Id.Map.empty
+//         | Pre(_, skel) => filter_sorts(skel, r.sort)
+//         | Post(skel, _) => filter_sorts(skel, l.sort)
+//         | Bin(skel_l, _, skel_r) =>
+//           Id.Map.disj_union(
+//             filter_sorts(skel_l, l.sort),
+//             filter_sorts(skel_r, r.sort),
+//           )
+//         };
+//       Id.Map.add(t.id, mold, inner_molds);
+//     };
+//   };
+
+//   let skels = Skel.mk_err(iss);
+//   let molds =
+//     switch (skels) {
+//     | [skel] => filter_sorts(skel, s)
+//     | _ =>
+//       skels
+//       |> List.map(skel => filter_sorts(skel, Any))
+//       |> List.fold_left(Id.Map.disj_union, Id.Map.empty)
+//     };
+
+//   seg
+//   |> List.map(
+//        fun
+//        | Piece.(Grout(_) | Whitespace(_)) as p => p
+//        | Tile(t) => {
+//            let mold = Id.Map.find(t.id, molds);
+//            let children =
+//              List.fold_right(
+//                ((l, child, r), children) => {
+//                  let child =
+//                    if (l
+//                        + 1 == r
+//                        && (
+//                          List.nth(mold.in_, l) != List.nth(t.mold.in_, l)
+//                          || IncompleteBidelim.contains(t.id, l)
+//                        )) {
+//                      remold(child, List.nth(mold.in_, l));
+//                    } else {
+//                      child;
+//                    };
+//                  [child, ...children];
+//                },
+//                Aba.aba_triples(Aba.mk(t.shards, t.children)),
+//                [],
+//              );
+//            Tile({...t, mold, children});
+//          },
+//      );
+// };
 
 let skel = seg =>
   seg
