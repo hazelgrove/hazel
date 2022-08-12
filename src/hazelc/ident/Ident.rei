@@ -15,6 +15,7 @@ module Ident0: {
 include  (module type of Ident0) with type t = Ident0.t;
 
 module Map: (module type of Util.MapSexp.Make(Ident0));
+module Set: (module type of Util.SetSexp.Make(Ident0));
 
 module NumberedGen: {
   /**

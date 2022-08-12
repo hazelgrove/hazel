@@ -17,6 +17,7 @@ module Ident0 = {
 include Ident0;
 
 module Map = Util.MapSexp.Make(Ident0);
+module Set = Util.SetSexp.Make(Ident0);
 
 module NumberedGen = {
   [@deriving sexp]
