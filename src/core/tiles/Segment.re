@@ -101,103 +101,86 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let remold = (seg: t, s: Sort.t) => {
+let rec remold = (seg: t, s: Sort.t) => {
   let (_, s_molded) =
     seg
-    |> List.fold_left_map((shape, p) =>
-      switch (p) {
-      | Whitespace(_) | Grout(_) => (shape, p)
-      | Tile(t) =>
-        let mold =
-          Molds.get(t.label)
-          |> List.filter((m: Mold.t) => m.out == s)
-          |> (
-            fun
-            | ([] | [_]) as ms => ms
-            | [_, _, ..._] =>
-              List.filter(Mold.fits_shape(Left, shape), ms)
-          )
-          |> ListUtil.hd_opt
-          |> OptUtil.get(() => t.mold);
-        (snd(Mold.nib_shapes(mold)), Tile({...t, mold}));
-      },
-      Nib.Shape.concave(),
-    );
+    |> List.fold_left_map(
+         (shape, p: Piece.t) =>
+           switch (p) {
+           | Whitespace(_)
+           | Grout(_) => (shape, p)
+           | Tile(t) =>
+             let mold =
+               Molds.get(t.label)
+               |> List.filter((m: Mold.t) => m.out == s)
+               |> (
+                 fun
+                 | ([] | [_]) as ms => ms
+                 | [_, _, ..._] as ms =>
+                   List.filter(Mold.fits_shape(Left, shape), ms)
+               )
+               |> ListUtil.hd_opt
+               |> OptUtil.get(() => t.mold);
+             (snd(Mold.nib_shapes(mold)), Tile({...t, mold}));
+           },
+         Nib.Shape.concave(),
+       );
 
-  let transition_ranges =
-    s_molded
-    |> List.mapi((i, p) => (i, p))
-    |> ListUtil.elem_splits
-    |> List.map(((pre, (i, p), suf)) =>
-      switch (p) {
-      | Whitespace(_) | Grout(_) => []
-      | Tile(t) when t.mold.out != s => []
+  let nth = List.nth(s_molded);
+  let sortable = sort =>
+    fun
+    | Piece.Whitespace(_)
+    | Grout(_) => true
+    | Tile(t) =>
+      Molds.get(t.label) |> List.exists((m: Mold.t) => m.out == sort);
+  let transition_ranges = {
+    let ranges = ref([]);
+    let hwm = ref(-1);
+    let i = ref(0);
+    while (i^ < List.length(s_molded)) {
+      switch (nth(i^)) {
+      | Whitespace(_)
+      | Grout(_) => ()
+      | Tile(t) when t.mold.out != s => ()
       | Tile(t) =>
         let (l, r) = t.mold.nibs;
-        let l_range =
-          switch (l) {
-          | {shape: Concave(p), sort} when sort != s =>
-            let handle =
-            pre
-            |> ListUtil.take_until(
-              ((i, p)) =>
-                switch (Piece.is_tile(p)) {
-                | Some({mold:
-                    {in_: _, out, nibs: (_, {shape: Concave(p'), sort})}, _})
-                    when out == s &&
-                      Precedence.(compare(p', p) < 0)
-                    => true
-                | _ => false
-                }
-            );
-            [(sort, (i - List.length(handle), i - 1))]
-          | _ => []
+        switch (l) {
+        | {shape: Concave(_), sort} when sort != s =>
+          let j = ref(i^ - 1);
+          while (j^ > hwm^ && sortable(sort, nth(j^))) {
+            j := j^ - 1;
           };
-        let r_range =
-          switch (r) {
-          | {shape: Concave(p), sort} when sort != s =>
-            let handle =
-              suf
-              |> ListUtil.take_until(
-                ((i, p)) =>
-                  switch (Piece.is_tile(p)) {
-                  | Some({mold:
-                      {in_: _, out, nibs: ({shape: Concave(p'), sort})},
-                      _
-                    })
-                      when out == s && Precedence.compare(p', p) < 0 => true
-                  | _ => false
-                  }
-              );
-            [(sort, (i + 1, List.length(handle) - 1))]
-          | _ => []
+          ranges := [(sort, (j^ + 1, i^ - 1)), ...ranges^];
+        | _ => ()
+        };
+        switch (r) {
+        | {shape: Concave(_), sort} when sort != s =>
+          let j = ref(i^ + 1);
+          while (j^ < List.length(s_molded) && sortable(sort, nth(j^))) {
+            j := j^ + 1;
           };
-        l_range @ r_range;
+          ranges := [(sort, (i^ + 1, j^ - 1)), ...ranges^];
+          hwm := j^ - 1;
+        | _ => ()
+        };
       };
-    )
-    |> List.concat
-    |> List.fold_left_map(
-      (hwm, (sort, (i, j) as range)) =>
-        i <= hwm ? (hwm, None) : (j, Some(range))
-      -1,
-    )
-    |> snd
-    |> List.filter_map(Fun.id);
+      i := i^ + 1;
+    };
+    ranges^;
+  };
 
   transition_ranges
   |> List.fold_left(
-    (seg, (sort, (i, j))) => {
-      let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
-      let subseg = remold(subseg, sort);
-      List.concat([pre, subseg, suf])
-    },
-    s_molded
-  );
-}
+       (seg, (sort, (i, j))) => {
+         let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
+         let subseg = remold(subseg, sort);
+         List.concat([pre, subseg, suf]);
+       },
+       s_molded,
+     );
+};
 
 // let remold = (seg: t, s: Sort.t): t => {
-
-
 
 //   let tiles = List.filter_map(Piece.is_tile, seg);
 
