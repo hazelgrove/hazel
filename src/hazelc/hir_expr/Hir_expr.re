@@ -1,5 +1,5 @@
 module Typ = Typ;
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type typ = Typ.t;
 
 module TypContext = TypContext;
@@ -25,6 +25,8 @@ type pat = Pat.t;
 module Delta = Delta;
 [@deriving sexp]
 type delta = Delta.t;
+
+module FreshLabels = FreshLabels;
 
 module Syn = Syn;
 let syn = Syn.syn;

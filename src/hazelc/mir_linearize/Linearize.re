@@ -1,4 +1,5 @@
 open Mir_anf;
+open Holes;
 open LinearizeMonad;
 open LinearizeMonad.Syntax;
 
@@ -30,16 +31,6 @@ let mk_bind_var_tmp = (c: comp) => {
 let convert_bind = (stmt_kind: bind): t(stmt) => {
   let+ l = next_stmt_label;
   {stmt_kind, stmt_complete: default_completeness, stmt_label: l};
-};
-
-module Renamings = {
-  include Ident.Map;
-
-  /**
-    Context of variable remappings (e.g. x -> t124_x).
-   */
-  [@deriving sexp]
-  type t = Ident.Map.t(Ident.t);
 };
 
 let rec linearize_typ = (ty: Hir_expr.typ): typ =>
@@ -375,6 +366,7 @@ and linearize_exp =
   | EConsistentCase(case) => linearize_case(case, renamings)
 
   | EEmptyHole(u, i, sigma) =>
+    let* () = extend_hole_renamings(u, renamings);
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
 
     let* hole_label = next_expr_label;
@@ -389,6 +381,7 @@ and linearize_exp =
     (hole_var, binds) |> return;
 
   | ENonEmptyHole(reason, u, i, sigma, e') =>
+    let* () = extend_hole_renamings(u, renamings);
     let* (sigma, sigma_binds) = linearize_sigma(sigma, renamings);
     let* (im, im_binds) = linearize_exp(e', renamings);
 
@@ -435,6 +428,7 @@ and linearize_sigma =
     sigma
     |> Hir_expr.Sigma.bindings
     |> List.map(((x, e)) => {
+         /* FIXME: Not sure if this what we want to do... */
          let+ (im, im_binds) = linearize_exp(e, renamings);
          ((x, im), im_binds);
        })
@@ -444,6 +438,7 @@ and linearize_sigma =
     bindings
     |> List.fold_left((binds, (_, im_binds)) => binds @ im_binds, []);
   let sigma = bindings |> List.map(fst) |> List.to_seq |> Sigma.of_seq;
+
   (sigma, binds);
 }
 
@@ -610,10 +605,14 @@ and linearize_pat_hole = (p: Hir_expr.pat, renamings): t((pat, Renamings.t)) => 
   );
 };
 
-let linearize_delta = (delta: Hir_expr.delta) =>
+let linearize_delta =
+    (hole_renamings: MetaVarMap.t(Renamings.t), delta: Hir_expr.delta) =>
   delta
   |> Holes.MetaVarMap.bindings
   |> List.map(((u, (sort, ty, gamma))) => {
+       let renamings =
+         MetaVarMap.find_opt(u, hole_renamings)
+         |> Util.OptUtil.get(() => failwith("unknown hole in delta"));
        let sort =
          switch (sort) {
          | Hir_expr.Delta.ExpressionHole => Delta.ExpressionHole
@@ -623,8 +622,14 @@ let linearize_delta = (delta: Hir_expr.delta) =>
        let gamma =
          gamma
          |> Hir_expr.TypContext.bindings
-         /* FIXME: Variables are renamed... */
-         |> List.map(((x, ty)) => (x, linearize_typ(ty)))
+         |> List.map(((x, ty)) => {
+              let x' =
+                Renamings.find_opt(x, renamings)
+                |> Util.OptUtil.get(() =>
+                     failwith("variable unbound in hole renamings")
+                   );
+              (x', linearize_typ(ty));
+            })
          |> List.to_seq
          |> TypContext.of_seq;
        (u, (sort, ty, gamma));
@@ -641,15 +646,12 @@ let linearize = (ctx, delta, e: Hir_expr.expr) => {
     |> List.to_seq
     |> TypContext.of_seq;
 
-  let m = {
-    let* delta = linearize_delta(delta);
-    let+ e = linearize_block(e, Renamings.empty);
-    (delta, e);
-  };
-
-  let fresh_labels = FreshLabels.fresh_labels(e);
+  let fresh_labels = Hir_expr.FreshLabels.fresh_labels(e);
   let state = init(fresh_labels);
-  let (_, (delta, block)) = m(state);
+  let (state, block) = linearize_block(e, Renamings.empty, state);
+
+  let hole_renamings = State.get_hole_renamings(state);
+  let (_, delta) = linearize_delta(hole_renamings, delta, state);
 
   (ctx, delta, block);
 };

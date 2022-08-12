@@ -1,5 +1,9 @@
 open Mir_anf;
 
+module Completes = Completes;
+[@deriving sexp]
+type completes = Completes.t;
+
 module CompletesAnalysis = CompletesAnalysis;
 [@deriving sexp]
 type completes_level = CompletesAnalysis.level;

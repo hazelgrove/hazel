@@ -1,4 +1,2 @@
-[@deriving sexp]
+[@deriving (sexp, eq)]
 type t = int;
-
-let equal: (t, t) => bool;

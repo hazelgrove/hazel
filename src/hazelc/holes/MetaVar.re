@@ -1,6 +1,4 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, eq)]
 type t = int;
-
-let equal = (x: t, y: t) => x === y;

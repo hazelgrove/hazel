@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, eq, ord)]
 type t =
   | THole
   | TInt
@@ -9,8 +9,6 @@ type t =
   | TPair(t, t)
   | TUnit
   | TList(t);
-
-let equal = (==);
 
 let rec consistent = (x, y) =>
   switch (x, y) {

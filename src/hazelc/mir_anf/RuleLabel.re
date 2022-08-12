@@ -1,1 +1,1 @@
-include Label.Label;
+include Label;

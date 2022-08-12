@@ -1,27 +1,23 @@
 [@deriving sexp]
-type t = (
-  Hir_expr.Expr.Label.t,
-  Hir_expr.Expr.RuleLabel.t,
-  Hir_expr.Pat.Label.t,
-);
+type t = (Expr.Label.t, Expr.RuleLabel.t, Pat.Label.t);
 
 let rec fresh_labels_put_expr = (expr', (expr, rule, pat)) => (
-  Hir_expr.Expr.Label.max(expr, expr'),
+  Expr.Label.max(expr, expr'),
   rule,
   pat,
 )
 and fresh_labels_put_rule = (rule', (expr, rule, pat)) => (
   expr,
-  Hir_expr.Expr.RuleLabel.max(rule, rule'),
+  Expr.RuleLabel.max(rule, rule'),
   pat,
 )
 and fresh_labels_put_pat = (pat', (expr, rule, pat)) => (
   expr,
   rule,
-  Hir_expr.Pat.Label.max(pat, pat'),
+  Pat.Label.max(pat, pat'),
 )
 
-and fresh_labels = ({kind, label}: Hir_expr.expr, acc) => {
+and fresh_labels = ({kind, label}: Expr.t, acc) => {
   let acc = acc |> fresh_labels_put_expr(label);
   switch (kind) {
   | EEmptyHole(_u, _i, sigma) => acc |> fresh_labels_sigma(sigma)
@@ -68,7 +64,7 @@ and fresh_labels = ({kind, label}: Hir_expr.expr, acc) => {
   };
 }
 
-and fresh_labels_case = ({case_kind}, acc) =>
+and fresh_labels_case = ({case_kind}: Expr.case, acc) =>
   switch (case_kind) {
   | ECase(scrut, rules) =>
     acc |> fresh_labels(scrut) |> fresh_labels_rules(rules)
@@ -78,7 +74,7 @@ and fresh_labels_rules = (rules, acc) =>
   rules
   |> List.fold_left((acc, rule) => acc |> fresh_labels_rule(rule), acc)
 
-and fresh_labels_rule = ({rule_kind, rule_label}: Hir_expr.rule, acc) => {
+and fresh_labels_rule = ({rule_kind, rule_label}: Expr.rule, acc) => {
   let acc = acc |> fresh_labels_put_rule(rule_label);
   switch (rule_kind) {
   | ERule(p, body) => acc |> fresh_labels_pat(p) |> fresh_labels(body)
@@ -86,9 +82,9 @@ and fresh_labels_rule = ({rule_kind, rule_label}: Hir_expr.rule, acc) => {
 }
 
 and fresh_labels_sigma = (sigma, acc) =>
-  acc |> Hir_expr.Sigma.fold((_x, e, acc) => acc |> fresh_labels(e), sigma)
+  acc |> Sigma.fold((_x, e, acc) => acc |> fresh_labels(e), sigma)
 
-and fresh_labels_pat = ({kind, label}, acc) => {
+and fresh_labels_pat = ({kind, label}: Pat.t, acc) => {
   let acc = acc |> fresh_labels_put_pat(label);
   switch (kind) {
   | PEmptyHole(_u, _i) => acc
@@ -110,5 +106,4 @@ and fresh_labels_pat = ({kind, label}, acc) => {
 };
 
 let fresh_labels = e =>
-  Hir_expr.(Expr.Label.init, Expr.RuleLabel.init, Pat.Label.init)
-  |> fresh_labels(e);
+  (Expr.Label.init, Expr.RuleLabel.init, Pat.Label.init) |> fresh_labels(e);

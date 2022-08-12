@@ -1,35 +1,31 @@
 open Hir_expr;
 
-module ExprLabelGen = Label.Gen.Make(Expr.Label);
-module RuleLabelGen = Label.Gen.Make(Expr.RuleLabel);
-module PatLabelGen = Label.Gen.Make(Pat.Label);
-
 module State = {
   [@deriving sexp]
   type t = {
-    expr: ExprLabelGen.t,
-    rule: RuleLabelGen.t,
-    pat: PatLabelGen.t,
+    expr: Expr.Label.Gen.t,
+    rule: Expr.RuleLabel.Gen.t,
+    pat: Pat.Label.Gen.t,
   };
 
   let init = {
-    expr: ExprLabelGen.init,
-    rule: RuleLabelGen.init,
-    pat: PatLabelGen.init,
+    expr: Expr.Label.Gen.init,
+    rule: Expr.RuleLabel.Gen.init,
+    pat: Pat.Label.Gen.init,
   };
 
   let next_expr_label = ({expr, _} as s) => {
-    let (l, expr) = ExprLabelGen.next(expr);
+    let (l, expr) = Expr.Label.Gen.next(expr);
     (l, {...s, expr});
   };
 
   let next_rule_label = ({rule, _} as s) => {
-    let (l, rule) = RuleLabelGen.next(rule);
+    let (l, rule) = Expr.RuleLabel.Gen.next(rule);
     (l, {...s, rule});
   };
 
   let next_pat_label = ({pat, _} as s) => {
-    let (l, pat) = PatLabelGen.next(pat);
+    let (l, pat) = Pat.Label.Gen.next(pat);
     (l, {...s, pat});
   };
 };

@@ -1,6 +1,6 @@
-module Label = Label0;
-module Gen = Gen;
+include Gen.L;
 
-module Map: {
-  module Make: (L: Gen.L) => (module type of Util.MapSexp.Make(L));
-};
+module GenMonad: Gen.MonadS with type label = t;
+module Gen: Gen.S with type label = t;
+module Map: Util.MapSexp.S with type key = t;
+module Set: Util.SetSexp.S with type elt = t;

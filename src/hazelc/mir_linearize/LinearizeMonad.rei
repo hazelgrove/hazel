@@ -1,10 +1,11 @@
 open Mir_anf;
+open Holes;
 
 module State: {
   [@deriving sexp]
   type t;
 
-  let init: FreshLabels.t => t;
+  let init: Hir_expr.FreshLabels.t => t;
 
   let next_tmp: t => (Ident.t, t);
   let next_tmp_named: (Ident.t, t) => (Ident.t, t);
@@ -17,16 +18,14 @@ module State: {
   let next_hir_expr_label: t => (Hir_expr.Expr.Label.t, t);
   let next_hir_rule_label: t => (Hir_expr.Expr.RuleLabel.t, t);
   let next_hir_pat_label: t => (Hir_expr.Pat.Label.t, t);
+
+  let extend_hole_renamings: (MetaVar.t, Renamings.t, t) => t;
+  let get_hole_renamings: t => MetaVarMap.t(Renamings.t);
 };
 
-include Util.Monads.MONAD with type t('a) = State.t => (State.t, 'a);
+include Util.StateMonad.S with type state = State.t;
 
-let get: t(State.t);
-let put: State.t => t(unit);
-
-let sequence: list(t('a)) => t(list('a));
-
-let init: FreshLabels.t => State.t;
+let init: Hir_expr.FreshLabels.t => State.t;
 
 let next_tmp: t(Ident.t);
 let next_tmp_named: Ident.t => t(Ident.t);
@@ -39,3 +38,5 @@ let next_pat_label: t(Pat.Label.t);
 let next_hir_expr_label: t(Hir_expr.Expr.Label.t);
 let next_hir_rule_label: t(Hir_expr.Expr.RuleLabel.t);
 let next_hir_pat_label: t(Hir_expr.Pat.Label.t);
+
+let extend_hole_renamings: (MetaVar.t, Renamings.t) => t(unit);
