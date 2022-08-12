@@ -185,23 +185,20 @@ let apply =
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Copy =>
-    let syntax_str = Printer.to_string_selection(Model.get_zipper(model));
-    JsUtil.copy_to_clipboard(syntax_str);
-    Ok({...model, clipboard: syntax_str});
+    let clipboard = Printer.to_string_selection(Model.get_zipper(model));
+    JsUtil.copy_to_clipboard(clipboard);
+    Ok({...model, clipboard});
   | Paste =>
-    //let _ = JsUtil.get_from_clipboard();
+    //let clipboard = JsUtil.get_from_clipboard();
+    let clipboard = model.clipboard;
     let Model.{zipper, history} = Model.get_editor(model);
     let z_id = (zipper, model.id_gen);
     switch (
-      Printer.zipper_of_string(
-        ~zipper_init=zipper,
-        model.id_gen,
-        model.clipboard,
-      )
+      Printer.zipper_of_string(~zipper_init=zipper, model.id_gen, clipboard)
     ) {
     | None => Error(CantPaste)
     | Some((zipper, id_gen)) =>
-      //TODO: add correct action to history
+      //TODO: add correct action to history (Pick_up is wrong)
       let history = ActionHistory.succeeded(Pick_up, z_id, history);
       Ok({
         ...model,
