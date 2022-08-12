@@ -361,7 +361,8 @@ module Trim = {
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading whitespace on a line */
-    let wss' = scooch_over_linebreak(wss');
+    //let wss' = scooch_over_linebreak(wss');
+    /* ANDREW: disabled above hack; with calmer linebreak it seems annoying */
     (wss', gs');
   };
 
