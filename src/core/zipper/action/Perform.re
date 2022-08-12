@@ -50,6 +50,15 @@ let drop_it_like_its_hot_regrout = (z: Zipper.t, id_gen): (Zipper.t, int) => {
   // or actually instead of collecting ids in backpack to ignore,
   // just use id map from original zipper as whitelist
   let id_zz = ref(id_gen);
+  let z =
+    z.caret == Outer
+      ? z
+      : (
+        switch (Move.pop_move(Right, z)) {
+        | Some(z) => z
+        | None => z
+        }
+      );
   //id_zz := id_gen;
   let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
     switch (Outer.put_down(z)) {
