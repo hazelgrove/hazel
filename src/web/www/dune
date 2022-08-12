@@ -1,2 +1,2 @@
 (rule
- (copy ../main.bc.js tiles.js))
+ (copy ../main.bc.js hazel.js))

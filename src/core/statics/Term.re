@@ -29,6 +29,7 @@ module UTyp = {
     | Bool
     | Arrow
     | Prod
+    | ListNil
     | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -39,6 +40,7 @@ module UTyp = {
     | Int
     | Float
     | Bool
+    | ListNil
     | Arrow(t, t)
     | Prod(t, t)
     | Parens(t)
@@ -55,6 +57,7 @@ module UTyp = {
     | Int => Int
     | Float => Float
     | Bool => Bool
+    | ListNil => ListNil
     | Arrow(_) => Arrow
     | Prod(_) => Prod
     | Parens(_) => Parens;
@@ -66,7 +69,8 @@ module UTyp = {
     | Unit
     | Int
     | Float
-    | Bool => "Concrete Type"
+    | Bool
+    | ListNil => "Concrete Type"
     | Arrow => "Arrow Type"
     | Prod => "Product Type"
     | Parens => "Parenthesized Type Term";
@@ -81,6 +85,7 @@ module UPat = {
     | Int
     | Float
     | Bool
+    | ListNil
     | Var
     | Pair
     | Parens
@@ -94,6 +99,7 @@ module UPat = {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | ListNil
     | Var(Token.t)
     | Pair(t, t)
     | Parens(t)
@@ -111,6 +117,7 @@ module UPat = {
     | Int(_) => Int
     | Float(_) => Float
     | Bool(_) => Bool
+    | ListNil => ListNil
     | Var(_) => Var
     | Pair(_) => Pair
     | Parens(_) => Parens
@@ -124,6 +131,7 @@ module UPat = {
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
+    | ListNil => "List Literal"
     | Var => "Pattern Variable"
     | Pair => "Pair Pattern"
     | Parens => "Parenthesized Pattern"
@@ -169,6 +177,7 @@ module UExp = {
     | Bool
     | Int
     | Float
+    | ListNil
     | Fun
     | FunAnn
     | Pair
@@ -180,6 +189,7 @@ module UExp = {
     | Seq
     | Test
     | Parens
+    | Cons
     | BinOp(op_bin);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -190,6 +200,7 @@ module UExp = {
     | Bool(bool)
     | Int(int)
     | Float(float)
+    | ListNil
     | Fun(UPat.t, t)
     | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Pair(t, t)
@@ -203,6 +214,7 @@ module UExp = {
     | Seq(t, t)
     | Test(t)
     | Parens(t)
+    | Cons(t, t)
     | BinOp(op_bin, t, t)
   and t = {
     id: Id.t,
@@ -216,6 +228,7 @@ module UExp = {
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
+    | ListNil => ListNil
     | Fun(_) => Fun
     | FunAnn(_) => FunAnn
     | Pair(_) => Pair
@@ -227,6 +240,7 @@ module UExp = {
     | Seq(_) => Seq
     | Test(_) => Test
     | Parens(_) => Parens
+    | Cons(_) => Cons
     | BinOp(op, _, _) => BinOp(op);
 
   let show_op_bool: op_bool => string =
@@ -267,6 +281,7 @@ module UExp = {
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
+    | ListNil => "List Literal"
     | Fun => "Function Literal"
     | FunAnn => "Annotated Function Literal"
     | Pair => "Pair Literal"
@@ -278,6 +293,7 @@ module UExp = {
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
+    | Cons => "Cons"
     | BinOp(op) => show_binop(op);
 };
 
@@ -293,5 +309,6 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Float => Float
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
+    | ListNil => List(Unknown(TypeHole))
     | Parens(u1) => utyp_to_ty(u1)
     };
