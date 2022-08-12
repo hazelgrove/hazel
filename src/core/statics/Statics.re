@@ -203,7 +203,7 @@ let rec uexp_to_info_map =
   switch (term) {
   | Invalid(_p) => (Unknown(Internal), [], Id.Map.singleton(id, Invalid))
   | MultiHole(ids, es) =>
-    let es = List.map(go(~mode), es);
+    let es = List.map(go(~mode=Syn), es);
     let self = Typ.Multi;
     let free = Ctx.union(List.map(((_, f, _)) => f, es));
     let info: t = InfoExp({cls, self, mode, ctx, free});
@@ -356,7 +356,7 @@ and upat_to_info_map =
   switch (term) {
   | Invalid(_) => atomic(Just(Unknown(SynSwitch))) //TODO: ?
   | MultiHole(ids, ps) =>
-    let ps = List.map(upat_to_info_map(~ctx, ~mode), ps);
+    let ps = List.map(upat_to_info_map(~ctx, ~mode=Syn), ps);
     let self = Typ.Multi;
     let info: t = InfoPat({cls, self, mode, ctx});
     let m = union_m(List.map(((_, _, m)) => m, ps));
