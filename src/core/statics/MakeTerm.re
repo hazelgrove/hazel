@@ -127,6 +127,7 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
       // TODO(andrew): Form.re should handle monotile recognition
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
+      | (["nil"], [], []) => ListNil
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
@@ -147,6 +148,7 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
       | (["==."], [Exp(l), Exp(r)], []) => BinOp(Float(Equals), l, r)
       | (["&&"], [Exp(l), Exp(r)], []) => BinOp(Bool(And), l, r)
       | (["||"], [Exp(l), Exp(r)], []) => BinOp(Bool(Or), l, r)
+      | (["::"], [Exp(l), Exp(r)], []) => Cons(l, r)
       | ([";"], [Exp(l), Exp(r)], []) => Seq(l, r)
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [Exp(body)], [pat]) =>

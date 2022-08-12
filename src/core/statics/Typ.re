@@ -18,6 +18,7 @@ type t =
   | Int
   | Float
   | Bool
+  | List(t)
   | Arrow(t, t)
   | Prod(t, t);
 
@@ -98,6 +99,12 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     | _ => None
     }
   | (Prod(_), _) => None
+  | (List(ty_1), List(ty_2)) =>
+    switch (join(ty_1, ty_2)) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
   };
 
 let join_all: list(t) => option(t) =
@@ -129,6 +136,12 @@ let matched_prod: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
+let matched_list: t => t =
+  fun
+  | List(ty) => ty
+  | Unknown(prov) => Unknown(prov)
+  | _ => Unknown(Internal);
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
@@ -144,3 +157,8 @@ let matched_prod_mode: mode => (mode, mode) =
       let (ty_l, ty_r) = matched_prod(ty);
       (Ana(ty_l), Ana(ty_r));
     };
+
+let matched_list_mode: mode => mode =
+  fun
+  | Syn => Syn
+  | Ana(ty) => Ana(matched_list(ty));

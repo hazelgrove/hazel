@@ -204,6 +204,7 @@ let rec uexp_to_info_map =
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
+  | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -216,6 +217,15 @@ let rec uexp_to_info_map =
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
+    );
+  | Cons(e1, e2) =>
+    let mode_ele = Typ.matched_list_mode(mode);
+    let (ty1, free1, m1) = go(~mode=mode_ele, e1);
+    let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
+    add(
+      ~self=Just(List(ty1)),
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
@@ -350,6 +360,7 @@ and upat_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Bool(_) => atomic(Just(Bool))
+  | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
     let self = Typ.Just(Unknown(SynSwitch));
     let typ = typ_after_fix(mode, self);
@@ -378,7 +389,8 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   | Unit
   | Int
   | Float
-  | Bool => return(Id.Map.empty)
+  | Bool
+  | ListNil => return(Id.Map.empty)
   | Arrow(t1, t2)
   | Prod(t1, t2) =>
     let (_, m_t1) = utyp_to_info_map(t1);
