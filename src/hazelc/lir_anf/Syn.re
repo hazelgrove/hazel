@@ -1,3 +1,4 @@
+/* FIXME: Ensure single assignment. */
 open Util.ResultSexp;
 
 open Holes;
@@ -167,18 +168,6 @@ and ana_block = (ctx, delta, block: Anf.block, ty) => {
   ana'(block.block_label, block_ty, ty);
 }
 
-and ana_block_ii = (ctx, delta, block: Anf.block, ty_) => {
-  let* block_ty = syn_block(ctx, delta, block);
-  switch (ty_, Typ.is_ii(block_ty)) {
-  | (Some(ty_), Some(im_ty_)) =>
-    let+ () = ana_base(block.block_label, ty_, im_ty_);
-    im_ty_;
-  | (None, Some(im_ty_)) => im_ty_ |> return
-  | (_, None) =>
-    TypeNotIndeterminatelyIncomplete(block.block_label, block_ty) |> fail
-  };
-}
-
 and ana_imm = (ctx, delta, im: Anf.imm, ty) => {
   let* im_ty = syn_imm(ctx, delta, im);
   ana'(im.imm_label, im_ty, ty);
@@ -337,19 +326,19 @@ and syn_comp = (ctx, delta, {comp_kind, comp_label: l, _}: Anf.comp) => {
     extend(l, Typ.ii(ty_));
 
   /* ; Δ ; Γ             ⊢ im : ii{τ}
-     ; Δ ; Γ , x : nc{τ} ⊢ b₁ : ii{τ'}
-     ; Δ ; Γ , x : ni{τ} ⊢ b₂ : ii{τ'}
-     → Δ ; Γ             ⊢ branch im with | x ⇒ b₁ | x ⇒ b₂ : ii{τ'} */
+     ; Δ ; Γ , x : nc{τ} ⊢ b₁ : υ{τ'}
+     ; Δ ; Γ , x : ni{τ} ⊢ b₂ : υ{τ'}
+     → Δ ; Γ             ⊢ branch im with | x ⇒ b₁ | x ⇒ b₂ : υ{τ'} */
   | CIIBranch(im, x, br1, br2) =>
-    let* ty_ = ana_imm_ii(ctx, delta, im, None);
+    let* x_ty_ = ana_imm_ii(ctx, delta, im, None);
 
-    let ctx1 = TypContext.add(x, Typ.nc(ty_), ctx);
-    let* br1_ty_ = ana_block_ii(ctx1, delta, br1, None);
+    let ctx1 = TypContext.add(x, Typ.nc(x_ty_), ctx);
+    let* br1_ty = syn_block(ctx1, delta, br1);
 
-    let ctx2 = TypContext.add(x, Typ.ni(ty_), ctx);
-    let* _ = ana_block_ii(ctx2, delta, br2, Some(br1_ty_));
+    let ctx2 = TypContext.add(x, Typ.ni(x_ty_), ctx);
+    let* _ = ana_block(ctx2, delta, br2, br1_ty);
 
-    extend(l, Typ.ii(ty_));
+    extend(l, br1_ty);
   };
 }
 
