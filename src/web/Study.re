@@ -17,7 +17,7 @@ let init: Model.study = {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {
-        switch (Model.zipper_of_string(acc_id, str)) {
+        switch (Printer.zipper_of_string(acc_id, str)) {
         | None => (acc_id, acc_zs @ [Core.Zipper.init(0)])
         | Some((z, new_id)) => (new_id, acc_zs @ [z])
         }

@@ -109,6 +109,22 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
       button(Icons.export, copy_log_to_clipboard),
       button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
       button(Icons.trash, _ => inject(LoadDefault)),
+      button(
+        Icons.trash,
+        _ => {
+          JsUtil.copy_to_clipboard(
+            Printer.to_string_selection(Model.get_zipper(model)),
+          );
+          Event.Ignore;
+        },
+      ),
+      button(
+        Icons.trash,
+        _ => {
+          let _ = JsUtil.get_from_clipboard();
+          Event.Ignore;
+        },
+      ),
       //link(Icons.github, "https://github.com/hazelgrove/hazel"),
       toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
       toggle("𝛿", model.settings.dynamics, _ => inject(Set(Dynamics))),
@@ -144,6 +160,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       DecUtil.filters,
       top_bar_view(~inject, model),
       editor_view(~inject, model),
+      div([Attr.id("blorg")], []),
     ],
   );
 };

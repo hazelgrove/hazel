@@ -2,21 +2,6 @@ open Js_of_ocaml;
 open Incr_dom;
 open Web;
 
-let _write_to_clipboard = (_string: string) => {
-  //let _ = Dom_html.window##.navigator##.clipboard##writeText(string);
-  let _ =
-    Dom_html.document##execCommand(
-      Js.string("copy"),
-      Js.bool(false),
-      Js.Opt.return(Js.string("testtest")),
-    );
-  // note: using unsafe as js_of_ocaml doesn't have clipboard bindings
-  //let q =
-  // Printf.sprintf("window.navigator.clipboard.writeText(\"%s\")", string);
-  //let _ = Js.Unsafe.js_expr(q);
-  ();
-};
-
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
     ~node=JsUtil.get_elem_by_id(id),
