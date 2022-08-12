@@ -2,11 +2,19 @@
 type syn_types = ExprLabel.Map.t(Typ.t);
 [@deriving sexp]
 type syn_idents = Ident.Set.t;
+[@deriving sexp]
+type syn_labels = {
+  expr: ExprLabel.Set.t,
+  stmt: StmtLabel.Set.t,
+  rule: RuleLabel.Set.t,
+  pat: PatLabel.Set.t,
+};
 
 [@deriving sexp]
 type syn_ok = {
   types: syn_types,
   idents: syn_idents,
+  labels: syn_labels,
 };
 
 [@deriving sexp]
