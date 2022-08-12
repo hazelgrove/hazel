@@ -36,7 +36,7 @@ type info_pat = {
   cls: Term.UPat.cls,
   mode: Typ.mode,
   self: Typ.self,
-  // TODO: Add ctx to detect duplicates
+  ctx: Ctx.t // TODO: detect in-pattern shadowing
 };
 
 /* (Syntactic) Types are assigned their corresponding semantic type. */
@@ -187,9 +187,8 @@ let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   | Int(op) => (Int, Int, typ_exp_binop_int(op))
   | Float(op) => (Float, Float, typ_exp_binop_float(op));
 
-/* Generates the InfoMap for an expression term */
 let rec uexp_to_info_map =
-        (~ctx=Ctx.empty, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
+        (~ctx: Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
         : (Typ.t, Ctx.co, map) => {
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
@@ -198,17 +197,14 @@ let rec uexp_to_info_map =
     free,
     Id.Map.add(id, InfoExp({cls, self, mode, ctx, free}), m),
   );
-  let atomic = self => (
-    typ_after_fix(mode, self),
-    [],
-    Id.Map.singleton(id, InfoExp({cls, self, mode, ctx, free: []})),
-  );
+  let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(_p) => (Unknown(Internal), [], Id.Map.singleton(id, Invalid))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
+  | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -221,6 +217,15 @@ let rec uexp_to_info_map =
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
+    );
+  | Cons(e1, e2) =>
+    let mode_ele = Typ.matched_list_mode(mode);
+    let (ty1, free1, m1) = go(~mode=mode_ele, e1);
+    let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
+    add(
+      ~self=Just(List(ty1)),
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
@@ -257,7 +262,7 @@ let rec uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
-    /* NOTE: Function position mode is Ana(Hole->Hole) instead of Syn */
+    /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(
         ~ctx,
@@ -275,7 +280,7 @@ let rec uexp_to_info_map =
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
-    let ctx_body = VarMap.union(ctx, ctx_pat);
+    let ctx_body = VarMap.union(ctx_pat, ctx);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
@@ -309,7 +314,7 @@ let rec uexp_to_info_map =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx_body = VarMap.union(def_ctx, ctx_pat_ana);
+    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
@@ -328,7 +333,7 @@ let rec uexp_to_info_map =
     let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
-    let ctx_body = VarMap.union(def_ctx, ctx_pat_ana);
+    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
@@ -339,80 +344,66 @@ let rec uexp_to_info_map =
   };
 }
 and upat_to_info_map =
-    (~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t): (Typ.t, Ctx.t, map) => {
+    (~ctx=Ctx.empty, ~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t)
+    : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
-  let add = (self: Typ.self) => (
-    typ_after_fix(mode, self),
-    [],
-    Id.Map.singleton(id, InfoPat({cls, mode, self})),
-  );
-  let add' = (~self, ~ctx, m) => (
+  let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self),
     ctx,
-    Id.Map.add(id, InfoPat({cls, self, mode}), m),
+    Id.Map.add(id, InfoPat({cls, self, mode, ctx}), m),
   );
+  let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
-  | Invalid(_) => add(Just(Unknown(SynSwitch))) //TODO: ?
-  | EmptyHole => add(Just(Unknown(SynSwitch)))
-  | Wild => add(Just(Unknown(SynSwitch)))
-  | Int(_) => add(Just(Int))
-  | Float(_) => add(Just(Float))
-  | Bool(_) => add(Just(Bool))
+  | Invalid(_) => atomic(Just(Unknown(SynSwitch))) //TODO: ?
+  | EmptyHole => atomic(Just(Unknown(SynSwitch)))
+  | Wild => atomic(Just(Unknown(SynSwitch)))
+  | Int(_) => atomic(Just(Int))
+  | Float(_) => atomic(Just(Float))
+  | Bool(_) => atomic(Just(Bool))
+  | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
-    let typ = typ_after_fix(mode, Just(Unknown(SynSwitch)));
-    (
-      typ,
-      [(name, Ctx.{id, typ})],
-      Id.Map.singleton(
-        id,
-        InfoPat({cls, mode, self: Just(Unknown(SynSwitch))}),
-      ),
-    );
+    let self = Typ.Just(Unknown(SynSwitch));
+    let typ = typ_after_fix(mode, self);
+    add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Pair(p1, p2) =>
     let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
-    let (ty_p1, ctx_p1, m_p1) = upat_to_info_map(~mode=mode_l, p1);
-    let (ty_p2, ctx_p2, m_p2) = upat_to_info_map(~mode=mode_r, p2);
-    let ty = Typ.Prod(ty_p1, ty_p2);
-    (
-      ty,
-      VarMap.union(ctx_p1, ctx_p2),
-      Id.Map.add(
-        id,
-        InfoPat({cls, mode, self: Just(ty)}),
-        union_m([m_p1, m_p2]),
-      ),
-    );
+    let (ty_p1, ctx, m_p1) = upat_to_info_map(~ctx, ~mode=mode_l, p1);
+    let (ty_p2, ctx, m_p2) = upat_to_info_map(~ctx, ~mode=mode_r, p2);
+    add(~self=Just(Prod(ty_p1, ty_p2)), ~ctx, union_m([m_p1, m_p2]));
   | Parens(p) =>
-    let (ty, ctx, m) = upat_to_info_map(~mode, p);
-    let m = Id.Map.add(id, InfoPat({cls, mode, self: Just(ty)}), m);
-    (ty, ctx, m);
+    let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
+    add(~self=Just(ty), ~ctx, m);
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
-    let (_ty, ctx, m) = upat_to_info_map(~mode=Ana(ty_ann), p);
-    add'(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
+    let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
+    add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
 and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
-  let ret = m => (ty, Id.Map.add(id, InfoTyp({cls, ty}), m));
+  let return = m => (ty, Id.Map.add(id, InfoTyp({cls, ty}), m));
   switch (term) {
   | Invalid(_)
   | EmptyHole
   | Unit
   | Int
   | Float
-  | Bool => ret(Id.Map.empty)
+  | Bool
+  | ListNil => return(Id.Map.empty)
   | Arrow(t1, t2)
   | Prod(t1, t2) =>
     let (_, m_t1) = utyp_to_info_map(t1);
     let (_, m_t2) = utyp_to_info_map(t2);
-    ret(union_m([m_t1, m_t2]));
+    return(union_m([m_t1, m_t2]));
   | Parens(t) =>
     let (_, m) = utyp_to_info_map(t);
-    ret(m);
+    return(m);
   };
 };
 
 let mk_map =
-  Core_kernel.Memo.general(~cache_size_bound=1000, uexp_to_info_map);
+  Core_kernel.Memo.general(
+    ~cache_size_bound=1000,
+    uexp_to_info_map(~ctx=Ctx.empty),
+  );

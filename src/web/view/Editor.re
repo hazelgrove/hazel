@@ -3,18 +3,6 @@ open Node;
 open Core;
 open Util.Web;
 
-let ci_view = (index': option(int), info_map) => {
-  let (index, ci) =
-    switch (index') {
-    | Some(index) => (index, Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
-    };
-  switch (ci) {
-  | None => div([clss(["cursor-inspector"])], [text("No Static Data")])
-  | Some(ci) => CursorInspector.view(index, ci)
-  };
-};
-
 let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
   module Deco =
     Deco.Deco({
@@ -57,10 +45,13 @@ let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
 };
 
 let single_editor_semantics_views =
-    (~settings: Model.settings, ~font_metrics, ~index, ~unselected) => {
+    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
   let term = MakeTerm.go(unselected);
   let (_, _, info_map) = Statics.mk_map(term);
-  [ci_view(index, info_map)]
+  [
+    CursorInspector.view(~inject, ~settings, index, info_map),
+    //CtxInspector.view(index, info_map),
+  ]
   @ (
     settings.dynamics
       ? single_editor_dynamics_views(~font_metrics, term, info_map) : []
@@ -69,6 +60,7 @@ let single_editor_semantics_views =
 
 let single_editor =
     (
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper: Zipper.t,
@@ -88,6 +80,7 @@ let single_editor =
   let statics_view =
     settings.statics
       ? single_editor_semantics_views(
+          ~inject,
           ~settings,
           ~font_metrics,
           ~index=Indicated.index(zipper),
@@ -96,6 +89,14 @@ let single_editor =
       : [];
   div([clss(["editor", "single"])], [code_view] @ statics_view);
 };
+
+let show_term = (editor: Model.editor, _) =>
+  editor.zipper
+  |> Zipper.zip
+  |> MakeTerm.go
+  |> Term.UExp.show
+  |> print_endline
+  |> (_ => Event.Ignore);
 
 let cell_view =
     (
@@ -111,7 +112,7 @@ let cell_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let cell_caption_view =
     div(
-      [clss(["cell-caption"])],
+      [clss(["cell-caption"]), Attr.on_click(show_term(editor))],
       [text(List.nth(School.captions, idx))],
     );
   let cell_chapter_view =
@@ -151,11 +152,18 @@ let multi_editor_semantics_views =
       ~focal_zipper,
       ~editors,
     ) => {
-  let (_, combined_info_map) = TestView.spliced_statics(editors);
-  [ci_view(Indicated.index(focal_zipper), combined_info_map)]
+  let (_, combined_info_map) = SchoolView.spliced_statics(editors);
+  [
+    CursorInspector.view(
+      ~inject,
+      ~settings,
+      Indicated.index(focal_zipper),
+      combined_info_map,
+    ),
+  ]
   @ (
     settings.dynamics
-      ? [TestView.school_panel(~inject, ~font_metrics, editors)] : []
+      ? [SchoolView.view(~inject, ~font_metrics, editors)] : []
   );
 };
 
@@ -212,6 +220,7 @@ let view =
   | Simple(_)
   | Study(_) =>
     single_editor(
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~zipper=focal_zipper,
@@ -219,13 +228,13 @@ let view =
     )
   | School(selected, editors) =>
     multi_editor(
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~editors,
-      ~selected,
-      ~settings,
-      ~focal_zipper,
       ~inject,
+      ~font_metrics,
+      ~settings,
+      ~editors,
+      ~focal_zipper,
+      ~selected,
+      ~show_backpack_targets,
     )
   };
 };

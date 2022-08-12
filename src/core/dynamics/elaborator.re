@@ -7,6 +7,7 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
 
@@ -71,6 +72,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
+    | ListNil => wrap(ListNil(Hole))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -81,6 +83,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
       wrap(Pair(d1, d2));
+    | Cons(e1, e2) =>
+      let* d1 = dhexp_of_uexp(m, e1);
+      let* d2 = dhexp_of_uexp(m, e2);
+      wrap(Cons(d1, d2));
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
@@ -180,6 +186,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | Bool(b) => Some(BoolLit(b))
+    | ListNil => Some(ListNil)
     | Var(name) => Some(Var(name))
     | Pair(p1, p2) =>
       let* d1 = dhpat_of_upat(m, p1);

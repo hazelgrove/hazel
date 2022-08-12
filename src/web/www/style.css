@@ -207,7 +207,12 @@ svg {
   left: 100%;
 }
 
-#font-specimen, .code-container, .DHCode, .cursor-inspector {
+#font-specimen,
+.code-container,
+.DHCode,
+.cursor-inspector,
+.context-entry,
+.typ-view {
   line-height: var(--line-height);
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
@@ -490,7 +495,7 @@ svg {
 
 /*TODO(andrew): clean up text classes*/
 .code .text-Pat {
-  color: #236eac;
+  color: #1674dc;
 }
 .code .delim.text-Pat {
   color: #b5cee4;
@@ -842,75 +847,16 @@ svg {
 
 /* STATICS */
 
-.cursor-inspector {
-  z-index: var(--type-inspector-z);
-  position: fixed;
-  top: 3.75em;
-  left: 1em;
-  height: 1.2em;
-  padding-right: 0.25em;
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  border-radius: 0.2em;
-  border-bottom: 1px solid #daca9f;
-  background-color: #fefcf3;
-}
-
-.cursor-inspector.error {
-  border-color: red;
-}
-
-.cursor-inspector .extra {
-  position: absolute;
-  width: max-content;
-  top: -2em;
-  left: 0.5em;
-  display: none;
-  gap: 0.5em;
-  font-size: 0.5em;
-}
-.cursor-inspector:hover .extra {
-  display: flex;
-}
-
-.cursor-inspector .extra .syntax-class {
-  color: var(--top_bar_icon_fill);
-}
-
-.cursor-inspector .extra .id {
-  color: #8f8054;
-}
-
 .typ-view {
-  display: flex;
-  gap: 0.5em;
-}
-
-.cursor-inspector .info{
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-
-.info .happy, .info .error {
-  display: flex;
-  gap: 0.5em;
-}
-
-.info .happy,
-.info .happy .typ-view {
   color: #24ae62;
-}
-
-.info .error,
-.info .error .typ-view {
-  color: red ;
+  display: flex;
+  gap: 0.5em;
 }
 
 .term-tag {
+  /* box-sizing: border-box; */
   padding: 0.1em 0.3em 0.1em 0.3em;
-  height: fit-content;
+  /* height: fit-content; */
   display: flex;
   border-radius: 0.2em;
   color: #0006;
@@ -918,10 +864,14 @@ svg {
   font-weight: bolder;
   text-transform: uppercase;
   align-items: center;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  /* border-bottom: 1px solid #d1c19e; */
+  border-left: 1px solid #d1c19e;
 }
 .term-tag.error {
   background-color: rgb(255 0 0);
-  color: #830000;
+  color: #830000 !important; /* HACK(andrew) */
 }
 .term-tag-typ{
   background-color:rgb(197, 253, 197);
@@ -935,6 +885,105 @@ svg {
   background-color:rgb(235 223 197);
   color: #b1a47f;
 }
+
+/* CURSOR INSPECTOR */
+
+.cursor-inspector {
+  z-index: var(--type-inspector-z);
+  position: fixed;
+  top: 2.55em;
+  left: 0.68em;
+  height: 1.2em;
+  padding-right: 0.25em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  border-radius: 0.2em;
+  border-bottom: 1px solid #daca9f;
+  border-right: 1px solid #daca9f;
+  background-color: #fefcf3;
+  box-shadow: 0px 2px 0px #77580255;
+}
+
+.cursor-inspector.error {
+  border-color: red;
+}
+
+.cursor-inspector .extra {
+  z-index: 30;
+  position: absolute;
+  width: max-content;
+  top: 3.5em;
+  left: 0.75em;
+  display: none;
+  gap: 0.5em;
+  font-size: 0.5em;
+}
+.cursor-inspector:hover .extra,
+.cursor-inspector .extra.visible,
+.cursor-inspector:hover .context-inspector,
+.context-inspector.visible {
+  display: flex;
+}
+
+.cursor-inspector .extra .syntax-class {
+  color: var(--top_bar_icon_fill);
+}
+
+.cursor-inspector .extra .id {
+  color: #8f8054;
+}
+
+.cursor-inspector .info{
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.cursor-inspector .info .happy,
+.cursor-inspector .info .error {
+  display: flex;
+  gap: 0.5em;
+}
+
+.cursor-inspector .info .happy,
+.cursor-inspector .info .happy .typ-view {
+  color: #24ae62;
+}
+
+.cursor-inspector .info .error,
+.cursor-inspector .info .error .typ-view {
+  color: red ;
+}
+
+/* CONTEXT INSPECTOR */
+.context-inspector {
+  display: none; /* for now, only on ci hover */
+  z-index: 20;
+  position: fixed;
+  left: 0.68em;
+  top: 3.8em;
+  min-width: 10em;
+  max-width: 12em;
+  max-height: 12em;
+  overflow: auto;
+  padding: 0.2em;
+  padding-top: 1.5em;
+  white-space: nowrap;
+  border-radius: 0.2em;
+  border-left: 1px solid #daca9f;
+  border-right: 1px solid #daca9f;
+  background-color: #fefcf3;
+  box-shadow: 0px 3px 0px #77580255;
+}
+
+.context-entry {
+  display: flex;
+  width: 10em;
+  gap: 0.5em;
+}
+
+/* END STATICS*/
 
 /* DYNAMICS */
 
@@ -993,7 +1042,7 @@ svg {
 
 /* DYNAMICS - test panel */
 
-.test-multi-panel {
+.school-panel {
   min-width: 15em;
   max-height: 100%;
   overflow-y: auto;
@@ -1065,7 +1114,7 @@ svg {
 }
 
 .test-instance .DHCode {
-  border-radius: 0.5em;
+  border-radius: 0.3em;
 }
 
 /*
@@ -1085,7 +1134,8 @@ svg {
 
 .test-instance.Fail .DHCode {
   color: var(--err-color);
-  border: dotted 1px var(--err-color);
+  /* border: dotted 1px var(--err-color); */
+  background-color: #f002;
 }
 
 .test-instance.Indet .DHCode {

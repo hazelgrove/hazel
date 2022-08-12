@@ -37,6 +37,7 @@ type settings = {
   whitespace_icons: bool,
   statics: bool,
   dynamics: bool,
+  context_inspector: bool,
   student: bool,
   mode,
 };
@@ -46,6 +47,7 @@ let settings_init = {
   whitespace_icons: false,
   statics: true,
   dynamics: true,
+  context_inspector: false,
   student: true,
   mode: Simple,
 };
