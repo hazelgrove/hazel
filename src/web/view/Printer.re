@@ -59,7 +59,8 @@ let of_zipper = (z: Zipper.t): t => {
 };
 
 let zipper_of_string =
-    (id_gen: IdGen.state, str: string): option(Zipper.state) => {
+    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
+    : option(Zipper.state) => {
   let insert_to_zid: (Zipper.state, string) => Zipper.state =
     (z_id, c) => {
       switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
@@ -75,7 +76,7 @@ let zipper_of_string =
   try(
     str
     |> Util.StringUtil.to_list
-    |> List.fold_left(insert_to_zid, (Zipper.init(0), id_gen))
+    |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
     |> Option.some
   ) {
   | e =>

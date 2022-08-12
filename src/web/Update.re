@@ -25,6 +25,8 @@ type t =
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Perform.Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
+  | Copy
+  | Paste
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
@@ -35,6 +37,7 @@ module Failure = {
   type t =
     | CantUndo
     | CantRedo
+    | CantPaste
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)
@@ -181,6 +184,31 @@ let apply =
       });
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
+  | Copy =>
+    let syntax_str = Printer.to_string_selection(Model.get_zipper(model));
+    JsUtil.copy_to_clipboard(syntax_str);
+    Ok({...model, clipboard: syntax_str});
+  | Paste =>
+    //let _ = JsUtil.get_from_clipboard();
+    let Model.{zipper, history} = Model.get_editor(model);
+    let z_id = (zipper, model.id_gen);
+    switch (
+      Printer.zipper_of_string(
+        ~zipper_init=zipper,
+        model.id_gen,
+        model.clipboard,
+      )
+    ) {
+    | None => Error(CantPaste)
+    | Some((zipper, id_gen)) =>
+      //TODO: add correct action to history
+      let history = ActionHistory.succeeded(Pick_up, z_id, history);
+      Ok({
+        ...model,
+        id_gen,
+        editor_model: Model.put_editor(model, {zipper, history}),
+      });
+    };
   | Undo =>
     let Model.{zipper, history} = Model.get_editor(model);
     let z_id = (zipper, model.id_gen);
