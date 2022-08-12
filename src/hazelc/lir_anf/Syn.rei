@@ -1,11 +1,34 @@
 [@deriving sexp]
 type syn_types = ExprLabel.Map.t(Typ.t);
+[@deriving sexp]
+type syn_idents = Ident.Set.t;
+[@deriving sexp]
+type syn_labels = {
+  expr: ExprLabel.Set.t,
+  stmt: StmtLabel.Set.t,
+  rule: RuleLabel.Set.t,
+  pat: PatLabel.Set.t,
+};
 
 [@deriving sexp]
-type syn_ok = {types: syn_types};
+type syn_ok = {
+  types: syn_types,
+  idents: syn_idents,
+  labels: syn_labels,
+};
 
 [@deriving sexp]
 type syn_error =
+  | /** Duplicate variable identifier. */
+    DuplicateIdent(Ident.t)
+  | /** Duplicate expression label. */
+    DuplicateExprLabel(ExprLabel.t)
+  | /** Duplicate statement label. */
+    DuplicateStmtLabel(StmtLabel.t)
+  | /** Duplicate rule label. */
+    DuplicateRuleLabel(RuleLabel.t)
+  | /** Duplicate pattern label. */
+    DuplicatePatLabel(PatLabel.t)
   | /** Case with no rules. */
     CaseEmptyRules(ExprLabel.t)
   | /** Unbound variable. */
