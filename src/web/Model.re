@@ -127,42 +127,13 @@ let num_editors = (model: t): int =>
   | School(_, zs) => List.length(zs)
   };
 
-let zipper_of_string =
-    (id_gen: IdGen.state, str: string): option(Zipper.state) => {
-  let insert_to_zid: (Zipper.state, string) => Zipper.state =
-    (z_id, c) => {
-      switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
-      | Error(err) =>
-        print_endline(
-          "WARNING: zipper_of_string: insert: "
-          ++ Perform.Action.Failure.show(err),
-        );
-        z_id;
-      | Ok(r) => r
-      };
-    };
-  try(
-    str
-    |> Util.StringUtil.to_list
-    |> List.fold_left(insert_to_zid, (Zipper.init(0), id_gen))
-    |> Option.some
-  ) {
-  | e =>
-    print_endline(
-      "WARNING: zipper_of_string: exception during parse: "
-      ++ Printexc.to_string(e),
-    );
-    None;
-  };
-};
-
 let simple_init: simple = (1, mk_editor(Zipper.init(0)));
 
 let editors_of_strings = (xs: list(string)): (Id.t, int, list(editor)) => {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {
-        switch (zipper_of_string(acc_id, str)) {
+        switch (Printer.zipper_of_string(acc_id, str)) {
         | None => (acc_id, acc_zs @ [Zipper.init(0)])
         | Some((z, new_id)) => (new_id, acc_zs @ [z])
         }
