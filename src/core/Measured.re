@@ -190,8 +190,9 @@ let post_tile_indent = (t: Tile.t) => {
     && (
       t.label == Form.get("fun_").label || t.label == Form.get("if_").label
     );
-  let missing_right_extreme = Tile.r_shard(t) < List.length(t.label) - 1;
-  complete_fun || missing_right_extreme;
+  // uncomment when indentation for incomplete tile is desirable
+  let _missing_right_extreme = Tile.r_shard(t) < List.length(t.label) - 1;
+  complete_fun; /*|| missing_right_extreme;*/
 };
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
