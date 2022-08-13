@@ -30,15 +30,7 @@ open Term;
    shapes and sorts to incomplete tiles; see piece_and_outside_kids
    and Piece.get_outside_sorts which it calls. */
 
-type sort_dispatch =
-  | Exp(UExp.t)
-  | Pat(UPat.t)
-  | Typ(UTyp.t)
-  | Rul(unit) // TODO
-  | Nul(unit)
-  | Any(unit);
-
-let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): sort_dispatch =>
+let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   switch (s) {
   | Pat => Pat(of_seg_and_skel_pat(ps, kid))
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
@@ -48,8 +40,7 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): sort_dispatch =
   | Any => Any()
   }
 and piece_and_outside_kids =
-    (~default_sort, ps: Segment.t, skel: Skel.t)
-    : (Piece.t, list(sort_dispatch)) => {
+    (~default_sort, ps: Segment.t, skel: Skel.t): (Piece.t, list(Term.any)) => {
   let piece_at = List.nth(ps);
   let (p, outside_kids) =
     switch (skel) {
@@ -108,72 +99,55 @@ and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
 }
+
 //TODO: improve/consolidate of_nary fns below
-and of_nary_exp = (id: Id.t, l: sort_dispatch, r: sort_dispatch): UExp.t => {
+and of_nary_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
   let wrap_multi = (ids, es): UExp.t => {
     id,
     term: MultiHole([id] @ ids, es),
   };
   switch (l, r) {
-  | (
-      Exp({term: MultiHole(l_ids, ls), _}),
-      Exp({term: MultiHole(r_ids, rs), _}),
-    ) =>
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
     wrap_multi(l_ids @ r_ids, ls @ rs)
-  | (Exp(l), Exp({term: MultiHole(r_ids, rs), _})) =>
-    wrap_multi(r_ids, [l] @ rs)
-  | (Exp({term: MultiHole(l_ids, ls), _}), Exp(r)) =>
-    wrap_multi(l_ids, ls @ [r])
-  | (Exp(l), Exp(r)) => wrap_multi([], [l, r])
-  | _ => wrap_multi([], []) //TODO
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_nary_pat = (id: Id.t, l: sort_dispatch, r: sort_dispatch): UPat.t => {
+and of_nary_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
   let wrap_multi = (ids, es): UPat.t => {
     id,
     term: MultiHole([id] @ ids, es),
   };
   switch (l, r) {
-  | (
-      Pat({term: MultiHole(l_ids, ls), _}),
-      Pat({term: MultiHole(r_ids, rs), _}),
-    ) =>
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
     wrap_multi(l_ids @ r_ids, ls @ rs)
-  | (Pat(l), Pat({term: MultiHole(r_ids, rs), _})) =>
-    wrap_multi(r_ids, [l] @ rs)
-  | (Pat({term: MultiHole(l_ids, ls), _}), Pat(r)) =>
-    wrap_multi(l_ids, ls @ [r])
-  | (Pat(l), Pat(r)) => wrap_multi([], [l, r])
-  | _ => wrap_multi([], []) //TODO
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_nary_typ = (id: Id.t, l: sort_dispatch, r: sort_dispatch): UTyp.t => {
+and of_nary_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   let wrap_multi = (ids, es): UTyp.t => {
     id,
     term: MultiHole([id] @ ids, es),
   };
   switch (l, r) {
-  | (
-      Typ({term: MultiHole(l_ids, ls), _}),
-      Typ({term: MultiHole(r_ids, rs), _}),
-    ) =>
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
     wrap_multi(l_ids @ r_ids, ls @ rs)
-  | (Typ(l), Typ({term: MultiHole(r_ids, rs), _})) =>
-    wrap_multi(r_ids, [l] @ rs)
-  | (Typ({term: MultiHole(l_ids, ls), _}), Typ(r)) =>
-    wrap_multi(l_ids, ls @ [r])
-  | (Typ(l), Typ(r)) => wrap_multi([], [l, r])
-  | _ => wrap_multi([], []) //TODO
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
+and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   let invalid = (p: Piece.t): UExp.t => {id: (-1), term: Invalid(p)};
   switch (p) {
   | Whitespace(_) => invalid(p)
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [l, r]) => of_nary_exp(id, l, r)
+    | (Concave, [Exp(l), Exp(r)]) => of_nary_exp(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
@@ -224,14 +198,14 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
     {id, term};
   };
 }
-and of_piece_pat = (p: Piece.t, outside_kids: list(sort_dispatch)): UPat.t => {
+and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
   let invalid: UPat.t = {id: (-1), term: Invalid(p)};
   switch (p) {
   | Whitespace(_) => invalid
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [l, r]) => of_nary_pat(id, l, r)
+    | (Concave, [Pat(l), Pat(r)]) => of_nary_pat(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
@@ -254,14 +228,14 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(sort_dispatch)): UPat.t => {
     {id, term};
   };
 }
-and of_piece_typ = (p: Piece.t, outside_kids: list(sort_dispatch)): UTyp.t => {
+and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
   let invalid: UTyp.t = {id: (-1), term: Invalid(p)};
   switch (p) {
   | Whitespace(_) => invalid
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [l, r]) => of_nary_typ(id, l, r)
+    | (Concave, [Typ(l), Typ(r)]) => of_nary_typ(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
