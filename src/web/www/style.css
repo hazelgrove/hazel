@@ -234,6 +234,7 @@ svg {
 .context-entry,
 .typ-view {
   line-height: var(--line-height);
+  white-space: nowrap;
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
@@ -916,7 +917,7 @@ svg {
 .term-tag {
   padding: 0em 0.4em 0em 0em;
   border-radius: 0 0.4em 0.4em 0;
-  border-right: 1px solid #c7b480;
+  /*border-right: 1px solid #c7b480;*/
   /* height: fit-content; */
   display: flex;
   gap: 0.5em;
@@ -952,9 +953,10 @@ svg {
 .cursor-inspector {
   z-index: var(--type-inspector-z);
   height: 1.45em;
-  padding-right: 0.25em;
+  padding-right: 0.5em;
   display: flex;
-  /*gap: 0.5em;*/
+  gap: 0.5em;
+  color: #8c795b;
   border-radius: 0.3em;
   /* border-right: 1px solid #daca9f; */
   background-color: #fbecaa; /*#fefcf3;*/
