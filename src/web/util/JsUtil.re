@@ -38,8 +38,12 @@ let copy_to_clipboard = (string: string): unit => {
      js_of_ocaml doesn't have bindings for it, so in the interest
      of time I'm just using Unsafe.js_expr. Note the use of backticks
      around the string in order to make this robust to the presence
-     of linebreaks in the string. */
-  // note: using unsafe as js_of_ocaml doesn't have clipboard bindings
+     of linebreaks in the string.
+
+     This currently seems to work fine, but generates a warning to the
+     console as described in the below println.
+     */
+
   print_endline(
     "Copying log to keyboard. An exception reading 'fallback to runtime evaluation' is expected.",
   );
@@ -49,7 +53,11 @@ let copy_to_clipboard = (string: string): unit => {
 };
 
 let get_from_clipboard = (): string => {
-  // WIP(andrew)
+  /* WIP(andrew):
+       This sorta works, somewhat hackily and inconsistently (requires a dom element
+       called blorg to be present and ideally hidden). However it prompts the user
+       for permissions each time.
+     */
   let _ =
     Js.Unsafe.js_expr(
       "window.navigator.clipboard.readText().then(
@@ -61,9 +69,7 @@ let get_from_clipboard = (): string => {
   let doc = Dom_html.document;
   let elem =
     Js.Opt.get(doc##getElementById(Js.string("blorg")), () => {
-      assert
-        (false)
-        //print_endline(id);
+      assert(false)
     });
   let result: Js.t('a) = Js.Unsafe.get(elem, "innerHTML");
   let result = Js.to_string(result);

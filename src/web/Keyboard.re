@@ -103,6 +103,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
     | "c" => [Copy]
     | "v" => now_save_u(Paste) //now(Put_down)
     | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
+    | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
     | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
@@ -117,6 +118,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
     | "c" => [Copy]
     | "v" => now_save_u(Paste) //now(Put_down)
     | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
+    | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
     | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
