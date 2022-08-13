@@ -146,7 +146,7 @@ let rec remold = (seg: t, s: Sort.t) => {
       | Grout(_) => ()
       | Tile(t) when t.mold.out != s => ()
       | Tile(t) =>
-        let (l, r) = t.mold.nibs;
+        let (l, r) = Tile.nibs(t);
         switch (l) {
         | {shape: Concave(_), sort} when sort != s =>
           let j = ref(i^ - 1);
