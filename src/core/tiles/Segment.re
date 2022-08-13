@@ -111,18 +111,22 @@ let rec remold = (seg: t, s: Sort.t) => {
            | Whitespace(_)
            | Grout(_) => (shape, p)
            | Tile(t) =>
-             let mold =
+             let t =
                Molds.get(t.label)
                |> List.filter((m: Mold.t) => m.out == s)
+               |> List.map(mold => {...t, mold})
                |> (
                  fun
-                 | ([] | [_]) as ms => ms
-                 | [_, _, ..._] as ms =>
-                   List.filter(Mold.fits_shape(Left, shape), ms)
+                 | [_] as ts => ts
+                 | ts =>
+                   ts
+                   |> List.filter(t =>
+                        Nib.Shape.fits(shape, fst(Tile.shapes(t)))
+                      )
                )
                |> ListUtil.hd_opt
-               |> OptUtil.get(() => t.mold);
-             (snd(Mold.nib_shapes(mold)), Tile({...t, mold}));
+               |> OptUtil.get(() => t);
+             (snd(Tile.shapes(t)), Tile(t));
            },
          Nib.Shape.concave(),
        );
