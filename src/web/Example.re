@@ -32,9 +32,9 @@ let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
   };
 
 let mk_monotile = form => mk_tile(form, []); //TODO: asserts
-let int = n => mk_monotile(Form.mk_convex_mono(Exp, n));
-let exp = v => mk_monotile(Form.mk_convex_mono(Exp, v));
-let pat = v => mk_monotile(Form.mk_convex_mono(Pat, v));
+let int = n => mk_monotile(Form.mk_atomic(Exp, n));
+let exp = v => mk_monotile(Form.mk_atomic(Exp, v));
+let pat = v => mk_monotile(Form.mk_atomic(Pat, v));
 let mk_parens_exp = mk_tile(Form.get("parens_exp"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_fun_ancestor = mk_ancestor(Form.get("fun_"));

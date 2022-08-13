@@ -131,7 +131,7 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
-let matched_prod: t => (t, t) =
+let matched_pair: t => (t, t) =
   fun
   | Prod(ty_in, ty_out) => (ty_in, ty_out)
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
@@ -151,11 +151,11 @@ let matched_arrow_mode: mode => (mode, mode) =
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_prod_mode: mode => (mode, mode) =
+let matched_pair_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
-      let (ty_l, ty_r) = matched_prod(ty);
+      let (ty_l, ty_r) = matched_pair(ty);
       (Ana(ty_l), Ana(ty_r));
     };
 

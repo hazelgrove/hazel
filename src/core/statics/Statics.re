@@ -215,6 +215,28 @@ let rec uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | ListNil => atomic(Just(List(Unknown(Internal))))
+  | ListLit(ids, es) =>
+    //TODO(andrew) LISTLITS: below is placeholder logic, probably messy/wrong/incomplete
+    let modes: list(Typ.mode) =
+      switch (mode) {
+      | Syn => List.init(List.length(es), _ => Typ.Syn)
+      | Ana(ty) =>
+        List.init(List.length(es), _ => Typ.Ana(Typ.matched_list(ty)))
+      };
+    let e_ids = List.map((e: Term.UExp.t) => e.id, es);
+    let infos = List.map2((e, mode) => go(~mode, e), es, modes);
+    let tys = List.map(((ty, _, _)) => ty, infos);
+    let self =
+      switch (Typ.join_all(tys)) {
+      | None =>
+        Typ.Joined(List.map2((id, ty): Typ.source => {id, ty}, e_ids, tys))
+      | Some(ty) => Typ.Just(List(ty))
+      };
+    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let info: t = InfoExp({cls, self, mode, ctx, free});
+    let m = union_m(List.map(((_, _, m)) => m, infos));
+    let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
+    (typ_after_fix(mode, self), free, m);
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -243,7 +265,7 @@ let rec uexp_to_info_map =
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
   | Pair(e1, e2) =>
-    let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
+    let (mode_l, mode_r) = Typ.matched_pair_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_l, e1);
     let (ty2, free2, m2) = go(~mode=mode_r, e2);
     add(
@@ -251,6 +273,21 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
+  | NTuple(ids, es) =>
+    //TODO(andrew): N-Tuples. Below is just placeholder logic
+    switch (List.rev(es)) {
+    | [] => failwith("ERROR: NTuple with no elements")
+    | [_] => failwith("ERROR: NTuple with one element")
+    | [e1, ...es] =>
+      go(
+        List.fold_left2(
+          (acc, e2, id): Term.UExp.t => {id, term: Term.UExp.Pair(e2, acc)},
+          e1,
+          es,
+          ids,
+        ),
+      )
+    }
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
     add(~self=Just(Unit), ~free=free_test, m1);
@@ -383,7 +420,7 @@ and upat_to_info_map =
     let typ = typ_after_fix(mode, self);
     add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Pair(p1, p2) =>
-    let (mode_l, mode_r) = Typ.matched_prod_mode(mode);
+    let (mode_l, mode_r) = Typ.matched_pair_mode(mode);
     let (ty_p1, ctx, m_p1) = upat_to_info_map(~ctx, ~mode=mode_l, p1);
     let (ty_p2, ctx, m_p2) = upat_to_info_map(~ctx, ~mode=mode_r, p2);
     add(~self=Just(Prod(ty_p1, ty_p2)), ~ctx, union_m([m_p1, m_p2]));

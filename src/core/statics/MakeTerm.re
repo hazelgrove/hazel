@@ -99,7 +99,6 @@ and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
 }
-
 //TODO: improve/consolidate of_nary fns below
 and of_nary_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
   let wrap_multi = (ids, es): UExp.t => {
@@ -112,6 +111,19 @@ and of_nary_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
   | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
   | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
   | (l, r) => wrap_multi([], [l, r])
+  };
+}
+and of_ntuple_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
+  let wrap_ntuple = (ids, es): UExp.t => {
+    id,
+    term: NTuple([id] @ ids, es),
+  };
+  switch (l, r) {
+  | ({term: NTuple(l_ids, ls), _}, {term: NTuple(r_ids, rs), _}) =>
+    wrap_ntuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: NTuple(r_ids, rs), _}) => wrap_ntuple(r_ids, [l] @ rs)
+  | ({term: NTuple(l_ids, ls), _}, r) => wrap_ntuple(l_ids, ls @ [r])
+  | (l, r) => wrap_ntuple([], [l, r])
   };
 }
 and of_nary_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
@@ -163,7 +175,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
-      | ([","], [Exp(l), Exp(r)], []) => Pair(l, r)
+      | ([","], [Exp(l), Exp(r)], []) => of_ntuple_exp(id, l, r).term
+      //Pair(l, r)
       | (["+"], [Exp(l), Exp(r)], []) => BinOp(Int(Plus), l, r)
       | (["-"], [Exp(l), Exp(r)], []) => BinOp(Int(Minus), l, r)
       | (["*"], [Exp(l), Exp(r)], []) => BinOp(Int(Times), l, r)
@@ -195,6 +208,11 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [Exp(fn)], [arg]) => Ap(fn, uexp_of_seg(arg))
       | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
+      | (["[", "]"], [], [body]) =>
+        switch (uexp_of_seg(body)) {
+        | {term: NTuple(ids, es), _} => ListLit([id] @ ids, es)
+        | term => ListLit([id], [term])
+        }
       | _ => Invalid(p)
       };
     {id, term};

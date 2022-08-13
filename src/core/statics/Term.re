@@ -187,9 +187,11 @@ module UExp = {
     | Int
     | Float
     | ListNil
+    | ListLit
     | Fun
     | FunAnn
     | Pair
+    | NTuple
     | Var
     | Let
     | LetAnn
@@ -211,9 +213,11 @@ module UExp = {
     | Int(int)
     | Float(float)
     | ListNil
+    | ListLit(list(Id.t), list(t))
     | Fun(UPat.t, t)
     | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Pair(t, t)
+    | NTuple(list(Id.t), list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
@@ -240,9 +244,11 @@ module UExp = {
     | Int(_) => Int
     | Float(_) => Float
     | ListNil => ListNil
+    | ListLit(_) => ListLit
     | Fun(_) => Fun
     | FunAnn(_) => FunAnn
     | Pair(_) => Pair
+    | NTuple(_) => NTuple
     | Var(_) => Var
     | Let(_) => Let
     | LetAnn(_) => LetAnn
@@ -294,9 +300,11 @@ module UExp = {
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | ListNil => "List Literal"
+    | ListLit => "List Literal"
     | Fun => "Function Literal"
     | FunAnn => "Annotated Function Literal"
     | Pair => "Pair Literal"
+    | NTuple => "N-Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | LetAnn => "Annotated Let Expression"
