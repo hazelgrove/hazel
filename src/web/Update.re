@@ -186,7 +186,7 @@ let apply =
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Copy =>
     let clipboard = Printer.to_string_selection(Model.get_zipper(model));
-    JsUtil.copy_to_clipboard(clipboard);
+    //JsUtil.copy_to_clipboard(clipboard);
     Ok({...model, clipboard});
   | Paste =>
     //let clipboard = JsUtil.get_from_clipboard();
