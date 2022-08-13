@@ -133,7 +133,7 @@ let forms: list((string, t)) = [
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, 6)),
   ("dot", mk(ss, ["."], mk_op(Nul, []))), // HACK: SUBSTRING REQ (floats)
-  //("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))),
+  ("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
