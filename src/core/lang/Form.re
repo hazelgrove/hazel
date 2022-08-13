@@ -80,6 +80,7 @@ let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");
 let is_bool = str => str == "true" || str == "false";
+let is_listnil = str => str == "nil";
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
@@ -98,6 +99,7 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
   ("float", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
+  ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
 /* C. Compound Forms:
@@ -166,7 +168,7 @@ let forms: list((string, t)) = [
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
-  //("cons", mk_infix("::", Exp, 5)),
+  ("cons", mk_infix("::", Exp, 5)),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("list_lit", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),

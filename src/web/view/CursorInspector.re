@@ -55,7 +55,13 @@ let happy_view = (suc: Core.Statics.happy) => {
   | AnaExternalInconsistent(ty_ana, _) =>
     div(
       [clss([happyc, "ana-consistent-external"])],
-      [text("⇐☆"), Type.view(ty_ana)],
+      [
+        div(
+          [clss(["typ-view", "atom"])],
+          [text("⇐"), div([clss(["typ-mod"])], [text("☆")])],
+        ),
+        Type.view(ty_ana),
+      ],
     )
   };
 };
@@ -70,7 +76,7 @@ let status_view = (err: Core.Statics.error_status) => {
 let term_tag = (is_err, sort) =>
   div(
     [clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : []))],
-    [text(sort)],
+    [div([clss(["icon"])], [Icons.magnify]), text(sort)],
   );
 
 let view_of_info = (ci: Core.Statics.t): Node.t => {
@@ -91,7 +97,11 @@ let view_of_info = (ci: Core.Statics.t): Node.t => {
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
-    div([clss([infoc, "typ"])], [term_tag(is_err, "typ"), Type.view(ty)])
+    let ann = div([clss(["typ-view"])], [text(":")]);
+    div(
+      [clss([infoc, "typ"])],
+      [term_tag(is_err, "typ"), ann, Type.view(ty)],
+    );
   };
 };
 
@@ -142,9 +152,22 @@ let view =
   | Some(index) =>
     switch (Core.Id.Map.find_opt(index, info_map)) {
     | Some(ci) => inspector_view(~inject, ~settings, index, ci)
-    | None => div([clss(["cursor-inspector"])], [text("No CI for Index")])
+    | None =>
+      div(
+        [clss(["cursor-inspector"])],
+        [
+          div([clss(["icon"])], [Icons.magnify]),
+          text("No CI for Index"),
+        ],
+      )
     }
   | None =>
-    div([clss(["cursor-inspector"])], [text("No Indicated Index")])
+    div(
+      [clss(["cursor-inspector"])],
+      [
+        div([clss(["icon"])], [Icons.magnify]),
+        text("No Indicated Index"),
+      ],
+    )
   };
 };

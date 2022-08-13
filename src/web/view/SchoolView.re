@@ -163,7 +163,7 @@ let test_section_view = (~font_metrics, ~title, eds) => {
   TestView.view(~title, ~font_metrics, Core.Elaborator.uexp_elab(map, term));
 };
 
-let view = (~inject, ~font_metrics, editors) => {
+let data = (editors: list(Model.editor)) => {
   switch (editors) {
   | [
       student_impl,
@@ -174,33 +174,21 @@ let view = (~inject, ~font_metrics, editors) => {
       wrong_impl_2,
       wrong_impl_3,
     ] =>
-    let (implement_term, implement_map) = spliced_statics([student_impl]);
-    div(
-      [clss(["school-panel"])],
+    /* Note: splicing in student implementation
+       first in case they create helpers. Still
+       has problem if these get shadowed; make
+       sure we use uncommon names for helpers. */
+    Some((
+      [student_impl],
+      [student_impl, student_tests],
+      [student_impl, hidden_tests],
+      [student_impl, reference_impl, student_tests],
       [
-        test_section_view(
-          ~title="Your Tests:",
-          ~font_metrics,
-          [student_impl, student_tests],
-        ),
-        test_section_view(
-          ~title="Our Tests:",
-          ~font_metrics,
-          [student_impl, hidden_tests],
-        ),
-        coverage_view(
-          ~inject,
-          ~font_metrics,
-          [reference_impl, student_tests],
-          [
-            [wrong_impl_1, student_tests],
-            [wrong_impl_2, student_tests],
-            [wrong_impl_3, student_tests],
-          ],
-        ),
-        Interface.res_view(~font_metrics, implement_term, implement_map),
+        [student_impl, wrong_impl_1, student_tests],
+        [student_impl, wrong_impl_2, student_tests],
+        [student_impl, wrong_impl_3, student_tests],
       ],
-    );
-  | _ => div([], [text("Error: SchoolView: Wrong number of editors")])
+    ))
+  | _ => None
   };
 };
