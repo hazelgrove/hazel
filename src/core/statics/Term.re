@@ -70,8 +70,8 @@ module UTyp = {
     | Int
     | Float
     | Bool
-    | ListNil => "Concrete Type"
-    | Arrow => "Arrow Type"
+    | ListNil => "Base Type"
+    | Arrow => "Function Type"
     | Prod => "Product Type"
     | Parens => "Parenthesized Type Term";
 };
