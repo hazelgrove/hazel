@@ -76,6 +76,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListNil => wrap(ListNil(Hole))
+    | ListLit(_) =>
+      //TODO: list literals. below is just placeholder
+      wrap(ListNil(Hole))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -86,6 +89,23 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
       wrap(Pair(d1, d2));
+    | NTuple(ids, es) =>
+      //TODO(andrew): N-Tuples. Below is just placeholder logic
+      switch (List.rev(es)) {
+      | [] => failwith("ERROR: NTuple with no elements")
+      | [_] => failwith("ERROR: NTuple with one element")
+      | [e1, ...es] =>
+        dhexp_of_uexp(
+          m,
+          List.fold_left2(
+            (acc, e2, id): Term.UExp.t =>
+              {id, term: Term.UExp.Pair(e2, acc)},
+            e1,
+            es,
+            ids,
+          ),
+        )
+      }
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
