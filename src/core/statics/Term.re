@@ -308,3 +308,11 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
     | Parens(u1) => utyp_to_ty(u1)
     };
+
+type any =
+  | Exp(UExp.t)
+  | Pat(UPat.t)
+  | Typ(UTyp.t)
+  | Rul(unit) // TODO
+  | Nul(unit)
+  | Any(unit);
