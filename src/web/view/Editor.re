@@ -33,29 +33,116 @@ let code_container =
   div([Attr.class_("code-container")], [code_view] @ deco_view);
 };
 
-let single_editor_dynamics_views = (~font_metrics, term, info_map) => {
-  [
-    TestView.view(
-      ~title="Tests",
-      ~font_metrics,
-      Elaborator.uexp_elab(info_map, term),
-    ),
-    Interface.res_view(~font_metrics, term, info_map),
-  ];
-};
-
 let single_editor_semantics_views =
     (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
   let term = MakeTerm.go(unselected);
   let (_, _, info_map) = Statics.mk_map(term);
   [
-    CursorInspector.view(~inject, ~settings, index, info_map),
-    //CtxInspector.view(index, info_map),
+    div(
+      [clss(["bottom-bar"])],
+      [
+        CursorInspector.view(~inject, ~settings, index, info_map),
+        //CtxInspector.view(index, info_map),
+      ]
+      @ (
+        settings.dynamics
+          ? [Interface.res_view(~font_metrics, term, info_map)] : []
+      ),
+    ),
   ]
   @ (
     settings.dynamics
-      ? single_editor_dynamics_views(~font_metrics, term, info_map) : []
+      ? [
+        TestView.view(
+          ~title="Tests",
+          ~font_metrics,
+          Elaborator.uexp_elab(info_map, term),
+        ),
+      ]
+      : []
   );
+};
+
+let school_panel_view =
+    (
+      ~inject,
+      ~font_metrics,
+      (your_tests, our_tests, reference_tests, coverage_tests),
+    ) =>
+  div(
+    [clss(["school-panel"])],
+    [
+      SchoolView.test_section_view(
+        ~title="Your Tests:",
+        ~font_metrics,
+        your_tests,
+      ),
+      SchoolView.test_section_view(
+        ~title="Our Tests:",
+        ~font_metrics,
+        our_tests,
+      ),
+      SchoolView.coverage_view(
+        ~inject,
+        ~font_metrics,
+        reference_tests,
+        coverage_tests,
+      ),
+    ],
+  );
+
+let multi_editor_semantics_views =
+    (
+      ~inject,
+      ~settings: Model.settings,
+      ~font_metrics,
+      ~focal_zipper,
+      ~editors,
+    ) => {
+  let (_, combined_info_map) = SchoolView.spliced_statics(editors);
+  [
+    div(
+      [clss(["bottom-bar"])],
+      [
+        CursorInspector.view(
+          ~inject,
+          ~settings,
+          Indicated.index(focal_zipper),
+          combined_info_map,
+        ),
+      ]
+      @ (
+        settings.dynamics
+          ? switch (SchoolView.data(editors)) {
+            | Some((
+                statics_impl,
+                your_tests,
+                our_tests,
+                reference_tests,
+                coverage_tests,
+              )) =>
+              let school_panel_data = (
+                your_tests,
+                our_tests,
+                reference_tests,
+                coverage_tests,
+              );
+              let (implement_term, implement_map) =
+                SchoolView.spliced_statics(statics_impl);
+              [
+                school_panel_view(~inject, ~font_metrics, school_panel_data),
+                Interface.res_view(
+                  ~font_metrics,
+                  implement_term,
+                  implement_map,
+                ),
+              ];
+            | _ => [text("Error: SchoolView: Wrong number of editors")]
+            }
+          : []
+      ),
+    ),
+  ];
 };
 
 let single_editor =
@@ -77,7 +164,7 @@ let single_editor =
       ~show_backpack_targets,
       ~show_deco=true,
     );
-  let statics_view =
+  let semantics_views =
     settings.statics
       ? single_editor_semantics_views(
           ~inject,
@@ -87,7 +174,7 @@ let single_editor =
           ~unselected,
         )
       : [];
-  div([clss(["editor", "single"])], [code_view] @ statics_view);
+  div([clss(["editor", "single"])], [code_view] @ semantics_views);
 };
 
 let show_term = (editor: Model.editor, _) =>
@@ -141,29 +228,6 @@ let cell_view =
         [cell_caption_view, code_view],
       ),
     ],
-  );
-};
-
-let multi_editor_semantics_views =
-    (
-      ~inject,
-      ~settings: Model.settings,
-      ~font_metrics,
-      ~focal_zipper,
-      ~editors,
-    ) => {
-  let (_, combined_info_map) = SchoolView.spliced_statics(editors);
-  [
-    CursorInspector.view(
-      ~inject,
-      ~settings,
-      Indicated.index(focal_zipper),
-      combined_info_map,
-    ),
-  ]
-  @ (
-    settings.dynamics
-      ? [SchoolView.view(~inject, ~font_metrics, editors)] : []
   );
 };
 
