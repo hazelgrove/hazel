@@ -98,3 +98,28 @@ let is_length_one_monotile: t => bool =
     };
 
 let has_ends = get(_ => true, _ => true, Tile.has_ends);
+
+let is_complete: t => bool =
+  fun
+  | Tile(t) => Tile.is_complete(t)
+  | _ => true;
+
+let get_outside_sorts = (~default_sort=Sort.Any, p: t): list(Sort.t) =>
+  //TODO: David please review this
+  switch (p) {
+  | Whitespace(_) => []
+  | Grout({shape: Convex, _}) => []
+  | Grout({shape: Concave, _}) => [default_sort, default_sort]
+  | Tile({shards: _, _} as t) when !Tile.is_complete(t) =>
+    // TODO(andrew): better incomplete tile handling
+    // Need to figure out what shape of incomplete tile is
+    []
+  | Tile(t) =>
+    let (sort_l, sort_r) = nib_sorts(p);
+    switch ((t.mold.nibs |> fst).shape, (t.mold.nibs |> snd).shape) {
+    | (Convex, Convex) => []
+    | (Convex, Concave(_)) => [sort_r]
+    | (Concave(_), Convex) => [sort_l]
+    | (Concave(_), Concave(_)) => [sort_l, sort_r]
+    };
+  };

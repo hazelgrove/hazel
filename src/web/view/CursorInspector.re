@@ -1,32 +1,8 @@
 open Virtual_dom.Vdom;
 open Node;
-//open Core;
+open Util.Web;
 
-let clss = Attr.classes;
-
-let ty_view = (cls: string, s: string): Node.t =>
-  div([clss(["typ-view", cls])], [text(s)]);
-
-let rec typ_view = (ty: Core.Typ.t): Node.t =>
-  //TODO(andrew): parens on ops when ambiguous
-  switch (ty) {
-  | Unknown(_prov) => ty_view("unknown", "?")
-  | Int => ty_view("Int", "Int")
-  | Float => ty_view("Float", "Float")
-  | Bool => ty_view("Bool", "Bool")
-  | Arrow(t1, t2) =>
-    div(
-      [clss(["typ-view", "Arrow"])],
-      [typ_view(t1), text("->"), typ_view(t2)],
-    )
-  | Prod(t1, t2) =>
-    div(
-      [clss(["typ-view", "Prod"])],
-      [typ_view(t1), text(","), typ_view(t2)],
-    )
-  };
-
-let cls_str = (ci: Core.Statics.info): string =>
+let cls_str = (ci: Core.Statics.t): string =>
   switch (ci) {
   | Invalid => "No Semantics for Syntax"
   | InfoExp({cls, _}) => Core.Term.UExp.show_cls(cls)
@@ -48,12 +24,12 @@ let error_view = (err: Core.Statics.error) =>
   | SynInconsistentBranches(tys) =>
     div(
       [clss([errorc, "err-inconsistent-branches"])],
-      [text("≉ Branches:")] @ List.map(typ_view, tys),
+      [text("≉ Branches:")] @ List.map(Type.view, tys),
     )
   | TypeInconsistent(ty_ana, ty_syn) =>
     div(
       [clss([errorc, "err-type-inconsistent"])],
-      [typ_view(ty_ana), text("≉"), typ_view(ty_syn)],
+      [Type.view(ty_ana), text("≉"), Type.view(ty_syn)],
     )
   };
 
@@ -62,23 +38,29 @@ let happy_view = (suc: Core.Statics.happy) => {
   | SynConsistent(ty_syn) =>
     div(
       [clss([happyc, "syn-consistent"])],
-      [text("⇒"), typ_view(ty_syn)],
+      [text("⇒"), Type.view(ty_syn)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       [clss([happyc, "ana-consistent-equal"])],
-      [text("⇐"), typ_view(ty_ana)],
+      [text("⇐"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       [clss([happyc, "ana-consistent"])],
-      [text("⇐"), typ_view(ty_syn), text("≈"), typ_view(ty_ana)],
+      [text("⇐"), Type.view(ty_ana), text("≈"), Type.view(ty_syn)],
     )
   | AnaInternalInconsistent(ty_ana, _)
   | AnaExternalInconsistent(ty_ana, _) =>
     div(
       [clss([happyc, "ana-consistent-external"])],
-      [text("⇐*"), typ_view(ty_ana)],
+      [
+        div(
+          [clss(["typ-view", "atom"])],
+          [text("⇐"), div([clss(["typ-mod"])], [text("☆")])],
+        ),
+        Type.view(ty_ana),
+      ],
     )
   };
 };
@@ -93,10 +75,10 @@ let status_view = (err: Core.Statics.error_status) => {
 let term_tag = (is_err, sort) =>
   div(
     [clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : []))],
-    [text(sort)],
+    [div([clss(["icon"])], [Icons.magnify]), text(sort)],
   );
 
-let view_of_info = (ci: Core.Statics.info): Node.t => {
+let view_of_info = (ci: Core.Statics.t): Node.t => {
   let is_err = Core.Statics.is_error(ci);
   switch (ci) {
   | Invalid => div([clss([infoc, "unknown"])], [text("? No Info")])
@@ -113,21 +95,28 @@ let view_of_info = (ci: Core.Statics.info): Node.t => {
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
-    div([clss([infoc, "typ"])], [term_tag(is_err, "typ"), typ_view(ty)])
+    let ann = div([clss(["typ-view"])], [text(":")]);
+    div(
+      [clss([infoc, "typ"])],
+      [term_tag(is_err, "typ"), ann, Type.view(ty)],
+    );
   };
 };
 
-let cls_view = (ci: Core.Statics.info): Node.t =>
+let cls_view = (ci: Core.Statics.t): Node.t =>
   div([clss(["syntax-class"])], [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
   div([clss(["id"])], [text(string_of_int(id))]);
 
-let extra_view = (id: int, ci: Core.Statics.info): Node.t =>
-  div([clss(["extra"])], [id_view(id), cls_view(ci)]);
+let extra_view = (visible: bool, id: int, ci: Core.Statics.t): Node.t =>
+  div(
+    [clss(["extra"] @ (visible ? ["visible"] : []))],
+    [id_view(id), cls_view(ci)],
+  );
 
-let print_ci = (ci, _) => {
-  print_endline(Core.Statics.show_info(ci));
+let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
+  print_endline(Core.Statics.show(ci));
   switch (ci) {
   | InfoPat({mode, self, _})
   | InfoExp({mode, self, _}) =>
@@ -136,16 +125,47 @@ let print_ci = (ci, _) => {
     |> print_endline
   | _ => ()
   };
-  Event.Ignore;
+  inject(Set(ContextInspector));
 };
 
-let view = (id: int, ci: Core.Statics.info): Node.t =>
+let inspector_view =
+    (~inject, ~settings: Model.settings, id: int, ci: Core.Statics.t): Node.t =>
   div(
     [
       clss(
         ["cursor-inspector"] @ [Core.Statics.is_error(ci) ? errorc : happyc],
       ),
-      Attr.on_click(print_ci(ci)),
+      Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
     ],
-    [extra_view(id, ci), view_of_info(ci)],
+    [
+      extra_view(settings.context_inspector, id, ci),
+      view_of_info(ci),
+      CtxInspector.inspector_view(~settings, id, ci),
+    ],
   );
+
+let view =
+    (~inject, ~settings, index': option(int), info_map: Core.Statics.map) => {
+  switch (index') {
+  | Some(index) =>
+    switch (Core.Id.Map.find_opt(index, info_map)) {
+    | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+    | None =>
+      div(
+        [clss(["cursor-inspector"])],
+        [
+          div([clss(["icon"])], [Icons.magnify]),
+          text("No CI for Index"),
+        ],
+      )
+    }
+  | None =>
+    div(
+      [clss(["cursor-inspector"])],
+      [
+        div([clss(["icon"])], [Icons.magnify]),
+        text("No Indicated Index"),
+      ],
+    )
+  };
+};
