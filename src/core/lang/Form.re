@@ -73,14 +73,15 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let is_var = regexp("^[a-z][A-Za-z0-9_]*$");
+let is_bool = str => str == "true" || str == "false";
+let is_listnil = str => str == "nil";
+let is_reserved = str => is_listnil(str) || is_bool(str);
+let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_concrete_typ = str =>
   str == "Int" || str == "Float" || str == "Bool" || str == "Unit";
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");
-let is_bool = str => str == "true" || str == "false";
-let is_listnil = str => str == "nil";
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
@@ -96,8 +97,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Nul, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
-  ("float", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("int", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
@@ -170,6 +172,7 @@ let forms: list((string, t)) = [
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons", mk_infix("::", Exp, 5)),
   ("list_lit", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
+  ("list_typ", mk(ii, ["[", "]"], mk_op(Typ, [Typ]))),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),

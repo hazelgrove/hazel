@@ -29,8 +29,8 @@ module UTyp = {
     | Float
     | Bool
     | Arrow
-    | Prod
-    | ListNil
+    | Tuple
+    | List
     | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -42,9 +42,9 @@ module UTyp = {
     | Int
     | Float
     | Bool
-    | ListNil
+    | List(t)
     | Arrow(t, t)
-    | Prod(t, t)
+    | Tuple(list(Id.t), list(t))
     | Parens(t)
   and t = {
     id: Id.t,
@@ -60,9 +60,9 @@ module UTyp = {
     | Int => Int
     | Float => Float
     | Bool => Bool
-    | ListNil => ListNil
+    | List(_) => List
     | Arrow(_) => Arrow
-    | Prod(_) => Prod
+    | Tuple(_) => Tuple
     | Parens(_) => Parens;
 
   let show_cls: cls => string =
@@ -73,10 +73,10 @@ module UTyp = {
     | Unit
     | Int
     | Float
-    | Bool
-    | ListNil => "Base Type"
+    | Bool => "Base Type"
+    | List => "List Type"
     | Arrow => "Function Type"
-    | Prod => "Product Type"
+    | Tuple => "Product Type"
     | Parens => "Parenthesized Type Term";
 };
 
@@ -92,7 +92,7 @@ module UPat = {
     | Bool
     | ListNil
     | Var
-    | Pair
+    | Tuple
     | Parens
     | TypeAnn;
 
@@ -107,7 +107,7 @@ module UPat = {
     | Bool(bool)
     | ListNil
     | Var(Token.t)
-    | Pair(t, t)
+    | Tuple(list(Id.t), list(t))
     | Parens(t)
     | TypeAnn(t, UTyp.t)
   and t = {
@@ -126,7 +126,7 @@ module UPat = {
     | Bool(_) => Bool
     | ListNil => ListNil
     | Var(_) => Var
-    | Pair(_) => Pair
+    | Tuple(_) => Tuple
     | Parens(_) => Parens
     | TypeAnn(_) => TypeAnn;
 
@@ -141,7 +141,7 @@ module UPat = {
     | Bool => "Boolean Literal"
     | ListNil => "List Literal"
     | Var => "Pattern Variable"
-    | Pair => "Pair Pattern"
+    | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
     | TypeAnn => "Type Annotation";
 };
@@ -186,12 +186,10 @@ module UExp = {
     | Bool
     | Int
     | Float
-    | ListNil
     | ListLit
     | Fun
     | FunAnn
-    | Pair
-    | NTuple
+    | Tuple
     | Var
     | Let
     | LetAnn
@@ -212,12 +210,10 @@ module UExp = {
     | Bool(bool)
     | Int(int)
     | Float(float)
-    | ListNil
     | ListLit(list(Id.t), list(t))
     | Fun(UPat.t, t)
     | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
-    | Pair(t, t)
-    | NTuple(list(Id.t), list(t))
+    | Tuple(list(Id.t), list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
@@ -243,12 +239,10 @@ module UExp = {
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
-    | ListNil => ListNil
     | ListLit(_) => ListLit
     | Fun(_) => Fun
     | FunAnn(_) => FunAnn
-    | Pair(_) => Pair
-    | NTuple(_) => NTuple
+    | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | LetAnn(_) => LetAnn
@@ -299,12 +293,10 @@ module UExp = {
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
-    | ListNil => "List Literal"
     | ListLit => "List Literal"
     | Fun => "Function Literal"
     | FunAnn => "Annotated Function Literal"
-    | Pair => "Pair Literal"
-    | NTuple => "N-Tuple Literal"
+    | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | LetAnn => "Annotated Let Expression"
@@ -322,16 +314,16 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
-    | MultiHole(_)
+    | MultiHole(_) => Unknown(Internal)
     | EmptyHole => Unknown(TypeHole)
     | Unit => Unit
     | Bool => Bool
     | Int => Int
     | Float => Float
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
-    | ListNil => List(Unknown(TypeHole))
-    | Parens(u1) => utyp_to_ty(u1)
+    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
+    | List(u) => List(utyp_to_ty(u))
+    | Parens(u) => utyp_to_ty(u)
     };
 
 type any =
