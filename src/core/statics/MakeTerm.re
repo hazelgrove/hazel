@@ -56,6 +56,7 @@ and piece_and_outside_kids =
       print_endline("WARNING: of_seg_and_skel: list mismatch");
       [];
     } else {
+      assert(List.length(outside_kids) == List.length(outside_sorts));
       List.map2(sort_dispatch(ps), outside_kids, outside_sorts);
     };
   (p, outside_kids);
@@ -113,17 +114,34 @@ and of_nary_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
   | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_ntuple_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
-  let wrap_ntuple = (ids, es): UExp.t => {
-    id,
-    term: NTuple([id] @ ids, es),
-  };
+and of_tuple_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
+  let wrap_tuple = (ids, es): UExp.t => {id, term: Tuple([id] @ ids, es)};
   switch (l, r) {
-  | ({term: NTuple(l_ids, ls), _}, {term: NTuple(r_ids, rs), _}) =>
-    wrap_ntuple(l_ids @ r_ids, ls @ rs)
-  | (l, {term: NTuple(r_ids, rs), _}) => wrap_ntuple(r_ids, [l] @ rs)
-  | ({term: NTuple(l_ids, ls), _}, r) => wrap_ntuple(l_ids, ls @ [r])
-  | (l, r) => wrap_ntuple([], [l, r])
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
+  };
+}
+and of_tuple_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
+  let wrap_tuple = (ids, es): UPat.t => {id, term: Tuple([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
+  };
+}
+and of_tuple_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
+  let wrap_tuple = (ids, es): UTyp.t => {id, term: Tuple([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
   };
 }
 and of_nary_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
@@ -171,12 +189,10 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       // TODO(andrew): Form.re should handle monotile recognition
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
-      | (["nil"], [], []) => ListNil
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
-      | ([","], [Exp(l), Exp(r)], []) => of_ntuple_exp(id, l, r).term
-      //Pair(l, r)
+      | ([","], [Exp(l), Exp(r)], []) => of_tuple_exp(id, l, r).term
       | (["+"], [Exp(l), Exp(r)], []) => BinOp(Int(Plus), l, r)
       | (["-"], [Exp(l), Exp(r)], []) => BinOp(Int(Minus), l, r)
       | (["*"], [Exp(l), Exp(r)], []) => BinOp(Int(Times), l, r)
@@ -208,9 +224,10 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [Exp(fn)], [arg]) => Ap(fn, uexp_of_seg(arg))
       | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
+      | (["nil"], [], []) => ListLit([], [])
       | (["[", "]"], [], [body]) =>
         switch (uexp_of_seg(body)) {
-        | {term: NTuple(ids, es), _} => ListLit([id] @ ids, es)
+        | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
         | term => ListLit([id], [term])
         }
       | _ => Invalid(p)
@@ -236,7 +253,7 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
-      | ([","], [Pat(l), Pat(r)], []) => Pair(l, r)
+      | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
       | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
@@ -268,8 +285,9 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | (["Int"], [], []) => Int
       | (["Float"], [], []) => Float
       | (["->"], [Typ(l), Typ(r)], []) => Arrow(l, r)
-      | ([","], [Typ(l), Typ(r)], []) => Prod(l, r)
+      | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
+      | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
       | _ => Invalid(p)
       };
     {id, term};

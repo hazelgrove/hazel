@@ -9,7 +9,7 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Bool => Bool
   | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
-  | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
+  | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
 
 let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
 let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
@@ -75,7 +75,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListNil => wrap(ListNil(Hole))
     | ListLit(_) =>
       //TODO: list literals. below is just placeholder
       wrap(ListNil(Hole))
@@ -85,26 +84,23 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
       wrap(DHExp.Lam(dp, ty1, d1));
-    | Pair(e1, e2) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      wrap(Pair(d1, d2));
-    | NTuple(ids, es) =>
-      //TODO(andrew): N-Tuples. Below is just placeholder logic
+    | Tuple(_ids, es) =>
+      //TODO(andrew): review below
       switch (List.rev(es)) {
-      | [] => failwith("ERROR: NTuple with no elements")
-      | [_] => failwith("ERROR: NTuple with one element")
-      | [e1, ...es] =>
-        dhexp_of_uexp(
-          m,
-          List.fold_left2(
-            (acc, e2, id): Term.UExp.t =>
-              {id, term: Term.UExp.Pair(e2, acc)},
-            e1,
+      | [] => wrap(Triv)
+      | [_] => failwith("ERROR: Tuple with one element")
+      | [e0, ...es] =>
+        let* ds =
+          List.fold_left(
+            (acc, e) => {
+              let* acc = acc;
+              let+ d = dhexp_of_uexp(m, e);
+              DHExp.Pair(d, acc);
+            },
+            dhexp_of_uexp(m, e0),
             es,
-            ids,
-          ),
-        )
+          );
+        wrap(ds);
       }
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
@@ -213,11 +209,25 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Float(n) => wrap(FloatLit(n))
     | Bool(b) => Some(BoolLit(b))
     | ListNil => Some(ListNil)
+    | Tuple(_ids, ps) =>
+      //TODO(andrew): review below
+      switch (List.rev(ps)) {
+      | [] => wrap(Triv)
+      | [_] => failwith("ERROR: Tuple with one element")
+      | [p0, ...ps] =>
+        let* ds =
+          List.fold_left(
+            (acc, p) => {
+              let* acc = acc;
+              let+ d = dhpat_of_upat(m, p);
+              DHPat.Pair(d, acc);
+            },
+            dhpat_of_upat(m, p0),
+            ps,
+          );
+        wrap(ds);
+      }
     | Var(name) => Some(Var(name))
-    | Pair(p1, p2) =>
-      let* d1 = dhpat_of_upat(m, p1);
-      let* d2 = dhpat_of_upat(m, p2);
-      wrap(Pair(d1, d2));
     | Parens(p) => dhpat_of_upat(m, p)
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
