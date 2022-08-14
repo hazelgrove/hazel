@@ -1,5 +1,4 @@
 open Core;
-open Model;
 
 let id_gen: ref(int) = ref(0);
 
@@ -69,5 +68,3 @@ let zipper: Zipper.t = {
   caret: Outer,
   caret_col_target: 0,
 };
-
-let init = Model.mk(Simple(zipper));

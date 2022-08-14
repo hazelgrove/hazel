@@ -143,8 +143,9 @@ let view =
     );
   let genie_style =
     Printf.sprintf(
-      "position: absolute; left: %fpx;",
+      "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
+      1.,
     );
   div(
     [Attr.classes(["backpack"] @ (can_put_down ? [] : ["cant-put-down"]))],

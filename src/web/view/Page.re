@@ -1,57 +1,33 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util.Web;
 
-// let logo = (~font_metrics) => {
-//   let piece = (step, color: Sort.t, shape: PieceDec.piece_shape, s): Measured.t =>
-//     Measured.annot(Piece({color, shape, step}), Text(s));
-//   let l =
-//     Measured.(
-//       spaces(
-//         Selected,
-//         [
-//           piece(0, Exp, ((Convex, 0), (Convex, 0)), "t"),
-//           piece(1, Pat, ((Concave, 0), (Convex, 0)), "y"),
-//           piece(2, Typ, ((Concave, 0), (Concave, 0)), "l"),
-//           piece(3, Selected, ((Convex, 0), (Concave, 1)), "r"),
-//         ],
-//       )
-//     );
-//   Code.view_of_layout(
-//     ~id="logo",
-//     ~text_id="logo-text",
-//     ~font_metrics,
-//     DecPaths.mk(~logo_pieces=[0, 1, 2, 3], ()),
-//     l,
-//   );
-// };
+let button = (icon, action) =>
+  div([clss(["icon"]), Attr.on_mousedown(action)], [icon]);
 
-let unless = (p, a) => p ? Event.Many([]) : a;
-
-let undo = (~inject, ~disabled: bool) => {
-  let clss = disabled ? ["disabled"] : [];
-  let undo = _ => unless(disabled, inject(Update.Undo));
-  span(
-    Attr.[
-      id("undo"),
-      classes(["history-button", ...clss]),
-      on_mousedown(undo),
+let button_d = (icon, action, ~disabled: bool) =>
+  div(
+    [
+      clss(["icon"] @ (disabled ? ["disabled"] : [])),
+      Attr.on_mousedown(_ => unless(disabled, action)),
     ],
-    [Icons.undo],
+    [icon],
   );
-};
 
-let redo = (~inject, ~disabled: bool) => {
-  let clss = disabled ? ["disabled"] : [];
-  let redo = _ => unless(disabled, inject(Update.Redo));
-  span(
-    Attr.[
-      id("redo"),
-      classes(["history-button", ...clss]),
-      on_mousedown(redo),
-    ],
-    [Icons.redo],
+let link = (icon, url) =>
+  div(
+    [clss(["icon"])],
+    [a(Attr.[href(url), create("target", "_blank")], [icon])],
   );
-};
+
+let toggle = (label, active, action) =>
+  div(
+    [
+      clss(["toggle-switch"] @ (active ? ["active"] : [])),
+      Attr.on_click(action),
+    ],
+    [div([clss(["toggle-knob"])], [text(label)])],
+  );
 
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
@@ -59,112 +35,111 @@ let copy_log_to_clipboard = _ => {
   Event.Ignore;
 };
 
-let left_panel_view = (~inject, history) =>
+let increment_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
+  let next_ed = (cur_idx + 1) mod num_editors;
+  Log.append_json_updates_log();
+  inject(SwitchEditor(next_ed));
+};
+
+let decrement_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
+  let prev_ed = Util.IntUtil.modulo(cur_idx - 1, num_editors);
+  Log.append_json_updates_log();
+  inject(SwitchEditor(prev_ed));
+};
+
+let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
+  let id = Attr.id("editor-mode");
+  let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
+  let num_editors = Model.num_editors(model);
+  switch (model.editor_model) {
+  | Simple(_) => div([id, toggle_mode], [text("Simple")])
+  | School(_) =>
+    div(
+      [id],
+      [
+        div([toggle_mode], [text("School")]),
+        toggle("🎓", model.settings.student, _ => inject(Set(Student))),
+      ],
+    )
+  | Study(_) =>
+    let cur_idx = Model.current_editor(model);
+    let current_editor = Printf.sprintf("%d / %d", cur_idx + 1, num_editors);
+    div(
+      [id],
+      [
+        div([toggle_mode], [text("Study")]),
+        button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
+        text(current_editor),
+        button(
+          Icons.forward,
+          increment_editor(~inject, cur_idx, num_editors),
+        ),
+      ],
+    );
+  };
+};
+
+let menu_icon =
   div(
-    [Attr.id("history-button-container")],
+    [clss(["menu-icon"])],
     [
-      undo(~inject, ~disabled=!ActionHistory.can_undo(history)),
-      redo(~inject, ~disabled=!ActionHistory.can_redo(history)),
       div(
+        [clss(["icon", "menu-icon-inner"])],
         [
-          Attr.class_("topbar-icon"),
-          Attr.on_mousedown(copy_log_to_clipboard),
+          a(
+            Attr.[href("http://hazel.org"), create("target", "_blank")],
+            [Icons.hazelnut],
+          ),
         ],
-        [Icons.export],
       ),
     ],
   );
 
-let button = (icon, action) =>
-  div([Attr.class_("topbar-icon"), Attr.on_mousedown(action)], [icon]);
-
-let link = (str, url, icon) =>
+let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
+  let history = Model.get_history(model);
+  let can_undo = ActionHistory.can_undo(history);
+  let can_redo = ActionHistory.can_redo(history);
   div(
-    [Attr.id(str)],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
-  );
-
-let center_panel_view = (~inject, cur_idx) => {
-  let increment_editor = _ => {
-    let next_ed = (cur_idx + 1) mod LocalStorage.num_editors;
-    Log.append_json_updates_log();
-    inject(Update.SwitchEditor(next_ed));
-  };
-  let decrement_editor = _ => {
-    let prev_ed = Util.IntUtil.modulo(cur_idx - 1, LocalStorage.num_editors);
-    Log.append_json_updates_log();
-    inject(Update.SwitchEditor(prev_ed));
-  };
-  let toggle_captions = _ => inject(Update.Set(Captions));
-  let current_editor =
-    Printf.sprintf("%d / %d", cur_idx + 1, LocalStorage.num_editors);
-  div(
-    [Attr.id("editor-id")],
+    [Attr.id("top-bar")],
     [
-      button(Icons.back, decrement_editor),
-      div([Attr.on_mousedown(toggle_captions)], [text(current_editor)]),
-      button(Icons.forward, increment_editor),
+      menu_icon,
+      div(
+        [clss(["menu"])],
+        [
+          toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
+          toggle("𝛿", model.settings.dynamics, _ =>
+            inject(Set(Dynamics))
+          ),
+          button(Icons.export, copy_log_to_clipboard),
+          button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
+          button(Icons.trash, _ => inject(LoadDefault)),
+          link(Icons.github, "https://github.com/hazelgrove/hazel"),
+        ],
+      ),
+      button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
+      button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
+      editor_mode_view(~inject, ~model),
     ],
   );
 };
 
-let right_panel_view = (~inject) =>
-  div(
-    [Attr.id("about-button-container")],
-    [
-      button(Icons.eye, _ => inject(Update.Set(WhitespaceIcons))),
-      button(Icons.trash, _ => inject(Update.LoadDefault)),
-      link("github", "https://github.com/hazelgrove/tylr", Icons.github),
-      link(
-        "help",
-        "https://twitter.com/dm_0ney/status/1414742742530498566?s=20",
-        Icons.circle_question,
-      ),
-    ],
-  );
-
-let top_bar_view = (~inject, model: Model.t) =>
-  div(
-    [Attr.id("top-bar")],
-    [
-      left_panel_view(~inject, model.history),
-      center_panel_view(~inject, Model.current_editor(model)),
-      right_panel_view(~inject),
-    ],
-  );
-
 let editor_view =
     (
-      ~inject,
-      {font_metrics, show_backpack_targets, settings, _} as model: Model.t,
+      {
+        editor_model,
+        font_metrics,
+        show_backpack_targets,
+        settings,
+        mousedown,
+        _,
+      }: Model.t,
     ) =>
-  div(
-    [Attr.id("code-container")],
-    [
-      Editor.view(
-        ~inject,
-        ~font_metrics,
-        ~mousedown=model.mousedown,
-        ~show_backpack_targets,
-        ~zipper=Model.get_zipper(model),
-        ~settings,
-      ),
-    ],
-  );
-
-let editor_caption_view = (model: Model.t) =>
-  div(
-    [Attr.class_("editor-caption")],
-    model.settings.captions
-      ? [
-        text(
-          List.nth(
-            LocalStorage.editor_captions,
-            Model.current_editor(model),
-          ),
-        ),
-      ]
-      : [],
+  Editor.view(
+    ~editor_model,
+    ~font_metrics,
+    ~show_backpack_targets,
+    ~mousedown,
+    ~settings,
   );
 
 let view = (~inject, ~handlers, model: Model.t) => {
@@ -181,10 +156,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
     ],
     [
       FontSpecimen.view("font-specimen"),
-      //FontSpecimen.view("logo-font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
-      editor_caption_view(model),
       editor_view(~inject, model),
     ],
   );

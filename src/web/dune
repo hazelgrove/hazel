@@ -1,5 +1,10 @@
 (include_subdirs unqualified)
 
+(alias
+ (name default)
+ (deps
+  (source_tree www)))
+
 (library
  (name web)
  (modules :standard \ Main)
@@ -14,7 +19,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries web ppx_deriving_yojson.runtime)
+ (libraries web ppx_deriving_yojson.runtime hazelweb)
  (modes js)
  (js_of_ocaml
   (flags
