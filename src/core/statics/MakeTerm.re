@@ -101,7 +101,7 @@ and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   of_piece_typ(p, kids);
 }
 //TODO: improve/consolidate of_nary fns below
-and of_nary_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
+and of_multi_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
   let wrap_multi = (ids, es): UExp.t => {
     id,
     term: MultiHole([id] @ ids, es),
@@ -144,7 +144,7 @@ and of_tuple_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   | (l, r) => wrap_tuple([], [l, r])
   };
 }
-and of_nary_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
+and of_multi_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
   let wrap_multi = (ids, es): UPat.t => {
     id,
     term: MultiHole([id] @ ids, es),
@@ -157,7 +157,7 @@ and of_nary_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
   | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_nary_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
+and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   let wrap_multi = (ids, es): UTyp.t => {
     id,
     term: MultiHole([id] @ ids, es),
@@ -177,7 +177,7 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [Exp(l), Exp(r)]) => of_nary_exp(id, l, r)
+    | (Concave, [Exp(l), Exp(r)]) => of_multi_exp(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
@@ -186,7 +186,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | _ when !Tile.is_complete(t) =>
         // TODO: more principled handling of incomplete tiles
         EmptyHole
-      // TODO(andrew): Form.re should handle monotile recognition
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
@@ -242,14 +243,15 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [Pat(l), Pat(r)]) => of_nary_pat(id, l, r)
+    | (Concave, [Pat(l), Pat(r)]) => of_multi_pat(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UPat.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) => Invalid(p)
-      // TODO(andrew): Form.re should handle monotile recognition
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
@@ -272,15 +274,15 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [Typ(l), Typ(r)]) => of_nary_typ(id, l, r)
+    | (Concave, [Typ(l), Typ(r)]) => of_multi_typ(id, l, r)
     | _ => {id, term: Invalid(p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UTyp.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) => Invalid(p)
-      // TODO(andrew): Form.re should handle monotile recognition
-      | (["Unit"], [], []) => Unit
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["Unit"], [], []) => Tuple([id], [])
       | (["Bool"], [], []) => Bool
       | (["Int"], [], []) => Int
       | (["Float"], [], []) => Float

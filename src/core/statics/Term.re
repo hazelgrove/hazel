@@ -24,7 +24,6 @@ module UTyp = {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Unit
     | Int
     | Float
     | Bool
@@ -38,7 +37,6 @@ module UTyp = {
     | Invalid(Piece.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
-    | Unit
     | Int
     | Float
     | Bool
@@ -56,7 +54,6 @@ module UTyp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Unit => Unit
     | Int => Int
     | Float => Float
     | Bool => Bool
@@ -70,7 +67,6 @@ module UTyp = {
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
     | MultiHole => "Multi Type Hole"
-    | Unit
     | Int
     | Float
     | Bool => "Base Type"
@@ -90,6 +86,7 @@ module UPat = {
     | Int
     | Float
     | Bool
+    | Triv
     | ListNil
     | Var
     | Tuple
@@ -105,6 +102,7 @@ module UPat = {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | Triv
     | ListNil
     | Var(Token.t)
     | Tuple(list(Id.t), list(t))
@@ -124,6 +122,7 @@ module UPat = {
     | Int(_) => Int
     | Float(_) => Float
     | Bool(_) => Bool
+    | Triv => Triv
     | ListNil => ListNil
     | Var(_) => Var
     | Tuple(_) => Tuple
@@ -139,6 +138,7 @@ module UPat = {
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
+    | Triv => "Trivial Literal. Pathetic, really."
     | ListNil => "List Literal"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
@@ -183,6 +183,7 @@ module UExp = {
     | Invalid
     | EmptyHole
     | MultiHole
+    | Triv
     | Bool
     | Int
     | Float
@@ -207,6 +208,7 @@ module UExp = {
     //| InvalidSegment(Segment.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
+    | Triv
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -236,6 +238,7 @@ module UExp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -290,6 +293,7 @@ module UExp = {
     | Invalid => "Invalid Expression"
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
+    | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -316,7 +320,6 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Invalid(_)
     | MultiHole(_) => Unknown(Internal)
     | EmptyHole => Unknown(TypeHole)
-    | Unit => Unit
     | Bool => Bool
     | Int => Int
     | Float => Float

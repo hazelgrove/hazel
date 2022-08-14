@@ -3,7 +3,6 @@ open OptUtil.Syntax;
 let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
   | Unknown(_) => Hole
-  | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool
@@ -72,6 +71,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | MultiHole(_) =>
       // TODO: dhexp, eval for multiholes
       Some(EmptyHole(u, 0, sigma))
+    | Triv => wrap(Triv)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
@@ -205,10 +205,11 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       // TODO: dhexp, eval for multiholes
       Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
+    | Triv => wrap(Triv)
+    | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | Bool(b) => Some(BoolLit(b))
-    | ListNil => Some(ListNil)
+    | ListNil => wrap(ListNil)
     | Tuple(_ids, ps) =>
       //TODO(andrew): review below
       switch (List.rev(ps)) {

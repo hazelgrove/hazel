@@ -14,7 +14,6 @@ type type_provenance =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Unknown(type_provenance)
-  | Unit
   | Int
   | Float
   | Bool
@@ -80,8 +79,6 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Unit, Unit) => Some(Unit)
-  | (Unit, _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)

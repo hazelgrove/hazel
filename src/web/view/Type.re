@@ -19,7 +19,6 @@ let rec view = (ty: Core.Typ.t): Node.t =>
       [clss(["typ-view", "atom", "unknown"])],
       [text("?"), prov_view(prov)],
     )
-  | Unit => ty_view("()", "()")
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | Bool => ty_view("Bool", "Bool")
