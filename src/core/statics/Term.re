@@ -18,31 +18,45 @@ open Sexplib.Std;
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type parse_flag =
+  | Whitespace // Not really an error
+  | MalformedGrout // Should never happen
+  | UnrecognizedTerm // Reminder to add term to MakeTerm
+  | IncompleteTile; // Remove in future
+
+let show_parse_flag: parse_flag => string =
+  fun
+  | Whitespace => "Whitespace"
+  | MalformedGrout => "Malformed Grout"
+  | UnrecognizedTerm => "Unrecognized Term"
+  | IncompleteTile => "Incomplete Tile";
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
-    | Unit
+    | MultiHole
     | Int
     | Float
     | Bool
     | Arrow
-    | Prod
-    | ListNil
+    | Tuple
+    | List
     | Parens;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
-    | Unit
+    | MultiHole(list(Id.t), list(t))
     | Int
     | Float
     | Bool
-    | ListNil
+    | List(t)
     | Arrow(t, t)
-    | Prod(t, t)
+    | Tuple(list(Id.t), list(t))
     | Parens(t)
   and t = {
     id: Id.t,
@@ -53,26 +67,26 @@ module UTyp = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
-    | Unit => Unit
+    | MultiHole(_) => MultiHole
     | Int => Int
     | Float => Float
     | Bool => Bool
-    | ListNil => ListNil
+    | List(_) => List
     | Arrow(_) => Arrow
-    | Prod(_) => Prod
+    | Tuple(_) => Tuple
     | Parens(_) => Parens;
 
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
-    | Unit
+    | MultiHole => "Multi Type Hole"
     | Int
     | Float
-    | Bool
-    | ListNil => "Base Type"
+    | Bool => "Base Type"
+    | List => "List Type"
     | Arrow => "Function Type"
-    | Prod => "Product Type"
+    | Tuple => "Product Type"
     | Parens => "Parenthesized Type Term";
 };
 
@@ -81,27 +95,31 @@ module UPat = {
   type cls =
     | Invalid
     | EmptyHole
+    | MultiHole
     | Wild
     | Int
     | Float
     | Bool
+    | Triv
     | ListNil
     | Var
-    | Pair
+    | Tuple
     | Parens
     | TypeAnn;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
+    | MultiHole(list(Id.t), list(t))
     | Wild
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | Triv
     | ListNil
     | Var(Token.t)
-    | Pair(t, t)
+    | Tuple(list(Id.t), list(t))
     | Parens(t)
     | TypeAnn(t, UTyp.t)
   and t = {
@@ -113,13 +131,15 @@ module UPat = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
     | Wild => Wild
     | Int(_) => Int
     | Float(_) => Float
     | Bool(_) => Bool
+    | Triv => Triv
     | ListNil => ListNil
     | Var(_) => Var
-    | Pair(_) => Pair
+    | Tuple(_) => Tuple
     | Parens(_) => Parens
     | TypeAnn(_) => TypeAnn;
 
@@ -127,13 +147,15 @@ module UPat = {
     fun
     | Invalid => "Invalid Pattern"
     | EmptyHole => "Empty Pattern Hole"
+    | MultiHole => "Multi Pattern Hole"
     | Wild => "Wildcard Pattern"
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
+    | Triv => "Trivial Literal. Pathetic, really."
     | ListNil => "List Literal"
     | Var => "Pattern Variable"
-    | Pair => "Pair Pattern"
+    | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
     | TypeAnn => "Type Annotation";
 };
@@ -174,13 +196,15 @@ module UExp = {
   type cls =
     | Invalid
     | EmptyHole
+    | MultiHole
+    | Triv
     | Bool
     | Int
     | Float
-    | ListNil
+    | ListLit
     | Fun
     | FunAnn
-    | Pair
+    | Tuple
     | Var
     | Let
     | LetAnn
@@ -194,22 +218,23 @@ module UExp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t) //everything? text? keyword?
-    //| InvalidSegment(Segment.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
+    | MultiHole(list(Id.t), list(t))
+    | Triv
     | Bool(bool)
     | Int(int)
     | Float(float)
-    | ListNil
+    | ListLit(list(Id.t), list(t))
     | Fun(UPat.t, t)
     | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
-    | Pair(t, t)
+    | Tuple(list(Id.t), list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
     | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
-    // maybe everything with fn semantics should be a builtin e.g. plus??
+    // Maybe ops with fn semantics should be builtins as well?
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -225,13 +250,15 @@ module UExp = {
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
-    | ListNil => ListNil
+    | ListLit(_) => ListLit
     | Fun(_) => Fun
     | FunAnn(_) => FunAnn
-    | Pair(_) => Pair
+    | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | LetAnn(_) => LetAnn
@@ -278,13 +305,15 @@ module UExp = {
     fun
     | Invalid => "Invalid Expression"
     | EmptyHole => "Empty Expression Hole"
+    | MultiHole => "Multi Expression Hole"
+    | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
-    | ListNil => "List Literal"
+    | ListLit => "List Literal"
     | Fun => "Function Literal"
     | FunAnn => "Annotated Function Literal"
-    | Pair => "Pair Literal"
+    | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | LetAnn => "Annotated Let Expression"
@@ -302,13 +331,21 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
+    | MultiHole(_) => Unknown(Internal)
     | EmptyHole => Unknown(TypeHole)
-    | Unit => Unit
     | Bool => Bool
     | Int => Int
     | Float => Float
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Prod(u1, u2) => Prod(utyp_to_ty(u1), utyp_to_ty(u2))
-    | ListNil => List(Unknown(TypeHole))
-    | Parens(u1) => utyp_to_ty(u1)
+    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
+    | List(u) => List(utyp_to_ty(u))
+    | Parens(u) => utyp_to_ty(u)
     };
+
+type any =
+  | Exp(UExp.t)
+  | Pat(UPat.t)
+  | Typ(UTyp.t)
+  | Rul(unit) // TODO
+  | Nul(unit)
+  | Any(unit);

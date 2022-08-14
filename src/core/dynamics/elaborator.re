@@ -3,13 +3,12 @@ open OptUtil.Syntax;
 let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
   | Unknown(_) => Hole
-  | Unit => Prod([])
   | Int => Int
   | Float => Float
   | Bool => Bool
   | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
-  | Prod(t1, t2) => Prod([htyp_of_typ(t1), htyp_of_typ(t2)]);
+  | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
 
 let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
 let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
@@ -69,20 +68,40 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0, sigma))
+    | MultiHole(_) =>
+      // TODO: dhexp, eval for multiholes
+      Some(EmptyHole(u, 0, sigma))
+    | Triv => wrap(Triv)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListNil => wrap(ListNil(Hole))
+    | ListLit(_) =>
+      //TODO: list literals. below is just placeholder
+      wrap(ListNil(Hole))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
       wrap(DHExp.Lam(dp, ty1, d1));
-    | Pair(e1, e2) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      wrap(Pair(d1, d2));
+    | Tuple(_ids, es) =>
+      //TODO(andrew): review below
+      switch (List.rev(es)) {
+      | [] => wrap(Triv)
+      | [_] => failwith("ERROR: Tuple with one element")
+      | [e0, ...es] =>
+        let* ds =
+          List.fold_left(
+            (acc, e) => {
+              let* acc = acc;
+              let+ d = dhexp_of_uexp(m, e);
+              DHExp.Pair(d, acc);
+            },
+            dhexp_of_uexp(m, e0),
+            es,
+          );
+        wrap(ds);
+      }
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
@@ -160,7 +179,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(ConsistentCase(d))
       };
     };
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid)
+  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
   | None => None
   };
 }
@@ -182,22 +201,40 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     switch (upat.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0))
+    | MultiHole(_) =>
+      // TODO: dhexp, eval for multiholes
+      Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
+    | Triv => wrap(Triv)
+    | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | Bool(b) => Some(BoolLit(b))
-    | ListNil => Some(ListNil)
+    | ListNil => wrap(ListNil)
+    | Tuple(_ids, ps) =>
+      //TODO(andrew): review below
+      switch (List.rev(ps)) {
+      | [] => wrap(Triv)
+      | [_] => failwith("ERROR: Tuple with one element")
+      | [p0, ...ps] =>
+        let* ds =
+          List.fold_left(
+            (acc, p) => {
+              let* acc = acc;
+              let+ d = dhpat_of_upat(m, p);
+              DHPat.Pair(d, acc);
+            },
+            dhpat_of_upat(m, p0),
+            ps,
+          );
+        wrap(ds);
+      }
     | Var(name) => Some(Var(name))
-    | Pair(p1, p2) =>
-      let* d1 = dhpat_of_upat(m, p1);
-      let* d2 = dhpat_of_upat(m, p2);
-      wrap(Pair(d1, d2));
     | Parens(p) => dhpat_of_upat(m, p)
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+  | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
   | None => None
   };
 };
