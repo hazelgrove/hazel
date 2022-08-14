@@ -3,8 +3,6 @@ open Node;
 open Core;
 open Util.Web;
 
-let code_container_id = idx => "code-container-" ++ string_of_int(idx);
-
 let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let rect = JSUtil.force_get_elem_by_id(target_id)##getBoundingClientRect;
   let goal_x = float_of_int(e##.clientX);
@@ -13,6 +11,18 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
     row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
     col: Float.to_int((goal_x -. rect##.left) /. font_metrics.col_width),
   };
+};
+
+let mousedown_handler =
+    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
+  let goal = get_goal(~font_metrics, ~target_id, e);
+  Event.Many(
+    List.map(inject, additional_updates)
+    @ [
+      inject(Update.Mousedown),
+      inject(Update.PerformAction(Move(Goal(goal)))),
+    ],
+  );
 };
 
 let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
@@ -210,7 +220,12 @@ let single_editor =
     mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   div(
-    [clss(["editor", "single"])],
+    [
+      clss(["editor", "single"]),
+      Attr.on_mousedown(e =>
+        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+      ),
+    ],
     [code_view] @ semantics_views @ mousedown_overlay,
   );
 };
@@ -274,15 +289,14 @@ let cell_view =
       div(
         [
           Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-          Attr.on_mousedown(e => {
-            let goal =
-              get_goal(~font_metrics, ~target_id=code_container_id, e);
-            Event.Many([
-              inject(Update.SwitchEditor(idx)),
-              inject(Update.Mousedown),
-              inject(Update.PerformAction(Move(Goal(goal)))),
-            ]);
-          }),
+          Attr.on_mousedown(
+            mousedown_handler(
+              ~inject,
+              ~font_metrics,
+              ~target_id=code_container_id,
+              ~additional_updates=[Update.SwitchEditor(idx)],
+            ),
+          ),
         ],
         mousedown_overlay @ [cell_caption_view, code_view],
       ),
