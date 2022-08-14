@@ -152,6 +152,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
         JsUtil.get_elem_by_id("page")##focus;
         Event.Many([]);
       }),
+      // safety handler in case mousedown overlay doesn't catch it
+      on_mouseup(_ => inject(Update.Mouseup)),
       ...handlers(~inject, ~model),
     ],
     [
