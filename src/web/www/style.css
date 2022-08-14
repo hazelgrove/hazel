@@ -441,6 +441,7 @@ svg {
   padding: 0.5em;
   padding-left: 1.2em;
   border-left: 1px solid var(--top_bar_icon_fill);
+  user-select: none;
 }
 
 .cell.selected{
@@ -453,6 +454,7 @@ svg {
   padding: 0.1em 0 1em 0em;
   font-size: 0.8em;
   color: var(--top-bar-text);
+  user-select: none;
 }
 
 .code-text {
