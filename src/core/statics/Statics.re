@@ -211,6 +211,7 @@ let rec uexp_to_info_map =
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), free, m);
   | EmptyHole => atomic(Just(Unknown(Internal)))
+  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -235,9 +236,8 @@ let rec uexp_to_info_map =
   | Tuple(ids, es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
-    let tys = List.map(((ty, _, _)) => ty, infos);
-    let self = Typ.Just(Prod(tys));
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let info = InfoExp({cls, self, mode, ctx, free});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
@@ -272,7 +272,7 @@ let rec uexp_to_info_map =
     (typ_after_fix(mode, self), free, m);
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
-    add(~self=Just(Unit), ~free=free_test, m1);
+    add(~self=Just(Prod([])), ~free=free_test, m1);
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
@@ -395,6 +395,7 @@ and upat_to_info_map =
   | Wild => atomic(Just(Unknown(SynSwitch)))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
+  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
@@ -403,23 +404,22 @@ and upat_to_info_map =
     add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Tuple(ids, ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
-    let (ctx_final, infos) =
+    let (ctx, infos) =
       List.fold_left2(
-        ((ctx_acc, infos_acc), e, mode) => {
-          let (_, ctx, _) as info = upat_to_info_map(~mode, ~ctx=ctx_acc, e);
-          (ctx, infos_acc @ [info]);
+        ((ctx, infos), e, mode) => {
+          let (_, ctx, _) as info = upat_to_info_map(~mode, ~ctx, e);
+          (ctx, infos @ [info]);
         },
         (ctx, []),
         ps,
         modes,
       );
-    let tys = List.map(((ty, _, _)) => ty, infos);
-    let self = Typ.Just(Prod(tys));
+    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let info: t = InfoPat({cls, self, mode, ctx});
     let m = union_m(List.map(((_, _, m)) => m, infos));
-    /* Note: need to add map entry for ids of each comma */
+    /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), ctx_final, m);
+    (typ_after_fix(mode, self), ctx, m);
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
@@ -437,7 +437,6 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   switch (term) {
   | Invalid(_)
   | EmptyHole
-  | Unit
   | Int
   | Float
   | Bool => return(Id.Map.empty)
