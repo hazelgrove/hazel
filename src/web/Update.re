@@ -16,7 +16,7 @@ type settings_action =
 type t =
   | Set(settings_action)
   | UpdateDoubleTap(option(float))
-  | Mousedown(int)
+  | Mousedown
   | Mouseup
   | LoadInit
   | LoadDefault
@@ -127,8 +127,8 @@ let apply =
   | Set(s_action) =>
     Ok({...model, settings: update_settings(s_action, model.settings)})
   | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
-  | Mousedown(idx) => Ok({...model, mousedown: Some(idx)})
-  | Mouseup => Ok({...model, mousedown: None})
+  | Mousedown => Ok({...model, mousedown: true})
+  | Mouseup => Ok({...model, mousedown: false})
   | LoadInit =>
     // NOTE: load settings first to get last editor mode
     let model = {...model, settings: LocalStorage.load_settings()};

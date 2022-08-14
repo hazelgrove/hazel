@@ -6,7 +6,7 @@ open Zipper;
 type move =
   | Extreme(planar)
   | Local(planar)
-  | Target(Measured.point);
+  | Goal(Measured.point);
 
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -48,9 +48,9 @@ let put_down = (z: t): option(t) =>
 
 let move = (d, z, id_gen) =>
   switch (d) {
-  | Target(target) =>
+  | Goal(goal) =>
     let z = Selection.is_empty(z.selection) ? z : Outer.unselect(z);
-    Caret.do_towards(Move.primary(ByChar), target, z)
+    Caret.do_towards(Move.primary(ByChar), goal, z)
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
@@ -95,9 +95,8 @@ let select_vertical = (d: Direction.t, z: t): option(t) =>
 let select = (d, z, id_gen) =>
   (
     switch (d) {
-    | Target(target) =>
-      Caret.do_towards(select_primary, target, z)
-      |> Option.map(update_target)
+    | Goal(goal) =>
+      Caret.do_towards(select_primary, goal, z) |> Option.map(update_target)
     | Extreme(d) =>
       Caret.do_extreme(select_primary, d, z) |> Option.map(update_target)
     | Local(d) =>
