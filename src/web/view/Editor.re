@@ -57,9 +57,10 @@ let code_container =
       ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
       : [];
   div(
-    [
-      Attr.class_("code-container"),
-      Attr.on_mousedown(e => {
+    Attr.[
+      class_("code-container"),
+      on_mouseup(_ => inject(Update.Mouseup)),
+      on_mousedown(e => {
         let target = get_target(~font_metrics, e);
         Event.Many([
           inject(Update.Mousedown),
