@@ -68,7 +68,7 @@ let mk = editor_model => {
   id_gen: 1,
   editor_model,
   settings: settings_init,
-  // TODO: move below to 'internals'?
+  // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,

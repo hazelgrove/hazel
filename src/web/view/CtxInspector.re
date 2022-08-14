@@ -18,7 +18,7 @@ let pat_ctx_view = (ctx: Core.Ctx.t): Node.t =>
 
 let ctx_sorts_view = (ci: Core.Statics.t): Node.t => {
   switch (ci) {
-  | Invalid => div([clss([ctxc, "invalid"])], [text("")])
+  | Invalid(_) => div([clss([ctxc, "invalid"])], [text("")])
   | InfoExp({ctx, _}) => exp_ctx_view(ctx)
   | InfoPat({ctx, _}) => pat_ctx_view(ctx)
   | InfoTyp(_) => div([clss([ctxc, "typ"])], [])
