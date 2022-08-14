@@ -96,7 +96,13 @@ let select = (d, z, id_gen) =>
   (
     switch (d) {
     | Goal(goal) =>
-      Caret.do_towards(select_primary, goal, z) |> Option.map(update_target)
+      let anchor =
+        Caret.point(
+          Measured.of_segment(unselect_and_zip(z)),
+          {...z, selection: Selection.toggle_focus(z.selection)},
+        );
+      Caret.do_towards(~anchor, select_primary, goal, z)
+      |> Option.map(update_target);
     | Extreme(d) =>
       Caret.do_extreme(select_primary, d, z) |> Option.map(update_target)
     | Local(d) =>

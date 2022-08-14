@@ -94,7 +94,12 @@ let dcomp = (direction: Direction.t, a, b) =>
   };
 
 let do_towards =
-    (f: (Direction.t, t) => option(t), goal: Measured.point, z: t)
+    (
+      ~anchor: option(Measured.point)=?,
+      f: (Direction.t, t) => option(t),
+      goal: Measured.point,
+      z: t,
+    )
     : option(t) => {
   let cursorpos = point(Measured.of_segment(unselect_and_zip(z)));
   let init = cursorpos(z);
@@ -114,10 +119,20 @@ let do_towards =
       | Some(next) => go(curr, next)
       }
     | (Over, Exact) =>
-      let d_curr = abs(curr_p.col - goal.col);
-      let d_prev = abs(cursorpos(prev).col - goal.col);
-      // default to going over when equal
-      d_prev < d_curr ? prev : curr;
+      switch (anchor) {
+      | None =>
+        let d_curr = abs(curr_p.col - goal.col);
+        let d_prev = abs(cursorpos(prev).col - goal.col);
+        // default to going over when equal
+        d_prev < d_curr ? prev : curr;
+      | Some(anchor) =>
+        let anchor_d =
+          goal.row < anchor.row
+          || goal.row == anchor.row
+          && goal.col < anchor.col
+            ? Direction.Left : Right;
+        anchor_d == d ? curr : prev;
+      }
     };
   };
 
