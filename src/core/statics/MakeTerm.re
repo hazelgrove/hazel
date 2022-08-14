@@ -171,14 +171,13 @@ and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   };
 }
 and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
-  let invalid = (p: Piece.t): UExp.t => {id: (-1), term: Invalid(p)};
   switch (p) {
-  | Whitespace(_) => invalid(p)
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
     | (Concave, [Exp(l), Exp(r)]) => of_multi_exp(id, l, r)
-    | _ => {id, term: Invalid(p)}
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UExp.term =
@@ -186,6 +185,7 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | _ when !Tile.is_complete(t) =>
         // TODO: more principled handling of incomplete tiles
         EmptyHole
+      //Invalid(IncompleteTile,p)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
@@ -231,25 +231,27 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
         | term => ListLit([id], [term])
         }
-      | _ => Invalid(p)
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };
 }
 and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
-  let invalid: UPat.t = {id: (-1), term: Invalid(p)};
   switch (p) {
-  | Whitespace(_) => invalid
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
     | (Concave, [Pat(l), Pat(r)]) => of_multi_pat(id, l, r)
-    | _ => {id, term: Invalid(p)}
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UPat.term =
       switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
+      | _ when !Tile.is_complete(t) =>
+        //MultiHole([id], List.map(upat_of_seg, inside_kids))
+        EmptyHole
+      //Invalid(IncompleteTile,p)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
@@ -262,25 +264,24 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
-      | _ => Invalid(p)
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };
 }
 and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
-  let invalid: UTyp.t = {id: (-1), term: Invalid(p)};
   switch (p) {
-  | Whitespace(_) => invalid
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
     | (Convex, []) => {id, term: EmptyHole}
     | (Concave, [Typ(l), Typ(r)]) => of_multi_typ(id, l, r)
-    | _ => {id, term: Invalid(p)}
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UTyp.term =
       switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
+      | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["Unit"], [], []) => Tuple([id], [])
       | (["Bool"], [], []) => Bool
@@ -290,7 +291,7 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
       | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
-      | _ => Invalid(p)
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };

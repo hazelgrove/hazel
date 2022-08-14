@@ -18,6 +18,20 @@ open Sexplib.Std;
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type parse_flag =
+  | Whitespace // Not really an error
+  | MalformedGrout // Should never happen
+  | UnrecognizedTerm // Reminder to add term to MakeTerm
+  | IncompleteTile; // Remove in future
+
+let show_parse_flag: parse_flag => string =
+  fun
+  | Whitespace => "Whitespace"
+  | MalformedGrout => "Malformed Grout"
+  | UnrecognizedTerm => "Unrecognized Term"
+  | IncompleteTile => "Incomplete Tile";
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -34,7 +48,7 @@ module UTyp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Int
@@ -95,7 +109,7 @@ module UPat = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Wild
@@ -204,8 +218,7 @@ module UExp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t) //everything? text? keyword?
-    //| InvalidSegment(Segment.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Triv
@@ -221,7 +234,7 @@ module UExp = {
     | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
-    // maybe everything with fn semantics should be a builtin e.g. plus??
+    // Maybe ops with fn semantics should be builtins as well?
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)

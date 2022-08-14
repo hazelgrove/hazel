@@ -49,7 +49,7 @@ type info_typ = {
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Invalid
+  | Invalid(Term.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ);
@@ -120,7 +120,8 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
    are determined by error_status above. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | Invalid => true
+  | Invalid(Whitespace) => false
+  | Invalid(_) => true
   | InfoExp({mode, self, _})
   | InfoPat({mode, self, _}) =>
     switch (error_status(mode, self)) {
@@ -147,7 +148,7 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(e.id, m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid)
+  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -155,7 +156,7 @@ let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(p.id, m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | Invalid)
+  | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -201,7 +202,11 @@ let rec uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(_p) => (Unknown(Internal), [], Id.Map.singleton(id, Invalid))
+  | Invalid(msg, _p) => (
+      Unknown(Internal),
+      [],
+      Id.Map.singleton(id, Invalid(msg)),
+    )
   | MultiHole(ids, es) =>
     let es = List.map(go(~mode=Syn), es);
     let self = Typ.Multi;
@@ -383,7 +388,11 @@ and upat_to_info_map =
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
-  | Invalid(_) => atomic(Just(Unknown(SynSwitch))) //TODO: ?
+  | Invalid(msg, _) => (
+      Unknown(Internal),
+      ctx,
+      Id.Map.singleton(id, Invalid(msg)),
+    )
   | MultiHole(ids, ps) =>
     let ps = List.map(upat_to_info_map(~ctx, ~mode=Syn), ps);
     let self = Typ.Multi;
@@ -435,7 +444,10 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let add = (m, id) => Id.Map.add(id, InfoTyp({cls, ty}), m);
   let return = m => (ty, add(m, id));
   switch (term) {
-  | Invalid(_)
+  | Invalid(msg, _) => (
+      Unknown(Internal),
+      Id.Map.singleton(id, Invalid(msg)),
+    )
   | EmptyHole
   | Int
   | Float
