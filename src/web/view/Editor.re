@@ -3,9 +3,11 @@ open Node;
 open Core;
 open Util.Web;
 
-let get_target = (~font_metrics: FontMetrics.t, e) => {
+let code_container_id = idx => "code-container-" ++ string_of_int(idx);
+
+let get_target = (~font_metrics: FontMetrics.t, ~idx, e) => {
   let rect =
-    JSUtil.force_get_elem_by_id("under-the-rail")##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id(code_container_id(idx))##getBoundingClientRect;
   let target_x = float_of_int(e##.clientX);
   let target_y = float_of_int(e##.clientY);
   Measured.{
@@ -14,13 +16,13 @@ let get_target = (~font_metrics: FontMetrics.t, e) => {
   };
 };
 
-let mousedown_overlay = (~inject, ~font_metrics) =>
+let mousedown_overlay = (~inject, ~font_metrics, ~idx) =>
   div(
     Attr.[
       id("mousedown-overlay"),
       on_mouseup(_ => inject(Update.Mouseup)),
       on_mousemove(e => {
-        let target = get_target(~font_metrics, e);
+        let target = get_target(~font_metrics, ~idx, e);
         inject(Update.PerformAction(Select(Target(target))));
       }),
     ],
@@ -47,6 +49,7 @@ let code_container =
       ~show_backpack_targets,
       ~mousedown,
       ~show_deco,
+      ~idx,
     ) => {
   let segment = Zipper.zip(zipper);
   let map = Measured.of_segment(unselected);
@@ -56,21 +59,27 @@ let code_container =
     show_deco
       ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
       : [];
+  let mousedown_overlay =
+    switch (mousedown) {
+    | Some(idx') when idx' == idx => [
+        mousedown_overlay(~inject, ~font_metrics, ~idx),
+      ]
+    | _ => []
+    };
   div(
     Attr.[
+      id("code-container-" ++ string_of_int(idx)),
       class_("code-container"),
       on_mouseup(_ => inject(Update.Mouseup)),
       on_mousedown(e => {
-        let target = get_target(~font_metrics, e);
+        let target = get_target(~font_metrics, ~idx, e);
         Event.Many([
-          inject(Update.Mousedown),
+          inject(Update.Mousedown(idx)),
           inject(Update.PerformAction(Move(Target(target)))),
         ]);
       }),
     ],
-    (mousedown ? [mousedown_overlay(~inject, ~font_metrics)] : [])
-    @ [code_view]
-    @ deco_view,
+    [code_view] @ deco_view @ mousedown_overlay,
   );
 };
 
@@ -207,6 +216,7 @@ let single_editor =
       ~mousedown,
       ~show_backpack_targets,
       ~show_deco=true,
+      ~idx=0,
     );
   let semantics_views =
     settings.statics
@@ -254,6 +264,7 @@ let cell_view =
     };
   let code_view =
     code_container(
+      ~idx,
       ~inject,
       ~font_metrics,
       ~zipper,
@@ -325,7 +336,7 @@ let view =
       ~show_backpack_targets,
       ~settings: Model.settings,
       ~editor_model: Model.editor_model,
-      ~mousedown: bool,
+      ~mousedown,
       ~inject,
     )
     : Node.t => {
