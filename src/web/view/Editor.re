@@ -113,12 +113,13 @@ let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
 let code_container =
     (
       ~font_metrics,
-      ~zipper,
       ~unselected,
       ~settings,
       ~show_backpack_targets,
       ~show_deco,
+      ~overlays=[],
       ~id,
+      zipper,
     ) => {
   let segment = Zipper.zip(zipper);
   let map = Measured.of_segment(unselected);
@@ -130,7 +131,7 @@ let code_container =
       : [];
   div(
     [Attr.id(id), Attr.class_("code-container")],
-    [code_view] @ deco_view,
+    [code_view] @ deco_view @ overlays,
   );
 };
 
@@ -150,11 +151,11 @@ let single_editor =
     code_container(
       ~id=code_id,
       ~font_metrics,
-      ~zipper,
       ~unselected,
       ~settings,
       ~show_backpack_targets,
       ~show_deco=true,
+      zipper,
     );
   let semantics_views =
     settings.statics
@@ -197,6 +198,7 @@ let cell_view =
       ~selected,
       ~mousedown,
       ~show_backpack_targets,
+      ~overlays=[],
       idx,
       editor: Model.editor,
     ) => {
@@ -217,11 +219,12 @@ let cell_view =
     code_container(
       ~id=code_container_id,
       ~font_metrics,
-      ~zipper,
       ~unselected,
       ~settings,
+      ~overlays,
       ~show_backpack_targets,
       ~show_deco=selected == idx,
+      zipper,
     );
   let mousedown_overlay =
     selected == idx && mousedown
@@ -284,6 +287,33 @@ let get_school_data = (editors: list(Model.editor)) => {
     ))
   | _ => None
   };
+};
+
+let test_result_layer =
+    (~font_metrics, ~map: Measured.t, test_results: Interface.test_results)
+    : list(Node.t) => {
+  let test_map = test_results.test_map;
+  let status_map =
+    test_map
+    |> List.map(((id, insts)) => (id, TestMap.joint_status(insts)));
+  List.filter_map(
+    ((id, status)) => {
+      switch (Id.Map.find_opt(id, map.tiles)) {
+      | Some([(_, {origin: _, last}), ..._]) =>
+        Some(
+          div(
+            [
+              clss(["test-result", TestStatus.to_string(status)]),
+              DecUtil.abs_position(~font_metrics, last),
+            ],
+            [],
+          ),
+        )
+      | _ => None
+      }
+    },
+    status_map,
+  );
 };
 
 let multi_editor =
@@ -359,6 +389,13 @@ let multi_editor =
         ),
       ]
     };
+  let your_tests_layer =
+    switch (your_test_results, editors) {
+    | (Some(test_results), [_, your_tests, ..._]) =>
+      let map = Measured.of_segment(SchoolView.splice_editors([your_tests]));
+      test_result_layer(~font_metrics, ~map: Measured.t, test_results);
+    | _ => []
+    };
   let our_tests_view =
     switch (our_test_results) {
     | None => []
@@ -394,9 +431,11 @@ let multi_editor =
     [Attr.classes(["editor", "column"])],
     List.mapi(
       (i, ed) =>
-        i == 0
-          ? cell_view(~result_bar=[first_cell_res_view], i, ed)
-          : cell_view(i, ed),
+        switch (i) {
+        | 0 => cell_view(~result_bar=[first_cell_res_view], i, ed)
+        | 1 => cell_view(~overlays=your_tests_layer, i, ed)
+        | _ => cell_view(i, ed)
+        },
       editors,
     )
     @ (settings.dynamics ? school_panel : [])
