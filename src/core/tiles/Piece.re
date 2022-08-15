@@ -28,7 +28,10 @@ let nib_sorts =
   get(
     _ => (Sort.Any, Sort.Any),
     _ => (Sort.Any, Sort.Any),
-    t => ((t.mold.nibs |> fst).sort, (t.mold.nibs |> snd).sort),
+    t => {
+      let (l, r) = Tile.nibs(t);
+      (l.sort, r.sort);
+    },
   );
 
 let sorted_children = get(_ => [], _ => [], Tile.sorted_children);
