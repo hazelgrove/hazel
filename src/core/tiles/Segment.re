@@ -258,6 +258,13 @@ let rec remold_rul = (shape, seg: t): t =>
         Molds.get(t.label)
         |> List.filter((m: Mold.t) => m.out == Rul)
         |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
         |> ListUtil.hd_opt;
       switch (t_remolded) {
       | Some(t) =>

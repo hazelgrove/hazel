@@ -22,8 +22,9 @@ let semi = 10;
 let let_ = 11;
 
 let rule_arr = 12;
-let rule_sep = 13;
-let case_ = 14;
+let rule_pre = 13;
+let rule_sep = 14;
+let case_ = 15;
 
 let min = 15;
 
