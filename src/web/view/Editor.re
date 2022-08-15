@@ -198,6 +198,7 @@ let cell_view =
       ~selected,
       ~mousedown,
       ~show_backpack_targets,
+      ~show_code=true,
       ~overlays=[],
       idx,
       editor: Model.editor,
@@ -211,8 +212,8 @@ let cell_view =
     );
   let cell_chapter_view =
     switch (List.nth(School.chapters, idx)) {
-    | None => []
-    | Some(chapter) => [div([clss(["cell-chapter"])], [chapter])]
+    | None => div([Attr.create("style", "display: none;")], [])
+    | Some(chapter) => div([clss(["cell-chapter"])], [chapter])
     };
   let code_container_id = "code-container-" ++ string_of_int(idx);
   let code_view =
@@ -238,7 +239,7 @@ let cell_view =
       : [];
   div(
     [clss(["cell-container"])],
-    cell_chapter_view
+    [cell_chapter_view]
     @ [
       div(
         [
@@ -252,7 +253,8 @@ let cell_view =
             ),
           ),
         ],
-        mousedown_overlay @ [cell_caption_view, code_view],
+        [cell_caption_view]
+        @ (show_code ? mousedown_overlay @ [code_view] : []),
       ),
     ]
     @ result_bar,
@@ -289,32 +291,27 @@ let get_school_data = (editors: list(Model.editor)) => {
   };
 };
 
+let test_status_icon_view =
+    (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
+  switch (ms) {
+  | [(_, {origin: _, last}), ..._] =>
+    let status = insts |> TestMap.joint_status |> TestStatus.to_string;
+    let pos = DecUtil.abs_position(~font_metrics, last);
+    Some(div([clss(["test-result", status]), pos], []));
+  | _ => None
+  };
+
 let test_result_layer =
     (~font_metrics, ~map: Measured.t, test_results: Interface.test_results)
-    : list(Node.t) => {
-  let test_map = test_results.test_map;
-  let status_map =
-    test_map
-    |> List.map(((id, insts)) => (id, TestMap.joint_status(insts)));
+    : list(Node.t) =>
   List.filter_map(
-    ((id, status)) => {
+    ((id, insts)) =>
       switch (Id.Map.find_opt(id, map.tiles)) {
-      | Some([(_, {origin: _, last}), ..._]) =>
-        Some(
-          div(
-            [
-              clss(["test-result", TestStatus.to_string(status)]),
-              DecUtil.abs_position(~font_metrics, last),
-            ],
-            [],
-          ),
-        )
+      | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
       | _ => None
-      }
-    },
-    status_map,
+      },
+    test_results.test_map,
   );
-};
 
 let multi_editor =
     (
@@ -381,12 +378,14 @@ let multi_editor =
     switch (your_test_results) {
     | None => []
     | Some(test_results) => [
-        test_view(
-          ~title="Your tests:",
-          ~inject,
-          ~font_metrics,
-          ~test_results,
-        ),
+        TestView.test_summary(~inject, ~test_results),
+        /*
+         test_view(
+           ~title="Your tests:",
+           ~inject,
+           ~font_metrics,
+           ~test_results,
+         ),*/
       ]
     };
   let your_tests_layer =
@@ -398,15 +397,22 @@ let multi_editor =
     };
   let our_tests_view =
     switch (our_test_results) {
-    | None => []
-    | Some(test_results) => [
-        test_view(~title="Our tests:", ~inject, ~font_metrics, ~test_results),
-      ]
+    | None => div([], [])
+    | Some(test_results) =>
+      div(
+        [clss(["cell", "cell-result"])],
+        [
+          //test_view(~title="Our tests:", ~inject, ~font_metrics, ~test_results),
+          //TestView.view_of_main_title_bar("Our tests:"),
+          TestView.test_summary(~inject, ~test_results),
+          TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+        ],
+      )
     };
   let school_panel = [
     div(
       [clss(["school-panel"])],
-      your_tests_view @ our_tests_view @ coverage_view,
+      /*your_tests_view @ our_tests_view @ */ coverage_view,
     ),
   ];
   let ci_view =
@@ -422,19 +428,32 @@ let multi_editor =
         ];
       }
       : [];
-  /* Hide hidden editors in student mode */
-  let editors =
-    settings.student
-      ? List.filteri((i, _) => !List.nth(School.hiddens, i), editors)
-      : editors;
   div(
     [Attr.classes(["editor", "column"])],
     List.mapi(
       (i, ed) =>
         switch (i) {
         | 0 => cell_view(~result_bar=[first_cell_res_view], i, ed)
-        | 1 => cell_view(~overlays=your_tests_layer, i, ed)
-        | _ => cell_view(i, ed)
+        | 1 =>
+          cell_view(
+            ~result_bar=[
+              div([clss(["cell", "cell-result"])], your_tests_view),
+            ],
+            ~overlays=your_tests_layer,
+            i,
+            ed,
+          )
+        | 2 =>
+          cell_view(
+            ~show_code=!settings.student,
+            ~result_bar=[our_tests_view],
+            i,
+            ed,
+          )
+        | _ =>
+          settings.student
+            ? div([Attr.create("style", "display: none;")], [])
+            : cell_view(i, ed)
         },
       editors,
     )
