@@ -9,8 +9,8 @@ type t = int;
 
 let max: t = 0;
 
-let fact = 1;
-let ap = 2;
+let ap = 1;
+let neg = 2;
 let mult = 3;
 let plus = 4;
 let concat = 5;
