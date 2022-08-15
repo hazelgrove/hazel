@@ -240,7 +240,7 @@ svg {
   font-size: 13pt;
 }
 
-.cell-caption, .test-panel, #editor-mode, .cell-chapter {
+.cell-caption, .test-panel, #editor-mode, .cell-chapter, .test-summary, .title-bar {
   font-size: 0.8em;
   font-family: 'Helvetica Neue';
 }
@@ -417,8 +417,18 @@ svg {
 
 .cell-container {
   width: fit-content;
-  min-width: 50vw;
+  min-width: 70vw;
   max-width: 70vw;
+}
+
+.cell-container .cell:nth-child(2) {
+  border-radius: 0.4em 0.4em 0 0;
+}
+.cell-container .cell:last-child {
+  border-radius: 0 0 0.4em 0.4em;
+}
+.cell-container .cell:only-child {
+  border-radius: 0.4em;
 }
 
 .cell-chapter {
@@ -436,7 +446,7 @@ svg {
 }
 
 .cell{
-  border-radius: 0.4em;
+  /*border-radius: 0.4em;*/
   padding-left: 1em;
   padding: 0.5em;
   padding-left: 1.2em;
@@ -1052,8 +1062,8 @@ svg {
 .bottom-bar {
   z-index: var(--result-z);
   position: fixed;
-  max-height: 3.2em;
-  overflow-y: auto;
+  /*max-height: 3.2em;
+  overflow-y: auto;*/
   bottom: 0;
   left: 0;
   width: 100%;
@@ -1079,15 +1089,21 @@ svg {
   box-shadow: 0px 1px 0px #ddcda3;
     color: #7a6219;
     border-left: 1px solid #c7b480;
-    max-height: 4.5em;
+    /*max-height: 4.5em;
     min-height: 1.6em;
-    overflow-y: auto;
+    overflow-y: auto;*/
     margin-bottom: 1em;
     background-color: #efe7d6;
     border-radius: 0 0 0.4em 0.4em;
     /* padding-left: 1em; */
     padding: 0.5em;
     padding-left: 1.2em;
+}
+
+.result {
+  max-height: 4.5em;
+  min-height: 1.6em;
+  overflow-y: auto;
 }
 
 /* DYNAMICS - DHEXP */
