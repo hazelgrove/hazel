@@ -931,19 +931,12 @@ svg {
 .term-tag {
   padding: 0em 0.4em 0em 0em;
   border-radius: 0 0.4em 0.4em 0;
-  /*border-right: 1px solid #c7b480;*/
-  /* height: fit-content; */
   display: flex;
   gap: 0.5em;
-  /* border-radius: 0.2em; */
   color: #0006;
-  font-size: 0.73em;
   font-weight: bolder;
   text-transform: uppercase;
   align-items: center;
-  /*border-top-right-radius: 0;*/
-  /* border-bottom-right-radius: 0; */
-  /* border-bottom: 1px solid #d1c19e;*/
 }
 .term-tag.error {
   background-color: rgb(255 0 0);
@@ -966,7 +959,6 @@ svg {
 
 .cursor-inspector {
   z-index: var(--type-inspector-z);
-  height: 1.45em;
   padding-right: 0.5em;
   display: flex;
   gap: 0.5em;
@@ -1083,19 +1075,19 @@ svg {
 
 /* DYNAMICS */
 
-.result {
-  /*
-  z-index: var(--result-z);
-  position: fixed;
-  max-height: 3.2em;
-  overflow-y: auto;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  padding-left: 1em;
-  background-color: var(--top_bar_icon_fill);
-  color: #fdf6e3;
-  */
+.cell-result {
+  box-shadow: 0px 1px 0px #ddcda3;
+    color: #7a6219;
+    border-left: 1px solid #c7b480;
+    max-height: 4.5em;
+    min-height: 1.6em;
+    overflow-y: auto;
+    margin-bottom: 1em;
+    background-color: #efe7d6;
+    border-radius: 0 0 0.4em 0.4em;
+    /* padding-left: 1em; */
+    padding: 0.5em;
+    padding-left: 1.2em;
 }
 
 /* DYNAMICS - DHEXP */
@@ -1142,19 +1134,23 @@ svg {
 
 .school-panel {
   color: var(--light-text-color);
-  min-width: 15em;
+  min-width: 50vw;
+  max-width: 70vw;
+  /*min-width: 15em;
   max-height: 100%;
   overflow-y: auto;
   z-index: var(--test-panel-z);
   position: fixed;
   right: 0;
   top: 0em;
-  max-width: 21em;
+  max-width: 21em;*/
   display: flex;
   flex-direction: column;
+  gap: 0.5em;
 }
 
 .test-panel {
+  border-radius: 0.5em;
   z-index: var(--test-panel-z);
   display: flex;
   flex-direction: column;

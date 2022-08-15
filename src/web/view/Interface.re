@@ -1,13 +1,17 @@
-open Virtual_dom.Vdom;
-open Node;
-open Core;
-
 let evaluate =
   Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 let convert_metrics = (font_metrics: FontMetrics.t): DHCode.font_metrics => {
   row_height: font_metrics.row_height,
   col_width: font_metrics.col_width,
+};
+
+let dhcode_view = (~font_metrics: FontMetrics.t) => {
+  DHCode.view_tylr(
+    ~selected_instance=None, //option((int, int)) // hole, hole_inst
+    ~font_metrics=convert_metrics(font_metrics),
+    ~settings=Settings.Evaluation.init,
+  );
 };
 
 let get_result =
@@ -23,21 +27,34 @@ let get_result =
   };
 };
 
-let dhcode_view = (~font_metrics: FontMetrics.t) => {
-  DHCode.view_tylr(
-    ~selected_instance=None, //option((int, int)) // hole, hole_inst
-    ~font_metrics=convert_metrics(font_metrics),
-    ~settings=Settings.Evaluation.init,
-  );
+let evaulation_result = (map, term): option(DHExp.t) =>
+  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  | None => None
+  | Some((result, _)) => Some(result)
+  };
+
+type test_results = {
+  test_map: TestMap.t,
+  statuses: list(TestStatus.t),
+  total: int,
+  passing: int,
+  failing: int,
+  unfinished: int,
 };
 
-let res_view = (~font_metrics: FontMetrics.t, term, info_map): Node.t => {
-  let result = get_result(Elaborator.uexp_elab(info_map, term));
-  div(
-    [Attr.classes(["result"])],
-    switch (result) {
-    | None => []
-    | Some((result, _)) => [dhcode_view(~font_metrics, ~width=80, result)]
-    },
-  );
+let mk_results = (test_map: TestMap.t): test_results => {
+  test_map,
+  statuses: test_map |> List.map(r => r |> snd |> TestMap.joint_status),
+  total: TestMap.count(test_map),
+  passing: TestMap.count_status(Pass, test_map),
+  failing: TestMap.count_status(Fail, test_map),
+  unfinished: TestMap.count_status(Indet, test_map),
+};
+
+let test_results = (map, term): option(test_results) => {
+  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  | None
+  | Some((_, [])) => None
+  | Some((_, test_map)) => Some(mk_results(test_map))
+  };
 };

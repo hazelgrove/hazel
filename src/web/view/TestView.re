@@ -36,10 +36,14 @@ let test_report_view =
   );
 };
 
-let test_reports_view = (~inject, ~font_metrics, test_map: TestMap.t) =>
+let test_reports_view =
+    (~inject, ~font_metrics, ~test_results: Interface.test_results) =>
   div(
     [clss(["panel-body", "test-reports"])],
-    List.mapi(test_report_view(~inject, ~font_metrics), test_map),
+    List.mapi(
+      test_report_view(~inject, ~font_metrics),
+      test_results.test_map,
+    ),
   );
 
 let test_bar_segment = (~inject, (_id, reports)) => {
@@ -50,10 +54,10 @@ let test_bar_segment = (~inject, (_id, reports)) => {
   );
 };
 
-let test_bar = (~inject, ~test_map: TestMap.t) =>
+let test_bar = (~inject, ~test_results: Interface.test_results) =>
   div(
     [Attr.class_("test-bar")],
-    List.map(test_bar_segment(~inject), test_map),
+    List.map(test_bar_segment(~inject), test_results.test_map),
   );
 
 let result_summary_str =
@@ -111,11 +115,11 @@ let result_summary_str =
  };
  */
 
-let test_summary_str = (~test_map: TestMap.t): string =>
+let test_summary_str = (test_results: Interface.test_results): string =>
   result_summary_str(
-    ~n=TestMap.count(test_map),
-    ~p=TestMap.count_status(Fail, test_map),
-    ~q=TestMap.count_status(Indet, test_map),
+    ~n=test_results.total,
+    ~p=test_results.failing,
+    ~q=test_results.unfinished,
     ~n_str="test",
     ~ns_str="tests",
     ~p_str="failing",
@@ -131,61 +135,34 @@ let percent_view = (n: int, p: int): Node.t => {
   );
 };
 
-let test_percentage = (test_map: TestMap.t): Node.t => {
-  let total = TestMap.count(test_map);
-  let passing = TestMap.count_status(Pass, test_map);
-  percent_view(total, passing);
-};
+let test_percentage = (test_results: Interface.test_results): Node.t =>
+  percent_view(test_results.total, test_results.passing);
 
-let test_text = (test_map: TestMap.t): Node.t =>
+let test_text = (test_results: Interface.test_results): Node.t =>
   div(
     [Attr.class_("test-text")],
     [
-      test_percentage(test_map),
+      test_percentage(test_results),
       div([], [text(":")]),
-      text(test_summary_str(~test_map)),
+      text(test_summary_str(test_results)),
     ],
   );
 
-let test_summary = (~inject, ~test_map) => {
-  let failing = TestMap.count_status(Fail, test_map);
-  let unfinished = TestMap.count_status(Indet, test_map);
+let test_summary = (~inject, ~test_results: Interface.test_results) => {
   let status_class =
-    switch (failing, unfinished) {
+    switch (test_results.failing, test_results.unfinished) {
     | (0, 0) => "Pass"
     | (0, _) => "Indet"
     | _ => "Fail"
     };
   div(
     [clss(["test-summary", "instructional-msg", status_class])],
-    [test_text(test_map), test_bar(~inject, ~test_map)],
+    [test_text(test_results), test_bar(~inject, ~test_results)],
   );
 };
 
 let view_of_main_title_bar = (title_text: string) =>
   div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
-
-let view =
-    (
-      ~title: string,
-      ~inject=(),
-      ~font_metrics,
-      d: Elaborator_Exp.ElaborationResult.t,
-    )
-    : t =>
-  switch (Interface.get_result(d)) {
-  | None => div([], [])
-  | Some((_, test_map)) =>
-    div_if(
-      test_map != [],
-      [clss(["panel", "test-panel"])],
-      [
-        view_of_main_title_bar(title),
-        test_reports_view(~inject, ~font_metrics, test_map),
-        test_summary(~inject, ~test_map),
-      ],
-    )
-  };
 
 let inspector_view =
     (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
