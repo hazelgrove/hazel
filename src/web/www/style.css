@@ -1192,23 +1192,27 @@ svg {
   color: var(--err-color);
 }
 
-.TestPass:after {
+.test-result:after {
   position: relative;
   bottom: 0.15em;
   margin-left: 0.17em;
-  content: "✔";
-  color: green;
   font-size: 64%;
-  vertical-align: middle;
+  vertical-align: super;  
 }
 
-.TestFail:after {
-  position: relative;
-  bottom: 0.15em;
-  margin-left: 0.17em;
-  content: "✘";
+.test-result.Pass:after {
+  content: "✔"; /*"🤩";*/
+  color: green;
+}
+
+.test-result.Fail:after {
+  content: "✘"; /*"🤮";*/
   color: var(--err-color);
-  font-size: 64%;
+}
+
+.test-result.Indet:after{
+  content: "?"; /*"🤔";*/
+  color: rgb(143, 129, 87);
 }
 
 .test-instances {
