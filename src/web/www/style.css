@@ -113,7 +113,7 @@
   --caret-position-z: 13;
   --current-caret-pos-z: 15;
   --caret-z: 14;
-  
+
   --type-inspector-z: 14;
   --top-bar-z: 15;
 
@@ -324,7 +324,7 @@ svg {
 }
 
 #top-bar .icon.disabled {
-  opacity: 0.35;  
+  opacity: 0.35;
 }
 #top-bar .icon.disabled:hover svg {
   transform: scale(100%);
@@ -396,6 +396,16 @@ svg {
   padding-left: 2em;
 }
 
+#mousedown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: transparent;
+  z-index: 9999;
+}
+
 .code-container {
   position: relative;
   margin-bottom: 2em;;
@@ -431,6 +441,7 @@ svg {
   padding: 0.5em;
   padding-left: 1.2em;
   border-left: 1px solid var(--top_bar_icon_fill);
+  user-select: none;
 }
 
 .cell.selected{
@@ -443,11 +454,13 @@ svg {
   padding: 0.1em 0 1em 0em;
   font-size: 0.8em;
   color: var(--top-bar-text);
+  user-select: none;
 }
 
 .code-text {
   position: absolute;
   z-index: var(--code-text-z);
+  user-select: none;
 }
 
 /* NOTE(andrew): below 3 styles are part of
@@ -456,6 +469,7 @@ svg {
 .code-text-shards {
   /*position: absolute;*/
   z-index: var(--code-text-shards-z);
+  user-select: none;
 }
 .code-text-shards span {
   color: #0000 !important;
@@ -1225,7 +1239,7 @@ svg {
 .test-instance .DHCode:before {
   content:'';
   width:100%;
-  height:100%;    
+  height:100%;
   position:absolute;
   left:0;
   top:0;

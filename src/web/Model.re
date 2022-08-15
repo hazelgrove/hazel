@@ -59,6 +59,7 @@ type t = {
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   double_tap: option(timestamp),
+  mousedown: bool,
   settings,
 };
 
@@ -73,6 +74,7 @@ let mk = editor_model => {
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   double_tap: None,
+  mousedown: false,
 };
 
 let blank = mk(School(0, []));
