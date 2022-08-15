@@ -30,15 +30,7 @@ open Term;
    shapes and sorts to incomplete tiles; see piece_and_outside_kids
    and Piece.get_outside_sorts which it calls. */
 
-type sort_dispatch =
-  | Exp(UExp.t)
-  | Pat(UPat.t)
-  | Typ(UTyp.t)
-  | Rul(unit) // TODO
-  | Nul(unit)
-  | Any(unit);
-
-let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): sort_dispatch =>
+let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   switch (s) {
   | Pat => Pat(of_seg_and_skel_pat(ps, kid))
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
@@ -48,8 +40,7 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): sort_dispatch =
   | Any => Any()
   }
 and piece_and_outside_kids =
-    (~default_sort, ps: Segment.t, skel: Skel.t)
-    : (Piece.t, list(sort_dispatch)) => {
+    (~default_sort, ps: Segment.t, skel: Skel.t): (Piece.t, list(Term.any)) => {
   let piece_at = List.nth(ps);
   let (p, outside_kids) =
     switch (skel) {
@@ -65,6 +56,7 @@ and piece_and_outside_kids =
       print_endline("WARNING: of_seg_and_skel: list mismatch");
       [];
     } else {
+      assert(List.length(outside_kids) == List.length(outside_sorts));
       List.map2(sort_dispatch(ps), outside_kids, outside_sorts);
     };
   (p, outside_kids);
@@ -108,15 +100,84 @@ and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
 }
-and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
-  let invalid = (p: Piece.t): UExp.t => {id: (-1), term: Invalid(p)};
+//TODO: improve/consolidate of_nary fns below
+and of_multi_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
+  let wrap_multi = (ids, es): UExp.t => {
+    id,
+    term: MultiHole([id] @ ids, es),
+  };
+  switch (l, r) {
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
+    wrap_multi(l_ids @ r_ids, ls @ rs)
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
+  };
+}
+and of_tuple_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
+  let wrap_tuple = (ids, es): UExp.t => {id, term: Tuple([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
+  };
+}
+and of_tuple_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
+  let wrap_tuple = (ids, es): UPat.t => {id, term: Tuple([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
+  };
+}
+and of_tuple_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
+  let wrap_tuple = (ids, es): UTyp.t => {id, term: Tuple([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Tuple(l_ids, ls), _}, {term: Tuple(r_ids, rs), _}) =>
+    wrap_tuple(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Tuple(r_ids, rs), _}) => wrap_tuple(r_ids, [l] @ rs)
+  | ({term: Tuple(l_ids, ls), _}, r) => wrap_tuple(l_ids, ls @ [r])
+  | (l, r) => wrap_tuple([], [l, r])
+  };
+}
+and of_multi_pat = (id: Id.t, l: UPat.t, r: UPat.t): UPat.t => {
+  let wrap_multi = (ids, es): UPat.t => {
+    id,
+    term: MultiHole([id] @ ids, es),
+  };
+  switch (l, r) {
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
+    wrap_multi(l_ids @ r_ids, ls @ rs)
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
+  };
+}
+and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
+  let wrap_multi = (ids, es): UTyp.t => {
+    id,
+    term: MultiHole([id] @ ids, es),
+  };
+  switch (l, r) {
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
+    wrap_multi(l_ids @ r_ids, ls @ rs)
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
+  };
+}
+and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   switch (p) {
-  | Whitespace(_) => invalid(p)
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => {id, term: EmptyHole}
-    //TODO(andrew): do something better with concave holes
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | (Concave, [Exp(l), Exp(r)]) => of_multi_exp(id, l, r)
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UExp.term =
@@ -124,14 +185,15 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
       | _ when !Tile.is_complete(t) =>
         // TODO: more principled handling of incomplete tiles
         EmptyHole
-      // TODO(andrew): Form.re should handle monotile recognition
+      //Invalid(IncompleteTile,p)
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
-      | (["nil"], [], []) => ListNil
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
-      | ([","], [Exp(l), Exp(r)], []) => Pair(l, r)
+      | ([","], [Exp(l), Exp(r)], []) => of_tuple_exp(id, l, r).term
       | (["+"], [Exp(l), Exp(r)], []) => BinOp(Int(Plus), l, r)
       | (["-"], [Exp(l), Exp(r)], []) => BinOp(Int(Minus), l, r)
       | (["*"], [Exp(l), Exp(r)], []) => BinOp(Int(Times), l, r)
@@ -163,62 +225,73 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(sort_dispatch)): UExp.t => {
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [Exp(fn)], [arg]) => Ap(fn, uexp_of_seg(arg))
       | (["(", ")"], [], [body]) => Parens(uexp_of_seg(body))
-      | _ => Invalid(p)
+      | (["nil"], [], []) => ListLit([], [])
+      | (["[", "]"], [], [body]) =>
+        switch (uexp_of_seg(body)) {
+        | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
+        | term => ListLit([id], [term])
+        }
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };
 }
-and of_piece_pat = (p: Piece.t, outside_kids: list(sort_dispatch)): UPat.t => {
-  let invalid: UPat.t = {id: (-1), term: Invalid(p)};
+and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
   switch (p) {
-  | Whitespace(_) => invalid
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => invalid
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | (Concave, [Pat(l), Pat(r)]) => of_multi_pat(id, l, r)
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UPat.term =
       switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
-      // TODO(andrew): Form.re should handle monotile recognition
+      | _ when !Tile.is_complete(t) =>
+        //MultiHole([id], List.map(upat_of_seg, inside_kids))
+        EmptyHole
+      //Invalid(IncompleteTile,p)
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
       | (["false"], [], []) => Bool(false)
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
-      | ([","], [Pat(l), Pat(r)], []) => Pair(l, r)
+      | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
       | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
-      | _ => Invalid(p)
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };
 }
-and of_piece_typ = (p: Piece.t, outside_kids: list(sort_dispatch)): UTyp.t => {
-  let invalid: UTyp.t = {id: (-1), term: Invalid(p)};
+and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
   switch (p) {
-  | Whitespace(_) => invalid
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => invalid
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | (Concave, [Typ(l), Typ(r)]) => of_multi_typ(id, l, r)
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UTyp.term =
       switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
-      // TODO(andrew): Form.re should handle monotile recognition
-      | (["Unit"], [], []) => Unit
+      | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
+      // TODO(andrew): should Form.re handle atomic conversion?
+      | (["Unit"], [], []) => Tuple([id], [])
       | (["Bool"], [], []) => Bool
       | (["Int"], [], []) => Int
       | (["Float"], [], []) => Float
       | (["->"], [Typ(l), Typ(r)], []) => Arrow(l, r)
-      | ([","], [Typ(l), Typ(r)], []) => Prod(l, r)
+      | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
-      | _ => Invalid(p)
+      | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };
