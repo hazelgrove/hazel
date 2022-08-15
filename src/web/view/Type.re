@@ -19,7 +19,6 @@ let rec view = (ty: Core.Typ.t): Node.t =>
       [clss(["typ-view", "atom", "unknown"])],
       [text("?"), prov_view(prov)],
     )
-  | Unit => ty_view("()", "()")
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | Bool => ty_view("Bool", "Bool")
@@ -30,6 +29,19 @@ let rec view = (ty: Core.Typ.t): Node.t =>
     )
   | Arrow(t1, t2) =>
     div([clss(["typ-view", "Arrow"])], [view(t1), text("->"), view(t2)])
-  | Prod(t1, t2) =>
-    div([clss(["typ-view", "Prod"])], [view(t1), text(","), view(t2)])
+  | Prod([]) => div([clss(["typ-view", "Prod"])], [text("Unit")])
+  | Prod([_]) => div([clss(["typ-view", "Prod"])], [text("BadProduct")])
+  | Prod([t0, ...ts]) =>
+    div(
+      [clss(["typ-view", "atom", "Prod"])],
+      [
+        text("("),
+        div(
+          [clss(["typ-view", "Prod"])],
+          [view(t0)]
+          @ (List.map(t => [text(","), view(t)], ts) |> List.flatten),
+        ),
+        text(")"),
+      ],
+    )
   };

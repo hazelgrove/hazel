@@ -238,7 +238,7 @@ module Deco =
   };
 
   let error_holes = zipper => {
-    //TODO(andrew): how do i fold over this
+    //TODO
     let _ci =
       switch (zipper |> Indicated.index) {
       | Some(index) =>

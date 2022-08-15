@@ -3,6 +3,44 @@ open Node;
 open Core;
 open Util.Web;
 
+let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
+  let rect = JSUtil.force_get_elem_by_id(target_id)##getBoundingClientRect;
+  let goal_x = float_of_int(e##.clientX);
+  let goal_y = float_of_int(e##.clientY);
+  Measured.{
+    row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
+    col:
+      Float.(
+        to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
+      ),
+  };
+};
+
+let mousedown_handler =
+    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
+  let goal = get_goal(~font_metrics, ~target_id, e);
+  Event.Many(
+    List.map(inject, additional_updates)
+    @ [
+      inject(Update.Mousedown),
+      inject(Update.PerformAction(Move(Goal(goal)))),
+    ],
+  );
+};
+
+let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
+  div(
+    Attr.[
+      id("mousedown-overlay"),
+      on_mouseup(_ => inject(Update.Mouseup)),
+      on_mousemove(e => {
+        let goal = get_goal(~font_metrics, ~target_id, e);
+        inject(Update.PerformAction(Select(Goal(goal))));
+      }),
+    ],
+    [],
+  );
+
 let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
   module Deco =
     Deco.Deco({
@@ -21,6 +59,7 @@ let code_container =
       ~settings,
       ~show_backpack_targets,
       ~show_deco,
+      ~id,
     ) => {
   let segment = Zipper.zip(zipper);
   let map = Measured.of_segment(unselected);
@@ -30,7 +69,10 @@ let code_container =
     show_deco
       ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
       : [];
-  div([Attr.class_("code-container")], [code_view] @ deco_view);
+  div(
+    [Attr.id(id), Attr.class_("code-container")],
+    [code_view] @ deco_view,
+  );
 };
 
 let single_editor_semantics_views =
@@ -150,13 +192,16 @@ let single_editor =
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
+      ~mousedown,
       ~zipper: Zipper.t,
       ~settings: Model.settings,
     )
     : Node.t => {
   let unselected = Zipper.unselect_and_zip(zipper);
+  let code_id = "code-container";
   let code_view =
     code_container(
+      ~id=code_id,
       ~font_metrics,
       ~zipper,
       ~unselected,
@@ -174,7 +219,18 @@ let single_editor =
           ~unselected,
         )
       : [];
-  div([clss(["editor", "single"])], [code_view] @ semantics_views);
+  let mousedown_overlay =
+    mousedown
+      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
+  div(
+    [
+      clss(["editor", "single"]),
+      Attr.on_mousedown(e =>
+        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+      ),
+    ],
+    [code_view] @ semantics_views @ mousedown_overlay,
+  );
 };
 
 let show_term = (editor: Model.editor, _) =>
@@ -193,6 +249,7 @@ let cell_view =
       ~inject: Update.t => 'a,
       ~font_metrics,
       ~selected,
+      ~mousedown,
       ~show_backpack_targets,
     ) => {
   let zipper = editor.zipper;
@@ -207,15 +264,27 @@ let cell_view =
     | None => []
     | Some(chapter) => [div([clss(["cell-chapter"])], [chapter])]
     };
+  let code_container_id = "code-container-" ++ string_of_int(idx);
   let code_view =
     code_container(
+      ~id=code_container_id,
       ~font_metrics,
       ~zipper,
       ~unselected,
       ~settings,
       ~show_backpack_targets,
-      ~show_deco=idx == selected,
+      ~show_deco=selected == idx,
     );
+  let mousedown_overlay =
+    selected == idx && mousedown
+      ? [
+        mousedown_overlay(
+          ~inject,
+          ~font_metrics,
+          ~target_id=code_container_id,
+        ),
+      ]
+      : [];
   div(
     [clss(["cell-container"])],
     cell_chapter_view
@@ -223,9 +292,16 @@ let cell_view =
       div(
         [
           Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-          Attr.on_click(_ => inject(SwitchEditor(idx))),
+          Attr.on_mousedown(
+            mousedown_handler(
+              ~inject,
+              ~font_metrics,
+              ~target_id=code_container_id,
+              ~additional_updates=[Update.SwitchEditor(idx)],
+            ),
+          ),
         ],
-        [cell_caption_view, code_view],
+        mousedown_overlay @ [cell_caption_view, code_view],
       ),
     ],
   );
@@ -235,6 +311,7 @@ let multi_editor =
     (
       ~font_metrics,
       ~show_backpack_targets,
+      ~mousedown,
       ~editors: list(Model.editor),
       ~selected,
       ~settings,
@@ -246,6 +323,7 @@ let multi_editor =
       ~settings,
       ~inject,
       ~font_metrics,
+      ~mousedown,
       ~selected,
       ~show_backpack_targets,
     );
@@ -276,6 +354,7 @@ let view =
       ~show_backpack_targets,
       ~settings: Model.settings,
       ~editor_model: Model.editor_model,
+      ~mousedown,
       ~inject,
     )
     : Node.t => {
@@ -286,6 +365,7 @@ let view =
     single_editor(
       ~inject,
       ~font_metrics,
+      ~mousedown,
       ~show_backpack_targets,
       ~zipper=focal_zipper,
       ~settings,
@@ -296,6 +376,7 @@ let view =
       ~font_metrics,
       ~settings,
       ~editors,
+      ~mousedown,
       ~focal_zipper,
       ~selected,
       ~show_backpack_targets,
