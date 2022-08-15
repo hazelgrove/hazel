@@ -101,257 +101,421 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let rec remold = (seg: t, s: Sort.t) => {
-  // eagerly remold as container sort
-  let (_, s_molded) =
-    seg
-    |> List.fold_left_map(
-         (shape, p: Piece.t) =>
-           switch (p) {
-           | Whitespace(_)
-           | Grout(_) => (shape, p)
-           | Tile(t) =>
-             let t =
-               Molds.get(t.label)
-               |> List.filter((m: Mold.t) => m.out == s)
-               |> List.map(mold => {...t, mold})
-               |> (
-                 fun
-                 | [_] as ts => ts
-                 | ts =>
-                   ts
-                   |> List.filter(t =>
-                        Nib.Shape.fits(shape, fst(Tile.shapes(t)))
-                      )
-               )
-               |> ListUtil.hd_opt
-               |> OptUtil.get(() => t);
-             (snd(Tile.shapes(t)), Tile(t));
-           },
-         Nib.Shape.concave(),
-       );
-
-  // for all molds producing output sort with different unidelimited sort,
-  // identify maximal subranges to remold as the unidelimited sort
-  let nth = List.nth(s_molded);
-  let sortable = sort =>
-    fun
-    | Piece.Whitespace(_)
-    | Grout(_) => true
+let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      Molds.get(t.label) |> List.exists((m: Mold.t) => m.out == sort);
-  let transition_ranges = {
-    let ranges = ref([]);
-    let hwm = ref(-1);
-    let i = ref(0);
-    while (i^ < List.length(s_molded)) {
-      switch (nth(i^)) {
-      | Whitespace(_)
-      | Grout(_) => ()
-      | Tile(t) when t.mold.out != s => ()
-      | Tile(t) =>
-        let (l, r) = Tile.nibs(t);
-        switch (l) {
-        | {shape: Concave(_), sort} when sort != s =>
-          let j = ref(i^ - 1);
-          while (j^ > hwm^ && sortable(sort, nth(j^))) {
-            j := j^ - 1;
-          };
-          ranges := [(sort, (j^ + 1, i^ - 1)), ...ranges^];
-        | _ => ()
-        };
-        switch (r) {
-        | {shape: Concave(_), sort} when sort != s =>
-          let j = ref(i^ + 1);
-          while (j^ < List.length(s_molded) && sortable(sort, nth(j^))) {
-            j := j^ + 1;
-          };
-          ranges := [(sort, (i^ + 1, j^ - 1)), ...ranges^];
-          hwm := j^ - 1;
-        | _ => ()
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Typ)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => ([], shape, seg)
+      | Some(t) =>
+        let (remolded, shape, rest) =
+          remold_typ_uni(snd(Tile.shapes(t)), tl);
+        ([Tile(t), ...remolded], shape, rest);
+      };
+    }
+  };
+
+let rec remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Pat)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => ([], shape, seg)
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
+          let (remolded_pat, shape, rest) = remold_pat_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_pat_uni(snd(Tile.shapes(t)), tl);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      };
+    }
+  };
+let rec remold_pat = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_pat(shape, tl)]
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Pat)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+        | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
+        }
+      };
+    }
+  };
+
+let rec remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) =>
+      let (remolded, shape, rest) = remold_exp_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Exp)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => ([], shape, seg)
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Pat}) =>
+          let (remolded_pat, shape, rest) = remold_pat_uni(shape, tl);
+          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
+          ([Piece.Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
+        | (_, {shape, sort: Rul}) =>
+          // TODO review short circuit
+          ([Tile(t)], shape, tl)
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(snd(Tile.shapes(t)), tl);
+          ([Tile(t), ...remolded], shape, rest);
+        }
+      };
+    }
+  };
+
+let rec remold_rul = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_rul(shape, tl)]
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Rul)
+        |> List.map(mold => {...t, mold})
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) = remold_exp_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
+        | _ => failwith("unexpected")
+        }
+      | None =>
+        let (remolded, shape, rest) = remold_pat_uni(shape, [hd, ...tl]);
+        switch (remolded) {
+        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
+        | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
       };
-      i := i^ + 1;
-    };
-    ranges^;
+    }
   };
-  let uni_remolded =
-    transition_ranges
-    |> List.fold_left(
-         (seg, (sort, (i, j))) => {
-           let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
-           let subseg = remold(subseg, sort);
-           List.concat([pre, subseg, suf]);
-         },
-         s_molded,
-       );
 
-  // remold bidelimited children
-  List.combine(seg, uni_remolded)
-  |> List.map(
-       fun
-       | (Piece.(Grout(_) | Whitespace(_)), p)
-       | (_, Piece.(Grout(_) | Whitespace(_)) as p) => p
-       | (Tile(t_seg), Tile(t_remolded)) => {
-           let children =
-             List.fold_right(
-               ((l, child, r), children) => {
-                 // this optimization avoids remolding bidelimited children
-                 // if they are not freshly contained and container sort
-                 // remains unchanged. may not be necessary now that remolding
-                 // is no longer exponential, could be worth removing to
-                 // reduce complexity + IncompleteBidelim hack
-                 let child =
-                   if (l
-                       + 1 == r
-                       && (
-                         List.nth(t_seg.mold.in_, l)
-                         != List.nth(t_remolded.mold.in_, l)
-                         || IncompleteBidelim.contains(t_remolded.id, l)
-                       )) {
-                     remold(child, List.nth(t_remolded.mold.in_, l));
-                   } else {
-                     child;
-                   };
-                 [child, ...children];
-               },
-               Aba.aba_triples(
-                 Aba.mk(t_remolded.shards, t_remolded.children),
-               ),
-               [],
-             );
-           Tile({...t_remolded, children});
-         },
-     );
-};
+let rec remold_exp = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_exp(shape, tl)]
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Exp)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Pat}) =>
+          let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
+        | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
+        }
+      };
+    }
+  };
 
-// let remold = (seg: t, s: Sort.t): t => {
+let remold = (seg: t, s: Sort.t) =>
+  switch (s) {
+  | Any => seg
+  | Pat => remold_pat(Nib.Shape.concave(), seg)
+  | Exp => remold_exp(Nib.Shape.concave(), seg)
+  | _ => failwith("unexpected")
+  };
 
-//   let tiles = List.filter_map(Piece.is_tile, seg);
-
-//   let molds =
-//     tiles
-//     |> List.map((t: Tile.t) => Id.Map.singleton(t.id, Molds.get(t.label)))
-//     |> List.fold_left(Id.Map.disj_union, Id.Map.empty);
-
-//   let l_molds =
-//     tiles
-//     |> List.fold_left_map(
-//       ((hard_sort, soft_sorts), t) => {
-//         let molds
-//         Molds.get(t.label)
-//         |> List.filter(m =>
-//           Sort.consistent(m.out, hard_sort)
-//           || (
-//             soft_sorts
-//             |> List.exists(s => Sort.consistent(m.out, s))
-//           )
-//         )
-//       },
-//       (s, []),
+// let rec remold_tile =
+//         (stack: list(Sort.t), nib: Nib.t, t: Tile.t)
+//         : (list(Sort.t), Nib.t, Tile.t) => {
+//   let remolded =
+//     Molds.get(t.label)
+//     |> List.filter((m: Mold.t) => Sort.consistent(m.out, nib.sort))
+//     |> List.map(mold => {...t, mold})
+//     |> (
+//       fun
+//       | [_] as ts => ts
+//       | ts =>
+//         ts
+//         |> List.filter(t => Nib.Shape.fits(nib.shape, fst(Tile.shapes(t))))
 //     )
-// }
+//     |> ListUtil.hd_opt;
+//   let return = t => {
+//     let nib' = snd(Tile.nibs(t));
+//     nib'.sort == nib.sort
+//       ? (stack, nib', t) : ([nib.sort, ...stack], nib', t);
+//   };
+//   let pop = () =>
+//     switch (stack) {
+//     | [] => (stack, snd(Tile.nibs(t)), t)
+//     | [hd, ...tl] =>
+//       // TODO double check this nib weirdness
+//       remold_tile(tl, {...nib, sort: hd}, t)
+//     };
+//   switch (remolded) {
+//   | Some(t) => return(t)
+//   | None =>
+//     switch (Sort.left_uni(nib.sort)) {
+//     | Some(s) => remold_tile([nib.sort, ...stack], {...nib, sort: s}, t)
+//     | None => pop()
+//     }
+//   };
+// };
 
-// let rec remold = (seg: t, s: Sort.t): t => {
-//   let tiles = List.filter_map(Piece.is_tile, seg);
-
-//   let molds =
-//     tiles
-//     |> List.map((t: Tile.t) => Id.Map.singleton(t.id, Molds.get(t.label)))
-//     |> List.fold_left(Id.Map.disj_union, Id.Map.empty);
-
-//   let ((molds, _), iss) =
-//     tiles
-//     |> List.mapi((i, t) => (i, t))
-//     |> List.fold_left_map(
-//          ((molds, shape), (i, t: Tile.t)) => {
-//            let ms = Id.Map.find(t.id, molds);
-//            let ms =
-//              ms
-//              |> List.filter(Mold.fits_shape(Left, shape))
-//              |> (
-//                fun
-//                | [] => ms
-//                | [_, ..._] as ms => ms
-//              );
-//            let molds = Id.Map.update(t.id, _ => Some(ms), molds);
-//            let r =
-//              snd(Mold.consistent_shapes(ms))
-//              |> OptUtil.get_or_fail(
-//                   "currently expecting right shapes to be unambiguous for any label",
-//                 );
-//            ((molds, r), (i, (Nib.Shape.flip(shape), r)));
+// let remold = (seg: t, s: Sort.t) => {
+//   seg
+//   |> List.fold_left_map(
+//        ((stack, nib) as acc, p: Piece.t) =>
+//          switch (p) {
+//          | Whitespace(_)
+//          | Grout(_) => (acc, p)
+//          | Tile(t) =>
+//            let (stack, nib, t) = remold_tile(stack, nib, t);
+//            ((stack, nib), Tile(t));
 //          },
-//          (molds, Nib.Shape.concave()),
+//        ([], Nib.{shape: Shape.concave(), sort: s}),
+//      )
+//   |> snd;
+// };
+
+// let rec remold = (seg: t, s: Sort.t) => {
+//   // eagerly remold as container sort
+//   let (_, s_molded) =
+//     seg
+//     |> List.fold_left_map(
+//          (shape, p: Piece.t) =>
+//            switch (p) {
+//            | Whitespace(_)
+//            | Grout(_) => (shape, p)
+//            | Tile(t) =>
+//              let t =
+//                Molds.get(t.label)
+//                |> List.filter((m: Mold.t)
+//                     // m.out == s
+//                     =>
+//                       m.out == s
+//                       || List.exists(s => s == m.out, Sort.left_uni(s))
+//                     )
+//                |> List.map(mold => {...t, mold})
+//                |> (
+//                  fun
+//                  | [_] as ts => ts
+//                  | ts =>
+//                    ts
+//                    |> List.filter(t =>
+//                         Nib.Shape.fits(shape, fst(Tile.shapes(t)))
+//                       )
+//                )
+//                |> ListUtil.hd_opt
+//                |> OptUtil.get(() => t);
+//              // Molds.get(t.label)
+//              // |> List.filter((m: Mold.t) =>
+//              //      List.exists(s => s == m.out, Sort.left_uni(s))
+//              //    )
+//              // |> List.map(mold => {...t, mold})
+//              // |> (
+//              //   fun
+//              //   | [_] as ts => ts
+//              //   | ts =>
+//              //     ts
+//              //     |> List.filter(t =>
+//              //          Nib.Shape.fits(shape, fst(Tile.shapes(t)))
+//              //        )
+//              // )
+//              // |> ListUtil.hd_opt
+//              // |> OptUtil.get(() => t)
+
+//              (snd(Tile.shapes(t)), Tile(t));
+//            },
+//          Nib.Shape.concave(),
 //        );
 
-//   let rec filter_sorts = (skel: Skel.t, s: Sort.t): Id.Map.t(Mold.t) => {
-//     switch (List.nth(tiles, Skel.root_index(skel))) {
-//     | exception (Invalid_argument(_)) =>
-//       // hole
-//       Id.Map.empty
-//     | t =>
-//       let ms = Id.Map.find(t.id, molds);
-//       let mold =
-//         ms
-//         |> List.filter((m: Mold.t) => Sort.consistent(s, m.out))
-//         |> (
-//           fun
-//           | [] => List.hd(ms)
-//           | [m, ..._] => m
-//         );
-//       let (l, r) = mold.nibs;
-//       let inner_molds =
-//         switch (skel) {
-//         | Op(_) => Id.Map.empty
-//         | Pre(_, skel) => filter_sorts(skel, r.sort)
-//         | Post(skel, _) => filter_sorts(skel, l.sort)
-//         | Bin(skel_l, _, skel_r) =>
-//           Id.Map.disj_union(
-//             filter_sorts(skel_l, l.sort),
-//             filter_sorts(skel_r, r.sort),
-//           )
+//   // for all molds producing output sort with different unidelimited sort,
+//   // identify maximal subranges to remold as the unidelimited sort
+//   let nth = List.nth(s_molded);
+//   let sortable = sort =>
+//     fun
+//     | Piece.Whitespace(_)
+//     | Grout(_) => true
+//     | Tile(t) =>
+//       Molds.get(t.label) |> List.exists((m: Mold.t) => m.out == sort);
+//   let transition_ranges = {
+//     let ranges = ref([]);
+//     let hwm = ref(-1);
+//     let i = ref(0);
+//     while (i^ < List.length(s_molded)) {
+//       switch (nth(i^)) {
+//       | Whitespace(_)
+//       | Grout(_) => ()
+//       | Tile(t) when t.mold.out != s => ()
+//       | Tile(t) =>
+//         let (l, r) = Tile.nibs(t);
+//         switch (l) {
+//         | {shape: Concave(_), sort} when sort != s =>
+//           let j = ref(i^ - 1);
+//           while (j^ > hwm^ && sortable(sort, nth(j^))) {
+//             j := j^ - 1;
+//           };
+//           ranges := [(sort, (j^ + 1, i^ - 1)), ...ranges^];
+//         | _ => ()
 //         };
-//       Id.Map.add(t.id, mold, inner_molds);
+//         hwm := i^;
+//         switch (r) {
+//         | {shape: Concave(_), sort} when sort != s =>
+//           let j = ref(i^ + 1);
+//           while (j^ < List.length(s_molded) && sortable(sort, nth(j^))) {
+//             j := j^ + 1;
+//           };
+//           ranges := [(sort, (i^ + 1, j^ - 1)), ...ranges^];
+//           hwm := j^ - 1;
+//         | _ => ()
+//         };
+//       };
+//       i := i^ + 1;
 //     };
+//     ranges^;
 //   };
+//   let uni_remolded =
+//     transition_ranges
+//     |> List.fold_left(
+//          (seg, (sort, (i, j))) => {
+//            let (pre, subseg, suf) = ListUtil.split_sublist(i, j + 1, seg);
+//            let subseg = remold(subseg, sort);
+//            List.concat([pre, subseg, suf]);
+//          },
+//          s_molded,
+//        );
 
-//   let skels = Skel.mk_err(iss);
-//   let molds =
-//     switch (skels) {
-//     | [skel] => filter_sorts(skel, s)
-//     | _ =>
-//       skels
-//       |> List.map(skel => filter_sorts(skel, Any))
-//       |> List.fold_left(Id.Map.disj_union, Id.Map.empty)
-//     };
-
-//   seg
+//   // remold bidelimited children
+//   List.combine(seg, uni_remolded)
 //   |> List.map(
 //        fun
-//        | Piece.(Grout(_) | Whitespace(_)) as p => p
-//        | Tile(t) => {
-//            let mold = Id.Map.find(t.id, molds);
+//        | (Piece.(Grout(_) | Whitespace(_)), p)
+//        | (_, Piece.(Grout(_) | Whitespace(_)) as p) => p
+//        | (Tile(t_seg), Tile(t_remolded)) => {
 //            let children =
 //              List.fold_right(
 //                ((l, child, r), children) => {
+//                  // this optimization avoids remolding bidelimited children
+//                  // if they are not freshly contained and container sort
+//                  // remains unchanged. may not be necessary now that remolding
+//                  // is no longer exponential, could be worth removing to
+//                  // reduce complexity + IncompleteBidelim hack
 //                  let child =
 //                    if (l
 //                        + 1 == r
 //                        && (
-//                          List.nth(mold.in_, l) != List.nth(t.mold.in_, l)
-//                          || IncompleteBidelim.contains(t.id, l)
+//                          List.nth(t_seg.mold.in_, l)
+//                          != List.nth(t_remolded.mold.in_, l)
+//                          || IncompleteBidelim.contains(t_remolded.id, l)
 //                        )) {
-//                      remold(child, List.nth(mold.in_, l));
+//                      remold(child, List.nth(t_remolded.mold.in_, l));
 //                    } else {
 //                      child;
 //                    };
 //                  [child, ...children];
 //                },
-//                Aba.aba_triples(Aba.mk(t.shards, t.children)),
+//                Aba.aba_triples(
+//                  Aba.mk(t_remolded.shards, t_remolded.children),
+//                ),
 //                [],
 //              );
-//            Tile({...t, mold, children});
+//            Tile({...t_remolded, children});
 //          },
 //      );
 // };
