@@ -93,39 +93,55 @@ let dcomp = (direction: Direction.t, a, b) =>
   | Left => comp(b, a)
   };
 
-let rec do_towards =
-        (
-          f: t => option(t),
-          d: Direction.t,
-          cursorpos: t => Measured.point,
-          goal: Measured.point,
-          cur: t,
-          prev: t,
-        )
-        : t => {
-  let cur_p = cursorpos(cur);
-  //Printf.printf("go_towards: current: %s\n", Measured.show_point(cur_p));
-  switch (dcomp(d, cur_p.col, goal.col), dcomp(d, cur_p.row, goal.row)) {
-  | (Exact, Exact) => cur
-  | (_, Over) => prev
-  | (_, Under)
-  | (Under, Exact) =>
-    switch (f(cur)) {
-    | None => cur
-    | Some(next) => do_towards(f, d, cursorpos, goal, next, cur)
-    }
-  | (Over, Exact) =>
-    let d_cur = abs(cur_p.col - goal.col);
-    let d_prev = abs(cursorpos(prev).col - goal.col);
-    switch () {
-    | _ when d_cur < d_prev => cur
-    | _ when d_prev < d_cur => prev
-    | _ => cur /* default to going over */
+let do_towards =
+    (
+      ~anchor: option(Measured.point)=?,
+      f: (Direction.t, t) => option(t),
+      goal: Measured.point,
+      z: t,
+    )
+    : option(t) => {
+  let cursorpos = point(Measured.of_segment(unselect_and_zip(z)));
+  let init = cursorpos(z);
+  let d =
+    goal.row < init.row || goal.row == init.row && goal.col < init.col
+      ? Direction.Left : Right;
+
+  let rec go = (prev: t, curr: t) => {
+    let curr_p = cursorpos(curr);
+    switch (dcomp(d, curr_p.col, goal.col), dcomp(d, curr_p.row, goal.row)) {
+    | (Exact, Exact) => curr
+    | (_, Over) => prev
+    | (_, Under)
+    | (Under, Exact) =>
+      switch (f(d, curr)) {
+      | None => curr
+      | Some(next) => go(curr, next)
+      }
+    | (Over, Exact) =>
+      switch (anchor) {
+      | None =>
+        let d_curr = abs(curr_p.col - goal.col);
+        let d_prev = abs(cursorpos(prev).col - goal.col);
+        // default to going over when equal
+        d_prev < d_curr ? prev : curr;
+      | Some(anchor) =>
+        let anchor_d =
+          goal.row < anchor.row
+          || goal.row == anchor.row
+          && goal.col < anchor.col
+            ? Direction.Left : Right;
+        anchor_d == d ? curr : prev;
+      }
     };
   };
+
+  let res = go(z, z);
+  Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
 };
 
-let do_vertical = (f: t => option(t), d: Direction.t, z: t): option(t) => {
+let do_vertical =
+    (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
   /* Here f should be a function which results in strict d-wards
      movement of the caret. Iterate f until we get to the closet
      caret position to a target derived from the initial position */
@@ -138,12 +154,11 @@ let do_vertical = (f: t => option(t), d: Direction.t, z: t): option(t) => {
     };
   // Printf.printf("Caret.do_vertical: cur: %s\n", Measured.show_point(cur_p));
   // Printf.printf("Caret.do_vertical: goal: %s\n", Measured.show_point(goal));
-  let res = do_towards(f, d, cursorpos, goal, z, z);
-  let res_p = cursorpos(res);
-  Measured.point_equals(res_p, cur_p) ? None : Some(res);
+  do_towards(f, goal, z);
 };
 
-let do_extreme = (f: t => option(t), d: planar, z: t): option(t) => {
+let do_extreme =
+    (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
   let cursorpos = point(Measured.of_segment(unselect_and_zip(z)));
   let cur_p = cursorpos(z);
   let goal: Measured.point =
@@ -153,6 +168,5 @@ let do_extreme = (f: t => option(t), d: planar, z: t): option(t) => {
     | Up => {col: 0, row: 0}
     | Down => {col: Int.max_int, row: Int.max_int}
     };
-  let res = do_towards(f, from_plane(d), cursorpos, goal, z, z);
-  Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
+  do_towards(f, goal, z);
 };

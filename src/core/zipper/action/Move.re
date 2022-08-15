@@ -77,7 +77,7 @@ let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
 
 let vertical = (d: Direction.t, z: t): option(t) =>
   z.selection.content == []
-    ? Caret.do_vertical(primary(ByChar, d), d, z)
+    ? Caret.do_vertical(primary(ByChar), d, z)
     : Some(Outer.directional_unselect(d, z));
 
 let targets_within_row = (map: Measured.t, z: t): list(t) => {
@@ -154,7 +154,7 @@ let rec to_backpack_target = (d: planar, map, z: t): option(t) => {
 };
 
 let to_start = z =>
-  switch (Caret.do_extreme(primary(ByToken, Zipper.from_plane(Up)), Up, z)) {
+  switch (Caret.do_extreme(primary(ByToken), Up, z)) {
   | Some(z) => Caret.update_target(z)
   | None => z
   };

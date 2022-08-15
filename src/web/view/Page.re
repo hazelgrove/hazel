@@ -125,12 +125,20 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
 
 let editor_view =
     (
-      {editor_model, font_metrics, show_backpack_targets, settings, _}: Model.t,
+      {
+        editor_model,
+        font_metrics,
+        show_backpack_targets,
+        settings,
+        mousedown,
+        _,
+      }: Model.t,
     ) =>
   Editor.view(
     ~editor_model,
     ~font_metrics,
     ~show_backpack_targets,
+    ~mousedown,
     ~settings,
   );
 
@@ -144,6 +152,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
         JsUtil.get_elem_by_id("page")##focus;
         Event.Many([]);
       }),
+      // safety handler in case mousedown overlay doesn't catch it
+      on_mouseup(_ => inject(Update.Mouseup)),
       ...handlers(~inject, ~model),
     ],
     [
