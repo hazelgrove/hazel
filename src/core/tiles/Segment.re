@@ -729,30 +729,14 @@ let sameline_whitespace =
 
 let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   let t = List.nth(seg);
-  let rec go = (in_sort: Sort.t, skel: Skel.t) => {
-    // NOTE(andrew): disable pass_sort to highlight entire term
-    /* NOTE(andrew): The Sort.Any part is a hack to prevent holes
-       from letting their kids be anything e.g. 1!><2 would
-       highlight the 1 but not the ! */
-    let pass_sort = (n, cur_sort) =>
-      cur_sort != Sort.Any
-      && Sort.consistent(fst(Piece.sort(t(n))), in_sort)
-        ? cur_sort : in_sort;
-    let side_sorts = (n: int) => {
-      let (l_sort, r_sort) = Piece.nib_sorts(t(n));
-      (pass_sort(n, l_sort), pass_sort(n, r_sort));
-    };
+  let rec go = (sort: Sort.t, skel: Skel.t) => {
+    let n = Skel.root_index(skel);
+    let (l_sort, r_sort) = Piece.nib_sorts(t(n));
     switch (skel) {
-    | Op(n) => [(n, in_sort)]
-    | Pre(n, sk_r) =>
-      let (_, r_sort) = side_sorts(n);
-      [(n, in_sort)] @ go(r_sort, sk_r);
-    | Post(sk_l, n) =>
-      let (l_sort, _) = side_sorts(n);
-      go(l_sort, sk_l) @ [(n, in_sort)];
-    | Bin(sk_l, n, sk_r) =>
-      let (l_sort, r_sort) = side_sorts(n);
-      go(l_sort, sk_l) @ [(n, in_sort)] @ go(r_sort, sk_r);
+    | Op(_) => [(n, sort)]
+    | Pre(_, r) => [(n, sort)] @ go(r_sort, r)
+    | Post(l, _) => go(l_sort, l) @ [(n, sort)]
+    | Bin(l, _, r) => go(l_sort, l) @ [(n, sort)] @ go(r_sort, r)
     };
   };
   seg |> skel |> go(sort);
