@@ -377,16 +377,7 @@ let multi_editor =
   let your_tests_view =
     switch (your_test_results) {
     | None => []
-    | Some(test_results) => [
-        TestView.test_summary(~inject, ~test_results),
-        /*
-         test_view(
-           ~title="Your tests:",
-           ~inject,
-           ~font_metrics,
-           ~test_results,
-         ),*/
-      ]
+    | Some(test_results) => [TestView.test_summary(~inject, ~test_results)]
     };
   let your_tests_layer =
     switch (your_test_results, editors) {
@@ -402,19 +393,12 @@ let multi_editor =
       div(
         [clss(["cell", "cell-result"])],
         [
-          //test_view(~title="Our tests:", ~inject, ~font_metrics, ~test_results),
-          //TestView.view_of_main_title_bar("Our tests:"),
           TestView.test_summary(~inject, ~test_results),
           TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
         ],
       )
     };
-  let school_panel = [
-    div(
-      [clss(["school-panel"])],
-      /*your_tests_view @ our_tests_view @ */ coverage_view,
-    ),
-  ];
+  let school_panel = [div([clss(["school-panel"])], coverage_view)];
   let ci_view =
     settings.statics
       ? {
