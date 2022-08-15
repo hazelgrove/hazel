@@ -10,9 +10,12 @@ let join_tile = (id): Core.Tile.t => {
   children: [],
 };
 
-let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
+let splice_editors = (editors: list(Model.editor)): Core.Segment.t => {
   editors
-  |> List.map((ed: Model.editor) => Core.Zipper.unselect_and_zip(ed.zipper))
+  |> List.map((ed: Model.editor) => {
+       let (zipper, _) = Core.Perform.drop_it_like_its_hot(ed.zipper, 6000);
+       Core.Zipper.unselect_and_zip(zipper);
+     })
   |> (
     xs =>
       Util.ListUtil.interleave(
@@ -23,6 +26,7 @@ let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
       )
   )
   |> List.flatten;
+};
 
 let spliced_statics = (editors: list(Model.editor)) => {
   let term = editors |> splice_editors |> Core.MakeTerm.go;

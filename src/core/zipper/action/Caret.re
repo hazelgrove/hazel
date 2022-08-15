@@ -170,3 +170,11 @@ let do_extreme =
     };
   do_towards(f, goal, z);
 };
+
+let rec fixpoint = (f: t => option(t), cur: t): t => {
+  switch (f(cur)) {
+  | None => cur
+  | Some(next) when next == cur => cur
+  | Some(next) => fixpoint(f, next)
+  };
+};

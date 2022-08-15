@@ -154,3 +154,38 @@ let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) => {
     |> Result.of_option(~error=Action.Failure.Cant_move);
   };
 };
+
+let drop_it_like_its_hot =
+    (~move_first=false, z: Zipper.t, id_gen): (Zipper.t, int) => {
+  //let id_zz = ref(id_gen);
+  /* We start by moving... if we're in the middle of a token,
+     to the end of the token, or if not, we move over by one
+     token so that the CI for the indicated token (provided
+     the rightwards token is indicated) will be based on the
+     put-down semantics */
+  let z =
+    z.caret == Outer
+      ? switch (Move.primary(ByToken, Right, z)) {
+        | Some(z) when move_first => z
+        | _ => z
+        }
+      : (
+        switch (Move.pop_move(Right, z)) {
+        | Some(z) => z
+        | None => z
+        }
+      );
+  //id_zz := id_gen;
+  let drop_or_move = (z: Zipper.t): option(Zipper.t) => {
+    switch (Outer.put_down(z)) {
+    | None => Move.primary(ByToken, Right, z)
+    | Some(z) =>
+      //let id_gen = id_zz^;
+      let (z, _id_gen) = remold_regrout(Left, z, id_gen);
+      //id_zz := id_gen;
+      Some(z);
+    };
+  };
+  //let id_gen = id_zz^;
+  (Caret.fixpoint(drop_or_move, z), id_gen);
+};

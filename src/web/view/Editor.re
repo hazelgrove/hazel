@@ -28,18 +28,27 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   );
 
 let single_editor_semantics_views =
-    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
+    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~zipper) => {
+  let (ci_zipper, _) =
+    Core.Perform.drop_it_like_its_hot(~move_first=true, zipper, 6000);
+  let (eval_zipper, _) =
+    Core.Perform.drop_it_like_its_hot(~move_first=false, zipper, 6000);
+  let ci_segment = Zipper.unselect_and_zip(ci_zipper);
+  let eval_segment = Zipper.unselect_and_zip(eval_zipper);
+  let ci_term = MakeTerm.go(ci_segment);
+  let eval_term = MakeTerm.go(eval_segment);
+  let (_, _, ci_map) = Statics.mk_map(ci_term);
+  let (_, _, eval_map) = Statics.mk_map(eval_term);
   let test_results =
-    settings.dynamics ? Interface.test_results(map, term) : None;
+    settings.dynamics ? Interface.test_results(eval_map, eval_term) : None;
   let eval_result =
-    settings.dynamics ? Interface.evaulation_result(map, term) : None;
+    settings.dynamics
+      ? Interface.evaulation_result(eval_map, eval_term) : None;
   [
     div(
       [clss(["bottom-bar"])],
       [
-        CursorInspector.view(~inject, ~settings, index, map),
+        CursorInspector.view(~inject, ~settings, index, ci_map),
         //CtxInspector.view(index, map),
       ]
       @ (
@@ -145,13 +154,12 @@ let single_editor =
       ~settings: Model.settings,
     )
     : Node.t => {
-  let unselected = Zipper.unselect_and_zip(zipper);
   let code_id = "code-container";
   let code_view =
     code_container(
       ~id=code_id,
       ~font_metrics,
-      ~unselected,
+      ~unselected=Zipper.unselect_and_zip(zipper),
       ~settings,
       ~show_backpack_targets,
       ~show_deco=true,
@@ -164,7 +172,7 @@ let single_editor =
           ~settings,
           ~font_metrics,
           ~index=Indicated.index(zipper),
-          ~unselected,
+          ~zipper,
         )
       : [];
   let mousedown_overlay =
@@ -377,16 +385,7 @@ let multi_editor =
   let your_tests_view =
     switch (your_test_results) {
     | None => []
-    | Some(test_results) => [
-        TestView.test_summary(~inject, ~test_results),
-        /*
-         test_view(
-           ~title="Your tests:",
-           ~inject,
-           ~font_metrics,
-           ~test_results,
-         ),*/
-      ]
+    | Some(test_results) => [TestView.test_summary(~inject, ~test_results)]
     };
   let your_tests_layer =
     switch (your_test_results, editors) {
@@ -402,19 +401,12 @@ let multi_editor =
       div(
         [clss(["cell", "cell-result"])],
         [
-          //test_view(~title="Our tests:", ~inject, ~font_metrics, ~test_results),
-          //TestView.view_of_main_title_bar("Our tests:"),
           TestView.test_summary(~inject, ~test_results),
           TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
         ],
       )
     };
-  let school_panel = [
-    div(
-      [clss(["school-panel"])],
-      /*your_tests_view @ our_tests_view @ */ coverage_view,
-    ),
-  ];
+  let school_panel = [div([clss(["school-panel"])], coverage_view)];
   let ci_view =
     settings.statics
       ? {

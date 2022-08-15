@@ -1103,7 +1103,7 @@ svg {
 .result {
   max-height: 4.5em;
   min-height: 1.6em;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 /* DYNAMICS - DHEXP */
