@@ -15,6 +15,7 @@ let test_report_view =
     (
       ~inject,
       ~font_metrics,
+      ~description: option(string)=None,
       i: int,
       (_id, instance_reports): TestMap.test_report,
     ) => {
@@ -32,7 +33,13 @@ let test_report_view =
         [Attr.class_("test-instances")],
         List.map(test_instance_view(~font_metrics), instance_reports),
       ),
-    ],
+    ]
+    @ (
+      switch (description) {
+      | None => []
+      | Some(d) => [div([clss(["test-description"])], [text(d)])]
+      }
+    ),
   );
 };
 
@@ -41,7 +48,14 @@ let test_reports_view =
   div(
     [clss(["panel-body", "test-reports"])],
     List.mapi(
-      test_report_view(~inject, ~font_metrics),
+      (i, r) =>
+        test_report_view(
+          ~inject,
+          ~font_metrics,
+          ~description=List.nth_opt(test_results.descriptions, i),
+          i,
+          r,
+        ),
       test_results.test_map,
     ),
   );
@@ -156,7 +170,7 @@ let test_summary = (~inject, ~test_results: Interface.test_results) => {
     | _ => "Fail"
     };
   div(
-    [clss(["test-summary", "instructional-msg", status_class])],
+    [clss(["test-summary", status_class])],
     [test_text(test_results), test_bar(~inject, ~test_results)],
   );
 };
