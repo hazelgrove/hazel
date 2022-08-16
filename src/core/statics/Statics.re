@@ -23,8 +23,8 @@ type info_exp = {
   cls: Term.UExp.cls,
   mode: Typ.mode,
   self: Typ.self,
-  ctx: Ctx.t,
-  free: Ctx.co,
+  ctx: Typ.Ctx.t,
+  free: Typ.Ctx.co,
   // TODO: add derived attributes like error_status and typ_after_fix?
 };
 
@@ -36,13 +36,14 @@ type info_pat = {
   cls: Term.UPat.cls,
   mode: Typ.mode,
   self: Typ.self,
-  ctx: Ctx.t // TODO: detect in-pattern shadowing
+  ctx: Typ.Ctx.t // TODO: detect in-pattern shadowing
 };
 
 /* (Syntactic) Types are assigned their corresponding semantic type. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
   cls: Term.UTyp.cls,
+  ctx: Typ.Ctx.t,
   ty: Typ.t,
 };
 
@@ -83,34 +84,51 @@ type error_status =
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
+let error_status =
+    (ctx: Typ.Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(tys_syn))
-  | (Ana(Unknown(SynSwitch)), Joined(tys_syn)) =>
+  | (Syn, Joined(tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
     //TODO: clarify SynSwitch case
-    switch (Typ.join_all(tys_syn)) {
+    switch (Typ.join_all(ctx, tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
     };
+  | (Ana(ty_ana), Joined(tys_syn)) =>
+    switch (Typ.to_syntax(ty_ana)) {
+    | Unknown(SynSwitch) =>
+      let tys_syn = Typ.source_tys(tys_syn);
+      //TODO: clarify SynSwitch case
+      switch (Typ.join_all(ctx, tys_syn)) {
+      | None => InHole(SynInconsistentBranches(tys_syn))
+      | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
+      };
+    | Unknown(TypeHole | Internal)
+    | Int
+    | Float
+    | Bool
+    | List(_)
+    | Arrow(_)
+    | Prod(_)
+    | TyVar(_) =>
+      // TODO: review logic of these cases
+      switch (Typ.join_all(ctx, Typ.source_tys(tys_syn))) {
+      | Some(ty_syn) =>
+        switch (Typ.join(ctx, ty_syn, ty_ana)) {
+        | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
+        | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+        }
+      | None =>
+        NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
+      }
+    }
   | (Ana(ty_ana), Just(ty_syn)) =>
-    switch (Typ.join(ty_ana, ty_syn)) {
+    switch (Typ.join(ctx, ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
-    }
-  | (Ana(ty_ana), Joined(tys_syn)) =>
-    // TODO: review logic of these cases
-    switch (Typ.join_all(Typ.source_tys(tys_syn))) {
-    | Some(ty_syn) =>
-      switch (Typ.join(ty_syn, ty_ana)) {
-      | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
-      | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
-      }
-    | None =>
-      NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
     }
   };
 
@@ -122,9 +140,9 @@ let is_error = (ci: t): bool => {
   switch (ci) {
   | Invalid(Whitespace) => false
   | Invalid(_) => true
-  | InfoExp({mode, self, _})
-  | InfoPat({mode, self, _}) =>
-    switch (error_status(mode, self)) {
+  | InfoExp({mode, self, ctx, _})
+  | InfoPat({mode, self, ctx, _}) =>
+    switch (error_status(ctx, mode, self)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -135,9 +153,9 @@ let is_error = (ci: t): bool => {
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
-  switch (error_status(mode, self)) {
-  | InHole(_) => Unknown(Internal)
+let typ_after_fix = (ctx: Typ.Ctx.t, mode: Typ.mode, self: Typ.self): Typ.t =>
+  switch (error_status(ctx, mode, self)) {
+  | InHole(_) => Typ.of_syntax(Unknown(Internal))
   | NotInHole(SynConsistent(t)) => t
   | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
   | NotInHole(AnaExternalInconsistent(ty_ana, _)) => ty_ana
@@ -145,17 +163,17 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
   };
 
 /* The type of an expression after hole wrapping */
-let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
+let exp_typ = (ctx: Typ.Ctx.t, m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(e.id, m)) {
-  | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoExp({mode, self, _})) => typ_after_fix(ctx, mode, self)
   | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
 /* The type of a pattern after hole wrapping */
-let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
+let pat_typ = (ctx: Typ.Ctx.t, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(p.id, m)) {
-  | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoPat({mode, self, _})) => typ_after_fix(ctx, mode, self)
   | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
@@ -167,8 +185,8 @@ let union_m =
   );
 
 let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
-  switch (ty_ann, pat.term, def.term) {
+    (ctx: Typ.Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
+  switch (Typ.to_syntax(ty_ann), pat.term, def.term) {
   | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_) | FunAnn(_)) =>
     VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
   | _ => ctx
@@ -176,50 +194,50 @@ let extend_let_def_ctx =
 
 let typ_exp_binop_int: Term.UExp.op_int => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Int
-  | (LessThan | GreaterThan | Equals) as _op => Bool;
+  | (Plus | Minus | Times | Divide) as _op => Typ.int()
+  | (LessThan | GreaterThan | Equals) as _op => Typ.bool();
 
 let typ_exp_binop_float: Term.UExp.op_float => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Int
-  | (LessThan | GreaterThan | Equals) as _op => Bool;
+  | (Plus | Minus | Times | Divide) as _op => Typ.int()
+  | (LessThan | GreaterThan | Equals) as _op => Typ.bool();
 
 let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
-  | Bool(And | Or) => (Bool, Bool, Bool)
-  | Int(op) => (Int, Int, typ_exp_binop_int(op))
-  | Float(op) => (Float, Float, typ_exp_binop_float(op));
+  | Bool(And | Or) => (Typ.bool(), Typ.bool(), Typ.bool())
+  | Int(op) => (Typ.int(), Typ.int(), typ_exp_binop_int(op))
+  | Float(op) => (Typ.float(), Typ.float(), typ_exp_binop_float(op));
 
 let rec uexp_to_info_map =
-        (~ctx: Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
-        : (Typ.t, Ctx.co, map) => {
+        (~ctx: Typ.Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
+        : (Typ.t, Typ.Ctx.co, map) => {
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
-    typ_after_fix(mode, self),
+    typ_after_fix(ctx, mode, self),
     free,
     Id.Map.add(id, InfoExp({cls, self, mode, ctx, free}), m),
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(msg, _p) => (
-      Unknown(Internal),
+      Typ.unknown(Internal),
       [],
       Id.Map.singleton(id, Invalid(msg)),
     )
   | MultiHole(ids, es) =>
     let es = List.map(go(~mode=Syn), es);
     let self = Typ.Multi;
-    let free = Ctx.union(List.map(((_, f, _)) => f, es));
+    let free = Typ.Ctx.union(List.map(((_, f, _)) => f, es));
     let info = InfoExp({cls, self, mode, ctx, free});
     let m = union_m(List.map(((_, _, m)) => m, es));
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), free, m);
-  | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Triv => atomic(Just(Prod([])))
-  | Bool(_) => atomic(Just(Bool))
-  | Int(_) => atomic(Just(Int))
-  | Float(_) => atomic(Just(Float))
+    (typ_after_fix(ctx, mode, self), free, m);
+  | EmptyHole => atomic(Just(Typ.unknown(Internal)))
+  | Triv => atomic(Just(Typ.product([])))
+  | Bool(_) => atomic(Just(Typ.bool()))
+  | Int(_) => atomic(Just(Typ.int()))
+  | Float(_) => atomic(Just(Typ.float()))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -235,29 +253,29 @@ let rec uexp_to_info_map =
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
-      ~free=Ctx.union([free1, free2]),
+      ~free=Typ.Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
   | Tuple(ids, es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
-    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
-    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
+    let free = Typ.Ctx.union(List.map(((_, f, _)) => f, infos));
+    let self = Typ.Just(Typ.product(List.map(((ty, _, _)) => ty, infos)));
     let info = InfoExp({cls, self, mode, ctx, free});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), free, m);
+    (typ_after_fix(ctx, mode, self), free, m);
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
-    let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
+    let (_, free2, m2) = go(~mode=Ana(Typ.list(ty1)), e2);
     add(
-      ~self=Just(List(ty1)),
-      ~free=Ctx.union([free1, free2]),
+      ~self=Just(Typ.list(ty1)),
+      ~free=Typ.Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
+  | ListLit([], []) => atomic(Just(Typ.list(Typ.unknown(Internal))))
   | ListLit(ids, es) =>
     //TODO(andrew) LISTLITS: below is placeholder logic, might be messy/wrong/incomplete
     let modes = Typ.matched_list_lit_mode(mode, List.length(es));
@@ -265,26 +283,26 @@ let rec uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Typ.join_all(tys)) {
+      switch (Typ.join_all(ctx, tys)) {
       | None => Joined(List.map2((id, ty) => Typ.{id, ty}, e_ids, tys))
-      | Some(ty) => Just(List(ty))
+      | Some(ty) => Just(Typ.list(ty))
       };
-    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let free = Typ.Ctx.union(List.map(((_, f, _)) => f, infos));
     let info = InfoExp({cls, self, mode, ctx, free});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), free, m);
+    (typ_after_fix(ctx, mode, self), free, m);
   | Test(test) =>
-    let (_, free_test, m1) = go(~mode=Ana(Bool), test);
-    add(~self=Just(Prod([])), ~free=free_test, m1);
+    let (_, free_test, m1) = go(~mode=Ana(Typ.bool()), test);
+    add(~self=Just(Typ.product([])), ~free=free_test, m1);
   | If(cond, e1, e2) =>
-    let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
+    let (_, free_e0, m1) = go(~mode=Ana(Typ.bool()), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     add(
       ~self=Joined([{id: e1.id, ty: ty_e1}, {id: e2.id, ty: ty_e2}]),
-      ~free=Ctx.union([free_e0, free_e1, free_e2]),
+      ~free=Typ.Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
   | Seq(e1, e2) =>
@@ -292,7 +310,7 @@ let rec uexp_to_info_map =
     let (ty2, free2, m2) = go(~mode, e2);
     add(
       ~self=Just(ty2),
-      ~free=Ctx.union([free1, free2]),
+      ~free=Typ.Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
@@ -300,7 +318,8 @@ let rec uexp_to_info_map =
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(
         ~ctx,
-        ~mode=Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))),
+        ~mode=
+          Ana(Typ.arrow(Typ.unknown(SynSwitch), Typ.unknown(SynSwitch))),
         fn,
       );
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -308,7 +327,7 @@ let rec uexp_to_info_map =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
       ~self=Just(ty_out),
-      ~free=Ctx.union([free_fn, free_arg]),
+      ~free=Typ.Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
   | Fun(pat, body) =>
@@ -318,18 +337,18 @@ let rec uexp_to_info_map =
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
-      ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract(ctx_pat, free_body),
+      ~self=Just(Typ.arrow(ty_pat, ty_body)),
+      ~free=Typ.Ctx.subtract(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
   | FunAnn(pat, typ, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
+    let (ty_ann, m_typ) = utyp_to_info_map(~ctx, typ);
     let (mode_pat, mode_body) =
       switch (mode) {
       | Syn => (Typ.Syn, Typ.Syn)
       | Ana(ty) =>
         let (ty_in, ty_out) = Typ.matched_arrow(ty);
-        let ty_in' = Typ.join_or_fst(ty_ann, ty_in);
+        let ty_in' = Typ.join_or_fst(ctx, ty_ann, ty_in);
         (Ana(ty_in'), Ana(ty_out));
       };
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
@@ -337,8 +356,8 @@ let rec uexp_to_info_map =
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
-      ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract(ctx_pat, free_body),
+      ~self=Just(Typ.arrow(ty_pat, ty_body)),
+      ~free=Typ.Ctx.subtract(ctx_pat, free_body),
       union_m([m_pat, m_body, m_typ]),
     );
   | Let(pat, def, body) =>
@@ -353,18 +372,19 @@ let rec uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
+      ~free=
+        Typ.Ctx.union([free_def, Typ.Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
   | LetAnn(pat, typ, def, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
+    let (ty_ann, m_typ) = utyp_to_info_map(~ctx, typ);
     let (ty_pat, _ctx_pat, m_pat) =
       upat_to_info_map(~mode=Ana(ty_ann), pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_ann);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Join if pattern and def are consistent, otherwise pattern wins */
-    let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
+    let joint_ty = Typ.join_or_fst(ctx, ty_pat, ty_def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
     let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
@@ -372,24 +392,25 @@ let rec uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
+      ~free=
+        Typ.Ctx.union([free_def, Typ.Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_typ, m_def, m_body]),
     );
   };
 }
 and upat_to_info_map =
-    (~ctx=Ctx.empty, ~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t)
-    : (Typ.t, Ctx.t, map) => {
+    (~ctx=Typ.Ctx.empty, ~mode: Typ.mode=Typ.Syn, {id, term}: Term.UPat.t)
+    : (Typ.t, Typ.Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => (
-    typ_after_fix(mode, self),
+    typ_after_fix(ctx, mode, self),
     ctx,
     Id.Map.add(id, InfoPat({cls, self, mode, ctx}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
   | Invalid(msg, _) => (
-      Unknown(Internal),
+      Typ.unknown(Internal),
       ctx,
       Id.Map.singleton(id, Invalid(msg)),
     )
@@ -399,17 +420,17 @@ and upat_to_info_map =
     let info: t = InfoPat({cls, self, mode, ctx});
     let m = union_m(List.map(((_, _, m)) => m, ps));
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), ctx, m);
-  | EmptyHole => atomic(Just(Unknown(SynSwitch)))
-  | Wild => atomic(Just(Unknown(SynSwitch)))
-  | Int(_) => atomic(Just(Int))
-  | Float(_) => atomic(Just(Float))
-  | Triv => atomic(Just(Prod([])))
-  | Bool(_) => atomic(Just(Bool))
-  | ListNil => atomic(Just(List(Unknown(Internal))))
+    (typ_after_fix(ctx, mode, self), ctx, m);
+  | EmptyHole => atomic(Just(Typ.unknown(SynSwitch)))
+  | Wild => atomic(Just(Typ.unknown(SynSwitch)))
+  | Int(_) => atomic(Just(Typ.int()))
+  | Float(_) => atomic(Just(Typ.float()))
+  | Triv => atomic(Just(Typ.product([])))
+  | Bool(_) => atomic(Just(Typ.bool()))
+  | ListNil => atomic(Just(Typ.list(Typ.unknown(Internal))))
   | Var(name) =>
-    let self = Typ.Just(Unknown(SynSwitch));
-    let typ = typ_after_fix(mode, self);
+    let self = Typ.Just(Typ.unknown(SynSwitch));
+    let typ = typ_after_fix(ctx, mode, self);
     add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Tuple(ids, ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
@@ -423,29 +444,30 @@ and upat_to_info_map =
         ps,
         modes,
       );
-    let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
+    let self = Typ.Just(Typ.product(List.map(((ty, _, _)) => ty, infos)));
     let info: t = InfoPat({cls, self, mode, ctx});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), ctx, m);
+    (typ_after_fix(ctx, mode, self), ctx, m);
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
   | TypeAnn(p, ty) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(ty);
+    let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
     add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
-and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+and utyp_to_info_map =
+    (~ctx: Typ.Ctx.t, {id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
-  let add = (m, id) => Id.Map.add(id, InfoTyp({cls, ty}), m);
+  let add = (m, id) => Id.Map.add(id, InfoTyp({cls, ctx, ty}), m);
   let return = m => (ty, add(m, id));
   switch (term) {
   | Invalid(msg, _) => (
-      Unknown(Internal),
+      Typ.unknown(Internal),
       Id.Map.singleton(id, Invalid(msg)),
     )
   | EmptyHole
@@ -454,15 +476,16 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   | Bool => return(Id.Map.empty)
   | List(t)
   | Parens(t) =>
-    let (_, m) = utyp_to_info_map(t);
+    let (_, m) = utyp_to_info_map(~ctx, t);
     return(m);
   | Arrow(t1, t2) =>
-    let (_, m_t1) = utyp_to_info_map(t1);
-    let (_, m_t2) = utyp_to_info_map(t2);
+    let (_, m_t1) = utyp_to_info_map(~ctx, t1);
+    let (_, m_t2) = utyp_to_info_map(~ctx, t2);
     return(union_m([m_t1, m_t2]));
   | MultiHole(ids, ts)
   | Tuple(ids, ts) =>
-    let m = ts |> List.map(utyp_to_info_map) |> List.map(snd) |> union_m;
+    let m =
+      ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
     let m = List.fold_left(add, m, ids);
     (ty, m);
   };
@@ -471,5 +494,5 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
 let mk_map =
   Core_kernel.Memo.general(
     ~cache_size_bound=1000,
-    uexp_to_info_map(~ctx=Ctx.empty),
+    uexp_to_info_map(~ctx=Typ.Ctx.empty),
   );

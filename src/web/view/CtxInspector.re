@@ -2,7 +2,8 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let context_entry_view = ((name: string, {typ, _}: Core.Ctx.entry)): Node.t =>
+let context_entry_view =
+    ((name: string, {typ, _}: Core.Typ.Ctx.entry)): Node.t =>
   div(
     [clss(["context-entry"])],
     [text(name), text(":"), Type.view(typ)],
@@ -10,10 +11,10 @@ let context_entry_view = ((name: string, {typ, _}: Core.Ctx.entry)): Node.t =>
 
 let ctxc = "context-entries";
 
-let exp_ctx_view = (ctx: Core.Ctx.t): Node.t =>
+let exp_ctx_view = (ctx: Core.Typ.Ctx.t): Node.t =>
   div([clss([ctxc, "exp"])], List.map(context_entry_view, ctx));
 
-let pat_ctx_view = (ctx: Core.Ctx.t): Node.t =>
+let pat_ctx_view = (ctx: Core.Typ.Ctx.t): Node.t =>
   div([clss([ctxc, "pat"])], List.map(context_entry_view, ctx));
 
 let ctx_sorts_view = (ci: Core.Statics.t): Node.t => {

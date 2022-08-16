@@ -87,14 +87,14 @@ let view_of_info = (ci: Core.Statics.t): Node.t => {
       [clss([infoc, "unknown"])],
       [text("🚫 " ++ Core.Term.show_parse_flag(msg))],
     )
-  | InfoExp({mode, self, _}) =>
-    let error_status = Core.Statics.error_status(mode, self);
+  | InfoExp({mode, self, ctx, _}) =>
+    let error_status = Core.Statics.error_status(ctx, mode, self);
     div(
       [clss([infoc, "exp"])],
       [term_tag(is_err, "exp"), status_view(error_status)],
     );
-  | InfoPat({mode, self, _}) =>
-    let error_status = Core.Statics.error_status(mode, self);
+  | InfoPat({mode, self, ctx, _}) =>
+    let error_status = Core.Statics.error_status(ctx, mode, self);
     div(
       [clss([infoc, "pat"])],
       [term_tag(is_err, "pat"), status_view(error_status)],
@@ -123,9 +123,9 @@ let extra_view = (visible: bool, id: int, ci: Core.Statics.t): Node.t =>
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   print_endline(Core.Statics.show(ci));
   switch (ci) {
-  | InfoPat({mode, self, _})
-  | InfoExp({mode, self, _}) =>
-    Core.Statics.error_status(mode, self)
+  | InfoPat({mode, self, ctx, _})
+  | InfoExp({mode, self, ctx, _}) =>
+    Core.Statics.error_status(ctx, mode, self)
     |> Core.Statics.show_error_status
     |> print_endline
   | _ => ()

@@ -328,19 +328,27 @@ module UExp = {
 
 /* Converts a syntactic type into a semantic type */
 let rec utyp_to_ty: UTyp.t => Typ.t =
-  utyp =>
-    switch (utyp.term) {
-    | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(TypeHole)
-    | Bool => Bool
-    | Int => Int
-    | Float => Float
-    | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
-    | List(u) => List(utyp_to_ty(u))
-    | Parens(u) => utyp_to_ty(u)
-    };
+  utyp => {
+    let ty =
+      switch (utyp.term) {
+      | Invalid(_)
+      | MultiHole(_) => Typ.Typ_syntax.Unknown(Internal)
+      | EmptyHole => Unknown(TypeHole)
+      | Bool => Bool
+      | Int => Int
+      | Float => Float
+      | Arrow(u1, u2) =>
+        Arrow(
+          Typ.to_syntax(utyp_to_ty(u1)),
+          Typ.to_syntax(utyp_to_ty(u2)),
+        )
+      | Tuple(_, us) =>
+        Prod(List.map(u => Typ.to_syntax(utyp_to_ty(u)), us))
+      | List(u) => List(Typ.to_syntax(utyp_to_ty(u)))
+      | Parens(u) => Typ.to_syntax(utyp_to_ty(u))
+      };
+    Typ.of_syntax(ty);
+  };
 
 type any =
   | Exp(UExp.t)

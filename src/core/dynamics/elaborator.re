@@ -1,20 +1,28 @@
 open OptUtil.Syntax;
 
 let rec htyp_of_typ: Typ.t => HTyp.t =
-  fun
-  | Unknown(_) => Hole
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | List(t) => List(htyp_of_typ(t))
-  | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
-  | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
+  ty =>
+    switch (Typ.to_syntax(ty)) {
+    | Unknown(_) => Hole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | List(t) => List(htyp_of_typ(Typ.of_syntax(t)))
+    | Arrow(t1, t2) =>
+      Arrow(
+        htyp_of_typ(Typ.of_syntax(t1)),
+        htyp_of_typ(Typ.of_syntax(t2)),
+      )
+    | Prod(tys) =>
+      Prod(List.map(ty => htyp_of_typ(Typ.of_syntax(ty)), tys))
+    | TyVar(_) => assert(false)
+    };
 
-let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
-let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
+let exp_htyp = (ctx, m, e) => htyp_of_typ(Statics.exp_typ(ctx, m, e));
+let pat_htyp = (ctx, m, p) => htyp_of_typ(Statics.pat_typ(ctx, m, p));
 
-let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
+let ctx_to_varctx = (ctx: Typ.Ctx.t): VarCtx.t =>
+  List.map(((k, {typ, _}: Typ.Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
 
 let int_op_of: Term.UExp.op_int => DHExp.BinIntOp.t =
   fun
@@ -51,7 +59,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(uexp.id, m)) {
   | Some(InfoExp({ctx, mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -94,9 +102,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(ListNil(Hole))
     | Fun(p, body)
     | FunAnn(p, _, body) =>
-      let* dp = dhpat_of_upat(m, p);
+      let* dp = dhpat_of_upat(ctx, m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = pat_htyp(m, p);
+      let ty1 = pat_htyp(ctx, m, p);
       wrap(DHExp.Lam(dp, ty1, d1));
     | Tuple(_ids, es) =>
       //TODO(andrew): review below
@@ -124,8 +132,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = exp_htyp(m, e1);
-      let ty2 = exp_htyp(m, e2);
+      let ty1 = exp_htyp(ctx, m, e1);
+      let ty2 = exp_htyp(ctx, m, e2);
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
@@ -154,9 +162,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         body,
       ) =>
       /* NOTE: recursive case */
-      let pat_typ = pat_htyp(m, p);
-      let def_typ = exp_htyp(m, def);
-      let* p = dhpat_of_upat(m, p);
+      let pat_typ = pat_htyp(ctx, m, p);
+      let def_typ = exp_htyp(ctx, m, def);
+      let* p = dhpat_of_upat(ctx, m, p);
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
       let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
@@ -164,15 +172,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body)
     | LetAnn(p, _, def, body) =>
-      let* dp = dhpat_of_upat(m, p);
+      let* dp = dhpat_of_upat(ctx, m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);
       wrap(Let(dp, ddef, dbody));
     | Ap(fn, arg) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = exp_htyp(m, fn);
-      let ty_arg = exp_htyp(m, arg);
+      let ty_fn = exp_htyp(ctx, m, fn);
+      let ty_arg = exp_htyp(ctx, m, arg);
       let* (ty_in, ty_out) = HTyp.matched_arrow(ty_fn);
       let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
@@ -197,10 +205,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   | None => None
   };
 }
-and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat =
+    (ctx: Typ.Ctx.t, m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(upat.id, m)) {
   | Some(InfoPat({mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -234,18 +243,18 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
           List.fold_left(
             (acc, p) => {
               let* acc = acc;
-              let+ d = dhpat_of_upat(m, p);
+              let+ d = dhpat_of_upat(ctx, m, p);
               DHPat.Pair(d, acc);
             },
-            dhpat_of_upat(m, p0),
+            dhpat_of_upat(ctx, m, p0),
             ps,
           );
         wrap(ds);
       }
     | Var(name) => Some(Var(name))
-    | Parens(p) => dhpat_of_upat(m, p)
+    | Parens(p) => dhpat_of_upat(ctx, m, p)
     | TypeAnn(p, _ty) =>
-      let* dp = dhpat_of_upat(m, p);
+      let* dp = dhpat_of_upat(ctx, m, p);
       wrap(dp);
     };
   | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
