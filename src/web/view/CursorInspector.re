@@ -112,7 +112,7 @@ let cls_view = (ci: Core.Statics.t): Node.t =>
   div([clss(["syntax-class"])], [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
-  div([clss(["id"])], [text(string_of_int(id))]);
+  div([clss(["id"])], [text(string_of_int(id + 1))]);
 
 let extra_view = (visible: bool, id: int, ci: Core.Statics.t): Node.t =>
   div(
