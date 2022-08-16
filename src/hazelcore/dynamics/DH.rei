@@ -118,7 +118,10 @@ and Environment: {
 
 /**
   [ClosureEnvironment] is an {!module:Environment} associated with an id, used
-  for the environments of {!DHExp.Closure}s.
+  for the environments of {!DHExp.Closure}s. {b Importantly, the bindings in
+  the environment are ordered (see {!VarBstMap.Ordered}), and any fixpoint
+  bindings must come after their dependencies (see also high-level dynamics
+  documentation).}
 
   ClosureEnvironments are numbered so that operations on them (e.g., during
   hole numbering) can be memoized; the id allows for quick equality checking
@@ -203,6 +206,11 @@ and ClosureEnvironment: {
     (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
 
   /**
+    [extend_keep_id] is [extend], but the id of the given environment is maintained.
+   */
+  let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
+
+  /**
     [union env1 env2 eig] is [(env, eig)] where [env] is [env2] extended with
     [env1]. See {!val:VarBstMap.union}.
    */
@@ -233,6 +241,11 @@ and ClosureEnvironment: {
     [filter_keep_id] is like [map_keep_id], but for [filter].
    */
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
+
+  /**
+    [fold f init env] is [env |> map_of |> Environment.foldo f init].
+   */
+  let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
   /**
     Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only

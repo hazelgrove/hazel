@@ -440,6 +440,7 @@ and ClosureEnvironment: {
   let contains: (t, Var.t) => bool;
   let extend:
     (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
   let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
   let map:
     (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
@@ -449,6 +450,7 @@ and ClosureEnvironment: {
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
+  let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
   let placeholder: t;
 } = {
@@ -497,6 +499,12 @@ and ClosureEnvironment: {
   let extend = (env, xr) =>
     Environment.extend(env |> map_of, xr) |> of_environment;
 
+  let extend_keep_id = (env, xr) =>
+    env
+    |> map_of
+    |> (env => Environment.extend(env, xr))
+    |> wrap(env |> id_of);
+
   let union = (env1, env2) =>
     Environment.union(env1 |> map_of, env2 |> map_of) |> of_environment;
 
@@ -511,6 +519,8 @@ and ClosureEnvironment: {
 
   let filter_keep_id = (f, env) =>
     env |> map_of |> Environment.filtero(f) |> wrap(env |> id_of);
+
+  let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
 };

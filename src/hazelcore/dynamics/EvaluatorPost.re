@@ -177,17 +177,22 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => env |> return
   | None =>
-    /* FIXME: Fix substitution for fixpoints. */
-    let* env_bindings =
+    let* env =
       env
-      |> ClosureEnvironment.to_list
-      |> List.map(((x, d)) => {
-           let* d' = pp_eval(d);
-           (x, d') |> return;
-         })
-      |> sequence;
-    let env =
-      env_bindings |> Environment.of_list |> ClosureEnvironment.wrap(ei);
+      |> ClosureEnvironment.fold(
+           ((x, d), env') => {
+             let* env' = env';
+             let+ d' =
+               switch (d) {
+               | FixF(f, ty, d1) =>
+                 let+ d1 = pp_uneval(env', d1);
+                 FixF(f, ty, d1);
+               | d => pp_eval(d)
+               };
+             ClosureEnvironment.extend_keep_id(env', (x, d'));
+           },
+           Environment.empty |> ClosureEnvironment.wrap(ei) |> return,
+         );
 
     let* () = pe_add(ei, env);
     env |> return;
