@@ -199,6 +199,19 @@ and ClosureEnvironment: {
   let contains: (t, Var.t) => bool;
 
   /**
+    [update f env] is [(env', eig)], where [env] is the environment with a new
+    id and map mapped by [f].
+   */
+  let update:
+    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
+    (t, EnvironmentIdGen.t);
+
+  /**
+    [update_keep_id] is [update], but the id of the given environment is maintained.
+   */
+  let update_keep_id: (Environment.t => Environment.t, t) => t;
+
+  /**
     [extend env (x, d) eig] is [(env', eig')], where [env'] is [env] extended
     with the binding of [d] for [x].
    */
@@ -215,6 +228,12 @@ and ClosureEnvironment: {
     [env1]. See {!val:VarBstMap.union}.
    */
   let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+
+  /**
+    [union_keep_id] is [union], but the id of the given environment is
+    maintained.
+   */
+  let union_keep_id: (t, t) => t;
 
   /**
     [map f env eig] is [(env', eig')] where [env'] contains the bindings of

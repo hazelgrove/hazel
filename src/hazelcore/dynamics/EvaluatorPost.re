@@ -170,7 +170,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
 
 /* Recurse through environments, using memoized result if available. */
 and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
-  /* FIXME: Have a ClosureEnvironment.update_keep_id or something? */
   let ei = env |> ClosureEnvironment.id_of;
 
   let* pe = get_pe;

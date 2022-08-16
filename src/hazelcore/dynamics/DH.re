@@ -438,10 +438,15 @@ and ClosureEnvironment: {
 
   let lookup: (t, Var.t) => option(DHExp.t);
   let contains: (t, Var.t) => bool;
+  let update:
+    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
+    (t, EnvironmentIdGen.t);
+  let update_keep_id: (Environment.t => Environment.t, t) => t;
   let extend:
     (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
   let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
   let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+  let union_keep_id: (t, t) => t;
   let map:
     (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
     (t, EnvironmentIdGen.t);
@@ -496,29 +501,30 @@ and ClosureEnvironment: {
   let contains = (env, x) =>
     env |> map_of |> (map => Environment.contains(map, x));
 
+  let update = (f, env) => env |> map_of |> f |> of_environment;
+
+  let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
+
   let extend = (env, xr) =>
-    Environment.extend(env |> map_of, xr) |> of_environment;
+    env |> update(map => Environment.extend(map, xr));
 
   let extend_keep_id = (env, xr) =>
-    env
-    |> map_of
-    |> (env => Environment.extend(env, xr))
-    |> wrap(env |> id_of);
+    env |> update_keep_id(map => Environment.extend(map, xr));
 
   let union = (env1, env2) =>
-    Environment.union(env1 |> map_of, env2 |> map_of) |> of_environment;
+    env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
 
-  let map = (f, env) =>
-    env |> map_of |> Environment.mapo(f) |> of_environment;
+  let union_keep_id = (env1, env2) =>
+    env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
 
-  let map_keep_id = (f, env) =>
-    env |> map_of |> Environment.mapo(f) |> wrap(env |> id_of);
+  let map = (f, env) => env |> update(Environment.mapo(f));
 
-  let filter = (f, env) =>
-    env |> map_of |> Environment.filtero(f) |> of_environment;
+  let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
+
+  let filter = (f, env) => env |> update(Environment.filtero(f));
 
   let filter_keep_id = (f, env) =>
-    env |> map_of |> Environment.filtero(f) |> wrap(env |> id_of);
+    env |> update_keep_id(Environment.filtero(f));
 
   let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
