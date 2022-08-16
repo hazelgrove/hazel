@@ -150,9 +150,9 @@ let get_first_common =
 let coverage_view =
     (~font_metrics, ~inject, ~descriptions=[], reference, wrongs) => {
   let reference_passing = reference |> get_test_map |> passing_test_ids;
-  let instances =
-    wrongs
-    |> List.map(get_first_common(reference_passing))
+  let instances = wrongs |> List.map(get_first_common(reference_passing));
+  let non_null_instances =
+    instances
     |> List.filter_map(((x, instance: option('a))) =>
          switch (instance) {
          | None => None
@@ -165,7 +165,7 @@ let coverage_view =
       TestView.view_of_main_title_bar("Test Coverage"),
       div(
         [clss(["panel-body", "test-reports"])],
-        instances
+        non_null_instances
         |> List.mapi((i, r) =>
              coverage_report_view(
                ~inject,
