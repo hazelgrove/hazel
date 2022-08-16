@@ -436,7 +436,9 @@ let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
     hii,
   );
 
-let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
+let postprocess =
+    (d: DHExp.t, eig: EnvironmentIdGen.t)
+    : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
   /* Substitution and hole numbering postprocessing */
   let ((_, hii), d) =
     pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty));
@@ -448,14 +450,14 @@ let postprocess = (d: DHExp.t): (HoleInstanceInfo.t, DHExp.t) => {
      for holes directly in the result) */
   /* FIXME: Better way to do this? */
   let (u_result, _) = HoleInstance.result;
+  let (ei, eig) = EnvironmentIdGen.next(eig);
   let hii =
     MetaVarMap.add(
       u_result,
-      /* FIXME: Don't hardcode -1. */
-      [(ClosureEnvironment.wrap(-1, Environment.singleton(("", d))), [])],
+      [(ClosureEnvironment.wrap(ei, Environment.singleton(("", d))), [])],
       hii,
     );
 
   /* Perform hole parent tracking. */
-  (hii |> track_children, d);
+  ((hii |> track_children, d), eig);
 };

@@ -64,4 +64,6 @@ exception Exception(error);
 
   See also HoleInstanceInfo.rei/HoleInstanceInfo_.rei.
  */
-let postprocess: DHExp.t => (HoleInstanceInfo.t, DHExp.t);
+let postprocess:
+  (DHExp.t, EnvironmentIdGen.t) =>
+  ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t);
