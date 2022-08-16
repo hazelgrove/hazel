@@ -736,7 +736,8 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
     | Prod(tys) => Prod(List.map(rescope(ctx), tys))
     | List(ty1) => List(rescope(ctx, ty1))
-    | Forall(tp, ty) => Forall(tp, rescope(ctx, ty))
+    | Forall(tp, ty) =>
+      Forall(tp, rescope(Context.add_tpat(ctx, tp, Kind_core.Type), ty))
     };
 
   let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
