@@ -8,24 +8,24 @@
 (library
  (name web)
  (modules :standard \ Main)
- (libraries incr_dom util core ppx_deriving_yojson.runtime hazelweb)
+ (libraries incr_dom util core ppx_yojson_conv.expander hazelweb)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_deriving_yojson js_of_ocaml-ppx ppx_let ppx_sexp_conv
+  (pps ppx_yojson_conv js_of_ocaml-ppx ppx_let ppx_sexp_conv
     ppx_deriving.show)))
 
 (executable
  (name main)
  (modules Main)
- (libraries web ppx_deriving_yojson.runtime hazelweb)
+ (libraries web ppx_yojson_conv.expander hazelweb)
  (modes js)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_deriving_yojson js_of_ocaml-ppx ppx_let ppx_sexp_conv
+  (pps ppx_yojson_conv js_of_ocaml-ppx ppx_let ppx_sexp_conv
     ppx_deriving.show)))
 
 (rule
