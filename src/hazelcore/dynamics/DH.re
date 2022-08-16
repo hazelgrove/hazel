@@ -403,12 +403,14 @@ module rec DHExp: {
 }
 
 and Environment: {
-  include  (module type of VarBstMap) with type t_('a) = VarBstMap.t_('a);
+  include
+     (module type of VarBstMap.Ordered) with
+      type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving sexp]
   type t = t_(DHExp.t);
 } = {
-  include VarBstMap;
+  include VarBstMap.Ordered;
 
   [@deriving sexp]
   type t = t_(DHExp.t);
@@ -469,7 +471,7 @@ and ClosureEnvironment: {
   };
   include Inner;
 
-  let to_list = env => env |> map_of |> Environment.to_list;
+  let to_list = env => env |> map_of |> Environment.to_listo;
 
   let of_environment = (map, eig) => {
     let (ei, eig) = EnvironmentIdGen.next(eig);
@@ -499,16 +501,16 @@ and ClosureEnvironment: {
     Environment.union(env1 |> map_of, env2 |> map_of) |> of_environment;
 
   let map = (f, env) =>
-    env |> map_of |> Environment.map(f) |> of_environment;
+    env |> map_of |> Environment.mapo(f) |> of_environment;
 
   let map_keep_id = (f, env) =>
-    env |> map_of |> Environment.map(f) |> wrap(env |> id_of);
+    env |> map_of |> Environment.mapo(f) |> wrap(env |> id_of);
 
   let filter = (f, env) =>
-    env |> map_of |> Environment.filter(f) |> of_environment;
+    env |> map_of |> Environment.filtero(f) |> of_environment;
 
   let filter_keep_id = (f, env) =>
-    env |> map_of |> Environment.filter(f) |> wrap(env |> id_of);
+    env |> map_of |> Environment.filtero(f) |> wrap(env |> id_of);
 
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
 };

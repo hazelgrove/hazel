@@ -177,6 +177,7 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
   switch (pe |> EnvironmentIdMap.find_opt(ei)) {
   | Some(env) => env |> return
   | None =>
+    /* FIXME: Fix substitution for fixpoints. */
     let* env_bindings =
       env
       |> ClosureEnvironment.to_list
@@ -419,7 +420,7 @@ let track_children = (hii: HoleInstanceInfo.t): HoleInstanceInfo.t =>
     (u, his, hii) =>
       List.fold_right(
         ((i, (env, _)), hii) =>
-          Environment.fold(
+          Environment.foldo(
             ((x, d), hii) => track_children_of_hole(hii, (x, (u, i)), d),
             hii,
             env |> ClosureEnvironment.map_of,

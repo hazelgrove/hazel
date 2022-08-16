@@ -34,6 +34,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Fun(dp, ty, d3);
     }
+  /* FIXME: This current implmentation doesn't work for fixpoints that use their environment. */
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
@@ -116,7 +117,7 @@ and subst_var_env =
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
-  |> Environment.fold(
+  |> Environment.foldo(
        (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(d1, x, d2);

@@ -104,8 +104,13 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
 }
 
+/**
+  [Environment] is a map from variables to {!DHExp.t} backed by {!VarBstMap.Ordered}.
+ */
 and Environment: {
-  include  (module type of VarBstMap) with type t_('a) = VarBstMap.t_('a);
+  include
+     (module type of VarBstMap.Ordered) with
+      type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving sexp]
   type t = t_(DHExp.t);
@@ -147,7 +152,7 @@ and ClosureEnvironment: {
   let map_of: t => Environment.t;
 
   /**
-    [to_list env] is the list of bindings in [env].
+    [to_list env] is the list of bindings in [env], in insertion order.
    */
   let to_list: t => list((Var.t, DHExp.t));
 
@@ -205,7 +210,7 @@ and ClosureEnvironment: {
 
   /**
     [map f env eig] is [(env', eig')] where [env'] contains the bindings of
-    [env] mapped by [f].
+    [env] mapped by [f] in insertion order.
    */
   let map:
     (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
@@ -218,7 +223,7 @@ and ClosureEnvironment: {
 
   /**
     [filter f env eig] is [(env', eig')] where [env'] contains the bindings of
-    [env] filtered by [f].
+    [env] filtered by [f] in insertion order.
    */
   let filter:
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
