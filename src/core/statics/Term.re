@@ -326,6 +326,36 @@ module UExp = {
     | BinOp(op) => show_binop(op);
 };
 
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | Var;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag, Piece.t)
+    | EmptyHole
+    | Var(Token.t)
+  and t = {
+    id: Id.t,
+    term,
+  };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Pattern"
+    | EmptyHole => "Empty Type Pattern Hole"
+    | Var => "Type Pattern Variable";
+};
+
 /* Converts a syntactic type into a semantic type */
 let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp => {
@@ -354,6 +384,7 @@ type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
+  | TPat(UTPat.t)
   | Rul(unit) // TODO
   | Nul(unit)
   | Any(unit);

@@ -35,6 +35,7 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   | Pat => Pat(of_seg_and_skel_pat(ps, kid))
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
   | Exp => Exp(of_seg_and_skel_exp(ps, kid))
+  | TPat => TPat(of_seg_and_skel_tpat(ps, kid))
   | Rul => Rul() //TODO
   | Nul => Nul()
   | Any => Any()
@@ -99,6 +100,10 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
 and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
+}
+and of_seg_and_skel_tpat = (ps: Segment.t, skel: Skel.t): UTPat.t => {
+  let (tp, kids) = piece_and_outside_kids(~default_sort=TPat, ps, skel);
+  of_piece_tpat(tp, kids);
 }
 //TODO: improve/consolidate of_nary fns below
 and of_multi_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
@@ -291,6 +296,24 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
       | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
+      | _ => Invalid(UnrecognizedTerm, p)
+      };
+    {id, term};
+  };
+}
+and of_piece_tpat = (p: Piece.t, outside_kids: list(Term.any)): UTPat.t => {
+  switch (p) {
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
+  | Grout({id, shape}) =>
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | _ => {id, term: Invalid(MalformedGrout, p)}
+    }
+  | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
+    let term: UTPat.term =
+      switch (label, outside_kids, inside_kids) {
+      | _ when !Tile.is_complete(t) => EmptyHole
+      | ([t], [], []) when Form.is_var(t) => Var(t)
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
