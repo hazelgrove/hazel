@@ -35,9 +35,9 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   | Pat => Pat(of_seg_and_skel_pat(ps, kid))
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
   | Exp => Exp(of_seg_and_skel_exp(ps, kid))
-  | Rul => Rul() //TODO
-  | Nul => Nul()
-  | Any => Any()
+  | Rul => Rul(of_seg_and_skel_rul(ps, kid))
+  | Nul => Nul() //TODO
+  | Any => Any() //TODO
   }
 and piece_and_outside_kids =
     (~default_sort, ps: Segment.t, skel: Skel.t): (Piece.t, list(Term.any)) => {
@@ -88,6 +88,15 @@ and utyp_of_seg = (ps: Segment.t): UTyp.t => {
   |> Segment.skel
   |> of_seg_and_skel_typ(ps);
 }
+and urul_of_seg = (ps: Segment.t): URul.t => {
+  /* NOTE(andrew): filtering out incomplete tiles for now.
+     TODO: better approach which e.g. still provides feedback
+     inside incomplete tile children */
+  ps
+  |> List.filter(Piece.is_complete)
+  |> Segment.skel
+  |> of_seg_and_skel_rul(ps);
+}
 and of_seg_and_skel_exp = (ps: Segment.t, skel: Skel.t): UExp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Exp, ps, skel);
   of_piece_exp(p, kids);
@@ -99,6 +108,10 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
 and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
+}
+and of_seg_and_skel_rul = (ps: Segment.t, skel: Skel.t): URul.t => {
+  let (p, kids) = piece_and_outside_kids(~default_sort=Rul, ps, skel);
+  of_piece_rul(p, kids);
 }
 //TODO: improve/consolidate of_nary fns below
 and of_multi_exp = (id: Id.t, l: UExp.t, r: UExp.t): UExp.t => {
@@ -170,6 +183,30 @@ and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   | (l, r) => wrap_multi([], [l, r])
   };
 }
+and of_multi_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
+  let wrap_multi = (ids, es): URul.t => {
+    id,
+    term: MultiHole([id] @ ids, es),
+  };
+  switch (l, r) {
+  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
+    wrap_multi(l_ids @ r_ids, ls @ rs)
+  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
+  };
+}
+and of_rules_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
+  //TODO(andrew): this doesnt make sense
+  let wrap_multi = (ids, es): URul.t => {id, term: Rules([id] @ ids, es)};
+  switch (l, r) {
+  | ({term: Rules(l_ids, ls), _}, {term: Rules(r_ids, rs), _}) =>
+    wrap_multi(l_ids @ r_ids, ls @ rs)
+  | (l, {term: Rules(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+  | ({term: Rules(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+  | (l, r) => wrap_multi([], [l, r])
+  };
+}
 and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   switch (p) {
   | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
@@ -232,6 +269,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
         | term => ListLit([id], [term])
         }
+      | (["case", "of"], [Rul(rules)], [scrut]) =>
+        Match(uexp_of_seg(scrut), rules)
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
@@ -292,6 +331,26 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
       | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
+      | _ => Invalid(UnrecognizedTerm, p)
+      };
+    {id, term};
+  };
+}
+and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.t => {
+  switch (p) {
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
+  | Grout({id, shape}) =>
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | (Concave, [Rul(l), Rul(r)]) => of_multi_rul(id, l, r)
+    | _ => {id, term: Invalid(MalformedGrout, p)}
+    }
+  | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
+    let term: URul.term =
+      switch (label, outside_kids, inside_kids) {
+      | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
+      | (["=>"], [Pat(l), Pat(r)], []) => Rules([(l, r)]) //TODO
+      | (["|"], [Rul(l), Rul(r)], []) => of_tuple_typ(id, l, r).term
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
