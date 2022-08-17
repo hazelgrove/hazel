@@ -161,6 +161,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       DecUtil.filters,
       top_bar_view(~inject, model),
       editor_view(~inject, model),
+      div([Attr.id("blorg")], []),
     ],
   );
 };
