@@ -32,7 +32,7 @@ let show_parse_flag: parse_flag => string =
   | UnrecognizedTerm => "Unrecognized Term"
   | IncompleteTile => "Incomplete Tile";
 
-module UTyp = {
+module rec UTyp': {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -62,35 +62,8 @@ module UTyp = {
     id: Id.t,
     term,
   };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | List(_) => List
-    | Arrow(_) => Arrow
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type"
-    | EmptyHole => "Empty Type Hole"
-    | MultiHole => "Multi Type Hole"
-    | Int
-    | Float
-    | Bool => "Base Type"
-    | List => "List Type"
-    | Arrow => "Function Type"
-    | Tuple => "Product Type"
-    | Parens => "Parenthesized Type Term";
-};
-
-module UPat = {
+} = UTyp'
+and UPat': {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -121,46 +94,13 @@ module UPat = {
     | Var(Token.t)
     | Tuple(list(Id.t), list(t))
     | Parens(t)
-    | TypeAnn(t, UTyp.t)
+    | TypeAnn(t, UTyp'.t)
   and t = {
     id: Id.t,
     term,
   };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | Triv => Triv
-    | ListNil => ListNil
-    | Var(_) => Var
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens
-    | TypeAnn(_) => TypeAnn;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
-    | Wild => "Wildcard Pattern"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | Bool => "Boolean Literal"
-    | Triv => "Trivial Literal. Pathetic, really."
-    | ListNil => "List Literal"
-    | Var => "Pattern Variable"
-    | Tuple => "Tuple Pattern"
-    | Parens => "Parenthesized Pattern"
-    | TypeAnn => "Type Annotation";
-};
-
-module URul = {
+} = UPat'
+and URul': {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -173,28 +113,13 @@ module URul = {
     | Invalid(parse_flag, Piece.t)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
-    | Rules(list(Id.t), list((UPat.t, UPat.t)))
+    | Rules(list(Id.t), list((UPat'.t, UExp'.t)))
   and t = {
     id: Id.t,
     term,
   };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Rules(_) => Rules;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Rule"
-    | EmptyHole => "Empty Rule Hole"
-    | MultiHole => "Multi Rule Hole"
-    | Rules => "Rules";
-};
-
-module UExp = {
+} = URul'
+and UExp': {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -270,12 +195,12 @@ module UExp = {
     | Int(int)
     | Float(float)
     | ListLit(list(Id.t), list(t))
-    | Fun(UPat.t, t)
-    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
+    | Fun(UPat'.t, t)
+    | FunAnn(UPat'.t, UTyp'.t, t) //TODO: deprecate
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
-    | Let(UPat.t, t, t)
-    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
+    | Let(UPat'.t, t, t)
+    | LetAnn(UPat'.t, UTyp'.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
     // Maybe ops with fn semantics should be builtins as well?
@@ -286,11 +211,99 @@ module UExp = {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | Match(t, URul.t)
+    | Match(t, URul'.t)
   and t = {
     id: Id.t,
     term,
   };
+} = UExp';
+
+module UTyp = {
+  include UTyp';
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | List(_) => List
+    | Arrow(_) => Arrow
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type"
+    | EmptyHole => "Empty Type Hole"
+    | MultiHole => "Multi Type Hole"
+    | Int
+    | Float
+    | Bool => "Base Type"
+    | List => "List Type"
+    | Arrow => "Function Type"
+    | Tuple => "Product Type"
+    | Parens => "Parenthesized Type Term";
+};
+
+module UPat = {
+  include UPat';
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Wild => Wild
+    | Int(_) => Int
+    | Float(_) => Float
+    | Bool(_) => Bool
+    | Triv => Triv
+    | ListNil => ListNil
+    | Var(_) => Var
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens
+    | TypeAnn(_) => TypeAnn;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Pattern"
+    | EmptyHole => "Empty Pattern Hole"
+    | MultiHole => "Multi Pattern Hole"
+    | Wild => "Wildcard Pattern"
+    | Int => "Integer Literal"
+    | Float => "Float Literal"
+    | Bool => "Boolean Literal"
+    | Triv => "Trivial Literal. Pathetic, really."
+    | ListNil => "List Literal"
+    | Var => "Pattern Variable"
+    | Tuple => "Tuple Pattern"
+    | Parens => "Parenthesized Pattern"
+    | TypeAnn => "Type Annotation";
+};
+
+module URul = {
+  include URul';
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Rules(_) => Rules;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Rule"
+    | EmptyHole => "Empty Rule Hole"
+    | MultiHole => "Multi Rule Hole"
+    | Rules => "Rules";
+};
+
+module UExp = {
+  include UExp';
 
   let cls_of_term: term => cls =
     fun
@@ -400,6 +413,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Parens(u) => utyp_to_ty(u)
     };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
