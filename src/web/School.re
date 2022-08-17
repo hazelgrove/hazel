@@ -36,12 +36,11 @@ let defaults: list(cell) = [
             br([]),
             br([]),
             text(
-              "Known Limitations: If there are any concave holes in your input, your code won't be fully interpreted.
+              "Known Limitations: Concave holes in your input may result in limited interpretation.
               If you aren't getting test feedback on the right-hand side, it may be because your program has a type error.
               Nonempty holes aren't drawn yet, so you'll need to move the caret through the program while watching the
-              cursor inspector in the top left. Test feedback isn't currently very helpful other than pass/fail.
-              Mouse interaction is currently the only way to move between cells, but inside cells keyboard input
-              must be used. If you experience any issues other than the limitations described here, please report
+              cursor inspector in the top left. Test feedback isn't currently very helpful beyond pass/fail.
+              If you experience any issues other than the limitations described here, please report
               them on slack!",
             ),
           ],
