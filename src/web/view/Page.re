@@ -103,27 +103,42 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
     [Attr.id("top-bar")],
     [
       menu_icon,
+      div(
+        [clss(["menu"])],
+        [
+          toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
+          toggle("𝛿", model.settings.dynamics, _ =>
+            inject(Set(Dynamics))
+          ),
+          button(Icons.export, copy_log_to_clipboard),
+          button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
+          button(Icons.trash, _ => inject(LoadDefault)),
+          link(Icons.github, "https://github.com/hazelgrove/hazel"),
+        ],
+      ),
       button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
       button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
       editor_mode_view(~inject, ~model),
-      button(Icons.export, copy_log_to_clipboard),
-      button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
-      button(Icons.trash, _ => inject(LoadDefault)),
-      //link(Icons.github, "https://github.com/hazelgrove/hazel"),
-      toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
-      toggle("𝛿", model.settings.dynamics, _ => inject(Set(Dynamics))),
     ],
   );
 };
 
 let editor_view =
     (
-      {editor_model, font_metrics, show_backpack_targets, settings, _}: Model.t,
+      {
+        editor_model,
+        font_metrics,
+        show_backpack_targets,
+        settings,
+        mousedown,
+        _,
+      }: Model.t,
     ) =>
   Editor.view(
     ~editor_model,
     ~font_metrics,
     ~show_backpack_targets,
+    ~mousedown,
     ~settings,
   );
 
@@ -137,6 +152,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
         JsUtil.get_elem_by_id("page")##focus;
         Event.Many([]);
       }),
+      // safety handler in case mousedown overlay doesn't catch it
+      on_mouseup(_ => inject(Update.Mouseup)),
       ...handlers(~inject, ~model),
     ],
     [

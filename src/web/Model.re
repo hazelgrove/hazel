@@ -61,6 +61,7 @@ type t = {
   show_backpack_targets: bool,
   double_tap: option(timestamp),
   clipboard: string,
+  mousedown: bool,
 };
 
 let cutoff = (===);
@@ -69,11 +70,13 @@ let mk = editor_model => {
   id_gen: 1,
   editor_model,
   settings: settings_init,
+  // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   double_tap: None,
   clipboard: ",",
+  mousedown: false,
 };
 
 let blank = mk(School(0, []));
