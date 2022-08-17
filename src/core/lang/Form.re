@@ -137,7 +137,7 @@ let forms: list((string, t)) = [
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, 6)),
   ("dot", mk(ss, ["."], mk_op(Nul, []))), // HACK: SUBSTRING REQ (floats)
-  //("unary_minus", mk(ss, ["-"], mk_pre(P.fact, Exp, []))),
+  ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
   ("comma_typ", mk_infix(",", Typ, P.prod)),
@@ -167,8 +167,8 @@ let forms: list((string, t)) = [
     mk(ds, ["case", "of"], mk_pre'(P.case_, Exp, Exp, [Exp], Rul)),
   ),
   ("rule_arr", mk(ss, ["=>"], mk_bin'(P.rule_arr, Rul, Pat, [], Exp))),
+  ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
   ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
-  //("rule_sep_pre", mk(ss, ["|"], mk_pre(P.let_, Rul, []))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
