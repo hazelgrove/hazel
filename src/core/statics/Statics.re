@@ -174,12 +174,12 @@ let extend_let_def_ctx =
   | _ => ctx
   };
 
-let typ_exp_binop_int: Term.UExp.op_int => Typ.t =
+let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Divide) as _op => Int
   | (LessThan | GreaterThan | Equals) as _op => Bool;
 
-let typ_exp_binop_float: Term.UExp.op_float => Typ.t =
+let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Divide) as _op => Int
   | (LessThan | GreaterThan | Equals) as _op => Bool;
@@ -187,8 +187,12 @@ let typ_exp_binop_float: Term.UExp.op_float => Typ.t =
 let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
-  | Int(op) => (Int, Int, typ_exp_binop_int(op))
-  | Float(op) => (Float, Float, typ_exp_binop_float(op));
+  | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
+  | Float(op) => (Float, Float, typ_exp_binop_bin_float(op));
+
+let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
+  fun
+  | Int(Minus) => (Int, Int);
 
 let rec uexp_to_info_map =
         (~ctx: Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
@@ -229,6 +233,10 @@ let rec uexp_to_info_map =
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
+  | UnOp(op, e) =>
+    let (ty_in, ty_out) = typ_exp_unop(op);
+    let (_, free, m) = go(~mode=Ana(ty_in), e);
+    add(~self=Just(ty_out), ~free, m);
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (_, free1, m1) = go(~mode=Ana(ty1), e1);
