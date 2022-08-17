@@ -160,6 +160,40 @@ module UPat = {
     | TypeAnn => "Type Annotation";
 };
 
+module URul = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Rules;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag, Piece.t)
+    | EmptyHole
+    | MultiHole(list(Id.t), list(t))
+    | Rules(list(Id.t), list((UPat.t, UPat.t)))
+  and t = {
+    id: Id.t,
+    term,
+  };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Rules(_) => Rules;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Rule"
+    | EmptyHole => "Empty Rule Hole"
+    | MultiHole => "Multi Rule Hole"
+    | Rules => "Rules";
+};
+
 module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -223,7 +257,8 @@ module UExp = {
     | Parens
     | Cons
     | UnOp(op_un)
-    | BinOp(op_bin);
+    | BinOp(op_bin)
+    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -251,6 +286,7 @@ module UExp = {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | Match(t, URul.t)
   and t = {
     id: Id.t,
     term,
@@ -279,7 +315,8 @@ module UExp = {
     | Parens(_) => Parens
     | Cons(_) => Cons
     | UnOp(op, _) => UnOp(op)
-    | BinOp(op, _, _) => BinOp(op);
+    | BinOp(op, _, _) => BinOp(op)
+    | Match(_) => Match;
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -343,7 +380,8 @@ module UExp = {
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
-    | UnOp(op) => show_unop(op);
+    | UnOp(op) => show_unop(op)
+    | Match => "Match Expression";
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -366,6 +404,6 @@ type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
-  | Rul(unit) // TODO
-  | Nul(unit)
+  | Rul(URul.t)
+  | Nul(unit) // TODO
   | Any(unit);
