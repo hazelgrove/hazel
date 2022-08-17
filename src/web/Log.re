@@ -70,15 +70,9 @@ let key_entry_to_string = ({key, updates, timestamp}: key_entry) => {
 
 let updates_of_string: string => updates =
   str =>
-    try(
-      switch (str |> Yojson.Safe.from_string |> updates_of_yojson) {
-      | Ok(updates) => updates
-      | Error(err) =>
-        print_endline("log: json decoding (1) read error: " ++ err ++ "\n");
-        [];
-      }
-    ) {
-    | exc =>
+    switch (str |> Yojson.Safe.from_string |> updates_of_yojson) {
+    | updates => updates
+    | exception exc =>
       print_endline(
         "log: json decoding (2) exception: "
         ++ Printexc.to_string(exc)
@@ -94,7 +88,7 @@ let get_json_update_log = () =>
   };
 
 let get_json_update_log_string = () =>
-  get_json_update_log() |> updates_to_yojson |> Yojson.Safe.to_string;
+  get_json_update_log() |> yojson_of_updates |> Yojson.Safe.to_string;
 
 let reset_json_log = () => {
   mut_log := [];
@@ -106,7 +100,7 @@ let append_json_updates_log = () => {
   mut_log := [];
   let old_log = get_json_update_log();
   let new_log = new_updates @ old_log;
-  let blah = Yojson.Safe.to_string(updates_to_yojson(new_log));
+  let blah = Yojson.Safe.to_string(yojson_of_updates(new_log));
   LocalStorage.set_localstore(json_update_log_key, blah);
 };
 

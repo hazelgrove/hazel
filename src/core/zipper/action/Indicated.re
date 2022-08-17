@@ -6,7 +6,7 @@ type relation =
   | Sibling;
 
 let piece' =
-    (ws: Piece.t => bool, z: Zipper.t)
+    (~no_ws: bool, ~ign: Piece.t => bool, z: Zipper.t)
     : option((Piece.t, Direction.t, relation)) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
@@ -20,19 +20,22 @@ let piece' =
   /* Empty syntax => no indication */
   | ((None, None), None) => None
   /* L not whitespace, R is whitespace => indicate L */
-  | ((Some(l), Some(r)), _) when !ws(l) && ws(r) =>
+  | ((Some(l), Some(r)), _) when !ign(l) && ign(r) =>
     Some((l, Left, Sibling))
   /* L and R are whitespaces => no indication */
-  | ((Some(l), Some(r)), _) when ws(l) && ws(r) => None
+  | ((Some(l), Some(r)), _) when ign(l) && ign(r) =>
+    no_ws ? None : Some((l, Left, Sibling))
   /* At right end of syntax and L is whitespace => no indication */
-  | ((Some(l), None), None) when ws(l) => None
+  | ((Some(l), None), None) when ign(l) =>
+    no_ws ? None : Some((l, Left, Sibling))
   /* At left end of syntax and R is whitespace => no indication */
-  | ((None, Some(r)), None) when ws(r) => None
+  | ((None, Some(r)), None) when ign(r) =>
+    no_ws ? None : Some((r, Right, Sibling))
   /* No L and R is a whitespace and there is a P => indicate P */
-  | ((None, Some(r)), Some(parent)) when ws(r) =>
+  | ((None, Some(r)), Some(parent)) when ign(r) =>
     Some((parent, Left, Parent))
   /* L is not whitespace and caret is outer => indicate L */
-  | ((Some(l), _), _) when !ws(l) && z.caret == Outer =>
+  | ((Some(l), _), _) when !ign(l) && z.caret == Outer =>
     Some((l, Left, Sibling))
   /* No L, some P, and caret is outer => indicate R */
   | ((None, _), Some(parent)) when z.caret == Outer =>
@@ -47,7 +50,8 @@ let piece' =
   };
 };
 
-let piece = piece'(p => Piece.(is_whitespace(p) || is_grout(p)));
+let piece =
+  piece'(~no_ws=true, ~ign=p => Piece.(is_whitespace(p) || is_grout(p)));
 
 let shard_index = (z: Zipper.t): option(int) =>
   switch (piece(z)) {
@@ -78,7 +82,7 @@ let shard_index = (z: Zipper.t): option(int) =>
   };
 
 let index = (z: Zipper.t): option(int) =>
-  switch (piece'(Piece.is_whitespace, z)) {
+  switch (piece'(~no_ws=false, ~ign=Piece.is_whitespace, z)) {
   | None => None
   | Some((p, _, _)) =>
     switch (p) {

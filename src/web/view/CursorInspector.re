@@ -4,7 +4,7 @@ open Util.Web;
 
 let cls_str = (ci: Core.Statics.t): string =>
   switch (ci) {
-  | Invalid => "No Semantics for Syntax"
+  | Invalid(msg) => Core.Term.show_parse_flag(msg)
   | InfoExp({cls, _}) => Core.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Core.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Core.Term.UTyp.show_cls(cls)
@@ -16,6 +16,7 @@ let infoc = "info";
 
 let error_view = (err: Core.Statics.error) =>
   switch (err) {
+  | Multi => div([clss([errorc, "err-multi"])], [text("⑂ Multi Hole")])
   | FreeVariable =>
     div(
       [clss([errorc, "err-free-variable"])],
@@ -54,7 +55,13 @@ let happy_view = (suc: Core.Statics.happy) => {
   | AnaExternalInconsistent(ty_ana, _) =>
     div(
       [clss([happyc, "ana-consistent-external"])],
-      [text("⇐☆"), Type.view(ty_ana)],
+      [
+        div(
+          [clss(["typ-view", "atom"])],
+          [text("⇐"), div([clss(["typ-mod"])], [text("☆")])],
+        ),
+        Type.view(ty_ana),
+      ],
     )
   };
 };
@@ -69,13 +76,17 @@ let status_view = (err: Core.Statics.error_status) => {
 let term_tag = (is_err, sort) =>
   div(
     [clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : []))],
-    [text(sort)],
+    [div([clss(["icon"])], [Icons.magnify]), text(sort)],
   );
 
 let view_of_info = (ci: Core.Statics.t): Node.t => {
   let is_err = Core.Statics.is_error(ci);
   switch (ci) {
-  | Invalid => div([clss([infoc, "unknown"])], [text("? No Info")])
+  | Invalid(msg) =>
+    div(
+      [clss([infoc, "unknown"])],
+      [text("🚫 " ++ Core.Term.show_parse_flag(msg))],
+    )
   | InfoExp({mode, self, _}) =>
     let error_status = Core.Statics.error_status(mode, self);
     div(
@@ -89,7 +100,11 @@ let view_of_info = (ci: Core.Statics.t): Node.t => {
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
-    div([clss([infoc, "typ"])], [term_tag(is_err, "typ"), Type.view(ty)])
+    let ann = div([clss(["typ-view"])], [text(":")]);
+    div(
+      [clss([infoc, "typ"])],
+      [term_tag(is_err, "typ"), ann, Type.view(ty)],
+    );
   };
 };
 
@@ -97,7 +112,7 @@ let cls_view = (ci: Core.Statics.t): Node.t =>
   div([clss(["syntax-class"])], [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
-  div([clss(["id"])], [text(string_of_int(id))]);
+  div([clss(["id"])], [text(string_of_int(id + 1))]);
 
 let extra_view = (visible: bool, id: int, ci: Core.Statics.t): Node.t =>
   div(
@@ -140,9 +155,22 @@ let view =
   | Some(index) =>
     switch (Core.Id.Map.find_opt(index, info_map)) {
     | Some(ci) => inspector_view(~inject, ~settings, index, ci)
-    | None => div([clss(["cursor-inspector"])], [text("No CI for Index")])
+    | None =>
+      div(
+        [clss(["cursor-inspector"])],
+        [
+          div([clss(["icon"])], [Icons.magnify]),
+          text("No CI for Index"),
+        ],
+      )
     }
   | None =>
-    div([clss(["cursor-inspector"])], [text("No Indicated Index")])
+    div(
+      [clss(["cursor-inspector"])],
+      [
+        div([clss(["icon"])], [Icons.magnify]),
+        text("No Indicated Index"),
+      ],
+    )
   };
 };

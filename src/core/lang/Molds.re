@@ -20,11 +20,10 @@ let forms_assoc: list((Label.t, list(Mold.t))) =
 
 let get = (label: Label.t): list(Mold.t) =>
   switch (label, List.assoc_opt(label, forms_assoc)) {
-  | ([t], Some(molds)) when Form.convex_mono_molds(t) != [] =>
+  | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
     // TODO(andrew): does this make sense?
-    Form.convex_mono_molds(t) @ molds
-  | ([t], None) when Form.convex_mono_molds(t) != [] =>
-    Form.convex_mono_molds(t)
+    Form.atomic_molds(t) @ molds
+  | ([t], None) when Form.atomic_molds(t) != [] => Form.atomic_molds(t)
   | (_, Some(molds)) => molds
   | (lbl, None) =>
     Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));

@@ -5,7 +5,8 @@ open Zipper;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type move =
   | Extreme(planar)
-  | Local(planar);
+  | Local(planar)
+  | Goal(Measured.point);
 
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,8 +48,14 @@ let put_down = (z: t): option(t) =>
 
 let move = (d, z, id_gen) =>
   switch (d) {
+  | Goal(goal) =>
+    let z = Selection.is_empty(z.selection) ? z : Outer.unselect(z);
+    Caret.do_towards(Move.primary(ByChar), goal, z)
+    |> Option.map(update_target)
+    |> Option.map(IdGen.id(id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Extreme(d) =>
-    Caret.do_extreme(Move.primary(ByToken, Zipper.from_plane(d)), d, z)
+    Caret.do_extreme(Move.primary(ByToken), d, z)
     |> Option.map(update_target)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
@@ -83,14 +90,21 @@ let select_primary = (d: Direction.t, z: t): option(t) =>
   };
 
 let select_vertical = (d: Direction.t, z: t): option(t) =>
-  Caret.do_vertical(select_primary(d), d, z);
+  Caret.do_vertical(select_primary, d, z);
 
 let select = (d, z, id_gen) =>
   (
     switch (d) {
+    | Goal(goal) =>
+      let anchor =
+        Caret.point(
+          Measured.of_segment(unselect_and_zip(z)),
+          {...z, selection: Selection.toggle_focus(z.selection)},
+        );
+      Caret.do_towards(~anchor, select_primary, goal, z)
+      |> Option.map(update_target);
     | Extreme(d) =>
-      Caret.do_extreme(select_primary(Zipper.from_plane(d)), d, z)
-      |> Option.map(update_target)
+      Caret.do_extreme(select_primary, d, z) |> Option.map(update_target)
     | Local(d) =>
       /* Note: Don't update target on vertical selection */
       switch (d) {

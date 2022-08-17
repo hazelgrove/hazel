@@ -60,14 +60,16 @@ let remold = (a: t): list(t) =>
 //   assert(step(frame) >= 0 && step(frame) < List.length(frame.mold.in_));
 //   List.nth(frame.mold.in_, step(frame));
 // };
-let sort = (a: t): Sort.t =>
-  switch (a.shards) {
-  | ([i, ..._], [j, ..._]) =>
+let sort = (a: t): Sort.t => {
+  let (pre, suf) = a.shards;
+  switch (ListUtil.split_last_opt(pre), suf) {
+  | (Some((_, i)), [j, ..._]) =>
     let (_, l) = Mold.nibs(~index=i, a.mold);
     let (r, _) = Mold.nibs(~index=j, a.mold);
     l.sort == r.sort ? l.sort : Any;
   | _ => raise(Empty_shard_affix)
   };
+};
 
 let disassemble =
     ({id, label, mold, shards, children: (kids_l, kids_r)}: t): Siblings.t => {

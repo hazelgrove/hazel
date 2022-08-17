@@ -14,12 +14,12 @@ type type_provenance =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Unknown(type_provenance)
-  | Unit
   | Int
   | Float
   | Bool
+  | List(t)
   | Arrow(t, t)
-  | Prod(t, t);
+  | Prod(list(t));
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -41,6 +41,7 @@ type source = {
 type self =
   | Just(t)
   | Joined(list(source))
+  | Multi
   | Free;
 
 /* MODE: The (analytic) type information derived from a term's
@@ -78,8 +79,6 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (Unit, Unit) => Some(Unit)
-  | (Unit, _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -92,12 +91,22 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     | _ => None
     }
   | (Arrow(_), _) => None
-  | (Prod(ty1_1, ty1_2), Prod(ty2_1, ty2_2)) =>
-    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
-    | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
-    | _ => None
+  | (Prod(tys1), Prod(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
+      | None => None
+      | Some(tys) => Some(Prod(tys))
+      };
     }
   | (Prod(_), _) => None
+  | (List(ty_1), List(ty_2)) =>
+    switch (join(ty_1, ty_2)) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
   };
 
 let join_all: list(t) => option(t) =
@@ -123,12 +132,6 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
-let matched_prod: t => (t, t) =
-  fun
-  | Prod(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(prov) => (Unknown(prov), Unknown(prov))
-  | _ => (Unknown(Internal), Unknown(Internal));
-
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
@@ -137,10 +140,26 @@ let matched_arrow_mode: mode => (mode, mode) =
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_prod_mode: mode => (mode, mode) =
+let matched_prod_mode = (mode: mode, length): list(mode) =>
+  switch (mode) {
+  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
+    List.map(ty => Ana(ty), ana_tys)
+  | _ => List.init(length, _ => Syn)
+  };
+
+let matched_list: t => t =
   fun
-  | Syn => (Syn, Syn)
-  | Ana(ty) => {
-      let (ty_l, ty_r) = matched_prod(ty);
-      (Ana(ty_l), Ana(ty_r));
-    };
+  | List(ty) => ty
+  | Unknown(prov) => Unknown(prov)
+  | _ => Unknown(Internal);
+
+let matched_list_mode: mode => mode =
+  fun
+  | Syn => Syn
+  | Ana(ty) => Ana(matched_list(ty));
+
+let matched_list_lit_mode = (mode: mode, length): list(mode) =>
+  switch (mode) {
+  | Syn => List.init(length, _ => Syn)
+  | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
+  };
