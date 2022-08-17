@@ -7,7 +7,6 @@ type cell = {
   caption: string,
   chapter: option(Node.t),
   initial: string,
-  hidden: bool,
 };
 
 /* NOTE: num_editors here should agree with TestView.school_panel */
@@ -37,20 +36,18 @@ let defaults: list(cell) = [
             br([]),
             br([]),
             text(
-              "Known Limitations: If there are any concave holes in your input, your code won't be fully interpreted.
+              "Known Limitations: Concave holes in your input may result in limited interpretation.
               If you aren't getting test feedback on the right-hand side, it may be because your program has a type error.
               Nonempty holes aren't drawn yet, so you'll need to move the caret through the program while watching the
-              cursor inspector in the top left. Test feedback isn't currently very helpful other than pass/fail.
-              Mouse interaction is currently the only way to move between cells, but inside cells keyboard input
-              must be used. If you experience any issues other than the limitations described here, please report
+              cursor inspector in the top left. Test feedback isn't currently very helpful beyond pass/fail.
+              If you experience any issues other than the limitations described here, please report
               them on slack!",
             ),
           ],
         ),
       ),
-    hidden: false,
   },
-  {caption: "Your Tests", initial: "", chapter: None, hidden: false},
+  {caption: "Your Tests", initial: "", chapter: None},
   {
     caption: "Hidden Tests",
     initial: "let not: Bool->Bool =
@@ -59,7 +56,6 @@ in
 test not(odd(0)) end;
 test odd(1) end",
     chapter: None,
-    hidden: true,
   },
   {
     caption: "Reference Implementation",
@@ -73,7 +69,6 @@ then false
 else not(odd(x-1))
 in yo",
     chapter: None,
-    hidden: true,
   },
   {
     caption: "Wrong Implementation 1",
@@ -83,7 +78,6 @@ let odd: Int->Bool =
 fun x -> false
 in 1",
     chapter: None,
-    hidden: true,
   },
   {
     caption: "Wrong Implementation 2",
@@ -93,7 +87,6 @@ let odd: Int->Bool =
 fun x -> true
 in 2",
     chapter: None,
-    hidden: true,
   },
   {
     caption: "Wrong Implementation 3",
@@ -108,13 +101,23 @@ fun x ->
 if x == 2 then true else odd_correct(x)
 in 3",
     chapter: None,
-    hidden: true,
   },
 ];
 
 let captions = List.map((cell: cell) => cell.caption, defaults);
 let chapters = List.map((cell: cell) => cell.chapter, defaults);
-let hiddens = List.map((cell: cell) => cell.hidden, defaults);
 
 let init: Model.school =
   defaults |> List.map((s: cell) => s.initial) |> Model.editors_of_strings;
+
+let hidden_test_descriptions = [
+  "Check base case",
+  "Simplest recursive case",
+  "Second-simplest recursive case",
+];
+
+let wrong_implementation_descriptions = [
+  "Always returns true",
+  "Always returns false",
+  "Correct, except for 2",
+];
