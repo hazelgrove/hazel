@@ -31,8 +31,10 @@ module Let_syntax = ElaborationResult;
 let rec syn_elab =
         (ctx: Context.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t => {
   print_endline("enter syn_elab");
-  e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
-  syn_elab_block(ctx, delta, e);
+  // e |> UHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+  let res = syn_elab_block(ctx, delta, e);
+  print_endline("exit syn_elab");
+  res;
 }
 
 and syn_elab_block =

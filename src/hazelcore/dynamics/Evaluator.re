@@ -787,7 +787,6 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
-        let _ = print_endline("??");
         /* ITGround rule */
         let dty_grounded = (
           InitialContext.ctx,
@@ -828,7 +827,6 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
         | _ => Indet(Cast(d1', dty, dty'))
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
-        let _ = print_endline("???");
         /* ITExpand rule */
         let dty'_grounded = (
           InitialContext.ctx,
@@ -838,7 +836,6 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
           DHExp.Cast(Cast(d1', dty, dty'_grounded), dty'_grounded, dty');
         evaluate(d');
       | (NotGroundOrHole(ty_grounded), Hole) =>
-        let _ = print_endline("????");
         /* ITGround rule */
         let dty_grounded = (
           InitialContext.ctx,
