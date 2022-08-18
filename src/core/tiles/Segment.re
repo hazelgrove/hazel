@@ -110,6 +110,7 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
 let rec remold = (seg: t, s: Sort.t) =>
   switch (s) {
   | Any => seg
+  | Typ => remold_typ(Nib.Shape.concave(), seg)
   | Pat => remold_pat(Nib.Shape.concave(), seg)
   | Exp => remold_exp(Nib.Shape.concave(), seg)
   | _ => failwith("unexpected")
@@ -148,6 +149,32 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     );
   {...remolded, children};
 }
+and remold_typ = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_typ(shape, tl)]
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Typ)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      };
+    }
+  }
 and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
@@ -160,6 +187,11 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => ([], shape, seg)
+      | Some(t) when t.label == Form.get("comma_typ").label => (
+          [],
+          shape,
+          seg,
+        )
       | Some(t) =>
         let (remolded, shape, rest) =
           remold_typ_uni(snd(Tile.shapes(t)), tl);
@@ -446,7 +478,7 @@ module Trim = {
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
     let (wss', gs') = cons_g(g, trim);
     /* Hack to supress the addition of leading whitespace on a line */
-    let wss' = scooch_over_linebreak(wss');
+    //let wss' = scooch_over_linebreak(wss');
     (wss', gs');
   };
 
