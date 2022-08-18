@@ -120,7 +120,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       //new_entry |> entry_to_yojson |> Yojson.Safe.to_string |> print_endline;
     };
     if (debug_zipper^) {
-      cur_model |> Model.get_zipper |> Printer.to_string |> print_endline;
+      cur_model |> Model.get_zipper |> Printer.to_string_log |> print_endline;
     };
   };
   res;
