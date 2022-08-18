@@ -46,13 +46,17 @@ type info_typ = {
   ty: Typ.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type info_rul = {cls: Term.URul.cls};
+
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Invalid(Term.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
-  | InfoTyp(info_typ);
+  | InfoTyp(info_typ)
+  | InfoRul(info_rul);
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
@@ -129,6 +133,7 @@ let is_error = (ci: t): bool => {
     | NotInHole(_) => false
     }
   | InfoTyp(_) => false
+  | InfoRul(_) => false //TODO
   };
 };
 
@@ -148,7 +153,7 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(e.id, m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -156,7 +161,7 @@ let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(p.id, m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -295,7 +300,14 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
-  | Match(scrut, {term: Rules(_, rules), _}) =>
+  | Match(scrut, {term: Rules(ids, rules), _}) =>
+    let rul_ms =
+      //TODO(andrew)
+      List.fold_left(
+        (m, id) => Id.Map.add(id, InfoRul({cls: Rules}), m),
+        Id.Map.empty,
+        ids,
+      );
     print_endline("match 1");
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
@@ -319,7 +331,7 @@ let rec uexp_to_info_map =
     add(
       ~self=Joined(branch_sources),
       ~free=Ctx.union([free_scrut] @ branch_frees),
-      union_m([m_scrut] @ pat_ms @ branch_ms),
+      union_m([rul_ms, m_scrut] @ pat_ms @ branch_ms),
     );
   | Match(_) =>
     print_endline("match 2");

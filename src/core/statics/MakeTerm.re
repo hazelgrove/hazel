@@ -354,6 +354,8 @@ and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.t => {
       | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
       | (["=>"], [Pat(l), Exp(r)], []) => Rules([id], [(l, r)]) //TODO:unfuck
       | (["|"], [Rul(l), Rul(r)], []) => of_rules_rul(id, l, r).term
+      | (["|"], [Rul({term: Rules(ids, rs), id: _})], []) =>
+        Rules(ids @ [id], rs)
       | (["|"], [Rul(x)], []) => x.term //TODO:unfuck
       | _ => Invalid(UnrecognizedTerm, p)
       };
