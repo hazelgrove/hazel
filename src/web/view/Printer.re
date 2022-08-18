@@ -58,7 +58,37 @@ let of_zipper = (z: Zipper.t): t => {
   };
 };
 
-let to_string = (z: Zipper.t): string => {
+let zipper_of_string =
+    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
+    : option(Zipper.state) => {
+  let insert_to_zid: (Zipper.state, string) => Zipper.state =
+    (z_id, c) => {
+      switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
+      | Error(err) =>
+        print_endline(
+          "WARNING: zipper_of_string: insert: "
+          ++ Perform.Action.Failure.show(err),
+        );
+        z_id;
+      | Ok(r) => r
+      };
+    };
+  try(
+    str
+    |> Util.StringUtil.to_list
+    |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
+    |> Option.some
+  ) {
+  | e =>
+    print_endline(
+      "WARNING: zipper_of_string: exception during parse: "
+      ++ Printexc.to_string(e),
+    );
+    None;
+  };
+};
+
+let to_string_log = (z: Zipper.t): string => {
   let {code, selection, backpack} = of_zipper(z);
   Printf.sprintf(
     "CODE:\n%s\nSELECTION:\n%s\n%s\n",
@@ -74,4 +104,12 @@ let to_string = (z: Zipper.t): string => {
        )
     |> String.concat(""),
   );
+};
+
+let to_string_basic = (z: Zipper.t): string => {
+  z |> Zipper.unselect_and_zip |> of_segment;
+};
+
+let to_string_selection = (z: Zipper.t): string => {
+  z.selection.content |> of_segment;
 };
