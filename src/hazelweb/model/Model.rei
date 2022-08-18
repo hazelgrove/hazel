@@ -1,4 +1,5 @@
 type t = {
+  res: ModelResult.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -26,6 +27,9 @@ let cardstack_info: list(CardstackInfo.t);
 let cutoff: (t, t) => bool;
 let init: unit => t;
 
+let get_result: t => ModelResult.t;
+let update_result: (ModelResult.current, t) => t;
+
 let get_program: t => Program.t;
 
 let get_edit_state: t => Statics.edit_state;
@@ -34,6 +38,9 @@ let get_card: t => ZCard.t;
 let get_cardstacks: t => ZCardstacks.t;
 let get_cardstack: t => Cardstack.t;
 let get_cards_info: t => list(CardInfo.t);
+
+let map_selected_instances:
+  (UserSelectedInstances.t => UserSelectedInstances.t, t) => t;
 
 let get_cursor_info: t => CursorInfo.t;
 

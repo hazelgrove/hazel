@@ -18,8 +18,11 @@
 (library
  ;; This library ensures that all modules are type checked even if they are not used.
  (name hazelweb)
- (modules :standard \ Main)
- (libraries hazelcore incr_dom hazeltext)
+ (modules
+  (:standard \ Main)
+  \
+  Worker)
+ (libraries hazelcore incr_dom hazeltext lwt lwtutil)
  (wrapped false)
  (preprocess
   (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
@@ -27,6 +30,14 @@
 (executable
  (name main)
  (modules Main)
+ (libraries hazelweb)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv)))
+
+(executable
+ (name worker)
+ (modules Worker)
  (libraries hazelweb)
  (modes js)
  (preprocess

@@ -173,6 +173,8 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
+let empty = EmptyHole(0, 0, []);
+
 let constructor_string = (d: t): string =>
   switch (d) {
   | EmptyHole(_, _, _) => "EmptyHole"

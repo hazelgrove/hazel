@@ -34,12 +34,23 @@ let top_bar = (~inject: ModelAction.t => Ui_event.t, ~model: Model.t) => {
 
 let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
+  let res = model |> Model.get_result;
   let selected_instance = Model.get_selected_hole_instance(model);
   let (_, ty, _) = program.edit_state;
-  let result =
-    settings.evaluation.show_unevaluated_elaboration
-      ? program |> Program.get_elaboration
-      : program |> Program.get_result |> ProgramResult.get_dhexp;
+
+  /* TODO: UI indicators for each non-Ok case. */
+  let d =
+    if (!settings.evaluation.evaluate) {
+      program |> Program.get_elaboration;
+    } else {
+      switch (res.current) {
+      | ResultOk(r) => r |> ProgramResult.get_dhexp
+      | ResultFail(_)
+      | ResultTimeout
+      | ResultPending => res.previous |> ProgramResult.get_dhexp
+      };
+    };
+
   div(
     [],
     [
@@ -67,7 +78,7 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
             ~settings=settings.evaluation,
             ~width=80,
             ~font_metrics=model.font_metrics,
-            result,
+            d,
           ),
         ],
       ),
@@ -86,6 +97,7 @@ let left_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
 let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
   let settings = model.settings;
   let program = Model.get_program(model);
+  let res = model |> Model.get_result;
   let selected_instance = Model.get_selected_hole_instance(model);
   Sidebar.right(~inject, ~is_open=model.right_sidebar_open, () =>
     [
@@ -95,6 +107,7 @@ let right_sidebar = (~inject: ModelAction.t => Event.t, ~model: Model.t) => {
         ~settings=settings.evaluation,
         ~font_metrics=model.font_metrics,
         program,
+        res,
       ),
     ]
   );

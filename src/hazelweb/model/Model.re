@@ -1,4 +1,5 @@
 type t = {
+  res: ModelResult.t,
   cardstacks: ZCardstacks.t,
   cell_width: int,
   selected_instances: UserSelectedInstances.t,
@@ -67,6 +68,7 @@ let init = (): t => {
     };
   };
   {
+    res: ModelResult.init,
     cardstacks,
     cell_width,
     selected_instances,
@@ -83,6 +85,13 @@ let init = (): t => {
     settings,
     cursor_inspector,
   };
+};
+
+let get_result = (model: t): ModelResult.t => model.res;
+let put_result = (res: ModelResult.t, model: t): t => {...model, res};
+let update_result = (current: ModelResult.current, model: t): t => {
+  let res = model |> get_result |> ModelResult.update_current(current);
+  model |> put_result(res);
 };
 
 let get_program = (model: t): Program.t =>
@@ -164,11 +173,12 @@ let select_hole_instance = ((u, i): HoleInstance.t, model: t): t =>
   |> focus_cell;
 
 let update_program = (a: ModelAction.t, new_program, model) => {
-  let old_program = model |> get_program;
-  let update_selected_instances = si => {
+  /* TODO: Need to fix this since web worker changes, but leaving for haz3l. */
+  /* let old_program = model |> get_program; */
+  let update_selected_instances = _si => {
     let si =
-      Program.get_result(old_program) == Program.get_result(new_program)
-        ? si : UserSelectedInstances.init;
+      /* Program.get_result(old_program) == Program.get_result(new_program) ? si :  */
+      UserSelectedInstances.init;
     switch (
       model.settings.evaluation.evaluate,
       new_program |> Program.cursor_on_exp_hole,

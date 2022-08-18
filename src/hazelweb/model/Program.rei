@@ -34,6 +34,10 @@ let get_cursor_info: t => CursorInfo.t;
 
 let get_decoration_paths: t => UHDecorationPaths.t;
 
+let renumber:
+  (InstancePath.t, HoleInstanceInfo.t, DHExp.t) =>
+  (DHExp.t, HoleInstanceInfo.t);
+
 /**
  * Raised when edit state does not elaborate
  * (indicates a bug, either in that function or in Action
