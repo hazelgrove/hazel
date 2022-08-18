@@ -1,3 +1,18 @@
+module Time = {
+  type t = int;
+  let t = ref(0);
+
+  let tick = (): t => {
+    let time = t^;
+    t := time + 1;
+    time;
+  };
+
+  let last = () => {
+    t^ - 1;
+  };
+};
+
 module Record = {
   type t = {
     created: Time.t,
@@ -38,3 +53,9 @@ let touch_s = (ids: list(Id.t)) => {
          t^,
        );
 };
+
+let just_touched = (id: Id.t): bool =>
+  switch (Id.Map.find_opt(id, t^)) {
+  | None => false
+  | Some(r) => r.modified >= Time.last()
+  };
