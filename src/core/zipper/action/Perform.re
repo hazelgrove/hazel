@@ -118,8 +118,7 @@ let select = (d, z, id_gen) =>
   |> Option.map(IdGen.id(id_gen))
   |> Result.of_option(~error=Action.Failure.Cant_select);
 
-let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) => {
-  IncompleteBidelim.clear();
+let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) =>
   switch (a) {
   | Move(d) => move(d, z, id_gen)
   | Unselect =>
@@ -153,4 +152,3 @@ let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) => {
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move);
   };
-};

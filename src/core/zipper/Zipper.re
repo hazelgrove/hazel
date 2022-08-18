@@ -173,6 +173,9 @@ module Outer = {
       |> Segment.trim_grout_around_whitespace(Left)
       |> Segment.trim_grout_around_whitespace(Right)
       |> Selection.mk(selected.focus);
+    Segment.tiles(selection.content)
+    |> List.map((t: Tile.t) => t.id)
+    |> History.touch_s;
     let backpack = Backpack.push(selection, z.backpack);
     {...z, backpack};
   };
@@ -189,6 +192,7 @@ module Outer = {
     let to_pick_up =
       destroy_kids
         ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
+    History.touch_s(List.map((t: Tile.t) => t.id, to_pick_up));
     let backpack =
       z.backpack
       |> Backpack.remove_matching(to_remove)
@@ -206,7 +210,9 @@ module Outer = {
   let put_down = (z: t): option(t) => {
     let z = destruct(z);
     let+ (_, popped, backpack) = pop_backpack(z);
-    IncompleteBidelim.set(popped.content);
+    Segment.tiles(popped.content)
+    |> List.map((t: Tile.t) => t.id)
+    |> History.touch_s;
     {...z, backpack} |> put_selection(popped) |> unselect;
   };
 
@@ -215,6 +221,7 @@ module Outer = {
       switch (label) {
       | [content] when Form.is_whitespace(content) =>
         let+ id = IdGen.fresh;
+        History.touch(id);
         z
         |> update_siblings(((l, r)) =>
              (l @ [Whitespace({id, content})], r)
@@ -226,6 +233,7 @@ module Outer = {
         // initial mold to typecheck, will be remolded
         let mold = List.hd(molds);
         let+ id = IdGen.fresh;
+        History.touch(id);
         let selections =
           Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
           |> List.map(Segment.of_tile)

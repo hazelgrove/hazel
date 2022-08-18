@@ -26,6 +26,12 @@ let incomplete_tiles =
     | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
     | _ => None,
   );
+let tiles =
+  List.filter_map(
+    fun
+    | Piece.Tile(t) => Some(t)
+    | _ => None,
+  );
 
 let contains_matching = (t: Tile.t) =>
   List.exists(
