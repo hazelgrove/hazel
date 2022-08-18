@@ -10,9 +10,9 @@ type t = {
 type update =
   | OpenEditor(Program.t)
   | CloseEditor
-  | ClearError
   | SetCurrentText(string)
-  | SetError(string);
+  | SetError(string)
+  | ClearError;
 
 let init = {active: false, current_text: None, error: None};
 
@@ -38,13 +38,10 @@ let apply_update = (u: update, te_model: t) => {
 let is_valid = (te_model: t) => Option.is_none(te_model.error);
 
 let line_count = (te_model: t) => {
-  {
-    switch (te_model.current_text) {
-    | Some(s) => String.split_on_char('\n', s) |> List.length
-    | None => 0
-    };
-  }
-  |> (x => x + 0);
+  switch (te_model.current_text) {
+  | Some(s) => String.split_on_char('\n', s) |> List.length
+  | None => 0
+  };
 };
 
 let get_error_string = (te_model: t) => {
@@ -52,5 +49,5 @@ let get_error_string = (te_model: t) => {
 };
 
 let get_current_text = (te_model: t) => {
-  Option.get(te_model.current_text);
+  Option.value(te_model.current_text, ~default="");
 };

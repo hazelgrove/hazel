@@ -1,9 +1,8 @@
 open Incr_dom;
 module Js = Js_of_ocaml.Js;
-module Parsing = Hazeltext.Parsing;
-module Print = Hazeltext.Print;
+module Result = Stdlib.Result;
 
-let ast_from_text = Parsing.ast_of_string;
+let ast_from_text = Hazeltext.Parsing.ast_of_string;
 
 let switch_button_clickhandler =
     (inject: ModelAction.t => Ui_event.t, te_model: TextEditorModel.t, _) => {
@@ -12,7 +11,7 @@ let switch_button_clickhandler =
     inject(
       ModelAction.Import(
         ast_from_text(TextEditorModel.get_current_text(te_model))
-        |> Stdlib.Result.get_ok,
+        |> Result.get_ok,
       ),
     ),
   ]);
@@ -27,13 +26,13 @@ let textbox_keyhandlers =
       )
     ),
     Attr.on_keyup(_ => {
-      let result =
+      let ast =
         ast_from_text(TextEditorModel.get_current_text(model.text_editor));
       inject(
         ModelAction.UpdateTextEditor(
-          Stdlib.Result.(
-            is_error(result)
-              ? TextEditorModel.SetError(get_error(result))
+          Result.(
+            is_error(ast)
+              ? TextEditorModel.SetError(get_error(ast))
               : TextEditorModel.ClearError
           ),
         ),

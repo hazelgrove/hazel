@@ -8,9 +8,9 @@ type t = {
 type update =
   | OpenEditor(Program.t)
   | CloseEditor
-  | ClearError
   | SetCurrentText(string)
-  | SetError(string);
+  | SetError(string)
+  | ClearError;
 
 let init: t;
 
@@ -22,7 +22,7 @@ let apply_update: (update, t) => t;
 let is_valid: t => bool;
 
 /*
- * Returns the count of newlines in current_text
+ * Returns the count of lines in current_text
  */
 let line_count: t => int;
 
@@ -31,4 +31,7 @@ let line_count: t => int;
  */
 let get_error_string: t => string;
 
+/*
+ * Returns the current text
+ */
 let get_current_text: t => string;
