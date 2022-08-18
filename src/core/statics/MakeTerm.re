@@ -198,13 +198,16 @@ and of_multi_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
 }
 and of_rules_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
   //TODO(andrew): this doesnt make sense
-  let wrap_multi = (ids, es): URul.t => {id, term: Rules([id] @ ids, es)};
+  let wrap_rules = (ids, es: list((UPat.t, UExp.t))): URul.t => {
+    id,
+    term: Rules([id] @ ids, es),
+  };
   switch (l, r) {
   | ({term: Rules(l_ids, ls), _}, {term: Rules(r_ids, rs), _}) =>
-    wrap_multi(l_ids @ r_ids, ls @ rs)
-  | (l, {term: Rules(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
-  | ({term: Rules(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
-  | (l, r) => wrap_multi([], [l, r])
+    wrap_rules(l_ids @ r_ids, ls @ rs)
+  | ({term: Rules(_), _}, _) => l //TODO
+  | (_, {term: Rules(_), _}) => r //TODO
+  | (l, r) => {id, term: MultiHole([id], [l, r])}
   };
 }
 and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
@@ -349,8 +352,9 @@ and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.t => {
     let term: URul.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
-      | (["=>"], [Pat(l), Pat(r)], []) => Rules([(l, r)]) //TODO
-      | (["|"], [Rul(l), Rul(r)], []) => of_tuple_typ(id, l, r).term
+      | (["=>"], [Pat(l), Exp(r)], []) => Rules([id], [(l, r)]) //TODO:unfuck
+      | (["|"], [Rul(l), Rul(r)], []) => of_rules_rul(id, l, r).term
+      | (["|"], [Rul(x)], []) => x.term //TODO:unfuck
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};

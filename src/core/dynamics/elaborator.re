@@ -197,6 +197,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };
+    | Match(_) =>
+      //TODO(andrew)
+      wrap(Triv)
     };
   | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
   | None => None
