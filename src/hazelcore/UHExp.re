@@ -63,6 +63,12 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Fun(err, p, body);
 
+let typfun = (~err: ErrStatus.t=NotInHole, tp: TPat.t, body: t): operand =>
+  TypFun(err, tp, body);
+
+let typapp = (~err: ErrStatus.t=NotInHole, body: t, ty: UHTyp.t): operand =>
+  TypApp(err, body, ty);
+
 let case =
     (
       ~err: CaseErrStatus.t=StandardErrStatus(NotInHole),
