@@ -197,9 +197,27 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };
+    | Match(scrut, {term: Rules(_, rules), _}) =>
+      let* d_scrut = dhexp_of_uexp(m, scrut);
+      let* drules =
+        List.map(
+          ((pat, branch)) => {
+            let* d_pat = dhpat_of_upat(m, pat);
+            let+ d_body = dhexp_of_uexp(m, branch);
+            DHExp.Rule(d_pat, d_body);
+          },
+          rules,
+        )
+        |> OptUtil.sequence;
+      let d = DHExp.Case(d_scrut, drules, 0);
+      switch (err_status) {
+      | InHole(SynInconsistentBranches(_)) =>
+        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+      | _ => wrap(ConsistentCase(d))
+      };
     | Match(_) =>
       //TODO(andrew)
-      wrap(Triv)
+      Some(EmptyHole(u, 0, sigma))
     };
   | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
   | None => None
