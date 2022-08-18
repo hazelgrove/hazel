@@ -324,7 +324,7 @@ let rec uexp_to_info_map =
   | Match(_) =>
     print_endline("match 2");
     //TODO(andrew)
-    atomic(Just(List(Unknown(Internal))));
+    atomic(Just(Unknown(Internal)));
   | Seq(e1, e2) =>
     let (_, free1, m1) = go(~mode=Syn, e1);
     let (ty2, free2, m2) = go(~mode, e2);
