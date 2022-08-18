@@ -308,14 +308,13 @@ let rec uexp_to_info_map =
         branches,
         pat_infos,
       );
-    //let branch_tys = List.map(((ty, _, _)) => ty, branch_infos);
-    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
     let branch_sources =
       List.map2(
         ({id, _}: Term.UExp.t, (ty, _, _)) => Typ.{id, ty},
         branches,
         branch_infos,
       );
+    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     add(
       ~self=Joined(branch_sources),
