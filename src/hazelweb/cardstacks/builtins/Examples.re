@@ -85,6 +85,37 @@ case 1
 | 2 => 2.
 end ");
 
+let typfun: UHExp.t = {
+  let operand_wrap = operand =>
+    operand |> OpSeq.wrap |> (x => UHExp.ExpLine(x));
+  [
+    UHExp.LetLine(
+      UHPat.var("id") |> OpSeq.wrap,
+      [
+        UHExp.typfun(
+          TPat.of_string("X"),
+          [
+            UHExp.lam(
+              OpSeq.wrap(UHPat.var("x")),
+              [UHExp.var("x") |> operand_wrap],
+            )
+            |> operand_wrap,
+          ],
+        )
+        |> operand_wrap,
+      ],
+    ),
+    UHExp.Parenthesized([
+      UHExp.typapp(
+        [UHExp.var("id") |> operand_wrap],
+        OpSeq.wrap(UHTyp.Int),
+      )
+      |> operand_wrap,
+    ])
+    |> operand_wrap,
+  ];
+};
+
 let examples = [
   ("hole", just_hole),
   // ("lambda", holey_lambda),
@@ -92,6 +123,7 @@ let examples = [
   // ("map", map_example),
   // ("quicksort", qsort_example),
   // ("inconsistent branches", inconsistent_branches),
+  // ("typfun", typfun),
 ];
 
 let example_to_card = ((name: string, e: UHExp.t)): CardInfo.t => {
