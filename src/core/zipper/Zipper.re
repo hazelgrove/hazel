@@ -177,7 +177,7 @@ module Outer = {
     {...z, backpack};
   };
 
-  let destruct = (z: t): t => {
+  let destruct = (~destroy_kids=true, z: t): t => {
     let (selected, z) = update_selection(Selection.empty, z);
     let (to_pick_up, to_remove) =
       Segment.incomplete_tiles(selected.content)
@@ -185,6 +185,10 @@ module Outer = {
            Siblings.contains_matching(t, z.relatives.siblings)
            || Ancestors.parent_matches(t, z.relatives.ancestors)
          );
+    /* If flag is set, break up tiles and remove children */
+    let to_pick_up =
+      destroy_kids
+        ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
     let backpack =
       z.backpack
       |> Backpack.remove_matching(to_remove)
