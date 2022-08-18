@@ -1302,11 +1302,12 @@ and ana_fix_holes_operand =
         id_gen,
       );
     }
-  | TypFun(_, _tp, body) =>
+  | TypFun(_, tp, body) =>
     // TODO: (poly) do we need the tp from TypFun?
     // Or the tp from matched_forall() is enough?
+    // FIXME: Answer is - Yes we do.
     switch (HTyp.matched_forall(ctx, ty)) {
-    | Some((tp, ty_body)) =>
+    | Some((_tp, ty_body)) =>
       let (ctx_body, tp, id_gen) =
         Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
       let (body, id_gen) =
