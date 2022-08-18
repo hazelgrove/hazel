@@ -1,5 +1,13 @@
 open Sexplib.Std;
 
+let dbg = (name, f) => {
+  // print_endline(">>> " ++ name);
+  let x = f();
+  // print_endline("<<< " ++ name);
+  let _ = name;
+  x;
+};
+
 module ContextRef = {
   /* TODO: (eric) is there a way to incorporate peer type info? */
   [@deriving sexp]
@@ -285,6 +293,8 @@ module rec Context: {
     };
     cref;
   };
+  let rescope = (ctx: t, cref: ContextRef.t) =>
+    dbg("rescope", () => rescope(ctx: t, cref: ContextRef.t));
 
   let nth_var_binding =
       (ctx: t, n: int): option((Var.t, HTyp_syntax.t(Index.relative))) => {
@@ -295,6 +305,8 @@ module rec Context: {
     | TyVarBinding(_) => None
     };
   };
+  let nth_var_binding = (ctx: t, n: int) =>
+    dbg("nth_var_binding", () => nth_var_binding(ctx: t, n: int));
 
   let nth_tyvar_binding =
       (ctx: t, n: int): option((Var.t, Kind_core.s(Index.relative))) => {
@@ -305,6 +317,8 @@ module rec Context: {
     | VarBinding(_) => None
     };
   };
+  let nth_tyvar_binding = (ctx: t, n: int) =>
+    dbg("nth_tyvar_binding", () => nth_tyvar_binding(ctx: t, n: int));
 
   let first_var_binding =
       (ctx: t, f: (Var.t, HTyp_syntax.t(Index.relative)) => bool)
@@ -318,6 +332,14 @@ module rec Context: {
       };
     go(0, ctx);
   };
+  let first_var_binding =
+      (ctx: t, f: (Var.t, HTyp_syntax.t(Index.relative)) => bool) =>
+    dbg("first_var_binding", () =>
+      first_var_binding(
+        ctx: t,
+        f: (Var.t, HTyp_syntax.t(Index.relative)) => bool,
+      )
+    );
 
   let first_tyvar_binding =
       (ctx: t, f: (TyVar.t, Kind_core.s(Index.relative)) => bool)
@@ -331,6 +353,14 @@ module rec Context: {
       };
     go(0, ctx);
   };
+  let first_tyvar_binding =
+      (ctx: t, f: (TyVar.t, Kind_core.s(Index.relative)) => bool) =>
+    dbg("first_tyvar_binding", () =>
+      first_tyvar_binding(
+        ctx: t,
+        f: (TyVar.t, Kind_core.s(Index.relative)) => bool,
+      )
+    );
 
   /* Type Variables */
 
@@ -361,6 +391,7 @@ module rec Context: {
     |> fst
     |> List.rev;
   };
+  let tyvars = (ctx: t) => dbg("tyvars", () => tyvars(ctx: t));
 
   let tyvar = (ctx: t, cref: ContextRef.t): option(TyVar.t) => {
     open OptUtil.Syntax;
@@ -368,6 +399,8 @@ module rec Context: {
     let+ (t, _) = nth_tyvar_binding(ctx, Index.Abs.to_int(cref.index));
     t;
   };
+  let tyvar = (ctx: t, cref: ContextRef.t) =>
+    dbg("tyvar", () => tyvar(ctx: t, cref: ContextRef.t));
 
   let tyvar_ref = (ctx: t, t: TyVar.t): option(ContextRef.t) => {
     open OptUtil.Syntax;
@@ -379,6 +412,8 @@ module rec Context: {
       ctx |> List.map(binding_name) |> ListUtil.pivot(i);
     ContextRef.abs(index, stamp, predecessors, successors);
   };
+  let tyvar_ref = (ctx: t, t: TyVar.t) =>
+    dbg("tyvar_ref", () => tyvar_ref(ctx: t, t: TyVar.t));
 
   let tyvar_kind = (ctx: t, cref: ContextRef.t): option(Kind.t) => {
     open OptUtil.Syntax;
@@ -388,11 +423,15 @@ module rec Context: {
     let k' = Kind_core.to_abs(~offset=i + 1, k);
     Kind.rescope(ctx, k');
   };
+  let tyvar_kind = (ctx: t, cref: ContextRef.t) =>
+    dbg("tyvar_kind", () => tyvar_kind(ctx: t, cref: ContextRef.t));
 
   let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t): t => [
     TyVarBinding(t, Kind_core.to_rel(k)),
     ...ctx,
   ];
+  let add_tyvar = (ctx: t, t: TyVar.t, k: Kind.t) =>
+    dbg("add_tyvar", () => add_tyvar(ctx: t, t: TyVar.t, k: Kind.t));
 
   let add_tpat = (ctx: t, tp: TPat.t, k: Kind.t): t =>
     switch (tp) {
@@ -400,6 +439,8 @@ module rec Context: {
     | TyVar(InHole(_), _) => ctx
     | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
     };
+  let add_tpat = (ctx: t, tp: TPat.t, k: Kind.t) =>
+    dbg("add_tpat", () => add_tpat(ctx: t, tp: TPat.t, k: Kind.t));
 
   /* Assumes indices in ty are scoped to new_ctx. */
   let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
@@ -415,6 +456,10 @@ module rec Context: {
          });
     HTyp.subst_tyvars(new_ctx, ty, tyvars);
   };
+  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t) =>
+    dbg("reduce_tyvars", () =>
+      reduce_tyvars(new_ctx: t, old_ctx: t, ty: HTyp.t)
+    );
 
   /* Expression Variables */
 
@@ -445,6 +490,7 @@ module rec Context: {
     |> fst
     |> List.rev;
   };
+  let vars = (ctx: t) => dbg("vars", () => vars(ctx: t));
 
   let var = (ctx: t, cref: ContextRef.t): option(Var.t) => {
     open OptUtil.Syntax;
@@ -452,6 +498,8 @@ module rec Context: {
     let+ (x, _) = nth_var_binding(ctx, Index.Abs.to_int(cref.index));
     x;
   };
+  let var = (ctx: t, cref: ContextRef.t) =>
+    dbg("var", () => var(ctx: t, cref: ContextRef.t));
 
   let var_ref = (ctx: t, x: Var.t): option(ContextRef.t) => {
     open OptUtil.Syntax;
@@ -462,6 +510,8 @@ module rec Context: {
       ctx |> List.map(binding_name) |> ListUtil.pivot(i);
     ContextRef.abs(index, stamp, predecessors, successors);
   };
+  let var_ref = (ctx: t, x: Var.t) =>
+    dbg("var_ref", () => var_ref(ctx: t, x: Var.t));
 
   let var_ref_type = (ctx: t, cref: ContextRef.t): option(HTyp.t) => {
     open OptUtil.Syntax;
@@ -471,17 +521,23 @@ module rec Context: {
     let ty = HTyp.of_syntax(HTyp_syntax.to_abs(~offset=i, ty));
     HTyp.rescope(ctx, ty);
   };
+  let var_ref_type = (ctx: t, cref: ContextRef.t) =>
+    dbg("var_ref_type", () => var_ref_type(ctx: t, cref: ContextRef.t));
 
   let var_type = (ctx: t, x: Var.t): option(HTyp.t) => {
     open OptUtil.Syntax;
     let* cref = var_ref(ctx, x);
     var_ref_type(ctx, cref);
   };
+  let var_type = (ctx: t, x: Var.t) =>
+    dbg("var_type", () => var_type(ctx: t, x: Var.t));
 
   let add_var = (ctx: t, x: Var.t, ty: HTyp.t): t => [
     VarBinding(x, HTyp_syntax.to_rel(HTyp.to_syntax(ty))),
     ...ctx,
   ];
+  let add_var = (ctx: t, x: Var.t, ty: HTyp.t) =>
+    dbg("add_var", () => add_var(ctx: t, x: Var.t, ty: HTyp.t));
 
   let entries = (ctx: t): list(entry) =>
     List.mapi(
@@ -494,6 +550,7 @@ module rec Context: {
         },
       ctx,
     );
+  let entries = (ctx: t) => dbg("entries", () => entries(ctx: t));
 
   let of_entries = (entries: list(entry)): t =>
     List.fold_right(
@@ -505,6 +562,8 @@ module rec Context: {
       entries,
       [],
     );
+  let of_entries = (entries: list(entry)) =>
+    dbg("of_entries", () => of_entries(entries: list(entry)));
 }
 
 and HTyp: {
@@ -689,6 +748,8 @@ and HTyp: {
       |> ListUtil.pivot(Index.Abs.to_int(index));
     TyVar({index, stamp, successors, predecessors}, t);
   };
+  let tyvar = (ctx: Context.t, index: Index.Abs.t, t: TyVar.t) =>
+    dbg("tyvar", () => tyvar(ctx: Context.t, index: Index.Abs.t, t: TyVar.t));
 
   let tyvarhole =
       (reason: TyVarErrStatus.HoleReason.t, u: MetaVar.t, t: TyVar.t): t =>
@@ -708,6 +769,7 @@ and HTyp: {
     | Prod(_)
     | List(_) => None
     };
+  let tyvar_ref = (ty: t) => dbg("tyvar_ref", () => tyvar_ref(ty: t));
 
   let tyvar_name = (ty: t): option(string) =>
     switch (ty) {
@@ -723,6 +785,7 @@ and HTyp: {
     | List(_)
     | Forall(_) => None
     };
+  let tyvar_name = dbg("tyvar_name", () => tyvar_name);
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
     switch (ty) {
@@ -739,6 +802,7 @@ and HTyp: {
     | Forall(tp, ty) =>
       Forall(tp, rescope(Context.add_tpat(ctx, tp, Kind_core.Type), ty))
     };
+  let rescope = dbg("rescope", () => rescope);
 
   let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
     switch (ty) {
@@ -764,6 +828,7 @@ and HTyp: {
     | Forall(tp, ty) => Forall(tp, subst_tyvar(ctx, ty, cref, ty'))
     };
   };
+  let subst_tyvar = dbg("subst_tyvar", () => subst_tyvar);
 
   let subst_tyvars =
       (ctx: Context.t, ty: t, tyvars: list((ContextRef.t, t))): t =>
@@ -772,6 +837,7 @@ and HTyp: {
       ty,
       tyvars,
     );
+  let subst_tyvars = dbg("subst_tyvars", () => subst_tyvars);
 
   let subst_tpat = (ctx: Context.t, ty: t, tp: TPat.t, ty': t): t => {
     let tyvar_ref =
@@ -786,6 +852,7 @@ and HTyp: {
       };
     new_ty;
   };
+  let subst_tpat = dbg("subst_tpat", () => subst_tpat);
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {
@@ -818,6 +885,7 @@ and HTyp: {
     | (Forall(_tp, ty), Forall(_tp', ty')) => equivalent(ctx, ty, ty')
     | (Forall(_), _) => false
     };
+  let equivalent = dbg("equivalent", () => equivalent);
 
   let rec consistent = (ctx: Context.t, ty: t, ty': t): bool => {
     let head_normalize_ = ty =>
@@ -863,9 +931,11 @@ and HTyp: {
     | (Forall(_), _) => false
     };
   };
+  let consistent = dbg("consistent", () => consistent);
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
     !consistent(ctx, ty1, ty2);
+  let inconsistent = dbg("inconsistent", () => inconsistent);
 
   let rec consistent_all = (ctx: Context.t, types: list(t)): bool =>
     switch (types) {
@@ -873,6 +943,7 @@ and HTyp: {
     | [hd, ...tl] =>
       !List.exists(inconsistent(ctx, hd), tl) || consistent_all(ctx, tl)
     };
+  let consistent_all = dbg("consistent_all", () => consistent_all);
 
   /* complete (i.e. does not have any holes) */
   let rec complete: t => bool =
@@ -888,6 +959,7 @@ and HTyp: {
     | Prod(tys) => tys |> List.for_all(complete)
     | List(ty) => complete(ty)
     | Forall(_tp, ty) => complete(ty);
+  let complete = dbg("complete", () => complete);
 
   /* HTyp Constructor Precedence */
 
@@ -988,6 +1060,7 @@ and HTyp: {
       HTyp_syntax.Forall(tp, ty);
     | (Arrow(_) | Sum(_) | Prod(_) | List(_) | Forall(_), _) => None
     };
+  let join = dbg("join", () => join);
 
   let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
     switch (types) {
@@ -1006,6 +1079,7 @@ and HTyp: {
             tl,
           )
     };
+  let join_all = dbg("join_all", () => join_all);
 
   /* HTyp Normalization */
 
@@ -1043,6 +1117,7 @@ and HTyp: {
       let ctx = Context.add_tpat(ctx, tp, Kind_core.Type);
       Forall(tp, normalize(ctx, ty));
     };
+  let normalize = dbg("normalize", () => normalize);
 
   /* Properties of Normalized HTyp */
 
@@ -1067,6 +1142,8 @@ and HTyp: {
     | (Forall(_, ty1), Forall(_, ty1')) => normalized_consistent(ty1, ty1')
     | (Forall(_, _), _) => false
     };
+  let normalized_consistent =
+    dbg("normalized_consistent", () => normalized_consistent);
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
     switch (ty, ty') {
@@ -1089,6 +1166,8 @@ and HTyp: {
     | (Forall(_, ty1), Forall(_, ty1')) => normalized_equivalent(ty1, ty1')
     | (Forall(_, _), _) => false
     };
+  let normalized_equivalent =
+    dbg("normalized_equivalent", () => normalized_equivalent);
 
   /* Ground Cases */
 
@@ -1126,6 +1205,7 @@ and HTyp: {
     | List(_) => grounded_List()
     | Forall(_) => grounded_Forall()
     };
+  let ground_cases_of = dbg("ground_cases_of", () => ground_cases_of);
 
   /* HTyp Head-Normalization */
 
@@ -1156,6 +1236,7 @@ and HTyp: {
     | TyVar(cref, t) => TyVar(cref, t)
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Forall(tp, ty) => Forall(tp, ty);
+  let of_head_normalized = dbg("of_head_normalized", () => of_head_normalized);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
@@ -1184,6 +1265,7 @@ and HTyp: {
     | List(ty) => List(ty)
     | Forall(tp, ty) => Forall(tp, ty)
     };
+  let head_normalize = dbg("head_normalize", () => head_normalize);
 
   /* Matched Type Constructors */
 
@@ -1229,8 +1311,10 @@ and HTyp: {
     fun
     | Prod(tys) => tys
     | _ as ty => [of_head_normalized(ty)];
+  let get_prod_elements = dbg("get_prod_elements", () => get_prod_elements);
 
   let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
+  let get_prod_arity = ty => dbg("get_prod_arity", () => get_prod_arity(ty));
 }
 
 and Kind: {
