@@ -101,6 +101,32 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
+let rec remold_typ = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_typ(shape, tl)]
+    | Tile(t) =>
+      let t_remolded =
+        Molds.get(t.label)
+        |> List.filter((m: Mold.t) => m.out == Typ)
+        |> List.map(mold => {...t, mold})
+        |> (
+          fun
+          | [_] as ts => ts
+          | ts =>
+            ts
+            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+        )
+        |> ListUtil.hd_opt;
+      switch (t_remolded) {
+      | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      };
+    }
+  };
 let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
@@ -125,6 +151,11 @@ let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         |> ListUtil.hd_opt;
       switch (t_remolded) {
       | None => ([], shape, seg)
+      | Some(t) when t.label == Form.get("comma_typ").label => (
+          [],
+          shape,
+          seg,
+        )
       | Some(t) =>
         let (remolded, shape, rest) =
           remold_typ_uni(snd(Tile.shapes(t)), tl);
@@ -322,6 +353,7 @@ let rec remold_exp = (shape, seg: t): t =>
 let remold = (seg: t, s: Sort.t) =>
   switch (s) {
   | Any => seg
+  | Typ => remold_typ(Nib.Shape.concave(), seg)
   | Pat => remold_pat(Nib.Shape.concave(), seg)
   | Exp => remold_exp(Nib.Shape.concave(), seg)
   | _ => failwith("unexpected")
