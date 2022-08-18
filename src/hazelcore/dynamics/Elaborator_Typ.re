@@ -15,11 +15,6 @@ let rec syn_elab: (Context.t, Delta.t, UHTyp.t) => ElaborationResult.t =
   (ctx, delta, OpSeq(skel, seq)) => {
     print_endline("enter Typ.syn_elab");
     let res = syn_elab_skel(ctx, delta, skel, seq);
-    ctx |> Context.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
-    res
-    |> ElaborationResult.sexp_of_t
-    |> Sexplib.Sexp.to_string_hum
-    |> print_endline;
     print_endline("exit Typ.syn_elab");
     res;
   }

@@ -99,15 +99,6 @@ and syn_elab_line =
         print_endline("finished syn_elab_line.LetLine.ana_elab");
         let dty1 = (ctx1, ty1);
         let dty1' = (ctx1, ty1');
-        line
-        |> UHExp.sexp_of_line
-        |> Sexplib.Sexp.to_string_hum
-        |> print_endline;
-        ctx |> Context.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
-        print_endline("ty1");
-        ty1 |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
-        print_endline("ty1'");
-        ty1' |> HTyp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
         let d1 =
           switch (Statics_Exp.recursive_let_id(ctx, p, def)) {
           | None => DHExp.cast(d1, dty1', dty1)
@@ -297,10 +288,6 @@ and syn_elab_operand =
     (ctx: Context.t, delta: Delta.t, operand: UHExp.operand)
     : ElaborationResult.t => {
   print_endline("enter syn_elab_operand");
-  operand
-  |> UHExp.sexp_of_operand
-  |> Sexplib.Sexp.to_string_hum
-  |> print_endline;
   switch (operand) {
   /* in hole */
   | Var(InHole(TypeInconsistent as reason, u), _, _)

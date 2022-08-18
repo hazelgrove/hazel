@@ -576,7 +576,7 @@ let eval_bin_float_op =
 };
 
 let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
-  let _ = d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
+  // let _ = d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
   switch (d) {
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
@@ -591,9 +591,7 @@ let rec evaluate = (d: DHExp.t): EvaluatorResult.t => {
     }
   | TyAlias(_, _, d) => evaluate(d)
   | FixF(x, _, d1) => evaluate(subst_var(d, x, d1))
-  | Fun(_, _, _) =>
-    // d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string_hum |> print_endline;
-    BoxedValue(d)
+  | Fun(_, _, _) => BoxedValue(d)
   | Ap(d1, d2) =>
     let result = evaluate(d1);
     switch (result) {
