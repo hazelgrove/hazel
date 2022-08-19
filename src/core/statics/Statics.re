@@ -174,7 +174,7 @@ let union_m =
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
   switch (ty_ann, pat.term, def.term) {
-  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_) | FunAnn(_)) =>
+  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
     VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
   | _ => ctx
   };
@@ -366,25 +366,6 @@ let rec uexp_to_info_map =
       ~free=Ctx.subtract(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
-  | FunAnn(pat, typ, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
-    let (mode_pat, mode_body) =
-      switch (mode) {
-      | Syn => (Typ.Syn, Typ.Syn)
-      | Ana(ty) =>
-        let (ty_in, ty_out) = Typ.matched_arrow(ty);
-        let ty_in' = Typ.join_or_fst(ty_ann, ty_in);
-        (Ana(ty_in'), Ana(ty_out));
-      };
-    let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
-    let ctx_body = VarMap.union(ctx_pat, ctx);
-    let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
-    add(
-      ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract(ctx_pat, free_body),
-      union_m([m_pat, m_body, m_typ]),
-    );
   | Let(pat, def, body) =>
     let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
@@ -399,25 +380,6 @@ let rec uexp_to_info_map =
       ~self=Just(ty_body),
       ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
-    );
-  | LetAnn(pat, typ, def, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
-    let (ty_pat, _ctx_pat, m_pat) =
-      upat_to_info_map(~mode=Ana(ty_ann), pat);
-    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_ann);
-    let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
-    /* Join if pattern and def are consistent, otherwise pattern wins */
-    let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
-    /* Analyze pattern to incorporate def type into ctx */
-    let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
-    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
-    let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
-      union_m([m_pat, m_typ, m_def, m_body]),
     );
   };
 }

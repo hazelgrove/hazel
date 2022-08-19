@@ -92,8 +92,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | ListLit(_) =>
       //TODO: list literals. below is just placeholder
       wrap(ListNil(Hole))
-    | Fun(p, body)
-    | FunAnn(p, _, body) =>
+    | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
@@ -149,13 +148,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       }
     | Let(
         {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
-        {term: Fun(_) | FunAnn(_), _} as def,
-        body,
-      )
-    | LetAnn(
-        {term: Var(x), _} as p,
-        {term: Arrow(_), _},
-        {term: Fun(_) | FunAnn(_), _} as def,
+        {term: Fun(_), _} as def,
         body,
       ) =>
       /* NOTE: recursive case */
@@ -167,8 +160,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
       let def_subst = Evaluator.subst_var(cast_var, x, def);
       wrap(Let(p, FixF(x, def_typ, def_subst), body));
-    | Let(p, def, body)
-    | LetAnn(p, _, def, body) =>
+    | Let(p, def, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);
