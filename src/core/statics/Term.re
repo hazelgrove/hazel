@@ -63,6 +63,8 @@ module UTyp = {
     term,
   };
 
+  let mk = (id, term): t => {id, term};
+
   let cls_of_term: term => cls =
     fun
     | Invalid(_) => Invalid
@@ -126,6 +128,8 @@ module UPat = {
     id: Id.t,
     term,
   };
+
+  let mk = (id, term): t => {id, term};
 
   let cls_of_term: term => cls =
     fun
@@ -258,6 +262,8 @@ module UExp = {
     term,
   };
 
+  let mk = (id, term): t => {id, term};
+
   let cls_of_term: term => cls =
     fun
     | Invalid(_) => Invalid
@@ -379,6 +385,8 @@ module URul = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
+
+  let mks = (ids, rules): s => {ids, rules};
 
   let show_cls: cls => string = _ => "Rule";
 };
