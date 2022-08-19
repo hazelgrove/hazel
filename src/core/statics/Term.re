@@ -63,6 +63,8 @@ module UTyp = {
     term,
   };
 
+  let mk = (id, term): t => {id, term};
+
   let cls_of_term: term => cls =
     fun
     | Invalid(_) => Invalid
@@ -126,6 +128,8 @@ module UPat = {
     id: Id.t,
     term,
   };
+
+  let mk = (id, term): t => {id, term};
 
   let cls_of_term: term => cls =
     fun
@@ -211,11 +215,9 @@ module UExp = {
     | Float
     | ListLit
     | Fun
-    | FunAnn
     | Tuple
     | Var
     | Let
-    | LetAnn
     | Ap
     | If
     | Seq
@@ -223,7 +225,8 @@ module UExp = {
     | Parens
     | Cons
     | UnOp(op_un)
-    | BinOp(op_bin);
+    | BinOp(op_bin)
+    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -236,14 +239,10 @@ module UExp = {
     | Float(float)
     | ListLit(list(Id.t), list(t))
     | Fun(UPat.t, t)
-    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
-    //| ApBuiltin(Token.t, list(t))
-    // Maybe ops with fn semantics should be builtins as well?
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -251,10 +250,13 @@ module UExp = {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | Match(list(Id.t), t, list((UPat.t, t)))
   and t = {
     id: Id.t,
     term,
   };
+
+  let mk = (id, term): t => {id, term};
 
   let cls_of_term: term => cls =
     fun
@@ -267,11 +269,9 @@ module UExp = {
     | Float(_) => Float
     | ListLit(_) => ListLit
     | Fun(_) => Fun
-    | FunAnn(_) => FunAnn
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
-    | LetAnn(_) => LetAnn
     | Ap(_) => Ap
     | If(_) => If
     | Seq(_) => Seq
@@ -279,7 +279,8 @@ module UExp = {
     | Parens(_) => Parens
     | Cons(_) => Cons
     | UnOp(op, _) => UnOp(op)
-    | BinOp(op, _, _) => BinOp(op);
+    | BinOp(op, _, _) => BinOp(op)
+    | Match(_) => Match;
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -331,11 +332,9 @@ module UExp = {
     | Float => "Float Literal"
     | ListLit => "List Literal"
     | Fun => "Function Literal"
-    | FunAnn => "Annotated Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | LetAnn => "Annotated Let Expression"
     | Ap => "Function Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
@@ -343,7 +342,8 @@ module UExp = {
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
-    | UnOp(op) => show_unop(op);
+    | UnOp(op) => show_unop(op)
+    | Match => "Match Expression";
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -362,10 +362,30 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Parens(u) => utyp_to_ty(u)
     };
 
+module URul = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (UPat.t, UExp.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type s = {
+    ids: list(Id.t),
+    rules: list(t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Rule;
+
+  let mks = (ids, rules): s => {ids, rules};
+
+  let show_cls: cls => string = _ => "Rule";
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
-  | Rul(unit) // TODO
+  | Rul(URul.s)
   | Nul(unit)
   | Any(unit);
