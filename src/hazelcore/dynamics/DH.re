@@ -99,6 +99,8 @@ module rec DHExp: {
   let fast_equal_: (('env, 'env) => bool, t_('env), t_('env)) => bool;
   let fast_equal: (t, t) => bool;
   let fast_equal': (t', t') => bool;
+
+  let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
 } = {
   module BinBoolOp = {
     [@deriving sexp]
@@ -452,6 +454,113 @@ module rec DHExp: {
 
   let fast_equal' = (d1: t', d2: t') =>
     fast_equal_(EnvironmentId.equal, d1, d2);
+
+  module OfTMonad =
+    StateMonad.Make({
+      type t = EnvironmentIdMap.t(Environment.t');
+    });
+
+  let of_t = (d: t): (t', EnvironmentIdMap.t(Environment.t')) => {
+    open OfTMonad;
+    open OfTMonad.Syntax;
+
+    let rec of_t = d =>
+      switch (d) {
+      | EmptyHole(u, i) => EmptyHole(u, i) |> return
+      | NonEmptyHole(reason, u, i, d') =>
+        let+ d' = of_t(d');
+        NonEmptyHole(reason, u, i, d');
+      | ExpandingKeyword(u, i, k) => ExpandingKeyword(u, i, k) |> return
+      | FreeVar(u, i, x) => FreeVar(u, i, x) |> return
+      | InvalidText(u, i, text) => InvalidText(u, i, text) |> return
+      | BoundVar(x) => BoundVar(x) |> return
+      | Let(dp, d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        Let(dp, d1, d2);
+      | FixF(f, ty, body) =>
+        let+ body = of_t(body);
+        FixF(f, ty, body);
+      | Fun(dp, dp_ty, body) =>
+        let+ body = of_t(body);
+        Fun(dp, dp_ty, body);
+      | Closure(env, d') =>
+        let id = env |> ClosureEnvironment.id_of;
+        let* map =
+          env
+          |> ClosureEnvironment.map_of
+          |> Environment.to_listo
+          |> List.map(((x, d'')) => of_t(d'') >>| (d'' => (x, d'')))
+          |> sequence
+          >>| Environment.of_list;
+        let* () = modify(envs => EnvironmentIdMap.add(id, map, envs));
+        let+ d' = of_t(d');
+        Closure(id, d');
+      | Ap(d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        Ap(d1, d2);
+      | ApBuiltin(ident, args) =>
+        let+ args = args |> List.map(of_t) |> sequence;
+        ApBuiltin(ident, args);
+      | BoolLit(b) => BoolLit(b) |> return
+      | IntLit(n) => IntLit(n) |> return
+      | FloatLit(f) => FloatLit(f) |> return
+      | BinBoolOp(op, d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        BinBoolOp(op, d1, d2);
+      | BinIntOp(op, d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        BinIntOp(op, d1, d2);
+      | BinFloatOp(op, d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        BinFloatOp(op, d1, d2);
+      | ListNil(ty) => ListNil(ty) |> return
+      | Cons(d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        Cons(d1, d2);
+      | Inj(side, other_ty, d') =>
+        let+ d' = of_t(d');
+        Inj(side, other_ty, d');
+      | Pair(d1, d2) =>
+        let* d1 = of_t(d1);
+        let+ d2 = of_t(d2);
+        Pair(d1, d2);
+      | Triv => Triv |> return
+      | ConsistentCase(case) =>
+        let+ case = of_t_case(case);
+        ConsistentCase(case);
+      | InconsistentBranches(u, i, case) =>
+        let+ case = of_t_case(case);
+        InconsistentBranches(u, i, case);
+      | Cast(d', ty1, ty2) =>
+        let+ d' = of_t(d');
+        Cast(d', ty1, ty2);
+      | FailedCast(d', ty1, ty2) =>
+        let+ d' = of_t(d');
+        FailedCast(d', ty1, ty2);
+      | InvalidOperation(d', err) =>
+        let+ d' = of_t(d');
+        InvalidOperation(d', err);
+      }
+    and of_t_case =
+        (Case(scrut, rules, n): DHExp.case): OfTMonad.t(DHExp.case') => {
+      let* scrut = of_t(scrut);
+      let+ rules = rules |> List.map(of_t_rules) |> sequence;
+      Case(scrut, rules, n);
+    }
+    and of_t_rules = (Rule(dp, body): DHExp.rule): OfTMonad.t(DHExp.rule') => {
+      let+ body = of_t(body);
+      Rule(dp, body);
+    };
+
+    let (map, d) = of_t(d, EnvironmentIdMap.empty);
+    (d, map);
+  };
 }
 
 and Environment: {

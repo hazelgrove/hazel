@@ -63,3 +63,5 @@ let apply_casts: (t_('env), list((HTyp.t, HTyp.t))) => t_('env);
 let fast_equal_: (('env, 'env) => bool, t_('env), t_('env)) => bool;
 let fast_equal: (t, t) => bool;
 let fast_equal': (t', t') => bool;
+
+let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
