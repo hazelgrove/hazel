@@ -339,7 +339,7 @@ module rec DHExp: {
             d1: t_('env),
             d2: t_('env),
           )
-          : bool => {
+          : bool =>
     switch (d1, d2) {
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
@@ -385,7 +385,7 @@ module rec DHExp: {
     | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
       fast_equal_(env_fast_equal_, d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
-      fast_equal__case(env_fast_equal_, case1, case2)
+      fast_equal_case_(env_fast_equal_, case1, case2)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Let(_), _)
@@ -426,7 +426,7 @@ module rec DHExp: {
         InconsistentBranches(u1, i1, case1),
         InconsistentBranches(u2, i2, case2),
       ) =>
-      u1 == u2 && i1 == i2 && fast_equal__case(env_fast_equal_, case1, case2)
+      u1 == u2 && i1 == i2 && fast_equal_case_(env_fast_equal_, case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
     | (ExpandingKeyword(_), _)
@@ -434,10 +434,9 @@ module rec DHExp: {
     | (InvalidText(_), _)
     | (Closure(_), _)
     | (InconsistentBranches(_), _) => false
-    };
-  }
-  and fast_equal__case =
-      (env_fast_equal_, Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
+    }
+  and fast_equal_case_ =
+      (env_fast_equal_, Case(d1, rules1, i1), Case(d2, rules2, i2)) =>
     fast_equal_(env_fast_equal_, d1, d2)
     && List.length(rules1) == List.length(rules2)
     && List.for_all2(
@@ -447,7 +446,6 @@ module rec DHExp: {
          rules2,
        )
     && i1 == i2;
-  };
 
   let fast_equal = (d1: t, d2: t) =>
     fast_equal_(ClosureEnvironment.id_equal, d1, d2);
