@@ -228,12 +228,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [Exp(body)], [pat]) =>
         Fun(upat_of_seg(pat), body)
-      | (["funann", ":", "->"], [Exp(body)], [pat, typ]) =>
-        FunAnn(upat_of_seg(pat), utyp_of_seg(typ), body)
       | (["let", "=", "in"], [Exp(body)], [pat, def]) =>
         Let(upat_of_seg(pat), uexp_of_seg(def), body)
-      | (["letann", ":", "=", "in"], [Exp(body)], [pat, typ, def]) =>
-        LetAnn(upat_of_seg(pat), utyp_of_seg(typ), uexp_of_seg(def), body)
       | (["if", "then", "else"], [Exp(alt)], [cond, conseq]) =>
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [Exp(fn)], [arg]) => Ap(fn, uexp_of_seg(arg))

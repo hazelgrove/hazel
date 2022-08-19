@@ -215,11 +215,9 @@ module UExp = {
     | Float
     | ListLit
     | Fun
-    | FunAnn
     | Tuple
     | Var
     | Let
-    | LetAnn
     | Ap
     | If
     | Seq
@@ -241,14 +239,10 @@ module UExp = {
     | Float(float)
     | ListLit(list(Id.t), list(t))
     | Fun(UPat.t, t)
-    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
-    //| ApBuiltin(Token.t, list(t))
-    // Maybe ops with fn semantics should be builtins as well?
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -275,11 +269,9 @@ module UExp = {
     | Float(_) => Float
     | ListLit(_) => ListLit
     | Fun(_) => Fun
-    | FunAnn(_) => FunAnn
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
-    | LetAnn(_) => LetAnn
     | Ap(_) => Ap
     | If(_) => If
     | Seq(_) => Seq
@@ -340,11 +332,9 @@ module UExp = {
     | Float => "Float Literal"
     | ListLit => "List Literal"
     | Fun => "Function Literal"
-    | FunAnn => "Annotated Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | LetAnn => "Annotated Let Expression"
     | Ap => "Function Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
