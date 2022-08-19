@@ -217,6 +217,7 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | (["||"], [Exp(l), Exp(r)], []) => BinOp(Bool(Or), l, r)
       | (["::"], [Exp(l), Exp(r)], []) => Cons(l, r)
       | ([";"], [Exp(l), Exp(r)], []) => Seq(l, r)
+      | (["-"], [Exp(e)], []) => UnOp(Int(Minus), e)
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [Exp(body)], [pat]) =>
         Fun(upat_of_seg(pat), body)

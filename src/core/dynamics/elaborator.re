@@ -30,7 +30,7 @@ let ctx_to_varctx = (ctx: Typ.Ctx.t): VarCtx.t =>
 
 /* List.map(((k, {typ, _}: Typ.Ctx.entry)) => (k, htyp_of_typ(typ)), ctx); */
 
-let int_op_of: Term.UExp.op_int => DHExp.BinIntOp.t =
+let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
   | Minus => Minus
@@ -40,7 +40,7 @@ let int_op_of: Term.UExp.op_int => DHExp.BinIntOp.t =
   | GreaterThan => GreaterThan
   | Equals => Equals;
 
-let float_op_of: Term.UExp.op_float => DHExp.BinFloatOp.t =
+let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   fun
   | Plus => FPlus
   | Minus => FMinus
@@ -50,7 +50,7 @@ let float_op_of: Term.UExp.op_float => DHExp.BinFloatOp.t =
   | GreaterThan => FGreaterThan
   | Equals => FEquals;
 
-let bool_op_of: Term.UExp.op_bool => DHExp.BinBoolOp.t =
+let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   fun
   | And => And
   | Or => Or;
@@ -134,6 +134,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
       wrap(Cons(d1, d2));
+    | UnOp(Int(Minus), e) =>
+      let* d = dhexp_of_uexp(m, e);
+      let ty = exp_htyp(m, e);
+      let dc = DHExp.cast(d, ty, Int);
+      wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);

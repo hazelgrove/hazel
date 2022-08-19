@@ -192,12 +192,16 @@ module UTPat = {
 
 module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bool =
+  type op_un_int =
+    | Minus;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_bool =
     | And
     | Or;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_int =
+  type op_bin_int =
     | Plus
     | Minus
     | Times
@@ -207,7 +211,7 @@ module UExp = {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_float =
+  type op_bin_float =
     | Plus
     | Minus
     | Times
@@ -215,12 +219,16 @@ module UExp = {
     | LessThan
     | GreaterThan
     | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un =
+    | Int(op_un_int);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bin =
-    | Int(op_int)
-    | Float(op_float)
-    | Bool(op_bool);
+    | Int(op_bin_int)
+    | Float(op_bin_float)
+    | Bool(op_bin_bool);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -245,6 +253,7 @@ module UExp = {
     | Test
     | Parens
     | Cons
+    | UnOp(op_un)
     | BinOp(op_bin);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -272,6 +281,7 @@ module UExp = {
     | Test(t)
     | Parens(t)
     | Cons(t, t)
+    | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
   and t = {
     id: Id.t,
@@ -301,14 +311,23 @@ module UExp = {
     | Test(_) => Test
     | Parens(_) => Parens
     | Cons(_) => Cons
+    | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op);
 
-  let show_op_bool: op_bool => string =
+  let show_op_un_int: op_un_int => string =
+    fun
+    | Minus => "Integer Negation";
+
+  let show_unop: op_un => string =
+    fun
+    | Int(op) => show_op_un_int(op);
+
+  let show_op_bin_bool: op_bin_bool => string =
     fun
     | And => "Boolean Conjunction"
     | Or => "Boolean Disjunction";
 
-  let show_op_int: op_int => string =
+  let show_op_bin_int: op_bin_int => string =
     fun
     | Plus => "Integer Addition"
     | Minus => "Integer Subtraction"
@@ -318,7 +337,7 @@ module UExp = {
     | GreaterThan => "Integer Greater Than"
     | Equals => "Integer Equality";
 
-  let show_op_float: op_float => string =
+  let show_op_bin_float: op_bin_float => string =
     fun
     | Plus => "Float Addition"
     | Minus => "Float Subtraction"
@@ -330,9 +349,9 @@ module UExp = {
 
   let show_binop: op_bin => string =
     fun
-    | Int(op) => show_op_int(op)
-    | Float(op) => show_op_float(op)
-    | Bool(op) => show_op_bool(op);
+    | Int(op) => show_op_bin_int(op)
+    | Float(op) => show_op_bin_float(op)
+    | Bool(op) => show_op_bin_bool(op);
 
   let show_cls: cls => string =
     fun
@@ -357,7 +376,8 @@ module UExp = {
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
-    | BinOp(op) => show_binop(op);
+    | BinOp(op) => show_binop(op)
+    | UnOp(op) => show_unop(op);
 };
 
 /* Converts a syntactic type into a semantic type */
