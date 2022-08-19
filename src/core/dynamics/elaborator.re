@@ -182,16 +182,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
-    | If(cond, e1, e2) =>
-      let* d_cond = dhexp_of_uexp(m, cond);
+    | If(scrut, e1, e2) =>
+      let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let d =
-        DHExp.Case(
-          d_cond,
-          [Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)],
-          0,
-        );
+      let d_rules =
+        DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+      let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
@@ -199,25 +196,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       };
     | Match(_, scrut, rules) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
-      let* drules =
+      let* d_rules =
         List.map(
-          ((pat, branch)) => {
-            let* d_pat = dhpat_of_upat(m, pat);
-            let+ d_body = dhexp_of_uexp(m, branch);
-            DHExp.Rule(d_pat, d_body);
+          ((p, e)) => {
+            let* d_p = dhpat_of_upat(m, p);
+            let+ d_e = dhexp_of_uexp(m, e);
+            DHExp.Rule(d_p, d_e);
           },
           rules,
         )
         |> OptUtil.sequence;
-      let d = DHExp.Case(d_scrut, drules, 0);
+      let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };
-    /*| Match(_) =>
-      //TODO(andrew)
-      Some(EmptyHole(u, 0, sigma))*/
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None

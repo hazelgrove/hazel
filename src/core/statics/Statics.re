@@ -301,19 +301,16 @@ let rec uexp_to_info_map =
       union_m([m1, m2, m3]),
     );
   | Match(ids, scrut, rules) =>
-    let rul_ms =
-      //TODO(andrew)
+    let rule_ms =
       List.fold_left(
         (m, id) => Id.Map.add(id, InfoRul({cls: Rule}), m),
         Id.Map.empty,
         ids,
       );
-    print_endline("match 1");
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
     let pat_infos =
       List.map(upat_to_info_map(~mode=Typ.Ana(ty_scrut)), pats);
-    let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_infos =
       List.map2(
         (branch, (_, ctx, _)) => uexp_to_info_map(~ctx, ~mode, branch),
@@ -327,16 +324,13 @@ let rec uexp_to_info_map =
         branch_infos,
       );
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
+    let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     add(
       ~self=Joined(branch_sources),
       ~free=Ctx.union([free_scrut] @ branch_frees),
-      union_m([rul_ms, m_scrut] @ pat_ms @ branch_ms),
+      union_m([rule_ms, m_scrut] @ pat_ms @ branch_ms),
     );
-  /*| Match(_) =>
-    print_endline("match 2");
-    //TODO(andrew)
-    atomic(Just(Unknown(Internal)));*/
   | Seq(e1, e2) =>
     let (_, free1, m1) = go(~mode=Syn, e1);
     let (ty2, free2, m2) = go(~mode, e2);

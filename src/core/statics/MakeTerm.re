@@ -183,19 +183,6 @@ and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   | (l, r) => wrap_multi([], [l, r])
   };
 }
-/*and of_multi_rul = (id: Id.t, l: URul.s, r: URul.s): URul.s => {
-    let wrap_multi = (ids, es): URul.s => {
-      id,
-      term: MultiHole([id] @ ids, es),
-    };
-    switch (l, r) {
-    | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
-      wrap_multi(l_ids @ r_ids, ls @ rs)
-    | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
-    | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
-    | (l, r) => wrap_multi([], [l, r])
-    };
-  }*/
 and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   switch (p) {
   | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
@@ -209,9 +196,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
     let term: UExp.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) =>
-        // TODO: more principled handling of incomplete tiles
+        // TODO(andrew): more principled handling of incomplete tiles
         EmptyHole
-      //Invalid(IncompleteTile,p)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
@@ -325,49 +311,24 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
     {id, term};
   };
 }
-/*and of_rules_rul = (id: Id.t, l: URul.s, r: URul.s): URul.s => {
-    //TODO(andrew): this doesnt make sense
-    let wrap_rules = (ids, es: list((UPat.t, UExp.t))): URul.s => {
-      id,
-      term: Rules([id] @ ids, es),
-    };
-    switch (l, r) {
-    | ({term: Rules(l_ids, ls), _}, {term: Rules(r_ids, rs), _}) =>
-      wrap_rules(l_ids @ r_ids, ls @ rs)
-    | ({term: Rules(_), _}, _) => l //TODO
-    | (_, {term: Rules(_), _}) => r //TODO
-    | (l, r) => {id, term: MultiHole([id], [l, r])}
-    };
-  }*/
 and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.s => {
   switch (p) {
-  | Whitespace({id: _, _}) => {ids: [], rules: []}
+  | Whitespace({id: _, _}) => URul.mks([], [])
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
-    | (Convex, []) => {ids: [id], rules: []}
-    | (
-        Concave,
-        [Rul({ids: id_l, rules: rs_l}), Rul({ids: id_r, rules: rs_r})],
-      ) => {
-        ids: id_l @ id_r,
-        rules: rs_l @ rs_r,
-      }
-    | _ => {ids: [], rules: []}
+    | (Convex, []) => URul.mks([id], [])
+    | (Concave, [Rul(l), Rul(r)]) =>
+      URul.mks(l.ids @ r.ids, l.rules @ r.rules)
+    | _ => URul.mks([], [])
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     switch (label, outside_kids, inside_kids) {
-    | _ when !Tile.is_complete(t) => {ids: [], rules: []}
-    | (["=>"], [Pat(p), Exp(e)], []) => {ids: [id], rules: [(p, e)]}
-    | (
-        ["|"],
-        [Rul({ids: id_l, rules: rs_l}), Rul({ids: id_r, rules: rs_r})],
-        [],
-      ) => {
-        ids: [id] @ id_l @ id_r,
-        rules: rs_l @ rs_r,
-      }
-    | (["|"], [Rul({ids, rules})], []) => {ids: [id] @ ids, rules}
-    | _ => {ids: [], rules: []}
+    | _ when !Tile.is_complete(t) => URul.mks([], [])
+    | (["=>"], [Pat(p), Exp(e)], []) => URul.mks([id], [(p, e)])
+    | (["|"], [Rul(l), Rul(r)], []) =>
+      URul.mks([id] @ l.ids @ r.ids, l.rules @ r.rules)
+    | (["|"], [Rul({ids, rules})], []) => URul.mks([id] @ ids, rules)
+    | _ => URul.mks([], [])
     }
   };
 };
