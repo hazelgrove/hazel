@@ -46,13 +46,17 @@ type info_typ = {
   ty: Typ.t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type info_rul = {cls: Term.URul.cls};
+
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Invalid(Term.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
-  | InfoTyp(info_typ);
+  | InfoTyp(info_typ)
+  | InfoRul(info_rul);
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
@@ -88,14 +92,15 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(tys_syn))
-  | (Ana(Unknown(SynSwitch)), Joined(tys_syn)) =>
+  | (Syn, Joined(tys_syn)) =>
+    /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
+    // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
-    //TODO: clarify SynSwitch case
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
     };
+
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
@@ -129,6 +134,7 @@ let is_error = (ci: t): bool => {
     | NotInHole(_) => false
     }
   | InfoTyp(_) => false
+  | InfoRul(_) => false //TODO
   };
 };
 
@@ -148,7 +154,7 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(e.id, m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -156,7 +162,7 @@ let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(p.id, m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -169,7 +175,7 @@ let union_m =
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
   switch (ty_ann, pat.term, def.term) {
-  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_) | FunAnn(_)) =>
+  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
     VarMap.extend(ctx, (x, {id: pat.id, typ: ty_ann}))
   | _ => ctx
   };
@@ -197,6 +203,12 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
 let rec uexp_to_info_map =
         (~ctx: Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
         : (Typ.t, Ctx.co, map) => {
+  /* Maybe switch mode to syn */
+  let mode =
+    switch (mode) {
+    | Ana(Unknown(SynSwitch)) => Typ.Syn
+    | _ => mode
+    };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
@@ -295,6 +307,37 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
+  | Match(ids, scrut, rules) =>
+    let rule_ms =
+      List.fold_left(
+        (m, id) => Id.Map.add(id, InfoRul({cls: Rule}), m),
+        Id.Map.empty,
+        ids,
+      );
+    let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
+    let (pats, branches) = List.split(rules);
+    let pat_infos =
+      List.map(upat_to_info_map(~mode=Typ.Ana(ty_scrut)), pats);
+    let branch_infos =
+      List.map2(
+        (branch, (_, ctx, _)) => uexp_to_info_map(~ctx, ~mode, branch),
+        branches,
+        pat_infos,
+      );
+    let branch_sources =
+      List.map2(
+        ({id, _}: Term.UExp.t, (ty, _, _)) => Typ.{id, ty},
+        branches,
+        branch_infos,
+      );
+    let branch_frees = List.map(((_, free, _)) => free, branch_infos);
+    let pat_ms = List.map(((_, _, m)) => m, pat_infos);
+    let branch_ms = List.map(((_, _, m)) => m, branch_infos);
+    add(
+      ~self=Joined(branch_sources),
+      ~free=Ctx.union([free_scrut] @ branch_frees),
+      union_m([rule_ms, m_scrut] @ pat_ms @ branch_ms),
+    );
   | Seq(e1, e2) =>
     let (_, free1, m1) = go(~mode=Syn, e1);
     let (ty2, free2, m2) = go(~mode, e2);
@@ -306,11 +349,7 @@ let rec uexp_to_info_map =
   | Ap(fn, arg) =>
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
-      uexp_to_info_map(
-        ~ctx,
-        ~mode=Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))),
-        fn,
-      );
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
@@ -330,25 +369,6 @@ let rec uexp_to_info_map =
       ~free=Ctx.subtract(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
-  | FunAnn(pat, typ, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
-    let (mode_pat, mode_body) =
-      switch (mode) {
-      | Syn => (Typ.Syn, Typ.Syn)
-      | Ana(ty) =>
-        let (ty_in, ty_out) = Typ.matched_arrow(ty);
-        let ty_in' = Typ.join_or_fst(ty_ann, ty_in);
-        (Ana(ty_in'), Ana(ty_out));
-      };
-    let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
-    let ctx_body = VarMap.union(ctx_pat, ctx);
-    let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
-    add(
-      ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract(ctx_pat, free_body),
-      union_m([m_pat, m_body, m_typ]),
-    );
   | Let(pat, def, body) =>
     let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
@@ -364,25 +384,6 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | LetAnn(pat, typ, def, body) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(typ);
-    let (ty_pat, _ctx_pat, m_pat) =
-      upat_to_info_map(~mode=Ana(ty_ann), pat);
-    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_ann);
-    let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
-    /* Join if pattern and def are consistent, otherwise pattern wins */
-    let joint_ty = Typ.join_or_fst(ty_pat, ty_def);
-    /* Analyze pattern to incorporate def type into ctx */
-    let (_, ctx_pat_ana, _) = upat_to_info_map(~mode=Ana(joint_ty), pat);
-    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
-    let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    add(
-      ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
-      union_m([m_pat, m_typ, m_def, m_body]),
-    );
   };
 }
 and upat_to_info_map =
@@ -395,6 +396,7 @@ and upat_to_info_map =
     Id.Map.add(id, InfoPat({cls, self, mode, ctx}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
+  let unknown = Typ.Just(Unknown(SynSwitch));
   switch (term) {
   | Invalid(msg, _) => (
       Unknown(Internal),
@@ -408,15 +410,15 @@ and upat_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, ps));
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), ctx, m);
-  | EmptyHole => atomic(Just(Unknown(SynSwitch)))
-  | Wild => atomic(Just(Unknown(SynSwitch)))
+  | EmptyHole
+  | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
-    let self = Typ.Just(Unknown(SynSwitch));
+    let self = unknown;
     let typ = typ_after_fix(mode, self);
     add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Tuple(ids, ps) =>

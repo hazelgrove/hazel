@@ -52,7 +52,7 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
   switch (model.editor_model) {
-  | Simple(_) => div([id, toggle_mode], [text("Simple")])
+  | Simple(_) => div([id, toggle_mode], [text("Sketch")])
   | School(_) =>
     div(
       [id],
@@ -67,7 +67,7 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
     div(
       [id],
       [
-        div([toggle_mode], [text("Study")]),
+        div([toggle_mode], [text("Studies")]),
         button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
         text(current_editor),
         button(
