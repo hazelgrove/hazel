@@ -32,7 +32,7 @@ let show_parse_flag: parse_flag => string =
   | UnrecognizedTerm => "Unrecognized Term"
   | IncompleteTile => "Incomplete Tile";
 
-module rec UTyp': {
+module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -62,8 +62,35 @@ module rec UTyp': {
     id: Id.t,
     term,
   };
-} = UTyp'
-and UPat': {
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | List(_) => List
+    | Arrow(_) => Arrow
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type"
+    | EmptyHole => "Empty Type Hole"
+    | MultiHole => "Multi Type Hole"
+    | Int
+    | Float
+    | Bool => "Base Type"
+    | List => "List Type"
+    | Arrow => "Function Type"
+    | Tuple => "Product Type"
+    | Parens => "Parenthesized Type Term";
+};
+
+module UPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -94,32 +121,46 @@ and UPat': {
     | Var(Token.t)
     | Tuple(list(Id.t), list(t))
     | Parens(t)
-    | TypeAnn(t, UTyp'.t)
+    | TypeAnn(t, UTyp.t)
   and t = {
     id: Id.t,
     term,
   };
-} = UPat'
-and URul': {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Rules;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | EmptyHole
-    | MultiHole(list(Id.t), list(t))
-    | Rules(list(Id.t), list((UPat'.t, UExp'.t)))
-  and t = {
-    id: Id.t,
-    term,
-  };
-} = URul'
-and UExp': {
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Wild => Wild
+    | Int(_) => Int
+    | Float(_) => Float
+    | Bool(_) => Bool
+    | Triv => Triv
+    | ListNil => ListNil
+    | Var(_) => Var
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens
+    | TypeAnn(_) => TypeAnn;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Pattern"
+    | EmptyHole => "Empty Pattern Hole"
+    | MultiHole => "Multi Pattern Hole"
+    | Wild => "Wildcard Pattern"
+    | Int => "Integer Literal"
+    | Float => "Float Literal"
+    | Bool => "Boolean Literal"
+    | Triv => "Trivial Literal. Pathetic, really."
+    | ListNil => "List Literal"
+    | Var => "Pattern Variable"
+    | Tuple => "Tuple Pattern"
+    | Parens => "Parenthesized Pattern"
+    | TypeAnn => "Type Annotation";
+};
+
+module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
@@ -195,12 +236,12 @@ and UExp': {
     | Int(int)
     | Float(float)
     | ListLit(list(Id.t), list(t))
-    | Fun(UPat'.t, t)
-    | FunAnn(UPat'.t, UTyp'.t, t) //TODO: deprecate
+    | Fun(UPat.t, t)
+    | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
-    | Let(UPat'.t, t, t)
-    | LetAnn(UPat'.t, UTyp'.t, t, t) //TODO: deprecate
+    | Let(UPat.t, t, t)
+    | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
     //| ApBuiltin(Token.t, list(t))
     // Maybe ops with fn semantics should be builtins as well?
@@ -211,99 +252,11 @@ and UExp': {
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | Match(t, URul'.t)
+    | Match(list(Id.t), t, list((UPat.t, t)))
   and t = {
     id: Id.t,
     term,
   };
-} = UExp';
-
-module UTyp = {
-  include UTyp';
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | List(_) => List
-    | Arrow(_) => Arrow
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type"
-    | EmptyHole => "Empty Type Hole"
-    | MultiHole => "Multi Type Hole"
-    | Int
-    | Float
-    | Bool => "Base Type"
-    | List => "List Type"
-    | Arrow => "Function Type"
-    | Tuple => "Product Type"
-    | Parens => "Parenthesized Type Term";
-};
-
-module UPat = {
-  include UPat';
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | Triv => Triv
-    | ListNil => ListNil
-    | Var(_) => Var
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens
-    | TypeAnn(_) => TypeAnn;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
-    | Wild => "Wildcard Pattern"
-    | Int => "Integer Literal"
-    | Float => "Float Literal"
-    | Bool => "Boolean Literal"
-    | Triv => "Trivial Literal. Pathetic, really."
-    | ListNil => "List Literal"
-    | Var => "Pattern Variable"
-    | Tuple => "Tuple Pattern"
-    | Parens => "Parenthesized Pattern"
-    | TypeAnn => "Type Annotation";
-};
-
-module URul = {
-  include URul';
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Rules(_) => Rules;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Rule"
-    | EmptyHole => "Empty Rule Hole"
-    | MultiHole => "Multi Rule Hole"
-    | Rules => "Rules";
-};
-
-module UExp = {
-  include UExp';
 
   let cls_of_term: term => cls =
     fun
@@ -413,11 +366,28 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Parens(u) => utyp_to_ty(u)
     };
 
+module URul = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (UPat.t, UExp.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type s = {
+    ids: list(Id.t),
+    rules: list(t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Rule;
+
+  let show_cls: cls => string = _ => "Rule";
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
-  | Rul(URul.t)
-  | Nul(unit) // TODO
+  | Rul(URul.s)
+  | Nul(unit)
   | Any(unit);
