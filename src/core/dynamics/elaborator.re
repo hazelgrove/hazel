@@ -92,8 +92,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | ListLit(_) =>
       //TODO: list literals. below is just placeholder
       wrap(ListNil(Hole))
-    | Fun(p, body)
-    | FunAnn(p, _, body) =>
+    | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
@@ -149,13 +148,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       }
     | Let(
         {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
-        {term: Fun(_) | FunAnn(_), _} as def,
-        body,
-      )
-    | LetAnn(
-        {term: Var(x), _} as p,
-        {term: Arrow(_), _},
-        {term: Fun(_) | FunAnn(_), _} as def,
+        {term: Fun(_), _} as def,
         body,
       ) =>
       /* NOTE: recursive case */
@@ -167,8 +160,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
       let def_subst = Evaluator.subst_var(cast_var, x, def);
       wrap(Let(p, FixF(x, def_typ, def_subst), body));
-    | Let(p, def, body)
-    | LetAnn(p, _, def, body) =>
+    | Let(p, def, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);
@@ -182,23 +174,38 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
-    | If(cond, e1, e2) =>
-      let* d_cond = dhexp_of_uexp(m, cond);
+    | If(scrut, e1, e2) =>
+      let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let d =
-        DHExp.Case(
-          d_cond,
-          [Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)],
-          0,
-        );
+      let d_rules =
+        DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+      let d = DHExp.Case(d_scrut, d_rules, 0);
+      switch (err_status) {
+      | InHole(SynInconsistentBranches(_)) =>
+        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+      | _ => wrap(ConsistentCase(d))
+      };
+    | Match(_, scrut, rules) =>
+      let* d_scrut = dhexp_of_uexp(m, scrut);
+      let* d_rules =
+        List.map(
+          ((p, e)) => {
+            let* d_p = dhpat_of_upat(m, p);
+            let+ d_e = dhexp_of_uexp(m, e);
+            DHExp.Rule(d_p, d_e);
+          },
+          rules,
+        )
+        |> OptUtil.sequence;
+      let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
         Some(DHExp.InconsistentBranches(u, 0, sigma, d))
       | _ => wrap(ConsistentCase(d))
       };
     };
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 }
@@ -253,7 +260,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 };
