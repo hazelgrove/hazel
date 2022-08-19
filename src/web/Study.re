@@ -9,8 +9,13 @@ fun q -> if q < 0 then a else true in
 let f =
 funann x : Int -> x + 5 < 0 in
 true && f(a) && f(b) && g(true)",
-  "blog",
-  "2525",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
 ];
 
 let init: Model.study = {
