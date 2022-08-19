@@ -92,14 +92,14 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(tys_syn))
-  | (Ana(Unknown(SynSwitch)), Joined(tys_syn)) =>
+  | (Syn, Joined(tys_syn)) =>
+    /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
     let tys_syn = Typ.source_tys(tys_syn);
-    //TODO: clarify SynSwitch case
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
     };
+  // Below can be commented out if we actually switch to syn on synswitch
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
@@ -202,6 +202,12 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
 let rec uexp_to_info_map =
         (~ctx: Ctx.t, ~mode=Typ.Syn, {id, term}: Term.UExp.t)
         : (Typ.t, Ctx.co, map) => {
+  /* Maybe switch mode to syn */
+  let mode =
+    switch (mode) {
+    | Ana(Unknown(SynSwitch)) => Typ.Syn
+    | _ => mode
+    };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
@@ -342,11 +348,7 @@ let rec uexp_to_info_map =
   | Ap(fn, arg) =>
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
-      uexp_to_info_map(
-        ~ctx,
-        ~mode=Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch))),
-        fn,
-      );
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
@@ -393,6 +395,7 @@ and upat_to_info_map =
     Id.Map.add(id, InfoPat({cls, self, mode, ctx}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
+  let unknown = Typ.Just(Unknown(SynSwitch));
   switch (term) {
   | Invalid(msg, _) => (
       Unknown(Internal),
@@ -406,15 +409,15 @@ and upat_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, ps));
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), ctx, m);
-  | EmptyHole => atomic(Just(Unknown(SynSwitch)))
-  | Wild => atomic(Just(Unknown(SynSwitch)))
+  | EmptyHole
+  | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | ListNil => atomic(Just(List(Unknown(Internal))))
   | Var(name) =>
-    let self = Typ.Just(Unknown(SynSwitch));
+    let self = unknown;
     let typ = typ_after_fix(mode, self);
     add(~self, ~ctx=VarMap.extend(ctx, (name, {id, typ})), Id.Map.empty);
   | Tuple(ids, ps) =>
