@@ -8,9 +8,19 @@ let view =
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
+      res: ModelResult.t,
     )
     : Vdom.Node.t => {
   open Vdom;
+
+  /* TODO: Fade out when not current? */
+  let hii =
+    switch (res.current) {
+    | ResultOk(r) => r |> ProgramResult.get_hii
+    | ResultFail(_)
+    | ResultTimeout
+    | ResultPending => res.previous |> ProgramResult.get_hii
+    };
 
   /**
    * Shows typing info for a context entry.
@@ -243,8 +253,6 @@ let view =
       |> Contexts.gamma;
     let sigma =
       if (settings.evaluate) {
-        let hii =
-          program |> Program.get_result |> ProgramResult.get_hole_instance_info;
         switch (selected_hole_instance) {
         | None => Environment.empty
         | Some((u, i)) =>
@@ -283,8 +291,6 @@ let view =
    */
   let path_viewer =
     if (settings.evaluate) {
-      let hii =
-        program |> Program.get_result |> ProgramResult.get_hole_instance_info;
       let children =
         switch (program |> Program.get_zexp |> ZExp.cursor_on_EmptyHole) {
         | None => [

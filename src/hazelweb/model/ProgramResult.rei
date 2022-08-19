@@ -6,9 +6,17 @@
 [@deriving sexp]
 type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
+/**
+  [get_dhexp r] is the {!type:DHExp.t} in [r].
+ */
 let get_dhexp: t => DHExp.t;
+
 let get_state: t => EvaluatorState.t;
-let get_hole_instance_info: t => HoleInstanceInfo.t;
+
+/**
+  [get_hii r] is the {!type:HoleInstanceInfo.t} in [r].
+ */
+let get_hii: t => HoleInstanceInfo.t;
 
 /**
   [fast_equal (r1, hii1, _, _) (r2, hii2, _, _) ] is checks if [hii1] and
