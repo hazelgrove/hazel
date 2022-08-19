@@ -101,6 +101,7 @@ module rec DHExp: {
   let fast_equal': (t', t') => bool;
 
   let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
+  let of_t': (EnvironmentIdMap.t(Environment.t'), t') => t;
 } = {
   module BinBoolOp = {
     [@deriving sexp]
@@ -532,10 +533,10 @@ module rec DHExp: {
         Pair(d1, d2);
       | Triv => Triv |> return
       | ConsistentCase(case) =>
-        let+ case = of_t_case(case);
+        let+ case = of_case(case);
         ConsistentCase(case);
       | InconsistentBranches(u, i, case) =>
-        let+ case = of_t_case(case);
+        let+ case = of_case(case);
         InconsistentBranches(u, i, case);
       | Cast(d', ty1, ty2) =>
         let+ d' = of_t(d');
@@ -547,13 +548,12 @@ module rec DHExp: {
         let+ d' = of_t(d');
         InvalidOperation(d', err);
       }
-    and of_t_case =
-        (Case(scrut, rules, n): DHExp.case): OfTMonad.t(DHExp.case') => {
+    and of_case = (Case(scrut, rules, n)) => {
       let* scrut = of_t(scrut);
-      let+ rules = rules |> List.map(of_t_rules) |> sequence;
+      let+ rules = rules |> List.map(of_rules) |> sequence;
       Case(scrut, rules, n);
     }
-    and of_t_rules = (Rule(dp, body): DHExp.rule): OfTMonad.t(DHExp.rule') => {
+    and of_rules = (Rule(dp, body)) => {
       let+ body = of_t(body);
       Rule(dp, body);
     };
@@ -561,6 +561,93 @@ module rec DHExp: {
     let (map, d) = of_t(d, EnvironmentIdMap.empty);
     (d, map);
   };
+
+  let rec of_t' = (envs: EnvironmentIdMap.t(Environment.t'), d: t'): t =>
+    switch (d) {
+    | EmptyHole(u, i) => EmptyHole(u, i)
+    | NonEmptyHole(reason, u, i, d') =>
+      let d' = of_t'(envs, d');
+      NonEmptyHole(reason, u, i, d');
+    | ExpandingKeyword(u, i, k) => ExpandingKeyword(u, i, k)
+    | FreeVar(u, i, x) => FreeVar(u, i, x)
+    | InvalidText(u, i, text) => InvalidText(u, i, text)
+    | BoundVar(x) => BoundVar(x)
+    | Let(dp, d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      Let(dp, d1, d2);
+    | FixF(f, ty, body) =>
+      let body = of_t'(envs, body);
+      FixF(f, ty, body);
+    | Fun(dp, dp_ty, body) =>
+      let body = of_t'(envs, body);
+      Fun(dp, dp_ty, body);
+    | Closure(id, d') =>
+      let d' = of_t'(envs, d');
+      let env =
+        envs
+        |> EnvironmentIdMap.find_opt(id)
+        /* TODO: Not sure if we should fail here? */
+        |> OptUtil.get(() => failwith("environment id not in map"))
+        |> Environment.mapo(((_, d'')) => of_t'(envs, d''));
+      Closure(ClosureEnvironment.wrap(id, env), d');
+    | Ap(d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      Ap(d1, d2);
+    | ApBuiltin(ident, args) =>
+      let args = args |> List.map(of_t'(envs));
+      ApBuiltin(ident, args);
+    | BoolLit(b) => BoolLit(b)
+    | IntLit(n) => IntLit(n)
+    | FloatLit(f) => FloatLit(f)
+    | BinBoolOp(op, d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      BinBoolOp(op, d1, d2);
+    | BinIntOp(op, d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      BinIntOp(op, d1, d2);
+    | BinFloatOp(op, d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      BinFloatOp(op, d1, d2);
+    | ListNil(ty) => ListNil(ty)
+    | Cons(d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      Cons(d1, d2);
+    | Inj(side, other_ty, d') =>
+      let d' = of_t'(envs, d');
+      Inj(side, other_ty, d');
+    | Pair(d1, d2) =>
+      let d1 = of_t'(envs, d1);
+      let d2 = of_t'(envs, d2);
+      Pair(d1, d2);
+    | Triv => Triv
+    | ConsistentCase(case) =>
+      let case = of_case'(envs, case);
+      ConsistentCase(case);
+    | InconsistentBranches(u, i, case) =>
+      let case = of_case'(envs, case);
+      InconsistentBranches(u, i, case);
+    | Cast(d', ty1, ty2) =>
+      let d' = of_t'(envs, d');
+      Cast(d', ty1, ty2);
+    | FailedCast(d', ty1, ty2) =>
+      let d' = of_t'(envs, d');
+      FailedCast(d', ty1, ty2);
+    | InvalidOperation(d', err) =>
+      let d' = of_t'(envs, d');
+      InvalidOperation(d', err);
+    }
+  and of_case' = (envs, Case(scrut, rules, n)) => {
+    let scrut = of_t'(envs, scrut);
+    let rules = rules |> List.map(of_rule'(envs));
+    Case(scrut, rules, n);
+  }
+  and of_rule' = (envs, Rule(dp, body)) => Rule(dp, of_t'(envs, body));
 }
 
 and Environment: {

@@ -65,3 +65,4 @@ let fast_equal: (t, t) => bool;
 let fast_equal': (t', t') => bool;
 
 let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
+let of_t': (EnvironmentIdMap.t(Environment.t'), t') => t;
