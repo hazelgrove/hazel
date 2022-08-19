@@ -160,6 +160,36 @@ module UPat = {
     | TypeAnn => "Type Annotation";
 };
 
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | Var;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag, Piece.t)
+    | EmptyHole
+    | Var(Token.t)
+  and t = {
+    id: Id.t,
+    term,
+  };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Pattern"
+    | EmptyHole => "Empty Type Pattern Hole"
+    | Var => "Type Pattern Variable";
+};
+
 module UExp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_bool =
@@ -206,6 +236,7 @@ module UExp = {
     | FunAnn
     | Tuple
     | Var
+    | TyAlias
     | Let
     | LetAnn
     | Ap
@@ -230,6 +261,7 @@ module UExp = {
     | FunAnn(UPat.t, UTyp.t, t) //TODO: deprecate
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Let(UPat.t, t, t)
     | LetAnn(UPat.t, UTyp.t, t, t) //TODO: deprecate
     | Ap(t, t)
@@ -260,6 +292,7 @@ module UExp = {
     | FunAnn(_) => FunAnn
     | Tuple(_) => Tuple
     | Var(_) => Var
+    | TyAlias(_) => TyAlias
     | Let(_) => Let
     | LetAnn(_) => LetAnn
     | Ap(_) => Ap
@@ -315,6 +348,7 @@ module UExp = {
     | FunAnn => "Annotated Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
+    | TyAlias => "Type Alias"
     | Let => "Let Expression"
     | LetAnn => "Annotated Let Expression"
     | Ap => "Function Application"
@@ -324,36 +358,6 @@ module UExp = {
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
     | BinOp(op) => show_binop(op);
-};
-
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | Var;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | EmptyHole
-    | Var(Token.t)
-  and t = {
-    id: Id.t,
-    term,
-  };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type Pattern"
-    | EmptyHole => "Empty Type Pattern Hole"
-    | Var => "Type Pattern Variable";
 };
 
 /* Converts a syntactic type into a semantic type */

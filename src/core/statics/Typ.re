@@ -217,61 +217,131 @@ module Kind_syntax = {
 
 module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
+  type binding;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(binding);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
     id: Id.t,
+    name: Var.t,
     typ: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = VarMap.t_(entry);
+  type tyvar_entry = {
+    id: Id.t,
+    name: TyVar.t,
+    kind: Kind.t,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_item = {
+  type entry =
+    | VarEntry(var_entry)
+    | TyVarEntry(tyvar_entry);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = list(co_item);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(co_entry);
-
-  let empty: t;
+  type co = VarMap.t_(list(coentry));
 
   let subtract: (t, co) => co;
-
   let union: list(co) => co;
 
-  let tyvar_kind: (t, Ref.t) => option(Kind.t);
+  let binding_name: binding => string;
+  let empty: unit => t;
+  let to_list:
+    t => (list((Ref.t, var_entry)), list((Ref.t, tyvar_entry)));
+  let of_entries: list(entry) => t;
+  let entries: t => list(entry);
+  let length: t => int;
+  let rescope: (t, Ref.t) => Ref.t;
+  let tyvars: t => list((Ref.t, tyvar_entry));
+  let tyvar: (t, Ref.t) => option(tyvar_entry);
+  let tyvar_named: (t, TyVar.t) => option((Ref.t, tyvar_entry));
+  let add_tyvar: (t, tyvar_entry) => t;
+  let reduce_tyvars: (t, t, Typ.t) => Typ.t;
+  let vars: t => list((Ref.t, var_entry));
+  let var: (t, Ref.t) => option(var_entry);
+  let var_named: (t, Var.t) => option((Ref.t, var_entry));
+  let add_var: (t, var_entry) => t;
 } = {
+  [@deriving (sexp, yojson)]
+  type binding =
+    | VarBinding({
+        id: Id.t,
+        name: Var.t,
+        typ: Typ_syntax.t(Pos.relative),
+      })
+    | TyVarBinding({
+        id: Id.t,
+        name: TyVar.t,
+        kind: Kind_syntax.s(Pos.relative),
+      });
+
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
+  type var_entry = {
     id: Id.t,
+    name: Var.t,
     typ: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = VarMap.t_(entry);
+  type tyvar_entry = {
+    id: Id.t,
+    name: TyVar.t,
+    kind: Kind.t,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_item = {
+  type entry =
+    | VarEntry(var_entry)
+    | TyVarEntry(tyvar_entry);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = list(co_item);
+  type co = VarMap.t_(list(coentry));
+
+  let pp_binding = fmt =>
+    fun
+    | VarBinding({id, name, typ}) =>
+      Format.fprintf(
+        fmt,
+        "VarBinding({id: %a, name: \"%s\", typ: %a})",
+        Id.pp,
+        id,
+        String.escaped(name),
+        Typ.pp,
+        Typ.of_syntax(Typ_syntax.to_abs(typ)),
+      )
+    | TyVarBinding({id, name, kind}) =>
+      Format.fprintf(
+        fmt,
+        "TyVarBinding({id: %a, name: \"%s\", kind: %a})",
+        Id.pp,
+        id,
+        String.escaped(name),
+        Kind.pp,
+        Kind_syntax.to_abs(kind),
+      );
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(co_entry);
-
-  let empty = VarMap.empty;
+  type t = list(binding);
 
   let subtract = (ctx: t, free: co): co =>
     VarMap.filter(
       ((k, _)) =>
-        switch (VarMap.lookup(ctx, k)) {
+        switch (Ctx.var_named(ctx, k)) {
         | None => true
         | Some(_) => false
         },
@@ -282,9 +352,301 @@ module rec Ctx: {
   let union: list(co) => co =
     List.fold_left((free1, free2) => free1 @ free2, []);
 
-  let tyvar_kind = (_ctx: t, _cref: Ref.t): option(Kind.t) =>
-    /* XXX */
-    None;
+  let show_binding: binding => string = Format.asprintf("%a", pp_binding);
+
+  let binding_name =
+    fun
+    | VarBinding({name, _})
+    | TyVarBinding({name, _}) => name;
+
+  let empty: unit => t = () => [];
+
+  let length = List.length;
+
+  let ref_at_index = (ctx: t, i: int): Ref.t => {
+    let index = Idx.Abs.of_int(i);
+    let stamp = length(ctx);
+    let (successors, _, predecessors) =
+      ctx |> List.map(binding_name) |> Util.ListUtil.pivot(i);
+    Ref.abs(index, stamp, ~predecessors, ~successors);
+  };
+
+  let to_list =
+      (ctx: t): (list((Ref.t, var_entry)), list((Ref.t, tyvar_entry))) => {
+    List.fold_right(
+      (binding, (i, (vars, tyvars))) =>
+        switch (binding) {
+        | VarBinding({id, name, typ}) =>
+          let typ = Typ.of_syntax(Typ_syntax.to_abs(~offset=i, typ));
+          (
+            i + 1,
+            ([(ref_at_index(ctx, i), {id, name, typ}), ...vars], tyvars),
+          );
+        | TyVarBinding({id, name, kind}) =>
+          let kind = Kind_syntax.to_abs(~offset=i, kind);
+          (
+            i + 1,
+            (vars, [(ref_at_index(ctx, i), {id, name, kind}), ...tyvars]),
+          );
+        },
+      ctx,
+      (0, ([], [])),
+    )
+    |> snd;
+  };
+
+  // The general idea behind "peer tracking", i.e., predecessors and successors,is:
+  //
+  // 1. Predecessors should never change.
+  //
+  //   different predecessors  ===>  different pasts
+  //
+  // 2. One list of successors should always be a prefix of the other.
+  //
+  //   deviating successors  ==>  deviating futures (since cref was constructed)
+  //
+  // new stamp = old stamp  ==>  new successors = pivot(old successors, index)[0]
+  // new stamp > old stamp  ==>  new successors = old successors + new entries
+  // new stamp < old stamp  ==>  new successors = new successors - old entries
+
+  let rescope = (ctx: t, cref: Ref.t): Ref.t => {
+    let stamp = length(ctx);
+    if (stamp == 0) {
+      failwith(
+        __LOC__ ++ ": cannot rescope type variables in an empty context",
+      );
+    };
+    let amount = stamp - cref.stamp;
+    let i = Idx.Abs.to_int(cref.index) + amount;
+    if (i >= stamp) {
+      failwith(__LOC__ ++ ": rescoping context is in the past");
+    } else if (i < 0) {
+      failwith(__LOC__ ++ ": rescoping context is in the future");
+    };
+    let (successors, _, predecessors) =
+      ctx |> List.map(binding_name) |> Util.ListUtil.pivot(i);
+    if (List.length(predecessors) != List.length(cref.predecessors)
+        || !List.for_all2(String.equal, predecessors, cref.predecessors)) {
+      failwith(
+        __LOC__
+        ++ ": cannot rescope index in an incompatbile context: different pasts",
+      );
+    };
+    let n = List.length(successors);
+    let m = List.length(cref.successors);
+    let (succs1, succs2) =
+      switch (n > m, n < m) {
+      | (true, _) => (
+          Util.ListUtil.drop(successors, n - m),
+          cref.successors,
+        )
+      | (_, true) => (
+          successors,
+          Util.ListUtil.drop(cref.successors, m - n),
+        )
+      | _ => (successors, cref.successors)
+      };
+    if (!List.for_all2(String.equal, succs1, succs2)) {
+      failwith(
+        __LOC__
+        ++ ": cannot rescope index in incompatible context: diverging futures",
+      );
+    };
+    let index = Idx.Abs.of_int(i);
+    let cref = Ref.abs(index, stamp, ~predecessors, ~successors);
+    if (Idx.Abs.to_int(cref.index) >= stamp) {
+      failwith(__LOC__ ++ ": rescoped type variable is in the future");
+    };
+    if (Idx.Abs.to_int(cref.index) < 0) {
+      failwith(__LOC__ ++ ": rescoped type variable is in the past");
+    };
+    cref;
+  };
+
+  let nth_var_binding =
+      (ctx: t, n: int): option((Id.t, Var.t, Typ_syntax.t(Pos.relative))) => {
+    open OptUtil.Syntax;
+    let* binding = List.nth_opt(ctx, n);
+    switch (binding) {
+    | VarBinding({id, name, typ}) => Some((id, name, typ))
+    | TyVarBinding(_) => None
+    };
+  };
+
+  let nth_tyvar_binding =
+      (ctx: t, n: int): option((Id.t, Var.t, Kind_syntax.s(Pos.relative))) => {
+    open OptUtil.Syntax;
+    let* binding = List.nth_opt(ctx, n);
+    switch (binding) {
+    | TyVarBinding({id, name, kind}) => Some((id, name, kind))
+    | VarBinding(_) => None
+    };
+  };
+
+  let first_var_binding =
+      (ctx: t, f: (Id.t, Var.t, Typ_syntax.t(Pos.relative)) => bool)
+      : option((int, Id.t, Var.t, Typ_syntax.t(Pos.relative))) => {
+    let rec go = (i, ctx) =>
+      switch (ctx) {
+      | [VarBinding({id, name, typ}), ...ctx'] =>
+        f(id, name, typ) ? Some((i, id, name, typ)) : go(i + 1, ctx')
+      | [TyVarBinding(_), ...ctx'] => go(i + 1, ctx')
+      | [] => None
+      };
+    go(0, ctx);
+  };
+
+  let first_tyvar_binding =
+      (ctx: t, f: (Id.t, TyVar.t, Kind_syntax.s(Pos.relative)) => bool)
+      : option((int, Id.t, TyVar.t, Kind_syntax.s(Pos.relative))) => {
+    let rec go = (i, ctx) =>
+      switch (ctx) {
+      | [TyVarBinding({id, name, kind}), ...ctx'] =>
+        f(id, name, kind) ? Some((i, id, name, kind)) : go(i + 1, ctx')
+      | [VarBinding(_), ...ctx'] => go(i + 1, ctx')
+      | [] => None
+      };
+    go(0, ctx);
+  };
+
+  /* Type Variables */
+
+  let tyvars = (ctx: t): list((Ref.t, tyvar_entry)) => {
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.fold_left(
+         (tyvars, (i, binding)) => {
+           switch (binding) {
+           | TyVarBinding({id, name, kind}) =>
+             let cref = ref_at_index(ctx, i);
+             let kind = Kind_syntax.to_abs(~offset=i, kind);
+             [(cref, {id, name, kind}), ...tyvars];
+           | VarBinding(_) => tyvars
+           }
+         },
+         [],
+       )
+    |> List.rev;
+  };
+
+  let tyvar = (ctx: t, cref: Ref.t): option(tyvar_entry) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let i = Idx.Abs.to_int(cref.index);
+    let+ (id, name, kind) = nth_tyvar_binding(ctx, i);
+    let kind = Kind_syntax.to_abs(~offset=i + 1, kind);
+    {id, name, kind};
+  };
+
+  let tyvar_named = (ctx: t, name: TyVar.t): option((Ref.t, tyvar_entry)) => {
+    open OptUtil.Syntax;
+    let+ (i, id, name, kind) =
+      first_tyvar_binding(ctx, (_, name', _) => TyVar.equal(name, name'));
+    let cref = ref_at_index(ctx, i);
+    let kind = Kind_syntax.to_abs(~offset=i + 1, kind);
+    (cref, {id, name, kind});
+  };
+
+  let add_tyvar = (ctx: t, entry: tyvar_entry): t => [
+    TyVarBinding({
+      id: entry.id,
+      name: entry.name,
+      kind: Kind_syntax.to_rel(entry.kind),
+    }),
+    ...ctx,
+  ];
+
+  /* Assumes indices in ty are scoped to new_ctx. */
+  let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: Typ.t): Typ.t => {
+    let new_tyvars = tyvars(new_ctx);
+    let old_tyvars = tyvars(old_ctx);
+    let n = List.length(new_tyvars) - List.length(old_tyvars);
+    let tyvars =
+      Util.ListUtil.take(new_tyvars, n)
+      |> List.map(((cref: Ref.t, entry: tyvar_entry)) => {
+           let cref = rescope(new_ctx, cref);
+           let ty = Typ.rescope(new_ctx, Kind.to_typ(entry.kind));
+           (cref, ty);
+         });
+    Typ.subst_tyvars(new_ctx, ty, tyvars);
+  };
+
+  /* Expression Variables */
+
+  let vars = (ctx: t): list((Ref.t, var_entry)) => {
+    ctx
+    |> List.mapi((i, binding) => (i, binding))
+    |> List.fold_left(
+         (vars, (i, binding)) => {
+           switch (binding) {
+           | VarBinding({id, name, typ}) =>
+             let cref = ref_at_index(ctx, i);
+             let typ = Typ.of_syntax(Typ_syntax.to_abs(~offset=i, typ));
+             [(cref, {id, name, typ}), ...vars];
+           | TyVarBinding(_) => vars
+           }
+         },
+         [],
+       )
+    |> List.rev;
+  };
+
+  let var = (ctx: t, cref: Ref.t): option(var_entry) => {
+    open OptUtil.Syntax;
+    let cref = rescope(ctx, cref);
+    let i = Idx.Abs.to_int(cref.index);
+    let+ (id, name, typ) = nth_var_binding(ctx, i);
+    /* TODO: (eric) is this rescope necessary? */
+    let typ =
+      Typ.rescope(ctx, Typ.of_syntax(Typ_syntax.to_abs(~offset=i, typ)));
+    {id, name, typ};
+  };
+
+  let var_named = (ctx: t, name: Var.t): option((Ref.t, var_entry)) => {
+    open OptUtil.Syntax;
+    let+ (i, id, name, typ) =
+      first_var_binding(ctx, (_, name', _) => Var.eq(name, name'));
+    let cref = ref_at_index(ctx, i);
+    let typ =
+      Typ.rescope(ctx, Typ.of_syntax(Typ_syntax.to_abs(~offset=i, typ)));
+    (cref, {id, name, typ});
+  };
+
+  let add_var = (ctx: t, entry: var_entry): t => [
+    VarBinding({
+      id: entry.id,
+      name: entry.name,
+      typ: Typ_syntax.to_rel(Typ.to_syntax(entry.typ)),
+    }),
+    ...ctx,
+  ];
+
+  let entries = (ctx: t): list(entry) =>
+    List.mapi(
+      (i, binding) =>
+        switch (binding) {
+        | VarBinding({id, name, typ}) =>
+          VarEntry({
+            id,
+            name,
+            typ: Typ.of_syntax(Typ_syntax.to_abs(~offset=i, typ)),
+          })
+        | TyVarBinding({id, name, kind}) =>
+          TyVarEntry({id, name, kind: Kind_syntax.to_abs(~offset=i, kind)})
+        },
+      ctx,
+    );
+
+  let of_entries = (entries: list(entry)): t =>
+    List.fold_right(
+      (entry, ctx) =>
+        switch (entry) {
+        | VarEntry(var_entry) => add_var(ctx, var_entry)
+        | TyVarEntry(tyvar_entry) => add_tyvar(ctx, tyvar_entry)
+        },
+      entries,
+      [],
+    );
 }
 
 /*******************************************************************************
@@ -295,9 +657,32 @@ and Kind: {
   [@deriving (sexp, yojson)]
   type t = Kind_syntax.s(Pos.absolute);
 
-  let pp: (Format.formatter, t) => unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type source = {
+    id: int,
+    ty: t,
+  };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type self =
+    | Just(t)
+    /* | Joined(list(source)) */
+    | Free;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type mode =
+    | Syn
+    | Ana(t);
+
+  let pp: (Format.formatter, t) => unit;
   let show: t => string;
+
+  /* let rescope: (Ctx.t, t) => t; */
+  let to_typ: t => Typ.t;
+
+  let unknown: unit => t;
+  let abstract: unit => t;
+  let singleton: Typ.t => t;
 } = {
   [@deriving (sexp, yojson)]
   type t = Kind_syntax.s(Pos.absolute);
@@ -312,6 +697,43 @@ and Kind: {
     };
 
   let show = Format.asprintf("%a", pp);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type source = {
+    id: int,
+    ty: t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type self =
+    | Just(t)
+    /* | Joined(list(source)) */
+    | Free;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type mode =
+    | Syn
+    | Ana(t);
+
+  /* let rescope = (ctx: Ctx.t, kind: t): t => */
+  /*   switch (kind) { */
+  /*   | Unknown */
+  /*   | Abstract => kind */
+  /*   | Singleton(ty) => */
+  /*     Singleton(Typ.to_syntax(Typ.rescope(ctx, Typ.of_syntax(ty)))) */
+  /*   }; */
+
+  /* For converting type variables to equivalent [HTyp]s while resolving local
+     type aliases. */
+  let to_typ: t => Typ.t =
+    fun
+    | Unknown
+    | Abstract => Typ.unknown(Internal)
+    | Singleton(ty) => Typ.of_syntax(ty);
+
+  let unknown = () => Kind_syntax.Unknown;
+  let abstract = () => Kind_syntax.Abstract;
+  let singleton = ty => Kind_syntax.Singleton(ty);
 }
 
 /*******************************************************************************
@@ -359,6 +781,9 @@ and Typ: {
   let is_arrow: t => bool;
   let is_product: t => bool;
   let is_tyvar: t => bool;
+
+  let rescope: (Ctx.t, t) => t;
+  let subst_tyvars: (Ctx.t, t, list((Ref.t, t))) => t;
 } = {
   [@deriving (sexp, yojson)]
   type t = Typ_syntax.t(Pos.absolute);
@@ -461,6 +886,43 @@ and Typ: {
     | TyVar(_) => true
     | _ => false
     };
+
+  let rec rescope = (ctx: Ctx.t, ty: t): t =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool => ty
+    | List(ty1) => List(rescope(ctx, ty1))
+    | Arrow(ty1, ty2) => Arrow(rescope(ctx, ty1), rescope(ctx, ty2))
+    | Prod(tys) => Prod(List.map(rescope(ctx), tys))
+    | TyVar(cref, t) => TyVar(Ctx.rescope(ctx, cref), t)
+    };
+
+  let rec subst_tyvar = (ctx: Ctx.t, ty: t, cref: Ref.t, ty': t): t => {
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool => ty
+    | List(ty1) => List(subst_tyvar(ctx, ty1, cref, ty'))
+    | Arrow(ty1, ty2) =>
+      Arrow(
+        subst_tyvar(ctx, ty1, cref, ty'),
+        subst_tyvar(ctx, ty2, cref, ty'),
+      )
+    | Prod(tys) =>
+      Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
+    | TyVar(cref', _) => Ref.equiv(cref, cref') ? ty' : ty
+    };
+  };
+
+  let subst_tyvars = (ctx: Ctx.t, ty: t, tyvars: list((Ref.t, t))): t =>
+    List.fold_left(
+      (ty, (cref, ty')) => subst_tyvar(ctx, ty, cref, ty'),
+      ty,
+      tyvars,
+    );
 };
 
 /*******************************************************************************/
@@ -524,10 +986,10 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
     }
   | (List(_), _) => None
   | (TyVar(cref, _), _) =>
-    switch (Ctx.tyvar_kind(ctx, cref)) {
-    | Some(Unknown) => join(ctx, unknown(TypeHole), ty2)
-    | Some(Abstract) => failwith(__LOC__ ++ ": not implemented")
-    | Some(Singleton(ty)) => join(ctx, of_syntax(ty), ty2)
+    switch (Ctx.tyvar(ctx, cref)) {
+    | Some({kind: Unknown, _}) => join(ctx, unknown(TypeHole), ty2)
+    | Some({kind: Abstract, _}) => failwith(__LOC__ ++ ": not implemented")
+    | Some({kind: Singleton(ty), _}) => join(ctx, of_syntax(ty), ty2)
     | None => None
     }
   };

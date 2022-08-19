@@ -311,3 +311,43 @@ let single_elem = (xs: list('x)): option('x) =>
   | [] => None
   | [hd, ...tl] => List.for_all((==)(hd), tl) ? Some(hd) : None
   };
+
+let rec take = (xs: list('a), n: int): list('a) =>
+  if (n <= 0) {
+    [];
+  } else {
+    switch (xs) {
+    | [] => failwith("index too high")
+    | [x, ...xs'] => [x, ...take(xs', n - 1)]
+    };
+  };
+
+let rec drop = (xs: list('a), n: int): list('a) =>
+  if (n > 0) {
+    switch (xs) {
+    | [] => []
+    | [_, ...tl] => drop(tl, n - 1)
+    };
+  } else {
+    xs;
+  };
+
+let pivot = (i: int, xs: list('a)): (list('a), 'a, list('a)) => {
+  let n = List.length(xs);
+  if (n == 0) {
+    failwith(__LOC__ ++ ": cannot pivot an empty list");
+  } else if (i < 0) {
+    failwith(__LOC__ ++ ": index too low");
+  } else if (i >= n) {
+    failwith(__LOC__ ++ ": index too high");
+  } else if (n == 1) {
+    ([], List.hd(xs), []);
+  } else if (i == 0) {
+    ([], List.hd(xs), List.tl(xs));
+  } else if (i == n) {
+    let xs_rev = List.rev(xs);
+    (List.rev(List.tl(xs_rev)), List.hd(xs_rev), []);
+  } else {
+    (take(xs, i), List.nth(xs, i), drop(xs, i + 1));
+  };
+};

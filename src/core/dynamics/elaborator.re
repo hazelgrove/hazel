@@ -1,5 +1,6 @@
 open OptUtil.Syntax;
 
+/* TODO: (eric) let eric z know what's changing */
 let rec htyp_of_typ: Typ.t => HTyp.t =
   ty =>
     switch (Typ.to_syntax(ty)) {
@@ -22,7 +23,12 @@ let exp_htyp = (ctx, m, e) => htyp_of_typ(Statics.exp_typ(ctx, m, e));
 let pat_htyp = (ctx, m, p) => htyp_of_typ(Statics.pat_typ(ctx, m, p));
 
 let ctx_to_varctx = (ctx: Typ.Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Typ.Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
+  Typ.Ctx.vars(ctx)
+  |> List.map(((_, entry: Typ.Ctx.var_entry)) =>
+       (entry.name, htyp_of_typ(entry.typ))
+     );
+
+/* List.map(((k, {typ, _}: Typ.Ctx.entry)) => (k, htyp_of_typ(typ)), ctx); */
 
 let int_op_of: Term.UExp.op_int => DHExp.BinIntOp.t =
   fun
@@ -150,6 +156,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
+    | TyAlias(tpat, def, body) => (??)
     | Let(
         {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
         {term: Fun(_) | FunAnn(_), _} as def,
@@ -201,7 +208,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(ConsistentCase(d))
       };
     };
-  | Some(InfoPat(_) | InfoTyp(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Invalid(_))
   | None => None
   };
 }

@@ -134,36 +134,145 @@ module Kind_syntax: {
 /** An integrated typing context for type variables and expression variables */
 module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
+  type binding;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(binding);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
     id: Id.t,
+    name: Var.t,
     typ: Typ.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = VarMap.t_(entry);
+  type tyvar_entry = {
+    id: Id.t,
+    name: TyVar.t,
+    kind: Kind.t,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_item = {
+  type entry =
+    | VarEntry(var_entry)
+    | TyVarEntry(tyvar_entry);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type co_entry = list(co_item);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type co = VarMap.t_(co_entry);
-
-  let empty: t;
+  type co = VarMap.t_(list(coentry));
 
   let subtract: (t, co) => co;
-
   let union: list(co) => co;
+
+  let binding_name: binding => string;
+  let empty: unit => t;
+
+  let to_list:
+    t => (list((Ref.t, var_entry)), list((Ref.t, tyvar_entry)));
+
+  /** Returns a context consisting of the given entries. */
+  let of_entries: list(entry) => t;
+
+  /** Returns the (sanitized) bindings of a given context. */
+  let entries: t => list(entry);
+
+  /** Returns the number of binding in the given context */
+  let length: t => int;
+
+  /** Converts a reference between two different versions of a context.
+
+     WARNING: Result is only valid if the given context is the same context used
+              to construct the reference, or an extension of it.
+     WARNING: Crashes if the given context is empty.
+     WARNING: Crashes if the given reference is out of bounds.
+   */
+  let rescope: (t, Ref.t) => Ref.t;
+
+  /* Type Variables */
+
+  /** Returns a reference and a record describing each type variable bound in
+     the given context. */
+  let tyvars: t => list((Ref.t, tyvar_entry));
+
+  /** Returns a record describing the referenced type variable. */
+  let tyvar: (t, Ref.t) => option(tyvar_entry);
+
+  /** Returns a reference and a record describing the named type variable. */
+  let tyvar_named: (t, TyVar.t) => option((Ref.t, tyvar_entry));
+
+  /** Binds a type variable. */
+  let add_tyvar: (t, tyvar_entry) => t;
+
+  /** [reduce_tyvars(new_ctx, old_ctx, ty)] replaces any type variables bound by
+     [new_ctx] but not by [old_ctx] in [ty] with equivalent types that have no
+     new type variables.
+
+     WARNING: result only valid if the contexts are the same or one is an
+     extension of the other.
+   */
+  let reduce_tyvars: (t, t, Typ.t) => Typ.t;
+
+  /* Expression Variables */
+
+  /** Returns a reference and a record describing each expression variable bound
+   in the given context. */
+  let vars: t => list((Ref.t, var_entry));
+
+  /** Returns the name of the referenced expression variable. */
+  let var: (t, Ref.t) => option(var_entry);
+
+  /** Returns a reference and a record describing the named expression variable. */
+  let var_named: (t, Var.t) => option((Ref.t, var_entry));
+
+  /** Binds an expression variable. */
+  let add_var: (t, var_entry) => t;
+  /* [@deriving (show({with_path: false}), sexp, yojson)] */
+  /* type co_item = { */
+  /*   id: Id.t, */
+  /*   mode: Typ.mode, */
+  /* }; */
+  /* [@deriving (show({with_path: false}), sexp, yojson)] */
+  /* type co_entry = list(co_item); */
+  /* [@deriving (show({with_path: false}), sexp, yojson)] */
+  /* type co = VarMap.t_(co_entry); */
+  /* let empty: t; */
+  /* let subtract: (t, co) => co; */
+  /* let union: list(co) => co; */
 }
 
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Kind_syntax.s(Pos.absolute);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type source = {
+    id: int,
+    ty: t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type self =
+    | Just(t)
+    /* | Joined(list(source)) */
+    | Free;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type mode =
+    | Syn
+    | Ana(t);
+
+  /** Produces a [Typ] belonging to the given [Kind]. */
+  let to_typ: t => Typ.t;
+
+  let unknown: unit => t;
+  let abstract: unit => t;
+  let singleton: Typ.t => t;
 }
 
 and Typ: {
@@ -212,6 +321,9 @@ and Typ: {
   /** Returns a [Typ] with the given underlying AST. */
   let of_syntax: Typ_syntax.t(Pos.absolute) => t;
 
+  /** Scope preserving cross-context index shifting. */
+  let rescope: (Ctx.t, t) => t;
+
   /* Type Constructor Functions */
 
   let unknown: Typ_syntax.type_provenance => t;
@@ -228,6 +340,11 @@ and Typ: {
   let is_int: t => bool;
   let is_float: t => bool;
   let is_tyvar: t => bool;
+
+  /* Type Variables */
+
+  /** Type variable substitution.  */
+  let subst_tyvars: (Ctx.t, t, list((Ref.t, t))) => t;
 };
 
 include
