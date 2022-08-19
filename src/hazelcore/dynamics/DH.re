@@ -487,14 +487,23 @@ module rec DHExp: {
         Fun(dp, dp_ty, body);
       | Closure(env, d') =>
         let id = env |> ClosureEnvironment.id_of;
-        let* map =
-          env
-          |> ClosureEnvironment.map_of
-          |> Environment.to_listo
-          |> List.map(((x, d'')) => of_t(d'') >>| (d'' => (x, d'')))
-          |> sequence
-          >>| Environment.of_list;
-        let* () = modify(envs => EnvironmentIdMap.add(id, map, envs));
+        let* () = {
+          let* envs = get;
+          let* envs =
+            switch (EnvironmentIdMap.find_opt(id, envs)) {
+            | Some(_) => envs |> return
+            | None =>
+              let+ map =
+                env
+                |> ClosureEnvironment.map_of
+                |> Environment.to_listo
+                |> List.map(((x, d'')) => of_t(d'') >>| (d'' => (x, d'')))
+                |> sequence
+                >>| Environment.of_list;
+              EnvironmentIdMap.add(id, map, envs);
+            };
+          put(envs);
+        };
         let+ d' = of_t(d');
         Closure(id, d');
       | Ap(d1, d2) =>
