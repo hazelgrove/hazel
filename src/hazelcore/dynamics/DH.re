@@ -39,49 +39,66 @@ module rec DHExp: {
   };
 
   [@deriving sexp]
-  type t =
+  type t_('env) =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | NonEmptyHole(
+        ErrStatus.HoleReason.t,
+        MetaVar.t,
+        HoleInstanceId.t,
+        t_('env),
+      )
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure(ClosureEnvironment.t, t)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case_('env))
+    | Closure('env, t_('env))
     | BoundVar(Var.t)
-    | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
-    | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | Let(DHPat.t, t_('env), t_('env))
+    | FixF(Var.t, HTyp.t, t_('env))
+    | Fun(DHPat.t, HTyp.t, t_('env))
+    | Ap(t_('env), t_('env))
+    | ApBuiltin(string, list(t_('env)))
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
+    | BinBoolOp(BinBoolOp.t, t_('env), t_('env))
+    | BinIntOp(BinIntOp.t, t_('env), t_('env))
+    | BinFloatOp(BinFloatOp.t, t_('env), t_('env))
     | ListNil(HTyp.t)
-    | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
+    | Cons(t_('env), t_('env))
+    | Inj(HTyp.t, InjSide.t, t_('env))
+    | Pair(t_('env), t_('env))
     | Triv
-    | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-  and case =
-    | Case(t, list(rule), int)
-  and rule =
-    | Rule(DHPat.t, t);
+    | ConsistentCase(case_('env))
+    | Cast(t_('env), HTyp.t, HTyp.t)
+    | FailedCast(t_('env), HTyp.t, HTyp.t)
+    | InvalidOperation(t_('env), InvalidOperationError.t)
+  and case_('env) =
+    | Case(t_('env), list(rule_('env)), int)
+  and rule_('env) =
+    | Rule(DHPat.t, t_('env));
 
-  let constructor_string: t => string;
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+  type case = case_(ClosureEnvironment.t);
+  type rule = rule_(ClosureEnvironment.t);
 
-  let mk_tuple: list(t) => t;
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
+  type case' = case_(EnvironmentId.t);
+  type rule' = rule_(EnvironmentId.t);
 
-  let cast: (t, HTyp.t, HTyp.t) => t;
+  let constructor_string: t_('env) => string;
 
-  let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+  let mk_tuple: list(t_('env)) => t_('env);
 
+  let cast: (t_('env), HTyp.t, HTyp.t) => t_('env);
+
+  let apply_casts: (t_('env), list((HTyp.t, HTyp.t))) => t_('env);
+
+  let fast_equal_: (('env, 'env) => bool, t_('env), t_('env)) => bool;
   let fast_equal: (t, t) => bool;
+  let fast_equal': (t', t') => bool;
 } = {
   module BinBoolOp = {
     [@deriving sexp]
@@ -212,44 +229,56 @@ module rec DHExp: {
   };
 
   [@deriving sexp]
-  type t =
-    /* Hole types */
+  type t_('env) =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | NonEmptyHole(
+        ErrStatus.HoleReason.t,
+        MetaVar.t,
+        HoleInstanceId.t,
+        t_('env),
+      )
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
-    /* Other expressions forms */
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case_('env))
+    | Closure('env, t_('env))
     | BoundVar(Var.t)
-    | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
-    | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | Let(DHPat.t, t_('env), t_('env))
+    | FixF(Var.t, HTyp.t, t_('env))
+    | Fun(DHPat.t, HTyp.t, t_('env))
+    | Ap(t_('env), t_('env))
+    | ApBuiltin(string, list(t_('env)))
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
+    | BinBoolOp(BinBoolOp.t, t_('env), t_('env))
+    | BinIntOp(BinIntOp.t, t_('env), t_('env))
+    | BinFloatOp(BinFloatOp.t, t_('env), t_('env))
     | ListNil(HTyp.t)
-    | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
+    | Cons(t_('env), t_('env))
+    | Inj(HTyp.t, InjSide.t, t_('env))
+    | Pair(t_('env), t_('env))
     | Triv
-    | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-  and case =
-    | Case(t, list(rule), int)
-  and rule =
-    | Rule(DHPat.t, t);
+    | ConsistentCase(case_('env))
+    | Cast(t_('env), HTyp.t, HTyp.t)
+    | FailedCast(t_('env), HTyp.t, HTyp.t)
+    | InvalidOperation(t_('env), InvalidOperationError.t)
+  and case_('env) =
+    | Case(t_('env), list(rule_('env)), int)
+  and rule_('env) =
+    | Rule(DHPat.t, t_('env));
 
-  let constructor_string = (d: t): string =>
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+  type case = case_(ClosureEnvironment.t);
+  type rule = rule_(ClosureEnvironment.t);
+
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
+  type case' = case_(EnvironmentId.t);
+  type rule' = rule_(EnvironmentId.t);
+
+  let constructor_string = (d: t_('env)): string =>
     switch (d) {
     | EmptyHole(_, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
@@ -281,20 +310,20 @@ module rec DHExp: {
     | InvalidOperation(_) => "InvalidOperation"
     };
 
-  let rec mk_tuple: list(t) => t =
+  let rec mk_tuple: list(t_('env)) => t_('env) =
     fun
     | [] => failwith("mk_tuple: expected at least 1 element")
     | [d] => d
     | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-  let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
+  let cast = (d: t_('env), t1: HTyp.t, t2: HTyp.t): t_('env) =>
     if (HTyp.eq(t1, t2)) {
       d;
     } else {
       Cast(d, t1, t2);
     };
 
-  let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+  let apply_casts = (d: t_('env), casts: list((HTyp.t, HTyp.t))): t_('env) =>
     List.fold_left(
       (d, c: (HTyp.t, HTyp.t)) => {
         let (ty1, ty2) = c;
@@ -304,7 +333,13 @@ module rec DHExp: {
       casts,
     );
 
-  let rec fast_equal = (d1: t, d2: t): bool => {
+  let rec fast_equal_ =
+          (
+            env_fast_equal_: ('env, 'env) => bool,
+            d1: t_('env),
+            d2: t_('env),
+          )
+          : bool => {
     switch (d1, d2) {
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
@@ -316,32 +351,41 @@ module rec DHExp: {
 
     /* Non-hole forms: recurse */
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
-      dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+      dp1 == dp2
+      && fast_equal_(env_fast_equal_, d11, d12)
+      && fast_equal_(env_fast_equal_, d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
-      f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
+      f1 == f2 && ty1 == ty2 && fast_equal_(env_fast_equal_, d1, d2)
     | (Fun(dp1, ty1, d1), Fun(dp2, ty2, d2)) =>
-      dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2)
+      dp1 == dp2 && ty1 == ty2 && fast_equal_(env_fast_equal_, d1, d2)
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22))
     | (Pair(d11, d21), Pair(d12, d22)) =>
-      fast_equal(d11, d12) && fast_equal(d21, d22)
+      fast_equal_(env_fast_equal_, d11, d12)
+      && fast_equal_(env_fast_equal_, d21, d22)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-      f1 == f2 && List.for_all2(fast_equal, args1, args2)
+      f1 == f2 && List.for_all2(fast_equal_(env_fast_equal_), args1, args2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+      op1 == op2
+      && fast_equal_(env_fast_equal_, d11, d12)
+      && fast_equal_(env_fast_equal_, d21, d22)
     | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+      op1 == op2
+      && fast_equal_(env_fast_equal_, d11, d12)
+      && fast_equal_(env_fast_equal_, d21, d22)
     | (BinFloatOp(op1, d11, d21), BinFloatOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+      op1 == op2
+      && fast_equal_(env_fast_equal_, d11, d12)
+      && fast_equal_(env_fast_equal_, d21, d22)
     | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
-      ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
+      ty1 == ty2 && side1 == side2 && fast_equal_(env_fast_equal_, d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
-      fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
+      fast_equal_(env_fast_equal_, d1, d2) && ty11 == ty12 && ty21 == ty22
     | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
-      fast_equal(d1, d2) && reason1 == reason2
+      fast_equal_(env_fast_equal_, d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
-      fast_equal_case(case1, case2)
+      fast_equal__case(env_fast_equal_, case1, case2)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Let(_), _)
@@ -366,7 +410,10 @@ module rec DHExp: {
        (This resolves a performance issue with many nested holes.) */
     | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
-      reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
+      reason1 == reason2
+      && u1 == u2
+      && i1 == i2
+      && fast_equal_(env_fast_equal_, d1, d2)
     | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
       u1 == u2 && i1 == i2 && kw1 == kw2
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
@@ -374,12 +421,12 @@ module rec DHExp: {
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
       u1 == u2 && i1 == i2 && text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
-      ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
+      env_fast_equal_(sigma1, sigma2) && fast_equal_(env_fast_equal_, d1, d2)
     | (
         InconsistentBranches(u1, i1, case1),
         InconsistentBranches(u2, i2, case2),
       ) =>
-      u1 == u2 && i1 == i2 && fast_equal_case(case1, case2)
+      u1 == u2 && i1 == i2 && fast_equal__case(env_fast_equal_, case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
     | (ExpandingKeyword(_), _)
@@ -389,17 +436,24 @@ module rec DHExp: {
     | (InconsistentBranches(_), _) => false
     };
   }
-  and fast_equal_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
-    fast_equal(d1, d2)
+  and fast_equal__case =
+      (env_fast_equal_, Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
+    fast_equal_(env_fast_equal_, d1, d2)
     && List.length(rules1) == List.length(rules2)
     && List.for_all2(
          (Rule(dp1, d1), Rule(dp2, d2)) =>
-           dp1 == dp2 && fast_equal(d1, d2),
+           dp1 == dp2 && fast_equal_(env_fast_equal_, d1, d2),
          rules1,
          rules2,
        )
     && i1 == i2;
   };
+
+  let fast_equal = (d1: t, d2: t) =>
+    fast_equal_(ClosureEnvironment.id_equal, d1, d2);
+
+  let fast_equal' = (d1: t', d2: t') =>
+    fast_equal_(EnvironmentId.equal, d1, d2);
 }
 
 and Environment: {
@@ -408,12 +462,24 @@ and Environment: {
       type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving sexp]
-  type t = t_(DHExp.t);
+  type nonrec t_('env) = t_(DHExp.t_('env));
+
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
 } = {
   include VarBstMap.Ordered;
 
   [@deriving sexp]
-  type t = t_(DHExp.t);
+  type nonrec t_('env) = t_(DHExp.t_('env));
+
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
 }
 
 and ClosureEnvironment: {
@@ -457,7 +523,7 @@ and ClosureEnvironment: {
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
-  let placeholder: t;
+  let placeholder: unit => t;
 } = {
   module Inner: {
     [@deriving sexp]
@@ -528,5 +594,5 @@ and ClosureEnvironment: {
 
   let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
-  let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
+  let placeholder = () => wrap(EnvironmentId.invalid, Environment.empty);
 };

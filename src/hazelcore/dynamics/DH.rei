@@ -43,50 +43,65 @@ module rec DHExp: {
   };
 
   [@deriving sexp]
-  type t =
+  type t_('env) =
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | NonEmptyHole(
+        ErrStatus.HoleReason.t,
+        MetaVar.t,
+        HoleInstanceId.t,
+        t_('env),
+      )
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case_('env))
     /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
+    | Closure('env, t_('env))
     /* Other expressions forms */
     | BoundVar(Var.t)
-    | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
-    | Ap(t, t)
-    | ApBuiltin(string, list(t))
+    | Let(DHPat.t, t_('env), t_('env))
+    | FixF(Var.t, HTyp.t, t_('env))
+    | Fun(DHPat.t, HTyp.t, t_('env))
+    | Ap(t_('env), t_('env))
+    | ApBuiltin(string, list(t_('env)))
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
-    | BinBoolOp(BinBoolOp.t, t, t)
-    | BinIntOp(BinIntOp.t, t, t)
-    | BinFloatOp(BinFloatOp.t, t, t)
+    | BinBoolOp(BinBoolOp.t, t_('env), t_('env))
+    | BinIntOp(BinIntOp.t, t_('env), t_('env))
+    | BinFloatOp(BinFloatOp.t, t_('env), t_('env))
     | ListNil(HTyp.t)
-    | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
+    | Cons(t_('env), t_('env))
+    | Inj(HTyp.t, InjSide.t, t_('env))
+    | Pair(t_('env), t_('env))
     | Triv
-    | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-  and case =
-    | Case(t, list(rule), int)
-  and rule =
-    | Rule(DHPat.t, t);
+    | ConsistentCase(case_('env))
+    | Cast(t_('env), HTyp.t, HTyp.t)
+    | FailedCast(t_('env), HTyp.t, HTyp.t)
+    | InvalidOperation(t_('env), InvalidOperationError.t)
+  and case_('env) =
+    | Case(t_('env), list(rule_('env)), int)
+  and rule_('env) =
+    | Rule(DHPat.t, t_('env));
 
-  let constructor_string: t => string;
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+  type case = case_(ClosureEnvironment.t);
+  type rule = rule_(ClosureEnvironment.t);
 
-  let mk_tuple: list(t) => t;
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
+  type case' = case_(EnvironmentId.t);
+  type rule' = rule_(EnvironmentId.t);
 
-  let cast: (t, HTyp.t, HTyp.t) => t;
+  let constructor_string: t_('env) => string;
 
-  let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+  let mk_tuple: list(t_('env)) => t_('env);
+
+  let cast: (t_('env), HTyp.t, HTyp.t) => t_('env);
+
+  let apply_casts: (t_('env), list((HTyp.t, HTyp.t))) => t_('env);
 
   /* Used for faster structural equality checking. Structural
      checking may be slow when an expression is large,
@@ -101,7 +116,9 @@ module rec DHExp: {
      evaluation) or if all the environments are checked to be
      equal (see Result.fast_equal).
      */
+  let fast_equal_: (('env, 'env) => bool, t_('env), t_('env)) => bool;
   let fast_equal: (t, t) => bool;
+  let fast_equal': (t', t') => bool;
 }
 
 /**
@@ -113,7 +130,13 @@ and Environment: {
       type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving sexp]
-  type t = t_(DHExp.t);
+  type nonrec t_('env) = t_(DHExp.t_('env));
+
+  [@deriving sexp]
+  type t = t_(ClosureEnvironment.t);
+
+  [@deriving sexp]
+  type t' = t_(EnvironmentId.t);
 }
 
 /**
@@ -270,5 +293,5 @@ and ClosureEnvironment: {
     Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only
     used for display purposes.
    */
-  let placeholder: t;
+  let placeholder: unit => t;
 };
