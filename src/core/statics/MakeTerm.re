@@ -88,7 +88,7 @@ and utyp_of_seg = (ps: Segment.t): UTyp.t => {
   |> Segment.skel
   |> of_seg_and_skel_typ(ps);
 }
-and urul_of_seg = (ps: Segment.t): URul.t => {
+and urul_of_seg = (ps: Segment.t): URul.s => {
   /* NOTE(andrew): filtering out incomplete tiles for now.
      TODO: better approach which e.g. still provides feedback
      inside incomplete tile children */
@@ -109,7 +109,7 @@ and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
 }
-and of_seg_and_skel_rul = (ps: Segment.t, skel: Skel.t): URul.t => {
+and of_seg_and_skel_rul = (ps: Segment.t, skel: Skel.t): URul.s => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Rul, ps, skel);
   of_piece_rul(p, kids);
 }
@@ -183,33 +183,19 @@ and of_multi_typ = (id: Id.t, l: UTyp.t, r: UTyp.t): UTyp.t => {
   | (l, r) => wrap_multi([], [l, r])
   };
 }
-and of_multi_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
-  let wrap_multi = (ids, es): URul.t => {
-    id,
-    term: MultiHole([id] @ ids, es),
-  };
-  switch (l, r) {
-  | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
-    wrap_multi(l_ids @ r_ids, ls @ rs)
-  | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
-  | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
-  | (l, r) => wrap_multi([], [l, r])
-  };
-}
-and of_rules_rul = (id: Id.t, l: URul.t, r: URul.t): URul.t => {
-  //TODO(andrew): this doesnt make sense
-  let wrap_rules = (ids, es: list((UPat.t, UExp.t))): URul.t => {
-    id,
-    term: Rules([id] @ ids, es),
-  };
-  switch (l, r) {
-  | ({term: Rules(l_ids, ls), _}, {term: Rules(r_ids, rs), _}) =>
-    wrap_rules(l_ids @ r_ids, ls @ rs)
-  | ({term: Rules(_), _}, _) => l //TODO
-  | (_, {term: Rules(_), _}) => r //TODO
-  | (l, r) => {id, term: MultiHole([id], [l, r])}
-  };
-}
+/*and of_multi_rul = (id: Id.t, l: URul.s, r: URul.s): URul.s => {
+    let wrap_multi = (ids, es): URul.s => {
+      id,
+      term: MultiHole([id] @ ids, es),
+    };
+    switch (l, r) {
+    | ({term: MultiHole(l_ids, ls), _}, {term: MultiHole(r_ids, rs), _}) =>
+      wrap_multi(l_ids @ r_ids, ls @ rs)
+    | (l, {term: MultiHole(r_ids, rs), _}) => wrap_multi(r_ids, [l] @ rs)
+    | ({term: MultiHole(l_ids, ls), _}, r) => wrap_multi(l_ids, ls @ [r])
+    | (l, r) => wrap_multi([], [l, r])
+    };
+  }*/
 and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
   switch (p) {
   | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
@@ -272,8 +258,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
         | term => ListLit([id], [term])
         }
-      | (["case", "of"], [Rul(rules)], [scrut]) =>
-        Match(uexp_of_seg(scrut), rules)
+      | (["case", "of"], [Rul({ids, rules})], [scrut]) =>
+        Match(ids, uexp_of_seg(scrut), rules)
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
@@ -339,27 +325,50 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
     {id, term};
   };
 }
-and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.t => {
+/*and of_rules_rul = (id: Id.t, l: URul.s, r: URul.s): URul.s => {
+    //TODO(andrew): this doesnt make sense
+    let wrap_rules = (ids, es: list((UPat.t, UExp.t))): URul.s => {
+      id,
+      term: Rules([id] @ ids, es),
+    };
+    switch (l, r) {
+    | ({term: Rules(l_ids, ls), _}, {term: Rules(r_ids, rs), _}) =>
+      wrap_rules(l_ids @ r_ids, ls @ rs)
+    | ({term: Rules(_), _}, _) => l //TODO
+    | (_, {term: Rules(_), _}) => r //TODO
+    | (l, r) => {id, term: MultiHole([id], [l, r])}
+    };
+  }*/
+and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.s => {
   switch (p) {
-  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
+  | Whitespace({id: _, _}) => {ids: [], rules: []}
   | Grout({id, shape}) =>
     switch (shape, outside_kids) {
-    | (Convex, []) => {id, term: EmptyHole}
-    | (Concave, [Rul(l), Rul(r)]) => of_multi_rul(id, l, r)
-    | _ => {id, term: Invalid(MalformedGrout, p)}
+    | (Convex, []) => {ids: [id], rules: []}
+    | (
+        Concave,
+        [Rul({ids: id_l, rules: rs_l}), Rul({ids: id_r, rules: rs_r})],
+      ) => {
+        ids: id_l @ id_r,
+        rules: rs_l @ rs_r,
+      }
+    | _ => {ids: [], rules: []}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
-    let term: URul.term =
-      switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
-      | (["=>"], [Pat(l), Exp(r)], []) => Rules([id], [(l, r)]) //TODO:unfuck
-      | (["|"], [Rul(l), Rul(r)], []) => of_rules_rul(id, l, r).term
-      | (["|"], [Rul({term: Rules(ids, rs), id: _})], []) =>
-        Rules(ids @ [id], rs)
-      | (["|"], [Rul(x)], []) => x.term //TODO:unfuck
-      | _ => Invalid(UnrecognizedTerm, p)
-      };
-    {id, term};
+    switch (label, outside_kids, inside_kids) {
+    | _ when !Tile.is_complete(t) => {ids: [], rules: []}
+    | (["=>"], [Pat(p), Exp(e)], []) => {ids: [id], rules: [(p, e)]}
+    | (
+        ["|"],
+        [Rul({ids: id_l, rules: rs_l}), Rul({ids: id_r, rules: rs_r})],
+        [],
+      ) => {
+        ids: [id] @ id_l @ id_r,
+        rules: rs_l @ rs_r,
+      }
+    | (["|"], [Rul({ids, rules})], []) => {ids: [id] @ ids, rules}
+    | _ => {ids: [], rules: []}
+    }
   };
 };
 

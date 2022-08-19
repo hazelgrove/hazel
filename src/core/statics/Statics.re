@@ -300,11 +300,11 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
-  | Match(scrut, {term: Rules(ids, rules), _}) =>
+  | Match(ids, scrut, rules) =>
     let rul_ms =
       //TODO(andrew)
       List.fold_left(
-        (m, id) => Id.Map.add(id, InfoRul({cls: Rules}), m),
+        (m, id) => Id.Map.add(id, InfoRul({cls: Rule}), m),
         Id.Map.empty,
         ids,
       );
@@ -333,10 +333,10 @@ let rec uexp_to_info_map =
       ~free=Ctx.union([free_scrut] @ branch_frees),
       union_m([rul_ms, m_scrut] @ pat_ms @ branch_ms),
     );
-  | Match(_) =>
+  /*| Match(_) =>
     print_endline("match 2");
     //TODO(andrew)
-    atomic(Just(Unknown(Internal)));
+    atomic(Just(Unknown(Internal)));*/
   | Seq(e1, e2) =>
     let (_, free1, m1) = go(~mode=Syn, e1);
     let (ty2, free2, m2) = go(~mode, e2);
