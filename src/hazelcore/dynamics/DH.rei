@@ -85,11 +85,18 @@ module rec DHExp: {
   and rule_('env) =
     | Rule(DHPat.t, t_('env));
 
+  /**
+    The version of internal expressions with closures entirely contained
+    inside.
+   */
   [@deriving sexp]
   type t = t_(ClosureEnvironment.t);
   type case = case_(ClosureEnvironment.t);
   type rule = rule_(ClosureEnvironment.t);
 
+  /**
+    The version of internal expressions with closures given by ids only.
+   */
   [@deriving sexp]
   type t' = t_(EnvironmentId.t);
   type case' = case_(EnvironmentId.t);
@@ -120,7 +127,7 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
   let fast_equal': (t', t') => bool;
 
-  let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
+  let of_t: t => (EnvironmentIdMap.t(Environment.t'), t');
   let of_t': (EnvironmentIdMap.t(Environment.t'), t') => t;
 }
 

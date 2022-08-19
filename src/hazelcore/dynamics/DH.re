@@ -100,7 +100,7 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
   let fast_equal': (t', t') => bool;
 
-  let of_t: t => (t', EnvironmentIdMap.t(Environment.t'));
+  let of_t: t => (EnvironmentIdMap.t(Environment.t'), t');
   let of_t': (EnvironmentIdMap.t(Environment.t'), t') => t;
 } = {
   module BinBoolOp = {
@@ -461,7 +461,7 @@ module rec DHExp: {
       type t = EnvironmentIdMap.t(Environment.t');
     });
 
-  let of_t = (d: t): (t', EnvironmentIdMap.t(Environment.t')) => {
+  let of_t = (d: t): (EnvironmentIdMap.t(Environment.t'), t') => {
     open OfTMonad;
     open OfTMonad.Syntax;
 
@@ -567,8 +567,7 @@ module rec DHExp: {
       Rule(dp, body);
     };
 
-    let (map, d) = of_t(d, EnvironmentIdMap.empty);
-    (d, map);
+    of_t(d, EnvironmentIdMap.empty);
   };
 
   let rec of_t' = (envs: EnvironmentIdMap.t(Environment.t'), d: t'): t =>
