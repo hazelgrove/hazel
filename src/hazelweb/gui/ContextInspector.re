@@ -1,17 +1,27 @@
-open Virtual_dom.Vdom;
+module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
 let view =
     (
-      ~inject: ModelAction.t => Event.t,
-      ~model: Model.t,
-      ~hii: HoleInstanceInfo.t,
+      ~inject: ModelAction.t => Vdom.Event.t,
+      ~selected_instance: option(HoleInstance.t),
+      ~settings: Settings.Evaluation.t,
+      ~font_metrics: FontMetrics.t,
+      program: Program.t,
+      res: ModelResult.t,
     )
-    : Node.t => {
-  let program = Model.get_program(model);
-  let selected_instance = Model.get_selected_hole_instance(model);
-  let settings = model.settings.evaluation;
-  let font_metrics = model.font_metrics;
+    : Vdom.Node.t => {
+  open Vdom;
+
+  /* TODO: Fade out when not current? */
+  let hii =
+    switch (res.current) {
+    | ResultOk(r) => r |> ProgramResult.get_hii
+    | ResultFail(_)
+    | ResultTimeout
+    | ResultPending => res.previous |> ProgramResult.get_hii
+    };
+
   /**
    * Shows typing info for a context entry.
    */
@@ -345,9 +355,9 @@ let view =
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
                 switch (HoleInstanceInfo.lookup(hii, inst)) {
-                | None => [
-                    instructional_msg("Internal Error: InvalidInstance"),
-                  ]
+                | None =>
+                  // raise(InvalidInstance)
+                  [instructional_msg("Internal Error: InvalidInstance")]
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(hii, inst),

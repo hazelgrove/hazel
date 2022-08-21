@@ -10,9 +10,7 @@ type match_result =
   | IndetMatch;
 
 [@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
+type result = EvaluatorResult.t;
 
 [@deriving sexp]
 type state = EvalState.t;
@@ -73,7 +71,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, InvalidText(_)) => IndetMatch
   | (_, Let(_, _, _)) => IndetMatch
   | (_, FixF(_, _, _)) => DoesNotMatch
-  | (_, Lam(_, _, _)) => DoesNotMatch
+  | (_, Fun(_, _, _)) => DoesNotMatch
   | (_, Ap(_, _)) => IndetMatch
   | (_, BinBoolOp(_, _, _)) => IndetMatch
   | (_, BinIntOp(_, _, _)) => IndetMatch
@@ -217,13 +215,16 @@ and matches_cast_Inj =
   | ExpandingKeyword(_, _, _, _) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | Sequence(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -235,8 +236,6 @@ and matches_cast_Inj =
   | NonEmptyHole(_, _, _, _, _) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | Sequence(_)
-  | TestLit(_) => DoesNotMatch
   }
 and matches_cast_Pair =
     (
@@ -284,13 +283,16 @@ and matches_cast_Pair =
   | ExpandingKeyword(_, _, _, _) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | Sequence(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
@@ -302,8 +304,6 @@ and matches_cast_Pair =
   | NonEmptyHole(_, _, _, _, _) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | Sequence(_)
-  | TestLit(_) => DoesNotMatch
   }
 and matches_cast_Cons =
     (
@@ -357,13 +357,16 @@ and matches_cast_Cons =
   | ExpandingKeyword(_, _, _, _) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Lam(_, _, _) => DoesNotMatch
+  | Fun(_, _, _) => DoesNotMatch
   | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | Sequence(_) => DoesNotMatch
+  | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListNil(_) => DoesNotMatch
@@ -375,8 +378,6 @@ and matches_cast_Cons =
   | NonEmptyHole(_, _, _, _, _) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | Sequence(_)
-  | TestLit(_) => DoesNotMatch
   };
 
 /* closed substitution [d1/x]d2*/
@@ -408,17 +409,20 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Lam(dp, ty, d3) =>
+  | Fun(dp, ty, d3) =>
     if (DHPat.binds_var(x, dp)) {
       d2;
     } else {
       let d3 = subst_var(d1, x, d3);
-      Lam(dp, ty, d3);
+      Fun(dp, ty, d3);
     }
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | ApBuiltin(ident, args) =>
+    let args = List.map(subst_var(d1, x), args);
+    ApBuiltin(ident, args);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -518,7 +522,7 @@ let eval_bin_bool_op = (op: DHExp.BinBoolOp.t, b1: bool, b2: bool): DHExp.t =>
   };
 
 let eval_bin_bool_op_short_circuit =
-    (op: DHExp.BinBoolOp.t, b1: bool): option(result) =>
+    (op: DHExp.BinBoolOp.t, b1: bool): option(EvaluatorResult.t) =>
   switch (op, b1) {
   | (Or, true) => Some(BoxedValue(BoolLit(true)))
   | (And, false) => Some(BoxedValue(BoolLit(false)))
@@ -557,6 +561,7 @@ let bind' =
   | (BoxedValue(d'), state) => boxed((d', state))
   | (Indet(d'), state) => indet((d', state))
   };
+
 let bind = (x: report, f: eval_input => report): report =>
   bind'(x, ~boxed=f, ~indet=f);
 
@@ -568,13 +573,13 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | IntLit(_)
   | FloatLit(_)
   | Triv
-  | Lam(_)
+  | Fun(_)
   | TestLit(_) => (BoxedValue(d), state)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
   | EmptyHole(_) => (Indet(d), state)
-  | BoundVar(s) => raise(EvaluatorError.Exception(FreeInvalidVar(s)))
+  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
     eval_unary_constructor((d1, state), mk_inj);
@@ -608,7 +613,7 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | Ap(d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(TestLit(n)), state) => eval_test(n, d2, state)
-    | (BoxedValue(Lam(dp, _, d3)), state) =>
+    | (BoxedValue(Fun(dp, _, d3)), state) =>
       eval_bind((d2, state), ((d2', state)) =>
         switch (matches(dp, d2')) {
         | DoesNotMatch
@@ -623,40 +628,42 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       eval_bind((d2, state), ((d2', state)) =>
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
       )
-    | (BoxedValue(d), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedLam(d)))
+    | (BoxedValue(d1'), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
+    }
+  | ApBuiltin(ident, args) =>
+    switch (Builtins.lookup_form(ident)) {
+    | Some((eval, _)) => (eval(args, d => fst(evaluate(d, ~state))), state)
+    | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
     }
 
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(BoolLit(b1) as d1'), state) =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
-      | Some(b) => (b, state)
+      | Some(b3) => (b3, state)
       | None =>
         switch (evaluate(d2, ~state)) {
         | (BoxedValue(BoolLit(b2)), state) => (
             BoxedValue(eval_bin_bool_op(op, b1, b2)),
             state,
           )
-        | (BoxedValue(d), _) =>
-          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
+        | (BoxedValue(d2'), _) =>
+          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
         | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
         }
       }
-    | (BoxedValue(d), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
+    | (BoxedValue(d1'), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
     | (Indet(d1'), state) =>
       eval_bind_indet((d2, state), d2' => BinBoolOp(op, d1', d2'))
     }
   | BinIntOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
     | (BoxedValue(IntLit(n1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
-      | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       | (BoxedValue(IntLit(n2)), state) =>
         switch (op, n1, n2) {
         | (Divide, _, 0) => (
@@ -670,28 +677,31 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           )
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), state)
         }
-      | (BoxedValue(d), _) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
+      | (BoxedValue(d2'), _) =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
+      | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       }
-    | (BoxedValue(d), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
+    | (BoxedValue(d1'), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+    | (Indet(d1'), state) =>
+      eval_bind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
     }
   | BinFloatOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2 => BinFloatOp(op, d1', d2))
     | (BoxedValue(FloatLit(f1) as d1'), state) =>
       switch (evaluate(d2, ~state)) {
-      | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       | (BoxedValue(FloatLit(f2)), state) => (
           BoxedValue(eval_bin_float_op(op, f1, f2)),
           state,
         )
-      | (BoxedValue(d), _) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d)))
+      | (BoxedValue(d2'), _) =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
+      | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       }
-    | (BoxedValue(d), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d)))
+    | (BoxedValue(d1'), _) =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
+    | (Indet(d1'), state) =>
+      eval_bind_indet((d2, state), d2' => BinFloatOp(op, d1', d2'))
     }
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let mk_non_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
@@ -701,15 +711,23 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | InvalidOperation(d, err) =>
     eval_bind_indet((d, state), d' => InvalidOperation(d', err))
   | ConsistentCase(Case(scrut, rules, index) as case) =>
-    let indet_res = Indet(ConsistentCase(case));
+    let indet_res = EvaluatorResult.Indet(ConsistentCase(case));
     eval_case(indet_res, scrut, rules, index, state);
   | InconsistentBranches(u, i, sigma, Case(scrut, rules, index) as case) =>
-    let indet_res = Indet(InconsistentBranches(u, i, sigma, case));
+    let indet_res =
+      EvaluatorResult.Indet(InconsistentBranches(u, i, sigma, case));
     eval_case(indet_res, scrut, rules, index, state);
+
   | Cast(d1, ty, ty') =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(boxed_val), state) =>
-      eval_cast(d => BoxedValue(d), ty, ty', state, boxed_val)
+      eval_cast(
+        d => EvaluatorResult.BoxedValue(d),
+        ty,
+        ty',
+        state,
+        boxed_val,
+      )
     | (Indet(indet_val), state) =>
       eval_cast(d => Indet(d), ty, ty', state, indet_val)
     }
@@ -753,6 +771,7 @@ and eval_case =
     }
   };
 }
+
 and eval_cast =
     (
       cons: DHExp.t => result,
@@ -853,7 +872,7 @@ and eval_test = (n: int, d: DHExp.t, state: state): report => {
   let state = EvalState.add_test(state, n, (show_d, test_status));
   let result =
     switch (res_d) {
-    | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
+    | BoxedValue(BoolLit(_)) => EvaluatorResult.BoxedValue(Triv)
     | _ => Indet(Ap(TestLit(n), d))
     };
   (result, state);

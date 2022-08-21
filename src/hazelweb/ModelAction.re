@@ -24,11 +24,11 @@ type group_id = int;
 type serialize_object =
   | UHExp
   | DHExp
-  | ZExp
-  | EditState;
+  | ZExp;
 
 [@deriving sexp]
 type t =
+  | UpdateResult(ModelResult.current)
   | EditAction(EditAction.t)
   | MoveAction(move_input)
   | ToggleLeftSidebar
@@ -50,4 +50,12 @@ type t =
   | ToggleHiddenHistoryAll
   | TogglePreviewOnHover
   | UpdateFontMetrics(FontMetrics.t)
-  | SerializeToConsole(serialize_object);
+  | SerializeToConsole(serialize_object)
+  | /**
+     * Import a {UHExp.t} into the editor.
+     */
+    Import(UHExp.t)
+  | /**
+     * Load a permalink for the current program into the address bar.
+     */
+    LoadPermalink;

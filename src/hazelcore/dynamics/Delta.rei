@@ -1,7 +1,7 @@
-type sort_of_hole =
+type hole_sort =
   | ExpressionHole
   | PatternHole;
 
-type t = MetaVarMap.t((sort_of_hole, HTyp.t, VarCtx.t));
+type t = MetaVarMap.t((hole_sort, HTyp.t, VarCtx.t));
 
 let empty: t;

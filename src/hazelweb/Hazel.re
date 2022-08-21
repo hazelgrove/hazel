@@ -15,18 +15,48 @@ module Model = Model;
 module Action = ModelAction;
 module State = State;
 
-let focus_code_root = () => {
-  JSUtil.force_get_elem_by_id(ViewUtil.code_root_id)##focus;
-};
-
 // see incr_dom app_intf.ml
 let on_startup = (~schedule_action, _) => {
+  /* initialize state. */
+  let state = State.init();
+
+  /* create subscription to evaluator, updating model on each result. */
+  let _ =
+    State.evaluator_subscribe(
+      state,
+      r => {
+        let cr: ModelResult.current =
+          switch (r) {
+          | Some(EvaluationOk(r)) => ResultOk(r)
+          | Some(EvaluationFail(reason)) => ResultFail(reason)
+          | None => ResultTimeout
+          };
+        schedule_action(ModelAction.UpdateResult(cr));
+      },
+      () => (),
+    );
+
+  /* check URL for code permalink. */
+  switch (Permalink.get_current()) {
+  | Some(url) when !Permalink.is_empty(url) =>
+    switch (url |> Permalink.get_exp) {
+    /* If valid permalink, import the encoded program. */
+    | Some(e) => schedule_action(ModelAction.Import(e))
+    /* If no valid permalink, clear the hash fragment. */
+    | None =>
+      url |> Permalink.clear_fragment |> Permalink.set_current;
+      print_endline("Failed to load malformed permalink");
+    }
+  | Some(_)
+  | None => ()
+  };
+
   /* we need line heights + character widths for various layout computations,
       so we created a font specimen and update font metrics whenever that
      element resizes. */
   let _ =
     ResizeObserver.observe(
-      ~node=JSUtil.force_get_elem_by_id(ViewUtil.font_specimen_id),
+      ~node=JSUtil.force_get_elem_by_id("font-specimen"),
       ~f=
         (entries, _) => {
           let array = Js_of_ocaml.Js.to_array(entries);
@@ -45,23 +75,20 @@ let on_startup = (~schedule_action, _) => {
       (),
     );
 
-  //TODO(andrew): remove before merge
-  schedule_action(ModelAction.LoadCard(6));
-
   /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
-      focus_code_root();
+      UHCode.focus();
       Js._true;
     });
-  focus_code_root();
+  UHCode.focus();
 
-  Async_kernel.Deferred.return(State.State);
+  Async_kernel.Deferred.return(state);
 };
 
 let restart_cursor_animation = () =>
   try({
-    let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
+    let caret_elem = JSUtil.force_get_elem_by_id("caret");
     caret_elem##.classList##remove(Js.string("blink"));
     // necessary to trigger reflow
     // <https://css-tricks.com/restart-css-animation/>
@@ -73,7 +100,7 @@ let restart_cursor_animation = () =>
 
 let scroll_cursor_into_view_if_needed = caret_elem => {
   let page_rect =
-    JSUtil.force_get_elem_by_id(ViewUtil.card_dom_id)##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id("page-area")##getBoundingClientRect;
   let caret_rect = caret_elem##getBoundingClientRect;
   if (caret_rect##.top < page_rect##.top) {
     caret_elem##scrollIntoView(Js._true);
@@ -93,7 +120,7 @@ let move_cursor_inspector_in_view = ci_elem => {
 
 let scroll_history_panel_entry = entry_elem => {
   let panel_rect =
-    JSUtil.force_get_elem_by_id(ViewUtil.history_body_id)##getBoundingClientRect;
+    JSUtil.force_get_elem_by_id("history-body")##getBoundingClientRect;
 
   let entry_rect = entry_elem##getBoundingClientRect;
   if (entry_rect##.top < panel_rect##.top) {
@@ -128,7 +155,7 @@ let create =
       ~on_display=
         (_, ~schedule_action as _) => {
           if (!Model.get_undo_history(model).disable_auto_scrolling) {
-            switch (JSUtil.get_elem_by_id(ViewUtil.cur_selected_id)) {
+            switch (JSUtil.get_elem_by_id("cur-selected-entry")) {
             | Some(entry_elem) => scroll_history_panel_entry(entry_elem)
             | None => ()
             };
@@ -137,31 +164,20 @@ let create =
             // if cell is focused in model, make sure
             // cell element is focused in DOM
             switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
-            | Some(elem) when Js.to_string(elem##.id) == ViewUtil.cell_id =>
-              ()
-            | _ => focus_code_root()
+            | Some(elem) when Js.to_string(elem##.id) == "cell" => ()
+            | _ => UHCode.focus()
             };
-            let caret_elem = JSUtil.force_get_elem_by_id(ViewUtil.caret_id);
+            let caret_elem = JSUtil.force_get_elem_by_id("caret");
             scroll_cursor_into_view_if_needed(caret_elem);
 
             if (model.cursor_inspector.visible) {
-              let ci_elem = JSUtil.force_get_elem_by_id(ViewUtil.ci_id);
+              let ci_elem = JSUtil.force_get_elem_by_id("cursor-inspector");
               move_cursor_inspector_in_view(ci_elem);
             };
           };
         },
       model,
-      TimeUtil.measure_time(
-        "Page.view",
-        performance.measure && performance.page_view,
-        () => {
-          let program = Model.get_program(model);
-          let result =
-            model.settings.evaluation.show_unevaluated_elaboration
-              ? Program.elaborate_only(program) : Program.get_result(program);
-          Page.view(~inject, ~model, ~result);
-        },
-      ),
+      Page.view(~inject, model),
     )
   );
 };

@@ -4,7 +4,7 @@ let action_panel = (children: list(Node.t)): Node.t => {
   let panel_title =
     Node.div(
       [Attr.classes(["panel-title-bar", "title-bar"])],
-      [Node.text("Edit Actions")],
+      [Node.text("Available Edit Actions")],
     );
 
   let panel_body =
@@ -437,7 +437,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let cursor_info = Model.get_cursor_info(model);
 
   let is_action_allowed = (a: Action.t): bool => {
-    switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+    switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
     | Failed => false
     | CursorEscaped(_)
     | Succeeded(_) => true
@@ -450,13 +450,13 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
 };
 
 /* This function is unused at runtime, its purpose is to catch
-  * new cases added to the Action.t type, but forgotten about in this
+  * new cases added to the Acion.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
   * inside generate_panel_body with a description of the new action.
   * Afterwards the below function can be updated to not error anymore.
   *
-  * Also consider looking at KeyComboAction.re to see if a keyboard
-  * shortcut should be added for that particular action as well.
+  * Also consider looking at Cell.re to see if a keyboard shortcut
+  * should be added for that particular action as well.
  */
 type ack_checkin =
   | Added;
@@ -480,7 +480,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SEquals)) => Added
   | Construct(SLine) => Added
   | Construct(SCommentLine) => Added
-  | Construct(SLam) => Added
+  | Construct(SFun) => Added
   | Construct(SOp(SPlus)) => Added
   | Construct(SOp(SMinus)) => Added
   | Construct(SOp(STimes)) => Added
@@ -504,8 +504,6 @@ let _check_actions = (a: Action.t) =>
   | MoveLeft => Added
   | MoveRight => Added
   /* Not added */
-  | Construct(SApPalette(_)) => failwith("Unimplemented")
-  | UpdateApPalette(_) => failwith("Unimplemented")
   | MoveTo(_) => Added
   | Init => Added
   };

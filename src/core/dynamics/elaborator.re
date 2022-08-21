@@ -96,7 +96,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
-      wrap(DHExp.Lam(dp, ty1, d1));
+      wrap(DHExp.Fun(dp, ty1, d1));
     | Tuple(_ids, es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {

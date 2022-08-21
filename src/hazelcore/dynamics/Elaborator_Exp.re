@@ -66,7 +66,7 @@ and syn_elab_line =
     switch (syn_elab_opseq(ctx, delta, e1)) {
     | DoesNotElaborate => LinesDoNotElaborate
     | Elaborates(d1, _, delta) =>
-      let prelude = d2 => DHExp.Sequence(d1, d2);
+      let prelude = d2 => DHExp.Let(Wild, d1, d2);
       LinesElaborate(prelude, ctx, delta);
     }
   | EmptyLine
@@ -253,11 +253,9 @@ and syn_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -272,12 +270,11 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    DoesNotElaborate
   | Case(InconsistentBranches(rule_types, u), scrut, rules) =>
     switch (syn_elab(ctx, delta, scrut)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -317,8 +314,6 @@ and syn_elab_operand =
     let ty = HTyp.Hole;
     let delta = MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
     Elaborates(d, ty, delta);
-  | Keyword(Typed(Test as kw, NotInHole, n)) =>
-    Elaborates(TestLit(n), Keyword.type_of_kw(kw), delta)
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -358,14 +353,14 @@ and syn_elab_operand =
     let elt_ty = HTyp.Hole;
     Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
     | Elaborates(dp, ty1, ctx, delta) =>
       switch (syn_elab(ctx, delta, body)) {
       | DoesNotElaborate => DoesNotElaborate
       | Elaborates(d1, ty2, delta) =>
-        let d = DHExp.Lam(dp, ty1, d1);
+        let d = DHExp.Fun(dp, ty1, d1);
         Elaborates(d, Arrow(ty1, ty2), delta);
       }
     }
@@ -392,32 +387,6 @@ and syn_elab_operand =
         Elaborates(d, glb, delta);
       }
     }
-  | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-    DoesNotElaborate /* let (_, palette_ctx) = ctx in
-     begin match (VarMap.lookup palette_ctx name) with
-     | Some palette_defn ->
-       let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-       let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
-       let expansion = to_exp serialized_model in
-       let (_, hole_map) = hole_data in
-       (* bind each free variable in expansion by wrapping expansion
-        * in lambda, then apply lambda to args in hole data
-        *)
-       let bound_expansion :=
-           NatMap.fold hole_map
-             (fun bound entry ->
-               let (n, typ_exp) = entry in
-               let (htyp, hexp) = typ_exp in
-               let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-               let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
-               let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
-               UHExp.Tm NotInHole ap
-             )
-             expansion in
-       ana_elab_exp ctx bound_expansion expansion_ty
-     | None -> DoesNotElaborate
-     end */ /* TODO fix me */
   }
 and syn_elab_rules =
     (
@@ -671,12 +640,10 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
   | ListNil(InHole(TypeInconsistent as reason, u))
-  | Lam(InHole(TypeInconsistent as reason, u), _, _)
+  | Fun(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
-  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
-  | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+  | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _) =>
     let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
     | DoesNotElaborate => DoesNotElaborate
@@ -685,7 +652,7 @@ and ana_elab_operand =
       let sigma = Environment.id_env(gamma);
       let delta =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
-      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+      Elaborates(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
     };
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
@@ -700,12 +667,11 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | Keyword(Typed(_, InHole(WrongLength, _), _))
   | ListNil(InHole(WrongLength, _))
-  | Lam(InHole(WrongLength, _), _, _)
+  | Fun(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -723,7 +689,7 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
-  | Lam(NotInHole, p, body) =>
+  | Fun(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
     | Some((ty1_given, ty2)) =>
@@ -742,7 +708,7 @@ and ana_elab_operand =
           | DoesNotElaborate => DoesNotElaborate
           | Elaborates(d1, ty2, delta) =>
             let ty = HTyp.Arrow(ty1p, ty2);
-            let d = DHExp.Lam(dp, ty1p, d1);
+            let d = DHExp.Fun(dp, ty1p, d1);
             Elaborates(d, ty, delta);
           }
         }
@@ -790,9 +756,7 @@ and ana_elab_operand =
   | Var(NotInHole, NotInVarHole, _)
   | BoolLit(NotInHole, _)
   | IntLit(NotInHole, _)
-  | Keyword(Typed(_, NotInHole, _))
-  | FloatLit(NotInHole, _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | FloatLit(NotInHole, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
   }
@@ -861,13 +825,24 @@ let rec renumber_result_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
+    (Fun(x, ty, d1), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(name, args) =>
+    let (args_rev, hii) =
+      List.fold_left(
+        ((args_rev, hii), arg) => {
+          let (arg, hii) = renumber_result_only(path, hii, arg);
+          ([arg, ...args_rev], hii);
+        },
+        ([], hii),
+        args,
+      );
+    (ApBuiltin(name, List.rev(args_rev)), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -961,13 +936,24 @@ let rec renumber_sigmas_only =
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
-  | Lam(x, ty, d1) =>
+  | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
-    (Lam(x, ty, d1), hii);
+    (Fun(x, ty, d1), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Ap(d1, d2), hii);
+  | ApBuiltin(name, args) =>
+    let (args_rev, hii) =
+      List.fold_left(
+        ((args_rev, hii), arg) => {
+          let (arg, hii) = renumber_sigmas_only(path, hii, arg);
+          ([arg, ...args_rev], hii);
+        },
+        ([], hii),
+        args,
+      );
+    (ApBuiltin(name, List.rev(args_rev)), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
@@ -1081,9 +1067,25 @@ and renumber_sigma =
   );
 };
 
+/* Bind built-ins before an elaborated expression. */
+let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
+  List.fold_left(
+    (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),
+    d,
+    Builtins.forms,
+  );
+
 let renumber =
     (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
     : (DHExp.t, HoleInstanceInfo.t) => {
   let (d, hii) = renumber_result_only(path, hii, d);
   renumber_sigmas_only(path, hii, d);
 };
+
+let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
+  switch (syn_elab(ctx, delta, e)) {
+  | Elaborates(d, ty, delta) =>
+    let d' = elab_wrap_builtins(d);
+    Elaborates(d', ty, delta);
+  | DoesNotElaborate => DoesNotElaborate
+  };

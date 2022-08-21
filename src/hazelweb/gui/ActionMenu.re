@@ -9,6 +9,11 @@ type menu_entry = {
 
 let menu_entries: list(menu_entry) = [
   {
+    label: "Load permalink into address bar",
+    shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_L)),
+    action: LoadPermalink,
+  },
+  {
     label: "Serialize to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_S)),
     action: SerializeToConsole(UHExp),
@@ -22,11 +27,6 @@ let menu_entries: list(menu_entry) = [
     label: "Serialize Zexp to console",
     shortcut: Some(HazelKeyCombos.name(Ctrl_Shift_S)),
     action: SerializeToConsole(ZExp),
-  },
-  {
-    label: "Serialize program to console",
-    shortcut: None,
-    action: SerializeToConsole(EditState),
   },
   {label: "Toggle left sidebar", shortcut: None, action: ToggleLeftSidebar},
   {label: "Toggle right sidebar", shortcut: None, action: ToggleRightSidebar},
@@ -44,16 +44,27 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
 let dropdown_options = (~inject) =>
   List.map(dropdown_option(~inject), menu_entries);
 
-let dropdown = (~inject: ModelAction.t => Ui_event.t) => {
+let settings_panel =
+    (~inject: ModelAction.t => Ui_event.t, settings: Settings.t) => {
+  SettingsPanel.view(~inject, settings);
+};
+
+let separator = hr([Attr.classes(["separator"])]);
+
+let dropdown = (~inject: ModelAction.t => Ui_event.t, settings: Settings.t) => {
   create(
     "details",
     [],
     [
       create("summary", [], [text("☰")]),
-      ul([Attr.classes(["dropdown-content"])], dropdown_options(~inject)),
+      ul(
+        [Attr.classes(["dropdown-content"])],
+        dropdown_options(~inject)
+        @ [separator, settings_panel(~inject, settings)],
+      ),
     ],
   );
 };
 
-let view = (~inject: ModelAction.t => Ui_event.t) =>
-  div([Attr.classes(["dropdown"])], [dropdown(~inject)]);
+let view = (~inject: ModelAction.t => Ui_event.t, settings: Settings.t) =>
+  div([Attr.classes(["dropdown"])], [dropdown(~inject, settings)]);

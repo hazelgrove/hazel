@@ -15,12 +15,13 @@ let decoration_cls: UHDecorationShape.t => string =
   | TestStatus(_) => "test-result";
 
 let decoration_view =
+    /* ~contains_current_term: bool, */
     (
+      ~corner_radii: (float, float),
+      ~term_sort: TermSort.t,
+      ~term_shape: TermShape.t,
       dshape: UHDecorationShape.t,
       dpaths: UHDecorationPaths.t,
-      corner_radii,
-      shape,
-      sort,
       font_metrics: FontMetrics.t,
     ) => {
   switch (dshape) {
@@ -41,7 +42,12 @@ let decoration_view =
     let view = UHDecoration.VarUse.view(~corner_radii);
     (Decoration_common.Svg, view);
   | CurrentTerm =>
-    let view = UHDecoration.CurrentTerm.view(~corner_radii, ~sort, ~shape);
+    let view =
+      UHDecoration.CurrentTerm.view(
+        ~corner_radii,
+        ~sort=term_sort,
+        ~shape=term_shape,
+      );
     (Decoration_common.Svg, view);
   };
 };
@@ -49,6 +55,8 @@ let decoration_view =
 let decoration_views =
     (~font_metrics: FontMetrics.t, dpaths: UHDecorationPaths.t, l: UHLayout.t)
     : list(Vdom.Node.t) => {
+  let corner_radii = Decoration_common.corner_radii(font_metrics);
+
   let rec go =
           (
             ~tl: list(Vdom.Node.t)=[], // tail-recursive
@@ -89,26 +97,22 @@ let decoration_views =
           UHDecorationPaths.current(shape, dpaths)
           |> List.map((dshape: UHDecorationShape.t) => {
                let cls = decoration_cls(dshape);
-               let corner_radii =
-                 Decoration_common.corner_radii(font_metrics);
-               let height = MeasuredLayout.height(m);
-               let width = MeasuredLayout.width(~offset, m);
-               let origin = MeasuredPosition.{row: start.row, col: indent};
                let (container_type, view) =
                  decoration_view(
+                   /* ~contains_current_term=Option.is_some(dpaths.current_term), */
+                   ~corner_radii,
+                   ~term_shape=shape,
+                   ~term_sort=sort,
                    dshape,
                    dpaths,
-                   corner_radii,
-                   shape,
-                   sort,
                    font_metrics,
                  );
                Decoration_common.container(
                  ~container_type,
                  ~font_metrics,
-                 ~origin,
-                 ~height,
-                 ~width,
+                 ~height=MeasuredLayout.height(m),
+                 ~width=MeasuredLayout.width(~offset, m),
+                 ~origin=MeasuredPosition.{row: start.row, col: indent},
                  ~cls,
                  [view((offset, m))],
                );
@@ -126,7 +130,6 @@ let view_of_cursor_inspector =
     (
       ~inject,
       ~font_metrics: FontMetrics.t,
-      ~test_inspector,
       (steps, cursor): CursorPath.t,
       cursor_inspector: CursorInspectorModel.t,
       cursor_info: CursorInfo.t,
@@ -145,7 +148,6 @@ let view_of_cursor_inspector =
   let cursor_x = float_of_int(cursor_pos.col) *. font_metrics.col_width;
   let cursor_y = float_of_int(cursor_pos.row) *. font_metrics.row_height;
   CursorInspector.view(
-    ~test_inspector,
     ~inject,
     ~loc=(cursor_x, cursor_y),
     cursor_inspector,
@@ -162,6 +164,7 @@ let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
     Attr.on_keydown(evt => {
       let model_action: option(ModelAction.t) =
         KeyComboAction.get_model_action(cursor_info, evt);
+
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
       | None => Event.Ignore
@@ -214,14 +217,19 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
   );
 };
 
+let root_id = "code-root";
+
+let focus = () => {
+  JSUtil.force_get_elem_by_id(root_id)##focus;
+};
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
-      ~program: Program.t,
-      ~test_inspector,
+      program: Program.t,
     )
     : Vdom.Node.t => {
   TimeUtil.measure_time(
@@ -231,6 +239,7 @@ let view =
       open Vdom;
 
       let l = Program.get_layout(~settings, program);
+
       let code_text = view_of_box(UHBox.mk(l));
       let decorations = {
         let dpaths = Program.get_decoration_paths(program);
@@ -247,7 +256,6 @@ let view =
           let ci = Program.get_cursor_info(program);
           [
             view_of_cursor_inspector(
-              ~test_inspector,
               ~inject,
               ~font_metrics,
               path,
@@ -270,7 +278,7 @@ let view =
 
       let click_handler = evt => {
         let container_rect =
-          JSUtil.force_get_elem_by_id(ViewUtil.code_root_id)##getBoundingClientRect;
+          JSUtil.force_get_elem_by_id(root_id)##getBoundingClientRect;
         let (target_x, target_y) = (
           float_of_int(evt##.clientX),
           float_of_int(evt##.clientY),
@@ -293,7 +301,7 @@ let view =
 
       Node.div(
         [
-          Attr.id(ViewUtil.code_root_id),
+          Attr.id(root_id),
           Attr.classes(["code", "presentation"]),
           // need to use mousedown instead of click to fire
           // (and move caret) before cell focus event handler

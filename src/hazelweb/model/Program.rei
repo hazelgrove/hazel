@@ -24,7 +24,6 @@ let get_uhexp: t => UHExp.t;
 let get_path: t => CursorPath.t;
 let get_steps: t => CursorPath.steps;
 
-let get_id_gen: t => IDGen.t;
 /**
  * Raised when `CursorInfo_Exp.syn_cursor_info` returns None
  * (indicates a bug, either in that function or in Action
@@ -34,6 +33,10 @@ exception MissingCursorInfo;
 let get_cursor_info: t => CursorInfo.t;
 
 let get_decoration_paths: t => UHDecorationPaths.t;
+
+let renumber:
+  (InstancePath.t, HoleInstanceInfo.t, DHExp.t) =>
+  (DHExp.t, HoleInstanceInfo.t);
 
 /**
  * Raised when edit state does not elaborate
@@ -47,8 +50,7 @@ let get_elaboration: t => DHExp.t;
  * Action because Action needs to return a well-typed edit state)
  */
 exception EvalError(EvaluatorError.t);
-let get_result: t => Result.t;
-let elaborate_only: t => Result.t;
+let get_result: t => ProgramResult.t;
 
 /**
  * Raised when an attempted edit action does not succeed
@@ -77,5 +79,3 @@ let cursor_on_exp_hole: t => option(MetaVar.t);
 
 let get_caret_position:
   (~settings: Settings.t, t) => Pretty.MeasuredPosition.t;
-
-let get_path_to_test: (t, KeywordID.t) => option(CursorPath.t);

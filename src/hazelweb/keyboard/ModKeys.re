@@ -46,6 +46,7 @@ let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) => {
     | NotHeld => !mod_matches
     };
   };
+
   req_matches(mks.ctrl, ModKey.Ctrl)
   && req_matches(mks.shift, ModKey.Shift)
   && req_matches(mks.alt, ModKey.Alt)

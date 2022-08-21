@@ -1,13 +1,11 @@
 [@deriving sexp]
-type result =
-  | BoxedValue(DHExp.t)
-  | Indet(DHExp.t);
-
-[@deriving sexp]
 type ground_cases =
   | Hole
   | Ground
   | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
+
+[@deriving sexp]
+type result = EvaluatorResult.t;
 
 [@deriving sexp]
 type state = EvalState.t;

@@ -1,65 +1,107 @@
-open Virtual_dom.Vdom;
-open Node;
+open Incr_dom;
+module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 
 let mk_sidebar =
     (
-      ~panels,
-      ~is_open: bool,
-      ~id: string,
-      ~icon_opened: t,
-      ~icon_closed: t,
-      ~on_toggle,
-    ) =>
-  div(
-    [
-      Attr.id(id),
-      Attr.on_click(on_toggle),
-      Attr.classes(["sidebar"] @ (is_open ? [] : ["sidebar-collapsed"])),
-    ],
-    [
-      is_open
-        ? div(
-            [
-              Attr.class_("sidebar-body"),
-              Attr.on_click(_ => Event.Stop_propagation),
-            ],
-            panels(),
-          )
-        : div([], []),
-      div(
-        [Attr.class_("sidebar-tab")],
-        [is_open ? icon_opened : icon_closed],
-      ),
-    ],
+      panels_thunk,
+      collapsible_sidebar_id: string,
+      tab_id: string,
+      tab_opened_icon: Vdom.Node.t,
+      tab_closed_icon: Vdom.Node.t,
+      slidable_body_id: string,
+      body_id: string,
+      sidebar_open: bool,
+      ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
+    ) => {
+  let panels = sidebar_open ? panels_thunk() : [];
+  Vdom.(
+    Node.div(
+      [
+        Attr.id(collapsible_sidebar_id),
+        Attr.classes(
+          ["collapsible-sidebar"]
+          @ (sidebar_open ? [] : ["collapsed-sidebar"]),
+        ),
+      ],
+      [
+        Node.div(
+          [Attr.classes(["sidebar"]), Attr.on_click(on_toggle)],
+          [
+            Node.div(
+              [
+                Attr.id(slidable_body_id),
+                Attr.classes(["sidebar-body-slider"]),
+              ],
+              [
+                Node.div(
+                  [
+                    Attr.classes(
+                      ["sidebar-body-padding"]
+                      @ (
+                        sidebar_open ? [] : ["sidebar-body-padding-expanded"]
+                      ),
+                    ),
+                  ],
+                  [],
+                ),
+                Node.div(
+                  [
+                    Attr.id(body_id),
+                    Attr.on_click(_ => {Vdom.Event.Stop_propagation}),
+                    Attr.classes(["sidebar-body"]),
+                  ],
+                  panels,
+                ),
+              ],
+            ),
+            Node.div(
+              [Attr.id(tab_id), Attr.classes(["sidebar-tab"])],
+              [sidebar_open ? tab_opened_icon : tab_closed_icon],
+            ),
+          ],
+        ),
+      ],
+    )
   );
+};
 
-let left = (~inject, ~model: Model.t) =>
-  mk_sidebar(
-    ~panels=() => [ActionPanel.view(~inject, model)],
-    ~is_open=model.left_sidebar_open,
-    ~id="sidebar-left",
-    ~icon_opened=Icons.left_side_bar_icon_opened,
-    ~icon_closed=Icons.question_mark_circle,
-    ~on_toggle=_ => inject(ModelAction.ToggleLeftSidebar),
+let left_side_bar_icon_opened =
+  Vdom.(
+    Node.div(
+      [],
+      [
+        Icons.left_arrow(["left-sidebar-tab-icon-opened"]),
+        Icons.question_mark_circle,
+      ],
+    )
   );
-
-let right =
-    (~inject, ~model: Model.t, ~result as {test_map, hii, _}: Result.t) => {
-  let program = Model.get_program(model);
-  let test_path = Program.get_path_to_test(program);
+let left = (~inject, ~is_open: bool, left_panels) => {
   mk_sidebar(
-    ~panels=
-      () =>
-        [
-          TestPanel.view(~inject, ~model, ~test_map, ~test_path),
-          ContextInspector.view(~inject, ~model, ~hii),
-          UndoHistoryPanel.view(~inject, model),
-          SettingsPanel.view(~inject, model.settings),
-        ],
-    ~is_open=model.right_sidebar_open,
-    ~id="sidebar-right",
-    ~icon_opened=Icons.right_arrow(["sidebar-tab-icon"]),
-    ~icon_closed=Icons.left_arrow(["sidebar-tab-icon"]),
-    ~on_toggle=_ => inject(ModelAction.ToggleRightSidebar),
+    left_panels,
+    "collapsible-left-bar",
+    "left-tab",
+    left_side_bar_icon_opened,
+    Icons.question_mark_circle,
+    "slidable-left-bar-body",
+    "left-bar-body",
+    is_open,
+    ~on_toggle=_ =>
+    inject(ModelAction.ToggleLeftSidebar)
+  );
+};
+
+let right = (~inject, ~is_open: bool, right_panels) => {
+  mk_sidebar(
+    right_panels,
+    "collapsible-right-bar",
+    "right-tab",
+    Icons.right_arrow(["sidebar-tab-icon"]),
+    Icons.left_arrow(["sidebar-tab-icon"]),
+    "slidable-right-bar-body",
+    "right-bar-body",
+    is_open,
+    ~on_toggle=_ =>
+    inject(ModelAction.ToggleRightSidebar)
   );
 };

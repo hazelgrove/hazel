@@ -20,9 +20,3 @@ let question_mark_circle: Vdom.Node.t =
       [Node.text("?")],
     )
   );
-
-let left_side_bar_icon_opened =
-  Vdom.Node.div(
-    [],
-    [left_arrow(["left-sidebar-tab-icon-opened"]), question_mark_circle],
-  );
