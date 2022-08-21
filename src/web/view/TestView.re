@@ -3,11 +3,13 @@ open Node;
 open Util.Web;
 
 let test_instance_view =
-    (~font_metrics, (d, status): TestMap.test_instance_report) =>
+    (~font_metrics, (d, status, env): TestMap.test_instance_report) => {
+  print_endline(Sexplib.Sexp.to_string_hum(Environment.sexp_of_t(env)));
   div(
     [clss(["test-instance", TestStatus.to_string(status)])],
     [Interface.dhcode_view(~font_metrics, ~width=40, d)],
   );
+};
 
 let jump_to_test = (~inject as _, _) => Event.Ignore;
 

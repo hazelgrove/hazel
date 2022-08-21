@@ -15,7 +15,7 @@ type state = EvalState.t;
 [@deriving sexp]
 type report = (result, state);
 
-let evaluate: (~state: state=?, DHExp.t) => report;
+let evaluate: (~env: Environment.t=?, ~state: state=?, DHExp.t) => report;
 
 /* closed substitution [d1/x]d2*/
 let subst_var: (DHExp.t, Var.t, DHExp.t) => DHExp.t;

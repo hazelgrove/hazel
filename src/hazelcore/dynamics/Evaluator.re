@@ -560,7 +560,13 @@ let bind' =
 let bind = (x: report, f: eval_input => report): report =>
   bind'(x, ~boxed=f, ~indet=f);
 
-let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
+let rec evaluate =
+        (
+          ~env: Environment.t=Environment.empty,
+          ~state: state=EvalState.init,
+          d: DHExp.t,
+        )
+        : report => {
   let state = EvalState.take_step(state);
   switch (d) {
   | BoolLit(_)
@@ -577,65 +583,74 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | BoundVar(s) => raise(EvaluatorError.Exception(FreeInvalidVar(s)))
   | Inj(ty, side, d1) =>
     let mk_inj = d1' => DHExp.Inj(ty, side, d1');
-    eval_unary_constructor((d1, state), mk_inj);
+    eval_unary_constructor((d1, state), mk_inj, ~env);
   | Pair(d1, d2) =>
     let mk_pair = (d1', d2') => DHExp.Pair(d1', d2');
-    eval_binary_constructor((d1, state), d2, mk_pair);
+    eval_binary_constructor((d1, state), d2, mk_pair, ~env);
   | Cons(d1, d2) =>
     let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
-    eval_binary_constructor((d1, state), d2, mk_cons);
+    eval_binary_constructor((d1, state), d2, mk_cons, ~env);
   | FixF(_) when state.fuel <= 0 => (
       Indet(InvalidOperation(d, OutOfFuel)),
       state,
     )
   | FixF(x, _, d1) =>
     let state = EvalState.burn_fuel(state);
-    evaluate(subst_var(d, x, d1), ~state);
+    evaluate(subst_var(d, x, d1), ~state, ~env);
   | Let(dp, d1, d2) =>
-    eval_bind((d1, state), ((d1', state)) =>
+    eval_bind(~env, (d1, state), ((d1', state)) =>
       switch (matches(dp, d1')) {
-      | Matches(env) => evaluate(subst(env, d2), ~state)
+      | Matches(env') =>
+        evaluate(subst(env, d2), ~state, ~env=Environment.union(env', env))
       | IndetMatch
       | DoesNotMatch => (Indet(d), state)
       }
     )
   | Sequence(d1, d2) =>
-    switch (evaluate(d1, ~state)) {
-    | (BoxedValue(_), state) => evaluate(d2, ~state)
+    switch (evaluate(d1, ~state, ~env)) {
+    | (BoxedValue(_), state) => evaluate(d2, ~state, ~env)
     | (Indet(d1), state) =>
-      eval_bind_indet((d2, state), d2 => DHExp.Sequence(d1, d2))
+      eval_bind_indet(~env, (d2, state), d2 => DHExp.Sequence(d1, d2))
     }
   | Ap(d1, d2) =>
-    switch (evaluate(d1, ~state)) {
-    | (BoxedValue(TestLit(n)), state) => eval_test(n, d2, state)
+    switch (evaluate(d1, ~state, ~env)) {
+    | (BoxedValue(TestLit(n)), state) => eval_test(~env, n, d2, state)
     | (BoxedValue(Lam(dp, _, d3)), state) =>
-      eval_bind((d2, state), ((d2', state)) =>
+      eval_bind(~env, (d2, state), ((d2', state)) =>
         switch (matches(dp, d2')) {
         | DoesNotMatch
         | IndetMatch => (Indet(d), state)
-        | Matches(env) =>
+        | Matches(env') =>
           /* beta rule */
-          evaluate(subst(env, d3), ~state)
+          evaluate(
+            subst(env, d3),
+            ~state,
+            ~env=Environment.union(env', env),
+          )
         }
       )
     | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state)
     | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) =>
-      eval_bind((d2, state), ((d2', state)) =>
-        evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
+      eval_bind(~env, (d2, state), ((d2', state)) =>
+        evaluate(
+          Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'),
+          ~state,
+          ~env,
+        )
       )
     | (BoxedValue(d), _) =>
       raise(EvaluatorError.Exception(InvalidBoxedLam(d)))
     | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2' => Ap(d1', d2'))
+      eval_bind_indet(~env, (d2, state), d2' => Ap(d1', d2'))
     }
 
   | BinBoolOp(op, d1, d2) =>
-    switch (evaluate(d1, ~state)) {
+    switch (evaluate(d1, ~state, ~env)) {
     | (BoxedValue(BoolLit(b1) as d1'), state) =>
       switch (eval_bin_bool_op_short_circuit(op, b1)) {
       | Some(b) => (b, state)
       | None =>
-        switch (evaluate(d2, ~state)) {
+        switch (evaluate(d2, ~state, ~env)) {
         | (BoxedValue(BoolLit(b2)), state) => (
             BoxedValue(eval_bin_bool_op(op, b1, b2)),
             state,
@@ -648,14 +663,14 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     | (BoxedValue(d), _) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
     | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2' => BinBoolOp(op, d1', d2'))
+      eval_bind_indet(~env, (d2, state), d2' => BinBoolOp(op, d1', d2'))
     }
   | BinIntOp(op, d1, d2) =>
-    switch (evaluate(d1, ~state)) {
+    switch (evaluate(d1, ~state, ~env)) {
     | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2' => BinIntOp(op, d1', d2'))
+      eval_bind_indet(~env, (d2, state), d2' => BinIntOp(op, d1', d2'))
     | (BoxedValue(IntLit(n1) as d1'), state) =>
-      switch (evaluate(d2, ~state)) {
+      switch (evaluate(d2, ~state, ~env)) {
       | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       | (BoxedValue(IntLit(n2)), state) =>
         switch (op, n1, n2) {
@@ -677,11 +692,11 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d)))
     }
   | BinFloatOp(op, d1, d2) =>
-    switch (evaluate(d1, ~state)) {
+    switch (evaluate(d1, ~state, ~env)) {
     | (Indet(d1'), state) =>
-      eval_bind_indet((d2, state), d2 => BinFloatOp(op, d1', d2))
+      eval_bind_indet(~env, (d2, state), d2 => BinFloatOp(op, d1', d2))
     | (BoxedValue(FloatLit(f1) as d1'), state) =>
-      switch (evaluate(d2, ~state)) {
+      switch (evaluate(d2, ~state, ~env)) {
       | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       | (BoxedValue(FloatLit(f2)), state) => (
           BoxedValue(eval_bin_float_op(op, f1, f2)),
@@ -695,42 +710,44 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     }
   | NonEmptyHole(reason, u, i, sigma, d1) =>
     let mk_non_empty = d1' => DHExp.NonEmptyHole(reason, u, i, sigma, d1');
-    eval_bind_indet((d1, state), mk_non_empty);
+    eval_bind_indet(~env, (d1, state), mk_non_empty);
   | FailedCast(d1, ty, ty') =>
-    eval_bind_indet((d1, state), d1' => FailedCast(d1', ty, ty'))
+    eval_bind_indet(~env, (d1, state), d1' => FailedCast(d1', ty, ty'))
   | InvalidOperation(d, err) =>
-    eval_bind_indet((d, state), d' => InvalidOperation(d', err))
+    eval_bind_indet(~env, (d, state), d' => InvalidOperation(d', err))
   | ConsistentCase(Case(scrut, rules, index) as case) =>
     let indet_res = Indet(ConsistentCase(case));
-    eval_case(indet_res, scrut, rules, index, state);
+    eval_case(indet_res, scrut, rules, index, state, ~env);
   | InconsistentBranches(u, i, sigma, Case(scrut, rules, index) as case) =>
     let indet_res = Indet(InconsistentBranches(u, i, sigma, case));
-    eval_case(indet_res, scrut, rules, index, state);
+    eval_case(indet_res, scrut, rules, index, state, ~env);
   | Cast(d1, ty, ty') =>
-    switch (evaluate(d1, ~state)) {
+    switch (evaluate(d1, ~state, ~env)) {
     | (BoxedValue(boxed_val), state) =>
-      eval_cast(d => BoxedValue(d), ty, ty', state, boxed_val)
+      eval_cast(~env, d => BoxedValue(d), ty, ty', state, boxed_val)
     | (Indet(indet_val), state) =>
-      eval_cast(d => Indet(d), ty, ty', state, indet_val)
+      eval_cast(~env, d => Indet(d), ty, ty', state, indet_val)
     }
   };
 }
-and eval_unary_constructor = ((d1, state): eval_input, cons) =>
-  switch (evaluate(d1, ~state)) {
+and eval_unary_constructor = (~env, (d1, state): eval_input, cons) =>
+  switch (evaluate(d1, ~state, ~env)) {
   | (Indet(d1'), state) => (Indet(cons(d1')), state)
   | (BoxedValue(d1'), state) => (BoxedValue(cons(d1')), state)
   }
-and eval_binary_constructor = ((d1, state): eval_input, d2, cons) =>
-  switch (evaluate(d1, ~state)) {
+and eval_binary_constructor = (~env, (d1, state): eval_input, d2, cons) =>
+  switch (evaluate(d1, ~state, ~env)) {
   | (Indet(d1'), state) =>
-    eval_bind_indet((d2, state), d2' => cons(d1', d2'))
+    eval_bind_indet(~env, (d2, state), d2' => cons(d1', d2'))
   | (BoxedValue(d1'), state) =>
-    eval_unary_constructor((d2, state), d2' => cons(d1', d2'))
+    eval_unary_constructor(~env, (d2, state), d2' => cons(d1', d2'))
   }
-and eval_bind = ((d, state): eval_input, f: eval_input => report): report =>
-  bind(evaluate(d, ~state), f)
-and eval_bind_indet = ((d, state): eval_input, f: DHExp.t => DHExp.t): report =>
-  bind(evaluate(d, ~state), ((d', state)) => (Indet(f(d')), state))
+and eval_bind =
+    (~env, (d, state): eval_input, f: eval_input => report): report =>
+  bind(evaluate(d, ~state, ~env), f)
+and eval_bind_indet =
+    (~env, (d, state): eval_input, f: DHExp.t => DHExp.t): report =>
+  bind(evaluate(d, ~state, ~env), ((d', state)) => (Indet(f(d')), state))
 and eval_case =
     (
       indet_res: result,
@@ -738,18 +755,20 @@ and eval_case =
       rules: list(DHExp.rule),
       current_rule_index: int,
       state: state,
+      ~env,
     )
     : report => {
-  let (res', state) = evaluate(scrut, ~state);
+  let (res', state) = evaluate(scrut, ~state, ~env);
   let scrut = unbox_result(res');
   switch (List.nth_opt(rules, current_rule_index)) {
   | None => (indet_res, state) // TODO(andrew): should this be an InvalidOperation?
   | Some(Rule(dp, d)) =>
     switch (matches(dp, scrut)) {
     | IndetMatch => (indet_res, state)
-    | Matches(env) => evaluate(subst(env, d), ~state)
+    | Matches(env') =>
+      evaluate(subst(env, d), ~state, ~env=Environment.union(env', env))
     | DoesNotMatch =>
-      eval_case(indet_res, scrut, rules, current_rule_index + 1, state)
+      eval_case(indet_res, scrut, rules, current_rule_index + 1, state, ~env)
     }
   };
 }
@@ -760,6 +779,7 @@ and eval_cast =
       ty': HTyp.t,
       state: state,
       value: DHExp.t,
+      ~env,
     )
     : report => {
   switch (ground_cases_of(ty), ground_cases_of(ty')) {
@@ -793,11 +813,11 @@ and eval_cast =
   | (Hole, NotGroundOrHole(ty_grounded)) =>
     /* ITExpand rule */
     let d' = DHExp.Cast(Cast(value, ty, ty_grounded), ty_grounded, ty');
-    evaluate(d', ~state);
+    evaluate(~env, d', ~state);
   | (NotGroundOrHole(ty_grounded), Hole) =>
     /* ITGround rule */
     let d' = DHExp.Cast(Cast(value, ty, ty_grounded), ty_grounded, ty');
-    evaluate(d', ~state);
+    evaluate(~env, d', ~state);
   };
 }
 and eval_test_eq =
@@ -806,42 +826,44 @@ and eval_test_eq =
       d1: DHExp.t,
       d2: DHExp.t,
       state: state,
+      ~env,
     )
     : (DHExp.t, report) => {
-  let (d1, state) = evaluate(d1, ~state);
-  let (d2, state) = evaluate(d2, ~state);
+  let (d1, state) = evaluate(~env, d1, ~state);
+  let (d2, state) = evaluate(~env, d2, ~state);
   let d = bin_op_fn(unbox_result(d1), unbox_result(d2));
-  (d, evaluate(d, ~state));
+  (d, evaluate(~env, d, ~state));
 }
-and eval_test = (n: int, d: DHExp.t, state: state): report => {
+and eval_test =
+    (~env: Environment.t, n: int, d: DHExp.t, state: state): report => {
   /* For binary operators and unary/binary applications,
      display the evaluated arguments */
   let (show_d, (res_d, state)) =
     switch (DHExp.strip_casts(d)) {
     | BinBoolOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinBoolOp(op, d1, d2);
-      eval_test_eq(mk_op, d1, d2, state);
+      eval_test_eq(~env, mk_op, d1, d2, state);
     | BinIntOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinIntOp(op, d1, d2);
-      eval_test_eq(mk_op, d1, d2, state);
+      eval_test_eq(~env, mk_op, d1, d2, state);
     | BinFloatOp(op, d1, d2) =>
       let mk_op = (d1, d2) => DHExp.BinFloatOp(op, d1, d2);
-      eval_test_eq(mk_op, d1, d2, state);
+      eval_test_eq(~env, mk_op, d1, d2, state);
     | Ap(Ap(d1, d2), d3) =>
-      let (d1, state) = evaluate(d1, ~state);
-      let (d2, state) = evaluate(d2, ~state);
-      let (d3, state) = evaluate(d3, ~state);
+      let (d1, state) = evaluate(~env, d1, ~state);
+      let (d2, state) = evaluate(~env, d2, ~state);
+      let (d3, state) = evaluate(~env, d3, ~state);
       let d =
         DHExp.Ap(
           Ap(unbox_result(d1), unbox_result(d2)),
           unbox_result(d3),
         );
-      (d, evaluate(d, ~state));
+      (d, evaluate(~env, d, ~state));
     | Ap(d1, d2) =>
       let mk = (d1, d2) => DHExp.Ap(d1, d2);
-      eval_test_eq(mk, d1, d2, state);
+      eval_test_eq(~env, mk, d1, d2, state);
     | _ =>
-      let (d, state) = evaluate(d, ~state);
+      let (d, state) = evaluate(~env, d, ~state);
       (unbox_result(d), (d, state));
     };
   let test_status: TestStatus.t =
@@ -850,7 +872,7 @@ and eval_test = (n: int, d: DHExp.t, state: state): report => {
     | BoxedValue(BoolLit(false)) => Fail
     | _ => Indet
     };
-  let state = EvalState.add_test(state, n, (show_d, test_status));
+  let state = EvalState.add_test(state, n, (show_d, test_status, env));
   let result =
     switch (res_d) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
