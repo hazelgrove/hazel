@@ -601,7 +601,7 @@ let rec evaluate =
     eval_bind(~env, (d1, state), ((d1', state)) =>
       switch (matches(dp, d1')) {
       | Matches(env') =>
-        evaluate(subst(env, d2), ~state, ~env=Environment.union(env', env))
+        evaluate(subst(env', d2), ~state, ~env=Environment.union(env', env))
       | IndetMatch
       | DoesNotMatch => (Indet(d), state)
       }
@@ -623,7 +623,7 @@ let rec evaluate =
         | Matches(env') =>
           /* beta rule */
           evaluate(
-            subst(env, d3),
+            subst(env', d3),
             ~state,
             ~env=Environment.union(env', env),
           )
@@ -766,7 +766,7 @@ and eval_case =
     switch (matches(dp, scrut)) {
     | IndetMatch => (indet_res, state)
     | Matches(env') =>
-      evaluate(subst(env, d), ~state, ~env=Environment.union(env', env))
+      evaluate(subst(env', d), ~state, ~env=Environment.union(env', env))
     | DoesNotMatch =>
       eval_case(indet_res, scrut, rules, current_rule_index + 1, state, ~env)
     }
