@@ -2,6 +2,8 @@ let debug_update = ref(false);
 let debug_zipper = ref(false);
 let debug_keystoke = ref(false);
 
+//TODO(andrew): make logging record commit number
+
 [@deriving (show({with_path: false}), yojson)]
 type entry = {
   update: Update.t,

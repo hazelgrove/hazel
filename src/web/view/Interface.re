@@ -1,3 +1,5 @@
+open OptUtil.Syntax;
+
 let evaluate =
   Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
@@ -61,15 +63,24 @@ let test_results = (~descriptions=[], map, term): option(test_results) => {
   };
 };
 
-let get_hii = (map, term): option(HoleInstanceInfo.t) => {
-  switch (Core.Elaborator.dhexp_of_uexp(map, term)) {
-  | None => None
-  | Some(dhexp) =>
-    let (result', _state) = evaluate(dhexp);
-    let (_d_renumbered, hii) =
-      result'
-      |> Evaluator.unbox_result
-      |> Elaborator_Exp.renumber([], HoleInstanceInfo.empty);
-    Some(hii);
-  };
+type semantics_package = {
+  term: Core.Term.UExp.t,
+  ty: Core.Typ.t,
+  free: Core.Ctx.co,
+  map: Core.Statics.map,
+  elab: Elaborator_Exp.ElaborationResult.t,
+  result: DHExp.t,
+  test_map: TestMap.t,
+  hii: HoleInstanceInfo.t,
+};
+
+let semantics_of_zipper = (zipper: Core.Zipper.t): option(semantics_package) => {
+  let term = Core.MakeTerm.go(Core.Zipper.unselect_and_zip(zipper));
+  let (ty, free, map) = Core.Statics.mk_map(term);
+  let elab = Core.Elaborator.uexp_elab(map, term);
+  let+ (result, test_map) =
+    get_result(Core.Elaborator.uexp_elab(map, term));
+  let (_d_renumbered, hii) =
+    Elaborator_Exp.renumber([], HoleInstanceInfo.empty, result);
+  {term, ty, free, map, elab, result, test_map, hii};
 };

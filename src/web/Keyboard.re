@@ -28,7 +28,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
   switch (k) {
   | {key: U(key), _} =>
     switch (key) {
-    | "Shift" => [] // NOTE: don't update double_tap here
+    | "Shift" => [] /* This case is important! DoubleTap must not update here */
     | "Alt" => [SetShowBackpackTargets(false)]
     | _ => [UpdateDoubleTap(None)]
     }
@@ -36,12 +36,19 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
       when is_f_key(key) =>
     switch (key) {
     | "F1" => print(Log.get_json_update_log_string())
-    | "F2" => print(Zipper.show(zipper))
-    | "F3" => toggle(Log.debug_update)
-    | "F4" => toggle(Log.debug_keystoke)
-    | "F5" => toggle(Log.debug_zipper)
-    | "F6" => []
-    | "F7" => []
+    | "F2" => toggle(Log.debug_update)
+    | "F3" => toggle(Log.debug_keystoke)
+    | "F4" => toggle(Log.debug_zipper)
+    | "F5" => print(Zipper.show(zipper))
+    | "F6" =>
+      print(Term.UExp.show(MakeTerm.go(Zipper.unselect_and_zip(zipper))))
+    | "F7" =>
+      /* Note this will reflect focal editor only, not a spliced editor */
+      switch (Interface.semantics_of_zipper(zipper)) {
+      | None => print("F7: Elaboration or Evaluation failed")
+      | Some({hii, _}) =>
+        print(Sexplib.Sexp.to_string_hum(HoleInstanceInfo.sexp_of_t(hii)))
+      }
     | "F8" => []
     | "F10" =>
       Log.reset_json_log();
