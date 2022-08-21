@@ -7,7 +7,7 @@ type t = {
   fuel: int,
 };
 
-let init_fuel = 32;
+let init_fuel = 100;
 
 let init = {test_map: TestMap.empty, step: 0, fuel: init_fuel};
 

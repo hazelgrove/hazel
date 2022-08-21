@@ -60,3 +60,16 @@ let test_results = (~descriptions=[], map, term): option(test_results) => {
   | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))
   };
 };
+
+let get_hii = (map, term): option(HoleInstanceInfo.t) => {
+  switch (Core.Elaborator.dhexp_of_uexp(map, term)) {
+  | None => None
+  | Some(dhexp) =>
+    let (result', _state) = evaluate(dhexp);
+    let (_d_renumbered, hii) =
+      result'
+      |> Evaluator.unbox_result
+      |> Elaborator_Exp.renumber([], HoleInstanceInfo.empty);
+    Some(hii);
+  };
+};
