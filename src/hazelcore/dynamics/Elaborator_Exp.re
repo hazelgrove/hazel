@@ -1082,6 +1082,7 @@ let renumber =
   renumber_sigmas_only(path, hii, d);
 };
 
+/* Bind built-ins before an elaborated expression. */
 let elab = (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): ElaborationResult.t =>
   switch (syn_elab(ctx, delta, e)) {
   | Elaborates(d, ty, delta) =>
