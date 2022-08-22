@@ -92,12 +92,14 @@ let cursor_dynamics = (zipper: Zipper.t) => {
   let term = MakeTerm.go(segment);
   let (_, _, map) = Statics.mk_map(term);
   let elab = Elaborator.uexp_elab(~probe=Some(index), map, term);
-  /*let _ =
+  let _ =
     switch (elab) {
     | Elaborates(dhexp, _, _) =>
-      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(dhexp)))
+      print_endline("STARY ELAB");
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(dhexp)));
+      print_endline("END ELAB");
     | _ => print_endline("didn't elaborate")
-    };*/
+    };
   let* (_result, test_map) = get_result(elab);
   print_endline(Sexplib.Sexp.to_string_hum(TestMap.sexp_of_t(test_map)));
   /*let (_d_renumbered, hii) =

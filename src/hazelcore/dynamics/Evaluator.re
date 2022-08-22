@@ -873,10 +873,11 @@ and eval_test =
     | _ => Indet
     };
   let state = EvalState.add_test(state, n, (show_d, test_status, env));
-  let result =
+  let _result =
     switch (res_d) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
     | _ => Indet(Ap(TestLit(n), d))
     };
-  (result, state);
+  //TODO(andrew): preventing indet in tests. hack to allow live inspector to work.
+  (BoxedValue(Triv) /*result*/, state);
 };
