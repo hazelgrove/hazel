@@ -94,3 +94,5 @@ let mk_tuple: list(t) => t;
 let cast: (t, DHTyp.t, DHTyp.t) => t;
 
 let apply_casts: (t, list((DHTyp.t, DHTyp.t))) => t;
+
+let empty: t;

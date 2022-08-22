@@ -34,6 +34,10 @@ let get_cursor_info: t => CursorInfo.t;
 
 let get_decoration_paths: t => UHDecorationPaths.t;
 
+let renumber:
+  (InstancePath.t, HoleInstanceInfo.t, DHExp.t) =>
+  (DHExp.t, HoleInstanceInfo.t);
+
 /**
  * Raised when edit state does not elaborate
  * (indicates a bug, either in that function or in Action
@@ -46,7 +50,7 @@ let get_elaboration: t => DHExp.t;
  * Action because Action needs to return a well-typed edit state)
  */
 exception EvalError(EvaluatorError.t);
-let get_result: t => Result.t;
+let get_result: t => ProgramResult.t;
 
 /**
  * Raised when an attempted edit action does not succeed

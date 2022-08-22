@@ -9,6 +9,7 @@ let view =
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       program: Program.t,
+      res: ModelResult.t,
     )
     : Vdom.Node.t => {
   open Vdom;
@@ -35,6 +36,15 @@ let view =
       && List.for_all(is_simple_type(~max_depth=max_depth - 1), tys)
     | List(ty1) =>
       max_depth > 0 && is_simple_type(~max_depth=max_depth - 1, ty1)
+    };
+
+  /* TODO: Fade out when not current? */
+  let hii =
+    switch (res.current) {
+    | ResultOk(r) => r |> ProgramResult.get_hii
+    | ResultFail(_)
+    | ResultTimeout
+    | ResultPending => res.previous |> ProgramResult.get_hii
     };
 
   /** Shows typing info for an expression variable. */
@@ -403,7 +413,6 @@ let view =
     let ctx = program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
     let sigma =
       if (settings.evaluate) {
-        let (_, hii, _) = program |> Program.get_result;
         switch (selected_instance) {
         | None => Environment.id_env(ctx)
         | Some(inst) =>
