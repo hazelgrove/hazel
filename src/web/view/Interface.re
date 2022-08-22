@@ -1,4 +1,5 @@
 open OptUtil.Syntax;
+open Core;
 
 let evaluate =
   Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
@@ -30,7 +31,7 @@ let get_result =
 };
 
 let evaulation_result = (map, term): option(DHExp.t) =>
-  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
   };
@@ -56,7 +57,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Elaborator.uexp_elab(map, term) |> get_result) {
   | None
   | Some((_, [])) => None
   | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))
@@ -64,23 +65,51 @@ let test_results = (~descriptions=[], map, term): option(test_results) => {
 };
 
 type semantics_package = {
-  term: Core.Term.UExp.t,
-  ty: Core.Typ.t,
-  free: Core.Ctx.co,
-  map: Core.Statics.map,
+  term: Term.UExp.t,
+  ty: Typ.t,
+  free: Ctx.co,
+  map: Statics.map,
   elab: Elaborator_Exp.ElaborationResult.t,
   result: DHExp.t,
   test_map: TestMap.t,
   hii: HoleInstanceInfo.t,
 };
 
-let semantics_of_zipper = (zipper: Core.Zipper.t): option(semantics_package) => {
-  let term = Core.MakeTerm.go(Core.Zipper.unselect_and_zip(zipper));
-  let (ty, free, map) = Core.Statics.mk_map(term);
-  let elab = Core.Elaborator.uexp_elab(map, term);
-  let+ (result, test_map) =
-    get_result(Core.Elaborator.uexp_elab(map, term));
+let semantics_of_zipper = (zipper: Zipper.t): option(semantics_package) => {
+  let segment = Zipper.unselect_and_zip(zipper);
+  let term = MakeTerm.go(segment);
+  let (ty, free, map) = Statics.mk_map(term);
+  let elab = Elaborator.uexp_elab(map, term);
+  let+ (result, test_map) = get_result(elab);
   let (_d_renumbered, hii) =
     Elaborator_Exp.renumber([], HoleInstanceInfo.empty, result);
   {term, ty, free, map, elab, result, test_map, hii};
+};
+
+let cursor_dynamics = (zipper: Zipper.t) => {
+  let* index = Indicated.index(zipper);
+  let segment = Zipper.unselect_and_zip(zipper);
+  let term = MakeTerm.go(segment);
+  let (_, _, map) = Statics.mk_map(term);
+  let elab = Elaborator.uexp_elab(~probe=Some(index), map, term);
+  /*let _ =
+    switch (elab) {
+    | Elaborates(dhexp, _, _) =>
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(dhexp)))
+    | _ => print_endline("didn't elaborate")
+    };*/
+  let* (_result, test_map) = get_result(elab);
+  print_endline(Sexplib.Sexp.to_string_hum(TestMap.sexp_of_t(test_map)));
+  /*let (_d_renumbered, hii) =
+    Elaborator_Exp.renumber([], HoleInstanceInfo.empty, result);*/
+  let+ instances = TestMap.lookup(-666, test_map);
+  print_endline(
+    Sexplib.Sexp.to_string_hum(
+      Sexplib.Std.sexp_of_list(
+        TestMap.sexp_of_test_instance_report,
+        instances,
+      ),
+    ),
+  );
+  instances;
 };

@@ -167,6 +167,9 @@ let forms: list((string, t)) = [
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),
   //("cond", mk(is, ["?", ":"], mk_bin(P.cond, Exp, [Exp]))),
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
+  //("probe1", mk(ii, ["%", "%"], mk_op(Exp, [Exp]))),
+  ("probe2", mk(ii, ["%", "%"], mk_pre(0, Exp, [Exp]))),
+  ("probe3", mk(ii, ["%", "%"], mk_post(0, Exp, [Exp]))),
 ];
 
 let get: String.t => t = name => List.assoc(name, forms);

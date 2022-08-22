@@ -47,8 +47,11 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
   | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)));
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+let rec dhexp_of_uexp =
+        (~probe: option(int)=None, m: Statics.map, uexp: Term.UExp.t)
+        : option(DHExp.t) => {
   /* NOTE: Left out delta for now */
+  let dhexp_of_uexp = dhexp_of_uexp(~probe);
   switch (Id.Map.find_opt(uexp.id, m)) {
   | Some(InfoExp({ctx, mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
@@ -60,17 +63,23 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     let u = uexp.id; /* NOTE: using term uids for hole ids */
     let gamma = ctx_to_varctx(ctx);
     let sigma = Environment.id_env(gamma);
+    let cursor_wrap = (d: DHExp.t): DHExp.t =>
+      switch (probe) {
+      | Some(idx) when u == idx => Sequence(Ap(TestLit(-666), d), d)
+      | _ => d
+      };
     let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
-      | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, sigma, d))
+      | None => Some(cursor_wrap(d))
+      | Some(reason) =>
+        Some(NonEmptyHole(reason, u, 0, sigma, cursor_wrap(d)))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some(EmptyHole(u, 0, sigma))
+    | EmptyHole => Some(cursor_wrap(EmptyHole(u, 0, sigma)))
     | MultiHole(_, []) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0, sigma))
+      Some(cursor_wrap(EmptyHole(u, 0, sigma)))
     | MultiHole(_, [e0, ...es]) =>
       // TODO: dhexp, eval for multiholes
       // placeholder logic: sequence
@@ -143,7 +152,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(Ap(TestLit(u), dtest));
     | Var(name) =>
       switch (err_status) {
-      | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
+      | InHole(FreeVariable) =>
+        Some(cursor_wrap(FreeVar(u, 0, sigma, name)))
       | _ => wrap(BoundVar(name))
       }
     | Let(
@@ -183,7 +193,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(cursor_wrap(InconsistentBranches(u, 0, sigma, d)))
       | _ => wrap(ConsistentCase(d))
       };
     | Match(_, scrut, rules) =>
@@ -201,7 +211,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(cursor_wrap(InconsistentBranches(u, 0, sigma, d)))
       | _ => wrap(ConsistentCase(d))
       };
     };
@@ -266,8 +276,9 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 };
 
 let uexp_elab =
-    (m: Statics.map, uexp: Term.UExp.t): Elaborator_Exp.ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+    (~probe: option(int)=None, m: Statics.map, uexp: Term.UExp.t)
+    : Elaborator_Exp.ElaborationResult.t =>
+  switch (dhexp_of_uexp(~probe, m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) => Elaborates(d, HTyp.Hole, Delta.empty) //TODO: get type from ci
   };

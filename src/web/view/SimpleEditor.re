@@ -147,6 +147,8 @@ let view =
       ~show_deco=true,
       zipper,
     );
+  //print_endline("cidyn:");
+  let instances = Interface.cursor_dynamics(zipper);
   let semantics_views =
     settings.statics
       ? single_editor_semantics_views(
@@ -167,6 +169,9 @@ let view =
         mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
       ),
     ],
-    [code_view] @ semantics_views @ mousedown_overlay,
+    [code_view]
+    @ semantics_views
+    @ [LiveInspector.view(~font_metrics, ~settings, instances)]
+    @ mousedown_overlay,
   );
 };
