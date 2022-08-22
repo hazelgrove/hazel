@@ -5,6 +5,8 @@ type operator = Operators_Typ.t;
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
+  | TyVar(TyVarErrStatus.t, TyVar.t)
+  | InvalidText(MetaVar.t, string)
   | Hole
   | Unit
   | Int
@@ -27,7 +29,5 @@ let associate: seq => Skel.t(Operators_Typ.t);
 let mk_OpSeq: OpSeq.seq(operand, operator) => OpSeq.t(operand, operator);
 
 let contract: HTyp.t => t;
-
-let expand: t => HTyp.t;
 
 let is_complete: t => bool;

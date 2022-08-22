@@ -54,6 +54,16 @@ type mode =
   | Syn
   | Ana(t);
 
+let rec htyp_of_typ: t => HTyp.t =
+  fun
+  | Unknown(_) => HTyp.hole()
+  | Int => HTyp.int()
+  | Float => HTyp.float()
+  | Bool => HTyp.bool()
+  | List(t) => HTyp.list(htyp_of_typ(t))
+  | Arrow(t1, t2) => HTyp.arrow(htyp_of_typ(t1), htyp_of_typ(t2))
+  | Prod(ts) => HTyp.product(List.map(htyp_of_typ, ts));
+
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 

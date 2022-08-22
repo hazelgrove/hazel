@@ -34,3 +34,26 @@ let delete = (caret_index: int, s: string): string => {
 };
 
 let utf8_length = CamomileLibrary.UTF8.length;
+
+let contains_substring = (str: string, substr: string): bool => {
+  let n = String.length(str);
+  let m = String.length(substr);
+  m == 0
+  || m == n
+  && String.equal(str, substr)
+  || m < n
+  && {
+    let c = String.unsafe_get(substr, 0);
+    let rec go = i => {
+      switch (String.index_from_opt(str, i, c)) {
+      | None => false
+      | Some(j) =>
+        j <= n
+        - m
+        && String.equal(String.sub(str, j, m), substr)
+        || go(j + 1)
+      };
+    };
+    go(0);
+  };
+};

@@ -65,7 +65,7 @@ let lit_msg = (ty: HTyp.t) => {
       fill_space,
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
-  switch (ty) {
+  switch (HTyp.to_syntax(ty)) {
   | Hole => [
       int_lit,
       float_lit,
@@ -82,6 +82,17 @@ let lit_msg = (ty: HTyp.t) => {
   | Sum(_, _) => [sum_lit]
   | Prod(_) => [prod_lit]
   | List(_) => [list_lit]
+  | TyVar(_)
+  | TyVarHole(_)
+  | InvalidText(_) => [
+      int_lit,
+      float_lit,
+      bool_lit,
+      fun_lit,
+      sum_lit,
+      prod_lit,
+      list_lit,
+    ]
   };
 };
 
@@ -89,7 +100,7 @@ let lit_msg = (ty: HTyp.t) => {
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
  */
-let list_vars_view = (vars: VarCtx.t) => {
+let list_vars_view = (vars: VarMap.t(HTyp.t)) => {
   let b =
     VarMap.map(
       ((var, ty)) => {
@@ -173,7 +184,9 @@ let operator_options = cursor_info => {
       ],
     );
 
-  switch (Assistant_common.get_type(cursor_info)) {
+  switch (
+    Assistant_common.get_type(cursor_info) |> Option.map(HTyp.to_syntax)
+  ) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
         int_operators_wrapper(int_options @ int_to_bool_options),
@@ -288,9 +301,7 @@ let exp_hole_view =
   let lit =
     subsection_header(
       Toggle_strategy_guide_lit,
-      "Will "
-      ++ Assistant_common.type_to_str(typ)
-      ++ " literal give what you need?",
+      "Will " ++ HTyp.to_string(typ) ++ " literal give what you need?",
       lit_open,
     );
   let lit_body =

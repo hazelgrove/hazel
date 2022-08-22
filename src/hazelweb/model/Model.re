@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = {
   res: ModelResult.t,
   cardstacks: ZCardstacks.t,
@@ -6,6 +9,7 @@ type t = {
   undo_history: UndoHistory.t,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  text_editor_popup_open: bool,
   font_metrics: FontMetrics.t,
   mouse_position: ref(MousePosition.t),
   settings: Settings.t,
@@ -16,7 +20,7 @@ let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
   Examples.cardstack,
-  Examples.teststack,
+  // Examples.teststack, XXX re-enable test stack
   // TutorialCards.cardstack,
   // RCStudyCards.cardstack,
 ];
@@ -75,6 +79,7 @@ let init = (): t => {
     undo_history,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    text_editor_popup_open: false,
     font_metrics:
       FontMetrics.{
         // to be set on display
@@ -279,6 +284,38 @@ let toggle_left_sidebar = (model: t): t => {
 let toggle_right_sidebar = (model: t): t => {
   ...model,
   right_sidebar_open: !model.right_sidebar_open,
+};
+
+let toggle_text_editor_popup = (model: t): t => {
+  ...model,
+  text_editor_popup_open: !model.text_editor_popup_open,
+};
+
+let import_uhexp = (model: t, e: UHExp.t): t => {
+  let new_program =
+    Program.mk(
+      ~width=model.cell_width,
+      Statics_Exp.fix_and_renumber_holes_z(
+        InitialContext.ctx,
+        ZExp.place_before(e),
+      ),
+    );
+  model
+  |> put_program(new_program)
+  |> put_undo_history(
+       {
+         let history = model |> get_undo_history;
+         let prev_cardstacks = model |> get_cardstacks;
+         let new_cardstacks =
+           model |> put_program(new_program) |> get_cardstacks;
+         UndoHistory.push_edit_state(
+           history,
+           prev_cardstacks,
+           new_cardstacks,
+           ModelAction.Import(e),
+         );
+       },
+     );
 };
 
 let load_cardstack = (model, idx) => {

@@ -36,3 +36,11 @@ let subtract = (ctx: t, free: co): co =>
 //TODO(andrew): is this correct in the case of duplicates?
 let union: list(co) => co =
   List.fold_left((free1, free2) => free1 @ free2, []);
+
+let to_context = (ctx: t): Context.t =>
+  ctx
+  |> VarMap.to_list
+  |> List.map(((x, {typ, _})) =>
+       Context.VarEntry(x, Typ.htyp_of_typ(typ))
+     )
+  |> Context.of_entries;

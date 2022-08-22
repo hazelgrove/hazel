@@ -1,7 +1,7 @@
 let import = (e: UHExp.t, model: Model.t): Model.t => {
   let ze = e |> ZExp.place_before;
   let edit_state =
-    ze |> Statics_Exp.fix_and_renumber_holes_z(Contexts.initial);
+    ze |> Statics_Exp.fix_and_renumber_holes_z(InitialContext.ctx);
   let program = edit_state |> Program.mk(~width=model.cell_width);
   let new_model = model |> Model.put_program(program);
 

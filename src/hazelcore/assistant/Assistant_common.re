@@ -7,34 +7,36 @@ type mode =
 /**
  * Extract from the context the variables that are consistent with the type that
  * we are looking for.
- * Return a VarCtx.t
  */
-let extract_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  ctx
-  |> Contexts.gamma
-  |> VarMap.filter(((_, ty: HTyp.t)) => HTyp.consistent(ty, typ));
-};
+let extract_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) =>
+  Context.vars(ctx)
+  |> List.filter_map(((_, x, ty_x)) =>
+       HTyp.consistent(ctx, ty_x, ty) ? Some((x, ty_x)) : None
+     );
 
 /**
    * Filter the variables that are functions that have the correct resulting type
    */
-let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
-  let rec compatible_funs = right_ty =>
-    if (HTyp.consistent(right_ty, typ)) {
+let fun_vars = (ctx: Context.t, ty: HTyp.t): list((Var.t, HTyp.t)) => {
+  let rec compatible_funs = (right_ty: HTyp.t) =>
+    if (HTyp.consistent(ctx, right_ty, ty)) {
       true;
     } else {
-      switch (right_ty) {
+      switch (HTyp.head_normalize(ctx, right_ty)) {
       | Arrow(_, right_ty) => compatible_funs(right_ty)
       | _ => false
       };
     };
-  let can_extract = ((_, ty: HTyp.t)) => {
-    switch (ty) {
-    | Arrow(_, t2) => compatible_funs(t2)
+  let can_extract = ((_, _, ty: HTyp.t)) => {
+    switch (HTyp.head_normalize(ctx, ty)) {
+    | Arrow(_, ty2) => compatible_funs(ty2)
     | _ => false
     };
   };
-  ctx |> Contexts.gamma |> VarMap.filter(can_extract);
+  Context.vars(ctx)
+  |> List.filter_map(((_, x: Var.t, ty: HTyp.t) as var) =>
+       can_extract(var) ? Some((x, ty)) : None
+     );
 };
 
 /**
@@ -43,9 +45,9 @@ let fun_vars = (ctx: Contexts.t, typ: HTyp.t) => {
    */
 let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   switch (typed) {
-  | AnaAnnotatedFun(expected, actual)
+  | AnaAnnotatedFun(_, expected, actual)
   | AnaTypeInconsistent(expected, actual)
-  | AnaSubsumed(expected, actual) => (
+  | AnaSubsumed(_, expected, actual) => (
       Some(expected),
       Some(actual),
       Analytic,
@@ -58,32 +60,40 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | Analyzed(expected) => (Some(expected), None, Analytic)
 
   | SynErrorArrow(_, actual)
-  | SynMatchingArrow(actual, _) => (Some(Hole), Some(actual), Synthetic)
+  | SynMatchingArrow(actual, _) => (
+      Some(HTyp.hole()),
+      Some(actual),
+      Synthetic,
+    )
 
   | SynFreeArrow(actual)
   | SynKeywordArrow(actual, _)
   | SynInvalidArrow(actual)
-  | Synthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | Synthesized(actual) => (Some(HTyp.hole()), Some(actual), Synthetic)
 
   | SynInvalid
   | SynFree
-  | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | SynKeyword(_) => (Some(HTyp.hole()), Some(HTyp.hole()), Synthetic)
 
-  | SynBranchClause(join, typed, _) =>
+  | SynBranchClause(join, typed, _, ctx) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
-      if (HTyp.consistent(ty, got_ty)) {
-        (Some(Hole), Some(got_ty), Synthetic);
+      if (HTyp.consistent(ctx, ty, got_ty)) {
+        (Some(HTyp.hole()), Some(got_ty), Synthetic);
       } else {
         (Some(ty), Some(got_ty), Synthetic);
       }
     | _ => get_types_and_mode(typed)
     }
   | SynInconsistentBranchesArrow(_, _)
-  | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
+  | SynInconsistentBranches(_, _) => (
+      Some(HTyp.hole()),
+      Some(HTyp.hole()),
+      Synthetic,
+    )
 
   | PatAnaTypeInconsistent(expected, actual)
-  | PatAnaSubsumed(expected, actual) => (
+  | PatAnaSubsumed(_, expected, actual) => (
       Some(expected),
       Some(actual),
       Analytic,
@@ -94,11 +104,19 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | PatAnaKeyword(expected, _)
   | PatAnalyzed(expected) => (Some(expected), None, Analytic)
 
-  | PatSynthesized(actual) => (Some(Hole), Some(actual), Synthetic)
+  | PatSynthesized(actual) => (Some(HTyp.hole()), Some(actual), Synthetic)
 
-  | PatSynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
+  | PatSynKeyword(_) => (Some(HTyp.hole()), Some(HTyp.hole()), Synthetic)
 
-  | OnType
+  | OnTPat(_) => (None, None, UnknownMode)
+  | OnTPatHole => (None, Some(HTyp.hole()), UnknownMode)
+  | TPatInvalid => (None, Some(HTyp.hole()), UnknownMode)
+
+  | TypKeyword(_) => (None, None, UnknownMode)
+  | TypFree
+  | TypInvalid => (None, Some(HTyp.hole()), UnknownMode)
+
+  | OnType(_)
   | OnNonLetLine
   | OnRule => (None, None, UnknownMode)
   };
@@ -125,23 +143,6 @@ let get_mode = (cursor_info: CursorInfo.t) => {
 let valid_assistant_term = (term: CursorInfo.cursor_term): bool => {
   CursorInfo_common.on_empty_expr_hole(term)
   || CursorInfo_common.on_expr_var(term);
-};
-
-/**
- * Gets the type in string format.
- * Return string
- */
-let type_to_str = (ty: HTyp.t) => {
-  switch (ty) {
-  | Hole => "a"
-  | Int => "an Integer"
-  | Float => "a Float"
-  | Bool => "a Boolean"
-  | Arrow(_, _) => "a Function"
-  | Sum(_, _) => "a Sum"
-  | Prod(_) => "a Product"
-  | List(_) => "a List"
-  };
 };
 
 /**

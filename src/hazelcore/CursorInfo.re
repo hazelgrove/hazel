@@ -11,7 +11,7 @@ type join_of_branches =
 type typed =
   // cursor is on a lambda with an argument type annotation
   /* cursor in analytic position */
-  | AnaAnnotatedFun(HTyp.t, HTyp.t)
+  | AnaAnnotatedFun(Context.t, HTyp.t, HTyp.t)
   // cursor is on a type inconsistent expression
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple of the wrong length
@@ -33,7 +33,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
+  | AnaSubsumed(Context.t, HTyp.t, HTyp.t)
   /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
@@ -74,6 +74,8 @@ type typed =
         typed,
         // index of the branch
         int,
+        // all (type and expression) variables bound during elaboration
+        Context.t,
       )
   // cursor is on a case with branches of inconsistent types
   // keep track of steps to form that contains the branches
@@ -100,13 +102,21 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
+  | PatAnaSubsumed(Context.t, HTyp.t, HTyp.t)
   /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
   | PatSynKeyword(ExpandingKeyword.t)
+  /* cursor in type-pattern position */
+  | OnTPat(option(TPatErrStatus.t))
+  | OnTPatHole
+  // cursor is on invalid text
+  | TPatInvalid
   /* cursor in type position */
-  | OnType
+  | TypKeyword(ExpandingKeyword.t)
+  | TypFree
+  | TypInvalid
+  | OnType(HTyp.t)
   /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;
@@ -119,6 +129,7 @@ type cursor_term =
   | ExpOperator(CursorPosition.t, UHExp.operator)
   | PatOperator(CursorPosition.t, UHPat.operator)
   | TypOperator(CursorPosition.t, UHTyp.operator)
+  | TPat(CursorPosition.t, TPat.t)
   | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
@@ -130,12 +141,13 @@ type parent_info =
 
 // TODO refactor into variants
 // based on term sort and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   cursor_term,
   typed,
-  ctx: Contexts.t,
+  ctx: Context.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
+  tyuses: option(UsageAnalysis.uses_list),
   parent_info,
 };

@@ -10,27 +10,45 @@ let rec mk =
         : (list(CursorPath.steps), list(CursorPath.steps)) => {
   let diff_subtypes = (subtype_step, (ty1, ty2)) =>
     TupleUtil.map2(List.map(List.cons(subtype_step)), mk(ty1, ty2));
-  switch (ty1, ty2) {
+  switch (HTyp.to_syntax(ty1), HTyp.to_syntax(ty2)) {
   | (Hole, _)
   | (_, Hole)
+  | (TyVarHole(_), _)
+  | (_, TyVarHole(_))
+  | (InvalidText(_), _)
+  | (_, InvalidText(_))
   | (Int, Int)
   | (Float, Float)
   | (Bool, Bool) => ([], [])
+  // TODO: add ctx to TyVar
+  | (TyVar(cref, _), TyVar(cref', _)) =>
+    Int.equal(
+      Index.Abs.to_int(cref.index) + cref.stamp,
+      Index.Abs.to_int(cref'.index) + cref'.stamp,
+    )
+      ? ([], []) : ([[]], [[]])
+  | (TyVar(_), _)
+  | (_, TyVar(_)) => ([], [])
   | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    let (steps1, steps1') = diff_subtypes(0, (ty1, ty1'));
-    let (steps2, steps2') = diff_subtypes(1, (ty2, ty2'));
+    let (steps1, steps1') =
+      diff_subtypes(0, (HTyp.of_syntax(ty1), HTyp.of_syntax(ty1')));
+    let (steps2, steps2') =
+      diff_subtypes(1, (HTyp.of_syntax(ty2), HTyp.of_syntax(ty2')));
     (steps1 @ steps2, steps1' @ steps2');
   | (Prod(tys), Prod(tys')) =>
     if (List.length(tys) != List.length(tys')) {
       ([[]], [[]]);
     } else {
       List.combine(tys, tys')
-      |> List.mapi((i, (ty, ty')) => diff_subtypes(i, (ty, ty')))
+      |> List.mapi((i, (ty, ty')) =>
+           diff_subtypes(i, (HTyp.of_syntax(ty), HTyp.of_syntax(ty')))
+         )
       |> List.split
       |> TupleUtil.map2(List.flatten);
     }
-  | (List(ty), List(ty')) => diff_subtypes(0, (ty, ty'))
+  | (List(ty), List(ty')) =>
+    diff_subtypes(0, (HTyp.of_syntax(ty), HTyp.of_syntax(ty')))
   | (Int, _)
   | (Float, _)
   | (Bool, _)

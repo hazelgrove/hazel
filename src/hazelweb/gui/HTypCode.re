@@ -45,6 +45,9 @@ let view_of_layout =
       | HoleLabel =>
         let vs = go(indent, dpaths, l);
         [Node.span([Attr.classes(["HoleLabel"])], vs)];
+      | TyVarHole =>
+        let vs = go(indent, dpaths, l);
+        [Node.span([Attr.classes(["InTyVarHole"])], vs)];
       }
     };
   go(0, diff_steps, l);

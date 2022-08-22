@@ -51,7 +51,7 @@ let any_typ_msg =
     [Attr.classes(["compressed"])],
     [
       emphasize_text("Any Type ("),
-      HTypCode.view(HTyp.Hole),
+      HTypCode.view(HTyp.hole()),
       emphasize_text(")"),
     ],
   );
@@ -69,8 +69,9 @@ let exp_keyword_msg = (term, keyword, main_msg) =>
   };
 
 let pat_ana_subsumed_msg =
-    (expected_ty, got_ty, expecting_msg, consistency_msg) =>
-  if (HTyp.eq(expected_ty, got_ty) || HTyp.eq(got_ty, HTyp.Hole)) {
+    (ctx, expected_ty, got_ty, expecting_msg, consistency_msg) =>
+  if (HTyp.equivalent(ctx, expected_ty, got_ty)
+      || HTyp.equivalent(ctx, got_ty, HTyp.hole())) {
     expecting_msg @ [HTypCode.view(expected_ty)];
   } else {
     expecting_msg
@@ -85,10 +86,11 @@ let syn_branch_clause_msg =
       join_type_inconsistent_expecting,
       join_type_inconsistent_msg,
       other,
+      ctx,
     ) => {
   switch (join, typed) {
   | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
-    if (HTyp.consistent(ty, got_ty)) {
+    if (HTyp.consistent(ctx, ty, got_ty)) {
       join_type_consistent @ [HTypCode.view(ty)];
     } else {
       let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
@@ -121,10 +123,16 @@ let advanced_summary =
       | ExpOperand(_, EmptyHole(_)) => [syn, any_typ_msg]
       | _ => [syn, HTypCode.view(ty)]
       }
-    | AnaAnnotatedFun(expected_ty, got_ty)
-    | AnaSubsumed(expected_ty, got_ty)
-    | PatAnaSubsumed(expected_ty, got_ty) =>
-      pat_ana_subsumed_msg(expected_ty, got_ty, [ana], consistent_symbol)
+    | AnaAnnotatedFun(ctx, expected_ty, got_ty)
+    | AnaSubsumed(ctx, expected_ty, got_ty)
+    | PatAnaSubsumed(ctx, expected_ty, got_ty) =>
+      pat_ana_subsumed_msg(
+        ctx,
+        expected_ty,
+        got_ty,
+        [ana],
+        consistent_symbol,
+      )
     | AnaTypeInconsistent(expected_ty, got_ty)
     | PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let (expected_diff, got_diff) = TypDiff.mk(expected_ty, got_ty);
@@ -200,7 +208,7 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _) =>
+    | SynBranchClause(join, typed, _, ctx) =>
       syn_branch_clause_msg(
         join,
         typed,
@@ -208,6 +216,7 @@ let advanced_summary =
         [syn],
         inconsistent_symbol,
         message,
+        ctx,
       )
     | SynInconsistentBranches(_) => [
         syn,
@@ -219,9 +228,15 @@ let advanced_summary =
         inconsistent_symbol,
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => []
-    | OnNonLetLine => /* TODO */ [emphasize_text("Line")]
-    | OnRule => /* TODO */ [emphasize_text("Rule")]
+    | OnType(_) => [emphasize_text("Type")]
+    | OnNonLetLine => [emphasize_text("Line")]
+    | OnRule => [emphasize_text("Rule")]
+    | OnTPat(_) => [emphasize_text("Type Variable")]
+    | OnTPatHole => [emphasize_text("Type Variable Hole")]
+    | TPatInvalid => [emphasize_text("Invalid Text")]
+    | TypFree => [emphasize_text("Free Type Variable")]
+    | TypInvalid => [emphasize_text("Invalid Text")]
+    | TypKeyword(_) => [emphasize_text("Reserved Keyword")]
     };
   };
   switch (typed) {
@@ -243,10 +258,11 @@ let novice_summary =
     switch (typed) {
     | Analyzed(ty)
     | PatAnalyzed(ty) => expecting_of_type @ [HTypCode.view(ty)]
-    | AnaAnnotatedFun(expected_ty, got_ty)
-    | AnaSubsumed(expected_ty, got_ty)
-    | PatAnaSubsumed(expected_ty, got_ty) =>
+    | AnaAnnotatedFun(tyvars, expected_ty, got_ty)
+    | AnaSubsumed(tyvars, expected_ty, got_ty)
+    | PatAnaSubsumed(tyvars, expected_ty, got_ty) =>
       pat_ana_subsumed_msg(
+        tyvars,
         expected_ty,
         got_ty,
         expecting_of_type,
@@ -378,7 +394,7 @@ let novice_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
-    | SynBranchClause(join, typed, _) =>
+    | SynBranchClause(join, typed, _, tyvars) =>
       syn_branch_clause_msg(
         join,
         typed,
@@ -386,6 +402,7 @@ let novice_summary =
         expecting_of_type,
         Node.text("but got inconsistent type"),
         message,
+        tyvars,
       )
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
@@ -400,16 +417,64 @@ let novice_summary =
         Node.text("but got"),
         emphasize_text("Inconsistent Branch Types"),
       ]
-    | OnType => [Node.text("Got " ++ article), term_tag]
-    | OnNonLetLine => /* TODO */ [
+    | OnType(_) => [Node.text("Expecting " ++ article), term_tag]
+    | OnNonLetLine => [
         Node.text("Got a "),
         /* Don't show the term tag for empty and comment lines */
         emphasize_text(~only_right=true, "Line"),
       ]
-    | OnRule => /* TODO */ [
+    | OnRule => [
         Node.text("Got " ++ article),
         term_tag,
         emphasize_text(~only_right=true, "Rule"),
+      ]
+    | OnTPatHole => [
+        Node.text("Expecting a"),
+        emphasize_text("Type Variable"),
+        term_tag,
+        Node.text("Got a "),
+        emphasize_text("Type Variable Hole"),
+      ]
+    | OnTPat(Some(InHole(reason, _))) => [
+        Node.text("Expecting a"),
+        emphasize_text("Type Variable"),
+        term_tag,
+        Node.text(" but got " ++ article),
+        emphasize_text(
+          switch (reason) {
+          | ReservedKeyword => "Reserved Keyword"
+          | BuiltinType => "Builtin Type"
+          },
+        ),
+      ]
+    | OnTPat(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text(~only_right=true, "Type Variable"),
+      ]
+    | TPatInvalid => [
+        Node.text("Expecting a"),
+        term_tag,
+        Node.text(" but got "),
+        emphasize_text("Invalid Text"),
+      ]
+    | TypFree => [
+        Node.text("Expecting a"),
+        term_tag,
+        Node.text(" but got " ++ article),
+        emphasize_text("Free Type Variable"),
+      ]
+    | TypInvalid => [
+        Node.text("Expecting a"),
+        term_tag,
+        Node.text(" but got "),
+        emphasize_text("Invalid Text"),
+      ]
+    | TypKeyword(_) => [
+        Node.text("Expecting a"),
+        term_tag,
+        Node.text(" but got " ++ article),
+        emphasize_text("Reserved Keyword"),
       ]
     };
   };
@@ -569,6 +634,7 @@ let view =
         InconsistentBranchTys(rule_types, path_to_case),
         _,
         branch_index,
+        _,
       ) =>
       let ind =
         expected_inconsistent_branches_indicator(
@@ -595,12 +661,14 @@ let view =
     | AnaSubsumed(_)
     | Synthesized(_)
     | SynMatchingArrow(_)
-    | OnType
     | PatAnalyzed(_)
     | PatAnaSubsumed(_)
     | PatSynthesized(_)
     | OnNonLetLine
-    | OnRule => OK
+    | OnRule
+    | OnType(_)
+    | OnTPat(_)
+    | OnTPatHole => OK
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
@@ -619,11 +687,15 @@ let view =
     | SynFreeArrow(_)
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
-    | PatSynKeyword(_) => BindingError
-    | SynBranchClause(join, typed, _) =>
+    | PatSynKeyword(_)
+    | TPatInvalid
+    | TypFree
+    | TypInvalid
+    | TypKeyword(_) => BindingError
+    | SynBranchClause(join, typed, _, ctx) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
-        if (HTyp.consistent(ty, got_ty)) {
+        if (HTyp.consistent(ctx, ty, got_ty)) {
           OK;
         } else {
           TypeInconsistency;

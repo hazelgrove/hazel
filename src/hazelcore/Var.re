@@ -29,6 +29,8 @@ let is_fun = eq("fun");
 
 let is_case = eq("case");
 
+let is_type = eq("type");
+
 let is_wild = eq("_");
 
 let is_keyword = s =>

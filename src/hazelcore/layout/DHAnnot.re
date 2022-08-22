@@ -12,7 +12,9 @@ type t =
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | InconsistentBranches(HoleInstance.t)
   | Invalid(HoleInstance.t)
+  | TyVarHole
+  | CastDelim
+  | CastDecoration
   | FailedCastDelim
   | FailedCastDecoration
-  | CastDecoration
   | OperationError(InvalidOperationError.t);

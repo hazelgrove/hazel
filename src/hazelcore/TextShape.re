@@ -33,7 +33,7 @@ let of_text = (text: string): t =>
     int_of_string_opt(text),
     hazel_float_of_string_opt(text),
     bool_of_string_opt(text),
-    ExpandingKeyword.mk(text),
+    ExpandingKeyword.of_string(text),
   ) {
   | (Some(_), _, _, _) => IntLit(text)
   | (_, Some(_), _, _) => FloatLit(text)

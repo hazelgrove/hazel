@@ -44,12 +44,13 @@ let view_of_layout =
                  ],
                  ds,
                )
+             | CastDelim => ([with_cls("CastDelim", txt)], ds)
+             | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],
                  ds,
                )
-             | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
                  [with_cls("DivideByZero", txt)],
                  ds,
@@ -59,6 +60,7 @@ let view_of_layout =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
+             | TyVarHole => ([with_cls("TyVarHole", txt)], ds)
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
@@ -168,6 +170,7 @@ let view_of_layout_tylr =
                  ],
                  ds,
                )
+             | CastDelim => ([with_cls("CastDelim", txt)], ds)
              | FailedCastDelim => ([with_cls("FailedCastDelim", txt)], ds)
              | FailedCastDecoration => (
                  [with_cls("FailedCastDecoration", txt)],
@@ -184,6 +187,7 @@ let view_of_layout_tylr =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
+             | TyVarHole => ([with_cls("InTyVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
              | Invalid(_) =>

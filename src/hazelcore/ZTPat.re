@@ -1,0 +1,62 @@
+[@deriving sexp]
+type t =
+  | CursorP(CursorPosition.t, TPat.t);
+
+let erase =
+  fun
+  | CursorP(_, tpat) => tpat;
+
+let place_after = (tp: TPat.t): t =>
+  switch (tp) {
+  | EmptyHole => CursorP(OnDelim(0, After), tp)
+  | TyVar(_, t)
+  | InvalidText(_, t) => CursorP(OnText(String.length(t)), tp)
+  };
+
+let place_before = (tp: TPat.t): t =>
+  switch (tp) {
+  | EmptyHole => CursorP(OnDelim(0, Before), tp)
+  | TyVar(_)
+  | InvalidText(_) => CursorP(OnText(0), tp)
+  };
+
+let valid_cursors: TPat.t => list(CursorPosition.t) =
+  fun
+  | EmptyHole => CursorPosition.delim_cursors_k(0)
+  | TyVar(_, t)
+  | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t));
+
+let is_valid_cursor = (cursor: CursorPosition.t, tp: TPat.t): bool =>
+  valid_cursors(tp) |> List.mem(cursor);
+
+let place_cursor = (cursor: CursorPosition.t, tp: TPat.t): option(t) =>
+  is_valid_cursor(cursor, tp) ? Some(CursorP(cursor, tp)) : None;
+
+let is_after =
+  fun
+  | CursorP(cursor, EmptyHole) => cursor == OnDelim(0, After)
+  | CursorP(cursor, TyVar(_, t) | InvalidText(_, t)) =>
+    cursor == OnText(TyVar.length(t));
+
+let is_before =
+  fun
+  | CursorP(cursor, EmptyHole) => cursor == OnDelim(0, Before)
+  | CursorP(cursor, TyVar(_) | InvalidText(_)) => cursor == OnText(0);
+
+let move_cursor_left =
+  fun
+  | z when is_before(z) => None
+  | CursorP(OnOp(_), _) => None
+  | CursorP(OnText(j), e) => Some(CursorP(OnText(j - 1), e))
+  | CursorP(_, TyVar(_) | InvalidText(_)) => None
+  | CursorP(OnDelim(k, After), z) => Some(CursorP(OnDelim(k, Before), z))
+  | CursorP(OnDelim(_, Before), EmptyHole) => None;
+
+let move_cursor_right =
+  fun
+  | z when is_after(z) => None
+  | CursorP(OnOp(_), _) => None
+  | CursorP(OnText(j), e) => Some(CursorP(OnText(j + 1), e))
+  | CursorP(_, TyVar(_) | InvalidText(_)) => None
+  | CursorP(OnDelim(k, Before), z) => Some(CursorP(OnDelim(k, After), z))
+  | CursorP(OnDelim(_, After), EmptyHole) => None;

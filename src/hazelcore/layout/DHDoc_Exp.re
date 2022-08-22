@@ -48,6 +48,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
+  | TyAlias(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -106,23 +107,28 @@ let rec mk =
         )
         : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
-  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
+  let mk_cast = ((doc: DHDoc.t, ty: option((HTyp.t, HTyp.t)))): DHDoc.t =>
     switch (ty) {
-    | Some(ty) when settings.show_casts =>
-      Doc.(
-        hcat(
-          doc,
-          annot(
-            DHAnnot.CastDecoration,
-            DHDoc_Typ.mk(~enforce_inline=true, ty),
-          ),
-        )
-      )
+    | Some((ty1, ty2)) when settings.show_casts =>
+      let cast_decoration =
+        Doc.(
+          hcats([
+            DHDoc_common.Delim.open_OkCast,
+            hseps([
+              DHDoc_Typ.mk(~enforce_inline=true, ty1),
+              DHDoc_common.Delim.arrow_OkCast,
+              DHDoc_Typ.mk(~enforce_inline=true, ty2),
+            ]),
+            DHDoc_common.Delim.close_OkCast,
+          ])
+          |> annot(DHAnnot.CastDecoration)
+        );
+      Doc.hcats([doc, cast_decoration]);
     | _ => doc
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc.t, option(HTyp.t)) => {
+          : (DHDoc.t, option((HTyp.t, HTyp.t))) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -155,7 +161,7 @@ let rec mk =
     );
     let cast =
       switch (d) {
-      | Cast(_, _, ty) => Some(ty)
+      | Cast(_, (_, ty1), (_, ty2)) => Some((ty1, ty2))
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
@@ -261,7 +267,45 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+      | TyAlias(p, (ctx, ty), dbody) =>
+        vseps([
+          hcats(
+            [
+              DHDoc_common.Delim.mk("type"),
+              DHDoc_TPat.mk(p)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+              DHDoc_common.Delim.mk("="),
+              DHDoc_Typ.mk(ty)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+            ]
+            @ (
+              settings.show_kinds
+                ? [
+                  DHDoc_common.Delim.mk("::"),
+                  switch (Statics_Typ.syn(ctx, ty)) {
+                  | Some(k) =>
+                    DHDoc_Kind.mk(k)
+                    |> DHDoc_common.pad_child(
+                         ~inline_padding=(space(), space()),
+                         ~enforce_inline,
+                       )
+                  | None => failwith("can't synthesize kind of type alias")
+                  },
+                ]
+                : []
+            )
+            @ [DHDoc_common.Delim.mk("in")],
+          ),
+          mk_cast(go(~enforce_inline=false, dbody)),
+        ])
+      | FailedCast(Cast(d, (_, ty1), dty2), dty2', (_, ty3))
+          when DHTyp.equivalent(dty2, dty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -302,7 +346,7 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
-      | Fun(dp, ty, dbody) =>
+      | Fun(dp, (_, ty), dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -324,7 +368,7 @@ let rec mk =
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
-      | FixF(x, ty, dbody) =>
+      | FixF(x, (_, ty), dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>
             go(~enforce_inline, dbody) |> mk_cast;

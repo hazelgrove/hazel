@@ -1,7 +1,8 @@
 open Tezt;
 open Tezt.Base;
 
-let mvar = MetaVarGen.init;
+// Test suite for the skel parser.
+let mvar = IDGen.init;
 
 let register_exp_test = (title, tags, seq, skel) =>
   Test.register(
@@ -46,7 +47,7 @@ let () =
   register_exp_test(
     "single hole test",
     [],
-    Seq.S(UHExp.EmptyHole(mvar), E),
+    Seq.wrap(UHExp.new_EmptyHole(mvar) |> fst),
     Skel.Placeholder(0),
   );
 
@@ -56,7 +57,7 @@ let () =
     "addition w/ left hole",
     [],
     Seq.S(
-      UHExp.EmptyHole(mvar),
+      UHExp.new_EmptyHole(mvar) |> fst,
       Seq.A(Operators_Exp.Plus, Seq.S(IntLit(NotInHole, "2"), E)),
     ),
     Skel.BinOp(
@@ -149,7 +150,7 @@ let () = {
       Seq.A(
         Operators_Exp.Minus,
         Seq.S(
-          UHExp.EmptyHole(mvar),
+          UHExp.new_EmptyHole(mvar) |> fst,
           Seq.A(
             Operators_Exp.Plus,
             Seq.S(

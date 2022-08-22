@@ -1,6 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 
 exception InvalidInstance;
+
 let view =
     (
       ~inject: ModelAction.t => Vdom.Event.t,
@@ -13,6 +14,30 @@ let view =
     : Vdom.Node.t => {
   open Vdom;
 
+  /* Deetermines which types are simple enough to display inline. */
+  let rec is_simple_type =
+          (~max_depth: int=1, ty: KindSystem.HTyp_syntax.t(Index.absolute))
+          : bool =>
+    switch (ty) {
+    | Hole
+    | Int
+    | Float
+    | Bool
+    | TyVar(_)
+    | TyVarHole(_)
+    | InvalidText(_) => true
+    | Arrow(ty1, ty2)
+    | Sum(ty1, ty2) =>
+      max_depth > 0
+      && is_simple_type(~max_depth=max_depth - 1, ty1)
+      && is_simple_type(~max_depth=max_depth - 1, ty2)
+    | Prod(tys) =>
+      max_depth > 0
+      && List.for_all(is_simple_type(~max_depth=max_depth - 1), tys)
+    | List(ty1) =>
+      max_depth > 0 && is_simple_type(~max_depth=max_depth - 1, ty1)
+    };
+
   /* TODO: Fade out when not current? */
   let hii =
     switch (res.current) {
@@ -22,10 +47,8 @@ let view =
     | ResultPending => res.previous |> ProgramResult.get_hii
     };
 
-  /**
-   * Shows typing info for a context entry.
-   */
-  let static_info = ((x, ty)) =>
+  /** Shows typing info for an expression variable. */
+  let static_info_var = (x, ty) => {
     Node.div(
       [Attr.classes(["static-info"])],
       [
@@ -39,16 +62,60 @@ let view =
         ),
       ],
     );
+  };
+
+  /** Shows typing info for a type variable. */
+  let static_info_tyvar = (t, k) => {
+    Node.div(
+      [Attr.classes(["static-info"])],
+      [
+        Node.div(
+          [Attr.classes(["code"])],
+          [
+            Node.text("type "),
+            Node.span([Attr.classes(["var"])], [Node.text(t)]),
+          ]
+          @ (
+            switch (k) {
+            | Kind.Hole => [
+                Node.text(" = "),
+                HTypCode.view(
+                  ~width=30,
+                  ~pos=TyVar.length(t) + 8,
+                  HTyp.hole(),
+                ),
+              ]
+            | Type => []
+            | S(ty) when is_simple_type(ty) => [
+                Node.text(" = "),
+                HTypCode.view(
+                  ~width=30,
+                  ~pos=TyVar.length(t) + 8,
+                  HTyp.of_syntax(ty),
+                ),
+              ]
+            | S(_) => [Node.text(" = ")]
+            }
+          ),
+        ),
+      ],
+    );
+  };
+
+  let static_info =
+    fun
+    | Context.VarEntry(x, ty) => static_info_var(x, ty)
+    | TyVarEntry(t, k) => static_info_tyvar(t, k);
 
   /**
-   * Shows runtime value for a context entry.
+   * Shows the runtime value of an expression variable.
    */
-  let dynamic_info = (sigma, x) =>
+  let extended_info_var = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
       Some(
         Node.div(
-          [Attr.classes(["dynamic-info"])],
+          [Attr.classes(["extended-info"])],
           [Node.div([], [Node.span([], [Node.text("NONE!!!!!!")])])],
         ),
       )
@@ -56,7 +123,7 @@ let view =
     | Some(d) =>
       Some(
         Node.div(
-          [Attr.classes(["dynamic-info"])],
+          [Attr.classes(["extended-info"])],
           [
             Node.div(
               [],
@@ -76,14 +143,70 @@ let view =
       )
     };
 
-  let context_entry = (sigma, (x, ty)) => {
-    let static_info = static_info((x, ty));
-    let children =
-      switch (dynamic_info(sigma, x)) {
-      | Some(dynamic_info) => [static_info, dynamic_info]
-      | None => [static_info]
+  /**
+   * Shows the type bound to a type alias.
+   */
+  let extended_info_tyvar = (t, k) =>
+    switch (k) {
+    | Kind.Hole
+    | Type => None
+    | S(ty) when is_simple_type(ty) => None
+    | S(ty) =>
+      Some(
+        Node.div(
+          [Attr.classes(["extended-info"])],
+          [
+            Node.div(
+              [],
+              [
+                HTypCode.view(
+                  ~width=30,
+                  ~pos=TyVar.length(t),
+                  HTyp.of_syntax(ty),
+                ),
+              ],
+            ),
+          ],
+        ),
+      )
+    };
+
+  let extended_info = (sigma, entry) =>
+    switch (entry) {
+    | Context.VarEntry(x, _) => extended_info_var(sigma, x)
+    | TyVarEntry(t, k) => extended_info_tyvar(t, k)
+    };
+
+  let context_entry = (seen_vars, seen_tyvars, sigma, entry) => {
+    let (seen_vars, seen_tyvars, maybe_shadowed) =
+      switch (entry) {
+      | Context.VarEntry(x, _) =>
+        VarMap.mem(seen_vars, x)
+          ? (seen_vars, seen_tyvars, ["shadowed"])
+          : (VarMap.add(seen_vars, x, ()), seen_tyvars, [])
+      | TyVarEntry(t, _) =>
+        TyVarMap.mem(t, seen_tyvars)
+          ? (seen_vars, seen_tyvars, ["shadowed"])
+          : (seen_vars, TyVarMap.add(t, (), seen_tyvars), [])
       };
-    Node.div([Attr.classes(["context-entry"])], children);
+    let static_info = static_info(entry);
+    let children =
+      switch (entry) {
+      | VarEntry(_) when maybe_shadowed != [] => [static_info]
+      | VarEntry(_)
+      | TyVarEntry(_) =>
+        extended_info(sigma, entry)
+        |> Option.map(extended_info => [static_info, extended_info])
+        |> Option.value(~default=[static_info])
+      };
+    (
+      seen_vars,
+      seen_tyvars,
+      Node.div(
+        [Attr.classes(["context-entry"] @ maybe_shadowed)],
+        children,
+      ),
+    );
   };
 
   let instructional_msg = msg =>
@@ -287,11 +410,7 @@ let view =
   };
 
   let context_view = {
-    let ctx =
-      program
-      |> Program.get_cursor_info
-      |> CursorInfo_common.get_ctx
-      |> Contexts.gamma;
+    let ctx = program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
     let sigma =
       if (settings.evaluate) {
         switch (selected_instance) {
@@ -308,7 +427,7 @@ let view =
       } else {
         Environment.id_env(ctx);
       };
-    switch (VarCtx.to_list(ctx)) {
+    switch (Context.entries(ctx)) {
     | [] =>
       Node.div(
         [Attr.classes(["the-context"])],
@@ -319,10 +438,20 @@ let view =
           ),
         ],
       )
-    | ctx_lst =>
+    | entries =>
       Node.div(
         [Attr.classes(["the-context"])],
-        List.map(context_entry(sigma), ctx_lst),
+        List.fold_left(
+          (((seen_vars, seen_tyvars), children), entry) => {
+            let (seen_vars, seen_tyvars, child) =
+              context_entry(seen_vars, seen_tyvars, sigma, entry);
+            ((seen_vars, seen_tyvars), [child, ...children]);
+          },
+          ((VarMap.empty, TyVarMap.empty), []),
+          entries,
+        )
+        |> snd
+        |> List.rev,
       )
     };
   };
@@ -333,11 +462,9 @@ let view =
   let path_viewer =
     if (settings.evaluate) {
       let ctx =
-        program
-        |> Program.get_cursor_info
-        |> CursorInfo_common.get_ctx
-        |> Contexts.gamma;
-      if (VarMap.is_empty(ctx)) {
+        program |> Program.get_cursor_info |> CursorInfo_common.get_ctx;
+      let (_, hii, _) = program |> Program.get_result;
+      if (List.length(Context.vars(ctx)) == 0) {
         Node.div([], []);
       } else {
         let children =

@@ -1,6 +1,6 @@
 open Action;
 
-let shape_to_string = (shape: shape): string => {
+let shape_to_string = (shape: shape): string =>
   switch (shape) {
   | SList => "list type"
   | SParenthesized => "parentheses"
@@ -20,6 +20,7 @@ let shape_to_string = (shape: shape): string => {
   | SLine => "new line"
   | SCommentLine => "comment line"
   | SCase => "case expression"
+  | STyAlias => "type alias binding"
   | SOp(operator_shape) =>
     switch (operator_shape) {
     | SMinus => "-"
@@ -38,7 +39,6 @@ let shape_to_string = (shape: shape): string => {
     | SOr => "||"
     }
   };
-};
 
 let escape: Side.t => t =
   fun
@@ -48,8 +48,8 @@ let escape: Side.t => t =
 let syn_insert_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, IDGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       id_gen: IDGen.t,
       (caret_index: int, insert_text: string),
       text: string,
@@ -64,9 +64,9 @@ let syn_insert_text_ =
 let ana_insert_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
+         (Context.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       (caret_index: int, insert_text: string),
       text: string,
@@ -84,8 +84,8 @@ let ana_insert_text_ =
 let syn_backspace_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, IDGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       text: string,
@@ -100,9 +100,9 @@ let syn_backspace_text_ =
 let ana_backspace_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
+         (Context.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       text: string,
@@ -119,8 +119,8 @@ let ana_backspace_text_ =
 let syn_delete_text_ =
     (
       ~mk_syn_text:
-         (Contexts.t, IDGen.t, int, string) => ActionOutcome.t('success),
-      ctx: Contexts.t,
+         (Context.t, IDGen.t, int, string) => ActionOutcome.t('success),
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       text: string,
@@ -135,9 +135,9 @@ let syn_delete_text_ =
 let ana_delete_text_ =
     (
       ~mk_ana_text:
-         (Contexts.t, IDGen.t, int, string, HTyp.t) =>
+         (Context.t, IDGen.t, int, string, HTyp.t) =>
          ActionOutcome.t('success),
-      ctx: Contexts.t,
+      ctx: Context.t,
       id_gen: IDGen.t,
       caret_index: int,
       text: string,
@@ -298,7 +298,7 @@ let complete_tuple_ =
       ~new_EmptyHole: IDGen.t => ('operand, IDGen.t),
       id_gen: IDGen.t,
       first_seq: Seq.t('operand, 'operator),
-      ty: HTyp.t,
+      ty: HTyp.head_normalized,
       ~triggered_by_paren: bool,
       ~is_after_zopseq: bool,
     ) // is_after_zopseq not needed when parenthesizing a tuple

@@ -49,13 +49,13 @@ module BinIntOp = {
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | Minus => Some((Minus, Int))
-    | Plus => Some((Plus, Int))
-    | Times => Some((Times, Int))
-    | Divide => Some((Divide, Int))
-    | LessThan => Some((LessThan, Bool))
-    | GreaterThan => Some((GreaterThan, Bool))
-    | Equals => Some((Equals, Bool))
+    | Minus => Some((Minus, HTyp.int()))
+    | Plus => Some((Plus, HTyp.int()))
+    | Times => Some((Times, HTyp.int()))
+    | Divide => Some((Divide, HTyp.int()))
+    | LessThan => Some((LessThan, HTyp.bool()))
+    | GreaterThan => Some((GreaterThan, HTyp.bool()))
+    | Equals => Some((Equals, HTyp.bool()))
     | FPlus
     | FMinus
     | FTimes
@@ -95,13 +95,13 @@ module BinFloatOp = {
 
   let of_op = (op: UHExp.operator): option((t, HTyp.t)) =>
     switch (op) {
-    | FPlus => Some((FPlus, Float))
-    | FMinus => Some((FMinus, Float))
-    | FTimes => Some((FTimes, Float))
-    | FDivide => Some((FDivide, Float))
-    | FLessThan => Some((FLessThan, Bool))
-    | FGreaterThan => Some((FGreaterThan, Bool))
-    | FEquals => Some((FEquals, Bool))
+    | FPlus => Some((FPlus, HTyp.float()))
+    | FMinus => Some((FMinus, HTyp.float()))
+    | FTimes => Some((FTimes, HTyp.float()))
+    | FDivide => Some((FDivide, HTyp.float()))
+    | FLessThan => Some((FLessThan, HTyp.bool()))
+    | FGreaterThan => Some((FGreaterThan, HTyp.bool()))
+    | FEquals => Some((FEquals, HTyp.bool()))
     | Plus
     | Minus
     | Times
@@ -130,26 +130,27 @@ module BinFloatOp = {
 
 [@deriving sexp]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t_(t))
+  | EmptyHole(MetaVar.t, MetaVarInst.t, VarMap.t(t))
   | NonEmptyHole(
       ErrStatus.HoleReason.t,
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(t),
+      VarMap.t(t),
       t,
     )
   | ExpandingKeyword(
       MetaVar.t,
       MetaVarInst.t,
-      VarMap.t_(t),
+      VarMap.t(t),
       ExpandingKeyword.t,
     )
-  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
-  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t_(t), string)
+  | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t(t), Var.t)
+  | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
+  | Fun(DHPat.t, DHTyp.t, t)
   | Let(DHPat.t, t, t)
-  | FixF(Var.t, HTyp.t, t)
-  | Fun(DHPat.t, HTyp.t, t)
+  | FixF(Var.t, DHTyp.t, t)
+  | TyAlias(TPat.t, DHTyp.t, t)
   | Ap(t, t)
   | ApBuiltin(string, list(t))
   | BoolLit(bool)
@@ -160,15 +161,15 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListNil(HTyp.t)
+  | ListNil(DHTyp.t)
   | Cons(t, t)
-  | Inj(HTyp.t, InjSide.t, t)
+  | Inj(DHTyp.t, InjSide.t, t)
   | Pair(t, t)
   | Triv
   | ConsistentCase(case)
-  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t_(t), case)
-  | Cast(t, HTyp.t, HTyp.t)
-  | FailedCast(t, HTyp.t, HTyp.t)
+  | InconsistentBranches(MetaVar.t, MetaVarInst.t, VarMap.t(t), case)
+  | Cast(t, DHTyp.t, DHTyp.t)
+  | FailedCast(t, DHTyp.t, DHTyp.t)
   | InvalidOperation(t, InvalidOperationError.t)
 and case =
   | Case(t, list(rule), int)
@@ -184,6 +185,7 @@ let rec strip_casts: t => t =
   | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
   | NonEmptyHole(err, b, c, d, e) =>
     NonEmptyHole(err, b, c, d, strip_casts(e))
+  | TyAlias(a, b, c) => TyAlias(a, b, strip_casts(c))
   | Let(a, b, c) => Let(a, strip_casts(b), strip_casts(c))
   | FixF(a, b, c) => FixF(a, b, strip_casts(c))
   | Fun(a, b, c) => Fun(a, b, strip_casts(c))
@@ -247,6 +249,7 @@ let constructor_string = (d: t): string =>
   | InvalidText(_) => "InvalidText"
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
+  | TyAlias(_) => "TyAlias"
   | FixF(_, _, _) => "FixF"
   | Fun(_, _, _) => "Fun"
   | Ap(_, _) => "Ap"
@@ -277,18 +280,18 @@ let rec mk_tuple: list(t) => t =
   | [d] => d
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-  if (HTyp.eq(t1, t2)) {
+let cast = (d: t, dty1: DHTyp.t, dty2: DHTyp.t): t =>
+  if (DHTyp.equivalent(dty1, dty2)) {
     d;
   } else {
-    Cast(d, t1, t2);
+    Cast(d, dty1, dty2);
   };
 
-let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+let apply_casts = (d: t, casts: list((DHTyp.t, DHTyp.t))): t =>
   List.fold_left(
-    (d, c: (HTyp.t, HTyp.t)) => {
-      let (ty1, ty2) = c;
-      cast(d, ty1, ty2);
+    (d, c: (DHTyp.t, DHTyp.t)) => {
+      let (dty1, dty2) = c;
+      cast(d, dty1, dty2);
     },
     d,
     casts,

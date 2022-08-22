@@ -10,9 +10,10 @@ let decoration_cls: UHDecorationShape.t => string =
   fun
   | ErrHole => "err-hole"
   | VarErrHole => "var-err-hole"
-  | VarUse => "var-use"
+  | VarUse
+  | TyVarUse => "var-use"
   | CurrentTerm => "current-term"
-  | TestStatus(_) => "test-result";
+  | TestStatus(_) => "test-status";
 
 let decoration_view =
     /* ~contains_current_term: bool, */
@@ -38,7 +39,8 @@ let decoration_view =
     let view =
       UHDecoration.VarErrHole.view(~contains_current_term, ~corner_radii);
     (Decoration_common.Svg, view);
-  | VarUse =>
+  | VarUse
+  | TyVarUse =>
     let view = UHDecoration.VarUse.view(~corner_radii);
     (Decoration_common.Svg, view);
   | CurrentTerm =>
@@ -198,6 +200,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             | Text => ["code-text"]
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
+            | Keyword => ["code-keyword"]
             };
           [Node.span([Attr.classes(clss)], vs)];
         | HoleLabel({len}) =>

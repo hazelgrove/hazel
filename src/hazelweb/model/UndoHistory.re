@@ -507,6 +507,7 @@ let get_new_action_group =
       | SListNil
       | SInj(_)
       | SLet
+      | STyAlias
       | SCase => Some(ConstructEdit(shape))
       | SChar(_) =>
         if (group_entry(
@@ -616,6 +617,7 @@ let get_new_action_group =
                         switch (k) {
                         | Fun => SFun
                         | Let => SLet
+                        | TyAlias
                         | Case => failwith("impossible")
                         },
                       ),
@@ -626,7 +628,6 @@ let get_new_action_group =
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
-
               | Case =>
                 switch (
                   UndoHistoryCore.get_cursor_pos(
@@ -645,17 +646,32 @@ let get_new_action_group =
                 | OnDelim(_, _)
                 | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
                 }
+              | TyAlias =>
+                switch (
+                  UndoHistoryCore.get_cursor_pos(
+                    new_cursor_term_info.cursor_term_before,
+                  )
+                ) {
+                | OnText(4) =>
+                  /* the caret is at the end of "type" */
+                  Some(ConstructEdit(STyAlias))
+                | OnText(_)
+                | OnDelim(_)
+                | OnOp(_) => Some(ConstructEdit(SOp(SSpace)))
+                }
               }
             | Var(_, _, var) =>
               switch (pos) {
               | OnText(index) =>
                 let (left_var, _) = Var.split(index, var);
-                if (Var.is_let(left_var)) {
+                if (Var.is_fun(left_var)) {
+                  Some(ConstructEdit(SFun));
+                } else if (Var.is_let(left_var)) {
                   Some(ConstructEdit(SLet));
                 } else if (Var.is_case(left_var)) {
                   Some(ConstructEdit(SCase));
-                } else if (Var.is_fun(left_var)) {
-                  Some(ConstructEdit(SFun));
+                } else if (Var.is_type(left_var)) {
+                  Some(ConstructEdit(STyAlias));
                 } else {
                   Some(ConstructEdit(SOp(SSpace)));
                 };
