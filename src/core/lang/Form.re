@@ -148,6 +148,10 @@ let forms: list((string, t)) = [
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
   ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  (
+    "type_",
+    mk(ds, ["type", "=", "in"], mk_pre(P.type_, Exp, [TPat, Typ])),
+  ),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   (

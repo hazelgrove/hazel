@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, yojson)]
 type t = string;
 
 let length: t => int = String.length;

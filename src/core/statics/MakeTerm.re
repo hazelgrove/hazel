@@ -34,6 +34,7 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   switch (s) {
   | Pat => Pat(of_seg_and_skel_pat(ps, kid))
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
+  | TPat => TPat(of_seg_and_skel_tpat(ps, kid))
   | Exp => Exp(of_seg_and_skel_exp(ps, kid))
   | Rul => Rul(of_seg_and_skel_rul(ps, kid))
   | Nul => Nul() //TODO
@@ -108,6 +109,10 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
 and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
+}
+and of_seg_and_skel_tpat = (ps: Segment.t, skel: Skel.t): UTPat.t => {
+  let (p, kids) = piece_and_outside_kids(~default_sort=TPat, ps, skel);
+  of_piece_tpat(p, kids);
 }
 and of_seg_and_skel_rul = (ps: Segment.t, skel: Skel.t): URul.s => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Rul, ps, skel);
@@ -303,6 +308,26 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | (["(", ")"], [], [body]) => Parens(utyp_of_seg(body))
       | (["[", "]"], [], [body]) => List(utyp_of_seg(body))
       | _ => Invalid(UnrecognizedTerm, p)
+      };
+    {id, term};
+  };
+}
+and of_piece_tpat = (p: Piece.t, outside_kids: list(sort_dispatch)): UTPat.t => {
+  let invalid: UTPat.t = {id: (-1), term: Invalid(p)};
+  switch (p) {
+  | Whitespace(_) => invalid
+  | Grout({id, shape}) =>
+    switch (shape) {
+    | Convex => {id, term: EmptyHole}
+    | Concave => invalid
+    }
+  | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
+    let term: UTPat.term =
+      switch (label, outside_kids, inside_kids) {
+      | _ when !Tile.is_complete(t) => Invalid(p)
+      // TODO(andrew): Form.re should handle monotile recognition
+      | ([t], [], []) when Form.is_var(t) => Var(t)
+      | _ => Invalid(p)
       };
     {id, term};
   };

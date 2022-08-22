@@ -32,6 +32,36 @@ let show_parse_flag: parse_flag => string =
   | UnrecognizedTerm => "Unrecognized Term"
   | IncompleteTile => "Incomplete Tile";
 
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | Var;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(Piece.t)
+    | EmptyHole
+    | Var(Token.t)
+  and t = {
+    id: Id.t,
+    term,
+  };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Pattern"
+    | EmptyHole => "Empty Pattern Hole"
+    | Var => "Type Variable";
+};
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =

@@ -4,12 +4,13 @@ type t =
   | Nul
   | Pat
   | Typ
+  | TPat
   | Rul
   | Exp;
 
 let root = Exp;
 
-let all = [Any, Nul, Pat, Typ, Rul, Exp];
+let all = [Any, Nul, Pat, Typ, TPat, Rul, Exp];
 
 let consistent = (s, s') =>
   switch (s, s') {
@@ -26,5 +27,6 @@ let to_string =
   | Nul => "Nul"
   | Pat => "Pat"
   | Typ => "Typ"
+  | TPat => "TPat"
   | Rul => "Rul"
   | Exp => "Exp";

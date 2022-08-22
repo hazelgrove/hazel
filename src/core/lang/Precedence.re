@@ -19,14 +19,15 @@ let ann = 7;
 let prod = 8;
 let if_ = 9;
 let semi = 10;
-let let_ = 11;
+let type_ = 11;
+let let_ = 12;
 
-let rule_arr = 12;
-let rule_pre = 13;
-let rule_sep = 14;
-let case_ = 15;
+let rule_arr = 13;
+let rule_pre = 14;
+let rule_sep = 15;
+let case_ = 16;
 
-let min = 15;
+let min = 17;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
