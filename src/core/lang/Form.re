@@ -96,7 +96,13 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Nul, [])])),
-  ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  (
+    "var",
+    (
+      is_var,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    ),
+  ),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
