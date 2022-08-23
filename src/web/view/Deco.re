@@ -313,12 +313,12 @@ module Deco =
            |> TupleUtil.map2(List.concat);
          (
            l,
-           SvgUtil.Path.[m(~x=l.col, ~y=l.row), ...l_edge]
-           @ r_edge
+           SvgUtil.Path.[m(~x=l.col, ~y=l.row), ...r_edge]
+           @ l_edge
            @ [SvgUtil.Path.Z]
            |> SvgUtil.Path.translate({
                 dx: Float.of_int(- l.col),
-                dy: Float.of_int(- l.row + 1),
+                dy: Float.of_int(- l.row),
               }),
          );
        })
