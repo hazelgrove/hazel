@@ -206,8 +206,9 @@ let cell_view =
   let zipper = editor.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let cell_caption_view =
+    //TODO(andrew): diable show term on release!!
     div(
-      [clss(["cell-caption"]) /*, Attr.on_click(show_term(editor))*/],
+      [clss(["cell-caption"]), Attr.on_click(show_term(editor))],
       [text(List.nth(School.captions, idx))],
     );
   let cell_chapter_view =

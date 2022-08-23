@@ -92,9 +92,9 @@
   --typ-bg-color: #f2ccff; /*#bdf5c4;*/
   --typ-bg-off-color: #f9e8ff;
 
-  --rul-text-color: #24ae62;
-  --rul-off-color: #7fc97f;
-  --rul-bg-color: #bdf5c4;
+  --rul-text-color: #a6b29a;/*#24ae62;*/
+  --rul-off-color: #bcc29b;/*#7fc97f;*/
+  --rul-bg-color:#e7ead6;/*#bdf5c4;*/
   --rul-shadow-color: var(--rul-off-color);
   --rul-delim-color: #aee5c6;
 

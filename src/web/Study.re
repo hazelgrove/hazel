@@ -1,16 +1,21 @@
 let defaults = [
   "let a = 2 in
-letann b : Bool = 2 in
-letann g : Int -> Int =
+let b : Bool = 2 in
+let g : Int -> Int =
 fun x -> x + 1
 in
 let x =
 fun q -> if q < 0 then a else true in
 let f =
-funann x : Int -> x + 5 < 0 in
+fun x : Int -> x + 5 < 0 in
 true && f(a) && f(b) && g(true)",
-  "blog",
-  "2525",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
 ];
 
 let init: Model.study = {
