@@ -318,7 +318,7 @@ module Deco =
            @ [SvgUtil.Path.Z]
            |> SvgUtil.Path.translate({
                 dx: Float.of_int(- l.col),
-                dy: Float.of_int(- l.row),
+                dy: Float.of_int(- l.row + 1),
               }),
          );
        })
@@ -339,5 +339,6 @@ module Deco =
       selected_pieces(zipper),
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
+      err_holes(zipper),
     ]);
 };
