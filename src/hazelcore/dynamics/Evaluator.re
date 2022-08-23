@@ -872,7 +872,13 @@ and eval_test =
     | BoxedValue(BoolLit(false)) => Fail
     | _ => Indet
     };
-  let state = EvalState.add_test(state, n, (show_d, test_status, env));
+  let res_d' =
+    switch (res_d) {
+    | BoxedValue(d)
+    | Indet(d) => d
+    };
+  let state =
+    EvalState.add_test(state, n, (show_d, test_status, env, res_d'));
   let _result =
     switch (res_d) {
     | BoxedValue(BoolLit(_)) => BoxedValue(Triv)

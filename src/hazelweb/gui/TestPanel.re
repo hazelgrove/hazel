@@ -3,7 +3,7 @@ open Node;
 open ViewUtil;
 
 let test_instance_view =
-    (dhcode_view, (d, status, _): TestMap.test_instance_report) => {
+    (dhcode_view, (d, status, _, _): TestMap.test_instance_report) => {
   let status = TestStatus.to_string(status);
   div([Attr.classes(["test-instance", status])], [dhcode_view(d)]);
 };

@@ -142,7 +142,9 @@ let rec dhexp_of_uexp =
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
-    | Parens(e) => dhexp_of_uexp(m, e)
+    | Parens(e) =>
+      let+ d = dhexp_of_uexp(m, e);
+      cursor_wrap(d);
     | Seq(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);

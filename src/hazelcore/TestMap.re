@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type test_instance_report = (DHExp.t, TestStatus.t, Environment.t);
+type test_instance_report = (DHExp.t, TestStatus.t, Environment.t, DHExp.t);
 
 [@deriving sexp]
 type test_report = (KeywordID.t, list(test_instance_report));
@@ -21,7 +21,7 @@ let extend =
 };
 
 let joint_status: list(test_instance_report) => TestStatus.t =
-  reports => TestStatus.join_all(List.map(((_, s, _)) => s, reports));
+  reports => TestStatus.join_all(List.map(((_, s, _, _)) => s, reports));
 
 let lookup_and_join = (n: int, test_map: t): TestStatus.t =>
   switch (lookup(n, test_map)) {

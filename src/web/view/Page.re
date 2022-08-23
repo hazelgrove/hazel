@@ -2,33 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let button = (icon, action) =>
-  div([clss(["icon"]), Attr.on_mousedown(action)], [icon]);
-
-let button_d = (icon, action, ~disabled: bool) =>
-  div(
-    [
-      clss(["icon"] @ (disabled ? ["disabled"] : [])),
-      Attr.on_mousedown(_ => unless(disabled, action)),
-    ],
-    [icon],
-  );
-
-let link = (icon, url) =>
-  div(
-    [clss(["icon"])],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
-  );
-
-let toggle = (label, active, action) =>
-  div(
-    [
-      clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
-    ],
-    [div([clss(["toggle-knob"])], [text(label)])],
-  );
-
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
   JsUtil.copy_to_clipboard(Log.get_json_update_log_string());

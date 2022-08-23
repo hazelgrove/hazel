@@ -107,7 +107,10 @@ let coverage_report_view =
 let passing_test_ids = test_map =>
   test_map
   |> List.filter(((_id, reports)) =>
-       List.for_all(((_, status, _)) => status == TestStatus.Pass, reports)
+       List.for_all(
+         ((_, status, _, _)) => status == TestStatus.Pass,
+         reports,
+       )
      )
   |> List.split
   |> fst;
@@ -115,7 +118,10 @@ let passing_test_ids = test_map =>
 let failing_test_ids = test_map =>
   test_map
   |> List.filter(((_id, reports)) =>
-       List.for_all(((_, status, _)) => status == TestStatus.Fail, reports)
+       List.for_all(
+         ((_, status, _, _)) => status == TestStatus.Fail,
+         reports,
+       )
      )
   |> List.split
   |> fst;

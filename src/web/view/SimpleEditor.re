@@ -21,7 +21,14 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   );
 
 let single_editor_semantics_views =
-    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Model.settings,
+      ~index,
+      ~unselected,
+      ~instances: option('a),
+    ) => {
   let term = MakeTerm.go(unselected);
   let (_, _, map) = Statics.mk_map(term);
   let test_results =
@@ -36,7 +43,28 @@ let single_editor_semantics_views =
         switch (eval_result) {
         | _ when !settings.dynamics => []
         | None => []
-        | Some(eval_result) => [res_view(~font_metrics, eval_result)]
+        | Some(eval_result) =>
+          switch (instances) {
+          | None
+          | Some([]) => [res_view(~font_metrics, eval_result)]
+          | Some(instances) =>
+            let cur_idx = Model.get_selected_instance(settings);
+            let cur_idx = cur_idx >= List.length(instances) ? 0 : cur_idx;
+            let (_, _, _, res) = List.nth(instances, cur_idx);
+            [
+              div(
+                [clss(["live-bar"])],
+                [
+                  LiveInspector.instance_selector(
+                    ~inject,
+                    ~settings,
+                    List.length(instances),
+                  ),
+                  LiveInspector.result_view(~font_metrics, res),
+                ],
+              ),
+            ];
+          }
         }
       ),
     ),
@@ -147,8 +175,9 @@ let view =
       ~show_deco=true,
       zipper,
     );
-  //print_endline("cidyn:");
-  let instances = Interface.cursor_dynamics(zipper);
+  //HACK,TODO(andrew): remove duplicates due to multiple instances due to cases
+  let instances =
+    Interface.cursor_dynamics(zipper) |> Option.map(List.sort_uniq(compare));
   let semantics_views =
     settings.statics
       ? single_editor_semantics_views(
@@ -157,21 +186,24 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
+          ~instances,
         )
       : [];
+
   let mousedown_overlay =
     mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   div(
     [
       clss(["editor", "single"]),
-      Attr.on_mousedown(e =>
-        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
-      ),
+      //TODO(andrew): re-enable
+      /*Attr.on_mousedown(e =>
+          mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+        ),*/
     ],
     [code_view]
     @ semantics_views
-    @ [LiveInspector.view(~font_metrics, ~settings, instances)]
+    @ [LiveInspector.view(~inject, ~font_metrics, ~settings, instances)]
     @ mousedown_overlay,
   );
 };

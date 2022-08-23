@@ -10,7 +10,8 @@ type settings_action =
   | Dynamics
   | Student
   | ContextInspector
-  | Mode(Model.mode);
+  | Mode(Model.mode)
+  | SelectedInstances(Id.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -85,6 +86,11 @@ let update_settings =
         context_inspector: !settings.context_inspector,
       }
     | Mode(mode) => {...settings, mode}
+    | SelectedInstances(loc_id, idx) => {
+        ...settings,
+        selected_instances:
+          List.cons((loc_id, idx), settings.selected_instances),
+      }
     };
   LocalStorage.save_settings(settings);
   settings;

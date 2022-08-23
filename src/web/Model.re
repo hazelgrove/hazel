@@ -32,6 +32,9 @@ type mode =
   | School;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type selected_instances = list((Id.t, Id.t));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
   captions: bool,
   whitespace_icons: bool,
@@ -40,6 +43,7 @@ type settings = {
   context_inspector: bool,
   student: bool,
   mode,
+  selected_instances,
 };
 
 let settings_init = {
@@ -50,6 +54,7 @@ let settings_init = {
   context_inspector: false,
   student: true,
   mode: Simple,
+  selected_instances: [],
 };
 
 type t = {
@@ -129,6 +134,12 @@ let num_editors = (model: t): int =>
   | Simple(_) => 1
   | Study(_, zs)
   | School(_, zs) => List.length(zs)
+  };
+
+let get_selected_instance = (settings: settings): int =>
+  switch (List.assoc_opt(-1, settings.selected_instances)) {
+  | None => 0
+  | Some(idx) => idx
   };
 
 let simple_init: simple = (1, mk_editor(Zipper.init(0)));
