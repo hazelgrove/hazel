@@ -250,6 +250,88 @@ module Deco =
     ();
   };
 
+  let err_holes = (z: Zipper.t) => {
+    let seg = Zipper.zip(z);
+    let ranges = TermRanges.mk(seg);
+    let measured = Measured.of_segment(seg);
+    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
+    let is_err = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, info_map)) {
+      | None => false
+      | Some(info) => Statics.is_error(info)
+      };
+
+    let rec go_seg = (seg: Segment.t): list(Id.t) => {
+      let rec go_skel = (skel: Skel.t): list(Id.t) => {
+        let root = List.nth(seg, Skel.root_index(skel));
+        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
+        let uni_ids =
+          switch (skel) {
+          | Op(_) => []
+          | Pre(_, r) => go_skel(r)
+          | Post(l, _) => go_skel(l)
+          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
+          };
+        root_ids @ uni_ids;
+      };
+
+      let bi_ids =
+        seg
+        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
+
+      go_skel(Segment.skel(seg)) @ bi_ids;
+    };
+
+    let err_ids = go_seg(seg);
+    let err_ranges =
+      err_ids
+      |> List.map(id => {
+           let (p_l, p_r) = TermRanges.find(id, ranges);
+           let l = Measured.find_p(p_l, M.map).origin;
+           let r = Measured.find_p(p_r, M.map).last;
+           (l, r);
+         });
+    err_ranges
+    |> List.map(((l: Measured.point, r: Measured.point)) => {
+         let (l_edge, r_edge) =
+           ListUtil.range(~lo=l.row, r.row + 1)
+           |> List.map(i => {
+                let row = Measured.Rows.find(i, measured.rows);
+                let l_edge =
+                  SvgUtil.Path.[
+                    h(~x=i == l.row ? l.col : row.indent),
+                    v_(~dy=-1),
+                  ];
+                let r_edge =
+                  SvgUtil.Path.[
+                    h(~x=i == r.row ? r.col : row.max_col),
+                    v_(~dy=1),
+                  ];
+                (l_edge, r_edge);
+              })
+           |> List.split
+           |> TupleUtil.map2(List.concat);
+         (
+           l,
+           SvgUtil.Path.[m(~x=l.col, ~y=l.row), ...l_edge]
+           @ r_edge
+           @ [SvgUtil.Path.Z]
+           |> SvgUtil.Path.translate({
+                dx: Float.of_int(- l.col),
+                dy: Float.of_int(- l.row),
+              }),
+         );
+       })
+    |> List.map(((origin, path)) =>
+         DecUtil.code_svg(
+           ~font_metrics,
+           ~origin,
+           ~base_cls=["err-hole"],
+           path,
+         )
+       );
+  };
+
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
