@@ -1,10 +1,14 @@
 open OptUtil.Syntax;
 
-let exp_htyp = (m, e) => Typ.htyp_of_typ(Statics.exp_typ(m, e));
-let pat_htyp = (m, p) => Typ.htyp_of_typ(Statics.pat_typ(m, p));
+let exp_htyp = (ctx, m, e) => Typ.to_htyp(ctx, Statics.exp_typ(m, e));
+let pat_htyp = (ctx, m, p) => Typ.to_htyp(ctx, Statics.pat_typ(m, p));
 
-let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, Typ.htyp_of_typ(typ)), ctx);
+let ctx_to_varctx = (ctx: Typ.Ctx.t): VarCtx.t =>
+  ctx
+  |> Typ.Ctx.vars
+  |> List.map(((_, {name, typ, _}: Typ.Ctx.var_entry)) =>
+       (name, Typ.to_htyp(ctx, typ))
+     );
 
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
@@ -43,18 +47,48 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)),
     );
 
+let rec typ_of_utyp = (utyp: Term.UTyp.t): Typ.t =>
+  switch (utyp.term) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => Typ.unknown(TypeHole)
+  | Int => Typ.int()
+  | Float => Typ.float()
+  | Bool => Typ.bool()
+  | List(utyp1) => Typ.list(typ_of_utyp(utyp1))
+  | Arrow(utyp1, utyp2) =>
+    Typ.arrow(typ_of_utyp(utyp1), typ_of_utyp(utyp2))
+  | Tuple(_, utyps) => Typ.product(List.map(typ_of_utyp, utyps))
+  | Parens(utyp) => typ_of_utyp(utyp)
+  };
+
+let tpat_of_utpat = (utpat: Term.UTPat.t): TPat.t =>
+  switch (utpat.term) {
+  | Invalid(_, p) =>
+    let t =
+      Piece.get(
+        w => w.content,
+        _ => "<grout>",
+        t => String.concat(" ", t.label),
+        p,
+      );
+    InvalidText(utpat.id, t);
+  | EmptyHole => EmptyHole
+  | Var(token) => TyVar(TPatErrStatus.NotInHole, token)
+  };
+
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(uexp.id, m)) {
   | Some(InfoExp({ctx, mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = uexp.id; /* NOTE: using term uids for hole ids */
-    let gamma = Ctx.to_context(ctx);
+    let gamma = Typ.Ctx.to_context(ctx);
     let sigma = Environment.id_env(gamma);
     let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
@@ -87,12 +121,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Float(n) => wrap(FloatLit(n))
     | ListLit(_) =>
       //TODO: list literals. below is just placeholder
-      wrap(ListNil((Ctx.to_context(ctx), HTyp.hole())))
+      wrap(ListNil((Typ.Ctx.to_context(ctx), HTyp.hole())))
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = pat_htyp(m, p);
-      wrap(DHExp.Fun(dp, (Ctx.to_context(ctx), ty1), d1));
+      let ty1 = pat_htyp(ctx, m, p);
+      wrap(DHExp.Fun(dp, (Typ.Ctx.to_context(ctx), ty1), d1));
     | Tuple(_ids, es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {
@@ -116,20 +150,20 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d2 = dhexp_of_uexp(m, e2);
       wrap(Cons(d1, d2));
     | UnOp(Int(Minus), e) =>
-      let ctx = Ctx.to_context(ctx);
+      let hctx = Typ.Ctx.to_context(ctx);
       let* d = dhexp_of_uexp(m, e);
-      let ty = exp_htyp(m, e);
-      let dc = DHExp.cast(d, (ctx, ty), (ctx, HTyp.int()));
+      let ty = exp_htyp(ctx, m, e);
+      let dc = DHExp.cast(d, (hctx, ty), (hctx, HTyp.int()));
       wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
-      let ctx = Ctx.to_context(ctx);
+      let hctx = Typ.Ctx.to_context(ctx);
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = exp_htyp(m, e1);
-      let ty2 = exp_htyp(m, e2);
-      let dc1 = DHExp.cast(d1, (ctx, ty1), (ctx, ty));
-      let dc2 = DHExp.cast(d2, (ctx, ty2), (ctx, ty));
+      let ty1 = exp_htyp(ctx, m, e1);
+      let ty2 = exp_htyp(ctx, m, e2);
+      let dc1 = DHExp.cast(d1, (hctx, ty1), (hctx, ty));
+      let dc2 = DHExp.cast(d2, (hctx, ty2), (hctx, ty));
       wrap(cons(dc1, dc2));
     | Parens(e) => dhexp_of_uexp(m, e)
     | Seq(e1, e2) =>
@@ -144,37 +178,43 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
       | _ => wrap(BoundVar(name))
       }
+    | TyAlias(utpat, def, body) =>
+      let tpat = tpat_of_utpat(utpat);
+      let def = typ_of_utyp(def) |> Typ.to_htyp(ctx);
+      let ddef = (Typ.Ctx.to_context(ctx), def);
+      let* dbody = dhexp_of_uexp(m, body);
+      wrap(DHExp.TyAlias(tpat, ddef, dbody));
     | Let(
         {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
         {term: Fun(_), _} as def,
         body,
       ) =>
-      let ctx = Ctx.to_context(ctx);
+      let hctx = Typ.Ctx.to_context(ctx);
       /* NOTE: recursive case */
-      let pat_typ = pat_htyp(m, p);
-      let def_typ = exp_htyp(m, def);
+      let pat_typ = pat_htyp(ctx, m, p);
+      let def_typ = exp_htyp(ctx, m, def);
       let* p = dhpat_of_upat(m, p);
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
       let cast_var =
-        DHExp.cast(BoundVar(x), (ctx, def_typ), (ctx, pat_typ));
+        DHExp.cast(BoundVar(x), (hctx, def_typ), (hctx, pat_typ));
       let def_subst = Evaluator.subst_var(cast_var, x, def);
-      wrap(Let(p, FixF(x, (ctx, def_typ), def_subst), body));
+      wrap(Let(p, FixF(x, (hctx, def_typ), def_subst), body));
     | Let(p, def, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* ddef = dhexp_of_uexp(m, def);
       let* dbody = dhexp_of_uexp(m, body);
       wrap(Let(dp, ddef, dbody));
     | Ap(fn, arg) =>
-      let ctx = Ctx.to_context(ctx);
+      let hctx = Typ.Ctx.to_context(ctx);
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = exp_htyp(m, fn);
-      let ty_arg = exp_htyp(m, arg);
-      let* (ty_in, ty_out) = HTyp.matched_arrow(ctx, ty_fn);
+      let ty_fn = exp_htyp(ctx, m, fn);
+      let ty_arg = exp_htyp(ctx, m, arg);
+      let* (ty_in, ty_out) = HTyp.matched_arrow(hctx, ty_fn);
       let c_fn =
-        DHExp.cast(d_fn, (ctx, ty_fn), (ctx, HTyp.arrow(ty_in, ty_out)));
-      let c_arg = DHExp.cast(d_arg, (ctx, ty_arg), (ctx, ty_in));
+        DHExp.cast(d_fn, (hctx, ty_fn), (hctx, HTyp.arrow(ty_in, ty_out)));
+      let c_arg = DHExp.cast(d_arg, (hctx, ty_arg), (hctx, ty_in));
       wrap(Ap(c_fn, c_arg));
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -207,14 +247,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(ConsistentCase(d))
       };
     };
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(upat.id, m)) {
-  | Some(InfoPat({mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+  | Some(InfoPat({mode, self, ctx, _})) =>
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -262,7 +302,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 };

@@ -41,7 +41,7 @@ module UTPat = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(Piece.t)
+    | Invalid(parse_flag, Piece.t)
     | EmptyHole
     | Var(Token.t)
   and t = {
@@ -247,6 +247,7 @@ module UExp = {
     | Fun
     | Tuple
     | Var
+    | TyAlias
     | Let
     | Ap
     | If
@@ -271,6 +272,7 @@ module UExp = {
     | Fun(UPat.t, t)
     | Tuple(list(Id.t), list(t))
     | Var(Token.t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Let(UPat.t, t, t)
     | Ap(t, t)
     | If(t, t, t)
@@ -301,6 +303,7 @@ module UExp = {
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
+    | TyAlias(_) => TyAlias
     | Let(_) => Let
     | Ap(_) => Ap
     | If(_) => If
@@ -364,6 +367,7 @@ module UExp = {
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
+    | TyAlias => "Type Alias"
     | Let => "Let Expression"
     | Ap => "Function Application"
     | If => "If Expression"
@@ -381,14 +385,14 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(TypeHole)
-    | Bool => Bool
-    | Int => Int
-    | Float => Float
-    | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
-    | List(u) => List(utyp_to_ty(u))
+    | MultiHole(_) => Typ.unknown(Internal)
+    | EmptyHole => Typ.unknown(TypeHole)
+    | Bool => Typ.bool()
+    | Int => Typ.int()
+    | Float => Typ.float()
+    | Arrow(u1, u2) => Typ.arrow(utyp_to_ty(u1), utyp_to_ty(u2))
+    | Tuple(_, us) => Typ.product(List.map(utyp_to_ty, us))
+    | List(u) => Typ.list(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
     };
 
@@ -416,6 +420,7 @@ type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
+  | TPat(UTPat.t)
   | Rul(URul.s)
   | Nul(unit)
   | Any(unit);

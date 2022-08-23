@@ -66,7 +66,7 @@ module Ref: {
 
   let abs: (Idx.Abs.t, ~predecessors: peers=?, ~successors: peers=?, int) => t;
 
-  let equiv: (t, t) => bool;
+  let equivalent: (t, t) => bool;
 };
 
 /** Types with holes and type variables */
@@ -166,6 +166,8 @@ module rec Ctx: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(coentry));
+
+  let to_context: t => Context.t;
 
   let subtract: (t, co) => co;
   let union: list(co) => co;
@@ -270,9 +272,28 @@ and Kind: {
   /** Produces a [Typ] belonging to the given [Kind]. */
   let to_typ: t => Typ.t;
 
+  /* Kind Constructor Functions */
+
   let unknown: unit => t;
   let abstract: unit => t;
   let singleton: Typ.t => t;
+
+  /** Subkind consistency.
+
+     One [Kind] is a consistent subkind of another when they satisfy one of the following properties:
+
+     - At least one is [Unknown].
+     - The first is at least as specific as the second.
+     - Both are singletons and their underlying types are equivalent. */
+  let consistent_subkind: (Ctx.t, t, t) => bool;
+
+  /** Kind equivalence.
+
+     Two [Kind]s are equivalent when they satisfy one of the following properties:
+
+     - Neither is a singleton.
+     - Both are singletons and their underlying types are equivalent. */
+  let equivalent: (Ctx.t, t, t) => bool;
 }
 
 and Typ: {
@@ -314,6 +335,12 @@ and Typ: {
   type mode =
     | Syn
     | Ana(t);
+
+  /** A normalized [Typ]. */
+  [@deriving sexp]
+  type normalized = Typ_syntax.t(Pos.absolute);
+
+  let to_htyp: (Ctx.t, t) => HTyp.t;
 
   /** Returns the underlying AST of a [Typ]. */
   let to_syntax: t => Typ_syntax.t(Pos.absolute);
@@ -378,7 +405,7 @@ let consistent: (Ctx.t, t, t) => bool;
 let equivalent: (Ctx.t, t, t) => bool;
 
 /** A [Typ] is complete when it has no holes. */
-let complete: t => bool;
+let complete: (Ctx.t, t) => bool;
 
 /* Type Variables */
 
@@ -418,10 +445,6 @@ let matched_list_lit_mode: (mode, int) => list(mode);
 let ap_mode: mode;
 
 /* Typ Normalization */
-
-/** A normalized [Typ]. */
-[@deriving sexp]
-type normalized = Typ_syntax.t(Pos.absolute);
 
 /** Coerces a normalized [Typ] to an ordinary [Typ]. */
 let of_normalized: normalized => t;

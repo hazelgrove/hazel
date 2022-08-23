@@ -4,7 +4,7 @@ module ContextRef = {
   /* TODO: (eric) is there a way to incorporate peer type info? */
   [@deriving sexp]
   type s('idx) = {
-    index: Index.t('idx),
+    index: Index.s('idx),
     stamp: int,
     predecessors: list(string),
     successors: list(string),

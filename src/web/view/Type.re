@@ -5,7 +5,7 @@ open Util.Web;
 let ty_view = (cls: string, s: string): Node.t =>
   div([clss(["typ-view", cls])], [text(s)]);
 
-let prov_view: Core.Typ.type_provenance => Node.t =
+let prov_view: Core.Typ.Typ_syntax.type_provenance => Node.t =
   fun
   | Internal => div([], [])
   | TypeHole => div([clss(["typ-mod", "type-hole"])], [text("𝜏")])
@@ -13,7 +13,7 @@ let prov_view: Core.Typ.type_provenance => Node.t =
 
 let rec view = (ty: Core.Typ.t): Node.t =>
   //TODO(andrew): parens on ops when ambiguous
-  switch (ty) {
+  switch (Core.Typ.to_syntax(ty)) {
   | Unknown(prov) =>
     div(
       [clss(["typ-view", "atom", "unknown"])],
@@ -25,10 +25,17 @@ let rec view = (ty: Core.Typ.t): Node.t =>
   | List(t) =>
     div(
       [clss(["typ-view", "atom", "List"])],
-      [text("["), view(t), text("]")],
+      [text("["), view(Core.Typ.of_syntax(t)), text("]")],
     )
   | Arrow(t1, t2) =>
-    div([clss(["typ-view", "Arrow"])], [view(t1), text("->"), view(t2)])
+    div(
+      [clss(["typ-view", "Arrow"])],
+      [
+        view(Core.Typ.of_syntax(t1)),
+        text("->"),
+        view(Core.Typ.of_syntax(t2)),
+      ],
+    )
   | Prod([]) => div([clss(["typ-view", "Prod"])], [text("Unit")])
   | Prod([_]) => div([clss(["typ-view", "Prod"])], [text("BadProduct")])
   | Prod([t0, ...ts]) =>
@@ -38,10 +45,14 @@ let rec view = (ty: Core.Typ.t): Node.t =>
         text("("),
         div(
           [clss(["typ-view", "Prod"])],
-          [view(t0)]
-          @ (List.map(t => [text(","), view(t)], ts) |> List.flatten),
+          [view(Core.Typ.of_syntax(t0))]
+          @ (
+            List.map(t => [text(","), view(Core.Typ.of_syntax(t))], ts)
+            |> List.flatten
+          ),
         ),
         text(")"),
       ],
     )
+  | TyVar(_, t) => ty_view("TyVar", t)
   };

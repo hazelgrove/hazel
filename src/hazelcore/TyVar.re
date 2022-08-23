@@ -3,6 +3,9 @@ open Sexplib.Std;
 [@deriving (sexp, yojson)]
 type t = string;
 
+let pp = fmt => Format.fprintf(fmt, "%s");
+let show = Format.asprintf("%a", pp);
+
 let length: t => int = String.length;
 
 let equal: (t, t) => bool = String.equal;

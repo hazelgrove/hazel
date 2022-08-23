@@ -84,6 +84,9 @@
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
+
+  --tpat-off-color: #13aed2;
+  --tpat-bg-color: #b2e8ff;
   
   --typ-text-color: #772cff;/*#24ae62;*/
   --typ-off-color: #975dff; /*#7fc97f;*/
@@ -246,7 +249,8 @@ svg {
 .code-container,
 .DHCode,
 .cursor-inspector,
-.context-entry,
+.context-var-entry,
+.context-tyvar-entry,
 .typ-view {
   line-height: var(--line-height);
   white-space: nowrap;
@@ -817,6 +821,9 @@ svg {
 .sort-label.pat {
   background-color: var(--pat-bg-color);
 }
+.sort-label.tpat {
+  background-color: var(--tpat-bg-color);
+}
 .sort-label.exp {
   background-color: var(--exp-bg-color);
 }
@@ -954,6 +961,10 @@ svg {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
+.term-tag-tpat{
+  background-color: var(--tpat-bg-color);
+  color: var(--tpat-off-color);
+}
 .term-tag-exp{
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
@@ -1049,7 +1060,8 @@ svg {
   box-shadow: 0px 3px 0px #77580255;
 }
 
-.context-entry {
+.context-var-entry,
+.context-tyvar-entry {
   display: flex;
   width: 10em;
   gap: 0.5em;

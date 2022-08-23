@@ -109,7 +109,7 @@ module Ref = {
     {index, stamp, predecessors, successors};
   };
 
-  let equiv =
+  let equivalent =
       ({index, stamp, _}: t, {index: index', stamp: stamp', _}: t): bool => {
     let delta = stamp - stamp';
     Idx.equal(
@@ -250,6 +250,8 @@ module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(coentry));
 
+  let to_context: t => Context.t;
+
   let subtract: (t, co) => co;
   let union: list(co) => co;
 
@@ -367,7 +369,7 @@ module rec Ctx: {
     let index = Idx.Abs.of_int(i);
     let stamp = length(ctx);
     let (successors, _, predecessors) =
-      ctx |> List.map(binding_name) |> Util.ListUtil.pivot(i);
+      ctx |> List.map(binding_name) |> ListUtil.pivot(i);
     Ref.abs(index, stamp, ~predecessors, ~successors);
   };
 
@@ -424,7 +426,7 @@ module rec Ctx: {
       failwith(__LOC__ ++ ": rescoping context is in the future");
     };
     let (successors, _, predecessors) =
-      ctx |> List.map(binding_name) |> Util.ListUtil.pivot(i);
+      ctx |> List.map(binding_name) |> ListUtil.pivot(i);
     if (List.length(predecessors) != List.length(cref.predecessors)
         || !List.for_all2(String.equal, predecessors, cref.predecessors)) {
       failwith(
@@ -436,14 +438,8 @@ module rec Ctx: {
     let m = List.length(cref.successors);
     let (succs1, succs2) =
       switch (n > m, n < m) {
-      | (true, _) => (
-          Util.ListUtil.drop(successors, n - m),
-          cref.successors,
-        )
-      | (_, true) => (
-          successors,
-          Util.ListUtil.drop(cref.successors, m - n),
-        )
+      | (true, _) => (ListUtil.drop(n - m, successors), cref.successors)
+      | (_, true) => (successors, ListUtil.drop(m - n, cref.successors))
       | _ => (successors, cref.successors)
       };
     if (!List.for_all2(String.equal, succs1, succs2)) {
@@ -562,7 +558,7 @@ module rec Ctx: {
     let old_tyvars = tyvars(old_ctx);
     let n = List.length(new_tyvars) - List.length(old_tyvars);
     let tyvars =
-      Util.ListUtil.take(new_tyvars, n)
+      ListUtil.take(new_tyvars, n)
       |> List.map(((cref: Ref.t, entry: tyvar_entry)) => {
            let cref = rescope(new_ctx, cref);
            let ty = Typ.rescope(new_ctx, Kind.to_typ(entry.kind));
@@ -647,6 +643,18 @@ module rec Ctx: {
       entries,
       [],
     );
+
+  let to_context = (ctx: t): Context.t =>
+    ctx
+    |> entries
+    |> List.map(
+         fun
+         | VarEntry(entry) =>
+           Context.VarEntry(entry.name, Typ.to_htyp(ctx, entry.typ))
+         | TyVarEntry(entry) =>
+           TyVarEntry(entry.name, Kind.to_hkind(ctx, entry.kind)),
+       )
+    |> Context.of_entries;
 }
 
 /*******************************************************************************
@@ -674,6 +682,8 @@ and Kind: {
     | Syn
     | Ana(t);
 
+  let to_hkind: (Ctx.t, t) => KindSystem.Kind.t;
+
   let pp: (Format.formatter, t) => unit;
   let show: t => string;
 
@@ -683,6 +693,9 @@ and Kind: {
   let unknown: unit => t;
   let abstract: unit => t;
   let singleton: Typ.t => t;
+
+  let consistent_subkind: (Ctx.t, t, t) => bool;
+  let equivalent: (Ctx.t, t, t) => bool;
 } = {
   [@deriving (sexp, yojson)]
   type t = Kind_syntax.s(Pos.absolute);
@@ -723,7 +736,15 @@ and Kind: {
   /*     Singleton(Typ.to_syntax(Typ.rescope(ctx, Typ.of_syntax(ty)))) */
   /*   }; */
 
-  /* For converting type variables to equivalent [HTyp]s while resolving local
+  let to_hkind = (ctx: Ctx.t, kind: t): KindSystem.Kind.t =>
+    switch (kind) {
+    | Unknown => Hole
+    | Abstract => Type
+    | Singleton(ty) =>
+      S(HTyp.to_syntax(Typ.to_htyp(ctx, Typ.of_syntax(ty))))
+    };
+
+  /* For converting type variables to equivalent [Typ]s while resolving local
      type aliases. */
   let to_typ: t => Typ.t =
     fun
@@ -734,6 +755,26 @@ and Kind: {
   let unknown = () => Kind_syntax.Unknown;
   let abstract = () => Kind_syntax.Abstract;
   let singleton = ty => Kind_syntax.Singleton(ty);
+
+  let consistent_subkind = (ctx: Ctx.t, k: t, k': t): bool =>
+    switch (k, k') {
+    | (Unknown, _)
+    | (_, Unknown) => true
+    | (Singleton(_), Abstract) => true
+    | (Singleton(ty), Singleton(ty')) =>
+      Typ.consistent(ctx, Typ.of_syntax(ty), Typ.of_syntax(ty'))
+    | (Abstract, Singleton(_)) => false
+    | (Abstract, Abstract) => true
+    };
+
+  let equivalent = (ctx: Ctx.t, k: t, k': t): bool =>
+    switch (k, k') {
+    | (Unknown | Abstract, Unknown | Abstract) => true
+    | (Unknown | Abstract, _) => false
+    | (Singleton(ty1), Singleton(ty1')) =>
+      Typ.equivalent(ctx, Typ.of_syntax(ty1), Typ.of_syntax(ty1'))
+    | (Singleton(_), _) => false
+    };
 }
 
 /*******************************************************************************
@@ -762,6 +803,11 @@ and Typ: {
     | Syn
     | Ana(t);
 
+  [@deriving sexp]
+  type normalized = Typ_syntax.t(Pos.absolute);
+
+  let to_htyp: (Ctx.t, t) => HTyp.t;
+
   let to_syntax: t => Typ_syntax.t(Pos.absolute);
   let of_syntax: Typ_syntax.t(Pos.absolute) => t;
 
@@ -786,7 +832,7 @@ and Typ: {
 
   let consistent: (Ctx.t, t, t) => bool;
   let equivalent: (Ctx.t, t, t) => bool;
-  let complete: t => bool;
+  let complete: (Ctx.t, t) => bool;
 
   let tyvar: (Ctx.t, Idx.Abs.t, TyVar.t) => t;
   let tyvar_ref: t => option(Ref.t);
@@ -794,6 +840,11 @@ and Typ: {
 
   let rescope: (Ctx.t, t) => t;
   let subst_tyvars: (Ctx.t, t, list((Ref.t, t))) => t;
+
+  let of_normalized: normalized => t;
+  let normalize: (Ctx.t, t) => normalized;
+  let normalized_consistent: (normalized, normalized) => bool;
+  let normalized_equivalent: (normalized, normalized) => bool;
 } = {
   [@deriving (sexp, yojson)]
   type t = Typ_syntax.t(Pos.absolute);
@@ -849,6 +900,22 @@ and Typ: {
   type mode =
     | Syn
     | Ana(t);
+
+  [@deriving sexp]
+  type normalized = Typ_syntax.t(Pos.absolute);
+
+  let rec to_htyp = (ctx: Ctx.t, ty: t): HTyp.t =>
+    switch (ty) {
+    | Unknown(_) => HTyp.hole()
+    | Int => HTyp.int()
+    | Float => HTyp.float()
+    | Bool => HTyp.bool()
+    | List(ty) => HTyp.list(to_htyp(ctx, ty))
+    | Arrow(ty1, ty2) => HTyp.arrow(to_htyp(ctx, ty1), to_htyp(ctx, ty2))
+    | Prod(tys) => HTyp.product(List.map(to_htyp(ctx), tys))
+    | TyVar(cref, t) =>
+      HTyp.tyvar(Ctx.to_context(ctx), Index.Abs.of_int(cref.index), t)
+    };
 
   let to_syntax: t => Typ_syntax.t(Pos.absolute) = ty => ty;
 
@@ -908,23 +975,22 @@ and Typ: {
     | (TyVar(cref, _), TyVar(cref', _)) =>
       Ref.equivalent(cref, cref')
       || (
-        switch (Ctx.tyvar_kind(ctx, cref), Ctx.tyvar_kind(ctx, cref')) {
-        | (Some(k), Some(k')) => Kind.equivalent(ctx, k, k')
+        switch (Ctx.tyvar(ctx, cref), Ctx.tyvar(ctx, cref')) {
+        | (Some({kind, _}), Some({kind: kind', _})) =>
+          Kind.equivalent(ctx, kind, kind')
         | (None, _)
         | (_, None) => false
         }
       )
     | (TyVar(_), _) => false
-    | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u')
-    | (TyVarHole(_, _, _), _) => false
-    | (InvalidText(u, _), InvalidText(u', _)) => MetaVar.eq(u, u')
-    | (InvalidText(_), _) => false
-    | (Hole | Int | Float | Bool, _) => ty == ty'
-    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    /* | (TyVarHole(_, u, _), TyVarHole(_, u', _)) => MetaVar.eq(u, u') */
+    /* | (TyVarHole(_, _, _), _) => false */
+    /* | (InvalidText(u, _), InvalidText(u', _)) => MetaVar.eq(u, u') */
+    /* | (InvalidText(_), _) => false */
+    | (Unknown(_) | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       equivalent(ctx, ty1, ty1') && equivalent(ctx, ty2, ty2')
     | (Arrow(_, _), _) => false
-    | (Sum(_, _), _) => false
     | (Prod(tys1), Prod(tys2)) =>
       List.for_all2(equivalent(ctx), tys1, tys2)
     | (Prod(_), _) => false
@@ -936,31 +1002,33 @@ and Typ: {
     switch (ty, ty') {
     | (TyVar(cref, _), TyVar(cref', _)) =>
       switch (
-        Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
-        Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
+        Ctx.tyvar(ctx, Ctx.rescope(ctx, cref)),
+        Ctx.tyvar(ctx, Ctx.rescope(ctx, cref')),
       ) {
-      | (Some(k), Some(k')) =>
+      | (Some({kind: k, _}), Some({kind: k', _})) =>
         consistent(
           ctx,
-          HTyp.to_syntax(Kind.to_htyp(k)),
-          HTyp.to_syntax(Kind.to_htyp(k')),
+          Typ.to_syntax(Kind.to_typ(k)),
+          Typ.to_syntax(Kind.to_typ(k')),
         )
       | (None, _)
       | (_, None) => false
       }
     | (TyVar(cref, _), ty1)
     | (ty1, TyVar(cref, _)) =>
-      switch (Context.tyvar_kind(ctx, Context.rescope(ctx, cref))) {
-      | Some(k) => consistent(ctx, HTyp.to_syntax(Kind.to_htyp(k)), ty1)
+      switch (Ctx.tyvar(ctx, Ctx.rescope(ctx, cref))) {
+      | Some({kind: k, _}) =>
+        consistent(ctx, Typ.to_syntax(Kind.to_typ(k)), ty1)
       | None => false
       }
-    | (TyVarHole(_) | InvalidText(_) | Hole, _)
-    | (_, TyVarHole(_) | InvalidText(_) | Hole) => true
+    | (Unknown(_), _)
+    | (_, Unknown(_)) => true
+    /* | (TyVarHole(_) | InvalidText(_) | Hole, _) */
+    /* | (_, TyVarHole(_) | InvalidText(_) | Hole) => true */
     | (Int | Float | Bool, _) => ty == ty'
-    | (Arrow(ty1, ty2), Arrow(ty1', ty2'))
-    | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       consistent(ctx, ty1, ty1') && consistent(ctx, ty2, ty2')
-    | (Arrow(_) | Sum(_), _) => false
+    | (Arrow(_), _) => false
     | (Prod(tys), Prod(tys')) => List.for_all2(consistent(ctx), tys, tys')
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
@@ -978,19 +1046,23 @@ and Typ: {
   /*   }; */
 
   /* complete (i.e. does not have any holes) */
-  let rec complete: t => bool =
-    fun
-    | Hole
-    | TyVarHole(_)
-    | InvalidText(_) => false
-    | TyVar(_)
+  let rec complete = (ctx: Ctx.t, ty: t): bool =>
+    switch (ty) {
+    | Unknown(_) => false
     | Int
     | Float
     | Bool => true
-    | Arrow(ty1, ty2)
-    | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
-    | Prod(tys) => tys |> List.for_all(complete)
-    | List(ty) => complete(ty);
+    | TyVar(cref, _) =>
+      switch (Ctx.tyvar(ctx, cref)) {
+      | None
+      | Some({kind: Unknown, _}) => false
+      | Some({kind: Abstract, _}) => true
+      | Some({kind: Singleton(ty), _}) => complete(ctx, ty)
+      }
+    | Arrow(ty1, ty2) => complete(ctx, ty1) && complete(ctx, ty2)
+    | Prod(tys) => tys |> List.for_all(complete(ctx))
+    | List(ty) => complete(ctx, ty)
+    };
 
   /* Type Variables */
 
@@ -1052,7 +1124,7 @@ and Typ: {
       )
     | Prod(tys) =>
       Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
-    | TyVar(cref', _) => Ref.equiv(cref, cref') ? ty' : ty
+    | TyVar(cref', _) => Ref.equivalent(cref, cref') ? ty' : ty
     };
   };
 
@@ -1062,6 +1134,72 @@ and Typ: {
       ty,
       tyvars,
     );
+
+  /* Normalization */
+
+  let of_normalized: normalized => t = t => t;
+
+  /* Replaces every singleton-kinded type variable with a normalized type. */
+  let rec normalize = (ctx: Ctx.t, ty: t): normalized =>
+    switch (ty) {
+    | TyVar(cref, _) =>
+      switch (Ctx.tyvar(ctx, cref)) {
+      | Some({kind: Unknown, _}) => ty
+      | Some({kind: Singleton(ty1), _}) => normalize(ctx, ty1)
+      | Some(_) => ty
+      | None =>
+        failwith(
+          __LOC__
+          ++ ": unknown type variable index "
+          ++ Idx.show(cref.index)
+          ++ " stamped "
+          ++ Int.to_string(cref.stamp),
+        )
+      }
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool => ty
+    | Arrow(ty1, ty2) => Arrow(normalize(ctx, ty1), normalize(ctx, ty2))
+    | Prod(tys) => Prod(List.map(normalize(ctx), tys))
+    | List(ty1) => List(normalize(ctx, ty1))
+    };
+
+  /* Properties of Normalized Typ */
+
+  let rec normalized_consistent = (ty: normalized, ty': normalized): bool =>
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) =>
+      // normalization eliminates all type variables of singleton kind, so these
+      // must be of kind Type or Hole
+      Ref.equivalent(cref, cref')
+    | (TyVar(_) | Unknown(_), _)
+    | (_, TyVar(_) | Unknown(_)) => true
+    | (Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      normalized_consistent(ty1, ty1') && normalized_consistent(ty2, ty2')
+    | (Arrow(_), _) => false
+    | (Prod(tys), Prod(tys')) =>
+      List.for_all2(normalized_consistent, tys, tys')
+    | (Prod(_), _) => false
+    | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
+    | (List(_), _) => false
+    };
+
+  let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
+    switch (ty, ty') {
+    | (TyVar(cref, _), TyVar(cref', _)) => Ref.equivalent(cref, cref')
+    | (TyVar(_), _) => false
+    | (Unknown(_) | Int | Float | Bool, _) => ty == ty'
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      normalized_equivalent(ty1, ty1') && normalized_equivalent(ty2, ty2')
+    | (Arrow(_, _), _) => false
+    | (Prod(tys1), Prod(tys2)) =>
+      List.for_all2(normalized_equivalent, tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
+    | (List(_), _) => false
+    };
 };
 
 /*******************************************************************************/

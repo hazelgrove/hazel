@@ -89,6 +89,12 @@ and utyp_of_seg = (ps: Segment.t): UTyp.t => {
   |> Segment.skel
   |> of_seg_and_skel_typ(ps);
 }
+and utpat_of_seg = (ps: Segment.t): UTPat.t => {
+  ps
+  |> List.filter(Piece.is_complete)
+  |> Segment.skel
+  |> of_seg_and_skel_tpat(ps);
+}
 and urul_of_seg = (ps: Segment.t): URul.s => {
   /* NOTE(andrew): filtering out incomplete tiles for now.
      TODO: better approach which e.g. still provides feedback
@@ -233,6 +239,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [Exp(body)], [pat]) =>
         Fun(upat_of_seg(pat), body)
+      | (["type", "=", "in"], [Exp(body)], [tpat, def]) =>
+        TyAlias(utpat_of_seg(tpat), utyp_of_seg(def), body)
       | (["let", "=", "in"], [Exp(body)], [pat, def]) =>
         Let(upat_of_seg(pat), uexp_of_seg(def), body)
       | (["if", "then", "else"], [Exp(alt)], [cond, conseq]) =>
@@ -312,22 +320,20 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
     {id, term};
   };
 }
-and of_piece_tpat = (p: Piece.t, outside_kids: list(sort_dispatch)): UTPat.t => {
-  let invalid: UTPat.t = {id: (-1), term: Invalid(p)};
+and of_piece_tpat = (p: Piece.t, outside_kids: list(Term.any)): UTPat.t => {
   switch (p) {
-  | Whitespace(_) => invalid
+  | Whitespace({id, _}) => {id, term: Invalid(Whitespace, p)}
   | Grout({id, shape}) =>
-    switch (shape) {
-    | Convex => {id, term: EmptyHole}
-    | Concave => invalid
+    switch (shape, outside_kids) {
+    | (Convex, []) => {id, term: EmptyHole}
+    | _ => {id, term: Invalid(MalformedGrout, p)}
     }
   | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
     let term: UTPat.term =
       switch (label, outside_kids, inside_kids) {
-      | _ when !Tile.is_complete(t) => Invalid(p)
-      // TODO(andrew): Form.re should handle monotile recognition
+      | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
       | ([t], [], []) when Form.is_var(t) => Var(t)
-      | _ => Invalid(p)
+      | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
   };

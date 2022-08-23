@@ -3,7 +3,7 @@ module ContextRef: {
   [@deriving sexp]
   type s('idx) = {
     /** An index into some context. */
-    index: Index.t('idx),
+    index: Index.s('idx),
     /** The length of the context used to create the reference. */
     stamp: int,
     /** The names of older bindings in the context used to create the reference. */
