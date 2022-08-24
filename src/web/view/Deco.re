@@ -237,6 +237,8 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
+  // recurses through skel structure to enable experimentation
+  // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
