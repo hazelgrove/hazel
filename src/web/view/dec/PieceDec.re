@@ -128,7 +128,13 @@ let chunky_shard =
   let path =
     chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
   let clss = ["tile-path", "selected", "raised", Sort.to_string(mold.out)];
-  DecUtil.code_svg(~font_metrics, ~origin, ~path_cls=clss, path);
+  DecUtil.code_svg(
+    ~font_metrics,
+    ~origin,
+    ~base_cls=["tile-selected"],
+    ~path_cls=clss,
+    path,
+  );
 };
 
 let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
