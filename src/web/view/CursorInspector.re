@@ -101,14 +101,20 @@ let view_of_info = (ci: Core.Statics.t): Node.t => {
       [clss([infoc, "pat"])],
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
-  | InfoTyp({ty, _}) =>
-    let ann = div([clss(["typ-view"])], [text(":")]);
+  | InfoTyp({ctx, mode, self, _}) =>
+    let error_status = Core.Statics.error_status(ctx, mode, self);
+    /* let ann = div([clss(["typ-view"])], [text(":")]); */
     div(
       [clss([infoc, "typ"])],
-      [term_tag(is_err, "typ"), ann, Type.view(ty)],
+      [term_tag(is_err, "typ"), status_view(error_status)] /* , ann, Type.view(ty)], */
     );
-  | InfoTPat({ctx, mode, self, _}) =>
-    let error_status = Core.Statics.error_status(ctx, mode, self);
+  | InfoTPat({ctx, mode, _}) =>
+    let error_status =
+      Core.Statics.error_status(
+        ctx,
+        mode,
+        Just(Core.Typ.unknown(SynSwitch)),
+      );
     div(
       [clss([infoc, "tpat"])],
       [term_tag(is_err, "tpat"), status_view(error_status)],

@@ -244,10 +244,21 @@ module rec Ctx: {
     | TyVarEntry(tyvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type coentry = {
+  type var_coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tyvar_coentry = {
+    id: Id.t,
+    mode: Typ.mode,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry =
+    | VarCoentry(var_coentry)
+    | TyVarCoentry(tyvar_coentry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(coentry));
@@ -308,10 +319,21 @@ module rec Ctx: {
     | TyVarEntry(tyvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type coentry = {
+  type var_coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tyvar_coentry = {
+    id: Id.t,
+    mode: Typ.mode,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry =
+    | VarCoentry(var_coentry)
+    | TyVarCoentry(tyvar_coentry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(coentry));
@@ -345,10 +367,18 @@ module rec Ctx: {
   let subtract = (ctx: t, free: co): co =>
     VarMap.filter(
       ((k, _)) =>
-        switch (Ctx.var_named(ctx, k)) {
-        | None => true
-        | Some(_) => false
-        },
+        (
+          switch (Ctx.var_named(ctx, k)) {
+          | None => true
+          | Some(_) => false
+          }
+        )
+        || (
+          switch (Ctx.tyvar_named(ctx, k)) {
+          | None => true
+          | Some(_) => false
+          }
+        ),
       free,
     );
 
@@ -730,14 +760,6 @@ and Kind: {
     | Syn
     | Ana(t);
 
-  /* let rescope = (ctx: Ctx.t, kind: t): t => */
-  /*   switch (kind) { */
-  /*   | Unknown */
-  /*   | Abstract => kind */
-  /*   | Singleton(ty) => */
-  /*     Singleton(Typ.to_syntax(Typ.rescope(ctx, Typ.of_syntax(ty)))) */
-  /*   }; */
-
   let to_hkind = (ctx: Ctx.t, kind: t): KindSystem.Kind.t =>
     switch (kind) {
     | Unknown => Hole
@@ -932,7 +954,26 @@ and Typ: {
     | Arrow(ty1, ty2) => HTyp.arrow(to_htyp(ctx, ty1), to_htyp(ctx, ty2))
     | Prod(tys) => HTyp.product(List.map(to_htyp(ctx), tys))
     | TyVar(Some(cref), t) =>
-      HTyp.tyvar(Ctx.to_context(ctx), Index.Abs.of_int(cref.index), t)
+      let i = Idx.Abs.to_int(cref.index);
+      let (_, _, preds) = ListUtil.pivot(i, ctx);
+      let (succs, tyvar_entry, _) = ListUtil.pivot(i, Ctx.entries(ctx));
+      let hctx =
+        List.fold_left(
+          (hctx, entry) =>
+            switch (entry) {
+            | Ctx.TyVarEntry({name, kind, _}) =>
+              Context.add_tyvar(hctx, name, Kind.to_hkind(preds, kind))
+            | VarEntry({name, typ, _}) =>
+              Context.add_var(
+                hctx,
+                name,
+                to_htyp(preds, Typ.to_syntax(typ)),
+              )
+            },
+          Ctx.to_context(preds),
+          [tyvar_entry, ...List.rev(succs)],
+        );
+      HTyp.tyvar(hctx, Index.Abs.of_int(cref.index), t);
     | TyVar(None, t) =>
       HTyp.tyvarhole(TyVarErrStatus.HoleReason.Unbound, 0, t)
     };

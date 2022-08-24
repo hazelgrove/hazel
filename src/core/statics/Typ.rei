@@ -159,10 +159,21 @@ module rec Ctx: {
     | TyVarEntry(tyvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type coentry = {
+  type var_coentry = {
     id: Id.t,
     mode: Typ.mode,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tyvar_coentry = {
+    id: Id.t,
+    mode: Typ.mode,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type coentry =
+    | VarCoentry(var_coentry)
+    | TyVarCoentry(tyvar_coentry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type co = VarMap.t_(list(coentry));

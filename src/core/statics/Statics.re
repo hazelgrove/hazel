@@ -39,22 +39,27 @@ type info_pat = {
   ctx: Typ.Ctx.t // TODO: detect in-pattern shadowing
 };
 
-/* (Syntactic) Types are assigned their corresponding semantic type. */
+/* (Syntactic) Types are assigned a mode (reflecting the static
+   expectations if any of their syntactic parent), a self (reflecting
+   what their statics would be in isolation), a context (variables in
+   scope), and free (type variables occuring free in the type). */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
   cls: Term.UTyp.cls,
   mode: Typ.mode,
   self: Typ.self,
   ctx: Typ.Ctx.t,
-  ty: Typ.t,
   free: Typ.Ctx.co,
 };
 
+/* Type patterns are assigned a mode (reflecting the static
+   expectations if any of their syntactic parent), a self (reflecting
+   what their statics would be in isolation, and a context (variables
+   in scope). */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_tpat = {
   cls: Term.UTPat.cls,
   mode: Typ.mode,
-  self: Typ.self,
   ctx: Typ.Ctx.t,
 };
 
@@ -154,10 +159,10 @@ let error_status =
     }
   };
 
-/* Determines whether any term is in an error hole. Currently types cannot
-   be in error, and Invalids (things to which Term was unable to assign a
-   parse) are always in error. The error status of expressions and patterns
-   are determined by error_status above. */
+/* Determines whether any term is in an error hole. Currently Invalids
+   (things to which Term was unable to assign a parse) are always in
+   error. The error status of expressions and patterns are determined
+   by error_status above. */
 let is_error = (ci: t): bool => {
   switch (ci) {
   | Invalid(Whitespace) => false
@@ -168,9 +173,13 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp(_) => false
-  | InfoTPat({mode, self, ctx, _}) =>
+  | InfoTyp({mode, self, ctx, _}) =>
     switch (error_status(ctx, mode, self)) {
+    | InHole(_) => true
+    | NotInHole(_) => false
+    }
+  | InfoTPat({mode, ctx, _}) =>
+    switch (error_status(ctx, mode, Just(Typ.unknown(SynSwitch)))) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -232,11 +241,11 @@ let union_m =
     Id.Map.empty,
   );
 
-let extend_let_def_ctx =
-    (ctx: Typ.Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
-  switch (Typ.to_syntax(ty_ann), pat.term, def.term) {
-  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
-    Typ.Ctx.add_var(ctx, {id: pat.id, name: x, typ: ty_ann})
+let extend_let_def_ctx = (ctx: Typ.Ctx.t, pat: Term.UPat.t, def: Term.UExp.t) =>
+  switch (pat.term, def.term) {
+  | (TypeAnn({term: Var(x), _}, {term: Arrow(_), _} as utyp), Fun(_)) =>
+    let ty_ann = utyp_to_ty(ctx, utyp);
+    Typ.Ctx.add_var(ctx, {id: pat.id, name: x, typ: ty_ann});
   | _ => ctx
   };
 
@@ -298,13 +307,20 @@ let rec uexp_to_info_map =
   | Float(_) => atomic(ctx, Just(Typ.float()))
   | Var(name) =>
     switch (Typ.Ctx.var_named(ctx, name)) {
-    | None => atomic(ctx, Free)
-    | Some((_, entry)) =>
-      add(
-        ~ctx,
-        ~self=Just(entry.typ),
-        ~free=[(name, [{id, mode}])],
-        Id.Map.empty,
+    | None =>
+      let free: Typ.Ctx.co = [(name, [VarCoentry({id, mode})])];
+      (
+        Typ.unknown(SynSwitch),
+        free,
+        Id.Map.singleton(id, InfoExp({cls, self: Free, mode, ctx, free})),
+      );
+    | Some((_, var_entry)) => (
+        var_entry.typ,
+        [],
+        Id.Map.singleton(
+          id,
+          InfoExp({cls, self: Just(var_entry.typ), mode, ctx, free: []}),
+        ),
       )
     }
   | Parens(e) =>
@@ -410,47 +426,31 @@ let rec uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | TyAlias(tpat, def, body) =>
-    print_endline("XXX");
-    print_endline(Sexplib.Sexp.to_string_hum(Term.UTPat.sexp_of_t(tpat)));
-    print_endline(Sexplib.Sexp.to_string_hum(Term.UTyp.sexp_of_t(def)));
-    print_endline(Sexplib.Sexp.to_string_hum(Term.UExp.sexp_of_t(body)));
-    /* synthesize the definition's type */
-    let (ty_def, m_def) = utyp_to_info_map(~ctx, def);
-    /* Analyze type pattern to incorporate def type into ctx */
-    let (_, ctx_tpat_ana, m_tpat) =
+    let (ty_def, free_def, m_def) = utyp_to_info_map(~ctx, def);
+    let (_, ctx_tpat, m_tpat) =
       utpat_to_info_map(~ctx, ~mode=Typ.Ana(ty_def), tpat);
-    print_endline("YYY");
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_map(m_tpat)));
-    /* recur into the body */
-    let ctx_body = ctx_tpat_ana @ ctx;
     let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    let (typ, co, m) =
-      add(
-        ~ctx,
-        ~self=Just(ty_body),
-        ~free=free_body,
-        union_m([m_tpat, m_def, m_body]),
-      );
-    print_endline("ZZZ");
-    print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(typ)));
-    print_endline(Sexplib.Sexp.to_string_hum(Typ.Ctx.sexp_of_co(co)));
-    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_map(m)));
-    (typ, co, m);
-  | Let(pat, def, body) =>
-    let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
-    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
-    let (ty_def, free_def, m_def) =
-      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
-    /* Analyze pattern to incorporate def type into ctx */
-    let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx_body = ctx_pat_ana @ def_ctx;
-    let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
+      uexp_to_info_map(~ctx=ctx_tpat, ~mode, body);
     add(
       ~ctx,
       ~self=Just(ty_body),
-      ~free=free_def @ Typ.Ctx.subtract(ctx_pat_ana, free_body),
+      ~free=free_def @ Typ.Ctx.subtract(ctx_tpat, free_body),
+      union_m([m_tpat, m_def, m_body]),
+    );
+  | Let(pat, def, body) =>
+    let ctx_def = extend_let_def_ctx(ctx, pat, def);
+    let (typ_def, free_def, m_def) =
+      uexp_to_info_map(~ctx=ctx_def, ~mode=Syn, def);
+    let typ_def = Typ.rescope(ctx, typ_def);
+    /* Analyze pattern to incorporate def type into body ctx */
+    let (_, ctx_pat, m_pat) =
+      upat_to_info_map(~ctx, ~mode=Ana(typ_def), pat);
+    let (typ_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_pat, ~mode, body);
+    add(
+      ~ctx,
+      ~self=Just(typ_body),
+      ~free=free_def @ Typ.Ctx.subtract(ctx_pat, free_body),
       union_m([m_pat, m_def, m_body]),
     );
   | Match(ids, scrut, rules) =>
@@ -545,9 +545,9 @@ and upat_to_info_map =
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
   | TypeAnn(p, ty) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
-    let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
-    add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
+    let (typ_ty, _, m_ty) = utyp_to_info_map(~ctx, ty);
+    let (_, ctx, m_p) = upat_to_info_map(~ctx, ~mode=Ana(typ_ty), p);
+    add(~self=Just(typ_ty), ~ctx, union_m([m_p, m_ty]));
   };
 }
 and utyp_to_info_map =
@@ -559,14 +559,12 @@ and utyp_to_info_map =
     : (Typ.t, Typ.Ctx.co, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = utyp_to_ty(ctx, utyp);
-  /* let add = (ctx, m, id) => Id.Map.add(id, InfoTyp({cls, ctx, ty}), m); */
-  let add = (~ctx, ~self, ~free, m) => (
+  let add = (~ctx, ~self, ~free, m, id) => (
     typ_after_fix(ctx, mode, self),
     free,
-    Id.Map.add(id, InfoTyp({cls, mode, self, ctx, ty, free}), m),
+    Id.Map.add(id, InfoTyp({cls, mode, self: Just(ty), ctx, free}), m),
   );
-  let atomic = (ctx, self) => add(~ctx, ~self, ~free=[], Id.Map.empty);
-  /* let return = (ctx, m) => (ty, add(~ctx, m, id)); */
+  let atomic = (ctx, self) => add(~ctx, ~self, ~free=[], Id.Map.empty, id);
   switch (term) {
   | Invalid(msg, _) => (
       Typ.unknown(Internal),
@@ -579,20 +577,35 @@ and utyp_to_info_map =
   | Bool => atomic(ctx, Just(Typ.bool()))
   | Var(name) =>
     switch (Typ.Ctx.tyvar_named(ctx, name)) {
-    | None => atomic(ctx, Free)
-    | Some((_, tyvar_entry)) =>
-      add(
-        ~ctx,
-        ~self=Just(Typ.Kind.to_typ(tyvar_entry.kind)),
-        ~free=[(name, [{id, mode}])],
-        Id.Map.empty,
+    | None => (
+        typ_after_fix(ctx, mode, Free),
+        [(name, [TyVarCoentry({id, mode})])],
+        Id.Map.singleton(
+          id,
+          InfoTyp({
+            cls,
+            self: Free,
+            mode,
+            ctx,
+            free: [(name, [TyVarCoentry({id, mode})])],
+          }),
+        ),
       )
+    | Some((cref, _)) =>
+      let typ = Typ.tyvar(ctx, Some(cref.index), name);
+      (
+        typ,
+        [],
+        Id.Map.singleton(
+          id,
+          InfoTyp({cls, self: Just(typ), mode, ctx, free: []}),
+        ),
+      );
     }
-
   | List(t)
   | Parens(t) =>
     let (typ, free, m) = utyp_to_info_map(~ctx, ~mode, t);
-    add(~ctx, ~self=Just(typ), ~free, m);
+    add(~ctx, ~self=Just(typ), ~free, m, id);
   | Arrow(t1, t2) =>
     let (typ1, free1, m_t1) = utyp_to_info_map(~ctx, t1);
     let (typ2, free2, m_t2) = utyp_to_info_map(~ctx, t2);
@@ -601,53 +614,52 @@ and utyp_to_info_map =
       ~self=Just(Typ.arrow(typ1, typ2)),
       ~free=free1 @ free2,
       union_m([m_t1, m_t2]),
+      id,
     );
   | MultiHole(ids, ts)
   | Tuple(ids, ts) =>
-    let results = List.map(utyp_to_info_map(~ctx), ts);
-    /* |> List.fold_left( */
-    /*      ((typs_rev, free, m), (typ, free1, m1)) => */
-    /*        ([typ, ...typs_rev], free1 @ free, union_m([m1, m])), */
-    /*      ([], [], Id.Map.empty), */
-    /*   ); */
+    let (typs, frees, m) =
+      ts
+      |> List.map(utyp =>
+           utyp_to_info_map(~ctx, utyp)
+           |> (((typ, free, m)) => (typ, (free, m)))
+         )
+      |> List.split
+      |> (((typs, rest)) => (typs, List.split(rest)))
+      |> (((typs, (frees, ms))) => (typs, frees, union_m(ms)));
     let m =
       List.fold_left(
-        (m, (id, (typ, free, m1))) =>
-        {let (_, _, m) = add(~ctx, ~self=Just(typ), ~free, id, m);
-         m
-      },
+        (m, (id, (typ, free))) =>
+          add(~ctx, ~self=Just(typ), ~free, m, id) |> (((_, _, m)) => m),
         m,
-        List.combine(ids, results),
+        List.combine(ids, List.combine(typs, frees)),
       );
-    (ty, free, m);
+    (ty, List.concat(frees), m);
   };
 }
 and utpat_to_info_map =
     (~ctx=Typ.Ctx.empty(), ~mode: Typ.mode=Typ.Syn, {id, term}: Term.UTPat.t)
     : (Typ.Kind.t, Typ.Ctx.t, map) => {
   let cls = Term.UTPat.cls_of_term(term);
-  let add = (~self, ~ctx, m) => (
-    Typ.Kind.singleton(typ_after_fix(ctx, mode, self)),
-    ctx,
-    Id.Map.add(id, InfoTPat({cls, self, mode, ctx}), m),
-  );
-  let atomic = self => add(~self, ~ctx, Id.Map.empty);
   switch (term) {
   | Invalid(msg, _) => (
       Typ.Kind.unknown(),
       ctx,
       Id.Map.singleton(id, Invalid(msg)),
     )
-  | EmptyHole => atomic(Just(Typ.unknown(SynSwitch)))
-  | Var(name) =>
-    let self = Typ.Just(Typ.unknown(SynSwitch));
-    let kind =
-      switch (mode) {
-      | Syn => Typ.Kind.unknown()
-      | Ana(typ) => Typ.Kind.singleton(typ)
-      };
-    let ctx = Typ.Ctx.add_tyvar(ctx, {id, name, kind});
-    add(~self, ~ctx, Id.Map.empty);
+  | EmptyHole => (
+      Typ.Kind.unknown(),
+      ctx,
+      Id.Map.singleton(id, InfoTPat({cls, mode, ctx})),
+    )
+  | Var(t) =>
+    let typ = typ_after_fix(ctx, mode, Just(Typ.unknown(SynSwitch)));
+    let kind = Typ.Kind.singleton(typ);
+    let ctx_tpat =
+      TyVar.is_valid(t)
+        ? Typ.Ctx.add_tyvar(Typ.Ctx.empty(), {id, name: t, kind})
+        : Typ.Ctx.empty();
+    (kind, ctx_tpat, Id.Map.singleton(id, InfoTPat({cls, mode, ctx})));
   };
 };
 

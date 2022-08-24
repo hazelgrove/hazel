@@ -47,7 +47,7 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)),
     );
 
-let rec typ_of_utyp = (utyp: Term.UTyp.t): Typ.t =>
+let rec typ_of_utyp = (ctx: Typ.Ctx.t, utyp: Term.UTyp.t): Typ.t =>
   switch (utyp.term) {
   | Invalid(_)
   | EmptyHole
@@ -55,11 +55,20 @@ let rec typ_of_utyp = (utyp: Term.UTyp.t): Typ.t =>
   | Int => Typ.int()
   | Float => Typ.float()
   | Bool => Typ.bool()
-  | List(utyp1) => Typ.list(typ_of_utyp(utyp1))
+  | Var(t) =>
+    let idx_opt =
+      switch (Typ.Ctx.tyvar_named(ctx, t)) {
+      | Some((cref, _)) =>
+        let cref = Typ.Ctx.rescope(ctx, cref);
+        Some(cref.index);
+      | None => None
+      };
+    Typ.tyvar(ctx, idx_opt, t);
+  | List(utyp1) => Typ.list(typ_of_utyp(ctx, utyp1))
   | Arrow(utyp1, utyp2) =>
-    Typ.arrow(typ_of_utyp(utyp1), typ_of_utyp(utyp2))
-  | Tuple(_, utyps) => Typ.product(List.map(typ_of_utyp, utyps))
-  | Parens(utyp) => typ_of_utyp(utyp)
+    Typ.arrow(typ_of_utyp(ctx, utyp1), typ_of_utyp(ctx, utyp2))
+  | Tuple(_, utyps) => Typ.product(List.map(typ_of_utyp(ctx), utyps))
+  | Parens(utyp) => typ_of_utyp(ctx, utyp)
   };
 
 let tpat_of_utpat = (utpat: Term.UTPat.t): TPat.t =>
@@ -180,7 +189,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       }
     | TyAlias(utpat, def, body) =>
       let tpat = tpat_of_utpat(utpat);
-      let def = typ_of_utyp(def) |> Typ.to_htyp(ctx);
+      let def = typ_of_utyp(ctx, def) |> Typ.to_htyp(ctx);
       let ddef = (Typ.Ctx.to_context(ctx), def);
       let* dbody = dhexp_of_uexp(m, body);
       wrap(DHExp.TyAlias(tpat, ddef, dbody));
@@ -298,9 +307,9 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       }
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
-    | TypeAnn(p, _ty) =>
-      let* dp = dhpat_of_upat(m, p);
-      wrap(dp);
+    | TypeAnn(upat, _) =>
+      let* dpat = dhpat_of_upat(m, upat);
+      wrap(dpat);
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | InfoRul(_) | Invalid(_))
   | None => None

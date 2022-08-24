@@ -306,6 +306,7 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
     let term: UTyp.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) => Invalid(IncompleteTile, p)
+      | ([t], [], []) when Form.is_var(t) => Var(t)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["Unit"], [], []) => Tuple([id], [])
       | (["Bool"], [], []) => Bool
