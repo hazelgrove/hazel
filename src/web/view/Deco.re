@@ -282,30 +282,25 @@ module Deco =
          });
     err_ranges
     |> List.map(((l: Measured.point, r: Measured.point)) => {
-         let (l_edge, r_edge) =
+         open SvgUtil.Path;
+         let r_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
-           |> List.map(i => {
+           |> List.concat_map(i => {
                 let row = Measured.Rows.find(i, measured.rows);
-                let l_edge =
-                  SvgUtil.Path.[
-                    h(~x=i == l.row ? l.col : row.indent),
-                    v_(~dy=-1),
-                  ];
-                let r_edge =
-                  SvgUtil.Path.[
-                    h(~x=i == r.row ? r.col : row.max_col),
-                    v_(~dy=1),
-                  ];
-                (l_edge, r_edge);
+                [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
+              });
+         let l_edge =
+           ListUtil.range(~lo=l.row, r.row + 1)
+           |> List.rev_map(i => {
+                let row = Measured.Rows.find(i, measured.rows);
+                [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
               })
-           |> List.split
-           |> TupleUtil.map2(List.concat);
+           |> List.concat;
+         let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
          (
            l,
-           SvgUtil.Path.[m(~x=l.col, ~y=l.row), ...r_edge]
-           @ l_edge
-           @ [SvgUtil.Path.Z]
-           |> SvgUtil.Path.translate({
+           path
+           |> translate({
                 dx: Float.of_int(- l.col),
                 dy: Float.of_int(- l.row),
               }),
