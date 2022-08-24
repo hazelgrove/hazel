@@ -803,14 +803,13 @@ and move_cursor_left_zoperand =
   | TypAppZE(err, zbody, ty) =>
     switch (move_cursor_left(zbody)) {
     | Some(zbody) => Some(TypAppZE(err, zbody, ty))
-    | None =>
-      Some(CursorE(OnDelim(1, After), TypApp(err, erase(zbody), ty)))
+    | None => None
     }
   | TypAppZT(err, body, zty) =>
     switch (ZTyp.move_cursor_left(zty)) {
     | Some(zty) => Some(TypAppZT(err, body, zty))
     | None =>
-      Some(CursorE(OnDelim(1, After), TypApp(err, body, ZTyp.erase(zty))))
+      Some(CursorE(OnDelim(0, After), TypApp(err, body, ZTyp.erase(zty))))
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_left(zscrut)) {
