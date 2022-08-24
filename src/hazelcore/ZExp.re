@@ -1029,15 +1029,12 @@ and move_cursor_right_zoperand =
     switch (move_cursor_right(zbody)) {
     | Some(zbody) => Some(TypAppZE(err, zbody, ty))
     | None =>
-      Some(CursorE(OnDelim(1, Before), TypApp(err, erase(zbody), ty)))
+      Some(CursorE(OnDelim(0, Before), TypApp(err, erase(zbody), ty)))
     }
   | TypAppZT(err, body, zty) =>
     switch (ZTyp.move_cursor_right(zty)) {
     | Some(zty) => Some(TypAppZT(err, body, zty))
-    | None =>
-      Some(
-        CursorE(OnDelim(2, Before), TypApp(err, body, ZTyp.erase(zty))),
-      )
+    | None => None
     }
   | CaseZE(err, zscrut, rules) =>
     switch (move_cursor_right(zscrut)) {
