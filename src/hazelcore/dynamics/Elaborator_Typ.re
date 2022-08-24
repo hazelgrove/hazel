@@ -67,8 +67,8 @@ and syn_elab_operand =
     (ty, Kind.singleton(ty), delta);
   | Forall(tp, body) =>
     open OptUtil.Syntax;
-    let ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
-    let+ (ty_body, _k, delta) = syn_elab(ctx, delta, body);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    let+ (ty_body, _k, delta) = syn_elab(body_ctx, delta, body);
     let ty = HTyp.forall(tp, ty_body);
     (ty, Kind.singleton(ty), delta);
   | TyVar(NotInTyVarHole, t) =>
