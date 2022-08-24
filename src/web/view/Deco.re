@@ -237,19 +237,6 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let error_holes = zipper => {
-    //TODO
-    let _ci =
-      switch (zipper |> Indicated.index) {
-      | Some(index) =>
-        let (_, _, info_map) =
-          zipper |> Zipper.zip |> MakeTerm.go |> Statics.mk_map;
-        Id.Map.find_opt(index, info_map);
-      | None => None
-      };
-    ();
-  };
-
   let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
