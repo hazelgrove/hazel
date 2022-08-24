@@ -35,6 +35,7 @@ let nib_sorts =
   );
 
 let sorted_children = get(_ => [], _ => [], Tile.sorted_children);
+let children = p => sorted_children(p) |> List.split |> snd;
 
 // let is_balanced =
 //   fun
