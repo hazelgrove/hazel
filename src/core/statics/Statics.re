@@ -43,8 +43,11 @@ type info_pat = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
   cls: Term.UTyp.cls,
-  ty: Typ.t,
+  mode: Typ.mode,
+  self: Typ.self,
   ctx: Typ.Ctx.t,
+  ty: Typ.t,
+  free: Typ.Ctx.co,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,6 +73,27 @@ type t =
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
+
+let sexp_of_map = (map: map): Sexplib.Sexp.t =>
+  Id.Map.bindings(map)
+  |> Sexplib.Std.sexp_of_list(((id, info)) =>
+       List([Sexplib.Std.sexp_of_int(id), sexp_of_t(info)])
+     );
+
+let map_of_sexp = (sexp: Sexplib.Sexp.t): map =>
+  Sexplib.Std.list_of_sexp(
+    s =>
+      switch (s) {
+      | List([id_sexp, info_sexp]) =>
+        let id = Sexplib.Std.int_of_sexp(id_sexp);
+        let info = t_of_sexp(info_sexp);
+        (id, info);
+      | _ => Sexplib.Conv_error.no_variant_match()
+      },
+    sexp,
+  )
+  |> List.to_seq
+  |> Id.Map.of_seq;
 
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -153,6 +177,26 @@ let is_error = (ci: t): bool => {
   | InfoRul(_) => false //TODO
   };
 };
+
+/* Converts a syntactic type into a semantic type */
+let rec utyp_to_ty = (ctx: Typ.Ctx.t, utyp: Term.UTyp.t): Typ.t =>
+  switch (utyp.term) {
+  | Invalid(_)
+  | MultiHole(_) => Typ.unknown(Internal)
+  | EmptyHole => Typ.unknown(TypeHole)
+  | Bool => Typ.bool()
+  | Int => Typ.int()
+  | Float => Typ.float()
+  | Var(t) =>
+    switch (Typ.Ctx.tyvar_named(ctx, t)) {
+    | Some((cref, _)) => Typ.tyvar(ctx, Some(cref.index), t)
+    | None => Typ.tyvar(ctx, None, t)
+    }
+  | Arrow(u1, u2) => Typ.arrow(utyp_to_ty(ctx, u1), utyp_to_ty(ctx, u2))
+  | Tuple(_, us) => Typ.product(List.map(utyp_to_ty(ctx), us))
+  | List(u) => Typ.list(utyp_to_ty(ctx, u))
+  | Parens(u) => utyp_to_ty(ctx, u)
+  };
 
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
@@ -366,21 +410,33 @@ let rec uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | TyAlias(tpat, def, body) =>
+    print_endline("XXX");
+    print_endline(Sexplib.Sexp.to_string_hum(Term.UTPat.sexp_of_t(tpat)));
+    print_endline(Sexplib.Sexp.to_string_hum(Term.UTyp.sexp_of_t(def)));
+    print_endline(Sexplib.Sexp.to_string_hum(Term.UExp.sexp_of_t(body)));
     /* synthesize the definition's type */
     let (ty_def, m_def) = utyp_to_info_map(~ctx, def);
     /* Analyze type pattern to incorporate def type into ctx */
     let (_, ctx_tpat_ana, m_tpat) =
       utpat_to_info_map(~ctx, ~mode=Typ.Ana(ty_def), tpat);
+    print_endline("YYY");
+    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_map(m_tpat)));
     /* recur into the body */
     let ctx_body = ctx_tpat_ana @ ctx;
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
-    add(
-      ~ctx,
-      ~self=Just(ty_body),
-      ~free=free_body,
-      union_m([m_tpat, m_def, m_body]),
-    );
+    let (typ, co, m) =
+      add(
+        ~ctx,
+        ~self=Just(ty_body),
+        ~free=free_body,
+        union_m([m_tpat, m_def, m_body]),
+      );
+    print_endline("ZZZ");
+    print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(typ)));
+    print_endline(Sexplib.Sexp.to_string_hum(Typ.Ctx.sexp_of_co(co)));
+    print_endline(Sexplib.Sexp.to_string_hum(sexp_of_map(m)));
+    (typ, co, m);
   | Let(pat, def, body) =>
     let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
@@ -495,34 +551,75 @@ and upat_to_info_map =
   };
 }
 and utyp_to_info_map =
-    (~ctx: Typ.Ctx.t, {id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+    (
+      ~ctx: Typ.Ctx.t,
+      ~mode: Typ.mode=Typ.Syn,
+      {id, term} as utyp: Term.UTyp.t,
+    )
+    : (Typ.t, Typ.Ctx.co, map) => {
   let cls = Term.UTyp.cls_of_term(term);
-  let ty = Term.utyp_to_ty(utyp);
-  let add = (ctx, m, id) => Id.Map.add(id, InfoTyp({cls, ctx, ty}), m);
-  let return = (ctx, m) => (ty, add(ctx, m, id));
+  let ty = utyp_to_ty(ctx, utyp);
+  /* let add = (ctx, m, id) => Id.Map.add(id, InfoTyp({cls, ctx, ty}), m); */
+  let add = (~ctx, ~self, ~free, m) => (
+    typ_after_fix(ctx, mode, self),
+    free,
+    Id.Map.add(id, InfoTyp({cls, mode, self, ctx, ty, free}), m),
+  );
+  let atomic = (ctx, self) => add(~ctx, ~self, ~free=[], Id.Map.empty);
+  /* let return = (ctx, m) => (ty, add(~ctx, m, id)); */
   switch (term) {
   | Invalid(msg, _) => (
       Typ.unknown(Internal),
+      [],
       Id.Map.singleton(id, Invalid(msg)),
     )
-  | EmptyHole
-  | Int
-  | Float
-  | Bool => return(ctx, Id.Map.empty)
+  | EmptyHole => atomic(ctx, Just(Typ.unknown(SynSwitch)))
+  | Int => atomic(ctx, Just(Typ.int()))
+  | Float => atomic(ctx, Just(Typ.float()))
+  | Bool => atomic(ctx, Just(Typ.bool()))
+  | Var(name) =>
+    switch (Typ.Ctx.tyvar_named(ctx, name)) {
+    | None => atomic(ctx, Free)
+    | Some((_, tyvar_entry)) =>
+      add(
+        ~ctx,
+        ~self=Just(Typ.Kind.to_typ(tyvar_entry.kind)),
+        ~free=[(name, [{id, mode}])],
+        Id.Map.empty,
+      )
+    }
+
   | List(t)
   | Parens(t) =>
-    let (_, m) = utyp_to_info_map(~ctx, t);
-    return(ctx, m);
+    let (typ, free, m) = utyp_to_info_map(~ctx, ~mode, t);
+    add(~ctx, ~self=Just(typ), ~free, m);
   | Arrow(t1, t2) =>
-    let (_, m_t1) = utyp_to_info_map(~ctx, t1);
-    let (_, m_t2) = utyp_to_info_map(~ctx, t2);
-    return(ctx, union_m([m_t1, m_t2]));
+    let (typ1, free1, m_t1) = utyp_to_info_map(~ctx, t1);
+    let (typ2, free2, m_t2) = utyp_to_info_map(~ctx, t2);
+    add(
+      ~ctx,
+      ~self=Just(Typ.arrow(typ1, typ2)),
+      ~free=free1 @ free2,
+      union_m([m_t1, m_t2]),
+    );
   | MultiHole(ids, ts)
   | Tuple(ids, ts) =>
+    let results = List.map(utyp_to_info_map(~ctx), ts);
+    /* |> List.fold_left( */
+    /*      ((typs_rev, free, m), (typ, free1, m1)) => */
+    /*        ([typ, ...typs_rev], free1 @ free, union_m([m1, m])), */
+    /*      ([], [], Id.Map.empty), */
+    /*   ); */
     let m =
-      ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
-    let m = List.fold_left(add(ctx), m, ids);
-    (ty, m);
+      List.fold_left(
+        (m, (id, (typ, free, m1))) =>
+        {let (_, _, m) = add(~ctx, ~self=Just(typ), ~free, id, m);
+         m
+      },
+        m,
+        List.combine(ids, results),
+      );
+    (ty, free, m);
   };
 }
 and utpat_to_info_map =
@@ -544,7 +641,11 @@ and utpat_to_info_map =
   | EmptyHole => atomic(Just(Typ.unknown(SynSwitch)))
   | Var(name) =>
     let self = Typ.Just(Typ.unknown(SynSwitch));
-    let kind = Typ.Kind.unknown();
+    let kind =
+      switch (mode) {
+      | Syn => Typ.Kind.unknown()
+      | Ana(typ) => Typ.Kind.singleton(typ)
+      };
     let ctx = Typ.Ctx.add_tyvar(ctx, {id, name, kind});
     add(~self, ~ctx, Id.Map.empty);
   };

@@ -98,7 +98,7 @@ module Typ_syntax: {
       Arrow(t('pos), t('pos))
     /* Tuples */
     | Prod(list(t('pos)))
-    | TyVar(Ref.s('pos), TyVar.t);
+    | TyVar(option(Ref.s('pos)), TyVar.t);
 
   /** Changes indices from absolute to relative positioning */
   let to_rel: (~offset: int=?, t(Pos.absolute)) => t(Pos.relative);
@@ -409,7 +409,7 @@ let complete: (Ctx.t, t) => bool;
 
 /* Type Variables */
 
-let tyvar: (Ctx.t, Idx.Abs.t, TyVar.t) => t;
+let tyvar: (Ctx.t, option(Idx.Abs.t), TyVar.t) => t;
 let tyvar_ref: t => option(Ref.t);
 let tyvar_name: t => option(TyVar.t);
 

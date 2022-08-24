@@ -71,6 +71,7 @@ module UTyp = {
     | Int
     | Float
     | Bool
+    | Var
     | Arrow
     | Tuple
     | List
@@ -84,6 +85,7 @@ module UTyp = {
     | Int
     | Float
     | Bool
+    | Var(Token.t)
     | List(t)
     | Arrow(t, t)
     | Tuple(list(Id.t), list(t))
@@ -103,6 +105,7 @@ module UTyp = {
     | Int => Int
     | Float => Float
     | Bool => Bool
+    | Var(_) => Var
     | List(_) => List
     | Arrow(_) => Arrow
     | Tuple(_) => Tuple
@@ -116,6 +119,7 @@ module UTyp = {
     | Int
     | Float
     | Bool => "Base Type"
+    | Var => "Type Variable reference"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
@@ -379,22 +383,6 @@ module UExp = {
     | UnOp(op) => show_unop(op)
     | Match => "Match Expression";
 };
-
-/* Converts a syntactic type into a semantic type */
-let rec utyp_to_ty: UTyp.t => Typ.t =
-  utyp =>
-    switch (utyp.term) {
-    | Invalid(_)
-    | MultiHole(_) => Typ.unknown(Internal)
-    | EmptyHole => Typ.unknown(TypeHole)
-    | Bool => Typ.bool()
-    | Int => Typ.int()
-    | Float => Typ.float()
-    | Arrow(u1, u2) => Typ.arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(_, us) => Typ.product(List.map(utyp_to_ty, us))
-    | List(u) => Typ.list(utyp_to_ty(u))
-    | Parens(u) => utyp_to_ty(u)
-    };
 
 module URul = {
   [@deriving (show({with_path: false}), sexp, yojson)]
