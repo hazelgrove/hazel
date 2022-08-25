@@ -11,6 +11,11 @@ module Time = {
   let last = () => {
     t^ - 1;
   };
+
+  let lt = (<);
+
+  let min = min;
+  let max_time = Int.max_int;
 };
 
 module Record = {

@@ -84,7 +84,7 @@
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
-  
+
   --typ-text-color: #772cff;/*#24ae62;*/
   --typ-off-color: #975dff; /*#7fc97f;*/
   --typ-delim-color: #cfb5ff; /*#aee5c6;*/
@@ -660,7 +660,6 @@ svg {
 }
 
 
-
 .tile-path.Exp {
   filter: url(#drop-shadow-Exp);
 }
@@ -1220,7 +1219,7 @@ svg {
   bottom: 0.15em;
   margin-left: 0.17em;
   font-size: 64%;
-  vertical-align: super;  
+  vertical-align: super;
 }
 .test-inspector .test-instance:before {
   position: relative;
