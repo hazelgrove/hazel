@@ -120,6 +120,7 @@
   --genie-z: 1;
   --empty-hole-z: 5;
   --tile-z: 4;
+  --err-hole-z: 5;
   --code-text-z: 6;
   --code-text-shards-z: 7;
   --bar-z: 0;
@@ -650,6 +651,10 @@ svg {
   z-index: -1;
 }
 
+svg.tile-selected {
+  z-index: var(--tile-z);
+}
+
 .tile-path.selected {
   fill: var(--selection-color);
 }
@@ -914,6 +919,18 @@ svg {
 
 
 /* STATICS */
+
+.code-container svg.err-hole {
+  fill: #d001;
+  stroke-dasharray: 1,1;
+  stroke: var(--err-color);
+  stroke-width: 1.2px;
+  /* mix-blend-mode: color; */
+  z-index: var(--err-hole-z);
+}
+.code-container svg.err-hole path {
+  vector-effect: non-scaling-stroke;
+}
 
 .typ-view {
   color: var(--typ-text-color);
