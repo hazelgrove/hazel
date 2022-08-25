@@ -13,7 +13,7 @@ let precedence = (dp: DHPat.t) =>
   | BoolLit(_)
   | Inj(_)
   | Triv
-  | ListNil
+  | ListLit(_)
   | Pair(_) => DHDoc_common.precedence_const
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
@@ -48,7 +48,9 @@ let rec mk =
         inj_side,
         mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
       )
-    | ListNil => DHDoc_common.Delim.list_nil
+    | ListLit(_, d_list) =>
+      let ol = List.map(mk', d_list);
+      DHDoc_common.mk_ListLit(ol, ol);
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);

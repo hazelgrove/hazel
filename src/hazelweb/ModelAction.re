@@ -41,6 +41,7 @@ type t =
   | UpdateCursorInspector(CursorInspectorModel.update)
   | SelectHoleInstance(HoleInstance.t)
   | SelectCaseBranch(CursorPath.steps, int)
+  | SelectListElement(CursorPath.t)
   | FocusCell
   | BlurCell
   | Redo

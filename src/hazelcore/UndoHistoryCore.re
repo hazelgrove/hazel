@@ -144,7 +144,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
-    | ListNil(_)
+    | ListLit(_)
     | Keyword(_)
     | Lam(_)
     | Inj(_)
@@ -161,7 +161,7 @@ let cursor_term_len = (cursor_term: cursor_term): comp_len_typ => {
     | IntLit(_, num)
     | FloatLit(_, num) => Len(String.length(num))
     | BoolLit(_, _)
-    | ListNil(_)
+    | ListLit(_)
     | Parenthesized(_)
     | TypeAnn(_)
     | Inj(_) => MaxLen

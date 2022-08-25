@@ -63,6 +63,7 @@ let move_via_click: (Pretty.MeasuredPosition.t, t) => t;
  * See `Program.move_to_case_branch`
  */
 let select_case_branch: (CursorPath.steps, int, t) => t;
+let select_list_element: (CursorPath.t, t) => t;
 
 /**
  * Show/hide sidebars

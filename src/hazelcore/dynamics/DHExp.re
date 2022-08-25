@@ -159,7 +159,14 @@ type t =
   | BinBoolOp(BinBoolOp.t, t, t)
   | BinIntOp(BinIntOp.t, t, t)
   | BinFloatOp(BinFloatOp.t, t, t)
-  | ListNil(HTyp.t)
+  | ListLit(
+      MetaVar.t,
+      MetaVarInst.t,
+      VarMap.t_(t),
+      ListErrStatus.t,
+      HTyp.t,
+      list(t),
+    )
   | Cons(t, t)
   | Inj(HTyp.t, InjSide.t, t)
   | Pair(t, t)
@@ -200,6 +207,8 @@ let rec strip_casts: t => t =
       e,
       Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
     )
+  | ListLit(a, b, c, d, e, ele_list) =>
+    ListLit(a, b, c, d, e, List.map(strip_casts, ele_list))
   | EmptyHole(_) as d
   | ExpandingKeyword(_) as d
   | FreeVar(_) as d
@@ -209,7 +218,6 @@ let rec strip_casts: t => t =
   | TestLit(_) as d
   | BoolLit(_) as d
   | IntLit(_) as d
-  | ListNil(_) as d
   | FloatLit(_) as d
   | InvalidOperation(_) as d => d
 and strip_casts_rule: rule => rule =
@@ -219,8 +227,7 @@ let rec dhexp_diff_value = (d1: t, d2: t): list(CursorPath.steps) => {
   let diff_sub_dhs = (subtype_step, (ty1, ty2)) =>
     List.map(List.cons(subtype_step), dhexp_diff_value(ty1, ty2));
   switch (d1, d2) {
-  | (Triv, Triv)
-  | (ListNil(_), ListNil(_)) => []
+  | (Triv, Triv) => []
   | (BoolLit(a), BoolLit(b)) when a == b => []
   | (IntLit(a), IntLit(b)) when a == b => []
   | (FloatLit(a), FloatLit(b)) when a == b => []
@@ -253,7 +260,7 @@ let constructor_string = (d: t): string =>
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
-  | ListNil(_) => "ListNil"
+  | ListLit(_, _, _, _, _, _) => "ListLit"
   | Cons(_, _) => "Cons"
   | Inj(_, _, _) => "Inj"
   | Pair(_, _) => "Pair"

@@ -27,3 +27,36 @@ let tuple_zip =
     }
   };
 };
+
+let inconsistent = (ty1, ty2) => !HTyp.consistent(ty1, ty2);
+
+let lub = (types: list(HTyp.t)): option(HTyp.t) => {
+  switch (types) {
+  | [] => None
+  | [hd] => Some(hd)
+  | [hd, ...tl] =>
+    let rec exist_inconsistencies = l =>
+      switch (l) {
+      | [] => false
+      | [hd, ...tl] =>
+        if (List.exists(inconsistent(hd), tl)) {
+          true;
+        } else {
+          exist_inconsistencies(tl);
+        }
+      };
+    if (exist_inconsistencies(types)) {
+      None;
+    } else {
+      List.fold_left(
+        (common_opt, ty) =>
+          switch (common_opt) {
+          | None => None
+          | Some(common_ty) => HTyp.join(LUB, common_ty, ty)
+          },
+        Some(hd),
+        tl,
+      );
+    };
+  };
+};
