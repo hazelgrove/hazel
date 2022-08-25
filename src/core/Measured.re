@@ -28,10 +28,16 @@ type token = {
   range: (int, int),
 };
 
+type indent = int;
+// indentation relative to container
+type rel_indent = indent;
+// indentation relative to code container
+type abs_indent = indent;
+
 module Rows = {
   include IntMap;
   type shape = {
-    indent: int,
+    indent: abs_indent,
     max_col: int,
   };
   type t = IntMap.t(shape);
@@ -67,6 +73,7 @@ type t = {
   grout: Id.Map.t(measurement),
   whitespace: Id.Map.t(measurement),
   rows: Rows.t,
+  linebreaks: Id.Map.t(rel_indent),
 };
 
 let empty = {
@@ -74,6 +81,7 @@ let empty = {
   grout: Id.Map.empty,
   whitespace: Id.Map.empty,
   rows: Rows.empty,
+  linebreaks: Id.Map.empty,
 };
 
 let point_equals: (point, point) => bool =
@@ -128,6 +136,11 @@ let add_row = (row: int, shape: Rows.shape, map) => {
   rows: Rows.add(row, shape, map.rows),
 };
 
+let add_lb = (id, indent, map) => {
+  ...map,
+  linebreaks: Id.Map.add(id, indent, map.linebreaks),
+};
+
 let singleton_w = (w, m) => empty |> add_w(w, m);
 let singleton_g = (g, m) => empty |> add_g(g, m);
 let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
@@ -135,6 +148,8 @@ let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
 // TODO(d) rename
 let find_opt_shards = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
 let find_shards = (t: Tile.t, map) => Id.Map.find(t.id, map.tiles);
+
+let find_opt_lb = (id, map) => Id.Map.find_opt(id, map.linebreaks);
 
 let find_shards' = (id: Id.t, map) =>
   switch (Id.Map.find_opt(id, map.tiles)) {
@@ -177,6 +192,8 @@ let union2 = (map: t, map': t) => {
       map.rows,
       map'.rows,
     ),
+  linebreaks:
+    Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
 };
 let union = List.fold_left(union2, empty);
 
@@ -195,6 +212,123 @@ let post_tile_indent = (t: Tile.t) => {
 };
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
+
+let is_indented_map = _ => failwith("todo");
+
+let of_segment = (~old: t=empty, seg: Segment.t): t => {
+  let is_indented = is_indented_map(seg);
+
+  // recursive across seg's bidelimited containers
+  let rec go_nested =
+          (
+            ~container_indent: abs_indent=0,
+            // ~row_indent: abs_indent=container_indent,
+            // ~prefix_indents: list((Piece.t, rel_indent))=[],
+            ~origin=zero,
+            seg: Segment.t,
+          )
+          : (point, t) => {
+    let first_mod_incomplete =
+      switch (Segment.incomplete_tiles(seg)) {
+      | [] => None
+      | ts =>
+        ts
+        |> List.map((t: Tile.t) => History.get(t.id).modified)
+        |> List.fold_left(History.Time.min, History.Time.max_time)
+        |> Option.some
+      };
+
+    // recursive across seg's list structure
+    let rec go_seq =
+            (
+              ~contained_indent=container_indent,
+              ~origin: point,
+              seg: Segment.t,
+            )
+            : (point, t) =>
+      switch (seg) {
+      | [] =>
+        let map =
+          empty
+          |> add_row(
+               origin.row,
+               {
+                 indent: container_indent + contained_indent,
+                 max_col: origin.col,
+               },
+             );
+        (origin, map);
+      | [hd, ...tl] =>
+        let (contained_indent, origin, hd_map) =
+          switch (hd) {
+          | Whitespace(w) when w.content == Whitespace.linebreak =>
+            let r = History.get(w.id);
+            // TODO check for last linebreak
+            let indent =
+              if (Segment.sameline_whitespace(tl)) {
+                0;
+              } else {
+                switch (first_mod_incomplete, find_opt_lb(w.id, old)) {
+                | (Some(m), Some(indent))
+                    when History.Time.lt(r.modified, m) => indent
+                | _ =>
+                  contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
+                };
+              };
+            let last = {row: origin.row + 1, col: indent};
+            let map =
+              singleton_w(w, {origin, last})
+              |> add_row(
+                   origin.row,
+                   {
+                     indent: container_indent + contained_indent,
+                     max_col: origin.col,
+                   },
+                 )
+              |> add_lb(w.id, indent);
+            (indent, last, map);
+          | Whitespace(w) =>
+            let last = {...origin, col: origin.col + 1};
+            (contained_indent, last, singleton_w(w, {origin, last}));
+          | Grout(g) =>
+            let last = {...origin, col: origin.col + 1};
+            (contained_indent, last, singleton_g(g, {origin, last}));
+          | Tile(t) =>
+            let token = List.nth(t.label);
+            let of_shard = (origin, shard) => {
+              let last = {
+                ...origin,
+                col: origin.col + String.length(token(shard)),
+              };
+              (last, singleton_s(t.id, shard, {origin, last}));
+            };
+            let (last, map) =
+              Aba.mk(t.shards, t.children)
+              |> Aba.fold_left_map(
+                   of_shard(origin),
+                   (origin, child, shard) => {
+                     let (child_last, child_map) =
+                       go_nested(
+                         ~container_indent=container_indent + contained_indent,
+                         ~origin,
+                         child,
+                       );
+                     let (shard_last, shard_map) =
+                       of_shard(child_last, shard);
+                     (shard_last, child_map, shard_map);
+                   },
+                 )
+              |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
+              |> PairUtil.map_snd(union);
+            (contained_indent, last, map);
+          };
+        let (tl_last, tl_map) = go_seq(~contained_indent, ~origin, tl);
+        (tl_last, union2(hd_map, tl_map));
+      };
+    go_seq(~origin, seg);
+  };
+  snd(go_nested(seg));
+};
 
 // currently supports indentation imposed by a tile on following
 // remainder of segment (eg indentation after fun tile).
