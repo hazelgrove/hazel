@@ -351,6 +351,22 @@ and Typ: {
   [@deriving sexp]
   type normalized = Typ_syntax.t(Pos.absolute);
 
+  /** A "shallow" AST for [Typ]s that are not type variables of kind [Singleton].
+
+     Head-normalized [Typ]s are ASTs whose immediate children are ordinary
+     [Typ]s instead of AST nodes.
+   */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type head_normalized =
+    | Unknown(Typ_syntax.type_provenance)
+    | Int
+    | Float
+    | Bool
+    | List(t)
+    | Arrow(t, t)
+    | Prod(list(t))
+    | TyVar(option(Ref.t), TyVar.t);
+
   let to_htyp: (Ctx.t, t) => HTyp.t;
 
   /** Returns the underlying AST of a [Typ]. */
@@ -379,12 +395,34 @@ and Typ: {
 
   let is_int: t => bool;
   let is_float: t => bool;
+  let is_bool: t => bool;
+  let is_list: t => bool;
+  let is_arrow: t => bool;
+  let is_product: t => bool;
   let is_tyvar: t => bool;
 
   /* Type Variables */
 
   /** Type variable substitution.  */
   let subst_tyvars: (Ctx.t, t, list((Ref.t, t))) => t;
+
+  /* Head Normalization */
+
+  /** Head-normalized [Typ]s are [Typ]s that may contain type variables of any
+     kind, but that are not themselves type variables of kind [Singleton]. Since
+     any bound indices would have to be contained by subterms, the outermost AST
+     node of a head-normalized [Typ] is safe to pattern match against directly.
+     */
+
+  /** Converts a head-normalized [Typ] to an ordinary [Typ]. */
+  let of_head_normalized: head_normalized => t;
+
+  /** Head-normalizes an [Typ].
+
+     If the [Typ] is a type variable of kind [Singleton], returns its
+     (recursively head-normalized) underlying type. Otherwise, returns the
+     [HTyp] unmodified. */
+  let head_normalize: (Ctx.t, t) => head_normalized;
 };
 
 include

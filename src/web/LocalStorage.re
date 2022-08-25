@@ -70,10 +70,9 @@ let load_simple = (): Model.simple =>
       |> Sexplib.Sexp.of_string
       |> simple_without_history_of_sexp
       |> (
-        ((id_gen, zipper: Zipper.t)) => (
-          id_gen,
-          Model.{zipper, history: ActionHistory.empty},
-        )
+        ((id_gen, zipper: Zipper.t)) => {
+          (id_gen, Model.{zipper, history: ActionHistory.empty});
+        }
       )
     ) {
     | _ => Model.simple_init
