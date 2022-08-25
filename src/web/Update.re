@@ -175,12 +175,11 @@ let apply =
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (Perform.go(a, z_id)) {
+    let Model.{zipper: z_init, history} = Model.get_editor(model);
+    switch (Perform.go(a, (z_init, model.id_gen))) {
     | Error(err) => Error(FailedToPerform(err))
     | Ok((zipper, id_gen)) =>
-      let history = ActionHistory.succeeded(a, z_id, history);
+      let history = ActionHistory.succeeded(a, z_init, history);
       Ok({
         ...model,
         id_gen,
@@ -195,15 +194,14 @@ let apply =
   | Paste =>
     //let clipboard = JsUtil.get_from_clipboard();
     let clipboard = model.clipboard;
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
+    let Model.{zipper: z_init, history} = Model.get_editor(model);
     switch (
-      Printer.zipper_of_string(~zipper_init=zipper, model.id_gen, clipboard)
+      Printer.zipper_of_string(~zipper_init=z_init, model.id_gen, clipboard)
     ) {
     | None => Error(CantPaste)
     | Some((zipper, id_gen)) =>
       //TODO: add correct action to history (Pick_up is wrong)
-      let history = ActionHistory.succeeded(Pick_up, z_id, history);
+      let history = ActionHistory.succeeded(Pick_up, z_init, history);
       Ok({
         ...model,
         id_gen,
@@ -212,25 +210,21 @@ let apply =
     };
   | Undo =>
     let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (ActionHistory.undo(z_id, history)) {
+    switch (ActionHistory.undo(zipper, history)) {
     | None => Error(CantUndo)
-    | Some(((zipper, id_gen), history)) =>
+    | Some((zipper, history)) =>
       Ok({
         ...model,
-        id_gen,
         editor_model: Model.put_editor(model, {zipper, history}),
       })
     };
   | Redo =>
     let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (ActionHistory.redo(z_id, history)) {
+    switch (ActionHistory.redo(zipper, history)) {
     | None => Error(CantRedo)
-    | Some(((zipper, id_gen), history)) =>
+    | Some((zipper, history)) =>
       Ok({
         ...model,
-        id_gen,
         editor_model: Model.put_editor(model, {zipper, history}),
       })
     };
