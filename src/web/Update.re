@@ -175,21 +175,23 @@ let apply =
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
-    let Model.{zipper: z_init, history} = Model.get_editor(model);
+    let Model.{zipper: z_init, history, touched} = Model.get_editor(model);
     let measured = Model.get_measured(model);
     module Perform =
       Perform.Make({
         let measured = measured;
       });
     switch (Perform.go(a, (z_init, model.id_gen))) {
-    | Error(err) => Error(FailedToPerform(err))
-    | Ok((zipper, id_gen)) =>
+    | (Error(err), _) => Error(FailedToPerform(err))
+    | (Ok((zipper, id_gen)), effects) =>
+      let (time, model) = Model.tick(model);
       let history = ActionHistory.succeeded(a, (z_init, measured), history);
+      let touched = Touched.update(time, effects, touched);
       // Measured.old := old;
       Ok({
         ...model,
         id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
+        editor_model: Model.put_editor(model, {zipper, history, touched}),
       });
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
@@ -200,7 +202,7 @@ let apply =
   | Paste =>
     //let clipboard = JsUtil.get_from_clipboard();
     let clipboard = model.clipboard;
-    let Model.{zipper: z_init, history} = Model.get_editor(model);
+    let Model.{zipper: z_init, history, touched} = Model.get_editor(model);
     let measured = Model.get_measured(model);
     switch (
       Printer.zipper_of_string(
@@ -211,36 +213,38 @@ let apply =
       )
     ) {
     | None => Error(CantPaste)
-    | Some((zipper, id_gen)) =>
+    | Some(((zipper, id_gen), effects)) =>
+      let (time, model) = Model.tick(model);
       //TODO: add correct action to history (Pick_up is wrong)
       let history =
         ActionHistory.succeeded(Pick_up, (z_init, measured), history);
+      let touched = Touched.update(time, effects, touched);
       Ok({
         ...model,
         id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
+        editor_model: Model.put_editor(model, {zipper, history, touched}),
       });
     };
   | Undo =>
-    let Model.{zipper, history} = Model.get_editor(model);
+    let Model.{zipper, history, touched} = Model.get_editor(model);
     let measured = Model.get_measured(model);
     switch (ActionHistory.undo((zipper, measured), history)) {
     | None => Error(CantUndo)
     | Some(((zipper, _), history)) =>
       Ok({
         ...model,
-        editor_model: Model.put_editor(model, {zipper, history}),
+        editor_model: Model.put_editor(model, {zipper, history, touched}),
       })
     };
   | Redo =>
-    let Model.{zipper, history} = Model.get_editor(model);
+    let Model.{zipper, history, touched} = Model.get_editor(model);
     let measured = Model.get_measured(model);
     switch (ActionHistory.redo((zipper, measured), history)) {
     | None => Error(CantRedo)
     | Some(((zipper, _), history)) =>
       Ok({
         ...model,
-        editor_model: Model.put_editor(model, {zipper, history}),
+        editor_model: Model.put_editor(model, {zipper, history, touched}),
       })
     };
   | MoveToNextHole(_d) =>

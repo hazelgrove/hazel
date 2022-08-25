@@ -88,37 +88,43 @@ module Make = (M: Measured.S) => {
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_select);
 
-  let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) =>
-    switch (a) {
-    | Move(d) => move(d, z, id_gen)
-    | Unselect =>
-      Ok((Outer.directional_unselect(z.selection.focus, z), id_gen))
-    | Select(d) => select(d, z, id_gen)
-    | Destruct(d) =>
-      (z, id_gen)
-      |> Destruct.go(d)
-      |> Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen))
-      |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
-      |> Result.of_option(~error=Action.Failure.Cant_destruct)
-    | Insert(char) =>
-      (z, id_gen)
-      |> Insert.go(char)
-      /* note: remolding here is done case-by-case */
-      //|> Option.map(((z, id_gen)) => remold_regrout(Right, z, id_gen))
-      |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
-      |> Result.of_option(~error=Action.Failure.Cant_insert)
-    | Pick_up => Ok(remold_regrout(Left, Outer.pick_up(z), id_gen))
-    | Put_down =>
-      z
-      |> put_down
-      |> Option.map(z => remold_regrout(Left, z, id_gen))
-      |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
-      |> Result.of_option(~error=Action.Failure.Cant_put_down)
-    | RotateBackpack =>
-      Ok(({...z, backpack: Util.ListUtil.rotate(z.backpack)}, id_gen))
-    | MoveToBackpackTarget(d) =>
-      Move.to_backpack_target(d, z)
-      |> Option.map(IdGen.id(id_gen))
-      |> Result.of_option(~error=Action.Failure.Cant_move)
-    };
+  let go =
+      (a: Action.t, (z, id_gen): state)
+      : (Action.Result.t(state), list(Effect.t)) => {
+    Effect.s_clear();
+    let result =
+      switch (a) {
+      | Move(d) => move(d, z, id_gen)
+      | Unselect =>
+        Ok((Outer.directional_unselect(z.selection.focus, z), id_gen))
+      | Select(d) => select(d, z, id_gen)
+      | Destruct(d) =>
+        (z, id_gen)
+        |> Destruct.go(d)
+        |> Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen))
+        |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
+        |> Result.of_option(~error=Action.Failure.Cant_destruct)
+      | Insert(char) =>
+        (z, id_gen)
+        |> Insert.go(char)
+        /* note: remolding here is done case-by-case */
+        //|> Option.map(((z, id_gen)) => remold_regrout(Right, z, id_gen))
+        |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
+        |> Result.of_option(~error=Action.Failure.Cant_insert)
+      | Pick_up => Ok(remold_regrout(Left, Outer.pick_up(z), id_gen))
+      | Put_down =>
+        z
+        |> put_down
+        |> Option.map(z => remold_regrout(Left, z, id_gen))
+        |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
+        |> Result.of_option(~error=Action.Failure.Cant_put_down)
+      | RotateBackpack =>
+        Ok(({...z, backpack: Util.ListUtil.rotate(z.backpack)}, id_gen))
+      | MoveToBackpackTarget(d) =>
+        Move.to_backpack_target(d, z)
+        |> Option.map(IdGen.id(id_gen))
+        |> Result.of_option(~error=Action.Failure.Cant_move)
+      };
+    (result, Effect.s^);
+  };
 };

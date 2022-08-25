@@ -247,7 +247,7 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, seg: Segment.t): t => {
+let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -260,14 +260,22 @@ let of_segment = (~old: t=empty, seg: Segment.t): t => {
             seg: Segment.t,
           )
           : (point, t) => {
-    let first_mod_incomplete =
+    let first_touched_incomplete =
       switch (Segment.incomplete_tiles(seg)) {
       | [] => None
       | ts =>
         ts
-        |> List.map((t: Tile.t) => History.get(t.id).modified)
-        |> List.fold_left(History.Time.min, History.Time.max_time)
-        |> Option.some
+        |> List.map((t: Tile.t) => Touched.find_opt(t.id, touched))
+        |> List.fold_left(
+             (acc, touched) =>
+               switch (acc, touched) {
+               | (Some(time), Some(time')) => Some(Time.min(time, time'))
+               | (Some(time), _)
+               | (_, Some(time)) => Some(time)
+               | _ => None
+               },
+             None,
+           )
       };
 
     // recursive across seg's list structure
@@ -294,14 +302,17 @@ let of_segment = (~old: t=empty, seg: Segment.t): t => {
         let (contained_indent, origin, hd_map) =
           switch (hd) {
           | Whitespace(w) when w.content == Whitespace.linebreak =>
-            let r = History.get(w.id);
             let indent =
               if (Segment.sameline_whitespace(tl)) {
                 0;
               } else {
-                switch (first_mod_incomplete, find_opt_lb(w.id, old)) {
-                | (Some(m), Some(indent))
-                    when History.Time.lt(r.modified, m) => indent
+                switch (
+                  Touched.find_opt(w.id, touched),
+                  first_touched_incomplete,
+                  find_opt_lb(w.id, old),
+                ) {
+                | (Some(touched), Some(touched'), Some(indent))
+                    when Time.lt(touched, touched') => indent
                 | _ =>
                   contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
                 };

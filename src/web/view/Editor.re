@@ -8,7 +8,7 @@ let view =
       ~editor_model: Model.editor_model,
       ~mousedown,
       ~inject,
-      ~old_measured,
+      ~measured,
     )
     : Node.t => {
   let focal_zipper = Model.get_zipper'(editor_model);
@@ -22,7 +22,7 @@ let view =
       ~show_backpack_targets,
       ~zipper=focal_zipper,
       ~settings,
-      ~old_measured,
+      ~measured,
     )
   | School(selected, editors) =>
     SchoolEditor.view(
@@ -34,7 +34,7 @@ let view =
       ~focal_zipper,
       ~selected,
       ~show_backpack_targets,
-      ~old_measured,
+      ~measured,
     )
   };
 };
