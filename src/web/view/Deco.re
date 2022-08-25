@@ -10,10 +10,14 @@ module Deco =
            let show_backpack_targets: bool;
          },
        ) => {
+  module Caret =
+    Caret.Make({
+      let measured = M.map;
+    });
   let font_metrics = M.font_metrics;
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Caret.point(M.map, z);
+    let origin = Caret.point(z);
     let shape = Caret.direction(z);
     let side =
       switch (Indicated.piece(z)) {
@@ -229,7 +233,12 @@ module Deco =
   };
 
   let backback = (z: Zipper.t): list(Node.t) => [
-    BackpackView.view(~font_metrics, ~origin=Caret.point(M.map, z), z),
+    BackpackView.view(
+      ~measured=M.map,
+      ~font_metrics,
+      ~origin=Caret.point(z),
+      z,
+    ),
   ];
 
   let targets' = (backpack, seg) => {
