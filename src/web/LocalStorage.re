@@ -72,7 +72,11 @@ let load_simple = (): Model.simple =>
       |> (
         ((id_gen, zipper: Zipper.t)) => (
           id_gen,
-          Model.{zipper, history: ActionHistory.empty},
+          Model.{
+            zipper,
+            history: ActionHistory.empty,
+            touched: Touched.empty,
+          },
         )
       )
     ) {
@@ -85,7 +89,7 @@ let trim_histories: list(Model.editor) => list(Zipper.t) =
 
 let add_histories: list(Zipper.t) => list(Model.editor) =
   List.map((zipper: Zipper.t) =>
-    Model.{zipper, history: ActionHistory.empty}
+    Model.{zipper, history: ActionHistory.empty, touched: Touched.empty}
   );
 
 let prep_school_in =

@@ -27,7 +27,7 @@ and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 let lines_to_list = String.split_on_char('\n');
 
 let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
-  let unselected = Zipper.unselect_and_zip(z);
+  let unselected = Outer.unselect_and_zip(z);
   let mrows = measured.rows;
   module Caret =
     Caret.Make({
@@ -68,26 +68,28 @@ let zipper_of_string =
       id_gen: IdGen.state,
       str: string,
     )
-    : option(Zipper.state) => {
+    : option((Zipper.state, list(Effect.t))) => {
   module Perform =
     Perform.Make({
       let measured = measured;
     });
-  let insert_to_zid: (Zipper.state, string) => Zipper.state =
-    (z_id, c) => {
+  let insert_to_zid:
+    ((Zipper.state, list(Effect.t)), string) =>
+    (Zipper.state, list(Effect.t)) =
+    ((z_id, es), c) => {
       switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
-      | Error(err) =>
+      | (Error(err), _) =>
         print_endline(
           "WARNING: zipper_of_string: insert: " ++ Action.Failure.show(err),
         );
-        z_id;
-      | Ok(r) => r
+        (z_id, es);
+      | (Ok(r), es') => (r, es @ es')
       };
     };
   try(
     str
     |> Util.StringUtil.to_list
-    |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
+    |> List.fold_left(insert_to_zid, ((zipper_init, id_gen), []))
     |> Option.some
   ) {
   | e =>
@@ -118,7 +120,7 @@ let to_string_log = (~measured, z: Zipper.t): string => {
 };
 
 let to_string_basic = (z: Zipper.t): string => {
-  z |> Zipper.unselect_and_zip |> of_segment;
+  z |> Outer.unselect_and_zip |> of_segment;
 };
 
 let to_string_selection = (z: Zipper.t): string => {

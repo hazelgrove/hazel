@@ -249,7 +249,7 @@ module Deco =
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
-    let seg = Zipper.unselect_and_zip(z);
+    let seg = Outer.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
     let measured = Measured.of_segment(seg);
     let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));

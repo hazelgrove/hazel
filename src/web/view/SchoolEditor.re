@@ -14,7 +14,7 @@ let join_tile = (id): Core.Tile.t => {
 
 let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
   editors
-  |> List.map((ed: Model.editor) => Core.Zipper.unselect_and_zip(ed.zipper))
+  |> List.map((ed: Model.editor) => Core.Outer.unselect_and_zip(ed.zipper))
   |> (
     xs =>
       Util.ListUtil.interleave(
@@ -200,12 +200,12 @@ let cell_view =
       ~show_backpack_targets,
       ~show_code=true,
       ~overlays=[],
-      ~old_measured,
+      ~measured,
       idx,
       editor: Model.editor,
     ) => {
   let zipper = editor.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
+  let unselected = Outer.unselect_and_zip(zipper);
   let cell_caption_view =
     //TODO(andrew): diable show term on release!!
     div(
@@ -227,7 +227,7 @@ let cell_view =
       ~overlays,
       ~show_backpack_targets,
       ~show_deco=selected == idx,
-      ~old_measured,
+      ~measured,
       zipper,
     );
   let mousedown_overlay =
@@ -326,7 +326,7 @@ let view =
       ~settings,
       ~focal_zipper: Zipper.t,
       ~inject,
-      ~old_measured,
+      ~measured,
     ) => {
   let cell_view =
     cell_view(
@@ -336,7 +336,7 @@ let view =
       ~mousedown,
       ~selected,
       ~show_backpack_targets,
-      ~old_measured,
+      ~measured,
     );
   let combined_info_map =
     settings.statics

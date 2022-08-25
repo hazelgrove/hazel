@@ -6,6 +6,8 @@ type editor = {
   zipper: Zipper.t,
   [@opaque]
   history: ActionHistory.t,
+  [@opaque]
+  touched: Touched.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -56,6 +58,7 @@ let settings_init = {
 type t = {
   editor_model,
   id_gen: IdGen.state,
+  time: Time.t,
   settings,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
@@ -69,6 +72,7 @@ let cutoff = (===);
 
 let mk = editor_model => {
   id_gen: 1,
+  time: 0,
   editor_model,
   settings: settings_init,
   // TODO: move below to 'io_state'?
@@ -80,9 +84,15 @@ let mk = editor_model => {
   mousedown: false,
 };
 
+let tick = m => (m.time, {...m, time: Time.tick(m.time)});
+
 let blank = mk(School(0, []));
 
-let mk_editor = (zipper): editor => {zipper, history: ActionHistory.empty};
+let mk_editor = (zipper): editor => {
+  zipper,
+  history: ActionHistory.empty,
+  touched: Touched.empty,
+};
 
 let get_editor' = (editor_model: editor_model): editor =>
   switch (editor_model) {
@@ -113,6 +123,8 @@ let get_zipper' = (editor_model: editor_model): Zipper.t =>
 let get_zipper = (model: t): Zipper.t => get_zipper'(model.editor_model);
 let get_history = (model: t): ActionHistory.t =>
   get_editor'(model.editor_model).history;
+let get_touched = (model: t): Touched.t =>
+  get_editor'(model.editor_model).touched;
 
 let get_measured = (model: t) => {
   let old =
@@ -120,8 +132,9 @@ let get_measured = (model: t) => {
     | ([(_, (_, m)), ..._], _) => m
     | _ => Measured.empty
     };
+  let touched = get_touched(model);
   let z = get_zipper(model);
-  Measured.of_segment(~old, Zipper.unselect_and_zip(z));
+  Measured.of_segment(~old, ~touched, Outer.unselect_and_zip(z));
 };
 
 let current_editor = (model: t): int =>
@@ -150,7 +163,7 @@ let editors_of_strings = (xs: list(string)): (Id.t, int, list(editor)) => {
       ((acc_id, acc_zs), str) => {
         switch (Printer.zipper_of_string(acc_id, str)) {
         | None => (acc_id, acc_zs @ [Zipper.init(0)])
-        | Some((z, new_id)) => (new_id, acc_zs @ [z])
+        | Some(((z, new_id), _)) => (new_id, acc_zs @ [z])
         }
       },
       (0, []),
