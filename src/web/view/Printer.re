@@ -66,8 +66,7 @@ let zipper_of_string =
       switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
       | Error(err) =>
         print_endline(
-          "WARNING: zipper_of_string: insert: "
-          ++ Perform.Action.Failure.show(err),
+          "WARNING: zipper_of_string: insert: " ++ Action.Failure.show(err),
         );
         z_id;
       | Ok(r) => r

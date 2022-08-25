@@ -1,41 +1,5 @@
 open Util;
-open Sexplib.Std;
 open Zipper;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type move =
-  | Extreme(planar)
-  | Local(planar)
-  | Goal(Measured.point);
-
-module Action = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Move(move)
-    | Select(move)
-    | Unselect
-    | Destruct(Direction.t)
-    | Insert(string)
-    | RotateBackpack
-    | MoveToBackpackTarget(planar)
-    | Pick_up
-    | Put_down;
-
-  module Failure = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | Cant_move
-      | Cant_insert
-      | Cant_destruct
-      | Cant_select
-      | Cant_put_down;
-  };
-
-  module Result = {
-    include Result;
-    type t('success) = Result.t('success, Failure.t);
-  };
-};
 
 let update_target = Caret.update_target;
 
@@ -46,7 +10,7 @@ let put_down = (z: t): option(t) =>
   | Outer => Outer.put_down(z)
   };
 
-let move = (d, z, id_gen) =>
+let move = (d: Action.move, z, id_gen) =>
   switch (d) {
   | Goal(goal) =>
     let z = Selection.is_empty(z.selection) ? z : Outer.unselect(z);
@@ -92,7 +56,7 @@ let select_primary = (d: Direction.t, z: t): option(t) =>
 let select_vertical = (d: Direction.t, z: t): option(t) =>
   Caret.do_vertical(select_primary, d, z);
 
-let select = (d, z, id_gen) =>
+let select = (d: Action.move, z, id_gen) =>
   (
     switch (d) {
     | Goal(goal) =>
