@@ -213,7 +213,33 @@ let post_tile_indent = (t: Tile.t) => {
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
 
-let is_indented_map = _ => failwith("todo");
+let is_indented_map = (seg: Segment.t) => {
+  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
+    seg
+    |> List.fold_left(
+         ((is_indented, map), p: Piece.t) =>
+           switch (p) {
+           | Whitespace(w) when w.content == Whitespace.linebreak => (
+               false,
+               Id.Map.add(w.id, is_indented, map),
+             )
+           | Whitespace(_)
+           | Grout(_) => (is_indented, map)
+           | Tile(t) =>
+             let is_indented = is_indented || post_tile_indent(t);
+             let map =
+               t.children
+               |> List.fold_left(
+                    (map, child) => go(~is_indented=true, ~map, child),
+                    map,
+                  );
+             (is_indented, map);
+           },
+         (is_indented, map),
+       )
+    |> snd;
+  go(seg);
+};
 
 let of_segment = (~old: t=empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
