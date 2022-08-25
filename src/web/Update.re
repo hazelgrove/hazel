@@ -177,10 +177,12 @@ let apply =
   | PerformAction(a) =>
     let Model.{zipper, history} = Model.get_editor(model);
     let z_id = (zipper, model.id_gen);
+    let old = Measured.of_segment(Zipper.unselect_and_zip(zipper));
     switch (Perform.go(a, z_id)) {
     | Error(err) => Error(FailedToPerform(err))
     | Ok((zipper, id_gen)) =>
       let history = ActionHistory.succeeded(a, z_id, history);
+      Measured.old := old;
       Ok({
         ...model,
         id_gen,
