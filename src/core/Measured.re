@@ -302,7 +302,7 @@ let of_segment = (seg: Segment.t): t => {
                   contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
                 };
               };
-            let last = {row: origin.row + 1, col: indent};
+            let last = {row: origin.row + 1, col: container_indent + indent};
             let map =
               singleton_w(w, {origin, last})
               |> add_row(
