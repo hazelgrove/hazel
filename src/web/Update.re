@@ -25,7 +25,7 @@ type t =
   | SwitchEditor(int)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
-  | PerformAction(Perform.Action.t)
+  | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
   | Copy
   | Paste
@@ -43,7 +43,7 @@ module Failure = {
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)
-    | FailedToPerform(Perform.Action.Failure.t)
+    | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };
 
