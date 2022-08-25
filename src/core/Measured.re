@@ -32,6 +32,7 @@ type indent = int;
 // indentation relative to container
 type rel_indent = indent;
 // indentation relative to code container
+// TODO(d): make this col
 type abs_indent = indent;
 
 module Rows = {
@@ -44,6 +45,11 @@ module Rows = {
 
   let max_col = (rs: list(int), map: t) =>
     rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
+
+  let min_col = (rs: list(int), map: t) =>
+    rs
+    |> List.map(r => find(r, map).indent)
+    |> List.fold_left(min, Int.max_int);
 };
 
 module Shards = {
