@@ -176,12 +176,16 @@ let apply =
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
     let Model.{zipper: z_init, history} = Model.get_editor(model);
-    let old = Measured.of_segment(Zipper.unselect_and_zip(z_init));
+    let measured = Model.get_measured(model);
+    module Perform =
+      Perform.Make({
+        let measured = measured;
+      });
     switch (Perform.go(a, (z_init, model.id_gen))) {
     | Error(err) => Error(FailedToPerform(err))
     | Ok((zipper, id_gen)) =>
-      let history = ActionHistory.succeeded(a, z_init, history);
-      Measured.old := old;
+      let history = ActionHistory.succeeded(a, (z_init, measured), history);
+      // Measured.old := old;
       Ok({
         ...model,
         id_gen,
@@ -197,13 +201,20 @@ let apply =
     //let clipboard = JsUtil.get_from_clipboard();
     let clipboard = model.clipboard;
     let Model.{zipper: z_init, history} = Model.get_editor(model);
+    let measured = Model.get_measured(model);
     switch (
-      Printer.zipper_of_string(~zipper_init=z_init, model.id_gen, clipboard)
+      Printer.zipper_of_string(
+        ~measured,
+        ~zipper_init=z_init,
+        model.id_gen,
+        clipboard,
+      )
     ) {
     | None => Error(CantPaste)
     | Some((zipper, id_gen)) =>
       //TODO: add correct action to history (Pick_up is wrong)
-      let history = ActionHistory.succeeded(Pick_up, z_init, history);
+      let history =
+        ActionHistory.succeeded(Pick_up, (z_init, measured), history);
       Ok({
         ...model,
         id_gen,
@@ -212,9 +223,10 @@ let apply =
     };
   | Undo =>
     let Model.{zipper, history} = Model.get_editor(model);
-    switch (ActionHistory.undo(zipper, history)) {
+    let measured = Model.get_measured(model);
+    switch (ActionHistory.undo((zipper, measured), history)) {
     | None => Error(CantUndo)
-    | Some((zipper, history)) =>
+    | Some(((zipper, _), history)) =>
       Ok({
         ...model,
         editor_model: Model.put_editor(model, {zipper, history}),
@@ -222,9 +234,10 @@ let apply =
     };
   | Redo =>
     let Model.{zipper, history} = Model.get_editor(model);
-    switch (ActionHistory.redo(zipper, history)) {
+    let measured = Model.get_measured(model);
+    switch (ActionHistory.redo((zipper, measured), history)) {
     | None => Error(CantRedo)
-    | Some((zipper, history)) =>
+    | Some(((zipper, _), history)) =>
       Ok({
         ...model,
         editor_model: Model.put_editor(model, {zipper, history}),

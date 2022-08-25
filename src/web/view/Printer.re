@@ -26,11 +26,14 @@ and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 
 let lines_to_list = String.split_on_char('\n');
 
-let of_zipper = (z: Zipper.t): t => {
+let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
   let unselected = Zipper.unselect_and_zip(z);
-  let map = Measured.of_segment(unselected);
-  let mrows = map.rows;
-  let Measured.{row, col} = Caret.point(map, z);
+  let mrows = measured.rows;
+  module Caret =
+    Caret.Make({
+      let measured = measured;
+    });
+  let Measured.{row, col} = Caret.point(z);
   let rows = unselected |> of_segment |> lines_to_list;
   let rows =
     List.mapi(
@@ -59,8 +62,17 @@ let of_zipper = (z: Zipper.t): t => {
 };
 
 let zipper_of_string =
-    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
+    (
+      ~measured=Measured.empty,
+      ~zipper_init=Zipper.init(0),
+      id_gen: IdGen.state,
+      str: string,
+    )
     : option(Zipper.state) => {
+  module Perform =
+    Perform.Make({
+      let measured = measured;
+    });
   let insert_to_zid: (Zipper.state, string) => Zipper.state =
     (z_id, c) => {
       switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
@@ -87,8 +99,8 @@ let zipper_of_string =
   };
 };
 
-let to_string_log = (z: Zipper.t): string => {
-  let {code, selection, backpack} = of_zipper(z);
+let to_string_log = (~measured, z: Zipper.t): string => {
+  let {code, selection, backpack} = of_zipper(~measured, z);
   Printf.sprintf(
     "CODE:\n%s\nSELECTION:\n%s\n%s\n",
     String.concat("\n", code),

@@ -132,7 +132,7 @@ let editor_view =
         settings,
         mousedown,
         _,
-      }: Model.t,
+      } as model: Model.t,
     ) =>
   Editor.view(
     ~editor_model,
@@ -140,6 +140,11 @@ let editor_view =
     ~show_backpack_targets,
     ~mousedown,
     ~settings,
+    ~old_measured=
+      switch (Model.get_history(model).succeeded) {
+      | ([(_, (_, m)), ..._], _) => m
+      | _ => Core.Measured.empty
+      },
   );
 
 let view = (~inject, ~handlers, model: Model.t) => {

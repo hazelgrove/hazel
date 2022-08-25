@@ -247,9 +247,7 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let old = ref(empty);
-
-let of_segment = (seg: Segment.t): t => {
+let of_segment = (~old: t=empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -301,7 +299,7 @@ let of_segment = (seg: Segment.t): t => {
               if (Segment.sameline_whitespace(tl)) {
                 0;
               } else {
-                switch (first_mod_incomplete, find_opt_lb(w.id, old^)) {
+                switch (first_mod_incomplete, find_opt_lb(w.id, old)) {
                 | (Some(m), Some(indent))
                     when History.Time.lt(r.modified, m) => indent
                 | _ =>
@@ -399,3 +397,5 @@ let segment_width = (seg: Segment.t): int =>
     of_segment(seg).rows,
     0,
   );
+
+module type S = {let measured: t;};

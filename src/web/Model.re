@@ -4,6 +4,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type editor = {
   zipper: Zipper.t,
+  [@opaque]
   history: ActionHistory.t,
 };
 
@@ -112,6 +113,16 @@ let get_zipper' = (editor_model: editor_model): Zipper.t =>
 let get_zipper = (model: t): Zipper.t => get_zipper'(model.editor_model);
 let get_history = (model: t): ActionHistory.t =>
   get_editor'(model.editor_model).history;
+
+let get_measured = (model: t) => {
+  let old =
+    switch (get_history(model).succeeded) {
+    | ([(_, (_, m)), ..._], _) => m
+    | _ => Measured.empty
+    };
+  let z = get_zipper(model);
+  Measured.of_segment(~old, Zipper.unselect_and_zip(z));
+};
 
 let current_editor = (model: t): int =>
   switch (model.editor_model) {
