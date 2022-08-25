@@ -489,7 +489,7 @@ let _check_actions = (a: Action.t) =>
   | Construct(SOp(SSpace)) => Added
   | Construct(SOp(SComma)) => Added
   | Construct(SList) => Added
-  | Construct(SListNil) => Added
+  | Construct(SListLit) => Added
   | Construct(SOp(SCons)) => Added
   | Construct(SInj(L)) => Added
   | Construct(SInj(R)) => Added

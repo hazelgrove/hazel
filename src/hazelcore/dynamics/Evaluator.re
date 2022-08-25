@@ -151,32 +151,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
   | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
   | (Triv, _) => DoesNotMatch
-  | (ListNil, ListNil(_)) => Matches(Environment.empty)
-  | (ListNil, Cast(d, Hole, List(_))) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), Hole)) => matches(dp, d)
-  | (ListNil, Cast(d, List(_), List(_))) => matches(dp, d)
-  | (ListNil, _) => DoesNotMatch
-  | (Cons(dp1, dp2), Cons(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | (Cons(dp1, dp2), Cast(d, List(ty1), List(ty2))) =>
-    matches_cast_Cons(dp1, dp2, d, [(ty1, ty2)])
-  | (Cons(_, _), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_, _), Cast(d, List(_), Hole)) => matches(dp, d)
-  | (Cons(_, _), _) => DoesNotMatch
+  | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
+    matches_cast_Cons(dp, d, [(ty1, ty2)])
+  | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
+  | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(_, _), Cons(_, _))
+  | (ListLit(_, _), Cons(_, _))
+  | (Cons(_, _), ListLit(_))
+  | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
+  | (Cons(_) | ListLit(_), _) => DoesNotMatch
   | (Ap(_, _), _) => DoesNotMatch
   }
 and matches_cast_Inj =
@@ -225,7 +208,7 @@ and matches_cast_Inj =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
+  | ListLit(_, _, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -293,7 +276,7 @@ and matches_cast_Pair =
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
+  | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
@@ -306,50 +289,108 @@ and matches_cast_Pair =
   | TestLit(_) => DoesNotMatch
   }
 and matches_cast_Cons =
-    (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
-      d: DHExp.t,
-      elt_casts: list((HTyp.t, HTyp.t)),
-    )
+    (dp: DHPat.t, d: DHExp.t, elt_casts: list((HTyp.t, HTyp.t)))
     : match_result =>
   switch (d) {
-  | Cons(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      let list_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
-          },
-          elt_casts,
-        );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      };
-    | Matches(env1) =>
-      let list_casts =
-        List.map(
-          (c: (HTyp.t, HTyp.t)) => {
-            let (ty1, ty2) = c;
-            (HTyp.List(ty1), HTyp.List(ty2));
-          },
-          elt_casts,
-        );
-      switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+  | ListLit(_, _, _, _, _, []) =>
+    switch (dp) {
+    | ListLit(_, []) => Matches(Environment.empty)
+    | _ => DoesNotMatch
+    }
+
+  | ListLit(u, i, sigma, err, ty, [dhd, ...dtl] as ds) =>
+    switch (dp) {
+    | Cons(dp1, dp2) =>
+      switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      };
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        let d2 = DHExp.ListLit(u, i, sigma, err, ty, dtl);
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | ListLit(_, dps) =>
+      switch (ListUtil.opt_zip(dps, ds)) {
+      | None => DoesNotMatch
+      | Some(lst) =>
+        lst
+        |> List.map(((dp, d)) =>
+             matches(dp, DHExp.apply_casts(d, elt_casts))
+           )
+        |> List.fold_left(
+             (match1, match2) =>
+               switch (match1, match2) {
+               | (DoesNotMatch, _)
+               | (_, DoesNotMatch) => DoesNotMatch
+               | (IndetMatch, _)
+               | (_, IndetMatch) => IndetMatch
+               | (Matches(env1), Matches(env2)) =>
+                 Matches(Environment.union(env1, env2))
+               },
+             Matches(Environment.empty),
+           )
+      }
+    | _ => failwith("called matches_cast_Cons with non-list pattern")
+    }
+  | Cons(d1, d2) =>
+    switch (dp) {
+    | Cons(dp1, dp2) =>
+      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch => IndetMatch
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | ListLit(_, []) => DoesNotMatch
+    | ListLit(ty, [dphd, ...dptl]) =>
+      switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch => IndetMatch
+      | Matches(env1) =>
+        let list_casts =
+          List.map(
+            (c: (HTyp.t, HTyp.t)) => {
+              let (ty1, ty2) = c;
+              (HTyp.List(ty1), HTyp.List(ty2));
+            },
+            elt_casts,
+          );
+        let dp2 = DHPat.ListLit(ty, dptl);
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env2) => Matches(Environment.union(env1, env2))
+        };
+      }
+    | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cast(d', List(ty1), List(ty2)) =>
-    matches_cast_Cons(dp1, dp2, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp1, dp2, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp1, dp2, d', elt_casts)
+    matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
+  | Cast(d', List(_), Hole) => matches_cast_Cons(dp, d', elt_casts)
+  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_, _, _, _) => IndetMatch
@@ -366,7 +407,6 @@ and matches_cast_Cons =
   | IntLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
-  | ListNil(_) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
@@ -422,12 +462,15 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => d2
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Cons(d3, d4);
+  | ListLit(u, i, sigma, err, t, types) =>
+    let subst_sigma = subst_var_env(d1, x, sigma);
+    let subst_types = List.map(subst_var(d1, x), types);
+    ListLit(u, i, subst_sigma, err, t, subst_types);
   | BinBoolOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -564,7 +607,6 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   let state = EvalState.take_step(state);
   switch (d) {
   | BoolLit(_)
-  | ListNil(_)
   | IntLit(_)
   | FloatLit(_)
   | Triv
@@ -584,6 +626,19 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | Cons(d1, d2) =>
     let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_cons);
+  | ListLit(x1, x2, x3, x4, ty, lst) =>
+    let (evaluated_lst, state) =
+      List.fold_right(
+        (ele, (ele_list, state)) => {
+          switch (evaluate(ele, ~state)) {
+          | (BoxedValue(ele'), state) => ([ele'] @ ele_list, state)
+          | _ => ([ele, ...ele_list], state)
+          }
+        },
+        lst,
+        ([], state),
+      );
+    (BoxedValue(ListLit(x1, x2, x3, x4, ty, evaluated_lst)), state);
   | FixF(_) when state.fuel <= 0 => (
       Indet(InvalidOperation(d, OutOfFuel)),
       state,

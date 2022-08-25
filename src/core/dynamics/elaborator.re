@@ -89,9 +89,19 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListLit(_) =>
+    | ListLit(_ids, es) =>
       //TODO: list literals. below is just placeholder
-      wrap(ListNil(Hole))
+      let* ds =
+        List.fold_left(
+          (acc, e) => {
+            let* acc = acc;
+            let+ d = dhexp_of_uexp(m, e);
+            acc @ [d];
+          },
+          Some([]),
+          es,
+        );
+      wrap(ListLit(0, 0, [], StandardErrStatus(NotInHole), Int, ds));
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
@@ -235,7 +245,19 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListNil => wrap(ListNil)
+    | ListLit(_ids, ps) =>
+      //TODO: list literals. below is just placeholder
+      let* ps =
+        List.fold_left(
+          (acc, e) => {
+            let* acc = acc;
+            let+ d = dhpat_of_upat(m, e);
+            acc @ [d];
+          },
+          Some([]),
+          ps,
+        );
+      wrap(ListLit(Hole, ps));
     | Tuple(_ids, ps) =>
       //TODO(andrew): review below
       switch (List.rev(ps)) {

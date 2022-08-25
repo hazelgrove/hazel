@@ -12,7 +12,7 @@ type t =
   | FloatLit(float)
   | BoolLit(bool)
   | Inj(InjSide.t, t)
-  | ListNil
+  | ListLit(HTyp.t, list(t))
   | Cons(t, t)
   | Pair(t, t)
   | Triv /* unit intro */
@@ -37,11 +37,13 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | Triv
-  | ListNil
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
   | Inj(_, dp1) => binds_var(x, dp1)
   | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
+  | ListLit(_, d_list) =>
+    let new_list = List.map(binds_var(x), d_list);
+    List.fold_left((||), false, new_list);
   | Ap(_, _) => false
   };

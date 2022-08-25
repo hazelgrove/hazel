@@ -103,7 +103,7 @@ module UPat = {
     | Float
     | Bool
     | Triv
-    | ListNil
+    | ListLit
     | Var
     | Tuple
     | Parens
@@ -119,7 +119,7 @@ module UPat = {
     | Float(float)
     | Bool(bool)
     | Triv
-    | ListNil
+    | ListLit(list(Id.t), list(t))
     | Var(Token.t)
     | Tuple(list(Id.t), list(t))
     | Parens(t)
@@ -141,7 +141,7 @@ module UPat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | Triv => Triv
-    | ListNil => ListNil
+    | ListLit(_) => ListLit
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
@@ -157,7 +157,7 @@ module UPat = {
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
     | Triv => "Trivial Literal. Pathetic, really."
-    | ListNil => "List Literal"
+    | ListLit => "List Literal"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"

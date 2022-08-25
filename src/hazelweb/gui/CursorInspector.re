@@ -79,7 +79,33 @@ let pat_ana_subsumed_msg =
 
 let syn_branch_clause_msg =
     (
-      join,
+      join: CursorInfo.join_of_branches,
+      typed,
+      join_type_consistent,
+      join_type_inconsistent_expecting,
+      join_type_inconsistent_msg,
+      other,
+    ) => {
+  switch (join, typed) {
+  | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
+    if (HTyp.consistent(ty, got_ty)) {
+      join_type_consistent @ [HTypCode.view(ty)];
+    } else {
+      let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
+      join_type_inconsistent_expecting
+      @ [
+        HTypCode.view(~diff_steps=ty_diff, ty),
+        join_type_inconsistent_msg,
+        HTypCode.view(~diff_steps=got_diff, got_ty),
+      ];
+    }
+  | _ => other(typed)
+  };
+};
+
+let syn_element_msg =
+    (
+      join: CursorInfo.join_of_elements,
       typed,
       join_type_consistent,
       join_type_inconsistent_expecting,
@@ -200,6 +226,15 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _) =>
+      syn_element_msg(
+        join,
+        typed,
+        [syn],
+        [syn],
+        inconsistent_symbol,
+        message,
+      )
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -209,6 +244,16 @@ let advanced_summary =
         inconsistent_symbol,
         message,
       )
+    | SynInconsistentElements(_) => [
+        syn,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        syn,
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         syn,
         emphasize_text("Inconsistent Branch Types"),
@@ -378,6 +423,15 @@ let novice_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _) =>
+      syn_element_msg(
+        join,
+        typed,
+        [Node.text("Got " ++ article), term_tag, Node.text("of type")],
+        expecting_of_type,
+        Node.text("but got inconsistent type"),
+        message,
+      )
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -387,6 +441,19 @@ let novice_summary =
         Node.text("but got inconsistent type"),
         message,
       )
+    | SynInconsistentElements(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("of"),
+        emphasize_text("Function Type"),
+        Node.text("but got"),
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
         term_tag,
@@ -527,6 +594,23 @@ let view =
         branch_types,
       ),
     );
+  let inconsistent_elements_ty_bar = (branch_types, path_to_case) =>
+    Node.div(
+      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      List.mapi(
+        (index, ty) => {
+          Node.span(
+            [
+              Attr.on_click(_ => {
+                inject(SelectListElement(List.nth(path_to_case, index)))
+              }),
+            ],
+            [HTypCode.view(ty)],
+          )
+        },
+        branch_types,
+      ),
+    );
 
   let special_msg_bar = (msg: string) =>
     Node.div(
@@ -552,7 +636,12 @@ let view =
         Some(skipped_index),
       ),
     );
-
+  let expected_inconsistent_elements_indicator =
+      (branch_types, path_to_element) =>
+    expected_indicator(
+      "No consistent expected type",
+      inconsistent_elements_ty_bar(branch_types, path_to_element),
+    );
   let got_indicator = (title_text, type_div) =>
     Node.div(
       [Attr.classes(["indicator", "got-indicator"])],
@@ -562,6 +651,11 @@ let view =
     got_indicator(
       "Got inconsistent branch types",
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
+    );
+  let got_inconsistent_elements_indicator = (element_types, path_to_element) =>
+    got_indicator(
+      "Got inconsistent element types",
+      inconsistent_elements_ty_bar(element_types, path_to_element),
     );
 
   let expanded_msg =
@@ -586,6 +680,18 @@ let view =
     | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
       let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
       Some([ind]);
+    | SynListElement(InconsistentBranchTys(rule_types, path_to_case), _, _) =>
+      let ind =
+        expected_inconsistent_elements_indicator(rule_types, path_to_case);
+      Some([ind]);
+    | SynInconsistentElements(rule_types, path_to_case) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_inconsistent_elements_indicator(rule_types, path_to_case);
+      Some([ind1, ind2]);
+    | SynInconsistentElementsArrow(rule_types, path_to_case) =>
+      let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
+      Some([ind]);
     | _ => None
     };
 
@@ -605,6 +711,8 @@ let view =
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
+    | SynInconsistentElements(_)
+    | SynInconsistentElementsArrow(_)
     | SynInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaTypeInconsistent(_)
@@ -621,6 +729,17 @@ let view =
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
     | PatSynKeyword(_) => BindingError
+    | SynListElement(join, typed, _) =>
+      switch (join, typed) {
+      | (JoinTy(ty), Synthesized(got_ty)) =>
+        if (HTyp.consistent(ty, got_ty)) {
+          OK;
+        } else {
+          TypeInconsistency;
+        }
+      | (InconsistentBranchTys(_), _) => TypeInconsistency
+      | _ => get_err_state_b(typed)
+      }
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
