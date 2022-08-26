@@ -425,6 +425,11 @@ and upat_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | ListNil => atomic(Just(List(Unknown(Internal))))
+  | Cons(hd, tl) =>
+    let mode_elem = Typ.matched_list_mode(mode);
+    let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
+    let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
+    add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);
