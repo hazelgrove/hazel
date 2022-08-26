@@ -275,6 +275,7 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
+      | ([t], [], []) when Form.is_listnil(t) => ListNil
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
