@@ -237,50 +237,19 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  // recurses through skel structure to enable experimentation
-  // with hiding nested err holes
-  let err_holes = (z: Zipper.t) => {
+  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
     let measured = Measured.of_segment(seg);
-    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
-    let is_err = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, info_map)) {
-      | None => false
-      | Some(info) => Statics.is_error(info)
-      };
-
-    let rec go_seg = (seg: Segment.t): list(Id.t) => {
-      let rec go_skel = (skel: Skel.t): list(Id.t) => {
-        let root = List.nth(seg, Skel.root_index(skel));
-        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
-        let uni_ids =
-          switch (skel) {
-          | Op(_) => []
-          | Pre(_, r) => go_skel(r)
-          | Post(l, _) => go_skel(l)
-          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
-          };
-        root_ids @ uni_ids;
-      };
-
-      let bi_ids =
-        seg
-        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
-
-      go_skel(Segment.skel(seg)) @ bi_ids;
-    };
-
-    let err_ids = go_seg(seg);
-    let err_ranges =
-      err_ids
+    let term_ranges =
+      ids
       |> List.map(id => {
            let (p_l, p_r) = TermRanges.find(id, ranges);
            let l = Measured.find_p(p_l, M.map).origin;
            let r = Measured.find_p(p_r, M.map).last;
            (l, r);
          });
-    err_ranges
+    term_ranges
     |> List.map(((l: Measured.point, r: Measured.point)) => {
          open SvgUtil.Path;
          let r_edge =
@@ -307,13 +276,40 @@ module Deco =
          );
        })
     |> List.map(((origin, path)) =>
-         DecUtil.code_svg(
-           ~font_metrics,
-           ~origin,
-           ~base_cls=["err-hole"],
-           path,
-         )
+         DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
        );
+  };
+
+  // recurses through skel structure to enable experimentation
+  // with hiding nested err holes
+  let err_holes = (z: Zipper.t) => {
+    let seg = Zipper.unselect_and_zip(z);
+    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
+    let is_err = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, info_map)) {
+      | None => false
+      | Some(info) => Statics.is_error(info)
+      };
+    let rec go_seg = (seg: Segment.t): list(Id.t) => {
+      let rec go_skel = (skel: Skel.t): list(Id.t) => {
+        let root = List.nth(seg, Skel.root_index(skel));
+        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
+        let uni_ids =
+          switch (skel) {
+          | Op(_) => []
+          | Pre(_, r) => go_skel(r)
+          | Post(l, _) => go_skel(l)
+          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
+          };
+        root_ids @ uni_ids;
+      };
+      let bi_ids =
+        seg
+        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
+
+      go_skel(Segment.skel(seg)) @ bi_ids;
+    };
+    term_highlight(~ids=go_seg(seg), ~clss=["err-hole"], z);
   };
 
   let all = (zipper, sel_seg) =>
