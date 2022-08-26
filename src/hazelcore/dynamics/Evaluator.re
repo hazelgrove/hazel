@@ -624,8 +624,35 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
     let mk_pair = (d1', d2') => DHExp.Pair(d1', d2');
     eval_binary_constructor((d1, state), d2, mk_pair);
   | Cons(d1, d2) =>
-    let mk_cons = (d1', d2') => DHExp.Cons(d1', d2');
-    eval_binary_constructor((d1, state), d2, mk_cons);
+    switch (evaluate(d1, ~state)) {
+    | (Indet(d1'), state) =>
+      switch (evaluate(d2, ~state)) {
+      | (Indet(d2'), state) => (Indet(Cons(d1', d2')), state)
+      | (BoxedValue(d2'), state) => (Indet(Cons(d1', d2')), state)
+      }
+    | (BoxedValue(d1'), state) =>
+      switch (evaluate(d2, ~state)) {
+      | (Indet(d2'), state) => (Indet(Cons(d1', d2')), state)
+      | (BoxedValue(d2'), state) =>
+        switch (d2') {
+        | ListLit(x1, x2, x3, x4, x5, lst) => (
+            BoxedValue(ListLit(x1, x2, x3, x4, x5, [d1', ...lst])),
+            state,
+          )
+        | Cast(ListLit(x1, x2, x3, x4, x5, lst), List(ty), List(ty')) => (
+            BoxedValue(
+              Cast(
+                ListLit(x1, x2, x3, x4, x5, [d1', ...lst]),
+                List(ty),
+                List(ty'),
+              ),
+            ),
+            state,
+          )
+        | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
+        }
+      }
+    }
   | ListLit(x1, x2, x3, x4, ty, lst) =>
     let (evaluated_lst, state) =
       List.fold_right(
