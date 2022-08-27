@@ -6,7 +6,7 @@ open Zipper;
 type move =
   | Extreme(planar)
   | Local(planar)
-  | Goal(Measured.point);
+  | Goal(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =

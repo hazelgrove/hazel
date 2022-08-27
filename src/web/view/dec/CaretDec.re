@@ -8,7 +8,7 @@ let caret_bend = DecUtil.tip_width;
 module Profile = {
   type t = {
     side: Direction.t,
-    origin: Core.Measured.point,
+    origin: Core.Measured.Point.t,
     shape: option(Direction.t),
   };
 };

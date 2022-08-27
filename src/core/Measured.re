@@ -1,13 +1,35 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type point = {
-  // indent: int,
-  row: int,
-  col: int,
+module Point = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    // indent: int,
+    row: int,
+    col: int,
+  };
+  let zero = {row: 0, col: 0};
+
+  let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
+
+  type comparison =
+    | Exact
+    | Under
+    | Over;
+
+  let comp = (current, target): comparison =>
+    switch () {
+    | _ when current == target => Exact
+    | _ when current < target => Under
+    | _ => Over
+    };
+
+  let dcomp = (direction: Direction.t, a, b) =>
+    switch (direction) {
+    | Right => comp(a, b)
+    | Left => comp(b, a)
+    };
 };
-let zero = {row: 0, col: 0};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement_lin = {
@@ -17,8 +39,8 @@ type measurement_lin = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
-  origin: point,
-  last: point,
+  origin: Point.t,
+  last: Point.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -89,9 +111,6 @@ let empty = {
   rows: Rows.empty,
   linebreaks: Id.Map.empty,
 };
-
-let point_equals: (point, point) => bool =
-  (p, q) => p.row == q.row && p.col == q.col;
 
 let add_s = (id: Id.t, i: int, m, map) => {
   ...map,
@@ -256,10 +275,10 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             ~container_indent: abs_indent=0,
             // ~row_indent: abs_indent=container_indent,
             // ~prefix_indents: list((Piece.t, rel_indent))=[],
-            ~origin=zero,
+            ~origin=Point.zero,
             seg: Segment.t,
           )
-          : (point, t) => {
+          : (Point.t, t) => {
     let first_touched_incomplete =
       switch (Segment.incomplete_tiles(seg)) {
       | [] => None
@@ -282,10 +301,10 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
     let rec go_seq =
             (
               ~contained_indent=container_indent,
-              ~origin: point,
+              ~origin: Point.t,
               seg: Segment.t,
             )
-            : (point, t) =>
+            : (Point.t, t) =>
       switch (seg) {
       | [] =>
         let map =
@@ -317,7 +336,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                   contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
                 };
               };
-            let last = {row: origin.row + 1, col: container_indent + indent};
+            let last =
+              Point.{row: origin.row + 1, col: container_indent + indent};
             let map =
               singleton_w(w, {origin, last})
               |> add_row(
@@ -338,10 +358,11 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let of_shard = (origin, shard) => {
-              let last = {
-                ...origin,
-                col: origin.col + String.length(token(shard)),
-              };
+              let last =
+                Point.{
+                  ...origin,
+                  col: origin.col + String.length(token(shard)),
+                };
               (last, singleton_s(t.id, shard, {origin, last}));
             };
             let (last, map) =
@@ -384,13 +405,13 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(point) =>
+let segment_origin = (seg: Segment.t): option(Point.t) =>
   Option.map(
     first => find_p(first, of_segment(seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(point) =>
+let segment_last = (seg: Segment.t): option(Point.t) =>
   Option.map(
     last => find_p(last, of_segment(seg)).last,
     ListUtil.last_opt(seg),

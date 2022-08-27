@@ -45,7 +45,7 @@ module Make = (M: Measured.S) => {
     };
   };
 
-  let base_point = (z: t): Measured.point => {
+  let base_point = (z: t): Measured.Point.t => {
     switch (representative_piece(z)) {
     | Some((p, d)) =>
       let seg = Piece.disassemble(p);
@@ -63,8 +63,8 @@ module Make = (M: Measured.S) => {
     };
   };
 
-  let point = (z: t): Measured.point => {
-    let Measured.{row, col} = base_point(z);
+  let point = (z: t): Measured.Point.t => {
+    let Measured.Point.{row, col} = base_point(z);
     {row, col: col + caret_offset(z.caret)};
   };
 
@@ -92,9 +92,9 @@ module Make = (M: Measured.S) => {
 
   let do_towards =
       (
-        ~anchor: option(Measured.point)=?,
+        ~anchor: option(Measured.Point.t)=?,
         f: (Direction.t, t) => option(t),
-        goal: Measured.point,
+        goal: Measured.Point.t,
         z: t,
       )
       : option(t) => {
@@ -137,7 +137,7 @@ module Make = (M: Measured.S) => {
     };
 
     let res = go(z, z);
-    Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
+    Measured.Point.equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
   };
 
   let do_vertical =
@@ -148,7 +148,7 @@ module Make = (M: Measured.S) => {
     let cursorpos = point;
     let cur_p = cursorpos(z);
     let goal =
-      Measured.{
+      Measured.Point.{
         col: z.caret_col_target,
         row: cur_p.row + (d == Right ? 1 : (-1)),
       };
@@ -161,7 +161,7 @@ module Make = (M: Measured.S) => {
       (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
     let cursorpos = point;
     let cur_p = cursorpos(z);
-    let goal: Measured.point =
+    let goal: Measured.Point.t =
       switch (d) {
       | Right(_) => {col: Int.max_int, row: cur_p.row}
       | Left(_) => {col: 0, row: cur_p.row}

@@ -6,7 +6,7 @@ open SvgUtil;
 
 module Profile = {
   type style =
-    | Root(Measured.point, Measured.point)
+    | Root(Measured.Point.t, Measured.Point.t)
     | Selected(int, int);
 
   type t = {
@@ -196,7 +196,7 @@ let uni_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      (l: Measured.point, r: Measured.point),
+      (l: Measured.Point.t, r: Measured.Point.t),
       mold: Mold.t,
       shards: Measured.Shards.t,
     ) => {
