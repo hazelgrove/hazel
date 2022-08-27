@@ -56,7 +56,7 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let rect = JSUtil.force_get_elem_by_id(target_id)##getBoundingClientRect;
   let goal_x = float_of_int(e##.clientX);
   let goal_y = float_of_int(e##.clientY);
-  Measured.{
+  Measured.Point.{
     row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
     col:
       Float.(
