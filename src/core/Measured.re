@@ -1,13 +1,35 @@
 open Sexplib.Std;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type point = {
-  // indent: int,
-  row: int,
-  col: int,
+module Point = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    // indent: int,
+    row: int,
+    col: int,
+  };
+  let zero = {row: 0, col: 0};
+
+  let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
+
+  type comparison =
+    | Exact
+    | Under
+    | Over;
+
+  let comp = (current, target): comparison =>
+    switch () {
+    | _ when current == target => Exact
+    | _ when current < target => Under
+    | _ => Over
+    };
+
+  let dcomp = (direction: Direction.t, a, b) =>
+    switch (direction) {
+    | Right => comp(a, b)
+    | Left => comp(b, a)
+    };
 };
-let zero = {row: 0, col: 0};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement_lin = {
@@ -17,8 +39,8 @@ type measurement_lin = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
-  origin: point,
-  last: point,
+  origin: Point.t,
+  last: Point.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -75,9 +97,6 @@ let empty = {
   whitespace: Id.Map.empty,
   rows: Rows.empty,
 };
-
-let point_equals: (point, point) => bool =
-  (p, q) => p.row == q.row && p.col == q.col;
 
 let add_s = (id: Id.t, i: int, m, map) => {
   ...map,
@@ -214,10 +233,10 @@ let rec of_segment' =
           ~contained_indent=container_indent,
           /* indentation at the start of the row */
           ~row_indent=container_indent,
-          ~origin=zero,
+          ~origin=Point.zero,
           seg: Segment.t,
         )
-        : (int, point, t) =>
+        : (int, Point.t, t) =>
   switch (seg) {
   | [] => (
       row_indent,
@@ -237,7 +256,7 @@ let rec of_segment' =
           } else {
             contained_indent;
           };
-        let last = {row: origin.row + 1, col: indent'};
+        let last = Point.{row: origin.row + 1, col: indent'};
         let map =
           singleton_w(w, {origin, last})
           |> add_row(origin.row, {indent: row_indent, max_col: origin.col});
@@ -262,7 +281,7 @@ let rec of_segment' =
         );
       | Tile(t) =>
         let token = List.nth(t.label);
-        let of_shard = (row_indent, origin, shard) => {
+        let of_shard = (row_indent, origin: Point.t, shard) => {
           let last = {
             ...origin,
             col: origin.col + String.length(token(shard)),
@@ -327,13 +346,13 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(point) =>
+let segment_origin = (seg: Segment.t): option(Point.t) =>
   Option.map(
     first => find_p(first, of_segment(seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(point) =>
+let segment_last = (seg: Segment.t): option(Point.t) =>
   Option.map(
     last => find_p(last, of_segment(seg)).last,
     ListUtil.last_opt(seg),
