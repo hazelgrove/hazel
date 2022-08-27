@@ -127,7 +127,7 @@ module Deco =
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Measured.point, Measured.point)) =
+      let range: option((Measured.Point.t, Measured.Point.t)) =
         if (Piece.has_ends(p)) {
           let ranges = TermRanges.mk(Zipper.zip(z));
           switch (TermRanges.find_opt(Piece.id(p), ranges)) {
@@ -250,7 +250,7 @@ module Deco =
            (l, r);
          });
     term_ranges
-    |> List.map(((l: Measured.point, r: Measured.point)) => {
+    |> List.map(((l: Measured.Point.t, r: Measured.Point.t)) => {
          open SvgUtil.Path;
          let r_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
