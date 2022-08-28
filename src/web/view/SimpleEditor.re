@@ -142,7 +142,7 @@ let view =
       ~measured: Measured.t,
     )
     : Node.t => {
-  let unselected = Outer.unselect_and_zip(zipper);
+  let unselected = Zipper.unselect_and_zip(zipper);
   let code_id = "code-container";
   let code_view =
     code_container(

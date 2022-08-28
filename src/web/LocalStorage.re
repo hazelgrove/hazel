@@ -56,7 +56,7 @@ let save_simple = (simple: Model.simple): unit =>
   set_localstore(
     save_simple_key,
     simple
-    |> (((id_gen, ed: Model.editor)) => (id_gen, ed.zipper))
+    |> (((id_gen, ed: Core.Editor.t)) => (id_gen, ed.state.zipper))
     |> sexp_of_simple_without_history
     |> Sexplib.Sexp.to_string,
   );
@@ -69,28 +69,17 @@ let load_simple = (): Model.simple =>
       flag
       |> Sexplib.Sexp.of_string
       |> simple_without_history_of_sexp
-      |> (
-        ((id_gen, zipper: Zipper.t)) => (
-          id_gen,
-          Model.{
-            zipper,
-            history: ActionHistory.empty,
-            touched: Touched.empty,
-          },
-        )
-      )
+      |> (((id_gen, zipper)) => (id_gen, Core.Editor.init(zipper)))
     ) {
     | _ => Model.simple_init
     }
   };
 
-let trim_histories: list(Model.editor) => list(Zipper.t) =
-  List.map((ed: Model.editor) => ed.zipper);
+let trim_histories: list(Core.Editor.t) => list(Zipper.t) =
+  List.map((ed: Core.Editor.t) => ed.state.zipper);
 
-let add_histories: list(Zipper.t) => list(Model.editor) =
-  List.map((zipper: Zipper.t) =>
-    Model.{zipper, history: ActionHistory.empty, touched: Touched.empty}
-  );
+let add_histories: list(Zipper.t) => list(Core.Editor.t) =
+  List.map(Core.Editor.init);
 
 let prep_school_in =
     ((id_gen, idx, eds): Model.school): school_without_history => (

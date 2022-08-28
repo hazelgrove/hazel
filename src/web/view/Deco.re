@@ -10,15 +10,11 @@ module Deco =
            let show_backpack_targets: bool;
          },
        ) => {
-  module Caret =
-    Caret.Make({
-      let measured = M.map;
-    });
   let font_metrics = M.font_metrics;
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Caret.point(z);
-    let shape = Caret.direction(z);
+    let origin = Zipper.caret_point(M.map, z);
+    let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | Some((_, side, _)) => side
@@ -127,7 +123,7 @@ module Deco =
     | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
       let nib_shape =
-        switch (Caret.direction(z)) {
+        switch (Zipper.caret_direction(z)) {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
@@ -234,9 +230,8 @@ module Deco =
 
   let backback = (z: Zipper.t): list(Node.t) => [
     BackpackView.view(
-      ~measured=M.map,
       ~font_metrics,
-      ~origin=Caret.point(z),
+      ~origin=Zipper.caret_point(M.map, z),
       z,
     ),
   ];
@@ -247,9 +242,8 @@ module Deco =
   };
 
   let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
-    let seg = Outer.unselect_and_zip(z);
+    let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
-    let measured = Measured.of_segment(seg);
     let term_ranges =
       ids
       |> List.map(id => {
@@ -264,13 +258,13 @@ module Deco =
          let r_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
            |> List.concat_map(i => {
-                let row = Measured.Rows.find(i, measured.rows);
+                let row = Measured.Rows.find(i, M.map.rows);
                 [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
               });
          let l_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
            |> List.rev_map(i => {
-                let row = Measured.Rows.find(i, measured.rows);
+                let row = Measured.Rows.find(i, M.map.rows);
                 [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
               })
            |> List.concat;
@@ -292,7 +286,7 @@ module Deco =
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
-    let seg = Outer.unselect_and_zip(z);
+    let seg = Zipper.unselect_and_zip(z);
     let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, info_map)) {

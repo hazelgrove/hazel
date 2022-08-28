@@ -24,11 +24,11 @@ let init: Model.study = {
       ((acc_id, acc_zs), str) => {
         switch (Printer.zipper_of_string(acc_id, str)) {
         | None => (acc_id, acc_zs @ [Core.Zipper.init(0)])
-        | Some(((z, new_id), _)) => (new_id, acc_zs @ [z])
+        | Some((z, new_id)) => (new_id, acc_zs @ [z])
         }
       },
       (0, []),
       defaults,
     );
-  (id_gen, 0, List.map(Model.mk_editor, zs));
+  (id_gen, 0, List.map(Core.Editor.init, zs));
 };

@@ -66,5 +66,4 @@ let zipper: Zipper.t = {
     ancestors,
   },
   caret: Outer,
-  caret_col_target: 0,
 };

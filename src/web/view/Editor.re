@@ -8,10 +8,10 @@ let view =
       ~editor_model: Model.editor_model,
       ~mousedown,
       ~inject,
-      ~measured,
     )
     : Node.t => {
   let focal_zipper = Model.get_zipper'(editor_model);
+  let measured = Model.get_editor'(editor_model).state.meta.measured;
   switch (editor_model) {
   | Simple(_)
   | Study(_) =>
