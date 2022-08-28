@@ -13,8 +13,8 @@ module Deco =
   let font_metrics = M.font_metrics;
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Caret.point(M.map, z);
-    let shape = Caret.direction(z);
+    let origin = Zipper.caret_point(M.map, z);
+    let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | Some((_, side, _)) => side
@@ -22,33 +22,6 @@ module Deco =
       };
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
-
-  /*
-   let children = (p: Piece.t): list(Measured.measurement_lin) =>
-     switch (p) {
-     | Whitespace(_)
-     | Grout(_) => []
-     | Tile(t) =>
-       let m = Measured.find_t(t, M.map);
-       let token = List.nth(t.label);
-       Aba.mk(t.shards, t.children)
-       |> Aba.fold_left(
-            shard => (m.origin.col + Unicode.length(token(shard)), []),
-            (
-              (origin, children: list(Measured.measurement_lin)),
-              child,
-              shard,
-            ) => {
-              let length = Measured.length(child, M.map);
-              (
-                origin + length + Unicode.length(token(shard)),
-                children @ [{origin, length}],
-              );
-            },
-          )
-       |> snd;
-     };
-     */
 
   let selected_piece_profile =
       (p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
@@ -123,7 +96,7 @@ module Deco =
     | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
       let nib_shape =
-        switch (Caret.direction(z)) {
+        switch (Zipper.caret_direction(z)) {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
@@ -229,7 +202,11 @@ module Deco =
   };
 
   let backback = (z: Zipper.t): list(Node.t) => [
-    BackpackView.view(~font_metrics, ~origin=Caret.point(M.map, z), z),
+    BackpackView.view(
+      ~font_metrics,
+      ~origin=Zipper.caret_point(M.map, z),
+      z,
+    ),
   ];
 
   let targets' = (backpack, seg) => {
@@ -240,7 +217,6 @@ module Deco =
   let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
-    let measured = Measured.of_segment(seg);
     let term_ranges =
       ids
       |> List.map(id => {
@@ -255,13 +231,13 @@ module Deco =
          let r_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
            |> List.concat_map(i => {
-                let row = Measured.Rows.find(i, measured.rows);
+                let row = Measured.Rows.find(i, M.map.rows);
                 [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
               });
          let l_edge =
            ListUtil.range(~lo=l.row, r.row + 1)
            |> List.rev_map(i => {
-                let row = Measured.Rows.find(i, measured.rows);
+                let row = Measured.Rows.find(i, M.map.rows);
                 [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
               })
            |> List.concat;
