@@ -3,18 +3,18 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type editor_model =
-  | Simple(Core.Editor.t)
-  | Study(int, list(Core.Editor.t))
-  | School(int, list(Core.Editor.t));
+  | Simple(Editor.t)
+  | Study(int, list(Editor.t))
+  | School(int, list(Editor.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type simple = (Id.t, Core.Editor.t);
+type simple = (Id.t, Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type study = (Id.t, int, list(Core.Editor.t));
+type study = (Id.t, int, list(Editor.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (Id.t, int, list(Core.Editor.t));
+type school = (Id.t, int, list(Editor.t));
 
 [@deriving (show({with_path: false}), yojson)]
 type timestamp = float;
@@ -75,7 +75,7 @@ let mk = editor_model => {
 
 let blank = mk(School(0, []));
 
-let get_editor' = (editor_model: editor_model): Core.Editor.t =>
+let get_editor' = (editor_model: editor_model): Editor.t =>
   switch (editor_model) {
   | Simple(editor) => editor
   | Study(n, eds) =>
@@ -86,10 +86,9 @@ let get_editor' = (editor_model: editor_model): Core.Editor.t =>
     List.nth(eds, n);
   };
 
-let get_editor = (model: t): Core.Editor.t =>
-  get_editor'(model.editor_model);
+let get_editor = (model: t): Editor.t => get_editor'(model.editor_model);
 
-let put_editor = (model: t, ed: Core.Editor.t): editor_model =>
+let put_editor = (model: t, ed: Editor.t): editor_model =>
   switch (model.editor_model) {
   | Simple(_) => Simple(ed)
   | Study(n, eds) =>
@@ -128,8 +127,7 @@ let num_editors = (model: t): int =>
 
 let simple_init: simple = (1, Core.Editor.empty(0));
 
-let editors_of_strings =
-    (xs: list(string)): (Id.t, int, list(Core.Editor.t)) => {
+let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {
