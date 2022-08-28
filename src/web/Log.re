@@ -112,7 +112,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       | Error(_) => old_model
       };
     let zip = cur_model |> Model.get_zipper;
-    let measured = Model.get_measured(cur_model);
+    let measured = Model.get_editor(cur_model).state.meta.measured;
     let new_entry = mk_entry(~measured, update, zip, res);
     mut_log := List.cons(new_entry, mut_log^);
     if (debug_update^) {

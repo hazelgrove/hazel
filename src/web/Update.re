@@ -175,24 +175,11 @@ let apply =
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
-    let Model.{zipper: z_init, history, touched} = Model.get_editor(model);
-    let measured = Model.get_measured(model);
-    module Perform =
-      Perform.Make({
-        let measured = measured;
-      });
-    switch (Perform.go(a, (z_init, model.id_gen))) {
-    | (Error(err), _) => Error(FailedToPerform(err))
-    | (Ok((zipper, id_gen)), effects) =>
-      let (time, model) = Model.tick(model);
-      let history = ActionHistory.succeeded(a, (z_init, measured), history);
-      let touched = Touched.update(time, effects, touched);
-      // Measured.old := old;
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history, touched}),
-      });
+    let ed_init = Model.get_editor(model);
+    switch (Core.Perform.go(a, ed_init, model.id_gen)) {
+    | Error(err) => Error(FailedToPerform(err))
+    | Ok((ed, id_gen)) =>
+      Ok({...model, id_gen, editor_model: Model.put_editor(model, ed)})
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Copy =>
@@ -202,50 +189,31 @@ let apply =
   | Paste =>
     //let clipboard = JsUtil.get_from_clipboard();
     let clipboard = model.clipboard;
-    let Model.{zipper: z_init, history, touched} = Model.get_editor(model);
-    let measured = Model.get_measured(model);
+    let ed = Model.get_editor(model);
     switch (
       Printer.zipper_of_string(
-        ~measured,
-        ~zipper_init=z_init,
+        ~zipper_init=ed.state.zipper,
         model.id_gen,
         clipboard,
       )
     ) {
     | None => Error(CantPaste)
-    | Some(((zipper, id_gen), effects)) =>
-      let (time, model) = Model.tick(model);
+    | Some((z, id_gen)) =>
       //TODO: add correct action to history (Pick_up is wrong)
-      let history =
-        ActionHistory.succeeded(Pick_up, (z_init, measured), history);
-      let touched = Touched.update(time, effects, touched);
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history, touched}),
-      });
+      let ed = Core.Editor.new_state(Pick_up, z, ed);
+      Ok({...model, id_gen, editor_model: Model.put_editor(model, ed)});
     };
   | Undo =>
-    let Model.{zipper, history, touched} = Model.get_editor(model);
-    let measured = Model.get_measured(model);
-    switch (ActionHistory.undo((zipper, measured), history)) {
+    let ed = Model.get_editor(model);
+    switch (Core.Editor.undo(ed)) {
     | None => Error(CantUndo)
-    | Some(((zipper, _), history)) =>
-      Ok({
-        ...model,
-        editor_model: Model.put_editor(model, {zipper, history, touched}),
-      })
+    | Some(ed) => Ok({...model, editor_model: Model.put_editor(model, ed)})
     };
   | Redo =>
-    let Model.{zipper, history, touched} = Model.get_editor(model);
-    let measured = Model.get_measured(model);
-    switch (ActionHistory.redo((zipper, measured), history)) {
+    let ed = Model.get_editor(model);
+    switch (Core.Editor.redo(ed)) {
     | None => Error(CantRedo)
-    | Some(((zipper, _), history)) =>
-      Ok({
-        ...model,
-        editor_model: Model.put_editor(model, {zipper, history, touched}),
-      })
+    | Some(ed) => Ok({...model, editor_model: Model.put_editor(model, ed)})
     };
   | MoveToNextHole(_d) =>
     // TODO restore

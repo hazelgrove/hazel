@@ -96,9 +96,9 @@ let menu_icon =
   );
 
 let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
-  let history = Model.get_history(model);
-  let can_undo = ActionHistory.can_undo(history);
-  let can_redo = ActionHistory.can_redo(history);
+  let ed = Model.get_editor(model);
+  let can_undo = Core.Editor.can_undo(ed);
+  let can_redo = Core.Editor.can_redo(ed);
   div(
     [Attr.id("top-bar")],
     [
@@ -132,7 +132,7 @@ let editor_view =
         settings,
         mousedown,
         _,
-      } as m: Model.t,
+      }: Model.t,
     ) =>
   Editor.view(
     ~editor_model,
@@ -140,7 +140,6 @@ let editor_view =
     ~show_backpack_targets,
     ~mousedown,
     ~settings,
-    ~measured=Model.get_measured(m),
   );
 
 let view = (~inject, ~handlers, model: Model.t) => {

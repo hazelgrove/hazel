@@ -27,13 +27,9 @@ and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 let lines_to_list = String.split_on_char('\n');
 
 let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
-  let unselected = Outer.unselect_and_zip(z);
+  let unselected = Zipper.unselect_and_zip(z);
   let mrows = measured.rows;
-  module Caret =
-    Caret.Make({
-      let measured = measured;
-    });
-  let Measured.Point.{row, col} = Caret.point(z);
+  let Measured.Point.{row, col} = Zipper.caret_point(measured, z);
   let rows = unselected |> of_segment |> lines_to_list;
   let rows =
     List.mapi(
@@ -62,34 +58,26 @@ let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
 };
 
 let zipper_of_string =
-    (
-      ~measured=Measured.empty,
-      ~zipper_init=Zipper.init(0),
-      id_gen: IdGen.state,
-      str: string,
-    )
-    : option((Zipper.state, list(Effect.t))) => {
-  module Perform =
-    Perform.Make({
-      let measured = measured;
-    });
+    (~zipper_init=Zipper.init(0), id_gen: IdGen.state, str: string)
+    : option((Zipper.t, IdGen.state)) => {
   let insert_to_zid:
-    ((Zipper.state, list(Effect.t)), string) =>
-    (Zipper.state, list(Effect.t)) =
-    ((z_id, es), c) => {
-      switch (Perform.go(Insert(c == "\n" ? Whitespace.linebreak : c), z_id)) {
-      | (Error(err), _) =>
+    ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
+    ((z, id_gen), c) => {
+      switch (
+        Perform.go_z(Insert(c == "\n" ? Whitespace.linebreak : c), z, id_gen)
+      ) {
+      | Error(err) =>
         print_endline(
           "WARNING: zipper_of_string: insert: " ++ Action.Failure.show(err),
         );
-        (z_id, es);
-      | (Ok(r), es') => (r, es @ es')
+        (z, id_gen);
+      | Ok(r) => r
       };
     };
   try(
     str
     |> Util.StringUtil.to_list
-    |> List.fold_left(insert_to_zid, ((zipper_init, id_gen), []))
+    |> List.fold_left(insert_to_zid, (zipper_init, id_gen))
     |> Option.some
   ) {
   | e =>
@@ -120,7 +108,7 @@ let to_string_log = (~measured, z: Zipper.t): string => {
 };
 
 let to_string_basic = (z: Zipper.t): string => {
-  z |> Outer.unselect_and_zip |> of_segment;
+  z |> Zipper.unselect_and_zip |> of_segment;
 };
 
 let to_string_selection = (z: Zipper.t): string => {

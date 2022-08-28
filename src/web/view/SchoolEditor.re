@@ -12,9 +12,11 @@ let join_tile = (id): Core.Tile.t => {
   children: [],
 };
 
-let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
+let splice_editors = (editors: list(Core.Editor.t)): Core.Segment.t =>
   editors
-  |> List.map((ed: Model.editor) => Core.Outer.unselect_and_zip(ed.zipper))
+  |> List.map((ed: Core.Editor.t) =>
+       Core.Zipper.unselect_and_zip(ed.state.zipper)
+     )
   |> (
     xs =>
       Util.ListUtil.interleave(
@@ -26,7 +28,7 @@ let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
   )
   |> List.flatten;
 
-let spliced_statics = (editors: list(Model.editor)) => {
+let spliced_statics = (editors: list(Core.Editor.t)) => {
   let term = editors |> splice_editors |> Core.MakeTerm.go;
   let (_, _, info_map) = term |> Core.Statics.mk_map;
   (term, info_map);
@@ -120,7 +122,7 @@ let failing_test_ids = test_map =>
   |> List.split
   |> fst;
 
-let get_test_map = (editors: list(Model.editor)) => {
+let get_test_map = (editors: list(Core.Editor.t)) => {
   let (reference_term, reference_map) = spliced_statics(editors);
   let result_reference =
     Interface.test_results(reference_map, reference_term);
@@ -181,8 +183,8 @@ let coverage_view =
   );
 };
 
-let show_term = (editor: Model.editor, _) =>
-  editor.zipper
+let show_term = (editor: Core.Editor.t, _) =>
+  editor.state.zipper
   |> Zipper.zip
   |> MakeTerm.go
   |> Term.UExp.show
@@ -202,10 +204,10 @@ let cell_view =
       ~overlays=[],
       ~measured,
       idx,
-      editor: Model.editor,
+      editor: Core.Editor.t,
     ) => {
-  let zipper = editor.zipper;
-  let unselected = Outer.unselect_and_zip(zipper);
+  let zipper = editor.state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
   let cell_caption_view =
     //TODO(andrew): diable show term on release!!
     div(
@@ -264,7 +266,7 @@ let cell_view =
   );
 };
 
-let get_school_data = (editors: list(Model.editor)) => {
+let get_school_data = (editors: list(Core.Editor.t)) => {
   switch (editors) {
   | [
       student_impl,
@@ -321,7 +323,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~editors: list(Model.editor),
+      ~editors: list(Core.Editor.t),
       ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,

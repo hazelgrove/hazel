@@ -39,7 +39,6 @@ let view =
     (
       ~font_metrics: FontMetrics.t,
       ~origin: Measured.Point.t,
-      ~measured: Measured.t,
       {backpack, _} as z: Zipper.t,
     )
     : Node.t => {
@@ -57,11 +56,7 @@ let view =
     | None => false
     };
   let caret_adj = {
-    module Caret =
-      Caret.Make({
-        let measured = measured;
-      });
-    let shape = Caret.direction(z);
+    let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | Some((_, side, _)) => side
