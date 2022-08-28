@@ -289,7 +289,12 @@ let rec uexp_to_info_map =
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
       switch (Typ.join_all(tys)) {
-      | None => Joined(List.map2((id, ty) => Typ.{id, ty}, e_ids, tys))
+      | None =>
+        if (List.hd(modes) == Ana(Unknown(Internal))) {
+          Just(List(Unknown(Internal)));
+        } else {
+          Joined(List.map2((id, ty) => Typ.{id, ty}, e_ids, tys));
+        }
       | Some(ty) => Just(List(ty))
       };
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
