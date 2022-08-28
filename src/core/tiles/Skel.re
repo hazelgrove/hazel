@@ -3,18 +3,21 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Op(int)
-  | Pre(int, t)
-  | Post(t, int)
-  | Bin(t, int, t);
+  | Op(root)
+  | Pre(root, t)
+  | Post(t, root)
+  | Bin(t, root, t)
+and root = Aba.t(index, t)
+and index = int;
 
-let rec size =
-  fun
-  | Op(_) => 1
-  | Pre(_, r) => 1 + size(r)
-  | Post(l, _) => size(l) + 1
-  | Bin(l, _, r) => size(l) + 1 + size(r);
+// let rec size =
+//   fun
+//   | Op(_) => 1
+//   | Pre(_, r) => 1 + size(r)
+//   | Post(l, _) => size(l) + 1
+//   | Bin(l, _, r) => size(l) + 1 + size(r);
 
+// TODO(d): rename to reflect aba
 let root_index =
   fun
   | Op(n)
@@ -22,35 +25,35 @@ let root_index =
   | Post(_, n)
   | Bin(_, n, _) => n;
 
-let children =
-  fun
-  | Op(_) => []
-  | Pre(_, skel) => [(Direction.Right, skel)]
-  | Post(skel, _) => [(Left, skel)]
-  | Bin(l, _, r) => [(Left, l), (Right, r)];
+// let children =
+//   fun
+//   | Op(_) => []
+//   | Pre(_, skel) => [(Direction.Right, skel)]
+//   | Post(skel, _) => [(Left, skel)]
+//   | Bin(l, _, r) => [(Left, l), (Right, r)];
 
 // returns inclusive lower bound, exclusive upper bound
-let rec range =
-  fun
-  | Op(n) => (n, n + 1)
-  | Pre(n, r) => (n, snd(range(r)))
-  | Post(l, n) => (fst(range(l)), n + 1)
-  | Bin(l, _, r) => (fst(range(l)), snd(range(r)));
+// let rec range =
+//   fun
+//   | Op(n) => (n, n + 1)
+//   | Pre(n, r) => (n, snd(range(r)))
+//   | Post(l, n) => (fst(range(l)), n + 1)
+//   | Bin(l, _, r) => (fst(range(l)), snd(range(r)));
 
-let rec skel_at = (n, skel) =>
-  switch (skel) {
-  | Op(m) => n == m ? skel : raise(Invalid_argument("Skel.skel_at"))
-  | Pre(m, r) => n == m ? skel : skel_at(n, r)
-  | Post(l, m) => n == m ? skel : skel_at(n, l)
-  | Bin(l, m, r) =>
-    if (n < m) {
-      skel_at(n, l);
-    } else if (n > m) {
-      skel_at(n, r);
-    } else {
-      skel;
-    }
-  };
+// let rec skel_at = (n, skel) =>
+//   switch (skel) {
+//   | Op(m) => n == m ? skel : raise(Invalid_argument("Skel.skel_at"))
+//   | Pre(m, r) => n == m ? skel : skel_at(n, r)
+//   | Post(l, m) => n == m ? skel : skel_at(n, l)
+//   | Bin(l, m, r) =>
+//     if (n < m) {
+//       skel_at(n, l);
+//     } else if (n > m) {
+//       skel_at(n, r);
+//     } else {
+//       skel;
+//     }
+//   };
 
 exception Nonconvex_segment;
 
