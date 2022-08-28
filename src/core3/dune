@@ -2,7 +2,7 @@
 
 (library
  (name core3)
- (libraries util re sexplib unionFind hazelcore core_kernel)
+ (libraries util re sexplib unionFind hazelcore)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
