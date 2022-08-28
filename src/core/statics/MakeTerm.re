@@ -270,6 +270,13 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
       | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
       | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
+      | (["::"], [Pat(l), Pat(r)], []) => Cons(l, r)
+      | (["nil"], [], []) => ListLit([], [])
+      | (["[", "]"], [], [body]) =>
+        switch (upat_of_seg(body)) {
+        | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
+        | term => ListLit([id], [term])
+        }
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))

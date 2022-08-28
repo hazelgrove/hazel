@@ -429,8 +429,9 @@ and upat_to_info_map =
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
+  | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ids, ps) =>
-    let modes = Typ.matched_prod_mode(mode, List.length(ps));
+    let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
     let (ctx, infos) =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
@@ -447,6 +448,11 @@ and upat_to_info_map =
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), ctx, m);
+  | Cons(p1, p2) =>
+    let mode_ele = Typ.matched_list_mode(mode);
+    let (ty1, ctx, m1) = upat_to_info_map(~ctx, ~mode=mode_ele, p1);
+    let (_, ctx, m2) = upat_to_info_map(~ctx, ~mode=Ana(List(ty1)), p2);
+    add(~self=Just(List(ty1)), ~ctx, union_m([m1, m2]));
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);
