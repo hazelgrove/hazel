@@ -49,7 +49,6 @@ let settings_init = {
 type t = {
   editor_model,
   id_gen: IdGen.state,
-  // time: Time.t,
   settings,
   font_metrics: FontMetrics.t,
   logo_font_metrics: FontMetrics.t,
@@ -63,7 +62,6 @@ let cutoff = (===);
 
 let mk = editor_model => {
   id_gen: 1,
-  // time: 0,
   editor_model,
   settings: settings_init,
   // TODO: move below to 'io_state'?
@@ -74,8 +72,6 @@ let mk = editor_model => {
   clipboard: ",",
   mousedown: false,
 };
-
-// let tick = m => (m.time, {...m, time: Time.tick(m.time)});
 
 let blank = mk(School(0, []));
 
@@ -111,17 +107,6 @@ let get_history = (model: t): Core.Editor.History.t =>
   get_editor'(model.editor_model).history;
 let get_touched = (model: t): Touched.t =>
   get_editor'(model.editor_model).state.meta.touched;
-
-// let get_measured = (model: t) => {
-//   let old =
-//     switch (get_history(model)) {
-//     | ([(_, {measured, _}), ..._], _) => measured
-//     | _ => Measured.empty
-//     };
-//   let touched = get_touched(model);
-//   let z = get_zipper(model);
-//   Measured.of_segment(~old, ~touched, Zipper.unselect_and_zip(z));
-// };
 
 let current_editor = (model: t): int =>
   switch (model.editor_model) {

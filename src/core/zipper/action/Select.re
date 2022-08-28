@@ -25,14 +25,12 @@ module Make = (M: Editor.Meta.S) => {
         {...z, selection: Selection.toggle_focus(z.selection)}
         |> Zipper.caret_point(M.measured);
       Move.do_towards(~anchor, primary, goal, z);
-    // |> Option.map(update_target);
     | Extreme(d) => Move.do_extreme(primary, d, z)
-    // |> Option.map(update_target)
     | Local(d) =>
       /* Note: Don't update target on vertical selection */
       switch (d) {
-      | Left(_) => primary(Left, z) // |> Option.map(update_target)
-      | Right(_) => primary(Right, z) // |> Option.map(update_target)
+      | Left(_) => primary(Left, z)
+      | Right(_) => primary(Right, z)
       | Up => vertical(Left, z)
       | Down => vertical(Right, z)
       }
