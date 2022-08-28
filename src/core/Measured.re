@@ -287,7 +287,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
     // recursive across seg's list structure
     let rec go_seq =
             (
-              ~contained_indent=container_indent,
+              ~contained_indent: rel_indent=0,
               ~origin: Point.t,
               seg: Segment.t,
             )
@@ -329,10 +329,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               singleton_w(w, {origin, last})
               |> add_row(
                    origin.row,
-                   {
-                     indent: container_indent + contained_indent,
-                     max_col: origin.col,
-                   },
+                   {indent: container_indent + indent, max_col: origin.col},
                  )
               |> add_lb(w.id, indent);
             (indent, last, map);
