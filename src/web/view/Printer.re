@@ -30,7 +30,7 @@ let of_zipper = (z: Zipper.t): t => {
   let unselected = Zipper.unselect_and_zip(z);
   let map = Measured.of_segment(unselected);
   let mrows = map.rows;
-  let Measured.{row, col} = Caret.point(map, z);
+  let Measured.Point.{row, col} = Caret.point(map, z);
   let rows = unselected |> of_segment |> lines_to_list;
   let rows =
     List.mapi(

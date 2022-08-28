@@ -42,7 +42,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Core3.Measured.point,
+      origin: Core3.Measured.Point.t,
     ) => {
   Attr.create(
     "style",
@@ -59,7 +59,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Core3.Measured.point,
+      ~origin: Core3.Measured.Point.t,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,

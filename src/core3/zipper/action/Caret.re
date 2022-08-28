@@ -44,7 +44,7 @@ let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   };
 };
 
-let base_point = (map: Measured.t, z: t): Measured.point => {
+let base_point = (map: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
@@ -62,8 +62,8 @@ let base_point = (map: Measured.t, z: t): Measured.point => {
   };
 };
 
-let point = (map: Measured.t, z: t): Measured.point => {
-  let Measured.{row, col} = base_point(map, z);
+let point = (map: Measured.t, z: t): Measured.Point.t => {
+  let Measured.Point.{row, col} = base_point(map, z);
   {row, col: col + caret_offset(z.caret)};
 };
 
@@ -75,29 +75,11 @@ let update_target = (z: t): t =>
       point(Measured.of_segment(unselect_and_zip(z)), z).col,
   };
 
-type comparison =
-  | Exact
-  | Under
-  | Over;
-
-let comp = (current, target): comparison =>
-  switch () {
-  | _ when current == target => Exact
-  | _ when current < target => Under
-  | _ => Over
-  };
-
-let dcomp = (direction: Direction.t, a, b) =>
-  switch (direction) {
-  | Right => comp(a, b)
-  | Left => comp(b, a)
-  };
-
 let do_towards =
     (
-      ~anchor: option(Measured.point)=?,
+      ~anchor: option(Measured.Point.t)=?,
       f: (Direction.t, t) => option(t),
-      goal: Measured.point,
+      goal: Measured.Point.t,
       z: t,
     )
     : option(t) => {
@@ -109,7 +91,10 @@ let do_towards =
 
   let rec go = (prev: t, curr: t) => {
     let curr_p = cursorpos(curr);
-    switch (dcomp(d, curr_p.col, goal.col), dcomp(d, curr_p.row, goal.row)) {
+    switch (
+      Measured.Point.dcomp(d, curr_p.col, goal.col),
+      Measured.Point.dcomp(d, curr_p.row, goal.row),
+    ) {
     | (Exact, Exact) => curr
     | (_, Over) => prev
     | (_, Under)
@@ -137,7 +122,7 @@ let do_towards =
   };
 
   let res = go(z, z);
-  Measured.point_equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
+  Measured.Point.equals(cursorpos(res), cursorpos(z)) ? None : Some(res);
 };
 
 let do_vertical =
@@ -148,7 +133,7 @@ let do_vertical =
   let cursorpos = point(Measured.of_segment(unselect_and_zip(z)));
   let cur_p = cursorpos(z);
   let goal =
-    Measured.{
+    Measured.Point.{
       col: z.caret_col_target,
       row: cur_p.row + (d == Right ? 1 : (-1)),
     };
@@ -161,7 +146,7 @@ let do_extreme =
     (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
   let cursorpos = point(Measured.of_segment(unselect_and_zip(z)));
   let cur_p = cursorpos(z);
-  let goal: Measured.point =
+  let goal: Measured.Point.t =
     switch (d) {
     | Right(_) => {col: Int.max_int, row: cur_p.row}
     | Left(_) => {col: 0, row: cur_p.row}

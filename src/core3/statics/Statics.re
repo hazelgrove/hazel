@@ -374,20 +374,20 @@ let rec uexp_to_info_map =
         branches,
         branch_infos,
       );
-    let rule_ms =
-      List.fold_left(
-        (m, id) => Id.Map.add(id, InfoRul({cls: Rule}), m),
-        Id.Map.empty,
-        ids,
-      );
+
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
-    add(
-      ~self=Joined(branch_sources),
-      ~free=Ctx.union([free_scrut] @ branch_frees),
-      union_m([rule_ms, m_scrut] @ pat_ms @ branch_ms),
-    );
+    let self = Typ.Joined(branch_sources);
+    let free = Ctx.union([free_scrut] @ branch_frees);
+    let info = InfoExp({cls, self, mode, ctx, free, term: uexp});
+    let rule_ms =
+      List.fold_left(
+        (m, id) => Id.Map.add(id, info /*InfoRul({cls: Rule})*/, m),
+        Id.Map.empty,
+        ids,
+      );
+    add(~self, ~free, union_m([rule_ms, m_scrut] @ pat_ms @ branch_ms));
   };
 }
 and upat_to_info_map =
@@ -425,6 +425,11 @@ and upat_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | ListNil => atomic(Just(List(Unknown(Internal))))
+  | Cons(hd, tl) =>
+    let mode_elem = Typ.matched_list_mode(mode);
+    let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
+    let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
+    add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);
