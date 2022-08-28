@@ -95,6 +95,18 @@ let rec holes =
      )
   |> List.concat;
 
+let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
+  module Text =
+    Text({
+      let map = map;
+      let settings = settings;
+    });
+  div(
+    [Attr.class_("code")],
+    [span_c("code-text", Text.of_segment(unselected))],
+  );
+};
+
 let view =
     (~font_metrics, ~segment, ~unselected, ~map, ~settings: Model.settings)
     : Node.t => {
