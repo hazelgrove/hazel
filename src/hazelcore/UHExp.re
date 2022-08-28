@@ -4,8 +4,7 @@ open Sexplib.Std;
 type operator = Operators_Exp.t;
 
 [@deriving sexp]
-type t = block
-and block = list(line)
+type t = list(line)
 and line =
   | EmptyLine
   | CommentLine(string)
@@ -31,6 +30,9 @@ and rule =
   | Rule(UHPat.t, t)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
+
+[@deriving sexp]
+type block = t;
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core;
+open Core3;
 open Util;
 open Util.Web;
 
@@ -32,7 +32,7 @@ module Text = (M: {
         let str = M.settings.whitespace_icons ? Whitespace.linebreak : "";
         [
           span_c("linebreak", [text(str)]),
-          Node.br([]),
+          Node.br(),
           Node.text(StringUtil.repeat(m(p).last.col, Unicode.nbsp)),
         ];
       } else if (content == Whitespace.space) {
@@ -68,7 +68,7 @@ module Text = (M: {
             : "delim-sort-inconsistent";
     [
       span(
-        [Attr.classes([cls, "text-" ++ Sort.to_string(sort)])],
+        ~attr=Attr.classes([cls, "text-" ++ Sort.to_string(sort)]),
         [Node.text(List.nth(t.label, i))],
       ),
     ];
@@ -104,7 +104,7 @@ let view =
       let settings = settings;
     });
   div(
-    [Attr.class_("code")],
+    ~attr=Attr.class_("code"),
     [
       span_c("code-text", Text.of_segment(unselected)),
       span_c("code-text-shards", Text.of_segment(segment)),

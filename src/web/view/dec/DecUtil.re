@@ -42,7 +42,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Core.Measured.point,
+      origin: Core3.Measured.point,
     ) => {
   Attr.create(
     "style",
@@ -59,7 +59,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Core.Measured.point,
+      ~origin: Core3.Measured.point,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,
@@ -77,60 +77,65 @@ let code_svg =
   let scale = 2.;
   create_svg(
     "svg",
-    (id == "" ? [] : [Attr.id(id)])
-    @ [
-      Attr.classes(base_cls),
-      abs_position(
-        ~font_metrics,
-        ~left_fudge,
-        ~top_fudge,
-        ~width_fudge,
-        ~height_fudge,
-        ~scale,
-        origin,
+    ~attr=
+      Attr.many(
+        (id == "" ? [] : [Attr.id(id)])
+        @ [
+          Attr.classes(base_cls),
+          abs_position(
+            ~font_metrics,
+            ~left_fudge,
+            ~top_fudge,
+            ~width_fudge,
+            ~height_fudge,
+            ~scale,
+            origin,
+          ),
+          Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+          Attr.create("preserveAspectRatio", "none"),
+        ]
+        @ attrs,
       ),
-      Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
-      Attr.create("preserveAspectRatio", "none"),
-    ]
-    @ attrs,
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
 
-let raised_shadow_filter = (sort: Core.Sort.t) => {
-  let s = Core.Sort.to_string(sort);
+let raised_shadow_filter = (sort: Core3.Sort.t) => {
+  let s = Core3.Sort.to_string(sort);
   create_svg(
     "filter",
-    [Attr.id("raised-drop-shadow-" ++ s)],
+    ~attr=Attr.id("raised-drop-shadow-" ++ s),
     [
       create_svg(
         "feDropShadow",
-        [
-          Attr.classes(["tile-drop-shadow"]),
-          Attr.create("dx", raised_shadow_dx),
-          Attr.create("dy", raised_shadow_dy),
-          Attr.create("stdDeviation", "0"),
-        ],
+        ~attr=
+          Attr.many([
+            Attr.classes(["tile-drop-shadow"]),
+            Attr.create("dx", raised_shadow_dx),
+            Attr.create("dy", raised_shadow_dy),
+            Attr.create("stdDeviation", "0"),
+          ]),
         [],
       ),
     ],
   );
 };
 
-let shadow_filter = (sort: Core.Sort.t) => {
-  let s = Core.Sort.to_string(sort);
+let shadow_filter = (sort: Core3.Sort.t) => {
+  let s = Core3.Sort.to_string(sort);
   create_svg(
     "filter",
-    [Attr.id("drop-shadow-" ++ s)],
+    ~attr=Attr.id("drop-shadow-" ++ s),
     [
       create_svg(
         "feDropShadow",
-        [
-          Attr.classes(["tile-drop-shadow"]),
-          Attr.create("dx", shadow_dx),
-          Attr.create("dy", shadow_dy),
-          Attr.create("stdDeviation", "0"),
-        ],
+        ~attr=
+          Attr.many([
+            Attr.classes(["tile-drop-shadow"]),
+            Attr.create("dx", shadow_dx),
+            Attr.create("dy", shadow_dy),
+            Attr.create("stdDeviation", "0"),
+          ]),
         [],
       ),
     ],
@@ -140,6 +145,6 @@ let shadow_filter = (sort: Core.Sort.t) => {
 let filters =
   NodeUtil.svg(
     Attr.[id("filters")],
-    List.map(raised_shadow_filter, Core.Sort.all)
-    @ List.map(shadow_filter, Core.Sort.all),
+    List.map(raised_shadow_filter, Core3.Sort.all)
+    @ List.map(shadow_filter, Core3.Sort.all),
   );

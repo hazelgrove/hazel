@@ -1,34 +1,36 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core;
+open Core3;
 open Util.Web;
 open OptUtil.Syntax;
 
-let join_tile = (id): Core.Tile.t => {
+let join_tile = (id): Core3.Tile.t => {
   id,
   label: [";"],
-  mold: Core.Mold.mk_bin(10, Exp, []),
+  mold: Core3.Mold.mk_bin(10, Exp, []),
   shards: [0],
   children: [],
 };
 
-let splice_editors = (editors: list(Model.editor)): Core.Segment.t =>
+let splice_editors = (editors: list(Model.editor)): Core3.Segment.t =>
   editors
-  |> List.map((ed: Model.editor) => Core.Zipper.unselect_and_zip(ed.zipper))
+  |> List.map((ed: Model.editor) =>
+       Core3.Zipper.unselect_and_zip(ed.zipper)
+     )
   |> (
     xs =>
       Util.ListUtil.interleave(
         xs,
         List.init(List.length(editors) - 1, i =>
-          [Core.Piece.Tile(join_tile(i + 1000000))]
+          [Core3.Piece.Tile(join_tile(i + 1000000))]
         ) //TODO(andrew): id_gen hack
       )
   )
   |> List.flatten;
 
 let spliced_statics = (editors: list(Model.editor)) => {
-  let term = editors |> splice_editors |> Core.MakeTerm.go;
-  let (_, _, info_map) = term |> Core.Statics.mk_map;
+  let term = editors |> splice_editors |> Core3.MakeTerm.go;
+  let (_, _, info_map) = term |> Core3.Statics.mk_map;
   (term, info_map);
 };
 
@@ -47,20 +49,20 @@ let coverage_summary_str = (~total, ~found): string => {
 
 let coverage_text = (~total, ~found): Node.t =>
   div(
-    [clss(["test-text"])],
+    ~attr=clss(["test-text"]),
     [
       TestView.percent_view(total, found),
-      div([], [text(":")]),
+      div([text(":")]),
       text(coverage_summary_str(~total, ~found)),
     ],
   );
 
 let coverage_bar = (~inject as _, instances) =>
   div(
-    [clss(["test-bar"])],
+    ~attr=clss(["test-bar"]),
     List.map(
       ((status, _)) =>
-        div([clss(["segment", TestStatus.to_string(status)])], []),
+        div(~attr=clss(["segment", TestStatus.to_string(status)]), []),
       instances,
     ),
   );
@@ -73,7 +75,7 @@ let coverage_summary = (~inject, instances) => {
     );
   let status_class = total == found ? "Pass" : "Fail";
   div(
-    [clss(["test-summary", status_class])],
+    ~attr=clss(["test-summary", status_class]),
     [coverage_text(~total, ~found), coverage_bar(~inject, instances)],
   );
 };
@@ -87,10 +89,14 @@ let coverage_report_view =
       (status, instance),
     ) =>
   div(
-    [clss(["test-report"]), Attr.on_click(TestView.jump_to_test(~inject))],
+    ~attr=
+      Attr.many([
+        clss(["test-report"]),
+        Attr.on_click(TestView.jump_to_test(~inject)),
+      ]),
     [
       div(
-        [clss(["test-id", "Test" ++ TestStatus.to_string(status)])],
+        ~attr=clss(["test-id", "Test" ++ TestStatus.to_string(status)]),
         /* NOTE: prints lexical index, not unique id */
         [text(string_of_int(i + 1))],
       ),
@@ -99,7 +105,7 @@ let coverage_report_view =
     @ (
       switch (description) {
       | None => []
-      | Some(d) => [div([clss(["test-description"])], [text(d)])]
+      | Some(d) => [div(~attr=clss(["test-description"]), [text(d)])]
       }
     ),
   );
@@ -160,11 +166,11 @@ let coverage_view =
          }
        );
   div(
-    [clss(["panel", "test-panel"])],
+    ~attr=clss(["panel", "test-panel"]),
     [
       TestView.view_of_main_title_bar("Test Coverage"),
       div(
-        [clss(["panel-body", "test-reports"])],
+        ~attr=clss(["panel-body", "test-reports"]),
         non_null_instances
         |> List.mapi((i, r) =>
              coverage_report_view(
@@ -187,7 +193,7 @@ let show_term = (editor: Model.editor, _) =>
   |> MakeTerm.go
   |> Term.UExp.show
   |> print_endline
-  |> (_ => Event.Ignore);
+  |> (_ => Effect.Ignore);
 
 let cell_view =
     (
@@ -208,13 +214,17 @@ let cell_view =
   let cell_caption_view =
     //TODO(andrew): diable show term on release!!
     div(
-      [clss(["cell-caption"]), Attr.on_click(show_term(editor))],
+      ~attr=
+        Attr.many([
+          clss(["cell-caption"]),
+          Attr.on_click(show_term(editor)),
+        ]),
       [text(List.nth(School.captions, idx))],
     );
   let cell_chapter_view =
     switch (List.nth(School.chapters, idx)) {
-    | None => div([Attr.create("style", "display: none;")], [])
-    | Some(chapter) => div([clss(["cell-chapter"])], [chapter])
+    | None => div(~attr=Attr.create("style", "display: none;"), [])
+    | Some(chapter) => div(~attr=clss(["cell-chapter"]), [chapter])
     };
   let code_container_id = "code-container-" ++ string_of_int(idx);
   let code_view =
@@ -239,21 +249,22 @@ let cell_view =
       ]
       : [];
   div(
-    [clss(["cell-container"])],
+    ~attr=clss(["cell-container"]),
     [cell_chapter_view]
     @ [
       div(
-        [
-          Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-          Attr.on_mousedown(
-            SimpleEditor.mousedown_handler(
-              ~inject,
-              ~font_metrics,
-              ~target_id=code_container_id,
-              ~additional_updates=[Update.SwitchEditor(idx)],
+        ~attr=
+          Attr.many([
+            Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
+            Attr.on_mousedown(
+              SimpleEditor.mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_container_id,
+                ~additional_updates=[Update.SwitchEditor(idx)],
+              ),
             ),
-          ),
-        ],
+          ]),
         [cell_caption_view]
         @ (show_code ? mousedown_overlay @ [code_view] : []),
       ),
@@ -298,7 +309,7 @@ let test_status_icon_view =
   | [(_, {origin: _, last}), ..._] =>
     let status = insts |> TestMap.joint_status |> TestStatus.to_string;
     let pos = DecUtil.abs_position(~font_metrics, last);
-    Some(div([clss(["test-result", status]), pos], []));
+    Some(div(~attr=Attr.many([clss(["test-result", status]), pos]), []));
   | _ => None
   };
 
@@ -363,7 +374,7 @@ let view =
     | None => []
     | Some(dhexp) => [
         div(
-          [clss(["cell-result"])],
+          ~attr=clss(["cell-result"]),
           [SimpleEditor.res_view(~font_metrics, dhexp)],
         ),
       ]
@@ -400,7 +411,7 @@ let view =
     | None => []
     | Some(test_results) => [
         div(
-          [clss(["cell", "cell-result"])],
+          ~attr=clss(["cell", "cell-result"]),
           [
             TestView.test_summary(~inject, ~test_results),
             TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
@@ -408,7 +419,7 @@ let view =
         ),
       ]
     };
-  let school_panel = [div([clss(["school-panel"])], coverage_view)];
+  let school_panel = [div(~attr=clss(["school-panel"]), coverage_view)];
   let ci_view =
     settings.statics
       ? {
@@ -440,7 +451,7 @@ let view =
       }
       : [];
   div(
-    [Attr.classes(["editor", "column"])],
+    ~attr=Attr.classes(["editor", "column"]),
     (
       List.mapi(
         (i, ed) =>
@@ -450,7 +461,7 @@ let view =
             [
               cell_view(
                 ~result_bar=[
-                  div([clss(["cell", "cell-result"])], your_tests_view),
+                  div(~attr=clss(["cell", "cell-result"]), your_tests_view),
                 ],
                 ~overlays=your_tests_layer,
                 i,
@@ -468,7 +479,7 @@ let view =
             ]
           | _ => [
               settings.student
-                ? div([Attr.create("style", "display: none;")], [])
+                ? div(~attr=Attr.create("style", "display: none;"), [])
                 : cell_view(i, ed),
             ]
           },
@@ -476,6 +487,6 @@ let view =
       )
       |> List.flatten
     )
-    @ [div([clss(["bottom-bar"])], ci_view)],
+    @ [div(~attr=clss(["bottom-bar"]), ci_view)],
   );
 };

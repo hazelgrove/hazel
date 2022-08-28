@@ -1,12 +1,12 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core;
+open Core3;
 open Util.Web;
 
 let test_view =
     (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results): t =>
   div(
-    [clss(["panel", "test-panel"])],
+    ~attr=clss(["panel", "test-panel"]),
     [
       TestView.view_of_main_title_bar(title),
       TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
@@ -16,7 +16,7 @@ let test_view =
 
 let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   div(
-    [Attr.classes(["result"])],
+    ~attr=Attr.classes(["result"]),
     [Interface.dhcode_view(~font_metrics, ~width=80, eval_result)],
   );
 
@@ -30,7 +30,7 @@ let single_editor_semantics_views =
     settings.dynamics ? Interface.evaulation_result(map, term) : None;
   [
     div(
-      [clss(["bottom-bar"])],
+      ~attr=clss(["bottom-bar"]),
       [CursorInspector.view(~inject, ~settings, index, map)]
       @ (
         switch (eval_result) {
@@ -68,7 +68,7 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
 let mousedown_handler =
     (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
   let goal = get_goal(~font_metrics, ~target_id, e);
-  Event.Many(
+  Effect.Many(
     List.map(inject, additional_updates)
     @ [
       inject(Update.Mousedown),
@@ -79,14 +79,17 @@ let mousedown_handler =
 
 let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
   div(
-    Attr.[
-      id("mousedown-overlay"),
-      on_mouseup(_ => inject(Update.Mouseup)),
-      on_mousemove(e => {
-        let goal = get_goal(~font_metrics, ~target_id, e);
-        inject(Update.PerformAction(Select(Goal(goal))));
-      }),
-    ],
+    ~attr=
+      Attr.many(
+        Attr.[
+          id("mousedown-overlay"),
+          on_mouseup(_ => inject(Update.Mouseup)),
+          on_mousemove(e => {
+            let goal = get_goal(~font_metrics, ~target_id, e);
+            inject(Update.PerformAction(Select(Goal(goal))));
+          }),
+        ],
+      ),
     [],
   );
 
@@ -120,7 +123,7 @@ let code_container =
       ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
       : [];
   div(
-    [Attr.id(id), Attr.class_("code-container")],
+    ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
     [code_view] @ deco_view @ overlays,
   );
 };
@@ -161,12 +164,13 @@ let view =
     mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   div(
-    [
-      clss(["editor", "single"]),
-      Attr.on_mousedown(e =>
-        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
-      ),
-    ],
+    ~attr=
+      Attr.many([
+        clss(["editor", "single"]),
+        Attr.on_mousedown(e =>
+          mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+        ),
+      ]),
     [code_view] @ semantics_views @ mousedown_overlay,
   );
 };

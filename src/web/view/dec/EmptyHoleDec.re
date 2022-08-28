@@ -1,5 +1,5 @@
 open Virtual_dom.Vdom;
-open Core;
+open Core3;
 
 module Profile = {
   type t = {
@@ -28,9 +28,9 @@ let view =
     (~font_metrics, {measurement: {origin, _}, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
-  let (tip_l, tip_r): (Core.Nib.Shape.t, Core.Nib.Shape.t) =
-    Util.TupleUtil.map2(Core.Nib.shape, mold.nibs);
-  let (tip_l, tip_r): (Core.Nib.t, Core.Nib.t) = (
+  let (tip_l, tip_r): (Core3.Nib.Shape.t, Core3.Nib.Shape.t) =
+    Util.TupleUtil.map2(Core3.Nib.shape, mold.nibs);
+  let (tip_l, tip_r): (Core3.Nib.t, Core3.Nib.t) = (
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );

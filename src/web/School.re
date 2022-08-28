@@ -16,35 +16,32 @@ let defaults: list(cell) = [
     initial: "let odd: Int->Bool = in ",
     chapter:
       Some(
-        div(
-          [],
-          [
-            text(
-              "Implement the function 'odd' in the 'Your Implementation' cell. Odd only needs to support
+        div([
+          text(
+            "Implement the function 'odd' in the 'Your Implementation' cell. Odd only needs to support
               non-negative integers as input, and should produce a boolean as output. Note that there is
               no 'not' in Hazel, nor a way to compare booleans for equality, so you may want to implement
               one or both of these yourself. The name and type signature of the 'odd' function must remain
               the same, but the return value of the cell is irrelevant.",
-            ),
-            br([]),
-            br([]),
-            text(
-              "Add enough tests to the 'Your Tests' section below to reveal all bugs in our buggy implementations.
+          ),
+          br(),
+          br(),
+          text(
+            "Add enough tests to the 'Your Tests' section below to reveal all bugs in our buggy implementations.
               The syntax for a test is 'test <boolean-expression> end'. You can use semicolons (sequencing operator)
               to cleanly seperate tests. ",
-            ),
-            br([]),
-            br([]),
-            text(
-              "Known Limitations: Concave holes in your input may result in limited interpretation.
+          ),
+          br(),
+          br(),
+          text(
+            "Known Limitations: Concave holes in your input may result in limited interpretation.
               If you aren't getting test feedback on the right-hand side, it may be because your program has a type error.
               Nonempty holes aren't drawn yet, so you'll need to move the caret through the program while watching the
               cursor inspector in the top left. Test feedback isn't currently very helpful beyond pass/fail.
               If you experience any issues other than the limitations described here, please report
               them on slack!",
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
   },
   {caption: "Your Tests", initial: "", chapter: None},

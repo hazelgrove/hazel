@@ -1,8 +1,8 @@
 (include_subdirs unqualified)
 
 (library
- (name core)
- (libraries util re sexplib unionFind hazelcore)
+ (name core3)
+ (libraries util re sexplib unionFind hazelcore core_kernel)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

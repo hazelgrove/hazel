@@ -7,18 +7,26 @@ let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
      and an optional (string) transform to apply to each */
   Node.create_svg(
     "svg",
-    Attr.[
-      create("viewBox", view),
-      create("width", Printf.sprintf("%fpx", icon_size)),
-      create("height", Printf.sprintf("%fpx", icon_size)),
-      create("preserveAspectRatio", "none"),
-    ],
+    ~attr=
+      Attr.many(
+        Attr.[
+          create("viewBox", view),
+          create("width", Printf.sprintf("%fpx", icon_size)),
+          create("height", Printf.sprintf("%fpx", icon_size)),
+          create("preserveAspectRatio", "none"),
+        ],
+      ),
     List.map(
       d =>
         Node.create_svg(
           "path",
-          [Attr.create("d", d)]
-          @ (transform == "" ? [] : [Attr.create("transform", transform)]),
+          ~attr=
+            Attr.many(
+              [Attr.create("d", d)]
+              @ (
+                transform == "" ? [] : [Attr.create("transform", transform)]
+              ),
+            ),
           [],
         ),
       ds,

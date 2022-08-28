@@ -5,17 +5,17 @@ open ViewUtil;
 let test_instance_view =
     (dhcode_view, (d, status): TestMap.test_instance_report) => {
   let status = TestStatus.to_string(status);
-  div([Attr.classes(["test-instance", status])], [dhcode_view(d)]);
+  div(~attr=Attr.classes(["test-instance", status]), [dhcode_view(d)]);
 };
 
 let jump_to_test = (~inject, path, _) =>
   switch (path) {
   | Some(path) =>
-    Event.Many([
+    Effect.Many([
       inject(ModelAction.FocusCell),
       inject(ModelAction.EditAction(MoveTo(path))),
     ])
-  | None => Event.Ignore
+  | None => Effect.Ignore
   };
 
 let test_report_view =
@@ -29,18 +29,19 @@ let test_report_view =
   let status =
     instance_reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    [
-      Attr.class_("test-report"),
-      Attr.on_click(jump_to_test(~inject, test_path(id))),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.class_("test-report"),
+        Attr.on_click(jump_to_test(~inject, test_path(id))),
+      ]),
     [
       div(
-        [Attr.classes(["test-id", "Test" ++ status])],
+        ~attr=Attr.classes(["test-id", "Test" ++ status]),
         // note: prints lexical index, not id
         [text(string_of_int(i + 1))],
       ),
       div(
-        [Attr.class_("test-instances")],
+        ~attr=Attr.class_("test-instances"),
         List.map(test_instance_view(dhcode_view), instance_reports),
       ),
     ],
@@ -55,22 +56,23 @@ let test_reports_view =
       test_map: TestMap.t,
     ) =>
   div(
-    [Attr.classes(["panel-body", "test-reports"])],
+    ~attr=Attr.classes(["panel-body", "test-reports"]),
     List.mapi(test_report_view(~inject, ~test_path, ~dhcode_view), test_map),
   );
 
 let test_bar = (~inject, ~test_path, ~test_map: TestMap.t) =>
   div(
-    [Attr.class_("test-bar")],
+    ~attr=Attr.class_("test-bar"),
     List.map(
       ((id, instance_reports)) => {
         let status =
           instance_reports |> TestMap.joint_status |> TestStatus.to_string;
         div(
-          [
-            Attr.classes(["segment", status]),
-            Attr.on_click(jump_to_test(~inject, test_path(id))),
-          ],
+          ~attr=
+            Attr.many([
+              Attr.classes(["segment", status]),
+              Attr.on_click(jump_to_test(~inject, test_path(id))),
+            ]),
           [],
         );
       },
@@ -110,22 +112,21 @@ let test_percentage = (test_map: TestMap.t): t => {
   let passing = TestMap.count_status(Pass, test_map);
   let percentage = 100. *. float_of_int(passing) /. float_of_int(total);
   div(
-    [
+    ~attr=
       Attr.classes([
         "test-percent",
         total == passing ? "all-pass" : "some-fail",
       ]),
-    ],
     [text(Printf.sprintf("%.0f%%", percentage))],
   );
 };
 
 let test_text = (test_map: TestMap.t): Node.t =>
   div(
-    [Attr.class_("test-text")],
+    ~attr=Attr.class_("test-text"),
     [
       test_percentage(test_map),
-      div([], [text(":")]),
+      div([text(":")]),
       text(test_summary_str(~test_map)),
     ],
   );
@@ -140,12 +141,12 @@ let test_summary = (~inject, ~test_path, ~test_map) => {
     | _ => "Fail"
     };
   div(
-    [Attr.classes(["test-summary", "instructional-msg", status_class])],
+    ~attr=Attr.classes(["test-summary", "instructional-msg", status_class]),
     [test_text(test_map), test_bar(~inject, ~test_path, ~test_map)],
   );
 };
 
-let dhcode_view = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
+let dhcode_view = (~inject: ModelAction.t => Effect.t(unit), ~model: Model.t) =>
   DHCode.view(
     ~inject,
     ~settings=model.settings.evaluation,
@@ -156,7 +157,7 @@ let dhcode_view = (~inject: ModelAction.t => Event.t, ~model: Model.t) =>
 
 let view =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(unit),
       ~model: Model.t,
       ~test_map: TestMap.t,
       ~test_path: KeywordID.t => option(CursorPath.t),
@@ -176,7 +177,7 @@ let view =
 
 let inspector_view =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(unit),
       ~model: Model.t,
       ~test_map: TestMap.t,
       id: KeywordID.t,
@@ -187,10 +188,10 @@ let inspector_view =
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
     Some(
       div(
-        [Attr.class_("test-inspector")],
+        ~attr=Attr.class_("test-inspector"),
         [
           div(
-            [Attr.class_("test-instances")],
+            ~attr=Attr.class_("test-instances"),
             List.map(test_instance_view(dhcode_view), instances),
           ),
         ],

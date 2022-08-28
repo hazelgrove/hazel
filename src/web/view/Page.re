@@ -3,36 +3,46 @@ open Node;
 open Util.Web;
 
 let button = (icon, action) =>
-  div([clss(["icon"]), Attr.on_mousedown(action)], [icon]);
+  div(
+    ~attr=Attr.many([clss(["icon"]), Attr.on_mousedown(action)]),
+    [icon],
+  );
 
 let button_d = (icon, action, ~disabled: bool) =>
   div(
-    [
-      clss(["icon"] @ (disabled ? ["disabled"] : [])),
-      Attr.on_mousedown(_ => unless(disabled, action)),
-    ],
+    ~attr=
+      Attr.many([
+        clss(["icon"] @ (disabled ? ["disabled"] : [])),
+        Attr.on_mousedown(_ => unless(disabled, action)),
+      ]),
     [icon],
   );
 
 let link = (icon, url) =>
   div(
-    [clss(["icon"])],
-    [a(Attr.[href(url), create("target", "_blank")], [icon])],
+    ~attr=clss(["icon"]),
+    [
+      a(
+        ~attr=Attr.many(Attr.[href(url), create("target", "_blank")]),
+        [icon],
+      ),
+    ],
   );
 
 let toggle = (label, active, action) =>
   div(
-    [
-      clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
-    ],
-    [div([clss(["toggle-knob"])], [text(label)])],
+    ~attr=
+      Attr.many([
+        clss(["toggle-switch"] @ (active ? ["active"] : [])),
+        Attr.on_click(action),
+      ]),
+    [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
   JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
-  Event.Ignore;
+  Effect.Ignore;
 };
 
 let increment_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
@@ -52,12 +62,12 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
   switch (model.editor_model) {
-  | Simple(_) => div([id, toggle_mode], [text("Sketch")])
+  | Simple(_) => div(~attr=Attr.many([id, toggle_mode]), [text("Sketch")])
   | School(_) =>
     div(
-      [id],
+      ~attr=id,
       [
-        div([toggle_mode], [text("School")]),
+        div(~attr=toggle_mode, [text("School")]),
         toggle("🎓", model.settings.student, _ => inject(Set(Student))),
       ],
     )
@@ -65,9 +75,9 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
     let cur_idx = Model.current_editor(model);
     let current_editor = Printf.sprintf("%d / %d", cur_idx + 1, num_editors);
     div(
-      [id],
+      ~attr=id,
       [
-        div([toggle_mode], [text("Studies")]),
+        div(~attr=toggle_mode, [text("Studies")]),
         button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
         text(current_editor),
         button(
@@ -81,13 +91,16 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
 
 let menu_icon =
   div(
-    [clss(["menu-icon"])],
+    ~attr=clss(["menu-icon"]),
     [
       div(
-        [clss(["icon", "menu-icon-inner"])],
+        ~attr=clss(["icon", "menu-icon-inner"]),
         [
           a(
-            Attr.[href("http://hazel.org"), create("target", "_blank")],
+            ~attr=
+              Attr.many(
+                Attr.[href("http://hazel.org"), create("target", "_blank")],
+              ),
             [Icons.hazelnut],
           ),
         ],
@@ -100,11 +113,11 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
   let can_undo = ActionHistory.can_undo(history);
   let can_redo = ActionHistory.can_redo(history);
   div(
-    [Attr.id("top-bar")],
+    ~attr=Attr.id("top-bar"),
     [
       menu_icon,
       div(
-        [clss(["menu"])],
+        ~attr=clss(["menu"]),
         [
           toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
           toggle("𝛿", model.settings.dynamics, _ =>
@@ -144,24 +157,27 @@ let editor_view =
 
 let view = (~inject, ~handlers, model: Model.t) => {
   div(
-    Attr.[
-      id("page"),
-      // necessary to make cell focusable
-      create("tabindex", "0"),
-      on_blur(_ => {
-        JsUtil.get_elem_by_id("page")##focus;
-        Event.Many([]);
-      }),
-      // safety handler in case mousedown overlay doesn't catch it
-      on_mouseup(_ => inject(Update.Mouseup)),
-      ...handlers(~inject, ~model),
-    ],
+    ~attr=
+      Attr.many(
+        Attr.[
+          id("page"),
+          // necessary to make cell focusable
+          create("tabindex", "0"),
+          on_blur(_ => {
+            JsUtil.get_elem_by_id("page")##focus;
+            Effect.Many([]);
+          }),
+          // safety handler in case mousedown overlay doesn't catch it
+          on_mouseup(_ => inject(Update.Mouseup)),
+          ...handlers(~inject, ~model),
+        ],
+      ),
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
       editor_view(~inject, model),
-      div([Attr.id("blorg")], []),
+      div(~attr=Attr.id("blorg"), []),
     ],
   );
 };
