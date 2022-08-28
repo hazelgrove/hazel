@@ -350,7 +350,7 @@ let view =
   let our_test_results = {
     let* (_, _, our_tests, _, _) = school_view_data;
     let (term, map) = spliced_statics(our_tests);
-    let descriptions = School.hidden_test_descriptions;
+    let descriptions = School.TheExercise.hidden_test_descriptions;
     Interface.test_results(~descriptions, map, term);
   };
   let first_cell_res = {
@@ -371,7 +371,7 @@ let view =
   let coverage_view =
     switch (school_view_data) {
     | Some((_, _, _, reference_tests, coverage_tests)) =>
-      let descriptions = School.wrong_implementation_descriptions;
+      let descriptions = School.TheExercise.wrong_implementation_descriptions;
       [
         coverage_view(
           ~inject,
