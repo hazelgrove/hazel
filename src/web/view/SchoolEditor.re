@@ -439,13 +439,48 @@ let view =
         );
       }
       : [];
+  let colorings =
+    ColorSteps.to_list(
+      LangDoc.get_color_map(
+        ~inject,
+        ~font_metrics,
+        ~settings,
+        Indicated.index(focal_zipper),
+        combined_info_map,
+      ),
+    );
+  let map = Measured.of_segment(Zipper.unselect_and_zip(focal_zipper));
+  module Deco =
+    Deco.Deco({
+      let font_metrics = font_metrics;
+      let map = map;
+      let show_backpack_targets = show_backpack_targets;
+    });
+  let color_highlight_overlay =
+    List.map(
+      ((id, color)) =>
+        Deco.term_highlight(
+          ~ids=[id],
+          ~clss=["highlight-code-" ++ color],
+          focal_zipper,
+        ),
+      colorings,
+    )
+    |> List.flatten;
   div(
     [Attr.classes(["editor", "column"])],
     (
       List.mapi(
         (i, ed) =>
           switch (i) {
-          | 0 => [cell_view(~result_bar=student_imp_res_view, i, ed)]
+          | 0 => [
+              cell_view(
+                ~result_bar=student_imp_res_view,
+                ~overlays=color_highlight_overlay,
+                i,
+                ed,
+              ),
+            ]
           | 1 =>
             [
               cell_view(
@@ -476,6 +511,15 @@ let view =
       )
       |> List.flatten
     )
-    @ [div([clss(["bottom-bar"])], ci_view)],
+    @ [
+      div([clss(["bottom-bar"])], ci_view),
+      LangDoc.view(
+        ~inject,
+        ~font_metrics,
+        ~settings,
+        Indicated.index(focal_zipper),
+        combined_info_map,
+      ),
+    ],
   );
 };
