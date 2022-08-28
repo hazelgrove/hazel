@@ -23,33 +23,6 @@ module Deco =
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
 
-  /*
-   let children = (p: Piece.t): list(Measured.measurement_lin) =>
-     switch (p) {
-     | Whitespace(_)
-     | Grout(_) => []
-     | Tile(t) =>
-       let m = Measured.find_t(t, M.map);
-       let token = List.nth(t.label);
-       Aba.mk(t.shards, t.children)
-       |> Aba.fold_left(
-            shard => (m.origin.col + Unicode.length(token(shard)), []),
-            (
-              (origin, children: list(Measured.measurement_lin)),
-              child,
-              shard,
-            ) => {
-              let length = Measured.length(child, M.map);
-              (
-                origin + length + Unicode.length(token(shard)),
-                children @ [{origin, length}],
-              );
-            },
-          )
-       |> snd;
-     };
-     */
-
   let selected_piece_profile =
       (p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
     // TODO(d) fix sorts
