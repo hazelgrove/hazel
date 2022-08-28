@@ -107,7 +107,49 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let rec remold_typ = (shape, seg: t): t =>
+let rec remold = (seg: t, s: Sort.t) =>
+  switch (s) {
+  | Any => seg
+  | Typ => remold_typ(Nib.Shape.concave(), seg)
+  | Pat => remold_pat(Nib.Shape.concave(), seg)
+  | Exp => remold_exp(Nib.Shape.concave(), seg)
+  | _ => failwith("unexpected")
+  }
+and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
+  open OptUtil.Syntax;
+  let+ remolded =
+    Molds.get(t.label)
+    |> List.filter((m: Mold.t) => m.out == s)
+    |> List.map(mold => {...t, mold})
+    |> (
+      fun
+      | [_] as ts => ts
+      | ts =>
+        ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+    )
+    |> ListUtil.hd_opt;
+  let children =
+    List.fold_right(
+      ((l, child, r), children) => {
+        let child =
+          if (l
+              + 1 == r
+              && (
+                List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)
+                || Effect.s_touched(remolded.id)
+              )) {
+            remold(child, List.nth(remolded.mold.in_, l));
+          } else {
+            child;
+          };
+        [child, ...children];
+      },
+      Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
+      [],
+    );
+  {...remolded, children};
+}
+and remold_typ = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
   | [hd, ...tl] =>
@@ -132,8 +174,8 @@ let rec remold_typ = (shape, seg: t): t =>
       | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
       };
     }
-  };
-let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  }
+and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
   | [hd, ...tl] =>
@@ -143,19 +185,7 @@ let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) = remold_typ_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Typ)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Typ, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) when t.label == Form.get("comma_typ").label => (
           [],
@@ -166,11 +196,10 @@ let rec remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
         let (remolded, shape, rest) =
           remold_typ_uni(snd(Tile.shapes(t)), tl);
         ([Tile(t), ...remolded], shape, rest);
-      };
+      }
     }
-  };
-
-let rec remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  }
+and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
   | [hd, ...tl] =>
@@ -180,19 +209,7 @@ let rec remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) = remold_pat_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Pat)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Pat, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) =>
         switch (Tile.nibs(t)) {
@@ -205,10 +222,10 @@ let rec remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
             remold_pat_uni(snd(Tile.shapes(t)), tl);
           ([Tile(t), ...remolded], shape, rest);
         }
-      };
+      }
     }
-  };
-let rec remold_pat = (shape, seg: t): t =>
+  }
+and remold_pat = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
   | [hd, ...tl] =>
@@ -216,19 +233,7 @@ let rec remold_pat = (shape, seg: t): t =>
     | Whitespace(_)
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Pat)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
       | Some(t) =>
         switch (Tile.nibs(t)) {
@@ -237,11 +242,10 @@ let rec remold_pat = (shape, seg: t): t =>
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }
-      };
+      }
     }
-  };
-
-let rec remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  }
+and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   switch (seg) {
   | [] => ([], shape, [])
   | [hd, ...tl] =>
@@ -251,19 +255,7 @@ let rec remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) = remold_exp_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Exp)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Exp, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) =>
         switch (Tile.nibs(t)) {
@@ -279,11 +271,10 @@ let rec remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
             remold_exp_uni(snd(Tile.shapes(t)), tl);
           ([Tile(t), ...remolded], shape, rest);
         }
-      };
+      }
     }
-  };
-
-let rec remold_rul = (shape, seg: t): t =>
+  }
+and remold_rul = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
   | [hd, ...tl] =>
@@ -291,19 +282,7 @@ let rec remold_rul = (shape, seg: t): t =>
     | Whitespace(_)
     | Grout(_) => [hd, ...remold_rul(shape, tl)]
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Rul)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Rul, shape, t)) {
       | Some(t) =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
@@ -318,11 +297,10 @@ let rec remold_rul = (shape, seg: t): t =>
         | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
-      };
+      }
     }
-  };
-
-let rec remold_exp = (shape, seg: t): t =>
+  }
+and remold_exp = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
   | [hd, ...tl] =>
@@ -330,19 +308,7 @@ let rec remold_exp = (shape, seg: t): t =>
     | Whitespace(_)
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Exp)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
       | Some(t) =>
         switch (Tile.nibs(t)) {
@@ -352,17 +318,8 @@ let rec remold_exp = (shape, seg: t): t =>
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
         }
-      };
+      }
     }
-  };
-
-let remold = (seg: t, s: Sort.t) =>
-  switch (s) {
-  | Any => seg
-  | Typ => remold_typ(Nib.Shape.concave(), seg)
-  | Pat => remold_pat(Nib.Shape.concave(), seg)
-  | Exp => remold_exp(Nib.Shape.concave(), seg)
-  | _ => failwith("unexpected")
   };
 
 let skel = seg =>
