@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Core;
 
 let button = (icon, action) =>
   div([clss(["icon"]), Attr.on_mousedown(action)], [icon]);
@@ -51,7 +52,7 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(_) => div([id, toggle_mode], [text("Sketch")])
   | School(_) =>
     div(
@@ -97,8 +98,8 @@ let menu_icon =
 
 let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
   let ed = Model.get_editor(model);
-  let can_undo = Core.Editor.can_undo(ed);
-  let can_redo = Core.Editor.can_redo(ed);
+  let can_undo = Editor.can_undo(ed);
+  let can_redo = Editor.can_redo(ed);
   div(
     [Attr.id("top-bar")],
     [
@@ -123,24 +124,17 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
   );
 };
 
-let editor_view =
+let editors_view =
     (
       ~inject,
-      {
-        editor_model,
-        font_metrics,
-        show_backpack_targets,
-        settings,
-        mousedown,
-        _,
-      }: Model.t,
+      {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
     ) => {
-  let focal_zipper = Model.get_zipper'(editor_model);
-  switch (editor_model) {
+  let focal_zipper = Model.get_zipper'(editors);
+  switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let measured = Model.get_editor'(editor_model).state.meta.measured;
-    SimpleEditor.view(
+    let measured = Model.get_editor'(editors).state.meta.measured;
+    SimpleMode.view(
       ~inject,
       ~font_metrics,
       ~mousedown,
@@ -150,7 +144,7 @@ let editor_view =
       ~measured,
     );
   | School(selected, editors) =>
-    SchoolEditor.view(
+    SchoolMode.view(
       ~inject,
       ~font_metrics,
       ~settings,
@@ -181,7 +175,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
-      editor_view(~inject, model),
+      editors_view(~inject, model),
       div([Attr.id("blorg")], []),
     ],
   );

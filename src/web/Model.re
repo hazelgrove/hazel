@@ -2,7 +2,7 @@ open Core;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type editor_model =
+type editors =
   | Simple(Editor.t)
   | Study(int, list(Editor.t))
   | School(int, list(Editor.t));
@@ -47,7 +47,7 @@ let settings_init = {
 };
 
 type t = {
-  editor_model,
+  editors,
   id_gen: IdGen.state,
   settings,
   font_metrics: FontMetrics.t,
@@ -60,9 +60,9 @@ type t = {
 
 let cutoff = (===);
 
-let mk = editor_model => {
+let mk = editors => {
   id_gen: 1,
-  editor_model,
+  editors,
   settings: settings_init,
   // TODO: move below to 'io_state'?
   font_metrics: FontMetrics.init,
@@ -75,8 +75,8 @@ let mk = editor_model => {
 
 let blank = mk(School(0, []));
 
-let get_editor' = (editor_model: editor_model): Editor.t =>
-  switch (editor_model) {
+let get_editor' = (editors: editors): Editor.t =>
+  switch (editors) {
   | Simple(editor) => editor
   | Study(n, eds) =>
     assert(n < List.length(eds));
@@ -86,10 +86,10 @@ let get_editor' = (editor_model: editor_model): Editor.t =>
     List.nth(eds, n);
   };
 
-let get_editor = (model: t): Editor.t => get_editor'(model.editor_model);
+let get_editor = (model: t): Editor.t => get_editor'(model.editors);
 
-let put_editor = (model: t, ed: Editor.t): editor_model =>
-  switch (model.editor_model) {
+let put_editor = (model: t, ed: Editor.t): editors =>
+  switch (model.editors) {
   | Simple(_) => Simple(ed)
   | Study(n, eds) =>
     assert(n < List.length(eds));
@@ -99,16 +99,16 @@ let put_editor = (model: t, ed: Editor.t): editor_model =>
     School(n, Util.ListUtil.put_nth(n, ed, eds));
   };
 
-let get_zipper' = (editor_model: editor_model): Zipper.t =>
-  get_editor'(editor_model).state.zipper;
-let get_zipper = (model: t): Zipper.t => get_zipper'(model.editor_model);
-let get_history = (model: t): Core.Editor.History.t =>
-  get_editor'(model.editor_model).history;
+let get_zipper' = (editors: editors): Zipper.t =>
+  get_editor'(editors).state.zipper;
+let get_zipper = (model: t): Zipper.t => get_zipper'(model.editors);
+let get_history = (model: t): Editor.History.t =>
+  get_editor'(model.editors).history;
 let get_touched = (model: t): Touched.t =>
-  get_editor'(model.editor_model).state.meta.touched;
+  get_editor'(model.editors).state.meta.touched;
 
 let current_editor = (model: t): int =>
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(_) => 0
   | Study(n, zs) =>
     assert(n < List.length(zs));
@@ -119,13 +119,13 @@ let current_editor = (model: t): int =>
   };
 
 let num_editors = (model: t): int =>
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(_) => 1
   | Study(_, zs)
   | School(_, zs) => List.length(zs)
   };
 
-let simple_init: simple = (1, Core.Editor.empty(0));
+let simple_init: simple = (1, Editor.empty(0));
 
 let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
   let (id_gen, zs) =
@@ -139,5 +139,5 @@ let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
       (0, []),
       xs,
     );
-  (id_gen, 0, List.map(Core.Editor.init, zs));
+  (id_gen, 0, List.map(Editor.init, zs));
 };

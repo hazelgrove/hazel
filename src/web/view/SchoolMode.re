@@ -220,7 +220,7 @@ let cell_view =
     };
   let code_container_id = "code-container-" ++ string_of_int(idx);
   let code_view =
-    SimpleEditor.code_container(
+    SimpleMode.code_container(
       ~id=code_container_id,
       ~font_metrics,
       ~unselected,
@@ -234,7 +234,7 @@ let cell_view =
   let mousedown_overlay =
     selected == idx && mousedown
       ? [
-        SimpleEditor.mousedown_overlay(
+        SimpleMode.mousedown_overlay(
           ~inject,
           ~font_metrics,
           ~target_id=code_container_id,
@@ -249,7 +249,7 @@ let cell_view =
         [
           Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
           Attr.on_mousedown(
-            SimpleEditor.mousedown_handler(
+            SimpleMode.mousedown_handler(
               ~inject,
               ~font_metrics,
               ~target_id=code_container_id,
@@ -367,7 +367,7 @@ let view =
     | Some(dhexp) => [
         div(
           [clss(["cell-result"])],
-          [SimpleEditor.res_view(~font_metrics, dhexp)],
+          [SimpleMode.res_view(~font_metrics, dhexp)],
         ),
       ]
     };

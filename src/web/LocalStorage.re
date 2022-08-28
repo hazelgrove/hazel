@@ -69,7 +69,7 @@ let load_simple = (): Model.simple =>
       flag
       |> Sexplib.Sexp.of_string
       |> simple_without_history_of_sexp
-      |> (((id_gen, zipper)) => (id_gen, Core.Editor.init(zipper)))
+      |> (((id_gen, zipper)) => (id_gen, Editor.init(zipper)))
     ) {
     | _ => Model.simple_init
     }
@@ -78,8 +78,7 @@ let load_simple = (): Model.simple =>
 let trim_histories: list(Editor.t) => list(Zipper.t) =
   List.map((ed: Editor.t) => ed.state.zipper);
 
-let add_histories: list(Zipper.t) => list(Editor.t) =
-  List.map(Core.Editor.init);
+let add_histories: list(Zipper.t) => list(Editor.t) = List.map(Editor.init);
 
 let prep_school_in =
     ((id_gen, idx, eds): Model.school): school_without_history => (
