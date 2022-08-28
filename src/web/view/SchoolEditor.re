@@ -202,7 +202,6 @@ let cell_view =
       ~show_backpack_targets,
       ~show_code=true,
       ~overlays=[],
-      ~measured,
       idx,
       editor: Core.Editor.t,
     ) => {
@@ -229,7 +228,7 @@ let cell_view =
       ~overlays,
       ~show_backpack_targets,
       ~show_deco=selected == idx,
-      ~measured,
+      ~measured=editor.state.meta.measured,
       zipper,
     );
   let mousedown_overlay =
@@ -328,7 +327,6 @@ let view =
       ~settings,
       ~focal_zipper: Zipper.t,
       ~inject,
-      ~measured,
     ) => {
   let cell_view =
     cell_view(
@@ -338,7 +336,6 @@ let view =
       ~mousedown,
       ~selected,
       ~show_backpack_targets,
-      ~measured,
     );
   let combined_info_map =
     settings.statics
