@@ -56,7 +56,7 @@ let view =
     | None => false
     };
   let caret_adj = {
-    let shape = Caret.direction(z);
+    let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | Some((_, side, _)) => side
