@@ -487,7 +487,7 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
 };
 
 let mk_map =
-  Core_kernel.Memo.general(
+  Core.Memo.general(
     ~cache_size_bound=1000,
     uexp_to_info_map(~ctx=Ctx.empty),
   );

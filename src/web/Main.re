@@ -58,8 +58,8 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   };
 };
 
-let do_many = (evts): Virtual_dom.Vdom.Event.t => {
-  Virtual_dom.Vdom.Event.(
+let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
+  Virtual_dom.Vdom.Effect.(
     switch (evts) {
     | [] => Many([])
     | evts => Many([Prevent_default, Stop_propagation, ...evts])
@@ -77,7 +77,7 @@ let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
 
 let handlers = (~inject, ~model: Model.t) =>
   Virtual_dom.Vdom.[
-    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keypress(_ => Effect.Prevent_default),
     Attr.on_keyup(update_handler(~inject, ~model, ~dir=KeyUp)),
     Attr.on_keydown(update_handler(~inject, ~model, ~dir=KeyDown)),
   ];

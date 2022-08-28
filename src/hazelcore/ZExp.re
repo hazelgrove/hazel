@@ -1,8 +1,7 @@
 open Sexplib.Std;
 
 [@deriving sexp]
-type t = zblock
-and zblock = ZList.t(zline, UHExp.line)
+type t = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(CursorPosition.t, UHExp.line)
   | ExpLineZ(zopseq)
@@ -29,6 +28,9 @@ and zrule =
   | CursorR(CursorPosition.t, UHExp.rule)
   | RuleZP(ZPat.t, UHExp.t)
   | RuleZE(UHPat.t, t);
+
+[@deriving sexp]
+type zblock = t;
 
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);

@@ -1,4 +1,4 @@
-open Core;
+open Core3;
 
 let is_printable = s => Re.Str.(string_match(regexp("^[ -~]$"), s, 0));
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));

@@ -1,5 +1,5 @@
 open Util;
-open Core;
+open Core3;
 open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;

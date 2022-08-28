@@ -5,11 +5,12 @@ open Util.Web;
 let test_instance_view =
     (~font_metrics, (d, status): TestMap.test_instance_report) =>
   div(
-    [clss(["test-instance", TestStatus.to_string(status)])],
+    ~attr=
+      Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [Interface.dhcode_view(~font_metrics, ~width=40, d)],
   );
 
-let jump_to_test = (~inject as _, _) => Event.Ignore;
+let jump_to_test = (~inject as _, _) => Effect.Ignore;
 
 let test_report_view =
     (
@@ -22,22 +23,26 @@ let test_report_view =
   let status =
     instance_reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    [Attr.class_("test-report"), Attr.on_click(jump_to_test(~inject))],
+    ~attr=
+      Attr.many([
+        Attr.class_("test-report"),
+        Attr.on_click(jump_to_test(~inject)),
+      ]),
     [
       div(
-        [clss(["test-id", "Test" ++ status])],
+        ~attr=clss(["test-id", "Test" ++ status]),
         // note: prints lexical index, not id
         [text(string_of_int(i + 1))],
       ),
       div(
-        [Attr.class_("test-instances")],
+        ~attr=Attr.class_("test-instances"),
         List.map(test_instance_view(~font_metrics), instance_reports),
       ),
     ]
     @ (
       switch (description) {
       | None => []
-      | Some(d) => [div([clss(["test-description"])], [text(d)])]
+      | Some(d) => [div(~attr=clss(["test-description"]), [text(d)])]
       }
     ),
   );
@@ -46,7 +51,7 @@ let test_report_view =
 let test_reports_view =
     (~inject, ~font_metrics, ~test_results: Interface.test_results) =>
   div(
-    [clss(["panel-body", "test-reports"])],
+    ~attr=clss(["panel-body", "test-reports"]),
     List.mapi(
       (i, r) =>
         test_report_view(
@@ -63,14 +68,18 @@ let test_reports_view =
 let test_bar_segment = (~inject, (_id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    [clss(["segment", status]), Attr.on_click(jump_to_test(~inject))],
+    ~attr=
+      Attr.many([
+        clss(["segment", status]),
+        Attr.on_click(jump_to_test(~inject)),
+      ]),
     [],
   );
 };
 
 let test_bar = (~inject, ~test_results: Interface.test_results) =>
   div(
-    [Attr.class_("test-bar")],
+    ~attr=Attr.class_("test-bar"),
     List.map(test_bar_segment(~inject), test_results.test_map),
   );
 
@@ -144,7 +153,7 @@ let test_summary_str = (test_results: Interface.test_results): string =>
 let percent_view = (n: int, p: int): Node.t => {
   let percentage = 100. *. float_of_int(p) /. float_of_int(n);
   div(
-    [clss(["test-percent", n == p ? "all-pass" : "some-fail"])],
+    ~attr=clss(["test-percent", n == p ? "all-pass" : "some-fail"]),
     [text(Printf.sprintf("%.0f%%", percentage))],
   );
 };
@@ -154,10 +163,10 @@ let test_percentage = (test_results: Interface.test_results): Node.t =>
 
 let test_text = (test_results: Interface.test_results): Node.t =>
   div(
-    [Attr.class_("test-text")],
+    ~attr=Attr.class_("test-text"),
     [
       test_percentage(test_results),
-      div([], [text(":")]),
+      div([text(":")]),
       text(test_summary_str(test_results)),
     ],
   );
@@ -170,13 +179,16 @@ let test_summary = (~inject, ~test_results: Interface.test_results) => {
     | _ => "Fail"
     };
   div(
-    [clss(["test-summary", status_class])],
+    ~attr=clss(["test-summary", status_class]),
     [test_text(test_results), test_bar(~inject, ~test_results)],
   );
 };
 
 let view_of_main_title_bar = (title_text: string) =>
-  div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
+  div(
+    ~attr=Attr.many([clss(["title-bar", "panel-title-bar"])]),
+    [Node.text(title_text)],
+  );
 
 let inspector_view =
     (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
@@ -184,10 +196,10 @@ let inspector_view =
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
     Some(
       div(
-        [Attr.class_("test-inspector")],
+        ~attr=Attr.class_("test-inspector"),
         [
           div(
-            [Attr.class_("test-instances")],
+            ~attr=Attr.class_("test-instances"),
             List.map(test_instance_view(~font_metrics), instances),
           ),
         ],

@@ -329,4 +329,4 @@ and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.s => {
   };
 };
 
-let go = Core_kernel.Memo.general(~cache_size_bound=1000, uexp_of_seg);
+let go = Core.Memo.general(~cache_size_bound=1000, uexp_of_seg);

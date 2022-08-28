@@ -3,20 +3,20 @@ open Node;
 open Util.Web;
 
 let ty_view = (cls: string, s: string): Node.t =>
-  div([clss(["typ-view", cls])], [text(s)]);
+  div(~attr=clss(["typ-view", cls]), [text(s)]);
 
-let prov_view: Core.Typ.type_provenance => Node.t =
+let prov_view: Core3.Typ.type_provenance => Node.t =
   fun
-  | Internal => div([], [])
-  | TypeHole => div([clss(["typ-mod", "type-hole"])], [text("𝜏")])
-  | SynSwitch => div([clss(["typ-mod", "syn-switch"])], [text("⇒")]);
+  | Internal => div([])
+  | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
+  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
-let rec view = (ty: Core.Typ.t): Node.t =>
+let rec view = (ty: Core3.Typ.t): Node.t =>
   //TODO(andrew): parens on ops when ambiguous
   switch (ty) {
   | Unknown(prov) =>
     div(
-      [clss(["typ-view", "atom", "unknown"])],
+      ~attr=clss(["typ-view", "atom", "unknown"]),
       [text("?"), prov_view(prov)],
     )
   | Int => ty_view("Int", "Int")
@@ -24,20 +24,24 @@ let rec view = (ty: Core.Typ.t): Node.t =>
   | Bool => ty_view("Bool", "Bool")
   | List(t) =>
     div(
-      [clss(["typ-view", "atom", "List"])],
+      ~attr=clss(["typ-view", "atom", "List"]),
       [text("["), view(t), text("]")],
     )
   | Arrow(t1, t2) =>
-    div([clss(["typ-view", "Arrow"])], [view(t1), text("->"), view(t2)])
-  | Prod([]) => div([clss(["typ-view", "Prod"])], [text("Unit")])
-  | Prod([_]) => div([clss(["typ-view", "Prod"])], [text("BadProduct")])
+    div(
+      ~attr=clss(["typ-view", "Arrow"]),
+      [view(t1), text("->"), view(t2)],
+    )
+  | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("Unit")])
+  | Prod([_]) =>
+    div(~attr=clss(["typ-view", "Prod"]), [text("BadProduct")])
   | Prod([t0, ...ts]) =>
     div(
-      [clss(["typ-view", "atom", "Prod"])],
+      ~attr=clss(["typ-view", "atom", "Prod"]),
       [
         text("("),
         div(
-          [clss(["typ-view", "Prod"])],
+          ~attr=clss(["typ-view", "Prod"]),
           [view(t0)]
           @ (List.map(t => [text(","), view(t)], ts) |> List.flatten),
         ),

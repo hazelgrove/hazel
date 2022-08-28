@@ -1,5 +1,4 @@
-let evaluate =
-  Core_kernel.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+let evaluate = Core.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
 
 let convert_metrics = (font_metrics: FontMetrics.t): DHCode.font_metrics => {
   row_height: font_metrics.row_height,
@@ -28,7 +27,7 @@ let get_result =
 };
 
 let evaulation_result = (map, term): option(DHExp.t) =>
-  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Core3.Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
   };
@@ -54,7 +53,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (Core.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Core3.Elaborator.uexp_elab(map, term) |> get_result) {
   | None
   | Some((_, [])) => None
   | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))

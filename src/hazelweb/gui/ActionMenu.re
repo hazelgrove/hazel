@@ -36,24 +36,29 @@ let dropdown_option = (~inject, {label, shortcut, action}: menu_entry) => {
   let shortcut_view =
     switch (shortcut) {
     | None => []
-    | Some(s) => [div([Attr.classes(["shortcut"])], [text(s)])]
+    | Some(s) => [div(~attr=Attr.classes(["shortcut"]), [text(s)])]
     };
-  li([Attr.on_click(_ => inject(action))], [text(label)] @ shortcut_view);
+  li(
+    ~attr=Attr.on_click(_ => inject(action)),
+    [text(label)] @ shortcut_view,
+  );
 };
 
 let dropdown_options = (~inject) =>
   List.map(dropdown_option(~inject), menu_entries);
 
-let dropdown = (~inject: ModelAction.t => Ui_event.t) => {
+let dropdown = (~inject: ModelAction.t => Ui_effect.t(_)) => {
   create(
     "details",
-    [],
     [
-      create("summary", [], [text("☰")]),
-      ul([Attr.classes(["dropdown-content"])], dropdown_options(~inject)),
+      create("summary", [text("☰")]),
+      ul(
+        ~attr=Attr.classes(["dropdown-content"]),
+        dropdown_options(~inject),
+      ),
     ],
   );
 };
 
-let view = (~inject: ModelAction.t => Ui_event.t) =>
-  div([Attr.classes(["dropdown"])], [dropdown(~inject)]);
+let view = (~inject: ModelAction.t => Ui_effect.t(_)) =>
+  div(~attr=Attr.classes(["dropdown"]), [dropdown(~inject)]);
