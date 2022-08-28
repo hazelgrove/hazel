@@ -30,5 +30,5 @@ let init: Model.study = {
       (0, []),
       defaults,
     );
-  (id_gen, 0, List.map(Model.mk_editor, zs));
+  (id_gen, 0, List.map(Core.Editor.init, zs));
 };
