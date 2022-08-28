@@ -109,15 +109,21 @@ let code_container =
       ~show_deco,
       ~overlays=[],
       ~id,
+      ~measured,
       zipper,
     ) => {
   let segment = Zipper.zip(zipper);
-  let map = Measured.of_segment(unselected);
   let code_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~map, ~settings);
+    Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
   let deco_view =
     show_deco
-      ? deco(~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets)
+      ? deco(
+          ~zipper,
+          ~map=measured,
+          ~segment,
+          ~font_metrics,
+          ~show_backpack_targets,
+        )
       : [];
   div(
     [Attr.id(id), Attr.class_("code-container")],
@@ -133,6 +139,7 @@ let view =
       ~mousedown,
       ~zipper: Zipper.t,
       ~settings: Model.settings,
+      ~measured: Measured.t,
     )
     : Node.t => {
   let unselected = Zipper.unselect_and_zip(zipper);
@@ -145,6 +152,7 @@ let view =
       ~settings,
       ~show_backpack_targets,
       ~show_deco=true,
+      ~measured,
       zipper,
     );
   let semantics_views =
