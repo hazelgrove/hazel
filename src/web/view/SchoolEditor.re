@@ -12,9 +12,9 @@ let join_tile = (id): Core.Tile.t => {
   children: [],
 };
 
-let splice_editors = (editors: list(Core.Editor.t)): Core.Segment.t =>
+let splice_editors = (editors: list(Editor.t)): Core.Segment.t =>
   editors
-  |> List.map((ed: Core.Editor.t) =>
+  |> List.map((ed: Editor.t) =>
        Core.Zipper.unselect_and_zip(ed.state.zipper)
      )
   |> (
@@ -28,7 +28,7 @@ let splice_editors = (editors: list(Core.Editor.t)): Core.Segment.t =>
   )
   |> List.flatten;
 
-let spliced_statics = (editors: list(Core.Editor.t)) => {
+let spliced_statics = (editors: list(Editor.t)) => {
   let term = editors |> splice_editors |> Core.MakeTerm.go;
   let (_, _, info_map) = term |> Core.Statics.mk_map;
   (term, info_map);
@@ -122,7 +122,7 @@ let failing_test_ids = test_map =>
   |> List.split
   |> fst;
 
-let get_test_map = (editors: list(Core.Editor.t)) => {
+let get_test_map = (editors: list(Editor.t)) => {
   let (reference_term, reference_map) = spliced_statics(editors);
   let result_reference =
     Interface.test_results(reference_map, reference_term);
@@ -183,7 +183,7 @@ let coverage_view =
   );
 };
 
-let show_term = (editor: Core.Editor.t, _) =>
+let show_term = (editor: Editor.t, _) =>
   editor.state.zipper
   |> Zipper.zip
   |> MakeTerm.go
@@ -203,7 +203,7 @@ let cell_view =
       ~show_code=true,
       ~overlays=[],
       idx,
-      editor: Core.Editor.t,
+      editor: Editor.t,
     ) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
@@ -265,7 +265,7 @@ let cell_view =
   );
 };
 
-let get_school_data = (editors: list(Core.Editor.t)) => {
+let get_school_data = (editors: list(Editor.t)) => {
   switch (editors) {
   | [
       student_impl,
@@ -322,7 +322,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~editors: list(Core.Editor.t),
+      ~editors: list(Editor.t),
       ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,

@@ -56,7 +56,7 @@ let save_simple = (simple: Model.simple): unit =>
   set_localstore(
     save_simple_key,
     simple
-    |> (((id_gen, ed: Core.Editor.t)) => (id_gen, ed.state.zipper))
+    |> (((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper))
     |> sexp_of_simple_without_history
     |> Sexplib.Sexp.to_string,
   );
@@ -75,10 +75,10 @@ let load_simple = (): Model.simple =>
     }
   };
 
-let trim_histories: list(Core.Editor.t) => list(Zipper.t) =
-  List.map((ed: Core.Editor.t) => ed.state.zipper);
+let trim_histories: list(Editor.t) => list(Zipper.t) =
+  List.map((ed: Editor.t) => ed.state.zipper);
 
-let add_histories: list(Zipper.t) => list(Core.Editor.t) =
+let add_histories: list(Zipper.t) => list(Editor.t) =
   List.map(Core.Editor.init);
 
 let prep_school_in =
