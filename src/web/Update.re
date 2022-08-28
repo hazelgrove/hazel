@@ -53,7 +53,7 @@ module Result = {
 };
 
 let save = (model: Model.t): unit =>
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(ed) => LocalStorage.save_simple((model.id_gen, ed))
   | Study(n, eds) => LocalStorage.save_study((model.id_gen, n, eds))
   | School(n, eds) =>
@@ -94,26 +94,26 @@ let load_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
   | Simple =>
     let (id_gen, editor) = LocalStorage.load_simple();
-    {...model, id_gen, editor_model: Simple(editor)};
+    {...model, id_gen, editors: Simple(editor)};
   | Study =>
     let (id_gen, idx, editors) = LocalStorage.load_study();
-    {...model, id_gen, editor_model: Study(idx, editors)};
+    {...model, id_gen, editors: Study(idx, editors)};
   | School =>
     let (id_gen, idx, editors) = LocalStorage.load_school();
-    {...model, id_gen, editor_model: School(idx, editors)};
+    {...model, id_gen, editors: School(idx, editors)};
   };
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
   | Simple =>
     let (id_gen, editor) = Model.simple_init;
-    {...model, editor_model: Simple(editor), id_gen};
+    {...model, editors: Simple(editor), id_gen};
   | Study =>
     let (id_gen, idx, editors) = Study.init;
-    {...model, editor_model: Study(idx, editors), id_gen};
+    {...model, editors: Study(idx, editors), id_gen};
   | School =>
     let (id_gen, idx, editors) = School.init;
-    {...model, editor_model: School(idx, editors), id_gen};
+    {...model, editors: School(idx, editors), id_gen};
   };
 
 let rotate_mode = (mode: Model.mode): Model.mode =>
@@ -141,7 +141,7 @@ let apply =
     save(model);
     Ok(model);
   | SwitchEditor(n) =>
-    switch (model.editor_model) {
+    switch (model.editors) {
     | Simple(_) => Error(FailedToSwitch)
     | Study(m, _) when m == n => Error(FailedToSwitch)
     | Study(_, zs) =>
@@ -149,7 +149,7 @@ let apply =
       | false => Error(FailedToSwitch)
       | true =>
         LocalStorage.save_study((model.id_gen, n, zs));
-        Ok({...model, editor_model: Study(n, zs)});
+        Ok({...model, editors: Study(n, zs)});
       }
     | School(m, _) when m == n => Error(FailedToSwitch)
     | School(_, zs) =>
@@ -157,7 +157,7 @@ let apply =
       | false => Error(FailedToSwitch)
       | true =>
         LocalStorage.save_school((model.id_gen, n, zs));
-        Ok({...model, editor_model: School(n, zs)});
+        Ok({...model, editors: School(n, zs)});
       }
     }
   | ToggleMode =>
@@ -179,7 +179,7 @@ let apply =
     switch (Core.Perform.go(a, ed_init, model.id_gen)) {
     | Error(err) => Error(FailedToPerform(err))
     | Ok((ed, id_gen)) =>
-      Ok({...model, id_gen, editor_model: Model.put_editor(model, ed)})
+      Ok({...model, id_gen, editors: Model.put_editor(model, ed)})
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Copy =>
@@ -201,19 +201,19 @@ let apply =
     | Some((z, id_gen)) =>
       //TODO: add correct action to history (Pick_up is wrong)
       let ed = Core.Editor.new_state(Pick_up, z, ed);
-      Ok({...model, id_gen, editor_model: Model.put_editor(model, ed)});
+      Ok({...model, id_gen, editors: Model.put_editor(model, ed)});
     };
   | Undo =>
     let ed = Model.get_editor(model);
     switch (Core.Editor.undo(ed)) {
     | None => Error(CantUndo)
-    | Some(ed) => Ok({...model, editor_model: Model.put_editor(model, ed)})
+    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
     };
   | Redo =>
     let ed = Model.get_editor(model);
     switch (Core.Editor.redo(ed)) {
     | None => Error(CantRedo)
-    | Some(ed) => Ok({...model, editor_model: Model.put_editor(model, ed)})
+    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
     };
   | MoveToNextHole(_d) =>
     // TODO restore
