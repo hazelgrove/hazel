@@ -1,12 +1,16 @@
 open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type row = int;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type col = int;
+
 module Point = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    // indent: int,
-    row: int,
-    col: int,
+    row,
+    col,
   };
   let zero = {row: 0, col: 0};
 
@@ -32,43 +36,28 @@ module Point = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type measurement_lin = {
-  origin: int,
-  length: int,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
   origin: Point.t,
   last: Point.t,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type token = {
-  row: int,
-  indent: int,
-  range: (int, int),
-};
-
-type indent = int;
 // indentation relative to container
-type rel_indent = indent;
+type rel_indent = int;
 // indentation relative to code container
-// TODO(d): make this col
-type abs_indent = indent;
+type abs_indent = int;
 
 module Rows = {
   include IntMap;
   type shape = {
-    indent: abs_indent,
-    max_col: int,
+    indent: col,
+    max_col: col,
   };
   type t = IntMap.t(shape);
 
-  let max_col = (rs: list(int), map: t) =>
+  let max_col = (rs: list(row), map: t) =>
     rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
 
-  let min_col = (rs: list(int), map: t) =>
+  let min_col = (rs: list(row), map: t) =>
     rs
     |> List.map(r => find(r, map).indent)
     |> List.fold_left(min, Int.max_int);
@@ -273,8 +262,6 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let rec go_nested =
           (
             ~container_indent: abs_indent=0,
-            // ~row_indent: abs_indent=container_indent,
-            // ~prefix_indents: list((Piece.t, rel_indent))=[],
             ~origin=Point.zero,
             seg: Segment.t,
           )
@@ -429,5 +416,3 @@ let segment_width = (seg: Segment.t): int =>
     of_segment(seg).rows,
     0,
   );
-
-module type S = {let measured: t;};
