@@ -7,7 +7,7 @@ module type Exercise = {
 };
 
 /* NOTE: num_editors here should agree with TestView.school_panel */
-module TheExercise: Exercise = OddExercise;
+module TheExercise: Exercise = FilterOddsExercise;
 
 let captions =
   List.map((cell: SchoolCell.t) => cell.caption, TheExercise.cells);
