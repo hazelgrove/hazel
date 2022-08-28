@@ -1,5 +1,7 @@
-// invariant: List.length(as) == List.length(bs) + 1
+open Sexplib.Std;
 
+// invariant: List.length(as) == List.length(bs) + 1
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t('a, 'b) = (list('a), list('b));
 
 let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
