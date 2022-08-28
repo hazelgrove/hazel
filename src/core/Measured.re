@@ -308,6 +308,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
         let (contained_indent, origin, hd_map) =
           switch (hd) {
           | Whitespace(w) when w.content == Whitespace.linebreak =>
+            let row_indent = container_indent + contained_indent;
             let indent =
               if (Segment.sameline_whitespace(tl)) {
                 0;
@@ -329,7 +330,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               singleton_w(w, {origin, last})
               |> add_row(
                    origin.row,
-                   {indent: container_indent + indent, max_col: origin.col},
+                   {indent: row_indent, max_col: origin.col},
                  )
               |> add_lb(w.id, indent);
             (indent, last, map);
