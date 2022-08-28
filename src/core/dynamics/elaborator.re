@@ -258,6 +258,10 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
           ps,
         );
       wrap(ListLit(Hole, ps));
+    | Cons(e1, e2) =>
+      let* d1 = dhpat_of_upat(m, e1);
+      let* d2 = dhpat_of_upat(m, e2);
+      wrap(Cons(d1, d2));
     | Tuple(_ids, ps) =>
       //TODO(andrew): review below
       switch (List.rev(ps)) {
