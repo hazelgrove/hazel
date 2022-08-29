@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Util;
-open Core3;
+open Haz3lcore;
 
 module Deco =
        (

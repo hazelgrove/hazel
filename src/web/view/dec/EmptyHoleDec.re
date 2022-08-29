@@ -1,5 +1,5 @@
 open Virtual_dom.Vdom;
-open Core3;
+open Haz3lcore;
 
 module Profile = {
   type t = {
@@ -28,9 +28,9 @@ let view =
     (~font_metrics, {measurement: {origin, _}, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
-  let (tip_l, tip_r): (Core3.Nib.Shape.t, Core3.Nib.Shape.t) =
-    Util.TupleUtil.map2(Core3.Nib.shape, mold.nibs);
-  let (tip_l, tip_r): (Core3.Nib.t, Core3.Nib.t) = (
+  let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
+    Util.TupleUtil.map2(Haz3lcore.Nib.shape, mold.nibs);
+  let (tip_l, tip_r): (Haz3lcore.Nib.t, Haz3lcore.Nib.t) = (
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );

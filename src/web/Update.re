@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open Util;
-open Core3;
+open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =

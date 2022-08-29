@@ -42,7 +42,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Core3.Measured.Point.t,
+      origin: Haz3lcore.Measured.Point.t,
     ) => {
   Attr.create(
     "style",
@@ -59,7 +59,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Core3.Measured.Point.t,
+      ~origin: Haz3lcore.Measured.Point.t,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,
@@ -100,8 +100,8 @@ let code_svg =
   );
 };
 
-let raised_shadow_filter = (sort: Core3.Sort.t) => {
-  let s = Core3.Sort.to_string(sort);
+let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
+  let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
     ~attr=Attr.id("raised-drop-shadow-" ++ s),
@@ -121,8 +121,8 @@ let raised_shadow_filter = (sort: Core3.Sort.t) => {
   );
 };
 
-let shadow_filter = (sort: Core3.Sort.t) => {
-  let s = Core3.Sort.to_string(sort);
+let shadow_filter = (sort: Haz3lcore.Sort.t) => {
+  let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
     ~attr=Attr.id("drop-shadow-" ++ s),
@@ -145,6 +145,6 @@ let shadow_filter = (sort: Core3.Sort.t) => {
 let filters =
   NodeUtil.svg(
     Attr.[id("filters")],
-    List.map(raised_shadow_filter, Core3.Sort.all)
-    @ List.map(shadow_filter, Core3.Sort.all),
+    List.map(raised_shadow_filter, Haz3lcore.Sort.all)
+    @ List.map(shadow_filter, Haz3lcore.Sort.all),
   );

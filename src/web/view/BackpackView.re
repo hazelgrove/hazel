@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core3;
+open Haz3lcore;
 
 let backpack_sel_view =
     (

@@ -2,20 +2,20 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let cls_str = (ci: Core3.Statics.t): string =>
+let cls_str = (ci: Haz3lcore.Statics.t): string =>
   switch (ci) {
-  | Invalid(msg) => Core3.Term.show_parse_flag(msg)
-  | InfoExp({cls, _}) => Core3.Term.UExp.show_cls(cls)
-  | InfoPat({cls, _}) => Core3.Term.UPat.show_cls(cls)
-  | InfoTyp({cls, _}) => Core3.Term.UTyp.show_cls(cls)
-  | InfoRul({cls}) => Core3.Term.URul.show_cls(cls)
+  | Invalid(msg) => Haz3lcore.Term.show_parse_flag(msg)
+  | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
+  | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
+  | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
+  | InfoRul({cls}) => Haz3lcore.Term.URul.show_cls(cls)
   };
 
 let errorc = "error";
 let happyc = "happy";
 let infoc = "info";
 
-let error_view = (err: Core3.Statics.error) =>
+let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
   | Multi =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
@@ -36,7 +36,7 @@ let error_view = (err: Core3.Statics.error) =>
     )
   };
 
-let happy_view = (suc: Core3.Statics.happy) => {
+let happy_view = (suc: Haz3lcore.Statics.happy) => {
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div(
@@ -68,7 +68,7 @@ let happy_view = (suc: Core3.Statics.happy) => {
   };
 };
 
-let status_view = (err: Core3.Statics.error_status) => {
+let status_view = (err: Haz3lcore.Statics.error_status) => {
   switch (err) {
   | InHole(error) => error_view(error)
   | NotInHole(happy) => happy_view(happy)
@@ -84,22 +84,22 @@ let term_tag = (is_err, sort) =>
     [div(~attr=clss(["icon"]), [Icons.magnify]), text(sort)],
   );
 
-let view_of_info = (ci: Core3.Statics.t): Node.t => {
-  let is_err = Core3.Statics.is_error(ci);
+let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
+  let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
     div(
       ~attr=clss([infoc, "unknown"]),
-      [text("🚫 " ++ Core3.Term.show_parse_flag(msg))],
+      [text("🚫 " ++ Haz3lcore.Term.show_parse_flag(msg))],
     )
   | InfoExp({mode, self, _}) =>
-    let error_status = Core3.Statics.error_status(mode, self);
+    let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
       [term_tag(is_err, "exp"), status_view(error_status)],
     );
   | InfoPat({mode, self, _}) =>
-    let error_status = Core3.Statics.error_status(mode, self);
+    let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
       [term_tag(is_err, "pat"), status_view(error_status)],
@@ -118,25 +118,25 @@ let view_of_info = (ci: Core3.Statics.t): Node.t => {
   };
 };
 
-let cls_view = (ci: Core3.Statics.t): Node.t =>
+let cls_view = (ci: Haz3lcore.Statics.t): Node.t =>
   div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]);
 
 let id_view = (id): Node.t =>
   div(~attr=clss(["id"]), [text(string_of_int(id + 1))]);
 
-let extra_view = (visible: bool, id: int, ci: Core3.Statics.t): Node.t =>
+let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
     [id_view(id), cls_view(ci)],
   );
 
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
-  print_endline(Core3.Statics.show(ci));
+  print_endline(Haz3lcore.Statics.show(ci));
   switch (ci) {
   | InfoPat({mode, self, _})
   | InfoExp({mode, self, _}) =>
-    Core3.Statics.error_status(mode, self)
-    |> Core3.Statics.show_error_status
+    Haz3lcore.Statics.error_status(mode, self)
+    |> Haz3lcore.Statics.show_error_status
     |> print_endline
   | _ => ()
   };
@@ -144,13 +144,14 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 };
 
 let inspector_view =
-    (~inject, ~settings: Model.settings, id: int, ci: Core3.Statics.t): Node.t =>
+    (~inject, ~settings: Model.settings, id: int, ci: Haz3lcore.Statics.t)
+    : Node.t =>
   div(
     ~attr=
       Attr.many([
         clss(
           ["cursor-inspector"]
-          @ [Core3.Statics.is_error(ci) ? errorc : happyc],
+          @ [Haz3lcore.Statics.is_error(ci) ? errorc : happyc],
         ),
         Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
       ]),
@@ -162,10 +163,15 @@ let inspector_view =
   );
 
 let view =
-    (~inject, ~settings, index': option(int), info_map: Core3.Statics.map) => {
+    (
+      ~inject,
+      ~settings,
+      index': option(int),
+      info_map: Haz3lcore.Statics.map,
+    ) => {
   switch (index') {
   | Some(index) =>
-    switch (Core3.Id.Map.find_opt(index, info_map)) {
+    switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
     | Some(ci) => inspector_view(~inject, ~settings, index, ci)
     | None =>
       div(

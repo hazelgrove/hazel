@@ -27,7 +27,7 @@ let get_result =
 };
 
 let evaulation_result = (map, term): option(DHExp.t) =>
-  switch (Core3.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
   };
@@ -53,7 +53,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (Core3.Elaborator.uexp_elab(map, term) |> get_result) {
+  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
   | None
   | Some((_, [])) => None
   | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))
