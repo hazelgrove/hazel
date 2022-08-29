@@ -1,6 +1,6 @@
 open Js_of_ocaml;
 open Incr_dom;
-open Web;
+open Haz3lweb;
 
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
@@ -10,7 +10,7 @@ let observe_font_specimen = (id, update) =>
         let specimen = Js.to_array(entries)[0];
         let rect = specimen##.contentRect;
         update(
-          Web.FontMetrics.{
+          Haz3lweb.FontMetrics.{
             row_height: rect##.bottom -. rect##.top,
             col_width: rect##.right -. rect##.left,
           },
@@ -90,11 +90,11 @@ module App = {
   let on_startup = (~schedule_action, _) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
-        schedule_action(Web.Update.SetFontMetrics(fm))
+        schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
       );
     // let _ =
     //   observe_font_specimen("logo-font-specimen", fm =>
-    //     schedule_action(Web.Update.SetLogoFontMetrics(fm))
+    //     schedule_action(Haz3lweb.Update.SetLogoFontMetrics(fm))
     //   );
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
@@ -104,13 +104,13 @@ module App = {
     Async_kernel.Deferred.return();
   };
 
-  let create = (model: Incr.t(Web.Model.t), ~old_model as _, ~inject) => {
+  let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
     open Incr.Let_syntax;
     let%map model = model;
     Component.create(
       ~apply_action=apply(model),
       model,
-      Web.Page.view(~inject, ~handlers, model),
+      Haz3lweb.Page.view(~inject, ~handlers, model),
     );
   };
 };

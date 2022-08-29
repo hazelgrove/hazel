@@ -6,7 +6,7 @@
   (source_tree www)))
 
 (library
- (name web)
+ (name haz3lweb)
  (modules :standard \ Main)
  (libraries incr_dom util ppx_yojson_conv.expander haz3lcore hazelweb)
  (js_of_ocaml
@@ -19,7 +19,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries web ppx_yojson_conv.expander hazelweb)
+ (libraries ppx_yojson_conv.expander hazelweb haz3lweb)
  (modes js)
  (js_of_ocaml
   (flags
