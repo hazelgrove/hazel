@@ -24,7 +24,9 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => TypOperand(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
-  | ListZ(ztyp) => extract_cursor_term(ztyp)
+  | ListZ(ztyp)
+  | ForallZT(_, ztyp) => extract_cursor_term(ztyp)
+  | ForallZP(ztp, _) => CursorInfo_TPat.extract_cursor_term(ztp)
   };
 };
 
@@ -46,7 +48,9 @@ and get_zoperand_from_ztyp_operand =
   switch (zoperand) {
   | CursorT(_, _) => Some(ZTyp(zoperand))
   | ParenthesizedZ(ztyp)
-  | ListZ(ztyp) => get_zoperand_from_ztyp(ztyp)
+  | ListZ(ztyp)
+  | ForallZT(_, ztyp) => get_zoperand_from_ztyp(ztyp)
+  | ForallZP(ztp, _) => CursorInfo_TPat.get_zoperand_from_ztpat(ztp)
   };
 };
 
@@ -147,5 +151,17 @@ and cursor_info_zoperand =
     CursorInfo_common.mk(OnType(ty), ctx, cursor_term);
   | ParenthesizedZ(zbody)
   | ListZ(zbody) => cursor_info(~steps=steps @ [0], ctx, zbody)
+  | ForallZP(ztp, body) =>
+    open OptUtil.Syntax;
+    let+ deferrable =
+      CursorInfo_TPat.cursor_info(~steps=steps @ [0], ctx, ztp);
+    switch (deferrable) {
+    | CursorNotOnDeferredVarPat(ci) => ci
+    | CursorOnDeferredTyVarPat(deferred_ci, x) =>
+      let uses = UsageAnalysis.find_tyuses_typ(~steps=steps @ [1], x, body);
+      uses |> deferred_ci;
+    | CursorOnDeferredVarPat(_) => failwith("deferred impossible")
+    };
+  | ForallZT(_, zbody) => cursor_info(~steps=steps @ [1], ctx, zbody)
   };
 };

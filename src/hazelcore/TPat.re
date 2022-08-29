@@ -21,6 +21,9 @@ let tyvar_name: t => option(TyVar.t) =
   | TyVar(InHole(_), _) => None
   | TyVar(NotInHole, t) => Some(t);
 
+let to_string = (tp: t): string =>
+  tp |> tyvar_name |> Option.value(~default="()");
+
 let is_complete =
   fun
   | EmptyHole

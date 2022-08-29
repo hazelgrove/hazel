@@ -65,6 +65,12 @@ let lit_msg = (ty: HTyp.t) => {
       fill_space,
       AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
     ]);
+  let forall_lit =
+    option([
+      Node.text("Enter a TypFun Literal"),
+      fill_space,
+      AssistantView_common.text_shortcut_node("typfun "),
+    ]);
   switch (HTyp.to_syntax(ty)) {
   | Hole => [
       int_lit,
@@ -82,6 +88,7 @@ let lit_msg = (ty: HTyp.t) => {
   | Sum(_, _) => [sum_lit]
   | Prod(_) => [prod_lit]
   | List(_) => [list_lit]
+  | Forall(_) => [forall_lit]
   | TyVar(_)
   | TyVarHole(_)
   | InvalidText(_) => [

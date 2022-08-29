@@ -61,6 +61,8 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
   | Fun(DHPat.t, DHTyp.t, t)
+  | TypFun(TPat.t, t)
+  | TypApp(t, DHTyp.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, DHTyp.t, t)
   | TyAlias(TPat.t, DHTyp.t, t)

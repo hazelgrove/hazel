@@ -50,6 +50,7 @@ let semicolon = no_ctrlOrCmd_alt(Key.the_key(";"));
 let comma = no_ctrlOrCmd_alt(Key.the_key(","));
 let vbar = no_ctrlOrCmd_alt(Key.the_key("|"));
 let ampersand = no_ctrlOrCmd_alt(Key.the_key("&"));
+let at_sign = no_ctrlOrCmd_alt(Key.the_key("@"));
 let alt_L = alt(Key.the_key("L"));
 let alt_R = alt(Key.the_key("R"));
 let alt_C = alt(Key.the_key("C"));

@@ -29,6 +29,7 @@ type t =
   | Comma
   | LeftBracket
   | Semicolon
+  | AtSign
   | Alt_L
   | Alt_R
   | Alt_C

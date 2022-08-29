@@ -13,7 +13,8 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+  | Forall(TPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

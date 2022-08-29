@@ -19,3 +19,7 @@ let is_reserved: string => bool =
   | "Float"
   | "Bool" => true
   | s => Option.is_some(ExpandingKeyword.of_string(s));
+
+let is_forall = equal("forall");
+
+let split = Var.split;

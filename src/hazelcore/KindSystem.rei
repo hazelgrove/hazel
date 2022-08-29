@@ -49,6 +49,8 @@ module HTyp_syntax: {
         MetaVar.t,
         TyVar.t,
       )
+    | /** Forall types with a type pattern. */
+      Forall(TPat.t, t('idx))
     | InvalidText(MetaVar.t, string);
 
   /** Changes indices from absolute to relative. */
@@ -143,6 +145,9 @@ module rec Context: {
 
   /** Binds the given type variable name to the given [Kind]. */
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
+
+  /** Binds the given type pattern to the given [Kind]; do nothing if it's EmptyHole. */
+  let add_tpat: (t, TPat.t, Kind.t) => t;
 
   /** [reduce_tyvars(new_ctx, old_ctx, ty)] replaces any type variables bound by
      [new_ctx] but not by [old_ctx] in [ty] with equivalent types that have no
@@ -258,6 +263,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   /* HTyp Value Predicates */
 
@@ -309,6 +315,7 @@ and HTyp: {
   let matched_arrow: (Context.t, t) => option((t, t));
   let matched_sum: (Context.t, t) => option((t, t));
   let matched_list: (Context.t, t) => option(t);
+  let matched_forall: (Context.t, t) => option((TPat.t, t));
 
   /* Type Variables */
 
@@ -322,6 +329,7 @@ and HTyp: {
   /** Type variable substitution.  */
   /* let subst_tyvar: (t, Index.Abs.t, t) => t; */
   let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
+  let subst_tpat: (Context.t, t, TPat.t, t) => t;
 
   /* Joins */
 
@@ -382,6 +390,7 @@ and HTyp: {
   let grounded_Sum: unit => ground_cases;
   let grounded_Prod: int => ground_cases;
   let grounded_List: unit => ground_cases;
+  let grounded_Forall: unit => ground_cases;
 
   let ground_cases_of: normalized => ground_cases;
 
@@ -414,6 +423,7 @@ and HTyp: {
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t)
     | InvalidText(MetaVar.t, string);
 
   /** Converts a head-normalized [HTyp] to an ordinary [HTyp]. */

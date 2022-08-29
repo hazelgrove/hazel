@@ -65,6 +65,7 @@ module HTyp_syntax: {
     | List(t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
     | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t('idx))
     | InvalidText(MetaVar.t, string);
   let to_rel: (~offset: int=?, t(Index.absolute)) => t(Index.relative);
   let to_abs: (~offset: int=?, t(Index.relative)) => t(Index.absolute);
@@ -80,8 +81,7 @@ module HTyp_syntax: {
     | Prod(list(t('idx)))
     | List(t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
-    | InvalidText(MetaVar.t, string);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let rec to_rel =
           (~offset: int=0, ty: t(Index.absolute)): t(Index.relative) =>
@@ -89,8 +89,7 @@ module HTyp_syntax: {
     | TyVar(cref, t) =>
       let cref = {...cref, index: Index.Abs.to_rel(~offset, cref.index)};
       TyVar(cref, t);
-    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
-    | InvalidText(u, t) => InvalidText(u, t)
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -109,8 +108,7 @@ module HTyp_syntax: {
       let stamp = cref.stamp + offset;
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
-    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
-    | InvalidText(u, t) => InvalidText(u, t)
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -178,6 +176,7 @@ module rec Context: {
   let tyvar_ref: (t, TyVar.t) => option(ContextRef.t);
   let tyvar_kind: (t, ContextRef.t) => option(Kind.t);
   let add_tyvar: (t, TyVar.t, Kind.t) => t;
+  let add_tpat: (t, TPat.t, Kind.t) => t;
   let reduce_tyvars: (t, t, HTyp.t) => HTyp.t;
   let vars: t => list((ContextRef.t, Var.t, HTyp.t));
   let var: (t, ContextRef.t) => option(Var.t);
@@ -393,6 +392,14 @@ module rec Context: {
     ...ctx,
   ];
 
+  let add_tpat = (ctx: t, tp: TPat.t, k: Kind.t): t =>
+    switch (tp) {
+    | EmptyHole
+    | InvalidText(_)
+    | TyVar(InHole(_), _) => ctx
+    | TyVar(NotInHole, t) => Context.add_tyvar(ctx, t, k)
+    };
+
   /* Assumes indices in ty are scoped to new_ctx. */
   let reduce_tyvars = (new_ctx: t, old_ctx: t, ty: HTyp.t): HTyp.t => {
     let new_tyvars = tyvars(new_ctx);
@@ -518,6 +525,7 @@ and HTyp: {
   let sum: (t, t) => t;
   let product: list(t) => t;
   let list: t => t;
+  let forall: (TPat.t, t) => t;
 
   let is_hole: t => bool;
   let is_int: t => bool;
@@ -538,6 +546,7 @@ and HTyp: {
   let matched_arrow: (Context.t, t) => option((t, t));
   let matched_sum: (Context.t, t) => option((t, t));
   let matched_list: (Context.t, t) => option(t);
+  let matched_forall: (Context.t, t) => option((TPat.t, t));
 
   let tyvar: (Context.t, Index.Abs.t, TyVar.t) => t;
   let tyvarhole: (TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t) => t;
@@ -547,6 +556,7 @@ and HTyp: {
   let tyvar_name: t => option(TyVar.t);
 
   let subst_tyvars: (Context.t, t, list((ContextRef.t, t))) => t;
+  let subst_tpat: (Context.t, t, TPat.t, t) => t;
 
   type join =
     | GLB
@@ -573,6 +583,7 @@ and HTyp: {
   let grounded_Sum: unit => ground_cases;
   let grounded_Prod: int => ground_cases;
   let grounded_List: unit => ground_cases;
+  let grounded_Forall: unit => ground_cases;
 
   let ground_cases_of: normalized => ground_cases;
 
@@ -587,8 +598,7 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
-    | InvalidText(MetaVar.t, string);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let of_head_normalized: head_normalized => t;
   let head_normalize: (Context.t, t) => head_normalized;
@@ -599,7 +609,7 @@ and HTyp: {
   [@deriving sexp]
   type t = HTyp_syntax.t(Index.absolute);
 
-  let to_string = (ty: t): string => {
+  let rec to_string = (ty: t): string => {
     switch (ty) {
     | Hole => "a"
     | Int => "an Integer"
@@ -611,7 +621,6 @@ and HTyp: {
     | List(_) => "a List"
     | TyVar(_, t) => "a " ++ t
     | TyVarHole(_) => "a"
-    | InvalidText(_) => "a"
     };
   };
 
@@ -640,6 +649,7 @@ and HTyp: {
       Sum(tyL, tyR);
     | Prod(tys) => Prod(List.map(ty1 => shift_indices(ty1, amount), tys))
     | List(ty1) => List(shift_indices(ty1, amount))
+    | Forall(tp, ty) => Forall(tp, shift_indices(ty, amount))
     };
 
   let hole: unit => t = () => Hole;
@@ -650,6 +660,7 @@ and HTyp: {
   let sum = (tyL: t, tyR: t): t => Sum(tyL, tyR);
   let product = (tys: list(t)): t => Prod(tys);
   let list = (ty: t): t => List(ty);
+  let forall = (tp: TPat.t, ty: t): t => Forall(tp, ty);
 
   let is_hole = (ty: t): bool => ty == Hole;
   let is_int = (ty: t): bool => ty == Int;
@@ -694,7 +705,6 @@ and HTyp: {
     switch (ty) {
     | TyVar(cref, _) => Some(cref)
     | TyVarHole(_)
-    | InvalidText(_)
     | Hole
     | Int
     | Float
@@ -717,7 +727,8 @@ and HTyp: {
     | Arrow(_)
     | Sum(_)
     | Prod(_)
-    | List(_) => None
+    | List(_)
+    | Forall(_) => None
     };
 
   let rec rescope = (ctx: Context.t, ty: t): t =>
@@ -733,6 +744,8 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(rescope(ctx, tyL), rescope(ctx, tyR))
     | Prod(tys) => Prod(List.map(rescope(ctx), tys))
     | List(ty1) => List(rescope(ctx, ty1))
+    | Forall(tp, ty) =>
+      Forall(tp, rescope(Context.add_tpat(ctx, tp, Kind_core.Type), ty))
     };
 
   let rec subst_tyvar = (ctx: Context.t, ty: t, cref: ContextRef.t, ty': t): t => {
@@ -757,6 +770,7 @@ and HTyp: {
     | Prod(tys) =>
       Prod(List.map(ty1 => subst_tyvar(ctx, ty1, cref, ty'), tys))
     | List(ty1) => List(subst_tyvar(ctx, ty1, cref, ty'))
+    | Forall(tp, ty) => Forall(tp, subst_tyvar(ctx, ty, cref, ty'))
     };
   };
 
@@ -767,6 +781,20 @@ and HTyp: {
       ty,
       tyvars,
     );
+
+  let subst_tpat = (ctx: Context.t, ty: t, tp: TPat.t, ty': t): t => {
+    let tyvar_ref =
+      switch (tp) {
+      | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
+      | _ => None
+      };
+    let new_ty =
+      switch (tyvar_ref) {
+      | Some(tyvar_ref) => subst_tyvar(ctx, ty, tyvar_ref, ty')
+      | None => ty
+      };
+    new_ty;
+  };
 
   let rec equivalent = (ctx: Context.t, ty: t, ty': t): bool =>
     switch (ty, ty') {
@@ -798,21 +826,27 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => equivalent(ctx, ty, ty')
     | (List(_), _) => false
+    | (Forall(_tp, ty), Forall(_tp', ty')) => equivalent(ctx, ty, ty')
+    | (Forall(_), _) => false
     };
 
-  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool =>
-    switch (ty, ty') {
+  let rec consistent = (ctx: Context.t, ty: t, ty': t): bool => {
+    let head_normalize_ = ty =>
+      ty
+      |> HTyp.of_syntax
+      |> HTyp.head_normalize(ctx)
+      |> HTyp.of_head_normalized
+      |> HTyp.to_syntax;
+    switch (ty |> head_normalize_, ty' |> head_normalize_) {
     | (TyVar(cref, _), TyVar(cref', _)) =>
       switch (
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref)),
         Context.tyvar_kind(ctx, Context.rescope(ctx, cref')),
       ) {
-      | (Some(k), Some(k')) =>
-        consistent(
-          ctx,
-          HTyp.to_syntax(Kind.to_htyp(k)),
-          HTyp.to_syntax(Kind.to_htyp(k')),
-        )
+      | (Some(Type), Some(Type)) => ContextRef.equivalent(cref, cref')
+      | (Some(Hole | Type), Some(Hole | Type)) => true
+      | (Some(_), Some(_)) =>
+        failwith(__LOC__ ++ ": singleton kind in head_normalized type")
       | (None, _)
       | (_, None) => false
       }
@@ -833,7 +867,10 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => consistent(ctx, ty1, ty1')
     | (List(_), _) => false
+    | (Forall(_tp, ty), Forall(_tp', ty')) => consistent(ctx, ty, ty')
+    | (Forall(_), _) => false
     };
+  };
 
   let inconsistent = (ctx: Context.t, ty1: t, ty2: t): bool =>
     !consistent(ctx, ty1, ty2);
@@ -858,7 +895,8 @@ and HTyp: {
     | Arrow(ty1, ty2)
     | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
     | Prod(tys) => tys |> List.for_all(complete)
-    | List(ty) => complete(ty);
+    | List(ty) => complete(ty)
+    | Forall(_tp, ty) => complete(ty);
 
   /* HTyp Constructor Precedence */
 
@@ -875,8 +913,7 @@ and HTyp: {
     | Prod([])
     | List(_)
     | TyVar(_)
-    | TyVarHole(_)
-    | InvalidText(_) => precedence_const()
+    | TyVarHole(_) => precedence_const()
     | Prod(_) => precedence_Prod()
     | Sum(_, _) => precedence_Sum()
     | Arrow(_, _) => precedence_Arrow()
@@ -888,6 +925,22 @@ and HTyp: {
   type join =
     | GLB
     | LUB;
+
+  let join_tpat = (j: join, tp1: TPat.t, tp2: TPat.t): TPat.t => {
+    switch (j) {
+    | GLB =>
+      switch (tp1, tp2) {
+      | (EmptyHole, _) => EmptyHole
+      | (_, EmptyHole) => EmptyHole
+      | (tp1, _) => tp1
+      }
+    | LUB =>
+      switch (tp1, tp2) {
+      | (EmptyHole, tp2) => tp2
+      | (tp1, _) => tp1
+      }
+    };
+  };
 
   let rec join = (ctx: Context.t, j: join, ty1: t, ty2: t): option(t) =>
     switch (ty1, ty2) {
@@ -937,7 +990,12 @@ and HTyp: {
       open OptUtil.Syntax;
       let+ ty = join(ctx, j, ty, ty');
       HTyp_syntax.List(ty);
-    | (Arrow(_) | Sum(_) | Prod(_) | List(_), _) => None
+    | (Forall(tp, ty), Forall(tp', ty')) =>
+      open OptUtil.Syntax;
+      let tp = join_tpat(j, tp, tp');
+      let+ ty = join(ctx, j, ty, ty');
+      HTyp_syntax.Forall(tp, ty);
+    | (Arrow(_) | Sum(_) | Prod(_) | List(_) | Forall(_), _) => None
     };
 
   let join_all = (ctx: Context.t, j: join, types: list(t)): option(t) =>
@@ -991,6 +1049,10 @@ and HTyp: {
     | Sum(ty1, ty2) => Sum(normalize(ctx, ty1), normalize(ctx, ty2))
     | Prod(tys) => Prod(List.map(normalize(ctx), tys))
     | List(ty1) => List(normalize(ctx, ty1))
+    | Forall(tp, ty) =>
+      let k = Kind_core.Type;
+      let ctx = Context.add_tpat(ctx, tp, k);
+      Forall(tp, normalize(ctx, ty));
     };
 
   /* Properties of Normalized HTyp */
@@ -1013,6 +1075,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty1), List(ty1')) => normalized_consistent(ty1, ty1')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_consistent(ty1, ty1')
+    | (Forall(_, _), _) => false
     };
 
   let rec normalized_equivalent = (ty: normalized, ty': normalized): bool =>
@@ -1035,6 +1099,8 @@ and HTyp: {
     | (Prod(_), _) => false
     | (List(ty), List(ty')) => normalized_equivalent(ty, ty')
     | (List(_), _) => false
+    | (Forall(_, ty1), Forall(_, ty1')) => normalized_equivalent(ty1, ty1')
+    | (Forall(_, _), _) => false
     };
 
   /* Ground Cases */
@@ -1050,6 +1116,7 @@ and HTyp: {
   let grounded_Prod = length =>
     NotGroundOrHole(Prod(ListUtil.replicate(length, HTyp_syntax.Hole)));
   let grounded_List = () => NotGroundOrHole(List(Hole));
+  let grounded_Forall = () => NotGroundOrHole(Forall(EmptyHole, Hole));
 
   let ground_cases_of = (ty: normalized): ground_cases =>
     switch (ty) {
@@ -1062,6 +1129,8 @@ and HTyp: {
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
     | List(Hole)
+    // TODO: (poly) does TPat needs to be an EmptyHole?
+    | Forall(EmptyHole, Hole)
     | TyVar(_) => Ground
     | Prod(tys) =>
       let equiv = ty => normalized_equivalent(Hole, ty);
@@ -1069,6 +1138,7 @@ and HTyp: {
     | Arrow(_, _) => grounded_Arrow()
     | Sum(_, _) => grounded_Sum()
     | List(_) => grounded_List()
+    | Forall(_) => grounded_Forall()
     };
 
   /* HTyp Head-Normalization */
@@ -1084,8 +1154,7 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
-    | InvalidText(MetaVar.t, string);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
 
   let of_head_normalized: head_normalized => t =
     fun
@@ -1098,8 +1167,7 @@ and HTyp: {
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
     | TyVar(cref, t) => TyVar(cref, t)
-    | TyVarHole(err, u, t) => TyVarHole(err, u, t)
-    | InvalidText(u, t) => InvalidText(u, t);
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>
@@ -1127,6 +1195,7 @@ and HTyp: {
     | Sum(tyL, tyR) => Sum(tyL, tyR)
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
+    | Forall(tp, ty) => Forall(tp, ty)
     };
 
   /* Matched Type Constructors */
@@ -1155,6 +1224,15 @@ and HTyp: {
     | TyVarHole(_)
     | TyVar(_) => Some(Hole)
     | List(ty) => Some(ty)
+    | _ => None
+    };
+
+  let matched_forall = (ctx: Context.t, ty: t): option((TPat.t, t)) =>
+    switch (head_normalize(ctx, ty)) {
+    | Hole
+    | TyVarHole(_)
+    | TyVar(_) => Some((EmptyHole, Hole))
+    | Forall(tp, ty) => Some((tp, ty))
     | _ => None
     };
 

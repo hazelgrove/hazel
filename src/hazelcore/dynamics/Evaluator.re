@@ -242,6 +242,8 @@ and matches_cast_Inj =
   | TyAlias(_) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -315,8 +317,8 @@ and matches_cast_Pair =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
+  | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -398,8 +400,8 @@ and matches_cast_Cons =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
+  | Ap(_, _) => Indet
+  | ApBuiltin(_, _) => Indet
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -466,6 +468,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | ApBuiltin(ident, args) =>
     let args = List.map(subst_var(d1, x), args);
     ApBuiltin(ident, args);
+  | TypFun(dp, d3) =>
+    let d3 = subst_var(d1, x, d3);
+    TypFun(dp, d3);
+  | TypApp(d3, dty) =>
+    let d3 = subst_var(d1, x, d3);
+    TypApp(d3, dty);
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -708,31 +716,14 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       | (Indet(d2'), state) => (Indet(Ap(d1', d2')), state)
       }
     };
-
-  /* | Ap(d1, d2) => */
-  /*   switch (evaluate(d1, ~state)) { */
-  /*   | (BoxedValue(TestLit(n)), state) => eval_test(n, d2, state) */
-  /*   | (BoxedValue(Fun(dp, _, d3)), state) => */
-  /*     eval_bind((d2, state), ((d2', state)) => */
-  /*       switch (matches(dp, d2')) { */
-  /*       | DoesNotMatch */
-  /*       | IndetMatch => (Indet(d), state) */
-  /*       | Matches(env) => */
-  /*         /\* beta rule *\/ */
-  /*         evaluate(subst(env, d3), ~state) */
-  /*       } */
-  /*     ) */
-  /*   | (BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) */
-  /*   | (Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))), state) => */
-  /*     eval_bind((d2, state), ((d2', state)) => */
-  /*       evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state) */
-  /*     ) */
-  /*   | (BoxedValue(d1'), _) => */
-  /*     raise(EvaluatorError.Exception(InvalidBoxedFun(d1'))) */
-  /*   | (Indet(d1'), state) => */
-  /*     eval_bind_indet((d2, state), d2' => Ap(d1', d2')) */
-  /*   } */
-
+  | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
+  | TypFun(_, _) => BoxedValue(d)
+  | TypApp(d, _) => evaluate(d)
+  | ListNil(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(BoolLit(b1) as d1'), state) =>

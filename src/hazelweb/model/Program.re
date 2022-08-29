@@ -144,6 +144,12 @@ let rec renumber_result_only =
         (hii, []),
       );
     (ApBuiltin(ident, args), hii);
+  | TypFun(tp, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypFun(tp, d1), hii);
+  | TypApp(d1, dty) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypApp(d1, dty), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -261,6 +267,12 @@ let rec renumber_sigmas_only =
         (hii, []),
       );
     (ApBuiltin(ident, args), hii);
+  | TypFun(tp, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypFun(tp, d1), hii);
+  | TypApp(d1, dty) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypApp(d1, dty), hii);
   | BinBoolOp(op, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);

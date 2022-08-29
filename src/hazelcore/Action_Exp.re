@@ -90,6 +90,8 @@ let keyword_action = (kw: ExpandingKeyword.t): Action.t =>
   | Let => Construct(SLet)
   | Case => Construct(SCase)
   | TyAlias => Construct(STyAlias)
+  | TypFun => Construct(STypFun)
+  | Forall => failwith(__LOC__ ++ "Forall in expression")
   };
 
 //TBD
@@ -252,6 +254,8 @@ let mk_SynExpandsToTyAlias = (~id_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
   SynExpands({kw: TyAlias, id_gen, prefix, suffix, subject: nextLine});
 let mk_SynExpandsToFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
   SynExpands({kw: Fun, id_gen, prefix, suffix, subject: param});
+let mk_SynExpandsToTypFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  SynExpands({kw: TypFun, id_gen, prefix, suffix, subject: param});
 let wrap_in_SynDone:
   ActionOutcome.t(syn_done) => ActionOutcome.t(syn_success) =
   fun
@@ -274,6 +278,8 @@ let mk_AnaExpandsToTyAlias = (~id_gen, ~prefix=[], ~suffix=[], ~nextLine, ()) =>
   AnaExpands({kw: TyAlias, id_gen, prefix, suffix, subject: nextLine});
 let mk_AnaExpandsToFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
   AnaExpands({kw: Let, id_gen, prefix, suffix, subject: param});
+let mk_AnaExpandsToTypFun = (~id_gen, ~prefix=[], ~suffix=[], ~param, ()) =>
+  AnaExpands({kw: TypFun, id_gen, prefix, suffix, subject: param});
 let wrap_in_AnaDone:
   ActionOutcome.t(ana_done) => ActionOutcome.t(ana_success) =
   fun
@@ -446,6 +452,8 @@ let syn_split_text =
       | Let => mk_SynExpandsToLet(~id_gen, ~def=subject, ())
       | Case => mk_SynExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_SynExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
+      | TypFun => mk_SynExpandsToTypFun(~id_gen, ~param=subject, ())
+      | Forall => failwith(__LOC__ ++ "Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -488,6 +496,8 @@ let ana_split_text =
       | Let => mk_AnaExpandsToLet(~id_gen, ~def=subject, ())
       | Case => mk_AnaExpandsToCase(~id_gen, ~scrut=subject, ())
       | TyAlias => mk_AnaExpandsToTyAlias(~id_gen, ~nextLine=subject, ())
+      | TypFun => mk_AnaExpandsToTypFun(~id_gen, ~param=subject, ())
+      | Forall => failwith(__LOC__ ++ "Forall in expression")
       },
     );
   | (lshape, Some(op), rshape) =>
@@ -666,6 +676,14 @@ let rec syn_perform =
     let new_ze =
       ZExp.ZBlock.wrap(FunZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze));
+  | Succeeded(
+      SynExpands({kw: TypFun, prefix: _, subject, suffix: _, id_gen}),
+    ) =>
+    let ztp = ZTPat.place_before(TPat.EmptyHole);
+    let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
+    Succeeded(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze));
+  | Succeeded(SynExpands({kw: Forall, _})) =>
+    failwith(__LOC__ ++ "Forall in expression")
   }
 
 and syn_perform_block =
@@ -1595,7 +1613,8 @@ and syn_perform_operand =
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListNil(_) | Fun(_) | TypFun(_) | TypApp(_) | Inj(_) |
+        Case(_) |
         Parenthesized(_),
       ),
     ) =>
@@ -1606,7 +1625,7 @@ and syn_perform_operand =
 
   /* Invalid actions at expression level */
   | (Construct(SLine), CursorE(OnText(_), _))
-  | (Construct(SList), CursorE(_)) => Failed
+  | (Construct(SList | SForall), CursorE(_)) => Failed
   | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
   /* Movement handled at top level */
@@ -1687,17 +1706,23 @@ and syn_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Fun(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (
+          TypFun(_, _, e) | TypApp(_, e, _) | Fun(_, _, e) | Inj(_, _, e) |
+          Case(_, e, _) |
+          Parenthesized(e)
+        ) as operand,
       ),
     ) =>
     let place_cursor =
       switch (operand) {
-      | Fun(_) =>
+      | Fun(_)
+      | TypFun(_) =>
         switch (k) {
         | 0
         | 1 => ZExp.place_before
         | _two => ZExp.place_after
         }
+      | TypApp(_) => ZExp.place_after
       | _ =>
         switch (k) {
         | 0 => ZExp.place_before
@@ -1826,6 +1851,27 @@ and syn_perform_operand =
       );
     Succeeded(SynDone((new_ze, HTyp.arrow(HTyp.hole(), ty), id_gen)));
 
+  | (Construct(STypFun), CursorE(_, operand)) =>
+    let new_ze =
+      ZExp.ZBlock.wrap(
+        TypFunZP(
+          NotInHole,
+          ZTPat.place_before(TPat.EmptyHole),
+          UHExp.Block.wrap(operand),
+        ),
+      );
+    Succeeded(SynDone((new_ze, HTyp.forall(TPat.EmptyHole, ty), id_gen)));
+
+  | (Construct(STypApp), CursorE(_, operand)) =>
+    let new_ze =
+      ZExp.ZBlock.wrap(
+        TypAppZT(
+          NotInHole,
+          UHExp.Block.wrap(operand),
+          ZTyp.place_before(UHTyp.contract(HTyp.hole())),
+        ),
+      );
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
   | (Construct(SCloseParens), InjZ(err, side, zblock))
       when ZExp.is_after_zblock(zblock) =>
     Succeeded(
@@ -2004,6 +2050,102 @@ and syn_perform_operand =
           let new_ty = HTyp.arrow(ty_p, new_ty_body);
           let new_ze = ZExp.ZBlock.wrap(FunZE(NotInHole, p, zbody));
           Succeeded(SynDone((new_ze, new_ty, id_gen)));
+        }
+      }
+    }
+
+  | (_, TypFunZP(_, ztp, body)) =>
+    switch (Action_TPat.perform(a, ztp, id_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      syn_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, ty, id_gen),
+      )
+    | Succeeded((ztp, id_gen)) =>
+      let tp = ZTPat.erase(ztp);
+      let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      let (body, ty_body, id_gen) =
+        Statics_Exp.syn_fix_holes(body_ctx, id_gen, body);
+      let new_ty = HTyp.forall(tp, ty_body);
+      let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, body));
+      Succeeded(SynDone((new_ze, new_ty, id_gen)));
+    }
+
+  | (_, TypFunZE(_, tp, zbody)) =>
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | None => Failed
+    | Some((_tp, ty_body)) =>
+      let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      switch (syn_perform(body_ctx, a, (zbody, ty_body, id_gen))) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, id_gen),
+        )
+      | Succeeded((zbody, new_ty_body, id_gen)) =>
+        let new_ty = HTyp.forall(tp, new_ty_body);
+        let new_ze = ZExp.ZBlock.wrap(TypFunZE(NotInHole, tp, zbody));
+        Succeeded(SynDone((new_ze, new_ty, id_gen)));
+      };
+    }
+
+  | (_, TypAppZE(_, zbody, arg)) =>
+    switch (Statics_Exp.syn(ctx, ZExp.erase(zbody))) {
+    | None => Failed
+    | Some(ty_body) =>
+      switch (HTyp.matched_forall(ctx, ty_body)) {
+      | None => Failed
+      | Some((tp, ty_def)) =>
+        switch (syn_perform(ctx, a, (zbody, ty_def, id_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform_operand(
+            ctx,
+            Action_common.escape(side),
+            (zoperand, ty, id_gen),
+          )
+        | Succeeded((zbody, ty_def, id_gen)) =>
+          switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, arg)) {
+          | None => Failed
+          | Some((arg_ty, _, _)) =>
+            let new_ty = HTyp.subst_tpat(ctx, ty_def, tp, arg_ty);
+            let new_ze = ZExp.ZBlock.wrap(TypAppZE(NotInHole, zbody, arg));
+            Succeeded(SynDone((new_ze, new_ty, id_gen)));
+          }
+        }
+      }
+    }
+
+  | (_, TypAppZT(_, body, zarg)) =>
+    switch (Action_Typ.perform(ctx, a, zarg, id_gen)) {
+    | Failed => Failed
+    | CursorEscaped(side) =>
+      syn_perform_operand(
+        ctx,
+        Action_common.escape(side),
+        (zoperand, ty, id_gen),
+      )
+    | Succeeded((new_zarg, ctx, id_gen)) =>
+      switch (
+        Elaborator_Typ.syn_elab(ctx, Delta.empty, ZTyp.erase(new_zarg))
+      ) {
+      | None => Failed
+      | Some((arg_ty, _, _)) =>
+        switch (Statics_Exp.syn(ctx, body)) {
+        | None => Failed
+        | Some(ty_body) =>
+          switch (HTyp.matched_forall(ctx, ty_body)) {
+          | None => Failed
+          | Some((tp, ty_def)) =>
+            let new_ty = HTyp.subst_tpat(ctx, ty_def, tp, arg_ty);
+            let new_ze =
+              ZExp.ZBlock.wrap(TypAppZT(NotInHole, body, new_zarg));
+            Succeeded(SynDone((new_ze, new_ty, id_gen)));
+          }
         }
       }
     }
@@ -2432,6 +2574,14 @@ and ana_perform =
     let new_ze =
       ZExp.ZBlock.wrap(FunZP(NotInHole, ZOpSeq.wrap(zhole), subject));
     Succeeded(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty));
+  | Succeeded(
+      AnaExpands({kw: TypFun, prefix: _, subject, suffix: _, id_gen}),
+    ) =>
+    let ztp = ZTPat.place_before(TPat.EmptyHole);
+    let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, subject));
+    Succeeded(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty));
+  | Succeeded(AnaExpands({kw: Forall, _})) =>
+    failwith(__LOC__ ++ "Forall in expression")
   }
 
 and ana_perform_block =
@@ -3121,7 +3271,8 @@ and ana_perform_operand =
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Fun(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListNil(_) | TypFun(_) | TypApp(_) | Fun(_) | Inj(_) |
+        Case(_) |
         Parenthesized(_),
       ),
     ) =>
@@ -3136,7 +3287,7 @@ and ana_perform_operand =
     ana_move(ctx, a, (ZExp.ZBlock.wrap(zoperand), id_gen), ty)
 
   /* Invalid actions at the expression level */
-  | (Construct(SList), CursorE(_)) => Failed
+  | (Construct(SList | SForall), CursorE(_)) => Failed
 
   | (Construct(SCloseSquareBracket), CursorE(_, _)) => Failed
 
@@ -3206,17 +3357,23 @@ and ana_perform_operand =
       Backspace,
       CursorE(
         OnDelim(k, After),
-        (Fun(_, _, e) | Inj(_, _, e) | Case(_, e, _) | Parenthesized(e)) as operand,
+        (
+          TypFun(_, _, e) | TypApp(_, e, _) | Fun(_, _, e) | Inj(_, _, e) |
+          Case(_, e, _) |
+          Parenthesized(e)
+        ) as operand,
       ),
     ) =>
     let place_cursor =
       switch (operand) {
-      | Fun(_) =>
+      | Fun(_)
+      | TypFun(_) =>
         switch (k) {
         | 0
         | 1 => ZExp.place_before
         | _two => ZExp.place_after
         }
+      | TypApp(_) => ZExp.place_after
       | _ =>
         switch (k) {
         | 0 => ZExp.place_before
@@ -3380,6 +3537,28 @@ and ana_perform_operand =
         );
       Succeeded(AnaDone((new_ze, id_gen)));
     };
+
+  | (Construct(STypFun), CursorE(_)) =>
+    let body = ZExp.(ZExp.ZBlock.wrap(zoperand) |> erase);
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | Some((tp, ty_body)) =>
+      let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      let (body, id_gen) =
+        Statics_Exp.ana_fix_holes(body_ctx, id_gen, body, ty_body);
+      let ztp = ZTPat.place_before(TPat.EmptyHole);
+      let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, body));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    | None =>
+      let (body, _, id_gen) = Statics_Exp.syn_fix_holes(ctx, id_gen, body);
+      let ztp = ZTPat.place_before(TPat.EmptyHole);
+      let (id, id_gen) = id_gen |> IDGen.next_hole;
+      let new_ze =
+        ZExp.ZBlock.wrap(TypFunZP(InHole(TypeInconsistent, id), ztp, body));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    };
+
+  | (Construct(STypApp), CursorE(_)) =>
+    ana_perform_subsume(ctx, a, (zoperand, id_gen), ty)
 
   | (Construct(SCloseBraces), FunZE(_, _, zblock))
       when ZExp.is_after_zblock(zblock) =>
@@ -3574,6 +3753,50 @@ and ana_perform_operand =
         }
       }
     }
+  | (_, TypFunZP(_, ztp, body)) =>
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | None => Failed
+    | Some((tp, ty_def)) =>
+      switch (Action_TPat.perform(a, ztp, id_gen)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, id_gen),
+          ty,
+        )
+      | Succeeded((ztp, id_gen)) =>
+        // TODO: (poly) use tp or ZTPat.erase(ztp)?
+        let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+        let (body, id_gen) =
+          Statics_Exp.ana_fix_holes(body_ctx, id_gen, body, ty_def);
+        let new_ze = ZExp.ZBlock.wrap(TypFunZP(NotInHole, ztp, body));
+        Succeeded(AnaDone((new_ze, id_gen)));
+      }
+    }
+  | (_, TypFunZE(_, _tp, zbody)) =>
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | None => Failed
+    | Some((tp, ty_def)) =>
+      let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+      switch (ana_perform(body_ctx, a, (zbody, id_gen), ty_def)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, id_gen),
+          ty,
+        )
+      | Succeeded((zbody, id_gen)) =>
+        let new_ze = ZExp.ZBlock.wrap(TypFunZE(NotInHole, tp, zbody));
+        Succeeded(AnaDone((new_ze, id_gen)));
+      };
+    }
+  | (_, TypAppZE(_))
+  | (_, TypAppZT(_)) => ana_perform_subsume(ctx, a, (zoperand, id_gen), ty)
+
   | (_, InjZ(_, side, zbody)) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | None => Failed

@@ -61,6 +61,10 @@ module Delim = {
   let open_Fun = mk(Doc_common.Delim.open_Fun);
   let close_Fun = mk(Doc_common.Delim.close_Fun);
 
+  let sym_TypFun = mk(Doc_common.Delim.sym_TypFun);
+  let open_TypFun = mk(Doc_common.Delim.open_TypFun);
+  let close_TypFun = mk(Doc_common.Delim.close_TypFun);
+
   let fix_FixF = mk("fix");
   let colon_FixF = mk(":");
   let open_FixF = mk(".{");

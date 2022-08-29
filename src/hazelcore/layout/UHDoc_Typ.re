@@ -21,6 +21,7 @@ let mk_NTuple:
     ~inline_padding_of_operator,
   );
 
+module UHDoc_TPat = UHDoc_TPat.Make(Memo.DummyMemo);
 module Make = (Memo: Memo.S) => {
   let rec mk =
     lazy(
@@ -65,6 +66,17 @@ module Make = (Memo: Memo.S) => {
             let body =
               mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
             UHDoc_common.mk_List(body);
+          | Forall(tp, ty_body) =>
+            let tp =
+              UHDoc_TPat.mk_child(
+                ~memoize,
+                ~enforce_inline,
+                ~child_step=0,
+                tp,
+              );
+            let body =
+              mk_child(~memoize, ~enforce_inline, ~child_step=1, ty_body);
+            UHDoc_common.mk_Forall(tp, body);
           }: UHDoc.t
         )
       )

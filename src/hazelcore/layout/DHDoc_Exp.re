@@ -44,7 +44,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Fun(_) => DHDoc_common.precedence_const
+  | Fun(_)
+  | TypFun(_)
+  | TypApp(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -368,6 +370,28 @@ let rec mk =
         } else {
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
+      | TypFun(tp, dbody) =>
+        // TODO: (poly) Add Settings.show_typfun_body?
+        let body_doc = (~enforce_inline) =>
+          mk_cast(go(~enforce_inline, dbody));
+        hcats([
+          DHDoc_common.Delim.sym_TypFun,
+          DHDoc_TPat.mk(tp)
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline,
+             ),
+          space(),
+          DHDoc_common.Delim.open_TypFun,
+          body_doc |> DHDoc_common.pad_child(~enforce_inline),
+          DHDoc_common.Delim.close_TypFun,
+        ]);
+      | TypApp(dexp, (_, arg)) =>
+        hcats([
+          mk_cast(go(~enforce_inline, dexp)),
+          DHDoc_common.Delim.mk("@"),
+          DHDoc_Typ.mk(~enforce_inline, arg),
+        ])
       | FixF(x, (_, ty), dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>

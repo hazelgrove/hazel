@@ -20,6 +20,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypFun(ErrStatus.t, TPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -48,6 +50,10 @@ let floatlit: (~err: ErrStatus.t=?, string) => operand;
 let boollit: (~err: ErrStatus.t=?, bool) => operand;
 
 let lam: (~err: ErrStatus.t=?, UHPat.t, t) => operand;
+
+let typfun: (~err: ErrStatus.t=?, TPat.t, t) => operand;
+
+let typapp: (~err: ErrStatus.t=?, t, UHTyp.t) => operand;
 
 let case: (~err: CaseErrStatus.t=?, t, rules) => operand;
 

@@ -42,10 +42,13 @@ and find_tyuses_typ_operand =
   | Int
   | Float
   | Bool => []
-  | TyVar(_, t')
+  | TyVar(_, name') => name == name' ? [steps] : []
   | InvalidText(_, t') => t == t' ? [steps] : []
-  | Parenthesized(ty)
-  | List(ty) => find_tyuses_typ(~steps=steps @ [0], t, ty)
+  | Parenthesized(t)
+  | List(t) => find_tyuses_typ(~steps=steps @ [0], name, t)
+  | Forall(tp, t) =>
+    TPat.binds_tyvar(name, tp)
+      ? [] : find_tyuses_typ(~steps=steps @ [1], name, t)
   };
 
 let rec find_tyuses_pat =
@@ -128,12 +131,20 @@ and find_tyuses_operand =
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypFun(InHole(_), _, _)
+  | TypApp(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   // | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
     find_tyuses_pat(~steps=steps @ [0], t, p)
     @ find_tyuses(~steps=steps @ [1], t, body)
+  | TypFun(NotInHole, tp, body) =>
+    TPat.binds_tyvar(t, tp)
+      ? [] : find_tyuses(~steps=steps @ [1], t, body)
+  | TypApp(NotInHole, body, ty) =>
+    find_tyuses(~steps=steps @ [0], t, body)
+    @ find_tyuses_typ(~steps=steps @ [1], t, ty)
   | Inj(NotInHole, _, body) => find_tyuses(~steps=steps @ [0], t, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),
@@ -204,11 +215,15 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | BoolLit(_)
   | ListNil(_)
   | Fun(InHole(_), _, _)
+  | TypFun(InHole(_), _, _)
+  | TypApp(InHole(_), _, _)
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Fun(NotInHole, p, body) =>
     binds_var(x, p) ? [] : find_uses(~steps=steps @ [1], x, body)
+  | TypFun(NotInHole, _tp, body) => find_uses(~steps=steps @ [1], x, body)
+  | TypApp(NotInHole, body, _ty) => find_uses(~steps=steps @ [1], x, body)
   | Inj(NotInHole, _, body) => find_uses(~steps=steps @ [0], x, body)
   | Case(
       StandardErrStatus(NotInHole) | InconsistentBranches(_),

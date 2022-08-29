@@ -26,6 +26,11 @@ let rec syn = (ctx: Context.t, ty: HTyp.t): option(Kind.t) =>
     open OptUtil.Syntax;
     let+ _ = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
     Kind.singleton(ty);
+  | Forall(tp, ty1) =>
+    open OptUtil.Syntax;
+    let ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    let+ () = ana(ctx, HTyp.of_syntax(ty1), Kind.Type);
+    Kind.singleton(ty);
   | TyVar(cref, _) => Context.tyvar_kind(ctx, cref)
   }
 
@@ -42,6 +47,7 @@ and ana = (ctx: Context.t, ty: HTyp.t, k: Kind.t): option(unit) =>
   | Float
   | Bool
   | List(_)
+  | Forall(_)
   | TyVar(_) =>
     open OptUtil.Syntax;
     let* k' = syn(ctx, ty);

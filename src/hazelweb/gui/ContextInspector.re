@@ -34,7 +34,8 @@ let view =
     | Prod(tys) =>
       max_depth > 0
       && List.for_all(is_simple_type(~max_depth=max_depth - 1), tys)
-    | List(ty1) =>
+    | List(ty1)
+    | Forall(_, ty1) =>
       max_depth > 0 && is_simple_type(~max_depth=max_depth - 1, ty1)
     };
 

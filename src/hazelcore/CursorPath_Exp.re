@@ -23,6 +23,10 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
   | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
+  | TypFunZP(_, ztp, _) => cons'(0, CursorPath_TPat.of_z(ztp))
+  | TypFunZE(_, _, zdef) => cons'(1, of_z(zdef))
+  | TypAppZE(_, zbody, _) => cons'(0, of_z(zbody))
+  | TypAppZT(_, _, zty) => cons'(1, CursorPath_Typ.of_z(zty))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
   | CaseZR(_, _, zrules) =>
@@ -140,6 +144,30 @@ and follow_operand =
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZExp.FunZE(err, p, zbody))
+      | _ => None
+      }
+    | TypFun(err, tp, body) =>
+      switch (x) {
+      | 0 =>
+        tp
+        |> CursorPath_TPat.follow((xs, cursor))
+        |> Option.map(ztp => ZExp.TypFunZP(err, ztp, body))
+      | 1 =>
+        body
+        |> follow((xs, cursor))
+        |> Option.map(zbody => ZExp.TypFunZE(err, tp, zbody))
+      | _ => None
+      }
+    | TypApp(err, body, ty) =>
+      switch (x) {
+      | 0 =>
+        body
+        |> follow((xs, cursor))
+        |> Option.map(zbody => ZExp.TypAppZE(err, zbody, ty))
+      | 1 =>
+        ty
+        |> CursorPath_Typ.follow((xs, cursor))
+        |> Option.map(zty => ZExp.TypAppZT(err, body, zty))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -317,6 +345,26 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
       | _ => None
       }
+    | TypFun(_, tp, body) =>
+      switch (x) {
+      | 0 =>
+        tp
+        |> CursorPath_TPat.of_steps(xs, ~side)
+        |> Option.map(path => cons'(0, path))
+      | 1 =>
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(1, path))
+      | _ => None
+      }
+    | TypApp(_, body, ty) =>
+      switch (x) {
+      | 0 =>
+        body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
+      | 1 =>
+        ty
+        |> CursorPath_Typ.of_steps(xs, ~side)
+        |> Option.map(path => cons'(1, path))
+      | _ => None
+      }
     | Inj(_, _, body) =>
       switch (x) {
       | 0 =>
@@ -452,6 +500,16 @@ and holes_operand =
     hs
     |> holes(body, [1, ...rev_steps])
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
+  | TypFun(err, tp, body) =>
+    hs
+    |> holes(body, [1, ...rev_steps])
+    |> CursorPath_TPat.holes(tp, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
+  | TypApp(err, body, ty) =>
+    hs
+    |> holes(body, [0, ...rev_steps])
+    |> CursorPath_Typ.holes(ty, [1, ...rev_steps])
     |> holes_err(err, rev_steps)
   | Case(err, scrut, rules) =>
     hs
@@ -695,6 +753,56 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
+  | CursorE(OnDelim(k, _), TypFun(err, tp, body)) =>
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, id) =>
+        Some(mk_hole_sort(ExpHole(id, TypeErr), List.rev(rev_steps)))
+      };
+    let holes_p = CursorPath_TPat.holes(tp, [0, ...rev_steps], []);
+    let holes_body = holes(body, [1, ...rev_steps], []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_after=holes_p @ holes_body,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p,
+        ~hole_selected,
+        ~holes_after=holes_body,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
+  | CursorE(OnDelim(k, _), TypApp(err, body, ty)) =>
+    let hole_selected: option(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => None
+      | InHole(_, id) =>
+        Some(mk_hole_sort(ExpHole(id, TypeErr), List.rev(rev_steps)))
+      };
+    let holes_body = holes(body, [0, ...rev_steps], []);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_after=holes_body @ holes_ty,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_body,
+        ~hole_selected,
+        ~holes_after=holes_ty,
+        (),
+      )
+    | _ => CursorPath_common.no_holes
+    };
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
     let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
@@ -726,7 +834,10 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Fun(_) | Case(_)) =>
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | Fun(_) | TypFun(_) | TypApp(_) | Case(_),
+    ) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
@@ -760,6 +871,74 @@ and holes_zoperand =
       holes_z(zbody, [1, ...rev_steps]);
     CursorPath_common.mk_zholes(
       ~holes_before=holes_err @ holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
+  | TypFunZP(err, zp, body) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_TPat.holes_z(zp, [0, ...rev_steps]);
+    let holes_body = holes(body, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body,
+      (),
+    );
+  | TypFunZE(err, p, zbody) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let holes_p = CursorPath_TPat.holes(p, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after,
+      (),
+    );
+  | TypAppZE(err, zbody, ty) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [0, ...rev_steps]);
+    let holes_ty = CursorPath_Typ.holes(ty, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_ty,
+      (),
+    );
+  | TypAppZT(err, body, zty) =>
+    let holes_err: list(CursorPath.hole_info) =
+      switch (err) {
+      | NotInHole => []
+      | InHole(_, u) => [
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+        ]
+      };
+    let holes_body = holes(body, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Typ.holes_z(zty, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_body @ holes_before,
       ~hole_selected,
       ~holes_after,
       (),

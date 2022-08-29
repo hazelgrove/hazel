@@ -15,7 +15,8 @@ and operand =
   | Float
   | Bool
   | Parenthesized(t)
-  | List(t);
+  | List(t)
+  | Forall(TPat.t, t);
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);
@@ -37,7 +38,8 @@ let unwrap_parentheses = (operand: operand): t =>
   | Int
   | Float
   | Bool
-  | List(_) => OpSeq.wrap(operand)
+  | List(_)
+  | Forall(_) => OpSeq.wrap(operand)
   | Parenthesized(p) => p
   };
 
@@ -115,6 +117,13 @@ let contract = (ty: HTyp.t): t => {
             HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
           ),
         )
+      | Forall(tp, ty1) =>
+        Seq.wrap(
+          Forall(
+            tp,
+            HTyp.of_syntax(ty1) |> contract_to_seq |> OpSeq.mk(~associate),
+          ),
+        )
       };
     if (parenthesize) {
       Seq.wrap(Parenthesized(OpSeq.mk(~associate, seq)));
@@ -135,6 +144,8 @@ let rec is_complete_operand = (operand: 'operand) => {
   | Int => true
   | Float => true
   | Bool => true
+  // TODO: (poly)
+  | Forall(_, body)
   | Parenthesized(body) => is_complete(body)
   | List(body) => is_complete(body)
   };

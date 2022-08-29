@@ -148,6 +148,9 @@ type t =
   | InvalidText(MetaVar.t, MetaVarInst.t, VarMap.t(t), string)
   | BoundVar(Var.t)
   | Fun(DHPat.t, DHTyp.t, t)
+  // TODO: (poly) Add DHTPat? Or Add TyVar to DHPat.t? Or just use TPat.t like TyAlias
+  | TypFun(TPat.t, t)
+  | TypApp(t, DHTyp.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, DHTyp.t, t)
   | TyAlias(TPat.t, DHTyp.t, t)
@@ -252,6 +255,8 @@ let constructor_string = (d: t): string =>
   | TyAlias(_) => "TyAlias"
   | FixF(_, _, _) => "FixF"
   | Fun(_, _, _) => "Fun"
+  | TypFun(_, _) => "TypFun"
+  | TypApp(_, _) => "TypApp"
   | Ap(_, _) => "Ap"
   | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"

@@ -136,6 +136,8 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -147,6 +149,8 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
@@ -175,6 +179,15 @@ and syn_operand = (ctx: Context.t, operand: UHExp.operand): option(HTyp.t) =>
     let* (ty_p, body_ctx) = Statics_Pat.syn(ctx, p);
     let+ ty_body = syn(body_ctx, body);
     HTyp.arrow(ty_p, ty_body);
+  | TypFun(NotInHole, tp, body) =>
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    let+ ty_body = syn(body_ctx, body);
+    HTyp.forall(tp, ty_body);
+  | TypApp(NotInHole, body, arg) =>
+    let* ty_body = syn(ctx, body);
+    let* (tp, ty_def) = HTyp.matched_forall(ctx, ty_body);
+    let+ (arg, _k, _delta) = Elaborator_Typ.syn_elab(ctx, Delta.empty, arg);
+    HTyp.subst_tpat(ctx, ty_def, tp, arg);
   | Inj(NotInHole, side, body) =>
     let+ ty = syn(ctx, body);
     switch (side) {
@@ -290,6 +303,8 @@ and ana_operand =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
@@ -301,6 +316,8 @@ and ana_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Fun(InHole(WrongLength, _), _, _)
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     HTyp.head_normalize(ctx, ty) |> HTyp.get_prod_elements |> List.length > 1
@@ -313,7 +330,8 @@ and ana_operand =
   | Var(NotInHole, _, _)
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
+  | BoolLit(NotInHole, _)
+  | TypApp(NotInHole, _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let* ty' = syn_operand(ctx, operand');
     HTyp.consistent(ctx, ty, ty') ? Some() : None;
@@ -321,6 +339,11 @@ and ana_operand =
     let* (ty_p_given, ty_body) = HTyp.matched_arrow(ctx, ty);
     let* ctx_body = Statics_Pat.ana(ctx, p, ty_p_given);
     ana(ctx_body, body, ty_body);
+  | TypFun(NotInHole, tp, body) =>
+    // TODO: (poly) do we need to check tpat?
+    let* (_tp', ty_body) = HTyp.matched_forall(ctx, ty);
+    let body_ctx = Statics_TPat.ana(ctx, tp, Kind.Type);
+    ana(body_ctx, body, ty_body);
   | Inj(NotInHole, side, body) =>
     let* (ty1, ty2) = HTyp.matched_sum(ctx, ty);
     ana(ctx, body, InjSide.pick(side, ty1, ty2));
@@ -429,6 +452,11 @@ and syn_nth_type_mode' =
 
 /**
  * Get type mode of nth operand of an opseq in analytic position
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
+
+  | TypFun(InHole(WrongLength, _), _, _)
+  | TypApp(InHole(WrongLength, _), _, _)
  */
 and ana_nth_type_mode =
     (
@@ -840,6 +868,45 @@ and syn_fix_holes_operand =
     let (body, ty_body, id_gen) =
       syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
     (Fun(NotInHole, p, body), HTyp.arrow(ty_p, ty_body), id_gen);
+  | TypFun(_, tp, body) =>
+    let (ctx_body, tp, id_gen) =
+      Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+    let (body, ty_body, id_gen) =
+      syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
+    (TypFun(NotInHole, tp, body), HTyp.forall(tp, ty_body), id_gen);
+  | TypApp(_, body, ty) =>
+    let (body, ty_body, id_gen) =
+      syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
+    switch (HTyp.matched_forall(ctx, ty_body)) {
+    | Some((tp, ty_def)) =>
+      switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
+      | Some((hty, _k, _)) =>
+        let ty_body = HTyp.subst_tpat(ctx, ty_def, tp, hty);
+        (TypApp(NotInHole, body, ty), ty_body, id_gen);
+      // TODO: (poly) check correctness
+      | None => (TypApp(NotInHole, body, ty), HTyp.hole(), id_gen)
+      }
+    | None =>
+      // TODO: (poly) check correctness
+      (TypApp(NotInHole, body, ty), HTyp.hole(), id_gen)
+    };
+  // let (ty, k, id_gen) =
+  //   Statics_UHTyp.ana_fix_holes(ctx, id_gen, ty, Kind.Type);
+  // TypApp(NotInHole, body, ty);
+  // let (ty, k) =
+  //   switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, ty)) {
+  //   | Some((ty, k, _)) => (ty, k)
+  //   | None => (HTyp.hole(), Kind.Type)
+  //   };
+  // let tyvar_ref =
+  //   switch (tp) {
+  //   | TyVar(NotInHole, v) => Context.tyvar_ref(ctx, v)
+  //   | _ => None
+  //   };
+  // switch (tyvar_ref) {
+  // | Some(tyvar_ref) => (UHExp.subst_tyvars(), HTyp.subst_tyvars(ctx, ty_def, [(tyvar_ref, arg)]), id_gen)
+  // | None => (e_nih, ty_def, id_gen)
+  // };
   | Inj(_, side, body) =>
     let (body, ty1, id_gen) =
       syn_fix_holes(ctx, id_gen, ~renumber_empty_holes, body);
@@ -1237,6 +1304,39 @@ and ana_fix_holes_operand =
         id_gen,
       );
     }
+  | TypFun(_, tp, body) =>
+    // TODO: (poly) do we need the tp from TypFun?
+    // Or the tp from matched_forall() is enough?
+    // FIXME: Answer is - Yes we do.
+    switch (HTyp.matched_forall(ctx, ty)) {
+    | Some((_tp, ty_body)) =>
+      let (ctx_body, tp, id_gen) =
+        Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+      let (body, id_gen) =
+        ana_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body, ty_body);
+      (UHExp.TypFun(NotInHole, tp, body), id_gen);
+    | None =>
+      let (e', _, id_gen) =
+        syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
+      let (u, id_gen) = IDGen.next_hole(id_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        id_gen,
+      );
+    }
+  | TypApp(_, _, _) =>
+    // TODO: (poly) is a subsumption enough for TypApp?
+    let (e', ty', id_gen) =
+      syn_fix_holes_operand(ctx, id_gen, ~renumber_empty_holes, e);
+    if (HTyp.consistent(ctx, ty, ty')) {
+      (UHExp.set_err_status_operand(NotInHole, e'), id_gen);
+    } else {
+      let (u, id_gen) = IDGen.next_hole(id_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        id_gen,
+      );
+    };
   | Inj(_, side, body) =>
     switch (HTyp.matched_sum(ctx, ty)) {
     | Some((ty1, ty2)) =>

@@ -80,6 +80,16 @@ and syn_fix_holes_operand =
       (List(opseq), k, id_gen);
     | None => failwith(__LOC__ ++ ": impossible branch")
     };
+  | Forall(tp, body) =>
+    let (ctx, tp, id_gen) =
+      Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+    let (body, _, id_gen) = syn_fix_holes(ctx, id_gen, body);
+    switch (Elaborator_Typ.syn_elab(ctx, Delta.empty, body)) {
+    | Some((ty, _, _)) =>
+      let k = Kind.singleton(HTyp.forall(tp, ty));
+      (Forall(tp, body), k, id_gen);
+    | None => failwith(__LOC__ ++ ": impossible branch")
+    };
   }
 
 and ana_fix_holes:
@@ -132,7 +142,8 @@ and ana_fix_holes_operand = (ctx, id_gen, operand, k) =>
   | Int
   | Float
   | Bool
-  | List(_) =>
+  | List(_)
+  | Forall(_) =>
     let (ty, k', id_gen) = syn_fix_holes_operand(ctx, id_gen, operand);
     if (Kind.consistent_subkind(ctx, k', k)) {
       (ty, k', id_gen);

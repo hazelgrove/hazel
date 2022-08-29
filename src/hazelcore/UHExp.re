@@ -22,6 +22,8 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Fun(ErrStatus.t, UHPat.t, t)
+  | TypFun(ErrStatus.t, TPat.t, t)
+  | TypApp(ErrStatus.t, t, UHTyp.t)
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(CaseErrStatus.t, t, rules)
   | Parenthesized(t)
@@ -60,6 +62,12 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
 
 let lam = (~err: ErrStatus.t=NotInHole, p: UHPat.t, body: t): operand =>
   Fun(err, p, body);
+
+let typfun = (~err: ErrStatus.t=NotInHole, tp: TPat.t, body: t): operand =>
+  TypFun(err, tp, body);
+
+let typapp = (~err: ErrStatus.t=NotInHole, body: t, ty: UHTyp.t): operand =>
+  TypApp(err, body, ty);
 
 let case =
     (
@@ -185,6 +193,8 @@ and get_err_status_operand =
   | BoolLit(err, _)
   | ListNil(err)
   | Fun(err, _, _)
+  | TypFun(err, _, _)
+  | TypApp(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
@@ -209,6 +219,8 @@ and set_err_status_operand = (err, operand) =>
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
   | Fun(_, p, def) => Fun(err, p, def)
+  | TypFun(_, tp, def) => TypFun(err, tp, def)
+  | TypApp(_, body, ty) => TypApp(err, body, ty)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
@@ -235,6 +247,8 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+  | TypFun(InHole(TypeInconsistent, _), _, _)
+  | TypApp(InHole(TypeInconsistent, _), _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       operand,
@@ -247,6 +261,8 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Fun(NotInHole | InHole(WrongLength, _), _, _)
+  | TypFun(NotInHole | InHole(WrongLength, _), _, _)
+  | TypApp(NotInHole | InHole(WrongLength, _), _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -322,6 +338,12 @@ and is_complete_operand = (operand: 'operand): bool => {
   | ListNil(NotInHole) => true
   | Fun(InHole(_), _, _) => false
   | Fun(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
+  | TypFun(InHole(_), _, _) => false
+  | TypFun(NotInHole, tpat, body) =>
+    TPat.is_complete(tpat) && is_complete(body)
+  | TypApp(InHole(_), _, _) => false
+  | TypApp(NotInHole, body, ty) =>
+    is_complete(body) && UHTyp.is_complete(ty)
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>
