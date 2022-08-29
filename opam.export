@@ -187,7 +187,7 @@ package "async_js" {
   build: ["dune" "build" "-p" name "-j" jobs]
   dev-repo: "git+https://github.com/janestreet/async_js.git"
   url {
-    src: "git+ssh://git@github.com/janestreet/async_js.git"
+    src: "git+https://github.com/janestreet/async_js.git"
   }
 }
 package "incr_dom" {
@@ -238,7 +238,7 @@ examples directory."""
   build: ["dune" "build" "-p" name "-j" jobs]
   dev-repo: "git+https://github.com/janestreet/incr_dom.git"
   url {
-    src: "git+ssh://git@github.com/janestreet/incr_dom.git"
+    src: "git+https://github.com/janestreet/incr_dom.git"
   }
 }
 package "sexplib" {
@@ -267,7 +267,7 @@ largest industrial user of OCaml."""
   build: ["dune" "build" "-p" name "-j" jobs]
   dev-repo: "git+https://github.com/janestreet/sexplib.git"
   url {
-    src: "git+ssh://git@github.com/janestreet/sexplib.git"
+    src: "git+https://github.com/janestreet/sexplib.git"
   }
 }
 package "virtual_dom" {
@@ -302,6 +302,6 @@ https://github.com/Matt-Esch/virtual-dom."""
   build: ["dune" "build" "-p" name "-j" jobs]
   dev-repo: "git+https://github.com/janestreet/virtual_dom.git"
   url {
-    src: "git+ssh://git@github.com/dedbox/virtual_dom.git"
+    src: "git+https://github.com/dedbox/virtual_dom.git"
   }
 }
