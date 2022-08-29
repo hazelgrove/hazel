@@ -7,8 +7,7 @@ type t =
   | Pre(root, t)
   | Post(t, root)
   | Bin(t, root, t)
-and root = Aba.t(index, t)
-and index = int;
+and root = Aba.t(int, t);
 
 // let rec size =
 //   fun
@@ -55,234 +54,159 @@ let root_index =
 //     }
 //   };
 
+exception Input_contains_whitespace;
 exception Nonconvex_segment;
 
-[@deriving show]
-type iss = (int, Nibs.shapes);
-let mk = (seg: list(iss)): t => {
-  let push_output = ((i, ss): iss, output_stack: list(t)): list(t) =>
-    switch (ss) {
-    | (Convex, Convex) => [Op(i), ...output_stack]
-    | (Convex, Concave(_)) =>
-      switch (output_stack) {
-      | [] => failwith("impossible: pre encountered empty stack")
-      | [skel, ...skels] => [Pre(i, skel), ...skels]
-      }
-    | (Concave(_), Convex) =>
-      switch (output_stack) {
-      | [] => failwith("impossible: post encountered empty stack")
-      | [skel, ...skels] => [Post(skel, i), ...skels]
-      }
-    | (Concave(_), Concave(_)) =>
-      switch (output_stack) {
-      | []
-      | [_] =>
-        failwith("impossible: bin encountered empty or singleton stack")
-      | [skel1, skel2, ...skels] => [Bin(skel2, i, skel1), ...skels]
-      }
-    };
+type ip = (int, Piece.t);
 
-  let process_op = (~output_stack, ~shunted_stack, iop) => (
-    output_stack,
-    [iop, ...shunted_stack],
-  );
+type rel =
+  | Lt
+  | Eq
+  | Gt;
 
-  let rec process_pre =
-          (~output_stack: list(t), ~shunted_stack: list(iss), ipre: iss) => {
-    switch (shunted_stack) {
-    | [] => (output_stack, [ipre, ...shunted_stack])
-    | [(_, ss) as iss, ...ips] =>
-      switch (ss) {
-      | (_, Concave(_)) => (output_stack, [ipre, ...shunted_stack])
-      | (_, Convex) =>
-        process_pre(
-          ~output_stack=push_output(iss, output_stack),
-          ~shunted_stack=ips,
-          ipre,
-        )
-      }
-    };
-  };
-  // assumes postops lose ties with preops and binops
-  let rec process_post =
-          (
-            ~output_stack: list(t),
-            ~shunted_stack: list(iss),
-            ~prec: Precedence.t,
-            ipost: iss,
-          ) =>
-    switch (shunted_stack) {
-    | [] => (output_stack, [ipost, ...shunted_stack])
-    | [(_, ss) as iss, ...ips] =>
-      switch (ss) {
-      | (_, Convex) =>
-        process_post(
-          ~output_stack=push_output(iss, output_stack),
-          ~shunted_stack=ips,
-          ~prec,
-          ipost,
-        )
-      | (_, Concave(prec_p)) =>
-        prec_p < prec
-        || prec_p == prec
-        && Precedence.associativity(prec_p) == Some(Left)
-          ? process_post(
-              ~output_stack=push_output(iss, output_stack),
-              ~shunted_stack=ips,
-              ~prec,
-              ipost,
-            )
-          : (output_stack, [ipost, ...shunted_stack])
-      }
-    };
-  // currently assumes binops lose ties with preops
-  let rec process_bin =
-          (
-            ~output_stack: list(t),
-            ~shunted_stack: list(iss),
-            ~prec: Precedence.t,
-            ibin: iss,
-          ) =>
-    switch (shunted_stack) {
-    | [] => (output_stack, [ibin, ...shunted_stack])
-    | [(_, ss) as iss, ...ips] =>
-      switch (ss) {
-      | (_, Convex) =>
-        process_bin(
-          ~output_stack=push_output(iss, output_stack),
-          ~shunted_stack=ips,
-          ~prec,
-          ibin,
-        )
-      | (_, Concave(prec_p)) =>
-        prec_p < prec
-        || prec_p == prec
-        && Precedence.associativity(prec_p) == Some(Left)
-          ? process_bin(
-              ~output_stack=push_output(iss, output_stack),
-              ~shunted_stack=ips,
-              ~prec,
-              ibin,
-            )
-          : (output_stack, [ibin, ...shunted_stack])
-      }
-    };
-  let rec go =
-          (
-            ~output_stack: list(t)=[],
-            ~shunted_stack: list(iss)=[],
-            ips: list(iss),
-          )
-          : list(t) => {
-    switch (ips) {
-    | [] =>
-      shunted_stack
-      |> List.fold_left(
-           (output_stack, t) => push_output(t, output_stack),
-           output_stack,
-         )
-    | [(_, ss) as iss, ...ips] =>
-      let process =
-        switch (ss) {
-        | (Convex, Convex) => process_op
-        | (Convex, Concave(_)) => process_pre
-        | (Concave(prec), Convex) => process_post(~prec)
-        | (Concave(prec), Concave(_)) => process_bin(~prec)
-        };
-      let (output_stack, shunted_stack) =
-        process(~output_stack, ~shunted_stack, iss);
-      go(~output_stack, ~shunted_stack, ips);
-    };
-  };
-
-  ListUtil.hd_opt(go(seg)) |> OptUtil.get_or_raise(Nonconvex_segment);
-};
-
-module State = {
-  [@deriving show]
-  type skel = t;
-  [@deriving show]
-  type t = {
-    output: list(skel),
-    shunted: list(iss),
-  };
-
-  // push from shunted to output until head of shunted has
-  // looser precedence/associativity than given precedence
-  let rec push_output = (p: Precedence.t, state: t): t =>
-    switch (state.shunted) {
-    | [] => state
-    | [(_, (_, Concave(p'))), ..._]
-        when
-          Precedence.compare(p', p) < 0
-          || Precedence.compare(p', p) == 0
-          && Precedence.associativity(p') != Some(Right) => state
-    | [(i, ss), ...shunted] =>
-      let output =
-        switch (ss) {
-        | (Convex, Convex) => [Op(i), ...state.output]
-        | (Convex, Concave(_)) =>
-          switch (state.output) {
-          | [] => failwith("impossible: pre encountered empty stack")
-          | [skel, ...skels] => [Pre(i, skel), ...skels]
-          }
-        | (Concave(_), Convex) =>
-          switch (state.output) {
-          | [] => failwith("impossible: post encountered empty stack")
-          | [skel, ...skels] => [Post(skel, i), ...skels]
-          }
-        | (Concave(_), Concave(_)) =>
-          switch (state.output) {
-          | []
-          | [_] =>
-            failwith("impossible: bin encountered empty or singleton stack")
-          | [skel1, skel2, ...skels] => [Bin(skel2, i, skel1), ...skels]
-          }
-        };
-      push_output(p, {output, shunted});
-    };
-
-  let push = ((_, (l, _)) as iss: iss, state: t): t => {
-    let state =
-      switch (l) {
-      | Convex => state
-      | Concave(p) => push_output(p, state)
-      };
-    {...state, shunted: [iss, ...state.shunted]};
-  };
-
-  let push_hole = (state: t): t => {
-    ...state,
-    output: [Op(-1), ...state.output],
-  };
-
-  let finished = (state: t): t => push_output(Precedence.min, state);
-};
-
-// variation of mk that handles shape inconsistencies
-// by implicitly introducing grout. convex grout are
-// indicated in the resulting skels with -1 indices.
-// concave grout are implicitly recorded as separating
-// the returned list of skels (returned in reverse order).
-let mk_err = (seg: list(iss)): list(t) => {
-  let (state, shape) =
-    seg
-    |> List.fold_left(
-         ((state, shape), (_, (l, r)) as iss: iss) => {
-           let state =
-             switch (l) {
-             | Concave(_) when !Nib.Shape.fits(l, shape) =>
-               State.push_hole(state)
-             | _ => state
-             };
-           (State.push(iss, state), r);
-         },
-         ({output: [], shunted: []}, Nib.Shape.concave()),
-       );
-  let state =
+let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
+  switch (p1, p2) {
+  | (Whitespace(_), _)
+  | (_, Whitespace(_)) => None
+  | (Grout({shape, _}), _) =>
     switch (shape) {
-    | Convex => state
-    | Concave(_) => State.push_hole(state)
+    | Convex => Some(Gt)
+    | Concave => Some(Lt)
+    }
+  | (_, Grout({shape, _})) =>
+    switch (shape) {
+    | Convex => Some(Lt)
+    | Concave => Some(Gt)
+    }
+  | (Tile(t1), Tile(t2)) =>
+    open Labels;
+    let lbl1 = (==)(t1.label);
+    let lbl2 = (==)(t2.label);
+    let eq =
+      [
+        lbl1(case) && lbl2(rule),
+        lbl1(rule) && lbl2(rule),
+        lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
+      ]
+      |> List.fold_left((||), false);
+    if (eq) {
+      Some(Eq);
+    } else {
+      let (_, r1) = Tile.shapes(t1);
+      let (l2, _) = Tile.shapes(t2);
+      switch (r1, l2) {
+      | (Convex, Convex) => None
+      | (Concave(_), Convex) => Some(Lt)
+      | (Convex, Concave(_)) => Some(Gt)
+      | (Concave(p), Concave(p')) =>
+        if (p < p') {
+          Some(Lt);
+        } else if (p > p') {
+          Some(Gt);
+        } else {
+          switch (Precedence.associativity(p)) {
+          | Some(Left) => Some(Gt)
+          | Some(Right) => Some(Lt)
+          | None =>
+            // may want to make this Some(Eq)
+            // for things like comma but don't
+            // want to bother with mold concerns here
+            None
+          };
+        }
+      };
     };
-  State.finished(state).output;
+  };
+
+module Stacks = {
+  type nonrec t = {
+    output: list(t),
+    shunted: list(ip),
+  };
+
+  let empty = {output: [], shunted: []};
+
+  let rec pop_chain =
+          (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
+    switch (shunted) {
+    | [] => (popped, shunted)
+    | [hd, ...tl] =>
+      switch (popped) {
+      | [] => pop_chain(~popped=[hd], tl)
+      | [p, ..._] =>
+        switch (rel(snd(hd), snd(p))) {
+        | Some(Eq) => pop_chain(~popped=[hd, ...popped], tl)
+        | _ => (popped, shunted)
+        }
+      }
+    };
+
+  let shapes = p =>
+    Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_whitespace);
+
+  let shapes_of_chain =
+      (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
+    switch (chain, ListUtil.split_last_opt(chain)) {
+    | ([(_, first), ..._], Some((_, (_, last)))) =>
+      let (l, _) = shapes(first);
+      let (_, r) = shapes(last);
+      Some((l, r));
+    | _ => None
+    };
+
+  let rec push_output = (prec: Precedence.t, stacks: t): t => {
+    let (chain, shunted) = pop_chain(stacks.shunted);
+    switch (shapes_of_chain(chain)) {
+    | None => stacks
+    | Some((_, Concave(prec')))
+        when
+          Precedence.compare(prec', prec) < 0
+          || Precedence.compare(prec', prec) == 0
+          && Precedence.associativity(prec') != Some(Right) => stacks
+    | Some((l, r)) =>
+      let is = List.map(fst, chain);
+      let split_kids = n =>
+        ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev);
+      let output =
+        switch (l, r) {
+        | (Convex, Convex) =>
+          let (kids, output) = split_kids(List.length(chain) - 1);
+          [Op(Aba.mk(is, kids)), ...output];
+        | (Convex, Concave(_)) =>
+          let (kids, output) = split_kids(List.length(chain));
+          let (kids, r) = ListUtil.split_last(kids);
+          [Pre(Aba.mk(is, kids), r), ...output];
+        | (Concave(_), Convex) =>
+          let (kids, output) = split_kids(List.length(chain));
+          let (l, kids) = ListUtil.split_first(kids);
+          [Post(l, Aba.mk(is, kids)), ...output];
+        | (Concave(_), Concave(_)) =>
+          let (kids, output) = split_kids(List.length(chain) + 1);
+          let (l, kids) = ListUtil.split_first(kids);
+          let (kids, r) = ListUtil.split_last(kids);
+          [Bin(l, Aba.mk(is, kids), r), ...output];
+        };
+      push_output(prec, {shunted, output});
+    };
+  };
+
+  let push_shunted = ((_, p) as ip: ip, stacks: t): t => {
+    let (l, _) = shapes(p);
+    let stacks =
+      switch (l) {
+      | Convex => stacks
+      | Concave(prec) => push_output(prec, stacks)
+      };
+    {...stacks, shunted: [ip, ...stacks.shunted]};
+  };
+
+  let finish = push_output(Precedence.min);
+};
+
+let mk = (seg: list(ip)): t => {
+  let stacks =
+    seg
+    |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)
+    |> Stacks.finish;
+  ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
