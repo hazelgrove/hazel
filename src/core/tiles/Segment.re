@@ -325,9 +325,10 @@ and remold_exp = (shape, seg: t): t =>
 let skel = seg =>
   seg
   |> List.mapi((i, p) => (i, p))
-  |> List.filter_map(((i, p)) =>
-       Piece.shapes(p) |> Option.map(ss => (i, ss))
-     )
+  |> List.filter(((_, p)) => !Piece.is_whitespace(p))
+  // |> List.filter_map(((i, p)) =>
+  //      Piece.shapes(p) |> Option.map(ss => (i, ss))
+  //    )
   |> Skel.mk;
 
 let sorted_children = seg =>
