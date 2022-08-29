@@ -5,13 +5,13 @@ open Util.Web;
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attr=clss(["typ-view", cls]), [text(s)]);
 
-let prov_view: Core3.Typ.type_provenance => Node.t =
+let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
   | Internal => div([])
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
-let rec view = (ty: Core3.Typ.t): Node.t =>
+let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO(andrew): parens on ops when ambiguous
   switch (ty) {
   | Unknown(prov) =>

@@ -1,4 +1,4 @@
-open Core3;
+open Haz3lcore;
 
 let id_gen: ref(int) = ref(0);
 

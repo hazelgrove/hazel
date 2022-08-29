@@ -5,7 +5,7 @@ open Sexplib.Std;
 //TODO(?): deprecate this module
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tip_shape = (Core3.Nib.t, int);
+type tip_shape = (Haz3lcore.Nib.t, int);
 
 // top right to bottom left
 let tr_bl =

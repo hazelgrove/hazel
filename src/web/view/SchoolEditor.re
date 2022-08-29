@@ -1,36 +1,36 @@
 open Virtual_dom.Vdom;
 open Node;
-open Core3;
+open Haz3lcore;
 open Util.Web;
 open OptUtil.Syntax;
 
-let join_tile = (id): Core3.Tile.t => {
+let join_tile = (id): Haz3lcore.Tile.t => {
   id,
   label: [";"],
-  mold: Core3.Mold.mk_bin(10, Exp, []),
+  mold: Haz3lcore.Mold.mk_bin(10, Exp, []),
   shards: [0],
   children: [],
 };
 
-let splice_editors = (editors: list(Model.editor)): Core3.Segment.t =>
+let splice_editors = (editors: list(Model.editor)): Haz3lcore.Segment.t =>
   editors
   |> List.map((ed: Model.editor) =>
-       Core3.Zipper.unselect_and_zip(ed.zipper)
+       Haz3lcore.Zipper.unselect_and_zip(ed.zipper)
      )
   |> (
     xs =>
       Util.ListUtil.interleave(
         xs,
         List.init(List.length(editors) - 1, i =>
-          [Core3.Piece.Tile(join_tile(i + 1000000))]
+          [Haz3lcore.Piece.Tile(join_tile(i + 1000000))]
         ) //TODO(andrew): id_gen hack
       )
   )
   |> List.flatten;
 
 let spliced_statics = (editors: list(Model.editor)) => {
-  let term = editors |> splice_editors |> Core3.MakeTerm.go;
-  let (_, _, info_map) = term |> Core3.Statics.mk_map;
+  let term = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
+  let (_, _, info_map) = term |> Haz3lcore.Statics.mk_map;
   (term, info_map);
 };
 

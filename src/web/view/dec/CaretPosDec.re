@@ -4,8 +4,8 @@ module Profile = {
   type style = [ | `Bare | `Sibling | `Anchor | `Caret];
   type t = {
     style,
-    measurement: Core3.Measured.measurement,
-    sort: Core3.Sort.t,
+    measurement: Haz3lcore.Measured.measurement,
+    sort: Haz3lcore.Sort.t,
   };
 };
 
@@ -23,7 +23,7 @@ let caret_position_radii =
 
 let view = (~font_metrics, {style, sort, measurement}: Profile.t) => {
   let (r_x, r_y) = caret_position_radii(~font_metrics, ~style);
-  let c_cls = Core3.Sort.to_string(sort);
+  let c_cls = Haz3lcore.Sort.to_string(sort);
   let cls =
     switch (style) {
     | `Bare => "outer-cousin"

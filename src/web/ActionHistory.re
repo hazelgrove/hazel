@@ -1,4 +1,4 @@
-open Core3;
+open Haz3lcore;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
