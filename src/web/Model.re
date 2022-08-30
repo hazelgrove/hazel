@@ -5,7 +5,7 @@ open Sexplib.Std;
 type editors =
   | Simple(Editor.t)
   | Study(int, list(Editor.t))
-  | School(int, list(Editor.t));
+  | School(int, list(SchoolCell.state));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type simple = (Id.t, Editor.t);
@@ -14,7 +14,7 @@ type simple = (Id.t, Editor.t);
 type study = (Id.t, int, list(Editor.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (Id.t, int, list(Editor.t));
+type school = (Id.t, int, list(SchoolCell.state));
 
 [@deriving (show({with_path: false}), yojson)]
 type timestamp = float;
@@ -75,35 +75,38 @@ let mk = editors => {
 
 let blank = mk(School(0, []));
 
-let get_editor' = (editors: editors): Editor.t =>
-  switch (editors) {
-  | Simple(editor) => editor
-  | Study(n, eds) =>
-    assert(n < List.length(eds));
-    List.nth(eds, n);
-  | School(n, eds) =>
-    assert(n < List.length(eds));
-    List.nth(eds, n);
-  };
+// let get_editor' = (editors: editors): Editor.t =>
+//   switch (editors) {
+//   | Simple(editor) => editor
+//   | Study(n, eds) =>
+//     assert(n < List.length(eds));
+//     List.nth(eds, n);
+//   | School(n, eds) =>
+//     assert(n < List.length(eds));
+//     Option.get(snd(List.nth(eds, n)));
+//   };
 
-let get_editor = (model: t): Editor.t => get_editor'(model.editors);
+// let get_editor = (model: t): Editor.t => get_editor'(model.editors);
 
-let put_editor = (model: t, ed: Editor.t): editors =>
-  switch (model.editors) {
-  | Simple(_) => Simple(ed)
-  | Study(n, eds) =>
-    assert(n < List.length(eds));
-    Study(n, Util.ListUtil.put_nth(n, ed, eds));
-  | School(n, eds) =>
-    assert(n < List.length(eds));
-    School(n, Util.ListUtil.put_nth(n, ed, eds));
-  };
+// let put_editor = (model: t, ed: Editor.t): editors =>
+//   switch (model.editors) {
+//   | Simple(_) => Simple(ed)
+//   | Study(n, eds) =>
+//     assert(n < List.length(eds));
+//     Study(n, Util.ListUtil.put_nth(n, ed, eds));
+//   | School(n, cells) =>
+//     assert(n < List.length(cells));
+//     School(
+//       n,
+//       Util.ListUtil.map_nth(n, ((c, _)) => (c, Some(ed)), cells),
+//     );
+//   };
 
-let get_zipper' = (editors: editors): Zipper.t =>
-  get_editor'(editors).state.zipper;
-let get_zipper = (model: t): Zipper.t => get_zipper'(model.editors);
-let get_history = (model: t): Editor.History.t =>
-  get_editor'(model.editors).history;
+// let get_zipper' = (editors: editors): Zipper.t =>
+//   get_editor'(editors).state.zipper;
+// let get_zipper = (model: t): Zipper.t => get_zipper'(model.editors);
+// let get_history = (model: t): Editor.History.t =>
+//   get_editor'(model.editors).history;
 let get_touched = (model: t): Touched.t =>
   get_editor'(model.editors).state.meta.touched;
 
@@ -121,23 +124,46 @@ let current_editor = (model: t): int =>
 let num_editors = (model: t): int =>
   switch (model.editors) {
   | Simple(_) => 1
-  | Study(_, zs)
-  | School(_, zs) => List.length(zs)
+  | Study(_, eds) => List.length(eds)
+  | School(_, cells) =>
+    Util.ListUtil.count_pred(((_, oe)) => Option.is_some(oe), cells)
   };
 
 let simple_init: simple = (1, Editor.empty(0));
 
-let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
+let editors_for =
+    (xs: list('a), f: 'a => option(string))
+    : (Id.t, int, list(('a, option(Editor.t)))) => {
   let (id_gen, zs) =
     List.fold_left(
-      ((acc_id, acc_zs), str) => {
-        switch (Printer.zipper_of_string(acc_id, str)) {
-        | None => (acc_id, acc_zs @ [Zipper.init(0)])
-        | Some((z, new_id)) => (new_id, acc_zs @ [z])
+      ((acc_id, acc_zs), a) => {
+        switch (f(a)) {
+        | Some(str) =>
+          switch (Printer.zipper_of_string(acc_id, str)) {
+          | None => (acc_id, acc_zs @ [(a, Some(Zipper.init(0)))])
+          | Some((z, new_id)) => (new_id, acc_zs @ [(a, Some(z))])
+          }
+        | None => (acc_id, acc_zs @ [(a, None)])
         }
       },
       (0, []),
       xs,
     );
-  (id_gen, 0, List.map(Editor.init, zs));
+  (
+    id_gen,
+    0,
+    List.map(
+      ((a, sz)) =>
+        switch (sz) {
+        | Some(z) => (a, Some(Editor.init(z)))
+        | None => (a, None)
+        },
+      zs,
+    ),
+  );
+};
+
+let editors_of_strings = (xs: list(string)) => {
+  let (id, i, aes) = editors_for(xs, x => Some(x));
+  (id, i, List.map(((_, oe)) => Option.get(oe), aes));
 };

@@ -182,6 +182,13 @@ let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
     [hd, ...tl];
   };
 
+let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
+  switch (n, xs) {
+  | (_, []) => failwith("out of bounds")
+  | (0, [hd, ...tl]) => [f(hd), ...tl]
+  | (_, [hd, ...tl]) => [hd, ...map_nth(n - 1, f, tl)]
+  };
+
 let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
   switch (xs) {
   | [] => None
@@ -311,3 +318,6 @@ let single_elem = (xs: list('x)): option('x) =>
   | [] => None
   | [hd, ...tl] => List.for_all((==)(hd), tl) ? Some(hd) : None
   };
+
+let count_pred = (f: 'a => bool, xs: list('a)): int =>
+  List.fold_left((n, x) => f(x) ? n + 1 : n, 0, xs);
