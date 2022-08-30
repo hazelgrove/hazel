@@ -665,7 +665,6 @@ svg.tile-selected {
 }
 
 
-
 .tile-path.Exp {
   filter: url(#drop-shadow-Exp);
 }
@@ -858,6 +857,8 @@ svg.tile-selected {
 
 #filters {
   position: fixed;
+  height: 0;
+  width: 0;
 }
 
 /* BACKPACK */
