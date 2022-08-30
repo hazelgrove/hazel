@@ -258,13 +258,22 @@ svg {
 
 #editor-mode,
 .cell-caption,
-.cell-chapter,
+.cell-prompt,
+.test-panel,
+.test-reports,
+.test-summary,
+.title-bar {
+  font-family: 'Helvetica Neue';
+}
+
+#editor-mode,
+.cell-caption,
+.cell-prompt,
 .test-panel,
 .test-reports,
 .test-summary,
 .title-bar {
   font-size: 0.9rem;
-  font-family: 'Helvetica Neue';
 }
 
 @media screen and (min-height: 800px) {
@@ -463,10 +472,12 @@ svg {
   border-radius: 0.4em;
 }
 
-.cell-chapter {
+.cell-prompt {
   padding: 1em;
+  font-size: 1rem;
 }
-.cell-chapter::first-letter {
+
+.cell-prompt::first-letter {
   color: #c7b480;
   float: left;
   font-family: 'Times New Roman';

@@ -213,11 +213,7 @@ let cell_view =
       [clss(["cell-caption"]), Attr.on_click(show_term(editor))],
       [text(List.nth(School.captions, idx))],
     );
-  let cell_chapter_view =
-    switch (List.nth(School.chapters, idx)) {
-    | None => div([Attr.create("style", "display: none;")], [])
-    | Some(chapter) => div([clss(["cell-chapter"])], [chapter])
-    };
+
   let code_container_id = "code-container-" ++ string_of_int(idx);
   let code_view =
     SimpleMode.code_container(
@@ -322,7 +318,7 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~editors: list(Editor.t),
+      ~cells: list((SchoolCell.t, option(Editor.t))),
       ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,
@@ -442,40 +438,62 @@ let view =
         );
       }
       : [];
+
+  let prompt_view = prompt => div([clss(["cell-prompt"])], [prompt]);
+
+  let prelude_view = code => instructor_code_cell_view("Prelude", code);
+
+  let reference_impl_view = code =>
+    instructor_code_cell_view("Reference Implementation", code);
+
+  let your_tests_view = code => student_code_cell_view("Your Tests", code);
+
+  let your_implementation_view = code =>
+    student_code_cell_view("Your Implementation", code);
+
   div(
     [Attr.classes(["editor", "column"])],
     (
-      List.mapi(
-        (i, ed) =>
-          switch (i) {
-          | 0 => [cell_view(~result_bar=student_imp_res_view, i, ed)]
-          | 1 =>
-            [
-              cell_view(
-                ~result_bar=[
-                  div([clss(["cell", "cell-result"])], your_tests_view),
-                ],
-                ~overlays=your_tests_layer,
-                i,
-                ed,
-              ),
-            ]
-            @ (settings.dynamics ? school_panel : [])
-          | 2 => [
-              cell_view(
-                ~show_code=!settings.student,
-                ~result_bar=our_tests_view,
-                i,
-                ed,
-              ),
-            ]
-          | _ => [
-              settings.student
-                ? div([Attr.create("style", "display: none;")], [])
-                : cell_view(i, ed),
-            ]
+      List.map(
+        ((cell: SchoolCell.t, ed: option(Editor.t))) =>
+          switch (cell) {
+          | Prompt({content}) => [prompt_view(content)]
+          | Prelude(_) => [prelude_view(Option.get(ed))]
+          | ReferenceImpl(_) => [reference_impl_view(Option.get(ed))]
+          | YourTests(_) => [your_tests_view(Option.get(ed))]
+          | YourImpl(_) => [your_implementation_view(Option.get(ed))]
+          | HiddenBug(_) => [hidden_bug_view(Option.get(ed))]
+          | HiddenTests({tests, descriptions}) => []
           },
-        editors,
+        // switch (i) {
+        // | 0 => [cell_view(~result_bar=student_imp_res_view, i, ed)]
+        // | 1 =>
+        //   [
+        //     cell_view(
+        //       ~result_bar=[
+        //         div([clss(["cell", "cell-result"])], your_tests_view),
+        //       ],
+        //       ~overlays=your_tests_layer,
+        //       i,
+        //       ed,
+        //     ),
+        //   ]
+        //   @ (settings.dynamics ? school_panel : [])
+        // | 2 => [
+        //     cell_view(
+        //       ~show_code=!settings.student,
+        //       ~result_bar=our_tests_view,
+        //       i,
+        //       ed,
+        //     ),
+        //   ]
+        // | _ => [
+        //     settings.student
+        //       ? div([Attr.create("style", "display: none;")], [])
+        //       : cell_view(i, ed),
+        //   ]
+        // },
+        cells,
       )
       |> List.flatten
     )
