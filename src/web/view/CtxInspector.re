@@ -23,6 +23,7 @@ let ctx_sorts_view = (ci: Core.Statics.t): Node.t => {
   | InfoExp({ctx, _}) => exp_ctx_view(ctx)
   | InfoPat({ctx, _}) => pat_ctx_view(ctx)
   | InfoTyp(_) => div([clss([ctxc, "typ"])], [])
+  | InfoRul(_) => div([clss([ctxc, "rul"])], [])
   };
 };
 

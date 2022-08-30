@@ -2,42 +2,65 @@ open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type point = {
-  // indent: int,
-  row: int,
-  col: int,
-};
-let zero = {row: 0, col: 0};
-
+type row = int;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type measurement_lin = {
-  origin: int,
-  length: int,
+type col = int;
+
+module Point = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    row,
+    col,
+  };
+  let zero = {row: 0, col: 0};
+
+  let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
+
+  type comparison =
+    | Exact
+    | Under
+    | Over;
+
+  let comp = (current, target): comparison =>
+    switch () {
+    | _ when current == target => Exact
+    | _ when current < target => Under
+    | _ => Over
+    };
+
+  let dcomp = (direction: Direction.t, a, b) =>
+    switch (direction) {
+    | Right => comp(a, b)
+    | Left => comp(b, a)
+    };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
-  origin: point,
-  last: point,
+  origin: Point.t,
+  last: Point.t,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type token = {
-  row: int,
-  indent: int,
-  range: (int, int),
-};
+// indentation relative to container
+type rel_indent = int;
+// indentation relative to code container
+type abs_indent = int;
 
 module Rows = {
   include IntMap;
   type shape = {
-    indent: int,
-    max_col: int,
+    indent: col,
+    max_col: col,
   };
   type t = IntMap.t(shape);
 
-  let max_col = (rs: list(int), map: t) =>
+  let max_col = (rs: list(row), map: t) =>
     rs |> List.map(r => find(r, map).max_col) |> List.fold_left(max, 0);
+
+  let min_col = (rs: list(row), map: t) =>
+    rs
+    |> List.map(r => find(r, map).indent)
+    |> List.fold_left(min, Int.max_int);
 };
 
 module Shards = {
@@ -67,6 +90,7 @@ type t = {
   grout: Id.Map.t(measurement),
   whitespace: Id.Map.t(measurement),
   rows: Rows.t,
+  linebreaks: Id.Map.t(rel_indent),
 };
 
 let empty = {
@@ -74,10 +98,8 @@ let empty = {
   grout: Id.Map.empty,
   whitespace: Id.Map.empty,
   rows: Rows.empty,
+  linebreaks: Id.Map.empty,
 };
-
-let point_equals: (point, point) => bool =
-  (p, q) => p.row == q.row && p.col == q.col;
 
 let add_s = (id: Id.t, i: int, m, map) => {
   ...map,
@@ -128,6 +150,11 @@ let add_row = (row: int, shape: Rows.shape, map) => {
   rows: Rows.add(row, shape, map.rows),
 };
 
+let add_lb = (id, indent, map) => {
+  ...map,
+  linebreaks: Id.Map.add(id, indent, map.linebreaks),
+};
+
 let singleton_w = (w, m) => empty |> add_w(w, m);
 let singleton_g = (g, m) => empty |> add_g(g, m);
 let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
@@ -135,6 +162,8 @@ let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
 // TODO(d) rename
 let find_opt_shards = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
 let find_shards = (t: Tile.t, map) => Id.Map.find(t.id, map.tiles);
+
+let find_opt_lb = (id, map) => Id.Map.find_opt(id, map.linebreaks);
 
 let find_shards' = (id: Id.t, map) =>
   switch (Id.Map.find_opt(id, map.tiles)) {
@@ -177,6 +206,8 @@ let union2 = (map: t, map': t) => {
       map.rows,
       map'.rows,
     ),
+  linebreaks:
+    Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
 };
 let union = List.fold_left(union2, empty);
 
@@ -196,123 +227,155 @@ let post_tile_indent = (t: Tile.t) => {
 
 let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
 
-// currently supports indentation imposed by a tile on following
-// remainder of segment (eg indentation after fun tile).
-// also supports dedenting following encounter with an incomplete tile
-// missing its left extreme (eg in when let and = are in backpack),
-// but does not current support complete tile dedent, which
-// would be desirable for complete tiles in segment remainder that have
-// looser precedence than the indent-imposing tile
-// TODO: integrate term structure into indentation scheme
-let rec of_segment' =
-        // start of program is considered a "linebreak"
-        // so as to avoid spurious indentation at root level
-        (
-          ~seen_linebreak=true,
-          ~container_indent=0,
-          /* indentation imposed by preceding tiles in same segment */
-          ~contained_indent=container_indent,
-          /* indentation at the start of the row */
-          ~row_indent=container_indent,
-          ~origin=zero,
-          seg: Segment.t,
-        )
-        : (int, point, t) =>
-  switch (seg) {
-  | [] => (
-      row_indent,
-      origin,
-      empty |> add_row(origin.row, {indent: row_indent, max_col: origin.col}),
-    )
-  | [hd, ...tl] =>
-    let (seen_linebreak, contained_indent, row_indent, hd_last, hd_map) =
-      switch (hd) {
-      | Whitespace(w) when w.content == Whitespace.linebreak =>
-        let concluding = Segment.sameline_whitespace(tl);
-        let indent' =
-          if (concluding) {
-            container_indent;
-          } else if (!seen_linebreak) {
-            container_indent + 2;
-          } else {
-            contained_indent;
-          };
-        let last = {row: origin.row + 1, col: indent'};
-        let map =
-          singleton_w(w, {origin, last})
-          |> add_row(origin.row, {indent: row_indent, max_col: origin.col});
-        (true, indent', indent', last, map);
-      | Whitespace(w) =>
-        let last = {...origin, col: origin.col + 1};
-        (
-          seen_linebreak,
-          contained_indent,
-          row_indent,
-          last,
-          singleton_w(w, {origin, last}),
-        );
-      | Grout(g) =>
-        let last = {...origin, col: origin.col + 1};
-        (
-          seen_linebreak,
-          contained_indent,
-          row_indent,
-          last,
-          singleton_g(g, {origin, last}),
-        );
-      | Tile(t) =>
-        let token = List.nth(t.label);
-        let of_shard = (row_indent, origin, shard) => {
-          let last = {
-            ...origin,
-            col: origin.col + String.length(token(shard)),
-          };
-          ((row_indent, last), singleton_s(t.id, shard, {origin, last}));
-        };
-        let ((row_indent, last), map) =
-          Aba.mk(t.shards, t.children)
-          |> Aba.fold_left_map(
-               of_shard(row_indent, origin),
-               ((row_indent, origin), child, shard) => {
-                 let (row_indent, child_last, child_map) =
-                   of_segment'(
-                     ~seen_linebreak=false,
-                     ~container_indent=contained_indent,
-                     ~row_indent,
-                     ~origin,
-                     child,
-                   );
-                 let ((row_indent, shard_last), shard_map) =
-                   of_shard(row_indent, child_last, shard);
-                 ((row_indent, shard_last), child_map, shard_map);
-               },
+let is_indented_map = (seg: Segment.t) => {
+  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
+    seg
+    |> List.fold_left(
+         ((is_indented, map), p: Piece.t) =>
+           switch (p) {
+           | Whitespace(w) when w.content == Whitespace.linebreak => (
+               false,
+               Id.Map.add(w.id, is_indented, map),
              )
-          |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
-          |> PairUtil.map_snd(union);
-        let contained_indent =
-          if (post_tile_indent(t)) {
-            min(contained_indent + 2, row_indent + 2);
-          } else if (missing_left_extreme(t)) {
-            container_indent;
-          } else {
-            contained_indent;
-          };
-        (seen_linebreak, contained_indent, row_indent, last, map);
+           | Whitespace(_)
+           | Grout(_) => (is_indented, map)
+           | Tile(t) =>
+             let is_indented = is_indented || post_tile_indent(t);
+             let map =
+               t.children
+               |> List.fold_left(
+                    (map, child) => go(~is_indented=true, ~map, child),
+                    map,
+                  );
+             (is_indented, map);
+           },
+         (is_indented, map),
+       )
+    |> snd;
+  go(seg);
+};
+
+let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+  let is_indented = is_indented_map(seg);
+
+  // recursive across seg's bidelimited containers
+  let rec go_nested =
+          (
+            ~container_indent: abs_indent=0,
+            ~origin=Point.zero,
+            seg: Segment.t,
+          )
+          : (Point.t, t) => {
+    let first_touched_incomplete =
+      switch (Segment.incomplete_tiles(seg)) {
+      | [] => None
+      | ts =>
+        ts
+        |> List.map((t: Tile.t) => Touched.find_opt(t.id, touched))
+        |> List.fold_left(
+             (acc, touched) =>
+               switch (acc, touched) {
+               | (Some(time), Some(time')) => Some(Time.min(time, time'))
+               | (Some(time), _)
+               | (_, Some(time)) => Some(time)
+               | _ => None
+               },
+             None,
+           )
       };
-    let (row_indent, tl_last, tl_map) =
-      of_segment'(
-        ~seen_linebreak,
-        ~container_indent,
-        ~contained_indent,
-        ~row_indent,
-        ~origin=hd_last,
-        tl,
-      );
-    (row_indent, tl_last, union2(hd_map, tl_map));
+
+    // recursive across seg's list structure
+    let rec go_seq =
+            (
+              ~contained_indent: rel_indent=0,
+              ~origin: Point.t,
+              seg: Segment.t,
+            )
+            : (Point.t, t) =>
+      switch (seg) {
+      | [] =>
+        let map =
+          empty
+          |> add_row(
+               origin.row,
+               {
+                 indent: container_indent + contained_indent,
+                 max_col: origin.col,
+               },
+             );
+        (origin, map);
+      | [hd, ...tl] =>
+        let (contained_indent, origin, hd_map) =
+          switch (hd) {
+          | Whitespace(w) when w.content == Whitespace.linebreak =>
+            let row_indent = container_indent + contained_indent;
+            let indent =
+              if (Segment.sameline_whitespace(tl)) {
+                0;
+              } else {
+                switch (
+                  Touched.find_opt(w.id, touched),
+                  first_touched_incomplete,
+                  find_opt_lb(w.id, old),
+                ) {
+                | (Some(touched), Some(touched'), Some(indent))
+                    when Time.lt(touched, touched') => indent
+                | _ =>
+                  contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0)
+                };
+              };
+            let last =
+              Point.{row: origin.row + 1, col: container_indent + indent};
+            let map =
+              singleton_w(w, {origin, last})
+              |> add_row(
+                   origin.row,
+                   {indent: row_indent, max_col: origin.col},
+                 )
+              |> add_lb(w.id, indent);
+            (indent, last, map);
+          | Whitespace(w) =>
+            let last = {...origin, col: origin.col + 1};
+            (contained_indent, last, singleton_w(w, {origin, last}));
+          | Grout(g) =>
+            let last = {...origin, col: origin.col + 1};
+            (contained_indent, last, singleton_g(g, {origin, last}));
+          | Tile(t) =>
+            let token = List.nth(t.label);
+            let of_shard = (origin, shard) => {
+              let last =
+                Point.{
+                  ...origin,
+                  col: origin.col + String.length(token(shard)),
+                };
+              (last, singleton_s(t.id, shard, {origin, last}));
+            };
+            let (last, map) =
+              Aba.mk(t.shards, t.children)
+              |> Aba.fold_left_map(
+                   of_shard(origin),
+                   (origin, child, shard) => {
+                     let (child_last, child_map) =
+                       go_nested(
+                         ~container_indent=container_indent + contained_indent,
+                         ~origin,
+                         child,
+                       );
+                     let (shard_last, shard_map) =
+                       of_shard(child_last, shard);
+                     (shard_last, child_map, shard_map);
+                   },
+                 )
+              |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
+              |> PairUtil.map_snd(union);
+            (contained_indent, last, map);
+          };
+        let (tl_last, tl_map) = go_seq(~contained_indent, ~origin, tl);
+        (tl_last, union2(hd_map, tl_map));
+      };
+    go_seq(~origin, seg);
   };
-let of_segment = seg => {
-  let (_, _, map) = of_segment'(seg);
-  map;
+  snd(go_nested(seg));
 };
 
 let length = (seg: Segment.t, map: t): int =>
@@ -327,13 +390,13 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(point) =>
+let segment_origin = (seg: Segment.t): option(Point.t) =>
   Option.map(
     first => find_p(first, of_segment(seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(point) =>
+let segment_last = (seg: Segment.t): option(Point.t) =>
   Option.map(
     last => find_p(last, of_segment(seg)).last,
     ListUtil.last_opt(seg),

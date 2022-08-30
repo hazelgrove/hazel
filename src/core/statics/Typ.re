@@ -1056,3 +1056,5 @@ let matched_list_lit_mode = (mode: mode, length): list(mode) =>
   | Syn => List.init(length, _ => Syn)
   | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
   };
+
+let ap_mode: mode = Ana(Arrow(Unknown(Internal), Unknown(Internal)));

@@ -36,7 +36,7 @@ let rec sort_dispatch = (ps: Segment.t, kid: Skel.t, s: Sort.t): Term.any =>
   | Typ => Typ(of_seg_and_skel_typ(ps, kid))
   | Exp => Exp(of_seg_and_skel_exp(ps, kid))
   | TPat => TPat(of_seg_and_skel_tpat(ps, kid))
-  | Rul => Rul() //TODO
+  | Rul => Rul(of_seg_and_skel_rul(ps, kid))
   | Nul => Nul()
   | Any => Any()
   }
@@ -100,6 +100,10 @@ and of_seg_and_skel_pat = (ps: Segment.t, skel: Skel.t): UPat.t => {
 and of_seg_and_skel_typ = (ps: Segment.t, skel: Skel.t): UTyp.t => {
   let (p, kids) = piece_and_outside_kids(~default_sort=Typ, ps, skel);
   of_piece_typ(p, kids);
+}
+and of_seg_and_skel_rul = (ps: Segment.t, skel: Skel.t): URul.s => {
+  let (p, kids) = piece_and_outside_kids(~default_sort=Rul, ps, skel);
+  of_piece_rul(p, kids);
 }
 and of_seg_and_skel_tpat = (ps: Segment.t, skel: Skel.t): UTPat.t => {
   let (tp, kids) = piece_and_outside_kids(~default_sort=TPat, ps, skel);
@@ -188,9 +192,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
     let term: UExp.term =
       switch (label, outside_kids, inside_kids) {
       | _ when !Tile.is_complete(t) =>
-        // TODO: more principled handling of incomplete tiles
+        // TODO(andrew): more principled handling of incomplete tiles
         EmptyHole
-      //Invalid(IncompleteTile,p)
       // TODO(andrew): should Form.re handle atomic conversion?
       | (["triv"], [], []) => Triv
       | (["true"], [], []) => Bool(true)
@@ -221,12 +224,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
       | (["test", "end"], [], [test]) => Test(uexp_of_seg(test))
       | (["fun", "->"], [Exp(body)], [pat]) =>
         Fun(upat_of_seg(pat), body)
-      | (["funann", ":", "->"], [Exp(body)], [pat, typ]) =>
-        FunAnn(upat_of_seg(pat), utyp_of_seg(typ), body)
       | (["let", "=", "in"], [Exp(body)], [pat, def]) =>
         Let(upat_of_seg(pat), uexp_of_seg(def), body)
-      | (["letann", ":", "=", "in"], [Exp(body)], [pat, typ, def]) =>
-        LetAnn(upat_of_seg(pat), utyp_of_seg(typ), uexp_of_seg(def), body)
       | (["if", "then", "else"], [Exp(alt)], [cond, conseq]) =>
         If(uexp_of_seg(cond), uexp_of_seg(conseq), alt)
       | (["(", ")"], [Exp(fn)], [arg]) => Ap(fn, uexp_of_seg(arg))
@@ -237,6 +236,8 @@ and of_piece_exp = (p: Piece.t, outside_kids: list(Term.any)): UExp.t => {
         | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
         | term => ListLit([id], [term])
         }
+      | (["case", "of"], [Rul({ids, rules})], [scrut]) =>
+        Match(ids, uexp_of_seg(scrut), rules)
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
@@ -264,12 +265,14 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | (["false"], [], []) => Bool(false)
       | (["(", ")"], [], [body]) => Parens(upat_of_seg(body))
       | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
+      | (["::"], [Pat(l), Pat(r)], []) => Cons(l, r)
       | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
+      | ([t], [], []) when Form.is_listnil(t) => ListNil
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
@@ -300,6 +303,27 @@ and of_piece_typ = (p: Piece.t, outside_kids: list(Term.any)): UTyp.t => {
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};
+  };
+}
+and of_piece_rul = (p: Piece.t, outside_kids: list(Term.any)): URul.s => {
+  switch (p) {
+  | Whitespace({id: _, _}) => URul.mks([], [])
+  | Grout({id, shape}) =>
+    switch (shape, outside_kids) {
+    | (Convex, []) => URul.mks([id], [])
+    | (Concave, [Rul(l), Rul(r)]) =>
+      URul.mks(l.ids @ r.ids, l.rules @ r.rules)
+    | _ => URul.mks([], [])
+    }
+  | Tile({id, label, children: inside_kids, mold: _, shards: _} as t) =>
+    switch (label, outside_kids, inside_kids) {
+    | _ when !Tile.is_complete(t) => URul.mks([], [])
+    | (["=>"], [Pat(p), Exp(e)], []) => URul.mks([id], [(p, e)])
+    | (["|"], [Rul(l), Rul(r)], []) =>
+      URul.mks([id] @ l.ids @ r.ids, l.rules @ r.rules)
+    | (["|"], [Rul({ids, rules})], []) => URul.mks([id] @ ids, rules)
+    | _ => URul.mks([], [])
+    }
   };
 }
 and of_piece_tpat = (p: Piece.t, outside_kids: list(Term.any)): UTPat.t => {

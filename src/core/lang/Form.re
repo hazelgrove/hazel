@@ -145,22 +145,10 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
-  (
-    "funann",
-    mk(ds, ["funann", ":", "->"], mk_pre(P.let_, Exp, [Pat, Typ])),
-  ),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
   ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
-  (
-    "letann",
-    mk(
-      ds,
-      ["letann", ":", "=", "in"],
-      mk_pre(P.let_, Exp, [Pat, Typ, Exp]),
-    ),
-  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   (
     "case",
@@ -172,7 +160,8 @@ let forms: list((string, t)) = [
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
-  ("cons", mk_infix("::", Exp, 5)),
+  ("cons_exp", mk_infix("::", Exp, P.cons)),
+  ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("list_lit", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_typ", mk(ii, ["[", "]"], mk_op(Typ, [Typ]))),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
