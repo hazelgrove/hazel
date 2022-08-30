@@ -17,12 +17,12 @@ and root = Aba.t(int, t);
 //   | Bin(l, _, r) => size(l) + 1 + size(r);
 
 // TODO(d): rename to reflect aba
-let root_index =
+let root =
   fun
-  | Op(n)
-  | Pre(n, _)
-  | Post(_, n)
-  | Bin(_, n, _) => n;
+  | Op(r)
+  | Pre(r, _)
+  | Post(_, r)
+  | Bin(_, r, _) => r;
 
 // let children =
 //   fun

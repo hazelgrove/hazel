@@ -221,7 +221,7 @@ let rec uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(msg, _p) => (
+  | Invalid(msg) => (
       Unknown(Internal),
       [],
       Id.Map.singleton(id, Invalid(msg)),
@@ -406,7 +406,7 @@ and upat_to_info_map =
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let unknown = Typ.Just(Unknown(SynSwitch));
   switch (term) {
-  | Invalid(msg, _) => (
+  | Invalid(msg) => (
       Unknown(Internal),
       ctx,
       Id.Map.singleton(id, Invalid(msg)),
@@ -467,10 +467,7 @@ and utyp_to_info_map = ({id, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let add = (m, id) => Id.Map.add(id, InfoTyp({cls, ty, term: utyp}), m);
   let return = m => (ty, add(m, id));
   switch (term) {
-  | Invalid(msg, _) => (
-      Unknown(Internal),
-      Id.Map.singleton(id, Invalid(msg)),
-    )
+  | Invalid(msg) => (Unknown(Internal), Id.Map.singleton(id, Invalid(msg)))
   | EmptyHole
   | Int
   | Float
