@@ -335,85 +335,6 @@ let sorted_children = seg =>
   seg |> List.map(Piece.sorted_children) |> List.concat;
 let children = seg => List.map(snd, sorted_children(seg));
 
-let sort_rank_root = (seg: t, s: Sort.t) => {
-  let mold: Piece.t => Mold.t =
-    fun
-    | Whitespace(_) => failwith("impossible since skel ignores whitespace")
-    | Grout(g) =>
-      // TODO(d) refactor to always return Any
-      Mold.of_grout(g, Any)
-    | Tile(t) => t.mold;
-
-  let rec go = (sort, skel: Skel.t) => {
-    let root_mold = mold(List.nth(seg, Skel.root_index(skel)));
-    let r = !Sort.consistent(sort, root_mold.out) |> Bool.to_int;
-    // let go_s = sorts_skels =>
-    //   sorts_skels
-    //   |> List.map(((sort, skel)) => go(sort, skel))
-    //   |> List.fold_left((+)(0));
-    let unichild_rs =
-      switch (skel) {
-      | Op(_) => 0
-      | Pre(_, r) => go(snd(root_mold.nibs).sort, r)
-      | Post(l, _) => go(fst(root_mold.nibs).sort, l)
-      | Bin(l, _, r) =>
-        go(fst(root_mold.nibs).sort, l) + go(snd(root_mold.nibs).sort, r)
-      };
-    r + unichild_rs;
-  };
-
-  go(s, skel(seg));
-};
-
-let rec sort_rank = (seg: t, s: Sort.t) =>
-  sort_rank_root(seg, s) + sort_rank_desc(seg)
-and sort_rank_desc = (seg: t) =>
-  sorted_children(seg)
-  |> List.map(((s, seg)) => sort_rank(seg, s))
-  |> List.fold_left((+), 0);
-
-let rec shape_rank = (seg, (l, r): Nibs.shapes) => {
-  let (l', rank) = shape_rank_affix(Direction.Right, seg, r);
-  rank + Bool.to_int(!Nib.Shape.fits(l, l'));
-}
-and shape_rank_affix = (d: Direction.t, seg, r: Nib.Shape.t) =>
-  fold_right(
-    (p: Piece.t, (r, rank)) =>
-      switch (p) {
-      | Whitespace(_)
-      | Grout(_) => (r, rank)
-      | Tile(t) =>
-        let (l, r') =
-          Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-        let children_ranks =
-          t.children
-          |> List.map(child =>
-               shape_rank(child, Nib.Shape.(concave(), concave()))
-             )
-          |> List.fold_left((+), 0);
-        let rank' =
-          rank + children_ranks + Bool.to_int(!Nib.Shape.fits(r', r));
-        (l, rank');
-      },
-    (d == Left ? List.rev : Fun.id)(seg),
-    (r, 0),
-  );
-
-// let rec shape = (seg: t, r: Nib.Shape.t) =>
-//   switch (seg) {
-//   | [] => r
-//   | [Grout(_), ...seg] => shape(seg, r)
-//   | [Shard(s), ..._] =>
-//     let (l, _) = s.nibs;
-//     l.shape;
-//   | [Tile(t), ..._] =>
-//     let (l, _) = Mold.nibs(t.mold);
-//     l.shape;
-//   };
-
-// let mk_grout = (l, r) =>
-//   Grout.mk_fits((l, r)) |> Option.map(Piece.grout) |> Option.to_list;
-
 module Trim = {
   type seg = t;
   type t = Aba.t(list(Whitespace.t), Grout.t);
@@ -695,17 +616,30 @@ let sameline_whitespace =
     | _ => false,
   );
 
-let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
-  let t = List.nth(seg);
+let expected_sorts = (sort: Sort.t, seg: t): list((list(int), Sort.t)) => {
+  let p = List.nth(seg);
   let rec go = (sort: Sort.t, skel: Skel.t) => {
-    let n = Skel.root_index(skel);
-    let (l_sort, r_sort) = Piece.nib_sorts(t(n));
-    switch (skel) {
-    | Op(_) => [(n, sort)]
-    | Pre(_, r) => [(n, sort)] @ go(r_sort, r)
-    | Post(l, _) => go(l_sort, l) @ [(n, sort)]
-    | Bin(l, _, r) => go(l_sort, l) @ [(n, sort)] @ go(r_sort, r)
+    let root = Skel.root(skel);
+    let inside_sorts =
+      Aba.aba_triples(root)
+      |> List.concat_map(((n_l, kid, n_r)) => {
+           let (_, s_l) = Piece.nib_sorts(p(n_l));
+           let (s_r, _) = Piece.nib_sorts(p(n_r));
+           let s = s_l == s_r ? s_l : Sort.Any;
+           go(s, kid);
+         });
+    let outside_sorts = {
+      let ns = Aba.get_as(root);
+      let (l_sort, _) = Piece.nib_sorts(p(Aba.first_a(root)));
+      let (_, r_sort) = Piece.nib_sorts(p(Aba.last_a(root)));
+      switch (skel) {
+      | Op(_) => [(ns, sort)]
+      | Pre(_, r) => [(ns, sort)] @ go(r_sort, r)
+      | Post(l, _) => go(l_sort, l) @ [(ns, sort)]
+      | Bin(l, _, r) => go(l_sort, l) @ [(ns, sort)] @ go(r_sort, r)
+      };
     };
+    outside_sorts @ inside_sorts;
   };
-  seg |> skel |> go(sort);
+  go(sort, skel(seg));
 };

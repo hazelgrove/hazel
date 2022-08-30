@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 /* TERM
 
@@ -48,7 +49,7 @@ module UTyp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag, Piece.t)
+    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Int
@@ -112,7 +113,7 @@ module UPat = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag, Piece.t)
+    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Wild
@@ -234,7 +235,7 @@ module UExp = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag, Piece.t)
+    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Id.t), list(t))
     | Triv
@@ -366,23 +367,32 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Parens(u) => utyp_to_ty(u)
     };
 
+// module URul = {
+//   [@deriving (show({with_path: false}), sexp, yojson)]
+//   type t = (UPat.t, UExp.t);
+
+//   [@deriving (show({with_path: false}), sexp, yojson)]
+//   type s = {
+//     ids: list(Id.t),
+//     rules: list(t),
+//   };
+
+//   [@deriving (show({with_path: false}), sexp, yojson)]
+//   type cls =
+//     | Rule;
+
+//   let mks = (ids, rules): s => {ids, rules};
+
+//   let show_cls: cls => string = _ => "Rule";
+// };
+
 module URul = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (UPat.t, UExp.t);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type s = {
-    ids: list(Id.t),
-    rules: list(t),
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
 
-  let mks = (ids, rules): s => {ids, rules};
-
-  let show_cls: cls => string = _ => "Rule";
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type s = (list(Id.t), Aba.t(UExp.t, UPat.t));
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
