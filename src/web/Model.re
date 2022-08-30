@@ -5,7 +5,7 @@ open Sexplib.Std;
 type editors =
   | Simple(Editor.t)
   | Study(int, list(Editor.t))
-  | School(int, list(SchoolCell.state));
+  | School(SchoolExercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type simple = (Id.t, Editor.t);
@@ -14,7 +14,7 @@ type simple = (Id.t, Editor.t);
 type study = (Id.t, int, list(Editor.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school = (Id.t, int, list(SchoolCell.state));
+type school = (Id.t, int, SchoolExercise.state);
 
 [@deriving (show({with_path: false}), yojson)]
 type timestamp = float;
@@ -73,7 +73,7 @@ let mk = editors => {
   mousedown: false,
 };
 
-let blank = mk(School(0, []));
+let blank = mk(Study(0, []));
 
 // let get_editor' = (editors: editors): Editor.t =>
 //   switch (editors) {
@@ -130,40 +130,3 @@ let num_editors = (model: t): int =>
   };
 
 let simple_init: simple = (1, Editor.empty(0));
-
-let editors_for =
-    (xs: list('a), f: 'a => option(string))
-    : (Id.t, int, list(('a, option(Editor.t)))) => {
-  let (id_gen, zs) =
-    List.fold_left(
-      ((acc_id, acc_zs), a) => {
-        switch (f(a)) {
-        | Some(str) =>
-          switch (Printer.zipper_of_string(acc_id, str)) {
-          | None => (acc_id, acc_zs @ [(a, Some(Zipper.init(0)))])
-          | Some((z, new_id)) => (new_id, acc_zs @ [(a, Some(z))])
-          }
-        | None => (acc_id, acc_zs @ [(a, None)])
-        }
-      },
-      (0, []),
-      xs,
-    );
-  (
-    id_gen,
-    0,
-    List.map(
-      ((a, sz)) =>
-        switch (sz) {
-        | Some(z) => (a, Some(Editor.init(z)))
-        | None => (a, None)
-        },
-      zs,
-    ),
-  );
-};
-
-let editors_of_strings = (xs: list(string)) => {
-  let (id, i, aes) = editors_for(xs, x => Some(x));
-  (id, i, List.map(((_, oe)) => Option.get(oe), aes));
-};
