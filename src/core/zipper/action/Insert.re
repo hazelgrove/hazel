@@ -24,19 +24,19 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
   switch (neighbor_monotiles(z.relatives.siblings)) {
   | (Some(kw), _) =>
     let (new_label, direction) = Molds.delayed_completion(kw, Left);
-    Outer.replace(direction, new_label, state);
+    Zipper.replace(direction, new_label, state);
   | _ => Some(state)
   };
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
   let barfed =
-    Backpack.is_first_matching(t, z.backpack) ? Outer.put_down(z) : None;
+    Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
   switch (barfed) {
   | Some(z) => IdGen.return(z)
   | None =>
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
-    Outer.construct(direction, lbl, z);
+    Zipper.construct(direction, lbl, z);
   };
 };
 
@@ -50,11 +50,11 @@ let insert_outer = (char: string, (z, id_gen): state): option(state) =>
   | AppendNeither => expand_and_barf_or_construct(char, (z, id_gen))
   | AppendLeft(new_t) =>
     z
-    |> Outer.directional_destruct(Left)
+    |> Zipper.directional_destruct(Left)
     |> Option.map(z => barf_or_construct(new_t, Left, z, id_gen))
   | AppendRight(new_t) =>
     z
-    |> Outer.directional_destruct(Right)
+    |> Zipper.directional_destruct(Right)
     |> Option.map(z => barf_or_construct(new_t, Right, z, id_gen))
   };
 
@@ -62,10 +62,10 @@ let split =
     ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
   let (l, r) = Token.split_nth(idx, t);
   z
-  |> Caret.set(Outer)
-  |> Outer.select(Right)
-  |> Option.map(z => Outer.construct(Right, [r], z, id_gen))  //overwrite right
-  |> Option.map(((z, id_gen)) => Outer.construct(Left, [l], z, id_gen))
+  |> Zipper.set_caret(Outer)
+  |> Zipper.select(Right)
+  |> Option.map(z => Zipper.construct(Right, [r], z, id_gen))  //overwrite right
+  |> Option.map(((z, id_gen)) => Zipper.construct(Left, [l], z, id_gen))
   |> OptUtil.and_then(expand_and_barf_or_construct(char));
 };
 
@@ -79,7 +79,7 @@ let go =
     )
     : option(state) => {
   /* If there's a selection, delete it before proceeding */
-  let z = z.selection.content != [] ? Outer.destruct(z) : z;
+  let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
@@ -87,14 +87,14 @@ let go =
     /* If inserting wouldn't produce a valid token, split */
     Form.is_valid_token(new_t)
       ? z
-        |> Caret.set(Inner(d_idx, idx))
-        |> (z => Outer.replace(Right, [new_t], (z, id_gen)))
+        |> Zipper.set_caret(Inner(d_idx, idx))
+        |> (z => Zipper.replace(Right, [new_t], (z, id_gen)))
         |> opt_regrold(Left)
       : split((z, id_gen), char, idx, t) |> opt_regrold(Right);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let caret =
+    let caret: Zipper.Caret.t =
       /* If we're adding to the right, move caret inside right nhbr */
       switch (sibling_appendability(char, siblings)) {
       | AppendRight(_) => Inner(0, 0) //Note: assumption of monotile
@@ -103,7 +103,7 @@ let go =
       };
     (z, id_gen)
     |> insert_outer(char)
-    |> Option.map(((z, id_gen)) => (Caret.set(caret, z), id_gen))
+    |> Option.map(((z, id_gen)) => (Zipper.set_caret(caret, z), id_gen))
     |> opt_regrold(Left);
   | (Outer, (_, None)) =>
     insert_outer(char, (z, id_gen)) |> opt_regrold(Left)
