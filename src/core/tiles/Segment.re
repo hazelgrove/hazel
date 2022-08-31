@@ -616,9 +616,9 @@ let sameline_whitespace =
     | _ => false,
   );
 
-let expected_sorts = (sort: Sort.t, seg: t): list((list(int), Sort.t)) => {
+let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   let p = List.nth(seg);
-  let rec go = (sort: Sort.t, skel: Skel.t) => {
+  let rec go = (sort: Sort.t, skel: Skel.t): list((list(int), Sort.t)) => {
     let root = Skel.root(skel);
     let inside_sorts =
       Aba.aba_triples(root)
@@ -641,5 +641,6 @@ let expected_sorts = (sort: Sort.t, seg: t): list((list(int), Sort.t)) => {
     };
     outside_sorts @ inside_sorts;
   };
-  go(sort, skel(seg));
+  go(sort, skel(seg))
+  |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
 };

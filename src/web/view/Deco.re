@@ -224,7 +224,8 @@ module Deco =
            let l = Measured.find_p(p_l, M.map).origin;
            let r = Measured.find_p(p_r, M.map).last;
            (l, r);
-         });
+         })
+      |> ListUtil.dedup;
     term_ranges
     |> List.map(((l: Measured.Point.t, r: Measured.Point.t)) => {
          open SvgUtil.Path;
@@ -268,8 +269,12 @@ module Deco =
       };
     let rec go_seg = (seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {
-        let root = List.nth(seg, Skel.root_index(skel));
-        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
+        let root_ids =
+          Skel.root(skel)
+          |> Aba.get_as
+          |> List.map(List.nth(seg))
+          |> List.map(Piece.id)
+          |> List.filter(is_err);
         let uni_ids =
           switch (skel) {
           | Op(_) => []
