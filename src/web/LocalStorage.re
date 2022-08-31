@@ -50,7 +50,7 @@ type simple_without_history = (Id.t, Zipper.t);
 type study_without_history = (Id.t, int, list(Zipper.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school_without_history = (Id.t, int, list(option(Zipper.t)));
+type school_without_history = (Id.t, SchoolExercise.persistent_state);
 
 let save_simple = (simple: Model.simple): unit =>
   set_localstore(
@@ -80,26 +80,15 @@ let trim_histories: list(Editor.t) => list(Zipper.t) =
 
 let add_histories: list(Zipper.t) => list(Editor.t) = List.map(Editor.init);
 
-let prep_school_in =
-    ((id_gen, idx, cells): Model.school): school_without_history => (
+let prep_school_in = ((id_gen, state): Model.school): school_without_history => (
   id_gen,
-  idx,
-  List.map(
-    ((_, oed)) => Option.map((ed: Editor.t) => ed.state.zipper, oed),
-    cells,
-  ),
+  SchoolExercise.persistent_state_of_state(state),
 );
 
 let prep_school_out =
-    (cells: list(SchoolCell.t), (id_gen, idx, zs): school_without_history)
-    : Model.school => (
+    ((id_gen, persistent_state): school_without_history): Model.school => (
   id_gen,
-  idx,
-  List.map(
-    ((cell, oz)) =>
-      (cell, Option.map((z: Zipper.t) => Editor.init(z), oz)),
-    List.combine(cells, zs),
-  ),
+  SchoolExercise.unpersist_state(persistent_state, School.the_exercise),
 );
 
 let prep_study_in = ((id_gen, idx, eds): Model.study): study_without_history => (
@@ -148,14 +137,14 @@ let save_school = (school: Model.school): unit =>
 
 let load_school = (): Model.school =>
   switch (get_localstore(save_school_key)) {
-  | None => School.init
+  | None => School.init_state
   | Some(flag) =>
     try(
       flag
       |> Sexplib.Sexp.of_string
       |> school_without_history_of_sexp
-      |> prep_school_out(School.the_exercise)
+      |> prep_school_out
     ) {
-    | _ => School.init
+    | _ => School.init_state
     }
   };
