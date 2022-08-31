@@ -8,13 +8,13 @@ module Deco =
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;
-           let terms: Id.Map.t(Term.any);
+           // TODO(d) rename to term_ids
+           let terms: TermIds.t;
            let tiles: TileMap.t;
          },
        ) => {
   let font_metrics = M.font_metrics;
 
-  let term = id => Id.Map.find(id, M.terms);
   let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
@@ -57,9 +57,12 @@ module Deco =
 
   let root_piece_profile =
       (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
+    // let _ =
+    //   try(term(Piece.id(p))) {
+    //   | _ => failwith("1")
+    //   };
     let tiles =
-      term(Piece.id(p))
-      |> Term.ids
+      TermIds.find(Piece.id(p), M.terms)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
