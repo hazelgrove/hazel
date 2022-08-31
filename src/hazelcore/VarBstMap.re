@@ -53,51 +53,56 @@ module Ordered = {
   [@deriving sexp]
   type t_('a) = {
     map: VarBstMap0.t_('a),
-    order: list((Var.t, unit)),
+    /** The reverse insertion order of bindings (denoted by key). */
+    rev_order: list((Var.t, unit)),
   };
 
   let failwith_keysinconsistent = () =>
     failwith("VarBstMap.Ordered: order key not in map");
 
-  let empty = {map: VarBstMap0.empty, order: []};
+  let empty = {map: VarBstMap0.empty, rev_order: []};
 
   let is_empty = ({map, _}) => VarBstMap0.is_empty(map);
 
   let singleton = ((x, a)) => {
-    {map: VarBstMap0.singleton((x, a)), order: [(x, ())]};
+    {map: VarBstMap0.singleton((x, a)), rev_order: [(x, ())]};
   };
 
-  let extend = ({map, order}, (x, a)) => {
+  let extend = ({map, rev_order}, (x, a)) => {
     map: VarBstMap0.extend(map, (x, a)),
-    order: [(x, ()), ...List.remove_assoc(x, order)],
+    rev_order: [(x, ()), ...List.remove_assoc(x, rev_order)],
   };
 
-  let union = ({map: map1, order: order1}, {map: map2, order: order2}) => {
-    let rec union_order = (rev_order1, order2) =>
-      switch (rev_order1, order2) {
+  let union =
+      (
+        {map: map1, rev_order: rev_order1},
+        {map: map2, rev_order: rev_order2},
+      ) => {
+    let rec union_order = (order1, rev_order2) =>
+      switch (order1, rev_order2) {
       | ([], order2) => order2
-      | ([(x, a), ...rev_order1], order2) =>
-        let order2' = [(x, a), ...List.remove_assoc(x, order2)];
-        union_order(rev_order1, order2');
+      | ([(x, ()), ...rev_order1'], order2) =>
+        let rev_order2' = [(x, ()), ...List.remove_assoc(x, order2)];
+        union_order(rev_order1', rev_order2');
       };
 
     let map = VarBstMap0.union(map1, map2);
-    let order = union_order(List.rev(order1), order2);
-    {map, order};
+    let rev_order = union_order(List.rev(rev_order1), rev_order2);
+    {map, rev_order};
   };
 
   let lookup = ({map, _}, x) => VarBstMap0.lookup(map, x);
 
   let contains = ({map, _}, x) => VarBstMap0.contains(map, x);
 
-  let mapk = (f, {map, order}) => {
+  let mapk = (f, {map, rev_order}) => {
     let map = map |> VarBstMap0.map(f);
-    {map, order};
+    {map, rev_order};
   };
 
-  let mapo = (f, {map, order}) => {
+  let mapo = (f, {map, rev_order}) => {
     let map =
-      order
+      rev_order
       |> List.rev
       |> List.fold_left(
            (map', (x, ())) =>
@@ -109,52 +114,51 @@ module Ordered = {
              },
            VarBstMap0.empty,
          );
-    {map, order};
+    {map, rev_order};
   };
 
-  let filterk = (f, {map, order}) => {
+  let filterk = (f, {map, rev_order}) => {
     let map = VarBstMap0.filter(f, map);
-    let order =
-      order
+    let rev_order =
+      rev_order
       |> List.rev
       |> List.filter(((x, _)) => VarBstMap0.contains(map, x))
       |> List.rev;
-    {map, order};
+    {map, rev_order};
   };
 
-  let filtero = (f, {map, order}) => {
-    let (map, order_rev) =
-      order
+  let filtero = (f, {map, rev_order}) => {
+    let (map, rev_order) =
+      rev_order
       |> List.rev
       |> List.fold_left(
-           ((map, order_rev'), (x, ())) => {
-             let order_rev' = ref(order_rev');
+           ((map', rev_order'), (x, ())) => {
+             let rev_order' = ref(rev_order');
              let map =
                VarBstMap0.update(
-                 map,
+                 map',
                  fun
                  | Some(a) when !f((x, a)) => None
                  | Some(a) => {
-                     order_rev' := [(x, ()), ...order_rev'^];
+                     rev_order' := [(x, ()), ...rev_order'^];
                      Some(a);
                    }
                  | None => failwith_keysinconsistent(),
                  x,
                );
-             (map, order_rev'^);
+             (map, rev_order'^);
            },
-           (map, order),
+           (map, []),
          );
-    let order = order_rev |> List.rev;
 
-    {map, order};
+    {map, rev_order};
   };
 
   let foldk = (f, init, {map, _}) =>
     VarBstMap0.fold(((x, a), acc) => f((x, a), acc), init, map);
 
-  let foldo = (f, init, {map, order}) =>
-    order
+  let foldo = (f, init, {map, rev_order}) =>
+    rev_order
     |> List.rev
     |> List.fold_left(
          (acc, (x, ())) =>
@@ -165,12 +169,12 @@ module Ordered = {
          init,
        );
 
-  let length = ({order, _}) => List.length(order);
+  let length = ({rev_order, _}) => List.length(rev_order);
 
   let to_listk = ({map, _}) => VarBstMap0.to_list(map);
 
-  let to_listo = ({map, order}) =>
-    order
+  let to_listo = ({map, rev_order}) =>
+    rev_order
     |> List.rev
     |> List.map(((x, ())) =>
          switch (VarBstMap0.lookup(map, x)) {
@@ -181,8 +185,8 @@ module Ordered = {
 
   let of_list = bindings => {
     let map = VarBstMap0.of_list(bindings);
-    let order = bindings |> List.map(((x, _)) => (x, ())) |> List.rev;
-    {map, order};
+    let rev_order = bindings |> List.map(((x, _)) => (x, ())) |> List.rev;
+    {map, rev_order};
   };
 };
 
