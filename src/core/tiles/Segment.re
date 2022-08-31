@@ -113,7 +113,8 @@ let rec remold = (seg: t, s: Sort.t) =>
   | Typ => remold_typ(Nib.Shape.concave(), seg)
   | Pat => remold_pat(Nib.Shape.concave(), seg)
   | Exp => remold_exp(Nib.Shape.concave(), seg)
-  | _ => failwith("unexpected")
+  | Rul => remold_rul(Nib.Shape.concave(), seg)
+  | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -285,14 +286,18 @@ and remold_rul = (shape, seg: t): t =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) =>
         switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
+        // | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | (_, {shape, sort: Exp}) =>
           let (remolded, shape, rest) = remold_exp_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
-        | _ => failwith("unexpected")
+        | (_, {shape, sort: Pat}) =>
+          let (remolded, shape, rest) = remold_pat_uni(shape, tl);
+          // TODO(d) continuing onto rule might not be right right...
+          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
+        | _ => failwith("remold_rul unexpected")
         }
       | None =>
-        let (remolded, shape, rest) = remold_pat_uni(shape, [hd, ...tl]);
+        let (remolded, shape, rest) = remold_exp_uni(shape, [hd, ...tl]);
         switch (remolded) {
         | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
