@@ -13,8 +13,8 @@ module Deco =
   let font_metrics = M.font_metrics;
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Caret.point(M.map, z);
-    let shape = Caret.direction(z);
+    let origin = Zipper.caret_point(M.map, z);
+    let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | Some((_, side, _)) => side
@@ -22,33 +22,6 @@ module Deco =
       };
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
-
-  /*
-   let children = (p: Piece.t): list(Measured.measurement_lin) =>
-     switch (p) {
-     | Whitespace(_)
-     | Grout(_) => []
-     | Tile(t) =>
-       let m = Measured.find_t(t, M.map);
-       let token = List.nth(t.label);
-       Aba.mk(t.shards, t.children)
-       |> Aba.fold_left(
-            shard => (m.origin.col + Unicode.length(token(shard)), []),
-            (
-              (origin, children: list(Measured.measurement_lin)),
-              child,
-              shard,
-            ) => {
-              let length = Measured.length(child, M.map);
-              (
-                origin + length + Unicode.length(token(shard)),
-                children @ [{origin, length}],
-              );
-            },
-          )
-       |> snd;
-     };
-     */
 
   let selected_piece_profile =
       (p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
@@ -123,11 +96,11 @@ module Deco =
     | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
       let nib_shape =
-        switch (Caret.direction(z)) {
+        switch (Zipper.caret_direction(z)) {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Measured.point, Measured.point)) =
+      let range: option((Measured.Point.t, Measured.Point.t)) =
         if (Piece.has_ends(p)) {
           let ranges = TermRanges.mk(Zipper.zip(z));
           switch (TermRanges.find_opt(Piece.id(p), ranges)) {
@@ -229,7 +202,11 @@ module Deco =
   };
 
   let backback = (z: Zipper.t): list(Node.t) => [
-    BackpackView.view(~font_metrics, ~origin=Caret.point(M.map, z), z),
+    BackpackView.view(
+      ~font_metrics,
+      ~origin=Zipper.caret_point(M.map, z),
+      z,
+    ),
   ];
 
   let targets' = (backpack, seg) => {
@@ -237,17 +214,78 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let error_holes = zipper => {
-    //TODO
-    let _ci =
-      switch (zipper |> Indicated.index) {
-      | Some(index) =>
-        let (_, _, info_map) =
-          zipper |> Zipper.zip |> MakeTerm.go |> Statics.mk_map;
-        Id.Map.find_opt(index, info_map);
-      | None => None
+  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
+    let seg = Zipper.unselect_and_zip(z);
+    let ranges = TermRanges.mk(seg);
+    let term_ranges =
+      ids
+      |> List.map(id => {
+           let (p_l, p_r) = TermRanges.find(id, ranges);
+           let l = Measured.find_p(p_l, M.map).origin;
+           let r = Measured.find_p(p_r, M.map).last;
+           (l, r);
+         });
+    term_ranges
+    |> List.map(((l: Measured.Point.t, r: Measured.Point.t)) => {
+         open SvgUtil.Path;
+         let r_edge =
+           ListUtil.range(~lo=l.row, r.row + 1)
+           |> List.concat_map(i => {
+                let row = Measured.Rows.find(i, M.map.rows);
+                [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
+              });
+         let l_edge =
+           ListUtil.range(~lo=l.row, r.row + 1)
+           |> List.rev_map(i => {
+                let row = Measured.Rows.find(i, M.map.rows);
+                [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
+              })
+           |> List.concat;
+         let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
+         (
+           l,
+           path
+           |> translate({
+                dx: Float.of_int(- l.col),
+                dy: Float.of_int(- l.row),
+              }),
+         );
+       })
+    |> List.map(((origin, path)) =>
+         DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
+       );
+  };
+
+  // recurses through skel structure to enable experimentation
+  // with hiding nested err holes
+  let err_holes = (z: Zipper.t) => {
+    let seg = Zipper.unselect_and_zip(z);
+    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
+    let is_err = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, info_map)) {
+      | None => false
+      | Some(info) => Statics.is_error(info)
       };
-    ();
+    let rec go_seg = (seg: Segment.t): list(Id.t) => {
+      let rec go_skel = (skel: Skel.t): list(Id.t) => {
+        let root = List.nth(seg, Skel.root_index(skel));
+        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
+        let uni_ids =
+          switch (skel) {
+          | Op(_) => []
+          | Pre(_, r) => go_skel(r)
+          | Post(l, _) => go_skel(l)
+          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
+          };
+        root_ids @ uni_ids;
+      };
+      let bi_ids =
+        seg
+        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
+
+      go_skel(Segment.skel(seg)) @ bi_ids;
+    };
+    term_highlight(~ids=go_seg(seg), ~clss=["err-hole"], z);
   };
 
   let all = (zipper, sel_seg) =>
@@ -257,5 +295,6 @@ module Deco =
       selected_pieces(zipper),
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
+      err_holes(zipper),
     ]);
 };

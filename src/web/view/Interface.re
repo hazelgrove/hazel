@@ -86,7 +86,9 @@ let semantics_of_zipper = (zipper: Zipper.t): option(semantics_package) => {
   {term, ty, free, map, elab, result, test_map, hii};
 };
 
-let cursor_dynamics = (zipper: Zipper.t) => {
+type instances = list(TestMap.test_instance_report);
+
+let cursor_dynamics = (zipper: Zipper.t): option(instances) => {
   let* index = Indicated.index(zipper);
   let segment = Zipper.unselect_and_zip(zipper);
   let term = MakeTerm.go(segment);

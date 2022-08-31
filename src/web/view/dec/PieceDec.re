@@ -6,7 +6,7 @@ open SvgUtil;
 
 module Profile = {
   type style =
-    | Root(Measured.point, Measured.point)
+    | Root(Measured.Point.t, Measured.Point.t)
     | Selected(int, int);
 
   type t = {
@@ -128,7 +128,13 @@ let chunky_shard =
   let path =
     chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
   let clss = ["tile-path", "selected", "raised", Sort.to_string(mold.out)];
-  DecUtil.code_svg(~font_metrics, ~origin, ~path_cls=clss, path);
+  DecUtil.code_svg(
+    ~font_metrics,
+    ~origin,
+    ~base_cls=["tile-selected"],
+    ~path_cls=clss,
+    path,
+  );
 };
 
 let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
@@ -190,7 +196,7 @@ let uni_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      (l: Measured.point, r: Measured.point),
+      (l: Measured.Point.t, r: Measured.Point.t),
       mold: Mold.t,
       shards: Measured.Shards.t,
     ) => {
@@ -287,12 +293,12 @@ let uni_lines =
         ),
       ];
     } else if (r.row != m_last.last.row) {
-      let indent =
-        shards
-        |> List.map(((_, m): Measured.Shards.shard) =>
-             Measured.Rows.find(m.origin.row, rows).indent
-           )
-        |> List.fold_left(min, Measured.Rows.find(r.row, rows).indent);
+      let min_col =
+        Measured.Rows.min_col(
+          ListUtil.range(~lo=m_last.last.row, r.row + 1),
+          rows,
+        )
+        |> min(m_last.last.col);
       // let r_indent = Measured.Rows.find(r.row, rows).indent;
       let (_, m_flast) = {
         let shard_rows = Measured.Shards.split_by_row(shards);
@@ -309,7 +315,7 @@ let uni_lines =
             shadowfudge(
               m(~x=0, ~y=m_flast.last.row - m_flast.origin.row + 1),
             ),
-            h(~x=indent - m_flast.origin.col),
+            h(~x=min_col - m_flast.origin.col),
             shadowfudge(v(~y=r.row - m_flast.origin.row + 1)),
             h(~x=r.col - m_flast.origin.col),
             ...hook,

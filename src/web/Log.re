@@ -26,14 +26,14 @@ let is_action_logged: Update.t => bool =
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
-let mk_entry = (update, z, error): entry => {
+let mk_entry = (~measured, update, z, error): entry => {
   let error =
     switch (error) {
     | Ok(_) => None
     | Error(failure) => Some(failure)
     };
   {
-    zipper: Printer.of_zipper(z),
+    zipper: Printer.of_zipper(~measured, z),
     update,
     error,
     timestamp: JsUtil.timestamp(),
@@ -114,15 +114,19 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       | Error(_) => old_model
       };
     let zip = cur_model |> Model.get_zipper;
-    let new_entry = mk_entry(update, zip, res);
+    let measured = Model.get_editor(cur_model).state.meta.measured;
+    let new_entry = mk_entry(~measured, update, zip, res);
     mut_log := List.cons(new_entry, mut_log^);
     if (debug_update^) {
-      let update_str = to_string(mk_entry(update, zip, res));
+      let update_str = to_string(mk_entry(~measured, update, zip, res));
       print_endline(update_str);
       //new_entry |> entry_to_yojson |> Yojson.Safe.to_string |> print_endline;
     };
     if (debug_zipper^) {
-      cur_model |> Model.get_zipper |> Printer.to_string_log |> print_endline;
+      cur_model
+      |> Model.get_zipper
+      |> Printer.to_string_log(~measured)
+      |> print_endline;
     };
   };
   res;

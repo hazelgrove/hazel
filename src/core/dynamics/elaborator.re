@@ -248,6 +248,10 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListNil => wrap(ListNil)
+    | Cons(hd, tl) =>
+      let* d_hd = dhpat_of_upat(m, hd);
+      let* d_tl = dhpat_of_upat(m, tl);
+      wrap(Cons(d_hd, d_tl));
     | Tuple(_ids, ps) =>
       //TODO(andrew): review below
       switch (List.rev(ps)) {

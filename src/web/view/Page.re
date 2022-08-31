@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Core;
 
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
@@ -24,7 +25,7 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(_) => div([id, toggle_mode], [text("Sketch")])
   | School(_) =>
     div(
@@ -69,9 +70,9 @@ let menu_icon =
   );
 
 let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
-  let history = Model.get_history(model);
-  let can_undo = ActionHistory.can_undo(history);
-  let can_redo = ActionHistory.can_redo(history);
+  let ed = Model.get_editor(model);
+  let can_undo = Editor.can_undo(ed);
+  let can_redo = Editor.can_redo(ed);
   div(
     [Attr.id("top-bar")],
     [
@@ -96,24 +97,38 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
   );
 };
 
-let editor_view =
+let editors_view =
     (
-      {
-        editor_model,
-        font_metrics,
-        show_backpack_targets,
-        settings,
-        mousedown,
-        _,
-      }: Model.t,
-    ) =>
-  Editor.view(
-    ~editor_model,
-    ~font_metrics,
-    ~show_backpack_targets,
-    ~mousedown,
-    ~settings,
-  );
+      ~inject,
+      {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
+    ) => {
+  let focal_zipper = Model.get_zipper'(editors);
+  switch (editors) {
+  | Simple(_)
+  | Study(_) =>
+    let measured = Model.get_editor'(editors).state.meta.measured;
+    SimpleMode.view(
+      ~inject,
+      ~font_metrics,
+      ~mousedown,
+      ~show_backpack_targets,
+      ~zipper=focal_zipper,
+      ~settings,
+      ~measured,
+    );
+  | School(selected, editors) =>
+    SchoolMode.view(
+      ~inject,
+      ~font_metrics,
+      ~settings,
+      ~editors,
+      ~mousedown,
+      ~focal_zipper,
+      ~selected,
+      ~show_backpack_targets,
+    )
+  };
+};
 
 let view = (~inject, ~handlers, model: Model.t) => {
   div(
@@ -133,7 +148,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
       top_bar_view(~inject, model),
-      editor_view(~inject, model),
+      editors_view(~inject, model),
       div([Attr.id("blorg")], []),
     ],
   );

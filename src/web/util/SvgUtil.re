@@ -68,14 +68,14 @@ module Path = {
 
   let reverse = List.rev_map(scale_cmd(~scale_x=-1., ~scale_y=-1.));
 
-  let transpose_cmd = (v: Vector.t) =>
+  let translate_cmd = (v: Vector.t) =>
     fun
     | (Z | M_(_) | L_(_) | H_(_) | V_(_) | A_(_)) as cmd => cmd
     | M({x, y}) => M({x: x +. v.dx, y: y +. v.dy})
     | L({x, y}) => L({x: x +. v.dx, y: y +. v.dy})
     | H({x}) => H({x: x +. v.dx})
     | V({y}) => V({y: y +. v.dy});
-  let transpose = v => List.map(transpose_cmd(v));
+  let translate = v => List.map(translate_cmd(v));
 
   let string_of_flag =
     fun

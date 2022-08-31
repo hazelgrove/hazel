@@ -4,7 +4,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type reason =
   | Unrecognized
-  | Failure(Perform.Action.Failure.t);
+  | Failure(Action.Failure.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {

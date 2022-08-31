@@ -84,7 +84,7 @@
   --pat-shadow-color: var(--pat-off-color);
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
-  
+
   --typ-text-color: #772cff;/*#24ae62;*/
   --typ-off-color: #975dff; /*#7fc97f;*/
   --typ-delim-color: #cfb5ff; /*#aee5c6;*/
@@ -120,6 +120,7 @@
   --genie-z: 1;
   --empty-hole-z: 5;
   --tile-z: 4;
+  --err-hole-z: 5;
   --code-text-z: 6;
   --code-text-shards-z: 7;
   --bar-z: 0;
@@ -652,6 +653,10 @@ svg {
   z-index: -1;
 }
 
+svg.tile-selected {
+  z-index: var(--tile-z);
+}
+
 .tile-path.selected {
   fill: var(--selection-color);
 }
@@ -660,7 +665,6 @@ svg {
 .tile-path.raised.selected {
   filter: url(#raised-drop-shadow-Nul) !important;
 }
-
 
 
 .tile-path.Exp {
@@ -855,6 +859,8 @@ svg {
 
 #filters {
   position: fixed;
+  height: 0;
+  width: 0;
 }
 
 /* BACKPACK */
@@ -917,6 +923,18 @@ svg {
 
 
 /* STATICS */
+
+.code-container svg.err-hole {
+  fill: #d001;
+  stroke-dasharray: 1,1;
+  stroke: var(--err-color);
+  stroke-width: 1.2px;
+  /* mix-blend-mode: color; */
+  z-index: var(--err-hole-z);
+}
+.code-container svg.err-hole path {
+  vector-effect: non-scaling-stroke;
+}
 
 .typ-view {
   color: var(--typ-text-color);
@@ -1223,7 +1241,7 @@ svg {
   bottom: 0.15em;
   margin-left: 0.17em;
   font-size: 64%;
-  vertical-align: super;  
+  vertical-align: super;
 }
 .test-inspector .test-instance:before {
   position: relative;

@@ -177,9 +177,6 @@ let test_summary = (~inject, ~test_results: Interface.test_results) => {
   );
 };
 
-let view_of_main_title_bar = (title_text: string) =>
-  div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
-
 let inspector_view =
     (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
   switch (TestMap.lookup(id, test_map)) {
@@ -198,3 +195,17 @@ let inspector_view =
   | _ => None
   };
 };
+
+let view_of_main_title_bar = (title_text: string) =>
+  div([clss(["title-bar", "panel-title-bar"])], [Node.text(title_text)]);
+
+let view =
+    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results): t =>
+  div(
+    [clss(["panel", "test-panel"])],
+    [
+      view_of_main_title_bar(title),
+      test_reports_view(~inject, ~font_metrics, ~test_results),
+      test_summary(~inject, ~test_results),
+    ],
+  );
