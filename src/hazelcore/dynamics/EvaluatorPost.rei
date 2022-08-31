@@ -48,6 +48,7 @@
 [@deriving sexp]
 type error =
   | ClosureInsideClosure
+  | FixFOutsideClosureEnv
   | UnevalOutsideClosure
   | InvalidClosureBody
   | PostprocessedNonHoleInClosure

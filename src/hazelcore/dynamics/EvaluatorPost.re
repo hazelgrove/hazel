@@ -1,23 +1,31 @@
 module PpMonad = {
   include StateMonad.Make({
     [@deriving sexp]
-    type t = (EnvironmentIdMap.t(ClosureEnvironment.t), HoleInstanceInfo_.t);
+    type t = (
+      EnvironmentIdMap.t(ClosureEnvironment.t),
+      HoleInstanceInfo_.t,
+      EnvironmentIdGen.t,
+    );
   });
 
   open Syntax;
 
-  let modify_pe = f => modify(((pe, hii)) => (pe |> f, hii));
-  /* let modify_hii = f => modify(((pe, hii)) => (pe, hii |> f)); */
-
-  let get_pe = get >>| (((pe, _)) => pe);
-  /* let get_hii = get >>| (((_, hii)) => hii); */
-
-  let pe_add = (ei, env) => modify_pe(EnvironmentIdMap.add(ei, env));
+  let get_pe = get >>| (((pe, _, _)) => pe);
+  let pe_add = (ei, env) =>
+    modify(((pe, hii, eig)) =>
+      (pe |> EnvironmentIdMap.add(ei, env), hii, eig)
+    );
 
   let hii_add_instance = (u, env) =>
-    modify'(((pe, hii)) => {
+    modify'(((pe, hii, eig)) => {
       let (hii, i) = HoleInstanceInfo_.add_instance(hii, u, env);
-      (i, (pe, hii));
+      (i, (pe, hii, eig));
+    });
+
+  let with_eig = f =>
+    modify'(((pe, hii, eig)) => {
+      let (x, eig) = f(eig);
+      (x, (pe, hii, eig));
     });
 };
 
@@ -30,6 +38,7 @@ type m('a) = PpMonad.t('a);
 [@deriving sexp]
 type error =
   | ClosureInsideClosure
+  | FixFOutsideClosureEnv
   | UnevalOutsideClosure
   | InvalidClosureBody
   | PostprocessedNonHoleInClosure
@@ -49,10 +58,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | FloatLit(_)
   | ListNil(_)
   | Triv => d |> return
-
-  | FixF(f, ty, d1) =>
-    let* d1' = pp_eval(d1);
-    FixF(f, ty, d1') |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -115,6 +120,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | FreeVar(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
+
+  | FixF(_) => raise(Exception(FixFOutsideClosureEnv))
 
   /* Closure: postprocess environment, then postprocess `d'`.
 
@@ -181,14 +188,14 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
       |> ClosureEnvironment.fold(
            ((x, d), env') => {
              let* env' = env';
-             let+ d' =
+             let* d' =
                switch (d) {
                | FixF(f, ty, d1) =>
                  let+ d1 = pp_uneval(env', d1);
                  FixF(f, ty, d1);
                | d => pp_eval(d)
                };
-             ClosureEnvironment.extend_keep_id(env', (x, d'));
+             with_eig(ClosureEnvironment.extend(env', (x, d')));
            },
            Environment.empty |> ClosureEnvironment.wrap(ei) |> return,
          );
@@ -440,8 +447,8 @@ let postprocess =
     (d: DHExp.t, eig: EnvironmentIdGen.t)
     : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
   /* Substitution and hole numbering postprocessing */
-  let ((_, hii), d) =
-    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty));
+  let ((_, hii, eig), d) =
+    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig));
 
   /* Build hole instance info. */
   let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;
@@ -450,14 +457,23 @@ let postprocess =
      for holes directly in the result) */
   /* FIXME: Better way to do this? */
   let (u_result, _) = HoleInstance.result;
-  let (ei, eig) = EnvironmentIdGen.next(eig);
   let hii =
     MetaVarMap.add(
       u_result,
-      [(ClosureEnvironment.wrap(ei, Environment.singleton(("", d))), [])],
+      [
+        (
+          ClosureEnvironment.wrap(
+            EnvironmentId.invalid,
+            Environment.singleton(("", d)),
+          ),
+          [],
+        ),
+      ],
       hii,
     );
 
+  let hii = hii |> track_children;
+
   /* Perform hole parent tracking. */
-  ((hii |> track_children, d), eig);
+  ((hii, d), eig);
 };
