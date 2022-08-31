@@ -107,8 +107,13 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
 }
 
+/**
+  [Environment] is a map from variables to {!DHExp.t} backed by {!VarBstMap.Ordered}.
+ */
 and Environment: {
-  include  (module type of VarBstMap) with type t_('a) = VarBstMap.t_('a);
+  include
+     (module type of VarBstMap.Ordered) with
+      type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving sexp]
   type t = t_(DHExp.t);
@@ -116,7 +121,10 @@ and Environment: {
 
 /**
   [ClosureEnvironment] is an {!module:Environment} associated with an id, used
-  for the environments of {!DHExp.Closure}s.
+  for the environments of {!DHExp.Closure}s. {b Importantly, the bindings in
+  the environment are ordered (see {!VarBstMap.Ordered}), and any fixpoint
+  bindings must come after their dependencies (see also high-level dynamics
+  documentation).}
 
   ClosureEnvironments are numbered so that operations on them (e.g., during
   hole numbering) can be memoized; the id allows for quick equality checking
@@ -150,7 +158,7 @@ and ClosureEnvironment: {
   let map_of: t => Environment.t;
 
   /**
-    [to_list env] is the list of bindings in [env].
+    [to_list env] is the list of bindings in [env], in insertion order.
    */
   let to_list: t => list((Var.t, DHExp.t));
 
@@ -194,11 +202,29 @@ and ClosureEnvironment: {
   let contains: (t, Var.t) => bool;
 
   /**
+    [update f env] is [(env', eig)], where [env] is the environment with a new
+    id and map mapped by [f].
+   */
+  let update:
+    (Environment.t => Environment.t, t, EnvironmentIdGen.t) =>
+    (t, EnvironmentIdGen.t);
+
+  /**
+    [update_keep_id] is [update], but the id of the given environment is maintained.
+   */
+  let update_keep_id: (Environment.t => Environment.t, t) => t;
+
+  /**
     [extend env (x, d) eig] is [(env', eig')], where [env'] is [env] extended
     with the binding of [d] for [x].
    */
   let extend:
     (t, (Var.t, DHExp.t), EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
+
+  /**
+    [extend_keep_id] is [extend], but the id of the given environment is maintained.
+   */
+  let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
 
   /**
     [union env1 env2 eig] is [(env, eig)] where [env] is [env2] extended with
@@ -207,8 +233,14 @@ and ClosureEnvironment: {
   let union: (t, t, EnvironmentIdGen.t) => (t, EnvironmentIdGen.t);
 
   /**
+    [union_keep_id] is [union], but the id of the given environment is
+    maintained.
+   */
+  let union_keep_id: (t, t) => t;
+
+  /**
     [map f env eig] is [(env', eig')] where [env'] contains the bindings of
-    [env] mapped by [f].
+    [env] mapped by [f] in insertion order.
    */
   let map:
     (((Var.t, DHExp.t)) => DHExp.t, t, EnvironmentIdGen.t) =>
@@ -221,7 +253,7 @@ and ClosureEnvironment: {
 
   /**
     [filter f env eig] is [(env', eig')] where [env'] contains the bindings of
-    [env] filtered by [f].
+    [env] filtered by [f] in insertion order.
    */
   let filter:
     (((Var.t, DHExp.t)) => bool, t, EnvironmentIdGen.t) =>
@@ -231,6 +263,11 @@ and ClosureEnvironment: {
     [filter_keep_id] is like [map_keep_id], but for [filter].
    */
   let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
+
+  /**
+    [fold f init env] is [env |> map_of |> Environment.foldo f init].
+   */
+  let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
   /**
     Placeholder used in DHCode. Is identified by an invalid EnvironmentId.t, only

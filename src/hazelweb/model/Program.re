@@ -112,27 +112,27 @@ let evaluate =
     ~cache_size_bound=1000,
     Evaluator.evaluate(Environment.empty),
   );
-let get_result = (program: t): ProgramResult.t => {
+let postprocess = (es: EvaluatorState.t, d: DHExp.t) =>
+  es
+  |> EvaluatorState.with_eig(eig => {
+       let ((hii, d), _) =
+         switch (EvaluatorPost.postprocess(d, eig)) {
+         | d => d
+         | exception (EvaluatorPost.Exception(reason)) =>
+           raise(PostprocessError(reason))
+         };
+       ((d, hii), eig);
+     });
+let get_result = (program: t): ProgramResult.t =>
   switch (program |> get_elaboration |> evaluate) {
   | (es, BoxedValue(d)) =>
-    let (hii, d) =
-      switch (d |> EvaluatorPost.postprocess) {
-      | d => d
-      | exception (EvaluatorPost.Exception(reason)) =>
-        raise(PostprocessError(reason))
-      };
+    let ((d, hii), es) = postprocess(es, d);
     (BoxedValue(d), es, hii);
   | (es, Indet(d)) =>
-    let (hii, d) =
-      switch (d |> EvaluatorPost.postprocess) {
-      | d => d
-      | exception (EvaluatorPost.Exception(reason)) =>
-        raise(PostprocessError(reason))
-      };
+    let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
-};
 
 let get_doc = (~settings: Settings.t, program) => {
   TimeUtil.measure_time(

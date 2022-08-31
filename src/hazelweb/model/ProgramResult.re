@@ -3,7 +3,7 @@ type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
 let get_dhexp = ((r, _, _): t) => EvaluatorResult.unbox(r);
 let get_state = ((_, es, _): t) => es;
-let get_hole_instance_info = ((_, _, hii): t) => hii;
+let get_hii = ((_, _, hii): t) => hii;
 
 let fast_equal_hii = (hii1, hii2) => {
   let fast_equal_his = (his1, his2) =>

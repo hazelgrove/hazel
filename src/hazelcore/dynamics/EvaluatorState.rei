@@ -43,3 +43,5 @@ let take_step: t => t;
 let get_step: t => int;
 
 let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
+
+let get_tests: t => TestMap.t;

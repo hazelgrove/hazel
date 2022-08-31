@@ -102,6 +102,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
   }
+
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
   rules
@@ -115,13 +116,41 @@ and subst_var_rules =
          }
        }
      )
+
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t =>
-  env |> ClosureEnvironment.map_keep_id(((_, d)) => subst_var(d1, x, d));
+    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+  let id = env |> ClosureEnvironment.id_of;
+  let map =
+    env
+    |> ClosureEnvironment.map_of
+    |> Environment.foldo(
+         ((x', d': DHExp.t), map) => {
+           let d' =
+             switch (d') {
+             /* Substitute each previously substituted binding into the
+              * fixpoint. */
+             | FixF(_) as d =>
+               map
+               |> Environment.foldo(
+                    ((x'', d''), d) => subst_var(d'', x'', d),
+                    d,
+                  )
+             | d => d
+             };
+
+           /* Substitute. */
+           let d' = subst_var(d1, x, d');
+           Environment.extend(map, (x', d'));
+         },
+         Environment.empty,
+       );
+
+  ClosureEnvironment.wrap(id, map);
+};
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
   env
-  |> Environment.fold(
+  |> Environment.foldo(
        (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(d1, x, d2);

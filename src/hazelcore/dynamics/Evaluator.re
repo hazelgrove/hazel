@@ -475,9 +475,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | FixF(f, _, _) as d =>
+    | FixF(f, _, d') =>
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-      evaluate(env', d);
+      evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
@@ -872,11 +872,8 @@ and evaluate_test =
       let* arg_d3 = evaluate(env, arg_d3);
       let arg_show =
         DHExp.Ap(
-          Ap(
-            EvaluatorResult.unwrap(arg_d1),
-            EvaluatorResult.unwrap(arg_d2),
-          ),
-          EvaluatorResult.unwrap(arg_d3),
+          Ap(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2)),
+          EvaluatorResult.unbox(arg_d3),
         );
       let* arg_result = evaluate(env, arg_show);
       (arg_show, arg_result) |> return;
@@ -887,7 +884,7 @@ and evaluate_test =
 
     | _ =>
       let* arg = evaluate(env, arg);
-      (EvaluatorResult.unwrap(arg), arg) |> return;
+      (EvaluatorResult.unbox(arg), arg) |> return;
     };
 
   let test_status: TestStatus.t =
@@ -919,10 +916,7 @@ and evaluate_test_eq =
   let* arg_d2 = evaluate(env, arg_d2);
 
   let arg_show =
-    mk_arg_op(
-      EvaluatorResult.unwrap(arg_d1),
-      EvaluatorResult.unwrap(arg_d2),
-    );
+    mk_arg_op(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2));
   let* arg_result = evaluate(env, arg_show);
 
   (arg_show, arg_result) |> return;
