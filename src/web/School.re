@@ -1,3 +1,3 @@
-let the_exercise: Exercise.spec = FilterOddsExercise.exercise;
+let the_exercise: SchoolExercise.spec = FilterOddsExercise.exercise;
 
-let init: Model.school = Model.editors_for(the_exercise, SchoolCell.code_of);
+let init_state: Model.school = SchoolExercise.state_of_spec(the_exercise);

@@ -1,10 +1,9 @@
 open Core;
 
-let editor_of_code = (code: CodeString.t) => {
-  let init_id = 0;
+let editor_of_code = (init_id, code: CodeString.t) => {
   switch (Printer.zipper_of_string(init_id, code)) {
   | None => None
-  | Some((z, _new_id)) => Some(Editor.init(z))
+  | Some((z, new_id)) => Some((new_id, Editor.init(z)))
   };
 };
 

@@ -42,6 +42,9 @@ type ed = p(Core.Editor.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (pos, ed);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_state = (pos, list(Core.Zipper.t));
+
 let editor_of_state: state => Core.Editor.t =
   ((pos, ed)) =>
     switch (pos) {
@@ -53,27 +56,57 @@ let editor_of_state: state => Core.Editor.t =
     | HiddenTests => ed.hidden_tests.tests
     };
 
-let editors = (ed: ed) =>
+let put_editor = ((pos, ed): state, editor: Core.Editor.t) =>
+  switch (pos) {
+  | Prelude => (pos, {...ed, prelude: editor})
+  | ReferenceImpl => (pos, {...ed, reference_impl: editor})
+  | YourTests => (pos, {...ed, your_tests: editor})
+  | YourImpl => (pos, {...ed, your_impl: editor})
+  | HiddenBugs(n) => (
+      pos,
+      {
+        ...ed,
+        hidden_bugs:
+          Util.ListUtil.put_nth(
+            n,
+            {...List.nth(ed.hidden_bugs, n), impl: editor},
+            ed.hidden_bugs,
+          ),
+      },
+    )
+  | HiddenTests => (
+      pos,
+      {
+        ...ed,
+        hidden_tests: {
+          ...ed.hidden_tests,
+          tests: editor,
+        },
+      },
+    )
+  };
+
+let editors = ((_, ed): state) =>
   [ed.prelude, ed.reference_impl, ed.your_tests, ed.your_impl]
   @ List.map(wrong_impl => wrong_impl.impl, ed.hidden_bugs)
   @ [ed.hidden_tests.tests];
 
-let idx_of_pos = (ed: ed, pos: pos) =>
+let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
   | Prelude => 0
   | ReferenceImpl => 1
   | YourTests => 2
   | YourImpl => 3
   | HiddenBugs(i) =>
-    if (i < List.length(ed.hidden_bugs)) {
+    if (i < List.length(p.hidden_bugs)) {
       4 + i;
     } else {
       failwith("invalid hidden bug index");
     }
-  | HiddenTests => 4 + List.length(ed.hidden_bugs)
+  | HiddenTests => 4 + List.length(p.hidden_bugs)
   };
 
-let pos_of_idx = (ed: ed, idx: int) =>
+let pos_of_idx = (p: p('code), idx: int) =>
   switch (idx) {
   | 0 => Prelude
   | 1 => ReferenceImpl
@@ -82,16 +115,16 @@ let pos_of_idx = (ed: ed, idx: int) =>
   | _ =>
     if (idx < 0) {
       failwith("negative idx");
-    } else if (idx < 4 + List.length(ed.hidden_bugs)) {
+    } else if (idx < 4 + List.length(p.hidden_bugs)) {
       HiddenBugs(idx - 5);
-    } else if (idx == 4 + List.length(ed.hidden_bugs)) {
+    } else if (idx == 4 + List.length(p.hidden_bugs)) {
       HiddenTests;
     } else {
       failwith("element idx");
     }
   };
 
-let spec_to_ed: spec => ed =
+let ed_of_spec: spec => (Core.Id.t, ed) =
   (
     {
       prompt,
@@ -103,27 +136,78 @@ let spec_to_ed: spec => ed =
       hidden_tests,
     },
   ) => {
-    let editor_of_code = code =>
-      switch (EditorUtil.editor_of_code(code)) {
+    let editor_of_code = (init_id, code) =>
+      switch (EditorUtil.editor_of_code(init_id, code)) {
       | None => failwith("Exercise error: invalid code")
-      | Some(ed) => ed
+      | Some(x) => x
       };
-    {
-      prompt,
-      prelude: editor_of_code(prelude),
-      reference_impl: editor_of_code(reference_impl),
-      your_tests: editor_of_code(your_tests),
-      your_impl: editor_of_code(your_impl),
-      hidden_bugs:
-        List.map(
-          ({impl, hint}) => {impl: editor_of_code(impl), hint},
-          hidden_bugs,
-        ),
-      hidden_tests: {
-        let {tests, hints} = hidden_tests;
-        {tests: editor_of_code(tests), hints};
-      },
+    let id = 0;
+    let (id, prelude) = editor_of_code(id, prelude);
+    let (id, reference_impl) = editor_of_code(id, reference_impl);
+    let (id, your_tests) = editor_of_code(id, your_tests);
+    let (id, your_impl) = editor_of_code(id, your_impl);
+    let (id, hidden_bugs) =
+      List.fold_left(
+        ((id, acc), {impl, hint}) => {
+          let (id, impl) = editor_of_code(id, impl);
+          (id, acc @ [{impl, hint}]);
+        },
+        (id, []),
+        hidden_bugs,
+      );
+    let (id, hidden_tests) = {
+      let {tests, hints} = hidden_tests;
+      let (id, tests) = editor_of_code(id, tests);
+      (id, {tests, hints});
     };
+    (
+      id,
+      {
+        prompt,
+        prelude,
+        reference_impl,
+        your_tests,
+        your_impl,
+        hidden_bugs,
+        hidden_tests,
+      },
+    );
   };
 
-let spec_to_state: spec => state = spec => (YourImpl, spec_to_ed(spec));
+let state_of_spec: spec => (Core.Id.t, state) =
+  spec => {
+    let (id, ed) = ed_of_spec(spec);
+    (id, (YourImpl, ed));
+  };
+
+let persistent_state_of_state: state => persistent_state =
+  ((pos, _) as state) => {
+    let editors = editors(state);
+    let zippers =
+      List.map((editor: Core.Editor.t) => editor.state.zipper, editors);
+    (pos, zippers);
+  };
+
+let unpersist_state = ((pos, zippers): persistent_state, spec: spec): state => {
+  let lookup = pos =>
+    Core.Editor.init(List.nth(zippers, idx_of_pos(pos, spec)));
+  (
+    pos,
+    {
+      prompt: spec.prompt,
+      prelude: lookup(Prelude),
+      reference_impl: lookup(ReferenceImpl),
+      your_tests: lookup(YourTests),
+      your_impl: lookup(YourImpl),
+      hidden_bugs:
+        List.mapi(
+          (i, {impl: _, hint}) => {{impl: lookup(HiddenBugs(i)), hint}},
+          spec.hidden_bugs,
+        ),
+      hidden_tests: {
+        tests: lookup(HiddenTests),
+        hints: spec.hidden_tests.hints,
+      },
+    },
+  );
+};
