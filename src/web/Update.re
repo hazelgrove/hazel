@@ -25,7 +25,7 @@ type t =
   | SwitchEditor(int)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
-  | PerformAction(Perform.Action.t)
+  | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
   | Copy
   | Paste
@@ -43,7 +43,7 @@ module Failure = {
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)
-    | FailedToPerform(Perform.Action.Failure.t)
+    | FailedToPerform(Action.Failure.t)
     | Exception(string);
 };
 
@@ -53,7 +53,7 @@ module Result = {
 };
 
 let save = (model: Model.t): unit =>
-  switch (model.editor_model) {
+  switch (model.editors) {
   | Simple(ed) => LocalStorage.save_simple((model.id_gen, ed))
   | Study(n, eds) => LocalStorage.save_study((model.id_gen, n, eds))
   | School(n, eds) =>
@@ -94,26 +94,26 @@ let load_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
   | Simple =>
     let (id_gen, editor) = LocalStorage.load_simple();
-    {...model, id_gen, editor_model: Simple(editor)};
+    {...model, id_gen, editors: Simple(editor)};
   | Study =>
     let (id_gen, idx, editors) = LocalStorage.load_study();
-    {...model, id_gen, editor_model: Study(idx, editors)};
+    {...model, id_gen, editors: Study(idx, editors)};
   | School =>
     let (id_gen, idx, editors) = LocalStorage.load_school();
-    {...model, id_gen, editor_model: School(idx, editors)};
+    {...model, id_gen, editors: School(idx, editors)};
   };
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
   | Simple =>
     let (id_gen, editor) = Model.simple_init;
-    {...model, editor_model: Simple(editor), id_gen};
+    {...model, editors: Simple(editor), id_gen};
   | Study =>
     let (id_gen, idx, editors) = Study.init;
-    {...model, editor_model: Study(idx, editors), id_gen};
+    {...model, editors: Study(idx, editors), id_gen};
   | School =>
     let (id_gen, idx, editors) = School.init;
-    {...model, editor_model: School(idx, editors), id_gen};
+    {...model, editors: School(idx, editors), id_gen};
   };
 
 let rotate_mode = (mode: Model.mode): Model.mode =>
@@ -141,7 +141,7 @@ let apply =
     save(model);
     Ok(model);
   | SwitchEditor(n) =>
-    switch (model.editor_model) {
+    switch (model.editors) {
     | Simple(_) => Error(FailedToSwitch)
     | Study(m, _) when m == n => Error(FailedToSwitch)
     | Study(_, zs) =>
@@ -149,7 +149,7 @@ let apply =
       | false => Error(FailedToSwitch)
       | true =>
         LocalStorage.save_study((model.id_gen, n, zs));
-        Ok({...model, editor_model: Study(n, zs)});
+        Ok({...model, editors: Study(n, zs)});
       }
     | School(m, _) when m == n => Error(FailedToSwitch)
     | School(_, zs) =>
@@ -157,7 +157,7 @@ let apply =
       | false => Error(FailedToSwitch)
       | true =>
         LocalStorage.save_school((model.id_gen, n, zs));
-        Ok({...model, editor_model: School(n, zs)});
+        Ok({...model, editors: School(n, zs)});
       }
     }
   | ToggleMode =>
@@ -175,17 +175,11 @@ let apply =
   | SetLogoFontMetrics(logo_font_metrics) =>
     Ok({...model, logo_font_metrics})
   | PerformAction(a) =>
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (Perform.go(a, z_id)) {
+    let ed_init = Model.get_editor(model);
+    switch (Core.Perform.go(a, ed_init, model.id_gen)) {
     | Error(err) => Error(FailedToPerform(err))
-    | Ok((zipper, id_gen)) =>
-      let history = ActionHistory.succeeded(a, z_id, history);
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
-      });
+    | Ok((ed, id_gen)) =>
+      Ok({...model, id_gen, editors: Model.put_editor(model, ed)})
     };
   | FailedInput(reason) => Error(UnrecognizedInput(reason))
   | Copy =>
@@ -195,44 +189,31 @@ let apply =
   | Paste =>
     //let clipboard = JsUtil.get_from_clipboard();
     let clipboard = model.clipboard;
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
+    let ed = Model.get_editor(model);
     switch (
-      Printer.zipper_of_string(~zipper_init=zipper, model.id_gen, clipboard)
+      Printer.zipper_of_string(
+        ~zipper_init=ed.state.zipper,
+        model.id_gen,
+        clipboard,
+      )
     ) {
     | None => Error(CantPaste)
-    | Some((zipper, id_gen)) =>
+    | Some((z, id_gen)) =>
       //TODO: add correct action to history (Pick_up is wrong)
-      let history = ActionHistory.succeeded(Pick_up, z_id, history);
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
-      });
+      let ed = Core.Editor.new_state(Pick_up, z, ed);
+      Ok({...model, id_gen, editors: Model.put_editor(model, ed)});
     };
   | Undo =>
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (ActionHistory.undo(z_id, history)) {
+    let ed = Model.get_editor(model);
+    switch (Core.Editor.undo(ed)) {
     | None => Error(CantUndo)
-    | Some(((zipper, id_gen), history)) =>
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
-      })
+    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
     };
   | Redo =>
-    let Model.{zipper, history} = Model.get_editor(model);
-    let z_id = (zipper, model.id_gen);
-    switch (ActionHistory.redo(z_id, history)) {
+    let ed = Model.get_editor(model);
+    switch (Core.Editor.redo(ed)) {
     | None => Error(CantRedo)
-    | Some(((zipper, id_gen), history)) =>
-      Ok({
-        ...model,
-        id_gen,
-        editor_model: Model.put_editor(model, {zipper, history}),
-      })
+    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
     };
   | MoveToNextHole(_d) =>
     // TODO restore
