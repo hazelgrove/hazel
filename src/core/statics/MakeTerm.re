@@ -9,9 +9,9 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
   );
 
-type tile_kid = any;
 type tile = (Id.t, Aba.t(Token.t, any));
 type tiles = Aba.t(tile, any);
+let single = (id, subst) => ([(id, subst)], []);
 
 type unsorted =
   | Op(tiles)
@@ -19,241 +19,363 @@ type unsorted =
   | Post(any, tiles)
   | Bin(any, tiles, any);
 
-type inside_kid = any;
-type tiles = Aba.t(tile, inside_kid);
+type dark_id = int;
+let dark_gen = ref(-1);
+let dark_id = () => {
+  let id = dark_gen^;
+  dark_gen := id - 1;
+  id;
+};
+let dark_hole = (s: Sort.t): Term.any => {
+  let id = dark_id();
+  switch (s) {
+  | Exp => Exp({ids: [id], term: EmptyHole})
+  | _ => failwith("dark_hole todo")
+  };
+};
 
-type outside_kids = list(any);
+// TODO flesh out incomplete cases
+let complete_root =
+  fun
+  | Op(_) as root => root
+  | Pre(tiles, r) as root =>
+    switch (tiles) {
+    | ([(id, tile)], []) =>
+      switch (tile) {
+      | (["("], []) => Op(single(id, (["(", ")"], [r])))
+      | (["let"], []) =>
+        Pre(
+          single(id, (Labels.let_, [r, dark_hole(Exp)])),
+          dark_hole(Exp),
+        )
+      | (["let", "="], [pat]) =>
+        Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
+      | _ => root
+      }
+    | _ => root
+    }
+  | root => root;
 
-let is_tuple = tiles =>
-  Aba.get_as(tiles) |> List.for_all((==)(([","], [])));
+let is_tuple_exp = ((commas, kids): tiles): option(list(UExp.t)) =>
+  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
+    kids
+    |> List.map(
+         fun
+         | Exp(e) => Some(e)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  } else {
+    None;
+  };
+let is_tuple_pat = ((commas, kids): tiles): option(list(UPat.t)) =>
+  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
+    kids
+    |> List.map(
+         fun
+         | Pat(p) => Some(p)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  } else {
+    None;
+  };
+let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
+  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
+    kids
+    |> List.map(
+         fun
+         | Typ(ty) => Some(ty)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  } else {
+    None;
+  };
 
 let is_grout = tiles =>
-  Aba.get_as(tiles) |> List.for_all((==)(([" "], [])));
+  Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let unrecog = Invalid(UnrecognizedTerm);
+let is_rules = ((ts, kids): tiles): option(Aba.t((Id.t, UPat.t), UExp.t)) => {
+  open OptUtil.Syntax;
+  let+ ps =
+    ts
+    |> List.map(
+         fun
+         | (id, (["|", "=>"], [Pat(p)])) => Some((id, p))
+         | _ => None,
+       )
+    |> OptUtil.sequence
+  and+ clauses =
+    kids
+    |> List.map(
+         fun
+         | Exp(clause) => Some(clause)
+         | _ => None,
+       )
+    |> OptUtil.sequence;
+  Aba.mk(ps, clauses);
+};
+
+// let have_sort = (tms: list(any)) =>
+//   tms
+//   |> List.map(
+
+//   )
+
+let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
+let ids =
+  fun
+  | Op(tiles)
+  | Pre(tiles, _)
+  | Post(_, tiles)
+  | Bin(_, tiles, _) => ids_of_tiles(tiles);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
-  | Pat => Pat(pat(skel, seg))
-  | Typ => Typ(typ(skel, seg))
-  | Exp => Exp(exp(skel, seg))
-  | Rul => Rul(rul(skel, seg))
+  | Pat => Pat(pat(unsorted(skel, seg)))
+  | Typ => Typ(typ(unsorted(skel, seg)))
+  | Exp => Exp(exp(unsorted(skel, seg)))
+  | Rul => Rul(rul(unsorted(skel, seg)))
   | Nul => Nul() //TODO
   | Any => Any() //TODO
   }
-and typ = (skel, seg): UTyp.t => tm(mk_typ, skel, seg)
-and pat = (skel, seg): UPat.t => tm(mk_pat, skel, seg)
-and exp = (skel, seg): UExp.t => tm(mk_exp, skel, seg)
-and rul = (skel, seg): URul.s => tm(mk_rul, skel, seg)
-and tm: 'tm. ((tiles, outside_kids) => 'tm, Skel.t, Segment.t) => 'tm =
-  (mk, skel, seg) => {
-    let tile_kids = (p: Piece.t): list(tile_kid) =>
-      switch (p) {
-      | Whitespace(_)
-      | Grout(_) => []
-      | Tile({mold, shards, children, _}) =>
-        Aba.aba_triples(shards, children)
-        |> List.map(((l, kid, r)) => {
-             let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
-             go_s(s, kid, seg);
-           })
-      };
 
-    let root: Aba.t(Piece.t, Skel.t) =
-      Skel.root(skel) |> Aba.map_a(List.nth(seg));
-
-    // maintaining this alternating ordered structure
-    // for handling incomplete forms later
-    let tiles =
-      root
-      |> Aba.map_abas(((p_l, kid, p_r)) => {
-           let (_, s_l) = Piece.nib_sorts(p_l);
-           let (s_r, _) = Piece.nib_sorts(p_r);
-           let s = s_l == s_r ? s_l : Sort.Any;
-           go_s(s, kid, seg);
-         })
-      |> Aba.map_a(p
-           // TODO throw proper exception
-           => Aba.mk(Option.get(tokens(p)), tile_kids(p)));
-
-    let root_nibs = {
-      let (p_l, _) = Aba.first_a(root);
-      let (p_r, _) = Aba.last_a(root);
-      // TODO throw proper exceptions
-      let (l, _) = Option.get(Piece.nibs(p_l));
-      let (_, r) = Option.get(Piece.nibs(p_r));
-      (l, r);
-    };
-
-    let outside_kids = {
-      let (l, r) = root_nibs;
-      let (l_sort, r_sort) = (l.sort, r.sort);
-      switch (skel) {
-      | Op(_) => []
-      | Pre(_, r) => [go_s(r_sort, r, seg)]
-      | Post(l, _) => [go_s(l_sort, l, seg)]
-      | Bin(l, _, r) => [go_s(l_sort, l, seg), go_s(r_sort, r, seg)]
-      };
-    };
-
-    mk(tiles, outside_kids);
-  }
-and mk_exp: unsorted => UExp.t =
+and exp = unsorted => {
+  let (term, inner_ids) = exp_term(unsorted);
+  {ids: ids(unsorted) @ inner_ids, term};
+}
+and exp_term: unsorted => (UExp.term, list(Id.t)) = {
+  let ret = (tm: UExp.term) => (tm, []);
+  let unrecog = UExp.Invalid(UnrecognizedTerm);
   fun
   | Op(tiles) =>
     switch (tiles) {
     // single-tile case
-    | ([(id, tile)], []) =>
+    | ([(_id, tile)], []) =>
       switch (tile) {
-      | (["triv"], []) => Triv
-      | (["true"], []) => Bool(true)
-      | (["false"], []) => Bool(false)
-      | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-      | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-      | ([t], []) when Form.is_var(t) => Var(t)
-      | (["test", "end"], [Exp(test)]) => Test(test)
-      | (["(", ")"], [Exp(body)]) => Parens(body)
-      | (["nil"], []) => ListLit([], [])
+      | (["triv"], []) => ret(Triv)
+      | (["true"], []) => ret(Bool(true))
+      | (["false"], []) => ret(Bool(false))
+      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_var(t) => ret(Var(t))
+      | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (["nil"], []) => ret(ListLit([]))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
-        | term => ListLit([id], [term])
+        | {ids, term: Tuple(es)} => (ListLit(es), ids)
+        | term => ret(ListLit([term]))
         }
-      | (["case", "end"], [Rul((ids, (es, ps)))]) =>
-        let (scrut, clauses) = ListUtil.split_first(es);
-        Match([id] @ ids, scrut, List.combine(ps, clauses));
+      | (["case", "end"], [Rul(Rules(ids, scrut, rules))]) => (
+          Match(scrut, rules),
+          ids,
+        )
+      | _ => ret(unrecog)
+      }
+    | _ => ret(unrecog)
+    }
+  | Pre(tiles, Exp(r)) =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | (["-"], []) => UnOp(Int(Minus), r)
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+          If(cond, conseq, r)
+        | _ => unrecog
+        },
+      )
+    | _ => ret(unrecog)
+    }
+  | Post(Exp(l), tiles) =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | _ => unrecog
+        },
+      )
+    | _ => ret(unrecog)
+    }
+  | Bin(Exp(l), tiles, Exp(r)) =>
+    switch (is_tuple_exp(tiles)) {
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | None =>
+      switch (tiles) {
+      | ([(_id, tile)], []) =>
+        ret(
+          switch (tile) {
+          | (["+"], []) => BinOp(Int(Plus), l, r)
+          | (["-"], []) => BinOp(Int(Minus), l, r)
+          | (["*"], []) => BinOp(Int(Times), l, r)
+          | (["/"], []) => BinOp(Int(Divide), l, r)
+          | (["<"], []) => BinOp(Int(LessThan), l, r)
+          | ([">"], []) => BinOp(Int(GreaterThan), l, r)
+          | (["=="], []) => BinOp(Int(Equals), l, r)
+          | (["+."], []) => BinOp(Float(Plus), l, r)
+          | (["-."], []) => BinOp(Float(Minus), l, r)
+          | (["*."], []) => BinOp(Float(Times), l, r)
+          | (["/."], []) => BinOp(Float(Divide), l, r)
+          | (["<."], []) => BinOp(Float(LessThan), l, r)
+          | ([">."], []) => BinOp(Float(GreaterThan), l, r)
+          | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["&&"], []) => BinOp(Bool(And), l, r)
+          | (["||"], []) => BinOp(Bool(Or), l, r)
+          | (["::"], []) => Cons(l, r)
+          | ([";"], []) => Seq(l, r)
+          | _ => unrecog
+          },
+        )
+      | _ => ret(unrecog)
+      }
+    }
+  | _ => ret(unrecog);
+}
+
+and pat = unsorted => {
+  let (term, inner_ids) = pat_term(unsorted);
+  {ids: ids(unsorted) @ inner_ids, term};
+}
+and pat_term: unsorted => (UPat.term, list(Id.t)) = {
+  let ret = (term: UPat.term) => (term, []);
+  let unrecog = UPat.Invalid(UnrecognizedTerm);
+  fun
+  | Op(tiles) =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | (["triv"], []) => Triv
+        | (["true"], []) => Bool(true)
+        | (["false"], []) => Bool(false)
+        | (["(", ")"], [Pat(body)]) => Parens(body)
+        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
+        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_wild(t) => Wild
+        | ([t], []) when Form.is_listnil(t) => ListNil
+        | _ => unrecog
+        },
+      )
+    | _ => ret(unrecog)
+    }
+  | Pre(_) => ret(unrecog)
+  | Post(_) => ret(unrecog)
+  | Bin(Pat(p), tiles, Typ(ty)) =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
+    | _ => ret(unrecog)
+    }
+  | Bin(Pat(l), tiles, Pat(r)) =>
+    switch (is_tuple_pat(tiles)) {
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | None =>
+      switch (tiles) {
+      | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      | _ => ret(unrecog)
+      }
+    }
+  | _ => ret(unrecog);
+}
+
+and typ = unsorted => {
+  let term = typ_term(unsorted);
+  {ids: ids(unsorted), term};
+}
+and typ_term: unsorted => UTyp.term = {
+  let unrecog = UTyp.Invalid(UnrecognizedTerm);
+  fun
+  | Op(tiles) =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | (["Unit"], []) => Tuple([])
+      | (["Bool"], []) => Bool
+      | (["Int"], []) => Int
+      | (["Float"], []) => Float
+      | (["(", ")"], [Typ(body)]) => Parens(body)
+      | (["[", "]"], [Typ(body)]) => List(body)
       | _ => unrecog
       }
     | _ => unrecog
     }
-  | Pre(tiles, Exp(r)) =>
-    switch (tiles) {
-    | ([(id, tile)], []) =>
-      switch (tile) {
-      |
+  | Pre(_)
+  | Post(_) => unrecog
+  | Bin(Typ(l), tiles, Typ(r)) =>
+    switch (is_tuple_typ(tiles)) {
+    | Some(between_kids) => Tuple([l] @ between_kids @ [r])
+    | None =>
+      switch (tiles) {
+      | ([(_id, (["->"], []))], []) => Arrow(l, r)
+      | _ => unrecog
       }
     }
+  | _ => unrecog;
+}
 
-and mk_exp = (tiles, outside_kids) =>
-  switch (tiles) {
-  // single-tile case
-  | ([(id, (tokens, tile_kids))], []) =>
-    switch (tokens, outside_kids, tile_kids) {
-    | (["triv"], [], []) => Triv
-    | (["true"], [], []) => Bool(true)
-    | (["false"], [], []) => Bool(false)
-    | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
-    | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
-    | ([t], [], []) when Form.is_var(t) => Var(t)
-    // | ([","], [Exp(l), Exp(r)], []) => of_tuple_exp(id, l, r).term
-    | (["+"], [Exp(l), Exp(r)], []) => BinOp(Int(Plus), l, r)
-    | (["-"], [Exp(l), Exp(r)], []) => BinOp(Int(Minus), l, r)
-    | (["*"], [Exp(l), Exp(r)], []) => BinOp(Int(Times), l, r)
-    | (["/"], [Exp(l), Exp(r)], []) => BinOp(Int(Divide), l, r)
-    | (["<"], [Exp(l), Exp(r)], []) => BinOp(Int(LessThan), l, r)
-    | ([">"], [Exp(l), Exp(r)], []) => BinOp(Int(GreaterThan), l, r)
-    | (["=="], [Exp(l), Exp(r)], []) => BinOp(Int(Equals), l, r)
-    | (["+."], [Exp(l), Exp(r)], []) => BinOp(Float(Plus), l, r)
-    | (["-."], [Exp(l), Exp(r)], []) => BinOp(Float(Minus), l, r)
-    | (["*."], [Exp(l), Exp(r)], []) => BinOp(Float(Times), l, r)
-    | (["/."], [Exp(l), Exp(r)], []) => BinOp(Float(Divide), l, r)
-    | (["<."], [Exp(l), Exp(r)], []) => BinOp(Float(LessThan), l, r)
-    | ([">."], [Exp(l), Exp(r)], []) => BinOp(Float(GreaterThan), l, r)
-    | (["==."], [Exp(l), Exp(r)], []) => BinOp(Float(Equals), l, r)
-    | (["&&"], [Exp(l), Exp(r)], []) => BinOp(Bool(And), l, r)
-    | (["||"], [Exp(l), Exp(r)], []) => BinOp(Bool(Or), l, r)
-    | (["::"], [Exp(l), Exp(r)], []) => Cons(l, r)
-    | ([";"], [Exp(l), Exp(r)], []) => Seq(l, r)
-    | (["-"], [Exp(e)], []) => UnOp(Int(Minus), e)
-    | (["test", "end"], [], [Exp(test)]) => Test(test)
-    | (["fun", "->"], [Exp(body)], [Pat(pat)]) => Fun(pat, body)
-    | (["let", "=", "in"], [Exp(body)], [Pat(pat), Exp(def)]) =>
-      Let(pat, def, body)
-    | (["if", "then", "else"], [Exp(alt)], [Exp(cond), Exp(conseq)]) =>
-      If(cond, conseq, alt)
-    | (["(", ")"], [Exp(fn)], [Exp(arg)]) => Ap(fn, arg)
-    | (["(", ")"], [], [Exp(body)]) => Parens(body)
-    | (["nil"], [], []) => ListLit([], [])
-    | (["[", "]"], [], [Exp(body)]) =>
-      switch (body) {
-      | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
-      | term => ListLit([id], [term])
-      }
-    | (["case", "end"], [], [Rul((ids, (es, ps)))]) =>
-      let (scrut, clauses) = ListUtil.split_first(es);
-      Match([id] @ ids, scrut, List.combine(ps, clauses));
-    | _ => Invalid(UnrecognizedTerm)
-    }
-  // multi-tile case
-  | (commas, between_kids) when is_tuple =>
-    switch (outside_kids) {
-    | [Exp(l), Exp(r)] =>
-      let ids = List.map(fst, commas);
-      Tuple([id] @ ids, [l] @ between_kids @ [r]);
-    | _ => Invalid(UnrecognizedTerm)
+and rul = (unsorted: unsorted): URul.t =>
+  switch (unsorted) {
+  | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
+    switch (is_rules(tiles)) {
+    | Some((ps, leading_clauses)) =>
+      let (ids, ps) = List.split(ps);
+      Rules(ids, scrut, List.combine(ps, leading_clauses @ [last_clause]));
+    | None => Invalid(UnrecognizedTerm)
     }
   | _ => Invalid(UnrecognizedTerm)
   }
-and mk_pat = (tiles, outside_kids) =>
-  switch (tiles) {
-  // single-tile case
-  | ([(id, (tokens, tile_kids))], []) =>
-    switch (tokens, outside_kids, tile_kids) {
-    | (["triv"], [], []) => Triv
-    | (["true"], [], []) => Bool(true)
-    | (["false"], [], []) => Bool(false)
-    | (["(", ")"], [], [Pat(body)]) => Parens(body)
-    // | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
-    | (["::"], [Pat(l), Pat(r)], []) => Cons(l, r)
-    | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
-    /* WARNING: is_float must come first because is_int's regexp is strictly more general */
-    | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
-    | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
-    | ([t], [], []) when Form.is_var(t) => Var(t)
-    | ([t], [], []) when Form.is_wild(t) => Wild
-    | ([t], [], []) when Form.is_listnil(t) => ListNil
-    | _ => Invalid(UnrecognizedTerm)
-    }
-  // multi-tile case
-  | (commas, between_kids) when is_tuple(tiles) =>
-    switch (outside_kids) {
-    | [Pat(l), Pat(r)] =>
-      let ids = List.map(fst, commas);
-      Tuple([id] @ ids, [l] @ between_kids @ [r]);
-    | _ => Invalid(UnrecognizedTerm)
-    }
-  | _ => Invalid(UnrecognizedTerm)
-  }
-and mk_typ = (tiles, outside_kids) =>
-  switch (tiles) {
-  // single-tile case
-  | ([(id, (tokens, tile_kids))], []) =>
-    switch (tokens, outside_kids, tile_kids) {
-    // TODO(andrew): should Form.re handle atomic conversion?
-    | (["Unit"], [], []) => Tuple([id], [])
-    | (["Bool"], [], []) => Bool
-    | (["Int"], [], []) => Int
-    | (["Float"], [], []) => Float
-    | (["->"], [Typ(l), Typ(r)], []) => Arrow(l, r)
-    // | ([","], [Typ(l), Typ(r)], []) => of_tuple_typ(id, l, r).term
-    | (["(", ")"], [], [Typ(body)]) => Parens(body)
-    | (["[", "]"], [], [Typ(body)]) => List(body)
-    | _ => Invalid(UnrecognizedTerm)
-    }
-  // multi-tile case
-  | (commas, between_kids) when is_tuple(tiles) =>
-    switch (outside_kids) {
-    | [Pat(l), Pat(r)] =>
-      let ids = List.map(fst, commas);
-      Tuple([id] @ ids, [l] @ between_kids @ [r]);
-    | _ => Invalid(UnrecognizedTerm)
-    }
-  | _ => Invalid(UnrecognizedTerm)
-  }
-and mk_rul = (tiles, outside_kids) =>
-  switch (tiles) {
-  |
-  }
+
+and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+  let tile_kids = (p: Piece.t): list(any) =>
+    switch (p) {
+    | Whitespace(_)
+    | Grout(_) => []
+    | Tile({mold, shards, children, _}) =>
+      Aba.aba_triples(Aba.mk(shards, children))
+      |> List.map(((l, kid, r)) => {
+           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           go_s(s, Segment.skel(kid), kid);
+         })
+    };
+
+  let root: Aba.t(Piece.t, Skel.t) =
+    Skel.root(skel) |> Aba.map_a(List.nth(seg));
+
+  // maintaining this alternating ordered structure
+  // for handling incomplete forms later
+  let tiles =
+    root
+    |> Aba.map_abas(((p_l, kid, p_r)) => {
+         let (_, s_l) = Piece.nib_sorts(p_l);
+         let (s_r, _) = Piece.nib_sorts(p_r);
+         let s = s_l == s_r ? s_l : Sort.Any;
+         go_s(s, kid, seg);
+       })
+    |> Aba.map_a(p
+         // TODO throw proper exception
+         => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+
+  let (l_sort, r_sort) = {
+    let p_l = Aba.first_a(root);
+    let p_r = Aba.last_a(root);
+    // TODO throw proper exceptions
+    let (l, _) = Option.get(Piece.nibs(p_l));
+    let (_, r) = Option.get(Piece.nibs(p_r));
+    (l.sort, r.sort);
+  };
+
+  switch (skel) {
+  | Op(_) => Op(tiles)
+  | Pre(_, r) => Pre(tiles, go_s(r_sort, r, seg))
+  | Post(l, _) => Post(go_s(l_sort, l, seg), tiles)
+  | Bin(l, _, r) => Bin(go_s(l_sort, l, seg), tiles, go_s(r_sort, r, seg))
+  };
+};
 
 /* MAKETERM
 
