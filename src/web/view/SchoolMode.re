@@ -30,7 +30,7 @@ let splice_editors = (editors: list(Editor.t)): Core.Segment.t =>
 
 let spliced_statics = (editors: list(Editor.t)) => {
   let term = editors |> splice_editors |> Core.MakeTerm.go;
-  let (_, _, info_map) = term |> Core.Statics.mk_map;
+  let info_map = term |> Core.Statics.mk_map;
   (term, info_map);
 };
 
