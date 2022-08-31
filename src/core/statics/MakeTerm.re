@@ -708,4 +708,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
 //   };
 // };
 
-let go = Core_kernel.Memo.general(~cache_size_bound=1000, exp);
+let go =
+  Core_kernel.Memo.general(~cache_size_bound=1000, seg =>
+    exp(unsorted(Segment.skel(seg), seg))
+  );
