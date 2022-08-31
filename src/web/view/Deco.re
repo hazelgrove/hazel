@@ -214,7 +214,12 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
+  let term_decoration =
+      (
+        ~ids: list(Id.t),
+        deco: ((Measured.Point.t, SvgUtil.Path.t)) => Node.t,
+        z: Zipper.t,
+      ) => {
     let seg = Zipper.unselect_and_zip(z);
     let ranges = TermRanges.mk(seg);
     let term_ranges =
@@ -251,9 +256,16 @@ module Deco =
               }),
          );
        })
-    |> List.map(((origin, path)) =>
-         DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
-       );
+    |> List.map(deco);
+  };
+
+  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
+    term_decoration(
+      ~ids,
+      ((origin, path)) =>
+        DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path),
+      z,
+    );
   };
 
   // recurses through skel structure to enable experimentation
