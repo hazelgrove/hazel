@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 /* TERM
 
@@ -51,20 +50,18 @@ module UTyp = {
   type term =
     | Invalid(parse_flag)
     | EmptyHole
-    | MultiHole(list(Id.t), list(t))
+    | MultiHole(list(t))
     | Int
     | Float
     | Bool
     | List(t)
     | Arrow(t, t)
-    | Tuple(list(Id.t), list(t))
+    | Tuple(list(t))
     | Parens(t)
   and t = {
-    id: Id.t,
+    ids: list(Id.t),
     term,
   };
-
-  let mk = (id, term): t => {id, term};
 
   let cls_of_term: term => cls =
     fun
@@ -115,7 +112,7 @@ module UPat = {
   type term =
     | Invalid(parse_flag)
     | EmptyHole
-    | MultiHole(list(Id.t), list(t))
+    | MultiHole(list(t))
     | Wild
     | Int(int)
     | Float(float)
@@ -124,15 +121,15 @@ module UPat = {
     | ListNil
     | Cons(t, t)
     | Var(Token.t)
-    | Tuple(list(Id.t), list(t))
+    | Tuple(list(t))
     | Parens(t)
     | TypeAnn(t, UTyp.t)
   and t = {
-    id: Id.t,
+    ids: list(Id.t),
     term,
   };
 
-  let mk = (id, term): t => {id, term};
+  let rep_id = ({ids, _}) => List.hd(ids);
 
   let cls_of_term: term => cls =
     fun
@@ -237,31 +234,33 @@ module UExp = {
   type term =
     | Invalid(parse_flag)
     | EmptyHole
-    | MultiHole(list(Id.t), list(t))
+    | MultiHole(list(t))
     | Triv
     | Bool(bool)
     | Int(int)
     | Float(float)
-    | ListLit(list(Id.t), list(t))
+    | ListLit(list(t))
     | Fun(UPat.t, t)
-    | Tuple(list(Id.t), list(t))
+    | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
+    // Let_pat(UPat.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Parens(t)
+    | Parens(t) // (
     | Cons(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | Match(list(Id.t), t, list((UPat.t, t)))
+    | Match(t, list((UPat.t, t)))
   and t = {
-    id: Id.t,
+    // invariant: nonempty
+    ids: list(Id.t),
     term,
   };
 
-  let mk = (id, term): t => {id, term};
+  let rep_id = ({ids, _}) => List.hd(ids);
 
   let cls_of_term: term => cls =
     fun
@@ -362,7 +361,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
+    | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
     };
@@ -386,13 +385,16 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
 //   let show_cls: cls => string = _ => "Rule";
 // };
 
+// TODO(d): consider just folding this into UExp
 module URul = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type s = (list(Id.t), Aba.t(UExp.t, UPat.t));
+  type t =
+    | Invalid(parse_flag)
+    | Rules(list(Id.t), UExp.t, list((UPat.t, UExp.t)));
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -400,6 +402,6 @@ type any =
   | Exp(UExp.t)
   | Pat(UPat.t)
   | Typ(UTyp.t)
-  | Rul(URul.s)
+  | Rul(URul.t)
   | Nul(unit)
   | Any(unit);
