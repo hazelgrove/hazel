@@ -126,7 +126,7 @@ let code_container =
   let segment = Zipper.zip(zipper);
   let code_view =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
-  let terms = Statics.(terms(mk_map(MakeTerm.go(unselected))));
+  let terms = TermIds.mk(unselected);
   let tiles = TileMap.mk(unselected);
   let deco_view =
     show_deco
