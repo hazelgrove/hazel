@@ -23,7 +23,7 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
 let single_editor_semantics_views =
     (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
   let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
+  let map = Statics.mk_map(term);
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
   let eval_result =
@@ -90,12 +90,23 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
     [],
   );
 
-let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
+let deco =
+    (
+      ~zipper,
+      ~map,
+      ~terms,
+      ~tiles,
+      ~segment,
+      ~font_metrics,
+      ~show_backpack_targets,
+    ) => {
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
       let map = map;
       let show_backpack_targets = show_backpack_targets;
+      let terms = terms;
+      let tiles = tiles;
     });
   Deco.all(zipper, segment);
 };
@@ -115,6 +126,8 @@ let code_container =
   let segment = Zipper.zip(zipper);
   let code_view =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
+  let terms = Statics.(terms(mk_map(MakeTerm.go(unselected))));
+  let tiles = TileMap.mk(unselected);
   let deco_view =
     show_deco
       ? deco(
@@ -123,6 +136,8 @@ let code_container =
           ~segment,
           ~font_metrics,
           ~show_backpack_targets,
+          ~terms,
+          ~tiles,
         )
       : [];
   div(

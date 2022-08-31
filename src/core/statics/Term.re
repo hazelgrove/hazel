@@ -405,3 +405,13 @@ type any =
   | Rul(URul.t)
   | Nul(unit)
   | Any(unit);
+
+let ids =
+  fun
+  | Exp(tm) => tm.ids
+  | Pat(tm) => tm.ids
+  | Typ(tm) => tm.ids
+  | Rul(Rules(ids, _, _)) => ids
+  | Rul(Invalid(_))
+  | Nul ()
+  | Any () => [];

@@ -8,9 +8,14 @@ module Deco =
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;
+           let terms: Id.Map.t(Term.any);
+           let tiles: TileMap.t;
          },
        ) => {
   let font_metrics = M.font_metrics;
+
+  let term = id => Id.Map.find(id, M.terms);
+  let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
     let origin = Zipper.caret_point(M.map, z);
@@ -41,29 +46,29 @@ module Deco =
         Measured.find_shards(t, M.map)
         |> List.filter(((i, _)) => List.mem(i, t.shards))
       };
+    let id = Piece.id(p);
+    let tiles = [(id, mold, shards)];
     let l = fst(List.hd(shards));
     let r = fst(ListUtil.last(shards));
-    PieceDec.Profile.{shards, mold, style: Selected(l, r), index: 0};
+    // TODO this is ignored in view, clean this up
+    let caret = (id, (-1));
+    PieceDec.Profile.{tiles, caret, style: Selected((id, l), (id, r))};
   };
 
   let root_piece_profile =
-      (index: int, p: Piece.t, nib_shape: Nib.Shape.t, (l, r))
-      : PieceDec.Profile.t => {
-    // TODO(d) fix sorts
-    let mold =
-      switch (p) {
-      | Whitespace(_) => Mold.of_whitespace({sort: Any, shape: nib_shape})
-      | Grout(g) => Mold.of_grout(g, Any)
-      | Tile(t) => t.mold
-      };
-    // TODO(d) awkward
-    let shards =
-      switch (p) {
-      | Whitespace(w) => [(0, Measured.find_w(w, M.map))]
-      | Grout(g) => [(0, Measured.find_g(g, M.map))]
-      | Tile(t) => Measured.find_shards(t, M.map)
-      };
-    PieceDec.Profile.{shards, mold, style: Root(l, r), index};
+      (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
+    let tiles =
+      term(Piece.id(p))
+      |> Term.ids
+      |> List.map(id => {
+           let t = tile(id);
+           (id, t.mold, Measured.find_shards(t, M.map));
+         });
+    PieceDec.Profile.{
+      tiles,
+      caret: (Piece.id(p), index),
+      style: Root(l, r),
+    };
   };
 
   let selected_pieces = (z: Zipper.t): list(Node.t) =>
@@ -77,12 +82,14 @@ module Deco =
     |> ListUtil.fold_left_map(
          (l: Nib.Shape.t, p: Piece.t) => {
            let profile = selected_piece_profile(p, l);
+           let shape =
+             switch (Piece.nibs(p)) {
+             | None => l
+             | Some((_, {shape, _})) => shape
+             };
            // TODO(andrew): do something different for the caret
            // adjacent piece so it lines up nice
-           (
-             snd(Mold.nibs(profile.mold)).shape,
-             PieceDec.view(~font_metrics, ~rows=M.map.rows, profile),
-           );
+           (shape, PieceDec.view(~font_metrics, ~rows=M.map.rows, profile));
          },
          fst(Siblings.shapes(z.relatives.siblings)),
        )
@@ -95,7 +102,9 @@ module Deco =
     | None => []
     | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
-      let nib_shape =
+      // root_profile calculation assumes p is tile
+      // TODO encode in types
+      let _nib_shape =
         switch (Zipper.caret_direction(z)) {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
@@ -142,7 +151,7 @@ module Deco =
           ~font_metrics,
           ~rows=M.map.rows,
           ~segs=[],
-          root_piece_profile(index, p, nib_shape, range),
+          root_piece_profile(index, p, range),
         )
       };
     };
@@ -261,7 +270,7 @@ module Deco =
   // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
-    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
+    let info_map = Statics.mk_map(MakeTerm.go(seg));
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, info_map)) {
       | None => false

@@ -8,7 +8,7 @@ let cls_str = (ci: Core.Statics.t): string =>
   | InfoExp({cls, _}) => Core.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Core.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Core.Term.UTyp.show_cls(cls)
-  | InfoRul({cls}) => Core.Term.URul.show_cls(cls)
+  | InfoRul({cls, _}) => Core.Term.URul.show_cls(cls)
   };
 
 let errorc = "error";

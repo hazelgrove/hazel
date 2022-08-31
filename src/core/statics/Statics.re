@@ -50,7 +50,10 @@ type info_typ = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info_rul = {cls: Term.URul.cls};
+type info_rul = {
+  cls: Term.URul.cls,
+  term: Term.UExp.t,
+};
 
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -63,6 +66,17 @@ type t =
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
+
+let terms = (map: map): Id.Map.t(Term.any) =>
+  map
+  |> Id.Map.filter_map(_ =>
+       fun
+       | Invalid(_) => None
+       | InfoExp({term, _}) => Some(Term.Exp(term))
+       | InfoPat({term, _}) => Some(Term.Pat(term))
+       | InfoTyp({term, _}) => Some(Term.Typ(term))
+       | InfoRul({term, _}) => Some(Term.Exp(term))
+     );
 
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -506,5 +520,8 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
 let mk_map =
   Core_kernel.Memo.general(
     ~cache_size_bound=1000,
-    uexp_to_info_map(~ctx=Ctx.empty),
+    e => {
+      let (_, _, map) = uexp_to_info_map(~ctx=Ctx.empty, e);
+      map;
+    },
   );
