@@ -81,7 +81,9 @@ module HTyp_syntax: {
     | Prod(list(t('idx)))
     | List(t('idx))
     | TyVar(ContextRef.s('idx), TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t('idx))
+    | InvalidText(MetaVar.t, string);
 
   let rec to_rel =
           (~offset: int=0, ty: t(Index.absolute)): t(Index.relative) =>
@@ -90,6 +92,8 @@ module HTyp_syntax: {
       let cref = {...cref, index: Index.Abs.to_rel(~offset, cref.index)};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(tp, ty) => Forall(tp, to_rel(~offset, ty))
+    | InvalidText(u, t) => InvalidText(u, t)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -109,6 +113,8 @@ module HTyp_syntax: {
       let cref = {...cref, index, stamp};
       TyVar(cref, t);
     | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(tp, ty) => Forall(tp, to_abs(~offset, ty))
+    | InvalidText(u, t) => InvalidText(u, t)
     | Hole => Hole
     | Int => Int
     | Float => Float
@@ -598,7 +604,9 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t)
+    | InvalidText(MetaVar.t, string);
 
   let of_head_normalized: head_normalized => t;
   let head_normalize: (Context.t, t) => head_normalized;
@@ -621,6 +629,9 @@ and HTyp: {
     | List(_) => "a List"
     | TyVar(_, t) => "a " ++ t
     | TyVarHole(_) => "a"
+    | Forall(tp, ty) =>
+      "forall " ++ TPat.to_string(tp) ++ " -> " ++ to_string(ty)
+    | InvalidText(_) => "a"
     };
   };
 
@@ -705,6 +716,8 @@ and HTyp: {
     switch (ty) {
     | TyVar(cref, _) => Some(cref)
     | TyVarHole(_)
+    | Forall(_)
+    | InvalidText(_)
     | Hole
     | Int
     | Float
@@ -913,7 +926,9 @@ and HTyp: {
     | Prod([])
     | List(_)
     | TyVar(_)
-    | TyVarHole(_) => precedence_const()
+    | TyVarHole(_)
+    | Forall(_)
+    | InvalidText(_) => precedence_const()
     | Prod(_) => precedence_Prod()
     | Sum(_, _) => precedence_Sum()
     | Arrow(_, _) => precedence_Arrow()
@@ -1154,7 +1169,9 @@ and HTyp: {
     | Prod(list(t))
     | List(t)
     | TyVar(ContextRef.t, TyVar.t)
-    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t);
+    | TyVarHole(TyVarErrStatus.HoleReason.t, MetaVar.t, TyVar.t)
+    | Forall(TPat.t, t)
+    | InvalidText(MetaVar.t, string);
 
   let of_head_normalized: head_normalized => t =
     fun
@@ -1167,7 +1184,9 @@ and HTyp: {
     | Prod(tys) => Prod(tys)
     | List(ty) => List(ty)
     | TyVar(cref, t) => TyVar(cref, t)
-    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name);
+    | TyVarHole(reason, u, name) => TyVarHole(reason, u, name)
+    | Forall(tp, ty) => Forall(tp, ty)
+    | InvalidText(u, t) => InvalidText(u, t);
 
   /* Replaces a singleton-kinded type variable with a head-normalized type. */
   let rec head_normalize = (ctx: Context.t, ty: t): head_normalized =>

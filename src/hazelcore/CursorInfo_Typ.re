@@ -145,7 +145,10 @@ and cursor_info_zoperand =
     CursorInfo_common.mk(TypKeyword(k), ctx, cursor_term);
   | CursorT(_, InvalidText(_)) =>
     Some(CursorInfo_common.mk(TypInvalid, ctx, cursor_term))
-  | CursorT(_, (TyVar(NotInTyVarHole, _) | Parenthesized(_) | List(_)) as ty) =>
+  | CursorT(
+      _,
+      (TyVar(NotInTyVarHole, _) | Parenthesized(_) | List(_) | Forall(_)) as ty,
+    ) =>
     open OptUtil.Syntax;
     let+ (ty, _, _) = Elaborator_Typ.syn_elab_operand(ctx, Delta.empty, ty);
     CursorInfo_common.mk(OnType(ty), ctx, cursor_term);

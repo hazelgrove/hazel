@@ -42,13 +42,13 @@ and find_tyuses_typ_operand =
   | Int
   | Float
   | Bool => []
-  | TyVar(_, name') => name == name' ? [steps] : []
+  | TyVar(_, t')
   | InvalidText(_, t') => t == t' ? [steps] : []
-  | Parenthesized(t)
-  | List(t) => find_tyuses_typ(~steps=steps @ [0], name, t)
-  | Forall(tp, t) =>
-    TPat.binds_tyvar(name, tp)
-      ? [] : find_tyuses_typ(~steps=steps @ [1], name, t)
+  | Parenthesized(ty)
+  | List(ty) => find_tyuses_typ(~steps=steps @ [0], t, ty)
+  | Forall(tp, ty) =>
+    TPat.binds_tyvar(t, tp)
+      ? [] : find_tyuses_typ(~steps=steps @ [1], t, ty)
   };
 
 let rec find_tyuses_pat =
@@ -140,8 +140,7 @@ and find_tyuses_operand =
     find_tyuses_pat(~steps=steps @ [0], t, p)
     @ find_tyuses(~steps=steps @ [1], t, body)
   | TypFun(NotInHole, tp, body) =>
-    TPat.binds_tyvar(t, tp)
-      ? [] : find_tyuses(~steps=steps @ [1], t, body)
+    TPat.binds_tyvar(t, tp) ? [] : find_tyuses(~steps=steps @ [1], t, body)
   | TypApp(NotInHole, body, ty) =>
     find_tyuses(~steps=steps @ [0], t, body)
     @ find_tyuses_typ(~steps=steps @ [1], t, ty)

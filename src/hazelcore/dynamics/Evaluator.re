@@ -317,8 +317,10 @@ and matches_cast_Pair =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Ap(_, _) => Indet
-  | ApBuiltin(_, _) => Indet
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => IndetMatch
+  | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -400,8 +402,10 @@ and matches_cast_Cons =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _) => DoesNotMatch
-  | Ap(_, _) => Indet
-  | ApBuiltin(_, _) => Indet
+  | TypFun(_, _) => DoesNotMatch
+  | TypApp(_, _) => IndetMatch
+  | Ap(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
@@ -716,14 +720,8 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
       | (Indet(d2'), state) => (Indet(Ap(d1', d2')), state)
       }
     };
-  | ApBuiltin(ident, args) => evaluate_ap_builtin(ident, args)
-  | TypFun(_, _) => BoxedValue(d)
+  | TypFun(_, _) => (BoxedValue(d), state)
   | TypApp(d, _) => evaluate(d)
-  | ListNil(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | Triv => BoxedValue(d)
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(BoolLit(b1) as d1'), state) =>

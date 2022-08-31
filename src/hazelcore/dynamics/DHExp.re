@@ -192,6 +192,8 @@ let rec strip_casts: t => t =
   | Let(a, b, c) => Let(a, strip_casts(b), strip_casts(c))
   | FixF(a, b, c) => FixF(a, b, strip_casts(c))
   | Fun(a, b, c) => Fun(a, b, strip_casts(c))
+  | TypFun(a, b) => TypFun(a, strip_casts(b))
+  | TypApp(a, b) => TypApp(strip_casts(a), b)
   | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
   | ApBuiltin(name, args) => ApBuiltin(name, List.map(strip_casts, args))
   | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))

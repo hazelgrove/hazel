@@ -870,7 +870,7 @@ and syn_fix_holes_operand =
     (Fun(NotInHole, p, body), HTyp.arrow(ty_p, ty_body), id_gen);
   | TypFun(_, tp, body) =>
     let (ctx_body, tp, id_gen) =
-      Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+      Statics_TPat.ana_fix_holes(ctx, tp, Kind.Type, id_gen);
     let (body, ty_body, id_gen) =
       syn_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body);
     (TypFun(NotInHole, tp, body), HTyp.forall(tp, ty_body), id_gen);
@@ -1311,7 +1311,7 @@ and ana_fix_holes_operand =
     switch (HTyp.matched_forall(ctx, ty)) {
     | Some((_tp, ty_body)) =>
       let (ctx_body, tp, id_gen) =
-        Statics_TPat.fix_holes(ctx, tp, Kind.Type, id_gen);
+        Statics_TPat.ana_fix_holes(ctx, tp, Kind.Type, id_gen);
       let (body, id_gen) =
         ana_fix_holes(ctx_body, id_gen, ~renumber_empty_holes, body, ty_body);
       (UHExp.TypFun(NotInHole, tp, body), id_gen);

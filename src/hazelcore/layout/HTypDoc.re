@@ -144,7 +144,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
             | TPat.EmptyHole =>
               annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?")))
             | TPat.TyVar(NotInHole, name) => text(name)
-            | TPat.TyVar(InHole(_reason, _u), name) =>
+            // TODO: (poly) Verify the behavior of InvalidText
+            | TPat.InvalidText(_, name)
+            | TPat.TyVar(InHole(_), name) =>
               annot(HTypAnnot.TyVarHole, text(name))
             },
           ),

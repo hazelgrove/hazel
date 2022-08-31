@@ -235,7 +235,7 @@ and move_cursor_right_zoperand =
   | CursorT(OnDelim(_k, After), List(ty1)) =>
     // _k == 0
     Some(ListZ(place_before(ty1)))
-  | CursorT(OnDelim(_, _), TyVar(_)) => None
+  | CursorT(OnDelim(_, _), TyVar(_) | InvalidText(_)) => None
   | ParenthesizedZ(zty1) =>
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(ParenthesizedZ(zty1))
@@ -247,6 +247,11 @@ and move_cursor_right_zoperand =
     | Some(zty1) => Some(ListZ(zty1))
     | None => Some(CursorT(OnDelim(1, Before), List(erase(zty1))))
     }
+  | CursorT(OnDelim(0, After), Forall(tp, ty)) =>
+    Some(ForallZP(ZTPat.place_before(tp), ty))
+  | CursorT(OnDelim(_k, After), Forall(tp, ty)) =>
+    // _k == 1
+    Some(ForallZT(tp, place_before(ty)))
   | ForallZP(ztp, ty) =>
     switch (ZTPat.move_cursor_right(ztp)) {
     | Some(ztp) => Some(ForallZP(ztp, ty))

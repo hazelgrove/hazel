@@ -903,6 +903,12 @@ let rec renumber_result_only =
   | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (Fun(x, ty, d1), hii);
+  | TypFun(tp, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypFun(tp, d1), hii);
+  | TypApp(d1, ty) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypApp(d1, ty), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
@@ -1017,6 +1023,12 @@ let rec renumber_sigmas_only =
   | Fun(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (Fun(x, ty, d1), hii);
+  | TypFun(tp, d1) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypFun(tp, d1), hii);
+  | TypApp(d1, ty) =>
+    let (d1, hii) = renumber_result_only(path, hii, d1);
+    (TypApp(d1, ty), hii);
   | Ap(d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
