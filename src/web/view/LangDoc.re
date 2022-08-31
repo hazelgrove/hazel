@@ -157,13 +157,67 @@ let mk_explanation =
   (div([clss(["explanation-contents"])], msg), color_map);
 };
 
-let deco = (~colorings, ~expandable, ~zipper, ~map, ~inject, ~font_metrics) => {
+let deco =
+    (
+      ~settings,
+      ~colorings,
+      ~expandable,
+      ~zipper,
+      ~map,
+      ~inject,
+      ~font_metrics,
+      ~options,
+    ) => {
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
       let map = map;
       let show_backpack_targets = false;
     });
+
+  let term_lang_doc =
+      (~ids: list(Id.t), ~base_cls: list(string), ~options, z: Zipper.t) => {
+    Deco.term_decoration(
+      ~ids,
+      ((origin, path)) =>
+        Node.div(
+          [
+            clss(base_cls),
+            DecUtil.abs_position(~font_metrics, origin),
+            Attr.on_click(_ => {
+              print_endline("CLICKED!");
+              Event.Ignore;
+            }),
+          ],
+          [
+            Node.div(
+              [clss(["specificity-options-menu"])],
+              List.map(
+                ((is_selected, segment)) => {
+                  let map = Measured.of_segment(segment);
+                  let code_view =
+                    Code.simple_view(~unselected=segment, ~map, ~settings);
+                  Node.div(
+                    is_selected ? [clss(["selected"])] : [],
+                    [code_view],
+                  );
+                },
+                options,
+              ),
+            ),
+            DecUtil.code_svg(
+              ~font_metrics,
+              ~origin,
+              ~base_cls,
+              ~abs_pos=false,
+              path,
+            ),
+          ],
+        ),
+      z,
+    );
+  };
+
   let color_highlight =
     List.map(
       ((id, color)) =>
@@ -176,7 +230,12 @@ let deco = (~colorings, ~expandable, ~zipper, ~map, ~inject, ~font_metrics) => {
     )
     |> List.flatten;
   let expandable_highlight =
-    Deco.term_highlight(~ids=expandable, ~clss=["expandable"], zipper);
+    term_lang_doc(
+      ~ids=expandable,
+      ~base_cls=["expandable"],
+      ~options,
+      zipper,
+    );
   let _ = inject;
   color_highlight @ expandable_highlight;
 };
@@ -190,21 +249,24 @@ let syntactic_form_view =
       ~unselected,
       ~settings,
       ~id,
+      ~options,
       zipper,
     ) => {
   let map = Measured.of_segment(unselected);
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
   let deco_view =
-    deco(~colorings, ~expandable, ~zipper, ~map, ~inject, ~font_metrics);
+    deco(
+      ~settings,
+      ~colorings,
+      ~expandable,
+      ~zipper,
+      ~map,
+      ~inject,
+      ~font_metrics,
+      ~options,
+    );
   div(
-    [
-      Attr.id(id),
-      Attr.class_("code-container"),
-      Attr.on_click(_ => {
-        print_endline("CLICKED!");
-        Event.Ignore;
-      }),
-    ],
+    [Attr.id(id), Attr.class_("code-container")],
     [code_view] @ deco_view,
   );
 };
@@ -267,7 +329,6 @@ let get_doc =
           ancestors: [],
         },
         caret: Outer,
-        caret_col_target: 0,
       };
       let (explanation, color_map) =
         mk_explanation(
@@ -292,6 +353,7 @@ let get_doc =
           ~unselected=syntactic_form,
           ~settings,
           ~id="syntactic-form-code",
+          ~options=[(false, [exp("<pat>")]), (true, syntactic_form)],
           zipper,
         );
       (

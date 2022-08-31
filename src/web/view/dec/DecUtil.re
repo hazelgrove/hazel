@@ -34,8 +34,9 @@ let jagged_edge_w = child_border_thickness /. 1.;
 
 let short_tip_width = (1. -. t) *. tip_width;
 
-let abs_position =
+let position =
     (
+      ~style="",
       ~left_fudge=0.0,
       ~top_fudge=0.0,
       ~width_fudge=0.0,
@@ -46,13 +47,37 @@ let abs_position =
     ) => {
   Attr.create(
     "style",
-    Printf.sprintf(
-      "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-      Float.of_int(origin.col) *. font_metrics.col_width +. left_fudge,
-      Float.of_int(origin.row) *. font_metrics.row_height +. top_fudge,
-      scale *. (font_metrics.col_width +. width_fudge),
-      scale *. (font_metrics.row_height +. height_fudge),
-    ),
+    style
+    ++ ";"
+    ++ Printf.sprintf(
+         "left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+         Float.of_int(origin.col) *. font_metrics.col_width +. left_fudge,
+         Float.of_int(origin.row) *. font_metrics.row_height +. top_fudge,
+         scale *. (font_metrics.col_width +. width_fudge),
+         scale *. (font_metrics.row_height +. height_fudge),
+       ),
+  );
+};
+
+let abs_position =
+    (
+      ~left_fudge=0.0,
+      ~top_fudge=0.0,
+      ~width_fudge=0.0,
+      ~height_fudge=0.0,
+      ~scale=1.,
+      ~font_metrics: FontMetrics.t,
+      origin: Core.Measured.Point.t,
+    ) => {
+  position(
+    ~style="position: absolute",
+    ~left_fudge,
+    ~top_fudge,
+    ~width_fudge,
+    ~height_fudge,
+    ~scale,
+    ~font_metrics,
+    origin,
   );
 };
 
@@ -68,6 +93,7 @@ let code_svg =
       ~height_fudge=0.0,
       ~id="",
       ~attrs=[],
+      ~abs_pos=true,
       paths: list(SvgUtil.Path.cmd),
     ) => {
   // Using a viewBox of 0 0 1 1 seems to trigger Chrome rounding bug
@@ -80,15 +106,25 @@ let code_svg =
     (id == "" ? [] : [Attr.id(id)])
     @ [
       Attr.classes(base_cls),
-      abs_position(
-        ~font_metrics,
-        ~left_fudge,
-        ~top_fudge,
-        ~width_fudge,
-        ~height_fudge,
-        ~scale,
-        origin,
-      ),
+      abs_pos
+        ? abs_position(
+            ~font_metrics,
+            ~left_fudge,
+            ~top_fudge,
+            ~width_fudge,
+            ~height_fudge,
+            ~scale,
+            origin,
+          )
+        : position(
+            ~font_metrics,
+            ~left_fudge,
+            ~top_fudge,
+            ~width_fudge,
+            ~height_fudge,
+            ~scale,
+            origin,
+          ),
       Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
       Attr.create("preserveAspectRatio", "none"),
     ]
