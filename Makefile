@@ -9,6 +9,9 @@ deps:
 change-deps:
 	opam switch export opam.export
 
+update-ocaml:
+	opam switch import opam.export --update-invariant
+
 dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
