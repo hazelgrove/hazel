@@ -231,34 +231,21 @@ let cell_view =
       ~measured=editor.state.meta.measured,
       zipper,
     );
-  let mousedown_overlay =
-    selected == idx && mousedown
-      ? [
-        SimpleMode.mousedown_overlay(
-          ~inject,
-          ~font_metrics,
-          ~target_id=code_container_id,
-        ),
-      ]
-      : [];
   div(
     [clss(["cell-container"])],
     [cell_chapter_view]
     @ [
-      div(
-        [
-          Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-          Attr.on_mousedown(
-            SimpleMode.mousedown_handler(
-              ~inject,
-              ~font_metrics,
-              ~target_id=code_container_id,
-              ~additional_updates=[Update.SwitchEditor(idx)],
-            ),
-          ),
-        ],
-        [cell_caption_view]
-        @ (show_code ? mousedown_overlay @ [code_view] : []),
+      Cell.view(
+        ~inject,
+        ~font_metrics,
+        ~clss=["school"],
+        ~selected=selected == idx,
+        ~mousedown,
+        ~mousedown_updates=[Update.SwitchEditor(idx)],
+        ~show_code,
+        ~code_id=code_container_id,
+        ~caption=cell_caption_view,
+        code_view,
       ),
     ]
     @ result_bar,
