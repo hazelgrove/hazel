@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            // TODO(d) rename to term_ids
            //  let terms: TermIds.t;
-           let terms: Id.Map.t(Term.any);
+           let terms: TermMap.t;
            let tiles: TileMap.t;
          },
        ) => {
@@ -273,7 +273,7 @@ module Deco =
   // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
-    let info_map = Statics.mk_map(MakeTerm.go(seg));
+    let info_map = Statics.mk_map(fst(MakeTerm.go(seg)));
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, info_map)) {
       | None => false

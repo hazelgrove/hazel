@@ -156,6 +156,15 @@ let kids_of_unsorted =
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
+// Need this map to collect all structural terms,
+// not just the ones recognized in Statics.
+// TODO unhack
+let map: ref(TermMap.t) = ref(Id.Map.empty);
+let return = (wrap, ids, tm) => {
+  map := TermMap.add_all(ids, wrap(tm), map^);
+  tm;
+};
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -168,7 +177,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  {ids: ids(unsorted) @ inner_ids, term};
+  let ids = ids(unsorted) @ inner_ids;
+  return(e => Exp(e), ids, {ids, term});
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
@@ -265,7 +275,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
-  {ids: ids(unsorted) @ inner_ids, term};
+  let ids = ids(unsorted) @ inner_ids;
+  return(p => Pat(p), ids, {ids, term});
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
@@ -311,7 +322,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 
 and typ = unsorted => {
   let term = typ_term(unsorted);
-  {ids: ids(unsorted), term};
+  let ids = ids(unsorted);
+  return(ty => Typ(ty), ids, {ids, term});
 }
 and typ_term: unsorted => UTyp.term = {
   let _unrecog = UTyp.Invalid(UnrecognizedTerm);
@@ -346,7 +358,8 @@ and typ_term: unsorted => UTyp.term = {
 
 and rul = unsorted => {
   let term = rul_term(unsorted);
-  {ids: ids(unsorted), term};
+  let ids = ids(unsorted);
+  return(r => Rul(r), ids, {ids, term});
 }
 and rul_term = (unsorted: unsorted): URul.term => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
@@ -413,6 +426,11 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
 };
 
 let go =
-  Core_kernel.Memo.general(~cache_size_bound=1000, seg =>
-    exp(unsorted(Segment.skel(seg), seg))
+  Core_kernel.Memo.general(
+    ~cache_size_bound=1000,
+    seg => {
+      map := TermMap.empty;
+      let e = exp(unsorted(Segment.skel(seg), seg));
+      (e, map^);
+    },
   );
