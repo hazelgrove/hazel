@@ -27,7 +27,7 @@ let single_editor_semantics_views =
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
   let eval_result =
-    settings.dynamics ? Interface.evaulation_result(map, term) : None;
+    settings.dynamics ? Interface.evaluation_result(map, term) : None;
   [
     div(
       [clss(["bottom-bar"])],
@@ -52,108 +52,63 @@ let single_editor_semantics_views =
   );
 };
 
-let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
-  let rect = JSUtil.force_get_elem_by_id(target_id)##getBoundingClientRect;
-  let goal_x = float_of_int(e##.clientX);
-  let goal_y = float_of_int(e##.clientY);
-  Measured.Point.{
-    row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-    col:
-      Float.(
-        to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
-      ),
-  };
+let evaluate = (editor: Editor.t) => {
+  let zipper = editor.state.zipper;
+  let segment = Core.Zipper.unselect_and_zip(zipper);
+  let term = Core.MakeTerm.go(segment);
+  let (_, _, info_map) = Core.Statics.mk_map(term);
+  Interface.evaluation_result(info_map, term);
 };
 
-let mousedown_handler =
-    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
-  let goal = get_goal(~font_metrics, ~target_id, e);
-  Event.Many(
-    List.map(inject, additional_updates)
-    @ [
-      inject(Update.Mousedown),
-      inject(Update.PerformAction(Move(Goal(goal)))),
-    ],
-  );
-};
-
-let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
-  div(
-    Attr.[
-      id("mousedown-overlay"),
-      on_mouseup(_ => inject(Update.Mouseup)),
-      on_mousemove(e => {
-        let goal = get_goal(~font_metrics, ~target_id, e);
-        inject(Update.PerformAction(Select(Goal(goal))));
-      }),
-    ],
-    [],
-  );
-
-let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = show_backpack_targets;
-    });
-  Deco.all(zipper, segment);
-};
-
-let code_container =
-    (
-      ~font_metrics,
-      ~unselected,
-      ~settings,
-      ~show_backpack_targets,
-      ~show_deco,
-      ~overlays=[],
-      ~id,
-      ~measured,
-      zipper,
-    ) => {
-  let segment = Zipper.zip(zipper);
-  let code_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
-  let deco_view =
-    show_deco
-      ? deco(
-          ~zipper,
-          ~map=measured,
-          ~segment,
-          ~font_metrics,
-          ~show_backpack_targets,
-        )
-      : [];
-  div(
-    [Attr.id(id), Attr.class_("code-container")],
-    [code_view] @ deco_view @ overlays,
-  );
+let result_view = (~font_metrics, result: option(DHExp.t)) => {
+  [
+    div(
+      [clss(["cell-result"])],
+      switch (result) {
+      | None => [text("No result.")]
+      | Some(dhexp) => [
+          div(
+            [clss(["cell-result-ok"])],
+            [
+              div([clss(["equivalence"])], [text("≡")]),
+              res_view(~font_metrics, dhexp),
+            ],
+          ),
+        ]
+      },
+    ),
+  ];
 };
 
 let view =
     (
       ~inject,
       ~font_metrics,
+      ~selected,
       ~show_backpack_targets,
       ~mousedown,
-      ~zipper: Zipper.t,
+      ~editor: Editor.t,
       ~settings: Model.settings,
-      ~measured: Measured.t,
     )
+    // ~measured: Measured.t,
     : Node.t => {
+  let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let code_id = "code-container";
-  let code_view =
-    code_container(
-      ~id=code_id,
-      ~font_metrics,
-      ~unselected,
+  let result = evaluate(editor);
+  let result_view = result_view(~font_metrics, result);
+  let cell_view =
+    CodeCell.cell_view(
+      ~cell_caption=[],
+      ~result_bar=result_view,
       ~settings,
+      ~inject,
+      ~font_metrics,
+      ~selected,
+      ~mousedown,
       ~show_backpack_targets,
-      ~show_deco=true,
-      ~measured,
-      zipper,
+      0,
+      editor,
     );
   let semantics_views =
     settings.statics
@@ -167,14 +122,26 @@ let view =
       : [];
   let mousedown_overlay =
     mousedown
-      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
+      ? [
+        CodeCell.mousedown_overlay(
+          ~inject,
+          ~font_metrics,
+          ~target_id=code_id,
+        ),
+      ]
+      : [];
   div(
     [
       clss(["editor", "single"]),
       Attr.on_mousedown(e =>
-        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+        CodeCell.mousedown_handler(
+          ~inject,
+          ~font_metrics,
+          ~target_id=code_id,
+          e,
+        )
       ),
     ],
-    [code_view] @ semantics_views @ mousedown_overlay,
+    [cell_view] @ semantics_views @ mousedown_overlay,
   );
 };

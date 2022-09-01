@@ -86,9 +86,10 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+let mk_EmptyHole = (~selected=false, (_u, _i)) =>
+  selected ? Doc.text("?") : Doc.text("?");
+/* Delim.empty_hole((u, i))
+   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));*/
 
 let mk_Keyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))

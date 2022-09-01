@@ -191,80 +191,6 @@ let show_term = (editor: Editor.t, _) =>
   |> print_endline
   |> (_ => Event.Ignore);
 
-let cell_view =
-    (
-      ~result_bar: list(Node.t)=[],
-      ~settings: Model.settings,
-      ~inject: Update.t => 'a,
-      ~font_metrics,
-      ~selected,
-      ~mousedown,
-      ~show_backpack_targets,
-      ~show_code=true,
-      ~overlays=[],
-      idx,
-      editor: Editor.t,
-    ) => {
-  let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let cell_caption_view =
-    //TODO(andrew): diable show term on release!!
-    div(
-      [clss(["cell-caption"]), Attr.on_click(show_term(editor))],
-      [text(List.nth(School.captions, idx))],
-    );
-  let cell_chapter_view =
-    switch (List.nth(School.chapters, idx)) {
-    | None => div([Attr.create("style", "display: none;")], [])
-    | Some(chapter) => div([clss(["cell-chapter"])], [chapter])
-    };
-  let code_container_id = "code-container-" ++ string_of_int(idx);
-  let code_view =
-    SimpleMode.code_container(
-      ~id=code_container_id,
-      ~font_metrics,
-      ~unselected,
-      ~settings,
-      ~overlays,
-      ~show_backpack_targets,
-      ~show_deco=selected == idx,
-      ~measured=editor.state.meta.measured,
-      zipper,
-    );
-  let mousedown_overlay =
-    selected == idx && mousedown
-      ? [
-        SimpleMode.mousedown_overlay(
-          ~inject,
-          ~font_metrics,
-          ~target_id=code_container_id,
-        ),
-      ]
-      : [];
-  div(
-    [clss(["cell-container"])],
-    [cell_chapter_view]
-    @ [
-      div(
-        [
-          Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
-          Attr.on_mousedown(
-            SimpleMode.mousedown_handler(
-              ~inject,
-              ~font_metrics,
-              ~target_id=code_container_id,
-              ~additional_updates=[Update.SwitchEditor(idx)],
-            ),
-          ),
-        ],
-        [cell_caption_view]
-        @ (show_code ? mousedown_overlay @ [code_view] : []),
-      ),
-    ]
-    @ result_bar,
-  );
-};
-
 let get_school_data = (editors: list(Editor.t)) => {
   switch (editors) {
   | [
@@ -323,13 +249,13 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~editors: list(Editor.t),
-      ~selected,
+      ~selected: int,
       ~settings,
       ~focal_zipper: Zipper.t,
       ~inject,
     ) => {
   let cell_view =
-    cell_view(
+    CodeCell.cell_view(
       ~settings,
       ~inject,
       ~font_metrics,
@@ -359,8 +285,10 @@ let view =
   let first_cell_res = {
     let* (statics_impl, _, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(statics_impl);
-    Interface.evaulation_result(map, term);
+    Interface.evaluation_result(map, term);
   };
+  let cell_caption = [text(List.nth(School.captions, 0))];
+  let cell_chapter = [Option.get(List.nth(School.chapters, 0))];
   let student_imp_res_view =
     switch (first_cell_res) {
     | None => []
@@ -448,7 +376,15 @@ let view =
       List.mapi(
         (i, ed) =>
           switch (i) {
-          | 0 => [cell_view(~result_bar=student_imp_res_view, i, ed)]
+          | 0 => [
+              cell_view(
+                ~result_bar=student_imp_res_view,
+                ~cell_caption,
+                ~cell_chapter,
+                i,
+                ed,
+              ),
+            ]
           | 1 =>
             [
               cell_view(

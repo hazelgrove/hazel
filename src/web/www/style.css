@@ -1488,3 +1488,11 @@ svg.tile-selected {
 }
 
 /* END TOGGLE */
+
+.cell-result-ok {
+  display: flex;
+}
+
+.equivalence {
+  margin-right: 12px;
+}

@@ -131,17 +131,27 @@ let editors_view =
     ) => {
   let focal_zipper = Model.get_zipper'(editors);
   switch (editors) {
-  | Simple(_)
-  | Study(_) =>
-    let measured = Model.get_editor'(editors).state.meta.measured;
+  | Simple(editor) =>
+    let selected = 0;
     SimpleMode.view(
       ~inject,
       ~font_metrics,
       ~mousedown,
       ~show_backpack_targets,
-      ~zipper=focal_zipper,
+      ~editor,
       ~settings,
-      ~measured,
+      ~selected,
+    );
+  | Study(selected, _) =>
+    let editor = Model.get_editor'(editors);
+    SimpleMode.view(
+      ~inject,
+      ~font_metrics,
+      ~mousedown,
+      ~show_backpack_targets,
+      ~editor,
+      ~settings,
+      ~selected,
     );
   | School(selected, editors) =>
     SchoolMode.view(
