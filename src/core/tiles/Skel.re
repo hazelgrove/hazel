@@ -57,6 +57,7 @@ let root =
 exception Input_contains_whitespace;
 exception Nonconvex_segment;
 
+[@deriving show({with_path: false})]
 type ip = (int, Piece.t);
 
 type rel =
@@ -119,8 +120,11 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   };
 
 module Stacks = {
-  type nonrec t = {
-    output: list(t),
+  [@deriving show({with_path: false})]
+  type skel = t;
+  [@deriving show({with_path: false})]
+  type t = {
+    output: list(skel),
     shunted: list(ip),
   };
 
@@ -154,16 +158,16 @@ module Stacks = {
     | _ => None
     };
 
-  let rec push_output = (prec: Precedence.t, stacks: t): t => {
+  let rec push_output = (~prec: option(Precedence.t)=?, stacks: t): t => {
     let (chain, shunted) = pop_chain(stacks.shunted);
-    switch (shapes_of_chain(chain)) {
-    | None => stacks
-    | Some((_, Concave(prec')))
+    switch (prec, shapes_of_chain(chain)) {
+    | (Some(prec), Some((_, Concave(prec'))))
         when
           Precedence.compare(prec', prec) < 0
           || Precedence.compare(prec', prec) == 0
           && Precedence.associativity(prec') != Some(Right) => stacks
-    | Some((l, r)) =>
+    | (_, None) => stacks
+    | (_, Some((l, r))) =>
       let is = List.map(fst, chain);
       let split_kids = n =>
         ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev);
@@ -186,7 +190,7 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(prec, {shunted, output});
+      push_output(~prec?, {shunted, output});
     };
   };
 
@@ -195,12 +199,12 @@ module Stacks = {
     let stacks =
       switch (l) {
       | Convex => stacks
-      | Concave(prec) => push_output(prec, stacks)
+      | Concave(prec) => push_output(~prec, stacks)
       };
     {...stacks, shunted: [ip, ...stacks.shunted]};
   };
 
-  let finish = push_output(Precedence.min);
+  let finish = stacks => push_output(stacks);
 };
 
 let mk = (seg: list(ip)): t => {
