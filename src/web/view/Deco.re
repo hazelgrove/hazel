@@ -9,7 +9,8 @@ module Deco =
            let map: Measured.t;
            let show_backpack_targets: bool;
            // TODO(d) rename to term_ids
-           let terms: TermIds.t;
+           //  let terms: TermIds.t;
+           let terms: Id.Map.t(Term.any);
            let tiles: TileMap.t;
          },
        ) => {
@@ -57,12 +58,10 @@ module Deco =
 
   let root_piece_profile =
       (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
-    // let _ =
-    //   try(term(Piece.id(p))) {
-    //   | _ => failwith("1")
-    //   };
     let tiles =
-      TermIds.find(Piece.id(p), M.terms)
+      // TermIds.find(Piece.id(p), M.terms)
+      Id.Map.find(Piece.id(p), M.terms)
+      |> Term.ids
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
