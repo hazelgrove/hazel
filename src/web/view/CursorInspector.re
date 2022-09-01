@@ -4,7 +4,7 @@ open Util.Web;
 
 let cls_str = (ci: Core.Statics.t): string =>
   switch (ci) {
-  | Invalid(msg) => Core.Term.show_parse_flag(msg)
+  | Invalid(msg) => Core.TermBase.show_parse_flag(msg)
   | InfoExp({cls, _}) => Core.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Core.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Core.Term.UTyp.show_cls(cls)
@@ -86,7 +86,7 @@ let view_of_info = (ci: Core.Statics.t): Node.t => {
   | Invalid(msg) =>
     div(
       [clss([infoc, "unknown"])],
-      [text("🚫 " ++ Core.Term.show_parse_flag(msg))],
+      [text("🚫 " ++ Core.TermBase.show_parse_flag(msg))],
     )
   | InfoExp({mode, self, _}) =>
     let error_status = Core.Statics.error_status(mode, self);

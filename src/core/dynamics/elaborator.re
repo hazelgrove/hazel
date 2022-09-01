@@ -68,23 +68,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0, sigma))
-    | MultiHole([]) =>
+    | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0, sigma))
-    | MultiHole([e0, ...es]) =>
-      // TODO: dhexp, eval for multiholes
-      // placeholder logic: sequence
       let* ds =
-        List.fold_left(
-          (acc, e) => {
-            let* acc = acc;
-            let+ d = dhexp_of_uexp(m, e);
-            DHExp.Sequence(d, acc);
-          },
-          dhexp_of_uexp(m, e0),
-          es,
-        );
-      wrap(ds);
+        tms
+        |> List.map(
+             fun
+             | Term.Exp(e) => dhexp_of_uexp(m, e)
+             | tm => Some(EmptyHole(Term.rep_id(tm), 0, sigma)),
+           )
+        |> OptUtil.sequence;
+      switch (ds) {
+      | [] => Some(DHExp.EmptyHole(u, 0, sigma))
+      | [hd, ...tl] =>
+        // placeholder logic: sequence
+        tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
+      };
     | Triv => wrap(Triv)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))

@@ -9,15 +9,15 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
   );
 
-type tile = (Id.t, Aba.t(Token.t, any));
-type tiles = Aba.t(tile, any);
+type tile = (Id.t, Aba.t(Token.t, t));
+type tiles = Aba.t(tile, t);
 let single = (id, subst) => ([(id, subst)], []);
 
 type unsorted =
   | Op(tiles)
-  | Pre(tiles, any)
-  | Post(any, tiles)
-  | Bin(any, tiles, any);
+  | Pre(tiles, t)
+  | Post(t, tiles)
+  | Bin(t, tiles, t);
 
 type dark_id = int;
 let dark_gen = ref(-1);
@@ -26,7 +26,7 @@ let dark_id = () => {
   dark_gen := id - 1;
   id;
 };
-let dark_hole = (s: Sort.t): Term.any => {
+let dark_hole = (s: Sort.t): t => {
   let id = dark_id();
   switch (s) {
   | Exp => Exp({ids: [id], term: EmptyHole})
@@ -131,6 +131,19 @@ let ids =
   | Post(_, tiles)
   | Bin(_, tiles, _) => ids_of_tiles(tiles);
 
+let kids_of_tile = ((_id, (_tokens, kids)): tile) => kids;
+let kids_of_tiles = (tiles: tiles) =>
+  tiles
+  |> Aba.map_a(kids_of_tile)
+  |> Aba.join(Fun.id, kid => [kid])
+  |> List.concat;
+let kids_of_unsorted =
+  fun
+  | Op(tiles) => kids_of_tiles(tiles)
+  | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
+  | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
+  | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -148,44 +161,6 @@ and exp = unsorted => {
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
   let _unrecog = UExp.Invalid(UnrecognizedTerm);
-  let kids_of_tile = ((_id, (_tokens, kids)): tile) =>
-    // TODO(d) refactor when multi-hole allows any sort
-    kids
-    |> List.filter_map(
-         fun
-         | Exp(e) => Some(e)
-         | _ => None,
-       );
-  let kids_of_tiles = (tiles: tiles) =>
-    tiles
-    |> Aba.map_a(kids_of_tile)
-    |> Aba.map_b(
-         fun
-         | Exp(e) => [e]
-         | _ => [],
-       )
-    |> Aba.join(Fun.id, Fun.id)
-    |> List.concat;
-  let kids_of_unsorted =
-    fun
-    | Op(tiles) => kids_of_tiles(tiles)
-    | Pre(tiles, r) =>
-      switch (r) {
-      | Exp(e) => kids_of_tiles(tiles) @ [e]
-      | _ => kids_of_tiles(tiles)
-      }
-    | Post(l, tiles) =>
-      switch (l) {
-      | Exp(e) => [e] @ kids_of_tiles(tiles)
-      | _ => kids_of_tiles(tiles)
-      }
-    | Bin(l, tiles, r) =>
-      switch (l, r) {
-      | (Exp(l), Exp(r)) => [l] @ kids_of_tiles(tiles) @ [r]
-      | (Exp(e), _) => [e] @ kids_of_tiles(tiles)
-      | (_, Exp(e)) => kids_of_tiles(tiles) @ [e]
-      | _ => kids_of_tiles(tiles)
-      };
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
 
   fun

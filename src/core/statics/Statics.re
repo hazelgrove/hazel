@@ -58,7 +58,7 @@ type info_rul = {
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Invalid(Term.parse_flag)
+  | Invalid(TermBase.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
@@ -217,9 +217,25 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun
   | Int(Minus) => (Int, Int);
 
-let rec uexp_to_info_map =
-        (~ctx: Ctx.t, ~mode=Typ.Syn, {ids, term} as uexp: Term.UExp.t)
-        : (Typ.t, Ctx.co, map) => {
+let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
+  switch (any) {
+  | Exp(e) =>
+    let (_, co, map) = uexp_to_info_map(~ctx, e);
+    (co, map);
+  | Pat(p) =>
+    let (_, _, map) = upat_to_info_map(~ctx, p);
+    (VarMap.empty, map);
+  | Typ(ty) =>
+    let (_, map) = utyp_to_info_map(ty);
+    (VarMap.empty, map);
+  // TODO(d) consider Rul case
+  | Rul(_)
+  | Nul ()
+  | Any () => (VarMap.empty, Id.Map.empty)
+  }
+and uexp_to_info_map =
+    (~ctx: Ctx.t, ~mode=Typ.Syn, {ids, term} as uexp: Term.UExp.t)
+    : (Typ.t, Ctx.co, map) => {
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
@@ -249,12 +265,9 @@ let rec uexp_to_info_map =
       |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
       |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
     )
-  | MultiHole(es) =>
-    let es = List.map(go(~mode=Syn), es);
-    let self = Typ.Multi;
-    let free = Ctx.union(List.map(((_, f, _)) => f, es));
-    let m = union_m(List.map(((_, _, m)) => m, es));
-    add(~self, ~free, m);
+  | MultiHole(tms) =>
+    let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
+    add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
@@ -433,11 +446,9 @@ and upat_to_info_map =
       |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
       |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
     )
-  | MultiHole(ps) =>
-    let ps = List.map(upat_to_info_map(~ctx, ~mode=Syn), ps);
-    let self = Typ.Multi;
-    let m = union_m(List.map(((_, _, m)) => m, ps));
-    add(~self, ~ctx, m);
+  | MultiHole(tms) =>
+    let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
+    add(~self=Multi, ~ctx, union_m(maps));
   | EmptyHole
   | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
@@ -510,10 +521,14 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     let (_, m_t1) = utyp_to_info_map(t1);
     let (_, m_t2) = utyp_to_info_map(t2);
     return(union_m([m_t1, m_t2]));
-  | MultiHole(ts)
   | Tuple(ts) =>
     let m = ts |> List.map(utyp_to_info_map) |> List.map(snd) |> union_m;
     return(m);
+  | MultiHole(tms) =>
+    // TODO thread ctx through to multihole terms once ctx is available
+    let (_, maps) =
+      tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
+    return(union_m(maps));
   };
 };
 
