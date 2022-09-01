@@ -181,17 +181,37 @@ let deco =
       ~ids,
       ((origin, path)) =>
         Node.div(
-          [
-            clss(base_cls),
-            DecUtil.abs_position(~font_metrics, origin),
-            Attr.on_click(_ => {
-              print_endline("CLICKED!");
-              Event.Ignore;
-            }),
-          ],
+          [],
           [
             Node.div(
-              [clss(["specificity-options-menu"])],
+              [
+                clss(base_cls),
+                DecUtil.abs_position(~font_metrics, origin),
+                Attr.on_click(_ => {
+                  print_endline("CLICKED!");
+                  Event.Ignore;
+                }),
+              ],
+              [
+                DecUtil.code_svg(
+                  ~font_metrics,
+                  ~origin,
+                  ~base_cls,
+                  ~abs_pos=false,
+                  path,
+                ),
+              ],
+            ),
+            Node.div(
+              [
+                clss(["specificity-options-menu"] @ base_cls),
+                DecUtil.abs_position(
+                  ~top_fudge=font_metrics.row_height,
+                  ~include_wh=false,
+                  ~font_metrics,
+                  origin,
+                ),
+              ],
               List.map(
                 ((is_selected, segment)) => {
                   let map = Measured.of_segment(segment);
@@ -204,13 +224,6 @@ let deco =
                 },
                 options,
               ),
-            ),
-            DecUtil.code_svg(
-              ~font_metrics,
-              ~origin,
-              ~base_cls,
-              ~abs_pos=false,
-              path,
             ),
           ],
         ),
@@ -271,6 +284,38 @@ let syntactic_form_view =
   );
 };
 
+let example_view = (~settings, ~examples) => {
+  div(
+    [Attr.id("examples")],
+    List.map(
+      ((code, result, explanation)) => {
+        let map_code = Measured.of_segment(code);
+        let code_view =
+          Code.simple_view(~unselected=code, ~map=map_code, ~settings);
+        let map_result = Measured.of_segment(result);
+        let result_view =
+          Code.simple_view(~unselected=result, ~map=map_result, ~settings);
+        let code_container = view => div([clss(["something"])], [view]);
+        div(
+          [clss(["example"])],
+          [
+            code_container(code_view),
+            div(
+              [clss(["ex-result"])],
+              [text("Result: "), code_container(result_view)],
+            ),
+            div(
+              [clss(["explanation"])],
+              [text("Explanation: "), text(explanation)],
+            ),
+          ],
+        );
+      },
+      examples,
+    ),
+  );
+};
+
 let get_doc =
     (
       ~inject,
@@ -304,17 +349,12 @@ let get_doc =
     | Test(_uexp) => default
     | Parens(_uexp) => default
     | Cons(hd, tl) =>
-      /* PAUSE POINT - I think what I want to do is more this way...
-         Then add decorations to indicate the non-terminals in the
-         syntactic form and the decorations can have actions? */
-      /*let (zipper, _) = Option.get(Printer.zipper_of_string(0, "hd::tl"));
-        let syntactic_form = Zipper.unselect_and_zip(zipper);
-        print_endline(
-          Sexplib.Sexp.to_string(Segment.sexp_of_t(syntactic_form)),
-        );*/
       let cons = Example.mk_monotile(Form.get("cons_exp"));
       let exp = v =>
         Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
+      let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
+      // TODO: Is there a better way to do this?
+      let nil = exp("[]");
       let left = exp("<hd>");
       let right = exp("<tl>");
       let syntactic_form = [left, cons, right];
@@ -330,6 +370,17 @@ let get_doc =
         },
         caret: Outer,
       };
+      let example_1 = (
+        [int("1"), cons, nil],
+        [int("1"), cons, nil],
+        "A single element list of 1.",
+      );
+      let example_2 = (
+        [int("1"), cons, int("2"), cons, nil],
+        [int("1"), cons, int("2"), cons, nil],
+        "A list with two elements, 1 and 2.",
+      );
+
       let (explanation, color_map) =
         mk_explanation(
           "Cons operator to make list with [*head*]("
@@ -356,11 +407,9 @@ let get_doc =
           ~options=[(false, [exp("<pat>")]), (true, syntactic_form)],
           zipper,
         );
-      (
-        syntactic_form_view,
-        (explanation, color_map),
-        text("No examples available"),
-      );
+      let example_view =
+        example_view(~settings, ~examples=[example_1, example_2]);
+      (syntactic_form_view, (explanation, color_map), example_view);
     | UnOp(_op, _uexp) => default
     | BinOp(_op, _left, _right) => default
     | Match(_rule_ids, _scrut, _rule_exps) => default
