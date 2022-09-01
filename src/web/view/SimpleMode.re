@@ -52,44 +52,6 @@ let single_editor_semantics_views =
   );
 };
 
-let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
-  let rect = JSUtil.force_get_elem_by_id(target_id)##getBoundingClientRect;
-  let goal_x = float_of_int(e##.clientX);
-  let goal_y = float_of_int(e##.clientY);
-  Measured.Point.{
-    row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-    col:
-      Float.(
-        to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
-      ),
-  };
-};
-
-let mousedown_handler =
-    (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
-  let goal = get_goal(~font_metrics, ~target_id, e);
-  Event.Many(
-    List.map(inject, additional_updates)
-    @ [
-      inject(Update.Mousedown),
-      inject(Update.PerformAction(Move(Goal(goal)))),
-    ],
-  );
-};
-
-let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
-  div(
-    Attr.[
-      id("mousedown-overlay"),
-      on_mouseup(_ => inject(Update.Mouseup)),
-      on_mousemove(e => {
-        let goal = get_goal(~font_metrics, ~target_id, e);
-        inject(Update.PerformAction(Select(Goal(goal))));
-      }),
-    ],
-    [],
-  );
-
 let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
   module Deco =
     Deco.Deco({
@@ -140,8 +102,7 @@ let view =
       ~zipper: Zipper.t,
       ~settings: Model.settings,
       ~measured: Measured.t,
-    )
-    : Node.t => {
+    ) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   let code_id = "code-container";
   let code_view =
@@ -155,6 +116,17 @@ let view =
       ~measured,
       zipper,
     );
+  let cell_view =
+    Cell.view(
+      ~inject,
+      ~font_metrics,
+      ~clss=["single"],
+      ~mousedown,
+      ~selected=true,
+      ~show_code=true,
+      ~code_id,
+      code_view,
+    );
   let semantics_views =
     settings.statics
       ? single_editor_semantics_views(
@@ -165,16 +137,5 @@ let view =
           ~unselected,
         )
       : [];
-  let mousedown_overlay =
-    mousedown
-      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
-  div(
-    [
-      clss(["editor", "single"]),
-      Attr.on_mousedown(e =>
-        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
-      ),
-    ],
-    [code_view] @ semantics_views @ mousedown_overlay,
-  );
+  div([clss(["editor", "single"])], [cell_view] @ semantics_views);
 };
