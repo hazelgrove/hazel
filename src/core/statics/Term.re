@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 /* TERM
 
    These data structures define the term structures on which
@@ -18,19 +16,19 @@ open Sexplib.Std;
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type parse_flag =
-  | Whitespace // Not really an error
-  | MalformedGrout // Should never happen
-  | UnrecognizedTerm // Reminder to add term to MakeTerm
-  | IncompleteTile; // Remove in future
+include TermBase.Any;
 
-let show_parse_flag: parse_flag => string =
+type any = t;
+let ids =
   fun
-  | Whitespace => "Whitespace"
-  | MalformedGrout => "Malformed Grout"
-  | UnrecognizedTerm => "Unrecognized Term"
-  | IncompleteTile => "Incomplete Tile";
+  | Exp(tm) => tm.ids
+  | Pat(tm) => tm.ids
+  | Typ(tm) => tm.ids
+  | Rul(Rules(ids, _, _)) => ids
+  | Rul(Invalid(_))
+  | Nul ()
+  | Any () => [];
+let rep_id = tm => List.hd(ids(tm));
 
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,22 +44,7 @@ module UTyp = {
     | List
     | Parens;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag)
-    | EmptyHole
-    | MultiHole(list(t))
-    | Int
-    | Float
-    | Bool
-    | List(t)
-    | Arrow(t, t)
-    | Tuple(list(t))
-    | Parens(t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  include TermBase.UTyp;
 
   let cls_of_term: term => cls =
     fun
@@ -108,28 +91,9 @@ module UPat = {
     | Parens
     | TypeAnn;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag)
-    | EmptyHole
-    | MultiHole(list(t))
-    | Wild
-    | Int(int)
-    | Float(float)
-    | Bool(bool)
-    | Triv
-    | ListNil
-    | Cons(t, t)
-    | Var(Token.t)
-    | Tuple(list(t))
-    | Parens(t)
-    | TypeAnn(t, UTyp.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  include TermBase.UPat;
 
-  let rep_id = ({ids, _}) => List.hd(ids);
+  let rep_id = ({ids, _}: t) => List.hd(ids);
 
   let cls_of_term: term => cls =
     fun
@@ -167,100 +131,9 @@ module UPat = {
 };
 
 module UExp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_int =
-    | Minus;
+  include TermBase.UExp;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_bool =
-    | And
-    | Or;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_int =
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_float =
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un =
-    | Int(op_un_int);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin =
-    | Int(op_bin_int)
-    | Float(op_bin_float)
-    | Bool(op_bin_bool);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | ListLit
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag)
-    | EmptyHole
-    | MultiHole(list(t))
-    | Triv
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | ListLit(list(t))
-    | Fun(UPat.t, t)
-    | Tuple(list(t))
-    | Var(Token.t)
-    | Let(UPat.t, t, t)
-    // Let_pat(UPat.t, t)
-    | Ap(t, t)
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Parens(t) // (
-    | Cons(t, t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
-    | Match(t, list((UPat.t, t)))
-  and t = {
-    // invariant: nonempty
-    ids: list(Id.t),
-    term,
-  };
-
-  let hole = (tms: list(t)) =>
+  let hole = (tms: list(any)) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -393,31 +266,9 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
 
 // TODO(d): consider just folding this into UExp
 module URul = {
+  include TermBase.URul;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Invalid(parse_flag)
-    | Rules(list(Id.t), UExp.t, list((UPat.t, UExp.t)));
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type any =
-  | Exp(UExp.t)
-  | Pat(UPat.t)
-  | Typ(UTyp.t)
-  | Rul(URul.t)
-  | Nul(unit)
-  | Any(unit);
-
-let ids =
-  fun
-  | Exp(tm) => tm.ids
-  | Pat(tm) => tm.ids
-  | Typ(tm) => tm.ids
-  | Rul(Rules(ids, _, _)) => ids
-  | Rul(Invalid(_))
-  | Nul ()
-  | Any () => [];
