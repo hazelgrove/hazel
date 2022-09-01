@@ -246,7 +246,7 @@ let uni_lines =
       assert(row != []);
       ListUtil.last(row);
     };
-    if (l != m_first.origin) {
+    if (Measured.Point.compare(l, m_first.origin) < 0) {
       let max_col =
         Measured.Rows.max_col(
           ListUtil.range(~lo=l.row, m_first.origin.row),
@@ -312,7 +312,7 @@ let uni_lines =
       }),
       //L_({dx: -. DecUtil.short_tip_width, dy: -. DecUtil.short_tip_height}),
     ];
-    if (r.row == m_last.last.row && r.col != m_last.last.col) {
+    if (r.row == m_last.last.row && r.col > m_last.last.col) {
       [
         (
           m_last.origin,
@@ -328,7 +328,7 @@ let uni_lines =
           ],
         ),
       ];
-    } else if (r.row != m_last.last.row) {
+    } else if (r.row > m_last.last.row) {
       let min_col =
         Measured.Rows.min_col(
           ListUtil.range(~lo=m_last.last.row, r.row + 1),

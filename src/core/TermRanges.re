@@ -6,6 +6,13 @@ type nonrec t = t(range);
 
 let union = union((_, range, _) => Some(range));
 
+// NOTE: this calculation is out of sync with
+// MakeTerm, which matches things like list brackets
+// and case...end to separators inside eg list commas
+// and rules `| p =>`. this calculation does not
+// include the container in the ranges for those inner
+// separators.
+// TODO(d) fix or derive from other info
 let rec mk = (seg: Segment.t) => {
   let rec go = (skel: Skel.t): (range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
