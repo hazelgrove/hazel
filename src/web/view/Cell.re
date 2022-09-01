@@ -57,7 +57,7 @@ let view =
     )
     : Node.t => {
   let mousedown_overlay =
-    mousedown
+    selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   Node.div(
     [
