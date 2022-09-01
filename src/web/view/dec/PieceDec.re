@@ -161,6 +161,14 @@ let chunky_shard =
 
 let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
 
+let shards_of_tiles = tiles =>
+  tiles
+  |> List.concat_map(((_, _, shards)) => shards)
+  |> List.sort(
+       ((_, m1: Measured.measurement), (_, m2: Measured.measurement)) =>
+       Measured.Point.compare(m1.origin, m2.origin)
+     );
+
 let bi_lines =
     (
       ~font_metrics: FontMetrics.t,
@@ -168,7 +176,7 @@ let bi_lines =
       tiles: Profile.tiles,
     )
     : list(t) => {
-  let shards = tiles |> List.concat_map(((_, _, shards)) => shards);
+  let shards = shards_of_tiles(tiles);
   let shard_rows = Measured.Shards.split_by_row(shards);
   let intra_lines =
     shard_rows
@@ -228,7 +236,7 @@ let uni_lines =
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
   open SvgUtil.Path;
-  let shards = tiles |> List.concat_map(((_, _, shards)) => shards);
+  let shards = shards_of_tiles(tiles);
   let l_line = {
     let (_, m_first) = List.hd(shards);
     let (_, m_last_of_first) = {
