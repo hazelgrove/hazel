@@ -299,6 +299,8 @@ let rec ids =
   | Any () => [];
 let rep_id = tm => {
   let ids = ids(tm);
-  assert(List.length(ids) > 0);
+  try(assert(List.length(ids) > 0)) {
+  | _ => failwith(show(tm))
+  };
   List.hd(ids);
 };

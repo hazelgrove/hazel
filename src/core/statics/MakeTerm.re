@@ -172,7 +172,16 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Nul => Nul() //TODO
-  | Any => Any() //TODO
+  | Any =>
+    let tm = unsorted(skel, seg);
+    switch (ListUtil.hd_opt(ids(tm))) {
+    | None => dark_hole(Exp)
+    | Some(id) =>
+      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
+      | None => dark_hole(Exp)
+      | Some(t) => go_s(t.mold.out, skel, seg)
+      }
+    };
   }
 
 and exp = unsorted => {
@@ -386,7 +395,13 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           let s =
+             l + 1 == r
+               ? List.nth(mold.in_, l)
+               : {
+                 print_endline("0");
+                 Sort.Any;
+               };
            go_s(s, Segment.skel(kid), kid);
          })
     };
@@ -401,7 +416,13 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     |> Aba.map_abas(((p_l, kid, p_r)) => {
          let (_, s_l) = Piece.nib_sorts(p_l);
          let (s_r, _) = Piece.nib_sorts(p_r);
-         let s = s_l == s_r ? s_l : Sort.Any;
+         let s =
+           s_l == s_r
+             ? s_l
+             : {
+               print_endline("1");
+               Sort.Any;
+             };
          go_s(s, kid, seg);
        })
     |> Aba.map_a(p
