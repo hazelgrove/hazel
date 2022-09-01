@@ -1116,6 +1116,30 @@ svg.tile-selected {
   background-color: #f7ebc5; /*#fbebaa;*/
 }
 
+.lang-doc .example .code-text {
+  position: relative;
+}
+
+.lang-doc .example .ex-result {
+  display: flex;
+}
+
+.lang-doc .code-container {
+  margin-bottom: 0em;
+}
+
+.lang-doc .explanation {
+  white-space: normal;
+}
+
+.lang-doc .code-text {
+  position: relative;
+}
+
+.specificity-options-menu {
+  background-color: #a69461;
+}
+
 .lang-doc .section {
   display: flex;
   flex-direction: column;
