@@ -173,10 +173,9 @@ let view =
   div(
     [
       clss(["editor", "single"]),
-      //TODO(andrew): re-enable
-      /*Attr.on_mousedown(e =>
-          mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
-        ),*/
+      Attr.on_mousedown(e =>
+        mousedown_handler(~inject, ~font_metrics, ~target_id=code_id, e)
+      ),
     ],
     [code_view] @ semantics_views @ mousedown_overlay,
   );
