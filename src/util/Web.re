@@ -3,10 +3,11 @@ open Node;
 
 let clss = Attr.classes;
 
-let div_c = cls => div([Attr.class_(cls)]);
-let span_c = cls => span([Attr.class_(cls)]);
+let div_c = cls => div(~attr=Attr.class_(cls));
+let span_c = cls => span(~attr=Attr.class_(cls));
 
-let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
-let span_if = (p, ats, ns) => p ? span(ats, ns) : span([], []);
+let div_if = (p, ats, ns) => p ? div(~attr=Attr.many(ats), ns) : div([]);
+let span_if = (p, ats, ns) =>
+  p ? span(~attr=Attr.many(ats), ns) : span([]);
 
-let unless = (p, a) => p ? Event.Many([]) : a;
+let unless = (p, a) => p ? Effect.Many([]) : a;
