@@ -96,13 +96,13 @@ let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let is_rules = ((ts, kids): tiles): option(Aba.t((Id.t, UPat.t), UExp.t)) => {
+let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
   open OptUtil.Syntax;
   let+ ps =
     ts
     |> List.map(
          fun
-         | (id, (["|", "=>"], [Pat(p)])) => Some((id, p))
+         | (_, (["|", "=>"], [Pat(p)])) => Some(p)
          | _ => None,
        )
     |> OptUtil.sequence
@@ -182,7 +182,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | {ids, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
-      | (["case", "end"], [Rul(Rules(ids, scrut, rules))]) => (
+      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules),
           ids,
         )
@@ -332,17 +332,26 @@ and typ_term: unsorted => UTyp.term = {
   | tm => hole(tm);
 }
 
-and rul = (unsorted: unsorted): URul.t =>
-  switch (unsorted) {
-  | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
-    switch (is_rules(tiles)) {
-    | Some((ps, leading_clauses)) =>
-      let (ids, ps) = List.split(ps);
-      Rules(ids, scrut, List.combine(ps, leading_clauses @ [last_clause]));
-    | None => Invalid(UnrecognizedTerm)
+and rul = unsorted => {
+  let term = rul_term(unsorted);
+  {ids: ids(unsorted), term};
+}
+and rul_term = (unsorted: unsorted): URul.term => {
+  let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
+  switch (exp(unsorted)) {
+  | {term: MultiHole(_), _} =>
+    switch (unsorted) {
+    | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
+      switch (is_rules(tiles)) {
+      | Some((ps, leading_clauses)) =>
+        Rules(scrut, List.combine(ps, leading_clauses @ [last_clause]))
+      | None => hole
+      }
+    | _ => hole
     }
-  | _ => Invalid(UnrecognizedTerm)
-  }
+  | e => Rules(e, [])
+  };
+}
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let tile_kids = (p: Piece.t): list(any) =>

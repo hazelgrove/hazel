@@ -300,12 +300,22 @@ and UTyp: {
 }
 and URul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     | Invalid(parse_flag)
-    | Rules(list(Id.t), UExp.t, list((UPat.t, UExp.t)));
+    | Hole(list(Any.t))
+    | Rules(UExp.t, list((UPat.t, UExp.t)))
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     | Invalid(parse_flag)
-    | Rules(list(Id.t), UExp.t, list((UPat.t, UExp.t)));
+    | Hole(list(Any.t))
+    | Rules(UExp.t, list((UPat.t, UExp.t)))
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
 };
