@@ -260,6 +260,12 @@ module UExp = {
     term,
   };
 
+  let hole = (tms: list(t)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
   let rep_id = ({ids, _}) => List.hd(ids);
 
   let cls_of_term: term => cls =

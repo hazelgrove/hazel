@@ -147,13 +147,53 @@ and exp = unsorted => {
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
-  let unrecog = UExp.Invalid(UnrecognizedTerm);
+  let _unrecog = UExp.Invalid(UnrecognizedTerm);
+  let kids_of_tile = ((_id, (_tokens, kids)): tile) =>
+    // TODO(d) refactor when multi-hole allows any sort
+    kids
+    |> List.filter_map(
+         fun
+         | Exp(e) => Some(e)
+         | _ => None,
+       );
+  let kids_of_tiles = (tiles: tiles) =>
+    tiles
+    |> Aba.map_a(kids_of_tile)
+    |> Aba.map_b(
+         fun
+         | Exp(e) => [e]
+         | _ => [],
+       )
+    |> Aba.join(Fun.id, Fun.id)
+    |> List.concat;
+  let kids_of_unsorted =
+    fun
+    | Op(tiles) => kids_of_tiles(tiles)
+    | Pre(tiles, r) =>
+      switch (r) {
+      | Exp(e) => kids_of_tiles(tiles) @ [e]
+      | _ => kids_of_tiles(tiles)
+      }
+    | Post(l, tiles) =>
+      switch (l) {
+      | Exp(e) => [e] @ kids_of_tiles(tiles)
+      | _ => kids_of_tiles(tiles)
+      }
+    | Bin(l, tiles, r) =>
+      switch (l, r) {
+      | (Exp(l), Exp(r)) => [l] @ kids_of_tiles(tiles) @ [r]
+      | (Exp(e), _) => [e] @ kids_of_tiles(tiles)
+      | (_, Exp(e)) => kids_of_tiles(tiles) @ [e]
+      | _ => kids_of_tiles(tiles)
+      };
+  let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
+
   fun
-  | Op(tiles) =>
+  | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(_id, tile)], []) =>
-      switch (tile) {
+    | ([(_id, t)], []) =>
+      switch (t) {
       | (["triv"], []) => ret(Triv)
       | (["true"], []) => ret(Bool(true))
       | (["false"], []) => ret(Bool(false))
@@ -172,44 +212,44 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | _ => ret(unrecog)
+      | _ => ret(hole(tm))
       }
-    | _ => ret(unrecog)
+    | _ => ret(hole(tm))
     }
-  | Pre(tiles, Exp(r)) =>
+  | Pre(tiles, Exp(r)) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(_id, t)], []) =>
       ret(
-        switch (tile) {
+        switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
-        | _ => unrecog
+        | _ => hole(tm)
         },
       )
-    | _ => ret(unrecog)
+    | _ => ret(hole(tm))
     }
-  | Post(Exp(l), tiles) =>
+  | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(_id, t)], []) =>
       ret(
-        switch (tile) {
+        switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => unrecog
+        | _ => hole(tm)
         },
       )
-    | _ => ret(unrecog)
+    | _ => ret(hole(tm))
     }
-  | Bin(Exp(l), tiles, Exp(r)) =>
+  | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(_id, tile)], []) =>
+      | ([(_id, t)], []) =>
         ret(
-          switch (tile) {
+          switch (t) {
           | (["+"], []) => BinOp(Int(Plus), l, r)
           | (["-"], []) => BinOp(Int(Minus), l, r)
           | (["*"], []) => BinOp(Int(Times), l, r)
@@ -228,13 +268,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
-          | _ => unrecog
+          | _ => hole(tm)
           },
         )
-      | _ => ret(unrecog)
+      | _ => ret(hole(tm))
       }
     }
-  | _ => ret(unrecog);
+  | tm => ret(hole(tm));
 }
 
 and pat = unsorted => {
