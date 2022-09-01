@@ -25,9 +25,13 @@ let decrement_instance = (~inject: Update.t => 'a, cur_idx, num_instances, _) =>
   inject(Set(SelectedInstances(-1, prev_inst)));
 };
 
-let instance_selector = (~inject, ~settings: Model.settings, num_instances) => {
+let get_cur_idx = (settings, num_instances) => {
   let cur_idx = Model.get_selected_instance(settings);
-  let cur_idx = cur_idx >= num_instances ? 0 : cur_idx;
+  cur_idx >= num_instances ? 0 : cur_idx;
+};
+
+let instance_selector = (~inject, ~settings: Model.settings, num_instances) => {
+  let cur_idx = get_cur_idx(settings, num_instances);
   let cur_instance = Printf.sprintf("%d / %d", cur_idx + 1, num_instances);
   div(
     [clss(["instance-selector"])],
@@ -65,8 +69,7 @@ let env_view = (~font_metrics, env): Node.t =>
 let instances_view =
     (~inject as _, ~font_metrics, ~settings, instances): Node.t => {
   let num_instances = List.length(instances);
-  let cur_idx = Model.get_selected_instance(settings);
-  let cur_idx = cur_idx >= num_instances ? 0 : cur_idx;
+  let cur_idx = get_cur_idx(settings, num_instances);
   assert(cur_idx < num_instances);
   let (_, _, env, _) = List.nth(instances, cur_idx);
   div(
@@ -107,14 +110,14 @@ let instance_result_view =
     | None
     | Some([]) => [result_view(~font_metrics, eval_result)]
     | Some(instances) =>
-      let cur_idx = Model.get_selected_instance(settings);
-      let cur_idx = cur_idx >= List.length(instances) ? 0 : cur_idx;
+      let num_instances = List.length(instances);
+      let cur_idx = get_cur_idx(settings, num_instances);
       let (_, _, _, res) = List.nth(instances, cur_idx);
       [
         div(
           [clss(["live-bar"])],
           [
-            instance_selector(~inject, ~settings, List.length(instances)),
+            instance_selector(~inject, ~settings, num_instances),
             result_view(~font_metrics, res),
           ],
         ),
