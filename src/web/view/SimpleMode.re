@@ -22,7 +22,7 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
 
 let single_editor_semantics_views =
     (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
-  let term = MakeTerm.go(unselected);
+  let (term, _) = MakeTerm.go(unselected);
   let map = Statics.mk_map(term);
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
@@ -88,7 +88,7 @@ let code_container =
   let segment = Zipper.zip(zipper);
   let code_view =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
-  let terms = Statics.(terms(mk_map(MakeTerm.go(unselected))));
+  let (_, terms) = MakeTerm.go(unselected);
   let tiles = TileMap.mk(unselected);
   let deco_view =
     show_deco

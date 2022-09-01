@@ -29,7 +29,7 @@ let splice_editors = (editors: list(Editor.t)): Core.Segment.t =>
   |> List.flatten;
 
 let spliced_statics = (editors: list(Editor.t)) => {
-  let term = editors |> splice_editors |> Core.MakeTerm.go;
+  let (term, _) = editors |> splice_editors |> Core.MakeTerm.go;
   let info_map = term |> Core.Statics.mk_map;
   (term, info_map);
 };
@@ -187,6 +187,7 @@ let show_term = (editor: Editor.t, _) =>
   editor.state.zipper
   |> Zipper.zip
   |> MakeTerm.go
+  |> fst
   |> Term.UExp.show
   |> print_endline
   |> (_ => Event.Ignore);
