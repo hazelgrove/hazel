@@ -19,16 +19,6 @@
 include TermBase.Any;
 
 type any = t;
-let ids =
-  fun
-  | Exp(tm) => tm.ids
-  | Pat(tm) => tm.ids
-  | Typ(tm) => tm.ids
-  | Rul(Rules(ids, _, _)) => ids
-  | Rul(Invalid(_))
-  | Nul ()
-  | Any () => [];
-let rep_id = tm => List.hd(ids(tm));
 
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -283,4 +273,32 @@ module URul = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
+
+  // example of awkwardness induced by having forms like rules
+  // that may have a different-sorted child with no delimiters
+  // (eg scrut with no rules)
+  let ids = (~any_ids, {ids, term}: t) =>
+    switch (ids) {
+    | [_, ..._] => ids
+    | [] =>
+      switch (term) {
+      | Hole([tm, ..._]) => any_ids(tm)
+      | Rules(scrut, []) => scrut.ids
+      | _ => []
+      }
+    };
+};
+
+let rec ids =
+  fun
+  | Exp(tm) => tm.ids
+  | Pat(tm) => tm.ids
+  | Typ(tm) => tm.ids
+  | Rul(tm) => URul.ids(~any_ids=ids, tm)
+  | Nul ()
+  | Any () => [];
+let rep_id = tm => {
+  let ids = ids(tm);
+  assert(List.length(ids) > 0);
+  List.hd(ids);
 };
