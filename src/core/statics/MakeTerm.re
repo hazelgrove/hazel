@@ -162,7 +162,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
   let _unrecog = UExp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
-
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -258,9 +257,10 @@ and pat = unsorted => {
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
-  let unrecog = UPat.Invalid(UnrecognizedTerm);
+  let _unrecog = UPat.Invalid(UnrecognizedTerm);
+  let hole = unsorted => Term.UPat.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(tiles) =>
+  | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
       ret(
@@ -274,28 +274,27 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_listnil(t) => ListNil
-        | _ => unrecog
+        | _ => hole(tm)
         },
       )
-    | _ => ret(unrecog)
+    | _ => ret(hole(tm))
     }
-  | Pre(_) => ret(unrecog)
-  | Post(_) => ret(unrecog)
-  | Bin(Pat(p), tiles, Typ(ty)) =>
+  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
-    | _ => ret(unrecog)
+    | _ => ret(hole(tm))
     }
-  | Bin(Pat(l), tiles, Pat(r)) =>
+  | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
-      | _ => ret(unrecog)
+      | _ => ret(hole(tm))
       }
     }
-  | _ => ret(unrecog);
+  | tm => ret(hole(tm));
 }
 
 and typ = unsorted => {
@@ -303,9 +302,10 @@ and typ = unsorted => {
   {ids: ids(unsorted), term};
 }
 and typ_term: unsorted => UTyp.term = {
-  let unrecog = UTyp.Invalid(UnrecognizedTerm);
+  let _unrecog = UTyp.Invalid(UnrecognizedTerm);
+  let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   fun
-  | Op(tiles) =>
+  | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
@@ -315,22 +315,21 @@ and typ_term: unsorted => UTyp.term = {
       | (["Float"], []) => Float
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
-      | _ => unrecog
+      | _ => hole(tm)
       }
-    | _ => unrecog
+    | _ => hole(tm)
     }
-  | Pre(_)
-  | Post(_) => unrecog
-  | Bin(Typ(l), tiles, Typ(r)) =>
+  | (Pre(_) | Post(_)) as tm => hole(tm)
+  | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) => Tuple([l] @ between_kids @ [r])
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => Arrow(l, r)
-      | _ => unrecog
+      | _ => hole(tm)
       }
     }
-  | _ => unrecog;
+  | tm => hole(tm);
 }
 
 and rul = (unsorted: unsorted): URul.t =>

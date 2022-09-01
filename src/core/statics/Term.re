@@ -46,6 +46,12 @@ module UTyp = {
 
   include TermBase.UTyp;
 
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
   let cls_of_term: term => cls =
     fun
     | Invalid(_) => Invalid
@@ -94,6 +100,12 @@ module UPat = {
   include TermBase.UPat;
 
   let rep_id = ({ids, _}: t) => List.hd(ids);
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
 
   let cls_of_term: term => cls =
     fun
