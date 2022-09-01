@@ -26,7 +26,7 @@ let term_tag_view =
     let attrs =
       show_tooltip
         ? [Vdom.Attr.create("title", tooltip), classes] : [classes];
-    Vdom.(Node.div(attrs, [Node.text(text)]));
+    Vdom.(Node.div(~attr=Attr.many(attrs), [Node.text(text)]));
   };
   switch (tag) {
   | Exp => mk_view("exp", "Expression", "EXP")

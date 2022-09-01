@@ -1,4 +1,4 @@
-HTML_DIR=$(shell pwd)/_build/default/src/web/www
+HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
 HTML_FILE=$(HTML_DIR)/index.html
 
 all: dev

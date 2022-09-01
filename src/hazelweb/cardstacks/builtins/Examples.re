@@ -409,7 +409,7 @@ let edit_state_of_block =
 let example_to_card =
     ((name: string, init_edit_state: Statics.edit_state)): CardInfo.t => {
   name,
-  caption: Virtual_dom.Vdom.Node.div([], []),
+  caption: Virtual_dom.Vdom.Node.div([]),
   init_edit_state,
 };
 

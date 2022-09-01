@@ -3,51 +3,60 @@ open Virtual_dom.Vdom;
 let action_panel = (children: list(Node.t)): Node.t => {
   let panel_title =
     Node.div(
-      [Attr.classes(["panel-title-bar", "title-bar"])],
+      ~attr=Attr.classes(["panel-title-bar", "title-bar"]),
       [Node.text("Edit Actions")],
     );
 
   let panel_body =
-    Node.div([Attr.classes(["action-panel-body", "panel-body"])], children);
+    Node.div(
+      ~attr=Attr.classes(["action-panel-body", "panel-body"]),
+      children,
+    );
 
   Node.div(
-    [Attr.classes(["action-panel", "panel"])],
+    ~attr=Attr.classes(["action-panel", "panel"]),
     [panel_title, panel_body],
   );
 };
 
 let sub_panel = (title: string, children: list(Node.t)): Node.t => {
   Node.div(
-    [Attr.classes(["sub-panel", "sub-panel-default"])],
+    ~attr=Attr.classes(["sub-panel", "sub-panel-default"]),
     [
-      Node.div([Attr.classes(["sub-panel-title"])], [Node.text(title)]),
-      Node.div([Attr.classes(["sub-panel-body"])], children),
+      Node.div(~attr=Attr.classes(["sub-panel-title"]), [Node.text(title)]),
+      Node.div(~attr=Attr.classes(["sub-panel-body"]), children),
     ],
   );
 };
 
 let action_label = (~attrs=[], children) => {
   Node.div(
-    [Attr.classes(["action-label", "info-label"]), ...attrs],
+    ~attr=
+      Attr.many([Attr.classes(["action-label", "info-label"]), ...attrs]),
     children,
   );
 };
 
 let info_button = (can_perform, lbl) =>
   Node.div(
-    [
-      Attr.classes(
-        can_perform
-          ? ["action-panel-entry", "action-enabled"]
-          : ["action-panel-entry", "action-disabled"],
-      ),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
+        ),
+      ]),
     [action_label(lbl)],
   );
 
 let mono_text = content => {
   Node.span(
-    [Attr.classes(["code"]), Attr.style(Css_gen.font_size(`Inherit))],
+    ~attr=
+      Attr.many([
+        Attr.classes(["code"]),
+        Attr.style(Css_gen.font_size(`Inherit)),
+      ]),
     [Node.text(content)],
   );
 };
@@ -55,35 +64,36 @@ let mono_text = content => {
 let action_button =
     (
       is_action_allowed: Action.t => bool,
-      inject: ModelAction.t => Event.t,
+      inject: ModelAction.t => Effect.t(_),
       a: Action.t,
       lbl: list(Node.t),
       key_combo: KeyCombo.t,
     ) => {
   let can_perform = is_action_allowed(a);
   Node.div(
+    ~attr=
+      Attr.many([
+        Attr.classes(
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
+        ),
+        Attr.on_click(_ => inject(ModelAction.EditAction(a))),
+        Attr.on_keydown(evt =>
+          if (KeyCombo.matches(key_combo, evt)) {
+            Effect.Many([
+              inject(ModelAction.EditAction(a)),
+              Effect.Prevent_default,
+            ]);
+          } else {
+            Effect.Prevent_default;
+          }
+        ),
+      ]),
     [
-      Attr.classes(
-        can_perform
-          ? ["action-panel-entry", "action-enabled"]
-          : ["action-panel-entry", "action-disabled"],
-      ),
-      Attr.on_click(_ => inject(ModelAction.EditAction(a))),
-      Attr.on_keydown(evt =>
-        if (KeyCombo.matches(key_combo, evt)) {
-          Event.Many([
-            inject(ModelAction.EditAction(a)),
-            Event.Prevent_default,
-          ]);
-        } else {
-          Event.Prevent_default;
-        }
-      ),
-    ],
-    [
-      Node.div([Attr.classes(["action-label"])], lbl),
+      Node.div(~attr=Attr.classes(["action-label"]), lbl),
       Node.div(
-        [Attr.classes(["keyboard-shortcut"])],
+        ~attr=Attr.classes(["keyboard-shortcut"]),
         [Node.text(KeyCombo.name(key_combo))],
       ),
     ],
@@ -92,40 +102,42 @@ let action_button =
 
 let brown_label = body => {
   Node.div(
-    [
-      Attr.classes(["keyboard-shortcut", "action-enabled"]),
-      Attr.style(
-        Css_gen.(
-          create(~field="display", ~value="inline-block")
-          @> create(~field="border-bottom", ~value="none")
+    ~attr=
+      Attr.many([
+        Attr.classes(["keyboard-shortcut", "action-enabled"]),
+        Attr.style(
+          Css_gen.(
+            create(~field="display", ~value="inline-block")
+            @> create(~field="border-bottom", ~value="none")
+          ),
         ),
-      ),
-    ],
+      ]),
     body,
   );
 };
 
 let keyboard_button = (is_action_allowed, ~inject, ~action, ~combo) => {
   Node.div(
-    [
-      Attr.classes(
-        is_action_allowed(action)
-          ? ["keyboard-shortcut", "action-enabled"]
-          : ["keyboard-shortcut", "action-disabled"],
-      ),
-      Attr.on_click(_ => inject(ModelAction.EditAction(action))),
-      Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
-      Attr.on_keydown(evt =>
-        if (KeyCombo.matches(combo, evt)) {
-          Event.Many([
-            inject(ModelAction.EditAction(action)),
-            Event.Prevent_default,
-          ]);
-        } else {
-          Event.Prevent_default;
-        }
-      ),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(
+          is_action_allowed(action)
+            ? ["keyboard-shortcut", "action-enabled"]
+            : ["keyboard-shortcut", "action-disabled"],
+        ),
+        Attr.on_click(_ => inject(ModelAction.EditAction(action))),
+        Attr.style(Css_gen.create(~field="display", ~value="inline-block")),
+        Attr.on_keydown(evt =>
+          if (KeyCombo.matches(combo, evt)) {
+            Effect.Many([
+              inject(ModelAction.EditAction(action)),
+              Effect.Prevent_default,
+            ]);
+          } else {
+            Effect.Prevent_default;
+          }
+        ),
+      ]),
     [Node.text(KeyCombo.name(combo))],
   );
 };
@@ -135,7 +147,7 @@ let flex_grow = Attr.style(Css_gen.(flex_item(~grow=1., ())));
 let action_list =
     (
       is_action_allowed: Action.t => bool,
-      inject: ModelAction.t => Event.t,
+      inject: ModelAction.t => Effect.t(_),
       actions: list((KeyCombo.t, Action.t)),
       label: string,
     ) => {
@@ -147,12 +159,12 @@ let action_list =
 
   let label =
     Node.div(
-      [Attr.classes(["action-label"]), flex_grow],
+      ~attr=Attr.many([Attr.classes(["action-label"]), flex_grow]),
       [Node.text(label)],
     );
   let items = List.map(item, actions);
   Node.div(
-    [Attr.classes(["action-panel-entry"]), display_flex],
+    ~attr=Attr.many([Attr.classes(["action-panel-entry"]), display_flex]),
     [label, ...items],
   );
 };
@@ -236,22 +248,25 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
 
   let spaced_line = children => {
     Node.div(
-      Attr.[
-        classes(["action-panel-entry"]),
-        style(
-          Css_gen.(
-            create(~field="display", ~value="flex")
-            @> create(~field="justify-content", ~value="space-between")
-          ),
+      ~attr=
+        Attr.many(
+          Attr.[
+            classes(["action-panel-entry"]),
+            style(
+              Css_gen.(
+                create(~field="display", ~value="flex")
+                @> create(~field="justify-content", ~value="space-between")
+              ),
+            ),
+          ],
         ),
-      ],
       children,
     );
   };
 
   let single_line_multiple_actions = (description, elems) => {
     let label = action_label(~attrs=[flex_grow], [text(description)]);
-    let elems = Node.div([display_inline_block], elems);
+    let elems = Node.div(~attr=display_inline_block, elems);
     spaced_line([label, elems]);
   };
 
@@ -432,7 +447,7 @@ let generate_panel_body = (is_action_allowed, cursor_info, inject) => {
   ];
 };
 
-let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
+let view = (~inject: ModelAction.t => Effect.t(unit), model: Model.t) => {
   let edit_state = Model.get_edit_state(model);
   let cursor_info = Model.get_cursor_info(model);
 
