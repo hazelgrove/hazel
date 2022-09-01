@@ -267,12 +267,6 @@ svg {
   font-family: 'Helvetica Neue';
 }
 
-@media screen and (min-height: 800px) {
-  .code-container {
-    top: max(min(30%, 100vh - 350px), 64px);
-  }
-}
-
 /* TOP BAR */
 
 #top-bar {
@@ -477,19 +471,22 @@ svg {
   padding-left: 0px;
 }
 
-.cell{
+.cell {
   display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+.cell.school {
   gap: 1em;
   /* border-radius: 0.4em; */
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
   border-left: 1px solid var(--top_bar_icon_fill);
-  user-select: none;
-  flex-direction: column;
 }
 
-.cell.selected{
+.cell.school.selected{
   border-left: 1px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }
