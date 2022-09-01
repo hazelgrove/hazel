@@ -112,21 +112,22 @@ module Deco =
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Measured.Point.t, Measured.Point.t)) =
-        if (Piece.has_ends(p)) {
-          let ranges = TermRanges.mk(Zipper.zip(z));
-          switch (TermRanges.find_opt(Piece.id(p), ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, M.map).origin;
-            let r = Measured.find_p(p_r, M.map).last;
-            Some((l, r));
-          };
-        } else {
-          // using range of piece itself hides unidelimited child borders
-          let m = Measured.find_p(p, M.map);
-          Some((m.origin, m.last));
+      let range: option((Measured.Point.t, Measured.Point.t)) = {
+        // if (Piece.has_ends(p)) {
+        let ranges = TermRanges.mk(Zipper.zip(z));
+        switch (TermRanges.find_opt(Piece.id(p), ranges)) {
+        | None => None
+        | Some((p_l, p_r)) =>
+          let l = Measured.find_p(p_l, M.map).origin;
+          let r = Measured.find_p(p_r, M.map).last;
+          Some((l, r));
         };
+      };
+      // } else {
+      //   // using range of piece itself hides unidelimited child borders
+      //   let m = Measured.find_p(p, M.map);
+      //   Some((m.origin, m.last));
+      // };
       let index =
         switch (Indicated.shard_index(z)) {
         | None => (-1)
