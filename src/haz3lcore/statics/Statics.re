@@ -109,13 +109,13 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(tys_syn)) =>
+  | (Syn, Joined(wrap, tys_syn)) =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
     // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
-    | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
+    | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
     };
 
   | (Ana(ty_ana), Just(ty_syn)) =>
@@ -123,14 +123,15 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
-  | (Ana(ty_ana), Joined(tys_syn)) =>
+  | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
     // TODO: review logic of these cases
     switch (Typ.join_all(Typ.source_tys(tys_syn))) {
     | Some(ty_syn) =>
+      let ty_syn = wrap(ty_syn);
       switch (Typ.join(ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
-      }
+      };
     | None =>
       NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
     }
@@ -336,7 +337,11 @@ and uexp_to_info_map =
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
       switch (Typ.join_all(tys)) {
-      | None => Joined(List.map2((id, ty) => Typ.{id, ty}, e_ids, tys))
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
+        )
       | Some(ty) => Just(List(ty))
       };
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
@@ -351,10 +356,13 @@ and uexp_to_info_map =
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     add(
       ~self=
-        Joined([
-          {id: Term.UExp.rep_id(e1), ty: ty_e1},
-          {id: Term.UExp.rep_id(e2), ty: ty_e2},
-        ]),
+        Joined(
+          Fun.id,
+          [
+            {id: Term.UExp.rep_id(e1), ty: ty_e1},
+            {id: Term.UExp.rep_id(e2), ty: ty_e2},
+          ],
+        ),
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
@@ -426,7 +434,7 @@ and uexp_to_info_map =
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
-    let self = Typ.Joined(branch_sources);
+    let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
   };
