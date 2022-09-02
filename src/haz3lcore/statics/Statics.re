@@ -444,6 +444,7 @@ and upat_to_info_map =
   | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ids, ps) =>
     let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
+    let p_ids = List.map((p: Term.UPat.t) => p.id, ps);
     let (ctx, infos) =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
@@ -454,7 +455,16 @@ and upat_to_info_map =
         ps,
         modes,
       );
-    let self = Typ.Just(List(Unknown(Internal)));
+    let tys = List.map(((ty, _, _)) => ty, infos);
+    let self: Typ.self =
+      switch (Typ.join_all(tys)) {
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, p_ids, tys),
+        )
+      | Some(ty) => Just(List(ty))
+      };
     let info: t = InfoPat({cls, self, mode, ctx, term: upat});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
