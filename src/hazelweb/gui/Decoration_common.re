@@ -40,57 +40,63 @@ let container =
     switch (container_type) {
     | Div =>
       Node.div(
-        [
-          Attr.classes([
-            "decoration-container",
-            Printf.sprintf("%s-container", cls),
-          ]),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "width: %fpx; height: %fpx;",
-              buffered_width_px,
-              buffered_height_px,
+        ~attr=
+          Attr.many([
+            Attr.classes([
+              "decoration-container",
+              Printf.sprintf("%s-container", cls),
+            ]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "width: %fpx; height: %fpx;",
+                buffered_width_px,
+                buffered_height_px,
+              ),
             ),
-          ),
-        ],
+          ]),
         contents,
       )
     | Svg =>
       Node.create_svg(
         "svg",
-        [
-          Attr.classes([cls]),
-          Attr.create(
-            "viewBox",
-            Printf.sprintf(
-              "-0.5 -0.5 %d %d",
-              buffered_width,
-              buffered_height,
+        ~attr=
+          Attr.many([
+            Attr.classes([cls]),
+            Attr.create(
+              "viewBox",
+              Printf.sprintf(
+                "-0.5 -0.5 %d %d",
+                buffered_width,
+                buffered_height,
+              ),
             ),
-          ),
-          Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-          Attr.create("height", Printf.sprintf("%fpx", buffered_height_px)),
-          Attr.create("preserveAspectRatio", "none"),
-        ],
+            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+            Attr.create(
+              "height",
+              Printf.sprintf("%fpx", buffered_height_px),
+            ),
+            Attr.create("preserveAspectRatio", "none"),
+          ]),
         contents,
       )
     };
   Node.div(
-    [
-      Attr.classes([
-        "decoration-container",
-        Printf.sprintf("%s-container", cls),
-      ]),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "top: calc(%fpx - 1px); left: %fpx;",
-          container_origin_x,
-          container_origin_y,
+    ~attr=
+      Attr.many([
+        Attr.classes([
+          "decoration-container",
+          Printf.sprintf("%s-container", cls),
+        ]),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "top: calc(%fpx - 1px); left: %fpx;",
+            container_origin_x,
+            container_origin_y,
+          ),
         ),
-      ),
-    ],
+      ]),
     [inner],
   );
 };

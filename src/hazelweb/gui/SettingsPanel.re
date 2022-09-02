@@ -6,7 +6,7 @@ let labeled_checkbox =
       ~id: string,
       ~classes: List.t(string)=[],
       ~label: string,
-      ~on_change: unit => Vdom.Event.t,
+      ~on_change: unit => Vdom.Effect.t(unit),
       ~disabled=false,
       checked: bool,
     )
@@ -14,27 +14,35 @@ let labeled_checkbox =
   let checkbox_id = id ++ "_checkbox";
   Vdom.(
     Node.div(
-      [Attr.id(id), Attr.classes(["labeled-checkbox", ...classes])],
+      ~attr=
+        Attr.many([
+          Attr.id(id),
+          Attr.classes(["labeled-checkbox", ...classes]),
+        ]),
       [
         Node.input(
-          [
-            [
-              Attr.id(checkbox_id),
-              Attr.type_("checkbox"),
-              Attr.on_change((_, _) => on_change()),
-            ],
-            checked ? [Attr.checked] : [],
-            disabled ? [Attr.disabled] : [],
-          ]
-          |> List.concat,
-          [],
+          ~attr=
+            Attr.many(
+              [
+                [
+                  Attr.id(checkbox_id),
+                  Attr.type_("checkbox"),
+                  Attr.on_change((_, _) => on_change()),
+                ],
+                checked ? [Attr.checked] : [],
+                disabled ? [Attr.disabled] : [],
+              ]
+              |> List.concat,
+            ),
+          (),
         ),
         Node.label(
-          [
-            Attr.for_(id),
-            Attr.on_click(_ => on_change()),
-            ...disabled ? [Attr.disabled] : [],
-          ],
+          ~attr=
+            Attr.many([
+              Attr.for_(id),
+              Attr.on_click(_ => on_change()),
+              ...disabled ? [Attr.disabled] : [],
+            ]),
           [Node.text(label)],
         ),
       ],
@@ -46,13 +54,13 @@ let details = Vdom.Node.create("details");
 let summary = Vdom.Node.create("summary");
 
 let view =
-    (~inject: ModelAction.t => Vdom.Event.t, settings: Settings.t)
+    (~inject: ModelAction.t => Vdom.Effect.t(unit), settings: Settings.t)
     : Vdom.Node.t => {
   let Settings.{memoize_doc, performance, evaluation} = settings;
   let evaluation_checkboxes =
     Vdom.(
       Node.div(
-        [Attr.id("SettingsPanel")],
+        ~attr=Attr.id("SettingsPanel"),
         [
           labeled_checkbox(
             ~id="evaluate",
@@ -211,8 +219,5 @@ let view =
         ],
       )
     );
-  details(
-    [],
-    [summary([], [Vdom.Node.text("Options")]), evaluation_checkboxes],
-  );
+  details([summary([Vdom.Node.text("Options")]), evaluation_checkboxes]);
 };
