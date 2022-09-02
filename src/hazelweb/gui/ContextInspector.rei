@@ -11,7 +11,7 @@ exception InvalidInstance;
  */
 let view:
   (
-    ~inject: ModelAction.t => Vdom.Event.t,
+    ~inject: ModelAction.t => Vdom.Effect.t(unit),
     ~model: Model.t,
     ~hii: HoleInstanceInfo.t
   ) =>

@@ -156,15 +156,19 @@ let view_of_cursor_inspector =
 let key_handlers = (~inject, ~cursor_info: CursorInfo.t): list(Vdom.Attr.t) => {
   open Vdom;
   let prevent_stop_inject = a =>
-    Event.Many([Event.Prevent_default, Event.Stop_propagation, inject(a)]);
+    Effect.Many([
+      Effect.Prevent_default,
+      Effect.Stop_propagation,
+      inject(a),
+    ]);
   [
-    Attr.on_keypress(_ => Event.Prevent_default),
+    Attr.on_keypress(_ => Effect.Prevent_default),
     Attr.on_keydown(evt => {
       let model_action: option(ModelAction.t) =
         KeyComboAction.get_model_action(cursor_info, evt);
       switch (model_action) {
       | Some(model_action) => prevent_stop_inject(model_action)
-      | None => Event.Ignore
+      | None => Effect.Ignore
       };
     }),
   ];
@@ -183,9 +187,9 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
         let vs =
           boxes
           |> List.map(view_of_box)
-          |> ListUtil.join([Node.br([])])
+          |> ListUtil.join([Node.br()])
           |> List.flatten;
-        [Node.div([Attr.classes(["VBox"])], vs)];
+        [Node.div(~attr=Attr.classes(["VBox"]), vs)];
       | Annot(annot, box) =>
         let vs = view_of_box(box);
         switch (annot) {
@@ -196,17 +200,22 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
             | Op => ["code-op"]
             | Delim(_) => ["code-delim"]
             };
-          [Node.span([Attr.classes(clss)], vs)];
+          [Node.span(~attr=Attr.classes(clss), vs)];
         | HoleLabel({len}) =>
           let width = Css_gen.width(`Ch(float_of_int(len)));
           [
             Node.span(
-              [Attr.style(width), Attr.classes(["HoleLabel"])],
-              [Node.span([Attr.classes(["HoleNumber"])], vs)],
+              ~attr=
+                Attr.many([Attr.style(width), Attr.classes(["HoleLabel"])]),
+              [Node.span(~attr=Attr.classes(["HoleNumber"]), vs)],
             ),
           ];
-        | UserNewline => [Node.span([Attr.classes(["UserNewline"])], vs)]
-        | CommentLine => [Node.span([Attr.classes(["CommentLine"])], vs)]
+        | UserNewline => [
+            Node.span(~attr=Attr.classes(["UserNewline"]), vs),
+          ]
+        | CommentLine => [
+            Node.span(~attr=Attr.classes(["CommentLine"]), vs),
+          ]
         | _ => vs
         };
       }
@@ -216,7 +225,7 @@ let rec view_of_box = (box: UHBox.t): list(Vdom.Node.t) => {
 
 let view =
     (
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Effect.t(unit),
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~cursor_inspector: CursorInspectorModel.t,
@@ -292,21 +301,25 @@ let view =
       };
 
       Node.div(
-        [
-          Attr.id(ViewUtil.code_root_id),
-          Attr.classes(["code", "presentation"]),
-          // need to use mousedown instead of click to fire
-          // (and move caret) before cell focus event handler
-          Attr.on_mousedown(click_handler),
-          // necessary to make cell focusable
-          Attr.create("tabindex", "0"),
-          Attr.on_focus(_ => inject(ModelAction.FocusCell)),
-          Attr.on_blur(_ => inject(ModelAction.BlurCell)),
-          ...key_handlers,
-        ],
+        ~attr=
+          Attr.many([
+            Attr.id(ViewUtil.code_root_id),
+            Attr.classes(["code", "presentation"]),
+            // need to use mousedown instead of click to fire
+            // (and move caret) before cell focus event handler
+            Attr.on_mousedown(click_handler),
+            // necessary to make cell focusable
+            Attr.create("tabindex", "0"),
+            Attr.on_focus(_ => inject(ModelAction.FocusCell)),
+            Attr.on_blur(_ => inject(ModelAction.BlurCell)),
+            ...key_handlers,
+          ]),
         caret
         @ cursor_inspector
-        @ [Node.span([Attr.classes(["code"])], code_text), ...decorations],
+        @ [
+          Node.span(~attr=Attr.classes(["code"]), code_text),
+          ...decorations,
+        ],
       );
     },
   );
