@@ -10,7 +10,8 @@ let mk_InvalidText: string => UHDoc.t =
 let mk_IntLit: string => UHDoc.t = UHDoc_common.mk_IntLit(~sort=Pat);
 let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Pat);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Pat);
-let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Pat);
+let mk_ListLit: option(UHDoc_common.formatted_child) => UHDoc.t =
+  UHDoc_common.mk_ListLit(~sort=Pat);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Pat);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Pat);
@@ -25,6 +26,19 @@ let mk_NTuple:
   ) =>
   UHDoc.t =
   UHDoc_common.mk_NTuple(
+    ~sort=Pat,
+    ~get_tuple_elements=UHPat.get_tuple_elements,
+    ~inline_padding_of_operator,
+  );
+let mk_NListLit:
+  (
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+    ~mk_operator: UHPat.operator => UHDoc.t,
+    ~enforce_inline: bool,
+    OpSeq.t('a, UHPat.operator)
+  ) =>
+  UHDoc.t =
+  UHDoc_common.mk_NListLit(
     ~sort=Pat,
     ~get_tuple_elements=UHPat.get_tuple_elements,
     ~inline_padding_of_operator,
@@ -70,7 +84,22 @@ and mk_operand =
         | IntLit(_, n) => mk_IntLit(n)
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
-        | ListNil(_) => mk_ListNil()
+        | ListLit(_, body) =>
+          switch (body) {
+          | Some(body) =>
+            let formattable_body = (~enforce_inline) =>
+              Lazy.force(mk_list, ~memoize, ~enforce_inline, body)
+              |> UHDoc_common.annot_Step(0);
+
+            let formatted_body =
+              enforce_inline
+                ? UHDoc_common.EnforcedInline(
+                    formattable_body(~enforce_inline=true),
+                  )
+                : UHDoc_common.Unformatted(formattable_body);
+            mk_ListLit(Some(formatted_body));
+          | None => mk_ListLit(None)
+          }
         | Parenthesized(body) =>
           let body = mk_child(~memoize, ~enforce_inline, ~child_step=0, body);
           mk_Parenthesized(body);
@@ -101,4 +130,18 @@ and mk_child =
   enforce_inline
     ? EnforcedInline(formattable(~enforce_inline=true))
     : Unformatted(formattable);
-};
+}
+and mk_list =
+  lazy(
+    UHDoc_common.memoize(
+      (~memoize: bool, ~enforce_inline: bool, opseq: UHPat.opseq) =>
+      (
+        mk_NListLit(
+          ~mk_operand=Lazy.force(mk_operand, ~memoize),
+          ~mk_operator,
+          ~enforce_inline,
+          opseq,
+        ): UHDoc.t
+      )
+    )
+  );
