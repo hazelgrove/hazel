@@ -60,7 +60,6 @@ let ana_fix_holes_operand:
     HTyp.t
   ) =>
   (UHPat.operand, Contexts.t, IDGen.t);
-
 let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZPat.t) => (ZPat.t, HTyp.t, Contexts.t, IDGen.t);
 

@@ -18,7 +18,7 @@ let get_result =
   switch (d) {
   | Elaborates(elab, _, _) =>
     switch (elab |> evaluate) {
-    | (Evaluator.BoxedValue(d), {test_map, _})
+    | (EvaluatorResult.BoxedValue(d), {test_map, _})
     | (Indet(d), {test_map, _}) => Some((d, List.rev(test_map)))
     | exception _ => None
     }
