@@ -1441,12 +1441,13 @@ and syn_perform_operand =
       CursorE(
         OnDelim(_) | OnOp(_),
         Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        ListLit(_, None) |
         ApPalette(_) |
         Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListLit(_, Some(_)) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
         ApPalette(_),
       ),
@@ -1492,12 +1493,6 @@ and syn_perform_operand =
   | (Delete, CursorE(OnDelim(k, Before), operand)) =>
     let new_zoperand = ZExp.CursorE(OnDelim(k, After), operand);
     syn_perform_operand(ctx, Backspace, (new_zoperand, ty, id_gen));
-
-  | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
-    let (zhole, id_gen) = id_gen |> ZExp.new_EmptyHole;
-    let new_ze = ZExp.ZBlock.wrap(zhole);
-    Succeeded(SynDone((new_ze, Hole, id_gen)));
-
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     syn_delete_text(ctx, id_gen, j, t)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
@@ -1522,6 +1517,9 @@ and syn_perform_operand =
     syn_backspace_text(ctx, id_gen, j, string_of_bool(b))
   | (Backspace, CursorE(OnText(j), Keyword(kw))) =>
     syn_backspace_text(ctx, id_gen, j, Keyword.to_string(kw))
+  | (Backspace | Delete, CursorE(OnText(_), ListLit(_, None))) =>
+    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+    Succeeded(SynDone((ZExp.ZBlock.wrap(zhole), Hole, id_gen)));
 
   /* \x :<| Int . x + 1   ==>   \x| . x + 1 */
   | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, body))) =>
@@ -1557,6 +1555,35 @@ and syn_perform_operand =
       };
     let new_ze = e |> place_cursor;
     Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
+  | (Backspace, CursorE(OnDelim(k, After), ListLit(_, Some(opseq)))) =>
+    let place_cursor =
+      switch (k) {
+      | 0 => ZExp.place_before
+      | _one => ZExp.place_after
+      };
+    let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
+    Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
+  | (
+      Backspace,
+      ListLitZ(
+        _,
+        ZOpSeq(
+          Placeholder(0),
+          ZOperand(CursorE(OnDelim(0, After), EmptyHole(_)), (E, E)),
+        ),
+      ),
+    ) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let new_ze =
+        ZExp.CursorE(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        )
+        |> ZExp.ZBlock.wrap;
+      Succeeded(SynDone(Statics_Exp.syn_fix_holes_z(ctx, id_gen, new_ze)));
+    }
 
   /* TODO consider deletion of type ascription on case */
 
@@ -1608,6 +1635,33 @@ and syn_perform_operand =
         && !ZExp.is_after_zoperand(zoperand) =>
     syn_split_text(ctx, id_gen, j, sop, f)
 
+  | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+
+      Succeeded(SynDone((new_ze, ty, id_gen)));
+    }
+  | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ele_ty) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      switch (syn_perform_operand(ctx, a, (zhole, ele_ty, id_gen))) {
+      | (Failed | CursorEscaped(_)) as failed => failed
+      | Succeeded(SynDone((zp, ty', id_gen))) =>
+        switch (zp) {
+        | ([], ExpLineZ(z), []) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
+          Succeeded(SynDone((new_ze, List(ty'), id_gen)));
+        | _ => Failed
+        }
+      | _ => Failed
+      };
+    }
+
   | (Construct(SCase), CursorE(_, operand)) =>
     Succeeded(
       mk_SynExpandsToCase(
@@ -1640,13 +1694,14 @@ and syn_perform_operand =
   | (Construct(SChar(s)), CursorE(OnText(j), Keyword(kw))) =>
     syn_insert_text(ctx, id_gen, (j, s), Keyword.to_string(kw))
   | (Construct(SChar(_)), CursorE(_)) => Failed
-
-  | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
+  | (Construct(SListLit), CursorE(_, EmptyHole(_))) =>
     let new_ze =
-      UHExp.listnil() |> ZExp.place_after_operand |> ZExp.ZBlock.wrap;
-    let new_ty = HTyp.List(Hole);
-    Succeeded(SynDone((new_ze, new_ty, id_gen)));
-  | (Construct(SListNil), CursorE(_)) => Failed
+      ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
+      |> ZExp.ZBlock.wrap;
+    Succeeded(SynDone((new_ze, HTyp.List(Hole), id_gen)));
+  | (Construct(SListLit), CursorE(_)) =>
+    let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zoperand)));
+    Succeeded(SynDone((new_ze, HTyp.List(ty), id_gen)));
 
   | (Construct(SParenthesized), CursorE(_)) =>
     let new_ze =
@@ -1879,6 +1934,50 @@ and syn_perform_operand =
     | Succeeded((new_zbody, new_ty, id_gen)) =>
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(new_zbody));
       Succeeded(SynDone((new_ze, new_ty, id_gen)));
+    }
+  | (_, ListLitZ(_, ZOpSeq(skel, _) as zopseq)) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ele_ty) =>
+      let prod_ty =
+        HTyp.Prod(
+          List.init(List.length(UHExp.get_tuple_elements(skel)), _ =>
+            ele_ty
+          ),
+        );
+      switch (
+        syn_perform(ctx, a, (ZExp.ZBlock.wrap'(zopseq), prod_ty, id_gen))
+      ) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        syn_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, ty, id_gen),
+        )
+      | Succeeded((([], ExpLineZ(new_zopseq), []), new_ty, id_gen)) =>
+        let (new_ty, err, id_gen) = {
+          let list_types = HTyp.get_prod_elements(new_ty);
+          switch (Statics_common.lub(list_types)) {
+          | None =>
+            let (u, id_gen) = id_gen |> IDGen.next_hole;
+            (
+              HTyp.Hole,
+              ListErrStatus.InconsistentBranches(list_types, u),
+              id_gen,
+            );
+
+          | Some(common_type) => (
+              List(common_type),
+              StandardErrStatus(NotInHole),
+              id_gen,
+            )
+          };
+        };
+        let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(~err, new_zopseq));
+        Succeeded(SynDone((new_ze, new_ty, id_gen)));
+      | Succeeded(_) => Failed
+      };
     }
   | (_, LamZP(_, zp, body)) =>
     switch (Action_Pat.syn_perform(ctx, id_gen, a, zp)) {
@@ -2910,13 +3009,15 @@ and ana_perform_operand =
       _,
       CursorE(
         OnDelim(_) | OnOp(_),
-        Var(_) | InvalidText(_, _) | IntLit(_) | FloatLit(_) | BoolLit(_) |
+        Var(_) | InvalidText(_, _) | ListLit(_, None) | IntLit(_) |
+        FloatLit(_) |
+        BoolLit(_) |
         ApPalette(_) |
         Keyword(_),
       ) |
       CursorE(
         OnText(_) | OnOp(_),
-        EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
+        EmptyHole(_) | ListLit(_, Some(_)) | Lam(_) | Inj(_) | Case(_) |
         Parenthesized(_) |
         ApPalette(_),
       ),
@@ -3003,10 +3104,6 @@ and ana_perform_operand =
     let new_ze = ZExp.ZBlock.wrap(CursorE(OnDelim(k, After), operand));
     ana_perform(ctx, Backspace, (new_ze, id_gen), ty) |> wrap_in_AnaDone;
 
-  | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
-    let (zhole, id_gen) = id_gen |> ZExp.new_EmptyHole;
-    Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), id_gen)));
-
   | (Delete, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_delete_text(ctx, id_gen, j, t, ty)
   | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
@@ -3020,6 +3117,9 @@ and ana_perform_operand =
   | (Delete, CursorE(OnText(j), Keyword(kw))) =>
     ana_delete_text(ctx, id_gen, j, Keyword.to_string(kw), ty)
 
+  | (Backspace | Delete, CursorE(OnText(_), ListLit(_, None))) =>
+    let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+    Succeeded(AnaDone((ZExp.ZBlock.wrap(zhole), id_gen)));
   | (Backspace, CursorE(OnText(j), InvalidText(_, t))) =>
     ana_backspace_text(ctx, id_gen, j, t, ty)
   | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
@@ -3071,11 +3171,74 @@ and ana_perform_operand =
     Succeeded(
       AnaDone(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty)),
     );
+  | (Backspace, CursorE(OnDelim(k, After), ListLit(_, Some(opseq)))) =>
+    let place_cursor =
+      switch (k) {
+      | 0 => ZExp.place_before
+      | _ => ZExp.place_after
+      };
+    let new_ze = UHExp.Block.wrap'(opseq) |> place_cursor;
+    Succeeded(
+      AnaDone(Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty)),
+    );
+  | (
+      Backspace,
+      ListLitZ(
+        _,
+        ZOpSeq(_, ZOperand(CursorE(OnDelim(0, After), EmptyHole(_)), _)),
+      ),
+    ) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let new_ze =
+        ZExp.CursorE(
+          OnText(1),
+          ListLit(StandardErrStatus(NotInHole), None),
+        )
+        |> ZExp.ZBlock.wrap;
+      Succeeded(
+        AnaDone(
+          Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, List(Hole)),
+        ),
+      );
+    }
 
   /* TODO consider deletion of type ascription on case */
 
   /* Construction */
-
+  | (Construct(SOp(SSpace)), CursorE(OnText(1), ListLit(_, None))) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(_) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(ZOpSeq.wrap(zhole)));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    }
+  | (Construct(_), CursorE(OnText(1), ListLit(_, None))) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ty_el) =>
+      let (zhole, id_gen) = ZExp.new_EmptyHole(id_gen);
+      switch (ana_perform_operand(ctx, a, (zhole, id_gen), ty_el)) {
+      | Failed => Failed
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, id_gen),
+          ty,
+        )
+      | Succeeded(AnaDone((zp, id_gen))) =>
+        switch (zp) {
+        | ([], ExpLineZ(z), []) =>
+          let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(z));
+          Succeeded(AnaDone((new_ze, id_gen)));
+        | _ => Failed
+        }
+      | _ => Failed
+      };
+    }
   | (Construct(SCommentLine), _) =>
     if (ZExp.is_before_zoperand(zoperand)) {
       let operand = ZExp.erase_zoperand(zoperand);
@@ -3149,6 +3312,40 @@ and ana_perform_operand =
     ana_split_text(ctx, id_gen, j, sop, f, ty)
 
   | (Construct(SAnn), CursorE(_)) => Failed
+
+  | (Construct(SListLit), CursorE(_, EmptyHole(_))) =>
+    let new_ze =
+      ZExp.CursorE(OnText(1), ListLit(StandardErrStatus(NotInHole), None))
+      |> ZExp.ZBlock.wrap;
+    switch (HTyp.matched_list(ty)) {
+    | Some(_) => Succeeded(AnaDone((new_ze, id_gen)))
+    | None =>
+      let (new_ze, id_gen) = new_ze |> ZExp.mk_inconsistent(id_gen);
+      Succeeded(AnaDone((new_ze, id_gen)));
+    };
+  | (Construct(SListLit), CursorE(_)) =>
+    switch (HTyp.matched_list(ty)) {
+    | Some(el_ty) =>
+      let (zopseq, id_gen) =
+        Statics_Exp.ana_fix_holes_zopseq(
+          ctx,
+          id_gen,
+          ZOpSeq.wrap(zoperand),
+          el_ty,
+        );
+      let new_ze =
+        ZExp.ZBlock.wrap(ListLitZ(StandardErrStatus(NotInHole), zopseq));
+      Succeeded(AnaDone((new_ze, id_gen)));
+    | None =>
+      let (zopseq, _, id_gen) =
+        Statics_Exp.syn_fix_holes_zopseq(ctx, id_gen, ZOpSeq.wrap(zoperand));
+      let (u, id_gen) = id_gen |> IDGen.next_hole;
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          ListLitZ(StandardErrStatus(InHole(TypeInconsistent, u)), zopseq),
+        );
+      Succeeded(AnaDone((new_ze, id_gen)));
+    }
 
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole))
       when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
@@ -3351,6 +3548,29 @@ and ana_perform_operand =
       let new_ze = ZExp.ZBlock.wrap(ParenthesizedZ(zbody));
       Succeeded(AnaDone((new_ze, id_gen)));
     }
+  | (_, ListLitZ(_, ZOpSeq(skel, _) as zopseq)) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => Failed
+    | Some(ty_el) =>
+      let length = List.length(UHExp.get_tuple_elements(skel));
+      let ty_prod =
+        length > 1 ? HTyp.Prod(List.init(length, _ => ty_el)) : ty_el;
+      switch (ana_perform_opseq(ctx, a, (zopseq, id_gen), ty_prod)) {
+      | CursorEscaped(side) =>
+        ana_perform_operand(
+          ctx,
+          Action_common.escape(side),
+          (zoperand, id_gen),
+          ty,
+        )
+      | Succeeded(AnaDone((([], ExpLineZ(new_zopseq), []), id_gen))) =>
+        let new_ze = ZExp.ZBlock.wrap(ZExp.listlitz(new_zopseq));
+        let (new_ze, id_gen) =
+          Statics_Exp.ana_fix_holes_z(ctx, id_gen, new_ze, ty);
+        Succeeded(AnaDone((new_ze, id_gen)));
+      | _ => Failed
+      };
+    }
   | (_, LamZP(_, zp, body)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
@@ -3458,7 +3678,7 @@ and ana_perform_operand =
     }
 
   /* Subsumption */
-  | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
+  | (UpdateApPalette(_) | Construct(SApPalette(_)), _)
   | (_, ApPaletteZ(_)) =>
     ana_perform_subsume(ctx, a, (zoperand, id_gen), ty)
   /* Invalid actions at the expression level */

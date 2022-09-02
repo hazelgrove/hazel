@@ -146,6 +146,20 @@ let hooks_case_err =
       ...hs,
     ]
   };
+let hooks_list_err =
+    (
+      ~hook: MetaVar.t => hook,
+      err: ListErrStatus.t,
+      rev_steps: rev_steps,
+      hs: hook_list,
+    ) =>
+  switch (err) {
+  | StandardErrStatus(err) => hooks_err(~hook, err, rev_steps, hs)
+  | InconsistentBranches(_, u) => [
+      mk_hook(hook(u), List.rev(rev_steps)),
+      ...hs,
+    ]
+  };
 
 let hooks_skel_ =
     (

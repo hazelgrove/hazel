@@ -252,7 +252,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
@@ -273,7 +273,7 @@ and syn_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | Keyword(Typed(_, InHole(WrongLength, _), _))
-  | ListNil(InHole(WrongLength, _))
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -354,10 +354,113 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, delta)
-  | ListNil(NotInHole) =>
-    let elt_ty = HTyp.Hole;
-    Elaborates(ListNil(elt_ty), List(elt_ty), delta);
   | Parenthesized(body) => syn_elab(ctx, delta, body)
+  | ListLit(err, None) =>
+    let gamma = Contexts.gamma(ctx);
+    let sigma = Environment.id_env(gamma);
+    Elaborates(ListLit(0, 0, sigma, err, Hole, []), List(Hole), delta);
+  | ListLit(err, Some(opseq)) =>
+    let OpSeq(skel, seq) = opseq;
+    let subskels = UHExp.get_tuple_elements(skel);
+    let glb_ty: option(HTyp.t) =
+      subskels
+      |> List.map(subskel => Statics_Exp.syn_skel(ctx, subskel, seq))
+      |> (
+        fun
+        | [] => failwith("empty tuple")
+        | [hd, ...tl] =>
+          tl
+          |> List.fold_left(
+               (glb_ty, tl_ty) =>
+                 OptUtil.map2(
+                   (glb_ty, tl_ty) => Statics_common.lub([glb_ty, tl_ty]),
+                   glb_ty,
+                   tl_ty,
+                 )
+                 |> Option.join,
+               hd,
+             )
+      );
+
+    switch (glb_ty) {
+    | None =>
+      let f = (delta, subskel) =>
+        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
+        | DoesNotElaborate => None
+        | Elaborates(d, ty, delta) => Some((delta, DHExp.cast(d, ty, Hole)))
+        };
+      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
+      | None => DoesNotElaborate
+      | Some((delta, lst)) =>
+        let gamma = Contexts.gamma(ctx);
+        let sigma = Environment.id_env(gamma);
+        switch (err) {
+        | StandardErrStatus(_) =>
+          Elaborates(
+            ListLit(0, 0, sigma, err, Hole, lst),
+            List(Hole),
+            delta,
+          )
+        | InconsistentBranches(_, u) =>
+          Elaborates(
+            ListLit(u, 0, sigma, err, Hole, lst),
+            List(Hole),
+            delta,
+          )
+        };
+      };
+    | Some(glb_ty) =>
+      let f = (delta, subskel) =>
+        switch (syn_elab_skel(ctx, delta, subskel, seq)) {
+        | DoesNotElaborate => None
+        | Elaborates(d, ty, delta) =>
+          Some((delta, DHExp.cast(d, ty, glb_ty)))
+        };
+      switch (ListUtil.map_with_accumulator_opt(f, delta, subskels)) {
+      | None => DoesNotElaborate
+      | Some((delta, lst)) =>
+        // Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+        let gamma = Contexts.gamma(ctx);
+        let sigma = Environment.id_env(gamma);
+        switch (err) {
+        | StandardErrStatus(_) =>
+          Elaborates(
+            ListLit(0, 0, sigma, err, glb_ty, lst),
+            List(glb_ty),
+            delta,
+          )
+        | InconsistentBranches(_, u) =>
+          Elaborates(
+            ListLit(u, 0, sigma, err, glb_ty, lst),
+            List(glb_ty),
+            delta,
+          )
+        };
+      };
+    };
+  /*
+
+
+     | Some((delta, lst)) =>
+       // Elaborates(ListLit(glb_ty, lst), List(glb_ty), delta)
+       let gamma = Contexts.gamma(ctx);
+       let sigma = Environment.id_env(gamma);
+       switch (err) {
+       | StandardErrStatus(_) =>
+         Elaborates(
+           ListLit(0, 0, sigma, err, glb_ty, lst),
+           List(glb_ty),
+           delta,
+         )
+       | InconsistentBranches(_, u) =>
+         Elaborates(
+           ListLit(u, 0, sigma, err, glb_ty, lst),
+           List(glb_ty),
+           delta,
+         )
+       };
+     };
+   };*/
   | Lam(NotInHole, p, body) =>
     switch (Elaborator_Pat.syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -672,7 +775,7 @@ and ana_elab_operand =
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
   | Keyword(Typed(_, InHole(TypeInconsistent as reason, u), _))
-  | ListNil(InHole(TypeInconsistent as reason, u))
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Lam(InHole(TypeInconsistent as reason, u), _, _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _, _)
@@ -687,6 +790,7 @@ and ana_elab_operand =
         MetaVarMap.add(u, (Delta.ExpressionHole, ty, gamma), delta);
       Elaborates(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
     };
+  | ListLit(InconsistentBranches(_, u), _)
   | Case(InconsistentBranches(_, u), _, _) =>
     switch (syn_elab_operand(ctx, delta, operand)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -701,7 +805,7 @@ and ana_elab_operand =
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | Keyword(Typed(_, InHole(WrongLength, _), _))
-  | ListNil(InHole(WrongLength, _))
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
@@ -723,6 +827,46 @@ and ana_elab_operand =
       };
     Elaborates(d, ty, delta);
   | Parenthesized(body) => ana_elab(ctx, delta, body, ty)
+  | ListLit(StandardErrStatus(NotInHole), None) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => DoesNotElaborate
+    | Some(elt_ty) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      Elaborates(
+        ListLit(0, 0, sigma, StandardErrStatus(NotInHole), Hole, []),
+        List(elt_ty),
+        delta,
+      );
+    }
+  | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => DoesNotElaborate
+    | Some(elt_ty) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = Environment.id_env(gamma);
+      switch (ana_elab_list(ctx, delta, opseq, elt_ty)) {
+      | None => DoesNotElaborate
+      | Some((elt_list, ty_list, delta)) =>
+        let glb_ty = Statics_common.lub(ty_list);
+        switch (glb_ty) {
+        | Some(glb_ty) =>
+          Elaborates(
+            ListLit(
+              0,
+              0,
+              sigma,
+              StandardErrStatus(NotInHole),
+              glb_ty,
+              elt_list,
+            ),
+            List(glb_ty),
+            delta,
+          )
+        | None => DoesNotElaborate
+        };
+      };
+    }
   | Lam(NotInHole, p, body) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => DoesNotElaborate
@@ -776,11 +920,6 @@ and ana_elab_operand =
         Elaborates(d, ty, delta);
       }
     }
-  | ListNil(NotInHole) =>
-    switch (HTyp.matched_list(ty)) {
-    | None => DoesNotElaborate
-    | Some(elt_ty) => Elaborates(ListNil(elt_ty), List(elt_ty), delta)
-    }
   | InvalidText(u, t) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);
@@ -795,6 +934,28 @@ and ana_elab_operand =
   | ApPalette(NotInHole, _, _, _) =>
     /* subsumption */
     syn_elab_operand(ctx, delta, operand)
+  }
+and ana_elab_list =
+    (ctx: Contexts.t, delta: Delta.t, opseq: UHExp.opseq, ele_ty: HTyp.t)
+    : option((list(DHExp.t), list(HTyp.t), Delta.t)) =>
+  switch (opseq) {
+  | OpSeq(skel, seq) =>
+    let subskels = UHExp.get_tuple_elements(skel);
+    let rec ana_elab_subskels = (subskels, del) =>
+      switch (subskels) {
+      | [] => Some(([], [], del))
+      | [hd, ...tl] =>
+        switch (ana_elab_skel(ctx, del, hd, seq, ele_ty)) {
+        | Elaborates(hd, ty, del) =>
+          switch (ana_elab_subskels(tl, del)) {
+          | Some((tl, ty_list, del)) =>
+            Some(([hd, ...tl], [ty, ...ty_list], del))
+          | None => None
+          }
+        | DoesNotElaborate => None
+        }
+      };
+    ana_elab_subskels(subskels, delta);
   }
 and ana_elab_rules =
     (
@@ -852,12 +1013,23 @@ let rec renumber_result_only =
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     let (d2, hii) = renumber_result_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | ListLit(u, _, sigma, err, t, deltas) =>
+    let (d_list, hii) =
+      deltas
+      |> List.fold_left(
+           ((d_list, hii), d) => {
+             let (d, hii) = renumber_result_only(path, hii, d);
+             (d_list @ [d], hii);
+           },
+           ([], hii),
+         );
+    let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+    (ListLit(u, i, sigma, err, t, d_list), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_result_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
@@ -952,12 +1124,24 @@ let rec renumber_sigmas_only =
   | Sequence(_, _)
   | IntLit(_)
   | FloatLit(_)
-  | ListNil(_)
   | Triv => (d, hii)
   | Let(dp, d1, d2) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     let (d2, hii) = renumber_sigmas_only(path, hii, d2);
     (Let(dp, d1, d2), hii);
+  | ListLit(u, i, sigma, err, t, deltas) =>
+    let (d_list, hii) =
+      deltas
+      |> List.fold_left(
+           ((d_list, hii), d) => {
+             let (d, hii) = renumber_sigmas_only(path, hii, d);
+             (d_list @ [d], hii);
+           },
+           ([], hii),
+         );
+    let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+    let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+    (ListLit(u, i, sigma, err, t, d_list), hii);
   | FixF(x, ty, d1) =>
     let (d1, hii) = renumber_sigmas_only(path, hii, d1);
     (FixF(x, ty, d1), hii);
