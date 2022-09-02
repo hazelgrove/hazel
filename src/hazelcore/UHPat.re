@@ -6,8 +6,7 @@ exception FreeVarInPat;
 type operator = Operators_Pat.t;
 
 [@deriving sexp]
-type t = opseq
-and opseq = OpSeq.t(operand, operator)
+type t = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
@@ -17,9 +16,12 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | ListLit(ListErrStatus.t, option(opseq))
+  | ListLit(ListErrStatus.t, option(t))
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
+
+[@deriving sexp]
+type opseq = t;
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

@@ -7,36 +7,46 @@ type err_state_b =
 
 let inconsistent_symbol =
   Node.div(
-    [
-      Attr.classes(["consistency-symbol", "inconsistent"]),
-      Attr.create("title", "Inconsistent"),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(["consistency-symbol", "inconsistent"]),
+        Attr.create("title", "Inconsistent"),
+      ]),
     [Node.text(Unicode.inconsistent)],
   );
 
 let consistent_symbol =
   Node.div(
-    [
-      Attr.classes(["consistency-symbol", "consistent"]),
-      Attr.create("title", "Consistent"),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(["consistency-symbol", "consistent"]),
+        Attr.create("title", "Consistent"),
+      ]),
     [Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
   let classes =
     only_right ? ["emphasize-text", "only-right"] : ["emphasize-text"];
-  Node.div([Attr.classes(classes)], [Node.text(msg)]);
+  Node.div(~attr=Attr.classes(classes), [Node.text(msg)]);
 };
 
 let syn =
   Node.div(
-    [Attr.classes(["bidirectional"]), Attr.create("title", "Synthesize")],
+    ~attr=
+      Attr.many([
+        Attr.classes(["bidirectional"]),
+        Attr.create("title", "Synthesize"),
+      ]),
     [Node.text(Unicode.synSym)],
   );
 let ana =
   Node.div(
-    [Attr.classes(["bidirectional"]), Attr.create("title", "Analyze")],
+    ~attr=
+      Attr.many([
+        Attr.classes(["bidirectional"]),
+        Attr.create("title", "Analyze"),
+      ]),
     [Node.text(Unicode.anaSym)],
   );
 
@@ -48,7 +58,7 @@ let mk_expecting_of_type = (~article, ~term_tag) => [
 
 let any_typ_msg =
   Node.div(
-    [Attr.classes(["compressed"])],
+    ~attr=Attr.classes(["compressed"]),
     [
       emphasize_text("Any Type ("),
       HTypCode.view(HTyp.Hole),
@@ -485,7 +495,7 @@ let novice_summary =
 
 let summary_bar =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(_),
       ci: CursorInfo.t,
       show_expansion_arrow: bool,
       show_expanded: bool,
@@ -493,9 +503,9 @@ let summary_bar =
       show_strategy_guide_icon: bool,
     ) => {
   let toggle_cursor_inspector_event = toggle =>
-    Event.Many([
-      Event.Prevent_default,
-      Event.Stop_propagation,
+    Effect.Many([
+      Effect.Prevent_default,
+      Effect.Stop_propagation,
       inject(ModelAction.UpdateCursorInspector(toggle)),
     ]);
   let arrow_direction =
@@ -506,40 +516,41 @@ let summary_bar =
     };
   let arrow =
     Node.div(
-      [
-        Attr.classes(["clickable-help"]),
-        Attr.create("title", "Click to toggle expanded cursor inspector"),
-        Attr.on_click(_ =>
-          toggle_cursor_inspector_event(Toggle_show_expanded)
-        ),
-      ],
+      ~attr=
+        Attr.many([
+          Attr.classes(["clickable-help"]),
+          Attr.create("title", "Click to toggle expanded cursor inspector"),
+          Attr.on_click(_ =>
+            toggle_cursor_inspector_event(Toggle_show_expanded)
+          ),
+        ]),
       [arrow_direction],
     );
   let tag_type = TermTag.get_cursor_term_sort(ci.cursor_term);
   let summary =
     Node.div(
-      [
+      ~attr=
         Attr.classes(
           novice_mode
             ? ["summary-message", "novice-mode"] : ["summary-message"],
         ),
-      ],
       novice_mode
         ? novice_summary(ci.typed, ci.cursor_term, tag_type)
         : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
   let fill_icon =
     Node.div(
-      [
-        Attr.classes(["clickable-help"]),
-        Attr.create("title", "Click to toggle strategy guide"),
-        Attr.on_click(_ =>
-          toggle_cursor_inspector_event(Toggle_strategy_guide)
-        ),
-      ],
+      ~attr=
+        Attr.many([
+          Attr.classes(["clickable-help"]),
+          Attr.create("title", "Click to toggle strategy guide"),
+          Attr.on_click(_ =>
+            toggle_cursor_inspector_event(Toggle_strategy_guide)
+          ),
+        ]),
       [Node.text(Unicode.light_bulb)],
     );
-  let fill_space = Node.span([Attr.classes(["filler"])], []);
+  let fill_space = Node.span(~attr=Attr.classes(["filler"]), []);
   let body =
     switch (show_expansion_arrow, show_strategy_guide_icon) {
     | (true, true) => [summary, fill_space, arrow, fill_icon]
@@ -548,18 +559,19 @@ let summary_bar =
     | (false, false) => [summary]
     };
   Node.div(
-    [
-      Attr.create("title", "Click to toggle form of message"),
-      Attr.classes(["type-info-summary", "clickable-help"]),
-      Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.create("title", "Click to toggle form of message"),
+        Attr.classes(["type-info-summary", "clickable-help"]),
+        Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
+      ]),
     body,
   );
 };
 
 let view =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(unit),
       ~loc: (float, float),
       ~test_inspector: KeywordID.t => option(Node.t),
       cursor_inspector: CursorInspectorModel.t,
@@ -569,7 +581,7 @@ let view =
   let inconsistent_branches_ty_bar =
       (branch_types, path_to_case, skipped_index) =>
     Node.div(
-      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      ~attr=Attr.classes(["infobar", "inconsistent-branches-ty-bar"]),
       List.mapi(
         (index, ty) => {
           let shifted_index =
@@ -583,11 +595,10 @@ let view =
               }
             };
           Node.span(
-            [
+            ~attr=
               Attr.on_click(_ => {
                 inject(SelectCaseBranch(path_to_case, shifted_index))
               }),
-            ],
             [HTypCode.view(ty)],
           );
         },
@@ -596,15 +607,14 @@ let view =
     );
   let inconsistent_elements_ty_bar = (branch_types, path_to_case) =>
     Node.div(
-      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      ~attr=Attr.classes(["infobar", "inconsistent-branches-ty-bar"]),
       List.mapi(
         (index, ty) => {
           Node.span(
-            [
+            ~attr=
               Attr.on_click(_ => {
                 inject(SelectListElement(List.nth(path_to_case, index)))
               }),
-            ],
             [HTypCode.view(ty)],
           )
         },
@@ -614,13 +624,13 @@ let view =
 
   let special_msg_bar = (msg: string) =>
     Node.div(
-      [Attr.classes(["infobar", "special-msg-bar"])],
+      ~attr=Attr.classes(["infobar", "special-msg-bar"]),
       [Node.text(msg)],
     );
 
   let expected_indicator = (title_text, type_div) =>
     Node.div(
-      [Attr.classes(["indicator", "expected-indicator"])],
+      ~attr=Attr.classes(["indicator", "expected-indicator"]),
       [Panel.view_of_main_title_bar(title_text), type_div],
     );
   let expected_msg_indicator = msg =>
@@ -644,7 +654,7 @@ let view =
     );
   let got_indicator = (title_text, type_div) =>
     Node.div(
-      [Attr.classes(["indicator", "got-indicator"])],
+      ~attr=Attr.classes(["indicator", "got-indicator"]),
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
@@ -832,16 +842,17 @@ let view =
     | _ => content
     };
   Node.div(
-    [
-      Attr.id(ViewUtil.ci_id),
-      Attr.classes(["cursor-inspector-outer", above_or_below]),
-      // stop propagation to code click handler
-      Attr.on_mousedown(_ => Event.Stop_propagation),
-      pos_attr,
-    ],
+    ~attr=
+      Attr.many([
+        Attr.id(ViewUtil.ci_id),
+        Attr.classes(["cursor-inspector-outer", above_or_below]),
+        // stop propagation to code click handler
+        Attr.on_mousedown(_ => Effect.Stop_propagation),
+        pos_attr,
+      ]),
     [
       Node.div(
-        [Attr.classes(["cursor-inspector", cls_of_err_state_b])],
+        ~attr=Attr.classes(["cursor-inspector", cls_of_err_state_b]),
         content,
       ),
     ],

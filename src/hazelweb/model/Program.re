@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open OptUtil.Syntax;
 
-module Memo = Core_kernel.Memo;
+module Memo = Core.Memo;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
