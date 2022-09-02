@@ -93,7 +93,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListLit(_ids, es) =>
-      //TODO: list literals. below is just placeholder
       let* ds =
         List.fold_left(
           (acc, e) => {
@@ -104,7 +103,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           Some([]),
           es,
         );
-      wrap(ListLit(0, 0, [], StandardErrStatus(NotInHole), Int, ds));
+      wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
@@ -252,7 +251,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListLit(_ids, ps) =>
-      //TODO: list literals. below is just placeholder
       let* ps =
         List.fold_left(
           (acc, e) => {
