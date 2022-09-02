@@ -330,7 +330,6 @@ and uexp_to_info_map =
     );
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(es) =>
-    //TODO(andrew) LISTLITS: below is placeholder logic, might be messy/wrong/incomplete
     let modes = Typ.matched_list_lit_mode(mode, List.length(es));
     let e_ids = List.map(Term.UExp.rep_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
@@ -475,7 +474,35 @@ and upat_to_info_map =
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
-  | ListNil => atomic(Just(List(Unknown(Internal))))
+  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
+  | ListLit(ps) =>
+    let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
+    let p_ids = List.map(Term.UPat.rep_id, ps);
+    let (ctx, infos) =
+      List.fold_left2(
+        ((ctx, infos), e, mode) => {
+          let (_, ctx, _) as info = upat_to_info_map(~mode, ~ctx, e);
+          (ctx, infos @ [info]);
+        },
+        (ctx, []),
+        ps,
+        modes,
+      );
+    let tys = List.map(((ty, _, _)) => ty, infos);
+    let self: Typ.self =
+      switch (Typ.join_all(tys)) {
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, p_ids, tys),
+        )
+      | Some(ty) => Just(List(ty))
+      };
+    let info: t = InfoPat({cls, self, mode, ctx, term: upat});
+    let m = union_m(List.map(((_, _, m)) => m, infos));
+    /* Add an entry for the id of each comma tile */
+    let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
+    (typ_after_fix(mode, self), ctx, m);
   | Cons(hd, tl) =>
     let mode_elem = Typ.matched_list_mode(mode);
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);

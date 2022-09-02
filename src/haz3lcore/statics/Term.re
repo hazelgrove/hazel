@@ -80,7 +80,7 @@ module UPat = {
     | Float
     | Bool
     | Triv
-    | ListNil
+    | ListLit
     | Cons
     | Var
     | Tuple
@@ -107,7 +107,7 @@ module UPat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | Triv => Triv
-    | ListNil => ListNil
+    | ListLit(_) => ListLit
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
@@ -124,7 +124,7 @@ module UPat = {
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
     | Triv => "Trivial Literal. Pathetic, really."
-    | ListNil => "List Nil"
+    | ListLit => "List Literal Pattern"
     | Cons => "List Cons"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"

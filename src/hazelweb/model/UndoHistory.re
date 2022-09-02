@@ -505,7 +505,7 @@ let get_new_action_group =
       | SList
       | SAnn
       | SLam
-      | SListNil
+      | SListLit
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))

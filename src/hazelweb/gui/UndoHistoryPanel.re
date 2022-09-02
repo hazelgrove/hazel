@@ -106,8 +106,8 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
           code_view(string_of_bool(bool_val)),
         ])
       )
-    | ListNil(_) => indicate_words_view("empty list")
     | Lam(_) => indicate_words_view("function")
+    | ListLit(_) => indicate_words_view("list literal")
 
     | Inj(_, side, _) =>
       switch (side) {
@@ -176,7 +176,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
           code_view(string_of_bool(bool_val)),
         ])
       )
-    | ListNil(_) => indicate_words_view("empty list")
+    | ListLit(_) => indicate_words_view("list literal")
     | Parenthesized(_) => indicate_words_view("parentheses")
     | Inj(_, side, _) =>
       switch (side) {
@@ -293,7 +293,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
         ])
       )
     | SList
-    | SListNil
+    | SListLit
     | SLine
     | SCommentLine
     | SAnn

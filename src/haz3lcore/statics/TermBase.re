@@ -231,7 +231,7 @@ and UPat: {
     | Float(float)
     | Bool(bool)
     | Triv
-    | ListNil
+    | ListLit(list(t))
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))
@@ -252,7 +252,7 @@ and UPat: {
     | Float(float)
     | Bool(bool)
     | Triv
-    | ListNil
+    | ListLit(list(t))
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))

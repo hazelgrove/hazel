@@ -327,8 +327,12 @@ let mk_keyword =
     : t =>
   Delim.keyword(~kw, n) |> annot_Tessera |> annot_Operand(~sort);
 
-let mk_ListNil = (~sort: TermSort.t, ()): t =>
-  Delim.mk(~index=0, "[]") |> annot_Tessera |> annot_Operand(~sort);
+let mk_ListLit = (~sort: TermSort.t, body: option(formatted_child)): t => {
+  switch (body) {
+  | None => mk_text("[]") |> annot_Tessera |> annot_Operand(~sort)
+  | Some(body) => body |> pad_bidelimited_open_child |> annot_Operand(~sort)
+  };
+};
 
 let mk_Parenthesized = (~sort: TermSort.t, body: formatted_child): t => {
   let open_group = Delim.open_Parenthesized() |> annot_Tessera;
@@ -597,6 +601,95 @@ let mk_NTuple =
         (),
       ),
       choices,
+    );
+  };
+};
+
+let mk_NListLit =
+    (
+      ~sort: TermSort.t,
+      ~get_tuple_elements: Skel.t('operator) => list(Skel.t('operator)),
+      ~mk_operand: (~enforce_inline: bool, 'operand) => t,
+      ~mk_operator: 'operator => t,
+      ~inline_padding_of_operator: 'operator => (t, t),
+      ~enforce_inline: bool,
+      OpSeq(skel, seq): OpSeq.t('operand, 'operator),
+    )
+    : t => {
+  let mk_BinOp =
+    mk_BinOp(
+      ~sort,
+      ~mk_operand,
+      ~mk_operator,
+      ~inline_padding_of_operator,
+      ~seq,
+    );
+
+  switch (get_tuple_elements(skel)) {
+  | [] => failwith(__LOC__ ++ ": found empty tuple")
+  | [hd, ...tl] =>
+    let hd_doc = (~enforce_inline: bool) =>
+      // TODO need to relax is_inline
+      Doc.annot(
+        UHAnnot.OpenChild(enforce_inline ? InlineWithBorder : Multiline),
+        mk_BinOp(~enforce_inline, hd),
+      );
+    let comma_doc = (step: int) => annot_Step(step, mk_op(","));
+    let (inline_choice, comma_indices) =
+      tl
+      |> List.fold_left(
+           ((tuple, comma_indices), elem) => {
+             let comma_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=true, elem);
+             let doc =
+               Doc.hcats([
+                 tuple,
+                 annot_Tessera(comma_doc(comma_index)),
+                 Doc.annot(
+                   UHAnnot.OpenChild(InlineWithBorder),
+                   Doc.hcat(space_, elem_doc),
+                 ),
+               ]);
+             (doc, [comma_index, ...comma_indices]);
+           },
+           (hd_doc(~enforce_inline=true), []),
+         );
+    let multiline_choice =
+      tl
+      |> List.fold_left(
+           (tuple, elem) => {
+             let comma_index =
+               Skel.leftmost_tm_index(elem) - 1 + Seq.length(seq);
+             let elem_doc = mk_BinOp(~enforce_inline=false, elem);
+             Doc.(
+               vsep(
+                 tuple,
+                 hcat(
+                   annot_Tessera(comma_doc(comma_index)),
+                   // TODO need to have a choice here for multiline vs not
+                   annot(
+                     UHAnnot.OpenChild(Multiline),
+                     hcat(space_, align(elem_doc)),
+                   ),
+                 ),
+               )
+             );
+           },
+           hd_doc(~enforce_inline=false),
+         );
+    let choices =
+      enforce_inline
+        ? inline_choice : Doc.choice(inline_choice, multiline_choice);
+    let open_list = Delim.open_List() |> annot_Tessera;
+    let close_list = Delim.close_List() |> annot_Tessera;
+    Doc.annot(
+      UHAnnot.mk_Term(
+        ~sort,
+        ~shape=ListLit({comma_indices: comma_indices}),
+        (),
+      ),
+      Doc.hcats([open_list, choices, close_list]),
     );
   };
 };
