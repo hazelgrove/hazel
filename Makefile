@@ -10,6 +10,7 @@ change-deps:
 	opam switch export opam.export
 
 update-ocaml:
+    opam switch create 4.14 ocaml-base-compiler-4.14.0
 	opam switch import opam.export --update-invariant
 
 dev:
