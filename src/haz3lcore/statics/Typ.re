@@ -121,6 +121,17 @@ let join_or_fst = (ty: t, ty': t): t =>
   | Some(ty) => ty
   };
 
+let t_of_self =
+  fun
+  | Just(t) => t
+  | Joined(ss) =>
+    switch (ss |> List.map(s => s.ty) |> join_all) {
+    | None => Unknown(Internal)
+    | Some(t) => t
+    }
+  | Multi
+  | Free => Unknown(Internal);
+
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
    implicit. Somebody should check that what I'm doing
