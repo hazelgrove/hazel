@@ -131,7 +131,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      wrap(Cons(d1, d2));
+      let ty1 = exp_self_htyp(m, e1);
+      let ty2 = exp_self_htyp(m, e2);
+      let dc2 = DHExp.cast(d2, ty2, List(ty1));
+      wrap(Cons(d1, dc2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = exp_self_htyp(m, e);
