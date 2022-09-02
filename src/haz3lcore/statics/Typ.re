@@ -40,7 +40,7 @@ type source = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(t)
-  | Joined(list(source))
+  | Joined(t => t, list(source))
   | Multi
   | Free;
 
@@ -124,10 +124,10 @@ let join_or_fst = (ty: t, ty': t): t =>
 let t_of_self =
   fun
   | Just(t) => t
-  | Joined(ss) =>
+  | Joined(wrap, ss) =>
     switch (ss |> List.map(s => s.ty) |> join_all) {
     | None => Unknown(Internal)
-    | Some(t) => t
+    | Some(t) => wrap(t)
     }
   | Multi
   | Free => Unknown(Internal);
