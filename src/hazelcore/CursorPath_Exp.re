@@ -17,10 +17,17 @@ and of_zopseq = (zopseq: ZExp.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
+  | CursorE(cursor, ListLit(_, Some(_))) => ([0], cursor)
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
+<<<<<<< HEAD
   | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
   | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
+=======
+  | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
+  | ListLitZ(_, zopseq) => cons'(0, of_zopseq(zopseq))
+>>>>>>> origin/haz3l-tests
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
   | CaseZR(_, _, zrules) =>
@@ -108,7 +115,7 @@ and follow_operand =
     | FloatLit(_, _)
     | BoolLit(_, _)
     | Keyword(_)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
@@ -117,7 +124,23 @@ and follow_operand =
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
       }
+<<<<<<< HEAD
     | Fun(err, p, body) =>
+=======
+    | ListLit(err, Some(opseq)) =>
+      switch (x) {
+      | 0 =>
+        if (List.length(xs) == 0) {
+          follow_operand((xs, cursor), operand);
+        } else {
+          opseq
+          |> follow_opseq((xs, cursor))
+          |> Option.map(zopseq => ZExp.listlitz(~err, zopseq));
+        }
+      | _ => None
+      }
+    | Lam(err, p, body) =>
+>>>>>>> origin/haz3l-tests
       switch (x) {
       | 0 =>
         p
@@ -276,14 +299,30 @@ and of_steps_operand =
     | FloatLit(_, _)
     | BoolLit(_, _)
     | Keyword(_)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
+<<<<<<< HEAD
     | Fun(_, p, body) =>
+=======
+    | ListLit(_, Some(opseq)) =>
+      switch (x) {
+      | 0 =>
+        if (List.length(xs) == 0) {
+          of_steps_operand(xs, ~side, operand);
+        } else {
+          opseq
+          |> of_steps_opseq(xs, ~side)
+          |> Option.map(path => cons'(0, path));
+        }
+      | _ => None
+      }
+    | Lam(_, p, body) =>
+>>>>>>> origin/haz3l-tests
       switch (x) {
       | 0 =>
         p
@@ -337,12 +376,20 @@ and of_steps_rule =
     };
   };
 
+<<<<<<< HEAD
 let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
   ExpHole(u, shape);
 let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
 let holes_case_err =
   CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
 let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
+=======
+let hook = (shape, u: MetaVar.t): CursorPath.hook => ExpHole(u, shape);
+let hooks_err = CursorPath_common.hooks_err(~hook=hook(TypeErr));
+let hooks_case_err = CursorPath_common.hooks_case_err(~hook=hook(TypeErr));
+let hooks_verr = CursorPath_common.hooks_verr(~hook=hook(VarErr));
+let hooks_list_err = CursorPath_common.hooks_list_err(~hook=hook(TypeErr));
+>>>>>>> origin/haz3l-tests
 
 let rec holes =
         (
@@ -380,6 +427,7 @@ and holes_line =
     |> CursorPath_Pat.holes(p, [0, ...rev_steps])
   | ExpLine(opseq) => holes_opseq(rev_steps, opseq, hs)
   }
+<<<<<<< HEAD
 and holes_opseq =
     (
       rev_steps: CursorPath.rev_steps,
@@ -391,11 +439,28 @@ and holes_opseq =
   |> CursorPath_common.holes_opseq(
        ~holes_operand,
        ~hole_sort=hole_sort(TypeErr),
+=======
+and hooks_opseq =
+    (
+      rev_steps: CursorPath.rev_steps,
+      opseq: OpSeq.t('operand, 'operator),
+      hs: CursorPath.hook_list,
+    )
+    : CursorPath.hook_list =>
+  hs
+  |> CursorPath_common.hooks_opseq(
+       ~hooks_operand,
+       ~hook=hook(TypeErr),
+>>>>>>> origin/haz3l-tests
        ~is_space=Operators_Exp.is_Space,
        ~rev_steps,
        opseq,
      )
+<<<<<<< HEAD
 and holes_operand =
+=======
+and hooks_operand =
+>>>>>>> origin/haz3l-tests
     (
       operand: UHExp.operand,
       rev_steps: CursorPath.rev_steps,
@@ -424,9 +489,25 @@ and holes_operand =
     ]
   | IntLit(err, _)
   | FloatLit(err, _)
+<<<<<<< HEAD
   | BoolLit(err, _)
   | ListNil(err) => hs |> holes_err(err, rev_steps)
   | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
+=======
+  | BoolLit(err, _) => hs |> hooks_err(err, rev_steps)
+  | Parenthesized(body) => hs |> hooks(body, [0, ...rev_steps])
+  | ListLit(err, None) => hs |> hooks_list_err(err, rev_steps)
+  | ListLit(err, Some(opseq)) =>
+    hs
+    |> CursorPath_common.hooks_opseq(
+         ~hooks_operand,
+         ~hook=hook(TypeErr),
+         ~is_space=Operators_Exp.is_Space,
+         ~rev_steps=[0, ...rev_steps],
+         opseq,
+       )
+    |> hooks_list_err(err, [0, ...rev_steps])
+>>>>>>> origin/haz3l-tests
   | Inj(err, _, body) =>
     hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
   | Fun(err, p, body) =>
@@ -601,14 +682,24 @@ and holes_zoperand =
     }
   | CursorE(_, IntLit(err, _))
   | CursorE(_, FloatLit(err, _))
-  | CursorE(_, BoolLit(err, _))
-  | CursorE(_, ListNil(err)) =>
+  | CursorE(_, BoolLit(err, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
       CursorPath_common.mk_zholes(
         ~hole_selected=
           Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorE(OnText(_), ListLit(err, None)) =>
+    switch (err) {
+    | StandardErrStatus(NotInHole) => CursorPath_common.no_hooks
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected=
+          Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     }
@@ -696,12 +787,76 @@ and holes_zoperand =
       )
     | _ => CursorPath_common.no_holes
     };
+<<<<<<< HEAD
   | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Fun(_) | Case(_)) =>
     /* invalid cursor position */
     CursorPath_common.no_holes
   | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
   | FunZP(err, zp, body) =>
     let holes_err: list(CursorPath.hole_info) =
+=======
+  | CursorE(OnDelim(_), ListLit(_, None))
+  | CursorE(
+      OnText(_),
+      Inj(_) | Parenthesized(_) | Lam(_) | Case(_) | ListLit(_, Some(_)),
+    ) =>
+    /* invalid cursor position */
+    CursorPath_common.no_hooks
+  | CursorE(OnDelim(k, _), ListLit(err, Some(opseq))) =>
+    let hook_selected: option(CursorPath.hook_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
+        Some(
+          mk_hook(
+            CursorPath.ExpHole(u, TypeErr),
+            List.rev([0, ...rev_steps]),
+          ),
+        )
+      };
+    let opseq_hooks = hooks_opseq([0, ...rev_steps], opseq, []);
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zhooks(
+        ~hooks_after=opseq_hooks,
+        ~hook_selected,
+        (),
+      )
+    | 1 =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected,
+        ~hooks_before=opseq_hooks,
+        (),
+      )
+    | _ => CursorPath_common.no_hooks
+    };
+  | ListLitZ(err, zopseq) =>
+    let hooks_err: list(CursorPath.hook_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => []
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) => [
+          mk_hook(
+            CursorPath.ExpHole(u, TypeErr),
+            List.rev([0, ...rev_steps]),
+          ),
+        ]
+      };
+    let CursorPath.{hooks_before, hook_selected, hooks_after} =
+      hooks_zopseq(zopseq, [0, ...rev_steps]);
+    CursorPath_common.mk_zhooks(
+      ~hooks_before=hooks_err @ hooks_before,
+      ~hook_selected,
+      ~hooks_after,
+      (),
+    );
+
+  | CursorE(_, ApPalette(_)) => CursorPath_common.no_hooks /* TODO[livelits] */
+  | ParenthesizedZ(zbody) => hooks_z(zbody, [0, ...rev_steps])
+  | LamZP(err, zp, body) =>
+    let hooks_err: list(CursorPath.hook_info) =
+>>>>>>> origin/haz3l-tests
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [

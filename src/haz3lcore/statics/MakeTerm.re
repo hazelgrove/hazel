@@ -271,12 +271,17 @@ and of_piece_pat = (p: Piece.t, outside_kids: list(Term.any)): UPat.t => {
       | ([","], [Pat(l), Pat(r)], []) => of_tuple_pat(id, l, r).term
       | (["::"], [Pat(l), Pat(r)], []) => Cons(l, r)
       | ([":"], [Pat(p), Typ(ty)], []) => TypeAnn(p, ty)
+      | (["nil"], [], []) => ListLit([], [])
+      | (["[", "]"], [], [body]) =>
+        switch (upat_of_seg(body)) {
+        | {term: Tuple(ids, es), _} => ListLit([id] @ ids, es)
+        | term => ListLit([id], [term])
+        }
       /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
       | ([t], [], []) when Form.is_wild(t) => Wild
-      | ([t], [], []) when Form.is_listnil(t) => ListNil
       | _ => Invalid(UnrecognizedTerm, p)
       };
     {id, term};

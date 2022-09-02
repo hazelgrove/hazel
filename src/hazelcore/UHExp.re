@@ -18,7 +18,7 @@ and operand =
   | IntLit(ErrStatus.t, string)
   | FloatLit(ErrStatus.t, string)
   | BoolLit(ErrStatus.t, bool)
-  | ListNil(ErrStatus.t)
+  | ListLit(ListErrStatus.t, option(opseq))
   | Keyword(Keyword.t)
   | Fun(ErrStatus.t, UHPat.t, t)
   | Inj(ErrStatus.t, InjSide.t, t)
@@ -70,7 +70,13 @@ let case =
     : operand =>
   Case(err, scrut, rules);
 
-let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
+let listlit =
+    (
+      ~err: ListErrStatus.t=StandardErrStatus(NotInHole),
+      ~elems: option(opseq)=None,
+      (),
+    ) =>
+  ListLit(err, elems);
 
 module Line = {
   let prune_empty_hole = (line: line): line =>
@@ -182,10 +188,19 @@ and get_err_status_operand =
   | FloatLit(err, _)
   | BoolLit(err, _)
   | Keyword(Typed(_, err, _))
+<<<<<<< HEAD
   | ListNil(err)
   | Fun(err, _, _)
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _) => err
+=======
+  | ListLit(StandardErrStatus(err), _)
+  | Lam(err, _, _)
+  | Inj(err, _, _)
+  | Case(StandardErrStatus(err), _, _)
+  | ApPalette(err, _, _, _) => err
+  | ListLit(InconsistentBranches(_), _)
+>>>>>>> origin/haz3l-tests
   | Case(InconsistentBranches(_), _, _) => NotInHole
   | Parenthesized(e) => get_err_status(e);
 
@@ -207,8 +222,13 @@ and set_err_status_operand = (err, operand) =>
   | FloatLit(_, f) => FloatLit(err, f)
   | BoolLit(_, b) => BoolLit(err, b)
   | Keyword(Typed(kw, _, n)) => Keyword(Typed(kw, err, n))
+<<<<<<< HEAD
   | ListNil(_) => ListNil(err)
   | Fun(_, p, def) => Fun(err, p, def)
+=======
+  | ListLit(_, body) => ListLit(StandardErrStatus(err), body)
+  | Lam(_, p, def) => Lam(err, p, def)
+>>>>>>> origin/haz3l-tests
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
@@ -234,8 +254,13 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | FloatLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
+<<<<<<< HEAD
   | ListNil(InHole(TypeInconsistent, _))
   | Fun(InHole(TypeInconsistent, _), _, _)
+=======
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
+  | Lam(InHole(TypeInconsistent, _), _, _)
+>>>>>>> origin/haz3l-tests
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       operand,
@@ -247,8 +272,17 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | Keyword(Typed(_, NotInHole | InHole(WrongLength, _), _))
+<<<<<<< HEAD
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Fun(NotInHole | InHole(WrongLength, _), _, _)
+=======
+  | ListLit(
+      StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
+      InconsistentBranches(_, _),
+      _,
+    )
+  | Lam(NotInHole | InHole(WrongLength, _), _, _)
+>>>>>>> origin/haz3l-tests
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(
       StandardErrStatus(NotInHole | InHole(WrongLength, _)) |
@@ -321,10 +355,20 @@ and is_complete_operand = (operand: 'operand): bool => {
   | BoolLit(NotInHole, _) => true
   | Keyword(Typed(_, InHole(_), _)) => false
   | Keyword(Typed(_, NotInHole, _)) => true
+<<<<<<< HEAD
   | ListNil(InHole(_)) => false
   | ListNil(NotInHole) => true
   | Fun(InHole(_), _, _) => false
   | Fun(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
+=======
+  | ListLit(StandardErrStatus(InHole(_)) | InconsistentBranches(_, _), _) =>
+    false
+  | ListLit(StandardErrStatus(NotInHole), None) => true
+  | ListLit(StandardErrStatus(NotInHole), Some(opseq)) =>
+    OpSeq.is_complete(is_complete_operand, opseq)
+  | Lam(InHole(_), _, _) => false
+  | Lam(NotInHole, pat, body) => UHPat.is_complete(pat) && is_complete(body)
+>>>>>>> origin/haz3l-tests
   | Inj(InHole(_), _, _) => false
   | Inj(NotInHole, _, body) => is_complete(body)
   | Case(StandardErrStatus(InHole(_)) | InconsistentBranches(_), _, _) =>

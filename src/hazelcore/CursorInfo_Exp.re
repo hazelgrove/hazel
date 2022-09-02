@@ -22,6 +22,11 @@ and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => extract_cursor_term(zexp)
   | CaseZR(_, _, zrules) => extract_from_zrules(zrules)
+<<<<<<< HEAD
+=======
+  | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
+  | ListLitZ(_, zopseq) => extract_from_zexp_opseq(zopseq)
+>>>>>>> origin/haz3l-tests
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
@@ -82,6 +87,11 @@ and get_zoperand_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_zoperand_from_zexp(zexp)
   | CaseZR(_, _, zrules) => get_zoperand_from_zrules(zrules)
+<<<<<<< HEAD
+=======
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  | ListLitZ(_, zopseq) => get_zoperand_from_zexp_opseq(zopseq)
+>>>>>>> origin/haz3l-tests
   };
 }
 and get_zoperand_from_zrules = (zrules: ZExp.zrules): option(zoperand) => {
@@ -135,6 +145,12 @@ and get_outer_zrules_from_zexp_operand =
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _) => get_outer_zrules_from_zexp(zexp, outer_zrules)
   | CaseZR(_, _, zrules) => get_outer_zrules_from_zrules(zrules)
+<<<<<<< HEAD
+=======
+  | ApPaletteZ(_, _, _, _) => failwith("not implemented")
+  | ListLitZ(_, zopseq) =>
+    get_outer_zrules_from_zexp_opseq(zopseq, outer_zrules)
+>>>>>>> origin/haz3l-tests
   };
 }
 and get_outer_zrules_from_zrules = (zrules: ZExp.zrules): option(ZExp.zrules) => {
@@ -153,7 +169,8 @@ and get_outer_zrules_from_zrule =
 type err_status_result =
   | StandardErr(ErrStatus.t)
   | VarErr(VarErrStatus.HoleReason.t)
-  | InconsistentBranchesErr(list(HTyp.t));
+  | InconsistentBranchesErr(list(HTyp.t))
+  | InconsistentElementsErr(list(HTyp.t));
 
 let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
   fun
@@ -163,6 +180,8 @@ let rec cursor_on_outer_expr: ZExp.zoperand => option(err_status_result) =
         | Var(_, InVarHole(reason, _), _) => VarErr(reason)
         | Case(InconsistentBranches(types, _), _, _) =>
           InconsistentBranchesErr(types)
+        | ListLit(InconsistentBranches(types, _), _) =>
+          InconsistentElementsErr(types)
         | _ => StandardErr(UHExp.get_err_status_operand(operand))
         };
       Some(err_status);
@@ -328,6 +347,126 @@ and syn_cursor_info_line =
     let+ ci = ana_cursor_info(~steps=steps @ [1], def_ctx, zdef, ty_p);
     CursorInfo_common.CursorNotOnDeferredVarPat(ci);
   }
+and syn_cursor_info_zlist =
+    (
+      ~steps: CursorPath.steps,
+      ctx: Contexts.t,
+      cursor_term: cursor_term,
+      ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq,
+      err: ListErrStatus.t,
+    )
+    : option(CursorInfo.t) => {
+  let uhexp = ZExp.erase_zopseq(zopseq);
+  let seq =
+    switch (uhexp) {
+    | OpSeq(_, seq) => seq
+    };
+  switch (zseq) {
+  | ZOperator((_, Comma), _) =>
+    // cursor on tuple comma
+    Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
+    |> Option.map(ty =>
+         switch (ty) {
+         | HTyp.Prod(types) =>
+           switch (HTyp.join_all(LUB, types)) {
+           | Some(ty) =>
+             CursorInfo_common.mk(
+               Synthesized(List(ty)),
+               ctx,
+               extract_from_zexp_zseq(zseq),
+             )
+           | None =>
+             switch (err) {
+             | InconsistentBranches(ele_types, _) =>
+               let ele_paths =
+                 seq
+                 |> Seq.operators
+                 |> List.append([Operators_Exp.Comma])
+                 |> List.mapi((index, operator) =>
+                      (
+                        index,
+                        operator,
+                        seq |> Seq.nth_operand(index),
+                        steps @ [index],
+                      )
+                    )
+                 |> List.filter(((_, operator, _, _)) =>
+                      operator == Operators_Exp.Comma
+                    )
+                 |> List.map(((_, _, operand, steps)) =>
+                      (
+                        operand
+                        |> ZExp.place_before_operand
+                        |> CursorPath_Exp.of_zoperand,
+                        steps,
+                      )
+                    )
+                 |> List.map((((_, position), steps)) => {
+                      (steps, position)
+                    });
+               CursorInfo_common.mk(
+                 SynInconsistentElements(ele_types, ele_paths),
+                 ctx,
+                 cursor_term,
+               );
+             | _ => failwith("expected InconsistentBranches")
+             }
+           }
+         | _ => failwith("expect list elements")
+         }
+       )
+  | _ =>
+    // cursor within tuple element
+    let ele_list = skel |> UHExp.get_tuple_elements;
+    let comma_pos =
+      seq
+      |> Seq.operators
+      |> List.append([Operators_Exp.Comma])
+      |> List.mapi((index, operator) => (index, operator))
+      |> List.filter(((_, operator)) => operator == Operators_Exp.Comma)
+      |> List.map(((index, _)) => index);
+    let (cursor_index, _) =
+      ele_list
+      |> List.mapi((index, a) => (index, a))
+      |> List.find(((_, skel)) => ZOpSeq.skel_contains_cursor(skel, zseq));
+    let type_list =
+      switch (Statics_Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)) {
+      | Some(Prod(types)) => types
+      | Some(ty) => [ty]
+      | None => failwith("expect list element")
+      };
+    let rest_type_list =
+      List.combine(type_list, comma_pos)
+      |> List.mapi((index, a) => (index, a))
+      |> List.filter(((index, _)) => index != cursor_index)
+      |> List.map(((_, (ty, index))) =>
+           (
+             ty,
+             seq
+             |> Seq.nth_operand(index)
+             |> ZExp.place_before_operand
+             |> CursorPath_Exp.of_zoperand,
+             steps @ [index],
+           )
+         )
+      |> List.map(((a, (_, position), steps)) => (a, (steps, position)));
+    let lub: CursorInfo.join_of_elements =
+      switch (rest_type_list |> List.split) {
+      | ([], []) => NoBranches
+      | (types, positions) =>
+        switch (HTyp.join_all(LUB, types)) {
+        | None => InconsistentBranchTys(types, positions)
+        | Some(lub) => JoinTy(lub)
+        }
+      };
+    switch (syn_cursor_info_zopseq(~steps=steps @ [0], ctx, zopseq)) {
+    | None => None
+    | Some({cursor_term, typed, ctx, uses, parent_info}) =>
+      let typed = CursorInfo.SynListElement(lub, typed, cursor_index);
+      Some({cursor_term, typed, ctx, uses, parent_info});
+    };
+  };
+}
 and syn_cursor_info_zopseq =
     (
       ~steps: CursorPath.steps,
@@ -445,6 +584,8 @@ and syn_cursor_info_skel =
         | Some(VarErr(Free)) => Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
         | Some(VarErr(ExpandingKeyword(k))) =>
           Some(mk(SynKeywordArrow(Arrow(Hole, Hole), k)))
+        | Some(InconsistentElementsErr(rule_types)) =>
+          Some(mk(SynInconsistentElementsArrow(rule_types, steps @ [n])))
         | Some(InconsistentBranchesErr(rule_types)) =>
           Some(mk(SynInconsistentBranchesArrow(rule_types, steps @ [n])))
         | Some(StandardErr(NotInHole)) =>
@@ -525,12 +666,47 @@ and syn_cursor_info_zoperand =
         cursor_term,
       ),
     )
+  | CursorE(
+      _,
+      ListLit(InconsistentBranches(ele_types, _), Some(OpSeq(_, seq))),
+    ) =>
+    let ele_paths =
+      seq
+      |> Seq.operators
+      |> List.append([Operators_Exp.Comma])
+      |> List.mapi((index, operator) =>
+           (
+             index,
+             operator,
+             seq |> Seq.nth_operand(index),
+             steps @ [0, index],
+           )
+         )
+      |> List.filter(((_, operator, _, _)) =>
+           operator == Operators_Exp.Comma
+         )
+      |> List.map(((_, _, operand, steps)) =>
+           (
+             operand |> ZExp.place_before_operand |> CursorPath_Exp.of_zoperand,
+             steps,
+           )
+         )
+      |> List.map((((_, position), steps)) => {(steps, position)});
+    Some(
+      CursorInfo_common.mk(
+        SynInconsistentElements(ele_types, ele_paths),
+        ctx,
+        cursor_term,
+      ),
+    );
   | CursorE(_, e) =>
     switch (Statics_Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty) =>
       Some(CursorInfo_common.mk(Synthesized(ty), ctx, cursor_term))
     }
+  | ListLitZ(err, zopseq) =>
+    syn_cursor_info_zlist(~steps=steps @ [0], ctx, cursor_term, zopseq, err)
   | ParenthesizedZ(zbody) => syn_cursor_info(~steps=steps @ [0], ctx, zbody)
   | FunZP(_, zp, body) =>
     let+ defferrable =
@@ -704,15 +880,7 @@ and ana_cursor_info_zopseq =
         ),
       );
     | InHole(TypeInconsistent, _) =>
-      let opseq' = UHExp.set_err_status_opseq(NotInHole, opseq);
-      Statics_Exp.syn_opseq(ctx, opseq')
-      |> Option.map(ty' =>
-           CursorInfo_common.mk(
-             AnaTypeInconsistent(ty, ty'),
-             ctx,
-             cursor_term,
-           )
-         );
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     };
   | _ =>
     // cursor in tuple element
@@ -843,8 +1011,13 @@ and ana_cursor_info_zoperand =
     | FloatLit(InHole(TypeInconsistent, _), _)
     | BoolLit(InHole(TypeInconsistent, _), _)
     | Keyword(Typed(_, InHole(TypeInconsistent, _), _))
+<<<<<<< HEAD
     | ListNil(InHole(TypeInconsistent, _))
     | Fun(InHole(TypeInconsistent, _), _, _)
+=======
+    | ListLit(StandardErrStatus(InHole(TypeInconsistent, _)), _)
+    | Lam(InHole(TypeInconsistent, _), _, _)
+>>>>>>> origin/haz3l-tests
     | Inj(InHole(TypeInconsistent, _), _, _)
     | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
     | Var(InHole(WrongLength, _), _, _)
@@ -875,6 +1048,23 @@ and ana_cursor_info_zoperand =
           ),
         )
       };
+<<<<<<< HEAD
+=======
+    | Var(InHole(WrongLength, _), _, _)
+    | IntLit(InHole(WrongLength, _), _)
+    | FloatLit(InHole(WrongLength, _), _)
+    | BoolLit(InHole(WrongLength, _), _)
+    | Keyword(Typed(_, InHole(WrongLength, _), _))
+    | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
+    | Lam(InHole(WrongLength, _), _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(
+        StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_),
+        _,
+        _,
+      )
+    | ApPalette(InHole(WrongLength, _), _, _, _) => None
+>>>>>>> origin/haz3l-tests
     /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
@@ -887,7 +1077,9 @@ and ana_cursor_info_zoperand =
       | Some(ty') =>
         Some(CursorInfo_common.mk(AnaSubsumed(ty, ty'), ctx, cursor_term))
       }
-    | ListNil(NotInHole)
+    | ListLit(InconsistentBranches(_), _)
+    | ListLit(StandardErrStatus(NotInHole), _) =>
+      Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
     | Inj(NotInHole, _, _)
     | Case(StandardErrStatus(NotInHole), _, _) =>
       Some(CursorInfo_common.mk(Analyzed(ty), ctx, cursor_term))
@@ -912,6 +1104,7 @@ and ana_cursor_info_zoperand =
   | FunZP(InHole(WrongLength, _), _, _)
   | FunZE(InHole(WrongLength, _), _, _)
   | InjZ(InHole(WrongLength, _), _, _)
+  | ListLitZ(StandardErrStatus(InHole(WrongLength, _)), _)
   | CaseZE(
       StandardErrStatus(InHole(WrongLength, _)) | InconsistentBranches(_, _),
       _,
@@ -925,6 +1118,7 @@ and ana_cursor_info_zoperand =
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
+  | ListLitZ(StandardErrStatus(InHole(TypeInconsistent, _)), _)
   | CaseZE(StandardErrStatus(InHole(TypeInconsistent, _)), _, _)
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     syn_cursor_info_zoperand(~steps, ctx, zoperand) /* zipper not in hole */
@@ -976,6 +1170,30 @@ and ana_cursor_info_zoperand =
         ty,
       )
     }
+<<<<<<< HEAD
+=======
+  | ApPaletteZ(NotInHole, _, _, _) =>
+    syn_cursor_info_zoperand(~steps, ctx, zoperand)
+  | ListLitZ(InconsistentBranches(_, _), zopseq)
+  | ListLitZ(StandardErrStatus(NotInHole), zopseq) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => None
+    | Some(ty_el) =>
+      let ty_list =
+        zopseq
+        |> ZExp.erase_zopseq
+        |> (
+          (OpSeq(skel, _)) =>
+            skel |> UHExp.get_tuple_elements |> List.map(_ => ty_el)
+        );
+      ana_cursor_info_zopseq(
+        ~steps=steps @ [0],
+        ctx,
+        zopseq,
+        HTyp.Prod(ty_list),
+      );
+    }
+>>>>>>> origin/haz3l-tests
   };
 }
 and syn_cursor_info_rule =

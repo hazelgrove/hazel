@@ -40,6 +40,8 @@ let current = (shape: TermShape.t, dpaths: t): list(UHDecorationShape.t) => {
   let is_current = steps =>
     switch (shape) {
     | SubBlock({hd_index, _}) => steps == [hd_index]
+    | ListLit({comma_indices, _}) =>
+      List.exists(n => steps == [n], comma_indices) || steps == []
     | NTuple({comma_indices, _}) =>
       List.exists(n => steps == [n], comma_indices)
     | BinOp({op_index, _}) => steps == [op_index]

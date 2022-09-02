@@ -106,7 +106,14 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
+<<<<<<< HEAD
       Construct(SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase) |
+=======
+      UpdateApPalette(_) |
+      Construct(
+        SAnn | SLet | SLine | SLam | SListLit | SInj(_) | SCase | SApPalette(_),
+      ) |
+>>>>>>> origin/haz3l-tests
       SwapUp |
       SwapDown,
       _,
@@ -221,7 +228,12 @@ and perform_operand =
   /* Invalid actions at the type level */
   | (
       Construct(
+<<<<<<< HEAD
         SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase | SCommentLine,
+=======
+        SAnn | SLet | SLine | SLam | SListLit | SInj(_) | SCase | SApPalette(_) |
+        SCommentLine,
+>>>>>>> origin/haz3l-tests
       ) |
       SwapUp |
       SwapDown,

@@ -140,7 +140,11 @@ let update_nth_operand =
 let update_last_operand =
     (f: 'operand => 'operand, seq: t('operand, 'operator))
     : t('operand, 'operator) => {
-  update_nth_operand(length(seq), f(nth_operand(length(seq), seq)), seq);
+  update_nth_operand(
+    length(seq) - 1,
+    f(nth_operand(length(seq) - 1, seq)),
+    seq,
+  );
 };
 
 [@deriving sexp]

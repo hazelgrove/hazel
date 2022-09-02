@@ -16,11 +16,17 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
-  | ListNil(_)
+  | ListLit(_, None)
+  | ListLit(StandardErrStatus(InHole(_)), Some(_))
   | Inj(InHole(_), _, _)
   | TypeAnn(InHole(_), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
   | Parenthesized(body) => binds_var(x, body)
+  | ListLit(
+      StandardErrStatus(NotInHole) | InconsistentBranches(_, _),
+      Some(body),
+    ) =>
+    binds_var(x, body)
   | Inj(NotInHole, _, body) => binds_var(x, body)
   | TypeAnn(NotInHole, op, _) => binds_var_operand(x, op)
   };
@@ -72,8 +78,14 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
   | FloatLit(_)
   | BoolLit(_)
   | Keyword(_)
+<<<<<<< HEAD
   | ListNil(_)
   | Fun(InHole(_), _, _)
+=======
+  | ListLit(_, None)
+  | ListLit(StandardErrStatus(InHole(_)), Some(_))
+  | Lam(InHole(_), _, _)
+>>>>>>> origin/haz3l-tests
   | Inj(InHole(_), _, _)
   | Case(StandardErrStatus(InHole(_)), _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
@@ -93,6 +105,11 @@ and find_uses_operand = (~steps, x: Var.t, operand: UHExp.operand): uses_list =>
          )
       |> List.concat;
     scrut_uses @ rules_uses;
+  | ListLit(
+      StandardErrStatus(NotInHole) | InconsistentBranches(_, _),
+      Some(opseq),
+    ) =>
+    find_uses_opseq(~steps=steps @ [0], x, opseq)
   | Parenthesized(body) => find_uses(~steps=steps @ [0], x, body)
   }
 and find_uses_rule =

@@ -28,6 +28,7 @@ let syn_rule: (Contexts.t, UHExp.rule, HTyp.t) => option(HTyp.t);
  * Under context `ctx`, `ana(ctx, p, ty)` analyzes `e` against `ty`
  */
 let ana: (Contexts.t, UHExp.t, HTyp.t) => option(unit);
+let ana_opseq: (Contexts.t, UHExp.opseq, HTyp.t) => option(unit);
 let ana_skel: (Contexts.t, UHExp.skel, UHExp.seq, HTyp.t) => option(unit);
 
 /**
@@ -47,6 +48,9 @@ let syn_fix_holes_lines:
 let syn_fix_holes_opseq:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.opseq) =>
   (UHExp.opseq, HTyp.t, IDGen.t);
+let syn_fix_holes_operand:
+  (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.operand) =>
+  (UHExp.operand, HTyp.t, IDGen.t);
 let syn_fix_holes_rules:
   (Contexts.t, IDGen.t, ~renumber_empty_holes: bool=?, UHExp.rules, HTyp.t) =>
   (UHExp.rules, IDGen.t, list(HTyp.t), option(HTyp.t));
@@ -81,12 +85,16 @@ let syn_fix_holes_z:
   (Contexts.t, IDGen.t, ZExp.t) => (ZExp.t, HTyp.t, IDGen.t);
 let syn_fix_holes_zlines:
   (Contexts.t, IDGen.t, ZExp.zblock) => (ZExp.zblock, Contexts.t, IDGen.t);
+let syn_fix_holes_zopseq:
+  (Contexts.t, IDGen.t, ZExp.zopseq) => (ZExp.zopseq, HTyp.t, IDGen.t);
 let syn_fix_holes_zrules:
   (Contexts.t, IDGen.t, ZExp.zrules, HTyp.t) =>
   (ZExp.zrules, list(HTyp.t), option(HTyp.t), IDGen.t);
 
 let ana_fix_holes_z:
   (Contexts.t, IDGen.t, ZExp.t, HTyp.t) => (ZExp.t, IDGen.t);
+let ana_fix_holes_zopseq:
+  (Contexts.t, IDGen.t, ZExp.zopseq, HTyp.t) => (ZExp.zopseq, IDGen.t);
 
 let fix_and_renumber_holes:
   (Contexts.t, UHExp.t) => (UHExp.t, HTyp.t, IDGen.t);
