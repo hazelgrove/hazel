@@ -46,6 +46,21 @@ let copy_log_to_clipboard = _ => {
   Virtual_dom.Vdom.Effect.Ignore;
 };
 
+let download_editor_state = (model: Model.t) => {
+  let export =
+    switch (model.editors) {
+    /* FIXME: Duplicate code with Update.save. */
+    | Simple(ed) => Export.of_simple("simple", (model.id_gen, ed))
+    | Study(n, eds) => Export.of_study("study", (model.id_gen, n, eds))
+    | School(n, eds) =>
+      assert(n < List.length(eds));
+      Export.of_school("school", (model.id_gen, n, eds));
+    };
+
+  Export.download(export);
+  Virtual_dom.Vdom.Effect.Ignore;
+};
+
 let increment_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
   let next_ed = (cur_idx + 1) mod num_editors;
   Log.append_json_updates_log();
@@ -125,6 +140,8 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
             inject(Set(Dynamics))
           ),
           button(Icons.export, copy_log_to_clipboard),
+          /* TODO: Change this to a different icon / remove above export? */
+          button(Icons.export, _ => download_editor_state(model)),
           button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
           button(Icons.trash, _ => inject(LoadDefault)),
           link(Icons.github, "https://github.com/hazelgrove/hazel"),
