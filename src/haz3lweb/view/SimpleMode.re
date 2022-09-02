@@ -27,7 +27,7 @@ let single_editor_semantics_views =
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
   let eval_result =
-    settings.dynamics ? Interface.evaulation_result(map, term) : None;
+    settings.dynamics ? Interface.evaluation_result(map, term) : None;
   [
     div(
       ~attr=clss(["bottom-bar"]),

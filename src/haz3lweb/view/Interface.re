@@ -26,7 +26,7 @@ let get_result =
   };
 };
 
-let evaulation_result = (map, term): option(DHExp.t) =>
+let evaluation_result = (map, term): option(DHExp.t) =>
   switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
