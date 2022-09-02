@@ -42,9 +42,9 @@ module Delim = {
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
   let empty_hole = ((u, i): HoleInstance.t): t => {
-    let lbl =
+    let _lbl =
       StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
-    Doc.text(lbl)
+    Doc.text("?" /*lbl*/)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
   };
