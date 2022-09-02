@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Pretty;
 
-let with_cls = cls => Node.span([Attr.classes([cls])]);
+let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
 
 let view_of_layout =
     (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
@@ -9,11 +9,11 @@ let view_of_layout =
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
     |> MeasuredLayout.pos_fold(
-         ~linebreak=_ => ([Node.br([])], []),
+         ~linebreak=_ => ([Node.br()], []),
          ~text=(_, s) => ([Node.text(s)], []),
          ~align=
            (_, (txt, ds)) =>
-             ([Node.div([Attr.classes(["Align"])], txt)], ds),
+             ([Node.div(~attr=Attr.classes(["Align"]), txt)], ds),
          ~cat=(_, (txt1, ds1), (txt2, ds2)) => (txt1 @ txt2, ds1 @ ds2),
          ~annot=
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
@@ -27,18 +27,19 @@ let view_of_layout =
              | EmptyHole(selected, inst) => (
                  [
                    Node.span(
-                     [
-                       Attr.classes([
-                         "EmptyHole",
-                         ...selected ? ["selected"] : [],
+                     ~attr=
+                       Attr.many([
+                         Attr.classes([
+                           "EmptyHole",
+                           ...selected ? ["selected"] : [],
+                         ]),
+                         Attr.on_click(_ =>
+                           Effect.Many([
+                             Effect.Stop_propagation,
+                             inject(ModelAction.SelectHoleInstance(inst)),
+                           ])
+                         ),
                        ]),
-                       Attr.on_click(_ =>
-                         Event.Many([
-                           Event.Stop_propagation,
-                           inject(ModelAction.SelectHoleInstance(inst)),
-                         ])
-                       ),
-                     ],
                      txt,
                    ),
                  ],
@@ -79,7 +80,7 @@ let view_of_layout =
            },
        );
   Node.div(
-    [Attr.classes(["DHCode"])],
+    ~attr=Attr.classes(["DHCode"]),
     [with_cls("code", text), ...decorations],
   );
 };
@@ -133,11 +134,11 @@ let view_of_layout_tylr =
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
     |> MeasuredLayout.pos_fold(
-         ~linebreak=_ => ([Node.br([])], []),
+         ~linebreak=_ => ([Node.br()], []),
          ~text=(_, s) => ([Node.text(s)], []),
          ~align=
            (_, (txt, ds)) =>
-             ([Node.div([Attr.classes(["Align"])], txt)], ds),
+             ([Node.div(~attr=Attr.classes(["Align"]), txt)], ds),
          ~cat=(_, (txt1, ds1), (txt2, ds2)) => (txt1 @ txt2, ds1 @ ds2),
          ~annot=
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
@@ -151,18 +152,19 @@ let view_of_layout_tylr =
              | EmptyHole(selected, _inst) => (
                  [
                    Node.span(
-                     [
-                       Attr.classes([
-                         "EmptyHole",
-                         ...selected ? ["selected"] : [],
+                     ~attr=
+                       Attr.many([
+                         Attr.classes([
+                           "EmptyHole",
+                           ...selected ? ["selected"] : [],
+                         ]),
+                         Attr.on_click(_ =>
+                           Effect.Many([
+                             Effect.Stop_propagation,
+                             //inject(ModelAction.SelectHoleInstance(inst)),
+                           ])
+                         ),
                        ]),
-                       Attr.on_click(_ =>
-                         Event.Many([
-                           Event.Stop_propagation,
-                           //inject(ModelAction.SelectHoleInstance(inst)),
-                         ])
-                       ),
-                     ],
                      txt,
                    ),
                  ],
@@ -203,7 +205,7 @@ let view_of_layout_tylr =
            },
        );
   Node.div(
-    [Attr.classes(["DHCode"])],
+    ~attr=Attr.classes(["DHCode"]),
     [with_cls("code", text), ...decorations],
   );
 };

@@ -1,11 +1,13 @@
 [@deriving sexp]
-type t = zopseq
-and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
+type t = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
   | CursorT(CursorPosition.t, UHTyp.operand)
   | ParenthesizedZ(t)
   | ListZ(t)
 and zoperator = (CursorPosition.t, UHTyp.operator);
+
+[@deriving sexp]
+type zopseq = t;
 
 type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
