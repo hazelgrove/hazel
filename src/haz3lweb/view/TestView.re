@@ -2,6 +2,9 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
+module TestStatus = Haz3lcore.TestStatus;
+module TestMap = Haz3lcore.TestMap;
+
 let test_instance_view =
     (~font_metrics, (d, status): TestMap.test_instance_report) =>
   div(
