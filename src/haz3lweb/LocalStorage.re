@@ -52,11 +52,20 @@ type study_without_history = (Id.t, int, list(Zipper.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type school_without_history = study_without_history;
 
+let prep_simple_in = (simple: Model.simple): simple_without_history =>
+  simple |> (((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper));
+
+let prep_simple_out =
+    ((id_gen, zipper): simple_without_history): Model.simple => (
+  id_gen,
+  Editor.init(zipper),
+);
+
 let save_simple = (simple: Model.simple): unit =>
   set_localstore(
     save_simple_key,
     simple
-    |> (((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper))
+    |> prep_simple_in
     |> sexp_of_simple_without_history
     |> Sexplib.Sexp.to_string,
   );
@@ -69,7 +78,7 @@ let load_simple = (): Model.simple =>
       flag
       |> Sexplib.Sexp.of_string
       |> simple_without_history_of_sexp
-      |> (((id_gen, zipper)) => (id_gen, Editor.init(zipper)))
+      |> prep_simple_out
     ) {
     | _ => Model.simple_init
     }
