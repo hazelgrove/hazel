@@ -1,10 +1,13 @@
+open Virtual_dom;
 open Virtual_dom.Vdom;
+open Util;
 open Pretty;
+open Haz3lcore;
 
 let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
 
 let view_of_layout =
-    (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+    (~inject as _, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -24,7 +27,7 @@ let view_of_layout =
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)
              | Delim => ([with_cls("code-delim", txt)], ds)
-             | EmptyHole(selected, inst) => (
+             | EmptyHole(selected, _inst) => (
                  [
                    Node.span(
                      ~attr=
@@ -34,9 +37,10 @@ let view_of_layout =
                            ...selected ? ["selected"] : [],
                          ]),
                          Attr.on_click(_ =>
-                           Effect.Many([
-                             Effect.Stop_propagation,
-                             inject(ModelAction.SelectHoleInstance(inst)),
+                           Vdom.Effect.Many([
+                             Vdom.Effect.Stop_propagation,
+                             // TODO fix
+                             //  inject(ModelAction.SelectHoleInstance(inst)),
                            ])
                          ),
                        ]),
@@ -159,8 +163,8 @@ let view_of_layout_tylr =
                            ...selected ? ["selected"] : [],
                          ]),
                          Attr.on_click(_ =>
-                           Effect.Many([
-                             Effect.Stop_propagation,
+                           Vdom.Effect.Many([
+                             Vdom.Effect.Stop_propagation,
                              //inject(ModelAction.SelectHoleInstance(inst)),
                            ])
                          ),

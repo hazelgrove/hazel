@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 open Util.Web;
-open OptUtil.Syntax;
+open Util.OptUtil.Syntax;
 
 let join_tile = (id): Haz3lcore.Tile.t => {
   id,

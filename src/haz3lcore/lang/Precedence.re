@@ -9,6 +9,10 @@ type t = int;
 
 let max: t = 0;
 
+// TODO fix these placeholder values
+let and_ = 5;
+let or_ = 6;
+
 let ap = 1;
 let neg = 2;
 let mult = 3;

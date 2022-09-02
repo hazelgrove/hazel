@@ -135,7 +135,7 @@ let rects =
   let n = List.length(m.metrics);
   m.metrics
   |> List.mapi((i, box) => (i, box))
-  |> ListUtil.map_with_accumulator(
+  |> List.fold_left_map(
        (start: MeasuredPosition.t, (i, box: MeasuredLayout.box)) =>
          (
            {row: start.row + box.height, col: indent},

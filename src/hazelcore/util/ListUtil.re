@@ -26,32 +26,6 @@ let rec join = (sep: 'a, xs: list('a)): list('a) =>
   };
 
 /**
- * Zips together two lists, returning None if different lengths
- */
-let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
-  switch (xs, ys) {
-  | ([], [_, ..._])
-  | ([_, ..._], []) => None
-  | ([], []) => Some([])
-  | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
-  };
-
-let for_all2_opt =
-    (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
-  switch (List.for_all2(f, xs, ys)) {
-  | b => Some(b)
-  | exception (Invalid_argument(_)) => None
-  };
-
-let map2_opt =
-    (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
-  switch (List.map2(f, xs, ys)) {
-  | b => Some(b)
-  | exception (Invalid_argument(_)) => None
-  };
-
-/**
  * Zips together the prefixes of two lists,
  * up to the length of the shorter list
  */
@@ -70,18 +44,6 @@ let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
     ([x, ...xs], [y, ...ys]);
   };
 
-/* repeat an element n times */
-let replicate = (n: int, e: 'a): list('a) => {
-  /* add c additional copies of e to xs */
-  let rec f = (c, xs) =>
-    if (c > 0) {
-      f(c - 1, [e, ...xs]);
-    } else {
-      xs;
-    };
-  f(n, []);
-};
-
 let map_zip = (f: 'x => 'y, xs: list('x)): list(('x, 'y)) =>
   zip(xs, xs |> List.map(f));
 
@@ -97,13 +59,6 @@ let rec drop = (n: int, xs: list('a)) =>
     };
   } else {
     xs;
-  };
-
-let rec update_nth = (n, xs, f) =>
-  switch (n, xs) {
-  | (_, []) => []
-  | (0, [x, ...xs]) => [f(x), ...xs]
-  | (n, [x, ...xs]) => [x, ...update_nth(n - 1, xs, f)]
   };
 
 let rec _findmapi = (i, xs, f) =>
@@ -274,17 +229,4 @@ let rec map_with_accumulator_opt =
     let* (new_acc, y) = f(start, x);
     let+ (final, ys) = map_with_accumulator_opt(f, new_acc, xs);
     (final, [y, ...ys]);
-  };
-
-let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
-  switch (xs) {
-  | []
-  | [_] => []
-  | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
-  };
-
-let rotate = (xs: list('x)): list('x) =>
-  switch (xs) {
-  | [] => []
-  | [hd, ...tl] => tl @ [hd]
   };

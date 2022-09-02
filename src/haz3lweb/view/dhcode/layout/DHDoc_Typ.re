@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Pretty;
 
 let promote_annot =

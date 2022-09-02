@@ -132,10 +132,10 @@ let forms: list((string, t)) = [
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
   //("fgte", mk_infix("<=.", Exp, P.eqs)),
   //("flte", mk_infix(">=.", Exp, P.eqs)),
-  ("bitwise_and", mk_infix("&", Nul, 5)), // HACK: SUBSTRING REQ
-  ("logical_and", mk_infix("&&", Exp, 5)),
+  ("bitwise_and", mk_infix("&", Nul, P.and_)), // HACK: SUBSTRING REQ
+  ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
-  ("logical_or", mk_infix("||", Exp, 6)),
+  ("logical_or", mk_infix("||", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Nul, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),

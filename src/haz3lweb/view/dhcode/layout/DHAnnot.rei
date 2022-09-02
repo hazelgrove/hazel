@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 [@deriving sexp]
 type t =
   | Collapsed

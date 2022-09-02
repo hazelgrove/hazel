@@ -1,8 +1,9 @@
 open Virtual_dom;
+open Haz3lcore;
 
 let view_of_hole_instance:
   (
-    ~inject: ModelAction.t => Vdom.Effect.t(unit),
+    ~inject: Update.t => Vdom.Effect.t(unit),
     ~width: int,
     ~pos: int=?,
     ~selected_instance: option(HoleInstance.t),
@@ -16,7 +17,7 @@ let view_of_var: string => Vdom.Node.t;
 
 let view:
   (
-    ~inject: ModelAction.t => Vdom.Effect.t(unit),
+    ~inject: Update.t => Vdom.Effect.t(unit),
     ~settings: Settings.Evaluation.t,
     ~selected_instance: option(HoleInstance.t),
     ~font_metrics: FontMetrics.t,

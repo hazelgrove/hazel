@@ -3,10 +3,6 @@ module BinBoolOp: {
   type t =
     | And
     | Or;
-
-  let of_op: UHExp.operator => option(t);
-
-  let to_op: t => UHExp.operator;
 };
 
 module BinIntOp: {
@@ -19,10 +15,6 @@ module BinIntOp: {
     | LessThan
     | GreaterThan
     | Equals;
-
-  let of_op: UHExp.operator => option((t, HTyp.t));
-
-  let to_op: t => UHExp.operator;
 };
 
 module BinFloatOp: {
@@ -35,10 +27,6 @@ module BinFloatOp: {
     | FLessThan
     | FGreaterThan
     | FEquals;
-
-  let of_op: UHExp.operator => option((t, HTyp.t));
-
-  let to_op: t => UHExp.operator;
 };
 
 [@deriving sexp]
