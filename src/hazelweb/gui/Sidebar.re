@@ -11,23 +11,25 @@ let mk_sidebar =
       ~on_toggle,
     ) =>
   div(
-    [
-      Attr.id(id),
-      Attr.on_click(on_toggle),
-      Attr.classes(["sidebar"] @ (is_open ? [] : ["sidebar-collapsed"])),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.id(id),
+        Attr.on_click(on_toggle),
+        Attr.classes(["sidebar"] @ (is_open ? [] : ["sidebar-collapsed"])),
+      ]),
     [
       is_open
         ? div(
-            [
-              Attr.class_("sidebar-body"),
-              Attr.on_click(_ => Event.Stop_propagation),
-            ],
+            ~attr=
+              Attr.many([
+                Attr.class_("sidebar-body"),
+                Attr.on_click(_ => Effect.Stop_propagation),
+              ]),
             panels(),
           )
-        : div([], []),
+        : div([]),
       div(
-        [Attr.class_("sidebar-tab")],
+        ~attr=Attr.class_("sidebar-tab"),
         [is_open ? icon_opened : icon_closed],
       ),
     ],
