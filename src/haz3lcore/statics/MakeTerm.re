@@ -301,11 +301,16 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | (["true"], []) => Bool(true)
         | (["false"], []) => Bool(false)
         | (["(", ")"], [Pat(body)]) => Parens(body)
+        | (["[", "]"], [Pat(body)]) =>
+          switch (body) {
+          | {term: Tuple(ps), _} => ListLit(ps)
+          | term => ListLit([term])
+          }
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_listnil(t) => ListNil
+        | ([t], []) when Form.is_listnil(t) => ListLit([])
         | _ => hole(tm)
         },
       )

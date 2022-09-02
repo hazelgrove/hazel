@@ -5,8 +5,10 @@ and of_zopseq = (zopseq: ZPat.zopseq): CursorPath.t =>
   CursorPath_common.of_zopseq_(~of_zoperand, zopseq)
 and of_zoperand =
   fun
+  | CursorP(cursor, ListLit(_, Some(_))) => ([0], cursor)
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody)
+  | ListLitZ(_, zbody)
   | InjZ(_, _, zbody) => CursorPath_common.cons'(0, of_z(zbody))
   | TypeAnnZP(_, zop, _) => CursorPath_common.cons'(0, of_zoperand(zop))
   | TypeAnnZA(_, _, zann) =>
@@ -39,13 +41,25 @@ and follow_operand =
     | IntLit(_)
     | FloatLit(_)
     | BoolLit(_)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body
         |> follow((xs, cursor))
         |> Option.map(zbody => ZPat.ParenthesizedZ(zbody))
+      | _ => None
+      }
+    | ListLit(err, Some(body)) =>
+      switch (x) {
+      | 0 =>
+        if (List.length(xs) == 0) {
+          follow_operand((xs, cursor), operand);
+        } else {
+          body
+          |> follow((xs, cursor))
+          |> Option.map(zbody => ZPat.ListLitZ(err, zbody));
+        }
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -112,13 +126,27 @@ and of_steps_operand =
     | IntLit(_, _)
     | FloatLit(_, _)
     | BoolLit(_, _)
-    | ListNil(_) => None
+    | ListLit(_, None) => None
     | Parenthesized(body) =>
       switch (x) {
       | 0 =>
         body
         |> of_steps(xs, ~side)
         |> Option.map(path => CursorPath_common.cons'(0, path))
+      | _ => None
+      }
+    | ListLit(_, Some(body)) =>
+      switch (x) {
+      | 0 =>
+        if (List.length(xs) == 0) {
+          operand
+          |> of_steps_operand(xs, ~side)
+          |> Option.map(path => CursorPath_common.cons'(0, path));
+        } else {
+          body
+          |> of_steps(xs, ~side)
+          |> Option.map(path => CursorPath_common.cons'(0, path));
+        }
       | _ => None
       }
     | Inj(_, _, body) =>
@@ -163,6 +191,7 @@ and of_steps_operator =
 let hook = (shape, u: MetaVar.t): CursorPath.hook => PatHole(u, shape);
 let hooks_err = CursorPath_common.hooks_err(~hook=hook(TypeErr));
 let hooks_verr = CursorPath_common.hooks_verr(~hook=hook(VarErr));
+let hooks_list_err = CursorPath_common.hooks_list_err(~hook=hook(TypeErr));
 
 let rec hooks =
         (
@@ -196,11 +225,15 @@ and hooks_operand =
   | Wild(err)
   | IntLit(err, _)
   | FloatLit(err, _)
-  | BoolLit(err, _)
-  | ListNil(err) => hs |> hooks_err(err, rev_steps)
+  | BoolLit(err, _) => hs |> hooks_err(err, rev_steps)
   | InvalidText(u, _) => [
       mk_hook(ExpHole(u, VarErr), List.rev(rev_steps)),
     ]
+  | ListLit(err, None) => hs |> hooks_list_err(err, rev_steps)
+  | ListLit(err, Some(body)) =>
+    hs
+    |> hooks_list_err(err, [0, ...rev_steps])
+    |> hooks(body, [0, ...rev_steps])
   | Parenthesized(body) => hs |> hooks(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
     hs |> hooks_err(err, rev_steps) |> hooks(body, [0, ...rev_steps])
@@ -265,8 +298,7 @@ and hooks_zoperand =
   | CursorP(_, Wild(err))
   | CursorP(_, IntLit(err, _))
   | CursorP(_, FloatLit(err, _))
-  | CursorP(_, BoolLit(err, _))
-  | CursorP(_, ListNil(err)) =>
+  | CursorP(_, BoolLit(err, _)) =>
     switch (err) {
     | NotInHole => CursorPath_common.no_hooks
     | InHole(_, u) =>
@@ -276,6 +308,37 @@ and hooks_zoperand =
         (),
       )
     }
+  | CursorP(OnText(_), ListLit(err, None)) =>
+    switch (err) {
+    | StandardErrStatus(NotInHole) => CursorPath_common.no_hooks
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected=
+          Some(mk_hook(PatHole(u, TypeErr), List.rev(rev_steps))),
+        (),
+      )
+    }
+  | CursorP(OnDelim(k, _), ListLit(err, Some(body))) =>
+    let body_hooks = hooks(body, [0, ...rev_steps], []);
+    let hook_selected: option(CursorPath.hook_info) =
+      switch (err) {
+      | StandardErrStatus(NotInHole) => None
+      | StandardErrStatus(InHole(_, u))
+      | InconsistentBranches(_, u) =>
+        Some(mk_hook(PatHole(u, TypeErr), List.rev([0, ...rev_steps])))
+      };
+    switch (k) {
+    | 0 =>
+      CursorPath_common.mk_zhooks(~hooks_after=body_hooks, ~hook_selected, ())
+    | 1 =>
+      CursorPath_common.mk_zhooks(
+        ~hook_selected,
+        ~hooks_before=body_hooks,
+        (),
+      )
+    | _ => CursorPath_common.no_hooks
+    };
   | CursorP(OnDelim(k, _), Parenthesized(body)) =>
     let body_hooks = hooks(body, [0, ...rev_steps], []);
     switch (k) {
@@ -312,10 +375,27 @@ and hooks_zoperand =
       CursorPath_common.mk_zhooks(~hook_selected, ~hooks_after=body_hooks, ())
     | _ => CursorPath_common.no_hooks
     };
-  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | TypeAnn(_)) =>
+  | CursorP(OnDelim(_), ListLit(_, None))
+  | CursorP(
+      OnText(_),
+      Parenthesized(_) | Inj(_, _, _) | ListLit(_, Some(_)) | TypeAnn(_),
+    ) =>
     // invalid cursor position
     CursorPath_common.no_hooks
   | ParenthesizedZ(zbody) => hooks_z(zbody, [0, ...rev_steps])
+  | ListLitZ(err, zbody) =>
+    let zbody_hooks = hooks_z(zbody, [0, ...rev_steps]);
+    switch (err) {
+    | StandardErrStatus(NotInHole) => zbody_hooks
+    | StandardErrStatus(InHole(_, u))
+    | InconsistentBranches(_, u) => {
+        ...zbody_hooks,
+        hooks_before: [
+          mk_hook(PatHole(u, TypeErr), List.rev([0, ...rev_steps])),
+          ...zbody_hooks.hooks_before,
+        ],
+      }
+    };
   | InjZ(err, _, zbody) =>
     let zbody_hooks = hooks_z(zbody, [0, ...rev_steps]);
     switch (err) {

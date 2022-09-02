@@ -91,9 +91,24 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListLit(_) =>
-      //TODO: list literals. below is just placeholder
-      wrap(ListNil(Hole))
+    | ListLit(es) =>
+      switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
+      | Some(ty) =>
+        let* ds =
+          List.fold_left(
+            (acc, e) => {
+              let* acc = acc;
+              let e_ty = exp_self_htyp(m, e);
+              let+ d = dhexp_of_uexp(m, e);
+              let dc = DHExp.cast(d, e_ty, ty);
+              acc @ [dc];
+            },
+            Some([]),
+            es,
+          );
+        wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
+      | None => failwith("ListLit expression with non-list htyp")
+      }
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
@@ -120,7 +135,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      wrap(Cons(d1, d2));
+      let ty1 = exp_self_htyp(m, e1);
+      let ty2 = exp_self_htyp(m, e2);
+      let dc2 = DHExp.cast(d2, ty2, List(ty1));
+      wrap(Cons(d1, dc2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = exp_self_htyp(m, e);
@@ -237,7 +255,22 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListNil => wrap(ListNil)
+    | ListLit(ps) =>
+      switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
+      | Some(ty) =>
+        let* ds =
+          List.fold_left(
+            (acc, p) => {
+              let* acc = acc;
+              let+ d = dhpat_of_upat(m, p);
+              acc @ [d];
+            },
+            Some([]),
+            ps,
+          );
+        wrap(ListLit(ty, ds));
+      | None => failwith("ListLit pattern with non-list htyp")
+      }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);

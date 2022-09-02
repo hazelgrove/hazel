@@ -82,6 +82,9 @@ let mk_Inj: (InjSide.t, Pretty.Doc.t(DHAnnot.t)) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
+let mk_ListLit:
+  (list(Pretty.Doc.t('a)), list(Pretty.Doc.t('a))) => Pretty.Doc.t('a);
+
 let mk_Pair: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
