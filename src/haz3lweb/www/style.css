@@ -447,6 +447,10 @@ svg {
   max-width: 70vw;
 }
 
+.cell-container .cell:not(.school):first-child {
+  border-radius: 0.4em 0.4em 0 0;
+}
+
 .cell-container .cell:nth-child(2) {
   border-radius: 0.4em 0.4em 0 0;
 }
@@ -475,9 +479,6 @@ svg {
   display: flex;
   flex-direction: column;
   user-select: none;
-}
-
-.cell.school {
   gap: 1em;
   /* border-radius: 0.4em; */
   padding-left: 1em;
@@ -486,7 +487,11 @@ svg {
   border-left: 1px solid var(--top_bar_icon_fill);
 }
 
-.cell.school.selected{
+.cell.school {
+  
+}
+
+.cell.selected{
   border-left: 1px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }
@@ -1157,6 +1162,12 @@ svg.tile-selected {
   border-radius: 0.2em;
   color: #75572e;
   border-bottom: 1px solid #382100;
+}
+
+.cell-result .DHCode .EmptyHole {
+  background-color: #d4c7a5;
+  color: #fdf6e3;
+  border-bottom: 1px solid #aa8926;
 }
 
 .DHCode .Collapsed {

@@ -93,6 +93,20 @@ let code_container =
   );
 };
 
+let cell_result_view = (~font_metrics, unselected) => {
+  let term = MakeTerm.go(unselected);
+  let (_, _, map) = Statics.mk_map(term);
+  switch (Interface.evaluation_result(map, term)) {
+  | None => []
+  | Some(eval_result) => [
+      div(
+        ~attr=clss(["cell-result"]),
+        [res_view(~font_metrics, eval_result)],
+      ),
+    ]
+  };
+};
+
 let view =
     (
       ~inject,
@@ -116,16 +130,24 @@ let view =
       ~measured,
       zipper,
     );
+  let result_view =
+    !settings.dynamics ? [] : cell_result_view(~font_metrics, unselected);
   let cell_view =
-    Cell.view(
-      ~inject,
-      ~font_metrics,
-      ~clss=["single"],
-      ~mousedown,
-      ~selected=true,
-      ~show_code=true,
-      ~code_id,
-      code_view,
+    div(
+      ~attr=clss(["cell-container"]),
+      [
+        Cell.view(
+          ~inject,
+          ~font_metrics,
+          ~clss=["single"],
+          ~mousedown,
+          ~selected=true,
+          ~show_code=true,
+          ~code_id,
+          code_view,
+        ),
+      ]
+      @ result_view,
     );
   let semantics_views =
     settings.statics
