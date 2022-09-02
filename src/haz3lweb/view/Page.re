@@ -132,7 +132,8 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
       ),
       button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
       button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
-      editor_mode_view(~inject, ~model),
+      //disable for now (andrew)
+      //editor_mode_view(~inject, ~model),
     ],
   );
 };
