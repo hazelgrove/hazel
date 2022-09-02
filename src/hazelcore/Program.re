@@ -242,6 +242,10 @@ let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
   Action.MoveTo((steps_to_branch, OnDelim(1, After)));
 };
 
+let move_to_list_element = (steps_to_case): Action.t => {
+  Action.MoveTo(steps_to_case);
+};
+
 let move_via_click =
     (~settings: Settings.t, target: MeasuredPosition.t, program)
     : (t, Action.t) => {

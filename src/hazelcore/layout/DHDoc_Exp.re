@@ -38,7 +38,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Sequence(_)
   | TestLit(_)
   | FloatLit(_)
-  | ListNil(_)
+  | ListLit(_)
   | Inj(_)
   | EmptyHole(_)
   | Triv
@@ -181,11 +181,17 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | ListNil(_) => DHDoc_common.Delim.list_nil
       | TestLit(_) => Doc.text(Keyword.string_of_kw(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
+      | ListLit(_, _, _, StandardErrStatus(_), _, d_list) =>
+        let ol = d_list |> List.map(go') |> List.map(mk_cast);
+        DHDoc_common.mk_ListLit(ol, ol);
+      | ListLit(u, i, _sigma, InconsistentBranches(_, _), _, d_list) =>
+        let ol = d_list |> List.map(go') |> List.map(mk_cast);
+        DHDoc_common.mk_ListLit(ol, ol)
+        |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
         DHDoc_common.mk_Inj(

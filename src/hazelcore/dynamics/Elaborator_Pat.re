@@ -108,7 +108,7 @@ and syn_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
     switch (syn_elab_operand(ctx, delta, operand')) {
@@ -124,7 +124,7 @@ and syn_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Inj(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
@@ -156,8 +156,26 @@ and syn_elab_operand =
     | None => DoesNotElaborate
     }
   | BoolLit(NotInHole, b) => Elaborates(BoolLit(b), Bool, ctx, delta)
-  | ListNil(NotInHole) => Elaborates(ListNil, List(Hole), ctx, delta)
   | Parenthesized(p1) => syn_elab(ctx, delta, p1)
+  | ListLit(StandardErrStatus(NotInHole), None) =>
+    Elaborates(ListLit(Hole, []), List(Hole), ctx, delta)
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
+  | ListLit(_, Some(OpSeq(skel, seq))) =>
+    let subskels = UHPat.get_tuple_elements(skel);
+    let rec syn_subskels = subskels =>
+      switch (subskels) {
+      | [] => []
+      | [hd, ...tl] =>
+        switch (syn_elab_skel(ctx, delta, hd, seq)) {
+        | DoesNotElaborate => failwith("invalid")
+        | Elaborates(d1, ty1, _, _) => [(ty1, d1), ...syn_subskels(tl)]
+        }
+      };
+    let (types, deltas) = List.split(syn_subskels(subskels));
+    switch (Statics_common.lub(types)) {
+    | Some(ty) => Elaborates(ListLit(ty, deltas), List(ty), ctx, delta)
+    | None => Elaborates(ListLit(Hole, deltas), List(Hole), ctx, delta)
+    };
   | Inj(NotInHole, side, p) =>
     switch (syn_elab(ctx, delta, p)) {
     | DoesNotElaborate => DoesNotElaborate
@@ -328,7 +346,7 @@ and ana_elab_operand =
   | IntLit(InHole(TypeInconsistent as reason, u), _)
   | FloatLit(InHole(TypeInconsistent as reason, u), _)
   | BoolLit(InHole(TypeInconsistent as reason, u), _)
-  | ListNil(InHole(TypeInconsistent as reason, u))
+  | ListLit(StandardErrStatus(InHole(TypeInconsistent as reason, u)), _)
   | Inj(InHole(TypeInconsistent as reason, u), _, _)
   | TypeAnn(InHole(TypeInconsistent as reason, u), _, _) =>
     let operand' = operand |> UHPat.set_err_status_operand(NotInHole);
@@ -345,7 +363,7 @@ and ana_elab_operand =
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
+  | ListLit(StandardErrStatus(InHole(WrongLength, _)), _)
   | Inj(InHole(WrongLength, _), _, _)
   | TypeAnn(InHole(WrongLength, _), _, _) => DoesNotElaborate
   | EmptyHole(u) =>
@@ -364,12 +382,39 @@ and ana_elab_operand =
   | IntLit(NotInHole, _)
   | FloatLit(NotInHole, _)
   | BoolLit(NotInHole, _) => syn_elab_operand(ctx, delta, operand)
-  | ListNil(NotInHole) =>
+  | ListLit(InconsistentBranches(_, _), None) => DoesNotElaborate
+  | ListLit(StandardErrStatus(NotInHole), None) =>
     switch (HTyp.matched_list(ty)) {
     | None => DoesNotElaborate
-    | Some(ty_elt) => Elaborates(ListNil, HTyp.List(ty_elt), ctx, delta)
+    | Some(ty_elt) =>
+      Elaborates(ListLit(ty_elt, []), HTyp.List(ty_elt), ctx, delta)
     }
   | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
+  | ListLit(_, Some(OpSeq(skel, _) as opseq)) =>
+    switch (HTyp.matched_list(ty)) {
+    | None => DoesNotElaborate
+    | Some(ty_el) =>
+      let length = List.length(UHPat.get_tuple_elements(skel));
+      let ty_prod = HTyp.Prod(List.init(length, _ => ty_el));
+      let res = ana_elab(ctx, delta, opseq, ty_prod);
+      let rec get_tuple_elements: DHPat.t => list(DHPat.t) = (
+        fun
+        | Pair(skel1, skel2) =>
+          get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+        | skel => [skel]
+      );
+      switch (res) {
+      | Elaborates(d, ty, ctx, delta) =>
+        let lst = get_tuple_elements(d);
+        let tys = HTyp.get_prod_elements(ty);
+        let glb_ty = Statics_common.lub(tys);
+        switch (glb_ty) {
+        | Some(ty) => Elaborates(ListLit(ty, lst), List(ty), ctx, delta)
+        | None => Elaborates(ListLit(Hole, lst), List(Hole), ctx, delta)
+        };
+      | DoesNotElaborate => DoesNotElaborate
+      };
+    }
   | Inj(NotInHole, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => DoesNotElaborate
@@ -399,7 +444,6 @@ let rec renumber_result_only =
   | FloatLit(_)
   | InvalidText(_)
   | BoolLit(_)
-  | ListNil
   | Triv => (dp, hii)
   | EmptyHole(u, _) =>
     let sigma = Environment.empty;
@@ -416,6 +460,10 @@ let rec renumber_result_only =
     let sigma = Environment.empty;
     let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
     (ExpandingKeyword(u, i, k), hii);
+  | ListLit(t, deltas) =>
+    let (new_deltas, _) =
+      List.split(List.map(renumber_result_only(path, hii), deltas));
+    (ListLit(t, new_deltas), hii);
   | Inj(side, dp1) =>
     let (dp1, hii) = renumber_result_only(path, hii, dp1);
     (Inj(side, dp1), hii);

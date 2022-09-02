@@ -156,6 +156,7 @@ module CurrentTerm = {
     fun
     | SubBlock(_)
     | NTuple(_)
+    | ListLit(_)
     | BinOp(_) => true
     | Case
     | Rule
@@ -299,6 +300,7 @@ module CurrentTerm = {
                  ~vtrim_bot=true,
                  ~overflow_left=true,
                )
+             | (ListLit({comma_indices}), Tessera)
              | (NTuple({comma_indices}), Tessera)
                  when has_multiline_open_child =>
                tessera_padding(

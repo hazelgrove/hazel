@@ -9,8 +9,13 @@ let shape_to_string = (shape: shape): string => {
   | SCloseSquareBracket => "closing square bracket"
   | SChar(str) => str
   | SAnn => "type annotation"
+<<<<<<< HEAD
   | SFun => "function"
   | SListNil => "empty list"
+=======
+  | SLam => "function"
+  | SListLit => "list literal"
+>>>>>>> origin/haz3l-tests
   | SInj(side) =>
     switch (side) {
     | L => "left injection"

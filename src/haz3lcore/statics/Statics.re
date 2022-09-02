@@ -95,13 +95,13 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
   | (Syn | Ana(_), Multi) => InHole(Multi)
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
-  | (Syn, Joined(tys_syn)) =>
+  | (Syn, Joined(wrap, tys_syn)) =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
     // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
-    | Some(ty_joined) => NotInHole(SynConsistent(ty_joined))
+    | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
     };
 
   | (Ana(ty_ana), Just(ty_syn)) =>
@@ -109,14 +109,15 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
-  | (Ana(ty_ana), Joined(tys_syn)) =>
+  | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
     // TODO: review logic of these cases
     switch (Typ.join_all(Typ.source_tys(tys_syn))) {
     | Some(ty_syn) =>
+      let ty_syn = wrap(ty_syn);
       switch (Typ.join(ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
-      }
+      };
     | None =>
       NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
     }
@@ -294,14 +295,17 @@ let rec uexp_to_info_map =
     );
   | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ids, es) =>
-    //TODO(andrew) LISTLITS: below is placeholder logic, might be messy/wrong/incomplete
     let modes = Typ.matched_list_lit_mode(mode, List.length(es));
     let e_ids = List.map((e: Term.UExp.t) => e.id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
       switch (Typ.join_all(tys)) {
-      | None => Joined(List.map2((id, ty) => Typ.{id, ty}, e_ids, tys))
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
+        )
       | Some(ty) => Just(List(ty))
       };
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
@@ -318,7 +322,8 @@ let rec uexp_to_info_map =
     let (ty_e1, free_e1, m2) = go(~mode, e1);
     let (ty_e2, free_e2, m3) = go(~mode, e2);
     add(
-      ~self=Joined([{id: e1.id, ty: ty_e1}, {id: e2.id, ty: ty_e2}]),
+      ~self=
+        Joined(Fun.id, [{id: e1.id, ty: ty_e1}, {id: e2.id, ty: ty_e2}]),
       ~free=Ctx.union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
@@ -390,7 +395,7 @@ let rec uexp_to_info_map =
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
-    let self = Typ.Joined(branch_sources);
+    let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     let info = InfoExp({cls, self, mode, ctx, free, term: uexp});
     let rule_ms =
@@ -436,7 +441,35 @@ and upat_to_info_map =
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
-  | ListNil => atomic(Just(List(Unknown(Internal))))
+  | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
+  | ListLit(ids, ps) =>
+    let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
+    let p_ids = List.map((p: Term.UPat.t) => p.id, ps);
+    let (ctx, infos) =
+      List.fold_left2(
+        ((ctx, infos), e, mode) => {
+          let (_, ctx, _) as info = upat_to_info_map(~mode, ~ctx, e);
+          (ctx, infos @ [info]);
+        },
+        (ctx, []),
+        ps,
+        modes,
+      );
+    let tys = List.map(((ty, _, _)) => ty, infos);
+    let self: Typ.self =
+      switch (Typ.join_all(tys)) {
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, p_ids, tys),
+        )
+      | Some(ty) => Just(List(ty))
+      };
+    let info: t = InfoPat({cls, self, mode, ctx, term: upat});
+    let m = union_m(List.map(((_, _, m)) => m, infos));
+    /* Add an entry for the id of each comma tile */
+    let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
+    (typ_after_fix(mode, self), ctx, m);
   | Cons(hd, tl) =>
     let mode_elem = Typ.matched_list_mode(mode);
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);

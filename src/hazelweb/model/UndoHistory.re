@@ -504,8 +504,13 @@ let get_new_action_group =
       | SCloseSquareBracket
       | SList
       | SAnn
+<<<<<<< HEAD
       | SFun
       | SListNil
+=======
+      | SLam
+      | SListLit
+>>>>>>> origin/haz3l-tests
       | SInj(_)
       | SLet
       | SCase => Some(ConstructEdit(shape))

@@ -28,7 +28,7 @@ type shape =
   | SChar(string)
   | SAnn
   | SFun
-  | SListNil
+  | SListLit
   | SInj(InjSide.t)
   | SLet
   | SLine
