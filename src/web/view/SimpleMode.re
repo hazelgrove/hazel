@@ -17,7 +17,7 @@ let semantics_views =
   let statics_view = [CursorInspector.view(~inject, ~settings, index, map)];
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
-  let eval_result =
+  let _eval_result =
     settings.dynamics ? Interface.evaulation_result(map, term) : None;
   //HACK,TODO(andrew): remove duplicates due to multiple instances due to... cases?
   let instances =
@@ -30,7 +30,7 @@ let semantics_views =
       ~settings,
       ~inject,
       ~font_metrics,
-      eval_result,
+      //eval_result,
       instances,
     );
   let instance_environment_view =

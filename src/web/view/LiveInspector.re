@@ -55,7 +55,7 @@ let env_entry_view = (~font_metrics, (name: string, res: DHExp.t)): Node.t =>
   div(
     [clss(["environment-entry"])],
     [
-      span([], [span([clss(["name"])], [text(name)]), text(":")]),
+      span([], [span([clss(["name"])], [text(name)]), text("≡")]),
       Interface.dhcode_view(~font_metrics, ~width=20, res),
     ],
   );
@@ -66,16 +66,19 @@ let env_view = (~font_metrics, env): Node.t =>
     List.map(env_entry_view(~font_metrics), env),
   );
 
-let instances_view =
-    (~inject as _, ~font_metrics, ~settings, instances): Node.t => {
+let instances_view = (~inject as _, ~font_metrics, ~settings, instances) => {
   let num_instances = List.length(instances);
   let cur_idx = get_cur_idx(settings, num_instances);
   assert(cur_idx < num_instances);
   let (_, _, env, _) = List.nth(instances, cur_idx);
-  div(
-    [clss(["live-inspector"])],
-    [div([clss(["live-instance"])], [env_view(~font_metrics, env)])],
-  );
+  List.length(env) == 0
+    ? []
+    : [
+      div(
+        [clss(["live-inspector"])],
+        [div([clss(["live-instance"])], [env_view(~font_metrics, env)])],
+      ),
+    ];
 };
 
 let instance_environment_view =
@@ -89,9 +92,8 @@ let instance_environment_view =
   | _ when !settings.dynamics => []
   | None => [div([clss(["live-inspector"])], [text("No Dynamic Data")])]
   | Some([]) => [div([clss(["live-inspector"])], [text("No Traces")])]
-  | Some(instances) => [
-      instances_view(~inject, ~font_metrics, ~settings, instances),
-    ]
+  | Some(instances) =>
+    instances_view(~inject, ~font_metrics, ~settings, instances)
   };
 
 let instance_result_view =
@@ -99,29 +101,24 @@ let instance_result_view =
       ~settings: Model.settings,
       ~font_metrics,
       ~inject,
-      eval_result: option(DHExp.t),
+      //eval_result: option(DHExp.t),
       instances: option(Interface.instances),
-    ) => {
-  switch (eval_result) {
+    ) =>
+  switch (instances) {
   | _ when !settings.dynamics => []
-  | None => []
-  | Some(eval_result) =>
-    switch (instances) {
-    | None
-    | Some([]) => [result_view(~font_metrics, eval_result)]
-    | Some(instances) =>
-      let num_instances = List.length(instances);
-      let cur_idx = get_cur_idx(settings, num_instances);
-      let (_, _, _, res) = List.nth(instances, cur_idx);
-      [
-        div(
-          [clss(["live-bar"])],
-          [
-            instance_selector(~inject, ~settings, num_instances),
-            result_view(~font_metrics, res),
-          ],
-        ),
-      ];
-    }
+  | None
+  | Some([]) => [] //[result_view(~font_metrics, eval_result)]
+  | Some(instances) =>
+    let num_instances = List.length(instances);
+    let cur_idx = get_cur_idx(settings, num_instances);
+    let (_, _, _, res) = List.nth(instances, cur_idx);
+    [
+      div(
+        [clss(["live-bar"])],
+        [
+          instance_selector(~inject, ~settings, num_instances),
+          result_view(~font_metrics, res),
+        ],
+      ),
+    ];
   };
-};
