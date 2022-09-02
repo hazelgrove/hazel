@@ -10,6 +10,9 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
 
+let exp_self_htyp = (m, e) => htyp_of_typ(Statics.exp_self_typ(m, e));
+let pat_self_htyp = (m, e) => htyp_of_typ(Statics.pat_self_typ(m, e));
+
 let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
 let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
 
@@ -121,15 +124,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(Cons(d1, d2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
-      let ty = exp_htyp(m, e);
+      let ty = exp_self_htyp(m, e);
       let dc = DHExp.cast(d, ty, Int);
       wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = exp_htyp(m, e1);
-      let ty2 = exp_htyp(m, e2);
+      let ty1 = exp_self_htyp(m, e1);
+      let ty2 = exp_self_htyp(m, e2);
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
@@ -152,8 +155,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         body,
       ) =>
       /* NOTE: recursive case */
-      let pat_typ = pat_htyp(m, p);
-      let def_typ = exp_htyp(m, def);
+      let pat_typ = pat_self_htyp(m, p);
+      let def_typ = exp_self_htyp(m, def);
       let* p = dhpat_of_upat(m, p);
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
@@ -168,8 +171,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Ap(fn, arg) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = exp_htyp(m, fn);
-      let ty_arg = exp_htyp(m, arg);
+      let ty_fn = exp_self_htyp(m, fn);
+      let ty_arg = exp_self_htyp(m, arg);
       let* (ty_in, ty_out) = HTyp.matched_arrow(ty_fn);
       let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
