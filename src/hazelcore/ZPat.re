@@ -1,15 +1,18 @@
 open OptUtil.Syntax;
+
 [@deriving sexp]
-type t = zopseq
-and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
+type t = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
 and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
   | TypeAnnZP(ErrStatus.t, zoperand, UHTyp.t)
   | TypeAnnZA(ErrStatus.t, UHPat.operand, ZTyp.t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-  | ListLitZ(ListErrStatus.t, zopseq)
+  | ListLitZ(ListErrStatus.t, t)
 and zoperator = (CursorPosition.t, UHPat.operator);
+
+[@deriving sexp]
+type zopseq = t;
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
 type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);

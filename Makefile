@@ -1,5 +1,4 @@
-HTML_DIR=$(shell pwd)/_build/default/src/hazelweb/www
-TYLR_HTML_FILE=$(shell pwd)/_build/default/src/web/www/index.html
+HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
 HTML_FILE=$(HTML_DIR)/index.html
 
 all: dev
@@ -9,6 +8,10 @@ deps:
 
 change-deps:
 	opam switch export opam.export
+
+update-ocaml:
+	opam switch create 4.14 ocaml-base-compiler.4.14.0
+	opam switch import opam.export --update-invariant
 
 dev:
 	dune build @src/fmt --auto-promote || true
@@ -52,9 +55,6 @@ xdg-open:
 
 open:
 	open "$(HTML_FILE)"
-
-tylr:
-	open "$(TYLR_HTML_FILE)"
 
 repl:
 	dune utop src/hazelcore

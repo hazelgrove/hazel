@@ -143,7 +143,9 @@ let inspector_view =
       clss(
         ["cursor-inspector"] @ [Core.Statics.is_error(ci) ? errorc : happyc],
       ),
-      Attr.on_click(toggle_context_and_print_ci(~inject, ci)),
+      // use mousedown instead of click to prevent interference
+      // from mousedown overlay by code cells
+      Attr.on_mousedown(toggle_context_and_print_ci(~inject, ci)),
     ],
     [
       extra_view(settings.context_inspector, id, ci),

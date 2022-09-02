@@ -12,4 +12,4 @@ let ci_id = "cursor-inspector";
 let cur_selected_id = "cur-selected-entry";
 let code_root_id = "code-root";
 
-let div_if = (p, ats, ns) => p ? div(ats, ns) : div([], []);
+let div_if = (p, ats, ns) => p ? div(~attr=Attr.many(ats), ns) : div([]);

@@ -5,7 +5,7 @@ open Virtual_dom;
  */
 let view:
   (
-    ~inject: ModelAction.t => Vdom.Event.t,
+    ~inject: ModelAction.t => Vdom.Effect.t(unit),
     ~font_metrics: FontMetrics.t,
     ~settings: Settings.t,
     ~cursor_inspector: CursorInspectorModel.t,

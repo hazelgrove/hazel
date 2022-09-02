@@ -16,11 +16,8 @@ let view_of_layout =
     | Linebreak =>
       col := indent;
       [
-        Node.br([]),
-        Node.span(
-          [],
-          [Node.text(StringUtil.replicat(indent, Unicode.nbsp))],
-        ),
+        Node.br(),
+        Node.span([Node.text(StringUtil.replicat(indent, Unicode.nbsp))]),
       ];
     | Text(s) =>
       col := col^ + Unicode.length(s);
@@ -35,16 +32,16 @@ let view_of_layout =
       | Term =>
         let vs = go(indent, dpaths, l);
         List.exists((==)([]), dpaths)
-          ? [Node.span([Attr.classes(["Diff"])], vs)] : vs;
+          ? [Node.span(~attr=Attr.classes(["Diff"]), vs)] : vs;
       | Step(step) =>
         let dpaths' = take_step(step, dpaths);
         go(indent, dpaths', l);
       | Delim =>
         let vs = go(indent, dpaths, l);
-        [Node.span([Attr.classes(["Delim"])], vs)];
+        [Node.span(~attr=Attr.classes(["Delim"]), vs)];
       | HoleLabel =>
         let vs = go(indent, dpaths, l);
-        [Node.span([Attr.classes(["HoleLabel"])], vs)];
+        [Node.span(~attr=Attr.classes(["HoleLabel"]), vs)];
       }
     };
   go(0, diff_steps, l);
@@ -61,7 +58,7 @@ let view =
   | None => failwith("unimplemented: view_of_htyp on layout failure")
   | Some(l) =>
     Node.div(
-      [Attr.classes(["code", "HTypCode"])],
+      ~attr=Attr.classes(["code", "HTypCode"]),
       view_of_layout(diff_steps, l),
     )
   };
