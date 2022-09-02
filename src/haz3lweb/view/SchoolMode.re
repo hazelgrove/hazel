@@ -354,7 +354,7 @@ let view =
   let first_cell_res = {
     let* (statics_impl, _, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(statics_impl);
-    Interface.evaulation_result(map, term);
+    Interface.evaluation_result(map, term);
   };
   let student_imp_res_view =
     switch (first_cell_res) {
