@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 let mk:
   (
     ~settings: Settings.Evaluation.t,

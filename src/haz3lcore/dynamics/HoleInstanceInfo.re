@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 [@deriving sexp]
 type t = MetaVarMap.t(list((Environment.t, InstancePath.t)));

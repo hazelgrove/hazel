@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 type formattable_child = (~enforce_inline: bool) => DHDoc.t;
 
 let precedence_const: int;
@@ -35,10 +37,10 @@ module Delim: {
   let open_Parenthesized: DHDoc.t;
   let close_Parenthesized: DHDoc.t;
 
-  let sym_Lam: DHDoc.t;
-  let colon_Lam: DHDoc.t;
-  let open_Lam: DHDoc.t;
-  let close_Lam: DHDoc.t;
+  let sym_Fun: DHDoc.t;
+  let colon_Fun: DHDoc.t;
+  let open_Fun: DHDoc.t;
+  let close_Fun: DHDoc.t;
 
   let fix_FixF: DHDoc.t;
   let colon_FixF: DHDoc.t;
@@ -66,7 +68,7 @@ module Delim: {
 let mk_EmptyHole:
   (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_Keyword:
+let mk_ExpandingKeyword:
   (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_InvalidText:

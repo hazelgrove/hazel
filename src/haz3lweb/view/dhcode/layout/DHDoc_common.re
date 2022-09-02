@@ -1,24 +1,25 @@
 module Doc = Pretty.Doc;
-
-[@deriving sexp]
-type t = Doc.t(DHAnnot.t);
+open Util;
+open Haz3lcore;
+open DHDoc;
 
 type formattable_child = (~enforce_inline: bool) => t;
 
-let precedence_const = DHDoc_common.precedence_const;
-let precedence_Ap = DHDoc_common.precedence_Ap;
-let precedence_Times = DHDoc_common.precedence_Times;
-let precedence_Divide = DHDoc_common.precedence_Divide;
-let precedence_Plus = DHDoc_common.precedence_Plus;
-let precedence_Minus = DHDoc_common.precedence_Minus;
-let precedence_Cons = DHDoc_common.precedence_Cons;
-let precedence_Equals = DHDoc_common.precedence_Equals;
-let precedence_LessThan = DHDoc_common.precedence_LessThan;
-let precedence_GreaterThan = DHDoc_common.precedence_GreaterThan;
-let precedence_And = DHDoc_common.precedence_And;
-let precedence_Or = DHDoc_common.precedence_Or;
-let precedence_Comma = DHDoc_common.precedence_Comma;
-let precedence_max = DHDoc_common.precedence_max;
+module P = Precedence;
+let precedence_const = P.max;
+let precedence_Ap = P.ap;
+let precedence_Times = P.mult;
+let precedence_Divide = P.mult;
+let precedence_Plus = P.plus;
+let precedence_Minus = P.plus;
+let precedence_Cons = P.cons;
+let precedence_Equals = P.eqs;
+let precedence_LessThan = P.eqs;
+let precedence_GreaterThan = P.eqs;
+let precedence_And = P.and_;
+let precedence_Or = P.or_;
+let precedence_Comma = P.prod;
+let precedence_max = P.min;
 
 let pad_child =
     (
@@ -58,10 +59,10 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
-  let sym_Lam = mk(Unicode.lamSym);
-  let colon_Lam = mk(":");
-  let open_Lam = mk(".{");
-  let close_Lam = mk("}");
+  let sym_Fun = mk("fun");
+  let colon_Fun = mk(":");
+  let open_Fun = mk("{");
+  let close_Fun = mk("}");
 
   let fix_FixF = mk("fix");
   let colon_FixF = mk(":");
@@ -92,9 +93,12 @@ let mk_EmptyHole = (~selected=false, (u, i)) =>
   Delim.empty_hole((u, i))
   |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
 
-let mk_Keyword = (u, i, k) =>
+let mk_ExpandingKeyword = (u, i, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
   |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), (u, i)));
+
+let mk_InvalidText = (t, (u, i)) =>
+  Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
@@ -114,6 +118,24 @@ let mk_Inj = (inj_side, padded_child) =>
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
+let rec mk_ListLit = (l, ol) =>
+  switch (l) {
+  | [] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), text("]")]));
+    } else {
+      Doc.(hcats([text("]")]));
+    }
+  | [hd, ...tl] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), hd, mk_ListLit(tl, ol)]));
+    } else {
+      Doc.(hcats([text(", "), hd, mk_ListLit(tl, ol)]));
+    }
+  };
+
 let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
+
+let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));

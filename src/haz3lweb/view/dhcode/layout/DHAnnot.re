@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Haz3lcore;
 
 [@deriving sexp]
 type t =

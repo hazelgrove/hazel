@@ -1,3 +1,4 @@
+open Haz3lcore;
 module Doc = Pretty.Doc;
 
 let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
@@ -181,7 +182,7 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | TestLit(_) => Doc.text(Keyword.string_of_kw(Test))
+      | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
