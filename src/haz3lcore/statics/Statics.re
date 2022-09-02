@@ -295,7 +295,6 @@ let rec uexp_to_info_map =
     );
   | ListLit([], []) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ids, es) =>
-    //TODO(andrew) LISTLITS: below is placeholder logic, might be messy/wrong/incomplete
     let modes = Typ.matched_list_lit_mode(mode, List.length(es));
     let e_ids = List.map((e: Term.UExp.t) => e.id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
@@ -303,14 +302,10 @@ let rec uexp_to_info_map =
     let self: Typ.self =
       switch (Typ.join_all(tys)) {
       | None =>
-        if (List.hd(modes) == Ana(Unknown(Internal))) {
-          Just(List(Unknown(Internal)));
-        } else {
-          Joined(
-            ty => List(ty),
-            List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
-          );
-        }
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
+        )
       | Some(ty) => Just(List(ty))
       };
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
