@@ -149,8 +149,9 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
+  | ApBuiltin(string, list(t))
   | BoolLit(bool)
   | IntLit(int)
   | Sequence(t, t)
@@ -174,65 +175,7 @@ and case =
 and rule =
   | Rule(DHPat.t, t);
 
-let rec strip_casts: t => t =
-  fun
-  | Cast(d, _, _) => strip_casts(d)
-  | FailedCast(d, _, _) => strip_casts(d)
-  | Inj(a, b, d) => Inj(a, b, strip_casts(d))
-  | Pair(d1, d2) => Pair(strip_casts(d1), strip_casts(d2))
-  | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
-  | NonEmptyHole(err, b, c, d, e) =>
-    NonEmptyHole(err, b, c, d, strip_casts(e))
-  | Let(a, b, c) => Let(a, strip_casts(b), strip_casts(c))
-  | FixF(a, b, c) => FixF(a, b, strip_casts(c))
-  | Lam(a, b, c) => Lam(a, b, strip_casts(c))
-  | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
-  | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
-  | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
-  | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
-  | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
-  | ConsistentCase(Case(a, rs, b)) =>
-    ConsistentCase(Case(strip_casts(a), List.map(strip_casts_rule, rs), b))
-  | InconsistentBranches(c, d, e, Case(a, rs, b)) =>
-    InconsistentBranches(
-      c,
-      d,
-      e,
-      Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
-    )
-  | EmptyHole(_) as d
-  | ExpandingKeyword(_) as d
-  | FreeVar(_) as d
-  | InvalidText(_) as d
-  | BoundVar(_) as d
-  | Triv as d
-  | TestLit(_) as d
-  | BoolLit(_) as d
-  | IntLit(_) as d
-  | ListNil(_) as d
-  | FloatLit(_) as d
-  | InvalidOperation(_) as d => d
-and strip_casts_rule: rule => rule =
-  (Rule(a, d)) => Rule(a, strip_casts(d));
-
-let rec dhexp_diff_value = (d1: t, d2: t): list(CursorPath.steps) => {
-  let diff_sub_dhs = (subtype_step, (ty1, ty2)) =>
-    List.map(List.cons(subtype_step), dhexp_diff_value(ty1, ty2));
-  switch (d1, d2) {
-  | (Triv, Triv)
-  | (ListNil(_), ListNil(_)) => []
-  | (BoolLit(a), BoolLit(b)) when a == b => []
-  | (IntLit(a), IntLit(b)) when a == b => []
-  | (FloatLit(a), FloatLit(b)) when a == b => []
-  | (Inj(_, _, d1'), Inj(_, _, d2')) => diff_sub_dhs(0, (d1', d2'))
-  | (Pair(d1', d1''), Pair(d2', d2''))
-  | (Cons(d1', d1''), Cons(d2', d2'')) =>
-    let steps1 = diff_sub_dhs(0, (d1', d2'));
-    let steps2 = diff_sub_dhs(1, (d1'', d2''));
-    steps1 @ steps2;
-  | _ => [[]]
-  };
-};
+let empty = EmptyHole(0, 0, []);
 
 let constructor_string = (d: t): string =>
   switch (d) {
@@ -244,12 +187,14 @@ let constructor_string = (d: t): string =>
   | BoundVar(_) => "BoundVar"
   | Let(_, _, _) => "Let"
   | FixF(_, _, _) => "FixF"
-  | Lam(_, _, _) => "Lam"
+  | Fun(_, _, _) => "Fun"
   | Ap(_, _) => "Ap"
+  | ApBuiltin(_, _) => "ApBuiltin"
   | BoolLit(_) => "BoolLit"
   | IntLit(_) => "IntLit"
-  | FloatLit(_) => "FloatLit"
   | Sequence(_, _) => "Sequence"
+  | TestLit(_) => "TestLit"
+  | FloatLit(_) => "FloatLit"
   | BinBoolOp(_, _, _) => "BinBoolOp"
   | BinIntOp(_, _, _) => "BinIntOp"
   | BinFloatOp(_, _, _) => "BinFloatOp"
@@ -263,7 +208,6 @@ let constructor_string = (d: t): string =>
   | Cast(_, _, _) => "Cast"
   | FailedCast(_, _, _) => "FailedCast"
   | InvalidOperation(_) => "InvalidOperation"
-  | TestLit(_) => "TestLit"
   };
 
 let rec mk_tuple: list(t) => t =

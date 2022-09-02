@@ -399,7 +399,7 @@ let edit_state_of_block =
     ((name: string, block: UHExp.block)): (string, Statics.edit_state) => {
   let zippered_block = block |> ZExp.place_before;
   let block_type =
-    switch (Statics_Exp.syn(Contexts.empty, block)) {
+    switch (Statics_Exp.syn(Contexts.initial, block)) {
     | Some(ty) => ty
     | None => Hole
     };

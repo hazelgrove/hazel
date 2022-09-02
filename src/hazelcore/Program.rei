@@ -47,8 +47,8 @@ let get_elaboration: t => DHExp.t;
  * Action because Action needs to return a well-typed edit state)
  */
 exception EvalError(EvaluatorError.t);
-let get_result: t => Result.t;
-let elaborate_only: t => Result.t;
+let get_result: t => EvaluatorResult.t;
+let elaborate_only: t => EvaluatorResult.t;
 
 /**
  * Raised when an attempted edit action does not succeed

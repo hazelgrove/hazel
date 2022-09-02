@@ -235,8 +235,6 @@ let new_EmptyHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
   (place_before_operand(hole), id_gen);
 };
 
-let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
-
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
   | (OnText(_) | OnDelim(_, _), _) => None

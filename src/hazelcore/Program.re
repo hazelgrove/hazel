@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open OptUtil.Syntax;
 
-module Memo = Core.Memo;
+/* module Memo = Core.Memo; */
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
@@ -40,8 +40,8 @@ let get_zexp = program => {
   ze;
 };
 
-let erase = Memo.general(~cache_size_bound=1000, ZExp.erase);
-let get_uhexp = program => program |> get_zexp |> erase;
+/* let erase = Memo.general(~cache_size_bound=1000, ZExp.erase); */
+/* let get_uhexp = program => program |> get_zexp |> erase; */
 
 let get_path = program => program |> get_zexp |> CursorPath_Exp.of_z;
 let get_steps = program => {
@@ -54,70 +54,70 @@ let get_id_gen = program => {
 };
 
 exception MissingCursorInfo;
-let cursor_info =
-  Memo.general(
-    ~cache_size_bound=1000,
-    CursorInfo_Exp.syn_cursor_info(Contexts.empty),
-  );
-let get_cursor_info = (program: t) => {
-  program
-  |> get_zexp
-  |> cursor_info
-  |> OptUtil.get(() => raise(MissingCursorInfo));
-};
+/* let cursor_info = */
+/*   Memo.general( */
+/*     ~cache_size_bound=1000, */
+/*     CursorInfo_Exp.syn_cursor_info(Contexts.initial), */
+/*   ); */
+/* let get_cursor_info = (program: t) => { */
+/*   program */
+/*   |> get_zexp */
+/*   |> cursor_info */
+/*   |> OptUtil.get(() => raise(MissingCursorInfo)); */
+/* }; */
 
 exception DoesNotElaborate;
-let expand =
-  Memo.general(
-    ~cache_size_bound=1000,
-    Elaborator_Exp.syn_elab(Contexts.empty, Delta.empty),
-  );
-let get_elaboration = (program: t): DHExp.t =>
-  switch (program |> get_uhexp |> expand) {
-  | DoesNotElaborate => raise(DoesNotElaborate)
-  | Elaborates(d, _, _) => d
-  };
+/* let expand = */
+/*   Memo.general( */
+/*     ~cache_size_bound=1000, */
+/*     Elaborator_Exp.syn_elab(Contexts.initial, Delta.empty), */
+/*   ); */
+/* let get_elaboration = (program: t): DHExp.t => */
+/*   switch (program |> get_uhexp |> expand) { */
+/*   | DoesNotElaborate => raise(DoesNotElaborate) */
+/*   | Elaborates(d, _, _) => d */
+/*   }; */
 
-let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+/* let evaluate = Memo.general(~cache_size_bound=1000, Evaluator.evaluate); */
 
 exception EvalError(EvaluatorError.t);
 
-let get_result = (program: t): Result.t => {
-  let (result', state) = evaluate(get_elaboration(program));
-  let d = Evaluator.unbox_result(result');
-  let (d_renumbered, hii) =
-    Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d);
-  let result = d_renumbered;
-  let boxed_result =
-    switch (result') {
-    | BoxedValue(_) => Evaluator.BoxedValue(d_renumbered)
-    | Indet(_) => Indet(d_renumbered)
-    };
-  let (_, result_ty, _) = program.edit_state;
-  let test_map = List.rev(state.test_map);
-  {result, result_ty, boxed_result, hii, test_map};
-};
+/* let get_result = (program: t): EvaluatorResult.t => { */
+/*   let (result', state) = evaluate(get_elaboration(program), ~state); */
+/*   let d = Evaluator.unbox_result(result'); */
+/*   let (d_renumbered, hii) = (d, HoleInstanceInfo.empty); */
+/*   /\* Elaborator_Exp.renumber([], HoleInstanceInfo.empty, d); *\/ */
+/*   let result = d_renumbered; */
+/*   let boxed_result = */
+/*     switch (result') { */
+/*     | BoxedValue(_) => EvaluatorResult.BoxedValue(d_renumbered) */
+/*     | Indet(_) => Indet(d_renumbered) */
+/*     }; */
+/*   let (_, result_ty, _) = program.edit_state; */
+/*   let test_map = List.rev(state.test_map); */
+/*   {result, result_ty, boxed_result, hii, test_map}; */
+/* }; */
 
-let elaborate_only = (program: t): Result.t => {
-  let elaboration = get_elaboration(program);
-  let (_, result_ty, _) = program.edit_state;
-  {
-    result: elaboration,
-    boxed_result: Indet(elaboration),
-    result_ty,
-    hii: HoleInstanceInfo.empty,
-    test_map: TestMap.empty,
-  };
-};
+/* let elaborate_only = (program: t): Result.t => { */
+/*   let elaboration = get_elaboration(program); */
+/*   let (_, result_ty, _) = program.edit_state; */
+/*   { */
+/*     result: elaboration, */
+/*     boxed_result: Indet(elaboration), */
+/*     result_ty, */
+/*     hii: HoleInstanceInfo.empty, */
+/*     test_map: TestMap.empty, */
+/*   }; */
+/* }; */
 
 let get_decoration_paths = (program: t): UHDecorationPaths.t => {
   let test_map = get_result(program).test_map;
   let current_term = program.is_focused ? Some(get_path(program)) : None;
-  let hooks = CursorPath_Exp.hooks(get_uhexp(program), [], []);
+  let hooks = CursorPath_Exp.holes(get_uhexp(program), [], []);
   let (err_holes, var_err_holes) =
     hooks
     |> List.filter_map(hook_info =>
-         switch (CursorPath.get_hook(hook_info)) {
+         switch (CursorPath.get_sort(hook_info)) {
          | KeywordHook(_)
          | TypHole => None
          | PatHole(_, shape)
@@ -142,7 +142,7 @@ let get_decoration_paths = (program: t): UHDecorationPaths.t => {
     };
   let tests =
     hooks
-    |> List.filter_map((CursorPath.{hook, steps, _}) =>
+    |> List.filter_map((CursorPath.{sort: hook, steps, _}) =>
          switch (hook) {
          | TypHole
          | PatHole(_)
@@ -206,7 +206,7 @@ exception CursorEscaped;
 let perform_edit_action = (a, program) => {
   let edit_state = program.edit_state;
 
-  switch (Action_Exp.syn_perform(Contexts.empty, a, edit_state)) {
+  switch (Action_Exp.syn_perform(Contexts.initial, a, edit_state)) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
@@ -226,7 +226,7 @@ exception HoleNotFound;
 let move_to_hole = (u, program) => {
   let (ze, _, _) = program.edit_state;
   let holes = CursorPath_Exp.holes(ZExp.erase(ze), [], []);
-  switch (CursorPath_common.steps_to_hook(holes, u)) {
+  switch (CursorPath_common.steps_to_hole(holes, u)) {
   | None => raise(HoleNotFound)
   | Some(hole_steps) =>
     let e = ZExp.erase(ze);

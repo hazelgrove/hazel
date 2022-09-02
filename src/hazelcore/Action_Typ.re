@@ -52,7 +52,9 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
     | Some(zty) => Succeeded(zty)
     }
   | MoveToPrevHole =>
-    switch (CursorPath_Typ.prev_hole_steps_z(zty)) {
+    switch (
+      CursorPath_common.(prev_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
@@ -61,7 +63,9 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
       }
     }
   | MoveToNextHole =>
-    switch (CursorPath_Typ.next_hole_steps_z(zty)) {
+    switch (
+      CursorPath_common.(next_hole_steps(CursorPath_Typ.holes_z(zty, [])))
+    ) {
     | None => Failed
     | Some(steps) =>
       switch (CursorPath_Typ.of_steps(steps, zty |> ZTyp.erase)) {
@@ -82,7 +86,6 @@ let rec move = (a: Action.t, zty: ZTyp.t): ActionOutcome.t(ZTyp.t) =>
   | Construct(_)
   | Delete
   | Backspace
-  | UpdateApPalette(_)
   | SwapLeft
   | SwapRight
   | SwapUp
@@ -103,10 +106,7 @@ and perform_opseq =
   switch (a, zseq) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
-      Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_),
-      ) |
+      Construct(SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase) |
       SwapUp |
       SwapDown,
       _,
@@ -220,10 +220,8 @@ and perform_operand =
   switch (a, zoperand) {
   /* Invalid actions at the type level */
   | (
-      UpdateApPalette(_) |
       Construct(
-        SAnn | SLet | SLine | SLam | SListNil | SInj(_) | SCase | SApPalette(_) |
-        SCommentLine,
+        SAnn | SLet | SLine | SFun | SListNil | SInj(_) | SCase | SCommentLine,
       ) |
       SwapUp |
       SwapDown,

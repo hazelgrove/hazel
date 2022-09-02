@@ -1,6 +1,4 @@
-open CursorPath;
-
-let mk_hook = CursorPath.mk_hook;
+let mk_hole_sort = CursorPath.mk_hole_sort;
 let cons' = CursorPath_common.cons';
 let rec of_z = (ze: ZExp.t): CursorPath.t => of_zblock(ze)
 and of_zblock = (zblock: ZExp.zblock): CursorPath.t => {
@@ -21,18 +19,14 @@ and of_zoperand = (zoperand: ZExp.zoperand): CursorPath.t =>
   switch (zoperand) {
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
-  | LamZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
-  | LamZE(_, _, zdef) => cons'(1, of_z(zdef))
+  | FunZP(_, zp, _) => cons'(0, CursorPath_Pat.of_z(zp))
+  | FunZE(_, _, zdef) => cons'(1, of_z(zdef))
   | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
   | CaseZE(_, zscrut, _) => cons'(0, of_z(zscrut))
   | CaseZR(_, _, zrules) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zhook_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zhook_map);
-    cons'(n, of_z(ze));
   }
 and of_zoperator = (zoperator: ZExp.zoperator): CursorPath.t => {
   let (cursor, _) = zoperator;
@@ -123,16 +117,16 @@ and follow_operand =
         |> Option.map(zbody => ZExp.ParenthesizedZ(zbody))
       | _ => None
       }
-    | Lam(err, p, body) =>
+    | Fun(err, p, body) =>
       switch (x) {
       | 0 =>
         p
         |> CursorPath_Pat.follow((xs, cursor))
-        |> Option.map(zp => ZExp.LamZP(err, zp, body))
+        |> Option.map(zp => ZExp.FunZP(err, zp, body))
       | 1 =>
         body
         |> follow((xs, cursor))
-        |> Option.map(zbody => ZExp.LamZE(err, p, zbody))
+        |> Option.map(zbody => ZExp.FunZE(err, p, zbody))
       | _ => None
       }
     | Inj(err, side, body) =>
@@ -157,19 +151,6 @@ and follow_operand =
           |> ZList.optmap_z(follow_rule((xs, cursor)))
           |> Option.map(zrules => ZExp.CaseZR(err, scrut, zrules))
         }
-      }
-    | ApPalette(err, name, serialized_model, splice_info) =>
-      switch (
-        ZSpliceInfo.select_opt(splice_info, x, ((ty, e)) =>
-          switch (follow((xs, cursor), e)) {
-          | None => None
-          | Some(ze) => Some((ty, ze))
-          }
-        )
-      ) {
-      | None => None
-      | Some(zsplice_info) =>
-        Some(ApPaletteZ(err, name, serialized_model, zsplice_info))
       }
     }
   }
@@ -302,7 +283,7 @@ and of_steps_operand =
         body |> of_steps(xs, ~side) |> Option.map(path => cons'(0, path))
       | _ => None
       }
-    | Lam(_, p, body) =>
+    | Fun(_, p, body) =>
       switch (x) {
       | 0 =>
         p
@@ -330,13 +311,6 @@ and of_steps_operand =
           z |> of_steps_rule(xs, ~side) |> Option.map(path => cons'(x, path));
         }
       }
-    | ApPalette(_, _, _, splice_info) =>
-      let splice_map = splice_info.splice_map;
-      switch (IntMap.find_opt(x, splice_map)) {
-      | None => None
-      | Some((_, e)) =>
-        e |> of_steps(xs, ~side) |> Option.map(path => cons'(x, path))
-      };
     }
   }
 and of_steps_rule =
@@ -363,263 +337,265 @@ and of_steps_rule =
     };
   };
 
-let hook = (shape, u: MetaVar.t): CursorPath.hook => ExpHole(u, shape);
-let hooks_err = CursorPath_common.hooks_err(~hook=hook(TypeErr));
-let hooks_case_err = CursorPath_common.hooks_case_err(~hook=hook(TypeErr));
-let hooks_verr = CursorPath_common.hooks_verr(~hook=hook(VarErr));
+let hole_sort = (shape, u: MetaVar.t): CursorPath.hole_sort =>
+  ExpHole(u, shape);
+let holes_err = CursorPath_common.holes_err(~hole_sort=hole_sort(TypeErr));
+let holes_case_err =
+  CursorPath_common.holes_case_err(~hole_sort=hole_sort(TypeErr));
+let holes_verr = CursorPath_common.holes_verr(~hole_sort=hole_sort(VarErr));
 
-let rec hooks =
+let rec holes =
         (
           e: UHExp.t,
           rev_steps: CursorPath.rev_steps,
-          hs: CursorPath.hook_list,
+          hs: CursorPath.hole_list,
         )
-        : CursorPath.hook_list =>
-  hs |> hooks_block(e, rev_steps)
-and hooks_block =
+        : CursorPath.hole_list =>
+  hs |> holes_block(e, rev_steps)
+and holes_block =
     (
       block: UHExp.block,
       rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hook_list,
+      hs: CursorPath.hole_list,
     )
-    : CursorPath.hook_list =>
+    : CursorPath.hole_list =>
   hs
   |> ListUtil.fold_right_i(
-       ((i, line), hs) => hs |> hooks_line(line, [i, ...rev_steps]),
+       ((i, line), hs) => hs |> holes_line(line, [i, ...rev_steps]),
        block,
      )
-and hooks_line =
+and holes_line =
     (
       line: UHExp.line,
       rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hook_list,
+      hs: CursorPath.hole_list,
     )
-    : CursorPath.hook_list =>
+    : CursorPath.hole_list =>
   switch (line) {
   | EmptyLine
   | CommentLine(_) => hs
   | LetLine(p, def) =>
     hs
-    |> hooks(def, [1, ...rev_steps])
-    |> CursorPath_Pat.hooks(p, [0, ...rev_steps])
-  | ExpLine(opseq) =>
-    hs
-    |> CursorPath_common.hooks_opseq(
-         ~hooks_operand,
-         ~hook=hook(TypeErr),
-         ~is_space=Operators_Exp.is_Space,
-         ~rev_steps,
-         opseq,
-       )
+    |> holes(def, [1, ...rev_steps])
+    |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+  | ExpLine(opseq) => holes_opseq(rev_steps, opseq, hs)
   }
-and hooks_operand =
+and holes_opseq =
+    (
+      rev_steps: CursorPath.rev_steps,
+      opseq: OpSeq.t('operand, 'operator),
+      hs: CursorPath.hole_list,
+    )
+    : CursorPath.hole_list =>
+  hs
+  |> CursorPath_common.holes_opseq(
+       ~holes_operand,
+       ~hole_sort=hole_sort(TypeErr),
+       ~is_space=Operators_Exp.is_Space,
+       ~rev_steps,
+       opseq,
+     )
+and holes_operand =
     (
       operand: UHExp.operand,
       rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hook_list,
+      hs: CursorPath.hole_list,
     )
-    : CursorPath.hook_list =>
+    : CursorPath.hole_list =>
   switch (operand) {
   | EmptyHole(u) => [
-      mk_hook(ExpHole(u, Empty), List.rev(rev_steps)),
+      mk_hole_sort(ExpHole(u, Empty), List.rev(rev_steps)),
       ...hs,
     ]
   | InvalidText(u, _) => [
-      mk_hook(ExpHole(u, VarErr), List.rev(rev_steps)),
+      mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps)),
       ...hs,
     ]
   | Var(err, verr, _) =>
-    hs |> hooks_verr(verr, rev_steps) |> hooks_err(err, rev_steps)
+    hs |> holes_verr(verr, rev_steps) |> holes_err(err, rev_steps)
   | Keyword(Typed(_, InHole(TypeInconsistent, u), id)) => [
-      CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
-      CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      CursorPath.mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
+      CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
       ...hs,
     ]
   | Keyword(Typed(_, _, id)) => [
-      CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
       ...hs,
     ]
   | IntLit(err, _)
   | FloatLit(err, _)
   | BoolLit(err, _)
-  | ListNil(err) => hs |> hooks_err(err, rev_steps)
-  | Parenthesized(body) => hs |> hooks(body, [0, ...rev_steps])
+  | ListNil(err) => hs |> holes_err(err, rev_steps)
+  | Parenthesized(body) => hs |> holes(body, [0, ...rev_steps])
   | Inj(err, _, body) =>
-    hs |> hooks(body, [0, ...rev_steps]) |> hooks_err(err, rev_steps)
-  | Lam(err, p, body) =>
+    hs |> holes(body, [0, ...rev_steps]) |> holes_err(err, rev_steps)
+  | Fun(err, p, body) =>
     hs
-    |> hooks(body, [1, ...rev_steps])
-    |> CursorPath_Pat.hooks(p, [0, ...rev_steps])
-    |> hooks_err(err, rev_steps)
+    |> holes(body, [1, ...rev_steps])
+    |> CursorPath_Pat.holes(p, [0, ...rev_steps])
+    |> holes_err(err, rev_steps)
   | Case(err, scrut, rules) =>
     hs
     |> ListUtil.fold_right_i(
-         ((i, rule), hs) => hs |> hooks_rule(rule, [1 + i, ...rev_steps]),
+         ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
          rules,
        )
-    |> hooks(scrut, [0, ...rev_steps])
-    |> hooks_case_err(err, rev_steps)
-  | ApPalette(err, _, _, psi) =>
-    let splice_map = psi.splice_map;
-    let splice_order = psi.splice_order;
-    List.fold_right(
-      (i, hs) =>
-        switch (IntMap.find_opt(i, splice_map)) {
-        | None => hs
-        | Some((_, e)) => hs |> hooks(e, [i, ...rev_steps])
-        },
-      splice_order,
-      hs,
-    )
-    |> hooks_err(err, rev_steps);
+    |> holes(scrut, [0, ...rev_steps])
+    |> holes_case_err(err, rev_steps)
   }
-and hooks_rule =
+and holes_rule =
     (
       Rule(p, clause): UHExp.rule,
       rev_steps: CursorPath.rev_steps,
-      hs: CursorPath.hook_list,
+      hs: CursorPath.hole_list,
     )
-    : CursorPath.hook_list => {
+    : CursorPath.hole_list => {
   hs
-  |> hooks(clause, [1, ...rev_steps])
-  |> CursorPath_Pat.hooks(p, [0, ...rev_steps]);
+  |> holes(clause, [1, ...rev_steps])
+  |> CursorPath_Pat.holes(p, [0, ...rev_steps]);
 };
 
-let rec hooks_z =
-        (ze: ZExp.t, rev_steps: CursorPath.rev_steps): CursorPath.zhook_list =>
-  hooks_zblock(ze, rev_steps)
-and hooks_zblock =
+let rec holes_z =
+        (ze: ZExp.t, rev_steps: CursorPath.rev_steps): CursorPath.zhole_list =>
+  holes_zblock(ze, rev_steps)
+and holes_zblock =
     ((prefix, zline, suffix): ZExp.zblock, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhook_list => {
-  let hooks_prefix =
+    : CursorPath.zhole_list => {
+  let holes_prefix =
     ListUtil.fold_right_i(
-      ((i, line), hs) => hs |> hooks_line(line, [i, ...rev_steps]),
+      ((i, line), hs) => hs |> holes_line(line, [i, ...rev_steps]),
       prefix,
       [],
     );
-  let CursorPath.{hooks_before, hook_selected, hooks_after} =
-    hooks_zline(zline, [List.length(prefix), ...rev_steps]);
-  let hooks_suffix =
+  let CursorPath.{holes_before, hole_selected, holes_after} =
+    holes_zline(zline, [List.length(prefix), ...rev_steps]);
+  let holes_suffix =
     ListUtil.fold_right_i(
       ((i, line), hs) =>
-        hs |> hooks_line(line, [List.length(prefix) + 1 + i, ...rev_steps]),
+        hs |> holes_line(line, [List.length(prefix) + 1 + i, ...rev_steps]),
       suffix,
       [],
     );
-  CursorPath_common.mk_zhooks(
-    ~hooks_before=hooks_prefix @ hooks_before,
-    ~hook_selected,
-    ~hooks_after=hooks_after @ hooks_suffix,
+  CursorPath_common.mk_zholes(
+    ~holes_before=holes_prefix @ holes_before,
+    ~hole_selected,
+    ~holes_after=holes_after @ holes_suffix,
     (),
   );
 }
-and hooks_zline =
+and holes_zline =
     (zline: ZExp.zline, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhook_list =>
+    : CursorPath.zhole_list =>
   switch (zline) {
-  | CursorL(OnOp(_), _) => CursorPath_common.no_hooks
-  | CursorL(_, EmptyLine) => CursorPath_common.no_hooks
-  | CursorL(_, CommentLine(_)) => CursorPath_common.no_hooks
-  | CursorL(_, ExpLine(_)) => CursorPath_common.no_hooks /* invalid cursor position */
+  | CursorL(OnOp(_), _) => CursorPath_common.no_holes
+  | CursorL(_, EmptyLine) => CursorPath_common.no_holes
+  | CursorL(_, CommentLine(_)) => CursorPath_common.no_holes
+  | CursorL(_, ExpLine(_)) => CursorPath_common.no_holes /* invalid cursor position */
   | CursorL(cursor, LetLine(p, def)) =>
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let hooks_def = hooks(def, [1, ...rev_steps], []);
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let holes_def = holes(def, [1, ...rev_steps], []);
     switch (cursor) {
     | OnDelim(0, _) =>
-      CursorPath_common.mk_zhooks(~hooks_after=hooks_p @ hooks_def, ())
+      CursorPath_common.mk_zholes(~holes_after=holes_p @ holes_def, ())
     | OnDelim(1, _) =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=hooks_p,
-        ~hooks_after=hooks_def,
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p,
+        ~holes_after=holes_def,
         (),
       )
     | OnDelim(2, _) =>
-      CursorPath_common.mk_zhooks(~hooks_before=hooks_p @ hooks_def, ())
-    | _ => CursorPath_common.no_hooks
+      CursorPath_common.mk_zholes(~holes_before=holes_p @ holes_def, ())
+    | _ => CursorPath_common.no_holes
     };
-  | ExpLineZ(zopseq) => hooks_zopseq(zopseq, rev_steps)
+  | ExpLineZ(zopseq) => holes_zopseq(zopseq, rev_steps)
   | LetLineZP(zp, body) =>
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      CursorPath_Pat.hooks_z(zp, [0, ...rev_steps]);
-    let hooks_body = hooks(body, [1, ...rev_steps], []);
-    CursorPath_common.mk_zhooks(
-      ~hooks_before,
-      ~hook_selected,
-      ~hooks_after=hooks_after @ hooks_body,
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
+    let holes_body = holes(body, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body,
       (),
     );
   | LetLineZE(p, zbody) =>
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_z(zbody, [1, ...rev_steps]);
-    CursorPath_common.mk_zhooks(
-      ~hooks_before=hooks_p @ hooks_before,
-      ~hook_selected,
-      ~hooks_after,
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after,
       (),
     );
   }
-and hooks_zopseq =
+and holes_zopseq =
     (zopseq: ZExp.zopseq, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhook_list =>
-  CursorPath_common.hooks_zopseq_(
-    ~hooks_operand,
-    ~hooks_zoperand,
-    ~hook=hook(TypeErr),
+    : CursorPath.zhole_list =>
+  CursorPath_common.holes_zopseq_(
+    ~holes_operand,
+    ~holes_zoperand,
+    ~hole_sort=hole_sort(TypeErr),
     ~is_space=Operators_Exp.is_Space,
     ~rev_steps,
     ~erase_zopseq=ZExp.erase_zopseq,
     zopseq,
   )
-and hooks_zoperand =
+and holes_zoperand =
     (zoperand: ZExp.zoperand, rev_steps: CursorPath.rev_steps)
-    : CursorPath.zhook_list =>
+    : CursorPath.zhole_list =>
   switch (zoperand) {
-  | CursorE(OnOp(_), _) => CursorPath_common.no_hooks
+  | CursorE(OnOp(_), _) => CursorPath_common.no_holes
   | CursorE(_, EmptyHole(u)) =>
-    CursorPath_common.mk_zhooks(
-      ~hook_selected=Some(mk_hook(ExpHole(u, Empty), List.rev(rev_steps))),
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some(mk_hole_sort(ExpHole(u, Empty), List.rev(rev_steps))),
       (),
     )
   | CursorE(_, InvalidText(u, _)) =>
-    CursorPath_common.mk_zhooks(
-      ~hook_selected=
-        Some(mk_hook(ExpHole(u, VarErr), List.rev(rev_steps))),
+    CursorPath_common.mk_zholes(
+      ~hole_selected=
+        Some(mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps))),
       (),
     )
   | CursorE(_, Var(err, verr, _)) =>
     switch (err, verr) {
-    | (NotInHole, NotInVarHole) => CursorPath_common.no_hooks
+    | (NotInHole, NotInVarHole) => CursorPath_common.no_holes
     | (InHole(_, u), _) =>
-      CursorPath_common.mk_zhooks(
-        ~hook_selected=
-          Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps))),
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     | (_, InVarHole(_, u)) =>
-      CursorPath_common.mk_zhooks(
-        ~hook_selected=
-          Some(mk_hook(ExpHole(u, VarErr), List.rev(rev_steps))),
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(mk_hole_sort(ExpHole(u, VarErr), List.rev(rev_steps))),
         (),
       )
     }
   | CursorE(_, Keyword(Typed(_, err, id))) =>
     switch (err) {
     | InHole(TypeInconsistent, u) =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=[
-          CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps)),
+      CursorPath_common.mk_zholes(
+        ~holes_before=[
+          CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
         ],
-        ~hook_selected=
+        ~hole_selected=
           Some(
-            CursorPath.mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+            CursorPath.mk_hole_sort(
+              ExpHole(u, TypeErr),
+              List.rev(rev_steps),
+            ),
           ),
         (),
       )
     | _ =>
-      CursorPath_common.mk_zhooks(
-        ~hook_selected=
-          Some(CursorPath.mk_hook(KeywordHook(id), List.rev(rev_steps))),
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(
+            CursorPath.mk_hole_sort(KeywordHook(id), List.rev(rev_steps)),
+          ),
         (),
       )
     }
@@ -628,197 +604,198 @@ and hooks_zoperand =
   | CursorE(_, BoolLit(err, _))
   | CursorE(_, ListNil(err)) =>
     switch (err) {
-    | NotInHole => CursorPath_common.no_hooks
+    | NotInHole => CursorPath_common.no_holes
     | InHole(_, u) =>
-      CursorPath_common.mk_zhooks(
-        ~hook_selected=
-          Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps))),
+      CursorPath_common.mk_zholes(
+        ~hole_selected=
+          Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps))),
         (),
       )
     }
   | CursorE(OnDelim(k, _), Parenthesized(body)) =>
-    let body_hooks = hooks(body, [0, ...rev_steps], []);
+    let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
-    | 0 => CursorPath_common.mk_zhooks(~hooks_after=body_hooks, ())
-    | 1 => CursorPath_common.mk_zhooks(~hooks_before=body_hooks, ())
-    | _ => CursorPath_common.no_hooks
+    | 0 => CursorPath_common.mk_zholes(~holes_after=body_holes, ())
+    | 1 => CursorPath_common.mk_zholes(~holes_before=body_holes, ())
+    | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Inj(err, _, body)) =>
-    let hook_selected: option(CursorPath.hook_info) =
+    let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some(mk_hook(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)))
+        Some(
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
+        )
       };
-    let body_hooks = hooks(body, [0, ...rev_steps], []);
+    let body_holes = holes(body, [0, ...rev_steps], []);
     switch (k) {
     | 0 =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=body_hooks,
-        ~hook_selected,
+      CursorPath_common.mk_zholes(
+        ~holes_before=body_holes,
+        ~hole_selected,
         (),
       )
     | 1 =>
-      CursorPath_common.mk_zhooks(~hook_selected, ~hooks_after=body_hooks, ())
-    | _ => CursorPath_common.no_hooks
+      CursorPath_common.mk_zholes(~hole_selected, ~holes_after=body_holes, ())
+    | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnDelim(k, _), Lam(err, p, body)) =>
-    let hook_selected: option(CursorPath.hook_info) =
+  | CursorE(OnDelim(k, _), Fun(err, p, body)) =>
+    let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => None
       | InHole(_, u) =>
-        Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)))
+        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let hooks_body = hooks(body, [1, ...rev_steps], []);
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let holes_body = holes(body, [1, ...rev_steps], []);
     switch (k) {
     | 0 =>
-      CursorPath_common.mk_zhooks(
-        ~hook_selected,
-        ~hooks_after=hooks_p @ hooks_body,
+      CursorPath_common.mk_zholes(
+        ~hole_selected,
+        ~holes_after=holes_p @ holes_body,
         (),
       )
     | 1 =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=hooks_p,
-        ~hook_selected,
-        ~hooks_after=hooks_body,
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p,
+        ~hole_selected,
+        ~holes_after=holes_body,
         (),
       )
-    | _ => CursorPath_common.no_hooks
+    | _ => CursorPath_common.no_holes
     };
   | CursorE(OnDelim(k, _), Case(err, scrut, rules)) =>
-    let hook_selected: option(CursorPath.hook_info) =
+    let hole_selected: option(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => None
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) =>
-        Some(mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)))
+        Some(mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)))
       };
-    let hooks_scrut = hooks(scrut, [0, ...rev_steps], []);
-    let hooks_rules =
+    let holes_scrut = holes(scrut, [0, ...rev_steps], []);
+    let holes_rules =
       ListUtil.fold_right_i(
-        ((i, rule), hs) => hs |> hooks_rule(rule, [1 + i, ...rev_steps]),
+        ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
         rules,
         [],
       );
     switch (k) {
     | 0 =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_after=hooks_scrut @ hooks_rules,
-        ~hook_selected,
+      CursorPath_common.mk_zholes(
+        ~holes_after=holes_scrut @ holes_rules,
+        ~hole_selected,
         (),
       )
     | 1 =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=hooks_scrut @ hooks_rules,
-        ~hook_selected,
-        ~hooks_after=[],
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_scrut @ holes_rules,
+        ~hole_selected,
+        ~holes_after=[],
         (),
       )
-    | _ => CursorPath_common.no_hooks
+    | _ => CursorPath_common.no_holes
     };
-  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Lam(_) | Case(_)) =>
+  | CursorE(OnText(_), Inj(_) | Parenthesized(_) | Fun(_) | Case(_)) =>
     /* invalid cursor position */
-    CursorPath_common.no_hooks
-  | CursorE(_, ApPalette(_)) => CursorPath_common.no_hooks /* TODO[livelits] */
-  | ParenthesizedZ(zbody) => hooks_z(zbody, [0, ...rev_steps])
-  | LamZP(err, zp, body) =>
-    let hooks_err: list(CursorPath.hook_info) =
+    CursorPath_common.no_holes
+  | ParenthesizedZ(zbody) => holes_z(zbody, [0, ...rev_steps])
+  | FunZP(err, zp, body) =>
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      CursorPath_Pat.hooks_z(zp, [0, ...rev_steps]);
-    let hooks_body = hooks(body, [1, ...rev_steps], []);
-    CursorPath_common.mk_zhooks(
-      ~hooks_before=hooks_err @ hooks_before,
-      ~hook_selected,
-      ~hooks_after=hooks_after @ hooks_body,
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
+    let holes_body = holes(body, [1, ...rev_steps], []);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_body,
       (),
     );
-  | LamZE(err, p, zbody) =>
-    let hooks_err: list(CursorPath.hook_info) =
+  | FunZE(err, p, zbody) =>
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_z(zbody, [1, ...rev_steps]);
-    CursorPath_common.mk_zhooks(
-      ~hooks_before=hooks_err @ hooks_p @ hooks_before,
-      ~hook_selected,
-      ~hooks_after,
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [1, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_p @ holes_before,
+      ~hole_selected,
+      ~holes_after,
       (),
     );
   | InjZ(err, _, zbody) =>
-    let hooks_err: list(CursorPath.hook_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | NotInHole => []
       | InHole(_, u) => [
-          mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_z(zbody, [0, ...rev_steps]);
-    CursorPath_common.mk_zhooks(
-      ~hooks_before=hooks_err @ hooks_before,
-      ~hook_selected,
-      ~hooks_after,
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zbody, [0, ...rev_steps]);
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after,
       (),
     );
   | CaseZE(err, zscrut, rules) =>
-    let hooks_err: list(CursorPath.hook_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          mk_hook(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(CursorPath.ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_z(zscrut, [0, ...rev_steps]);
-    let hooks_rules =
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_z(zscrut, [0, ...rev_steps]);
+    let holes_rules =
       ListUtil.fold_right_i(
-        ((i, rule), hs) => hs |> hooks_rule(rule, [1 + i, ...rev_steps]),
+        ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
         rules,
         [],
       );
-    CursorPath_common.mk_zhooks(
-      ~hooks_before=hooks_err @ hooks_before,
-      ~hook_selected,
-      ~hooks_after=hooks_after @ hooks_rules,
+    CursorPath_common.mk_zholes(
+      ~holes_before=holes_err @ holes_before,
+      ~hole_selected,
+      ~holes_after=holes_after @ holes_rules,
       (),
     );
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
-    let hooks_err: list(CursorPath.hook_info) =
+    let holes_err: list(CursorPath.hole_info) =
       switch (err) {
       | StandardErrStatus(NotInHole) => []
       | StandardErrStatus(InHole(_, u))
       | InconsistentBranches(_, u) => [
-          mk_hook(ExpHole(u, TypeErr), List.rev(rev_steps)),
+          mk_hole_sort(ExpHole(u, TypeErr), List.rev(rev_steps)),
         ]
       };
-    let hooks_scrut = hooks(scrut, [0, ...rev_steps], []);
-    let hooks_prefix =
+    let holes_scrut = holes(scrut, [0, ...rev_steps], []);
+    let holes_prefix =
       ListUtil.fold_right_i(
-        ((i, rule), hs) => hs |> hooks_rule(rule, [1 + i, ...rev_steps]),
+        ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
         prefix,
         [],
       );
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_zrule(zrule, [1 + List.length(prefix), ...rev_steps]);
-    let hooks_suffix =
+    let CursorPath.{holes_before, hole_selected, holes_after} =
+      holes_zrule(zrule, [1 + List.length(prefix), ...rev_steps]);
+    let holes_suffix =
       ListUtil.fold_right_i(
         ((i, rule), hs) =>
           hs
-          |> hooks_rule(
+          |> holes_rule(
                rule,
                [1 + List.length(prefix) + 1 + i, ...rev_steps],
              ),
@@ -826,90 +803,54 @@ and hooks_zoperand =
         [],
       );
     {
-      hooks_before: hooks_err @ hooks_scrut @ hooks_prefix @ hooks_before,
-      hook_selected,
-      hooks_after: hooks_after @ hooks_suffix,
-    };
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zsplice_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZIntMap.prj_z_kv(zsplice_map);
-    let CursorPath.{hooks_before, hook_selected, hooks_after} =
-      hooks_z(ze, [n, ...rev_steps]);
-    let splice_order = zpsi.splice_order;
-    let splice_map = ZIntMap.prj_map(zsplice_map);
-    let (splices_before, splices_after) = ListUtil.split_at(splice_order, n);
-    let hooks_splices_before =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ hooks(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_before,
-      );
-    let hooks_splices_after =
-      List.fold_left(
-        (hs, n) =>
-          switch (IntMap.find_opt(n, splice_map)) {
-          | None => hs
-          | Some((_, e)) => hs @ hooks(e, [n, ...rev_steps], [])
-          },
-        [],
-        splices_after,
-      );
-    {
-      hooks_before: hooks_splices_before @ hooks_before,
-      hook_selected,
-      hooks_after: hooks_after @ hooks_splices_after,
+      holes_before: holes_err @ holes_scrut @ holes_prefix @ holes_before,
+      hole_selected,
+      holes_after: holes_after @ holes_suffix,
     };
   }
-and hooks_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
+and holes_zrule = (zrule: ZExp.zrule, rev_steps: CursorPath.rev_steps) =>
   switch (zrule) {
   | CursorR(OnOp(_) | OnText(_), _) =>
     // invalid cursor position
-    CursorPath_common.no_hooks
+    CursorPath_common.no_holes
   | CursorR(OnDelim(k, _), Rule(p, clause)) =>
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let hooks_clause = hooks(clause, [1, ...rev_steps], []);
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let holes_clause = holes(clause, [1, ...rev_steps], []);
     switch (k) {
     | 0 =>
-      CursorPath_common.mk_zhooks(~hooks_after=hooks_p @ hooks_clause, ())
+      CursorPath_common.mk_zholes(~holes_after=holes_p @ holes_clause, ())
     | 1 =>
-      CursorPath_common.mk_zhooks(
-        ~hooks_before=hooks_p,
-        ~hooks_after=hooks_clause,
+      CursorPath_common.mk_zholes(
+        ~holes_before=holes_p,
+        ~holes_after=holes_clause,
         (),
       )
-    | _ => CursorPath_common.no_hooks
+    | _ => CursorPath_common.no_holes
     };
   | RuleZP(zp, clause) =>
-    let zhooks_p = CursorPath_Pat.hooks_z(zp, [0, ...rev_steps]);
-    let hooks_clause = hooks(clause, [1, ...rev_steps], []);
-    {...zhooks_p, hooks_after: zhooks_p.hooks_after @ hooks_clause};
+    let zholes_p = CursorPath_Pat.holes_z(zp, [0, ...rev_steps]);
+    let holes_clause = holes(clause, [1, ...rev_steps], []);
+    {...zholes_p, holes_after: zholes_p.holes_after @ holes_clause};
   | RuleZE(p, zclause) =>
-    let hooks_p = CursorPath_Pat.hooks(p, [0, ...rev_steps], []);
-    let zhooks_clause = hooks_z(zclause, [1, ...rev_steps]);
-    {...zhooks_clause, hooks_before: hooks_p @ zhooks_clause.hooks_before};
+    let holes_p = CursorPath_Pat.holes(p, [0, ...rev_steps], []);
+    let zholes_clause = holes_z(zclause, [1, ...rev_steps]);
+    {...zholes_clause, holes_before: holes_p @ zholes_clause.holes_before};
   };
 
-let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) =>
-  hooks_z(ze, []) |> filter_holes_z |> CursorPath_common.prev_hook_steps;
-
-let prev_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) =>
-  hooks_zline(zline, [])
-  |> filter_holes_z
-  |> CursorPath_common.prev_hook_steps;
+let prev_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
+  let holes = holes_z(ze, []);
+  CursorPath_common.prev_hole_steps(holes);
+};
+let prev_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
+  let holes = holes_zline(zline, []);
+  CursorPath_common.prev_hole_steps(holes);
+};
 
 let next_hole_steps_z = (ze: ZExp.t): option(CursorPath.steps) => {
-  hooks_z(ze, []) |> filter_holes_z |> CursorPath_common.next_hook_steps;
+  let holes = holes_z(ze, []);
+  CursorPath_common.next_hole_steps(holes);
 };
-let next_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) =>
-  hooks_zline(zline, [])
-  |> filter_holes_z
-  |> CursorPath_common.next_hook_steps;
-
-let holes =
-    (e: UHExp.t, rev_steps: CursorPath.rev_steps, hs: CursorPath.hook_list)
-    : CursorPath.hook_list =>
-  hooks(e, rev_steps, hs) |> List.filter(CursorPath.is_hole);
+let next_hole_steps_zline = (zline: ZExp.zline): option(CursorPath.steps) => {
+  let holes = holes_zline(zline, []);
+  CursorPath_common.next_hole_steps(holes);
+};

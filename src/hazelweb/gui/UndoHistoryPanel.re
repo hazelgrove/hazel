@@ -107,7 +107,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
         ])
       )
     | ListNil(_) => indicate_words_view("empty list")
-    | Lam(_) => indicate_words_view("function")
+    | Fun(_) => indicate_words_view("function")
 
     | Inj(_, side, _) =>
       switch (side) {
@@ -116,7 +116,6 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
       }
     | Case(_, _, _) => code_keywords_view("case")
     | Parenthesized(_) => indicate_words_view("parentheses")
-    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
 
@@ -272,7 +271,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
 
   let action_shape_view = (shape: Action.shape) => {
     switch (shape) {
-    | SLam => indicate_words_view("function")
+    | SFun => indicate_words_view("function")
     | SInj(side) =>
       switch (side) {
       | L => indicate_words_view("left injection")
@@ -308,7 +307,6 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
       | SSpace => indicate_words_view("space")
       | _ => code_view(Action_common.shape_to_string(shape))
       }
-    | SApPalette(_) => failwith("ApPalette not implemented")
     };
   };
   let history_entry_txt_view = (undo_history_entry: undo_history_entry) => {
@@ -345,7 +343,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
             code_keywords_view("case"),
           ])
         )
-      | SLam => indicate_words_view("construct function")
+      | SFun => indicate_words_view("construct function")
       | _ =>
         Vdom.(
           Node.span([
@@ -412,7 +410,7 @@ let view = (~inject: ModelAction.t => Vdom.Effect.t(_), model: Model.t) => {
       switch (edit_detail) {
       | SLet
       | SCase
-      | SLam => Some(Exp)
+      | SFun => Some(Exp)
       | SAnn => Some(Pat)
       | _ =>
         Some(

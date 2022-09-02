@@ -112,12 +112,6 @@ and set_err_status_operand = (err, operand) =>
   | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
   };
 
-let is_inconsistent = (p: t): bool =>
-  switch (get_err_status(p)) {
-  | InHole(TypeInconsistent, _) => true
-  | _ => false
-  };
-
 /* put p in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (id_gen: IDGen.t, p: t): (t, IDGen.t) =>
   mk_inconsistent_opseq(id_gen, p)
@@ -161,9 +155,6 @@ let text_operand = (id_gen: IDGen.t, shape: TextShape.t): (operand, IDGen.t) =>
   | IntLit(n) => (intlit(n), id_gen)
   | FloatLit(n) => (floatlit(n), id_gen)
   | BoolLit(b) => (boollit(b), id_gen)
-  | Keyword(kw) =>
-    let (_, id_gen) = id_gen |> IDGen.next_kw;
-    (var(Keyword.string_of_kw(kw)), id_gen);
   | Var(x) => (var(x), id_gen)
   | ExpandingKeyword(kw) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;

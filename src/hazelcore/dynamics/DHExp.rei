@@ -62,8 +62,9 @@ type t =
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)
   | FixF(Var.t, HTyp.t, t)
-  | Lam(DHPat.t, HTyp.t, t)
+  | Fun(DHPat.t, HTyp.t, t)
   | Ap(t, t)
+  | ApBuiltin(string, list(t))
   | BoolLit(bool)
   | IntLit(int)
   | Sequence(t, t)
@@ -95,6 +96,4 @@ let cast: (t, HTyp.t, HTyp.t) => t;
 
 let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
 
-let strip_casts: t => t;
-
-let dhexp_diff_value: (t, t) => list(CursorPath.steps);
+let empty: t;
