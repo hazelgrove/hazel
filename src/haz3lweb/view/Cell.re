@@ -33,7 +33,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
 let mousedown_handler =
     (~inject, ~font_metrics, ~target_id, ~additional_updates=[], e) => {
   let goal = get_goal(~font_metrics, ~target_id, e);
-  Event.Many(
+  Virtual_dom.Vdom.Effect.Many(
     List.map(
       inject,
       Update.[
@@ -63,17 +63,18 @@ let view =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   Node.div(
-    [
-      Attr.classes(["cell", ...clss] @ (selected ? ["selected"] : [])),
-      Attr.on_mousedown(
-        mousedown_handler(
-          ~inject,
-          ~font_metrics,
-          ~target_id=code_id,
-          ~additional_updates=mousedown_updates,
+    ~attr=
+      Attr.many([
+        Attr.classes(["cell", ...clss] @ (selected ? ["selected"] : [])),
+        Attr.on_mousedown(
+          mousedown_handler(
+            ~inject,
+            ~font_metrics,
+            ~target_id=code_id,
+            ~additional_updates=mousedown_updates,
+          ),
         ),
-      ),
-    ],
+      ]),
     Option.to_list(caption) @ (show_code ? mousedown_overlay @ [code] : []),
   );
 };
