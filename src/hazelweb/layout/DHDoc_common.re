@@ -115,6 +115,22 @@ let mk_Inj = (inj_side, padded_child) =>
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
+let rec mk_ListLit = (l, ol) =>
+  switch (l) {
+  | [] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), text("]")]));
+    } else {
+      Doc.(hcats([text("]")]));
+    }
+  | [hd, ...tl] =>
+    if (l == ol) {
+      Doc.(hcats([text("["), hd, mk_ListLit(tl, ol)]));
+    } else {
+      Doc.(hcats([text(", "), hd, mk_ListLit(tl, ol)]));
+    }
+  };
+
 let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);

@@ -70,6 +70,7 @@ let move_to_hole: (MetaVar.t, t) => Action.t;
  * inconsistent branches)
  */
 let move_to_case_branch: (CursorPath.steps, int) => Action.t;
+let move_to_list_element: CursorPath.t => Action.t;
 
 let get_layout: (~settings: Settings.t, t) => UHLayout.t;
 

@@ -10,7 +10,7 @@ let shape_to_string = (shape: shape): string => {
   | SChar(str) => str
   | SAnn => "type annotation"
   | SLam => "function"
-  | SListNil => "empty list"
+  | SListLit => "list literal"
   | SInj(side) =>
     switch (side) {
     | L => "left injection"

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open OptUtil.Syntax;
 
-module Memo = Core_kernel.Memo;
+module Memo = Core.Memo;
 
 module MeasuredPosition = Pretty.MeasuredPosition;
 module MeasuredLayout = Pretty.MeasuredLayout;
@@ -240,6 +240,10 @@ let move_to_hole = (u, program) => {
 let move_to_case_branch = (steps_to_case, branch_index): Action.t => {
   let steps_to_branch = steps_to_case @ [1 + branch_index];
   Action.MoveTo((steps_to_branch, OnDelim(1, After)));
+};
+
+let move_to_list_element = (steps_to_case): Action.t => {
+  Action.MoveTo(steps_to_case);
 };
 
 let move_via_click =

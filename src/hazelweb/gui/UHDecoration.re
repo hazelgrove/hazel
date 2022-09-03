@@ -84,64 +84,66 @@ module CurrentTerm = {
     let sort_cls = sort_cls(sort);
     Node.create_svg(
       "filter",
-      [
+      ~attr=
         Attr.id(
           String.lowercase_ascii(sort_cls) ++ "-closed-child-drop-shadow",
         ),
-      ],
       [
         Node.create_svg(
           "feOffset",
-          [
-            Attr.create("in", "SourceAlpha"),
-            Attr.create("dx", "0.1"),
-            Attr.create("dy", "0.04"),
-            Attr.create("result", "offset-alpha"),
-          ],
+          ~attr=
+            Attr.many([
+              Attr.create("in", "SourceAlpha"),
+              Attr.create("dx", "0.1"),
+              Attr.create("dy", "0.04"),
+              Attr.create("result", "offset-alpha"),
+            ]),
           [],
         ),
         Node.create_svg(
           "feFlood",
-          [
-            Attr.classes(["closed-child-inset-shadow", sort_cls]),
-            Attr.create("flood-opacity", "1"),
-            Attr.create("result", "color"),
-          ],
+          ~attr=
+            Attr.many([
+              Attr.classes(["closed-child-inset-shadow", sort_cls]),
+              Attr.create("flood-opacity", "1"),
+              Attr.create("result", "color"),
+            ]),
           [],
         ),
         Node.create_svg(
           "feComposite",
-          [
-            // Attr.classes(["closed-child-drop-shadow"]),
-            Attr.create("operator", "out"),
-            Attr.create("in", "SourceAlpha"),
-            Attr.create("in2", "offset-alpha"),
-            Attr.create("result", "shadow-shape"),
-          ],
+          ~attr=
+            Attr.many([
+              // Attr.classes(["closed-child-drop-shadow"]),
+              Attr.create("operator", "out"),
+              Attr.create("in", "SourceAlpha"),
+              Attr.create("in2", "offset-alpha"),
+              Attr.create("result", "shadow-shape"),
+            ]),
           [],
         ),
         Node.create_svg(
           "feComposite",
-          [
-            Attr.create("operator", "in"),
-            Attr.create("in", "color"),
-            Attr.create("in2", "shadow-shape"),
-            Attr.create("result", "drop-shadow"),
-          ],
+          ~attr=
+            Attr.many([
+              Attr.create("operator", "in"),
+              Attr.create("in", "color"),
+              Attr.create("in2", "shadow-shape"),
+              Attr.create("result", "drop-shadow"),
+            ]),
           [],
         ),
         Node.create_svg(
           "feMerge",
-          [],
           [
             Node.create_svg(
               "feMergeNode",
-              [Attr.create("in", "SourceGraphic")],
+              ~attr=Attr.create("in", "SourceGraphic"),
               [],
             ),
             Node.create_svg(
               "feMergeNode",
-              [Attr.create("in", "drop-shadow")],
+              ~attr=Attr.create("in", "drop-shadow"),
               [],
             ),
           ],
@@ -154,6 +156,7 @@ module CurrentTerm = {
     fun
     | SubBlock(_)
     | NTuple(_)
+    | ListLit(_)
     | BinOp(_) => true
     | Case
     | Rule
@@ -297,6 +300,7 @@ module CurrentTerm = {
                  ~vtrim_bot=true,
                  ~overflow_left=true,
                )
+             | (ListLit({comma_indices}), Tessera)
              | (NTuple({comma_indices}), Tessera)
                  when has_multiline_open_child =>
                tessera_padding(
@@ -366,23 +370,23 @@ module CurrentTerm = {
     let outer_filter =
       Node.create_svg(
         "filter",
-        [Attr.id("outer-drop-shadow")],
+        ~attr=Attr.id("outer-drop-shadow"),
         [
           Node.create_svg(
             "feDropShadow",
-            [
-              Attr.classes(["current-term-drop-shadow", sort_cls(sort)]),
-              Attr.create("dx", "0.1"),
-              Attr.create("dy", "0.04"),
-              Attr.create("stdDeviation", "0"),
-            ],
+            ~attr=
+              Attr.many([
+                Attr.classes(["current-term-drop-shadow", sort_cls(sort)]),
+                Attr.create("dx", "0.1"),
+                Attr.create("dy", "0.04"),
+                Attr.create("stdDeviation", "0"),
+              ]),
             [],
           ),
         ],
       );
     Node.create_svg(
       "g",
-      [],
       [
         // TODO cache filters at document root
         outer_filter,
@@ -443,17 +447,18 @@ module TestStatus = {
       float_of_int(offset + List.hd(subject.metrics).width)
       *. font_metrics.col_width;
     Node.div(
-      [
-        Attr.classes([test_class, "UHTest"]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "position:relative; top: %fpx; left: %fpx;",
-            magic_y,
-            total_offset +. magic_x,
+      ~attr=
+        Attr.many([
+          Attr.classes([test_class, "UHTest"]),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "position:relative; top: %fpx; left: %fpx;",
+              magic_y,
+              total_offset +. magic_x,
+            ),
           ),
-        ),
-      ],
+        ]),
       [],
       //[Node.div([Attr.class_("testpop")], [])],
     );
@@ -464,19 +469,20 @@ module Caret = {
   let view =
       (~font_metrics: FontMetrics.t, {row, col}: MeasuredPosition.t): Node.t => {
     Node.span(
-      [
-        Attr.id(ViewUtil.caret_id),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            // TODO make more robust
-            "top: calc(%fpx - 1px); left: calc(%fpx - 1px);",
-            Float.of_int(row) *. font_metrics.row_height,
-            Float.of_int(col) *. font_metrics.col_width,
+      ~attr=
+        Attr.many([
+          Attr.id(ViewUtil.caret_id),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              // TODO make more robust
+              "top: calc(%fpx - 1px); left: calc(%fpx - 1px);",
+              Float.of_int(row) *. font_metrics.row_height,
+              Float.of_int(col) *. font_metrics.col_width,
+            ),
           ),
-        ),
-        Attr.classes(["blink"]),
-      ],
+          Attr.classes(["blink"]),
+        ]),
       [],
     );
   };

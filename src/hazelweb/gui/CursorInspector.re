@@ -7,36 +7,46 @@ type err_state_b =
 
 let inconsistent_symbol =
   Node.div(
-    [
-      Attr.classes(["consistency-symbol", "inconsistent"]),
-      Attr.create("title", "Inconsistent"),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(["consistency-symbol", "inconsistent"]),
+        Attr.create("title", "Inconsistent"),
+      ]),
     [Node.text(Unicode.inconsistent)],
   );
 
 let consistent_symbol =
   Node.div(
-    [
-      Attr.classes(["consistency-symbol", "consistent"]),
-      Attr.create("title", "Consistent"),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.classes(["consistency-symbol", "consistent"]),
+        Attr.create("title", "Consistent"),
+      ]),
     [Node.text("~")],
   );
 
 let emphasize_text = (~only_right=false, msg: string) => {
   let classes =
     only_right ? ["emphasize-text", "only-right"] : ["emphasize-text"];
-  Node.div([Attr.classes(classes)], [Node.text(msg)]);
+  Node.div(~attr=Attr.classes(classes), [Node.text(msg)]);
 };
 
 let syn =
   Node.div(
-    [Attr.classes(["bidirectional"]), Attr.create("title", "Synthesize")],
+    ~attr=
+      Attr.many([
+        Attr.classes(["bidirectional"]),
+        Attr.create("title", "Synthesize"),
+      ]),
     [Node.text(Unicode.synSym)],
   );
 let ana =
   Node.div(
-    [Attr.classes(["bidirectional"]), Attr.create("title", "Analyze")],
+    ~attr=
+      Attr.many([
+        Attr.classes(["bidirectional"]),
+        Attr.create("title", "Analyze"),
+      ]),
     [Node.text(Unicode.anaSym)],
   );
 
@@ -48,7 +58,7 @@ let mk_expecting_of_type = (~article, ~term_tag) => [
 
 let any_typ_msg =
   Node.div(
-    [Attr.classes(["compressed"])],
+    ~attr=Attr.classes(["compressed"]),
     [
       emphasize_text("Any Type ("),
       HTypCode.view(HTyp.Hole),
@@ -79,7 +89,33 @@ let pat_ana_subsumed_msg =
 
 let syn_branch_clause_msg =
     (
-      join,
+      join: CursorInfo.join_of_branches,
+      typed,
+      join_type_consistent,
+      join_type_inconsistent_expecting,
+      join_type_inconsistent_msg,
+      other,
+    ) => {
+  switch (join, typed) {
+  | (CursorInfo.JoinTy(ty), CursorInfo.Synthesized(got_ty)) =>
+    if (HTyp.consistent(ty, got_ty)) {
+      join_type_consistent @ [HTypCode.view(ty)];
+    } else {
+      let (ty_diff, got_diff) = TypDiff.mk(ty, got_ty);
+      join_type_inconsistent_expecting
+      @ [
+        HTypCode.view(~diff_steps=ty_diff, ty),
+        join_type_inconsistent_msg,
+        HTypCode.view(~diff_steps=got_diff, got_ty),
+      ];
+    }
+  | _ => other(typed)
+  };
+};
+
+let syn_element_msg =
+    (
+      join: CursorInfo.join_of_elements,
       typed,
       join_type_consistent,
       join_type_inconsistent_expecting,
@@ -200,6 +236,15 @@ let advanced_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _) =>
+      syn_element_msg(
+        join,
+        typed,
+        [syn],
+        [syn],
+        inconsistent_symbol,
+        message,
+      )
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -209,6 +254,16 @@ let advanced_summary =
         inconsistent_symbol,
         message,
       )
+    | SynInconsistentElements(_) => [
+        syn,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        syn,
+        emphasize_text("Function Type"),
+        inconsistent_symbol,
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         syn,
         emphasize_text("Inconsistent Branch Types"),
@@ -378,6 +433,15 @@ let novice_summary =
         emphasize_text("Reserved Keyword"),
       ];
       exp_keyword_msg(term, keyword, main_msg);
+    | SynListElement(join, typed, _) =>
+      syn_element_msg(
+        join,
+        typed,
+        [Node.text("Got " ++ article), term_tag, Node.text("of type")],
+        expecting_of_type,
+        Node.text("but got inconsistent type"),
+        message,
+      )
     | SynBranchClause(join, typed, _) =>
       syn_branch_clause_msg(
         join,
@@ -387,6 +451,19 @@ let novice_summary =
         Node.text("but got inconsistent type"),
         message,
       )
+    | SynInconsistentElements(_) => [
+        Node.text("Got " ++ article),
+        term_tag,
+        emphasize_text("Inconsistent Element Types"),
+      ]
+    | SynInconsistentElementsArrow(_) => [
+        Node.text("Expecting " ++ article),
+        term_tag,
+        Node.text("of"),
+        emphasize_text("Function Type"),
+        Node.text("but got"),
+        emphasize_text("Inconsistent Element Types"),
+      ]
     | SynInconsistentBranches(_) => [
         Node.text("Got " ++ article),
         term_tag,
@@ -418,7 +495,7 @@ let novice_summary =
 
 let summary_bar =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(_),
       ci: CursorInfo.t,
       show_expansion_arrow: bool,
       show_expanded: bool,
@@ -426,9 +503,9 @@ let summary_bar =
       show_strategy_guide_icon: bool,
     ) => {
   let toggle_cursor_inspector_event = toggle =>
-    Event.Many([
-      Event.Prevent_default,
-      Event.Stop_propagation,
+    Effect.Many([
+      Effect.Prevent_default,
+      Effect.Stop_propagation,
       inject(ModelAction.UpdateCursorInspector(toggle)),
     ]);
   let arrow_direction =
@@ -439,40 +516,41 @@ let summary_bar =
     };
   let arrow =
     Node.div(
-      [
-        Attr.classes(["clickable-help"]),
-        Attr.create("title", "Click to toggle expanded cursor inspector"),
-        Attr.on_click(_ =>
-          toggle_cursor_inspector_event(Toggle_show_expanded)
-        ),
-      ],
+      ~attr=
+        Attr.many([
+          Attr.classes(["clickable-help"]),
+          Attr.create("title", "Click to toggle expanded cursor inspector"),
+          Attr.on_click(_ =>
+            toggle_cursor_inspector_event(Toggle_show_expanded)
+          ),
+        ]),
       [arrow_direction],
     );
   let tag_type = TermTag.get_cursor_term_sort(ci.cursor_term);
   let summary =
     Node.div(
-      [
+      ~attr=
         Attr.classes(
           novice_mode
             ? ["summary-message", "novice-mode"] : ["summary-message"],
         ),
-      ],
       novice_mode
         ? novice_summary(ci.typed, ci.cursor_term, tag_type)
         : advanced_summary(ci.typed, ci.cursor_term, tag_type),
     );
   let fill_icon =
     Node.div(
-      [
-        Attr.classes(["clickable-help"]),
-        Attr.create("title", "Click to toggle strategy guide"),
-        Attr.on_click(_ =>
-          toggle_cursor_inspector_event(Toggle_strategy_guide)
-        ),
-      ],
+      ~attr=
+        Attr.many([
+          Attr.classes(["clickable-help"]),
+          Attr.create("title", "Click to toggle strategy guide"),
+          Attr.on_click(_ =>
+            toggle_cursor_inspector_event(Toggle_strategy_guide)
+          ),
+        ]),
       [Node.text(Unicode.light_bulb)],
     );
-  let fill_space = Node.span([Attr.classes(["filler"])], []);
+  let fill_space = Node.span(~attr=Attr.classes(["filler"]), []);
   let body =
     switch (show_expansion_arrow, show_strategy_guide_icon) {
     | (true, true) => [summary, fill_space, arrow, fill_icon]
@@ -481,18 +559,19 @@ let summary_bar =
     | (false, false) => [summary]
     };
   Node.div(
-    [
-      Attr.create("title", "Click to toggle form of message"),
-      Attr.classes(["type-info-summary", "clickable-help"]),
-      Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
-    ],
+    ~attr=
+      Attr.many([
+        Attr.create("title", "Click to toggle form of message"),
+        Attr.classes(["type-info-summary", "clickable-help"]),
+        Attr.on_click(_ => toggle_cursor_inspector_event(Toggle_novice_mode)),
+      ]),
     body,
   );
 };
 
 let view =
     (
-      ~inject: ModelAction.t => Event.t,
+      ~inject: ModelAction.t => Effect.t(unit),
       ~loc: (float, float),
       ~test_inspector: KeywordID.t => option(Node.t),
       cursor_inspector: CursorInspectorModel.t,
@@ -502,7 +581,7 @@ let view =
   let inconsistent_branches_ty_bar =
       (branch_types, path_to_case, skipped_index) =>
     Node.div(
-      [Attr.classes(["infobar", "inconsistent-branches-ty-bar"])],
+      ~attr=Attr.classes(["infobar", "inconsistent-branches-ty-bar"]),
       List.mapi(
         (index, ty) => {
           let shifted_index =
@@ -516,13 +595,28 @@ let view =
               }
             };
           Node.span(
-            [
+            ~attr=
               Attr.on_click(_ => {
                 inject(SelectCaseBranch(path_to_case, shifted_index))
               }),
-            ],
             [HTypCode.view(ty)],
           );
+        },
+        branch_types,
+      ),
+    );
+  let inconsistent_elements_ty_bar = (branch_types, path_to_case) =>
+    Node.div(
+      ~attr=Attr.classes(["infobar", "inconsistent-branches-ty-bar"]),
+      List.mapi(
+        (index, ty) => {
+          Node.span(
+            ~attr=
+              Attr.on_click(_ => {
+                inject(SelectListElement(List.nth(path_to_case, index)))
+              }),
+            [HTypCode.view(ty)],
+          )
         },
         branch_types,
       ),
@@ -530,13 +624,13 @@ let view =
 
   let special_msg_bar = (msg: string) =>
     Node.div(
-      [Attr.classes(["infobar", "special-msg-bar"])],
+      ~attr=Attr.classes(["infobar", "special-msg-bar"]),
       [Node.text(msg)],
     );
 
   let expected_indicator = (title_text, type_div) =>
     Node.div(
-      [Attr.classes(["indicator", "expected-indicator"])],
+      ~attr=Attr.classes(["indicator", "expected-indicator"]),
       [Panel.view_of_main_title_bar(title_text), type_div],
     );
   let expected_msg_indicator = msg =>
@@ -552,16 +646,26 @@ let view =
         Some(skipped_index),
       ),
     );
-
+  let expected_inconsistent_elements_indicator =
+      (branch_types, path_to_element) =>
+    expected_indicator(
+      "No consistent expected type",
+      inconsistent_elements_ty_bar(branch_types, path_to_element),
+    );
   let got_indicator = (title_text, type_div) =>
     Node.div(
-      [Attr.classes(["indicator", "got-indicator"])],
+      ~attr=Attr.classes(["indicator", "got-indicator"]),
       [Panel.view_of_other_title_bar(title_text), type_div],
     );
   let got_inconsistent_branches_indicator = (branch_types, path_to_case) =>
     got_indicator(
       "Got inconsistent branch types",
       inconsistent_branches_ty_bar(branch_types, path_to_case, None),
+    );
+  let got_inconsistent_elements_indicator = (element_types, path_to_element) =>
+    got_indicator(
+      "Got inconsistent element types",
+      inconsistent_elements_ty_bar(element_types, path_to_element),
     );
 
   let expanded_msg =
@@ -586,6 +690,18 @@ let view =
     | SynInconsistentBranchesArrow(rule_types, path_to_case) =>
       let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
       Some([ind]);
+    | SynListElement(InconsistentBranchTys(rule_types, path_to_case), _, _) =>
+      let ind =
+        expected_inconsistent_elements_indicator(rule_types, path_to_case);
+      Some([ind]);
+    | SynInconsistentElements(rule_types, path_to_case) =>
+      let ind1 = expected_any_indicator;
+      let ind2 =
+        got_inconsistent_elements_indicator(rule_types, path_to_case);
+      Some([ind1, ind2]);
+    | SynInconsistentElementsArrow(rule_types, path_to_case) =>
+      let ind = got_inconsistent_branches_indicator(rule_types, path_to_case);
+      Some([ind]);
     | _ => None
     };
 
@@ -605,6 +721,8 @@ let view =
     | AnaTypeInconsistent(_)
     | AnaWrongLength(_)
     | SynErrorArrow(_)
+    | SynInconsistentElements(_)
+    | SynInconsistentElementsArrow(_)
     | SynInconsistentBranches(_)
     | SynInconsistentBranchesArrow(_)
     | PatAnaTypeInconsistent(_)
@@ -621,6 +739,17 @@ let view =
     | PatAnaInvalid(_)
     | PatAnaKeyword(_)
     | PatSynKeyword(_) => BindingError
+    | SynListElement(join, typed, _) =>
+      switch (join, typed) {
+      | (JoinTy(ty), Synthesized(got_ty)) =>
+        if (HTyp.consistent(ty, got_ty)) {
+          OK;
+        } else {
+          TypeInconsistency;
+        }
+      | (InconsistentBranchTys(_), _) => TypeInconsistency
+      | _ => get_err_state_b(typed)
+      }
     | SynBranchClause(join, typed, _) =>
       switch (join, typed) {
       | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -713,16 +842,17 @@ let view =
     | _ => content
     };
   Node.div(
-    [
-      Attr.id(ViewUtil.ci_id),
-      Attr.classes(["cursor-inspector-outer", above_or_below]),
-      // stop propagation to code click handler
-      Attr.on_mousedown(_ => Event.Stop_propagation),
-      pos_attr,
-    ],
+    ~attr=
+      Attr.many([
+        Attr.id(ViewUtil.ci_id),
+        Attr.classes(["cursor-inspector-outer", above_or_below]),
+        // stop propagation to code click handler
+        Attr.on_mousedown(_ => Effect.Stop_propagation),
+        pos_attr,
+      ]),
     [
       Node.div(
-        [Attr.classes(["cursor-inspector", cls_of_err_state_b])],
+        ~attr=Attr.classes(["cursor-inspector", cls_of_err_state_b]),
         content,
       ),
     ],
