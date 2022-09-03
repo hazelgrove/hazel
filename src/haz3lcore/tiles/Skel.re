@@ -165,7 +165,7 @@ module Stacks = {
         when
           Precedence.compare(prec', prec) < 0
           || Precedence.compare(prec', prec) == 0
-          && Precedence.associativity(prec') != Some(Right) => stacks
+          && Precedence.associativity(prec') != Some(Left) => stacks
     | (_, None) => stacks
     | (_, Some((l, r))) =>
       let is = List.map(fst, chain);
