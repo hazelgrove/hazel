@@ -52,27 +52,6 @@ let single_editor_semantics_views =
   );
 };
 
-let deco =
-    (
-      ~zipper,
-      ~map,
-      ~terms,
-      ~tiles,
-      ~segment,
-      ~font_metrics,
-      ~show_backpack_targets,
-    ) => {
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = show_backpack_targets;
-      let terms = terms;
-      let tiles = tiles;
-    });
-  Deco.all(zipper, segment);
-};
-
 let code_container =
     (
       ~font_metrics,
@@ -88,19 +67,20 @@ let code_container =
   let segment = Zipper.zip(zipper);
   let code_view =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
-  let (_, terms) = MakeTerm.go(unselected);
-  let tiles = TileMap.mk(unselected);
   let deco_view =
     show_deco
-      ? deco(
-          ~zipper,
-          ~map=measured,
-          ~segment,
-          ~font_metrics,
-          ~show_backpack_targets,
-          ~terms,
-          ~tiles,
-        )
+      ? {
+        module Deco =
+          Deco.Deco({
+            let font_metrics = font_metrics;
+            let map = measured;
+            let show_backpack_targets = show_backpack_targets;
+            let (_, terms) = MakeTerm.go(unselected);
+            let term_ranges = TermRanges.mk(unselected);
+            let tiles = TileMap.mk(unselected);
+          });
+        Deco.all(zipper, unselected);
+      }
       : [];
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),

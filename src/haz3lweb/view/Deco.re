@@ -8,9 +8,8 @@ module Deco =
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;
-           // TODO(d) rename to term_ids
-           //  let terms: TermIds.t;
            let terms: TermMap.t;
+           let term_ranges: TermRanges.t;
            let tiles: TileMap.t;
          },
        ) => {
@@ -226,47 +225,28 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
-    let seg = Zipper.unselect_and_zip(z);
-    let ranges = TermRanges.mk(seg);
-    let term_ranges =
-      ids
-      |> List.map(id => {
-           let (p_l, p_r) = TermRanges.find(id, ranges);
-           let l = Measured.find_p(p_l, M.map).origin;
-           let r = Measured.find_p(p_r, M.map).last;
-           (l, r);
+  let term_highlight = (~clss: list(string), id: Id.t) => {
+    let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
+    let l = Measured.find_p(p_l, M.map).origin;
+    let r = Measured.find_p(p_r, M.map).last;
+    open SvgUtil.Path;
+    let r_edge =
+      ListUtil.range(~lo=l.row, r.row + 1)
+      |> List.concat_map(i => {
+           let row = Measured.Rows.find(i, M.map.rows);
+           [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
+         });
+    let l_edge =
+      ListUtil.range(~lo=l.row, r.row + 1)
+      |> List.rev_map(i => {
+           let row = Measured.Rows.find(i, M.map.rows);
+           [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
-      |> ListUtil.dedup;
-    term_ranges
-    |> List.map(((l: Measured.Point.t, r: Measured.Point.t)) => {
-         open SvgUtil.Path;
-         let r_edge =
-           ListUtil.range(~lo=l.row, r.row + 1)
-           |> List.concat_map(i => {
-                let row = Measured.Rows.find(i, M.map.rows);
-                [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
-              });
-         let l_edge =
-           ListUtil.range(~lo=l.row, r.row + 1)
-           |> List.rev_map(i => {
-                let row = Measured.Rows.find(i, M.map.rows);
-                [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
-              })
-           |> List.concat;
-         let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
-         (
-           l,
-           path
-           |> translate({
-                dx: Float.of_int(- l.col),
-                dy: Float.of_int(- l.row),
-              }),
-         );
-       })
-    |> List.map(((origin, path)) =>
-         DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
-       );
+      |> List.concat;
+    let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
+    path
+    |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)})
+    |> DecUtil.code_svg(~font_metrics, ~origin=l, ~base_cls=clss);
   };
 
   // recurses through skel structure to enable experimentation
@@ -302,7 +282,7 @@ module Deco =
 
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
-    term_highlight(~ids=go_seg(seg), ~clss=["err-hole"], z);
+    go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
   };
 
   let all = (zipper, sel_seg) =>
