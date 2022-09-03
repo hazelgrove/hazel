@@ -247,25 +247,6 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Parens(u) => utyp_to_ty(u)
     };
 
-// module URul = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t = (UPat.t, UExp.t);
-
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type s = {
-//     ids: list(Id.t),
-//     rules: list(t),
-//   };
-
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type cls =
-//     | Rule;
-
-//   let mks = (ids, rules): s => {ids, rules};
-
-//   let show_cls: cls => string = _ => "Rule";
-// };
-
 // TODO(d): consider just folding this into UExp
 module URul = {
   include TermBase.URul;

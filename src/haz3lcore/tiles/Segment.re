@@ -286,7 +286,6 @@ and remold_rul = (shape, seg: t): t =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) =>
         switch (Tile.nibs(t)) {
-        // | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | (_, {shape, sort: Exp}) =>
           let (remolded, shape, rest) = remold_exp_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
@@ -331,9 +330,6 @@ let skel = seg =>
   seg
   |> List.mapi((i, p) => (i, p))
   |> List.filter(((_, p)) => !Piece.is_whitespace(p))
-  // |> List.filter_map(((i, p)) =>
-  //      Piece.shapes(p) |> Option.map(ss => (i, ss))
-  //    )
   |> Skel.mk;
 
 let sorted_children = seg =>
