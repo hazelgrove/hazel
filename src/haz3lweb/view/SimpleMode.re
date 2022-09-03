@@ -75,7 +75,8 @@ let code_container =
             let font_metrics = font_metrics;
             let map = measured;
             let show_backpack_targets = show_backpack_targets;
-            let (_, terms) = MakeTerm.go(unselected);
+            let (term, terms) = MakeTerm.go(unselected);
+            let info_map = Statics.mk_map(term);
             let term_ranges = TermRanges.mk(unselected);
             let tiles = TileMap.mk(unselected);
           });
