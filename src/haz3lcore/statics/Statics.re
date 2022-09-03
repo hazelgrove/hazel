@@ -107,7 +107,7 @@ type error_status =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free) => InHole(FreeVariable)
-  | (Syn | Ana(_), Multi) => InHole(Multi)
+  | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
