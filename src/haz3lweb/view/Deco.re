@@ -122,11 +122,6 @@ module Deco =
           Some((l, r));
         };
       };
-      // } else {
-      //   // using range of piece itself hides unidelimited child borders
-      //   let m = Measured.find_p(p, M.map);
-      //   Some((m.origin, m.last));
-      // };
       let index =
         switch (Indicated.shard_index(z)) {
         | None => (-1)
