@@ -1,4 +1,11 @@
+open Util;
 open OptUtil.Syntax;
+
+module ElaborationResult = {
+  type t =
+    | Elaborates(DHExp.t, HTyp.t, Delta.t)
+    | DoesNotElaborate;
+};
 
 let rec htyp_of_typ: Typ.t => HTyp.t =
   fun
@@ -113,7 +120,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
-      wrap(DHExp.Lam(dp, ty1, d1));
+      wrap(DHExp.Fun(dp, ty1, d1));
     | Tuple(es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {
@@ -304,8 +311,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   };
 };
 
-let uexp_elab =
-    (m: Statics.map, uexp: Term.UExp.t): Elaborator_Exp.ElaborationResult.t =>
+let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
   | Some(d) => Elaborates(d, HTyp.Hole, Delta.empty) //TODO: get type from ci
