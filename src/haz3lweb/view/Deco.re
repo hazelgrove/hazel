@@ -10,6 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
+           let info_map: Statics.map;
            let tiles: TileMap.t;
          },
        ) => {
@@ -253,11 +254,15 @@ module Deco =
   // with hiding nested err holes
   let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
-    let info_map = Statics.mk_map(fst(MakeTerm.go(seg)));
     let is_err = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, info_map)) {
+      switch (Id.Map.find_opt(id, M.info_map)) {
       | None => false
       | Some(info) => Statics.is_error(info)
+      };
+    let is_rep = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, M.terms)) {
+      | None => false
+      | Some(term) => id == Term.rep_id(term)
       };
     let rec go_seg = (seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {
@@ -266,6 +271,7 @@ module Deco =
           |> Aba.get_as
           |> List.map(List.nth(seg))
           |> List.map(Piece.id)
+          |> List.filter(is_rep)
           |> List.filter(is_err);
         let uni_ids =
           switch (skel) {
