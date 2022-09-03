@@ -56,9 +56,7 @@ let save = (model: Model.t): unit =>
   switch (model.editors) {
   | Simple(ed) => LocalStorage.save_simple((model.id_gen, ed))
   | Study(n, eds) => LocalStorage.save_study((model.id_gen, n, eds))
-  | School(n, eds) =>
-    assert(n < List.length(eds));
-    LocalStorage.save_school((model.id_gen, n, eds));
+  | School(state) => LocalStorage.save_school((model.id_gen, state))
   };
 
 let update_settings =
@@ -99,8 +97,8 @@ let load_editor = (model: Model.t): Model.t =>
     let (id_gen, idx, editors) = LocalStorage.load_study();
     {...model, id_gen, editors: Study(idx, editors)};
   | School =>
-    let (id_gen, idx, editors) = LocalStorage.load_school();
-    {...model, id_gen, editors: School(idx, editors)};
+    let (id_gen, state) = LocalStorage.load_school();
+    {...model, id_gen, editors: School(state)};
   };
 
 let load_default_editor = (model: Model.t): Model.t =>
@@ -112,8 +110,8 @@ let load_default_editor = (model: Model.t): Model.t =>
     let (id_gen, idx, editors) = Study.init;
     {...model, editors: Study(idx, editors), id_gen};
   | School =>
-    let (id_gen, idx, editors) = School.init;
-    {...model, editors: School(idx, editors), id_gen};
+    let (id_gen, state) = School.init;
+    {...model, editors: School(state), id_gen};
   };
 
 let rotate_mode = (mode: Model.mode): Model.mode =>
@@ -151,14 +149,8 @@ let apply =
         LocalStorage.save_study((model.id_gen, n, zs));
         Ok({...model, editors: Study(n, zs)});
       }
-    | School(m, _) when m == n => Error(FailedToSwitch)
-    | School(_, zs) =>
-      switch (n < List.length(zs)) {
-      | false => Error(FailedToSwitch)
-      | true =>
-        LocalStorage.save_school((model.id_gen, n, zs));
-        Ok({...model, editors: School(n, zs)});
-      }
+    | School(_) when n == 0 => Ok(model)
+    | School(_) => Error(FailedToSwitch)
     }
   | ToggleMode =>
     let model = {
