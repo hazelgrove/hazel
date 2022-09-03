@@ -69,6 +69,16 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
   | SynFree
   | SynKeyword(_) => (Some(Hole), Some(Hole), Synthetic)
 
+  | SynListElement(join, typed, _) =>
+    switch (join, typed) {
+    | (JoinTy(ty), Synthesized(got_ty)) =>
+      if (HTyp.consistent(ty, got_ty)) {
+        (Some(Hole), Some(got_ty), Synthetic);
+      } else {
+        (Some(ty), Some(got_ty), Synthetic);
+      }
+    | _ => get_types_and_mode(typed)
+    }
   | SynBranchClause(join, typed, _) =>
     switch (join, typed) {
     | (JoinTy(ty), Synthesized(got_ty)) =>
@@ -79,6 +89,8 @@ let rec get_types_and_mode = (typed: CursorInfo.typed) => {
       }
     | _ => get_types_and_mode(typed)
     }
+  | SynInconsistentElementsArrow(_, _)
+  | SynInconsistentElements(_, _)
   | SynInconsistentBranchesArrow(_, _)
   | SynInconsistentBranches(_, _) => (Some(Hole), Some(Hole), Synthetic)
 

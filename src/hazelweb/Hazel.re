@@ -107,7 +107,7 @@ let create =
     (
       model: Incr.t(Model.t),
       ~old_model as _: Incr.t(Model.t),
-      ~inject: ModelAction.t => Vdom.Event.t,
+      ~inject: ModelAction.t => Vdom.Effect.t(_),
     ) => {
   open Incr.Let_syntax;
   let%map model = model;

@@ -2,8 +2,7 @@
 type operator = Operators_Typ.t;
 
 [@deriving sexp]
-type t = opseq
-and opseq = OpSeq.t(operand, operator)
+type t = OpSeq.t(operand, operator)
 and operand =
   | Hole
   | Unit
@@ -12,6 +11,9 @@ and operand =
   | Bool
   | Parenthesized(t)
   | List(t);
+
+[@deriving sexp]
+type opseq = t;
 
 [@deriving sexp]
 type skel = OpSeq.skel(operator);

@@ -30,7 +30,8 @@ let mk_FloatLit: string => UHDoc.t = UHDoc_common.mk_FloatLit(~sort=Exp);
 let mk_BoolLit: bool => UHDoc.t = UHDoc_common.mk_BoolLit(~sort=Exp);
 let mk_keyword = (~kw: Keyword.kw, id: KeywordID.t): UHDoc.t =>
   UHDoc_common.mk_keyword(~sort=Exp, ~kw, id);
-let mk_ListNil: unit => UHDoc.t = UHDoc_common.mk_ListNil(~sort=Exp);
+let mk_ListLit: option(UHDoc_common.formatted_child) => UHDoc.t =
+  UHDoc_common.mk_ListLit(~sort=Exp);
 let mk_Var: string => UHDoc.t = UHDoc_common.mk_Var(~sort=Exp);
 let mk_Parenthesized: UHDoc_common.formatted_child => UHDoc.t =
   UHDoc_common.mk_Parenthesized(~sort=Exp);
@@ -49,7 +50,19 @@ let mk_NTuple:
     ~get_tuple_elements=UHExp.get_tuple_elements,
     ~inline_padding_of_operator,
   );
-
+let mk_NListLit:
+  (
+    ~mk_operand: (~enforce_inline: bool, 'a) => UHDoc.t,
+    ~mk_operator: UHExp.operator => UHDoc.t,
+    ~enforce_inline: bool,
+    OpSeq.t('a, UHExp.operator)
+  ) =>
+  UHDoc.t =
+  UHDoc_common.mk_NListLit(
+    ~sort=Exp,
+    ~get_tuple_elements=UHExp.get_tuple_elements,
+    ~inline_padding_of_operator,
+  );
 let annot_SubBlock = (~hd_index: int): (UHDoc.t => UHDoc.t) =>
   Doc.annot(
     UHAnnot.mk_Term(~sort=Exp, ~shape=SubBlock({hd_index: hd_index}), ()),
@@ -162,6 +175,20 @@ and mk_opseq =
       )
     )
   )
+and mk_list =
+  lazy(
+    UHDoc_common.memoize(
+      (~memoize: bool, ~enforce_inline: bool, opseq: UHExp.opseq) =>
+      (
+        mk_NListLit(
+          ~mk_operand=Lazy.force(mk_operand, ~memoize),
+          ~mk_operator,
+          ~enforce_inline,
+          opseq,
+        ): UHDoc.t
+      )
+    )
+  )
 and mk_operator = (op: UHExp.operator): UHDoc.t =>
   op |> Operators_Exp.is_Space
     ? UHDoc_common.mk_space_op
@@ -179,7 +206,22 @@ and mk_operand =
         | FloatLit(_, f) => mk_FloatLit(f)
         | BoolLit(_, b) => mk_BoolLit(b)
         | Keyword(Typed(kw, _, id)) => mk_keyword(~kw, id)
-        | ListNil(_) => mk_ListNil()
+        | ListLit(_, body) =>
+          switch (body) {
+          | Some(body) =>
+            let formattable_body = (~enforce_inline) =>
+              Lazy.force(mk_list, ~memoize, ~enforce_inline, body)
+              |> UHDoc_common.annot_Step(0);
+
+            let formatted_body =
+              enforce_inline
+                ? UHDoc_common.EnforcedInline(
+                    formattable_body(~enforce_inline=true),
+                  )
+                : UHDoc_common.Unformatted(formattable_body);
+            mk_ListLit(Some(formatted_body));
+          | None => mk_ListLit(None)
+          }
         | Lam(_, p, body) =>
           let p =
             UHDoc_Pat.mk_child(~memoize, ~enforce_inline, ~child_step=0, p);
