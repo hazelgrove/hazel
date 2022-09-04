@@ -29,8 +29,8 @@ let splice_editors = (editors: list(Editor.t)): Haz3lcore.Segment.t =>
   |> List.flatten;
 
 let spliced_statics = (editors: list(Editor.t)) => {
-  let term = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
-  let (_, _, info_map) = term |> Haz3lcore.Statics.mk_map;
+  let (term, _) = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
+  let info_map = term |> Haz3lcore.Statics.mk_map;
   (term, info_map);
 };
 
@@ -191,6 +191,7 @@ let show_term = (editor: Editor.t, _) =>
   editor.state.zipper
   |> Zipper.zip
   |> MakeTerm.go
+  |> fst
   |> Term.UExp.show
   |> print_endline
   |> (_ => Virtual_dom.Vdom.Effect.Ignore);

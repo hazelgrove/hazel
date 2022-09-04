@@ -24,9 +24,11 @@ let mk_post = (p, out, in_) => {
   let r = Nib.{shape: Convex, sort: out};
   {out, in_, nibs: (l, r)};
 };
-let mk_bin = (p, out, in_) => {
-  let n = Nib.{shape: Concave(p), sort: out};
-  {out, in_, nibs: (n, n)};
+let mk_bin = (~l=?, ~r=?, p, out, in_) => {
+  let l = Option.value(l, ~default=out);
+  let r = Option.value(r, ~default=out);
+  let nib = sort => Nib.{sort, shape: Concave(p)};
+  {out, in_, nibs: (nib(l), nib(r))};
 };
 
 // forms where tips can be different than out sort
