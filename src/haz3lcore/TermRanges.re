@@ -32,12 +32,17 @@ let rec mk = (seg: Segment.t) => {
         let ((_, r), map_r) = go(r);
         ((l, r), union(map_l, map_r));
       };
+    let between_child_map =
+      Aba.get_bs(root)
+      |> List.map(go)
+      |> List.map(snd)
+      |> List.fold_left(union, empty);
     let map =
       Aba.get_as(root)
       |> List.map(Piece.id)
       |> List.fold_left(
            (map, id) => Id.Map.add(id, range, map),
-           unichild_map,
+           union(between_child_map, unichild_map),
          );
     (range, map);
   };
