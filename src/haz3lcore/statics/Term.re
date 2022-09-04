@@ -36,6 +36,11 @@ module UTyp = {
 
   include TermBase.UTyp;
 
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
   let hole = (tms: list(any)) =>
     switch (tms) {
     | [] => EmptyHole
@@ -89,7 +94,10 @@ module UPat = {
 
   include TermBase.UPat;
 
-  let rep_id = ({ids, _}: t) => List.hd(ids);
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
 
   let hole = (tms: list(any)) =>
     switch (tms) {
@@ -141,7 +149,10 @@ module UExp = {
     | [_, ..._] => MultiHole(tms)
     };
 
-  let rep_id = ({ids, _}) => List.hd(ids);
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
 
   let cls_of_term: term => cls =
     fun
@@ -278,10 +289,22 @@ let rec ids =
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];
-let rep_id = tm => {
-  let ids = ids(tm);
-  try(assert(List.length(ids) > 0)) {
-  | _ => failwith(show(tm))
-  };
-  List.hd(ids);
-};
+
+// Terms may consist of multiple tiles, eg the commas in an n-tuple,
+// the rules of a case expression + the surrounding case-end tile,
+// the list brackets tile coupled with the elem-separating commas.
+// The _representative id_ is the canonical tile id used to identify
+// and look up info about a term.
+//
+// In instances like case expressions and list literals, where a parent
+// tile surrounds the other tiles, the representative id is the parent tile's.
+// In other instances like n-tuples, where the commas are all siblings,
+// the representative id is one of the comma ids, unspecified which one.
+// (This would change for n-tuples if we decided parentheses are necessary.)
+let rep_id =
+  fun
+  | Exp(tm) => UExp.rep_id(tm)
+  | Pat(tm) => UPat.rep_id(tm)
+  | Typ(tm) => UTyp.rep_id(tm)
+  | (Rul(_) | Nul () | Any ()) as tm =>
+    failwith("Term.rep_id called on term of invalid sort: " ++ show(tm));
