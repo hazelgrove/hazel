@@ -63,22 +63,6 @@ let remold = ({siblings, ancestors}: t): t => {
   {ancestors, siblings};
 };
 
-let sort_rank = ({siblings, ancestors}: t) => {
-  let s = Ancestors.sort(ancestors);
-  // let (s_l, s_r) = Siblings.sorts(siblings, s);
-  Ancestors.sort_rank(ancestors)
-  // + Siblings.sort_rank(siblings, s)
-  + Segment.sort_rank(Siblings.zip(siblings), s);
-  // + Bool.to_int(!Sort.consistent(s_l, s_r));
-};
-
-let shape_rank = ({siblings, ancestors}: t) => {
-  let (l, r) = Siblings.shapes(siblings);
-  Ancestors.shape_rank(ancestors)
-  + Siblings.shape_rank(siblings)
-  + Bool.to_int(!Nib.Shape.fits(l, r));
-};
-
 let regrout = (d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
   open IdGen.Syntax; /* Direction is side of grout caret will end up on */
 

@@ -22,8 +22,8 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
 
 let single_editor_semantics_views =
     (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
+  let (term, _) = MakeTerm.go(unselected);
+  let map = Statics.mk_map(term);
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
   let eval_result =
@@ -52,16 +52,6 @@ let single_editor_semantics_views =
   );
 };
 
-let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = show_backpack_targets;
-    });
-  Deco.all(zipper, segment);
-};
-
 let code_container =
     (
       ~font_metrics,
@@ -79,13 +69,19 @@ let code_container =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
   let deco_view =
     show_deco
-      ? deco(
-          ~zipper,
-          ~map=measured,
-          ~segment,
-          ~font_metrics,
-          ~show_backpack_targets,
-        )
+      ? {
+        module Deco =
+          Deco.Deco({
+            let font_metrics = font_metrics;
+            let map = measured;
+            let show_backpack_targets = show_backpack_targets;
+            let (term, terms) = MakeTerm.go(unselected);
+            let info_map = Statics.mk_map(term);
+            let term_ranges = TermRanges.mk(unselected);
+            let tiles = TileMap.mk(unselected);
+          });
+        Deco.all(zipper, unselected);
+      }
       : [];
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
@@ -94,8 +90,8 @@ let code_container =
 };
 
 let cell_result_view = (~font_metrics, unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
+  let (term, _) = MakeTerm.go(unselected);
+  let map = Statics.mk_map(term);
   switch (Interface.evaluation_result(map, term)) {
   | None => []
   | Some(eval_result) => [
