@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open Lwt.Syntax;
-// open Lwtutil;
+open Lwtutil;
 
 [@deriving sexp]
 type request = Program.t;
