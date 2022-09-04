@@ -279,6 +279,12 @@ module URul = {
       | _ => []
       }
     };
+
+  let rep_id = (~any_ids, tm) =>
+    switch (ids(~any_ids, tm)) {
+    | [] => raise(Invalid_argument("Term.UExp.rep_id"))
+    | [id, ..._] => id
+    };
 };
 
 let rec ids =
@@ -306,5 +312,6 @@ let rep_id =
   | Exp(tm) => UExp.rep_id(tm)
   | Pat(tm) => UPat.rep_id(tm)
   | Typ(tm) => UTyp.rep_id(tm)
-  | (Rul(_) | Nul () | Any ()) as tm =>
-    failwith("Term.rep_id called on term of invalid sort: " ++ show(tm));
+  | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
+  | Nul ()
+  | Any () => raise(Invalid_argument("Term.rep_id"));
