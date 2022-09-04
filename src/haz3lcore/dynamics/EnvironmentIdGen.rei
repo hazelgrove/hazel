@@ -5,7 +5,7 @@
 /**
   The type for the {!type:EnvironmentId.t} generator.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t;
 
 /**

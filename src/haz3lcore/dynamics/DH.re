@@ -2,14 +2,14 @@ open Sexplib.Std;
 
 module rec DHExp: {
   module BinBoolOp: {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | And
       | Or;
   };
 
   module BinIntOp: {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | Minus
       | Plus
@@ -21,7 +21,7 @@ module rec DHExp: {
   };
 
   module BinFloatOp: {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | FPlus
       | FMinus
@@ -32,7 +32,7 @@ module rec DHExp: {
       | FEquals;
   };
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
@@ -81,14 +81,14 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
 } = {
   module BinBoolOp = {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | And
       | Or;
   };
 
   module BinIntOp = {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | Minus
       | Plus
@@ -100,7 +100,7 @@ module rec DHExp: {
   };
 
   module BinFloatOp = {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | FPlus
       | FMinus
@@ -111,7 +111,7 @@ module rec DHExp: {
       | FEquals;
   };
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -361,17 +361,17 @@ and Environment: {
      (module type of VarBstMap.Ordered) with
       type t_('a) = VarBstMap.Ordered.t_('a);
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = t_(DHExp.t);
 } = {
   include VarBstMap.Ordered;
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = t_(DHExp.t);
 }
 
 and ClosureEnvironment: {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
 
   let wrap: (EnvironmentId.t, Environment.t) => t;
@@ -414,7 +414,7 @@ and ClosureEnvironment: {
   let placeholder: t;
 } = {
   module Inner: {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
 
     let wrap: (EnvironmentId.t, Environment.t) => t;
@@ -422,7 +422,7 @@ and ClosureEnvironment: {
     let id_of: t => EnvironmentId.t;
     let map_of: t => Environment.t;
   } = {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t = (EnvironmentId.t, Environment.t);
 
     let wrap = (ei, map): t => (ei, map);

@@ -1,12 +1,12 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type instance_report = (DHExp.t, TestStatus.t);
 
 let joint_status: list(instance_report) => TestStatus.t;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type report = (KeywordID.t, list(instance_report));
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(report);
 
 let empty: t;

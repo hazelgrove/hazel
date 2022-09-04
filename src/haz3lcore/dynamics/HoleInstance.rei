@@ -2,7 +2,7 @@
   Representation of a unique hole instantiation (the set of hole instances with
   the same hole number and environment).
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = (MetaVar.t, HoleInstanceId.t);
 
 /**

@@ -6,7 +6,7 @@
   The type for the evaluation result, a {!type:DHExp.t} wrapped in its {v final
   v} judgment (boxed value or indeterminate).
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);

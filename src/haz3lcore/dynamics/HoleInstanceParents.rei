@@ -3,7 +3,7 @@
   the same environment) may have multiple parents.
  */
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t_ = (Var.t, HoleInstance.t)
 and t = list(t_);
 
