@@ -60,7 +60,7 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(uexp.id, m)) {
-  | Some(InfoExp({ctx, mode, self, _})) =>
+  | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
@@ -68,19 +68,17 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = uexp.id; /* NOTE: using term uids for hole ids */
-    let gamma = ctx_to_varctx(ctx);
-    let sigma = Environment.id_env(gamma);
     let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
       | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, sigma, d))
+      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some(EmptyHole(u, 0, sigma))
+    | EmptyHole => Some(EmptyHole(u, 0))
     | MultiHole(_, []) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0, sigma))
+      Some(EmptyHole(u, 0))
     | MultiHole(_, [e0, ...es]) =>
       // TODO: dhexp, eval for multiholes
       // placeholder logic: sequence
@@ -114,7 +112,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             Some([]),
             es,
           );
-        wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
+        wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       | None => failwith("ListLit expression with non-list htyp")
       }
     | Fun(p, body) =>
@@ -171,7 +169,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(Ap(TestLit(u), dtest));
     | Var(name) =>
       switch (err_status) {
-      | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
+      | InHole(FreeVariable) => Some(FreeVar(u, 0, name))
       | _ => wrap(BoundVar(name))
       }
     | Let(
@@ -186,7 +184,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
       let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
-      let def_subst = Evaluator.subst_var(cast_var, x, def);
+      let def_subst = Substitution.subst_var(cast_var, x, def);
       wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -211,7 +209,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
     | Match(_, scrut, rules) =>
@@ -229,7 +227,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
     };
