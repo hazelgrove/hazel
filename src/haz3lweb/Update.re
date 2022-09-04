@@ -32,7 +32,8 @@ type t =
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
-  | MoveToNextHole(Direction.t);
+  | MoveToNextHole(Direction.t)
+  | UpdateResult(ModelResult.current);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
