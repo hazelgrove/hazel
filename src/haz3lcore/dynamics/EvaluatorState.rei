@@ -8,7 +8,7 @@
   evaluation with the "fill-and-resume" functionality, when implemented.
  */
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t;
 
 /**

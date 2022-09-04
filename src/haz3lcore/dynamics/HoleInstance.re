@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = (MetaVar.t, HoleInstanceId.t);
 
 let u_of = ((u, _): t): MetaVar.t => u;

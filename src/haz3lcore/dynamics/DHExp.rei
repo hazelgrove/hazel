@@ -2,7 +2,7 @@ module BinBoolOp = DH.DHExp.BinBoolOp;
 module BinIntOp = DH.DHExp.BinIntOp;
 module BinFloatOp = DH.DHExp.BinFloatOp;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   DH.DHExp.t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)

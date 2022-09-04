@@ -4,7 +4,7 @@
 
   Constructed using {!val:HoleInstanceInfo_.to_hole_instance_info}.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleInstanceParents.t)));
 
 /**

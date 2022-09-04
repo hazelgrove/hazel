@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | BoxedValue(DHExp.t)
   | Indet(DHExp.t);
