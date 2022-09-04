@@ -37,21 +37,6 @@ open Lwtutil;
 type request = DHExp.t;
 
 /**
-  The type of an evaluation exception, caught from {!Program}.
-
-  This exists mainly because exceptions on a web worker thread are not
-  forwarded back to the main thread.
- */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exn_error =
-  | /** A caught {!exception:Program.EvalError}. */
-    Program_EvalError(
-      EvaluatorError.t,
-    )
-  | /** A caught {!exception:Program.DoesNotElaborate}. */
-    Program_DoesNotElaborate;
-
-/**
   The type of the evaluation response. [EvaluationFail] indicates some
   (exceptional) error was encountered.
  */
@@ -60,7 +45,7 @@ type response =
   | /** Evaluation succeeded. */
     EvaluationOk(ProgramResult.t)
   | /** Evaluation failed. */
-    EvaluationFail(exn_error);
+    EvaluationFail(ProgramEvaluatorError.t);
 
 /**
   The signature of a promise-based program evaluator.

@@ -4,7 +4,7 @@ type previous = ProgramResult.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
   | ResultOk(ProgramResult.t)
-  | ResultFail(ProgramEvaluator.exn_error)
+  | ResultFail(ProgramEvaluatorError.t)
   | ResultTimeout
   | ResultPending;
 
