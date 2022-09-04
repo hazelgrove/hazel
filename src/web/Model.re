@@ -56,6 +56,7 @@ type t = {
   double_tap: option(timestamp),
   clipboard: string,
   mousedown: bool,
+  langDocMessages: LangDocMessages.t,
 };
 
 let cutoff = (===);
@@ -71,6 +72,7 @@ let mk = editors => {
   double_tap: None,
   clipboard: ",",
   mousedown: false,
+  langDocMessages: LangDocMessages.init,
 };
 
 let blank = mk(School(0, []));

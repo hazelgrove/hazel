@@ -3,6 +3,15 @@ open Node;
 open Util.Web;
 open Core;
 
+/* TODO copied from Page */
+let toggle = (label, active, action) =>
+  div(
+    [
+      clss(["toggle-switch"] @ (active ? ["active"] : [])),
+      Attr.on_click(action),
+    ],
+    [div([clss(["toggle-knob"])], [text(label)])],
+  );
 /* TODO - Hannah - this is used (or something pretty similar) other places and should probably be refactored to somewhere
    centeralized like AssistantView_common - or maybe the different uses are different enough... */
 let code_node = text =>
@@ -159,6 +168,7 @@ let mk_explanation =
 
 let deco =
     (
+      ~doc: LangDocMessages.t,
       ~settings,
       ~colorings,
       ~expandable,
@@ -176,85 +186,89 @@ let deco =
     });
 
   let term_lang_doc =
-      (~ids: list(Id.t), ~base_cls: list(string), ~options, z: Zipper.t) => {
     Deco.term_decoration(
-      ~ids,
-      ((origin, path)) =>
-        Node.div(
-          [],
-          [
-            Node.div(
-              [
-                clss(base_cls),
-                DecUtil.abs_position(~font_metrics, origin),
-                Attr.on_click(_ => {
-                  print_endline("CLICKED!");
-                  Event.Ignore;
-                }),
-              ],
-              [
-                DecUtil.code_svg(
-                  ~font_metrics,
-                  ~origin,
-                  ~base_cls,
-                  ~abs_pos=false,
-                  path,
-                ),
-              ],
-            ),
-            Node.div(
-              [
-                clss(["specificity-options-menu"] @ base_cls),
-                DecUtil.abs_position(
-                  ~top_fudge=font_metrics.row_height,
-                  ~include_wh=false,
-                  ~font_metrics,
-                  origin,
-                ),
-              ],
-              List.map(
-                ((is_selected, segment)) => {
-                  let map = Measured.of_segment(segment);
-                  let code_view =
-                    Code.simple_view(~unselected=segment, ~map, ~settings);
-                  Node.div(
-                    is_selected ? [clss(["selected"])] : [],
-                    [code_view],
-                  );
-                },
-                options,
-              ),
-            ),
-          ],
-        ),
-      z,
-    );
-  };
+      ~ids=[expandable],
+      ((origin, path)) => {
+        let specificity_pos =
+          Printf.sprintf(
+            "position: absolute; top: %fpx;",
+            font_metrics.row_height,
+          );
 
-  let color_highlight =
-    List.map(
-      ((id, color)) =>
-        Deco.term_highlight(
-          ~ids=[id],
-          ~clss=["highlight-code-" ++ color],
-          zipper,
-        ),
-      colorings,
-    )
-    |> List.flatten;
-  let expandable_highlight =
-    term_lang_doc(
-      ~ids=expandable,
-      ~base_cls=["expandable"],
-      ~options,
+        let specificity_style =
+          Attr.create(
+            "style",
+            specificity_pos
+            ++ (doc.specificity_open ? "transform: scaleY(1);" : ""),
+          );
+
+        let specificity_menu =
+          Node.div(
+            [
+              clss(["specificity-options-menu", "expandable"]),
+              specificity_style,
+            ],
+            List.map(
+              ((is_selected, segment)) => {
+                let map = Measured.of_segment(segment);
+                let code_view =
+                  Code.simple_view(~unselected=segment, ~map, ~settings);
+                Node.div(
+                  is_selected ? [clss(["selected"])] : [],
+                  [code_view],
+                );
+              },
+              options,
+            ),
+          );
+        let expandable_deco =
+          DecUtil.code_svg(
+            ~font_metrics,
+            ~origin,
+            ~base_cls=["expandable"],
+            ~abs_pos=false,
+            path,
+          );
+        Node.div(
+          [
+            clss(["expandable-target"]),
+            DecUtil.abs_position(~font_metrics, origin),
+            Attr.on_click(_ => {
+              inject(
+                Update.UpdateLangDocMessages(
+                  LangDocMessages.SpecificityOpen(!doc.specificity_open),
+                ),
+              )
+            }),
+          ],
+          [expandable_deco, specificity_menu],
+        );
+      },
       zipper,
     );
+
+  let color_highlight =
+    if (doc.highlight) {
+      List.map(
+        ((id, color)) =>
+          Deco.term_highlight(
+            ~ids=[id],
+            ~clss=["highlight-code-" ++ color],
+            zipper,
+          ),
+        colorings,
+      )
+      |> List.flatten;
+    } else {
+      [];
+    };
   let _ = inject;
-  color_highlight @ expandable_highlight;
+  color_highlight @ term_lang_doc;
 };
 
 let syntactic_form_view =
     (
+      ~doc,
       ~colorings,
       ~expandable,
       ~inject,
@@ -269,6 +283,7 @@ let syntactic_form_view =
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
   let deco_view =
     deco(
+      ~doc,
       ~settings,
       ~colorings,
       ~expandable,
@@ -284,22 +299,26 @@ let syntactic_form_view =
   );
 };
 
-let example_view = (~settings, ~examples) => {
+let example_view = (~font_metrics, ~settings, ~examples) => {
   div(
     [Attr.id("examples")],
     List.map(
-      ((code, result, explanation)) => {
+      ((code, explanation)) => {
         let map_code = Measured.of_segment(code);
         let code_view =
           Code.simple_view(~unselected=code, ~map=map_code, ~settings);
-        let map_result = Measured.of_segment(result);
+        let uhexp = Core.MakeTerm.go(code);
+        let (_, _, info_map) = Core.Statics.mk_map(uhexp);
         let result_view =
-          Code.simple_view(~unselected=result, ~map=map_result, ~settings);
-        let code_container = view => div([clss(["something"])], [view]);
+          switch (Interface.evaulation_result(info_map, uhexp)) {
+          | None => []
+          | Some(dhexp) => [SimpleMode.res_view(~font_metrics, dhexp)]
+          };
+        let code_container = view => div([clss(["something"])], view);
         div(
           [clss(["example"])],
           [
-            code_container(code_view),
+            code_container([code_view]),
             div(
               [clss(["ex-result"])],
               [text("Result: "), code_container(result_view)],
@@ -321,6 +340,7 @@ let get_doc =
       ~inject,
       ~font_metrics,
       ~settings: Model.settings,
+      ~doc: LangDocMessages.t,
       info: option(Core.Statics.t),
     ) => {
   let default = (
@@ -354,9 +374,9 @@ let get_doc =
         Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
       let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
       // TODO: Is there a better way to do this?
-      let nil = exp("[]");
-      let left = exp("<hd>");
-      let right = exp("<tl>");
+      let nil = exp("nil");
+      let left = exp("EXP_hd");
+      let right = exp("EXP_tl");
       let syntactic_form = [left, cons, right];
       let zipper: Zipper.t = {
         selection: {
@@ -372,11 +392,9 @@ let get_doc =
       };
       let example_1 = (
         [int("1"), cons, nil],
-        [int("1"), cons, nil],
         "A single element list of 1.",
       );
       let example_2 = (
-        [int("1"), cons, int("2"), cons, nil],
         [int("1"), cons, int("2"), cons, nil],
         "A list with two elements, 1 and 2.",
       );
@@ -388,27 +406,32 @@ let get_doc =
           ++ ") and [*tail*]("
           ++ string_of_int(tl.id)
           ++ ")",
-          true,
+          doc.highlight,
         );
       let (left_color, _) = ColorSteps.get_color(hd.id, color_map);
       let (right_color, _) = ColorSteps.get_color(tl.id, color_map);
       let syntactic_form_view =
         syntactic_form_view(
+          ~doc,
           ~colorings=[
             (Piece.id(left), left_color),
             (Piece.id(right), right_color),
           ],
-          ~expandable=[Piece.id(right)],
+          ~expandable=Piece.id(right),
           ~inject,
           ~font_metrics,
           ~unselected=syntactic_form,
           ~settings,
           ~id="syntactic-form-code",
-          ~options=[(false, [exp("<pat>")]), (true, syntactic_form)],
+          ~options=[(true, [exp("EXP")]), (false, syntactic_form)],
           zipper,
         );
       let example_view =
-        example_view(~settings, ~examples=[example_1, example_2]);
+        example_view(
+          ~font_metrics,
+          ~settings,
+          ~examples=[example_1, example_2],
+        );
       (syntactic_form_view, (explanation, color_map), example_view);
     | UnOp(_op, _uexp) => default
     | BinOp(_op, _left, _right) => default
@@ -433,6 +456,7 @@ let get_color_map =
       ~inject,
       ~font_metrics,
       ~settings: Model.settings,
+      ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Core.Statics.map,
     ) => {
@@ -446,7 +470,7 @@ let get_color_map =
     | None => None
     };
   let (_, (_, color_map), _) =
-    get_doc(~inject, ~font_metrics, ~settings, info);
+    get_doc(~inject, ~font_metrics, ~settings, ~doc, info);
   color_map;
 };
 
@@ -455,6 +479,7 @@ let view =
       ~inject,
       ~font_metrics,
       ~settings: Model.settings,
+      ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Core.Statics.map,
     ) => {
@@ -468,13 +493,18 @@ let view =
     | None => None
     };
   let (syn_form, (explanation, _), example) =
-    get_doc(~inject, ~font_metrics, ~settings, info);
+    get_doc(~inject, ~font_metrics, ~settings, ~doc, info);
   div(
     [clss(["lang-doc"])],
     [
       div(
         [Attr.on_click(_ => Event.Stop_propagation)],
         [
+          toggle("🔆", doc.highlight, _ =>
+            inject(
+              Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
+            )
+          ),
           section(
             ~section_clss="syntactic-form",
             ~title="Syntactic Form",

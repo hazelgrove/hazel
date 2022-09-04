@@ -41,30 +41,22 @@ let position =
       ~top_fudge=0.0,
       ~width_fudge=0.0,
       ~height_fudge=0.0,
-      ~include_wh=true,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
       origin: Core.Measured.Point.t,
-    ) => {
-  let style_tl =
+    ) =>
+  Attr.create(
+    "style",
     style
     ++ ";"
     ++ Printf.sprintf(
-         "left: %fpx; top: %fpx;",
+         "left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
          Float.of_int(origin.col) *. font_metrics.col_width +. left_fudge,
          Float.of_int(origin.row) *. font_metrics.row_height +. top_fudge,
-       );
-  let style_string =
-    include_wh
-      ? style_tl
-        ++ Printf.sprintf(
-             "width: %fpx; height: %fpx;",
-             scale *. (font_metrics.col_width +. width_fudge),
-             scale *. (font_metrics.row_height +. height_fudge),
-           )
-      : style_tl;
-  Attr.create("style", style_string);
-};
+         scale *. (font_metrics.col_width +. width_fudge),
+         scale *. (font_metrics.row_height +. height_fudge),
+       ),
+  );
 
 let abs_position =
     (
@@ -73,7 +65,6 @@ let abs_position =
       ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~scale=1.,
-      ~include_wh=true,
       ~font_metrics: FontMetrics.t,
       origin: Core.Measured.Point.t,
     ) => {
@@ -84,7 +75,6 @@ let abs_position =
     ~width_fudge,
     ~height_fudge,
     ~scale,
-    ~include_wh,
     ~font_metrics,
     origin,
   );

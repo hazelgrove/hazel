@@ -32,7 +32,8 @@ type t =
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
-  | MoveToNextHole(Direction.t);
+  | MoveToNextHole(Direction.t)
+  | UpdateLangDocMessages(LangDocMessages.update);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -218,5 +219,10 @@ let apply =
   | MoveToNextHole(_d) =>
     // TODO restore
     Ok(model)
+  | UpdateLangDocMessages(u) =>
+    Ok({
+      ...model,
+      langDocMessages: LangDocMessages.set_update(model.langDocMessages, u),
+    })
   };
 };
