@@ -50,7 +50,7 @@ type simple_without_history = (Id.t, Zipper.t);
 type study_without_history = (Id.t, int, list(Zipper.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school_without_history = (Id.t, Zipper.t);
+type school_without_history = (Id.t, SchoolExercise.persistent_state);
 
 let save_simple = (simple: Model.simple): unit =>
   set_localstore(
@@ -82,13 +82,13 @@ let add_histories: list(Zipper.t) => list(Editor.t) = List.map(Editor.init);
 
 let prep_school_in = ((id_gen, state): Model.school): school_without_history => (
   id_gen,
-  Editor.(state.editor.state.zipper),
+  SchoolExercise.persistent_state_of_state(state),
 );
 
 let prep_school_out =
-    ((id_gen, zipper): school_without_history): Model.school => (
+    ((id_gen, persistent_state): school_without_history): Model.school => (
   id_gen,
-  {spec: School.the_exercise, editor: Editor.init(zipper)},
+  SchoolExercise.unpersist_state(persistent_state, School.the_exercise),
 );
 
 let prep_study_in = ((id_gen, idx, eds): Model.study): study_without_history => (

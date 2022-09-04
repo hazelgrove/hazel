@@ -43,3 +43,32 @@ let editors_of_strings = (xs: list(string)) => {
   let (id, i, aes) = editors_for(xs, x => Some(x));
   (id, i, List.map(((_, oe)) => Option.get(oe), aes));
 };
+
+let info_map = (editor: Editor.t) => {
+  let zipper = editor.state.zipper;
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let term = MakeTerm.go(unselected);
+  let (_, _, info_map) = Statics.mk_map(term);
+  info_map;
+};
+
+let stitch = (editors: list(Editor.t)) => {
+  let join_tile = (id): Tile.t => {
+    id: id + 10_000_000, // TODO fresh id generation hack
+    label: [";"],
+    mold: Mold.mk_bin(10, Exp, []),
+    shards: [0],
+    children: [],
+  };
+  let segments =
+    List.map(
+      (ed: Editor.t) => Zipper.unselect_and_zip(ed.state.zipper),
+      editors,
+    );
+  let semicolons =
+    List.init(List.length(segments) - 1, i => [Piece.Tile(join_tile(i))]);
+  let stitched_segment =
+    List.flatten(Util.ListUtil.interleave(segments, semicolons));
+  let term = MakeTerm.go(stitched_segment);
+  term;
+};

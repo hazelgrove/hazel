@@ -2,35 +2,24 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 // open Util.Web;
-// open Util.OptUtil.Syntax;
 
-// let join_tile = (id): Haz3lcore.Tile.t => {
-//   id,
-//   label: [";"],
-//   mold: Haz3lcore.Mold.mk_bin(10, Exp, []),
-//   shards: [0],
-//   children: [],
-// };
-
-// let splice_editors = (editors: list(Editor.t)): Haz3lcore.Segment.t =>
+// let splice_editors = (editors: list(Editor.t)): Segment.t =>
 //   editors
-//   |> List.map((ed: Editor.t) =>
-//        Haz3lcore.Zipper.unselect_and_zip(ed.state.zipper)
-//      )
+//   |> List.map((ed: Editor.t) => Zipper.unselect_and_zip(ed.state.zipper))
 //   |> (
 //     xs =>
 //       Util.ListUtil.interleave(
 //         xs,
 //         List.init(List.length(editors) - 1, i =>
-//           [Haz3lcore.Piece.Tile(join_tile(i + 1000000))]
+//           [Piece.Tile(join_tile(i + 1000000))]
 //         ) //TODO(andrew): id_gen hack
 //       )
 //   )
 //   |> List.flatten;
 
 // let spliced_statics = (editors: list(Editor.t)) => {
-//   let term = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
-//   let (_, _, info_map) = term |> Haz3lcore.Statics.mk_map;
+//   let term = editors |> splice_editors |> MakeTerm.go;
+//   let (_, _, info_map) = term |> Statics.mk_map;
 //   (term, info_map);
 // };
 
@@ -49,7 +38,7 @@ open Haz3lcore;
 
 // let coverage_text = (~total, ~found): Node.t =>
 //   div(
-//     ~attr=clss(["test-text"]),
+//     ~attr=Attr.classes(["test-text"]),
 //     [
 //       TestView.percent_view(total, found),
 //       div([text(":")]),
@@ -59,10 +48,13 @@ open Haz3lcore;
 
 // let coverage_bar = (~inject as _, instances) =>
 //   div(
-//     ~attr=clss(["test-bar"]),
+//     ~attr=Attr.classes(["test-bar"]),
 //     List.map(
 //       ((status, _)) =>
-//         div(~attr=clss(["segment", TestStatus.to_string(status)]), []),
+//         div(
+//           ~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
+//           [],
+//         ),
 //       instances,
 //     ),
 //   );
@@ -75,7 +67,7 @@ open Haz3lcore;
 //     );
 //   let status_class = total == found ? "Pass" : "Fail";
 //   div(
-//     ~attr=clss(["test-summary", status_class]),
+//     ~attr=Attr.classes(["test-summary", status_class]),
 //     [coverage_text(~total, ~found), coverage_bar(~inject, instances)],
 //   );
 // };
@@ -91,12 +83,13 @@ open Haz3lcore;
 //   div(
 //     ~attr=
 //       Attr.many([
-//         clss(["test-report"]),
+//         Attr.classes(["test-report"]),
 //         Attr.on_click(TestView.jump_to_test(~inject)),
 //       ]),
 //     [
 //       div(
-//         ~attr=clss(["test-id", "Test" ++ TestStatus.to_string(status)]),
+//         ~attr=
+//           Attr.classes(["test-id", "Test" ++ TestStatus.to_string(status)]),
 //         /* NOTE: prints lexical index, not unique id */
 //         [text(string_of_int(i + 1))],
 //       ),
@@ -105,7 +98,9 @@ open Haz3lcore;
 //     @ (
 //       switch (description) {
 //       | None => []
-//       | Some(d) => [div(~attr=clss(["test-description"]), [text(d)])]
+//       | Some(d) => [
+//           div(~attr=Attr.classes(["test-description"]), [text(d)]),
+//         ]
 //       }
 //     ),
 //   );
@@ -166,11 +161,11 @@ open Haz3lcore;
 //          }
 //        );
 //   div(
-//     ~attr=clss(["panel", "test-panel"]),
+//     ~attr=Attr.classes(["panel", "test-panel"]),
 //     [
 //       TestView.view_of_main_title_bar("Test Coverage"),
 //       div(
-//         ~attr=clss(["panel-body", "test-reports"]),
+//         ~attr=Attr.classes(["panel-body", "test-reports"]),
 //         non_null_instances
 //         |> List.mapi((i, r) =>
 //              coverage_report_view(
@@ -216,7 +211,7 @@ open Haz3lcore;
 //     div(
 //       ~attr=
 //         Attr.many([
-//           clss(["cell-caption"]),
+//           Attr.classes(["cell-caption"]),
 //           Attr.on_click(show_term(editor)),
 //         ]),
 //       [text(List.nth(School.captions, idx))],
@@ -235,21 +230,34 @@ open Haz3lcore;
 //       ~measured=editor.state.meta.measured,
 //       zipper,
 //     );
+//   let mousedown_overlay =
+//     selected == idx && mousedown
+//       ? [
+//         SimpleMode.mousedown_overlay(
+//           ~inject,
+//           ~font_metrics,
+//           ~target_id=code_container_id,
+//         ),
+//       ]
+//       : [];
 //   div(
-//     ~attr=clss(["cell-container"]),
+//     [clss(["cell-container"])],
 //     [cell_chapter_view]
 //     @ [
-//       Cell.view(
-//         ~inject,
-//         ~font_metrics,
-//         ~clss=["school"],
-//         ~selected=selected == idx,
-//         ~mousedown,
-//         ~mousedown_updates=[Update.SwitchEditor(idx)],
-//         ~show_code,
-//         ~code_id=code_container_id,
-//         ~caption=cell_caption_view,
-//         code_view,
+//       div(
+//         [
+//           Attr.classes(["cell"] @ (selected == idx ? ["selected"] : [])),
+//           Attr.on_mousedown(
+//             SimpleMode.mousedown_handler(
+//               ~inject,
+//               ~font_metrics,
+//               ~target_id=code_container_id,
+//               ~additional_updates=[Update.SwitchEditor(idx)],
+//             ),
+//           ),
+//         ],
+//         [cell_caption_view]
+//         @ (show_code ? mousedown_overlay @ [code_view] : []),
 //       ),
 //     ]
 //     @ result_bar,
@@ -292,7 +300,7 @@ open Haz3lcore;
 //   | [(_, {origin: _, last}), ..._] =>
 //     let status = insts |> TestMap.joint_status |> TestStatus.to_string;
 //     let pos = DecUtil.abs_position(~font_metrics, last);
-//     Some(div(~attr=Attr.many([clss(["test-result", status]), pos]), []));
+//     Some(div([clss(["test-result", status]), pos], []));
 //   | _ => None
 //   };
 
@@ -308,169 +316,6 @@ open Haz3lcore;
 //     test_results.test_map,
 //   );
 
-// let view =
-//     (
-//       ~font_metrics,
-//       ~show_backpack_targets,
-//       ~mousedown,
-//       ~cells: list((SchoolCell.t, option(Editor.t))),
-//       ~selected,
-//       ~settings,
-//       ~focal_zipper: Zipper.t,
-//       ~inject,
-//     ) => {
-//   let cell_view =
-//     cell_view(
-//       ~settings,
-//       ~inject,
-//       ~font_metrics,
-//       ~mousedown,
-//       ~selected,
-//       ~show_backpack_targets,
-//     );
-//   let combined_info_map =
-//     settings.statics
-//       ? {
-//         let (_, combined_info_map) = spliced_statics(editors);
-//         combined_info_map;
-//       }
-//       : Id.Map.empty;
-//   let school_view_data = settings.dynamics ? get_school_data(editors) : None;
-//   let your_test_results = {
-//     let* (_, your_tests, _, _, _) = school_view_data;
-//     let (term, map) = spliced_statics(your_tests);
-//     Interface.test_results(map, term);
-//   };
-//   let our_test_results = {
-//     let* (_, _, our_tests, _, _) = school_view_data;
-//     let (term, map) = spliced_statics(our_tests);
-//     let descriptions = School.TheExercise.hidden_test_descriptions;
-//     Interface.test_results(~descriptions, map, term);
-//   };
-//   let first_cell_res = {
-//     let* (statics_impl, _, _, _, _) = school_view_data;
-//     let (term, map) = spliced_statics(statics_impl);
-//     Interface.evaluation_result(map, term);
-//   };
-//   let student_imp_res_view =
-//     switch (first_cell_res) {
-//     | None => []
-//     | Some(dhexp) => [
-//         div(
-//           ~attr=clss(["cell-result"]),
-//           [SimpleMode.res_view(~font_metrics, dhexp)],
-//         ),
-//       ]
-//     };
-//   let coverage_view =
-//     switch (school_view_data) {
-//     | Some((_, _, _, reference_tests, coverage_tests)) =>
-//       let descriptions = School.TheExercise.wrong_implementation_descriptions;
-//       [
-//         coverage_view(
-//           ~inject,
-//           ~font_metrics,
-//           ~descriptions,
-//           reference_tests,
-//           coverage_tests,
-//         ),
-//       ];
-//     | None => []
-//     };
-//   let your_tests_view =
-//     switch (your_test_results) {
-//     | None => []
-//     | Some(test_results) => [TestView.test_summary(~inject, ~test_results)]
-//     };
-//   let your_tests_layer =
-//     switch (your_test_results, editors) {
-//     | (Some(test_results), [_, your_tests, ..._]) =>
-//       let map = Measured.of_segment(splice_editors([your_tests]));
-//       test_result_layer(~font_metrics, ~map: Measured.t, test_results);
-//     | _ => []
-//     };
-//   let our_tests_view =
-//     switch (our_test_results) {
-//     | None => []
-//     | Some(test_results) => [
-//         div(
-//           ~attr=clss(["cell", "cell-result"]),
-//           [
-//             TestView.test_summary(~inject, ~test_results),
-//             TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
-//           ],
-//         ),
-//       ]
-//     };
-//   let school_panel = [div(~attr=clss(["school-panel"]), coverage_view)];
-//   let ci_view =
-//     settings.statics
-//       ? {
-//         [
-//           CursorInspector.view(
-//             ~inject,
-//             ~settings,
-//             Indicated.index(focal_zipper),
-//             combined_info_map,
-//           ),
-//         ]
-//         @ (
-//           switch (Indicated.index(focal_zipper), your_test_results) {
-//           | (Some(index), Some({test_map, _})) =>
-//             let view =
-//               TestView.inspector_view(
-//                 ~inject,
-//                 ~font_metrics,
-//                 ~test_map,
-//                 index,
-//               );
-//             switch (view) {
-//             | None => []
-//             | Some(view) => [view]
-//             };
-//           | _ => []
-//           }
-//         );
-//       }
-//       : [];
-
-//   let prompt_view = prompt => div([clss(["cell-prompt"])], [prompt]);
-
-//   let prelude_view = code => instructor_code_cell_view("Prelude", code);
-
-//   let reference_impl_view = code =>
-//     instructor_code_cell_view("Reference Implementation", code);
-
-//   let your_tests_view = code => student_code_cell_view("Your Tests", code);
-
-//   let your_implementation_view = code =>
-//     student_code_cell_view("Your Implementation", code);
-
-//   div(
-//     ~attr=Attr.classes(["editor", "column"]),
-//     (
-//       List.map(
-//         ((cell: SchoolCell.t, ed: option(Editor.t))) =>
-//           switch (cell) {
-//           | Prompt({content}) => [prompt_view(content)]
-//           | Prelude(_) => [prelude_view(Option.get(ed))]
-//           | ReferenceImpl(_) => [reference_impl_view(Option.get(ed))]
-//           | YourTests(_) => [your_tests_view(Option.get(ed))]
-//           | YourImpl(_) => [your_implementation_view(Option.get(ed))]
-//           | HiddenBug(_) => [hidden_bug_view(Option.get(ed))]
-//           | HiddenTests({tests, descriptions}) => []
-//           },
-//         cells,
-//       )
-//       |> List.flatten
-//     )
-//     @ [div(~attr=clss(["bottom-bar"]), ci_view)],
-//   );
-// };
-
-let cell_container = content =>
-  div(~attr=Attr.classes(["cell-container"]), content);
-
 let view =
     (
       ~font_metrics,
@@ -480,52 +325,238 @@ let view =
       ~settings,
       ~inject,
     ) => {
-  let _ = (
-    font_metrics,
-    show_backpack_targets,
-    mousedown,
-    state,
-    settings,
-    inject,
-  );
+  let (pos, ed) = state;
+  let editor_view = pos =>
+    Cell.editor_view(
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~mousedown,
+      ~mousedown_updates=[
+        Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, ed)),
+      ],
+      ~settings,
+    );
 
-  // - display prompt
-  let prompt_view =
-    cell_container([
-      div(~attr=Attr.classes(["cell-chapter"]), [state.spec.prompt]),
-    ]);
+  let _ = (show_backpack_targets, settings, font_metrics, mousedown, inject);
+  // let cell_view =
+  //   cell_view(
+  //     ~settings,
+  //     ~inject,
+  //     ~font_metrics,
+  //     ~mousedown,
+  //     ~selected,
+  //     ~show_backpack_targets,
+  //   );
+  // let combined_info_map =
+  //   settings.statics
+  //     ? {
+  //       let (_, combined_info_map) = spliced_statics(editors);
+  //       combined_info_map;
+  //     }
+  //     : Id.Map.empty;
+  // let school_view_data = settings.dynamics ? get_school_data(editors) : None;
+  // let your_test_results = {
+  //   let* (_, your_tests, _, _, _) = school_view_data;
+  //   let (term, map) = spliced_statics(your_tests);
+  //   Interface.test_results(map, term);
+  // };
+  // let our_test_results = {
+  //   let* (_, _, our_tests, _, _) = school_view_data;
+  //   let (term, map) = spliced_statics(our_tests);
+  //   let descriptions = School.TheExercise.hidden_test_descriptions;
+  //   Interface.test_results(~descriptions, map, term);
+  // };
+  // let first_cell_res = {
+  //   let* (statics_impl, _, _, _, _) = school_view_data;
+  //   let (term, map) = spliced_statics(statics_impl);
+  //   Interface.evaulation_result(map, term);
+  // };
+  // let student_imp_res_view =
+  //   switch (first_cell_res) {
+  //   | None => []
+  //   | Some(dhexp) => [
+  //       div(
+  //         [clss(["cell-result"])],
+  //         [SimpleMode.res_view(~font_metrics, dhexp)],
+  //       ),
+  //     ]
+  //   };
+  // let coverage_view =
+  //   switch (school_view_data) {
+  //   | Some((_, _, _, reference_tests, coverage_tests)) =>
+  //     let descriptions = School.TheExercise.wrong_implementation_descriptions;
+  //     [
+  //       coverage_view(
+  //         ~inject,
+  //         ~font_metrics,
+  //         ~descriptions,
+  //         reference_tests,
+  //         coverage_tests,
+  //       ),
+  //     ];
+  //   | None => []
+  //   };
+  // let your_tests_view =
+  //   switch (your_test_results) {
+  //   | None => []
+  //   | Some(test_results) => [TestView.test_summary(~inject, ~test_results)]
+  //   };
+  // let your_tests_layer =
+  //   switch (your_test_results, editors) {
+  //   | (Some(test_results), [_, your_tests, ..._]) =>
+  //     let map = Measured.of_segment(splice_editors([your_tests]));
+  //     test_result_layer(~font_metrics, ~map: Measured.t, test_results);
+  //   | _ => []
+  //   };
+  // let our_tests_view =
+  //   switch (our_test_results) {
+  //   | None => []
+  //   | Some(test_results) => [
+  //       div(
+  //         [clss(["cell", "cell-result"])],
+  //         [
+  //           TestView.test_summary(~inject, ~test_results),
+  //           TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+  //         ],
+  //       ),
+  //     ]
+  //   };
+  // let school_panel = [div([clss(["school-panel"])], coverage_view)];
+  // let ci_view =
+  //   settings.statics
+  //     ? {
+  //       [
+  //         CursorInspector.view(
+  //           ~inject,
+  //           ~settings,
+  //           Indicated.index(focal_zipper),
+  //           combined_info_map,
+  //         ),
+  //       ]
+  //       @ (
+  //         switch (Indicated.index(focal_zipper), your_test_results) {
+  //         | (Some(index), Some({test_map, _})) =>
+  //           let view =
+  //             TestView.inspector_view(
+  //               ~inject,
+  //               ~font_metrics,
+  //               ~test_map,
+  //               index,
+  //             );
+  //           switch (view) {
+  //           | None => []
+  //           | Some(view) => [view]
+  //           };
+  //         | _ => []
+  //         }
+  //       );
+  //     }
+  //     : [];
+  // let prompt_view = prompt => div([clss(["cell-prompt"])], [prompt]);
+  // let prelude_view = code => instructor_code_cell_view("Prelude", code);
+  // let reference_impl_view = code =>
+  //   instructor_code_cell_view("Reference Implementation", code);
+  // let your_tests_view = code => student_code_cell_view("Your Tests", code);
+  // let your_implementation_view = code =>
+  //   student_code_cell_view("Your Implementation", code);
+  // div(
+  //   [Attr.classes(["editor", "column"])],
+  //   (
+  //     List.map(
+  //       ((cell: SchoolCell.t, ed: option(Editor.t))) =>
+  //         switch (cell) {
+  //         | Prompt({content}) => [prompt_view(content)]
+  //         | Prelude(_) => [prelude_view(Option.get(ed))]
+  //         | ReferenceImpl(_) => [reference_impl_view(Option.get(ed))]
+  //         | YourTests(_) => [your_tests_view(Option.get(ed))]
+  //         | YourImpl(_) => [your_implementation_view(Option.get(ed))]
+  //         | HiddenBug(_) => [hidden_bug_view(Option.get(ed))]
+  //         | HiddenTests({tests, descriptions}) => []
+  //         },
+  //       // switch (i) {
+  //       // | 0 => [cell_view(~result_bar=student_imp_res_view, i, ed)]
+  //       // | 1 =>
+  //       //   [
+  //       //     cell_view(
+  //       //       ~result_bar=[
+  //       //         div([clss(["cell", "cell-result"])], your_tests_view),
+  //       //       ],
+  //       //       ~overlays=your_tests_layer,
+  //       //       i,
+  //       //       ed,
+  //       //     ),
+  //       //   ]
+  //       //   @ (settings.dynamics ? school_panel : [])
+  //       // | 2 => [
+  //       //     cell_view(
+  //       //       ~show_code=!settings.student,
+  //       //       ~result_bar=our_tests_view,
+  //       //       i,
+  //       //       ed,
+  //       //     ),
+  //       //   ]
+  //       // | _ => [
+  //       //     settings.student
+  //       //       ? div([Attr.create("style", "display: none;")], [])
+  //       //       : cell_view(i, ed),
+  //       //   ]
+  //       // },
+  //       cells,
+  //     )
+  //     |> List.flatten
+  //   )
+  //   @ [div([clss(["bottom-bar"])], ci_view)],
+  // );
 
-  // - code view
-  let zipper = Editor.(state.editor.state.zipper);
-  let measured = Editor.(state.editor.state.meta.measured);
-  let code_view =
-    cell_container([
-      SimpleMode.view(
-        ~inject,
-        ~font_metrics,
-        ~show_backpack_targets,
-        ~mousedown,
-        ~zipper,
-        ~settings,
-        ~measured,
+  let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
+
+  let stitched_term =
+    EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
+  let (_, _, info_map) = Statics.mk_map(stitched_term);
+
+  // TODO: hide in instructor mode
+  let prelude_view =
+    editor_view(
+      Prelude,
+      ~selected=pos == Prelude,
+      ~caption=Cell.simple_caption("Prelude"),
+      ~code_id="prelude",
+      ~info_map,
+      ed.prelude,
+    );
+
+  let your_impl_view =
+    editor_view(
+      YourImpl,
+      ~selected=pos == YourImpl, // TODO: fix focus management
+      ~caption=Cell.simple_caption("Your Implementation"),
+      ~code_id="your-impl",
+      ~info_map,
+      ed.your_impl,
+    );
+
+  let your_tests_view =
+    editor_view(
+      YourTests,
+      ~selected=pos == YourTests,
+      ~caption=Cell.simple_caption("Your Tests"),
+      ~code_id="your-tests",
+      ~info_map,
+      ed.your_tests,
+    );
+
+  // TODO: get test result stuff working again
+  // TODO: backwards semicolon?
+  // let prelude_view =
+  //   Cell.view(~inject, ~font_metrics, ~selected=pos == Prelude, ~mousedown);
+  div(
+    ~attr=Attr.classes(["editor", "column"]),
+    [
+      div(
+        ~attr=Attr.classes(["cell-container"]),
+        [prompt_view, prelude_view, your_impl_view, your_tests_view] // TODO fix spacing
       ),
-    ]);
-  // TODO: split out into cells
-  // TOOD: obfuscation
-
-  // - run your implementation and show result below cell
-
-  // - run your tests against our implementation and summarize results
-
-  // - run your tests against your implementation and summarize results
-
-  // - run your tests against each buggy implementation and summarize results
-
-  // - run our tests against your implementation and summarize results
-
-  // - compute overall grade
-
-  // TODO: run this stuff in web worker
-
-  div(~attr=Attr.classes(["editor", "column"]), [prompt_view, code_view]);
+    ],
+  );
 };

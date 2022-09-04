@@ -52,59 +52,20 @@ let single_editor_semantics_views =
   );
 };
 
-let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = show_backpack_targets;
-    });
-  Deco.all(zipper, segment);
-};
-
-let code_container =
-    (
-      ~font_metrics,
-      ~unselected,
-      ~settings,
-      ~show_backpack_targets,
-      ~show_deco,
-      ~overlays=[],
-      ~id,
-      ~measured,
-      zipper,
-    ) => {
-  let segment = Zipper.zip(zipper);
-  let code_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
-  let deco_view =
-    show_deco
-      ? deco(
-          ~zipper,
-          ~map=measured,
-          ~segment,
-          ~font_metrics,
-          ~show_backpack_targets,
-        )
-      : [];
-  div(
-    ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
-    [code_view] @ deco_view @ overlays,
-  );
-};
-
 let cell_result_view = (~font_metrics, unselected) => {
   let term = MakeTerm.go(unselected);
   let (_, _, map) = Statics.mk_map(term);
-  switch (Interface.evaluation_result(map, term)) {
-  | None => []
-  | Some(eval_result) => [
-      div(
-        ~attr=clss(["cell-result"]),
-        [res_view(~font_metrics, eval_result)],
-      ),
-    ]
-  };
+  [
+    div(
+      ~attr=clss(["cell-result"]),
+      [
+        switch (Interface.evaluation_result(map, term)) {
+        | None => text("No result available.")
+        | Some(eval_result) => res_view(~font_metrics, eval_result)
+        },
+      ],
+    ),
+  ];
 };
 
 let view =
@@ -113,42 +74,31 @@ let view =
       ~font_metrics,
       ~show_backpack_targets,
       ~mousedown,
-      ~zipper: Zipper.t,
+      ~editor: Editor.t,
       ~settings: Model.settings,
-      ~measured: Measured.t,
     ) => {
+  let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
+  let term = MakeTerm.go(unselected);
+  let (_, _, info_map) = Statics.mk_map(term);
   let code_id = "code-container";
-  let code_view =
-    code_container(
-      ~id=code_id,
-      ~font_metrics,
-      ~unselected,
-      ~settings,
-      ~show_backpack_targets,
-      ~show_deco=true,
-      ~measured,
-      zipper,
-    );
   let result_view =
     !settings.dynamics ? [] : cell_result_view(~font_metrics, unselected);
-  let cell_view =
-    div(
-      ~attr=clss(["cell-container"]),
-      [
-        Cell.view(
-          ~inject,
-          ~font_metrics,
-          ~clss=["single"],
-          ~mousedown,
-          ~selected=true,
-          ~show_code=true,
-          ~code_id,
-          code_view,
-        ),
-      ]
-      @ result_view,
+  let editor_view =
+    Cell.editor_view(
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~clss=["single"],
+      ~selected=true,
+      ~mousedown,
+      ~code_id,
+      ~settings,
+      ~info_map,
+      editor,
     );
+  let cell_view =
+    div(~attr=clss(["cell-container"]), [editor_view] @ result_view);
   let semantics_views =
     settings.statics
       ? single_editor_semantics_views(

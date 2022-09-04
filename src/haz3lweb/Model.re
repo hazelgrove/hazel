@@ -81,7 +81,7 @@ let get_editor' = (editors: editors): Editor.t =>
   | Study(n, eds) =>
     assert(n < List.length(eds));
     List.nth(eds, n);
-  | School(state) => state.editor
+  | School(state) => SchoolExercise.editor_of_state(state)
   };
 
 let get_editor = (model: t): Editor.t => get_editor'(model.editors);
@@ -92,7 +92,7 @@ let put_editor = (model: t, editor: Editor.t): editors =>
   | Study(n, eds) =>
     assert(n < List.length(eds));
     Study(n, Util.ListUtil.put_nth(n, editor, eds));
-  | School(state) => School({...state, editor})
+  | School(state) => School(SchoolExercise.put_editor(state, editor))
   };
 
 let get_zipper' = (editors: editors): Zipper.t =>
