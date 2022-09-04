@@ -323,6 +323,7 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~editors: list(Editor.t),
+      ~doc: LangDocMessages.t,
       ~selected,
       ~settings,
       ~focal_zipper: Zipper.t,
@@ -448,6 +449,7 @@ let view =
         ~inject,
         ~font_metrics,
         ~settings,
+        ~doc,
         Indicated.index(focal_zipper),
         combined_info_map,
       ),
@@ -470,6 +472,17 @@ let view =
       colorings,
     )
     |> List.flatten;
+
+  let lang_doc =
+    div(
+      [
+        clss(["lang-doc-button"]),
+        Attr.on_click(_ =>
+          inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow))
+        ),
+      ],
+      [div([clss(["icon"])], [Icons.circle_question])],
+    );
   div(
     [Attr.classes(["editor", "column"])],
     (
@@ -514,15 +527,20 @@ let view =
       )
       |> List.flatten
     )
-    @ [
-      div([clss(["bottom-bar"])], ci_view),
-      LangDoc.view(
-        ~inject,
-        ~font_metrics,
-        ~settings,
-        Indicated.index(focal_zipper),
-        combined_info_map,
-      ),
-    ],
+    @ [div([clss(["bottom-bar"])], ci_view @ [lang_doc])]
+    @ (
+      doc.show
+        ? [
+          LangDoc.view(
+            ~inject,
+            ~font_metrics,
+            ~settings,
+            ~doc,
+            Indicated.index(focal_zipper),
+            combined_info_map,
+          ),
+        ]
+        : []
+    ),
   );
 };

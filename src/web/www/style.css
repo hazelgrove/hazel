@@ -1088,6 +1088,7 @@ svg.tile-selected {
   gap: 1em;
   background-color: var(--top_bar_icon_fill);
   color: #fdf6e3;
+  justify-content: space-between;
   /* padding-left: 0.2em;*/
 }
 
@@ -1137,7 +1138,26 @@ svg.tile-selected {
 }
 
 .specificity-options-menu {
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.07s ease;
   background-color: #a69461;
+  color: #fefcf3;
+}
+
+.specificity-options-menu .selected {
+  filter: brightness(1.2);
+}
+
+.lang-doc-button {
+  z-index: var(--type-inspector-z);
+  display: flex;
+  color: #8c795b;
+  /*border-radius: 0.3em;*/
+  border-radius: 1.1em 0 0 0;
+  /* border-right: 1px solid #daca9f; */
+  background-color: #fbecaa; /*#fefcf3;*/
+  align-items: center;
 }
 
 .lang-doc .section {
@@ -1196,7 +1216,7 @@ svg.tile-selected {
 .highlight-code-yellow {
   fill: rgb(247, 221, 134);
 }
-div.expandable {
+div.expandable-target {
   cursor: pointer;
   z-index: 40;
 }

@@ -127,7 +127,15 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
 let editors_view =
     (
       ~inject,
-      {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
+      {
+        editors,
+        font_metrics,
+        show_backpack_targets,
+        settings,
+        mousedown,
+        langDocMessages,
+        _,
+      }: Model.t,
     ) => {
   let focal_zipper = Model.get_zipper'(editors);
   switch (editors) {
@@ -149,6 +157,7 @@ let editors_view =
       ~font_metrics,
       ~settings,
       ~editors,
+      ~doc=langDocMessages,
       ~mousedown,
       ~focal_zipper,
       ~selected,
