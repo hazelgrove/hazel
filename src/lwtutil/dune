@@ -1,0 +1,12 @@
+(include_subdirs unqualified)
+
+(library
+ (name lwtutil)
+ (modules
+  (:standard \ Test))
+ (libraries lwt lwt-dllist))
+
+(test
+ (name test)
+ (modules Test)
+ (libraries lwtutil tezt))

@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Lwtutil;
 
 /**
   This module is concerned with the evaluation of programs. Though elaboration,
