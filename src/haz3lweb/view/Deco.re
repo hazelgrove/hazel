@@ -261,13 +261,14 @@ module Deco =
       };
     let rec go_seg = (seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {
+        let root = Skel.root(skel);
         let root_ids =
-          Skel.root(skel)
-          |> Aba.get_as
+          Aba.get_as(root)
           |> List.map(List.nth(seg))
           |> List.map(Piece.id)
           |> List.filter(is_rep)
           |> List.filter(is_err);
+        let between_ids = Aba.get_bs(root) |> List.concat_map(go_skel);
         let uni_ids =
           switch (skel) {
           | Op(_) => []
@@ -275,7 +276,7 @@ module Deco =
           | Post(l, _) => go_skel(l)
           | Bin(l, _, r) => go_skel(l) @ go_skel(r)
           };
-        root_ids @ uni_ids;
+        root_ids @ between_ids @ uni_ids;
       };
       let bi_ids =
         seg
