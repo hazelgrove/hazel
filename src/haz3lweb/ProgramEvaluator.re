@@ -1,9 +1,10 @@
 open Sexplib.Std;
 open Lwt.Syntax;
 open Lwtutil;
+open Haz3lcore;
 
 [@deriving sexp]
-type request = Program.t;
+type request = DHExp.t;
 
 [@deriving sexp]
 type exn_error =
@@ -36,15 +37,15 @@ module Sync: M with type response = response = {
 
   let init = () => ();
 
-  let get_response = ((): t, program: request) => {
+  let get_response = ((): t, d: request) => {
     let lwt = {
-      let+ r = Lwt.wrap(() => program |> Program.get_result);
+      let+ r = Lwt.wrap(() => d |> Interface.evaluate);
       let res =
         switch (r) {
         | r => EvaluationOk(r)
-        | exception (Program.EvalError(error)) =>
+        | exception (Interface.EvalError(error)) =>
           EvaluationFail(Program_EvalError(error))
-        | exception Program.DoesNotElaborate =>
+        | exception Interface.DoesNotElaborate =>
           EvaluationFail(Program_DoesNotElaborate)
         };
       res;
