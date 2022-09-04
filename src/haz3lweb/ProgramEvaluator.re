@@ -7,14 +7,9 @@ open Haz3lcore;
 type request = DHExp.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exn_error =
-  | Program_EvalError(EvaluatorError.t)
-  | Program_DoesNotElaborate;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type response =
   | EvaluationOk(ProgramResult.t)
-  | EvaluationFail(exn_error);
+  | EvaluationFail(ProgramEvaluatorError.t);
 
 module type M = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,7 +54,7 @@ module Sync: M with type response = response = {
 module W =
   WebWorker.Make({
     module Request = {
-      [@deriving (show({with_path: false}), sexp, yojson)]
+      [@deriving (sexp, yojson)]
       type t = request;
       type u = string;
 
@@ -69,7 +64,7 @@ module W =
     };
 
     module Response = {
-      [@deriving (show({with_path: false}), sexp, yojson)]
+      [@deriving (sexp, yojson)]
       type t = response;
       type u = string;
 
@@ -161,7 +156,7 @@ module Memoized = (M: M) : (M with type response = M.response) => {
 module type STREAM = {
   type t_;
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response;
 
   type t;
