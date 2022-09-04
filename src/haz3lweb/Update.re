@@ -219,5 +219,8 @@ let apply =
   | MoveToNextHole(_d) =>
     // TODO restore
     Ok(model)
+  | UpdateResult(_) =>
+    // TODO: implement
+    Ok(model)
   };
 };
