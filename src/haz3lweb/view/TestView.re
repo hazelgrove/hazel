@@ -6,7 +6,7 @@ module TestStatus = Haz3lcore.TestStatus;
 module TestMap = Haz3lcore.TestMap;
 
 let test_instance_view =
-    (~font_metrics, (d, status): TestMap.test_instance_report) =>
+    (~font_metrics, (d, status): TestMap.instance_report) =>
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
@@ -21,7 +21,7 @@ let test_report_view =
       ~font_metrics,
       ~description: option(string)=None,
       i: int,
-      (_id, instance_reports): TestMap.test_report,
+      (_id, instance_reports): TestMap.report,
     ) => {
   let status =
     instance_reports |> TestMap.joint_status |> TestStatus.to_string;

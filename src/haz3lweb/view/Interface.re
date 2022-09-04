@@ -1,32 +1,53 @@
 open Haz3lcore;
 
-let evaluate = Core.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+exception DoesNotElaborate;
+let elaborate = (map, term): DHExp.t =>
+  switch (Haz3lcore.Elaborator.uexp_elab(map, term)) {
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
+  };
+
+exception EvalError(EvaluatorError.t);
+exception PostprocessError(EvaluatorPost.error);
+let eval =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(Environment.empty),
+  );
+let postprocess = (es: EvaluatorState.t, d: DHExp.t) =>
+  es
+  |> EvaluatorState.with_eig(eig => {
+       let ((hii, d), _) =
+         switch (EvaluatorPost.postprocess(d, eig)) {
+         | d => d
+         | exception (EvaluatorPost.Exception(reason)) =>
+           raise(PostprocessError(reason))
+         };
+       ((d, hii), eig);
+     });
+
+let evaluate = (d: DHExp.t): ProgramResult.t =>
+  switch (eval(d)) {
+  | (es, BoxedValue(d)) =>
+    let ((d, hii), es) = postprocess(es, d);
+    (BoxedValue(d), es, hii);
+  | (es, Indet(d)) =>
+    let ((d, hii), es) = postprocess(es, d);
+    (Indet(d), es, hii);
+  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
+  };
 
 let dhcode_view = (~font_metrics: FontMetrics.t) => {
   DHCode.view_tylr(
-    ~selected_instance=None, //option((int, int)) // hole, hole_inst
+    ~selected_hole_instance=None, //option((int, int)) // hole, hole_inst
     ~font_metrics,
     ~settings=Settings.Evaluation.init,
   );
 };
 
-let get_result =
-    (d: Elaborator.ElaborationResult.t): option((DHExp.t, TestMap.t)) => {
-  switch (d) {
-  | Elaborates(elab, _, _) =>
-    switch (elab |> evaluate) {
-    | (EvaluatorResult.BoxedValue(d), {test_map, _})
-    | (Indet(d), {test_map, _}) => Some((d, List.rev(test_map)))
-    | exception _ => None
-    }
-  | _ => None
-  };
-};
-
 let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
-  | None => None
-  | Some((result, _)) => Some(result)
+  switch (term |> elaborate(map) |> evaluate) {
+  | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
 type test_results = {
@@ -50,9 +71,8 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
-  | None
-  | Some((_, [])) => None
-  | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))
+  switch (term |> elaborate(map) |> evaluate) {
+  | (_, state, _) =>
+    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };
 };
