@@ -3,21 +3,21 @@ open Lwt.Syntax;
 open Lwtutil;
 open Haz3lcore;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type request = DHExp.t;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exn_error =
   | Program_EvalError(EvaluatorError.t)
   | Program_DoesNotElaborate;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type response =
   | EvaluationOk(ProgramResult.t)
   | EvaluationFail(exn_error);
 
 module type M = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response;
 
   type t;
@@ -28,9 +28,9 @@ module type M = {
 };
 
 module Sync: M with type response = response = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response' = response;
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response = response';
 
   type t = unit;
@@ -59,7 +59,7 @@ module Sync: M with type response = response = {
 module W =
   WebWorker.Make({
     module Request = {
-      [@deriving sexp]
+      [@deriving (show({with_path: false}), sexp, yojson)]
       type t = request;
       type u = string;
 
@@ -69,7 +69,7 @@ module W =
     };
 
     module Response = {
-      [@deriving sexp]
+      [@deriving (show({with_path: false}), sexp, yojson)]
       type t = response;
       type u = string;
 
@@ -90,9 +90,9 @@ module W =
   });
 
 module Worker: M with type response = response = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response' = response;
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response = response';
 
   type t = W.Client.t;
@@ -107,9 +107,9 @@ module WorkerImpl = W.Worker;
 module WorkerPool: M with type response = option(response) = {
   module Pool = WebWorkerPool.Make(W.Client);
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response' = option(response);
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response = response';
 
   type t = Pool.t;
@@ -131,7 +131,7 @@ module WorkerPool: M with type response = option(response) = {
 };
 
 module Memoized = (M: M) : (M with type response = M.response) => {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response = M.response;
 
   type t = {
@@ -188,7 +188,7 @@ module Stream =
        : (STREAM with type t_ = M.t and type response = M.response) => {
   type t_ = M.t;
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response = M.response;
 
   type t = {

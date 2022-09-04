@@ -1,14 +1,14 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type previous = ProgramResult.t;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type current =
   | ResultOk(ProgramResult.t)
   | ResultFail(ProgramEvaluator.exn_error)
   | ResultTimeout
   | ResultPending;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   previous,
   current,
