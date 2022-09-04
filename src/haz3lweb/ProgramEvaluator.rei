@@ -33,7 +33,7 @@ open Lwtutil;
 /**
   The type of an evaluation request.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type request = DHExp.t;
 
 /**
@@ -42,7 +42,7 @@ type request = DHExp.t;
   This exists mainly because exceptions on a web worker thread are not
   forwarded back to the main thread.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exn_error =
   | /** A caught {!exception:Program.EvalError}. */
     Program_EvalError(
@@ -55,7 +55,7 @@ type exn_error =
   The type of the evaluation response. [EvaluationFail] indicates some
   (exceptional) error was encountered.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type response =
   | /** Evaluation succeeded. */
     EvaluationOk(ProgramResult.t)
@@ -86,7 +86,7 @@ module type M = {
   /**
     The type of the response.
    */
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response;
 
   /**
@@ -181,7 +181,7 @@ module type STREAM = {
   /**
     The type of the response.
    */
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type response;
 
   /**

@@ -5,7 +5,7 @@ open Haz3lcore;
   the {!type:EvaluatorState}, and the tracked hole instance information
   ({!type:HoleInstanceInfo.t}). Constructed by {!val:Program.get_result}.
  */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
 /**
