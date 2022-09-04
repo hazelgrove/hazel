@@ -258,9 +258,8 @@ module Deco =
 
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
-  let err_holes = (z: Zipper.t) => {
+  let err_holes = (z: Zipper.t, info_map) => {
     let seg = Zipper.unselect_and_zip(z);
-    let (_, _, info_map) = Statics.mk_map(MakeTerm.go(seg));
     let is_err = (id: Id.t) =>
       switch (Id.Map.find_opt(id, info_map)) {
       | None => false
@@ -288,13 +287,13 @@ module Deco =
     term_highlight(~ids=go_seg(seg), ~clss=["err-hole"], z);
   };
 
-  let all = (zipper, sel_seg) =>
+  let all = (zipper, sel_seg, info_map: Statics.map) =>
     List.concat([
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
-      err_holes(zipper),
+      err_holes(zipper, info_map),
     ]);
 };

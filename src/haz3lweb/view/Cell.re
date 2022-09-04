@@ -45,7 +45,7 @@ let mousedown_handler =
   );
 };
 
-let view =
+let cell_view =
     (
       ~inject,
       ~font_metrics,
@@ -63,18 +63,101 @@ let view =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   Node.div(
-    ~attr=
-      Attr.many([
-        Attr.classes(["cell", ...clss] @ (selected ? ["selected"] : [])),
-        Attr.on_mousedown(
-          mousedown_handler(
-            ~inject,
-            ~font_metrics,
-            ~target_id=code_id,
-            ~additional_updates=mousedown_updates,
-          ),
-        ),
-      ]),
-    Option.to_list(caption) @ (show_code ? mousedown_overlay @ [code] : []),
+    ~attr=Attr.class_("cell-container"),
+    [
+      Node.div(
+        ~attr=
+          Attr.many([
+            Attr.classes(
+              ["cell", ...clss] @ (selected ? ["selected"] : []),
+            ),
+            Attr.on_mousedown(
+              mousedown_handler(
+                ~inject,
+                ~font_metrics,
+                ~target_id=code_id,
+                ~additional_updates=mousedown_updates,
+              ),
+            ),
+          ]),
+        Option.to_list(caption)
+        @ (show_code ? mousedown_overlay @ [code] : []),
+      ),
+    ],
   );
 };
+
+let deco =
+    (
+      ~zipper,
+      ~measured,
+      ~segment,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~info_map,
+    ) => {
+  module Deco =
+    Deco.Deco({
+      let font_metrics = font_metrics;
+      let map = measured;
+      let show_backpack_targets = show_backpack_targets;
+    });
+  Deco.all(zipper, segment, info_map);
+};
+
+let editor_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~clss=[],
+      ~mousedown: bool,
+      ~mousedown_updates: list(Update.t)=[],
+      ~settings: Model.settings,
+      ~selected: bool,
+      ~caption: option(Node.t)=?,
+      ~code_id: string,
+      ~info_map: Statics.map,
+      editor: Editor.t,
+    ) => {
+  //~eval_result: option(option(DHExp.t))
+
+  let zipper = editor.state.zipper;
+  let segment = Zipper.zip(zipper);
+  let unselected = Zipper.unselect_and_zip(zipper);
+  let measured = editor.state.meta.measured;
+  let code_base_view =
+    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+  let deco_view =
+    deco(
+      ~zipper,
+      ~measured,
+      ~segment,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~info_map,
+    );
+  let code_view =
+    Node.div(
+      ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
+      [code_base_view] @ deco_view,
+    );
+  cell_view(
+    ~inject,
+    ~font_metrics,
+    ~clss,
+    ~selected,
+    ~mousedown,
+    ~mousedown_updates,
+    ~code_id,
+    ~show_code=true,
+    ~caption?,
+    code_view,
+  );
+};
+
+let simple_caption = (caption: string) =>
+  Node.div(
+    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
+    [Node.text(caption)],
+  );

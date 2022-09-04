@@ -149,8 +149,12 @@ let apply =
         LocalStorage.save_study((model.id_gen, n, zs));
         Ok({...model, editors: Study(n, zs)});
       }
-    | School(_) when n == 0 => Ok(model)
-    | School(_) => Error(FailedToSwitch)
+    | School(state) =>
+      LocalStorage.save_school((model.id_gen, state));
+      Ok({
+        ...model,
+        editors: School(SchoolExercise.switch_editor(n, state)),
+      });
     }
   | ToggleMode =>
     let model = {
