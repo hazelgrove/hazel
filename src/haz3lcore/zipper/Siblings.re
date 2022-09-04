@@ -82,17 +82,6 @@ let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
 let reassemble = TupleUtil.map2(Segment.reassemble);
 
-// let sort_rank = ((pre, suf): t, s: Sort.t) =>
-//   Prefix.sort_rank(pre, s) + Suffix.sort_rank(suf, s);
-let sort_rank = (_, _) => failwith("todo Siblings.sort_rank");
-
-let shape_rank = ((pre, suf): t) => {
-  let s = Nib.Shape.concave();
-  let (_, r_pre) = Segment.shape_rank_affix(Left, pre, s);
-  let (_, r_suf) = Segment.shape_rank_affix(Right, suf, s);
-  r_pre + r_suf;
-};
-
 let regrout = ((pre, suf): t) => {
   open IdGen.Syntax;
   let s = Nib.Shape.concave();
