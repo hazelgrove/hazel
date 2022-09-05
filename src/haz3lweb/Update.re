@@ -90,18 +90,21 @@ let update_settings =
   settings;
 };
 
-let load_editor = (model: Model.t): Model.t =>
-  switch (model.settings.mode) {
-  | Simple =>
-    let (id_gen, editor) = LocalStorage.load_simple();
-    {...model, id_gen, editors: Simple(editor)};
-  | Study =>
-    let (id_gen, idx, editors) = LocalStorage.load_study();
-    {...model, id_gen, editors: Study(idx, editors)};
-  | School =>
-    let (id_gen, idx, editors) = LocalStorage.load_school();
-    {...model, id_gen, editors: School(idx, editors)};
-  };
+let load_editor = (model: Model.t): Model.t => {
+  let m =
+    switch (model.settings.mode) {
+    | Simple =>
+      let (id_gen, editor) = LocalStorage.load_simple();
+      {...model, id_gen, editors: Simple(editor)};
+    | Study =>
+      let (id_gen, idx, editors) = LocalStorage.load_study();
+      {...model, id_gen, editors: Study(idx, editors)};
+    | School =>
+      let (id_gen, idx, editors) = LocalStorage.load_school();
+      {...model, id_gen, editors: School(idx, editors)};
+    };
+  {...m, results: ModelResults.init(Editors.get_spliced_elabs(m.editors))};
+};
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
