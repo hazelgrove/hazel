@@ -7,7 +7,7 @@ module Key = {
   type t = string;
 };
 
-module M = Map.Make(Key);
+module M = Util.MapUtil.Make(Key);
 include M;
 
 type t = M.t(ModelResult.t);
