@@ -18,7 +18,6 @@ type t =
   | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
-  | LoadInit
   | LoadDefault
   | Save
   | ToggleMode
@@ -153,7 +152,6 @@ let reevaluate_post_update =
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
-  | LoadInit
   | LoadDefault
   | SwitchEditor(_)
   | ToggleMode
@@ -192,10 +190,6 @@ let apply =
     | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
-    | LoadInit =>
-      // NOTE: load settings first to get last editor mode
-      let model = {...model, settings: LocalStorage.load_settings()};
-      Ok(load_editor(model));
     | LoadDefault => Ok(load_default_editor(model))
     | Save =>
       save(model);
