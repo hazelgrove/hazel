@@ -117,7 +117,7 @@ let pos_of_idx = (p: p('code), idx: int) =>
     if (idx < 0) {
       failwith("negative idx");
     } else if (idx < 4 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
+      HiddenBugs(idx - 4);
     } else if (idx == 4 + List.length(p.hidden_bugs)) {
       HiddenTests;
     } else {
