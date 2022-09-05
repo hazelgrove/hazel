@@ -30,22 +30,27 @@ open Lwtutil;
 
 // open Lwtutil;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type key = string;
+
 /**
   The type of an evaluation request.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = DHExp.t;
+type request = (key, DHExp.t);
 
 /**
   The type of the evaluation response. [EvaluationFail] indicates some
   (exceptional) error was encountered.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type response =
+type eval_result =
   | /** Evaluation succeeded. */
     EvaluationOk(ProgramResult.t)
   | /** Evaluation failed. */
     EvaluationFail(ProgramEvaluatorError.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type response = (key, eval_result);
 
 /**
   The signature of a promise-based program evaluator.
@@ -119,7 +124,7 @@ module WorkerImpl: WebWorker.WorkerS;
   Web-worker based evaluator, which uses a pool of workers. See above module
   level documentation.
  */
-module WorkerPool: M with type response = option(response);
+module WorkerPool: M with type response = (key, option(eval_result));
 
 /**
   Memoized evaluator. See above module level documentation.

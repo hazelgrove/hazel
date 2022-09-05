@@ -4,12 +4,17 @@ open Lwtutil;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = DHExp.t;
+type key = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type response =
+type request = (key, DHExp.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type eval_result =
   | EvaluationOk(ProgramResult.t)
   | EvaluationFail(ProgramEvaluatorError.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type response = (key, eval_result);
 
 module type M = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -32,7 +37,7 @@ module Sync: M with type response = response = {
 
   let init = () => ();
 
-  let get_response = ((): t, d: request) => {
+  let get_response = ((): t, (key, d): request) => {
     let lwt = {
       let+ r = Lwt.wrap(() => d |> Interface.evaluate);
       let res =
@@ -43,7 +48,7 @@ module Sync: M with type response = response = {
         | exception Interface.DoesNotElaborate =>
           EvaluationFail(Program_DoesNotElaborate)
         };
-      res;
+      (key, res);
     };
 
     (lwt, ());
@@ -99,13 +104,13 @@ module Worker: M with type response = response = {
 
 module WorkerImpl = W.Worker;
 
-module WorkerPool: M with type response = option(response) = {
+module WorkerPool: M with type response = (key, option(eval_result)) = {
   module Pool = WebWorkerPool.Make(W.Client);
 
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  // type response' = response;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type response' = option(response);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type response = response';
+  type response = (key, option(eval_result));
 
   type t = Pool.t;
 
@@ -118,10 +123,11 @@ module WorkerPool: M with type response = option(response) = {
     pool;
   };
 
-  let get_response = (pool: t, program) => {
-    let res = program |> Pool.request(pool);
+  let get_response =
+      (pool: t, (k, _) as req: request): (Lwt.t(response), t) => {
+    let res = Pool.request(pool, req);
     let _ = Pool.add(pool);
-    (res, pool);
+    (Lwt.map(r => (k, Option.map(snd, r)), res), pool);
   };
 };
 

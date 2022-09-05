@@ -142,11 +142,11 @@ let editors_view =
       ~inject,
       {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
     ) => {
-  let focal_zipper = Model.get_zipper'(editors);
+  let focal_zipper = Editors.get_zipper(editors);
   switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let measured = Model.get_editor'(editors).state.meta.measured;
+    let measured = Editors.get_editor(editors).state.meta.measured;
     SimpleMode.view(
       ~inject,
       ~font_metrics,

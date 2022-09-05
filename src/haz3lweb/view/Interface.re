@@ -37,14 +37,6 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 
-let dhcode_view = (~font_metrics: FontMetrics.t) => {
-  DHCode.view_tylr(
-    ~selected_hole_instance=None, //option((int, int)) // hole, hole_inst
-    ~font_metrics,
-    ~settings=Settings.Evaluation.init,
-  );
-};
-
 let evaluation_result = (map, term): option(DHExp.t) =>
   switch (term |> elaborate(map) |> evaluate) {
   | (result, _, _) => Some(EvaluatorResult.unbox(result))

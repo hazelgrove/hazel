@@ -88,6 +88,8 @@ module App = {
   module State = State;
 
   let on_startup = (~schedule_action, _) => {
+    schedule_action(Update.LoadInit);
+
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
@@ -96,12 +98,32 @@ module App = {
     //   observe_font_specimen("logo-font-specimen", fm =>
     //     schedule_action(Haz3lweb.Update.SetLogoFontMetrics(fm))
     //   );
+    /* initialize state. */
+    let state = State.init();
+
+    /* create subscription to evaluator, updating model on each result. */
+    let _ =
+      State.evaluator_subscribe(
+        state,
+        ((key, r)) => {
+          let cr: ModelResult.current =
+            switch (r) {
+            | Some(EvaluationOk(r)) => ResultOk(r)
+            | Some(EvaluationFail(reason)) => ResultFail(reason)
+            | None => ResultTimeout
+            };
+          schedule_action(Update.UpdateResult(key, cr));
+        },
+        () => (),
+      );
+
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    Async_kernel.Deferred.return();
+
+    Async_kernel.Deferred.return(state);
   };
 
   let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
@@ -115,12 +137,9 @@ module App = {
   };
 };
 
-let initial_model: Model.t =
-  apply(Model.blank, LoadInit, (), ~schedule_action=());
-
 Incr_dom.Start_app.start(
   (module App),
   ~debug=false,
   ~bind_to_element_with_id="container",
-  ~initial_model,
+  ~initial_model=Model.blank,
 );
