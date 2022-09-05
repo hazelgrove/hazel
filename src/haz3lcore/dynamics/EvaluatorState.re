@@ -31,3 +31,5 @@ let add_test = ({tests, _} as es, id, report) => {
 };
 
 let get_tests = ({tests, _}) => tests;
+
+let put_tests = (tests, es) => {...es, tests};

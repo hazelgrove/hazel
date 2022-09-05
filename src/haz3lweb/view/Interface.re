@@ -14,17 +14,44 @@ let eval =
     ~cache_size_bound=1000,
     Evaluator.evaluate(Environment.empty),
   );
-let postprocess = (es: EvaluatorState.t, d: DHExp.t) =>
-  es
-  |> EvaluatorState.with_eig(eig => {
-       let ((hii, d), _) =
-         switch (EvaluatorPost.postprocess(d, eig)) {
-         | d => d
-         | exception (EvaluatorPost.Exception(reason)) =>
-           raise(PostprocessError(reason))
-         };
-       ((d, hii), eig);
-     });
+let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
+  let ((d, hii), es) =
+    es
+    |> EvaluatorState.with_eig(eig => {
+         let ((hii, d), eig) =
+           switch (EvaluatorPost.postprocess(d, eig)) {
+           | d => d
+           | exception (EvaluatorPost.Exception(reason)) =>
+             raise(PostprocessError(reason))
+           };
+         ((d, hii), eig);
+       });
+  let (tests, es) =
+    es
+    |> EvaluatorState.with_eig(eig => {
+         let (eig, tests) =
+           EvaluatorState.get_tests(es)
+           |> List.fold_left_map(
+                (eig, (k, instance_reports)) => {
+                  let (eig, instance_reports) =
+                    instance_reports
+                    |> List.fold_left_map(
+                         (eig, (d, status)) =>
+                           switch (EvaluatorPost.postprocess(d, eig)) {
+                           | ((_, d), eig) => (eig, (d, status))
+                           | exception (EvaluatorPost.Exception(reason)) =>
+                             raise(PostprocessError(reason))
+                           },
+                         eig,
+                       );
+                  (eig, (k, instance_reports));
+                },
+                eig,
+              );
+         (tests, eig);
+       });
+  ((d, hii), EvaluatorState.put_tests(tests, es));
+};
 
 let evaluate = (d: DHExp.t): ProgramResult.t =>
   switch (eval(d)) {
