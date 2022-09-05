@@ -511,28 +511,63 @@ let view =
 
   let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
 
-  let stitched_term =
+  let stitched_user_term =
     EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
-  let (_, _, info_map) = Statics.mk_map(stitched_term);
+  let (_, _, user_info_map) = Statics.mk_map(stitched_user_term);
+
+  let stitched_instructor_term =
+    EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
+  let (_, _, instructor_info_map) = Statics.mk_map(stitched_instructor_term);
+
+  let hidden_bugs_editors =
+    List.map(
+      (wrong_impl: SchoolExercise.wrong_impl(Editor.t)) => wrong_impl.impl,
+      ed.hidden_bugs,
+    );
+  let hidden_bugs_data =
+    List.map(
+      editor => {
+        let stitched_term = EditorUtil.stitch([ed.prelude, editor]);
+        let (_, _, info_map) = Statics.mk_map(stitched_term);
+        (editor, stitched_term, info_map);
+      },
+      hidden_bugs_editors,
+    );
+
+  let (focal_zipper, focal_info_map) =
+    switch (pos) {
+    | Prelude => (ed.prelude.state.zipper, user_info_map)
+    | ReferenceImpl => (ed.reference_impl.state.zipper, instructor_info_map)
+    | YourTests => (ed.your_tests.state.zipper, user_info_map)
+    | YourImpl => (ed.your_impl.state.zipper, user_info_map)
+    | HiddenBugs(idx) =>
+      let (editor, _, info_map) = List.nth(hidden_bugs_data, idx);
+      (editor.state.zipper, info_map);
+    | HiddenTests => (ed.hidden_tests.tests.state.zipper, instructor_info_map)
+    };
 
   // TODO: hide in instructor mode
+  // TODO: round out bottom when there is no result view
+  // TODO: place cursor in correct place when clicking
+
+  // TODO: make prelude read-only
   let prelude_view =
     editor_view(
       Prelude,
       ~selected=pos == Prelude,
       ~caption=Cell.simple_caption("Prelude"),
       ~code_id="prelude",
-      ~info_map,
+      ~info_map=user_info_map,
       ed.prelude,
     );
 
   let your_impl_view =
     editor_view(
       YourImpl,
-      ~selected=pos == YourImpl, // TODO: fix focus management
+      ~selected=pos == YourImpl,
       ~caption=Cell.simple_caption("Your Implementation"),
       ~code_id="your-impl",
-      ~info_map,
+      ~info_map=user_info_map,
       ed.your_impl,
     );
 
@@ -542,20 +577,107 @@ let view =
       ~selected=pos == YourTests,
       ~caption=Cell.simple_caption("Your Tests"),
       ~code_id="your-tests",
-      ~info_map,
+      ~info_map=user_info_map,
       ed.your_tests,
     );
 
-  // TODO: get test result stuff working again
-  // TODO: backwards semicolon?
-  // let prelude_view =
-  //   Cell.view(~inject, ~font_metrics, ~selected=pos == Prelude, ~mousedown);
+  let reference_impl_view =
+    editor_view(
+      ReferenceImpl,
+      ~selected=pos == ReferenceImpl,
+      ~caption=Cell.simple_caption("Reference Implementation"),
+      ~code_id="reference-impl",
+      ~info_map=instructor_info_map,
+      ed.reference_impl,
+    );
+
+  let hidden_tests_view =
+    editor_view(
+      HiddenTests,
+      ~selected=pos == HiddenTests,
+      ~caption=Cell.simple_caption("Hidden Tests"),
+      ~code_id="hidden-tests",
+      ~info_map=instructor_info_map,
+      ed.hidden_tests.tests,
+    );
+
+  let hidden_bugs_views =
+    List.mapi(
+      (i, (editor, _, info_map)) => {
+        editor_view(
+          HiddenBugs(i),
+          ~selected=pos == HiddenBugs(i),
+          ~caption=
+            Cell.simple_caption(
+              "Wrong Implementation " ++ string_of_int(i + 1),
+            ),
+          ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
+          ~info_map,
+          editor,
+        )
+      },
+      hidden_bugs_data,
+    );
+
+  let ci_view =
+    settings.statics
+      ? {
+        [
+          CursorInspector.view(
+            ~inject,
+            ~settings,
+            Indicated.index(focal_zipper),
+            focal_info_map,
+          ),
+          // @ (
+          //   switch (Indicated.index(focal_zipper), your_test_results) {
+          //   | (Some(index), Some({test_map, _})) =>
+          //     let view =
+          //       TestView.inspector_view(
+          //         ~inject,
+          //         ~font_metrics,
+          //         ~test_map,
+          //         index,
+          //       );
+          //     switch (view) {
+          //     | None => []
+          //     | Some(view) => [view]
+          //     };
+          //   | _ => []
+          //   }
+          // );
+        ];
+      }
+      : [];
+
+  // TODO: cursor inspector
+  // TODO: merge dev
+  // TODO: merge dynamics
+  // TODO: show reference implementation cells (with decorations coming from prelude only)
+  // TODO: show hidden bugs cells (with decorations coming from prelude + reference impl only)
+  // TODO: show hidden tests cells (with decorations coming from prelude + reference impl)
+  // TODO: run prelude + your implementation to display result
+  // TODO: run prelude + reference implementation + your tests to evaluate tests + generate report
+  // TODO: run prelude + your implementation (for helpers) + each wrong implementation (which shouldn't shadow) + your tests to evaluate test coverage + generate report
+  // TODO: run prelude + your implementation + your tests to evaluate your implementation
+  // TODO: report views
+  // TODO: == and && relative precedence
+  // TODO: exercise export
   div(
     ~attr=Attr.classes(["editor", "column"]),
     [
       div(
         ~attr=Attr.classes(["cell-container"]),
-        [prompt_view, prelude_view, your_impl_view, your_tests_view] // TODO fix spacing
+        [
+          prompt_view,
+          prelude_view,
+          your_impl_view,
+          your_tests_view,
+          reference_impl_view,
+          hidden_tests_view,
+        ]
+        @ hidden_bugs_views  // TODO fix spacing
+        @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
       ),
     ],
   );

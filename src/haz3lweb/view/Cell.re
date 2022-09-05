@@ -94,6 +94,7 @@ let deco =
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,
+      ~selected,
       ~info_map,
     ) => {
   module Deco =
@@ -102,7 +103,8 @@ let deco =
       let map = measured;
       let show_backpack_targets = show_backpack_targets;
     });
-  Deco.all(zipper, segment, info_map);
+  selected
+    ? Deco.all(zipper, segment, info_map) : Deco.err_holes(zipper, info_map);
 };
 
 let editor_view =
@@ -135,6 +137,7 @@ let editor_view =
       ~segment,
       ~font_metrics,
       ~show_backpack_targets,
+      ~selected,
       ~info_map,
     );
   let code_view =
