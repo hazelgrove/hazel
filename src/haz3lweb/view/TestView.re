@@ -10,7 +10,15 @@ let test_instance_view =
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
-    [Interface.dhcode_view(~font_metrics, ~width=40, d)],
+    [
+      DHCode.view_tylr(
+        ~settings=Settings.Evaluation.init,
+        ~selected_hole_instance=None,
+        ~font_metrics,
+        ~width=40,
+        d,
+      ),
+    ],
   );
 
 let jump_to_test = (~inject as _, _) => Effect.Ignore;

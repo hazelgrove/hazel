@@ -17,7 +17,15 @@ let test_view =
 let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   div(
     ~attr=Attr.classes(["result"]),
-    [Interface.dhcode_view(~font_metrics, ~width=80, eval_result)],
+    [
+      DHCode.view_tylr(
+        ~settings=Settings.Evaluation.init,
+        ~selected_hole_instance=None,
+        ~font_metrics,
+        ~width=80,
+        eval_result,
+      ),
+    ],
   );
 
 let single_editor_semantics_views =
