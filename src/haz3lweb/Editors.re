@@ -50,9 +50,9 @@ let get_spliced_segs: t => list((ModelResults.Key.t, Segment.t)) =
   fun
   | Simple(ed) => [("simple", Editor.get_seg(ed))]
   | Study(n, eds) => [("study", Editor.get_seg(List.nth(eds, n)))]
-  | School(n, eds) =>
+  | School(_, eds) =>
     // TODO(cyrus) replace placeholder
-    [("school", Editor.get_seg(List.nth(eds, n)))];
+    [("school", Editor.get_seg(List.hd(eds)))];
 
 let get_spliced_elabs = eds =>
   eds

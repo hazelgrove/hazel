@@ -88,8 +88,6 @@ module App = {
   module State = State;
 
   let on_startup = (~schedule_action, _) => {
-    schedule_action(Update.LoadInit);
-
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
@@ -134,9 +132,15 @@ module App = {
   };
 };
 
+let initial_model = {
+  // NOTE: load settings first to get last editor mode
+  let model = {...Model.blank, settings: LocalStorage.load_settings()};
+  Update.load_editor(model);
+};
+
 Incr_dom.Start_app.start(
   (module App),
   ~debug=false,
   ~bind_to_element_with_id="container",
-  ~initial_model=Model.blank,
+  ~initial_model,
 );
