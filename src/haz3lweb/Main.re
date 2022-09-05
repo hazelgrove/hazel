@@ -94,10 +94,7 @@ module App = {
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
       );
-    // let _ =
-    //   observe_font_specimen("logo-font-specimen", fm =>
-    //     schedule_action(Haz3lweb.Update.SetLogoFontMetrics(fm))
-    //   );
+
     /* initialize state. */
     let state = State.init();
 
