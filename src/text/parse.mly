@@ -76,8 +76,7 @@
 %right TARROW
 %left COMMA
 %left COLON
-%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV LET TYPE
-%nonassoc IF 
+%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV LET TYPE IF SEMICOLON
 %nonassoc app
 
 %start main
@@ -85,86 +84,82 @@
 
 %%
 
-main:
-  expr EOF { $1 }
-;
+let main :=
+  ~ = expr; EOF; <>
 
-typ:
-  | LPAREN typ RPAREN { mk_utyp (UTyp.Parens($2)) }
-  | LBRACK typ RBRACK { mk_utyp (UTyp.List($2)) }
-  | IDENT {
-    match $1 with
+let typ :=
+  | LPAREN; ~ = typ; RPAREN; { mk_utyp (UTyp.Parens(typ)) }
+  | LBRACK; ~ = typ; RBRACK; { mk_utyp (UTyp.List(typ)) }
+  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
+  | id = IDENT; {
+    match id with
     | "Int" -> mk_utyp UTyp.Int
     | "Bool" -> mk_utyp UTyp.Bool
     | "Float" -> mk_utyp UTyp.Float
     | _ -> mk_utyp UTyp.EmptyHole
   }
-  | EMPTY_HOLE { mk_utyp UTyp.EmptyHole }
-;
 
+let pat :=
+  | p1 = pat; COMMA; p2 = pat; { mk_upat (UPat.Tuple(p1::[p2])) }
+  | p = pat; COLON; t = typ; {mk_upat (UPat.TypeAnn(p, t))}
+  | ~ = pat_; <>
+
+let pat_ :=
+  | EMPTY_HOLE; { mk_upat (UPat.EmptyHole) }
+(* MultiHole *)
+  | WILD; {mk_upat (UPat.Wild)}
+  | i = INT; { mk_upat (UPat.Int i) }
+  | FLOAT; { mk_upat (UPat.Float(0.)) }
+  | TRUE; { mk_upat (UPat.Bool(true)) }
+  | FALSE; { mk_upat (UPat.Bool(false)) }
+  | TRIV; { mk_upat (UPat.Triv) }
+  | LBRACK; RBRACK; { mk_upat (UPat.ListLit([])) }
+  | id = IDENT; { mk_upat (UPat.Var(id)) }
+  | LPAREN; p = pat; RPAREN; { mk_upat (UPat.Parens p)}
+
+let tpat :=
+  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
+
+let expr :=
+  | e1 = expr; e2 = expr; %prec app { mk_uexp (UExp.Ap(e1, e2)) }
+  | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
+  | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
+  | ~ = expr_; <>
+
+let expr_ :=
 (*
-%inline typ_op:
-  COMMA { Operators_Typ.Prod }
-  | TARROW { Operators_Typ.Arrow }
-  | BAR { Operators_Typ.Sum }
-;
+type term =
+  | Invalid(parse_flag, Piece.t)
+  | MultiHole(list(Id.t), list(t))
+  | ListLit(list(Id.t), list(t))
+  | Tuple(list(Id.t), list(t))
+  | Test(t)
+  | UnOp(op_un, t)
+  | BinOp(op_bin, t, t)
+  | Match(list(Id.t), t, list((UPat.t, t)))
 *)
+  | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
+  | TRIV; { mk_uexp UExp.Triv }
+  | FUN; p = pat; TARROW; e = expr; { mk_uexp (UExp.Fun(p, e)) }
+  | TRUE; { mk_uexp (UExp.Bool true) }
+  | FALSE; { mk_uexp (UExp.Bool false) }
+  | i = INT; { mk_uexp (UExp.Int i) }
+  | FLOAT; { mk_uexp (UExp.Float 0.) }
+  | id = IDENT; { mk_uexp (UExp.Var id) }
+  | LET; p = pat; EQUAL; e1 = expr; IN; e2 = expr;
+    { mk_uexp (UExp.Let(p, e1, e2)) }
+  | IF; e1 = expr; THEN; e2 = expr; ELSE; e3 = expr;
+    { mk_uexp (UExp.If(e1, e2, e3)) }
+  | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
 
-pat:
-  | EMPTY_HOLE { mk_upat (UPat.EmptyHole) }
-  (* MultiHole *)
-  | WILD {mk_upat (UPat.Wild)}
-  | INT { mk_upat (UPat.Int $1) }
-  | FLOAT { mk_upat (UPat.Float(0.)) }
-  | TRUE { mk_upat (UPat.Bool(true)) }
-  | FALSE { mk_upat (UPat.Bool(false)) }
-  | TRIV { mk_upat (UPat.Triv) }
-  | LBRACK RBRACK { mk_upat (UPat.ListLit([])) }
-  | IDENT {
-      mk_upat (UPat.Var($1))
-  }
-  (* Tuple *)
-  | LPAREN pat RPAREN { mk_upat (UPat.Parens $2)}
-  | pat COLON typ {mk_upat (UPat.TypeAnn($1, $3))}
-;
-
-tpat:
-  | EMPTY_HOLE { mk_utyp UTyp.EmptyHole }
-;
-
-expr:
-(*
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | MultiHole(list(Id.t), list(t))
-    | ListLit(list(Id.t), list(t))
-    | Tuple(list(Id.t), list(t))
-    | Test(t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
-    | Match(list(Id.t), t, list((UPat.t, t)))
-*)
-  EMPTY_HOLE { mk_uexp UExp.EmptyHole }
-  | TRIV { mk_uexp UExp.Triv }
-  | FUN pat TARROW expr { mk_uexp (UExp.Fun($2,$4)) }
-  | TRUE { mk_uexp (UExp.Bool true) }
-  | FALSE { mk_uexp (UExp.Bool false) }
-  | INT { mk_uexp (UExp.Int $1) }
-  | FLOAT { mk_uexp (UExp.Float 0.) }
-  | IDENT { mk_uexp (UExp.Var $1) }
-  | LET pat EQUAL expr IN expr { mk_uexp (UExp.Let($2, $4, $6)) }
-  | IF expr THEN expr ELSE expr { mk_uexp (UExp.If($2, $4, $6)) }
-  | expr expr %prec app { mk_uexp (UExp.Ap($1, $2)) }
-  | LPAREN expr RPAREN { mk_uexp (UExp.Parens $2) }
-  | expr COLONCOLON expr { mk_uexp (UExp.Cons($1, $3)) }
-  | expr SEMICOLON expr { mk_uexp (UExp.Seq($1, $3)) }
 
   (* BINOPS *)
   (*
+  | expr op(binop) expr {mk_uexp (UExp.BinOp($2, $1, $3))}
   | expr bin_op expr {mk_uexp (UExp.BinOp($2, $1, $3))}
-  *)
   | expr PLUS expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr MINUS expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
+  | expr MULT expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
   | expr DIV expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr LESSER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr GREATER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
@@ -172,6 +167,7 @@ expr:
 
   | expr FPLUS expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr FMINUS expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
+  | expr FMULT expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
   | expr FDIV expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr FLESSER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr FGREATER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
@@ -179,11 +175,17 @@ expr:
 
   | expr AND expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
   | expr OR expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
+  *)
 
-  | MINUS expr {mk_uexp (UExp.UnOp(Int(Minus), $2))}
-;
 
   (*
+%inline binop:
+  | PLUS { UExp.Plus }
+  ;
+
+
+
+  | MINUS expr {mk_uexp (UExp.UnOp(Int(Minus), $2))}
 %inline bin_op:
   PLUS { UExpBinopInt. }
   | MINUS { UExp.Int(Minus) }
