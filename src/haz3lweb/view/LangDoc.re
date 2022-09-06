@@ -407,7 +407,8 @@ let example_view =
           | None => []
           | Some(dhexp) => [SimpleMode.res_view(~font_metrics, dhexp)]
           };
-        let code_container = view => div(~attr=clss(["something"]), view);
+        let code_container = view =>
+          div(~attr=clss(["code-container"]), view);
         div(
           ~attr=clss(["example"]),
           [
