@@ -1,0 +1,9 @@
+(include_subdirs no)
+
+(library
+ (name text_test)
+ (libraries text)
+ (inline_tests
+  (modes js))
+ (preprocess
+  (pps ppx_let ppx_inline_test)))

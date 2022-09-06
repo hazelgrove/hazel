@@ -1,0 +1,14 @@
+(include_subdirs no)
+
+(library
+ (name text)
+ (libraries pretty haz3lcore menhirLib)
+ (preprocess
+  (pps ppx_let)))
+
+(ocamllex
+ (modules lex))
+
+(menhir
+ (flags --table)
+ (modules parse))
