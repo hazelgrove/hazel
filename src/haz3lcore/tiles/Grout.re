@@ -16,7 +16,7 @@ let id = g => g.id;
 let shapes = g =>
   switch (g.shape) {
   | Convex => Nib.Shape.(Convex, Convex)
-  | Concave => Nib.Shape.(Concave(Precedence.min), Concave(Precedence.min))
+  | Concave => Nib.Shape.(concave(), concave())
   };
 
 // assumes same shape on both sides

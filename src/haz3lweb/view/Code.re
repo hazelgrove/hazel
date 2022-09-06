@@ -48,7 +48,7 @@ module Text = (M: {
       List.mapi(
         (i, (l, child, r)) =>
           //TODO(andrew): more subtle logic about sort acceptability
-          (child, l + 1 == r ? List.nth(t.mold.in_, i) : Sort.Any),
+          (child, l + 1 == r ? List.nth(t.mold.in_, i).sort : Sort.Any),
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);

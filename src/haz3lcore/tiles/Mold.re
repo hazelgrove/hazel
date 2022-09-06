@@ -2,9 +2,15 @@ open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type child = {
+  sort: Sort.t,
+  pad: (bool, bool),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   out: Sort.t,
-  in_: list(Sort.t),
+  in_: list(child),
   nibs: Nibs.t,
 };
 
@@ -14,21 +20,27 @@ let mk_op = (out, in_) => {
   let n = Nib.{shape: Convex, sort: out};
   {out, in_, nibs: (n, n)};
 };
-let mk_pre = (p, out, in_) => {
+let mk_pre = (~pad=false, prec, out, in_) => {
   let l = Nib.{shape: Convex, sort: out};
-  let r = Nib.{shape: Concave(p), sort: out};
+  let r = Nib.{shape: Shape.concave(~prec, ~pad, ()), sort: out};
   {out, in_, nibs: (l, r)};
 };
-let mk_post = (p, out, in_) => {
-  let l = Nib.{shape: Concave(p), sort: out};
+let mk_post = (~pad=false, prec, out, in_) => {
+  let l = Nib.{shape: Shape.concave(~prec, ~pad, ()), sort: out};
   let r = Nib.{shape: Convex, sort: out};
   {out, in_, nibs: (l, r)};
 };
-let mk_bin = (~l=?, ~r=?, p, out, in_) => {
+// TODO clean up api
+let mk_bin = (~pad_l=false, ~pad_r=false, ~l=?, ~r=?, prec, out, in_) => {
   let l = Option.value(l, ~default=out);
   let r = Option.value(r, ~default=out);
-  let nib = sort => Nib.{sort, shape: Concave(p)};
-  {out, in_, nibs: (nib(l), nib(r))};
+  let nib = (pad, sort) => Nib.{sort, shape: Concave({prec, pad})};
+  {out, in_, nibs: (nib(pad_l, l), nib(pad_r, r))};
+};
+
+let mk_child = (~pad_l=false, ~pad_r=false, sort) => {
+  sort,
+  pad: (pad_l, pad_r),
 };
 
 // forms where tips can be different than out sort
@@ -53,12 +65,20 @@ let nibs = (~index=?, mold: t): Nibs.t =>
   | None => mold.nibs
   | Some(i) =>
     let (l, r) = mold.nibs;
-    let in_ = mold.in_;
     let l =
-      i == 0 ? l : Nib.{shape: Shape.concave(), sort: List.nth(in_, i - 1)};
+      i == 0
+        ? l
+        : {
+          let {sort, pad: (_, pad)} = List.nth(mold.in_, i - 1);
+          Nib.{sort, shape: Shape.concave(~pad, ())};
+        };
     let r =
-      i == List.length(in_)
-        ? r : Nib.{shape: Shape.concave(), sort: List.nth(in_, i)};
+      i == List.length(mold.in_)
+        ? r
+        : {
+          let {sort, pad: (pad, _)} = List.nth(mold.in_, i);
+          Nib.{sort, shape: Shape.concave(~pad, ())};
+        };
     (l, r);
   };
 
@@ -82,7 +102,7 @@ let of_grout: (Grout.t, Sort.t) => t =
         let n = Nib.{shape: Convex, sort};
         (n, n);
       | Concave =>
-        let n = Nib.{shape: Concave(Precedence.min), sort};
+        let n = Nib.{shape: Shape.concave(), sort};
         (n, n);
       },
     out: sort,

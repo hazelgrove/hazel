@@ -400,7 +400,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           let s = l + 1 == r ? List.nth(mold.in_, l).sort : Sort.Any;
            go_s(s, Segment.skel(kid), kid);
          })
     };

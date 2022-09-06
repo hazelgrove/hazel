@@ -1,17 +1,19 @@
+open Sexplib.Std;
+
 module Shape = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type concave = {
+    prec: Precedence.t,
+    pad: bool,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Convex
-    | Concave(Precedence.t);
+    | Concave(concave);
 
-  let concave = (~p=?, ()) => {
-    let p =
-      switch (p) {
-      | None => Precedence.min
-      | Some(p) => p
-      };
-    Concave(p);
-  };
+  let concave = (~prec=Precedence.min, ~pad=false, ()) =>
+    Concave({prec, pad});
 
   let fits = (l: t, r: t) =>
     switch (l, r) {

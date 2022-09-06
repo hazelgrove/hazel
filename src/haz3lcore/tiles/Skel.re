@@ -99,7 +99,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
       | (Convex, Convex) => None
       | (Concave(_), Convex) => Some(Lt)
       | (Convex, Concave(_)) => Some(Gt)
-      | (Concave(p), Concave(p')) =>
+      | (Concave({prec: p, _}), Concave({prec: p', _})) =>
         if (p < p') {
           Some(Lt);
         } else if (p > p') {
@@ -161,7 +161,7 @@ module Stacks = {
   let rec push_output = (~prec: option(Precedence.t)=?, stacks: t): t => {
     let (chain, shunted) = pop_chain(stacks.shunted);
     switch (prec, shapes_of_chain(chain)) {
-    | (Some(prec), Some((_, Concave(prec'))))
+    | (Some(prec), Some((_, Concave({prec: prec', _}))))
         when
           Precedence.compare(prec', prec) < 0
           || Precedence.compare(prec', prec) == 0
@@ -199,7 +199,7 @@ module Stacks = {
     let stacks =
       switch (l) {
       | Convex => stacks
-      | Concave(prec) => push_output(~prec, stacks)
+      | Concave({prec, _}) => push_output(~prec, stacks)
       };
     {...stacks, shunted: [ip, ...stacks.shunted]};
   };
