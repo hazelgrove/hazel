@@ -25,20 +25,14 @@ installed, you can build Hazel by running the following commands.
 - `make deps`
 - `make dev`
 
-To run Hazel, run the command `make echo-html`, which will print a filename.
-Then use your preferred browser to open that file. For convenience, the 
-following make targets open the corresponding browser or invoke the
-corresponding command immediately (see INSTALL.md):
+To view Hazel, you have to serve it, on localhost for development (you can't
+run it from a `file:///` URL due to browser restrictions on web workers.) 
 
- - `make firefox`
- - `make chrome`
- - `make chrome-browser`
- - `make chromium`
- - `make chromium-browser`
- - `make win-chrome`
- - `make win-firefox`
- - `make xdg-open`
- - `make open`
+If you have `python3` on your path, you can use the Python server via 
+`make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
+
+Otherwise, run `make echo-html-dir` for the directory that needs to be served
+using the server of your choice.
 
 ### Long Version
 
@@ -136,7 +130,9 @@ The `make dev` and `make release` commands do three things:
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
 For a smoother dev experience, use `make watch` to automatically watch 
-for file changes. This will require installing fswatch (see INSTALL.md).
+for file changes. This will require installing `fswatch` (see INSTALL.md).
+You can also run `make watch-release` to continuously build the release
+build (takes longer per build).
    
 ### Debugging
 
