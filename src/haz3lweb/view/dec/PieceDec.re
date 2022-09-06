@@ -5,15 +5,17 @@ open Node;
 open SvgUtil;
 
 module Profile = {
+  type shard = (Id.t, int);
+  type tiles = list((Id.t, Mold.t, Measured.Shards.t));
+
   type style =
     | Root(Measured.Point.t, Measured.Point.t)
-    | Selected(int, int);
+    | Selected(shard, shard);
 
   type t = {
-    shards: Measured.Shards.t,
-    mold: Mold.t,
     style,
-    index: int,
+    caret: shard,
+    tiles,
   };
 };
 
@@ -75,20 +77,35 @@ let chunky_shard_path =
 
 let simple_shard =
     (
-      ~font_metrics: FontMetrics.t,
-      ~mold: Mold.t,
-      ~index: int,
-      (this_index, {origin, last}: Measured.measurement),
+      ~font_metrics,
+      ~has_caret,
+      ~shapes,
+      ~sort,
+      ~measurement as {origin, last}: Measured.measurement,
     )
     : t => {
-  let nib_shapes = Mold.nib_shapes(~index=this_index, mold);
-  let path = simple_shard_path(nib_shapes, last.col - origin.col);
+  let path = simple_shard_path(shapes, last.col - origin.col);
   let path_cls =
-    ["tile-path", "raised", Sort.to_string(mold.out)]
-    @ (index == this_index ? ["indicated-caret"] : ["indicated"]);
+    ["tile-path", "raised", Sort.to_string(sort)]
+    @ (has_caret ? ["indicated-caret"] : ["indicated"]);
   let base_cls = ["tile-indicated"];
   DecUtil.code_svg(~font_metrics, ~origin, ~base_cls, ~path_cls, path);
 };
+
+let simple_shards =
+    (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))
+    : list(t) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard(
+        ~font_metrics,
+        ~has_caret=caret == (id, index),
+        ~shapes=Mold.nib_shapes(~index, mold),
+        ~sort=mold.out,
+        ~measurement,
+      ),
+    shards,
+  );
 
 let simple_shard_child =
     (
@@ -112,14 +129,19 @@ let chunky_shard =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      (i, j): (int, int),
-      mold: Mold.t,
-      shards: Measured.Shards.t,
+      (i, j): (Profile.shard, Profile.shard),
+      tiles: Profile.tiles,
     ) => {
-  let origin = List.assoc(i, shards).origin;
-  let last = List.assoc(j, shards).last;
-  let (nib_l, _) = Mold.nib_shapes(~index=i, mold);
-  let (_, nib_r) = Mold.nib_shapes(~index=j, mold);
+  let (nib_l, origin) = {
+    let (id, index) = i;
+    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
+    (fst(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).origin);
+  };
+  let (nib_r, last) = {
+    let (id, index) = j;
+    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
+    (snd(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).last);
+  };
   let indent_col = Measured.Rows.find(origin.row, rows).indent;
   let max_col =
     ListUtil.range(~lo=origin.row, last.row + 1)
@@ -127,7 +149,7 @@ let chunky_shard =
     |> List.fold_left(max, 0);
   let path =
     chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
-  let clss = ["tile-path", "selected", "raised", Sort.to_string(mold.out)];
+  let clss = ["tile-path", "selected", "raised"];
   DecUtil.code_svg(
     ~font_metrics,
     ~origin,
@@ -139,14 +161,22 @@ let chunky_shard =
 
 let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
 
+let shards_of_tiles = tiles =>
+  tiles
+  |> List.concat_map(((_, _, shards)) => shards)
+  |> List.sort(
+       ((_, m1: Measured.measurement), (_, m2: Measured.measurement)) =>
+       Measured.Point.compare(m1.origin, m2.origin)
+     );
+
 let bi_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      mold: Mold.t,
-      shards: Measured.Shards.t,
+      tiles: Profile.tiles,
     )
     : list(t) => {
+  let shards = shards_of_tiles(tiles);
   let shard_rows = Measured.Shards.split_by_row(shards);
   let intra_lines =
     shard_rows
@@ -184,7 +214,13 @@ let bi_lines =
            ],
          );
        });
-  let clss = ["child-line", Sort.to_string(mold.out)];
+  // TODO(d) clean up Profile datatype
+  let s =
+    switch (tiles) {
+    | [] => failwith("empty tile")
+    | [(_, mold, _), ..._] => mold.out
+    };
+  let clss = ["child-line", Sort.to_string(s)];
   intra_lines
   @ inter_lines
   |> List.map(((origin, path)) =>
@@ -197,10 +233,10 @@ let uni_lines =
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       (l: Measured.Point.t, r: Measured.Point.t),
-      mold: Mold.t,
-      shards: Measured.Shards.t,
+      tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
   open SvgUtil.Path;
+  let shards = shards_of_tiles(tiles);
   let l_line = {
     let (_, m_first) = List.hd(shards);
     let (_, m_last_of_first) = {
@@ -210,7 +246,7 @@ let uni_lines =
       assert(row != []);
       ListUtil.last(row);
     };
-    if (l != m_first.origin) {
+    if (Measured.Point.compare(l, m_first.origin) < 0) {
       let max_col =
         Measured.Rows.max_col(
           ListUtil.range(~lo=l.row, m_first.origin.row),
@@ -276,7 +312,7 @@ let uni_lines =
       }),
       //L_({dx: -. DecUtil.short_tip_width, dy: -. DecUtil.short_tip_height}),
     ];
-    if (r.row == m_last.last.row && r.col != m_last.last.col) {
+    if (r.row == m_last.last.row && r.col > m_last.last.col) {
       [
         (
           m_last.origin,
@@ -292,7 +328,7 @@ let uni_lines =
           ],
         ),
       ];
-    } else if (r.row != m_last.last.row) {
+    } else if (r.row > m_last.last.row) {
       let min_col =
         Measured.Rows.min_col(
           ListUtil.range(~lo=m_last.last.row, r.row + 1),
@@ -326,7 +362,13 @@ let uni_lines =
       [];
     };
   };
-  let clss = ["child-line", Sort.to_string(mold.out)];
+  // TODO(d) clean up Profile datatype
+  let s =
+    switch (tiles) {
+    | [] => failwith("empty tile")
+    | [(_, mold, _), ..._] => mold.out
+    };
+  let clss = ["child-line", Sort.to_string(s)];
   l_line
   @ r_line
   |> List.map(((origin, path)) =>
@@ -339,16 +381,14 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       ~segs: list((Mold.t, Measured.measurement))=[],
-      {mold, shards, index, _} as profile: Profile.t,
+      {style, caret, tiles}: Profile.t,
     )
     : list(Node.t) =>
-  switch (profile.style) {
-  | Selected(i, j) => [
-      chunky_shard(~font_metrics, ~rows, (i, j), mold, shards),
-    ]
+  switch (style) {
+  | Selected(i, j) => [chunky_shard(~font_metrics, ~rows, (i, j), tiles)]
   | Root(l, r) =>
-    List.map(simple_shard(~font_metrics, ~mold, ~index), shards)
+    List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
     @ List.map(simple_shard_child(~font_metrics), segs)
-    @ uni_lines(~font_metrics, ~rows, (l, r), mold, shards)
-    @ bi_lines(~font_metrics, ~rows, mold, shards)
+    @ uni_lines(~font_metrics, ~rows, (l, r), tiles)
+    @ bi_lines(~font_metrics, ~rows, tiles)
   };

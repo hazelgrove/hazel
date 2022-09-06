@@ -17,55 +17,81 @@ let test_view =
 let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   div(
     ~attr=Attr.classes(["result"]),
-    [Interface.dhcode_view(~font_metrics, ~width=80, eval_result)],
+    [
+      DHCode.view_tylr(
+        ~settings=Settings.Evaluation.init,
+        ~selected_hole_instance=None,
+        ~font_metrics,
+        ~width=80,
+        eval_result,
+      ),
+    ],
   );
 
+let get_results =
+    (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
+  res
+  |> Option.map(res =>
+       res
+       |> ModelResult.get_current_ok
+       |> Option.value(~default=ModelResult.get_previous(res))
+     )
+  |> Option.map(r => {
+       let eval_result = r |> ProgramResult.get_dhexp;
+       let test_results =
+         r
+         |> ProgramResult.get_state
+         |> EvaluatorState.get_tests
+         |> Interface.mk_results;
+       (eval_result, test_results);
+     });
+
 let single_editor_semantics_views =
-    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
-  let test_results =
-    settings.dynamics ? Interface.test_results(map, term) : None;
-  let eval_result =
-    settings.dynamics ? Interface.evaluation_result(map, term) : None;
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Model.settings,
+      ~index,
+      ~unselected,
+      ~res,
+    ) => {
+  let (term, _) = MakeTerm.go(unselected);
+  let map = Statics.mk_map(term);
+  let results = settings.dynamics ? get_results(res) : None;
   [
     div(
       ~attr=clss(["bottom-bar"]),
       [CursorInspector.view(~inject, ~settings, index, map)]
       @ (
-        switch (eval_result) {
+        switch (results) {
         | _ when !settings.dynamics => []
         | None => []
-        | Some(eval_result) => [res_view(~font_metrics, eval_result)]
+        | Some((eval_result, _)) => [res_view(~font_metrics, eval_result)]
         }
       ),
     ),
   ]
   @ (
-    switch (test_results) {
+    switch (results) {
     | _ when !settings.dynamics => []
     | None => []
-    | Some(test_results) => [
+    | Some((_, test_results)) => [
         test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
       ]
     }
   );
 };
 
-let cell_result_view = (~font_metrics, unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
-  [
-    div(
-      ~attr=clss(["cell-result"]),
-      [
-        switch (Interface.evaluation_result(map, term)) {
-        | None => text("No result available.")
-        | Some(eval_result) => res_view(~font_metrics, eval_result)
-        },
-      ],
-    ),
-  ];
+let cell_result_view = (~font_metrics, res) => {
+  switch (get_results(res)) {
+  | None => []
+  | Some((eval_result, _)) => [
+      div(
+        ~attr=clss(["cell-result"]),
+        [res_view(~font_metrics, eval_result)],
+      ),
+    ]
+  };
 };
 
 let view =
@@ -76,14 +102,15 @@ let view =
       ~mousedown,
       ~editor: Editor.t,
       ~settings: Model.settings,
+      ~res: option(ModelResult.t),
     ) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
-  let term = MakeTerm.go(unselected);
-  let (_, _, info_map) = Statics.mk_map(term);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
   let code_id = "code-container";
-  let result_view =
-    !settings.dynamics ? [] : cell_result_view(~font_metrics, unselected);
+  // let _result_view =
+  // !settings.dynamics ? [] : cell_result_view(~font_metrics);
   let editor_view =
     Cell.editor_view(
       ~inject,
@@ -97,6 +124,8 @@ let view =
       ~info_map,
       editor,
     );
+  let result_view =
+    !settings.dynamics ? [] : cell_result_view(~font_metrics, res);
   let cell_view =
     div(~attr=clss(["cell-container"]), [editor_view] @ result_view);
   let semantics_views =
@@ -107,6 +136,7 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
+          ~res,
         )
       : [];
   div(~attr=clss(["editor", "single"]), [cell_view] @ semantics_views);

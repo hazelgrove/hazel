@@ -8,6 +8,7 @@
  */
 
 module Impls = {
+  open EvaluatorMonad;
   open EvaluatorResult;
 
   /* int_of_float implementation. */
@@ -15,10 +16,10 @@ module Impls = {
     switch (r1) {
     | BoxedValue(FloatLit(f)) =>
       let i = int_of_float(f);
-      BoxedValue(IntLit(i));
+      BoxedValue(IntLit(i)) |> return;
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1])) |> return
     };
 
   /* float_of_int implementation. */
@@ -26,10 +27,10 @@ module Impls = {
     switch (r1) {
     | BoxedValue(IntLit(i)) =>
       let f = float_of_int(i);
-      BoxedValue(FloatLit(f));
+      BoxedValue(FloatLit(f)) |> return;
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-    | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
+    | Indet(d1) => Indet(ApBuiltin(ident, [d1])) |> return
     };
 
   /* mod implementation */
@@ -41,18 +42,19 @@ module Impls = {
         switch (n, m) {
         | (_, 0) =>
           Indet(InvalidOperation(ApBuiltin(ident, [d1, d2]), DivideByZero))
-        | (n, m) => BoxedValue(IntLit(n mod m))
+          |> return
+        | (n, m) => BoxedValue(IntLit(n mod m)) |> return
         }
       | BoxedValue(d2) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2])) |> return
       }
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
     | Indet(d1) =>
       switch (r2) {
       | BoxedValue(d2)
-      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
+      | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2])) |> return
       }
     };
 

@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 /* TERM
 
    These data structures define the term structures on which
@@ -18,19 +16,9 @@ open Sexplib.Std;
    TODO: add tests to check if there are forms and/or terms
    without correponding syntax classes */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type parse_flag =
-  | Whitespace // Not really an error
-  | MalformedGrout // Should never happen
-  | UnrecognizedTerm // Reminder to add term to MakeTerm
-  | IncompleteTile; // Remove in future
+include TermBase.Any;
 
-let show_parse_flag: parse_flag => string =
-  fun
-  | Whitespace => "Whitespace"
-  | MalformedGrout => "Malformed Grout"
-  | UnrecognizedTerm => "Unrecognized Term"
-  | IncompleteTile => "Incomplete Tile";
+type any = t;
 
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,24 +34,18 @@ module UTyp = {
     | List
     | Parens;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | EmptyHole
-    | MultiHole(list(Id.t), list(t))
-    | Int
-    | Float
-    | Bool
-    | List(t)
-    | Arrow(t, t)
-    | Tuple(list(Id.t), list(t))
-    | Parens(t)
-  and t = {
-    id: Id.t,
-    term,
+  include TermBase.UTyp;
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
   };
 
-  let mk = (id, term): t => {id, term};
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
 
   let cls_of_term: term => cls =
     fun
@@ -110,28 +92,18 @@ module UPat = {
     | Parens
     | TypeAnn;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | EmptyHole
-    | MultiHole(list(Id.t), list(t))
-    | Wild
-    | Int(int)
-    | Float(float)
-    | Bool(bool)
-    | Triv
-    | ListLit(list(Id.t), list(t))
-    | Cons(t, t)
-    | Var(Token.t)
-    | Tuple(list(Id.t), list(t))
-    | Parens(t)
-    | TypeAnn(t, UTyp.t)
-  and t = {
-    id: Id.t,
-    term,
+  include TermBase.UPat;
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
   };
 
-  let mk = (id, term): t => {id, term};
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
 
   let cls_of_term: term => cls =
     fun
@@ -169,98 +141,18 @@ module UPat = {
 };
 
 module UExp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_int =
-    | Minus;
+  include TermBase.UExp;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_bool =
-    | And
-    | Or;
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_int =
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_float =
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | GreaterThan
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un =
-    | Int(op_un_int);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin =
-    | Int(op_bin_int)
-    | Float(op_bin_float)
-    | Bool(op_bin_bool);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Triv
-    | Bool
-    | Int
-    | Float
-    | ListLit
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Ap
-    | If
-    | Seq
-    | Test
-    | Parens
-    | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(parse_flag, Piece.t)
-    | EmptyHole
-    | MultiHole(list(Id.t), list(t))
-    | Triv
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | ListLit(list(Id.t), list(t))
-    | Fun(UPat.t, t)
-    | Tuple(list(Id.t), list(t))
-    | Var(Token.t)
-    | Let(UPat.t, t, t)
-    | Ap(t, t)
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Parens(t)
-    | Cons(t, t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
-    | Match(list(Id.t), t, list((UPat.t, t)))
-  and t = {
-    id: Id.t,
-    term,
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
   };
-
-  let mk = (id, term): t => {id, term};
 
   let cls_of_term: term => cls =
     fun
@@ -361,35 +253,65 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(_, us) => Prod(List.map(utyp_to_ty, us))
+    | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
     };
 
+// TODO(d): consider just folding this into UExp
 module URul = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (UPat.t, UExp.t);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type s = {
-    ids: list(Id.t),
-    rules: list(t),
-  };
+  include TermBase.URul;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Rule;
 
-  let mks = (ids, rules): s => {ids, rules};
+  // example of awkwardness induced by having forms like rules
+  // that may have a different-sorted child with no delimiters
+  // (eg scrut with no rules)
+  let ids = (~any_ids, {ids, term}: t) =>
+    switch (ids) {
+    | [_, ..._] => ids
+    | [] =>
+      switch (term) {
+      | Hole([tm, ..._]) => any_ids(tm)
+      | Rules(scrut, []) => scrut.ids
+      | _ => []
+      }
+    };
 
-  let show_cls: cls => string = _ => "Rule";
+  let rep_id = (~any_ids, tm) =>
+    switch (ids(~any_ids, tm)) {
+    | [] => raise(Invalid_argument("Term.UExp.rep_id"))
+    | [id, ..._] => id
+    };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type any =
-  | Exp(UExp.t)
-  | Pat(UPat.t)
-  | Typ(UTyp.t)
-  | Rul(URul.s)
-  | Nul(unit)
-  | Any(unit);
+let rec ids =
+  fun
+  | Exp(tm) => tm.ids
+  | Pat(tm) => tm.ids
+  | Typ(tm) => tm.ids
+  | Rul(tm) => URul.ids(~any_ids=ids, tm)
+  | Nul ()
+  | Any () => [];
+
+// Terms may consist of multiple tiles, eg the commas in an n-tuple,
+// the rules of a case expression + the surrounding case-end tile,
+// the list brackets tile coupled with the elem-separating commas.
+// The _representative id_ is the canonical tile id used to identify
+// and look up info about a term.
+//
+// In instances like case expressions and list literals, where a parent
+// tile surrounds the other tiles, the representative id is the parent tile's.
+// In other instances like n-tuples, where the commas are all siblings,
+// the representative id is one of the comma ids, unspecified which one.
+// (This would change for n-tuples if we decided parentheses are necessary.)
+let rep_id =
+  fun
+  | Exp(tm) => UExp.rep_id(tm)
+  | Pat(tm) => UPat.rep_id(tm)
+  | Typ(tm) => UTyp.rep_id(tm)
+  | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
+  | Nul ()
+  | Any () => raise(Invalid_argument("Term.rep_id"));
