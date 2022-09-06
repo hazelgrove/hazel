@@ -119,12 +119,10 @@ let code_container =
   );
 };
 
-let cell_result_view = (~font_metrics, unselected) => {
-  let (term, _) = MakeTerm.go(unselected);
-  let map = Statics.mk_map(term);
-  switch (Interface.evaluation_result(map, term)) {
+let cell_result_view = (~font_metrics, res) => {
+  switch (get_results(res)) {
   | None => []
-  | Some(eval_result) => [
+  | Some((eval_result, _)) => [
       div(
         ~attr=clss(["cell-result"]),
         [res_view(~font_metrics, eval_result)],
@@ -158,7 +156,7 @@ let view =
       zipper,
     );
   let result_view =
-    !settings.dynamics ? [] : cell_result_view(~font_metrics, unselected);
+    !settings.dynamics ? [] : cell_result_view(~font_metrics, res);
   let cell_view =
     div(
       ~attr=clss(["cell-container"]),

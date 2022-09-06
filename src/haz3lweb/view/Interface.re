@@ -10,7 +10,7 @@ let elaborate = (map, term): DHExp.t =>
 
 exception EvalError(EvaluatorError.t);
 exception PostprocessError(EvaluatorPost.error);
-let eval =
+let evaluate =
   Core.Memo.general(
     ~cache_size_bound=1000,
     Evaluator.evaluate(Environment.empty),
@@ -55,7 +55,7 @@ let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 };
 
 let evaluate = (d: DHExp.t): ProgramResult.t =>
-  switch (eval(d)) {
+  switch (evaluate(d)) {
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (BoxedValue(d), es, hii);
