@@ -66,13 +66,16 @@ module Delim: {
 };
 
 let mk_EmptyHole:
-  (~selected: bool=?, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
+  (~selected: bool=?, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_ExpandingKeyword:
-  (MetaVar.t, MetaVarInst.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
+  (HoleInstance.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_InvalidText:
-  (string, (MetaVar.t, MetaVarInst.t)) => Pretty.Doc.t(DHAnnot.t);
+let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
+
+let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_TestLit: KeywordID.t => Pretty.Doc.t('a);
 
 let mk_IntLit: int => Pretty.Doc.t('a);
 
@@ -90,5 +93,3 @@ let mk_ListLit:
 let mk_Pair: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
-
-let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);

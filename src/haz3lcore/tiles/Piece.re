@@ -24,6 +24,16 @@ let sort =
     t => (t.mold.out, t.mold.in_),
   );
 
+let nibs =
+  get(
+    _ => None,
+    g => {
+      let (l, r) = Grout.shapes(g);
+      Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
+    },
+    t => Some(Tile.nibs(t)),
+  );
+
 let nib_sorts =
   get(
     _ => (Sort.Any, Sort.Any),
