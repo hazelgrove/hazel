@@ -1119,12 +1119,18 @@ svg.tile-selected {
   background-color: #f7ebc5; /*#fbebaa;*/
 }
 
+.lang-doc .example {
+  border-bottom: 1px dotted #a69461;
+}
+
 .lang-doc .example .code-text {
   position: relative;
 }
 
 .lang-doc .example .ex-result {
   display: flex;
+  align-items: center;
+  padding-top: 5px;
 }
 
 .lang-doc .code-container {
@@ -1160,6 +1166,16 @@ svg.tile-selected {
   /* border-right: 1px solid #daca9f; */
   background-color: #fbecaa; /*#fefcf3;*/
   align-items: center;
+}
+
+.lang-doc-button .icon {
+  background-color: #b69f79;
+  padding: 0.16em;
+  padding-left: 0.32em;
+  display: flex;
+  filter: invert(0.9) sepia(1);
+  border-radius: 1.1em 0 0 0;
+  /*border-radius: 0 0.3em 0.3em 0;*/
 }
 
 .lang-doc .section {
