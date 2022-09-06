@@ -620,6 +620,7 @@ let view =
       ~code_id="prelude",
       ~info_map=user_info_map,
       ed.prelude,
+      None,
     );
 
   let your_impl_view =
@@ -630,6 +631,7 @@ let view =
       ~code_id="your-impl",
       ~info_map=user_info_map,
       ed.your_impl,
+      None,
     );
 
   let your_tests_view =
@@ -640,6 +642,7 @@ let view =
       ~code_id="your-tests",
       ~info_map=user_info_map,
       ed.your_tests,
+      None,
     );
 
   let reference_impl_view =
@@ -650,6 +653,7 @@ let view =
       ~code_id="reference-impl",
       ~info_map=instructor_info_map,
       ed.reference_impl,
+      None,
     );
 
   let hidden_tests_view =
@@ -660,6 +664,7 @@ let view =
       ~code_id="hidden-tests",
       ~info_map=instructor_info_map,
       ed.hidden_tests.tests,
+      None,
     );
 
   let hidden_bugs_views =
@@ -675,6 +680,7 @@ let view =
           ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
           ~info_map,
           editor,
+          None,
         )
       },
       hidden_bugs_data,
@@ -728,7 +734,6 @@ let view =
     ~attr=Attr.classes(["editor", "column"]),
     [
       div(
-        ~attr=Attr.classes(["cell-container"]),
         [
           prompt_view,
           prelude_view,

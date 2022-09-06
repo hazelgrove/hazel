@@ -147,7 +147,10 @@ let editors_view =
   | Study(_) =>
     let result_key = Editors.get_result_key(editors);
     let editor = Editors.get_editor(editors);
-    let res = Model.get_result(result_key, model);
+    let simple_result =
+      settings.dynamics
+        ? Some(ModelResult.get_simple(Model.get_result(result_key, model)))
+        : None;
     SimpleMode.view(
       ~inject,
       ~font_metrics,
@@ -155,7 +158,7 @@ let editors_view =
       ~show_backpack_targets,
       ~settings,
       ~editor,
-      ~res,
+      ~simple_result,
     );
   | School(state) =>
     SchoolMode.view(

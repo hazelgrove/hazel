@@ -87,9 +87,10 @@ let cell_view =
               ),
             ),
           ]),
-        Option.to_list(caption) @ code @ result,
+        Option.to_list(caption) @ code,
       ),
-    ],
+    ]
+    @ result,
   );
 };
 
@@ -117,6 +118,28 @@ let deco =
   selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
 };
 
+let result_view = (~font_metrics, simple: ModelResult.simple) => {
+  let d_view =
+    switch (simple) {
+    | None => []
+    | Some((d, _)) => [
+        DHCode.view_tylr(
+          ~settings=Settings.Evaluation.init,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          d,
+        ),
+      ]
+    };
+  Node.(
+    div(
+      ~attr=Attr.classes(["cell-result"]),
+      [div(~attr=Attr.classes(["result"]), d_view)],
+    )
+  );
+};
+
 let editor_view =
     (
       ~inject,
@@ -131,9 +154,8 @@ let editor_view =
       ~code_id: string,
       ~info_map: Statics.map,
       editor: Editor.t,
+      simple_result: option(ModelResult.simple),
     ) => {
-  // result: option(DHExp.t),
-
   //~eval_result: option(option(DHExp.t))
 
   let zipper = editor.state.zipper;
@@ -157,6 +179,11 @@ let editor_view =
       ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
       [code_base_view] @ deco_view,
     );
+  let result_view =
+    switch (simple_result) {
+    | None => None
+    | Some(simple) => Some(result_view(~font_metrics, simple))
+    };
   cell_view(
     ~inject,
     ~font_metrics,
@@ -167,7 +194,7 @@ let editor_view =
     ~code_id,
     ~caption?,
     code_view,
-    None,
+    result_view,
   );
 };
 
@@ -175,4 +202,18 @@ let simple_caption = (caption: string) =>
   Node.div(
     ~attr=Attr.many([Attr.classes(["cell-caption"])]),
     [Node.text(caption)],
+  );
+
+let test_view =
+    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results)
+    : Node.t =>
+  Node.(
+    div(
+      ~attr=Attr.classes(["panel", "test-panel"]),
+      [
+        TestView.view_of_main_title_bar(title),
+        TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+        TestView.test_summary(~inject, ~test_results),
+      ],
+    )
   );
