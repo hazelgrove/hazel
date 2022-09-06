@@ -1232,6 +1232,25 @@ svg.expandable path {
   vector-effect: non-scaling-stroke;
 }
 
+.feedback {
+  display: flex;
+  padding-top: 10px;
+}
+
+.feedback .message {
+  font-size: smaller;
+  font-style: italic;
+}
+
+.feedback .option {
+  padding-left: 5px;
+  cursor: pointer;
+}
+
+.feedback .option.active {
+  background-color: #c7b480;
+}
+
 /* DYNAMICS */
 
 .cell-result {
