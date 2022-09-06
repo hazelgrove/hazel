@@ -40,7 +40,7 @@ type source = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(t)
-  | Joined(list(source))
+  | Joined(t => t, list(source))
   | Multi
   | Free;
 
@@ -120,6 +120,17 @@ let join_or_fst = (ty: t, ty': t): t =>
   | None => ty
   | Some(ty) => ty
   };
+
+let t_of_self =
+  fun
+  | Just(t) => t
+  | Joined(wrap, ss) =>
+    switch (ss |> List.map(s => s.ty) |> join_all) {
+    | None => Unknown(Internal)
+    | Some(t) => wrap(t)
+    }
+  | Multi
+  | Free => Unknown(Internal);
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
