@@ -44,3 +44,19 @@ let update_current = (current, res) => {
   let res = {...res, current};
   res;
 };
+
+let get_simple =
+    (res: option(t)): option((Haz3lcore.DHExp.t, Interface.test_results)) =>
+  res
+  |> Option.map(res =>
+       res |> get_current_ok |> Option.value(~default=get_previous(res))
+     )
+  |> Option.map(r => {
+       let eval_result = r |> ProgramResult.get_dhexp;
+       let test_results =
+         r
+         |> ProgramResult.get_state
+         |> Haz3lcore.EvaluatorState.get_tests
+         |> Interface.mk_results;
+       (eval_result, test_results);
+     });

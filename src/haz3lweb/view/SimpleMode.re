@@ -28,24 +28,6 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
     ],
   );
 
-let get_results =
-    (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
-  res
-  |> Option.map(res =>
-       res
-       |> ModelResult.get_current_ok
-       |> Option.value(~default=ModelResult.get_previous(res))
-     )
-  |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
-       let test_results =
-         r
-         |> ProgramResult.get_state
-         |> EvaluatorState.get_tests
-         |> Interface.mk_results;
-       (eval_result, test_results);
-     });
-
 let single_editor_semantics_views =
     (
       ~inject,
@@ -82,18 +64,6 @@ let single_editor_semantics_views =
   );
 };
 
-let cell_result_view = (~font_metrics, res) => {
-  switch (get_results(res)) {
-  | None => []
-  | Some((eval_result, _)) => [
-      div(
-        ~attr=clss(["cell-result"]),
-        [res_view(~font_metrics, eval_result)],
-      ),
-    ]
-  };
-};
-
 let view =
     (
       ~inject,
@@ -109,8 +79,9 @@ let view =
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
   let code_id = "code-container";
-  // let _result_view =
-  // !settings.dynamics ? [] : cell_result_view(~font_metrics);
+  let simple_result = ModelResult.get_simple(res);
+  let result_view =
+    !settings.dynamics ? [] : Cell.result_view(~font_metrics, simple_result);
   let editor_view =
     Cell.editor_view(
       ~inject,
@@ -124,8 +95,6 @@ let view =
       ~info_map,
       editor,
     );
-  let result_view =
-    !settings.dynamics ? [] : cell_result_view(~font_metrics, res);
   let cell_view =
     div(~attr=clss(["cell-container"]), [editor_view] @ result_view);
   let semantics_views =
