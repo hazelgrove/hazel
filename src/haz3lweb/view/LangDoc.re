@@ -465,6 +465,7 @@ let get_doc =
     | Parens(_uexp) => default
     | Cons(hd, tl) =>
       let doc = LangDocMessages.get_form("cons_exp", docs.forms);
+      // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
       let (explanation, color_map) =
         mk_explanation(
           ~inject,
