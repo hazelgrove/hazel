@@ -14,6 +14,14 @@ update-ocaml:
 	opam switch import opam.export --update-invariant
 
 dev:
+	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
+	make dev-helper
+
+dev-student:
+	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
+	make dev-helper
+
+dev-helper:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
@@ -21,6 +29,14 @@ watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
 release:
+	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
+	make release-helper
+
+release-student:
+	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
+	make release-helper
+
+release-helper:
 	dune build src --profile release
 
 echo-html-dir:
