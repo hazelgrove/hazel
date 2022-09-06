@@ -1,5 +1,6 @@
 HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
 HTML_FILE=$(HTML_DIR)/index.html
+SERVER="http://localhost:8000/"
 
 all: dev
 
@@ -10,6 +11,7 @@ change-deps:
 	opam switch export opam.export
 
 update-ocaml:
+	opam update
 	opam switch create 4.14 ocaml-base-compiler.4.14.0
 	opam switch import opam.export --update-invariant
 
@@ -19,6 +21,9 @@ dev:
 
 watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
+
+watch-release:
+	dune build @src/fmt --auto-promote src --profile release --watch
 
 release:
 	dune build src --profile release
@@ -55,6 +60,9 @@ xdg-open:
 
 open:
 	open "$(HTML_FILE)"
+
+serve:
+	cd $(HTML_DIR); python3 -m http.server 8000
 
 repl:
 	dune utop src/hazelcore
