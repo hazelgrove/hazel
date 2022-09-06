@@ -54,15 +54,21 @@ let cell_view =
       ~selected: bool,
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
-      ~show_code: bool,
       ~code_id: string,
       ~caption: option(Node.t)=?,
       code: Node.t,
+      result: option(Node.t),
     )
     : Node.t => {
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
+  let code = mousedown_overlay @ [code];
+  let result =
+    switch (result) {
+    | None => []
+    | Some(node) => [node]
+    };
   Node.div(
     ~attr=Attr.class_("cell-container"),
     [
@@ -81,8 +87,7 @@ let cell_view =
               ),
             ),
           ]),
-        Option.to_list(caption)
-        @ (show_code ? mousedown_overlay @ [code] : []),
+        Option.to_list(caption) @ code @ result,
       ),
     ],
   );
@@ -127,6 +132,8 @@ let editor_view =
       ~info_map: Statics.map,
       editor: Editor.t,
     ) => {
+  // result: option(DHExp.t),
+
   //~eval_result: option(option(DHExp.t))
 
   let zipper = editor.state.zipper;
@@ -158,9 +165,9 @@ let editor_view =
     ~mousedown,
     ~mousedown_updates,
     ~code_id,
-    ~show_code=true,
     ~caption?,
     code_view,
+    None,
   );
 };
 
