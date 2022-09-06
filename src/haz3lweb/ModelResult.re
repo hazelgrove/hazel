@@ -21,6 +21,16 @@ let put_previous = (previous, cr) => {...cr, previous};
 let get_previous_dhexp = cr => cr |> get_previous |> ProgramResult.get_dhexp;
 
 let get_current = ({current, _}) => current;
+let get_current_ok = res =>
+  res
+  |> get_current
+  |> (
+    fun
+    | ResultOk(r) => Some(r)
+    | ResultFail(_)
+    | ResultTimeout
+    | ResultPending => None
+  );
 
 let update_current = (current, res) => {
   let res =

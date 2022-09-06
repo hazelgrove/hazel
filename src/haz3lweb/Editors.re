@@ -22,6 +22,10 @@ type mode =
   | Study
   | School;
 
+let simple_result_key = "simple";
+let study_result_key = "study";
+let school_result_key = "school";
+
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
   | Simple(editor) => editor
@@ -46,13 +50,22 @@ let put_editor = (ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let get_spliced_segs: t => list((ModelResults.Key.t, Segment.t)) =
+let get_result_key: t => ModelResults.key =
   fun
-  | Simple(ed) => [("simple", Editor.get_seg(ed))]
-  | Study(n, eds) => [("study", Editor.get_seg(List.nth(eds, n)))]
+  | Simple(_) => simple_result_key
+  | Study(_) => study_result_key
+  | School(_) => school_result_key;
+
+let get_spliced_segs = (editors: t): list((ModelResults.key, Segment.t)) => {
+  let result_key = get_result_key(editors);
+  switch (editors) {
+  | Simple(ed) => [(result_key, Editor.get_seg(ed))]
+  | Study(n, eds) => [(result_key, Editor.get_seg(List.nth(eds, n)))]
   | School(_, eds) =>
     // TODO(cyrus) replace placeholder
-    [("school", Editor.get_seg(List.hd(eds)))];
+    [(result_key, Editor.get_seg(List.hd(eds)))]
+  };
+};
 
 let get_spliced_elabs = eds =>
   eds
