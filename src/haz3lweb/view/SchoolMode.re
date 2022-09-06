@@ -489,7 +489,7 @@ let view =
           | 0 => [
               cell_view(
                 ~result_bar=student_imp_res_view,
-                ~overlays=color_highlight_overlay,
+                ~overlays=selected == i ? color_highlight_overlay : [],
                 i,
                 ed,
               ),
@@ -500,7 +500,9 @@ let view =
                 ~result_bar=[
                   div(~attr=clss(["cell", "cell-result"]), your_tests_view),
                 ],
-                ~overlays=your_tests_layer,
+                ~overlays=
+                  your_tests_layer
+                  @ (selected == i ? color_highlight_overlay : []),
                 i,
                 ed,
               ),
