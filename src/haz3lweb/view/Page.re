@@ -68,9 +68,13 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
     div(
       ~attr=id,
       [
-        div(~attr=toggle_mode, [text("School")]),
-        toggle("🎓", model.settings.student, _ => inject(Set(Student))),
-      ],
+        div(~attr=toggle_mode, [text("School")])
+      ]
+        @ if (SchoolSettings.show_instructor) {
+          [ toggle("🎓", model.settings.student, _ => inject(Set(Student))) ]
+        } else {
+          []
+        }
     )
   | Study(_) =>
     let cur_idx = Model.current_editor(model);
