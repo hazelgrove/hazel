@@ -458,7 +458,13 @@ module Trim = {
     };
 
   let regrout =
-      (~caret: option(int)=?, (l, r): Nibs.t, trim: t, s: Sort.t)
+      (
+        ~lint=true,
+        ~caret: option(int)=?,
+        (l, r): Nibs.t,
+        trim: t,
+        s: Sort.t,
+      )
       : IdGen.t((int, t)) => {
     // index each element of the original trim to determine change
     // in caret index after regrouting
@@ -475,7 +481,9 @@ module Trim = {
     let+ new_gs = Grout.mk((l, r), s);
     let (remaining_gs, new_itrim) =
       itrim
-      |> Aba.map_a(List.filter(((_, w)) => Whitespace.is_linebreak(w)))
+      |> Aba.map_a(
+           List.filter(((_, w)) => !lint || Whitespace.is_linebreak(w)),
+         )
       |> Aba.fold_left_map(
            ws => (new_gs, ws),
            (new_gs, (i, _), ws) =>

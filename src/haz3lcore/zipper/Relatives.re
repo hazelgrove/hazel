@@ -73,7 +73,8 @@ let regrout = (_d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
       Siblings.regrout(siblings, s);
     let caret = Segment.Trim.length(trim_l);
     let trim = Segment.Trim.append(trim_l, trim_r);
-    let+ (caret, trim) = Segment.Trim.regrout(~caret, (s_l, s_r), trim, s);
+    let+ (caret, trim) =
+      Segment.Trim.regrout(~lint=false, ~caret, (s_l, s_r), trim, s);
     let (trim_l, trim_r) =
       Segment.Trim.to_seg(trim) |> ListUtil.split_n(caret);
     // let+ (trim_l, trim_r) = {
