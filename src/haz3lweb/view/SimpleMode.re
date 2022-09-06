@@ -3,31 +3,7 @@ open Node;
 open Haz3lcore;
 open Util.Web;
 
-let test_view =
-    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results): t =>
-  div(
-    ~attr=clss(["panel", "test-panel"]),
-    [
-      TestView.view_of_main_title_bar(title),
-      TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
-      TestView.test_summary(~inject, ~test_results),
-    ],
-  );
-
-let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
-  div(
-    ~attr=Attr.classes(["result"]),
-    [
-      DHCode.view_tylr(
-        ~settings=Settings.Evaluation.init,
-        ~selected_hole_instance=None,
-        ~font_metrics,
-        ~width=80,
-        eval_result,
-      ),
-    ],
-  );
-
+// TODO move into a module
 let single_editor_semantics_views =
     (
       ~inject,
@@ -35,33 +11,25 @@ let single_editor_semantics_views =
       ~settings: Model.settings,
       ~index,
       ~unselected,
-      ~res,
+      //~simple_result: option(ModelResult.simple),
+      ~info_map: Statics.map,
     ) => {
-  let (term, _) = MakeTerm.go(unselected);
-  let map = Statics.mk_map(term);
-  let results = settings.dynamics ? get_results(res) : None;
   [
     div(
       ~attr=clss(["bottom-bar"]),
-      [CursorInspector.view(~inject, ~settings, index, map)]
-      @ (
-        switch (results) {
-        | _ when !settings.dynamics => []
-        | None => []
-        | Some((eval_result, _)) => [res_view(~font_metrics, eval_result)]
-        }
-      ),
+      [CursorInspector.view(~inject, ~settings, index, info_map)],
     ),
-  ]
-  @ (
-    switch (results) {
-    | _ when !settings.dynamics => []
-    | None => []
-    | Some((_, test_results)) => [
-        test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
-      ]
-    }
-  );
+    // TODO
+    // @ (
+    //   switch (results) {
+    //   | _ when !settings.dynamics => []
+    //   | None => []
+    //   | Some((_, test_results)) => [
+    //       test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
+    //     ]
+    //   }
+    // );
+  ];
 };
 
 let view =
@@ -72,16 +40,13 @@ let view =
       ~mousedown,
       ~editor: Editor.t,
       ~settings: Model.settings,
-      ~res: option(ModelResult.t),
+      ~simple_result: option(ModelResult.simple),
     ) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
   let code_id = "code-container";
-  let simple_result = ModelResult.get_simple(res);
-  let result_view =
-    !settings.dynamics ? [] : Cell.result_view(~font_metrics, simple_result);
   let editor_view =
     Cell.editor_view(
       ~inject,
@@ -94,9 +59,8 @@ let view =
       ~settings,
       ~info_map,
       editor,
+      simple_result,
     );
-  let cell_view =
-    div(~attr=clss(["cell-container"]), [editor_view] @ result_view);
   let semantics_views =
     settings.statics
       ? single_editor_semantics_views(
@@ -105,8 +69,9 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
-          ~res,
+          // ~simple_result,
+          ~info_map,
         )
       : [];
-  div(~attr=clss(["editor", "single"]), [cell_view] @ semantics_views);
+  div(~attr=clss(["editor", "single"]), [editor_view] @ semantics_views);
 };

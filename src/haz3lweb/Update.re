@@ -101,7 +101,13 @@ let load_editor = (model: Model.t): Model.t => {
       let (id_gen, state) = LocalStorage.load_school();
       {...model, id_gen, editors: School(state)};
     };
-  {...m, results: ModelResults.init(Editors.get_spliced_elabs(m.editors))};
+  {
+    ...m,
+    results:
+      ModelResults.init(
+        model.settings.dynamics ? Editors.get_spliced_elabs(m.editors) : [],
+      ),
+  };
 };
 
 let load_default_editor = (model: Model.t): Model.t =>
@@ -162,22 +168,24 @@ let reevaluate_post_update =
 
 let evaluate_and_schedule =
     (state: State.t, ~schedule_action, model: Model.t): Model.t => {
-  Editors.get_spliced_elabs(model.editors)
-  |> List.iter(((key, d)) => {
-       /* Send evaluation request. */
-       let pushed = State.evaluator_next(state, key, d);
+  if (model.settings.dynamics) {
+    Editors.get_spliced_elabs(model.editors)
+    |> List.iter(((key, d)) => {
+         /* Send evaluation request. */
+         let pushed = State.evaluator_next(state, key, d);
 
-       /* Set evaluation to pending after short timeout. */
-       /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-        * updated before below action is scheduled. */
-       Delay.delay(
-         () =>
-           if (pushed |> Lwt.is_sleeping) {
-             schedule_action(UpdateResult(key, ResultPending));
-           },
-         300,
-       );
-     });
+         /* Set evaluation to pending after short timeout. */
+         /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
+          * updated before below action is scheduled. */
+         Delay.delay(
+           () =>
+             if (pushed |> Lwt.is_sleeping) {
+               schedule_action(UpdateResult(key, ResultPending));
+             },
+           300,
+         );
+       });
+  };
   model;
 };
 

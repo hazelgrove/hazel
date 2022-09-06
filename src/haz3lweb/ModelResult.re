@@ -45,8 +45,9 @@ let update_current = (current, res) => {
   res;
 };
 
-let get_simple =
-    (res: option(t)): option((Haz3lcore.DHExp.t, Interface.test_results)) =>
+type simple = option((Haz3lcore.DHExp.t, Interface.test_results));
+
+let get_simple = (res: option(t)): simple =>
   res
   |> Option.map(res =>
        res |> get_current_ok |> Option.value(~default=get_previous(res))
