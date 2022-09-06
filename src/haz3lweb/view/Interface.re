@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Sexplib.Std;
 
 exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
@@ -69,6 +70,7 @@ let evaluation_result = (map, term): option(DHExp.t) =>
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type test_results = {
   test_map: TestMap.t,
   statuses: list(TestStatus.t),

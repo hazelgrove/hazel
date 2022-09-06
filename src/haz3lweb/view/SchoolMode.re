@@ -344,17 +344,20 @@ let view =
   let your_test_results = {
     let* (_, your_tests, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(your_tests);
+    /* FIXME: Replace call with use of model. */
     Interface.test_results(map, term);
   };
   let our_test_results = {
     let* (_, _, our_tests, _, _) = school_view_data;
     let (term, map) = spliced_statics(our_tests);
     let descriptions = School.hidden_test_descriptions;
+    /* FIXME: Replace call with use of model. */
     Interface.test_results(~descriptions, map, term);
   };
   let first_cell_res = {
     let* (statics_impl, _, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(statics_impl);
+    /* FIXME: Replace call with use of model. */
     Interface.evaluation_result(map, term);
   };
   let student_imp_res_view =

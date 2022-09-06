@@ -102,3 +102,6 @@ let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
     );
   (id_gen, 0, List.map(Editor.init, zs));
 };
+
+let get_result = (key: ModelResults.key, model: t): option(ModelResult.t) =>
+  ModelResults.find_opt(key, model.results);
