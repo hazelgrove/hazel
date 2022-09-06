@@ -1,6 +1,5 @@
 HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
-HTML_FILE=$(HTML_DIR)/index.html
-SERVER="http://localhost:8000/"
+SERVER="http://0.0.0.0:8000/"
 
 all: dev
 
@@ -30,36 +29,6 @@ release:
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
-
-echo-html:
-	@echo "$(HTML_FILE)"
-
-win-chrome:
-	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
-
-win-firefox:
-	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"
-
-firefox:
-	firefox "$(HTML_FILE)" &
-
-chrome:
-	chrome "$(HTML_FILE)" &
-
-chrome-browser:
-	chrome-browser "$(HTML_FILE)" &
-
-chromium:
-	chromium "$(HTML_FILE)" &
-
-chromium-browser:
-	chromium-browser "$(HTML_FILE)" &
-
-xdg-open:
-	xdg-open "$(HTML_FILE)"
-
-open:
-	open "$(HTML_FILE)"
 
 serve:
 	cd $(HTML_DIR); python3 -m http.server 8000
