@@ -58,3 +58,29 @@ let merge = (gs: list(t)): option(t) =>
     | Some((_, ft)) => hd.shape == ft.shape ? Some(hd) : None
     }
   };
+
+let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
+  open IdGen.Syntax;
+  let* (l_hole, l_shape) =
+    switch (l) {
+    | {shape: Concave(_), sort} when sort != s && sort != r.sort =>
+      let+ id = IdGen.fresh;
+      ([{id, shape: Convex}], Nib.Shape.Convex);
+    | _ => return(([], l.shape))
+    };
+  let* (r_shape, r_hole) =
+    switch (r) {
+    | {shape: Concave(_), sort} when sort != s && sort != l.sort =>
+      let+ id = IdGen.fresh;
+      (Nib.Shape.Convex, [{id, shape: Convex}]);
+    | _ => return((r.shape, []))
+    };
+  let+ mid_hole =
+    Nib.Shape.fits(l_shape, r_shape)
+      ? return([])
+      : {
+        let+ g = mk_fits_shape(l_shape);
+        [g];
+      };
+  List.concat([l_hole, mid_hole, r_hole]);
+};

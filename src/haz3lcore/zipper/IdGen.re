@@ -29,4 +29,5 @@ let bind: (t('a), 'a => t('b)) => t('b) =
 module Syntax = {
   let ( let* ) = bind;
   let (let+) = (ig, f) => map(f, ig);
+  let return = return;
 };

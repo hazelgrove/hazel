@@ -1,5 +1,7 @@
 open Sexplib.Std;
 
+exception Invalid;
+
 // invariant: List.length(as) == List.length(bs) + 1
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a, 'b) = (list('a), list('b));
@@ -125,3 +127,15 @@ let fold_right =
   let (as_, a) = ListUtil.split_last(as_);
   List.fold_right2(f_ab, as_, bs, f_a(a));
 };
+
+let append =
+    (f: ('a, 'a) => 'a, aba1: t('a, 'b), aba2: t('a, 'b)): t('a, 'b) =>
+  aba1
+  |> fold_right(
+       (a1, b1, (as_, bs)) => ([a1, ...as_], [b1, ...bs]),
+       a1 =>
+         switch (aba2) {
+         | ([a2, ...as_], bs) => ([f(a1, a2), ...as_], bs)
+         | _ => raise(Invalid)
+         },
+     );

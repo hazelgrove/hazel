@@ -344,6 +344,11 @@ module Trim = {
 
   let rev = Aba.rev(List.rev, Fun.id);
 
+  let length = trim =>
+    trim |> Aba.join(List.length, _ => 1) |> List.fold_left((+), 0);
+
+  let append: (t, t) => t = Aba.append((@));
+
   let cons_w = (w: Whitespace.t, (wss, gs)) => {
     // safe bc Aba always has at least one A element
     let (ws, wss) = ListUtil.split_first(wss);
@@ -407,7 +412,7 @@ module Trim = {
   };
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
+  let _regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
       /* Convert unneeded grout to spaces. Note that changes made
@@ -451,21 +456,81 @@ module Trim = {
       };
     };
 
+  let regrout =
+      (~caret: option(int)=?, (l, r): Nibs.t, trim: t, s: Sort.t)
+      : IdGen.t((int, t)) => {
+    // index each element of the original trim to determine change
+    // in caret index after regrouting
+    let (_, itrim) =
+      trim
+      |> Aba.fold_left_map(
+           ws => (List.length(ws), List.mapi((i, w) => (i, w), ws)),
+           (i, g, ws) => {
+             let n = List.length(ws);
+             (i + 1 + n, (i, g), List.mapi((j, w) => (i + 1 + j, w), ws));
+           },
+         );
+    open IdGen.Syntax;
+    let+ new_gs = Grout.mk((l, r), s);
+    let (remaining_gs, new_itrim) =
+      itrim
+      |> Aba.map_a(List.filter(((_, w)) => Whitespace.is_linebreak(w)))
+      |> Aba.fold_left_map(
+           ws => (new_gs, ws),
+           (new_gs, (i, _), ws) =>
+             switch (new_gs) {
+             | [] => ([], None, ws)
+             | [hd, ...tl] => (tl, Some((i, hd)), ws)
+             },
+         );
+    let new_itrim: Aba.t(list((int, Whitespace.t)), (int, Grout.t)) =
+      new_itrim
+      |> Aba.fold_right(
+           (ws, g, trim) =>
+             switch (g, trim) {
+             | (None, ([hd, ...tl], gs)) => Aba.mk([ws @ hd, ...tl], gs)
+             | (Some(g), _) => Aba.cons([], g, trim)
+             | _ => failwith("unexpected")
+             },
+           ws => Aba.mk([ws], []),
+         );
+
+    let lt_caret = i =>
+      switch (caret) {
+      | None => false
+      | Some(j) => i < j
+      };
+    let caret =
+      new_itrim
+      |> Aba.map_a(List.map(((i, _)) => lt_caret(i) ? 1 : 0))
+      |> Aba.map_b(((i, _)) => lt_caret(i) ? 1 : 0)
+      |> Aba.join(List.fold_left((+), 0), Fun.id)
+      |> List.fold_left((+), 0);
+
+    let new_trim = new_itrim |> Aba.map_a(List.map(snd)) |> Aba.map_b(snd);
+
+    let new_trim_with_extra_gs =
+      remaining_gs
+      |> List.fold_left((trim, g) => Aba.snoc(trim, g, []), new_trim);
+
+    (caret, new_trim_with_extra_gs);
+  };
+
   let to_seg = (trim: t) =>
     trim
     |> Aba.join(List.map(Piece.whitespace), g => [Piece.Grout(g)])
     |> List.concat;
 };
 
-let rec regrout = ((l, r), seg) => {
+let rec regrout = ((l, r): Nibs.t, seg, s: Sort.t) => {
   open IdGen.Syntax;
-  let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let+ trim = Trim.regrout((l, r), trim);
+  let* (trim, r, tl) = regrout_affix(Direction.Right, seg, r, s);
+  let+ (_, trim) = Trim.regrout((l, r), trim, s);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
-    (d: Direction.t, affix: t, r: Nib.Shape.t)
-    : IdGen.t((Trim.t, Nib.Shape.t, t)) => {
+    (d: Direction.t, affix: t, r: Nib.t, s: Sort.t)
+    : IdGen.t((Trim.t, Nib.t, t)) => {
   open IdGen.Syntax;
   let+ (trim, s, affix) =
     fold_right(
@@ -477,18 +542,20 @@ and regrout_affix =
         | Tile(t) =>
           let* children =
             List.fold_right(
-              (hd, tl) => {
+              ((s, hd), tl) => {
                 let* tl = tl;
-                let+ hd = regrout(Nib.Shape.(concave(), concave()), hd);
+                let nib = Nib.{sort: s, shape: Shape.concave()};
+                let+ hd = regrout((nib, nib), hd, s);
                 [hd, ...tl];
               },
-              t.children,
+              Tile.sorted_children(t),
               IdGen.return([]),
             );
           let p = Piece.Tile({...t, children});
           let (l', r') =
-            Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let+ trim = Trim.regrout((r', r), trim);
+            Tile.nibs(t) |> (d == Left ? TupleUtil.swap : Fun.id);
+          // TODO consider reversing trim + nibs to ensure consistent grout insertion behavior
+          let+ (_, trim) = Trim.regrout((r', r), trim, s);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         };
       },
