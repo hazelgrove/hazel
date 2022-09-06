@@ -28,7 +28,17 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
     ],
   );
 
-let get_results =
+let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
+  let eval_result = r |> ProgramResult.get_dhexp;
+  let test_results =
+    r
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> Interface.mk_results;
+  (eval_result, test_results);
+};
+
+let get_async_results =
     (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
   res
   |> Option.map(res =>
@@ -36,15 +46,10 @@ let get_results =
        |> ModelResult.get_current_ok
        |> Option.value(~default=ModelResult.get_previous(res))
      )
-  |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
-       let test_results =
-         r
-         |> ProgramResult.get_state
-         |> EvaluatorState.get_tests
-         |> Interface.mk_results;
-       (eval_result, test_results);
-     });
+  |> Option.map(mk_results);
+
+let get_sync_results = (map, term) =>
+  Interface.get_result(map, term) |> mk_results |> Option.some;
 
 let single_editor_semantics_views =
     (
@@ -57,14 +62,17 @@ let single_editor_semantics_views =
     ) => {
   let (term, _) = MakeTerm.go(unselected);
   let map = Statics.mk_map(term);
-  let results = settings.dynamics ? get_results(res) : None;
+  let results =
+    settings.dynamics
+      ? settings.async_evaluation
+          ? get_async_results(res) : get_sync_results(map, term)
+      : None;
   [
     div(
       ~attr=clss(["bottom-bar"]),
       [CursorInspector.view(~inject, ~settings, index, map)]
       @ (
         switch (results) {
-        | _ when !settings.dynamics => []
         | None => []
         | Some((eval_result, _)) => [res_view(~font_metrics, eval_result)]
         }
@@ -73,7 +81,6 @@ let single_editor_semantics_views =
   ]
   @ (
     switch (results) {
-    | _ when !settings.dynamics => []
     | None => []
     | Some((_, test_results)) => [
         test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
@@ -120,7 +127,7 @@ let code_container =
 };
 
 let cell_result_view = (~font_metrics, res) => {
-  switch (get_results(res)) {
+  switch (get_async_results(res)) {
   | None => []
   | Some((eval_result, _)) => [
       div(
