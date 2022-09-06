@@ -400,13 +400,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s =
-             l + 1 == r
-               ? List.nth(mold.in_, l)
-               : {
-                 print_endline("0");
-                 Sort.Any;
-               };
+           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
            go_s(s, Segment.skel(kid), kid);
          })
     };
@@ -421,13 +415,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     |> Aba.map_abas(((p_l, kid, p_r)) => {
          let (_, s_l) = Piece.nib_sorts(p_l);
          let (s_r, _) = Piece.nib_sorts(p_r);
-         let s =
-           s_l == s_r
-             ? s_l
-             : {
-               print_endline("1");
-               Sort.Any;
-             };
+         let s = s_l == s_r ? s_l : Sort.Any;
          go_s(s, kid, seg);
        })
     |> Aba.map_a(p
