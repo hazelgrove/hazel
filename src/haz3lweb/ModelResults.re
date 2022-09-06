@@ -10,6 +10,7 @@ module Key = {
 module M = Util.MapUtil.Make(Key);
 include M;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
 let init = (ds: list((Key.t, DHExp.t))): t =>
