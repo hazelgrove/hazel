@@ -338,6 +338,7 @@ let children = seg => List.map(snd, sorted_children(seg));
 
 module Trim = {
   type seg = t;
+  [@deriving show({with_path: false})]
   type t = Aba.t(list(Whitespace.t), Grout.t);
 
   let empty = Aba.mk([[]], []);
@@ -489,7 +490,7 @@ module Trim = {
            (ws, g, trim) =>
              switch (g, trim) {
              | (None, ([hd, ...tl], gs)) => Aba.mk([ws @ hd, ...tl], gs)
-             | (Some(g), _) => Aba.cons([], g, trim)
+             | (Some(g), _) => Aba.cons(ws, g, trim)
              | _ => failwith("unexpected")
              },
            ws => Aba.mk([ws], []),

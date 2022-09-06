@@ -139,3 +139,13 @@ let append =
          | _ => raise(Invalid)
          },
      );
+
+let iter = (f_a: 'a => unit, f_b: 'b => unit, aba: t('a, 'b)): unit =>
+  aba
+  |> fold_left(
+       f_a,
+       ((), b, a) => {
+         f_b(b);
+         f_a(a);
+       },
+     );
