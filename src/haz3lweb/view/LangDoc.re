@@ -256,7 +256,7 @@ let deco =
       ~doc: LangDocMessages.t,
       ~settings,
       ~colorings,
-      ~expandable,
+      ~expandable: option(Id.t),
       ~unselected,
       ~map,
       ~inject,
@@ -276,66 +276,73 @@ let deco =
     });
 
   let term_lang_doc =
-    Deco.term_decoration(
-      ~id=expandable,
-      ((origin, path)) => {
-        let specificity_pos =
-          Printf.sprintf(
-            "position: absolute; top: %fpx;",
-            font_metrics.row_height,
-          );
+    switch (expandable) {
+    | None => []
+    | Some(expandable) => [
+        Deco.term_decoration(
+          ~id=expandable,
+          ((origin, path)) => {
+            let specificity_pos =
+              Printf.sprintf(
+                "position: absolute; top: %fpx;",
+                font_metrics.row_height,
+              );
 
-        let specificity_style =
-          Attr.create(
-            "style",
-            specificity_pos
-            ++ (doc.specificity_open ? "transform: scaleY(1);" : ""),
-          );
+            let specificity_style =
+              Attr.create(
+                "style",
+                specificity_pos
+                ++ (doc.specificity_open ? "transform: scaleY(1);" : ""),
+              );
 
-        let specificity_menu =
-          Node.div(
-            ~attr=
-              Attr.many([
-                clss(["specificity-options-menu", "expandable"]),
-                specificity_style,
-              ]),
-            List.map(
-              ((id, segment)) => {
-                let map = Measured.of_segment(segment);
-                let code_view =
-                  Code.simple_view(~unselected=segment, ~map, ~settings);
-                id == form_id
-                  ? Node.div(~attr=clss(["selected"]), [code_view])
-                  : Node.div([code_view]);
-              },
-              options,
-            ),
-          );
-        let expandable_deco =
-          DecUtil.code_svg(
-            ~font_metrics,
-            ~origin,
-            ~base_cls=["expandable"],
-            ~abs_pos=false,
-            path,
-          );
-        Node.div(
-          ~attr=
-            Attr.many([
-              clss(["expandable-target"]),
-              DecUtil.abs_position(~font_metrics, origin),
-              Attr.on_click(_ => {
-                inject(
-                  Update.UpdateLangDocMessages(
-                    LangDocMessages.SpecificityOpen(!doc.specificity_open),
-                  ),
-                )
-              }),
-            ]),
-          [expandable_deco, specificity_menu],
-        );
-      },
-    );
+            let specificity_menu =
+              Node.div(
+                ~attr=
+                  Attr.many([
+                    clss(["specificity-options-menu", "expandable"]),
+                    specificity_style,
+                  ]),
+                List.map(
+                  ((id, segment)) => {
+                    let map = Measured.of_segment(segment);
+                    let code_view =
+                      Code.simple_view(~unselected=segment, ~map, ~settings);
+                    id == form_id
+                      ? Node.div(~attr=clss(["selected"]), [code_view])
+                      : Node.div([code_view]);
+                  },
+                  options,
+                ),
+              );
+            let expandable_deco =
+              DecUtil.code_svg(
+                ~font_metrics,
+                ~origin,
+                ~base_cls=["expandable"],
+                ~abs_pos=false,
+                path,
+              );
+            Node.div(
+              ~attr=
+                Attr.many([
+                  clss(["expandable-target"]),
+                  DecUtil.abs_position(~font_metrics, origin),
+                  Attr.on_click(_ => {
+                    inject(
+                      Update.UpdateLangDocMessages(
+                        LangDocMessages.SpecificityOpen(
+                          !doc.specificity_open,
+                        ),
+                      ),
+                    )
+                  }),
+                ]),
+              [expandable_deco, specificity_menu],
+            );
+          },
+        ),
+      ]
+    };
 
   let color_highlight =
     if (doc.highlight) {
@@ -348,7 +355,7 @@ let deco =
       [];
     };
   let _ = inject;
-  color_highlight @ [term_lang_doc];
+  color_highlight @ term_lang_doc;
 };
 
 let syntactic_form_view =
@@ -443,6 +450,47 @@ let get_doc =
     (text("No explanation available"), ColorSteps.empty),
     text("No examples available"),
   );
+  let get_message =
+      (doc: LangDocMessages.form, options, explanation_msg, colorings) => {
+    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+    let (explanation, color_map) =
+      mk_explanation(
+        ~inject,
+        doc.id,
+        doc.explanation,
+        explanation_msg,
+        docs.highlight,
+      );
+    let syntactic_form_view =
+      syntactic_form_view(
+        ~doc=docs,
+        ~colorings=
+          List.map(
+            ((syntactic_form_id: int, code_id: int)) => {
+              let (color, _) = ColorSteps.get_color(code_id, color_map);
+              (syntactic_form_id, color);
+            },
+            colorings,
+          ),
+        ~expandable=doc.expandable_id,
+        ~inject,
+        ~font_metrics,
+        ~unselected=doc.syntactic_form,
+        ~settings,
+        ~id="syntactic-form-code",
+        ~options,
+        ~form_id=doc.id,
+      );
+    let example_view =
+      example_view(
+        ~inject,
+        ~font_metrics,
+        ~settings,
+        ~id=doc.id,
+        ~examples=doc.examples,
+      );
+    (syntactic_form_view, (explanation, color_map), example_view);
+  };
   switch (info) {
   | Some(InfoExp({term, _})) =>
     switch (term.term) {
@@ -464,49 +512,21 @@ let get_doc =
     | Test(_uexp) => default
     | Parens(_uexp) => default
     | Cons(hd, tl) =>
-      let doc = LangDocMessages.get_form("cons_exp", docs.forms);
-      // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
-      let (explanation, color_map) =
-        mk_explanation(
-          ~inject,
-          doc.id,
-          doc.explanation,
-          Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            List.nth(hd.ids, 0),
-            List.nth(tl.ids, 0),
-          ),
-          docs.highlight,
-        );
-      let (left_color, _) =
-        ColorSteps.get_color(List.nth(hd.ids, 0), color_map);
-      let (right_color, _) =
-        ColorSteps.get_color(List.nth(tl.ids, 0), color_map);
-      let syntactic_form_view =
-        syntactic_form_view(
-          ~doc=docs,
-          ~colorings=[
-            (Piece.id(List.nth(doc.syntactic_form, 0)), left_color),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), right_color),
-          ],
-          ~expandable=doc.expandable_id,
-          ~inject,
-          ~font_metrics,
-          ~unselected=doc.syntactic_form,
-          ~settings,
-          ~id="syntactic-form-code",
-          ~options=doc.options,
-          ~form_id=doc.id,
-        );
-      let example_view =
-        example_view(
-          ~inject,
-          ~font_metrics,
-          ~settings,
-          ~id=doc.id,
-          ~examples=doc.examples,
-        );
-      (syntactic_form_view, (explanation, color_map), example_view);
+      let (doc, options) =
+        LangDocMessages.get_form_and_options("cons_exp", docs);
+      get_message(
+        doc,
+        options,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          List.nth(hd.ids, 0),
+          List.nth(tl.ids, 0),
+        ),
+        [
+          (Piece.id(List.nth(doc.syntactic_form, 0)), List.nth(hd.ids, 0)),
+          (Piece.id(List.nth(doc.syntactic_form, 2)), List.nth(tl.ids, 0)),
+        ],
+      );
     | UnOp(_op, _uexp) => default
     | BinOp(_op, _left, _right) => default
     | Match(_scrut, _rules) => default

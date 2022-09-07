@@ -25,10 +25,15 @@ type explanation = {
 type form = {
   id: string,
   syntactic_form: Segment.t,
-  expandable_id: Id.t,
-  options: list((string, Segment.t)),
+  expandable_id: option(Id.t),
   explanation,
   examples: list(example),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type form_group = {
+  options: list((string, Segment.t)),
+  current_selection: int,
 };
 
 let cons = () => Example.mk_monotile(Form.get("cons_exp"));
@@ -59,28 +64,36 @@ let cons_exp: form = {
   {
     id: "cons_exp",
     syntactic_form: [left, cons(), right],
-    expandable_id: Piece.id(right),
-    options: [("cons_exp", [right])],
+    expandable_id: None,
     explanation,
     examples: [example_1, example_2],
   };
 };
 
 // Just have a flat list of forms w/ their explanations and examples
-// Each form keeps track of a list mapping the form id to the expanded subpart
+// Keep track of options/groups in a separate structure
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   show: bool,
   highlight: bool,
   specificity_open: bool,
   forms: list(form),
+  groups: list((string, form_group)),
 };
 
-let get_form = (form_id, docs) =>
-  List.find(({id, _}) => id == form_id, docs);
+let get_form_and_options = (group_id, doc: t) => {
+  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
+  let (selected_id, _) =
+    List.nth(form_group.options, form_group.current_selection);
+  let form = List.find(({id, _}) => id == selected_id, doc.forms);
+  (form, form_group.options);
+};
 
 let get_example = (example_sub_id, docs) =>
   List.find(({sub_id, _}) => sub_id == example_sub_id, docs);
+
+let get_form = (form_id, docs) =>
+  List.find(({id, _}) => id == form_id, docs);
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
@@ -111,6 +124,9 @@ let init = {
   highlight: true,
   specificity_open: false,
   forms: [cons_exp],
+  groups: [
+    ("cons_exp", {options: [(cons_exp.id, [])], current_selection: 0}),
+  ],
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
