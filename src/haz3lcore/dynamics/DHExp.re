@@ -169,10 +169,16 @@ let rec mk_tuple: list(t) => t =
   | [d, ...ds] => Pair(d, mk_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-  if (HTyp.eq(t1, t2)) {
-    d;
-  } else {
-    Cast(d, t1, t2);
+  switch (d, t2) {
+  | (ListLit(_, _, _, _, _, []), List(_)) =>
+    //HACK(andrew, cyrus)
+    d
+  | _ =>
+    if (HTyp.eq(t1, t2)) {
+      d;
+    } else {
+      Cast(d, t1, t2);
+    }
   };
 
 let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>

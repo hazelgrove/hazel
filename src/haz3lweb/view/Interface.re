@@ -12,22 +12,26 @@ let dhcode_view = (~font_metrics: FontMetrics.t) => {
 
 let get_result =
     (d: Elaborator.ElaborationResult.t): option((DHExp.t, TestMap.t)) => {
+  print_endline("get_result");
   switch (d) {
   | Elaborates(elab, _, _) =>
     switch (elab |> evaluate) {
     | (EvaluatorResult.BoxedValue(d), {test_map, _})
     | (Indet(d), {test_map, _}) => Some((d, List.rev(test_map)))
-    | exception _ => None
+    | exception _ =>
+      print_endline("EXCEPTION THROWN IN GET_RESULT");
+      None;
     }
   | _ => None
   };
 };
 
-let evaluation_result = (map, term): option(DHExp.t) =>
+let evaluation_result = (map, term): option(DHExp.t) => {
   switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
   };
+};
 
 type test_results = {
   test_map: TestMap.t,
