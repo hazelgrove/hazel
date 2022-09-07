@@ -30,5 +30,5 @@ let init: Editors.study = {
       (0, []),
       defaults,
     );
-  (id_gen, 0, List.map(Haz3lcore.Editor.init, zs));
+  (id_gen, 0, List.map(Haz3lcore.Editor.init(~read_only=false), zs));
 };

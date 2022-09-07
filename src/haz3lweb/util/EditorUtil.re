@@ -1,14 +1,14 @@
 open Haz3lcore;
 
-let editor_of_code = (init_id, code: CodeString.t) => {
+let editor_of_code = (~read_only=false, init_id, code: CodeString.t) => {
   switch (Printer.zipper_of_string(init_id, code)) {
   | None => None
-  | Some((z, new_id)) => Some((new_id, Editor.init(z)))
+  | Some((z, new_id)) => Some((new_id, Editor.init(~read_only, z)))
   };
 };
 
 let editors_for =
-    (xs: list('a), f: 'a => option(string))
+    (~read_only=false, xs: list('a), f: 'a => option(string))
     : (Id.t, int, list(('a, option(Editor.t)))) => {
   let (id_gen, zs) =
     List.fold_left(
@@ -31,7 +31,7 @@ let editors_for =
     List.map(
       ((a, sz)) =>
         switch (sz) {
-        | Some(z) => (a, Some(Editor.init(z)))
+        | Some(z) => (a, Some(Editor.init(z, ~read_only)))
         | None => (a, None)
         },
       zs,
@@ -39,8 +39,8 @@ let editors_for =
   );
 };
 
-let editors_of_strings = (xs: list(string)) => {
-  let (id, i, aes) = editors_for(xs, x => Some(x));
+let editors_of_strings = (~read_only=false, xs: list(string)) => {
+  let (id, i, aes) = editors_for(xs, x => Some(x), ~read_only);
   (id, i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 

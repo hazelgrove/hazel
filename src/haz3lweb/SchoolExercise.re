@@ -38,59 +38,86 @@ type pos =
 type spec = p(CodeString.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ed = p(Editor.t);
+type eds = p(Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type state = (pos, ed);
+type state = {
+  pos,
+  eds,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (pos, list(Zipper.t));
 
 let editor_of_state: state => Editor.t =
-  ((pos, ed)) =>
+  ({pos, eds, _}) =>
     switch (pos) {
-    | Prelude => ed.prelude
-    | ReferenceImpl => ed.reference_impl
-    | YourTests => ed.your_tests
-    | YourImpl => ed.your_impl
-    | HiddenBugs(i) => List.nth(ed.hidden_bugs, i).impl
-    | HiddenTests => ed.hidden_tests.tests
+    | Prelude => eds.prelude
+    | ReferenceImpl => eds.reference_impl
+    | YourTests => eds.your_tests
+    | YourImpl => eds.your_impl
+    | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+    | HiddenTests => eds.hidden_tests.tests
     };
 
-let put_editor = ((pos, ed): state, editor: Editor.t) =>
+let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
   switch (pos) {
-  | Prelude => (pos, {...ed, prelude: editor})
-  | ReferenceImpl => (pos, {...ed, reference_impl: editor})
-  | YourTests => (pos, {...ed, your_tests: editor})
-  | YourImpl => (pos, {...ed, your_impl: editor})
-  | HiddenBugs(n) => (
-      pos,
-      {
-        ...ed,
+  | Prelude => {
+      ...state,
+      eds: {
+        ...eds,
+        prelude: editor,
+      },
+    }
+  | ReferenceImpl => {
+      ...state,
+      eds: {
+        ...eds,
+        reference_impl: editor,
+      },
+    }
+  | YourTests => {
+      ...state,
+      eds: {
+        ...eds,
+        your_tests: editor,
+      },
+    }
+  | YourImpl => {
+      ...state,
+      eds: {
+        ...eds,
+        your_impl: editor,
+      },
+    }
+  | HiddenBugs(n) => {
+      ...state,
+      eds: {
+        ...eds,
         hidden_bugs:
           Util.ListUtil.put_nth(
             n,
-            {...List.nth(ed.hidden_bugs, n), impl: editor},
-            ed.hidden_bugs,
+            {...List.nth(eds.hidden_bugs, n), impl: editor},
+            eds.hidden_bugs,
           ),
       },
-    )
-  | HiddenTests => (
-      pos,
-      {
-        ...ed,
+    }
+  | HiddenTests => {
+      ...state,
+      eds: {
+        ...eds,
         hidden_tests: {
-          ...ed.hidden_tests,
+          ...eds.hidden_tests,
           tests: editor,
         },
       },
-    )
+    }
   };
 
-let editors = ((_, ed): state) =>
-  [ed.prelude, ed.reference_impl, ed.your_tests, ed.your_impl]
-  @ List.map(wrong_impl => wrong_impl.impl, ed.hidden_bugs)
-  @ [ed.hidden_tests.tests];
+let editors = ({eds, _}: state) =>
+  [eds.prelude, eds.reference_impl, eds.your_tests, eds.your_impl]
+  @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
+  @ [eds.hidden_tests.tests];
 
 let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
@@ -125,9 +152,12 @@ let pos_of_idx = (p: p('code), idx: int) =>
     }
   };
 
-let switch_editor = (idx: int, (_, ed)) => (pos_of_idx(ed, idx), ed);
+let switch_editor = (idx: int, {eds, _}) => {
+  pos: pos_of_idx(eds, idx),
+  eds,
+};
 
-let ed_of_spec: spec => (Id.t, ed) =
+let eds_of_spec: spec => (Id.t, eds) =
   (
     {
       prompt,
@@ -177,40 +207,53 @@ let ed_of_spec: spec => (Id.t, ed) =
     );
   };
 
-let state_of_spec: spec => (Id.t, state) =
-  spec => {
-    let (id, ed) = ed_of_spec(spec);
-    (id, (YourImpl, ed));
-  };
+let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
+  ...state,
+  eds: {
+    ...eds,
+    prelude: Editor.set_read_only(eds.prelude, !new_mode),
+  },
+};
+
+let state_of_spec = (spec, ~instructor_mode: bool): (Id.t, state) => {
+  let (id, eds) = eds_of_spec(spec);
+  (id, set_instructor_mode({pos: YourImpl, eds}, instructor_mode));
+};
 
 let persistent_state_of_state: state => persistent_state =
-  ((pos, _) as state) => {
+  ({pos, _} as state) => {
     let editors = editors(state);
     let zippers =
       List.map((editor: Editor.t) => editor.state.zipper, editors);
     (pos, zippers);
   };
 
-let unpersist_state = ((pos, zippers): persistent_state, spec: spec): state => {
-  let lookup = pos => Editor.init(List.nth(zippers, idx_of_pos(pos, spec)));
-  (
-    pos,
+let unpersist_state =
+    ((pos, zippers): persistent_state, spec: spec, ~instructor_mode: bool)
+    : state => {
+  let lookup = pos =>
+    Editor.init(List.nth(zippers, idx_of_pos(pos, spec)), ~read_only=false);
+  set_instructor_mode(
     {
-      prompt: spec.prompt,
-      prelude: lookup(Prelude),
-      reference_impl: lookup(ReferenceImpl),
-      your_tests: lookup(YourTests),
-      your_impl: lookup(YourImpl),
-      hidden_bugs:
-        List.mapi(
-          (i, {impl: _, hint}) => {{impl: lookup(HiddenBugs(i)), hint}},
-          spec.hidden_bugs,
-        ),
-      hidden_tests: {
-        tests: lookup(HiddenTests),
-        hints: spec.hidden_tests.hints,
+      pos,
+      eds: {
+        prompt: spec.prompt,
+        prelude: lookup(Prelude),
+        reference_impl: lookup(ReferenceImpl),
+        your_tests: lookup(YourTests),
+        your_impl: lookup(YourImpl),
+        hidden_bugs:
+          List.mapi(
+            (i, {impl: _, hint}) => {{impl: lookup(HiddenBugs(i)), hint}},
+            spec.hidden_bugs,
+          ),
+        hidden_tests: {
+          tests: lookup(HiddenTests),
+          hints: spec.hidden_tests.hints,
+        },
       },
     },
+    instructor_mode,
   );
 };
 
@@ -232,17 +275,21 @@ type stitched('a) = {
 
 type stitched_statics = stitched(StaticsItem.t);
 
-let stitch_static = ((_, ed): state): stitched_statics => {
-  let (user_impl_term, _) = EditorUtil.stitch([ed.prelude, ed.your_impl]);
+let stitch_static = ({eds, _}: state): stitched_statics => {
+  let (user_impl_term, _) = EditorUtil.stitch([eds.prelude, eds.your_impl]);
   let (user_tests_term, _) =
-    EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
+    EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests]);
   let user_info_map = Statics.mk_map(user_tests_term);
   let user_impl = StaticsItem.{term: user_impl_term, info_map: user_info_map};
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_info_map};
 
   let (instructor_term, _) =
-    EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
+    EditorUtil.stitch([
+      eds.prelude,
+      eds.reference_impl,
+      eds.hidden_tests.tests,
+    ]);
   let instructor_info_map = Statics.mk_map(instructor_term);
   let instructor =
     StaticsItem.{term: instructor_term, info_map: instructor_info_map};
@@ -250,11 +297,11 @@ let stitch_static = ((_, ed): state): stitched_statics => {
   let hidden_bugs =
     List.map(
       ({impl, hint}) => {
-        let (term, _) = EditorUtil.stitch([ed.prelude, impl]);
+        let (term, _) = EditorUtil.stitch([eds.prelude, impl]);
         let info_map = Statics.mk_map(term);
         StaticsItem.{term, info_map};
       },
-      ed.hidden_bugs,
+      eds.hidden_bugs,
     );
   {user_impl, user_tests, instructor, hidden_bugs};
 };

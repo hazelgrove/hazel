@@ -22,6 +22,13 @@ type mode =
   | Study
   | School;
 
+let rotate_mode = (editors: t) =>
+  switch (editors) {
+  | Simple(_) => Study
+  | Study(_) => School
+  | School(_) => Simple
+  };
+
 let single_result_key = "single_result";
 
 let get_editor = (editors: t): Editor.t =>
@@ -59,3 +66,11 @@ let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   | School(state) => SchoolExercise.spliced_elabs(state)
   };
 };
+
+let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
+  switch (editors) {
+  | Simple(_)
+  | Study(_) => editors
+  | School(state) =>
+    School(SchoolExercise.set_instructor_mode(state, instructor_mode))
+  };

@@ -1,6 +1,8 @@
 let the_exercise: SchoolExercise.spec = FilterOddsExercise.exercise;
 
-let init: Editors.school = SchoolExercise.state_of_spec(the_exercise);
+let init = (~instructor_mode: bool): Editors.school => {
+  SchoolExercise.state_of_spec(the_exercise, ~instructor_mode);
+};
 //TODO: make sure in the final version hidden editors are NOT PLAINTEXT STRINGS
 
 // type cell = {
