@@ -2,6 +2,7 @@ open Util;
 open OptUtil.Syntax;
 
 module ElaborationResult = {
+  [@deriving sexp]
   type t =
     | Elaborates(DHExp.t, HTyp.t, Delta.t)
     | DoesNotElaborate;
@@ -144,8 +145,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d2 = dhexp_of_uexp(m, e2);
       let ty1 = exp_self_htyp(m, e1);
       let ty2 = exp_self_htyp(m, e2);
-      let dc2 = DHExp.cast(d2, ty2, List(ty1));
-      wrap(Cons(d1, dc2));
+      let dc1 =
+        switch (Statics.exp_mode(m, uexp)) {
+        | Syn => d1
+        | Ana(ty_ana) =>
+          switch (HTyp.matched_list(htyp_of_typ(ty_ana))) {
+          | None => d1
+          | Some(ty) => DHExp.cast(d1, ty1, ty)
+          }
+        };
+      let ty_hd =
+        switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
+        | None => failwith("dhexp_of_uexp Cons: non-list htyp")
+        | Some(ty2') => ty2'
+        };
+      let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
+      wrap(Cons(dc1, dc2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = exp_self_htyp(m, e);
