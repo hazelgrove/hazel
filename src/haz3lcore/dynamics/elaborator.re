@@ -100,23 +100,45 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListLit(es) =>
-      switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
-      | Some(ty) =>
-        let* ds =
-          List.fold_left(
-            (acc, e) => {
-              let* acc = acc;
-              let e_ty = exp_self_htyp(m, e);
-              let+ d = dhexp_of_uexp(m, e);
-              let dc = DHExp.cast(d, e_ty, ty);
-              acc @ [dc];
-            },
-            Some([]),
-            es,
-          );
-        wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
-      | None => failwith("ListLit expression with non-list htyp")
+      switch (Statics.exp_mode(m, uexp)) {
+      | Syn =>
+        switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
+        | Some(ty) =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let e_ty = exp_self_htyp(m, e);
+                let+ d = dhexp_of_uexp(m, e);
+                let dc = DHExp.cast(d, e_ty, ty);
+                acc @ [dc];
+              },
+              Some([]),
+              es,
+            );
+          wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
+        | None => failwith("ListLit expression with non-list htyp")
+        }
+      | Ana(ana_ty) =>
+        switch (HTyp.matched_list(htyp_of_typ(ana_ty))) {
+        | Some(ty) =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let e_ty = exp_self_htyp(m, e);
+                let+ d = dhexp_of_uexp(m, e);
+                let dc = DHExp.cast(d, e_ty, ty);
+                acc @ [dc];
+              },
+              Some([]),
+              es,
+            );
+          wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
+        | None => failwith("ListLit expression with non-list htyp")
+        }
       }
+
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
