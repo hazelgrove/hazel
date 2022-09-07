@@ -1,1 +1,1 @@
-let show_instructor = false
+let show_instructor = false;
