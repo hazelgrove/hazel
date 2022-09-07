@@ -47,8 +47,8 @@ let editors_of_strings = (xs: list(string)) => {
 let info_map = (editor: Editor.t) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
-  let term = MakeTerm.go(unselected);
-  let (_, _, info_map) = Statics.mk_map(term);
+  let (term, _) = MakeTerm.go(unselected);
+  let info_map = Statics.mk_map(term);
   info_map;
 };
 

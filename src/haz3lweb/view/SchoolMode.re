@@ -130,6 +130,14 @@ open Haz3lcore;
 //   | Some(test_results) => test_results.test_map
 //   };
 // };
+// let show_term = (editor: Editor.t, _) =>
+//   editor.state.zipper
+//   |> Zipper.zip
+//   |> MakeTerm.go
+//   |> fst
+//   |> Term.UExp.show
+//   |> print_endline
+//   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
 
 // let get_first_common =
 //     (reference_passing, wrong): (TestStatus.t, option('a)) => {
@@ -511,13 +519,13 @@ let view =
 
   let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
 
-  let stitched_user_term =
+  let (stitched_user_term, _) =
     EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
-  let (_, _, user_info_map) = Statics.mk_map(stitched_user_term);
+  let user_info_map = Statics.mk_map(stitched_user_term);
 
-  let stitched_instructor_term =
+  let (stitched_instructor_term, _) =
     EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
-  let (_, _, instructor_info_map) = Statics.mk_map(stitched_instructor_term);
+  let instructor_info_map = Statics.mk_map(stitched_instructor_term);
 
   let hidden_bugs_editors =
     List.map(
@@ -527,8 +535,8 @@ let view =
   let hidden_bugs_data =
     List.map(
       editor => {
-        let stitched_term = EditorUtil.stitch([ed.prelude, editor]);
-        let (_, _, info_map) = Statics.mk_map(stitched_term);
+        let (stitched_term, _) = EditorUtil.stitch([ed.prelude, editor]);
+        let info_map = Statics.mk_map(stitched_term);
         (editor, stitched_term, info_map);
       },
       hidden_bugs_editors,
@@ -545,6 +553,59 @@ let view =
       (editor.state.zipper, info_map);
     | HiddenTests => (ed.hidden_tests.tests.state.zipper, instructor_info_map)
     };
+  //   let combined_info_map =
+  //     settings.statics
+  //       ? {
+  //         let (_, combined_info_map) = spliced_statics(editors);
+  //         combined_info_map;
+  //       }
+  //       : Id.Map.empty;
+  //   let school_view_data = settings.dynamics ? get_school_data(editors) : None;
+  //   let your_test_results = {
+  //     let* (_, your_tests, _, _, _) = school_view_data;
+  //     let (term, map) = spliced_statics(your_tests);
+  //     /* FIXME: Replace call with use of model. */
+  //     Interface.test_results(map, term);
+  //   };
+  //   let our_test_results = {
+  //     let* (_, _, our_tests, _, _) = school_view_data;
+  //     let (term, map) = spliced_statics(our_tests);
+  //     let descriptions = School.hidden_test_descriptions;
+  //     /* FIXME: Replace call with use of model. */
+  //     Interface.test_results(~descriptions, map, term);
+  //   };
+  //   let first_cell_res = {
+  //     let* (statics_impl, _, _, _, _) = school_view_data;
+  //     let (term, map) = spliced_statics(statics_impl);
+  //     /* FIXME: Replace call with use of model. */
+  //     Interface.evaluation_result(map, term);
+  //   };
+  //   let student_imp_res_view =
+  //     switch (first_cell_res) {
+  //     | None => []
+  //     | Some(dhexp) => [
+  //         div(
+  //           ~attr=clss(["cell-result"]),
+  //           [SimpleMode.res_view(~font_metrics, dhexp)],
+  //         ),
+  //       ]
+  //     };
+  //   let coverage_view =
+  //     switch (school_view_data) {
+  //     | Some((_, _, _, reference_tests, coverage_tests)) =>
+  //       let descriptions = School.wrong_implementation_descriptions;
+  //       [
+  //         coverage_view(
+  //           ~inject,
+  //           ~font_metrics,
+  //           ~descriptions,
+  //           reference_tests,
+  //           coverage_tests,
+  //         ),
+  //       ];
+  //     | None => []
+  // >>>>>>> eval-round-2
+  //     };
 
   // TODO: hide in instructor mode
   // TODO: round out bottom when there is no result view

@@ -59,47 +59,44 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
-  switch (Id.Map.find_opt(uexp.id, m)) {
-  | Some(InfoExp({ctx, mode, self, _})) =>
+  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = uexp.id; /* NOTE: using term uids for hole ids */
-    let gamma = ctx_to_varctx(ctx);
-    let sigma = Environment.id_env(gamma);
+    let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
       | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, sigma, d))
+      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some(EmptyHole(u, 0, sigma))
-    | MultiHole(_, []) =>
+    | EmptyHole => Some(EmptyHole(u, 0))
+    | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0, sigma))
-    | MultiHole(_, [e0, ...es]) =>
-      // TODO: dhexp, eval for multiholes
-      // placeholder logic: sequence
       let* ds =
-        List.fold_left(
-          (acc, e) => {
-            let* acc = acc;
-            let+ d = dhexp_of_uexp(m, e);
-            DHExp.Sequence(d, acc);
-          },
-          dhexp_of_uexp(m, e0),
-          es,
-        );
-      wrap(ds);
+        tms
+        |> List.map(
+             fun
+             | Term.Exp(e) => dhexp_of_uexp(m, e)
+             | tm => Some(EmptyHole(Term.rep_id(tm), 0)),
+           )
+        |> OptUtil.sequence;
+      switch (ds) {
+      | [] => Some(DHExp.EmptyHole(u, 0))
+      | [hd, ...tl] =>
+        // placeholder logic: sequence
+        tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
+      };
     | Triv => wrap(Triv)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListLit(_ids, es) =>
+    | ListLit(es) =>
       switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
       | Some(ty) =>
         let* ds =
@@ -114,7 +111,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             Some([]),
             es,
           );
-        wrap(ListLit(u, 0, [], StandardErrStatus(NotInHole), Int, ds));
+        wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       | None => failwith("ListLit expression with non-list htyp")
       }
     | Fun(p, body) =>
@@ -122,7 +119,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = pat_htyp(m, p);
       wrap(DHExp.Fun(dp, ty1, d1));
-    | Tuple(_ids, es) =>
+    | Tuple(es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {
       | [] => wrap(Triv)
@@ -171,7 +168,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap(Ap(TestLit(u), dtest));
     | Var(name) =>
       switch (err_status) {
-      | InHole(FreeVariable) => Some(FreeVar(u, 0, sigma, name))
+      | InHole(FreeVariable) => Some(FreeVar(u, 0, name))
       | _ => wrap(BoundVar(name))
       }
     | Let(
@@ -186,7 +183,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
       let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
-      let def_subst = Evaluator.subst_var(cast_var, x, def);
+      let def_subst = Substitution.subst_var(cast_var, x, def);
       wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -211,10 +208,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
-    | Match(_, scrut, rules) =>
+    | Match(scrut, rules) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d_rules =
         List.map(
@@ -229,7 +226,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, sigma, d))
+        Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
     };
@@ -238,7 +235,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
-  switch (Id.Map.find_opt(upat.id, m)) {
+  switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
@@ -246,7 +243,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = upat.id; /* NOTE: using term uids for hole ids */
+    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
     let wrap = (d: DHPat.t): option(DHPat.t) =>
       switch (maybe_reason) {
       | None => Some(d)
@@ -263,7 +260,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | ListLit(_ids, ps) =>
+    | ListLit(ps) =>
       switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
       | Some(ty) =>
         let* ds =
@@ -283,7 +280,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
-    | Tuple(_ids, ps) =>
+    | Tuple(ps) =>
       //TODO(andrew): review below
       switch (List.rev(ps)) {
       | [] => wrap(Triv)

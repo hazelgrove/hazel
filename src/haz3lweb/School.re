@@ -1,6 +1,6 @@
 let the_exercise: SchoolExercise.spec = FilterOddsExercise.exercise;
 
-let init: Model.school = SchoolExercise.state_of_spec(the_exercise);
+let init: Editors.school = SchoolExercise.state_of_spec(the_exercise);
 //TODO: make sure in the final version hidden editors are NOT PLAINTEXT STRINGS
 
 // type cell = {
@@ -103,9 +103,6 @@ let init: Model.school = SchoolExercise.state_of_spec(the_exercise);
 
 // let captions = List.map((cell: cell) => cell.caption, defaults);
 // let chapters = List.map((cell: cell) => cell.chapter, defaults);
-
-// let init: Model.school =
-//   defaults |> List.map((s: cell) => s.initial) |> Model.editors_of_strings;
 
 // let hidden_test_descriptions = [
 //   "Check base case",

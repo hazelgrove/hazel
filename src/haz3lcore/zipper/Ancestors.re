@@ -45,19 +45,15 @@ let disassemble = ancs =>
 
 let skel = ((a, (pre, suf)): generation): Skel.t => {
   let n = List.length(pre);
-  let a = (n, Ancestor.shapes(a));
+  let a = (n, Piece.Tile(Ancestor.zip(Segment.empty, a)));
   let pre =
     pre
     |> List.mapi((i, p) => (i, p))
-    |> List.filter_map(((i, p)) =>
-         Piece.shapes(p) |> Option.map(ss => (i, ss))
-       );
+    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
   let suf =
     suf
     |> List.mapi((i, p) => (n + 1 + i, p))
-    |> List.filter_map(((i, p)) =>
-         Piece.shapes(p) |> Option.map(ss => (i, ss))
-       );
+    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
   Skel.mk(pre @ [a, ...suf]);
 };
 
@@ -75,42 +71,6 @@ let skel = ((a, (pre, suf)): generation): Skel.t => {
 //     a.mold.out;
 //   };
 // };
-
-// // messed up sorts using in_ instead of nib
-let sort_rank_gen = ((a, sibs) as gen: generation, sort: Sort.t) => {
-  let root_rank = Segment.sort_rank_root(zip_gen(Segment.empty, gen), sort);
-  let cousins_rank = {
-    let (l, r) = Ancestor.sorted_children(a);
-    let (l', r') = Siblings.sorted_children(sibs);
-    List.concat([l', l, r, r'])
-    |> List.map(((s, seg)) => Segment.sort_rank(seg, s))
-    |> List.fold_left((+), 0);
-  };
-  root_rank + cousins_rank;
-};
-
-let sort_rank = (ancestors: t) =>
-  List.fold_right(
-    ((a, _) as gen, (s, rank)) =>
-      (Ancestor.sort(a), sort_rank_gen(gen, s) + rank),
-    ancestors,
-    (Sort.root, 0),
-  )
-  |> snd;
-
-let shape_rank = (ancestors: t): int =>
-  List.fold_right(
-    ((a, sibs), rank) => {
-      let (l, r) = Siblings.shapes(sibs);
-      let (l', r') = Ancestor.shapes(a);
-      Bool.to_int(!Nib.Shape.fits(l, l'))
-      + Bool.to_int(!Nib.Shape.fits(r', r))
-      + Siblings.shape_rank(sibs)
-      + rank;
-    },
-    ancestors,
-    0,
-  );
 
 let regrout = (ancs: t) =>
   List.fold_right(

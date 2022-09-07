@@ -1,10 +1,21 @@
-// invariant: List.length(as) == List.length(bs) + 1
+open Sexplib.Std;
 
+// invariant: List.length(as) == List.length(bs) + 1
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t('a, 'b) = (list('a), list('b));
 
 let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
   assert(List.length(as_) == List.length(bs) + 1);
   (as_, bs);
+};
+
+let first_a = ((as_, _): t('a, _)): 'a => {
+  assert(List.length(as_) > 0);
+  List.hd(as_);
+};
+let last_a = ((as_, _): t('a, _)): 'a => {
+  assert(List.length(as_) > 0);
+  ListUtil.last(as_);
 };
 
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (
@@ -37,9 +48,18 @@ let rec aba_triples = (aba: t('a, 'b)): list(('a, 'b, 'a)) =>
   | _ => []
   };
 
+let map_a = (f_a: 'a => 'c, (as_, bs): t('a, 'b)): t('c, 'b) => (
+  List.map(f_a, as_),
+  bs,
+);
 let map_b = (f_b: 'b => 'c, (as_, bs): t('a, 'b)): t('a, 'c) => (
   as_,
   List.map(f_b, bs),
+);
+let map_abas =
+    (f_aba: (('a, 'b, 'a)) => 'c, (as_, _) as aba: t('a, 'b)): t('a, 'c) => (
+  as_,
+  List.map(f_aba, aba_triples(aba)),
 );
 
 let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
