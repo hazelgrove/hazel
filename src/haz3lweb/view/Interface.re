@@ -27,10 +27,6 @@ let get_result =
 };
 
 let evaluation_result = (map, term): option(DHExp.t) => {
-  let elab = Haz3lcore.Elaborator.uexp_elab(map, term);
-  print_endline(
-    Sexplib.Sexp.to_string_hum(Elaborator.ElaborationResult.sexp_of_t(elab)),
-  );
   switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
   | None => None
   | Some((result, _)) => Some(result)
