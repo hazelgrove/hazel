@@ -24,8 +24,6 @@ let single_editor_semantics_views =
     (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
   let (term, _) = MakeTerm.go(unselected);
   let map = Statics.mk_map(term);
-  print_endline("SEMANTICSSSSSSSS");
-  print_endline(Term.UExp.show(term));
   let test_results =
     settings.dynamics ? Interface.test_results(map, term) : None;
   let eval_result =
