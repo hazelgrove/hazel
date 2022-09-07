@@ -126,8 +126,17 @@ let code_container =
   );
 };
 
-let cell_result_view = (~font_metrics, res) => {
-  switch (get_async_results(res)) {
+let cell_result_view =
+    (~font_metrics, ~settings: Model.settings, ~unselected, ~res) => {
+  let res =
+    settings.async_evaluation
+      ? get_async_results(res)
+      : {
+        let (term, _) = MakeTerm.go(unselected);
+        let map = Statics.mk_map(term);
+        get_sync_results(map, term);
+      };
+  switch (res) {
   | None => []
   | Some((eval_result, _)) => [
       div(
@@ -163,7 +172,8 @@ let view =
       zipper,
     );
   let result_view =
-    !settings.dynamics ? [] : cell_result_view(~font_metrics, res);
+    !settings.dynamics
+      ? [] : cell_result_view(~font_metrics, ~settings, ~unselected, ~res);
   let cell_view =
     div(
       ~attr=clss(["cell-container"]),
