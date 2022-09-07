@@ -172,18 +172,40 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
   if (Selection.is_empty(z.selection)) {
     // let balanced = !Backpack.is_balanced(z.backpack);
+    let d' = Direction.toggle(d);
+    let sort = Ancestors.sort(z.relatives.ancestors);
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
-    let pushed = relatives |> Relatives.push(Direction.toggle(d), p);
-    let (pushed, id_gen) =
+    let (relatives, id_gen) =
       switch (p) {
-      | Whitespace(_) => (pushed, id_gen)
-      | _ => Relatives.regrout(Left, pushed, id_gen)
+      | Whitespace(_)
+      | Grout(_) => (relatives, id_gen)
+      | Tile(t) =>
+        let (trim, relatives) = Relatives.pop_trim(d', relatives);
+        let (rel_l, rel_r) = Relatives.nibs(relatives);
+        let (t_l, t_r) = Tile.nibs(t);
+        let nibs =
+          switch (d) {
+          | Left => (rel_l, t_l)
+          | Right => (t_r, rel_r)
+          };
+        let (trim, id_gen) =
+          Segment.Trim.is_linted(nibs, trim, sort)
+            ? (trim, id_gen)
+            : {
+              let ((_, trim), id_gen) =
+                Segment.Trim.regrout(nibs, trim, sort, id_gen);
+              (trim, id_gen);
+            };
+        // let relatives =
+        //   relatives
+        //   |> Relatives.push(Direction.toggle(d), p)
+        //   |> Relatives.reassemble;
+        let pushed = Relatives.push_trim(d', trim, relatives);
+        (pushed, id_gen);
       };
-    // let relatives =
-    //   relatives
-    //   |> Relatives.push(Direction.toggle(d), p)
-    //   |> Relatives.reassemble;
-    ({...z, relatives: Relatives.reassemble(pushed)}, id_gen);
+    let relatives =
+      relatives |> Relatives.push(d', p) |> Relatives.reassemble;
+    ({...z, relatives}, id_gen);
   } else {
     Some((directional_unselect(d, z), id_gen));
   };

@@ -149,3 +149,12 @@ let iter = (f_a: 'a => unit, f_b: 'b => unit, aba: t('a, 'b)): unit =>
          f_a(a);
        },
      );
+
+let zip_opt =
+    ((as_, bs): t('a, 'b), (cs, ds): t('c, 'd))
+    : option(t(('a, 'c), ('b, 'd))) => {
+  open OptUtil.Syntax;
+  let+ acs = ListUtil.opt_zip(as_, cs)
+  and+ bds = ListUtil.opt_zip(bs, ds);
+  (acs, bds);
+};

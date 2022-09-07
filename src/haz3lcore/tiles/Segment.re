@@ -560,6 +560,16 @@ module Trim = {
     (caret + (l_padded ? 1 : 0), padded_trim);
   };
 
+  let is_linted = (nibs, trim, s) => {
+    let ((_, trim'), _) = regrout(nibs, trim, s, 0);
+    switch (Aba.zip_opt(trim, trim')) {
+    | None => false
+    | Some((wswss, _)) =>
+      wswss
+      |> List.for_all(((ws, ws')) => List.length(ws) == List.length(ws'))
+    };
+  };
+
   let to_seg = (trim: t) =>
     trim
     |> Aba.join(List.map(Piece.whitespace), g => [Piece.Grout(g)])
@@ -755,4 +765,13 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   };
   go(sort, skel(seg))
   |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
+};
+
+let hard_nib = (d: Direction.t, seg: t): option(Nib.t) => {
+  let rec go =
+    fun
+    | [] => None
+    | [Piece.Tile(t), ..._] => Some(Direction.choose(d, Tile.nibs(t)))
+    | [Grout(_) | Whitespace(_), ...tl] => go(tl);
+  go(d == Left ? seg : rev(seg));
 };

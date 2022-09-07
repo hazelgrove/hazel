@@ -8,6 +8,21 @@ type t = {
 
 let empty = {siblings: Siblings.empty, ancestors: Ancestors.empty};
 
+let nibs = ({siblings: (pre, suf), ancestors}: t) => {
+  let (l, r) = Ancestors.inner_nibs(ancestors);
+  let l =
+    switch (Segment.hard_nib(Right, pre)) {
+    | None => l
+    | Some(l) => l
+    };
+  let r =
+    switch (Segment.hard_nib(Left, suf)) {
+    | None => r
+    | Some(r) => r
+    };
+  (l, r);
+};
+
 let push = (d: Direction.t, p: Piece.t, rs: t): t => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
@@ -32,6 +47,26 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
       (p, {siblings, ancestors});
     }
   };
+
+let pop_trim = (d: Direction.t, rs: t): (Segment.Trim.t, t) => {
+  open Segment.Trim;
+  let rec go = rs =>
+    switch (pop(d, rs)) {
+    | Some((Whitespace(w), rs)) =>
+      let (trim, rs) = go(rs);
+      (cons_w(w, trim), rs);
+    | Some((Grout(g), rs)) =>
+      let (trim, rs) = go(rs);
+      (cons_g(g, trim), rs);
+    | Some((Tile(_), _)) => (empty, rs)
+    | None => (empty, rs)
+    };
+  let (trim, rs) = go(rs);
+  d == Left ? (rev(trim), rs) : (trim, rs);
+};
+
+let push_trim = (d: Direction.t, trim, rs: t): t =>
+  prepend(d, Segment.Trim.to_seg(trim), rs);
 
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
@@ -78,49 +113,6 @@ let regrout = (_d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
       Segment.Trim.regrout(~lint=false, ~caret, (s_l, s_r), trim, s);
     let (trim_l, trim_r) =
       Segment.Trim.to_seg(trim) |> ListUtil.split_n(caret);
-    // let+ (trim_l, trim_r) = {
-    //   open Segment.Trim;
-    //   let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);
-    //   let (seg_l, seg_r) = (to_seg(trim_l), to_seg(trim_r));
-    //   switch (ListUtil.split_last_opt(gs_l), gs_r) {
-    //   | (Some((_, g_l)), [g_r, ..._]) =>
-    //     IdGen.return(
-    //       Grout.fits(g_l, g_r)
-    //         // note: assumes single grout invariant in un-caret-interrupted trim
-    //         ? (ws(trim_l), ws(trim_r))  //(ws(trim_l), seg_r)
-    //         : (
-    //           switch (d) {
-    //           | Left => (ws(trim_l), seg_r)
-    //           | Right => (seg_l, ws(trim_r))
-    //           }
-    //         ),
-    //     )
-    //   | (Some((_, g)), []) =>
-    //     IdGen.return(
-    //       Grout.fits_shape(g, s_r.shape)
-    //         ? (seg_l, seg_r) : (ws(trim_l), seg_r),
-    //     )
-    //   | (None, [g, ..._]) =>
-    //     IdGen.return(
-    //       Grout.fits_shape(g, s_l.shape)
-    //         ? (seg_l, seg_r) : (seg_l, ws(trim_r)),
-    //     )
-    //   | (None, []) =>
-    //     Nib.Shape.fits(s_l.shape, s_r.shape)
-    //       ? IdGen.return((seg_l, seg_r))
-    //       // can modulate with directional arg
-    //       : (
-    //         switch (d) {
-    //         | Left =>
-    //           let+ trim = add_grout(s_r.shape, trim_r);
-    //           (seg_l, to_seg(trim));
-    //         | Right =>
-    //           let+ trim = add_grout(s_l.shape, trim_l);
-    //           (to_seg(trim), seg_r);
-    //         }
-    //       )
-    //   };
-    // };
     (pre @ trim_l, trim_r @ suf);
   };
   {siblings, ancestors};
