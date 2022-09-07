@@ -262,26 +262,11 @@ let rec mk =
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
-        hcats([d_doc, decoration]);
-      /*
-       let (d_doc, d_cast) as dcast_doc = go'(d);
-       let cast_decoration =
-         hcats([
-           DHDoc_common.Delim.open_FailedCast,
-           hseps([
-             DHDoc_Typ.mk(~enforce_inline=true, ty1),
-             DHDoc_common.Delim.arrow_FailedCast,
-             DHDoc_Typ.mk(~enforce_inline=true, ty2),
-           ]),
-           DHDoc_common.Delim.close_FailedCast,
-         ])
-         |> annot(DHAnnot.FailedCastDecoration);
-       switch (d_cast) {
-       | Some(ty1') when HTyp.eq(ty1, ty1') =>
-         hcats([d_doc, cast_decoration])
-       | _ => hcats([mk_cast(dcast_doc), cast_decoration])
-       };
-       */
+        hcats([
+          d_doc,
+          decoration /*  let (d_doc, d_cast) as dcast_doc = go'(d);  let cast_decoration =    hcats([      DHDoc_common.Delim.open_FailedCast,      hseps([        DHDoc_Typ.mk(~enforce_inline=true, ty1),        DHDoc_common.Delim.arrow_FailedCast,        DHDoc_Typ.mk(~enforce_inline=true, ty2),      ]),      DHDoc_common.Delim.close_FailedCast,    ])    |> annot(DHAnnot.FailedCastDecoration);  switch (d_cast) {  | Some(ty1') when HTyp.eq(ty1, ty1') =>    hcats([d_doc, cast_decoration])  | _ => hcats([mk_cast(dcast_doc), cast_decoration])  };  */,
+        ]);
+
       | Lam(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

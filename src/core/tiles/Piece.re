@@ -88,6 +88,9 @@ let is_tile: t => option(Tile.t) =
 let monotile: t => option(Token.t) =
   fun
   | Tile({label: [t], _}) => Some(t)
+  | Whitespace(w) when Whitespace.is_comment(w) =>
+    // ADDED
+    Some(Whitespace.get_string(w.content))
   | _ => None;
 
 let is_length_one_monotile: t => bool =

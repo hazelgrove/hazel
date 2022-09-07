@@ -80,7 +80,7 @@ let shape_rank = ({siblings, ancestors}: t) => {
 };
 
 let regrout = (d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
-  open IdGen.Syntax; /* Direction is side of grout caret will end up on */
+  open IdGen.Syntax /* Direction is side of grout caret will end up on */;
 
   let* ancestors = Ancestors.regrout(ancestors);
   let+ siblings = {

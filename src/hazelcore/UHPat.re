@@ -61,9 +61,8 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
   (InvalidText(u, t), id_gen);
-};
+} /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
   (EmptyHole(u), id_gen);
@@ -114,9 +113,8 @@ let is_inconsistent = (p: t): bool =>
   switch (get_err_status(p)) {
   | InHole(TypeInconsistent, _) => true
   | _ => false
-  };
+  } /* put p in a new hole, if it is not already in a hole */;
 
-/* put p in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (id_gen: IDGen.t, p: t): (t, IDGen.t) =>
   mk_inconsistent_opseq(id_gen, p)
 and mk_inconsistent_opseq = (id_gen: IDGen.t, opseq: opseq): (opseq, IDGen.t) =>

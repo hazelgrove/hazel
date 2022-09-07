@@ -119,8 +119,7 @@ let go = (a: Action.t, (z, id_gen): state): Action.Result.t(state) => {
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     (z, id_gen)
-    |> Insert.go(char)
-    /* note: remolding here is done case-by-case */
+    |> Insert.go(char) /* note: remolding here is done case-by-case */
     //|> Option.map(((z, id_gen)) => remold_regrout(Right, z, id_gen))
     |> Option.map(((z, id_gen)) => (update_target(z), id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_insert)

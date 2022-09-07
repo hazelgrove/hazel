@@ -18,7 +18,8 @@ and tile = {
   label: Label.t, // ["let", "=", "in"]
   mold: Mold.t, // {out: Exp, in_: [Pat, Exp]}
   shards: list(int), // [0, 1, 2]
-  children: list(segment), // [[x], [1]]
-};
+  children: list(segment) // [[x], [1]]
+} /* let x = 1 # this is a comment # in */;
 
-// let x = 1 # this is a comment # in x
+// This is for comment insertion
+let mk_whitespace = (id, content) => [Whitespace({id, content})] /* ADDED */;
