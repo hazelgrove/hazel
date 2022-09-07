@@ -1127,7 +1127,7 @@ svg.tile-selected {
 }
 
 .result {
-  max-height: 1.6em;
+  /* max-height: 1.6em; */
   min-height: 1.6em;
   overflow: hidden;
 }
