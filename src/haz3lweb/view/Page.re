@@ -145,7 +145,7 @@ let editors_view =
   switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let result_key = Editors.get_result_key(editors);
+    let result_key = Editors.single_result_key;
     let editor = Editors.get_editor(editors);
     let res = Model.get_result(result_key, model);
     SimpleMode.view(

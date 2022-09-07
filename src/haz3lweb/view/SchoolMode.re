@@ -519,39 +519,20 @@ let view =
 
   let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
 
-  let (stitched_user_term, _) =
-    EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
-  let user_info_map = Statics.mk_map(stitched_user_term);
-
-  let (stitched_instructor_term, _) =
-    EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
-  let instructor_info_map = Statics.mk_map(stitched_instructor_term);
-
-  let hidden_bugs_editors =
-    List.map(
-      (wrong_impl: SchoolExercise.wrong_impl(Editor.t)) => wrong_impl.impl,
-      ed.hidden_bugs,
-    );
-  let hidden_bugs_data =
-    List.map(
-      editor => {
-        let (stitched_term, _) = EditorUtil.stitch([ed.prelude, editor]);
-        let info_map = Statics.mk_map(stitched_term);
-        (editor, stitched_term, info_map);
-      },
-      hidden_bugs_editors,
-    );
+  let SchoolExercise.{user, instructor, hidden_bugs} =
+    SchoolExercise.stitch(state);
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (ed.prelude.state.zipper, user_info_map)
-    | ReferenceImpl => (ed.reference_impl.state.zipper, instructor_info_map)
-    | YourTests => (ed.your_tests.state.zipper, user_info_map)
-    | YourImpl => (ed.your_impl.state.zipper, user_info_map)
+    | Prelude => (ed.prelude.state.zipper, user.info_map)
+    | ReferenceImpl => (ed.reference_impl.state.zipper, instructor.info_map)
+    | YourTests => (ed.your_tests.state.zipper, user.info_map)
+    | YourImpl => (ed.your_impl.state.zipper, user.info_map)
     | HiddenBugs(idx) =>
-      let (editor, _, info_map) = List.nth(hidden_bugs_data, idx);
+      let editor = List.nth(ed.hidden_bugs, idx).impl;
+      let info_map = List.nth(hidden_bugs, idx).info_map;
       (editor.state.zipper, info_map);
-    | HiddenTests => (ed.hidden_tests.tests.state.zipper, instructor_info_map)
+    | HiddenTests => (ed.hidden_tests.tests.state.zipper, instructor.info_map)
     };
   //   let combined_info_map =
   //     settings.statics
@@ -618,7 +599,7 @@ let view =
       ~selected=pos == Prelude,
       ~caption=Cell.simple_caption("Prelude"),
       ~code_id="prelude",
-      ~info_map=user_info_map,
+      ~info_map=user.info_map,
       ed.prelude,
     );
 
@@ -628,7 +609,7 @@ let view =
       ~selected=pos == YourImpl,
       ~caption=Cell.simple_caption("Your Implementation"),
       ~code_id="your-impl",
-      ~info_map=user_info_map,
+      ~info_map=user.info_map,
       ed.your_impl,
     );
 
@@ -638,7 +619,7 @@ let view =
       ~selected=pos == YourTests,
       ~caption=Cell.simple_caption("Your Tests"),
       ~code_id="your-tests",
-      ~info_map=user_info_map,
+      ~info_map=user.info_map,
       ed.your_tests,
     );
 
@@ -648,7 +629,7 @@ let view =
       ~selected=pos == ReferenceImpl,
       ~caption=Cell.simple_caption("Reference Implementation"),
       ~code_id="reference-impl",
-      ~info_map=instructor_info_map,
+      ~info_map=instructor.info_map,
       ed.reference_impl,
     );
 
@@ -658,13 +639,13 @@ let view =
       ~selected=pos == HiddenTests,
       ~caption=Cell.simple_caption("Hidden Tests"),
       ~code_id="hidden-tests",
-      ~info_map=instructor_info_map,
+      ~info_map=instructor.info_map,
       ed.hidden_tests.tests,
     );
 
   let hidden_bugs_views =
     List.mapi(
-      (i, (editor, _, info_map)) => {
+      (i, (SchoolExercise.{impl, _}, SchoolExercise.{info_map, _})) => {
         editor_view(
           HiddenBugs(i),
           ~selected=pos == HiddenBugs(i),
@@ -674,10 +655,10 @@ let view =
             ),
           ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
           ~info_map,
-          editor,
+          impl,
         )
       },
-      hidden_bugs_data,
+      List.combine(ed.hidden_bugs, hidden_bugs),
     );
 
   let ci_view =
