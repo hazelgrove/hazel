@@ -599,7 +599,9 @@ let eval_bin_float_op =
 let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   let state = EvalState.take_step(state);
   switch (d) {
-  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
+  | BoundVar(x) =>
+    print_endline("1111111");
+    raise(EvaluatorError.Exception(FreeInvalidVar(x)));
   | Let(dp, d1, d2) =>
     switch (evaluate(d1, ~state)) {
     | (BoxedValue(d1), state)
@@ -639,7 +641,8 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
         evaluate(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'), ~state)
       }
     | (BoxedValue(d1'), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
+      print_endline("2222222");
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
     | (Indet(d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (BoxedValue(d2'), state)
@@ -673,12 +676,14 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
             state,
           )
         | (BoxedValue(d2'), _) =>
-          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
+          print_endline("3333333");
+          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
         | (Indet(d2'), state) => (Indet(BinBoolOp(op, d1', d2')), state)
         }
       }
     | (BoxedValue(d1'), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
+      print_endline("444444");
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
     | (Indet(d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (BoxedValue(d2'), state)
@@ -703,11 +708,13 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
         | _ => (BoxedValue(eval_bin_int_op(op, n1, n2)), state)
         }
       | (BoxedValue(d2'), _) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
+        print_endline("4444444");
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
       | (Indet(d2'), state) => (Indet(BinIntOp(op, d1', d2')), state)
       }
     | (BoxedValue(d1'), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+      print_endline("5555555");
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
     | (Indet(d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (BoxedValue(d2'), state)
@@ -723,11 +730,13 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           state,
         )
       | (BoxedValue(d2'), _) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
+        print_endline("66666666");
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
       | (Indet(d2'), state) => (Indet(BinFloatOp(op, d1', d2')), state)
       }
     | (BoxedValue(d1'), _) =>
-      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
+      print_endline("7777777");
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
     | (Indet(d1'), state) =>
       switch (evaluate(d2, ~state)) {
       | (BoxedValue(d2'), state)
@@ -771,7 +780,9 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
           ),
           state,
         )
-      | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)))
+      | _ =>
+        print_endline("88888");
+        raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
       }
     };
   | ListLit(x1, x2, x3, x4, ty, lst) =>
@@ -824,8 +835,13 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
             (Indet(FailedCast(d1', ty, ty')), state);
           }
         | _ =>
+          print_endline("9999999");
+          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
+          print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+          print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
           // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-          raise(EvaluatorError.Exception(CastBVHoleGround(d1')))
+          raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
+        //(BoxedValue(d1'), state);
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
@@ -945,6 +961,8 @@ and evaluate_ap_builtin =
     (~state: state, ident: string, args: list(DHExp.t)): report => {
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => (eval(args, d => fst(evaluate(d, ~state))), state)
-  | None => raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
+  | None =>
+    print_endline("XXXXXXX");
+    raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
   };
 };
