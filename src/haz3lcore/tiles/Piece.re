@@ -15,7 +15,7 @@ let get = (f_w, f_g, f_t, p: t) =>
   | Tile(t) => f_t(t)
   };
 
-let id = get(Whitespace.id, Grout.id, Tile.id);
+let id = get(w => w.id, Grout.id, Tile.id);
 
 let sort =
   get(
@@ -44,8 +44,8 @@ let nib_sorts =
     },
   );
 
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children);
-let children = p => sorted_children(p) |> List.split |> snd;
+let nibbed_children = get(_ => [], _ => [], Tile.nibbed_children);
+let children = p => nibbed_children(p) |> List.split |> snd;
 
 // let is_balanced =
 //   fun

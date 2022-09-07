@@ -68,9 +68,10 @@ let regrout = (_d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
 
   // let* ancestors = Ancestors.regrout(ancestors);
   let s = Ancestors.sort(ancestors);
+  let nibs = Ancestors.inner_nibs(ancestors);
   let+ siblings = {
     let* ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
-      Siblings.regrout(siblings, s);
+      Siblings.regrout(siblings, nibs, s);
     let caret = Segment.Trim.length(trim_l);
     let trim = Segment.Trim.append(trim_l, trim_r);
     let+ (caret, trim) =

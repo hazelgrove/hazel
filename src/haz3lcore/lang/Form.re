@@ -54,8 +54,8 @@ let is: expansion = (Instant, Static);
 let ds: expansion = (Delayed, Static);
 let di: expansion = (Delayed, Instant);
 
-let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
-  mk(ss, [t], mk_bin(prec, sort, []));
+let mk_infix = (~pad_l=true, ~pad_r=true, t: Token.t, sort: Sort.t, prec) =>
+  mk(ss, [t], mk_bin(~pad_l, ~pad_r, prec, sort, []));
 
 let mk_nul_infix = (t: Token.t, prec) =>
   mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Nul, []));
@@ -113,7 +113,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    Order in this list determines relative remolding
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("cell-join", mk_infix(~pad_l=false, ";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -141,20 +141,32 @@ let forms: list((string, t)) = [
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Nul, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
-  ("comma_exp", mk_infix(",", Exp, P.prod)),
-  ("comma_pat", mk_infix(",", Pat, P.prod)),
-  ("comma_typ", mk_infix(",", Typ, P.prod)),
+  ("comma_exp", mk_infix(~pad_l=false, ",", Exp, P.prod)),
+  ("comma_pat", mk_infix(~pad_l=false, ",", Pat, P.prod)),
+  ("comma_typ", mk_infix(~pad_l=false, ",", Typ, P.prod)),
   ("type-arrow", mk_infix("->", Typ, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [mk_child(Exp)]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [mk_child(Pat)]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [mk_child(Typ)]))),
-  ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [mk_child(Pat)]))),
+  (
+    "fun_",
+    mk(
+      ds,
+      ["fun", "->"],
+      mk_pre(~pad=true, P.let_, Exp, [mk_padded_child(Pat)]),
+    ),
+  ),
   (
     "if_",
     mk(
       di,
       ["if", "then", "else"],
-      mk_pre(P.if_, Exp, [mk_child(Exp), mk_child(Exp)]),
+      mk_pre(
+        ~pad=true,
+        P.if_,
+        Exp,
+        [mk_padded_child(Exp), mk_padded_child(Exp)],
+      ),
     ),
   ),
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [mk_child(Exp)]))),
@@ -163,11 +175,16 @@ let forms: list((string, t)) = [
     mk(
       ds,
       ["let", "=", "in"],
-      mk_pre(P.let_, Exp, [mk_child(Pat), mk_child(Exp)]),
+      mk_pre(
+        ~pad=true,
+        P.let_,
+        Exp,
+        [mk_padded_child(Pat), mk_padded_child(Exp)],
+      ),
     ),
   ),
   ("typeann", mk(ss, [":"], mk_bin(~r=Typ, ~pad_r=true, P.ann, Pat, []))),
-  ("case", mk(ds, ["case", "end"], mk_op(Exp, [mk_child(Rul)]))),
+  ("case", mk(ds, ["case", "end"], mk_op(Exp, [mk_padded_child(Rul)]))),
   (
     "rule",
     mk(
@@ -175,7 +192,7 @@ let forms: list((string, t)) = [
       ["|", "=>"],
       {
         out: Rul,
-        in_: [mk_child(~pad_l=true, ~pad_r=true, Pat)],
+        in_: [mk_padded_child(Pat)],
         nibs:
           Nib.(
             {
@@ -192,14 +209,7 @@ let forms: list((string, t)) = [
   ),
   // ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
   // ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
-  (
-    "test",
-    mk(
-      ds,
-      ["test", "end"],
-      mk_op(Exp, [mk_child(~pad_l=true, ~pad_r=true, Exp)]),
-    ),
-  ),
+  ("test", mk(ds, ["test", "end"], mk_op(Exp, [mk_padded_child(Exp)]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),

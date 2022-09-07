@@ -332,9 +332,9 @@ let skel = seg =>
   |> List.filter(((_, p)) => !Piece.is_whitespace(p))
   |> Skel.mk;
 
-let sorted_children = seg =>
-  seg |> List.map(Piece.sorted_children) |> List.concat;
-let children = seg => List.map(snd, sorted_children(seg));
+let nibbed_children = seg =>
+  seg |> List.map(Piece.nibbed_children) |> List.concat;
+let children = seg => List.map(snd, nibbed_children(seg));
 
 module Trim = {
   type seg = t;
@@ -423,7 +423,7 @@ module Trim = {
         List.filter_map(
           ({id, shape}: Grout.t) =>
             switch (shape) {
-            | Concave => Some(Whitespace.mk_space(id))
+            | Concave => Some(Whitespace.{id, content: Whitespace.space})
             | Convex => None
             },
           gs,
@@ -457,6 +457,36 @@ module Trim = {
       };
     };
 
+  // TODO clean up l_pad bool in return type
+  let repad = (l_pad, trim: t, r_pad): IdGen.t((bool, t)) =>
+    IdGen.Syntax.(
+      switch (trim) {
+      | ([ws], []) =>
+        (l_pad || r_pad) && ws == []
+          ? {
+            let+ space = Whitespace.mk_space;
+            (true, ([[space]], []));
+          }
+          : return((false, trim))
+      | _ =>
+        let* (l_padded, trim) =
+          l_pad && Aba.first_a(trim) == []
+            ? {
+              let+ space = Whitespace.mk_space;
+              (true, append(([[space]], []), trim));
+            }
+            : return((false, trim));
+        let+ trim =
+          r_pad && Aba.last_a(trim) == []
+            ? {
+              let+ space = Whitespace.mk_space;
+              append(trim, ([[space]], []));
+            }
+            : return(trim);
+        (l_padded, trim);
+      }
+    );
+
   let regrout =
       (
         ~lint=true,
@@ -478,7 +508,7 @@ module Trim = {
            },
          );
     open IdGen.Syntax;
-    let+ new_gs = Grout.mk((l, r), s);
+    let* new_gs = Grout.mk((l, r), s);
     let (remaining_gs, new_itrim) =
       itrim
       |> Aba.map_a(
@@ -522,7 +552,12 @@ module Trim = {
       remaining_gs
       |> List.fold_left((trim, g) => Aba.snoc(trim, g, []), new_trim);
 
-    (caret, new_trim_with_extra_gs);
+    let+ (l_padded, padded_trim) =
+      lint
+        ? repad(Nib.is_padded(l), new_trim_with_extra_gs, Nib.is_padded(r))
+        : return((false, new_trim_with_extra_gs));
+
+    (caret + (l_padded ? 1 : 0), padded_trim);
   };
 
   let to_seg = (trim: t) =>
@@ -551,13 +586,13 @@ and regrout_affix =
         | Tile(t) =>
           let* children =
             List.fold_right(
-              ((s, hd), tl) => {
+              (((l, r) as nibs: Nibs.t, hd), tl) => {
                 let* tl = tl;
-                let nib = Nib.{sort: s, shape: Shape.concave()};
-                let+ hd = regrout((nib, nib), hd, s);
+                let s = l.sort == r.sort ? l.sort : Sort.Any;
+                let+ hd = regrout(nibs, hd, s);
                 [hd, ...tl];
               },
-              Tile.sorted_children(t),
+              Tile.nibbed_children(t),
               IdGen.return([]),
             );
           let p = Piece.Tile({...t, children});

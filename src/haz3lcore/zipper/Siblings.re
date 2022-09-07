@@ -82,11 +82,10 @@ let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
 let reassemble = TupleUtil.map2(Segment.reassemble);
 
-let regrout = ((pre, suf): t, s: Sort.t) => {
+let regrout = ((pre, suf): t, (l, r): Nibs.t, s: Sort.t) => {
   open IdGen.Syntax;
-  let nib = Nib.{sort: s, shape: Shape.concave()};
-  let* suf = Segment.regrout_affix(Right, suf, nib, s);
-  let+ (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, nib, s);
+  let* suf = Segment.regrout_affix(Right, suf, r, s);
+  let+ (trim_l, s_l, pre) = Segment.regrout_affix(Left, pre, l, s);
   ((pre, s_l, trim_l), suf);
 };
 
@@ -113,4 +112,4 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   | d => d
   };
 
-let sorted_children = TupleUtil.map2(Segment.sorted_children);
+let nibbed_children = TupleUtil.map2(Segment.nibbed_children);

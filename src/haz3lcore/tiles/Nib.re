@@ -59,6 +59,11 @@ let fitting = (nib: t): t => {...nib, shape: Shape.fitting(nib.shape)};
 
 let flip = (nib: t) => {...nib, shape: Shape.flip(nib.shape)};
 
+let is_padded =
+  fun
+  | {shape: Concave({pad, _}), _} => pad
+  | _ => false;
+
 // let toggle = (nib: t) => {
 //   ...nib,
 //   orientation: Direction.toggle(nib.orientation),

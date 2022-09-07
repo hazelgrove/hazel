@@ -15,20 +15,30 @@ type t = {
   children: (list(Segment.t), list(Segment.t)),
 };
 
-// TODO(d) revisit naming w.r.t. outer vs inner shards
-let l_shard = a =>
-  ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
-let r_shard = a =>
-  ListUtil.last_opt(snd(a.shards))
-  |> OptUtil.get_or_raise(Empty_shard_affix);
+let outer_shards = ({shards: (pre, suf), _}: t) => {
+  let get = OptUtil.get_or_raise(Empty_shard_affix);
+  (get(ListUtil.hd_opt(pre)), get(ListUtil.last_opt(suf)));
+};
+let inner_shards = ({shards: (pre, suf), _}: t) => {
+  let get = OptUtil.get_or_raise(Empty_shard_affix);
+  (get(ListUtil.last_opt(pre)), get(ListUtil.hd_opt(suf)));
+};
 
-let nibs = (a: t) => {
-  let (l, _) = Mold.nibs(~index=l_shard(a), a.mold);
-  let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
+let outer_nibs = (a: t) => {
+  let (l, r) = outer_shards(a);
+  let (l, _) = Mold.nibs(~index=l, a.mold);
+  let (_, r) = Mold.nibs(~index=r, a.mold);
   (l, r);
 };
-let shapes = a => {
-  let (l, r) = nibs(a);
+let inner_nibs = (a: t) => {
+  let (l, r) = inner_shards(a);
+  let (_, l) = Mold.nibs(~index=l, a.mold);
+  let (r, _) = Mold.nibs(~index=r, a.mold);
+  (l, r);
+};
+
+let outer_shapes = a => {
+  let (l, r) = outer_nibs(a);
   (l.shape, r.shape);
 };
 
@@ -40,10 +50,10 @@ let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => 
   children: fst(children) @ [child, ...snd(children)],
 };
 
-let sorted_children = (a: t) => {
+let nibbed_children = (a: t) => {
   let n = List.length(fst(a.children));
   let t = zip(Segment.empty, a);
-  let (l, _, r) = ListUtil.split_nth(n, Tile.sorted_children(t));
+  let (l, _, r) = ListUtil.split_nth(n, Tile.nibbed_children(t));
   (l, r);
 };
 

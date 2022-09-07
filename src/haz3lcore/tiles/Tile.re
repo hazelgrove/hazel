@@ -32,13 +32,13 @@ let shapes = (t: t) => {
 
 let to_piece = t => Tile(t);
 
-let sorted_children = ({mold, shards, children, _}: t) =>
+let nibbed_children = ({mold, shards, children, _}: t) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
        let (_, l) = Mold.nibs(~index=l, mold);
        let (r, _) = Mold.nibs(~index=r, mold);
-       (l.sort == r.sort ? l.sort : Any, child);
+       ((l, r), child);
      });
 
 let contained_children = (t: t): list((t, Base.segment, t)) =>

@@ -42,23 +42,7 @@ let mk_child = (~pad_l=false, ~pad_r=false, sort) => {
   sort,
   pad: (pad_l, pad_r),
 };
-
-// forms where tips can be different than out sort
-let mk_pre' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Convex, sort: sort_l};
-  let r = Nib.{shape: Concave(p), sort: sort_r};
-  {out, in_, nibs: (l, r)};
-};
-let mk_post' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Concave(p), sort: sort_l};
-  let r = Nib.{shape: Convex, sort: sort_r};
-  {out, in_, nibs: (l, r)};
-};
-let mk_bin' = (p, out, sort_l, in_, sort_r) => {
-  let l = Nib.{shape: Concave(p), sort: sort_l};
-  let r = Nib.{shape: Concave(p), sort: sort_r};
-  {out, in_, nibs: (l, r)};
-};
+let mk_padded_child = mk_child(~pad_l=true, ~pad_r=true);
 
 let nibs = (~index=?, mold: t): Nibs.t =>
   switch (index) {

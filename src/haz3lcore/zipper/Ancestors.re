@@ -19,6 +19,14 @@ let sort =
   | [] => Sort.root
   | [(a, _), ..._] => Ancestor.sort(a);
 
+let inner_nibs =
+  fun
+  | [] => {
+      let n = Nib.{shape: Shape.concave(), sort: Sort.root};
+      (n, n);
+    }
+  | [(a, _), ..._] => Ancestor.inner_nibs(a);
+
 let zip_gen = (seg: Segment.t, (a, (pre, suf)): generation): Segment.t =>
   pre @ [Piece.Tile(Ancestor.zip(seg, a)), ...suf];
 let zip = (seg: Segment.t, ancs: t) => ancs |> List.fold_left(zip_gen, seg);
