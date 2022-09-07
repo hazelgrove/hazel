@@ -52,62 +52,73 @@ module Make = (M: Editor.Meta.S) => {
     (l, r);
   };
 
-  let pop_out = z => Some(z |> Zipper.set_caret(Outer));
-  let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
+  let pop_out = Zipper.set_caret(Outer);
+  let pop_move = (d, z, id_gen) => {
+    let z = z |> Zipper.set_caret(Outer);
+    Zipper.move(d, z, id_gen);
+  };
   let inner_incr = (delim, c, z) =>
-    Some(Zipper.set_caret(Inner(delim, c + 1), z));
+    Zipper.set_caret(Inner(delim, c + 1), z);
   let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
-  let inner_start = (d_init, z) =>
-    Some(Zipper.set_caret(Inner(d_init, 0), z));
-  let inner_end = (d, d_init, c_max, z) =>
-    z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
+  let inner_start = (d_init, z) => Zipper.set_caret(Inner(d_init, 0), z);
+  let inner_end = (d, d_init, c_max, z, id_gen) => {
+    let z = z |> Zipper.set_caret(Inner(d_init, c_max));
+    Zipper.move(d, z, id_gen);
+  };
 
-  let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+  let primary =
+      (chunkiness: chunkiness, d: Direction.t, z: t, id_gen: IdGen.state)
+      : option((t, IdGen.state)) => {
     switch (d, z.caret, neighbor_movability(chunkiness, z)) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
-    | _ when z.selection.content != [] => pop_move(d, z)
+    | _ when z.selection.content != [] => pop_move(d, z, id_gen)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
-      inner_end(d, dlm, c_max, z)
-    | (Left, Outer, _) => Zipper.move(d, z)
-    | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
+      inner_end(d, dlm, c_max, z, id_gen)
+    | (Left, Outer, _) => Zipper.move(d, z, id_gen)
+    | (Left, Inner(_), _) when chunkiness == ByToken =>
+      Some((pop_out(z), id_gen))
     | (Left, Inner(_), _) =>
-      Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-    | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-    | (Right, Outer, _) => Zipper.move(d, z)
+      Some((Zipper.update_caret(Zipper.Caret.decrement, z), id_gen))
+    | (Right, Outer, (_, CanEnter(d_init, _))) =>
+      Some((inner_start(d_init, z), id_gen))
+    | (Right, Outer, _) => Zipper.move(d, z, id_gen)
     | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
-      pop_move(d, z)
-    | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-    | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+      pop_move(d, z, id_gen)
+    | (Right, Inner(_), _) when chunkiness == ByToken =>
+      pop_move(d, z, id_gen)
+    | (Right, Inner(delim, c), _) =>
+      Some((inner_incr(delim, c, z), id_gen))
     };
   };
 
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
-        f: (Direction.t, t) => option(t),
+        f: (Direction.t, t, IdGen.state) => option(state),
         goal: Measured.Point.t,
-        z: t,
+        z: Zipper.t,
+        id_gen: IdGen.state,
       )
-      : option(t) => {
+      : option(state) => {
     let init = caret_point(z);
     let d =
       goal.row < init.row || goal.row == init.row && goal.col < init.col
         ? Direction.Left : Right;
 
-    let rec go = (prev: t, curr: t) => {
+    let rec go = (prev: t, curr: t, id_gen) => {
       let curr_p = caret_point(curr);
       switch (
         Measured.Point.dcomp(d, curr_p.col, goal.col),
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
-      | (Exact, Exact) => curr
-      | (_, Over) => prev
+      | (Exact, Exact) => (curr, id_gen)
+      | (_, Over) => (prev, id_gen)
       | (_, Under)
       | (Under, Exact) =>
-        switch (f(d, curr)) {
-        | None => curr
-        | Some(next) => go(curr, next)
+        switch (f(d, curr, id_gen)) {
+        | None => (curr, id_gen)
+        | Some((next, id_gen)) => go(curr, next, id_gen)
         }
       | (Over, Exact) =>
         switch (anchor) {
@@ -115,25 +126,31 @@ module Make = (M: Editor.Meta.S) => {
           let d_curr = abs(curr_p.col - goal.col);
           let d_prev = abs(caret_point(prev).col - goal.col);
           // default to going over when equal
-          d_prev < d_curr ? prev : curr;
+          (d_prev < d_curr ? prev : curr, id_gen);
         | Some(anchor) =>
           let anchor_d =
             goal.row < anchor.row
             || goal.row == anchor.row
             && goal.col < anchor.col
               ? Direction.Left : Right;
-          anchor_d == d ? curr : prev;
+          (anchor_d == d ? curr : prev, id_gen);
         }
       };
     };
 
-    let res = go(z, z);
+    let (res, id_gen) = go(z, z, id_gen);
     Measured.Point.equals(caret_point(res), caret_point(z))
-      ? None : Some(res);
+      ? None : Some((res, id_gen));
   };
 
   let do_vertical =
-      (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
+      (
+        f: (Direction.t, t, IdGen.state) => option(state),
+        d: Direction.t,
+        z: t,
+        id_gen,
+      )
+      : option(state) => {
     /* Here f should be a function which results in strict d-wards
        movement of the caret. Iterate f until we get to the closet
        caret position to a target derived from the initial position */
@@ -143,11 +160,17 @@ module Make = (M: Editor.Meta.S) => {
         col: M.col_target,
         row: cur_p.row + (d == Right ? 1 : (-1)),
       };
-    do_towards(f, goal, z);
+    do_towards(f, goal, z, id_gen);
   };
 
   let do_extreme =
-      (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
+      (
+        f: (Direction.t, t, IdGen.state) => option(state),
+        d: planar,
+        z: t,
+        id_gen,
+      )
+      : option(state) => {
     let cur_p = caret_point(z);
     let goal: Measured.Point.t =
       switch (d) {
@@ -156,26 +179,26 @@ module Make = (M: Editor.Meta.S) => {
       | Up => {col: 0, row: 0}
       | Down => {col: Int.max_int, row: Int.max_int}
       };
-    do_towards(f, goal, z);
+    do_towards(f, goal, z, id_gen);
   };
 
-  let vertical = (d: Direction.t, z: t): option(t) =>
+  let vertical = (d: Direction.t, z: t, id_gen): option(state) =>
     z.selection.content == []
-      ? do_vertical(primary(ByChar), d, z)
-      : Some(Zipper.directional_unselect(d, z));
+      ? do_vertical(primary(ByChar), d, z, id_gen)
+      : Some((Zipper.directional_unselect(d, z), id_gen));
 
-  let targets_within_row = (z: t): list(t) => {
+  let targets_within_row = (z: t, id_gen): list(state) => {
     let init = caret_point(z);
-    let rec go = (d: Direction.t, z: t) => {
-      switch (primary(ByChar, d, z)) {
+    let rec go = (d: Direction.t, z: t, id_gen) => {
+      switch (primary(ByChar, d, z, id_gen)) {
       | None => []
-      | Some(z) =>
+      | Some((z, id_gen)) =>
         if (caret_point(z).row != init.row) {
           [];
         } else {
           switch (pop_backpack(z)) {
-          | None => go(d, z)
-          | Some(_) => [z, ...go(d, z)]
+          | None => go(d, z, id_gen)
+          | Some(_) => [(z, id_gen), ...go(d, z, id_gen)]
           };
         }
       };
@@ -183,30 +206,30 @@ module Make = (M: Editor.Meta.S) => {
     let curr =
       switch (pop_backpack(z)) {
       | None => []
-      | Some(_) => [z]
+      | Some(_) => [(z, id_gen)]
       };
-    List.rev(go(Left, z)) @ curr @ go(Right, z);
+    List.rev(go(Left, z, id_gen)) @ curr @ go(Right, z, id_gen);
   };
 
   // TODO(d): unify this logic with rest of movement logic
-  let rec to_backpack_target = (d: planar, z: t): option(t) => {
-    let done_or_try_again = (d, z) =>
+  let rec to_backpack_target = (d: planar, z: t, id_gen): option(state) => {
+    let done_or_try_again = (d, z, id_gen) =>
       switch (pop_backpack(z)) {
-      | None => to_backpack_target(d, z)
-      | Some(_) => Some(z)
+      | None => to_backpack_target(d, z, id_gen)
+      | Some(_) => Some((z, id_gen))
       };
     switch (d) {
     | Left(chunk) =>
-      let* z = primary(chunk, Left, z);
-      done_or_try_again(d, z);
+      let* (z, id_gen) = primary(chunk, Left, z, id_gen);
+      done_or_try_again(d, z, id_gen);
     | Right(chunk) =>
-      let* z = primary(chunk, Right, z);
-      done_or_try_again(d, z);
+      let* (z, id_gen) = primary(chunk, Right, z, id_gen);
+      done_or_try_again(d, z, id_gen);
     | Up =>
-      let* z = vertical(Left, z);
+      let* (z, id_gen) = vertical(Left, z, id_gen);
       let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
+        targets_within_row(z, id_gen)
+        |> List.sort(((z1, _), (z2, _)) => {
              let dist1 = caret_point(z1).col - M.col_target;
              let dist2 = caret_point(z2).col - M.col_target;
              let c = Int.compare(abs(dist1), abs(dist2));
@@ -214,14 +237,14 @@ module Make = (M: Editor.Meta.S) => {
              c != 0 ? c : Int.compare(dist1, dist2);
            });
       switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
+      | [] => to_backpack_target(d, z, id_gen)
+      | [z_id, ..._] => Some(z_id)
       };
     | Down =>
-      let* z = vertical(Right, z);
+      let* (z, id_gen) = vertical(Right, z, id_gen);
       let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
+        targets_within_row(z, id_gen)
+        |> List.sort(((z1, _), (z2, _)) => {
              let dist1 = caret_point(z1).col - M.col_target;
              let dist2 = caret_point(z2).col - M.col_target;
              let c = Int.compare(abs(dist1), abs(dist2));
@@ -229,29 +252,28 @@ module Make = (M: Editor.Meta.S) => {
              c != 0 ? c : - Int.compare(dist1, dist2);
            });
       switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
+      | [] => to_backpack_target(d, z, id_gen)
+      | [z_id, ..._] => Some(z_id)
       };
     };
   };
 
   let to_start = do_extreme(primary(ByToken), Up);
 
-  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+  let go = (d: Action.move, z: Zipper.t, id_gen): option(state) =>
     switch (d) {
     | Goal(goal) =>
       let z = Zipper.unselect(z);
-      do_towards(primary(ByChar), goal, z);
-    | Extreme(d) => do_extreme(primary(ByToken), d, z)
+      do_towards(primary(ByChar), goal, z, id_gen);
+    | Extreme(d) => do_extreme(primary(ByToken), d, z, id_gen)
     | Local(d) =>
-      z
-      |> (
+      let f =
         switch (d) {
         | Left(chunk) => primary(chunk, Left)
         | Right(chunk) => primary(chunk, Right)
         | Up => vertical(Left)
         | Down => vertical(Right)
-        }
-      )
+        };
+      f(z, id_gen);
     };
 };

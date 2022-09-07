@@ -19,10 +19,7 @@ let destruct =
   | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
     Zipper.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
     |> OptUtil.and_then(((z, id_gen)) =>
-         z
-         |> Zipper.set_caret(Outer)
-         |> Zipper.move(Right)
-         |> Option.map(IdGen.id(id_gen))
+         z |> Zipper.set_caret(Outer) |> (z => Zipper.move(Right, z, id_gen))
        )
   /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>

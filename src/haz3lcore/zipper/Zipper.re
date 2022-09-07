@@ -169,17 +169,23 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   unselect({...z, selection});
 };
 
-let move = (d: Direction.t, z: t): option(t) =>
+let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
   if (Selection.is_empty(z.selection)) {
     // let balanced = !Backpack.is_balanced(z.backpack);
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
-    let relatives =
-      relatives
-      |> Relatives.push(Direction.toggle(d), p)
-      |> Relatives.reassemble;
-    {...z, relatives};
+    let pushed = relatives |> Relatives.push(Direction.toggle(d), p);
+    let (pushed, id_gen) =
+      switch (p) {
+      | Whitespace(_) => (pushed, id_gen)
+      | _ => Relatives.regrout(Left, pushed, id_gen)
+      };
+    // let relatives =
+    //   relatives
+    //   |> Relatives.push(Direction.toggle(d), p)
+    //   |> Relatives.reassemble;
+    ({...z, relatives: Relatives.reassemble(pushed)}, id_gen);
   } else {
-    Some(directional_unselect(d, z));
+    Some((directional_unselect(d, z), id_gen));
   };
 
 let select = (d: Direction.t, z: t): option(t) =>

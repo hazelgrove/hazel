@@ -19,15 +19,13 @@ let go_z =
   module Select = Select.Make(M);
   switch (a) {
   | Move(d) =>
-    Move.go(d, z)
-    |> Option.map(IdGen.id(id_gen))
+    Move.go(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
   | Select(d) =>
-    Select.go(d, z)
-    |> Option.map(IdGen.id(id_gen))
+    Select.go(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_select)
   | Destruct(d) =>
     (z, id_gen)
@@ -55,8 +53,7 @@ let go_z =
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok((z, id_gen));
   | MoveToBackpackTarget(d) =>
-    Move.to_backpack_target(d, z)
-    |> Option.map(IdGen.id(id_gen))
+    Move.to_backpack_target(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
