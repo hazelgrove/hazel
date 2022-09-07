@@ -1,11 +1,9 @@
 open Sexplib.Std;
 open Util;
 
-/**
- type completion =
-   | Comment
-   | Tile((list(Token.t), Direction.t)))
- */
+//  type completion =
+//    | Comment((list(Token.t), Direction.t))
+//    | Tile((list(Token.t), Direction.t))
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 // eg [("let", (["let", "=", "in"], Left)), ("in", (["let", "=", "in"], Right))]
@@ -87,7 +85,8 @@ let instant_completes: completions =
     Form.forms,
   )
   |> List.flatten
-  |> List.sort_uniq(compare);
+  |> List.sort_uniq(compare)
+  |> List.append([("#", (["##"], Direction.Left))]); //added
 
 let delayed_completion:
   (Token.t, Direction.t) => (list(Token.t), Direction.t) =
@@ -101,8 +100,16 @@ let delayed_completion:
 let instant_completion:
   (Token.t, Direction.t) => (list(Token.t), Direction.t) =
   (s, direction_preference) =>
+    // let tile_or_comment =
+    // if (s = "#") {
+    //   Comment // expansion
+    // };
     /* Completions which can or must be executed immediately */
     switch (List.assoc_opt(s, instant_completes)) {
     | Some(completion) => completion
+    // if (s = "#") {
+    //   | Comment((["#", "#"], Direction.Left))
+    //   | Tile(completion)
+    // };
     | None => ([s], direction_preference)
     };

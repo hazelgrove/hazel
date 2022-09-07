@@ -377,9 +377,8 @@ and matches_cast_Cons =
   | InvalidOperation(_) => IndetMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
-  };
+  } /* closed substitution [d1/x]d2*/;
 
-/* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
   | BoundVar(y) =>

@@ -21,9 +21,7 @@ module Deco =
       | _ => Right
       };
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
-  };
-
-  /*
+  } /*
    let children = (p: Piece.t): list(Measured.measurement_lin) =>
      switch (p) {
      | Whitespace(_)
@@ -48,7 +46,7 @@ module Deco =
           )
        |> snd;
      };
-     */
+     */;
 
   let selected_piece_profile =
       (p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
@@ -98,7 +96,10 @@ module Deco =
     z.selection.content
     |> List.filter(
          fun
-         | Piece.Whitespace(w) when w.content == Whitespace.linebreak => false
+         | Piece.Whitespace(w)
+             when
+               Whitespace.is_linebreak(w) /* ADDED w.content == Whitespace.linebreak*/ =>
+           false
          | _ => true,
        )
     |> ListUtil.fold_left_map(
@@ -155,7 +156,9 @@ module Deco =
           |> List.flatten
           |> List.filter(
                fun
-               | Piece.Whitespace(w) when w.content == Whitespace.linebreak =>
+               | Piece.Whitespace(w)
+                   when
+                     Whitespace.is_linebreak(w) /* ADDED w.content == Whitespace.linebreak*/ =>
                  false
                | _ => true,
              )

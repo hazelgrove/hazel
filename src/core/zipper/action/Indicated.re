@@ -17,31 +17,22 @@ let piece' =
   switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
   /* Non-empty selection => no indication */
   //| _ when z.selection.content != [] => None
+
   /* Empty syntax => no indication */
-  | ((None, None), None) => None
-  /* L not whitespace, R is whitespace => indicate L */
+  | ((None, None), None) => None /* L not whitespace, R is whitespace => indicate L */
   | ((Some(l), Some(r)), _) when !ws(l) && ws(r) =>
-    Some((l, Left, Sibling))
-  /* L and R are whitespaces => no indication */
-  | ((Some(l), Some(r)), _) when ws(l) && ws(r) => None
-  /* At right end of syntax and L is whitespace => no indication */
-  | ((Some(l), None), None) when ws(l) => None
-  /* At left end of syntax and R is whitespace => no indication */
-  | ((None, Some(r)), None) when ws(r) => None
-  /* No L and R is a whitespace and there is a P => indicate P */
+    Some((l, Left, Sibling)) /* L and R are whitespaces => no indication */
+  | ((Some(l), Some(r)), _) when ws(l) && ws(r) => None /* At right end of syntax and L is whitespace => no indication */
+  | ((Some(l), None), None) when ws(l) => None /* At left end of syntax and R is whitespace => no indication */
+  | ((None, Some(r)), None) when ws(r) => None /* No L and R is a whitespace and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ws(r) =>
-    Some((parent, Left, Parent))
-  /* L is not whitespace and caret is outer => indicate L */
+    Some((parent, Left, Parent)) /* L is not whitespace and caret is outer => indicate L */
   | ((Some(l), _), _) when !ws(l) && z.caret == Outer =>
-    Some((l, Left, Sibling))
-  /* No L, some P, and caret is outer => indicate R */
+    Some((l, Left, Sibling)) /* No L, some P, and caret is outer => indicate R */
   | ((None, _), Some(parent)) when z.caret == Outer =>
-    Some((parent, Left, Parent))
-  /* R is not whitespace, either no L or L is whitespace or caret is inner => indicate R */
-  | ((_, Some(r)), _) => Some((r, Right, Sibling))
-  /* No R and there is a P => indicate P */
-  | ((_, None), Some(parent)) => Some((parent, Right, Parent))
-  /* There is an L but no R and no P => indicate L */
+    Some((parent, Left, Parent)) /* R is not whitespace, either no L or L is whitespace or caret is inner => indicate R */
+  | ((_, Some(r)), _) => Some((r, Right, Sibling)) /* No R and there is a P => indicate P */
+  | ((_, None), Some(parent)) => Some((parent, Right, Parent)) /* There is an L but no R and no P => indicate L */
   //TODO(andrew): Right below seems wrong but it gets fucky otherwise
   | ((Some(l), None), None) => Some((l, Right, Sibling))
   };

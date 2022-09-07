@@ -24,11 +24,9 @@ let destruct =
          |> Caret.set(Outer)
          |> Outer.move(Right)
          |> Option.map(IdGen.id(id_gen))
-       )
-  /* If not on last inner position */
+       ) /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>
-    Outer.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
-  /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
+    Outer.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen)) /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
@@ -37,10 +35,18 @@ let destruct =
     |> Outer.directional_destruct(Right)
     |> Option.map(IdGen.id(id_gen))
   //| (_, Inner(_), (_, None)) => None
-  | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
+  | (Left, Outer, (Some(t), _))
+      when
+        Token.length(t) > 1 && !Form.is_incomplete_comment(Token.rm_last(t)) =>
+    /* ADDED skip over these options when deleting a comment */
     //Option.map(IdGen.id(id_gen)
+
     Outer.replace(Left, [Token.rm_last(t)], (z, id_gen))
-  | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
+  | (Right, Outer, (_, Some(t)))
+      when
+        Token.length(t) > 1
+        && !Form.is_incomplete_comment(Token.rm_first(t)) =>
+    /* ADDED */
     Outer.replace(Right, [Token.rm_first(t)], (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) =>

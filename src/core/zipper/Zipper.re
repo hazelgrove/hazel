@@ -191,11 +191,34 @@ module Outer = {
     {...z, backpack} |> put_selection(popped) |> unselect;
   };
 
+  let which_whitespace = (input_string: string): Whitespace.whitespace_content =>
+    // TODO: make this only an if statement for comments
+    if (input_string == Whitespace.space) {
+      Whitespace.WSpace(" ");
+    } else if (input_string == Whitespace.linebreak) {
+      Whitespace.WSpace("⏎");
+    } else {
+      Whitespace.Comment(input_string);
+    };
+
   let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
     IdGen.Syntax.(
       switch (label) {
-      | [content] when Form.is_whitespace(content) =>
+      | [content] when Form.is_comment(content) =>
+        /* Let complete destruction of the comment be handled in Destruct.re */
+        let content = Whitespace.Comment(content);
         let+ id = IdGen.fresh;
+        let z = destruct(z);
+        let selections = [
+          Selection.mk(from, Base.mk_whitespace(id, content)),
+        ];
+        let backpack = Backpack.push_s(selections, z.backpack);
+        Option.get(put_down({...z, backpack}));
+
+      | [content] when Form.is_whitespace(content) =>
+        let content = which_whitespace(content);
+        let+ id = IdGen.fresh;
+        let z = destruct(z);
         z
         |> update_siblings(((l, r)) =>
              (l @ [Whitespace({id, content})], r)
@@ -203,6 +226,7 @@ module Outer = {
       | _ =>
         let z = destruct(z);
         let molds = Molds.get(label);
+        let () = List.iter(print_endline, label);
         assert(molds != []);
         // initial mold to typecheck, will be remolded
         let mold = List.hd(molds);

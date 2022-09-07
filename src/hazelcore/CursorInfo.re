@@ -33,8 +33,7 @@ type typed =
   // none of the above and didn't go through subsumption
   | Analyzed(HTyp.t)
   // none of the above and went through subsumption
-  | AnaSubsumed(HTyp.t, HTyp.t)
-  /* cursor in synthetic position */
+  | AnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic position */
   // cursor is on the function position of an ap,
   // and that expression does not synthesize a type
   // with a matched arrow type
@@ -79,8 +78,7 @@ type typed =
   // keep track of steps to form that contains the branches
   | SynInconsistentBranches(list(HTyp.t), CursorPath.steps)
   // none of the above
-  | Synthesized(HTyp.t)
-  /* cursor in analytic pattern position */
+  | Synthesized(HTyp.t) /* cursor in analytic pattern position */
   // cursor is on a type inconsistent pattern
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   // cursor is on a tuple pattern of the wrong length
@@ -100,14 +98,11 @@ type typed =
   // none of the above and didn't go through subsumption
   | PatAnalyzed(HTyp.t)
   // none of the above and went through subsumption
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
-  /* cursor in synthetic pattern position */
+  | PatAnaSubsumed(HTyp.t, HTyp.t) /* cursor in synthetic pattern position */
   // cursor is on a keyword
   | PatSynthesized(HTyp.t)
-  | PatSynKeyword(ExpandingKeyword.t)
-  /* cursor in type position */
-  | OnType
-  /* (we will have a richer structure here later)*/
+  | PatSynKeyword(ExpandingKeyword.t) /* cursor in type position */
+  | OnType /* (we will have a richer structure here later)*/
   | OnNonLetLine
   | OnRule;
 

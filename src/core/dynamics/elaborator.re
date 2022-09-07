@@ -41,9 +41,9 @@ let bool_op_of: Term.UExp.exp_op_bool => DHExp.BinBoolOp.t =
 let rec dhexp_of_uexp =
         (m: Statics.info_map, uexp: Term.UExp.t): option(DHExp.t) => {
   /*
-    simplifications:
-    1. leave out delta for now
-   */
+     simplifications:
+     1. leave out delta for now
+    */
   switch (Id.Map.find_opt(uexp.id, m)) {
   | Some(InfoExp({ctx, mode, self, _})) =>
     open OptUtil.Syntax;

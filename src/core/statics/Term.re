@@ -1,8 +1,4 @@
-open Sexplib.Std;
-
-/* cls = SYNTAX CLASSES: source of truth for supported forms
-   TODO: add tests to check if there are forms and/or terms
-   without correponding syntax classes */
+open Sexplib.Std /* cls = SYNTAX CLASSES: source of truth for supported forms   TODO: add tests to check if there are forms and/or terms   without correponding syntax classes */;
 
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -254,8 +250,7 @@ and of_piece = (p: Piece.t, children_h: list(UExp.t)): UExp.t => {
       switch (/*mold.out,*/ label, children_h, children) {
       | _ when !Tile.is_complete(t) => Invalid(p)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
-      | (["false"], [], []) => Bool(false)
-      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
+      | (["false"], [], []) => Bool(false) /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)
@@ -296,8 +291,7 @@ and of_piece_pat = (p: Piece.t, children_h: list(UPat.t)): UPat.t => {
       | _ when !Tile.is_complete(t) => Invalid(p)
       | ([","], [l, r], []) => Pair(l, r)
       | (["true"], [], []) => Bool(true) //TODO(andrew):generify
-      | (["false"], [], []) => Bool(false)
-      /* WARNING: is_float must come first because is_int's regexp is strictly more general */
+      | (["false"], [], []) => Bool(false) /* WARNING: is_float must come first because is_int's regexp is strictly more general */
       | ([t], [], []) when Form.is_float(t) => Float(float_of_string(t))
       | ([t], [], []) when Form.is_int(t) => Int(int_of_string(t))
       | ([t], [], []) when Form.is_var(t) => Var(t)

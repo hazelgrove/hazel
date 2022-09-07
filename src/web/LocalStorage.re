@@ -139,9 +139,7 @@ let load_settings = (): Model.settings =>
     try(flag |> Sexplib.Sexp.of_string |> Model.settings_of_sexp) {
     | _ => Model.settings_init
     }
-  };
-
-/*
+  } /*
  let get_string_log = log_key =>
    switch (get_localstore(log_key)) {
    | None => ""
@@ -164,4 +162,4 @@ let load_settings = (): Model.settings =>
  let get_zipper_log = () => get_string_log(zipper_log_key);
  let reset_zipper_log = () => reset_string_log(zipper_log_key);
  let append_zipper_log = append_string_log(zipper_log_key);
- */
+ */;

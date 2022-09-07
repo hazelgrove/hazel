@@ -46,9 +46,8 @@ let on_startup = (~schedule_action, _) => {
     );
 
   //TODO(andrew): remove before merge
-  schedule_action(ModelAction.LoadCard(6));
+  schedule_action(ModelAction.LoadCard(6)) /* preserve editor focus across window focus/blur */;
 
-  /* preserve editor focus across window focus/blur */
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
       focus_code_root();

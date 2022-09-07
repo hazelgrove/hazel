@@ -301,33 +301,6 @@ let is_error = (ci: info): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp(_) => false
+  | InfoTyp(_) => false /*     planning for a better let:     HAZEL:          let* ty_p = Statics_Pat.syn_moded(ctx, p);          let def_ctx = extend_let_def_ctx(ctx, p, def);          let* _ = ana(def_ctx, def, ty_p);          let* ty_def = syn(def_ctx, def);          Statics_Pat.ana(ctx, p, ty_def);            here: want to make sure that the info in the pattern          takes into account the type of the definition and vice versa.          but don't want to have errors in the pattern due to the definition, only augmenting the type.          we do want to have errors in the definition due to the pattern, as well as augmentation.          idea:          get the self types of both (call with mode=Syn?). this doesn't actually need a context atm.          ignore other returned values from those calls.          if they are consistent, call again on pat in NEW mode Augment(ty). this is same          as Ana(ty) in that it propagates type information down but where we also know          the thing can synethesize something consistent with ty.          if they are not consistent, use pat info_map from original Syn call.          for the def, just call Ana(pat_ty) on it and merge with the stuff from the pat.          finally, call on the body with the new ctx are whatever the original mode was.            */
   };
 };
-
-/*
-
- planning for a better let:
-
- HAZEL:
-        let* ty_p = Statics_Pat.syn_moded(ctx, p);
-        let def_ctx = extend_let_def_ctx(ctx, p, def);
-        let* _ = ana(def_ctx, def, ty_p);
-        let* ty_def = syn(def_ctx, def);
-        Statics_Pat.ana(ctx, p, ty_def);
-
-        here: want to make sure that the info in the pattern
-        takes into account the type of the definition and vice versa.
-        but don't want to have errors in the pattern due to the definition, only augmenting the type.
-        we do want to have errors in the definition due to the pattern, as well as augmentation.
-        idea:
-        get the self types of both (call with mode=Syn?). this doesn't actually need a context atm.
-        ignore other returned values from those calls.
-        if they are consistent, call again on pat in NEW mode Augment(ty). this is same
-        as Ana(ty) in that it propagates type information down but where we also know
-        the thing can synethesize something consistent with ty.
-        if they are not consistent, use pat info_map from original Syn call.
-        for the def, just call Ana(pat_ty) on it and merge with the stuff from the pat.
-        finally, call on the body with the new ctx are whatever the original mode was.
-
-        */

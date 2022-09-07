@@ -380,9 +380,8 @@ let inconsistent_branches: UHExp.t =
 let tests_test =
   {|((()(ExpLineZ(ZOpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ZOperand(CursorE(OnText 0)(Keyword(Typed Test NotInHole 6)))(E(A Space(S(EmptyHole 1)E))))))((ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 4))(A Space(S(BoolLit NotInHole true)E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 5))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole And(Placeholder 0)(Placeholder 1))(S(BoolLit NotInHole true)(A And(S(BoolLit NotInHole false)E)))))))E)))))(LetLine(OpSeq(Placeholder 0)(S(TypeAnn NotInHole(Var NotInHole NotInVarHole fac)(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(S Hole(A Arrow(S Hole E)))))E))((ExpLine(OpSeq(Placeholder 0)(S(Lam NotInHole(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))((ExpLine(OpSeq(Placeholder 0)(S(Case(StandardErrStatus NotInHole)((ExpLine(OpSeq(Placeholder 0)(S(Var NotInHole NotInVarHole x)E))))((Rule(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E))((ExpLine(OpSeq(Placeholder 0)(S(IntLit NotInHole 1)E)))))(Rule(OpSeq(Placeholder 0)(S(Wild NotInHole)E))((ExpLine(OpSeq(BinOp NotInHole Times(Placeholder 0)(BinOp NotInHole Space(Placeholder 1)(Placeholder 2)))(S(Var NotInHole NotInVarHole x)(A Times(S(Var NotInHole NotInVarHole fac)(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Minus(Placeholder 0)(Placeholder 1))(S(Var NotInHole NotInVarHole x)(A Minus(S(IntLit NotInHole 1)E)))))))E)))))))))))E)))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 1))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole fac)(A Space(S(IntLit NotInHole 1)(A Equals(S(IntLit NotInHole 1)E)))))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 3))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(BinOp NotInHole Times(BinOp NotInHole Times(BinOp NotInHole Times(BinOp NotInHole Times(BinOp NotInHole Times(Placeholder 2)(Placeholder 3))(Placeholder 4))(Placeholder 5))(Placeholder 6))(Placeholder 7)))(S(Var NotInHole NotInVarHole fac)(A Space(S(IntLit NotInHole 7)(A Equals(S(IntLit NotInHole 2)(A Times(S(IntLit NotInHole 3)(A Times(S(IntLit NotInHole 4)(A Times(S(IntLit NotInHole 5)(A Times(S(IntLit NotInHole 6)(A Times(S(IntLit NotInHole 7)E)))))))))))))))))))E)))))(ExpLine(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(S(Keyword(Typed Test NotInHole 2))(A Space(S(Parenthesized((ExpLine(OpSeq(BinOp NotInHole Equals(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(S(Var NotInHole NotInVarHole fac)(A Space(S(IntLit NotInHole 3)(A Equals(S(IntLit NotInHole 5)E)))))))))E)))))))(Prod())(30 30))|}
   |> Sexplib.Sexp.of_string
-  |> Statics.edit_state_of_sexp;
+  |> Statics.edit_state_of_sexp /* Examples for which it suffices to specify the program UHExp */;
 
-/* Examples for which it suffices to specify the program UHExp */
 let uhexp_examples = [
   ("hole", just_hole),
   ("lambda", holey_lambda),
@@ -390,9 +389,8 @@ let uhexp_examples = [
   ("map", map_example),
   ("quicksort", qsort_example),
   ("inconsistent branches", inconsistent_branches),
-];
+] /* Examples which require either a zipper or IDGen state */;
 
-/* Examples which require either a zipper or IDGen state */
 let edit_state_examples = [("tests", tests_test)];
 
 let edit_state_of_block =

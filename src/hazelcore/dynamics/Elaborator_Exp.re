@@ -393,31 +393,7 @@ and syn_elab_operand =
       }
     }
   | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-    DoesNotElaborate /* let (_, palette_ctx) = ctx in
-     begin match (VarMap.lookup palette_ctx name) with
-     | Some palette_defn ->
-       let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-       let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
-       let expansion = to_exp serialized_model in
-       let (_, hole_map) = hole_data in
-       (* bind each free variable in expansion by wrapping expansion
-        * in lambda, then apply lambda to args in hole data
-        *)
-       let bound_expansion :=
-           NatMap.fold hole_map
-             (fun bound entry ->
-               let (n, typ_exp) = entry in
-               let (htyp, hexp) = typ_exp in
-               let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-               let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-               let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in
-               let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in
-               UHExp.Tm NotInHole ap
-             )
-             expansion in
-       ana_elab_exp ctx bound_expansion expansion_ty
-     | None -> DoesNotElaborate
-     end */ /* TODO fix me */
+    DoesNotElaborate /* let (_, palette_ctx) = ctx in   begin match (VarMap.lookup palette_ctx name) with   | Some palette_defn ->     let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in     let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in     let expansion = to_exp serialized_model in     let (_, hole_map) = hole_data in     (* bind each free variable in expansion by wrapping expansion      * in lambda, then apply lambda to args in hole data      *)     let bound_expansion :=         NatMap.fold hole_map           (fun bound entry ->             let (n, typ_exp) = entry in             let (htyp, hexp) = typ_exp in             let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in             let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in             let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) Operators_Exp.Space (UHExp.Parenthesized hexp_ann) in             let ap = UHExp.OpSeq (UHExp.associate opseq) opseq in             UHExp.Tm NotInHole ap           )           expansion in     ana_elab_exp ctx bound_expansion expansion_ty   | None -> DoesNotElaborate   end */ /* TODO fix me */
   }
 and syn_elab_rules =
     (
@@ -705,7 +681,8 @@ and ana_elab_operand =
   | Lam(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotElaborate /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _) =>
+    DoesNotElaborate /* not in hole */
   | EmptyHole(u) =>
     let gamma = Contexts.gamma(ctx);
     let sigma = Environment.id_env(gamma);

@@ -41,14 +41,10 @@ let is_float = regexp("^[0-9]*\\.[0-9]*$");
 let is_typ_lit = regexp("^Int|Float|Bool$");
 let is_typ_lit_partial = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_wild = regexp("^_$");
-let is_bool = regexp("^true|false$");
+let is_bool = regexp("^true|false$") /* A. Whitespace: */;
 
-/* A. Whitespace: */
-let whitespace = [Whitespace.space, Whitespace.linebreak];
+let whitespace = [Whitespace.space, Whitespace.linebreak] /* B. Operands:   Order in this list determines relative remolding   priority for forms with overlapping regexps */;
 
-/* B. Operands:
-   Order in this list determines relative remolding
-   priority for forms with overlapping regexps */
 let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_typ_lit, [mk_op(Exp, [])])), // bad sort
@@ -59,11 +55,10 @@ let convex_monos: list((string, (string => bool, list(Mold.t)))) = [
   ("fnum", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("num", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
-];
-
-/* C. Compound Forms:
+] /* C. Compound Forms:
    Order in this list determines relative remolding
-   priority for forms which share the same labels */
+   priority for forms which share the same labels */;
+
 let forms: list((string, t)) = [
   ("plus", mk_infix("+", Exp, P.plus)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
@@ -83,8 +78,7 @@ let forms: list((string, t)) = [
     mk(ds, ["funann", ":", "->"], mk_pre(P.let_, Exp, [Pat, Typ])),
   ),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
-  ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  /* Something must instant on => as not valid monotile on its own */
+  ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))) /* Something must instant on => as not valid monotile on its own */,
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
@@ -140,7 +134,7 @@ let forms: list((string, t)) = [
       },
     ),
   ),
-  ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
+  ("rule_sep", mk_infix("|", Rul, P.rule_sep)) /* Something must instant on | as not valid monotile on its own */,
   //("times", mk_infix("*", Exp, P.mult)),
   //("divide", mk_infix("/", Exp, P.mult)),
   //("not_equals", mk_infix("!=", Exp, 5)),
@@ -164,7 +158,6 @@ let forms: list((string, t)) = [
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
   //("case", mk(ds, ["case", "of"], mk_pre(9, Exp, [Exp]))),
   //("rule_first", mk(ds, ["|", "->"], mk_pre(9, Exp, [Pat]))),
-  /* Something must instant on | as not valid monotile on its own */
   //("rule_rest", mk(ds, ["|", "->"], mk_bin(9, Exp, [Pat]))),
 ];
 
@@ -184,7 +177,13 @@ let convex_mono_molds: Token.t => list(Mold.t) =
     );
 
 let is_convex_mono = t => convex_mono_molds(t) != [];
-let is_whitespace = t => List.mem(t, whitespace);
+let is_whitespace = t =>
+  List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0) /* comments ADDED */;
+// };
+let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0) || t == "#" /* ADDED */;
+let is_incomplete_comment = t =>
+  Re.Str.string_match(Whitespace.incomplete_comment1, t, 0)
+  || Re.Str.string_match(Whitespace.incomplete_comment2, t, 0) /* ADDED */;
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t =>

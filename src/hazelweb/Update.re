@@ -154,14 +154,12 @@ let apply_action =
         Model.load_undo_history(model, new_history, ~is_after_move=false);
       | ToggleHistoryGroup(toggle_group_id) =>
         let (suc_groups, _, _) = model.undo_history.groups;
-        let cur_group_id = List.length(suc_groups);
-        /* shift to the toggle-target group and change its expanded state */
+        let cur_group_id = List.length(suc_groups) /* shift to the toggle-target group and change its expanded state */;
         switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
         | None =>
           failwith("Impossible match, because undo_history is non-empty")
         | Some(groups) =>
-          let toggle_target_group = ZList.prj_z(groups);
-          /* change expanded state of the toggle target group after toggling */
+          let toggle_target_group = ZList.prj_z(groups) /* change expanded state of the toggle target group after toggling */;
           let after_toggle =
             ZList.replace_z(
               {
@@ -169,9 +167,8 @@ let apply_action =
                 is_expanded: !toggle_target_group.is_expanded,
               },
               groups,
-            );
+            ) /*shift back to the current group*/;
 
-          /*shift back to the current group*/
           switch (ZList.shift_to(cur_group_id, after_toggle)) {
           | None =>
             failwith("Impossible match, because undo_history is non-empty")

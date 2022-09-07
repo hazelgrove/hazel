@@ -29,18 +29,20 @@ module Text = (M: {
     | Tile(t) => of_tile(expected_sort, t)
     | Grout(_) => [Node.text(Unicode.nbsp)]
     | Whitespace({content, _}) =>
-      if (content == Whitespace.linebreak) {
+      if (Whitespace.get_string(content)
+          == Whitespace.linebreak /* ADDED content == Whitespace.linebreak*/) {
         let str = M.settings.whitespace_icons ? Whitespace.linebreak : "";
         [
           span_c("linebreak", [text(str)]),
           Node.br([]),
           Node.text(StringUtil.repeat(m(p).last.col, Unicode.nbsp)),
         ];
-      } else if (content == Whitespace.space) {
+      } else if (Whitespace.get_string(content)
+                 == Whitespace.space /* ADDED content == Whitespace.space*/) {
         let str = M.settings.whitespace_icons ? "·" : Unicode.nbsp;
         [span_c("whitespace", [text(str)])];
       } else {
-        [Node.text(content)];
+        [Node.text(Whitespace.get_string(content) /* ADDED content*/)];
       }
     };
   }

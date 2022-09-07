@@ -209,10 +209,8 @@ let rec of_segment' =
         // so as to avoid spurious indentation at root level
         (
           ~seen_linebreak=true,
-          ~container_indent=0,
-          /* indentation imposed by preceding tiles in same segment */
-          ~contained_indent=container_indent,
-          /* indentation at the start of the row */
+          ~container_indent=0 /* indentation imposed by preceding tiles in same segment */,
+          ~contained_indent=container_indent /* indentation at the start of the row */,
           ~row_indent=container_indent,
           ~origin=zero,
           seg: Segment.t,
@@ -227,7 +225,9 @@ let rec of_segment' =
   | [hd, ...tl] =>
     let (seen_linebreak, contained_indent, row_indent, hd_last, hd_map) =
       switch (hd) {
-      | Whitespace(w) when w.content == Whitespace.linebreak =>
+      | Whitespace(w)
+          when
+            Whitespace.is_linebreak(w) /* ADDED w.content == Whitespace.linebreak*/ =>
         let concluding = Segment.sameline_whitespace(tl);
         let indent' =
           if (concluding) {
@@ -243,7 +243,8 @@ let rec of_segment' =
           |> add_row(origin.row, {indent: row_indent, max_col: origin.col});
         (true, indent', indent', last, map);
       | Whitespace(w) =>
-        let last = {...origin, col: origin.col + 1};
+        let wspace_length = Unicode.length(Whitespace.get_content_string(w)); //ADDED
+        let last = {...origin, col: origin.col + wspace_length} /* ADDED */;
         (
           seen_linebreak,
           contained_indent,

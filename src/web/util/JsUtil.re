@@ -32,6 +32,7 @@ let copy_to_clipboard = (string: string): unit => {
      around the string in order to make this robust to the presence
      of linebreaks in the string. */
   // note: using unsafe as js_of_ocaml doesn't have clipboard bindings
+
   print_endline(
     "Copying log to keyboard. An exception reading 'fallback to runtime evaluation' is expected.",
   );

@@ -11,10 +11,9 @@ let get_model_action_from_kc =
     switch (cursor_info) {
     | {typed: OnType, _} => true
     | _ => false
-    };
+    } /* When adding or updating key combo actions, make sure to appropriately update
+     messages in the strategy guide. */;
 
-  /* When adding or updating key combo actions, make sure to appropriately update
-     messages in the strategy guide. */
   switch (key_combo) {
   | Escape => None
   | Backspace => Some(EditAction(Backspace))
