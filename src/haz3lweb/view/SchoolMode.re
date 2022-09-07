@@ -5,7 +5,7 @@ open Haz3lcore;
 
 // let splice_editors = (editors: list(Editor.t)): Segment.t =>
 //   editors
-//   |> List.map((ed: Editor.t) => Zipper.unselect_and_zip(ed.state.zipper))
+//   |> List.map((ed: Editor.t) => Zipper.unselect_and_zip(eds.state.zipper))
 //   |> (
 //     xs =>
 //       Util.ListUtil.interleave(
@@ -303,7 +303,7 @@ open Haz3lcore;
 // };
 
 // let test_status_icon_view =
-//     (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
+//     (~font_metrics, insts, ms: Measureds.Shards.t): option(Node.t) =>
 //   switch (ms) {
 //   | [(_, {origin: _, last}), ..._] =>
 //     let status = insts |> TestMap.joint_status |> TestStatus.to_string;
@@ -313,7 +313,7 @@ open Haz3lcore;
 //   };
 
 // let test_result_layer =
-//     (~font_metrics, ~map: Measured.t, test_results: Interface.test_results)
+//     (~font_metrics, ~map: Measureds.t, test_results: Interface.test_results)
 //     : list(Node.t) =>
 //   List.filter_map(
 //     ((id, insts)) =>
@@ -334,7 +334,7 @@ let view =
       ~settings,
       ~inject,
     ) => {
-  let (pos, ed) = state;
+  let SchoolExercise.{pos, eds} = state;
 
   // partially apply for convenience below
   let editor_view = pos =>
@@ -344,7 +344,7 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~mousedown_updates=[
-        Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, ed)),
+        Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, eds)),
       ],
       ~settings,
     );
@@ -415,8 +415,8 @@ let view =
   // let your_tests_layer =
   //   switch (your_test_results, editors) {
   //   | (Some(test_results), [_, your_tests, ..._]) =>
-  //     let map = Measured.of_segment(splice_editors([your_tests]));
-  //     test_result_layer(~font_metrics, ~map: Measured.t, test_results);
+  //     let map = Measureds.of_segment(splice_editors([your_tests]));
+  //     test_result_layer(~font_metrics, ~map: Measureds.t, test_results);
   //   | _ => []
   //   };
   // let our_tests_view =
@@ -440,12 +440,12 @@ let view =
   //         CursorInspector.view(
   //           ~inject,
   //           ~settings,
-  //           Indicated.index(focal_zipper),
+  //           Indicateds.index(focal_zipper),
   //           combined_info_map,
   //         ),
   //       ]
   //       @ (
-  //         switch (Indicated.index(focal_zipper), your_test_results) {
+  //         switch (Indicateds.index(focal_zipper), your_test_results) {
   //         | (Some(index), Some({test_map, _})) =>
   //           let view =
   //             TestView.inspector_view(
@@ -519,22 +519,25 @@ let view =
   //   @ [div([clss(["bottom-bar"])], ci_view)],
   // );
 
-  let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
+  let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [eds.prompt]); // TODO rename "cell-chapter" to "prompt"
 
   let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
     SchoolExercise.stitch_dynamic(state, results);
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (ed.prelude.state.zipper, user_tests.info_map)
-    | ReferenceImpl => (ed.reference_impl.state.zipper, instructor.info_map)
-    | YourTests => (ed.your_tests.state.zipper, user_tests.info_map)
-    | YourImpl => (ed.your_impl.state.zipper, user_tests.info_map)
+    | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
+    | ReferenceImpl => (eds.reference_impl.state.zipper, instructor.info_map)
+    | YourTests => (eds.your_tests.state.zipper, user_tests.info_map)
+    | YourImpl => (eds.your_impl.state.zipper, user_tests.info_map)
     | HiddenBugs(idx) =>
-      let editor = List.nth(ed.hidden_bugs, idx).impl;
+      let editor = List.nth(eds.hidden_bugs, idx).impl;
       let info_map = List.nth(hidden_bugs, idx).info_map;
       (editor.state.zipper, info_map);
-    | HiddenTests => (ed.hidden_tests.tests.state.zipper, instructor.info_map)
+    | HiddenTests => (
+        eds.hidden_tests.tests.state.zipper,
+        instructor.info_map,
+      )
     };
   //   let combined_info_map =
   //     settings.statics
@@ -602,7 +605,7 @@ let view =
       ~caption=Cell.simple_caption("Prelude"),
       ~code_id="prelude",
       ~info_map=user_tests.info_map,
-      ed.prelude,
+      eds.prelude,
       None,
     );
 
@@ -613,7 +616,7 @@ let view =
       ~caption=Cell.simple_caption("Your Implementation"),
       ~code_id="your-impl",
       ~info_map=user_impl.info_map,
-      ed.your_impl,
+      eds.your_impl,
       user_impl.simple_result,
     );
 
@@ -624,7 +627,7 @@ let view =
       ~caption=Cell.simple_caption("Your Tests"),
       ~code_id="your-tests",
       ~info_map=user_tests.info_map,
-      ed.your_tests,
+      eds.your_tests,
       None,
     );
 
@@ -635,7 +638,7 @@ let view =
       ~caption=Cell.simple_caption("Reference Implementation"),
       ~code_id="reference-impl",
       ~info_map=instructor.info_map,
-      ed.reference_impl,
+      eds.reference_impl,
       None,
     );
 
@@ -646,7 +649,7 @@ let view =
       ~caption=Cell.simple_caption("Hidden Tests"),
       ~code_id="hidden-tests",
       ~info_map=instructor.info_map,
-      ed.hidden_tests.tests,
+      eds.hidden_tests.tests,
       None,
     );
 
@@ -672,7 +675,7 @@ let view =
           None,
         )
       },
-      List.combine(ed.hidden_bugs, hidden_bugs),
+      List.combine(eds.hidden_bugs, hidden_bugs),
     );
 
   let ci_view =
@@ -686,7 +689,7 @@ let view =
             focal_info_map,
           ),
           // @ (
-          //   switch (Indicated.index(focal_zipper), your_test_results) {
+          //   switch (Indicateds.index(focal_zipper), your_test_results) {
           //   | (Some(index), Some({test_map, _})) =>
           //     let view =
           //       TestView.inspector_view(
@@ -706,19 +709,16 @@ let view =
       }
       : [];
 
-  // TODO: cursor inspector
-  // TODO: merge dev
-  // TODO: merge dynamics
-  // TODO: show reference implementation cells (with decorations coming from prelude only)
-  // TODO: show hidden bugs cells (with decorations coming from prelude + reference impl only)
-  // TODO: show hidden tests cells (with decorations coming from prelude + reference impl)
   // TODO: run prelude + your implementation to display result
+  // TODO: run prelude + your implementation + your tests to evaluate your implementation
   // TODO: run prelude + reference implementation + your tests to evaluate tests + generate report
   // TODO: run prelude + your implementation (for helpers) + each wrong implementation (which shouldn't shadow) + your tests to evaluate test coverage + generate report
-  // TODO: run prelude + your implementation + your tests to evaluate your implementation
   // TODO: report views
   // TODO: == and && relative precedence
   // TODO: exercise export
+  // TODO: cursor inspector is occluding last line of code
+  // TODO: merge into haz3l-tests
+
   div(
     ~attr=Attr.classes(["editor", "column"]),
     [

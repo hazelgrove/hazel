@@ -8,8 +8,8 @@ type settings_action =
   | WhitespaceIcons
   | Statics
   | Dynamics
-  | Student
   | ContextInspector
+  | InstructorMode
   | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,33 +59,69 @@ let save = (model: Model.t): unit =>
   | School(state) => LocalStorage.save_school((model.id_gen, state))
   };
 
-let update_settings =
-    (a: settings_action, settings: Model.settings): Model.settings => {
-  let settings =
+let update_settings = (a: settings_action, model: Model.t): Model.t => {
+  let settings = model.settings;
+  let model =
     switch (a) {
     | Statics =>
       /* NOTE: dynamics depends on statics, so if dynamics is on and
          we're turning statics off, turn dynamics off as well */
       {
-        ...settings,
-        statics: !settings.statics,
-        dynamics: !settings.statics && settings.dynamics,
+        ...model,
+        settings: {
+          ...settings,
+          statics: !settings.statics,
+          dynamics: !settings.statics && settings.dynamics,
+        },
       }
-    | Dynamics => {...settings, dynamics: !settings.dynamics}
-    | Captions => {...settings, captions: !settings.captions}
+    | Dynamics => {
+        ...model,
+        settings: {
+          ...settings,
+          dynamics: !settings.dynamics,
+        },
+      }
+    | Captions => {
+        ...model,
+        settings: {
+          ...settings,
+          captions: !settings.captions,
+        },
+      }
     | WhitespaceIcons => {
-        ...settings,
-        whitespace_icons: !settings.whitespace_icons,
+        ...model,
+        settings: {
+          ...settings,
+          whitespace_icons: !settings.whitespace_icons,
+        },
       }
-    | Student => {...settings, student: !settings.student}
     | ContextInspector => {
-        ...settings,
-        context_inspector: !settings.context_inspector,
+        ...model,
+        settings: {
+          ...settings,
+          context_inspector: !settings.context_inspector,
+        },
       }
-    | Mode(mode) => {...settings, mode}
+    | InstructorMode =>
+      let new_mode = !settings.instructor_mode;
+      {
+        ...model,
+        editors: Editors.set_instructor_mode(model.editors, new_mode),
+        settings: {
+          ...settings,
+          instructor_mode: !settings.instructor_mode,
+        },
+      };
+    | Mode(mode) => {
+        ...model,
+        settings: {
+          ...settings,
+          mode,
+        },
+      }
     };
-  LocalStorage.save_settings(settings);
-  settings;
+  LocalStorage.save_settings(model.settings);
+  model;
 };
 
 let load_editor = (model: Model.t): Model.t => {
@@ -98,7 +134,8 @@ let load_editor = (model: Model.t): Model.t => {
       let (id_gen, idx, editors) = LocalStorage.load_study();
       {...model, id_gen, editors: Study(idx, editors)};
     | School =>
-      let (id_gen, state) = LocalStorage.load_school();
+      let instructor_mode = model.settings.instructor_mode;
+      let (id_gen, state) = LocalStorage.load_school(~instructor_mode);
       {...model, id_gen, editors: School(state)};
     };
   {
@@ -111,23 +148,17 @@ let load_editor = (model: Model.t): Model.t => {
 };
 
 let load_default_editor = (model: Model.t): Model.t =>
-  switch (model.settings.mode) {
-  | Simple =>
+  switch (model.editors) {
+  | Simple(_) =>
     let (id_gen, editor) = Model.simple_init;
     {...model, editors: Simple(editor), id_gen};
-  | Study =>
+  | Study(_) =>
     let (id_gen, idx, editors) = Study.init;
     {...model, editors: Study(idx, editors), id_gen};
-  | School =>
-    let (id_gen, state) = School.init;
+  | School(_) =>
+    let instructor_mode = model.settings.instructor_mode;
+    let (id_gen, state) = School.init(~instructor_mode);
     {...model, editors: School(state), id_gen};
-  };
-
-let rotate_mode = (mode: Editors.mode): Editors.mode =>
-  switch (mode) {
-  | Simple => Study
-  | Study => School
-  | School => Simple
   };
 
 let reevaluate_post_update =
@@ -138,14 +169,14 @@ let reevaluate_post_update =
     | WhitespaceIcons
     | Statics => false
     | Dynamics
-    | Student
+    | InstructorMode
     | ContextInspector
     | Mode(_) => true
     }
   | PerformAction(
       Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_),
     )
-  | MoveToNextHole(_)
+  | MoveToNextHole(_) //
   | UpdateDoubleTap(_)
   | Mousedown
   | Mouseup
@@ -194,8 +225,7 @@ let apply =
     : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
-    | Set(s_action) =>
-      Ok({...model, settings: update_settings(s_action, model.settings)})
+    | Set(s_action) => Ok(update_settings(s_action, model))
     | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
@@ -220,14 +250,8 @@ let apply =
         Ok({...model, editors: School(state)});
       }
     | ToggleMode =>
-      let model = {
-        ...model,
-        settings:
-          update_settings(
-            Mode(rotate_mode(model.settings.mode)),
-            model.settings,
-          ),
-      };
+      let new_mode = Editors.rotate_mode(model.editors);
+      let model = update_settings(Mode(new_mode), model);
       Ok(load_editor(model));
     | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})

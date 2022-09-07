@@ -69,16 +69,16 @@ let load_simple = (): Editors.simple =>
       flag
       |> Sexplib.Sexp.of_string
       |> simple_without_history_of_sexp
-      |> (((id_gen, zipper)) => (id_gen, Editor.init(zipper)))
+      |> (
+        ((id_gen, zipper)) => (
+          id_gen,
+          Editor.init(zipper, ~read_only=false),
+        )
+      )
     ) {
     | _ => Model.simple_init
     }
   };
-
-let trim_histories: list(Editor.t) => list(Zipper.t) =
-  List.map((ed: Editor.t) => ed.state.zipper);
-
-let add_histories: list(Zipper.t) => list(Editor.t) = List.map(Editor.init);
 
 let prep_school_in =
     ((id_gen, state): Editors.school): school_without_history => (
@@ -87,9 +87,17 @@ let prep_school_in =
 );
 
 let prep_school_out =
-    ((id_gen, persistent_state): school_without_history): Editors.school => (
+    (
+      (id_gen, persistent_state): school_without_history,
+      ~instructor_mode: bool,
+    )
+    : Editors.school => (
   id_gen,
-  SchoolExercise.unpersist_state(persistent_state, School.the_exercise),
+  SchoolExercise.unpersist_state(
+    persistent_state,
+    School.the_exercise,
+    ~instructor_mode,
+  ),
 );
 
 let prep_study_in =
@@ -103,7 +111,7 @@ let prep_study_out =
     ((id_gen, idx, zs): study_without_history): Editors.study => (
   id_gen,
   idx,
-  List.map(Editor.init, zs),
+  List.map(Editor.init(~read_only=false), zs),
 );
 
 let save_study = (study: Editors.study): unit =>
@@ -138,16 +146,16 @@ let save_school = (school: Editors.school): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let load_school = (): Editors.school =>
+let load_school = (~instructor_mode: bool): Editors.school =>
   switch (get_localstore(save_school_key)) {
-  | None => School.init
+  | None => School.init(~instructor_mode)
   | Some(flag) =>
     try(
       flag
       |> Sexplib.Sexp.of_string
       |> school_without_history_of_sexp
-      |> prep_school_out
+      |> prep_school_out(~instructor_mode)
     ) {
-    | _ => School.init
+    | _ => School.init(~instructor_mode)
     }
   };

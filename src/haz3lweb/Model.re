@@ -12,7 +12,7 @@ type settings = {
   dynamics: bool,
   async_evaluation: bool,
   context_inspector: bool,
-  student: bool,
+  instructor_mode: bool,
   mode: Editors.mode,
 };
 
@@ -23,8 +23,8 @@ let settings_init = {
   dynamics: true,
   async_evaluation: false,
   context_inspector: false,
-  student: true,
-  mode: Simple,
+  instructor_mode: true,
+  mode: Editors.Simple,
 };
 
 type t = {

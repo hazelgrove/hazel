@@ -134,7 +134,8 @@ module App = {
 
 let initial_model = {
   // NOTE: load settings first to get last editor mode
-  let model = {...Model.blank, settings: LocalStorage.load_settings()};
+  let settings = LocalStorage.load_settings();
+  let model = {...Model.blank, settings};
   Update.load_editor(model);
 };
 
