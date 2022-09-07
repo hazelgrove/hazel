@@ -182,6 +182,13 @@ let exp_self_typ = (m: map, e: Term.UExp.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
+let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
+  switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+  | Some(InfoExp({mode, _})) => mode
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | None => failwith(__LOC__ ++ ": XXX")
+  };
+
 /* The type of a pattern after hole wrapping */
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
