@@ -21,10 +21,13 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
   );
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tile = (Id.t, Aba.t(Token.t, t));
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, t);
 let single = (id, subst) => ([(id, subst)], []);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
   | Pre(tiles, t)
@@ -38,16 +41,18 @@ let dark_id = () => {
   dark_gen := id - 1;
   id;
 };
-let dark_hole = (s: Sort.t): t => {
+let dark_hole = (~ids=[], s: Sort.t): t => {
   let id = dark_id();
   switch (s) {
-  | Exp => Exp({ids: [id], term: EmptyHole})
+  // put dark id last to avoid messing with rep id
+  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
   | _ => failwith("dark_hole todo")
   };
 };
 
 // TODO flesh out incomplete cases
-let complete_root =
+// TODO review dark hole
+let _complete_root =
   fun
   | Op(_) as root => root
   | Pre(tiles, r) as root =>
@@ -164,6 +169,11 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
+let return_dark_hole = (~ids=[], s) => {
+  let hole = dark_hole(~ids, s);
+  map := TermMap.add_all(Term.ids(hole), hole, map^);
+  hole;
+};
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
@@ -174,12 +184,18 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
-    switch (ListUtil.hd_opt(ids(tm))) {
-    | None => dark_hole(Exp)
+    let ids = ids(tm);
+    switch (ListUtil.hd_opt(ids)) {
+    | None => return_dark_hole(Exp)
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => dark_hole(Exp)
-      | Some(t) => go_s(t.mold.out, skel, seg)
+      | None => return_dark_hole(~ids, Exp)
+      | Some(t) =>
+        if (t.mold.out == Any) {
+          return_dark_hole(~ids, Exp);
+        } else {
+          go_s(t.mold.out, skel, seg);
+        }
       }
     };
   }
