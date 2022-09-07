@@ -213,3 +213,48 @@ let unpersist_state = ((pos, zippers): persistent_state, spec: spec): state => {
     },
   );
 };
+
+// # Stitching
+
+type stitched_item = {
+  term: TermBase.UExp.t,
+  info_map: Statics.map,
+};
+
+type stitched = {
+  user: stitched_item, // prelude + your_impl + your_tests
+  instructor: stitched_item, // prelude + reference_impl + hidden_tests.tests
+  hidden_bugs: list(stitched_item) // prelude + hidden_bugs[i].impl
+};
+
+let stitch = ((_, ed): state): stitched => {
+  let (user_term, _) =
+    EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
+  let user_info_map = Statics.mk_map(user_term);
+  let user = {term: user_term, info_map: user_info_map};
+
+  let (instructor_term, _) =
+    EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
+  let instructor_info_map = Statics.mk_map(instructor_term);
+  let instructor = {term: instructor_term, info_map: instructor_info_map};
+
+  let hidden_bugs =
+    List.map(
+      ({impl, hint}) => {
+        let (term, _) = EditorUtil.stitch([ed.prelude, impl]);
+        let info_map = Statics.mk_map(term);
+        {term, info_map};
+      },
+      ed.hidden_bugs,
+    );
+  {user, instructor, hidden_bugs};
+};
+
+let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
+  state => {
+    let {user, instructor, hidden_bugs: _} = stitch(state);
+    [
+      ("user", Interface.elaborate(user.info_map, user.term)),
+      ("instructor", Interface.elaborate(user.info_map, user.term)),
+    ];
+  };

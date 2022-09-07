@@ -4,6 +4,54 @@ open Haz3lcore;
 open Util.Web;
 
 // TODO move into a module
+let test_view =
+    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results): t =>
+  div(
+    ~attr=clss(["panel", "test-panel"]),
+    [
+      TestView.view_of_main_title_bar(title),
+      TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+      TestView.test_summary(~inject, ~test_results),
+    ],
+  );
+
+let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
+  div(
+    ~attr=Attr.classes(["result"]),
+    [
+      DHCode.view_tylr(
+        ~settings=Settings.Evaluation.init,
+        ~selected_hole_instance=None,
+        ~font_metrics,
+        ~width=80,
+        eval_result,
+      ),
+    ],
+  );
+
+let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
+  let eval_result = r |> ProgramResult.get_dhexp;
+  let test_results =
+    r
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> Interface.mk_results;
+  (eval_result, test_results);
+};
+
+let get_async_results =
+    (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
+  res
+  |> Option.map(res =>
+       res
+       |> ModelResult.get_current_ok
+       |> Option.value(~default=ModelResult.get_previous(res))
+     )
+  |> Option.map(mk_results);
+
+let get_sync_results = (map, term) =>
+  Interface.get_result(map, term) |> mk_results |> Option.some;
+
 let single_editor_semantics_views =
     (
       ~inject,

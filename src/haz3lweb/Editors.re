@@ -22,9 +22,7 @@ type mode =
   | Study
   | School;
 
-let simple_result_key = "simple";
-let study_result_key = "study";
-let school_result_key = "school";
+let single_result_key = "single_result";
 
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
@@ -46,28 +44,18 @@ let put_editor = (ed: Editor.t, eds: t): t =>
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let get_result_key: t => ModelResults.key =
-  fun
-  | Simple(_) => simple_result_key
-  | Study(_) => study_result_key
-  | School(_) => school_result_key;
-
-let get_spliced_segs = (editors: t): list((ModelResults.key, Segment.t)) => {
-  let result_key = get_result_key(editors);
+let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   switch (editors) {
-  | Simple(ed) => [(result_key, Editor.get_seg(ed))]
-  | Study(n, eds) => [(result_key, Editor.get_seg(List.nth(eds, n)))]
-  | School(_state) =>
-    // TODO(cyrus) replace placeholder
-    []
+  | Simple(ed) =>
+    let seg = Editor.get_seg(ed);
+    let (term, _) = MakeTerm.go(seg);
+    let info_map = Statics.mk_map(term);
+    [(single_result_key, Interface.elaborate(info_map, term))];
+  | Study(n, eds) =>
+    let seg = Editor.get_seg(List.nth(eds, n));
+    let (term, _) = MakeTerm.go(seg);
+    let info_map = Statics.mk_map(term);
+    [(single_result_key, Interface.elaborate(info_map, term))];
+  | School(state) => SchoolExercise.spliced_elabs(state)
   };
 };
-
-let get_spliced_elabs = eds =>
-  eds
-  |> get_spliced_segs
-  |> List.map(((key, seg)) => {
-       let (term, _) = MakeTerm.go(seg);
-       let map = Statics.mk_map(term);
-       (key, Interface.elaborate(map, term));
-     });
