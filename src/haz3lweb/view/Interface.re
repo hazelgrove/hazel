@@ -65,8 +65,11 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
 
+let get_result = (map, term): ProgramResult.t =>
+  term |> elaborate(map) |> evaluate;
+
 let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (term |> elaborate(map) |> evaluate) {
+  switch (get_result(map, term)) {
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
@@ -92,7 +95,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (term |> elaborate(map) |> evaluate) {
+  switch (get_result(map, term)) {
   | (_, state, _) =>
     Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };
