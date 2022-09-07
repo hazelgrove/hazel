@@ -185,8 +185,8 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
         let (t_l, t_r) = Tile.nibs(t);
         let nibs =
           switch (d) {
-          | Left => (rel_l, t_l)
-          | Right => (t_r, rel_r)
+          | Left => (t_r, rel_r)
+          | Right => (rel_l, t_l)
           };
         let (trim, id_gen) =
           Segment.Trim.is_linted(nibs, trim, sort)
