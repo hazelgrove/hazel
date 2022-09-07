@@ -216,45 +216,115 @@ let unpersist_state = ((pos, zippers): persistent_state, spec: spec): state => {
 
 // # Stitching
 
-type stitched_item = {
-  term: TermBase.UExp.t,
-  info_map: Statics.map,
+module StaticsItem = {
+  type t = {
+    term: TermBase.UExp.t,
+    info_map: Statics.map,
+  };
 };
 
-type stitched = {
-  user: stitched_item, // prelude + your_impl + your_tests
-  instructor: stitched_item, // prelude + reference_impl + hidden_tests.tests
-  hidden_bugs: list(stitched_item) // prelude + hidden_bugs[i].impl
+type stitched('a) = {
+  user_impl: 'a, // prelude + your_impl
+  user_tests: 'a, // prelude + your_impl + your_tests
+  instructor: 'a, // prelude + reference_impl + hidden_tests.tests
+  hidden_bugs: list('a) // prelude + hidden_bugs[i].impl
 };
 
-let stitch = ((_, ed): state): stitched => {
-  let (user_term, _) =
+type stitched_statics = stitched(StaticsItem.t);
+
+let stitch_static = ((_, ed): state): stitched_statics => {
+  let (user_impl_term, _) = EditorUtil.stitch([ed.prelude, ed.your_impl]);
+  let (user_tests_term, _) =
     EditorUtil.stitch([ed.prelude, ed.your_impl, ed.your_tests]);
-  let user_info_map = Statics.mk_map(user_term);
-  let user = {term: user_term, info_map: user_info_map};
+  let user_info_map = Statics.mk_map(user_tests_term);
+  let user_impl = StaticsItem.{term: user_impl_term, info_map: user_info_map};
+  let user_tests =
+    StaticsItem.{term: user_tests_term, info_map: user_info_map};
 
   let (instructor_term, _) =
     EditorUtil.stitch([ed.prelude, ed.reference_impl, ed.hidden_tests.tests]);
   let instructor_info_map = Statics.mk_map(instructor_term);
-  let instructor = {term: instructor_term, info_map: instructor_info_map};
+  let instructor =
+    StaticsItem.{term: instructor_term, info_map: instructor_info_map};
 
   let hidden_bugs =
     List.map(
       ({impl, hint}) => {
         let (term, _) = EditorUtil.stitch([ed.prelude, impl]);
         let info_map = Statics.mk_map(term);
-        {term, info_map};
+        StaticsItem.{term, info_map};
       },
       ed.hidden_bugs,
     );
-  {user, instructor, hidden_bugs};
+  {user_impl, user_tests, instructor, hidden_bugs};
 };
+
+let user_impl_key = "user_impl";
+let user_tests_key = "user_tests";
+let instructor_key = "instructor";
 
 let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
   state => {
-    let {user, instructor, hidden_bugs: _} = stitch(state);
+    let {user_impl, user_tests, instructor, hidden_bugs: _} =
+      stitch_static(state);
     [
-      ("user", Interface.elaborate(user.info_map, user.term)),
-      ("instructor", Interface.elaborate(user.info_map, user.term)),
+      (
+        user_impl_key,
+        Interface.elaborate(user_impl.info_map, user_impl.term),
+      ),
+      (
+        user_tests_key,
+        Interface.elaborate(user_tests.info_map, user_tests.term),
+      ),
+      (
+        instructor_key,
+        Interface.elaborate(instructor.info_map, instructor.term),
+      ),
     ];
   };
+
+module DynamicsItem = {
+  type t = {
+    term: TermBase.UExp.t,
+    info_map: Statics.map,
+    simple_result: option(ModelResult.simple),
+  };
+};
+let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
+  let StaticsItem.{user_impl, user_tests, instructor, hidden_bugs} =
+    stitch_static(state);
+  let simple_result_of = key =>
+    Option.map(
+      results => ModelResult.get_simple(ModelResults.lookup(results, key)),
+      results,
+    );
+  let user_impl =
+    DynamicsItem.{
+      term: user_impl.term,
+      info_map: user_impl.info_map,
+      simple_result: simple_result_of(user_impl_key),
+    };
+  let user_tests =
+    DynamicsItem.{
+      term: user_tests.term,
+      info_map: user_tests.info_map,
+      simple_result: simple_result_of(user_tests_key),
+    };
+  let instructor =
+    DynamicsItem.{
+      term: instructor.term,
+      info_map: instructor.info_map,
+      simple_result: simple_result_of(instructor_key),
+    };
+  let hidden_bugs =
+    List.map(
+      (statics_item: StaticsItem.t) =>
+        DynamicsItem.{
+          term: statics_item.term,
+          info_map: statics_item.info_map,
+          simple_result: None,
+        },
+      hidden_bugs,
+    );
+  {user_impl, user_tests, instructor, hidden_bugs};
+};
