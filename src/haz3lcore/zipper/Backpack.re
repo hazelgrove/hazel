@@ -157,6 +157,7 @@ module ShardInfo = {
 
   let init = () => {order: Order.init(), counts: Counts.init()};
 
+  // TODO make recursive
   let add_sel = (sel: Selection.t, {counts, order}: t): unit => {
     let ts = Segment.incomplete_tiles(sel.content);
     // initialize
