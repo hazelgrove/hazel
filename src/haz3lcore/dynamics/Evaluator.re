@@ -654,12 +654,15 @@ let rec evaluate = (~state: state=EvalState.init, d: DHExp.t): report => {
   | TestLit(_) => (BoxedValue(d), state)
   | Sequence(d1, d2) =>
     switch (evaluate(d1, ~state)) {
-    | (BoxedValue(_), state) => evaluate(d2, ~state)
-    | (Indet(d1), state) =>
-      switch (evaluate(d2, ~state)) {
-      | (BoxedValue(d2), state)
-      | (Indet(d2), state) => (Indet(Sequence(d1, d2)), state)
-      }
+    /* HACK(andrew): for now, just return the result of d2,
+       even if d1 is indet, for 490 exercise purposes */
+    | (_, state) => evaluate(d2, ~state)
+    /*| (BoxedValue(_), state) => evaluate(d2, ~state)
+      | (Indet(d1), state) =>
+        switch (evaluate(d2, ~state)) {
+        | (BoxedValue(d2), state)
+        | (Indet(d2), state) => (Indet(Sequence(d1, d2)), state)
+        }*/
     }
   | BinBoolOp(op, d1, d2) =>
     switch (evaluate(d1, ~state)) {
