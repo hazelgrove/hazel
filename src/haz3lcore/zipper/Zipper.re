@@ -199,8 +199,24 @@ let pick_up = (z: t): t => {
   {...z, backpack};
 };
 
-let destruct = (~destroy_kids=true, z: t): t => {
+// delete direction informs which side of caret to leave hole
+let destruct = (~destroy_kids=true, d: Direction.t, z: t): IdGen.t(t) => {
+  open IdGen.Syntax;
   let (selected, z) = update_selection(Selection.empty, z);
+  let+ z =
+    switch (
+      Segment.edge_shape_of(Left, selected.content),
+      Segment.edge_shape_of(Right, selected.content),
+    ) {
+    | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
+      let+ g = Grout.mk_fits_shape(l);
+      {
+        ...z,
+        relatives:
+          Relatives.push(Direction.toggle(d), Grout(g), z.relatives),
+      };
+    | _ => return(z)
+    };
   let (to_pick_up, to_remove) =
     Segment.incomplete_tiles(selected.content)
     |> List.partition(t =>
@@ -223,16 +239,18 @@ let destruct = (~destroy_kids=true, z: t): t => {
   {...z, backpack};
 };
 
-let directional_destruct = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destruct);
+let directional_destruct =
+    (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
+  z |> select(d) |> Option.map(z => destruct(d, z, id_gen));
 
-let put_down = (z: t): option(t) => {
-  let z = destruct(z);
+let put_down = (z: t, id_gen): option((t, IdGen.state)) => {
+  let (z, id_gen) = destruct(Left, z, id_gen);
   let+ (_, popped, backpack) = pop_backpack(z);
   Segment.tiles(popped.content)
   |> List.map((t: Tile.t) => t.id)
   |> Effect.s_touch;
-  {...z, backpack} |> put_selection(popped) |> unselect;
+  let z = {...z, backpack} |> put_selection(popped) |> unselect;
+  (z, id_gen);
 };
 
 let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
@@ -244,12 +262,12 @@ let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
       z
       |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
     | _ =>
-      let z = destruct(z);
+      let* z = destruct(Left, z);
       let molds = Molds.get(label);
       assert(molds != []);
       // initial mold to typecheck, will be remolded
       let mold = List.hd(molds);
-      let+ id = IdGen.fresh;
+      let* id = IdGen.fresh;
       Effect.s_touch([id]);
       let selections =
         Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
@@ -257,7 +275,10 @@ let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
         |> List.map(Selection.mk(from))
         |> ListUtil.rev_if(from == Right);
       let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down({...z, backpack}));
+      let* id_gen = IdGen.get;
+      let (z, id_gen) = Option.get(put_down({...z, backpack}, id_gen));
+      let+ () = IdGen.put(id_gen);
+      z;
     }
   );
 };

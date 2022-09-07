@@ -30,10 +30,15 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
+  open IdGen.Syntax;
+  let* id_gen = IdGen.get;
   let barfed =
-    Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
+    Backpack.is_first_matching(t, z.backpack)
+      ? Zipper.put_down(z, id_gen) : None;
   switch (barfed) {
-  | Some(z) => IdGen.return(z)
+  | Some((z, id_gen)) =>
+    let+ () = IdGen.put(id_gen);
+    z;
   | None =>
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
@@ -49,13 +54,15 @@ let insert_outer = (char: string, (z, id_gen): state): option(state) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
   | AppendNeither => expand_and_barf_or_construct(char, (z, id_gen))
   | AppendLeft(new_t) =>
-    z
-    |> Zipper.directional_destruct(Left)
-    |> Option.map(z => barf_or_construct(new_t, Left, z, id_gen))
+    Zipper.directional_destruct(Left, z, id_gen)
+    |> Option.map(((z, id_gen)) =>
+         barf_or_construct(new_t, Left, z, id_gen)
+       )
   | AppendRight(new_t) =>
-    z
-    |> Zipper.directional_destruct(Right)
-    |> Option.map(z => barf_or_construct(new_t, Right, z, id_gen))
+    Zipper.directional_destruct(Right, z, id_gen)
+    |> Option.map(((z, id_gen)) =>
+         barf_or_construct(new_t, Right, z, id_gen)
+       )
   };
 
 let split =
@@ -79,7 +86,9 @@ let go =
     )
     : option(state) => {
   /* If there's a selection, delete it before proceeding */
-  let z = z.selection.content != [] ? Zipper.destruct(z) : z;
+  let (z, id_gen) =
+    z.selection.content != []
+      ? Zipper.destruct(Left, z, id_gen) : (z, id_gen);
   switch (caret, neighbor_monotiles(siblings)) {
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;

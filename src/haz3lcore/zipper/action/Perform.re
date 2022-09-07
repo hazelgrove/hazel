@@ -46,10 +46,10 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(z)
+      | Outer => Zipper.put_down(z, id_gen)
       };
     z
-    |> Option.map(z => remold_regrout(Left, z, id_gen))
+    |> Option.map(((z, id_gen)) => remold_regrout(Left, z, id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};

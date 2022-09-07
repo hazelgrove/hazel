@@ -12,8 +12,7 @@ let destruct =
   let last_inner_pos = t => Token.length(t) - 2;
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
-  | _ when z.selection.content != [] =>
-    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
+  | _ when z.selection.content != [] => Some(Zipper.destruct(d, z, id_gen))
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
     Zipper.replace(Right, [Token.rm_nth(c_idx, t)], (z, id_gen));
@@ -32,10 +31,7 @@ let destruct =
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.directional_destruct(Right)
-    |> Option.map(IdGen.id(id_gen))
+    Zipper.directional_destruct(Right, Zipper.set_caret(Outer, z), id_gen)
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
     //Option.map(IdGen.id(id_gen)
@@ -43,18 +39,21 @@ let destruct =
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Zipper.replace(Right, [Token.rm_first(t)], (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) =>
-    z |> Zipper.directional_destruct(d) |> Option.map(IdGen.id(id_gen))
+  | (_, Outer, (None, _)) => Zipper.directional_destruct(d, z, id_gen)
   };
 };
 
 let merge =
-    ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) =>
-  z
-  |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
-  |> Zipper.directional_destruct(Left)
-  |> OptUtil.and_then(Zipper.directional_destruct(Right))
-  |> Option.map(z => Zipper.construct(Right, [l ++ r], z, id_gen));
+    ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) => {
+  let z = z |> Zipper.set_caret(Inner(0, Token.length(l) - 1)); // note monotile assumption
+  Zipper.directional_destruct(Left, z, id_gen)
+  |> OptUtil.and_then(((z, id_gen)) =>
+       Zipper.directional_destruct(Right, z, id_gen)
+     )
+  |> Option.map(((z, id_gen)) =>
+       Zipper.construct(Right, [l ++ r], z, id_gen)
+     );
+};
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
