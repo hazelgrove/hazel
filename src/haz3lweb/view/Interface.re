@@ -17,16 +17,12 @@ let get_result =
   | Elaborates(elab, _, _) =>
     switch (elab |> evaluate) {
     | (EvaluatorResult.BoxedValue(d), {test_map, _})
-    | (Indet(d), {test_map, _}) =>
-      print_endline("444444");
-      Some((d, List.rev(test_map)));
-    /*| exception _ =>
+    | (Indet(d), {test_map, _}) => Some((d, List.rev(test_map)))
+    | exception _ =>
       print_endline("EXCEPTION THROWN IN GET_RESULT");
-      None;*/
+      None;
     }
-  | _ =>
-    print_endline("333333333");
-    None;
+  | _ => None
   };
 };
 
