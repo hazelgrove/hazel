@@ -19,15 +19,6 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-[@deriving sexp]
-type result = EvaluatorResult.t;
-
-[@deriving sexp]
-type state = EvalState.t;
-
-[@deriving sexp]
-type report = (result, state);
-
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
 let grounded_Prod = length =>
