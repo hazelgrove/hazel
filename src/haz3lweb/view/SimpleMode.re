@@ -35,7 +35,9 @@ let single_editor_semantics_views =
       @ (
         switch (eval_result) {
         | _ when !settings.dynamics => []
-        | None => []
+        | None =>
+          print_endline("no eval result");
+          [];
         | Some(eval_result) => [res_view(~font_metrics, eval_result)]
         }
       ),
