@@ -140,7 +140,15 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
 let editors_view =
     (
       ~inject,
-      {editors, font_metrics, show_backpack_targets, settings, mousedown, _} as model: Model.t,
+      {
+        editors,
+        font_metrics,
+        show_backpack_targets,
+        settings,
+        mousedown,
+        results,
+        _,
+      }: Model.t,
     ) => {
   switch (editors) {
   | Simple(_)
@@ -149,7 +157,10 @@ let editors_view =
     let editor = Editors.get_editor(editors);
     let simple_result =
       settings.dynamics
-        ? Some(ModelResult.get_simple(Model.get_result(result_key, model)))
+        // TODO are results still being computed even if dynamics is off?
+        ? Some(
+            ModelResult.get_simple(ModelResults.lookup(results, result_key)),
+          )
         : None;
     SimpleMode.view(
       ~inject,
@@ -164,10 +175,11 @@ let editors_view =
     SchoolMode.view(
       ~inject,
       ~font_metrics,
-      ~settings,
-      ~state,
       ~mousedown,
       ~show_backpack_targets,
+      ~settings,
+      ~state,
+      ~results=settings.dynamics ? Some(results) : None,
     )
   };
 };

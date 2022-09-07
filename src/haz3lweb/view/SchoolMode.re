@@ -330,10 +330,13 @@ let view =
       ~show_backpack_targets,
       ~mousedown,
       ~state: SchoolExercise.state,
+      ~results: option(ModelResults.t),
       ~settings,
       ~inject,
     ) => {
   let (pos, ed) = state;
+
+  // partially apply for convenience below
   let editor_view = pos =>
     Cell.editor_view(
       ~inject,
@@ -346,7 +349,6 @@ let view =
       ~settings,
     );
 
-  let _ = (show_backpack_targets, settings, font_metrics, mousedown, inject);
   // let cell_view =
   //   cell_view(
   //     ~settings,
@@ -519,15 +521,15 @@ let view =
 
   let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [ed.prompt]); // TODO rename "cell-chapter" to "prompt"
 
-  let SchoolExercise.{user, instructor, hidden_bugs} =
-    SchoolExercise.stitch(state);
+  let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
+    SchoolExercise.stitch_dynamic(state, results);
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (ed.prelude.state.zipper, user.info_map)
+    | Prelude => (ed.prelude.state.zipper, user_tests.info_map)
     | ReferenceImpl => (ed.reference_impl.state.zipper, instructor.info_map)
-    | YourTests => (ed.your_tests.state.zipper, user.info_map)
-    | YourImpl => (ed.your_impl.state.zipper, user.info_map)
+    | YourTests => (ed.your_tests.state.zipper, user_tests.info_map)
+    | YourImpl => (ed.your_impl.state.zipper, user_tests.info_map)
     | HiddenBugs(idx) =>
       let editor = List.nth(ed.hidden_bugs, idx).impl;
       let info_map = List.nth(hidden_bugs, idx).info_map;
@@ -599,7 +601,7 @@ let view =
       ~selected=pos == Prelude,
       ~caption=Cell.simple_caption("Prelude"),
       ~code_id="prelude",
-      ~info_map=user.info_map,
+      ~info_map=user_tests.info_map,
       ed.prelude,
       None,
     );
@@ -610,9 +612,9 @@ let view =
       ~selected=pos == YourImpl,
       ~caption=Cell.simple_caption("Your Implementation"),
       ~code_id="your-impl",
-      ~info_map=user.info_map,
+      ~info_map=user_impl.info_map,
       ed.your_impl,
-      None,
+      user_impl.simple_result,
     );
 
   let your_tests_view =
@@ -621,7 +623,7 @@ let view =
       ~selected=pos == YourTests,
       ~caption=Cell.simple_caption("Your Tests"),
       ~code_id="your-tests",
-      ~info_map=user.info_map,
+      ~info_map=user_tests.info_map,
       ed.your_tests,
       None,
     );
@@ -650,7 +652,13 @@ let view =
 
   let hidden_bugs_views =
     List.mapi(
-      (i, (SchoolExercise.{impl, _}, SchoolExercise.{info_map, _})) => {
+      (
+        i,
+        (
+          SchoolExercise.{impl, _},
+          SchoolExercise.DynamicsItem.{info_map, _},
+        ),
+      ) => {
         editor_view(
           HiddenBugs(i),
           ~selected=pos == HiddenBugs(i),

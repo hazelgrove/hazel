@@ -102,6 +102,3 @@ let simple_init: Editors.simple = (1, Editor.empty(0));
 //     );
 //   (id_gen, 0, List.map(Editor.init, zs));
 // };
-
-let get_result = (key: ModelResults.key, model: t): option(ModelResult.t) =>
-  ModelResults.find_opt(key, model.results);

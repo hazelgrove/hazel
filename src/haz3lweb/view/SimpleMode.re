@@ -15,42 +15,29 @@ let test_view =
     ],
   );
 
-let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
-  div(
-    ~attr=Attr.classes(["result"]),
-    [
-      DHCode.view_tylr(
-        ~settings=Settings.Evaluation.init,
-        ~selected_hole_instance=None,
-        ~font_metrics,
-        ~width=80,
-        eval_result,
-      ),
-    ],
-  );
+// let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
+//   div(
+//     ~attr=Attr.classes(["result"]),
+//     [
+//       DHCode.view_tylr(
+//         ~settings=Settings.Evaluation.init,
+//         ~selected_hole_instance=None,
+//         ~font_metrics,
+//         ~width=80,
+//         eval_result,
+//       ),
+//     ],
+//   );
 
-let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
-  let eval_result = r |> ProgramResult.get_dhexp;
-  let test_results =
-    r
-    |> ProgramResult.get_state
-    |> EvaluatorState.get_tests
-    |> Interface.mk_results;
-  (eval_result, test_results);
-};
-
-let get_async_results =
-    (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
-  res
-  |> Option.map(res =>
-       res
-       |> ModelResult.get_current_ok
-       |> Option.value(~default=ModelResult.get_previous(res))
-     )
-  |> Option.map(mk_results);
-
-let get_sync_results = (map, term) =>
-  Interface.get_result(map, term) |> mk_results |> Option.some;
+// let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
+//   let eval_result = r |> ProgramResult.get_dhexp;
+//   let test_results =
+//     r
+//     |> ProgramResult.get_state
+//     |> EvaluatorState.get_tests
+//     |> Interface.mk_results;
+//   (eval_result, test_results);
+// };
 
 let single_editor_semantics_views =
     (
