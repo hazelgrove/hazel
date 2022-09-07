@@ -62,7 +62,7 @@ let pop_trim = (d: Direction.t, rs: t): (Segment.Trim.t, t) => {
     | None => (empty, rs)
     };
   let (trim, rs) = go(rs);
-  d == Left ? (rev(trim), rs) : (trim, rs);
+  d == Left ? (trim, rs) : (rev(trim), rs);
 };
 
 let push_trim = (d: Direction.t, trim, rs: t): t =>
