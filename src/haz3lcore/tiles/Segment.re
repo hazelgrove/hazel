@@ -20,12 +20,22 @@ let nibs = tiles =>
   | ([_first, ..._], Some((_, _last))) => failwith("todo Tiles.nibs")
   };
 
-let incomplete_tiles =
-  List.filter_map(
-    fun
-    | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
-    | _ => None,
+let rec incomplete_tiles = (~deep=false, seg) =>
+  List.fold_right(
+    (p: Piece.t, incomplete) =>
+      switch (p) {
+      | Whitespace(_)
+      | Grout(_) => incomplete
+      | Tile(t) =>
+        let deeper =
+          deep ? t.children |> List.concat_map(incomplete_tiles(~deep)) : [];
+        let curr = Tile.is_complete(t) ? [] : [t];
+        List.concat([curr, deeper, incomplete]);
+      },
+    seg,
+    [],
   );
+
 let tiles =
   List.filter_map(
     fun
