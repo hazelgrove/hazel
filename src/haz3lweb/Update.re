@@ -10,7 +10,7 @@ type settings_action =
   | Dynamics
   | Student
   | ContextInspector
-  | Mode(Model.mode);
+  | Mode(Editors.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -18,7 +18,6 @@ type t =
   | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
-  | LoadInit
   | LoadDefault
   | Save
   | ToggleMode
@@ -32,7 +31,8 @@ type t =
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)
-  | MoveToNextHole(Direction.t);
+  | MoveToNextHole(Direction.t)
+  | UpdateResult(ModelResults.Key.t, ModelResult.current);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -88,18 +88,21 @@ let update_settings =
   settings;
 };
 
-let load_editor = (model: Model.t): Model.t =>
-  switch (model.settings.mode) {
-  | Simple =>
-    let (id_gen, editor) = LocalStorage.load_simple();
-    {...model, id_gen, editors: Simple(editor)};
-  | Study =>
-    let (id_gen, idx, editors) = LocalStorage.load_study();
-    {...model, id_gen, editors: Study(idx, editors)};
-  | School =>
-    let (id_gen, state) = LocalStorage.load_school();
-    {...model, id_gen, editors: School(state)};
-  };
+let load_editor = (model: Model.t): Model.t => {
+  let m =
+    switch (model.settings.mode) {
+    | Simple =>
+      let (id_gen, editor) = LocalStorage.load_simple();
+      {...model, id_gen, editors: Simple(editor)};
+    | Study =>
+      let (id_gen, idx, editors) = LocalStorage.load_study();
+      {...model, id_gen, editors: Study(idx, editors)};
+    | School =>
+      let (id_gen, state) = LocalStorage.load_school();
+      {...model, id_gen, editors: School(state)};
+    };
+  {...m, results: ModelResults.init(Editors.get_spliced_elabs(m.editors))};
+};
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.settings.mode) {
@@ -114,105 +117,178 @@ let load_default_editor = (model: Model.t): Model.t =>
     {...model, editors: School(state), id_gen};
   };
 
-let rotate_mode = (mode: Model.mode): Model.mode =>
+let rotate_mode = (mode: Editors.mode): Editors.mode =>
   switch (mode) {
   | Simple => Study
   | Study => School
   | School => Simple
   };
 
-let apply =
-    (model: Model.t, update: t, _: State.t, ~schedule_action as _)
-    : Result.t(Model.t) => {
-  switch (update) {
+let reevaluate_post_update =
+  fun
   | Set(s_action) =>
-    Ok({...model, settings: update_settings(s_action, model.settings)})
-  | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
-  | Mousedown => Ok({...model, mousedown: true})
-  | Mouseup => Ok({...model, mousedown: false})
-  | LoadInit =>
-    // NOTE: load settings first to get last editor mode
-    let model = {...model, settings: LocalStorage.load_settings()};
-    Ok(load_editor(model));
-  | LoadDefault => Ok(load_default_editor(model))
-  | Save =>
-    save(model);
-    Ok(model);
-  | SwitchEditor(n) =>
-    switch (model.editors) {
-    | Simple(_) => Error(FailedToSwitch)
-    | Study(m, _) when m == n => Error(FailedToSwitch)
-    | Study(_, zs) =>
-      switch (n < List.length(zs)) {
-      | false => Error(FailedToSwitch)
-      | true =>
-        LocalStorage.save_study((model.id_gen, n, zs));
-        Ok({...model, editors: Study(n, zs)});
-      }
-    | School(state) =>
-      LocalStorage.save_school((model.id_gen, state));
-      Ok({
-        ...model,
-        editors: School(SchoolExercise.switch_editor(n, state)),
-      });
+    switch (s_action) {
+    | Captions
+    | WhitespaceIcons
+    | Statics => false
+    | Dynamics
+    | Student
+    | ContextInspector
+    | Mode(_) => true
     }
-  | ToggleMode =>
-    let model = {
-      ...model,
-      settings:
-        update_settings(
-          Mode(rotate_mode(model.settings.mode)),
-          model.settings,
-        ),
+  | PerformAction(
+      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_),
+    )
+  | MoveToNextHole(_)
+  | UpdateDoubleTap(_)
+  | Mousedown
+  | Mouseup
+  | Save
+  | SetShowBackpackTargets(_)
+  | SetFontMetrics(_)
+  | SetLogoFontMetrics(_)
+  | Copy
+  | UpdateResult(_)
+  | FailedInput(_) => false
+  // may not be necessary on all of these
+  // TODO review and prune
+  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | LoadDefault
+  | SwitchEditor(_)
+  | ToggleMode
+  | Paste
+  | Undo
+  | Redo => true;
+
+let evaluate_and_schedule =
+    (state: State.t, ~schedule_action, model: Model.t): Model.t => {
+  Editors.get_spliced_elabs(model.editors)
+  |> List.iter(((key, d)) => {
+       /* Send evaluation request. */
+       let pushed = State.evaluator_next(state, key, d);
+
+       /* Set evaluation to pending after short timeout. */
+       /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
+        * updated before below action is scheduled. */
+       Delay.delay(
+         () =>
+           if (pushed |> Lwt.is_sleeping) {
+             schedule_action(UpdateResult(key, ResultPending));
+           },
+         300,
+       );
+     });
+  model;
+};
+
+let apply =
+    (model: Model.t, update: t, state: State.t, ~schedule_action)
+    : Result.t(Model.t) => {
+  let m: Result.t(Model.t) =
+    switch (update) {
+    | Set(s_action) =>
+      Ok({...model, settings: update_settings(s_action, model.settings)})
+    | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
+    | Mousedown => Ok({...model, mousedown: true})
+    | Mouseup => Ok({...model, mousedown: false})
+    | LoadDefault => Ok(load_default_editor(model))
+    | Save =>
+      save(model);
+      Ok(model);
+    | SwitchEditor(n) =>
+      switch (model.editors) {
+      | Simple(_) => Error(FailedToSwitch)
+      | Study(m, _) when m == n => Error(FailedToSwitch)
+      | Study(_, zs) =>
+        switch (n < List.length(zs)) {
+        | false => Error(FailedToSwitch)
+        | true =>
+          LocalStorage.save_study((model.id_gen, n, zs));
+          Ok({...model, editors: Study(n, zs)});
+        }
+      | School(state) =>
+        LocalStorage.save_school((model.id_gen, state));
+        let state = SchoolExercise.switch_editor(n, state);
+        Ok({...model, editors: School(state)});
+      }
+    | ToggleMode =>
+      let model = {
+        ...model,
+        settings:
+          update_settings(
+            Mode(rotate_mode(model.settings.mode)),
+            model.settings,
+          ),
+      };
+      Ok(load_editor(model));
+    | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
+    | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
+    | SetLogoFontMetrics(logo_font_metrics) =>
+      Ok({...model, logo_font_metrics})
+    | PerformAction(a) =>
+      let ed_init = Model.get_editor(model);
+      switch (Haz3lcore.Perform.go(a, ed_init, model.id_gen)) {
+      | Error(err) => Error(FailedToPerform(err))
+      | Ok((ed, id_gen)) =>
+        Ok({...model, id_gen, editors: Model.put_editor(model, ed)})
+      };
+    | FailedInput(reason) => Error(UnrecognizedInput(reason))
+    | Copy =>
+      let clipboard = Printer.to_string_selection(Model.get_zipper(model));
+      //JsUtil.copy_to_clipboard(clipboard);
+      Ok({...model, clipboard});
+    | Paste =>
+      //let clipboard = JsUtil.get_from_clipboard();
+      let clipboard = model.clipboard;
+      let ed = Model.get_editor(model);
+      switch (
+        Printer.zipper_of_string(
+          ~zipper_init=ed.state.zipper,
+          model.id_gen,
+          clipboard,
+        )
+      ) {
+      | None => Error(CantPaste)
+      | Some((z, id_gen)) =>
+        //TODO: add correct action to history (Pick_up is wrong)
+        let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        Ok({...model, id_gen, editors: Model.put_editor(model, ed)});
+      };
+    | Undo =>
+      let ed = Model.get_editor(model);
+      switch (Haz3lcore.Editor.undo(ed)) {
+      | None => Error(CantUndo)
+      | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
+      };
+    | Redo =>
+      let ed = Model.get_editor(model);
+      switch (Haz3lcore.Editor.redo(ed)) {
+      | None => Error(CantRedo)
+      | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
+      };
+    | MoveToNextHole(_d) =>
+      // TODO restore
+      Ok(model)
+    | UpdateResult(key, res) =>
+      /* If error, print a message. */
+      switch (res) {
+      | ResultFail(Program_EvalError(reason)) =>
+        let serialized =
+          reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+        print_endline(
+          "[Program.EvalError(EvaluatorError.Exception(" ++ serialized ++ "))]",
+        );
+      | ResultFail(Program_DoesNotElaborate) =>
+        print_endline("[Program.DoesNotElaborate]")
+      | _ => ()
+      };
+      let r =
+        model.results
+        |> ModelResults.find(key)
+        |> ModelResult.update_current(res);
+      let results = model.results |> ModelResults.add(key, r);
+      Ok({...model, results});
     };
-    Ok(load_editor(model));
-  | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
-  | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
-  | SetLogoFontMetrics(logo_font_metrics) =>
-    Ok({...model, logo_font_metrics})
-  | PerformAction(a) =>
-    let ed_init = Model.get_editor(model);
-    switch (Haz3lcore.Perform.go(a, ed_init, model.id_gen)) {
-    | Error(err) => Error(FailedToPerform(err))
-    | Ok((ed, id_gen)) =>
-      Ok({...model, id_gen, editors: Model.put_editor(model, ed)})
-    };
-  | FailedInput(reason) => Error(UnrecognizedInput(reason))
-  | Copy =>
-    let clipboard = Printer.to_string_selection(Model.get_zipper(model));
-    //JsUtil.copy_to_clipboard(clipboard);
-    Ok({...model, clipboard});
-  | Paste =>
-    //let clipboard = JsUtil.get_from_clipboard();
-    let clipboard = model.clipboard;
-    let ed = Model.get_editor(model);
-    switch (
-      Printer.zipper_of_string(
-        ~zipper_init=ed.state.zipper,
-        model.id_gen,
-        clipboard,
-      )
-    ) {
-    | None => Error(CantPaste)
-    | Some((z, id_gen)) =>
-      //TODO: add correct action to history (Pick_up is wrong)
-      let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-      Ok({...model, id_gen, editors: Model.put_editor(model, ed)});
-    };
-  | Undo =>
-    let ed = Model.get_editor(model);
-    switch (Haz3lcore.Editor.undo(ed)) {
-    | None => Error(CantUndo)
-    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
-    };
-  | Redo =>
-    let ed = Model.get_editor(model);
-    switch (Haz3lcore.Editor.redo(ed)) {
-    | None => Error(CantRedo)
-    | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
-    };
-  | MoveToNextHole(_d) =>
-    // TODO restore
-    Ok(model)
-  };
+  reevaluate_post_update(update)
+    ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
 };

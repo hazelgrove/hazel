@@ -27,6 +27,12 @@ module Point = {
     | _ when current < target => Under
     | _ => Over
     };
+  let compare = (p1, p2) =>
+    switch (comp(p1, p2)) {
+    | Exact => 0
+    | Under => (-1)
+    | Over => 1
+    };
 
   let dcomp = (direction: Direction.t, a, b) =>
     switch (direction) {

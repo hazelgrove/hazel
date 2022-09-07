@@ -8,9 +8,15 @@ module Deco =
            let font_metrics: FontMetrics.t;
            let map: Measured.t;
            let show_backpack_targets: bool;
+           let terms: TermMap.t;
+           let term_ranges: TermRanges.t;
+           let info_map: Statics.map;
+           let tiles: TileMap.t;
          },
        ) => {
   let font_metrics = M.font_metrics;
+
+  let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
     let origin = Zipper.caret_point(M.map, z);
@@ -41,29 +47,30 @@ module Deco =
         Measured.find_shards(t, M.map)
         |> List.filter(((i, _)) => List.mem(i, t.shards))
       };
+    let id = Piece.id(p);
+    let tiles = [(id, mold, shards)];
     let l = fst(List.hd(shards));
     let r = fst(ListUtil.last(shards));
-    PieceDec.Profile.{shards, mold, style: Selected(l, r), index: 0};
+    // TODO this is ignored in view, clean this up
+    let caret = (id, (-1));
+    PieceDec.Profile.{tiles, caret, style: Selected((id, l), (id, r))};
   };
 
   let root_piece_profile =
-      (index: int, p: Piece.t, nib_shape: Nib.Shape.t, (l, r))
-      : PieceDec.Profile.t => {
-    // TODO(d) fix sorts
-    let mold =
-      switch (p) {
-      | Whitespace(_) => Mold.of_whitespace({sort: Any, shape: nib_shape})
-      | Grout(g) => Mold.of_grout(g, Any)
-      | Tile(t) => t.mold
-      };
-    // TODO(d) awkward
-    let shards =
-      switch (p) {
-      | Whitespace(w) => [(0, Measured.find_w(w, M.map))]
-      | Grout(g) => [(0, Measured.find_g(g, M.map))]
-      | Tile(t) => Measured.find_shards(t, M.map)
-      };
-    PieceDec.Profile.{shards, mold, style: Root(l, r), index};
+      (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
+    let tiles =
+      // TermIds.find(Piece.id(p), M.terms)
+      Id.Map.find(Piece.id(p), M.terms)
+      |> Term.ids
+      |> List.map(id => {
+           let t = tile(id);
+           (id, t.mold, Measured.find_shards(t, M.map));
+         });
+    PieceDec.Profile.{
+      tiles,
+      caret: (Piece.id(p), index),
+      style: Root(l, r),
+    };
   };
 
   let selected_pieces = (z: Zipper.t): list(Node.t) =>
@@ -77,12 +84,14 @@ module Deco =
     |> ListUtil.fold_left_map(
          (l: Nib.Shape.t, p: Piece.t) => {
            let profile = selected_piece_profile(p, l);
+           let shape =
+             switch (Piece.nibs(p)) {
+             | None => l
+             | Some((_, {shape, _})) => shape
+             };
            // TODO(andrew): do something different for the caret
            // adjacent piece so it lines up nice
-           (
-             snd(Mold.nibs(profile.mold)).shape,
-             PieceDec.view(~font_metrics, ~rows=M.map.rows, profile),
-           );
+           (shape, PieceDec.view(~font_metrics, ~rows=M.map.rows, profile));
          },
          fst(Siblings.shapes(z.relatives.siblings)),
        )
@@ -95,26 +104,24 @@ module Deco =
     | None => []
     | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
-      let nib_shape =
+      // root_profile calculation assumes p is tile
+      // TODO encode in types
+      let _nib_shape =
         switch (Zipper.caret_direction(z)) {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Measured.Point.t, Measured.Point.t)) =
-        if (Piece.has_ends(p)) {
-          let ranges = TermRanges.mk(Zipper.zip(z));
-          switch (TermRanges.find_opt(Piece.id(p), ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, M.map).origin;
-            let r = Measured.find_p(p_r, M.map).last;
-            Some((l, r));
-          };
-        } else {
-          // using range of piece itself hides unidelimited child borders
-          let m = Measured.find_p(p, M.map);
-          Some((m.origin, m.last));
+      let range: option((Measured.Point.t, Measured.Point.t)) = {
+        // if (Piece.has_ends(p)) {
+        let ranges = TermRanges.mk(Zipper.zip(z));
+        switch (TermRanges.find_opt(Piece.id(p), ranges)) {
+        | None => None
+        | Some((p_l, p_r)) =>
+          let l = Measured.find_p(p_l, M.map).origin;
+          let r = Measured.find_p(p_r, M.map).last;
+          Some((l, r));
         };
+      };
       let index =
         switch (Indicated.shard_index(z)) {
         | None => (-1)
@@ -142,7 +149,7 @@ module Deco =
           ~font_metrics,
           ~rows=M.map.rows,
           ~segs=[],
-          root_piece_profile(index, p, nib_shape, range),
+          root_piece_profile(index, p, range),
         )
       };
     };
@@ -214,61 +221,54 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let term_highlight = (~ids: list(Id.t), ~clss: list(string), z: Zipper.t) => {
-    let seg = Zipper.unselect_and_zip(z);
-    let ranges = TermRanges.mk(seg);
-    let term_ranges =
-      ids
-      |> List.map(id => {
-           let (p_l, p_r) = TermRanges.find(id, ranges);
-           let l = Measured.find_p(p_l, M.map).origin;
-           let r = Measured.find_p(p_r, M.map).last;
-           (l, r);
+  let term_highlight = (~clss: list(string), id: Id.t) => {
+    let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
+    let l = Measured.find_p(p_l, M.map).origin;
+    let r = Measured.find_p(p_r, M.map).last;
+    open SvgUtil.Path;
+    let r_edge =
+      ListUtil.range(~lo=l.row, r.row + 1)
+      |> List.concat_map(i => {
+           let row = Measured.Rows.find(i, M.map.rows);
+           [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
          });
-    term_ranges
-    |> List.map(((l: Measured.Point.t, r: Measured.Point.t)) => {
-         open SvgUtil.Path;
-         let r_edge =
-           ListUtil.range(~lo=l.row, r.row + 1)
-           |> List.concat_map(i => {
-                let row = Measured.Rows.find(i, M.map.rows);
-                [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
-              });
-         let l_edge =
-           ListUtil.range(~lo=l.row, r.row + 1)
-           |> List.rev_map(i => {
-                let row = Measured.Rows.find(i, M.map.rows);
-                [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
-              })
-           |> List.concat;
-         let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
-         (
-           l,
-           path
-           |> translate({
-                dx: Float.of_int(- l.col),
-                dy: Float.of_int(- l.row),
-              }),
-         );
-       })
-    |> List.map(((origin, path)) =>
-         DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
-       );
+    let l_edge =
+      ListUtil.range(~lo=l.row, r.row + 1)
+      |> List.rev_map(i => {
+           let row = Measured.Rows.find(i, M.map.rows);
+           [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
+         })
+      |> List.concat;
+    let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
+    path
+    |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)})
+    |> DecUtil.code_svg(~font_metrics, ~origin=l, ~base_cls=clss);
   };
 
   // recurses through skel structure to enable experimentation
   // with hiding nested err holes
-  let err_holes = (z: Zipper.t, info_map) => {
+  let err_holes = (z: Zipper.t) => {
     let seg = Zipper.unselect_and_zip(z);
     let is_err = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, info_map)) {
+      switch (Id.Map.find_opt(id, M.info_map)) {
       | None => false
       | Some(info) => Statics.is_error(info)
       };
+    let is_rep = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, M.terms)) {
+      | None => false
+      | Some(term) => id == Term.rep_id(term)
+      };
     let rec go_seg = (seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {
-        let root = List.nth(seg, Skel.root_index(skel));
-        let root_ids = is_err(Piece.id(root)) ? [Piece.id(root)] : [];
+        let root = Skel.root(skel);
+        let root_ids =
+          Aba.get_as(root)
+          |> List.map(List.nth(seg))
+          |> List.map(Piece.id)
+          |> List.filter(is_rep)
+          |> List.filter(is_err);
+        let between_ids = Aba.get_bs(root) |> List.concat_map(go_skel);
         let uni_ids =
           switch (skel) {
           | Op(_) => []
@@ -276,7 +276,7 @@ module Deco =
           | Post(l, _) => go_skel(l)
           | Bin(l, _, r) => go_skel(l) @ go_skel(r)
           };
-        root_ids @ uni_ids;
+        root_ids @ between_ids @ uni_ids;
       };
       let bi_ids =
         seg
@@ -284,16 +284,16 @@ module Deco =
 
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
-    term_highlight(~ids=go_seg(seg), ~clss=["err-hole"], z);
+    go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
   };
 
-  let all = (zipper, sel_seg, info_map: Statics.map) =>
+  let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
-      err_holes(zipper, info_map),
+      err_holes(zipper),
     ]);
 };

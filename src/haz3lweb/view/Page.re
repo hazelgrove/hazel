@@ -140,12 +140,14 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
 let editors_view =
     (
       ~inject,
-      {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
+      {editors, font_metrics, show_backpack_targets, settings, mousedown, _} as model: Model.t,
     ) => {
   switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let editor = Model.get_editor'(editors);
+    let result_key = Editors.get_result_key(editors);
+    let editor = Editors.get_editor(editors);
+    let res = Model.get_result(result_key, model);
     SimpleMode.view(
       ~inject,
       ~font_metrics,
@@ -153,6 +155,7 @@ let editors_view =
       ~show_backpack_targets,
       ~settings,
       ~editor,
+      ~res,
     );
   | School(state) =>
     SchoolMode.view(

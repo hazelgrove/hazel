@@ -97,14 +97,18 @@ let deco =
       ~selected,
       ~info_map,
     ) => {
+  let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
       let map = measured;
       let show_backpack_targets = show_backpack_targets;
+      let (_term, terms) = MakeTerm.go(unselected);
+      let info_map = info_map;
+      let term_ranges = TermRanges.mk(unselected);
+      let tiles = TileMap.mk(unselected);
     });
-  selected
-    ? Deco.all(zipper, segment, info_map) : Deco.err_holes(zipper, info_map);
+  selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
 };
 
 let editor_view =
