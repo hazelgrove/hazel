@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Util;
 
 let cls_str = (ci: Haz3lcore.Statics.t): string =>
   switch (ci) {
@@ -27,16 +28,16 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | SynInconsistentBranches(tys) =>
     div(
       ~attr=clss([errorc, "err-inconsistent-branches"]),
-      [text("Expecting branches to have consistent types:")]
-      @ List.map(Type.view, tys),
+      [text("Expecting branches to have consistent types but got:")]
+      @ ListUtil.join(text(","), List.map(Type.view, tys)),
     )
   | TypeInconsistent(ty_syn, ty_ana) =>
     div(
       ~attr=clss([errorc, "err-type-inconsistent"]),
       [
-        text("Expecting a "),
+        text("Expecting"),
         Type.view(ty_ana),
-        text(" but found a "),
+        text("but found"),
         Type.view(ty_syn),
       ],
     )
@@ -47,20 +48,20 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
   | SynConsistent(ty_syn) =>
     div(
       ~attr=clss([happyc, "syn-consistent"]),
-      [text("Expression has a type of "), Type.view(ty_syn)],
+      [text("Expression has a type of"), Type.view(ty_syn)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text("Expression is consistent with the type "), Type.view(ty_ana)],
+      [text("Expression is consistent with the type"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       ~attr=clss([happyc, "ana-consistent"]),
       [
-        text("Expression has a type of "),
+        text("Expression has a type of"),
         Type.view(ty_syn),
-        text(" which is consistent with "),
+        text("which is consistent with"),
         Type.view(ty_ana),
       ],
     )
