@@ -361,103 +361,6 @@ module Trim = {
 
   let ws = ((wss, _): t): seg => List.(map(Piece.whitespace, concat(wss)));
 
-  // postcond: result is either <ws> or <ws,g,ws'>
-  let merge = ((wss, gs): t): t => {
-    switch (Grout.merge(gs)) {
-    | None => Aba.mk([List.concat(wss)], [])
-    | Some(g) =>
-      let (ws, wss) = ListUtil.split_first(wss);
-      Aba.mk([ws, List.concat(wss)], [g]);
-    };
-  };
-  // same as merge but type encodes postcond
-  // let merged = (trim: t): (list(Whitespace.t), option((Grout.t, list(Whitespace.t)))) => {
-  //   let (wss, gs) = merge(trim);
-  //   let (ws, wss) = ListUtil.split_first(wss);
-  //   switch (gs) {
-  //   | [] => (ws, None)
-  //   | [g, ..._] => (ws, Some((g, List.concat(wss))))
-  //   };
-  // };
-  let rec rm_up_to_one_space =
-          (wss: list(list(Whitespace.t))): list(list(Whitespace.t)) =>
-    switch (wss) {
-    | [] => []
-    | [[w, ...ws], ...wss] when Whitespace.is_space(w) =>
-      List.cons(ws, wss)
-    | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
-    };
-
-  let scooch_over_linebreak = wss' =>
-    switch (wss') {
-    | [ws, [w, ...ws'], ...wss] when Whitespace.is_linebreak(w) => [
-        ws @ [w],
-        ws',
-        ...wss,
-      ]
-    | _ => wss'
-    };
-
-  // let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
-  //   open IdGen.Syntax;
-  //   let+ g = Grout.mk_fits_shape(shape);
-  //   let (wss, gs) = trim;
-  //   /* If we're adding a grout, remove a whitespace. Note that
-  //      changes made to the logic here should also take into
-  //      account the other direction in 'regrout' below. */
-  //   let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
-  //   let (wss', gs') = cons_g(g, trim);
-  //   /* Hack to supress the addition of leading whitespace on a line */
-  //   //let wss' = scooch_over_linebreak(wss');
-  //   /* ANDREW: disabled above hack; with calmer indent it seems annoying */
-  //   (wss', gs');
-  // };
-
-  // assumes grout in trim fit r but may not fit l
-  // let _regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
-  //   if (Nib.Shape.fits(l, r)) {
-  //     let (wss, gs) = trim;
-  //     /* Convert unneeded grout to spaces. Note that changes made
-  //        to the logic here should also take into account the
-  //        conversion of spaces to grout in 'add_grout' above. */
-  //     let new_spaces =
-  //       List.filter_map(
-  //         ({id, shape}: Grout.t) =>
-  //           switch (shape) {
-  //           | Concave => Some(Whitespace.{id, content: Whitespace.space})
-  //           | Convex => None
-  //           },
-  //         gs,
-  //       );
-  //     /* Note below that it is important that we add the new spaces
-  //        before the existing wss, as doing otherwise may result
-  //        in the new spaces ending up leading a line. This approach is
-  //        somewhat hacky; we may just want to remove all the spaces
-  //        whenever there is a linebreak; not making this chance now
-  //        as I'm worried about it introducing subtle jank */
-  //     /* David PR comment:
-  //        All these changes assume the trim is ordered left-to-right,
-  //        but this may not be true when Trim.regrout is called by
-  //        regrout_affix(Left, ...) below, which reverses the affix before
-  //        processing. (This didn't pose an issue before with trim because
-  //        the whitespace and grout are symmetric and the existing code
-  //        didn't affect order.)
-
-  //        Proper fix would require threading through directional parameter
-  //        from regrout_affix into Trim.regrout and appending to correct side.
-  //        Similar threading for add_grout. That said, I couldn't trigger any
-  //        undesirable behavior with these changes and am fine with going ahead
-  //        with this for now. */
-  //     let wss = [new_spaces @ List.concat(wss)];
-  //     IdGen.return(Aba.mk(wss, []));
-  //   } else {
-  //     let (_, gs) as merged = merge(trim);
-  //     switch (gs) {
-  //     | [] => add_grout(l, merged)
-  //     | [_, ..._] => IdGen.return(merged)
-  //     };
-  //   };
-
   // TODO clean up l_pad bool in return type
   let repad = (l_pad, trim: t, r_pad): IdGen.t((bool, t)) =>
     IdGen.Syntax.(
@@ -631,7 +534,7 @@ and regrout_affix =
         let* (trim, r, tl) = id_gen;
         switch (p) {
         | Whitespace(w) => IdGen.return((Trim.cons_w(w, trim), r, tl))
-        | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
+        | Grout(g) => IdGen.return((Trim.cons_g(g, trim), r, tl))
         | Tile(t) =>
           let* children =
             Effect.s_touched(t.id)
