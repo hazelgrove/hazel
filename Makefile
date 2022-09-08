@@ -1,5 +1,5 @@
 HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
-HTML_FILE=$(HTML_DIR)/index.html
+SERVER="http://0.0.0.0:8000/"
 
 all: dev
 
@@ -10,6 +10,7 @@ change-deps:
 	opam switch export opam.export
 
 update-ocaml:
+	opam update
 	opam switch create 4.14 ocaml-base-compiler.4.14.0
 	opam switch import opam.export --update-invariant
 
@@ -28,6 +29,9 @@ dev-helper:
 watch:
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
+watch-release:
+	dune build @src/fmt --auto-promote src --profile release --watch
+
 release:
 	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
 	make release-helper
@@ -42,35 +46,8 @@ release-helper:
 echo-html-dir:
 	@echo "$(HTML_DIR)"
 
-echo-html:
-	@echo "$(HTML_FILE)"
-
-win-chrome:
-	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"
-
-win-firefox:
-	wslpath -w $(HTML_FILE) | xargs -0 "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"
-
-firefox:
-	firefox "$(HTML_FILE)" &
-
-chrome:
-	chrome "$(HTML_FILE)" &
-
-chrome-browser:
-	chrome-browser "$(HTML_FILE)" &
-
-chromium:
-	chromium "$(HTML_FILE)" &
-
-chromium-browser:
-	chromium-browser "$(HTML_FILE)" &
-
-xdg-open:
-	xdg-open "$(HTML_FILE)"
-
-open:
-	open "$(HTML_FILE)"
+serve:
+	cd $(HTML_DIR); python3 -m http.server 8000
 
 repl:
 	dune utop src/hazelcore

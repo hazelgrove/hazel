@@ -92,6 +92,8 @@ type t = {
 let init = z => {state: State.init(z), history: History.empty};
 let empty = id => init(Zipper.init(id));
 
+let get_seg = (ed: t) => Zipper.unselect_and_zip(ed.state.zipper);
+
 let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
   ...ed,
   state: {

@@ -1,40 +1,39 @@
 open Sexplib.Std;
 
-[@deriving sexp]
-type test_instance_report = (DHExp.t, TestStatus.t);
+/* FIXME: Make more obvious names. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type instance_report = (DHExp.t, TestStatus.t);
 
-[@deriving sexp]
-type test_report = (KeywordID.t, list(test_instance_report));
+let joint_status: list(instance_report) => TestStatus.t =
+  reports => TestStatus.join_all(List.map(snd, reports));
 
-[@deriving sexp]
-type t = list(test_report);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type report = (KeywordID.t, list(instance_report));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = list(report);
 let empty: t = [];
 
 let lookup = List.assoc_opt;
 
-let extend =
-    ((id, report): (KeywordID.t, test_instance_report), test_map: t): t => {
+let lookup_and_join = (n, test_map) =>
+  switch (lookup(n, test_map)) {
+  | None => TestStatus.Indet
+  | Some(reports) => joint_status(reports)
+  };
+
+let extend = ((id, report), test_map) => {
   switch (List.assoc_opt(id, test_map)) {
   | Some(a) => [(id, a @ [report]), ...List.remove_assoc(id, test_map)]
   | None => [(id, [report]), ...test_map]
   };
 };
 
-let joint_status: list(test_instance_report) => TestStatus.t =
-  reports => TestStatus.join_all(List.map(snd, reports));
+let count = List.length;
 
-let lookup_and_join = (n: int, test_map: t): TestStatus.t =>
-  switch (lookup(n, test_map)) {
-  | None => Indet
-  | Some(reports) => joint_status(reports)
-  };
-
-let count: t => int = List.length;
-
-let count_status: (TestStatus.t, t) => int =
-  (status, test_map) =>
-    List.filter(
-      ((_, instances)) => status == joint_status(instances),
-      test_map,
-    )
-    |> List.length;
+let count_status = (status, test_map) =>
+  List.filter(
+    ((_, instances)) => status == joint_status(instances),
+    test_map,
+  )
+  |> List.length;
