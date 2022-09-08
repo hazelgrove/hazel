@@ -411,14 +411,18 @@ let view =
   let ci_view =
     settings.statics
       ? {
-        [
-          CursorInspector.view(
-            ~inject,
-            ~settings,
-            Indicated.index(focal_zipper),
-            combined_info_map,
-          ),
-        ]
+        (
+          List.length(focal_zipper.backpack) == 0
+            ? [
+              CursorInspector.view(
+                ~inject,
+                ~settings,
+                Indicated.index(focal_zipper),
+                combined_info_map,
+              ),
+            ]
+            : []
+        )
         @ (
           switch (Indicated.index(focal_zipper), your_test_results) {
           | (Some(index), Some({test_map, _})) =>
