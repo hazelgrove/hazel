@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
