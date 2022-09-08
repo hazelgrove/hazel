@@ -115,19 +115,13 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
-      [
-        term_tag(is_err, "exp"),
-        status_view(error_status),
-      ],
+      [term_tag(is_err, "exp"), status_view(error_status)],
     );
   | InfoPat({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
-      [
-        term_tag(is_err, "pat"),
-        status_view(error_status),
-      ],
+      [term_tag(is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
     div(
