@@ -50,8 +50,7 @@ let piece' =
   };
 };
 
-let piece =
-  piece'(~no_ws=true, ~ign=p => Piece.(is_whitespace(p) || is_grout(p)));
+let piece = piece'(~no_ws=true, ~ign=p => Piece.(is_whitespace(p)));
 
 let shard_index = (z: Zipper.t): option(int) =>
   switch (piece(z)) {

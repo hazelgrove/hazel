@@ -107,7 +107,7 @@ module Deco =
     switch (Indicated.piece(z)) {
     | _ when z.selection.content != [] => []
     | None => []
-    | Some((Grout(_), _, _)) => []
+    // | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
       // root_profile calculation assumes p is tile
       // TODO encode in types

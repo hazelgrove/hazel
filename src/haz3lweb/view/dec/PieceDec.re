@@ -3,15 +3,20 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;
+open Sexplib.Std;
 
 module Profile = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type shard = (Id.t, int);
-  type tiles = list((Id.t, Mold.t, Measured.Shards.t));
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tiles = list((Id.t, Mold.t, [@opaque] Measured.Shards.t));
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type style =
     | Root(Measured.Point.t, Measured.Point.t)
     | Selected(shard, shard);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     style,
     caret: shard,
