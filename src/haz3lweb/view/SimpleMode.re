@@ -17,49 +17,76 @@ let test_view =
 let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   div(
     ~attr=Attr.classes(["result"]),
-    [Interface.dhcode_view(~font_metrics, ~width=80, eval_result)],
+    [
+      DHCode.view_tylr(
+        ~settings=Settings.Evaluation.init,
+        ~selected_hole_instance=None,
+        ~font_metrics,
+        ~width=80,
+        eval_result,
+      ),
+    ],
   );
 
-let single_editor_semantics_views =
-    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
+let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
+  let eval_result = r |> ProgramResult.get_dhexp;
   let test_results =
-    settings.dynamics ? Interface.test_results(map, term) : None;
-  let eval_result =
-    settings.dynamics ? Interface.evaluation_result(map, term) : None;
+    r
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> Interface.mk_results;
+  (eval_result, test_results);
+};
+
+let get_async_results =
+    (res: option(ModelResult.t)): option((DHExp.t, Interface.test_results)) =>
+  res
+  |> Option.map(res =>
+       res
+       |> ModelResult.get_current_ok
+       |> Option.value(~default=ModelResult.get_previous(res))
+     )
+  |> Option.map(mk_results);
+
+let get_sync_results = (map, term) =>
+  Interface.get_result(map, term) |> mk_results |> Option.some;
+
+let single_editor_semantics_views =
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Model.settings,
+      ~index,
+      ~unselected,
+      ~res,
+    ) => {
+  let (term, _) = MakeTerm.go(unselected);
+  let map = Statics.mk_map(term);
+  let results =
+    settings.dynamics
+      ? settings.async_evaluation
+          ? get_async_results(res) : get_sync_results(map, term)
+      : None;
   [
     div(
       ~attr=clss(["bottom-bar"]),
       [CursorInspector.view(~inject, ~settings, index, map)]
       @ (
-        switch (eval_result) {
-        | _ when !settings.dynamics => []
+        switch (results) {
         | None => []
-        | Some(eval_result) => [res_view(~font_metrics, eval_result)]
+        | Some((eval_result, _)) => [res_view(~font_metrics, eval_result)]
         }
       ),
     ),
   ]
   @ (
-    switch (test_results) {
-    | _ when !settings.dynamics => []
+    switch (results) {
     | None => []
-    | Some(test_results) => [
+    | Some((_, test_results)) => [
         test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
       ]
     }
   );
-};
-
-let deco = (~zipper, ~map, ~segment, ~font_metrics, ~show_backpack_targets) => {
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = show_backpack_targets;
-    });
-  Deco.all(zipper, segment);
 };
 
 let code_container =
@@ -79,13 +106,19 @@ let code_container =
     Code.view(~font_metrics, ~segment, ~unselected, ~map=measured, ~settings);
   let deco_view =
     show_deco
-      ? deco(
-          ~zipper,
-          ~map=measured,
-          ~segment,
-          ~font_metrics,
-          ~show_backpack_targets,
-        )
+      ? {
+        module Deco =
+          Deco.Deco({
+            let font_metrics = font_metrics;
+            let map = measured;
+            let show_backpack_targets = show_backpack_targets;
+            let (term, terms) = MakeTerm.go(unselected);
+            let info_map = Statics.mk_map(term);
+            let term_ranges = TermRanges.mk(unselected);
+            let tiles = TileMap.mk(unselected);
+          });
+        Deco.all(zipper, unselected);
+      }
       : [];
   div(
     ~attr=Attr.many([Attr.id(id), Attr.class_("code-container")]),
@@ -93,12 +126,19 @@ let code_container =
   );
 };
 
-let cell_result_view = (~font_metrics, unselected) => {
-  let term = MakeTerm.go(unselected);
-  let (_, _, map) = Statics.mk_map(term);
-  switch (Interface.evaluation_result(map, term)) {
+let cell_result_view =
+    (~font_metrics, ~settings: Model.settings, ~unselected, ~res) => {
+  let res =
+    settings.async_evaluation
+      ? get_async_results(res)
+      : {
+        let (term, _) = MakeTerm.go(unselected);
+        let map = Statics.mk_map(term);
+        get_sync_results(map, term);
+      };
+  switch (res) {
   | None => []
-  | Some(eval_result) => [
+  | Some((eval_result, _)) => [
       div(
         ~attr=clss(["cell-result"]),
         [res_view(~font_metrics, eval_result)],
@@ -116,6 +156,7 @@ let view =
       ~zipper: Zipper.t,
       ~settings: Model.settings,
       ~measured: Measured.t,
+      ~res: option(ModelResult.t),
     ) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   let code_id = "code-container";
@@ -131,7 +172,8 @@ let view =
       zipper,
     );
   let result_view =
-    !settings.dynamics ? [] : cell_result_view(~font_metrics, unselected);
+    !settings.dynamics
+      ? [] : cell_result_view(~font_metrics, ~settings, ~unselected, ~res);
   let cell_view =
     div(
       ~attr=clss(["cell-container"]),
@@ -157,6 +199,7 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
+          ~res,
         )
       : [];
   div(~attr=clss(["editor", "single"]), [cell_view] @ semantics_views);

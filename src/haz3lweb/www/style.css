@@ -1127,7 +1127,10 @@ svg.tile-selected {
 }
 
 .result {
-  max-height: 1.6em;
+<<<<<<< HEAD
+  /* max-height: 1.6em; */
+=======
+>>>>>>> haz3l-tests
   min-height: 1.6em;
   overflow: hidden;
 }

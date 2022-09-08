@@ -57,6 +57,9 @@ let di: expansion = (Delayed, Instant);
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
+let mk_nul_infix = (t: Token.t, prec) =>
+  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Nul, []));
+
 /* Token Recognition Predicates */
 let is_arbitary_int = regexp("^[0-9]*$");
 let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
@@ -115,7 +118,7 @@ let forms: list((string, t)) = [
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
   ("divide", mk_infix("/", Exp, P.mult)),
-  ("assign", mk_infix("=", Nul, P.eqs)), // HACK: SUBSTRING REQ
+  ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
@@ -132,10 +135,10 @@ let forms: list((string, t)) = [
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
   //("fgte", mk_infix("<=.", Exp, P.eqs)),
   //("flte", mk_infix(">=.", Exp, P.eqs)),
-  ("bitwise_and", mk_infix("&", Nul, 5)), // HACK: SUBSTRING REQ
-  ("logical_and", mk_infix("&&", Exp, 5)),
+  ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
+  ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
-  ("logical_or", mk_infix("||", Exp, 6)),
+  ("logical_or", mk_infix("||", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Nul, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
@@ -150,19 +153,31 @@ let forms: list((string, t)) = [
   ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
-    "case",
-    mk(ds, ["case", "of"], mk_pre'(P.case_, Exp, Exp, [Exp], Rul)),
+    "rule",
+    mk(
+      ii,
+      ["|", "=>"],
+      {
+        out: Rul,
+        in_: [Pat],
+        nibs: (
+          {sort: Exp, shape: Concave(P.rule_sep)},
+          {sort: Exp, shape: Concave(P.rule_sep)},
+        ),
+      },
+    ),
   ),
-  ("rule_arr", mk(ss, ["=>"], mk_bin'(P.rule_arr, Rul, Pat, [], Exp))),
-  ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
-  ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
+  // ("rule_pre", mk(ss, ["|"], mk_pre(P.rule_pre, Rul, []))),
+  // ("rule_sep", mk_infix("|", Rul, P.rule_sep)),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
-  ("list_lit", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
+  ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
+  ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),
   ("list_typ", mk(ii, ["[", "]"], mk_op(Typ, [Typ]))),
   //("fact", mk(ss, ["!"], mk_post(P.fact, Exp, []))),
   //("array_access", mk(ii, ["[", "]"], mk_post(P.ap, Exp, [Exp]))),

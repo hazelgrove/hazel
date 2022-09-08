@@ -52,16 +52,10 @@ type study_without_history = (Id.t, int, list(Zipper.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type school_without_history = study_without_history;
 
-let prep_simple_in = (simple: Model.simple): simple_without_history =>
-  simple |> (((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper));
+let prep_simple_in = ((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper);
+let prep_simple_out = ((id_gen, zipper)) => (id_gen, Editor.init(zipper));
 
-let prep_simple_out =
-    ((id_gen, zipper): simple_without_history): Model.simple => (
-  id_gen,
-  Editor.init(zipper),
-);
-
-let save_simple = (simple: Model.simple): unit =>
+let save_simple = (simple: Editors.simple): unit =>
   set_localstore(
     save_simple_key,
     simple
@@ -70,7 +64,7 @@ let save_simple = (simple: Model.simple): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let load_simple = (): Model.simple =>
+let load_simple = (): Editors.simple =>
   switch (get_localstore(save_simple_key)) {
   | None => Model.simple_init
   | Some(flag) =>
@@ -90,14 +84,14 @@ let trim_histories: list(Editor.t) => list(Zipper.t) =
 let add_histories: list(Zipper.t) => list(Editor.t) = List.map(Editor.init);
 
 let prep_school_in =
-    ((id_gen, idx, eds): Model.school): school_without_history => (
+    ((id_gen, idx, eds): Editors.school): school_without_history => (
   id_gen,
   idx,
   trim_histories(eds),
 );
 
 let prep_school_out =
-    ((id_gen, idx, eds): school_without_history): Model.school => (
+    ((id_gen, idx, eds): school_without_history): Editors.school => (
   id_gen,
   idx,
   add_histories(eds),
@@ -107,7 +101,7 @@ let prep_study_in = prep_school_in;
 
 let prep_study_out = prep_school_out;
 
-let save_study = (study: Model.study): unit =>
+let save_study = (study: Editors.study): unit =>
   set_localstore(
     save_study_key,
     study
@@ -116,7 +110,7 @@ let save_study = (study: Model.study): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let load_study = (): Model.study =>
+let load_study = (): Editors.study =>
   switch (get_localstore(save_study_key)) {
   | None => Study.init
   | Some(flag) =>
@@ -130,7 +124,7 @@ let load_study = (): Model.study =>
     }
   };
 
-let save_school = (school: Model.school): unit =>
+let save_school = (school: Editors.school): unit =>
   set_localstore(
     save_school_key,
     school
@@ -139,7 +133,7 @@ let save_school = (school: Model.school): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let load_school = (): Model.school =>
+let load_school = (): Editors.school =>
   switch (get_localstore(save_school_key)) {
   | None => School.init
   | Some(flag) =>
