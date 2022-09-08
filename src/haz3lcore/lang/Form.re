@@ -123,8 +123,8 @@ let forms: list((string, t)) = [
   ("divide", mk_infix("/", Exp, P.mult)),
   ("assign", mk_infix("=", Exp, P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
-  ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
-  ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
+  ("lt", mk_infix("<", Exp, P.eqs)),
+  ("gt", mk_infix(">", Exp, P.eqs)),
   //("not_equals", mk_infix("!=", Exp, 5)),
   //("gte", mk_infix("<=", Exp, P.eqs)),
   //("lte", mk_infix(">=", Exp, P.eqs)),
