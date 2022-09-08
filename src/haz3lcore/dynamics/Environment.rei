@@ -1,5 +1,1 @@
-[@deriving sexp]
-type t = VarMap.t_(DHExp.t);
-include (module type of VarMap);
-
-let id_env: VarCtx.t => t;
+include  (module type of DH.Environment) with type t = DH.Environment.t;

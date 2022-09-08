@@ -6,7 +6,7 @@ let view_of_hole_instance:
     ~inject: Update.t => Vdom.Effect.t(unit),
     ~width: int,
     ~pos: int=?,
-    ~selected_instance: option(HoleInstance.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~settings: Settings.Evaluation.t,
     ~font_metrics: FontMetrics.t,
     HoleInstance.t
@@ -19,7 +19,7 @@ let view:
   (
     ~inject: Update.t => Vdom.Effect.t(unit),
     ~settings: Settings.Evaluation.t,
-    ~selected_instance: option(HoleInstance.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,
@@ -30,7 +30,7 @@ let view:
 let view_tylr:
   (
     ~settings: Settings.Evaluation.t,
-    ~selected_instance: option(HoleInstance.t),
+    ~selected_hole_instance: option(HoleInstance.t),
     ~font_metrics: FontMetrics.t,
     ~width: int,
     ~pos: int=?,
