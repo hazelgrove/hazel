@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | OutOfFuel
   | FreeInvalidVar(Var.t)
@@ -12,5 +12,5 @@ type t =
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t));
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);

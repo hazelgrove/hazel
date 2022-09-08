@@ -45,7 +45,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | FailedCast(_)
   | InvalidOperation(_)
-  | Fun(_) => DHDoc_common.precedence_const
+  | Fun(_)
+  | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
@@ -59,7 +60,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Pair(_) => DHDoc_common.precedence_Comma
-  | NonEmptyHole(_, _, _, _, d) => precedence'(d)
+  | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
 
@@ -102,7 +103,7 @@ let rec mk =
           ~settings: Settings.Evaluation.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          ~selected_instance: option(HoleInstance.t),
+          ~selected_hole_instance: option(HoleInstance.t),
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -141,7 +142,7 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_instance)),
+            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -161,22 +162,40 @@ let rec mk =
       };
     let fdoc = (~enforce_inline) =>
       switch (d) {
-      | EmptyHole(u, i, _sigma) =>
-        let selected =
-          switch (selected_instance) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
-          };
-        DHDoc_common.mk_EmptyHole(~selected, (u, i));
-      | NonEmptyHole(reason, u, i, _sigma, d) =>
-        go'(d) |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+      /* A closure may only exist around hole expressions in
+         the postprocessed result */
+      | Closure(_, d') =>
+        switch (d') {
+        | EmptyHole(u, i) =>
+          let selected =
+            switch (selected_hole_instance) {
+            | None => false
+            | Some((u', i')) => u == u' && i == i'
+            };
+          DHDoc_common.mk_EmptyHole(~selected, (u, i));
+        | NonEmptyHole(reason, u, i, d') =>
+          go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+        | ExpandingKeyword(u, i, k) =>
+          DHDoc_common.mk_ExpandingKeyword((u, i), k)
+        | FreeVar(u, i, x) =>
+          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
+        | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+        | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
+          go_case(dscrut, drs)
+          |> annot(DHAnnot.InconsistentBranches((u, i)))
+        | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
+        }
 
-      | ExpandingKeyword(u, i, _sigma, k) =>
-        DHDoc_common.mk_ExpandingKeyword(u, i, k)
-      | FreeVar(u, i, _sigma, x) =>
-        text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, _sigma, t) =>
-        DHDoc_common.mk_InvalidText(t, (u, i))
+      /* Hole expressions must appear within a closure in
+         the postprocessed result */
+      | EmptyHole(_)
+      | NonEmptyHole(_)
+      | ExpandingKeyword(_)
+      | FreeVar(_)
+      | InvalidText(_)
+      | InconsistentBranches(_) =>
+        raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
+
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -186,10 +205,10 @@ let rec mk =
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
-      | ListLit(_, _, _, StandardErrStatus(_), _, d_list) =>
+      | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol, ol);
-      | ListLit(u, i, _sigma, InconsistentBranches(_, _), _, d_list) =>
+      | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol, ol)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
@@ -236,8 +255,6 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Pair(d1, d2) =>
         DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
-      | InconsistentBranches(u, i, _sigma, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
@@ -367,9 +384,10 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_instance, Rule(dp, dclause): DHExp.rule): DHDoc.t => {
+    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
+    : DHDoc.t => {
   open Doc;
-  let mk' = mk(~settings, ~selected_instance);
+  let mk' = mk(~settings, ~selected_hole_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
   let clause_doc =
     settings.show_case_clauses
