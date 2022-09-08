@@ -124,11 +124,10 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       ],
     );
   | InfoTyp({ty, _}) =>
-    let ann = div(~attr=clss(["typ-view"]), [text(":")]);
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(is_err, "typ"), ann, Type.view(ty)],
-    );
+      [term_tag(is_err, "typ"), text("is"), Type.view(ty)],
+    )
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
