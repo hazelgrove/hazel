@@ -296,7 +296,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
 
   let hidden_bugs =
     List.map(
-      ({impl, hint}) => {
+      ({impl, _}) => {
         let (term, _) = EditorUtil.stitch([eds.prelude, impl]);
         let info_map = Statics.mk_map(term);
         StaticsItem.{term, info_map};
@@ -338,7 +338,7 @@ module DynamicsItem = {
   };
 };
 let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
-  let StaticsItem.{user_impl, user_tests, instructor, hidden_bugs} =
+  let {user_impl, user_tests, instructor, hidden_bugs} =
     stitch_static(state);
   let simple_result_of = key =>
     Option.map(
