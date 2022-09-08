@@ -105,6 +105,13 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
     | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
+    | "k" => [
+        PerformAction(Move(Extreme(Up))),
+        PerformAction(Select(Extreme(Down))),
+        Copy,
+        PerformAction(Destruct(Left)),
+        Paste,
+      ]
     | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
@@ -120,6 +127,13 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
     | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
+    | "k" => [
+        PerformAction(Move(Extreme(Up))),
+        PerformAction(Select(Extreme(Down))),
+        Copy,
+        PerformAction(Destruct(Left)),
+        Paste,
+      ]
     | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))

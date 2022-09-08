@@ -680,34 +680,32 @@ let view =
 
   let ci_view =
     settings.statics
-      ? {
-        [
-          CursorInspector.view(
-            ~inject,
-            ~settings,
-            Indicated.index(focal_zipper),
-            focal_info_map,
-          ),
-          // @ (
-          //   switch (Indicateds.index(focal_zipper), your_test_results) {
-          //   | (Some(index), Some({test_map, _})) =>
-          //     let view =
-          //       TestView.inspector_view(
-          //         ~inject,
-          //         ~font_metrics,
-          //         ~test_map,
-          //         index,
-          //       );
-          //     switch (view) {
-          //     | None => []
-          //     | Some(view) => [view]
-          //     };
-          //   | _ => []
-          //   }
-          // );
-        ];
-      }
+      ? [
+        CursorInspector.view(
+          ~inject,
+          ~settings,
+          focal_zipper,
+          focal_info_map,
+        ),
+      ]
       : [];
+  // @ (
+  //   switch (Indicated.index(focal_zipper), your_test_results) {
+  //   | (Some(index), Some({test_map, _})) =>
+  //     let view =
+  //       TestView.inspector_view(
+  //         ~inject,
+  //         ~font_metrics,
+  //         ~test_map,
+  //         index,
+  //       );
+  //     switch (view) {
+  //     | None => []
+  //     | Some(view) => [view]
+  //     };
+  //   | _ => []
+  //   }
+  // );
 
   // TODO: run prelude + your implementation to display result
   // TODO: run prelude + your implementation + your tests to evaluate your implementation
