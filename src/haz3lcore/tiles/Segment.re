@@ -529,7 +529,7 @@ module Trim = {
              switch (g, trim) {
              | (None, ([hd, ...tl], gs)) => Aba.mk([ws @ hd, ...tl], gs)
              | (Some(g), _) => Aba.cons(ws, g, trim)
-             | _ => failwith("unexpected")
+             | _ => raise(Aba.Invalid)
              },
            ws => Aba.mk([ws], []),
          );
@@ -539,23 +539,61 @@ module Trim = {
       | None => false
       | Some(j) => i < j
       };
+
+    let new_itrim_with_extra_gs:
+      Aba.t(list((int, Whitespace.t)), (int, Grout.t)) = {
+      let cons_remaining_gs = (trim: Aba.t(_)) =>
+        List.fold_right(
+          // HACK(d) -1 index safe because this will only happen after caret
+          (g, trim) => Aba.cons([], ((-1), g), trim),
+          remaining_gs,
+          trim,
+        );
+
+      let go_iws = (iws, (consed, trim: Aba.t(_))) =>
+        List.fold_right(
+          ((i, _) as iw, (consed, trim)) => {
+            let (consed, trim) =
+              lt_caret(i) && !consed
+                ? (true, cons_remaining_gs(trim)) : (consed, trim);
+            (consed, Aba.append((@), ([[iw]], []), trim));
+          },
+          iws,
+          (consed, trim),
+        );
+
+      let (consed, new_itrim) =
+        new_itrim
+        |> Aba.fold_right(
+             (iws, ig, (consed, trim: Aba.t(_))) => {
+               let trim = consed ? trim : cons_remaining_gs(trim);
+               let trim = Aba.cons([], ig, trim);
+               go_iws(iws, (true, trim));
+             },
+             iws => go_iws(iws, (false, ([[]], []))),
+           );
+      consed ? new_itrim : cons_remaining_gs(new_itrim);
+    };
+
     let caret =
-      new_itrim
+      new_itrim_with_extra_gs
       |> Aba.map_a(List.map(((i, _)) => lt_caret(i) ? 1 : 0))
-      |> Aba.map_b(((i, _)) => lt_caret(i) ? 1 : 0)
+      // HACK(d): i >= 0 to account for negative index hack above
+      |> Aba.map_b(((i, _)) => i >= 0 && lt_caret(i) ? 1 : 0)
       |> Aba.join(List.fold_left((+), 0), Fun.id)
       |> List.fold_left((+), 0);
 
-    let new_trim = new_itrim |> Aba.map_a(List.map(snd)) |> Aba.map_b(snd);
+    let new_trim =
+      new_itrim_with_extra_gs |> Aba.map_a(List.map(snd)) |> Aba.map_b(snd);
 
-    let new_trim_with_extra_gs =
-      remaining_gs
-      |> List.fold_left((trim, g) => Aba.snoc(trim, g, []), new_trim);
+    // let new_trim_with_extra_gs =
+    //   remaining_gs
+    //   |> List.fold_left((trim, g) => Aba.snoc(trim, g, []), new_trim);
 
     let+ (l_padded, padded_trim) =
       lint
-        ? repad(Nib.is_padded(l), new_trim_with_extra_gs, Nib.is_padded(r))
-        : return((false, new_trim_with_extra_gs));
+        ? repad(Nib.is_padded(l), new_trim, Nib.is_padded(r))
+        : return((false, new_trim));
 
     (caret + (l_padded ? 1 : 0), padded_trim);
   };
