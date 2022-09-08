@@ -212,12 +212,10 @@ let editors_view =
   | Study(_) =>
     let result_key = Editors.single_result_key;
     let editor = Editors.get_editor(editors);
-    let simple_result =
+    let result =
       settings.dynamics
         // TODO are results still being computed even if dynamics is off?
-        ? Some(
-            ModelResult.get_simple(ModelResults.lookup(results, result_key)),
-          )
+        ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
     SimpleMode.view(
       ~inject,
@@ -226,7 +224,7 @@ let editors_view =
       ~show_backpack_targets,
       ~settings,
       ~editor,
-      ~simple_result,
+      ~result,
     );
   | School(state) =>
     SchoolMode.view(

@@ -99,6 +99,39 @@ let cell_view =
   );
 };
 
+let test_status_icon_view =
+    (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
+  switch (ms) {
+  | [(_, {origin: _, last}), ..._] =>
+    let status = insts |> TestMap.joint_status |> TestStatus.to_string;
+    let pos = DecUtil.abs_position(~font_metrics, last);
+    Some(
+      Node.div(
+        ~attr=Attr.many([Attr.classes(["test-result", status]), pos]),
+        [],
+      ),
+    );
+  | _ => None
+  };
+
+let test_result_layer =
+    (
+      ~font_metrics,
+      ~measured: Measured.t,
+      test_results: Interface.test_results,
+    )
+    : list(Node.t) => {
+  print_endline(Interface.show_test_results(test_results));
+  List.filter_map(
+    ((id, insts)) =>
+      switch (Id.Map.find_opt(id, measured.tiles)) {
+      | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+      | _ => None
+      },
+    test_results.test_map,
+  );
+};
+
 let deco =
     (
       ~zipper,
@@ -108,6 +141,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~test_results: option(Interface.test_results),
     ) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
@@ -120,20 +154,25 @@ let deco =
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
-  selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  switch (test_results) {
+  | None => decos
+  | Some(test_results) =>
+    decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
+  };
 };
 
-let result_view = (~font_metrics, simple: ModelResult.simple) => {
+let eval_result_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => []
-    | Some((d, _)) => [
+    | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
-          d,
+          eval_result,
         ),
       ]
     };
@@ -158,8 +197,9 @@ let editor_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.map,
+      ~test_results: option(Interface.test_results),
+      ~footer: option(Node.t),
       editor: Editor.t,
-      simple_result: option(ModelResult.simple),
     ) => {
   //~eval_result: option(option(DHExp.t))
 
@@ -178,17 +218,13 @@ let editor_view =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
+      ~test_results,
     );
   let code_view =
     Node.div(
       ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
       [code_base_view] @ deco_view,
     );
-  let result_view =
-    switch (simple_result) {
-    | None => None
-    | Some(simple) => Some(result_view(~font_metrics, simple))
-    };
   cell_view(
     ~inject,
     ~font_metrics,
@@ -199,10 +235,54 @@ let editor_view =
     ~code_id,
     ~caption?,
     code_view,
-    result_view,
+    footer,
   );
 };
 
+let editor_with_result_view =
+    (
+      ~inject,
+      ~font_metrics,
+      ~show_backpack_targets,
+      ~clss=[],
+      ~mousedown: bool,
+      ~mousedown_updates: list(Update.t)=[],
+      ~settings: Model.settings,
+      ~selected: bool,
+      ~caption: option(Node.t)=?,
+      ~code_id: string,
+      ~info_map: Statics.map,
+      ~result: ModelResult.simple,
+      editor: Editor.t,
+    ) => {
+  let ModelResult.{opt_test_results: test_results, _} =
+    ModelResult.unwrap_simple(result);
+  let eval_result_view = eval_result_view(~font_metrics, result);
+  editor_view(
+    ~inject,
+    ~font_metrics,
+    ~show_backpack_targets,
+    ~clss,
+    ~mousedown,
+    ~mousedown_updates,
+    ~settings,
+    ~selected,
+    ~caption?,
+    ~code_id,
+    ~info_map,
+    ~test_results,
+    ~footer=Some(eval_result_view),
+    editor,
+  );
+};
+// switch (simple_result) {
+//     | None => None
+//     | Some(simple) =>
+//       Option.map(
+//         (simple_data: ModelResult.simple_data) => simple_data.test_results,
+//         simple,
+//       )
+//     };
 let simple_caption = (caption: string) =>
   Node.div(
     ~attr=Attr.many([Attr.classes(["cell-caption"])]),

@@ -1,6 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
 // open Util.Web;
 
 // let splice_editors = (editors: list(Editor.t)): Segment.t =>
@@ -611,8 +610,9 @@ let view =
         ),
       ~code_id="prelude",
       ~info_map=user_tests.info_map,
+      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
+      ~footer=None,
       eds.prelude,
-      None,
     );
 
   let your_impl_view =
@@ -622,8 +622,9 @@ let view =
       ~caption=Cell.simple_caption("Your Implementation"),
       ~code_id="your-impl",
       ~info_map=user_impl.info_map,
+      ~test_results=ModelResult.unwrap_test_results(user_impl.simple_result),
+      ~footer=None,
       eds.your_impl,
-      user_impl.simple_result,
     );
 
   let your_tests_view =
@@ -633,8 +634,9 @@ let view =
       ~caption=Cell.simple_caption("Your Tests"),
       ~code_id="your-tests",
       ~info_map=user_tests.info_map,
+      ~test_results=ModelResult.unwrap_test_results(user_tests.simple_result),
+      ~footer=None,
       eds.your_tests,
-      None,
     );
 
   let reference_impl_view =
@@ -644,8 +646,9 @@ let view =
       ~caption=Cell.simple_caption("Reference Implementation"),
       ~code_id="reference-impl",
       ~info_map=instructor.info_map,
+      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
+      ~footer=None,
       eds.reference_impl,
-      None,
     );
 
   let hidden_tests_view =
@@ -655,8 +658,9 @@ let view =
       ~caption=Cell.simple_caption("Hidden Tests"),
       ~code_id="hidden-tests",
       ~info_map=instructor.info_map,
+      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
+      ~footer=None,
       eds.hidden_tests.tests,
-      None,
     );
 
   let hidden_bugs_views =
@@ -665,7 +669,7 @@ let view =
         i,
         (
           SchoolExercise.{impl, _},
-          SchoolExercise.DynamicsItem.{info_map, _},
+          SchoolExercise.DynamicsItem.{info_map, simple_result, _},
         ),
       ) => {
         editor_view(
@@ -677,8 +681,9 @@ let view =
             ),
           ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
           ~info_map,
+          ~test_results=ModelResult.unwrap_test_results(simple_result),
+          ~footer=None,
           impl,
-          None,
         )
       },
       List.combine(eds.hidden_bugs, hidden_bugs),

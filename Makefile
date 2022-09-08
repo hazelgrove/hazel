@@ -14,33 +14,29 @@ update-ocaml:
 	opam switch create 4.14 ocaml-base-compiler.4.14.0
 	opam switch import opam.export --update-invariant
 
-dev:
+setup-instructor:
 	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
-	make dev-helper
 
-dev-student:
+setup-student: 
 	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
-	make dev-helper
 
-dev-helper:
-	dune build @src/fmt --auto-promote || true
-	dune build src --profile dev
+dev-helper: 
+	dune build @src/fmt --auto-promote src --profile dev
 
-watch:
+dev: setup-instructor dev-helper
+
+dev-student: setup-student dev
+
+watch: setup-instructor
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
-watch-release:
+watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
 
-release:
-	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
-	make release-helper
+release: setup-instructor
+	dune build src --profile release
 
-release-student:
-	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
-	make release-helper
-
-release-helper:
+release-student: setup-student
 	dune build src --profile release
 
 echo-html-dir:
@@ -64,5 +60,3 @@ fix-test-answers:
 
 clean:
 	dune clean
-
-.PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean
