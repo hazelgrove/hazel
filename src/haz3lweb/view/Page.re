@@ -179,12 +179,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
       Attr.many(
         Attr.[
           id("page"),
-          // necessary to make cell focusable
-          create("tabindex", "0"),
-          on_blur(_ => {
-            JsUtil.get_elem_by_id("page")##focus;
-            Virtual_dom.Vdom.Effect.Many([]);
-          }),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
           ...handlers(~inject, ~model),
