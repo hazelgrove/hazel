@@ -38,7 +38,7 @@ let init: int => t =
     },
     backpack: [],
     relatives: {
-      siblings: ([], [Grout({id, shape: Convex})]),
+      siblings: ([], [Grout({id, sort: Exp, shape: Convex})]),
       ancestors: [],
     },
     caret: Outer,
@@ -237,7 +237,9 @@ let destruct = (~destroy_kids=true, d: Direction.t, z: t): IdGen.t(t) => {
       Segment.edge_shape_of(Right, selected.content),
     ) {
     | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
-      let+ g = Grout.mk_fits_shape(l);
+      // use any sort to insert grout anchor with assumption
+      // that it will be regrouted to proper sort
+      let+ g = Grout.mk_fits_shape(l, Any);
       {
         ...z,
         relatives:

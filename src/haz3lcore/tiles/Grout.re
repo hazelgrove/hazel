@@ -8,6 +8,7 @@ type shape =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
+  sort: Sort.t,
   shape,
 };
 
@@ -20,7 +21,7 @@ let shapes = g =>
   };
 
 // assumes same shape on both sides
-let mk_fits_shape = (s: Nib.Shape.t): IdGen.t(t) => {
+let mk_fits_shape = (s: Nib.Shape.t, sort): IdGen.t(t) => {
   open IdGen.Syntax;
   let+ id = IdGen.fresh;
   let shape =
@@ -28,7 +29,7 @@ let mk_fits_shape = (s: Nib.Shape.t): IdGen.t(t) => {
     | Convex => Concave
     | Concave(_) => Convex
     };
-  {id, shape};
+  {id, sort, shape};
 };
 //let mk_fits = ((l, r): Nibs.shapes): option(IdGen.t(t)) =>
 //  Nib.Shape.fits(l, r) ? None : Some(mk_fits_shape(l));
@@ -65,21 +66,21 @@ let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
     switch (l) {
     | {shape: Concave(_), sort} when sort != s && sort != r.sort =>
       let+ id = IdGen.fresh;
-      ([{id, shape: Convex}], Nib.Shape.Convex);
+      ([{id, sort, shape: Convex}], Nib.Shape.Convex);
     | _ => return(([], l.shape))
     };
   let* (r_shape, r_hole) =
     switch (r) {
     | {shape: Concave(_), sort} when sort != s && sort != l.sort =>
       let+ id = IdGen.fresh;
-      (Nib.Shape.Convex, [{id, shape: Convex}]);
+      (Nib.Shape.Convex, [{id, sort, shape: Convex}]);
     | _ => return((r.shape, []))
     };
   let+ mid_hole =
     Nib.Shape.fits(l_shape, r_shape)
       ? return([])
       : {
-        let+ g = mk_fits_shape(l_shape);
+        let+ g = mk_fits_shape(l_shape, s);
         [g];
       };
   List.concat([l_hole, mid_hole, r_hole]);
