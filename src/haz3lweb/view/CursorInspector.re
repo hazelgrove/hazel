@@ -63,7 +63,7 @@ let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
       // A hack for EECS 490 A1
       | Haz3lcore.Typ.Unknown(_) => [
           text(sort_name ++ " has expected type"),
-          Type.view(Haz3lcore.Typ.Int),
+          Type.view(ty_ana),
         ]
       | _ => [
           text(sort_name ++ " has type"),
