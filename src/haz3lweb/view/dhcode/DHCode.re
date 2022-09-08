@@ -93,7 +93,7 @@ let view =
     (
       ~inject,
       ~settings: Settings.Evaluation.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -101,7 +101,7 @@ let view =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
@@ -114,7 +114,7 @@ let view_of_hole_instance =
       ~inject,
       ~width: int,
       ~pos=0,
-      ~selected_instance,
+      ~selected_hole_instance,
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
       (u, i): HoleInstance.t,
@@ -123,11 +123,11 @@ let view_of_hole_instance =
   view(
     ~inject,
     ~settings,
-    ~selected_instance,
+    ~selected_hole_instance,
     ~font_metrics,
     ~width,
     ~pos,
-    DHExp.EmptyHole(u, i, []),
+    DHExp.EmptyHole(u, i),
   );
 
 let view_of_var = x => Node.text(x);
@@ -217,7 +217,7 @@ let view_of_layout_tylr =
 let view_tylr =
     (
       ~settings: Settings.Evaluation.t,
-      ~selected_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
@@ -225,7 +225,7 @@ let view_tylr =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_instance)
+  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

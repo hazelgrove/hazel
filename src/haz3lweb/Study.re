@@ -18,7 +18,7 @@ true && f(a) && f(b) && g(true)",
   "7",
 ];
 
-let init: Model.study = {
+let init: Editors.study = {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {
