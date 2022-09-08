@@ -602,7 +602,10 @@ let view =
     editor_view(
       Prelude,
       ~selected=pos == Prelude,
-      ~caption=Cell.simple_caption("Prelude"),
+      ~caption=
+        Cell.simple_caption(
+          "Prelude" ++ (settings.instructor_mode ? "" : " (Read-Only)"),
+        ),
       ~code_id="prelude",
       ~info_map=user_tests.info_map,
       eds.prelude,
