@@ -79,16 +79,12 @@ let get_from_clipboard = (): string => {
 
 let download_string_file =
     (filename: string, content_type: string, contents: string) => {
-
   let blob = File.blob_from_string(~contentType=content_type, contents);
   let url = Dom_html.window##._URL##createObjectURL(blob);
 
   let link = Dom_html.createA(Dom_html.document);
   link##.href := url;
   link##setAttribute(Js.string("download"), Js.string(filename));
-  link##.onclick :=
-    Dom_html.handler(_ => {
-      Js._true;
-    });
+  link##.onclick := Dom_html.handler(_ => {Js._true});
   link##click;
 };

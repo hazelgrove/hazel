@@ -12,19 +12,19 @@ let of_ = (filename: string, contents: Yojson.Safe.t): t => {
   {contents, filename};
 };
 
-let of_simple = (filename: string, simple: Model.simple): t =>
+let of_simple = (filename: string, simple: Editors.simple): t =>
   simple
   |> LocalStorage.prep_simple_in
   |> LocalStorage.yojson_of_simple_without_history
   |> of_(filename);
 
-let of_study = (filename: string, study: Model.study): t =>
+let of_study = (filename: string, study: Editors.study): t =>
   study
   |> LocalStorage.prep_study_in
   |> LocalStorage.yojson_of_study_without_history
   |> of_(filename);
 
-let of_school = (filename: string, school: Model.school): t =>
+let of_school = (filename: string, school: Editors.school): t =>
   school
   |> LocalStorage.prep_school_in
   |> LocalStorage.yojson_of_school_without_history

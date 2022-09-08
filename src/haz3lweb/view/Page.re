@@ -157,13 +157,15 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
 let editors_view =
     (
       ~inject,
-      {editors, font_metrics, show_backpack_targets, settings, mousedown, _}: Model.t,
+      {editors, font_metrics, show_backpack_targets, settings, mousedown, _} as model: Model.t,
     ) => {
-  let focal_zipper = Model.get_zipper'(editors);
+  let focal_zipper = Editors.get_zipper(editors);
   switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let measured = Model.get_editor'(editors).state.meta.measured;
+    let measured = Editors.get_editor(editors).state.meta.measured;
+    let result_key = Editors.get_result_key(editors);
+    let res = Model.get_result(result_key, model);
     SimpleMode.view(
       ~inject,
       ~font_metrics,
@@ -172,6 +174,7 @@ let editors_view =
       ~zipper=focal_zipper,
       ~settings,
       ~measured,
+      ~res,
     );
   | School(selected, editors) =>
     SchoolMode.view(
@@ -193,12 +196,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
       Attr.many(
         Attr.[
           id("page"),
-          // necessary to make cell focusable
-          create("tabindex", "0"),
-          on_blur(_ => {
-            JsUtil.get_elem_by_id("page")##focus;
-            Virtual_dom.Vdom.Effect.Many([]);
-          }),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
           ...handlers(~inject, ~model),

@@ -1,3 +1,5 @@
+let cat = String.concat("");
+
 let remove_nth = (n, t) => {
   assert(n < String.length(t));
   String.sub(t, 0, n) ++ String.sub(t, n + 1, String.length(t) - n - 1);

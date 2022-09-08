@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 open Util.Web;
-open OptUtil.Syntax;
+open Util.OptUtil.Syntax;
 
 let join_tile = (id): Haz3lcore.Tile.t => {
   id,
@@ -29,8 +29,8 @@ let splice_editors = (editors: list(Editor.t)): Haz3lcore.Segment.t =>
   |> List.flatten;
 
 let spliced_statics = (editors: list(Editor.t)) => {
-  let term = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
-  let (_, _, info_map) = term |> Haz3lcore.Statics.mk_map;
+  let (term, _) = editors |> splice_editors |> Haz3lcore.MakeTerm.go;
+  let info_map = term |> Haz3lcore.Statics.mk_map;
   (term, info_map);
 };
 
@@ -191,6 +191,7 @@ let show_term = (editor: Editor.t, _) =>
   editor.state.zipper
   |> Zipper.zip
   |> MakeTerm.go
+  |> fst
   |> Term.UExp.show
   |> print_endline
   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
@@ -343,17 +344,20 @@ let view =
   let your_test_results = {
     let* (_, your_tests, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(your_tests);
+    /* FIXME: Replace call with use of model. */
     Interface.test_results(map, term);
   };
   let our_test_results = {
     let* (_, _, our_tests, _, _) = school_view_data;
     let (term, map) = spliced_statics(our_tests);
     let descriptions = School.hidden_test_descriptions;
+    /* FIXME: Replace call with use of model. */
     Interface.test_results(~descriptions, map, term);
   };
   let first_cell_res = {
     let* (statics_impl, _, _, _, _) = school_view_data;
     let (term, map) = spliced_statics(statics_impl);
+    /* FIXME: Replace call with use of model. */
     Interface.evaluation_result(map, term);
   };
   let student_imp_res_view =
