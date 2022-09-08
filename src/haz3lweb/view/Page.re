@@ -3,39 +3,49 @@ open Node;
 open Util.Web;
 open Haz3lcore;
 
-let button = (icon, action) =>
+let button = (~tooltip="", icon, action) =>
   div(
-    ~attr=Attr.many([clss(["icon"]), Attr.on_mousedown(action)]),
+    ~attr=
+      Attr.many([
+        clss(["icon"]),
+        Attr.on_mousedown(action),
+        Attr.title(tooltip),
+      ]),
     [icon],
   );
 
-let button_d = (icon, action, ~disabled: bool) =>
+let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
   div(
     ~attr=
       Attr.many([
         clss(["icon"] @ (disabled ? ["disabled"] : [])),
+        Attr.title(tooltip),
         Attr.on_mousedown(_ => unless(disabled, action)),
       ]),
     [icon],
   );
 
-let link = (icon, url) =>
+let link = (~tooltip="", icon, url) =>
   div(
     ~attr=clss(["icon"]),
     [
       a(
-        ~attr=Attr.many(Attr.[href(url), create("target", "_blank")]),
+        ~attr=
+          Attr.many(
+            Attr.[href(url), title(tooltip), create("target", "_blank")],
+          ),
         [icon],
       ),
     ],
   );
 
-let toggle = (label, active, action) =>
+let toggle = (~tooltip="", label, active, action) =>
   div(
     ~attr=
       Attr.many([
         clss(["toggle-switch"] @ (active ? ["active"] : [])),
         Attr.on_click(action),
+        Attr.title(tooltip),
       ]),
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
@@ -62,16 +72,22 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
   let num_editors = Model.num_editors(model);
+  let tooltip = Attr.title("Toggle Mode");
   switch (model.editors) {
-  | Simple(_) => div(~attr=Attr.many([id, toggle_mode]), [text("Sketch")])
+  | Simple(_) =>
+    div(~attr=Attr.many([id, toggle_mode, tooltip]), [text("Sketch")])
   | School(_) =>
     div(
       ~attr=id,
-      [div(~attr=toggle_mode, [text("School")])]
+      [div(~attr=Attr.many([toggle_mode, tooltip]), [text("School")])]
       @ (
         if (SchoolSettings.show_instructor) {
           [
-            toggle("🎓", model.settings.instructor_mode, _ =>
+            toggle(
+              "🎓",
+              ~tooltip="Toggle Instructor Mode",
+              model.settings.instructor_mode,
+              _ =>
               inject(Set(InstructorMode))
             ),
           ];
@@ -108,7 +124,11 @@ let menu_icon =
           a(
             ~attr=
               Attr.many(
-                Attr.[href("http://hazel.org"), create("target", "_blank")],
+                Attr.[
+                  href("https://hazel.org"),
+                  title("Hazel"),
+                  create("target", "_blank"),
+                ],
               ),
             [Icons.hazelnut],
           ),
@@ -128,18 +148,47 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
       div(
         ~attr=clss(["menu"]),
         [
-          toggle("τ", model.settings.statics, _ => inject(Set(Statics))),
-          toggle("𝛿", model.settings.dynamics, _ =>
+          toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+            inject(Set(Statics))
+          ),
+          toggle(
+            "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
             inject(Set(Dynamics))
           ),
-          button(Icons.export, copy_log_to_clipboard),
-          button(Icons.eye, _ => inject(Set(WhitespaceIcons))),
-          button(Icons.trash, _ => inject(LoadDefault)),
-          link(Icons.github, "https://github.com/hazelgrove/hazel"),
+          button(
+            Icons.export,
+            copy_log_to_clipboard,
+            ~tooltip="Copy Log to Clipboard",
+          ),
+          button(
+            Icons.eye,
+            _ => inject(Set(WhitespaceIcons)),
+            ~tooltip="Toggle Visible Whitespace",
+          ),
+          button(
+            Icons.trash,
+            _ => inject(LoadDefault),
+            ~tooltip="Load Default",
+          ),
+          link(
+            Icons.github,
+            "https://github.com/hazelgrove/hazel",
+            ~tooltip="Hazel on GitHub",
+          ),
         ],
       ),
-      button_d(Icons.undo, inject(Undo), ~disabled=!can_undo),
-      button_d(Icons.redo, inject(Redo), ~disabled=!can_redo),
+      button_d(
+        Icons.undo,
+        inject(Undo),
+        ~disabled=!can_undo,
+        ~tooltip="Undo",
+      ),
+      button_d(
+        Icons.redo,
+        inject(Redo),
+        ~disabled=!can_redo,
+        ~tooltip="Redo",
+      ),
       editor_mode_view(~inject, ~model),
     ],
   );
