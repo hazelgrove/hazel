@@ -104,7 +104,7 @@ in 3",
 let captions = List.map((cell: cell) => cell.caption, defaults);
 let chapters = List.map((cell: cell) => cell.chapter, defaults);
 
-let init: Model.school =
+let init: Editors.school =
   defaults |> List.map((s: cell) => s.initial) |> Model.editors_of_strings;
 
 let hidden_test_descriptions = [

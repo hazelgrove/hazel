@@ -1,38 +1,79 @@
 open Haz3lcore;
+open Sexplib.Std;
 
-let evaluate = Core.Memo.general(~cache_size_bound=1000, Evaluator.evaluate);
+exception DoesNotElaborate;
+let elaborate = (map, term): DHExp.t =>
+  switch (Haz3lcore.Elaborator.uexp_elab(map, term)) {
+  | DoesNotElaborate => raise(DoesNotElaborate)
+  | Elaborates(d, _, _) => d
+  };
 
-let dhcode_view = (~font_metrics: FontMetrics.t) => {
-  DHCode.view_tylr(
-    ~selected_instance=None, //option((int, int)) // hole, hole_inst
-    ~font_metrics,
-    ~settings=Settings.Evaluation.init,
+exception EvalError(EvaluatorError.t);
+exception PostprocessError(EvaluatorPost.error);
+let evaluate =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    Evaluator.evaluate(Environment.empty),
   );
+let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
+  let ((d, hii), es) =
+    es
+    |> EvaluatorState.with_eig(eig => {
+         let ((hii, d), eig) =
+           switch (EvaluatorPost.postprocess(d, eig)) {
+           | d => d
+           | exception (EvaluatorPost.Exception(reason)) =>
+             raise(PostprocessError(reason))
+           };
+         ((d, hii), eig);
+       });
+  let (tests, es) =
+    es
+    |> EvaluatorState.with_eig(eig => {
+         let (eig, tests) =
+           EvaluatorState.get_tests(es)
+           |> List.fold_left_map(
+                (eig, (k, instance_reports)) => {
+                  let (eig, instance_reports) =
+                    instance_reports
+                    |> List.fold_left_map(
+                         (eig, (d, status)) =>
+                           switch (EvaluatorPost.postprocess(d, eig)) {
+                           | ((_, d), eig) => (eig, (d, status))
+                           | exception (EvaluatorPost.Exception(reason)) =>
+                             raise(PostprocessError(reason))
+                           },
+                         eig,
+                       );
+                  (eig, (k, instance_reports));
+                },
+                eig,
+              );
+         (tests, eig);
+       });
+  ((d, hii), EvaluatorState.put_tests(tests, es));
 };
 
-let get_result =
-    (d: Elaborator.ElaborationResult.t): option((DHExp.t, TestMap.t)) => {
-  print_endline("get_result");
-  switch (d) {
-  | Elaborates(elab, _, _) =>
-    switch (elab |> evaluate) {
-    | (EvaluatorResult.BoxedValue(d), {test_map, _})
-    | (Indet(d), {test_map, _}) => Some((d, List.rev(test_map)))
-    | exception _ =>
-      print_endline("EXCEPTION THROWN IN GET_RESULT");
-      None;
-    }
-  | _ => None
+let evaluate = (d: DHExp.t): ProgramResult.t =>
+  switch (evaluate(d)) {
+  | (es, BoxedValue(d)) =>
+    let ((d, hii), es) = postprocess(es, d);
+    (BoxedValue(d), es, hii);
+  | (es, Indet(d)) =>
+    let ((d, hii), es) = postprocess(es, d);
+    (Indet(d), es, hii);
+  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
   };
-};
 
-let evaluation_result = (map, term): option(DHExp.t) => {
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
-  | None => None
-  | Some((result, _)) => Some(result)
+let get_result = (map, term): ProgramResult.t =>
+  term |> elaborate(map) |> evaluate;
+
+let evaluation_result = (map, term): option(DHExp.t) =>
+  switch (get_result(map, term)) {
+  | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
-};
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type test_results = {
   test_map: TestMap.t,
   statuses: list(TestStatus.t),
@@ -54,9 +95,8 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term) |> get_result) {
-  | None
-  | Some((_, [])) => None
-  | Some((_, test_map)) => Some(mk_results(~descriptions, test_map))
+  switch (get_result(map, term)) {
+  | (_, state, _) =>
+    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };
 };
