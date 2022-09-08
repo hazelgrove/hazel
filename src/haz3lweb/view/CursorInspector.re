@@ -48,7 +48,7 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
   | SynConsistent(ty_syn) =>
     div(
       ~attr=clss([happyc, "syn-consistent"]),
-      ["has type", Type.view(ty_syn)],
+      [text("has type"), Type.view(ty_syn)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
