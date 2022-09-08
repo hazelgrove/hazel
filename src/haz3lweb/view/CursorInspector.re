@@ -59,7 +59,7 @@ let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       ~attr=clss([happyc, "ana-consistent"]),
-      switch (ty_ana) {
+      switch (ty_syn) {
       // A hack for EECS 490 A1
       | Haz3lcore.Typ.Unknown(_) => [
           text(sort_name ++ " has expected type"),
