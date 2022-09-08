@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Util;
 
 let cls_str = (ci: Haz3lcore.Statics.t): string =>
   switch (ci) {
@@ -22,17 +23,23 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | FreeVariable =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
-      [text("⊥ Free Variable")],
+      [text("Variable is not defined")],
     )
   | SynInconsistentBranches(tys) =>
     div(
       ~attr=clss([errorc, "err-inconsistent-branches"]),
-      [text("≉ Branches:")] @ List.map(Type.view, tys),
+      [text("Expecting branches to have consistent types but got:")]
+      @ ListUtil.join(text(","), List.map(Type.view, tys)),
     )
-  | TypeInconsistent(ty_ana, ty_syn) =>
+  | TypeInconsistent(ty_syn, ty_ana) =>
     div(
       ~attr=clss([errorc, "err-type-inconsistent"]),
-      [Type.view(ty_ana), text("≉"), Type.view(ty_syn)],
+      [
+        text("Expecting"),
+        Type.view(ty_ana),
+        text("but found"),
+        Type.view(ty_syn),
+      ],
     )
   };
 
@@ -41,17 +48,29 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
   | SynConsistent(ty_syn) =>
     div(
       ~attr=clss([happyc, "syn-consistent"]),
-      [text("⇒"), Type.view(ty_syn)],
+      [text("has type"), Type.view(ty_syn)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text("⇐"), Type.view(ty_ana)],
+      [text("has expected type"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       ~attr=clss([happyc, "ana-consistent"]),
-      [text("⇐"), Type.view(ty_ana), text("≈"), Type.view(ty_syn)],
+      switch (ty_syn) {
+      // A hack for EECS 490 A1
+      | Haz3lcore.Typ.Unknown(_) => [
+          text("has expected type"),
+          Type.view(ty_ana),
+        ]
+      | _ => [
+          text("has type"),
+          Type.view(ty_syn),
+          text("which is consistent with"),
+          Type.view(ty_ana),
+        ]
+      },
     )
   | AnaInternalInconsistent(ty_ana, _)
   | AnaExternalInconsistent(ty_ana, _) =>
@@ -105,11 +124,10 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
-    let ann = div(~attr=clss(["typ-view"]), [text(":")]);
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(is_err, "typ"), ann, Type.view(ty)],
-    );
+      [term_tag(is_err, "typ"), text("is"), Type.view(ty)],
+    )
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
@@ -176,10 +194,7 @@ let view =
     | None =>
       div(
         ~attr=clss(["cursor-inspector"]),
-        [
-          div(~attr=clss(["icon"]), [Icons.magnify]),
-          text("No CI for Index"),
-        ],
+        [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
       )
     }
   | None =>

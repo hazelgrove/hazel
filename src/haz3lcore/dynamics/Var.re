@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = string;
 
 let eq = String.equal;
@@ -42,3 +42,6 @@ let split = (pos, name) => {
   let right_var = String.sub(name, pos, String.length(name) - pos);
   (left_var, right_var);
 };
+
+/* Used for VarBstMap */
+let compare = (x: t, y: t) => compare(x, y);

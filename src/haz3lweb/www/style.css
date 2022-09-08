@@ -1294,6 +1294,10 @@ svg.expandable path {
 }
 
 .result {
+<<<<<<< HEAD
+  /* max-height: 1.6em; */
+=======
+>>>>>>> haz3l-tests
   min-height: 1.6em;
   overflow: hidden;
 }
