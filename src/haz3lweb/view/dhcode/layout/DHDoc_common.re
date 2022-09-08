@@ -89,16 +89,19 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+let mk_EmptyHole = (~selected=false, hc: HoleInstance.t) =>
+  Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
 
-let mk_ExpandingKeyword = (u, i, k) =>
+let mk_ExpandingKeyword = (hc, k) =>
   Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), (u, i)));
+  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), hc));
 
-let mk_InvalidText = (t, (u, i)) =>
-  Doc.text(t) |> Doc.annot(DHAnnot.Invalid((u, i)));
+let mk_InvalidText = (t, hc) =>
+  Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
+
+let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
+
+let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
@@ -137,5 +140,3 @@ let rec mk_ListLit = (l, ol) =>
 let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
-
-let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
