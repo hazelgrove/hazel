@@ -36,7 +36,8 @@ let rec mk =
     | EmptyHole(u, i) => DHDoc_common.mk_EmptyHole((u, i))
     | NonEmptyHole(reason, u, i, dp) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | ExpandingKeyword(u, i, k) => DHDoc_common.mk_ExpandingKeyword(u, i, k)
+    | ExpandingKeyword(u, i, k) =>
+      DHDoc_common.mk_ExpandingKeyword((u, i), k)
     | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
