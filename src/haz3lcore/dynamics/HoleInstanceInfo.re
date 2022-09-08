@@ -1,58 +1,38 @@
 open Sexplib.Std;
-open Util;
 
-[@deriving sexp]
-type t = MetaVarMap.t(list((Environment.t, InstancePath.t)));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = MetaVarMap.t(list((ClosureEnvironment.t, HoleInstanceParents.t)));
 
-let empty: t = (MetaVarMap.empty: t);
-
-let next =
-    (hii: t, u: MetaVar.t, sigma: Environment.t, path: InstancePath.t)
-    : (int, t) => {
-  let v = (sigma, path);
-  let envs =
-    hii
-    |> MetaVarMap.find_opt(u)
-    |> Option.fold(~none=[v], ~some=envs => [v, ...envs]);
-  let hii = MetaVarMap.add(u, envs, hii);
-  (List.length(envs) - 1, hii);
-};
-
-let update_environment =
-    (hii: t, inst: HoleInstance.t, sigma: Environment.t): t => {
-  let (u, i) = inst;
-  let hii =
-    hii
-    |> MetaVarMap.update(
-         u,
-         Option.map(instances => {
-           let length = List.length(instances);
-           ListUtil.update_nth(
-             length - i - 1,
-             instances,
-             (inst_info: (Environment.t, InstancePath.t)) => {
-               let (_, path) = inst_info;
-               (sigma, path);
-             },
-           );
-         }),
-       );
-  hii;
-};
+let empty: t = MetaVarMap.empty;
 
 let num_instances = (hii: t, u: MetaVar.t): int =>
-  switch (MetaVarMap.find_opt(u, hii)) {
-  | Some(envs) => List.length(envs)
-  | None => 0
-  };
+  hii
+  |> MetaVarMap.find_opt(u)
+  |> Option.map(his => List.length(his))
+  |> Option.value(~default=0);
 
-let lookup =
-    (hii: t, inst: HoleInstance.t): option((Environment.t, InstancePath.t)) => {
-  let (u, i) = inst;
-  switch (MetaVarMap.find_opt(u, hii)) {
-  | Some(envs) =>
-    let length = List.length(envs);
-    List.nth_opt(envs, length - i - 1);
+let find_instance =
+    (hii: t, u: MetaVar.t, i: HoleInstanceId.t)
+    : option((ClosureEnvironment.t, HoleInstanceParents.t)) => {
+  switch (hii |> MetaVarMap.find_opt(u)) {
+  | Some(his) => List.nth_opt(his, i)
   | None => None
   };
+};
+
+let add_parent =
+    ((u, i): HoleInstance.t, parent: HoleInstanceParents.t_, hii: t): t => {
+  let u_instances = hii |> MetaVarMap.find(u);
+  hii
+  |> MetaVarMap.add(
+       u,
+       u_instances
+       |> List.mapi((i', (env, parents)) =>
+            if (i' == i) {
+              (env, parent |> HoleInstanceParents.add_parent(parents));
+            } else {
+              (env, parents);
+            }
+          ),
+     );
 };

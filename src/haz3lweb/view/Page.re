@@ -67,10 +67,16 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   | School(_) =>
     div(
       ~attr=id,
-      [
-        div(~attr=toggle_mode, [text("School")]),
-        toggle("🎓", model.settings.student, _ => inject(Set(Student))),
-      ],
+      [div(~attr=toggle_mode, [text("School")])]
+      @ (
+        if (SchoolSettings.show_instructor) {
+          [
+            toggle("🎓", model.settings.student, _ => inject(Set(Student))),
+          ];
+        } else {
+          [];
+        }
+      ),
     )
   | Study(_) =>
     let cur_idx = Model.current_editor(model);
@@ -148,13 +154,15 @@ let editors_view =
         mousedown,
         langDocMessages,
         _,
-      }: Model.t,
+      } as model: Model.t,
     ) => {
-  let focal_zipper = Model.get_zipper'(editors);
+  let focal_zipper = Editors.get_zipper(editors);
   switch (editors) {
   | Simple(_)
   | Study(_) =>
-    let measured = Model.get_editor'(editors).state.meta.measured;
+    let measured = Editors.get_editor(editors).state.meta.measured;
+    let result_key = Editors.get_result_key(editors);
+    let res = Model.get_result(result_key, model);
     SimpleMode.view(
       ~inject,
       ~font_metrics,
@@ -163,6 +171,7 @@ let editors_view =
       ~zipper=focal_zipper,
       ~settings,
       ~measured,
+      ~res,
     );
   | School(selected, editors) =>
     SchoolMode.view(
