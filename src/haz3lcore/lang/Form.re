@@ -148,6 +148,7 @@ let forms: list((string, t)) = [
   ("comma_exp", mk_infix(~pad_l=false, ",", Exp, P.prod)),
   ("comma_pat", mk_infix(~pad_l=false, ",", Pat, P.prod)),
   ("comma_typ", mk_infix(~pad_l=false, ",", Typ, P.prod)),
+  ("type-arrow-dash", mk_infix("-", Typ, 6)),
   ("type-arrow", mk_infix("->", Typ, 6)),
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [mk_child(Exp)]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [mk_child(Pat)]))),
