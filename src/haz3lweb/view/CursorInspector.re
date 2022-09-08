@@ -43,18 +43,17 @@ let error_view = (err: Haz3lcore.Statics.error) =>
     )
   };
 
-let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
-  let sort_name = Haz3lcore.Sort.to_string(sort);
+let happy_view = (suc: Haz3lcore.Statics.happy) => {
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div(
       ~attr=clss([happyc, "syn-consistent"]),
-      [text(sort_name ++ " has type"), Type.view(ty_syn)],
+      ["has type", Type.view(ty_syn)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text(sort_name ++ " has expected type"), Type.view(ty_ana)],
+      [text("has expected type"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
@@ -62,11 +61,11 @@ let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
       switch (ty_syn) {
       // A hack for EECS 490 A1
       | Haz3lcore.Typ.Unknown(_) => [
-          text(sort_name ++ " has expected type"),
+          text("has expected type"),
           Type.view(ty_ana),
         ]
       | _ => [
-          text(sort_name ++ " has type"),
+          text("has type"),
           Type.view(ty_syn),
           text("which is consistent with"),
           Type.view(ty_ana),
@@ -88,10 +87,10 @@ let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
   };
 };
 
-let status_view = (err: Haz3lcore.Statics.error_status, sort): Node.t => {
+let status_view = (err: Haz3lcore.Statics.error_status) => {
   switch (err) {
   | InHole(error) => error_view(error)
-  | NotInHole(happy) => happy_view(happy, sort)
+  | NotInHole(happy) => happy_view(happy)
   };
 };
 
@@ -118,7 +117,7 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       ~attr=clss([infoc, "exp"]),
       [
         term_tag(is_err, "exp"),
-        status_view(error_status, Haz3lcore.Sort.Exp),
+        status_view(error_status),
       ],
     );
   | InfoPat({mode, self, _}) =>
@@ -127,7 +126,7 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       ~attr=clss([infoc, "pat"]),
       [
         term_tag(is_err, "pat"),
-        status_view(error_status, Haz3lcore.Sort.Pat),
+        status_view(error_status),
       ],
     );
   | InfoTyp({ty, _}) =>
