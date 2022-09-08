@@ -77,22 +77,6 @@ module Map = {
   type nonrec t = Id.Map.t(list(mold));
 };
 
-let of_grout: (Grout.t, Sort.t) => t =
-  (g, sort) => {
-    nibs:
-      // TODO(d): revisit this when reformulating molds
-      switch (g.shape) {
-      | Convex =>
-        let n = Nib.{shape: Convex, sort};
-        (n, n);
-      | Concave =>
-        let n = Nib.{shape: Shape.concave(), sort};
-        (n, n);
-      },
-    out: sort,
-    in_: [],
-  };
-
 let of_whitespace = (l: Nib.t) => {
   nibs: (Nib.flip(l), l),
   out: l.sort,

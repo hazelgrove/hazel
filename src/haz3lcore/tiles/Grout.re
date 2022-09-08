@@ -20,6 +20,15 @@ let shapes = g =>
   | Concave => Nib.Shape.(concave(), concave())
   };
 
+let mold = g => {
+  let (l, r) = shapes(g);
+  Mold.{
+    out: g.sort,
+    in_: [],
+    nibs: Nib.({shape: l, sort: Any}, {shape: r, sort: Any}),
+  };
+};
+
 // assumes same shape on both sides
 let mk_fits_shape = (s: Nib.Shape.t, sort): IdGen.t(t) => {
   open IdGen.Syntax;

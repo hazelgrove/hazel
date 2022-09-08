@@ -183,6 +183,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Nul => Nul() //TODO
   | Any =>
+    // TODO(d) unhack + clean up
     let tm = unsorted(skel, seg);
     let ids = ids(tm);
     switch (ListUtil.hd_opt(ids)) {
@@ -190,7 +191,13 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
       | None => return_dark_hole(~ids, Exp)
-      | Some(t) =>
+      | Some(G(g)) =>
+        if (g.sort == Any) {
+          return_dark_hole(Exp);
+        } else {
+          go_s(g.sort, skel, seg);
+        }
+      | Some(T(t)) =>
         if (t.mold.out == Any) {
           return_dark_hole(~ids, Exp);
         } else {

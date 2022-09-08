@@ -86,10 +86,7 @@ let rec holes =
        | Grout(g) => [
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
-             {
-               measurement: Measured.find_g(g, map),
-               mold: Mold.of_grout(g, Any),
-             },
+             {measurement: Measured.find_g(g, map), mold: Grout.mold(g)},
            ),
          ],
      )

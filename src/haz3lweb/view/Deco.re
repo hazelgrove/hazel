@@ -35,7 +35,7 @@ module Deco =
     let mold =
       switch (p) {
       | Whitespace(_) => Mold.of_whitespace({sort: Any, shape: nib_shape})
-      | Grout(g) => Mold.of_grout(g, Any)
+      | Grout(g) => Grout.mold(g)
       | Tile(t) => t.mold
       };
     // TODO(d) awkward
@@ -59,15 +59,18 @@ module Deco =
   let root_piece_profile =
       (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
     let tiles =
-      // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
-      // filter out dark ids (see MakeTerm)
+      // HACK(d): filter out dark ids (see MakeTerm)
       |> List.filter(id => id >= 0)
-      |> List.map(id => {
-           let t = tile(id);
-           (id, t.mold, Measured.find_shards(t, M.map));
-         });
+      |> List.map(id =>
+           switch (tile(id)) {
+           | G(g) =>
+             // TODO(d) internalize grout "shard indexing"
+             (id, Grout.mold(g), [(0, Measured.find_g(g, M.map))])
+           | T(t) => (id, t.mold, Measured.find_shards(t, M.map))
+           }
+         );
     PieceDec.Profile.{
       tiles,
       caret: (Piece.id(p), index),
