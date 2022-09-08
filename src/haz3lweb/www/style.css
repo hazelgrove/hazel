@@ -475,17 +475,6 @@ svg {
   font-size: 1rem;
 }
 
-.cell-prompt::first-letter {
-  color: #c7b480;
-  float: left;
-  font-family: 'Times New Roman';
-  font-size: 32px;
-  line-height: 27px;
-  padding-top: 0px;
-  padding-right: 3px;
-  padding-left: 0px;
-}
-
 .cell {
   display: flex;
   flex-direction: column;
