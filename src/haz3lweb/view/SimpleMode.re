@@ -58,6 +58,7 @@ let single_editor_semantics_views =
       ~settings: Model.settings,
       ~index,
       ~unselected,
+      ~zipper: Zipper.t,
       ~res,
     ) => {
   let (term, _) = MakeTerm.go(unselected);
@@ -70,7 +71,10 @@ let single_editor_semantics_views =
   [
     div(
       ~attr=clss(["bottom-bar"]),
-      [CursorInspector.view(~inject, ~settings, index, map)]
+      (
+        List.length(zipper.backpack) == 0
+          ? [CursorInspector.view(~inject, ~settings, index, map)] : []
+      )
       @ (
         switch (results) {
         | None => []
@@ -199,6 +203,7 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
+          ~zipper,
           ~res,
         )
       : [];
