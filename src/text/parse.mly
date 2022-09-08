@@ -1,14 +1,61 @@
 %{
   open Haz3lcore.TermBase
 
+  let id_gen: int ref = ref 0
+
+  let mk_id (): int =
+    (let uid = !id_gen in id_gen := ((!id_gen) + 1); uid : int)
+
   let mk_uexp term =
-    {UExp.ids = [0]; term}
+    {UExp.ids = [mk_id ()]; term}
 
   let mk_upat term =
     {UPat.ids = [0]; term}
 
   let mk_utyp term =
     {UTyp.ids = [0]; term}
+
+  type optok =
+    (* Int *)
+    | Plus
+    | Minus
+    | Times
+    | Divide
+    | LessThan
+    | GreaterThan
+    | Equals
+    (* Float *)
+    | FPlus
+    | FMinus
+    | FTimes
+    | FDivide
+    | FLessThan
+    | FGreaterThan
+    | FEquals
+    (* Binary *)
+    | And
+    | Or
+
+  let op_of_optok tok : UExp.op_bin =
+    match tok with
+    | Plus -> UExp.Int(UExp.Plus)
+    | Minus -> UExp.Int(UExp.Minus)
+    | Times -> UExp.Int(UExp.Times)
+    | Divide -> UExp.Int(UExp.Divide)
+    | LessThan -> UExp.Int(UExp.LessThan)
+    | GreaterThan -> UExp.Int(UExp.GreaterThan)
+    | Equals -> UExp.Int(UExp.Equals)
+    (* Float *)
+    | FPlus -> UExp.Float(UExp.Plus)
+    | FMinus -> UExp.Float(UExp.Minus)
+    | FTimes -> UExp.Float(UExp.Times)
+    | FDivide -> UExp.Float(UExp.Divide)
+    | FLessThan -> UExp.Float(UExp.LessThan)
+    | FGreaterThan -> UExp.Float(UExp.GreaterThan)
+    | FEquals -> UExp.Float(UExp.Equals)
+    (* Binary *)
+    | And -> UExp.Bool(UExp.And)
+    | Or -> UExp.Bool(UExp.Or)
 %}
 
 %token AND
@@ -66,17 +113,22 @@
 %token WILD
 
 (* Precedence levels and associativity - latter definitions are higher precedence *)
+%nonassoc IN
+%nonassoc LET
+%nonassoc THEN
+%nonassoc ELSE
 %right OR
 %right AND
-%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
+%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL EQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
+%nonassoc unop
 %right COLONCOLON
 %left BAR
 %right TARROW
 %left COMMA
 %left COLON
-%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV LET TYPE IF SEMICOLON
+%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV TYPE IF SEMICOLON TEST
 %nonassoc app
 
 %start main
@@ -99,6 +151,9 @@ let typ :=
     | _ -> mk_utyp UTyp.EmptyHole
   }
 
+
+(* Patterns *)
+
 let pat :=
   | p1 = pat; COMMA; p2 = pat; { mk_upat (UPat.Tuple(p1::[p2])) }
   | p = pat; COLON; t = typ; {mk_upat (UPat.TypeAnn(p, t))}
@@ -117,25 +172,27 @@ let pat_ :=
   | id = IDENT; { mk_upat (UPat.Var(id)) }
   | LPAREN; p = pat; RPAREN; { mk_upat (UPat.Parens p)}
 
-let tpat :=
-  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
+
+(* Expressions *)
 
 let expr :=
-  | e1 = expr; e2 = expr; %prec app { mk_uexp (UExp.Ap(e1, e2)) }
   | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
   | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
+  | e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
+  | ~ = simple_expr; <>
   | ~ = expr_; <>
 
 let expr_ :=
+  | e1 = expr; e2 = expr; { mk_uexp (UExp.Ap(e1, e2)) } %prec app
+  | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
+  | MINUS; e = expr; {mk_uexp (UExp.UnOp(UExp.Int(Minus), e))} %prec unop 
+
+let simple_expr :=
 (*
 type term =
   | Invalid(parse_flag, Piece.t)
   | MultiHole(list(Id.t), list(t))
   | ListLit(list(Id.t), list(t))
-  | Tuple(list(Id.t), list(t))
-  | Test(t)
-  | UnOp(op_un, t)
-  | BinOp(op_bin, t, t)
   | Match(list(Id.t), t, list((UPat.t, t)))
 *)
   | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
@@ -150,62 +207,25 @@ type term =
     { mk_uexp (UExp.Let(p, e1, e2)) }
   | IF; e1 = expr; THEN; e2 = expr; ELSE; e3 = expr;
     { mk_uexp (UExp.If(e1, e2, e3)) }
+  | TEST; e = expr; END; { mk_uexp (UExp.Test e)}
   | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
 
-
-  (* BINOPS *)
-  (*
-  | expr op(binop) expr {mk_uexp (UExp.BinOp($2, $1, $3))}
-  | expr bin_op expr {mk_uexp (UExp.BinOp($2, $1, $3))}
-  | expr PLUS expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr MINUS expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
-  | expr MULT expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
-  | expr DIV expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr LESSER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr GREATER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr EQUALEQUAL expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-
-  | expr FPLUS expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr FMINUS expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
-  | expr FMULT expr {mk_uexp (UExp.BinOp(Int(Minus), $1, $3))}
-  | expr FDIV expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr FLESSER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr FGREATER expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr FEQUALEQUAL expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-
-  | expr AND expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  | expr OR expr {mk_uexp (UExp.BinOp(Int(Plus), $1, $3))}
-  *)
-
-
-  (*
-%inline binop:
-  | PLUS { UExp.Plus }
-  ;
-
-
-
-  | MINUS expr {mk_uexp (UExp.UnOp(Int(Minus), $2))}
-%inline bin_op:
-  PLUS { UExpBinopInt. }
-  | MINUS { UExp.Int(Minus) }
-  | MULT { UExp.Int(Times) }
-  | DIV { UExp.Int(Divide) }
-  | LESSER { UExp.Int(LessThan) }
-  | GREATER { UExp.Int(GreaterThan) }
-  | EQUALEQUAL { UExp.Int(Equals) }
-
-  | FPLUS { UExp.Float(Plus) }
-  | FMINUS { UExp.Float(Minus) }
-  | FMULT { UExp.Float(Times) }
-  | FDIV { UExp.Float(Divide) }
-  | FLESSER { UExp.Float(LessThan) }
-  | FGREATER { UExp.Float(GreaterThan) }
-  | FEQUALEQUAL { UExp.Float(Equals) }
-;
-
-%inline bool_op:
-  AND { Operators_Exp.And }
-  | OR { Operators_Exp.Or }
-;
-  *)
+let infix_op ==
+    | PLUS; {op_of_optok Plus}
+    | MINUS; {op_of_optok Minus}
+    | MULT; {op_of_optok Times}
+    | DIV; {op_of_optok Divide}
+    | LESSER; {op_of_optok LessThan}
+    | GREATER; {op_of_optok GreaterThan}
+    | EQUALEQUAL; {op_of_optok Equals}
+    (* Float *)
+    | FPLUS; {op_of_optok FPlus}
+    | FMINUS; {op_of_optok FMinus}
+    | FMULT; {op_of_optok FTimes}
+    | FDIV; {op_of_optok FDivide}
+    | FLESSER; {op_of_optok FLessThan}
+    | FGREATER; {op_of_optok FGreaterThan}
+    | FEQUALEQUAL; {op_of_optok FEquals}
+    (* Binary *)
+    | AND; {op_of_optok And}
+    | OR; {op_of_optok Or}
