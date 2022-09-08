@@ -98,7 +98,10 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
+  (
+    "bad_lit",
+    (is_bad_lit, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
+  ),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -118,7 +121,7 @@ let forms: list((string, t)) = [
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
   ("divide", mk_infix("/", Exp, P.mult)),
-  ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
+  ("assign", mk_infix("=", Exp, P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
@@ -139,7 +142,8 @@ let forms: list((string, t)) = [
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
-  ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
+  ("dot_exp", mk(ss, ["."], mk_op(Exp, []))), // HACK: SUBSTRING REQ (floats)
+  ("dot_pat", mk(ss, ["."], mk_op(Pat, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(~pad_l=false, ",", Exp, P.prod)),
   ("comma_pat", mk_infix(~pad_l=false, ",", Pat, P.prod)),
