@@ -19,15 +19,6 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-[@deriving sexp]
-type result = EvaluatorResult.t;
-
-[@deriving sexp]
-type state = EvalState.t;
-
-[@deriving sexp]
-type report = (result, state);
-
 let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
 let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
 let grounded_Prod = length =>
@@ -504,12 +495,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(_d1) => evaluate(env, d2)
-      | Indet(d1) =>
-        let* r2 = evaluate(env, d2);
-        switch (r2) {
-        | BoxedValue(d2)
-        | Indet(d2) => Indet(Sequence(d1, d2)) |> return
-        };
+      /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
+       * if evaluated d1 is indet. */
+      | Indet(_d1) =>
+        /* let* r2 = evaluate(env, d2); */
+        /* switch (r2) { */
+        /* | BoxedValue(d2) */
+        /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
+        /* }; */
+        evaluate(env, d2)
       };
 
     | Let(dp, d1, d2) =>

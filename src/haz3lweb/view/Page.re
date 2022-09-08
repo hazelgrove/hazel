@@ -67,12 +67,18 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   | School(_) =>
     div(
       ~attr=id,
-      [
-        div(~attr=toggle_mode, [text("School")]),
-        toggle("🎓", model.settings.instructor_mode, _ =>
-          inject(Set(InstructorMode))
-        ),
-      ],
+      [div(~attr=toggle_mode, [text("School")])]
+      @ (
+        if (SchoolSettings.show_instructor) {
+          [
+            toggle("🎓", model.settings.instructor_mode, _ =>
+              inject(Set(InstructorMode))
+            ),
+          ];
+        } else {
+          [];
+        }
+      ),
     )
   | Study(_) =>
     let cur_idx = Model.current_editor(model);
@@ -192,12 +198,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
       Attr.many(
         Attr.[
           id("page"),
-          // necessary to make cell focusable
-          create("tabindex", "0"),
-          on_blur(_ => {
-            JsUtil.get_elem_by_id("page")##focus;
-            Virtual_dom.Vdom.Effect.Many([]);
-          }),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
           ...handlers(~inject, ~model),

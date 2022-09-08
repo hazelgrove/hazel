@@ -39,34 +39,6 @@ let test_view =
 //   (eval_result, test_results);
 // };
 
-let single_editor_semantics_views =
-    (
-      ~inject,
-      ~font_metrics,
-      ~settings: Model.settings,
-      ~index,
-      ~unselected,
-      //~simple_result: option(ModelResult.simple),
-      ~info_map: Statics.map,
-    ) => {
-  [
-    div(
-      ~attr=clss(["bottom-bar"]),
-      [CursorInspector.view(~inject, ~settings, index, info_map)],
-    ),
-    // TODO
-    // @ (
-    //   switch (results) {
-    //   | _ when !settings.dynamics => []
-    //   | None => []
-    //   | Some((_, test_results)) => [
-    //       test_view(~title="Tests", ~inject, ~font_metrics, ~test_results),
-    //     ]
-    //   }
-    // );
-  ];
-};
-
 let view =
     (
       ~inject,
@@ -96,17 +68,10 @@ let view =
       editor,
       simple_result,
     );
-  let semantics_views =
+  let ci_view =
     settings.statics
-      ? single_editor_semantics_views(
-          ~inject,
-          ~settings,
-          ~font_metrics,
-          ~index=Indicated.index(zipper),
-          ~unselected,
-          // ~simple_result,
-          ~info_map,
-        )
-      : [];
-  div(~attr=clss(["editor", "single"]), [editor_view] @ semantics_views);
+      ? [CursorInspector.view(~inject, ~settings, zipper, info_map)] : [];
+  let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
+
+  div(~attr=clss(["editor", "single"]), [editor_view] @ bottom_bar);
 };
