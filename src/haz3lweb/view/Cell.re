@@ -45,6 +45,12 @@ let mousedown_handler =
   );
 };
 
+let narrative_cell = (content: Node.t) =>
+  Node.div(
+    ~attr=Attr.class_("cell-container"),
+    [Node.div(~attr=Attr.class_("cell-chapter"), [content])],
+  );
+
 let cell_view =
     (
       ~inject,

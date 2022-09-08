@@ -519,7 +519,10 @@ let view =
   //   @ [div([clss(["bottom-bar"])], ci_view)],
   // );
 
-  let prompt_view = div(~attr=Attr.classes(["cell-chapter"]), [eds.prompt]); // TODO rename "cell-chapter" to "prompt"
+  let prompt_view =
+    Cell.narrative_cell(
+      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+    ); // TODO rename "cell-chapter" to "prompt"
 
   let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
     SchoolExercise.stitch_dynamic(state, results);
@@ -723,18 +726,14 @@ let view =
   div(
     ~attr=Attr.classes(["editor", "column"]),
     [
-      div(
-        [
-          prompt_view,
-          prelude_view,
-          your_impl_view,
-          your_tests_view,
-          reference_impl_view,
-          hidden_tests_view,
-        ]
-        @ hidden_bugs_views  // TODO fix spacing
-        @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
-      ),
-    ],
+      prompt_view,
+      prelude_view,
+      your_tests_view,
+      your_impl_view,
+      reference_impl_view,
+      hidden_tests_view,
+    ]
+    @ hidden_bugs_views  // TODO fix spacing
+    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };
