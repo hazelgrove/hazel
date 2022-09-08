@@ -69,6 +69,12 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   switch (p1, p2) {
   | (Whitespace(_), _)
   | (_, Whitespace(_)) => None
+  | (
+      Grout({shape: Concave, sort: s1, _}),
+      Grout({shape: Concave, sort: s2, _}),
+    )
+      when Sort.eq(s1, s2) =>
+    Some(Eq)
   | (Grout({shape, _}), _) =>
     switch (shape) {
     | Convex => Some(Gt)

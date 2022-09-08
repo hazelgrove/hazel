@@ -11,6 +11,8 @@ let root = Exp;
 
 let all = [Any, Nul, Pat, Typ, Rul, Exp];
 
+let eq = (==);
+
 let consistent = (s, s') =>
   switch (s, s') {
   | (Any, _)

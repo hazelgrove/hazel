@@ -109,6 +109,8 @@ module Deco =
     | None => []
     // | Some((Grout(_), _, _)) => []
     | Some((p, side, _)) =>
+      print_endline("indicated_piece_deco");
+      print_endline("p = " ++ Piece.show(p));
       // root_profile calculation assumes p is tile
       // TODO encode in types
       let _nib_shape =
@@ -150,12 +152,16 @@ module Deco =
       switch (range) {
       | None => []
       | Some(range) =>
+        print_endline(
+          "root_piece_profile = "
+          ++ PieceDec.Profile.show(root_piece_profile(index, p, range)),
+        );
         PieceDec.view(
           ~font_metrics,
           ~rows=M.map.rows,
           ~segs=[],
           root_piece_profile(index, p, range),
-        )
+        );
       };
     };
   };
