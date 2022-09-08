@@ -54,17 +54,24 @@ let happy_view = (suc: Haz3lcore.Statics.happy, sort) => {
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text(sort_name ++ " has the expected type"), Type.view(ty_ana)],
+      [text(sort_name ++ " has expected type"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
       ~attr=clss([happyc, "ana-consistent"]),
-      [
-        text(sort_name ++ " has type"),
-        Type.view(ty_syn),
-        text("which is consistent with"),
-        Type.view(ty_ana),
-      ],
+      switch (ty_ana) {
+      // A hack for EECS 490 A1
+      | Haz3lcore.Typ.Unknown(_) => [
+          text(sort_name ++ " has expected type"),
+          Type.view(Haz3lcore.Typ.Int),
+        ]
+      | _ => [
+          text(sort_name ++ " has type"),
+          Type.view(ty_syn),
+          text("which is consistent with"),
+          Type.view(ty_ana),
+        ]
+      },
     )
   | AnaInternalInconsistent(ty_ana, _)
   | AnaExternalInconsistent(ty_ana, _) =>
