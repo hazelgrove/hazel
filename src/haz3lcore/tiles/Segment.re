@@ -129,6 +129,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
     )
     |> ListUtil.hd_opt;
+  Effect.s_remold(t.id, t.mold, remolded.mold);
   let children =
     List.fold_right(
       ((l, child, r), children) => {
@@ -633,20 +634,22 @@ and regrout_affix =
         | Grout(g) => IdGen.return((Trim.(merge(cons_g(g, trim))), r, tl))
         | Tile(t) =>
           let* children =
-            List.fold_right(
-              (((l, r) as nibs: Nibs.t, hd), tl) => {
-                let* tl = tl;
-                let s = l.sort == r.sort ? l.sort : Sort.Any;
-                let+ hd = regrout(nibs, hd, s);
-                [hd, ...tl];
-              },
-              Tile.nibbed_children(t),
-              IdGen.return([]),
-            );
+            Effect.s_touched(t.id)
+            || Option.is_some(Effect.s_remolded(t.id))
+              ? List.fold_right(
+                  (((l, r) as nibs: Nibs.t, hd), tl) => {
+                    let* tl = tl;
+                    let s = l.sort == r.sort ? l.sort : Sort.Any;
+                    let+ hd = regrout(nibs, hd, s);
+                    [hd, ...tl];
+                  },
+                  Tile.nibbed_children(t),
+                  IdGen.return([]),
+                )
+              : return(t.children);
           let p = Piece.Tile({...t, children});
           let (l', r') =
             Tile.nibs(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          // TODO consider reversing trim + nibs to ensure consistent grout insertion behavior
           let+ (_, trim) = Trim.regrout((r', r), trim, s);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         };
@@ -656,14 +659,6 @@ and regrout_affix =
     );
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
 };
-
-// for internal use when dealing with segments in reverse order (eg Affix.re)
-// let flip_nibs =
-//   List.map(
-//     fun
-//     | (Piece.Whitespace(_) | Grout(_)) as p => p
-//     | Tile(t) => Tile({...t, mold: Mold.flip_nibs(t.mold)}),
-//   );
 
 let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   Aba.split(

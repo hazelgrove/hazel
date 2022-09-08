@@ -14,6 +14,8 @@ type t = {
   nibs: Nibs.t,
 };
 
+let eq = (==);
+
 let flip_nibs = m => {...m, nibs: Nibs.flip(m.nibs)};
 
 let mk_op = (out, in_) => {

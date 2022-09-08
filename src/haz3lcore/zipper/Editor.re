@@ -33,8 +33,7 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let next =
-      (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
+  let next = (~effects=Id.Map.empty, a: Action.t, z: Zipper.t, meta: t): t => {
     let {touched, measured, col_target} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let measured =
@@ -63,7 +62,13 @@ module State = {
 
   let init = zipper => {zipper, meta: Meta.init(zipper)};
 
-  let next = (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, state) => {
+  let next =
+      (
+        ~effects: Id.Map.t(list(Effect.t))=Id.Map.empty,
+        a: Action.t,
+        z: Zipper.t,
+        state,
+      ) => {
     zipper: z,
     meta: Meta.next(~effects, a, z, state.meta),
   };
@@ -110,7 +115,13 @@ let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
 };
 
 let new_state =
-    (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
+    (
+      ~effects: Id.Map.t(list(Effect.t))=Id.Map.empty,
+      a: Action.t,
+      z: Zipper.t,
+      ed: t,
+    )
+    : t => {
   let state = State.next(~effects, a, z, ed.state);
   let history = History.add(a, ed.state, ed.history);
   {state, history};
