@@ -21,7 +21,14 @@ let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
   );
 
 let single_editor_semantics_views =
-    (~inject, ~font_metrics, ~settings: Model.settings, ~index, ~unselected) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Model.settings,
+      ~index,
+      ~unselected,
+      ~zipper: Zipper.t,
+    ) => {
   let (term, _) = MakeTerm.go(unselected);
   let map = Statics.mk_map(term);
   let test_results =
@@ -31,7 +38,10 @@ let single_editor_semantics_views =
   [
     div(
       ~attr=clss(["bottom-bar"]),
-      [CursorInspector.view(~inject, ~settings, index, map)]
+      (
+        List.length(zipper.backpack) == 0
+          ? [CursorInspector.view(~inject, ~settings, index, map)] : []
+      )
       @ (
         switch (eval_result) {
         | _ when !settings.dynamics => []
@@ -155,6 +165,7 @@ let view =
           ~font_metrics,
           ~index=Indicated.index(zipper),
           ~unselected,
+          ~zipper,
         )
       : [];
   div(~attr=clss(["editor", "single"]), [cell_view] @ semantics_views);
