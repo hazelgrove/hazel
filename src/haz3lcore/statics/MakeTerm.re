@@ -386,25 +386,28 @@ and typ_term: unsorted => UTyp.term = {
   | tm => hole(tm);
 }
 
-and rul = unsorted => {
-  let term = rul_term(unsorted);
-  let ids = ids(unsorted);
-  return(r => Rul(r), ids, {ids, term});
-}
-and rul_term = (unsorted: unsorted): URul.term => {
+// and rul = unsorted => {
+//   let term = rul_term(unsorted);
+//   let ids = ids(unsorted);
+//   return(r => Rul(r), ids, {ids, term});
+// }
+and rul = (unsorted: unsorted): URul.t => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) =>
-        Rules(scrut, List.combine(ps, leading_clauses @ [last_clause]))
-      | None => hole
+      | Some((ps, leading_clauses)) => {
+          ids: ids(unsorted),
+          term:
+            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+        }
+      | None => {ids: ids(unsorted), term: hole}
       }
-    | _ => hole
+    | _ => {ids: ids(unsorted), term: hole}
     }
-  | e => Rules(e, [])
+  | e => {ids: [], term: Rules(e, [])}
   };
 }
 
