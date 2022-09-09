@@ -62,7 +62,9 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
-  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
+  | exception (EvaluatorError.Exception(reason)) =>
+    print_endline("Interface.evaluate EVAL ERROR");
+    raise(EvalError(reason));
   };
 
 let get_result = (map, term): ProgramResult.t =>
