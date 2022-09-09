@@ -44,41 +44,10 @@ let load_settings = (): Model.settings =>
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type simple_without_history = (Id.t, Zipper.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type study_without_history = (Id.t, int, list(Zipper.t));
+type scratch_without_history = (Id.t, int, list(Zipper.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type school_without_history = (Id.t, SchoolExercise.persistent_state);
-
-let save_simple = (simple: Editors.simple): unit =>
-  set_localstore(
-    save_simple_key,
-    simple
-    |> (((id_gen, ed: Editor.t)) => (id_gen, ed.state.zipper))
-    |> sexp_of_simple_without_history
-    |> Sexplib.Sexp.to_string,
-  );
-
-let load_simple = (): Editors.simple =>
-  switch (get_localstore(save_simple_key)) {
-  | None => Model.simple_init
-  | Some(flag) =>
-    try(
-      flag
-      |> Sexplib.Sexp.of_string
-      |> simple_without_history_of_sexp
-      |> (
-        ((id_gen, zipper)) => (
-          id_gen,
-          Editor.init(zipper, ~read_only=false),
-        )
-      )
-    ) {
-    | _ => Model.simple_init
-    }
-  };
 
 let prep_school_in =
     ((id_gen, state): Editors.school): school_without_history => (
@@ -100,40 +69,40 @@ let prep_school_out =
   ),
 );
 
-let prep_study_in =
-    ((id_gen, idx, eds): Editors.study): study_without_history => (
+let prep_scratch_in =
+    ((id_gen, idx, eds): Editors.scratch): scratch_without_history => (
   id_gen,
   idx,
   List.map((ed: Editor.t) => ed.state.zipper, eds),
 );
 
-let prep_study_out =
-    ((id_gen, idx, zs): study_without_history): Editors.study => (
+let prep_scratch_out =
+    ((id_gen, idx, zs): scratch_without_history): Editors.scratch => (
   id_gen,
   idx,
   List.map(Editor.init(~read_only=false), zs),
 );
 
-let save_study = (study: Editors.study): unit =>
+let save_scratch = (study: Editors.scratch): unit =>
   set_localstore(
     save_study_key,
     study
-    |> prep_study_in
-    |> sexp_of_study_without_history
+    |> prep_scratch_in
+    |> sexp_of_scratch_without_history
     |> Sexplib.Sexp.to_string,
   );
 
-let load_study = (): Editors.study =>
+let load_scratch = (): Editors.scratch =>
   switch (get_localstore(save_study_key)) {
-  | None => Study.init
+  | None => Scratch.init
   | Some(flag) =>
     try(
       flag
       |> Sexplib.Sexp.of_string
-      |> study_without_history_of_sexp
-      |> prep_study_out
+      |> scratch_without_history_of_sexp
+      |> prep_scratch_out
     ) {
-    | _ => Study.init
+    | _ => Scratch.init
     }
   };
 

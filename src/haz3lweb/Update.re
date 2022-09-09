@@ -54,8 +54,7 @@ module Result = {
 
 let save = (model: Model.t): unit =>
   switch (model.editors) {
-  | Simple(ed) => LocalStorage.save_simple((model.id_gen, ed))
-  | Study(n, eds) => LocalStorage.save_study((model.id_gen, n, eds))
+  | Scratch(n, eds) => LocalStorage.save_scratch((model.id_gen, n, eds))
   | School(state) => LocalStorage.save_school((model.id_gen, state))
   };
 
@@ -127,12 +126,9 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
 let load_editor = (model: Model.t): Model.t => {
   let m =
     switch (model.settings.mode) {
-    | Simple =>
-      let (id_gen, editor) = LocalStorage.load_simple();
-      {...model, id_gen, editors: Simple(editor)};
-    | Study =>
-      let (id_gen, idx, editors) = LocalStorage.load_study();
-      {...model, id_gen, editors: Study(idx, editors)};
+    | Scratch =>
+      let (id_gen, idx, editors) = LocalStorage.load_scratch();
+      {...model, id_gen, editors: Scratch(idx, editors)};
     | School =>
       let instructor_mode = model.settings.instructor_mode;
       let (id_gen, state) = LocalStorage.load_school(~instructor_mode);
@@ -149,12 +145,9 @@ let load_editor = (model: Model.t): Model.t => {
 
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
-  | Simple(_) =>
-    let (id_gen, editor) = Model.simple_init;
-    {...model, editors: Simple(editor), id_gen};
-  | Study(_) =>
-    let (id_gen, idx, editors) = Study.init;
-    {...model, editors: Study(idx, editors), id_gen};
+  | Scratch(_) =>
+    let (id_gen, idx, editors) = Scratch.init;
+    {...model, editors: Scratch(idx, editors), id_gen};
   | School(_) =>
     let instructor_mode = model.settings.instructor_mode;
     let (id_gen, state) = School.init(~instructor_mode);
@@ -235,14 +228,13 @@ let apply =
       Ok(model);
     | SwitchEditor(n) =>
       switch (model.editors) {
-      | Simple(_) => Error(FailedToSwitch)
-      | Study(m, _) when m == n => Error(FailedToSwitch)
-      | Study(_, zs) =>
+      | Scratch(m, _) when m == n => Error(FailedToSwitch)
+      | Scratch(_, zs) =>
         switch (n < List.length(zs)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.save_study((model.id_gen, n, zs));
-          Ok({...model, editors: Study(n, zs)});
+          LocalStorage.save_scratch((model.id_gen, n, zs));
+          Ok({...model, editors: Scratch(n, zs)});
         }
       | School(state) =>
         LocalStorage.save_school((model.id_gen, state));
@@ -258,21 +250,26 @@ let apply =
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
     | PerformAction(a) =>
-      let ed_init = Model.get_editor(model);
+      let ed_init = Editors.get_editor(model.editors);
       switch (Haz3lcore.Perform.go(a, ed_init, model.id_gen)) {
       | Error(err) => Error(FailedToPerform(err))
       | Ok((ed, id_gen)) =>
-        Ok({...model, id_gen, editors: Model.put_editor(model, ed)})
+        Ok({
+          ...model,
+          id_gen,
+          editors: Editors.put_editor(ed, model.editors),
+        })
       };
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
     | Copy =>
-      let clipboard = Printer.to_string_selection(Model.get_zipper(model));
+      let clipboard =
+        Printer.to_string_selection(Editors.get_zipper(model.editors));
       //JsUtil.copy_to_clipboard(clipboard);
       Ok({...model, clipboard});
     | Paste =>
       //let clipboard = JsUtil.get_from_clipboard();
       let clipboard = model.clipboard;
-      let ed = Model.get_editor(model);
+      let ed = Editors.get_editor(model.editors);
       switch (
         Printer.zipper_of_string(
           ~zipper_init=ed.state.zipper,
@@ -284,19 +281,25 @@ let apply =
       | Some((z, id_gen)) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        Ok({...model, id_gen, editors: Model.put_editor(model, ed)});
+        Ok({
+          ...model,
+          id_gen,
+          editors: Editors.put_editor(ed, model.editors),
+        });
       };
     | Undo =>
-      let ed = Model.get_editor(model);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
-      | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
+      | Some(ed) =>
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | Redo =>
-      let ed = Model.get_editor(model);
+      let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
-      | Some(ed) => Ok({...model, editors: Model.put_editor(model, ed)})
+      | Some(ed) =>
+        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
       };
     | MoveToNextHole(_d) =>
       // TODO restore

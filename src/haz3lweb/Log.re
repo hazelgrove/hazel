@@ -111,8 +111,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       | Ok(model) => model
       | Error(_) => old_model
       };
-    let zip = cur_model |> Model.get_zipper;
-    let measured = Model.get_editor(cur_model).state.meta.measured;
+    let zip = Editors.get_zipper(cur_model.editors);
+    let measured = Editors.get_editor(cur_model.editors).state.meta.measured;
     let new_entry = mk_entry(~measured, update, zip, res);
     mut_log := List.cons(new_entry, mut_log^);
     if (debug_update^) {
@@ -121,8 +121,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       //new_entry |> entry_to_yojson |> Yojson.Safe.to_string |> print_endline;
     };
     if (debug_zipper^) {
-      cur_model
-      |> Model.get_zipper
+      cur_model.editors
+      |> Editors.get_zipper
       |> Printer.to_string_log(~measured)
       |> print_endline;
     };
