@@ -166,6 +166,7 @@ let eval_result_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => []
+    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => []
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
