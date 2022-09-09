@@ -115,7 +115,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               es,
             );
           wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None => failwith("ListLit expression with non-list htyp")
+        | None =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let+ d = dhexp_of_uexp(m, e);
+                acc @ [d];
+              },
+              Some([]),
+              es,
+            );
+          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
         }
       | Ana(ana_ty) =>
         switch (HTyp.matched_list(htyp_of_typ(ana_ty))) {
@@ -133,7 +144,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               es,
             );
           wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None => failwith("ListLit expression with non-list htyp")
+        | None =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let+ d = dhexp_of_uexp(m, e);
+                acc @ [d];
+              },
+              Some([]),
+              es,
+            );
+          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
         }
       }
 
