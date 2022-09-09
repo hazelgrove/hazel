@@ -33,6 +33,13 @@ let tiles =
     | _ => None,
   );
 
+let convex_grout =
+  List.filter_map(
+    fun
+    | Piece.Grout(g) when g.shape == Convex => Some(g)
+    | _ => None,
+  );
+
 let contains_matching = (t: Tile.t) =>
   List.exists(
     fun

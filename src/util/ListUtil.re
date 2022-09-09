@@ -206,6 +206,14 @@ let split_last = (xs: list('x)): (list('x), 'x) =>
   };
 let leading = xs => fst(split_last(xs));
 let last = xs => snd(split_last(xs));
+let last_opt = xs => {
+  let length = List.length(xs);
+  if (length == 0) {
+    None;
+  } else {
+    Some(List.nth(xs, length - 1));
+  };
+};
 
 let split_first_opt = (xs: list('x)): option(('x, list('x))) =>
   switch (xs) {

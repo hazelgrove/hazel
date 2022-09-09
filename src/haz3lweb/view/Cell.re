@@ -51,7 +51,19 @@ let narrative_cell = (content: Node.t) =>
     [Node.div(~attr=Attr.class_("cell-chapter"), [content])],
   );
 
-let cell_view =
+let simple_cell_item = (content: list(Node.t)) =>
+  Node.div(~attr=Attr.classes(["cell", "cell-item"]), content);
+
+let simple_caption = (caption: string) =>
+  Node.div(
+    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
+    [Node.text(caption)],
+  );
+
+let simple_cell_view = (items: list(Node.t)) =>
+  Node.div(~attr=Attr.class_("cell-container"), items);
+
+let code_cell_view =
     (
       ~inject,
       ~font_metrics,
@@ -65,6 +77,7 @@ let cell_view =
       footer: option(Node.t),
     )
     : Node.t => {
+  // TODO: why is this in here? doesn't it cover the whole screen?
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
@@ -226,7 +239,7 @@ let editor_view =
       ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
       [code_base_view] @ deco_view,
     );
-  cell_view(
+  code_cell_view(
     ~inject,
     ~font_metrics,
     ~clss,
@@ -284,11 +297,6 @@ let editor_with_result_view =
 //         simple,
 //       )
 //     };
-let simple_caption = (caption: string) =>
-  Node.div(
-    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
-    [Node.text(caption)],
-  );
 
 let test_view =
     (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results)

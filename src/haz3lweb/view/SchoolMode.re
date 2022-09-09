@@ -256,7 +256,7 @@ open Node;
 //       student_impl,
 //       student_tests,
 //       hidden_tests,
-//       reference_impl,
+//       correct_impl,
 //       wrong_impl_1,
 //       wrong_impl_2,
 //       wrong_impl_3,
@@ -269,7 +269,7 @@ open Node;
 //       [student_impl],
 //       [student_impl, student_tests],
 //       [student_impl, hidden_tests],
-//       [student_impl, reference_impl, student_tests],
+//       [student_impl, correct_impl, student_tests],
 //       [
 //         [student_impl, wrong_impl_1, student_tests],
 //         [student_impl, wrong_impl_2, student_tests],
@@ -443,7 +443,7 @@ let view =
   //     : [];
   // let prompt_view = prompt => div([clss(["cell-prompt"])], [prompt]);
   // let prelude_view = code => instructor_code_cell_view("Prelude", code);
-  // let reference_impl_view = code =>
+  // let correct_impl_view = code =>
   //   instructor_code_cell_view("Reference Implementation", code);
   // let your_tests_view = code => student_code_cell_view("Your Tests", code);
   // let your_implementation_view = code =>
@@ -456,7 +456,7 @@ let view =
   //         switch (cell) {
   //         | Prompt({content}) => [prompt_view(content)]
   //         | Prelude(_) => [prelude_view(Option.get(ed))]
-  //         | ReferenceImpl(_) => [reference_impl_view(Option.get(ed))]
+  //         | CorrectImpl(_) => [correct_impl_view(Option.get(ed))]
   //         | YourTests(_) => [your_tests_view(Option.get(ed))]
   //         | YourImpl(_) => [your_implementation_view(Option.get(ed))]
   //         | HiddenBug(_) => [hidden_bug_view(Option.get(ed))]
@@ -554,13 +554,19 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
-  let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
+  let SchoolExercise.{
+        test_validation,
+        user_impl,
+        user_tests,
+        instructor,
+        hidden_bugs,
+      } =
     SchoolExercise.stitch_dynamic(state, results);
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
     | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
-    | ReferenceImpl => (eds.reference_impl.state.zipper, instructor.info_map)
+    | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTests => (eds.your_tests.state.zipper, user_tests.info_map)
     | YourImpl => (eds.your_impl.state.zipper, user_tests.info_map)
     | HiddenBugs(idx) =>
@@ -587,10 +593,71 @@ let view =
           "Prelude" ++ (settings.instructor_mode ? "" : " (Read-Only)"),
         ),
       ~code_id="prelude",
-      ~info_map=user_tests.info_map,
+      ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
       ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
       ~footer=None,
       eds.prelude,
+    );
+
+  let correct_impl_view =
+    editor_view(
+      CorrectImpl,
+      ~selected=pos == CorrectImpl,
+      ~caption=Cell.simple_caption("Correct Implementation"),
+      ~code_id="correct-impl",
+      ~info_map=instructor.info_map,
+      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
+      ~footer=None,
+      eds.correct_impl,
+    );
+
+  // determine trailing hole
+  let correct_impl_student_view = {
+    let exp_ctx_view = {
+      let correct_impl_trailing_hole_ctx =
+        Haz3lcore.Editor.trailing_hole_ctx(
+          eds.correct_impl,
+          instructor.info_map,
+        );
+      let prelude_trailing_hole_ctx =
+        Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, instructor.info_map);
+      switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
+      | (None, _)
+      | (_, None) => Node.div([text("No context available")]) // TODO show exercise configuration error
+      | (
+          Some(correct_impl_trailing_hole_ctx),
+          Some(prelude_trailing_hole_ctx),
+        ) =>
+        let specific_ctx =
+          Haz3lcore.Ctx.subtract_prefix(
+            correct_impl_trailing_hole_ctx,
+            prelude_trailing_hole_ctx,
+          );
+        switch (specific_ctx) {
+        | None => Node.div([text("No context available")]) // TODO show exercise configuration error
+        | Some(specific_ctx) => CtxInspector.exp_ctx_view(specific_ctx)
+        };
+      };
+    };
+    Cell.simple_cell_view([
+      Cell.simple_cell_item([
+        Cell.simple_caption("Correct Implementation (Type Signatures Only)"),
+        exp_ctx_view,
+      ]),
+    ]);
+  };
+
+  let your_tests_view =
+    editor_view(
+      YourTests,
+      ~selected=pos == YourTests,
+      ~caption=Cell.simple_caption("Your Tests"),
+      ~code_id="your-tests",
+      ~info_map=test_validation.info_map,
+      ~test_results=
+        ModelResult.unwrap_test_results(test_validation.simple_result),
+      ~footer=None,
+      eds.your_tests,
     );
 
   let your_impl_view =
@@ -603,30 +670,6 @@ let view =
       ~test_results=ModelResult.unwrap_test_results(user_impl.simple_result),
       ~footer=None,
       eds.your_impl,
-    );
-
-  let your_tests_view =
-    editor_view(
-      YourTests,
-      ~selected=pos == YourTests,
-      ~caption=Cell.simple_caption("Your Tests"),
-      ~code_id="your-tests",
-      ~info_map=user_tests.info_map,
-      ~test_results=ModelResult.unwrap_test_results(user_tests.simple_result),
-      ~footer=None,
-      eds.your_tests,
-    );
-
-  let reference_impl_view =
-    editor_view(
-      ReferenceImpl,
-      ~selected=pos == ReferenceImpl,
-      ~caption=Cell.simple_caption("Reference Implementation"),
-      ~code_id="reference-impl",
-      ~info_map=instructor.info_map,
-      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
-      ~footer=None,
-      eds.reference_impl,
     );
 
   let hidden_tests_view =
@@ -711,10 +754,12 @@ let view =
     [
       prompt_view,
       prelude_view,
+      correct_impl_view,
+      correct_impl_student_view,
       your_tests_view,
-      your_impl_view,
-      reference_impl_view,
       hidden_tests_view,
+      // TODO: hidden bug finding summary view
+      your_impl_view,
     ]
     @ hidden_bugs_views  // TODO fix spacing
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],

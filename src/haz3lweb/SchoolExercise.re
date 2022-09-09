@@ -18,7 +18,7 @@ type hidden_tests('code) = {
 type p('code) = {
   prompt: [@opaque] Node.t,
   prelude: 'code,
-  reference_impl: 'code,
+  correct_impl: 'code,
   your_tests: 'code,
   your_impl: 'code,
   hidden_bugs: list(wrong_impl('code)),
@@ -28,7 +28,7 @@ type p('code) = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   | Prelude
-  | ReferenceImpl
+  | CorrectImpl
   | YourTests
   | YourImpl
   | HiddenBugs(int)
@@ -53,7 +53,7 @@ let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
     switch (pos) {
     | Prelude => eds.prelude
-    | ReferenceImpl => eds.reference_impl
+    | CorrectImpl => eds.correct_impl
     | YourTests => eds.your_tests
     | YourImpl => eds.your_impl
     | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
@@ -69,11 +69,11 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
         prelude: editor,
       },
     }
-  | ReferenceImpl => {
+  | CorrectImpl => {
       ...state,
       eds: {
         ...eds,
-        reference_impl: editor,
+        correct_impl: editor,
       },
     }
   | YourTests => {
@@ -115,14 +115,14 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
   };
 
 let editors = ({eds, _}: state) =>
-  [eds.prelude, eds.reference_impl, eds.your_tests, eds.your_impl]
+  [eds.prelude, eds.correct_impl, eds.your_tests, eds.your_impl]
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
 let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
   | Prelude => 0
-  | ReferenceImpl => 1
+  | CorrectImpl => 1
   | YourTests => 2
   | YourImpl => 3
   | HiddenBugs(i) =>
@@ -137,7 +137,7 @@ let idx_of_pos = (pos, p: p('code)) =>
 let pos_of_idx = (p: p('code), idx: int) =>
   switch (idx) {
   | 0 => Prelude
-  | 1 => ReferenceImpl
+  | 1 => CorrectImpl
   | 2 => YourTests
   | 3 => YourImpl
   | _ =>
@@ -162,7 +162,7 @@ let eds_of_spec: spec => (Id.t, eds) =
     {
       prompt,
       prelude,
-      reference_impl,
+      correct_impl,
       your_tests,
       your_impl,
       hidden_bugs,
@@ -176,7 +176,7 @@ let eds_of_spec: spec => (Id.t, eds) =
       };
     let id = 0;
     let (id, prelude) = editor_of_code(id, prelude);
-    let (id, reference_impl) = editor_of_code(id, reference_impl);
+    let (id, correct_impl) = editor_of_code(id, correct_impl);
     let (id, your_tests) = editor_of_code(id, your_tests);
     let (id, your_impl) = editor_of_code(id, your_impl);
     let (id, hidden_bugs) =
@@ -198,7 +198,7 @@ let eds_of_spec: spec => (Id.t, eds) =
       {
         prompt,
         prelude,
-        reference_impl,
+        correct_impl,
         your_tests,
         your_impl,
         hidden_bugs,
@@ -239,7 +239,7 @@ let unpersist_state =
       eds: {
         prompt: spec.prompt,
         prelude: lookup(Prelude),
-        reference_impl: lookup(ReferenceImpl),
+        correct_impl: lookup(CorrectImpl),
         your_tests: lookup(YourTests),
         your_impl: lookup(YourImpl),
         hidden_bugs:
@@ -267,27 +267,36 @@ module StaticsItem = {
 };
 
 type stitched('a) = {
+  test_validation: 'a, // prelude + correct_impl + your_tests
   user_impl: 'a, // prelude + your_impl
   user_tests: 'a, // prelude + your_impl + your_tests
-  instructor: 'a, // prelude + reference_impl + hidden_tests.tests
-  hidden_bugs: list('a) // prelude + hidden_bugs[i].impl
+  instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
+  hidden_bugs: list('a) // prelude + hidden_bugs[i].impl + your_tests
 };
 
 type stitched_statics = stitched(StaticsItem.t);
 
 let stitch_static = ({eds, _}: state): stitched_statics => {
+  let (test_validation_term, _) =
+    EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests]);
+  let test_validation_map = Statics.mk_map(test_validation_term);
+  let test_validation =
+    StaticsItem.{term: test_validation_term, info_map: test_validation_map};
+
   let (user_impl_term, _) = EditorUtil.stitch([eds.prelude, eds.your_impl]);
+  let user_impl_map = Statics.mk_map(user_impl_term);
+  let user_impl = StaticsItem.{term: user_impl_term, info_map: user_impl_map};
+
   let (user_tests_term, _) =
     EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests]);
-  let user_info_map = Statics.mk_map(user_tests_term);
-  let user_impl = StaticsItem.{term: user_impl_term, info_map: user_info_map};
+  let user_tests_map = Statics.mk_map(user_tests_term);
   let user_tests =
-    StaticsItem.{term: user_tests_term, info_map: user_info_map};
+    StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
   let (instructor_term, _) =
     EditorUtil.stitch([
       eds.prelude,
-      eds.reference_impl,
+      eds.correct_impl,
       eds.hidden_tests.tests,
     ]);
   let instructor_info_map = Statics.mk_map(instructor_term);
@@ -303,18 +312,23 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
       },
       eds.hidden_bugs,
     );
-  {user_impl, user_tests, instructor, hidden_bugs};
+  {test_validation, user_impl, user_tests, instructor, hidden_bugs};
 };
 
+let test_validation_key = "test_validation";
 let user_impl_key = "user_impl";
 let user_tests_key = "user_tests";
 let instructor_key = "instructor";
 
 let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
   state => {
-    let {user_impl, user_tests, instructor, hidden_bugs: _} =
+    let {test_validation, user_impl, user_tests, instructor, hidden_bugs: _} =
       stitch_static(state);
     [
+      (
+        test_validation_key,
+        Interface.elaborate(test_validation.info_map, test_validation.term),
+      ),
       (
         user_impl_key,
         Interface.elaborate(user_impl.info_map, user_impl.term),
@@ -338,13 +352,19 @@ module DynamicsItem = {
   };
 };
 let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
-  let {user_impl, user_tests, instructor, hidden_bugs} =
+  let {test_validation, user_impl, user_tests, instructor, hidden_bugs} =
     stitch_static(state);
   let simple_result_of = key =>
     Option.map(
       results => ModelResult.get_simple(ModelResults.lookup(results, key)),
       results,
     );
+  let test_validation =
+    DynamicsItem.{
+      term: test_validation.term,
+      info_map: test_validation.info_map,
+      simple_result: simple_result_of(test_validation_key),
+    };
   let user_impl =
     DynamicsItem.{
       term: user_impl.term,
@@ -373,5 +393,5 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
         },
       hidden_bugs,
     );
-  {user_impl, user_tests, instructor, hidden_bugs};
+  {test_validation, user_impl, user_tests, instructor, hidden_bugs};
 };

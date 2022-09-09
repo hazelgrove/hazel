@@ -16,7 +16,7 @@ let exercise: SchoolExercise.spec = {
       ),
     ]),
   prelude: "",
-  reference_impl: "let not: Bool->Bool =
+  correct_impl: "let not: Bool->Bool =
 fun x -> if x then false else true
 in
 let odd:Int->Bool =
