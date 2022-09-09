@@ -60,13 +60,26 @@ let complete_root =
     | ([(id, tile)], []) =>
       switch (tile) {
       | (["("], []) => Op(single(id, (["(", ")"], [r])))
+      | (["fun"], []) =>
+        Pre(single(id, (Labels.fun_, [r])), dark_hole(Exp))
+      | (["fun", " "], [pat]) =>
+        Pre(single(id, (Labels.fun_, [pat])), dark_hole(Exp))
       | (["let"], []) =>
         Pre(
           single(id, (Labels.let_, [r, dark_hole(Exp)])),
           dark_hole(Exp),
         )
+      | (["let", " "], [pat])
       | (["let", "="], [pat]) =>
         Pre(single(id, (Labels.let_, [pat, r])), dark_hole(Exp))
+      | (["case"], []) => Op(single(id, (Labels.case, [r])))
+      | (["if"], []) =>
+        Pre(
+          single(id, (Labels.if_, [r, dark_hole(Exp)])),
+          dark_hole(Exp),
+        )
+      | (["if", "then"], [cond]) =>
+        Pre(single(id, (Labels.if_, [cond, r])), dark_hole(Exp))
       | _ => root
       }
     | _ => root
