@@ -121,7 +121,7 @@ let test_result_layer =
       test_results: Interface.test_results,
     )
     : list(Node.t) => {
-  print_endline(Interface.show_test_results(test_results));
+  //print_endline(Interface.show_test_results(test_results));
   List.filter_map(
     ((id, insts)) =>
       switch (Id.Map.find_opt(id, measured.tiles)) {
@@ -166,6 +166,7 @@ let eval_result_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => []
+    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => []
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
