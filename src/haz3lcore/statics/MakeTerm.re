@@ -52,7 +52,7 @@ let dark_hole = (~ids=[], s: Sort.t): t => {
 
 // TODO flesh out incomplete cases
 // TODO review dark hole
-let _complete_root =
+let complete_root =
   fun
   | Op(_) as root => root
   | Pre(tiles, r) as root =>
@@ -216,93 +216,96 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
   let _unrecog = UExp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UExp.hole(kids_of_unsorted(unsorted));
-  fun
-  | Op(tiles) as tm =>
-    switch (tiles) {
-    // single-tile case
-    | ([(_id, t)], []) =>
-      switch (t) {
-      | (["triv"], []) => ret(Triv)
-      | (["true"], []) => ret(Bool(true))
-      | (["false"], []) => ret(Bool(false))
-      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
-      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["nil"], []) => ret(ListLit([]))
-      | (["[", "]"], [Exp(body)]) =>
-        switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
-        | term => ret(ListLit([term]))
+  unsorted =>
+    switch (complete_root(unsorted)) {
+    | Op(tiles) as tm =>
+      switch (tiles) {
+      // single-tile case
+      | ([(_id, t)], []) =>
+        switch (t) {
+        | (["triv"], []) => ret(Triv)
+        | (["true"], []) => ret(Bool(true))
+        | (["false"], []) => ret(Bool(false))
+        | ([t], []) when Form.is_float(t) =>
+          ret(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+        | ([t], []) when Form.is_var(t) => ret(Var(t))
+        | (["test", "end"], [Exp(test)]) => ret(Test(test))
+        | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+        | (["nil"], []) => ret(ListLit([]))
+        | (["[", "]"], [Exp(body)]) =>
+          switch (body) {
+          | {ids, term: Tuple(es)} => (ListLit(es), ids)
+          | term => ret(ListLit([term]))
+          }
+        | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
+            Match(scrut, rules),
+            ids,
+          )
+        | _ => ret(hole(tm))
         }
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
-          Match(scrut, rules),
-          ids,
-        )
       | _ => ret(hole(tm))
       }
-    | _ => ret(hole(tm))
-    }
-  | Pre(tiles, Exp(r)) as tm =>
-    switch (tiles) {
-    | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["-"], []) => UnOp(Int(Minus), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
-        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
-          If(cond, conseq, r)
-        | _ => hole(tm)
-        },
-      )
-    | _ => ret(hole(tm))
-    }
-  | Post(Exp(l), tiles) as tm =>
-    switch (tiles) {
-    | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | _ => hole(tm)
-        },
-      )
-    | _ => ret(hole(tm))
-    }
-  | Bin(Exp(l), tiles, Exp(r)) as tm =>
-    switch (is_tuple_exp(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
-    | None =>
+    | Pre(tiles, Exp(r)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
         ret(
           switch (t) {
-          | (["+"], []) => BinOp(Int(Plus), l, r)
-          | (["-"], []) => BinOp(Int(Minus), l, r)
-          | (["*"], []) => BinOp(Int(Times), l, r)
-          | (["/"], []) => BinOp(Int(Divide), l, r)
-          | (["<"], []) => BinOp(Int(LessThan), l, r)
-          | ([">"], []) => BinOp(Int(GreaterThan), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["+."], []) => BinOp(Float(Plus), l, r)
-          | (["-."], []) => BinOp(Float(Minus), l, r)
-          | (["*."], []) => BinOp(Float(Times), l, r)
-          | (["/."], []) => BinOp(Float(Divide), l, r)
-          | (["<."], []) => BinOp(Float(LessThan), l, r)
-          | ([">."], []) => BinOp(Float(GreaterThan), l, r)
-          | (["==."], []) => BinOp(Float(Equals), l, r)
-          | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["||"], []) => BinOp(Bool(Or), l, r)
-          | (["::"], []) => Cons(l, r)
-          | ([";"], []) => Seq(l, r)
+          | (["-"], []) => UnOp(Int(Minus), r)
+          | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+          | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+          | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+            If(cond, conseq, r)
           | _ => hole(tm)
           },
         )
       | _ => ret(hole(tm))
       }
-    }
-  | tm => ret(hole(tm));
+    | Post(Exp(l), tiles) as tm =>
+      switch (tiles) {
+      | ([(_id, t)], []) =>
+        ret(
+          switch (t) {
+          | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+          | _ => hole(tm)
+          },
+        )
+      | _ => ret(hole(tm))
+      }
+    | Bin(Exp(l), tiles, Exp(r)) as tm =>
+      switch (is_tuple_exp(tiles)) {
+      | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+      | None =>
+        switch (tiles) {
+        | ([(_id, t)], []) =>
+          ret(
+            switch (t) {
+            | (["+"], []) => BinOp(Int(Plus), l, r)
+            | (["-"], []) => BinOp(Int(Minus), l, r)
+            | (["*"], []) => BinOp(Int(Times), l, r)
+            | (["/"], []) => BinOp(Int(Divide), l, r)
+            | (["<"], []) => BinOp(Int(LessThan), l, r)
+            | ([">"], []) => BinOp(Int(GreaterThan), l, r)
+            | (["=="], []) => BinOp(Int(Equals), l, r)
+            | (["+."], []) => BinOp(Float(Plus), l, r)
+            | (["-."], []) => BinOp(Float(Minus), l, r)
+            | (["*."], []) => BinOp(Float(Times), l, r)
+            | (["/."], []) => BinOp(Float(Divide), l, r)
+            | (["<."], []) => BinOp(Float(LessThan), l, r)
+            | ([">."], []) => BinOp(Float(GreaterThan), l, r)
+            | (["==."], []) => BinOp(Float(Equals), l, r)
+            | (["&&"], []) => BinOp(Bool(And), l, r)
+            | (["||"], []) => BinOp(Bool(Or), l, r)
+            | (["::"], []) => Cons(l, r)
+            | ([";"], []) => Seq(l, r)
+            | _ => hole(tm)
+            },
+          )
+        | _ => ret(hole(tm))
+        }
+      }
+    | tm => ret(hole(tm))
+    };
 }
 
 and pat = unsorted => {
