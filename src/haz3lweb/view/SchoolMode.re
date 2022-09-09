@@ -302,6 +302,21 @@ open Node;
 //     test_results.test_map,
 //   );
 
+type vis_marked('a) =
+  | InstructorOnly(unit => 'a)
+  | Always('a);
+
+let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
+  List.filter_map(
+    vis =>
+      switch (vis) {
+      | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
+      | Always(node) => Some(node)
+      },
+    v,
+  );
+};
+
 let view =
     (
       ~font_metrics,
@@ -585,103 +600,127 @@ let view =
 
   // TODO: make prelude read-only
   let prelude_view =
-    editor_view(
-      Prelude,
-      ~selected=pos == Prelude,
-      ~caption=
-        Cell.simple_caption(
-          "Prelude" ++ (settings.instructor_mode ? "" : " (Read-Only)"),
-        ),
-      ~code_id="prelude",
-      ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
-      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
-      ~footer=None,
-      eds.prelude,
+    Always(
+      editor_view(
+        Prelude,
+        ~selected=pos == Prelude,
+        ~caption=
+          Cell.simple_caption(
+            "Prelude" ++ (settings.instructor_mode ? "" : " (Read-Only)"),
+          ),
+        ~code_id="prelude",
+        ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
+        ~test_results=
+          ModelResult.unwrap_test_results(instructor.simple_result),
+        ~footer=None,
+        eds.prelude,
+      ),
     );
 
   let correct_impl_view =
-    editor_view(
-      CorrectImpl,
-      ~selected=pos == CorrectImpl,
-      ~caption=Cell.simple_caption("Correct Implementation"),
-      ~code_id="correct-impl",
-      ~info_map=instructor.info_map,
-      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
-      ~footer=None,
-      eds.correct_impl,
+    InstructorOnly(
+      () =>
+        editor_view(
+          CorrectImpl,
+          ~selected=pos == CorrectImpl,
+          ~caption=Cell.simple_caption("Correct Implementation"),
+          ~code_id="correct-impl",
+          ~info_map=instructor.info_map,
+          ~test_results=
+            ModelResult.unwrap_test_results(instructor.simple_result),
+          ~footer=None,
+          eds.correct_impl,
+        ),
     );
 
   // determine trailing hole
-  let correct_impl_student_view = {
-    let exp_ctx_view = {
-      let correct_impl_trailing_hole_ctx =
-        Haz3lcore.Editor.trailing_hole_ctx(
-          eds.correct_impl,
-          instructor.info_map,
-        );
-      let prelude_trailing_hole_ctx =
-        Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, instructor.info_map);
-      switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-      | (None, _)
-      | (_, None) => Node.div([text("No context available")]) // TODO show exercise configuration error
-      | (
-          Some(correct_impl_trailing_hole_ctx),
-          Some(prelude_trailing_hole_ctx),
-        ) =>
-        let specific_ctx =
-          Haz3lcore.Ctx.subtract_prefix(
-            correct_impl_trailing_hole_ctx,
-            prelude_trailing_hole_ctx,
-          );
-        switch (specific_ctx) {
-        | None => Node.div([text("No context available")]) // TODO show exercise configuration error
-        | Some(specific_ctx) => CtxInspector.exp_ctx_view(specific_ctx)
+  let correct_impl_ctx_view =
+    Always(
+      {
+        let exp_ctx_view = {
+          let correct_impl_trailing_hole_ctx =
+            Haz3lcore.Editor.trailing_hole_ctx(
+              eds.correct_impl,
+              instructor.info_map,
+            );
+          let prelude_trailing_hole_ctx =
+            Haz3lcore.Editor.trailing_hole_ctx(
+              eds.prelude,
+              instructor.info_map,
+            );
+          switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
+          | (None, _)
+          | (_, None) => Node.div([text("No context available")]) // TODO show exercise configuration error
+          | (
+              Some(correct_impl_trailing_hole_ctx),
+              Some(prelude_trailing_hole_ctx),
+            ) =>
+            let specific_ctx =
+              Haz3lcore.Ctx.subtract_prefix(
+                correct_impl_trailing_hole_ctx,
+                prelude_trailing_hole_ctx,
+              );
+            switch (specific_ctx) {
+            | None => Node.div([text("No context available")]) // TODO show exercise configuration error
+            | Some(specific_ctx) => CtxInspector.exp_ctx_view(specific_ctx)
+            };
+          };
         };
-      };
-    };
-    Cell.simple_cell_view([
-      Cell.simple_cell_item([
-        Cell.simple_caption("Correct Implementation (Type Signatures Only)"),
-        exp_ctx_view,
-      ]),
-    ]);
-  };
+        Cell.simple_cell_view([
+          Cell.simple_cell_item([
+            Cell.simple_caption(
+              "Correct Implementation (Type Signatures Only)",
+            ),
+            exp_ctx_view,
+          ]),
+        ]);
+      },
+    );
 
   let your_tests_view =
-    editor_view(
-      YourTests,
-      ~selected=pos == YourTests,
-      ~caption=Cell.simple_caption("Your Tests"),
-      ~code_id="your-tests",
-      ~info_map=test_validation.info_map,
-      ~test_results=
-        ModelResult.unwrap_test_results(test_validation.simple_result),
-      ~footer=None,
-      eds.your_tests,
+    Always(
+      editor_view(
+        YourTests,
+        ~selected=pos == YourTests,
+        ~caption=Cell.simple_caption("Your Tests"),
+        ~code_id="your-tests",
+        ~info_map=test_validation.info_map,
+        ~test_results=
+          ModelResult.unwrap_test_results(test_validation.simple_result),
+        ~footer=None,
+        eds.your_tests,
+      ),
     );
 
   let your_impl_view =
-    editor_view(
-      YourImpl,
-      ~selected=pos == YourImpl,
-      ~caption=Cell.simple_caption("Your Implementation"),
-      ~code_id="your-impl",
-      ~info_map=user_impl.info_map,
-      ~test_results=ModelResult.unwrap_test_results(user_impl.simple_result),
-      ~footer=None,
-      eds.your_impl,
+    Always(
+      editor_view(
+        YourImpl,
+        ~selected=pos == YourImpl,
+        ~caption=Cell.simple_caption("Your Implementation"),
+        ~code_id="your-impl",
+        ~info_map=user_impl.info_map,
+        ~test_results=
+          ModelResult.unwrap_test_results(user_impl.simple_result),
+        ~footer=None,
+        eds.your_impl,
+      ),
     );
 
   let hidden_tests_view =
-    editor_view(
-      HiddenTests,
-      ~selected=pos == HiddenTests,
-      ~caption=Cell.simple_caption("Hidden Tests"),
-      ~code_id="hidden-tests",
-      ~info_map=instructor.info_map,
-      ~test_results=ModelResult.unwrap_test_results(instructor.simple_result),
-      ~footer=None,
-      eds.hidden_tests.tests,
+    InstructorOnly(
+      () =>
+        editor_view(
+          HiddenTests,
+          ~selected=pos == HiddenTests,
+          ~caption=Cell.simple_caption("Hidden Tests"),
+          ~code_id="hidden-tests",
+          ~info_map=instructor.info_map,
+          ~test_results=
+            ModelResult.unwrap_test_results(instructor.simple_result),
+          ~footer=None,
+          eds.hidden_tests.tests,
+        ),
     );
 
   let hidden_bugs_views =
@@ -693,18 +732,21 @@ let view =
           SchoolExercise.DynamicsItem.{info_map, simple_result, _},
         ),
       ) => {
-        editor_view(
-          HiddenBugs(i),
-          ~selected=pos == HiddenBugs(i),
-          ~caption=
-            Cell.simple_caption(
-              "Wrong Implementation " ++ string_of_int(i + 1),
+        InstructorOnly(
+          () =>
+            editor_view(
+              HiddenBugs(i),
+              ~selected=pos == HiddenBugs(i),
+              ~caption=
+                Cell.simple_caption(
+                  "Wrong Implementation " ++ string_of_int(i + 1),
+                ),
+              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
+              ~info_map,
+              ~test_results=ModelResult.unwrap_test_results(simple_result),
+              ~footer=None,
+              impl,
             ),
-          ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
-          ~info_map,
-          ~test_results=ModelResult.unwrap_test_results(simple_result),
-          ~footer=None,
-          impl,
         )
       },
       List.combine(eds.hidden_bugs, hidden_bugs),
@@ -751,17 +793,21 @@ let view =
 
   div(
     ~attr=Attr.classes(["editor", "column"]),
-    [
-      prompt_view,
-      prelude_view,
-      correct_impl_view,
-      correct_impl_student_view,
-      your_tests_view,
-      hidden_tests_view,
-      // TODO: hidden bug finding summary view
-      your_impl_view,
-    ]
-    @ hidden_bugs_views  // TODO fix spacing
+    [prompt_view]
+    @ render_cells(
+        settings,
+        [
+          prelude_view,
+          correct_impl_view,
+          correct_impl_ctx_view,
+          your_tests_view,
+          hidden_tests_view,
+          // TODO: hidden bug finding summary view
+          your_impl_view,
+        ]
+        @ hidden_bugs_views,
+      )
+    // TODO fix spacing
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };
