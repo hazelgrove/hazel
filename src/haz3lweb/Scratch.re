@@ -9,16 +9,16 @@ fun q -> if q < 0 then a else true in
 let f =
 fun x : Int -> x + 5 < 0 in
 true && f(a) && f(b) && g(true)",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
 ];
 
-let init: Editors.study = {
+let init: Editors.scratch = {
   let (id_gen, zs) =
     List.fold_left(
       ((acc_id, acc_zs), str) => {

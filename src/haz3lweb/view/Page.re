@@ -56,26 +56,36 @@ let copy_log_to_clipboard = _ => {
   Virtual_dom.Vdom.Effect.Ignore;
 };
 
-let increment_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
-  let next_ed = (cur_idx + 1) mod num_editors;
+let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
+  let next_ed = (cur_slide + 1) mod num_slides;
   Log.append_json_updates_log();
   inject(SwitchEditor(next_ed));
 };
 
-let decrement_editor = (~inject: Update.t => 'a, cur_idx, num_editors, _) => {
-  let prev_ed = Util.IntUtil.modulo(cur_idx - 1, num_editors);
+let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
+  let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
   Log.append_json_updates_log();
   inject(SwitchEditor(prev_ed));
 };
 
-let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
+let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   let id = Attr.id("editor-mode");
   let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
-  let num_editors = Model.num_editors(model);
+  let num_slides = Editors.num_slides(model.editors);
   let tooltip = Attr.title("Toggle Mode");
   switch (model.editors) {
-  | Simple(_) =>
-    div(~attr=Attr.many([id, toggle_mode, tooltip]), [text("Sketch")])
+  | Scratch(_) =>
+    let cur_slide = Editors.cur_slide(model.editors);
+    let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
+    div(
+      ~attr=id,
+      [
+        div(~attr=toggle_mode, [text("Scratch")]),
+        button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
+        text(cur_slide_text),
+        button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
+      ],
+    );
   | School(_) =>
     div(
       ~attr=id,
@@ -96,21 +106,6 @@ let editor_mode_view = (~inject: Update.t => 'a, ~model: Model.t) => {
         }
       ),
     )
-  | Study(_) =>
-    let cur_idx = Model.current_editor(model);
-    let current_editor = Printf.sprintf("%d / %d", cur_idx + 1, num_editors);
-    div(
-      ~attr=id,
-      [
-        div(~attr=toggle_mode, [text("Studies")]),
-        button(Icons.back, decrement_editor(~inject, cur_idx, num_editors)),
-        text(current_editor),
-        button(
-          Icons.forward,
-          increment_editor(~inject, cur_idx, num_editors),
-        ),
-      ],
-    );
   };
 };
 
@@ -138,7 +133,7 @@ let menu_icon =
   );
 
 let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
-  let ed = Model.get_editor(model);
+  let ed = Editors.get_editor(model.editors);
   let can_undo = Editor.can_undo(ed);
   let can_redo = Editor.can_redo(ed);
   div(
@@ -189,7 +184,7 @@ let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
         ~disabled=!can_redo,
         ~tooltip="Redo",
       ),
-      editor_mode_view(~inject, ~model),
+      editor_mode_toggle_view(~inject, ~model),
     ],
   );
 };
@@ -208,16 +203,14 @@ let editors_view =
       }: Model.t,
     ) => {
   switch (editors) {
-  | Simple(_)
-  | Study(_) =>
+  | Scratch(_) =>
     let result_key = Editors.single_result_key;
     let editor = Editors.get_editor(editors);
     let result =
       settings.dynamics
-        // TODO are results still being computed even if dynamics is off?
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
-    SimpleMode.view(
+    ScratchSlide.view(
       ~inject,
       ~font_metrics,
       ~mousedown,
