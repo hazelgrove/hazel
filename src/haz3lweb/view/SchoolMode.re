@@ -677,6 +677,9 @@ let view =
       },
     );
 
+  let test_validation_results =
+    ModelResult.unwrap_test_results(test_validation.simple_result);
+
   let your_tests_view =
     Always(
       editor_view(
@@ -687,7 +690,16 @@ let view =
         ~info_map=test_validation.info_map,
         ~test_results=
           ModelResult.unwrap_test_results(test_validation.simple_result),
-        ~footer=None,
+        ~footer=
+          Option.map(
+            test_validation_results =>
+              Cell.test_report_footer_view(
+                ~inject,
+                ~font_metrics,
+                ~test_results=test_validation_results,
+              ),
+            test_validation_results,
+          ),
         eds.your_tests,
       ),
     );

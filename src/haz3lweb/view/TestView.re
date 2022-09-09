@@ -91,7 +91,7 @@ let test_bar_segment = (~inject, (_id, reports)) => {
 let test_bar = (~inject, ~test_results: Interface.test_results) =>
   div(
     ~attr=Attr.class_("test-bar"),
-    List.map(test_bar_segment(~inject), test_results.test_map),
+    List.map(test_bar_segment(~inject), List.rev(test_results.test_map)),
   );
 
 let result_summary_str =

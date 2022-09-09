@@ -311,3 +311,15 @@ let test_view =
       ],
     )
   );
+
+let test_report_footer_view = (~inject, ~font_metrics, ~test_results) => {
+  Node.(
+    div(
+      ~attr=Attr.classes(["cell-item", "cell-result"]),
+      [
+        TestView.test_summary(~inject, ~test_results),
+        // TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+      ],
+    )
+  );
+};
