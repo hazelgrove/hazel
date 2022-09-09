@@ -58,7 +58,7 @@ let single_editor_semantics_views =
       ~settings: Model.settings,
       ~index,
       ~unselected,
-      ~zipper: Zipper.t,
+      ~zipper as _: Zipper.t,
       ~res,
     ) => {
   let (term, _) = MakeTerm.go(unselected);
@@ -71,10 +71,11 @@ let single_editor_semantics_views =
   [
     div(
       ~attr=clss(["bottom-bar"]),
-      (
-        List.length(zipper.backpack) == 0
-          ? [CursorInspector.view(~inject, ~settings, index, map)] : []
-      )
+      [
+        // List.length(zipper.backpack) == 0
+        //   ? [CursorInspector.view(~inject, ~settings, index, map)] : []
+        CursorInspector.view(~inject, ~settings, index, map),
+      ]
       @ (
         switch (results) {
         | None => []
