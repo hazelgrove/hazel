@@ -1,26 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-// open Util.Web;
-
-// let splice_editors = (editors: list(Editor.t)): Segment.t =>
-//   editors
-//   |> List.map((ed: Editor.t) => Zipper.unselect_and_zip(eds.state.zipper))
-//   |> (
-//     xs =>
-//       Util.ListUtil.interleave(
-//         xs,
-//         List.init(List.length(editors) - 1, i =>
-//           [Piece.Tile(join_tile(i + 1000000))]
-//         ) //TODO(andrew): id_gen hack
-//       )
-//   )
-//   |> List.flatten;
-
-// let spliced_statics = (editors: list(Editor.t)) => {
-//   let term = editors |> splice_editors |> MakeTerm.go;
-//   let (_, _, info_map) = term |> Statics.mk_map;
-//   (term, info_map);
-// };
 
 // let coverage_summary_str = (~total, ~found): string => {
 //   TestView.result_summary_str(
@@ -517,30 +496,6 @@ let view =
   //   )
   //   @ [div([clss(["bottom-bar"])], ci_view)],
   // );
-
-  let prompt_view =
-    Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
-    ); // TODO rename "cell-chapter" to "prompt"
-
-  let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
-    SchoolExercise.stitch_dynamic(state, results);
-
-  let (focal_zipper, focal_info_map) =
-    switch (pos) {
-    | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
-    | ReferenceImpl => (eds.reference_impl.state.zipper, instructor.info_map)
-    | YourTests => (eds.your_tests.state.zipper, user_tests.info_map)
-    | YourImpl => (eds.your_impl.state.zipper, user_tests.info_map)
-    | HiddenBugs(idx) =>
-      let editor = List.nth(eds.hidden_bugs, idx).impl;
-      let info_map = List.nth(hidden_bugs, idx).info_map;
-      (editor.state.zipper, info_map);
-    | HiddenTests => (
-        eds.hidden_tests.tests.state.zipper,
-        instructor.info_map,
-      )
-    };
   //   let combined_info_map =
   //     settings.statics
   //       ? {
@@ -592,8 +547,31 @@ let view =
   //         ),
   //       ];
   //     | None => []
-  // >>>>>>> eval-round-2
   //     };
+
+  let prompt_view =
+    Cell.narrative_cell(
+      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+    );
+
+  let SchoolExercise.{user_impl, user_tests, instructor, hidden_bugs} =
+    SchoolExercise.stitch_dynamic(state, results);
+
+  let (focal_zipper, focal_info_map) =
+    switch (pos) {
+    | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
+    | ReferenceImpl => (eds.reference_impl.state.zipper, instructor.info_map)
+    | YourTests => (eds.your_tests.state.zipper, user_tests.info_map)
+    | YourImpl => (eds.your_impl.state.zipper, user_tests.info_map)
+    | HiddenBugs(idx) =>
+      let editor = List.nth(eds.hidden_bugs, idx).impl;
+      let info_map = List.nth(hidden_bugs, idx).info_map;
+      (editor.state.zipper, info_map);
+    | HiddenTests => (
+        eds.hidden_tests.tests.state.zipper,
+        instructor.info_map,
+      )
+    };
 
   // TODO: hide in instructor mode
   // TODO: round out bottom when there is no result view
