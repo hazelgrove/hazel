@@ -151,3 +151,20 @@ let can_undo = ed => Option.is_some(undo(ed));
 let can_redo = ed => Option.is_some(redo(ed));
 
 let set_read_only = (ed, read_only) => {...ed, read_only};
+
+let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
+  let segment = Zipper.unselect_and_zip(ed.state.zipper);
+  let convex_grout = Segment.convex_grout(segment);
+  // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
+  let last = Util.ListUtil.last_opt(convex_grout);
+  switch (last) {
+  | None => None
+  | Some(grout) =>
+    let id = grout.id;
+    let info = Id.Map.find(id, info_map);
+    switch (info) {
+    | InfoExp(info_exp) => Some(info_exp.ctx)
+    | _ => None
+    };
+  };
+};
