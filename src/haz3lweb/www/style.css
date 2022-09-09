@@ -1330,7 +1330,7 @@ svg.tile-selected {
   gap: 1em;
 }
 
-.cell .test-report,
+.cell-result .test-report,
 .school-panel .test-report {
   display: flex;
   justify-content: space-between;
@@ -1342,7 +1342,7 @@ svg.tile-selected {
   cursor: pointer;
 }
 
-.cell .test-summary,
+.cell-result .test-summary,
 .school-panel .test-summary {
   display: flex;
   flex-direction: row;
@@ -1351,7 +1351,7 @@ svg.tile-selected {
   justify-content: space-between;
 }
 
-.cell .test-summary .test-bar,
+.cell-result .test-summary .test-bar,
 .school-panel .test-summary .test-bar {
   width: 16em;
   display: flex;
@@ -1359,7 +1359,7 @@ svg.tile-selected {
   gap: 1px;
 }
 
-.cell .test-text,
+.cell-result .test-text,
 .school-panel .test-text {
   display: flex;
   gap: 0.5em;
