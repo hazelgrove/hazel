@@ -198,7 +198,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         List.map(
           ((p, e)) => {
             let* d_p = dhpat_of_upat(m, p);
-            let+ d_e = dhexp_of_uexp(m, e);
+            let+ d_e = cast_exp(m, e);
             DHExp.Rule(d_p, d_e);
           },
           rules,

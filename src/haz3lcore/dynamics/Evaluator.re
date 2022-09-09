@@ -777,6 +777,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             }
           | _ =>
             print_endline("9999999");
+            print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
+            print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
+            print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
             //BoxedValue(d1) |> return;
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
