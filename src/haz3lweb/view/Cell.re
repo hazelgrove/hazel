@@ -62,15 +62,15 @@ let cell_view =
       ~code_id: string,
       ~caption: option(Node.t)=?,
       code: Node.t,
-      result: option(Node.t),
+      footer: option(Node.t),
     )
     : Node.t => {
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   let code = mousedown_overlay @ [code];
-  let result =
-    switch (result) {
+  let footer =
+    switch (footer) {
     | None => []
     | Some(node) => [node]
     };
@@ -81,7 +81,7 @@ let cell_view =
         ~attr=
           Attr.many([
             Attr.classes(
-              ["cell", ...clss] @ (selected ? ["selected"] : []),
+              ["cell-item", "cell", ...clss] @ (selected ? ["selected"] : []),
             ),
             Attr.on_mousedown(
               mousedown_handler(
@@ -95,7 +95,7 @@ let cell_view =
         Option.to_list(caption) @ code,
       ),
     ]
-    @ result,
+    @ footer,
   );
 };
 
@@ -162,7 +162,7 @@ let deco =
   };
 };
 
-let eval_result_view = (~font_metrics, simple: ModelResult.simple) => {
+let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => []
@@ -179,7 +179,7 @@ let eval_result_view = (~font_metrics, simple: ModelResult.simple) => {
     };
   Node.(
     div(
-      ~attr=Attr.classes(["cell-result"]),
+      ~attr=Attr.classes(["cell-item", "cell-result"]),
       [div(~attr=Attr.classes(["result"]), d_view)],
     )
   );
@@ -258,7 +258,7 @@ let editor_with_result_view =
     ) => {
   let ModelResult.{opt_test_results: test_results, _} =
     ModelResult.unwrap_simple(result);
-  let eval_result_view = eval_result_view(~font_metrics, result);
+  let eval_result_footer = eval_result_footer_view(~font_metrics, result);
   editor_view(
     ~inject,
     ~font_metrics,
@@ -272,7 +272,7 @@ let editor_with_result_view =
     ~code_id,
     ~info_map,
     ~test_results,
-    ~footer=Some(eval_result_view),
+    ~footer=Some(eval_result_footer),
     editor,
   );
 };

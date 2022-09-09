@@ -443,7 +443,6 @@ svg {
 
 .code-container {
   position: relative;
-  margin-bottom: 2em;;
 }
 
 .code {
@@ -456,18 +455,14 @@ svg {
   max-width: 70vw;
 }
 
-.cell-container .cell:not(.school):first-child {
-  border-radius: 0.4em 0.4em 0 0;
+.cell-container .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
 }
 
-.cell-container .cell:nth-child(2) {
-  border-radius: 0.4em 0.4em 0 0;
-}
-.cell-container .cell:last-child {
-  border-radius: 0 0 0.4em 0.4em;
-}
-.cell-container .cell:only-child {
-  border-radius: 0.4em;
+.cell-container .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
 }
 
 .cell-prompt {
@@ -1121,16 +1116,15 @@ svg.tile-selected {
   padding-left: 1.2em;
 }
 
-.cell.selected + .cell-result {
+.cell.selected + .cell-item {
   border-left: 1px solid var(--cell-selected-accent);
+}
+
+.cell-result {
   background-color: #efe7d6;
 }
 
 .result {
-<<<<<<< HEAD
-  /* max-height: 1.6em; */
-=======
->>>>>>> haz3l-tests
   min-height: 1.6em;
   overflow: hidden;
 }
