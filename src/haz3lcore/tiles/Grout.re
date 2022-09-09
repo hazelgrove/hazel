@@ -73,6 +73,7 @@ let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
   open IdGen.Syntax;
   let* (l_hole, l_shape) =
     switch (l) {
+    | {shape: Concave(_), sort: Rul} when s == Exp => return(([], l.shape))
     | {shape: Concave(_), sort} when sort != s && sort != r.sort =>
       let+ id = IdGen.fresh;
       ([{id, sort, shape: Convex}], Nib.Shape.Convex);
@@ -80,6 +81,7 @@ let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
     };
   let* (r_shape, r_hole) =
     switch (r) {
+    | {shape: Concave(_), sort: Rul} when s == Exp => return((r.shape, []))
     | {shape: Concave(_), sort} when sort != s && sort != l.sort =>
       let+ id = IdGen.fresh;
       (Nib.Shape.Convex, [{id, sort, shape: Convex}]);
