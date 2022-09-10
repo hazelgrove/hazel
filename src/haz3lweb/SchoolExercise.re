@@ -306,7 +306,8 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let hidden_bugs =
     List.map(
       ({impl, _}) => {
-        let (term, _) = EditorUtil.stitch([eds.prelude, impl]);
+        let (term, _) =
+          EditorUtil.stitch([eds.prelude, impl, eds.your_tests]);
         let info_map = Statics.mk_map(term);
         StaticsItem.{term, info_map};
       },
@@ -319,10 +320,11 @@ let test_validation_key = "test_validation";
 let user_impl_key = "user_impl";
 let user_tests_key = "user_tests";
 let instructor_key = "instructor";
+let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
 
 let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
   state => {
-    let {test_validation, user_impl, user_tests, instructor, hidden_bugs: _} =
+    let {test_validation, user_impl, user_tests, instructor, hidden_bugs} =
       stitch_static(state);
     [
       (
@@ -341,7 +343,16 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
         instructor_key,
         Interface.elaborate(instructor.info_map, instructor.term),
       ),
-    ];
+    ]
+    @ (
+      hidden_bugs
+      |> List.mapi((n, hidden_bug: StaticsItem.t) =>
+           (
+             hidden_bugs_key(n),
+             Interface.elaborate(hidden_bug.info_map, hidden_bug.term),
+           )
+         )
+    );
   };
 
 module DynamicsItem = {
@@ -384,12 +395,12 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
       simple_result: simple_result_of(instructor_key),
     };
   let hidden_bugs =
-    List.map(
-      (statics_item: StaticsItem.t) =>
+    List.mapi(
+      (n, statics_item: StaticsItem.t) =>
         DynamicsItem.{
           term: statics_item.term,
           info_map: statics_item.info_map,
-          simple_result: None,
+          simple_result: simple_result_of(hidden_bugs_key(n)),
         },
       hidden_bugs,
     );
