@@ -197,7 +197,7 @@ let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
     split_last_opt(xs)
     |> Option.map(((leading, last)) => ([x, ...leading], last))
   };
-let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
+// let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
   switch (split_last_opt(xs)) {

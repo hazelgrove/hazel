@@ -312,7 +312,7 @@ let test_view =
     )
   );
 
-let test_report_footer_view = (~inject, ~font_metrics, ~test_results) => {
+let test_report_footer_view = (~inject, ~test_results) => {
   Node.(
     div(
       ~attr=Attr.classes(["cell-item", "cell-result"]),

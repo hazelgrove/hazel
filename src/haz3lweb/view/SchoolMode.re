@@ -1,172 +1,244 @@
 open Virtual_dom.Vdom;
 open Node;
 
-// let coverage_summary_str = (~total, ~found): string => {
-//   TestView.result_summary_str(
-//     ~n=total,
-//     ~p=found,
-//     ~q=0,
-//     ~n_str="bug",
-//     ~ns_str="bugs",
-//     ~p_str="exposed",
-//     ~q_str="",
-//     ~r_str="unrevealed",
-//   );
-// };
+module CoverageReport = {
+  // TODO move to separate module
+  open Haz3lcore;
+  module DynamicsItem = SchoolExercise.DynamicsItem;
 
-// let coverage_text = (~total, ~found): Node.t =>
-//   div(
-//     ~attr=Attr.classes(["test-text"]),
-//     [
-//       TestView.percent_view(total, found),
-//       div([text(":")]),
-//       text(coverage_summary_str(~total, ~found)),
-//     ],
-//   );
+  let coverage_summary_str = (~total, ~found): string => {
+    TestView.result_summary_str(
+      ~n=total,
+      ~p=found,
+      ~q=0,
+      ~n_str="bug",
+      ~ns_str="bugs",
+      ~p_str="exposed",
+      ~q_str="",
+      ~r_str="unrevealed",
+    );
+  };
 
-// let coverage_bar = (~inject as _, instances) =>
-//   div(
-//     ~attr=Attr.classes(["test-bar"]),
-//     List.map(
-//       ((status, _)) =>
-//         div(
-//           ~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
-//           [],
-//         ),
-//       instances,
-//     ),
-//   );
+  let coverage_text = (~total, ~found): Node.t =>
+    div(
+      ~attr=Attr.classes(["test-text"]),
+      [
+        TestView.percent_view(total, found),
+        div([text(":")]),
+        text(coverage_summary_str(~total, ~found)),
+      ],
+    );
 
-// let coverage_summary = (~inject, instances) => {
-//   let total = List.length(instances);
-//   let found =
-//     List.length(
-//       List.filter(((x: TestStatus.t, _)) => x == Pass, instances),
-//     );
-//   let status_class = total == found ? "Pass" : "Fail";
-//   div(
-//     ~attr=Attr.classes(["test-summary", status_class]),
-//     [coverage_text(~total, ~found), coverage_bar(~inject, instances)],
-//   );
-// };
+  let coverage_bar = (~inject as _, instances) =>
+    div(
+      ~attr=Attr.classes(["test-bar"]),
+      List.map(
+        ((status, _)) =>
+          div(
+            ~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
+            [],
+          ),
+        instances,
+      ),
+    );
 
-// let coverage_report_view =
-//     (
-//       ~inject,
-//       ~font_metrics,
-//       ~description: option(string)=None,
-//       i,
-//       (status, instance),
-//     ) =>
-//   div(
-//     ~attr=
-//       Attr.many([
-//         Attr.classes(["test-report"]),
-//         Attr.on_click(TestView.jump_to_test(~inject)),
-//       ]),
-//     [
-//       div(
-//         ~attr=
-//           Attr.classes(["test-id", "Test" ++ TestStatus.to_string(status)]),
-//         /* NOTE: prints lexical index, not unique id */
-//         [text(string_of_int(i + 1))],
-//       ),
-//       TestView.test_instance_view(~font_metrics, instance),
-//     ]
-//     @ (
-//       switch (description) {
-//       | None => []
-//       | Some(d) => [
-//           div(~attr=Attr.classes(["test-description"]), [text(d)]),
-//         ]
-//       }
-//     ),
-//   );
+  let coverage_summary = (~inject, instances) => {
+    let total = List.length(instances);
+    let found =
+      List.length(
+        List.filter(((x: TestStatus.t, _)) => x == Pass, instances),
+      );
+    let status_class = total == found ? "Pass" : "Fail";
+    div(
+      ~attr=Attr.classes(["test-summary", status_class]),
+      [coverage_text(~total, ~found), coverage_bar(~inject, instances)],
+    );
+  };
 
-// let passing_test_ids = test_map =>
-//   test_map
-//   |> List.filter(((_id, reports)) =>
-//        List.for_all(((_, status)) => status == TestStatus.Pass, reports)
-//      )
-//   |> List.split
-//   |> fst;
+  let coverage_report_view =
+      (
+        ~inject,
+        ~font_metrics,
+        ~description: option(string)=None,
+        i,
+        (status, instance),
+      ) =>
+    div(
+      ~attr=
+        Attr.many([
+          Attr.classes(["test-report"]),
+          Attr.on_click(TestView.jump_to_test(~inject)),
+        ]),
+      [
+        div(
+          ~attr=
+            Attr.classes([
+              "test-id",
+              "Test" ++ TestStatus.to_string(status),
+            ]),
+          /* NOTE: prints lexical index, not unique id */
+          [text(string_of_int(i + 1))],
+        ),
+        TestView.test_instance_view(~font_metrics, instance),
+      ]
+      @ (
+        switch (description) {
+        | None => []
+        | Some(d) => [
+            div(~attr=Attr.classes(["test-description"]), [text(d)]),
+          ]
+        }
+      ),
+    );
 
-// let failing_test_ids = test_map =>
-//   test_map
-//   |> List.filter(((_id, reports)) =>
-//        List.for_all(((_, status)) => status == TestStatus.Fail, reports)
-//      )
-//   |> List.split
-//   |> fst;
+  let passing_test_ids = test_map =>
+    test_map
+    |> List.filter(((_id, reports)) =>
+         List.for_all(
+           ((_, status)) => status == Haz3lcore.TestStatus.Pass,
+           reports,
+         )
+       )
+    |> List.split
+    |> fst;
 
-// let get_test_map = (editors: list(Editor.t)) => {
-//   let (reference_term, reference_map) = spliced_statics(editors);
-//   let result_reference =
-//     Interface.test_results(reference_map, reference_term);
-//   switch (result_reference) {
-//   | None => []
-//   | Some(test_results) => test_results.test_map
-//   };
-// };
-// let show_term = (editor: Editor.t, _) =>
-//   editor.state.zipper
-//   |> Zipper.zip
-//   |> MakeTerm.go
-//   |> fst
-//   |> Term.UExp.show
-//   |> print_endline
-//   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
+  let failing_test_ids = test_map =>
+    test_map
+    |> List.filter(((_id, reports)) =>
+         List.for_all(
+           ((_, status)) => status == Haz3lcore.TestStatus.Fail,
+           reports,
+         )
+       )
+    |> List.split
+    |> fst;
 
-// let get_first_common =
-//     (reference_passing, wrong): (TestStatus.t, option('a)) => {
-//   let wrong_test_map = wrong |> get_test_map;
-//   let wrong_failing = wrong_test_map |> failing_test_ids;
-//   let common =
-//     List.filter(x => List.mem(x, reference_passing), wrong_failing);
-//   let instance: option(list('a)) =
-//     switch (common) {
-//     | [] => None
-//     | [x, ..._] => List.assoc_opt(x, wrong_test_map)
-//     };
-//   switch (instance) {
-//   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
-//   | _ => (TestStatus.Fail, None)
-//   };
-// };
+  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
+  //   let (reference_term, reference_map) = spliced_statics(editors);
+  //   let result_reference =
+  //     Interface.test_results(reference_map, reference_term);
+  //   switch (result_reference) {
+  //   | None => []
+  //   | Some(test_results) => test_results.test_map
+  //   };
+  // };
+  // let show_term = (editor: Editor.t, _) =>
+  //   editor.state.zipper
+  //   |> Zipper.zip
+  //   |> MakeTerm.go
+  //   |> fst
+  //   |> Term.UExp.show
+  //   |> print_endline
+  //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
 
-// let coverage_view =
-//     (~font_metrics, ~inject, ~descriptions=[], reference, wrongs) => {
-//   let reference_passing = reference |> get_test_map |> passing_test_ids;
-//   let instances = wrongs |> List.map(get_first_common(reference_passing));
-//   let non_null_instances =
-//     instances
-//     |> List.filter_map(((x, instance: option('a))) =>
-//          switch (instance) {
-//          | None => None
-//          | Some(inst) => Some((x, inst))
-//          }
-//        );
-//   div(
-//     ~attr=Attr.classes(["panel", "test-panel"]),
-//     [
-//       TestView.view_of_main_title_bar("Test Coverage"),
-//       div(
-//         ~attr=Attr.classes(["panel-body", "test-reports"]),
-//         non_null_instances
-//         |> List.mapi((i, r) =>
-//              coverage_report_view(
-//                ~inject,
-//                ~font_metrics,
-//                ~description=List.nth_opt(descriptions, i),
-//                i,
-//                r,
-//              )
-//            ),
-//       ),
-//       coverage_summary(~inject, instances),
-//     ],
-//   );
-// };
+  // let get_first_common =
+  //     (reference_passing, wrong): (TestStatus.t, option('a)) => {
+  //   let wrong_test_map = wrong |> get_test_map;
+  //   let wrong_failing = wrong_test_map |> failing_test_ids;
+  //   let common =
+  //     List.filter(x => List.mem(x, reference_passing), wrong_failing);
+  //   let instance: option(list('a)) =
+  //     switch (common) {
+  //     | [] => None
+  //     | [x, ..._] => List.assoc_opt(x, wrong_test_map)
+  //     };
+  //   switch (instance) {
+  //   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
+  //   | _ => (TestStatus.Fail, None)
+  //   };
+  // };
+
+  let hidden_bug_result =
+      (test_validation_data: DynamicsItem.t, hidden_bug_data: DynamicsItem.t)
+      : TestStatus.t => {
+    switch (
+      ModelResult.unwrap_test_results(test_validation_data.simple_result),
+      ModelResult.unwrap_test_results(hidden_bug_data.simple_result),
+    ) {
+    | (None, _)
+    | (_, None) => Indet
+    | (
+        Some({test_map: validation_test_map, _}),
+        Some({test_map: hidden_bug_test_map, _}),
+      ) =>
+      let found =
+        hidden_bug_test_map
+        |> List.find_opt(((id, instance_reports)) => {
+             let status = TestMap.joint_status(instance_reports);
+             switch (status) {
+             | TestStatus.Pass
+             | TestStatus.Indet => false
+             | TestStatus.Fail =>
+               let validation_test_reports =
+                 validation_test_map |> TestMap.lookup(id);
+               switch (validation_test_reports) {
+               | None => false
+               | Some(reports) =>
+                 let status = TestMap.joint_status(reports);
+                 switch (status) {
+                 | TestStatus.Pass => true
+                 | TestStatus.Fail
+                 | TestStatus.Indet => false
+                 };
+               };
+             };
+           });
+      switch (found) {
+      | None => Fail
+      | Some(_) => Pass
+      };
+    };
+  }; // for each hidden bug
+  //   in the test results data, find a test ID that passes test validation but fails against
+
+  let coverage_view =
+      (
+        ~font_metrics,
+        ~inject,
+        ~test_validation_data: SchoolExercise.DynamicsItem.t,
+        ~hidden_bugs_state: list(SchoolExercise.wrong_impl(Editor.t)),
+        ~hidden_bugs_data: list(SchoolExercise.DynamicsItem.t),
+      ) => {
+    let results =
+      List.map(hidden_bug_result(test_validation_data), hidden_bugs_data);
+    let hints =
+      List.map(
+        (wrong_impl: SchoolExercise.wrong_impl(Editor.t)) => wrong_impl.hint,
+        hidden_bugs_state,
+      );
+    let coverage_results = List.combine(results, hints);
+    // let reference_passing = reference |> get_test_map |> passing_test_ids;
+    // let instances = wrongs |> List.map(get_first_common(reference_passing));
+    // let non_null_instances =
+    //   instances
+    //   |> List.filter_map(((x, instance: option('a))) =>
+    //        switch (instance) {
+    //        | None => None
+    //        | Some(inst) => Some((x, inst))
+    //        }
+    //      );
+    div(
+      ~attr=Attr.classes(["panel", "test-panel"]),
+      [
+        TestView.view_of_main_title_bar("Test Coverage"), // TODO Cell titlebar instead?
+        // div(
+        //   ~attr=Attr.classes(["panel-body", "test-reports"]),
+        //   hidden_bugs
+        //   |> List.mapi((i, DynamicsItem.{info_map, simple_result, _}) =>
+        //        coverage_report_view(
+        //          ~inject,
+        //          ~font_metrics,
+        //          ~description=List.nth_opt(descriptions, i),
+        //          i,
+        //          r,
+        //        )
+        //      ),
+        // ),
+        coverage_summary(~inject, coverage_results),
+      ],
+    );
+  };
+};
 
 // let show_term = (editor: Editor.t, _) =>
 //   editor.state.zipper
@@ -695,12 +767,51 @@ let view =
             test_validation_results =>
               Cell.test_report_footer_view(
                 ~inject,
-                ~font_metrics,
                 ~test_results=test_validation_results,
               ),
             test_validation_results,
           ),
         eds.your_tests,
+      ),
+    );
+
+  let hidden_bugs_views =
+    List.mapi(
+      (
+        i,
+        (
+          SchoolExercise.{impl, _},
+          SchoolExercise.DynamicsItem.{info_map, simple_result, _},
+        ),
+      ) => {
+        InstructorOnly(
+          () =>
+            editor_view(
+              HiddenBugs(i),
+              ~selected=pos == HiddenBugs(i),
+              ~caption=
+                Cell.simple_caption(
+                  "Wrong Implementation " ++ string_of_int(i + 1),
+                ),
+              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
+              ~info_map,
+              ~test_results=ModelResult.unwrap_test_results(simple_result),
+              ~footer=None,
+              impl,
+            ),
+        )
+      },
+      List.combine(eds.hidden_bugs, hidden_bugs),
+    );
+
+  let coverage_report_view =
+    Always(
+      CoverageReport.coverage_view(
+        ~font_metrics,
+        ~inject,
+        ~test_validation_data=test_validation,
+        ~hidden_bugs_state=eds.hidden_bugs,
+        ~hidden_bugs_data=hidden_bugs,
       ),
     );
 
@@ -733,35 +844,6 @@ let view =
           ~footer=None,
           eds.hidden_tests.tests,
         ),
-    );
-
-  let hidden_bugs_views =
-    List.mapi(
-      (
-        i,
-        (
-          SchoolExercise.{impl, _},
-          SchoolExercise.DynamicsItem.{info_map, simple_result, _},
-        ),
-      ) => {
-        InstructorOnly(
-          () =>
-            editor_view(
-              HiddenBugs(i),
-              ~selected=pos == HiddenBugs(i),
-              ~caption=
-                Cell.simple_caption(
-                  "Wrong Implementation " ++ string_of_int(i + 1),
-                ),
-              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
-              ~info_map,
-              ~test_results=ModelResult.unwrap_test_results(simple_result),
-              ~footer=None,
-              impl,
-            ),
-        )
-      },
-      List.combine(eds.hidden_bugs, hidden_bugs),
     );
 
   let ci_view =
@@ -813,11 +895,10 @@ let view =
           correct_impl_view,
           correct_impl_ctx_view,
           your_tests_view,
-          hidden_tests_view,
-          // TODO: hidden bug finding summary view
-          your_impl_view,
+          coverage_report_view,
         ]
-        @ hidden_bugs_views,
+        @ hidden_bugs_views
+        @ [hidden_tests_view, your_impl_view],
       )
     // TODO fix spacing
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
