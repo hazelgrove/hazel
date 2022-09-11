@@ -359,17 +359,18 @@ module DynamicsItem = {
   type t = {
     term: TermBase.UExp.t,
     info_map: Statics.map,
-    simple_result: option(ModelResult.simple),
+    simple_result: ModelResult.simple,
   };
 };
 let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
   let {test_validation, user_impl, user_tests, instructor, hidden_bugs} =
     stitch_static(state);
   let simple_result_of = key =>
-    Option.map(
-      results => ModelResult.get_simple(ModelResults.lookup(results, key)),
-      results,
-    );
+    switch (results) {
+    | None => None
+    | Some(results) =>
+      ModelResult.get_simple(ModelResults.lookup(results, key))
+    };
   let test_validation =
     DynamicsItem.{
       term: test_validation.term,
