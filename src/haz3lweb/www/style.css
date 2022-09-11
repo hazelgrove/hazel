@@ -1245,7 +1245,7 @@ svg.tile-selected {
   font-size: 64%;
   vertical-align: super;
 }
-.test-inspector .test-instance:before {
+.test-instance:before {
   position: relative;
   margin-top: 0.2em;
   margin-right: 1em;
@@ -1254,19 +1254,19 @@ svg.tile-selected {
   align-items: center;
 }
 
-.test-inspector  .test-instance.Pass:before,
+.test-instance.Pass:before,
 .test-result.Pass:after {
   content: "✔"; /*"🤩";*/
   color: green;
 }
 
-.test-inspector  .test-instance.Fail:before,
+.test-instance.Fail:before,
 .test-result.Fail:after {
   content: "✘"; /*"🤮";*/
   color: var(--err-color);
 }
 
-.test-inspector  .test-instance.Indet:before,
+.test-instance.Indet:before,
 .test-result.Indet:after{
   content: "?"; /*"🤔";*/
   color: rgb(143, 129, 87);

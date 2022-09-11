@@ -55,14 +55,7 @@ module CoverageReport = {
     );
   };
 
-  let coverage_report_view =
-      (
-        ~inject,
-        ~font_metrics,
-        ~description: option(string)=None,
-        i,
-        (status, instance),
-      ) =>
+  let individual_report = (i, ~inject, ~font_metrics, ~hint: string, ~status) =>
     div(
       ~attr=
         Attr.many([
@@ -79,16 +72,27 @@ module CoverageReport = {
           /* NOTE: prints lexical index, not unique id */
           [text(string_of_int(i + 1))],
         ),
-        TestView.test_instance_view(~font_metrics, instance),
+        // TestView.test_instance_view(~font_metrics, instance),
       ]
-      @ (
-        switch (description) {
-        | None => []
-        | Some(d) => [
-            div(~attr=Attr.classes(["test-description"]), [text(d)]),
-          ]
-        }
-      ),
+      @ [
+        div(
+          ~attr=
+            Attr.classes([
+              "test-hint",
+              "test-instance",
+              TestStatus.to_string(status),
+            ]),
+          [text(hint)],
+        ),
+      ],
+    );
+
+  let individual_reports = (~inject, ~font_metrics, coverage_results) =>
+    div(
+      coverage_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, ~inject, ~font_metrics, ~hint, ~status)
+         ),
     );
 
   let passing_test_ids = test_map =>
@@ -148,19 +152,16 @@ module CoverageReport = {
   //   };
   // };
 
-  let hidden_bug_result =
+  let hidden_bug_status =
       (test_validation_data: DynamicsItem.t, hidden_bug_data: DynamicsItem.t)
       : TestStatus.t => {
-    switch (
-      ModelResult.unwrap_test_results(test_validation_data.simple_result),
-      ModelResult.unwrap_test_results(hidden_bug_data.simple_result),
-    ) {
+    switch (test_validation_data.simple_result, hidden_bug_data.simple_result) {
     | (None, _)
     | (_, None) => Indet
-    | (
-        Some({test_map: validation_test_map, _}),
-        Some({test_map: hidden_bug_test_map, _}),
-      ) =>
+    | (Some(test_validation_data), Some(hidden_bug_data)) =>
+      let validation_test_map = test_validation_data.test_results.test_map;
+      let hidden_bug_test_map = hidden_bug_data.test_results.test_map;
+
       let found =
         hidden_bug_test_map
         |> List.find_opt(((id, instance_reports)) => {
@@ -191,7 +192,7 @@ module CoverageReport = {
   }; // for each hidden bug
   //   in the test results data, find a test ID that passes test validation but fails against
 
-  let coverage_view =
+  let view =
       (
         ~font_metrics,
         ~inject,
@@ -200,43 +201,25 @@ module CoverageReport = {
         ~hidden_bugs_data: list(SchoolExercise.DynamicsItem.t),
       ) => {
     let results =
-      List.map(hidden_bug_result(test_validation_data), hidden_bugs_data);
+      List.map(hidden_bug_status(test_validation_data), hidden_bugs_data);
     let hints =
       List.map(
         (wrong_impl: SchoolExercise.wrong_impl(Editor.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
     let coverage_results = List.combine(results, hints);
-    // let reference_passing = reference |> get_test_map |> passing_test_ids;
-    // let instances = wrongs |> List.map(get_first_common(reference_passing));
-    // let non_null_instances =
-    //   instances
-    //   |> List.filter_map(((x, instance: option('a))) =>
-    //        switch (instance) {
-    //        | None => None
-    //        | Some(inst) => Some((x, inst))
-    //        }
-    //      );
-    div(
-      ~attr=Attr.classes(["panel", "test-panel"]),
-      [
-        TestView.view_of_main_title_bar("Test Coverage"), // TODO Cell titlebar instead?
-        // div(
-        //   ~attr=Attr.classes(["panel-body", "test-reports"]),
-        //   hidden_bugs
-        //   |> List.mapi((i, DynamicsItem.{info_map, simple_result, _}) =>
-        //        coverage_report_view(
-        //          ~inject,
-        //          ~font_metrics,
-        //          ~description=List.nth_opt(descriptions, i),
-        //          i,
-        //          r,
-        //        )
-        //      ),
-        // ),
-        coverage_summary(~inject, coverage_results),
-      ],
-    );
+    Cell.simple_cell_view([
+      div(
+        ~attr=Attr.classes(["panel", "test-panel"]),
+        [
+          Cell.simple_caption(
+            "Acceptance Testing (Your Tests vs. Buggy Implementations)",
+          ),
+          individual_reports(~inject, ~font_metrics, coverage_results),
+          coverage_summary(~inject, coverage_results),
+        ],
+      ),
+    ]);
   };
 };
 
@@ -361,18 +344,6 @@ module CoverageReport = {
 //     Some(div([clss(["test-result", status]), pos], []));
 //   | _ => None
 //   };
-
-// let test_result_layer =
-//     (~font_metrics, ~map: Measureds.t, test_results: Interface.test_results)
-//     : list(Node.t) =>
-//   List.filter_map(
-//     ((id, insts)) =>
-//       switch (Id.Map.find_opt(id, map.tiles)) {
-//       | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-//       | _ => None
-//       },
-//     test_results.test_map,
-//   );
 
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
@@ -654,8 +625,8 @@ let view =
     switch (pos) {
     | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
-    | YourTests => (eds.your_tests.state.zipper, user_tests.info_map)
-    | YourImpl => (eds.your_impl.state.zipper, user_tests.info_map)
+    | YourTests => (eds.your_tests.state.zipper, test_validation.info_map)
+    | YourImpl => (eds.your_impl.state.zipper, user_impl.info_map)
     | HiddenBugs(idx) =>
       let editor = List.nth(eds.hidden_bugs, idx).impl;
       let info_map = List.nth(hidden_bugs, idx).info_map;
@@ -666,11 +637,6 @@ let view =
       )
     };
 
-  // TODO: hide in instructor mode
-  // TODO: round out bottom when there is no result view
-  // TODO: place cursor in correct place when clicking
-
-  // TODO: make prelude read-only
   let prelude_view =
     Always(
       editor_view(
@@ -683,7 +649,7 @@ let view =
         ~code_id="prelude",
         ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
         ~test_results=
-          ModelResult.unwrap_test_results(instructor.simple_result),
+          ModelResult.unwrap_test_results(user_tests.simple_result),
         ~footer=None,
         eds.prelude,
       ),
@@ -768,6 +734,10 @@ let view =
               Cell.test_report_footer_view(
                 ~inject,
                 ~test_results=test_validation_results,
+                ~title=
+                  Cell.simple_caption(
+                    "Test Validation (Your Tests vs. Correct Implementation)",
+                  ),
               ),
             test_validation_results,
           ),
@@ -806,7 +776,7 @@ let view =
 
   let coverage_report_view =
     Always(
-      CoverageReport.coverage_view(
+      CoverageReport.view(
         ~font_metrics,
         ~inject,
         ~test_validation_data=test_validation,
@@ -825,7 +795,13 @@ let view =
         ~info_map=user_impl.info_map,
         ~test_results=
           ModelResult.unwrap_test_results(user_impl.simple_result),
-        ~footer=None,
+        ~footer=
+          Some(
+            Cell.eval_result_footer_view(
+              ~font_metrics,
+              user_impl.simple_result,
+            ),
+          ),
         eds.your_impl,
       ),
     );
@@ -844,6 +820,15 @@ let view =
           ~footer=None,
           eds.hidden_tests.tests,
         ),
+    );
+
+  let hidden_test_results_view =
+    Always(
+      switch (ModelResult.unwrap_test_results(user_tests.simple_result)) {
+      | None => Node.div([text("No test results available.")])
+      | Some(test_results) =>
+        TestView.test_reports_view(~inject, ~font_metrics, ~test_results)
+      },
     );
 
   let ci_view =
@@ -895,12 +880,15 @@ let view =
           correct_impl_view,
           correct_impl_ctx_view,
           your_tests_view,
-          coverage_report_view,
         ]
-        @ hidden_bugs_views
-        @ [hidden_tests_view, your_impl_view],
+        @ hidden_bugs_views  // TODO is it called acceptance testing?
+        @ [
+          coverage_report_view,
+          your_impl_view,
+          hidden_tests_view,
+          hidden_test_results_view,
+        ],
       )
-    // TODO fix spacing
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };

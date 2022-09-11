@@ -27,16 +27,23 @@ dev: setup-instructor dev-helper
 
 dev-student: setup-student dev
 
+fmt:
+	dune fmt --auto-promote
+
 watch: setup-instructor
-	dune build @src/fmt --auto-promote src --profile dev --watch
+	dune fmt --auto-promote &
+	dune build src --profile dev --watch
 
 watch-release: setup-instructor
-	dune build @src/fmt --auto-promote src --profile release --watch
+	dune fmt --auto-promote &
+	dune build --profile release --watch
 
 release: setup-instructor
+	dune fmt --auto-promote
 	dune build src --profile release
 
 release-student: setup-student
+	dune fmt --auto-promote
 	dune build src --profile release
 
 echo-html-dir:
