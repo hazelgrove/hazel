@@ -132,64 +132,72 @@ let menu_icon =
     ],
   );
 
-let top_bar_view = (~inject: Update.t => 'a, model: Model.t) => {
+let top_bar_view =
+    (~inject: Update.t => 'a, ~top_right: option(Node.t)=?, model: Model.t) => {
   let ed = Editors.get_editor(model.editors);
   let can_undo = Editor.can_undo(ed);
   let can_redo = Editor.can_redo(ed);
+  let top_left_bar =
+    div(
+      ~attr=Attr.id("top-left-bar"),
+      [
+        menu_icon,
+        div(
+          ~attr=clss(["menu"]),
+          [
+            toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
+              inject(Set(Statics))
+            ),
+            toggle(
+              "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
+              inject(Set(Dynamics))
+            ),
+            button(
+              Icons.export,
+              copy_log_to_clipboard,
+              ~tooltip="Copy Log to Clipboard",
+            ),
+            button(
+              Icons.eye,
+              _ => inject(Set(WhitespaceIcons)),
+              ~tooltip="Toggle Visible Whitespace",
+            ),
+            button(
+              Icons.trash,
+              _ => inject(LoadDefault),
+              ~tooltip="Load Default",
+            ),
+            link(
+              Icons.github,
+              "https://github.com/hazelgrove/hazel",
+              ~tooltip="Hazel on GitHub",
+            ),
+          ],
+        ),
+        button_d(
+          Icons.undo,
+          inject(Undo),
+          ~disabled=!can_undo,
+          ~tooltip="Undo",
+        ),
+        button_d(
+          Icons.redo,
+          inject(Redo),
+          ~disabled=!can_redo,
+          ~tooltip="Redo",
+        ),
+        editor_mode_toggle_view(~inject, ~model),
+      ],
+    );
+  let top_right_bar =
+    div(~attr=Attr.id("top-right-bar"), Option.to_list(top_right));
   div(
     ~attr=Attr.id("top-bar"),
-    [
-      menu_icon,
-      div(
-        ~attr=clss(["menu"]),
-        [
-          toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
-            inject(Set(Statics))
-          ),
-          toggle(
-            "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
-            inject(Set(Dynamics))
-          ),
-          button(
-            Icons.export,
-            copy_log_to_clipboard,
-            ~tooltip="Copy Log to Clipboard",
-          ),
-          button(
-            Icons.eye,
-            _ => inject(Set(WhitespaceIcons)),
-            ~tooltip="Toggle Visible Whitespace",
-          ),
-          button(
-            Icons.trash,
-            _ => inject(LoadDefault),
-            ~tooltip="Load Default",
-          ),
-          link(
-            Icons.github,
-            "https://github.com/hazelgrove/hazel",
-            ~tooltip="Hazel on GitHub",
-          ),
-        ],
-      ),
-      button_d(
-        Icons.undo,
-        inject(Undo),
-        ~disabled=!can_undo,
-        ~tooltip="Undo",
-      ),
-      button_d(
-        Icons.redo,
-        inject(Redo),
-        ~disabled=!can_redo,
-        ~tooltip="Redo",
-      ),
-      editor_mode_toggle_view(~inject, ~model),
-    ],
+    [div(~attr=Attr.id("top-bar-content"), [top_left_bar, top_right_bar])],
   );
 };
 
-let editors_view =
+let main_ui_view =
     (
       ~inject,
       {
@@ -200,39 +208,51 @@ let editors_view =
         mousedown,
         results,
         _,
-      }: Model.t,
+      } as model: Model.t,
     ) => {
   switch (editors) {
   | Scratch(_) =>
+    let top_bar_view = top_bar_view(~inject, model);
     let result_key = Editors.single_result_key;
     let editor = Editors.get_editor(editors);
     let result =
       settings.dynamics
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
-    ScratchSlide.view(
-      ~inject,
-      ~font_metrics,
-      ~mousedown,
-      ~show_backpack_targets,
-      ~settings,
-      ~editor,
-      ~result,
-    );
+    [
+      top_bar_view,
+      ScratchSlide.view(
+        ~inject,
+        ~font_metrics,
+        ~mousedown,
+        ~show_backpack_targets,
+        ~settings,
+        ~editor,
+        ~result,
+      ),
+    ];
   | School(state) =>
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~state, ~results);
-    SchoolMode.view(
-      ~inject,
-      ~font_metrics,
-      ~mousedown,
-      ~show_backpack_targets,
-      school_mode,
-    );
+    let grading_report = school_mode.grading_report;
+    let overall_score =
+      Grading.GradingReport.view_overall_score(grading_report);
+    let top_bar_view = top_bar_view(~inject, model, ~top_right=overall_score);
+    [
+      top_bar_view,
+      SchoolMode.view(
+        ~inject,
+        ~font_metrics,
+        ~mousedown,
+        ~show_backpack_targets,
+        school_mode,
+      ),
+    ];
   };
 };
 
 let view = (~inject, ~handlers, model: Model.t) => {
+  let main_ui = main_ui_view(~inject, model);
   div(
     ~attr=
       Attr.many(
@@ -243,12 +263,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
           ...handlers(~inject, ~model),
         ],
       ),
-    [
-      FontSpecimen.view("font-specimen"),
-      DecUtil.filters,
-      top_bar_view(~inject, model),
-      editors_view(~inject, model),
-      div(~attr=Attr.id("blorg"), []),
-    ],
+    [FontSpecimen.view("font-specimen"), DecUtil.filters]
+    @ main_ui
+    @ [div(~attr=Attr.id("blorg"), [])] // hack for clipboard management, see JsUtil
   );
 };

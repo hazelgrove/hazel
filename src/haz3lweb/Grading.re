@@ -601,4 +601,8 @@ module GradingReport = {
     let max_points = tv_max +. mt_max +. ig_max;
     (total_points, max_points);
   };
+
+  let view_overall_score = (report: t) => {
+    score_view(overall_score(report));
+  };
 };
