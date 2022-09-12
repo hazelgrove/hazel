@@ -60,20 +60,24 @@ let test_report_view =
 };
 
 let test_reports_view =
-    (~inject, ~font_metrics, ~test_results: Interface.test_results) =>
+    (~inject, ~font_metrics, ~test_results: option(Interface.test_results)) =>
   div(
     ~attr=clss(["panel-body", "test-reports"]),
-    List.mapi(
-      (i, r) =>
-        test_report_view(
-          ~inject,
-          ~font_metrics,
-          ~description=List.nth_opt(test_results.descriptions, i),
-          i,
-          r,
-        ),
-      test_results.test_map,
-    ),
+    switch (test_results) {
+    | None => [Node.text("No test report available.")]
+    | Some(test_results) =>
+      List.mapi(
+        (i, r) =>
+          test_report_view(
+            ~inject,
+            ~font_metrics,
+            ~description=List.nth_opt(test_results.descriptions, i),
+            i,
+            r,
+          ),
+        test_results.test_map,
+      )
+    },
   );
 
 let test_bar_segment = (~inject, (_id, reports)) => {
@@ -91,7 +95,7 @@ let test_bar_segment = (~inject, (_id, reports)) => {
 let test_bar = (~inject, ~test_results: Interface.test_results) =>
   div(
     ~attr=Attr.class_("test-bar"),
-    List.map(test_bar_segment(~inject), List.rev(test_results.test_map)),
+    List.map(test_bar_segment(~inject), test_results.test_map),
   );
 
 let result_summary_str =
@@ -157,7 +161,7 @@ let test_summary_str = (test_results: Interface.test_results): string =>
     ~n_str="test",
     ~ns_str="tests",
     ~p_str="failing",
-    ~q_str="unfinished",
+    ~q_str="indeterminate",
     ~r_str="passing",
   );
 
@@ -182,16 +186,18 @@ let test_text = (test_results: Interface.test_results): Node.t =>
     ],
   );
 
-let test_summary = (~inject, ~test_results: Interface.test_results) => {
-  let status_class =
-    switch (test_results.failing, test_results.unfinished) {
-    | (0, 0) => "Pass"
-    | (0, _) => "Indet"
-    | _ => "Fail"
-    };
+let test_summary = (~inject, ~test_results: option(Interface.test_results)) => {
   div(
-    ~attr=clss(["test-summary", status_class]),
-    [test_text(test_results), test_bar(~inject, ~test_results)],
+    ~attr=clss(["test-summary"]),
+    {
+      switch (test_results) {
+      | None => [Node.text("No test results available.")]
+      | Some(test_results) => [
+          test_text(test_results),
+          test_bar(~inject, ~test_results),
+        ]
+      };
+    },
   );
 };
 

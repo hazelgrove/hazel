@@ -29,7 +29,8 @@ type p('code) = {
 type pos =
   | Prelude
   | CorrectImpl
-  | YourTests
+  | YourTestsValidation
+  | YourTestsTesting
   | YourImpl
   | HiddenBugs(int)
   | HiddenTests;
@@ -54,7 +55,8 @@ let editor_of_state: state => Editor.t =
     switch (pos) {
     | Prelude => eds.prelude
     | CorrectImpl => eds.correct_impl
-    | YourTests => eds.your_tests
+    | YourTestsValidation => eds.your_tests
+    | YourTestsTesting => eds.your_tests
     | YourImpl => eds.your_impl
     | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
     | HiddenTests => eds.hidden_tests.tests
@@ -76,7 +78,8 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
         correct_impl: editor,
       },
     }
-  | YourTests => {
+  | YourTestsValidation
+  | YourTestsTesting => {
       ...state,
       eds: {
         ...eds,
@@ -115,7 +118,13 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
   };
 
 let editors = ({eds, _}: state) =>
-  [eds.prelude, eds.correct_impl, eds.your_tests, eds.your_impl]
+  [
+    eds.prelude,
+    eds.correct_impl,
+    eds.your_tests,
+    eds.your_tests,
+    eds.your_impl,
+  ]
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
@@ -123,29 +132,31 @@ let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
   | Prelude => 0
   | CorrectImpl => 1
-  | YourTests => 2
-  | YourImpl => 3
+  | YourTestsTesting => 2
+  | YourTestsValidation => 3
+  | YourImpl => 4
   | HiddenBugs(i) =>
     if (i < List.length(p.hidden_bugs)) {
-      4 + i;
+      5 + i;
     } else {
       failwith("invalid hidden bug index");
     }
-  | HiddenTests => 4 + List.length(p.hidden_bugs)
+  | HiddenTests => 5 + List.length(p.hidden_bugs)
   };
 
 let pos_of_idx = (p: p('code), idx: int) =>
   switch (idx) {
   | 0 => Prelude
   | 1 => CorrectImpl
-  | 2 => YourTests
-  | 3 => YourImpl
+  | 2 => YourTestsTesting
+  | 3 => YourTestsValidation
+  | 4 => YourImpl
   | _ =>
     if (idx < 0) {
       failwith("negative idx");
-    } else if (idx < 4 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 4);
-    } else if (idx == 4 + List.length(p.hidden_bugs)) {
+    } else if (idx < 5 + List.length(p.hidden_bugs)) {
+      HiddenBugs(idx - 5);
+    } else if (idx == 5 + List.length(p.hidden_bugs)) {
       HiddenTests;
     } else {
       failwith("element idx");
@@ -240,7 +251,7 @@ let unpersist_state =
         prompt: spec.prompt,
         prelude: lookup(Prelude),
         correct_impl: lookup(CorrectImpl),
-        your_tests: lookup(YourTests),
+        your_tests: lookup(YourTestsValidation),
         your_impl: lookup(YourImpl),
         hidden_bugs:
           List.mapi(
@@ -271,7 +282,8 @@ type stitched('a) = {
   user_impl: 'a, // prelude + your_impl
   user_tests: 'a, // prelude + your_impl + your_tests
   instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
-  hidden_bugs: list('a) // prelude + hidden_bugs[i].impl + your_tests
+  hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
+  hidden_tests: 'a,
 };
 
 type stitched_statics = stitched(StaticsItem.t);
@@ -313,7 +325,21 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
       },
       eds.hidden_bugs,
     );
-  {test_validation, user_impl, user_tests, instructor, hidden_bugs};
+
+  let (hidden_tests_term, _) =
+    EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
+  let hidden_tests_map = Statics.mk_map(hidden_tests_term);
+  let hidden_tests =
+    StaticsItem.{term: hidden_tests_term, info_map: hidden_tests_map};
+
+  {
+    test_validation,
+    user_impl,
+    user_tests,
+    instructor,
+    hidden_bugs,
+    hidden_tests,
+  };
 };
 
 let test_validation_key = "test_validation";
@@ -321,10 +347,18 @@ let user_impl_key = "user_impl";
 let user_tests_key = "user_tests";
 let instructor_key = "instructor";
 let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
+let hidden_tests_key = "hidden_tests";
 
 let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
   state => {
-    let {test_validation, user_impl, user_tests, instructor, hidden_bugs} =
+    let {
+      test_validation,
+      user_impl,
+      user_tests,
+      instructor,
+      hidden_bugs,
+      hidden_tests,
+    } =
       stitch_static(state);
     [
       (
@@ -342,6 +376,10 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
       (
         instructor_key,
         Interface.elaborate(instructor.info_map, instructor.term),
+      ),
+      (
+        hidden_tests_key,
+        Interface.elaborate(hidden_tests.info_map, hidden_tests.term),
       ),
     ]
     @ (
@@ -363,7 +401,14 @@ module DynamicsItem = {
   };
 };
 let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
-  let {test_validation, user_impl, user_tests, instructor, hidden_bugs} =
+  let {
+    test_validation,
+    user_impl,
+    user_tests,
+    instructor,
+    hidden_bugs,
+    hidden_tests,
+  } =
     stitch_static(state);
   let simple_result_of = key =>
     switch (results) {
@@ -405,5 +450,19 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
         },
       hidden_bugs,
     );
-  {test_validation, user_impl, user_tests, instructor, hidden_bugs};
+  let hidden_tests =
+    DynamicsItem.{
+      term: hidden_tests.term,
+      info_map: hidden_tests.info_map,
+      simple_result: simple_result_of(hidden_tests_key),
+    };
+
+  {
+    test_validation,
+    user_impl,
+    user_tests,
+    instructor,
+    hidden_bugs,
+    hidden_tests,
+  };
 };

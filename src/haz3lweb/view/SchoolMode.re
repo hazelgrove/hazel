@@ -1,12 +1,12 @@
 open Virtual_dom.Vdom;
 open Node;
 
-module CoverageReport = {
+module MutationTestingReport = {
   // TODO move to separate module
   open Haz3lcore;
   module DynamicsItem = SchoolExercise.DynamicsItem;
 
-  let coverage_summary_str = (~total, ~found): string => {
+  let summary_str = (~total, ~found): string => {
     TestView.result_summary_str(
       ~n=total,
       ~p=found,
@@ -19,17 +19,16 @@ module CoverageReport = {
     );
   };
 
-  let coverage_text = (~total, ~found): Node.t =>
+  let summary_message = (~total, ~found): Node.t =>
     div(
       ~attr=Attr.classes(["test-text"]),
       [
         TestView.percent_view(total, found),
-        div([text(":")]),
-        text(coverage_summary_str(~total, ~found)),
+        text(summary_str(~total, ~found)),
       ],
     );
 
-  let coverage_bar = (~inject as _, instances) =>
+  let bar = (~inject as _, instances) =>
     div(
       ~attr=Attr.classes(["test-bar"]),
       List.map(
@@ -42,7 +41,7 @@ module CoverageReport = {
       ),
     );
 
-  let coverage_summary = (~inject, instances) => {
+  let summary = (~inject, instances) => {
     let total = List.length(instances);
     let found =
       List.length(
@@ -50,8 +49,14 @@ module CoverageReport = {
       );
     let status_class = total == found ? "Pass" : "Fail";
     div(
-      ~attr=Attr.classes(["test-summary", status_class]),
-      [coverage_text(~total, ~found), coverage_bar(~inject, instances)],
+      ~attr=
+        Attr.classes([
+          "cell-item",
+          "test-summary",
+          "cell-report",
+          status_class,
+        ]),
+      [summary_message(~total, ~found), bar(~inject, instances)],
     );
   };
 
@@ -207,19 +212,102 @@ module CoverageReport = {
         (wrong_impl: SchoolExercise.wrong_impl(Editor.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
-    let coverage_results = List.combine(results, hints);
-    Cell.simple_cell_view([
-      div(
-        ~attr=Attr.classes(["panel", "test-panel"]),
-        [
-          Cell.simple_caption(
-            "Acceptance Testing (Your Tests vs. Buggy Implementations)",
-          ),
-          individual_reports(~inject, ~font_metrics, coverage_results),
-          coverage_summary(~inject, coverage_results),
-        ],
-      ),
-    ]);
+    let results = List.combine(results, hints);
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.bolded_caption(
+          "Mutation Testing",
+          ~rest=": Your Tests vs. Buggy Implementations (hidden)",
+        ),
+        individual_reports(~inject, ~font_metrics, results),
+      ],
+      ~footer=Some(summary(~inject, results)),
+    );
+  };
+};
+
+module ImplGradingReport = {
+  open Haz3lcore;
+  let individual_report = (i, ~inject, ~font_metrics, ~hint: string, ~status) =>
+    div(
+      ~attr=
+        Attr.many([
+          Attr.classes(["test-report"]),
+          Attr.on_click(TestView.jump_to_test(~inject)),
+        ]),
+      [
+        div(
+          ~attr=
+            Attr.classes([
+              "test-id",
+              "Test" ++ TestStatus.to_string(status),
+            ]),
+          /* NOTE: prints lexical index, not unique id */
+          [text(string_of_int(i + 1))],
+        ),
+        // TestView.test_instance_view(~font_metrics, instance),
+      ]
+      @ [
+        div(
+          ~attr=
+            Attr.classes([
+              "test-hint",
+              "test-instance",
+              TestStatus.to_string(status),
+            ]),
+          [text(hint)],
+        ),
+      ],
+    );
+
+  let individual_reports = (~inject, ~font_metrics, ~hinted_results) =>
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, ~inject, ~font_metrics, ~hint, ~status)
+         ),
+    );
+
+  let view =
+      (
+        ~inject,
+        ~font_metrics,
+        ~hints,
+        ~test_results: option(Interface.test_results),
+      ) => {
+    let caption =
+      Cell.bolded_caption(
+        "Implementation Grading",
+        ~rest=": Hidden Tests vs. Your Implementation",
+      );
+    let hinted_results =
+      switch (test_results) {
+      | Some(test_results) =>
+        let statuses = test_results.statuses;
+        Util.ListUtil.zip_defaults(
+          statuses,
+          hints,
+          Haz3lcore.TestStatus.Indet,
+          "No hint available.",
+        );
+
+      | None =>
+        Util.ListUtil.zip_defaults(
+          [],
+          hints,
+          Haz3lcore.TestStatus.Indet,
+          "Exercise configuration error: Hint without a test.",
+        )
+      };
+    Cell.panel(
+      ~classes=["test-panel"],
+      [caption, individual_reports(~inject, ~font_metrics, ~hinted_results)],
+      ~footer=
+        Some(
+          Cell.test_report_footer_view(~inject, ~test_results, ~title=None),
+        ),
+    );
   };
 };
 
@@ -618,14 +706,19 @@ let view =
         user_tests,
         instructor,
         hidden_bugs,
+        hidden_tests,
       } =
     SchoolExercise.stitch_dynamic(state, results);
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (eds.prelude.state.zipper, user_tests.info_map)
+    | Prelude => (eds.prelude.state.zipper, instructor.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
-    | YourTests => (eds.your_tests.state.zipper, test_validation.info_map)
+    | YourTestsValidation => (
+        eds.your_tests.state.zipper,
+        test_validation.info_map,
+      )
+    | YourTestsTesting => (eds.your_tests.state.zipper, user_tests.info_map)
     | YourImpl => (eds.your_impl.state.zipper, user_impl.info_map)
     | HiddenBugs(idx) =>
       let editor = List.nth(eds.hidden_bugs, idx).impl;
@@ -643,8 +736,9 @@ let view =
         Prelude,
         ~selected=pos == Prelude,
         ~caption=
-          Cell.simple_caption(
-            "Prelude" ++ (settings.instructor_mode ? "" : " (Read-Only)"),
+          Cell.bolded_caption(
+            "Prelude",
+            ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
           ),
         ~code_id="prelude",
         ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
@@ -661,7 +755,7 @@ let view =
         editor_view(
           CorrectImpl,
           ~selected=pos == CorrectImpl,
-          ~caption=Cell.simple_caption("Correct Implementation"),
+          ~caption=Cell.bolded_caption("Correct Implementation"),
           ~code_id="correct-impl",
           ~info_map=instructor.info_map,
           ~test_results=
@@ -706,8 +800,9 @@ let view =
         };
         Cell.simple_cell_view([
           Cell.simple_cell_item([
-            Cell.simple_caption(
-              "Correct Implementation (Type Signatures Only)",
+            Cell.bolded_caption(
+              "Correct Implementation",
+              ~rest=" (Type Signatures Only)",
             ),
             exp_ctx_view,
           ]),
@@ -721,31 +816,30 @@ let view =
   let your_tests_view =
     Always(
       editor_view(
-        YourTests,
-        ~selected=pos == YourTests,
-        ~caption=Cell.simple_caption("Your Tests"),
+        YourTestsValidation,
+        ~selected=pos == YourTestsValidation,
+        ~caption=
+          Cell.bolded_caption(
+            "Test Validation",
+            ~rest=": Your Tests vs. Correct Implementation",
+          ),
         ~code_id="your-tests",
         ~info_map=test_validation.info_map,
         ~test_results=
           ModelResult.unwrap_test_results(test_validation.simple_result),
         ~footer=
-          Option.map(
-            test_validation_results =>
-              Cell.test_report_footer_view(
-                ~inject,
-                ~test_results=test_validation_results,
-                ~title=
-                  Cell.simple_caption(
-                    "Test Validation (Your Tests vs. Correct Implementation)",
-                  ),
-              ),
-            test_validation_results,
+          Some(
+            Cell.test_report_footer_view(
+              ~inject,
+              ~test_results=test_validation_results,
+              ~title=None,
+            ),
           ),
         eds.your_tests,
       ),
     );
 
-  let hidden_bugs_views =
+  let wrong_impl_views =
     List.mapi(
       (
         i,
@@ -760,7 +854,7 @@ let view =
               HiddenBugs(i),
               ~selected=pos == HiddenBugs(i),
               ~caption=
-                Cell.simple_caption(
+                Cell.bolded_caption(
                   "Wrong Implementation " ++ string_of_int(i + 1),
                 ),
               ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
@@ -774,9 +868,9 @@ let view =
       List.combine(eds.hidden_bugs, hidden_bugs),
     );
 
-  let coverage_report_view =
+  let mutation_testing_view =
     Always(
-      CoverageReport.view(
+      MutationTestingReport.view(
         ~font_metrics,
         ~inject,
         ~test_validation_data=test_validation,
@@ -790,7 +884,7 @@ let view =
       editor_view(
         YourImpl,
         ~selected=pos == YourImpl,
-        ~caption=Cell.simple_caption("Your Implementation"),
+        ~caption=Cell.bolded_caption("Your Implementation"),
         ~code_id="your-impl",
         ~info_map=user_impl.info_map,
         ~test_results=
@@ -806,13 +900,41 @@ let view =
       ),
     );
 
+  let testing_results =
+    ModelResult.unwrap_test_results(user_tests.simple_result);
+
+  let impl_validation_view =
+    Always(
+      editor_view(
+        YourTestsTesting,
+        ~selected=pos == YourTestsTesting,
+        ~caption=
+          Cell.bolded_caption(
+            "Implementation Validation",
+            ~rest=": Your Tests vs. Your Implementation",
+          ),
+        ~code_id="your-tests-testing-view",
+        ~info_map=user_tests.info_map,
+        ~test_results=testing_results,
+        ~footer=
+          Some(
+            Cell.test_report_footer_view(
+              ~inject,
+              ~test_results=testing_results,
+              ~title=None,
+            ),
+          ),
+        eds.your_tests,
+      ),
+    );
+
   let hidden_tests_view =
     InstructorOnly(
       () =>
         editor_view(
           HiddenTests,
           ~selected=pos == HiddenTests,
-          ~caption=Cell.simple_caption("Hidden Tests"),
+          ~caption=Cell.bolded_caption("Hidden Tests"),
           ~code_id="hidden-tests",
           ~info_map=instructor.info_map,
           ~test_results=
@@ -822,13 +944,15 @@ let view =
         ),
     );
 
-  let hidden_test_results_view =
+  let impl_grading_view =
     Always(
-      switch (ModelResult.unwrap_test_results(user_tests.simple_result)) {
-      | None => Node.div([text("No test results available.")])
-      | Some(test_results) =>
-        TestView.test_reports_view(~inject, ~font_metrics, ~test_results)
-      },
+      ImplGradingReport.view(
+        ~inject,
+        ~font_metrics,
+        ~hints=eds.hidden_tests.hints,
+        ~test_results=
+          ModelResult.unwrap_test_results(hidden_tests.simple_result),
+      ),
     );
 
   let ci_view =
@@ -881,12 +1005,13 @@ let view =
           correct_impl_ctx_view,
           your_tests_view,
         ]
-        @ hidden_bugs_views  // TODO is it called acceptance testing?
+        @ wrong_impl_views
         @ [
-          coverage_report_view,
+          mutation_testing_view,
           your_impl_view,
+          impl_validation_view,
           hidden_tests_view,
-          hidden_test_results_view,
+          impl_grading_view,
         ],
       )
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],

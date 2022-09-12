@@ -3,18 +3,6 @@ open Node;
 open Haz3lcore;
 open Util.Web;
 
-// TODO move into a module
-let test_view =
-    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results): t =>
-  div(
-    ~attr=clss(["panel", "test-panel"]),
-    [
-      TestView.view_of_main_title_bar(title),
-      TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
-      TestView.test_summary(~inject, ~test_results),
-    ],
-  );
-
 // let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
 //   div(
 //     ~attr=Attr.classes(["result"]),

@@ -368,6 +368,25 @@ let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
     opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
   };
 
+let rec zip_defaults =
+        (xs: list('a), ys: list('b), default_x: 'a, default_y: 'b)
+        : list(('a, 'b)) =>
+  switch (xs, ys) {
+  | ([], []) => []
+  | ([x, ...xs], [y, ...ys]) => [
+      (x, y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  | ([], [y, ...ys]) => [
+      (default_x, y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  | ([x, ...xs], []) => [
+      (x, default_y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  };
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []
