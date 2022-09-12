@@ -323,11 +323,6 @@ let view =
           impl_grading_view,
         ],
       )
-    @ [
-      Grading.score_view(
-        Grading.GradingReport.overall_score(grading_report),
-      ),
-    ]
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };
