@@ -54,10 +54,16 @@ let narrative_cell = (content: Node.t) =>
 let simple_cell_item = (content: list(Node.t)) =>
   Node.div(~attr=Attr.classes(["cell", "cell-item"]), content);
 
+let cell_caption = (content: list(Node.t)) =>
+  Node.div(~attr=Attr.many([Attr.classes(["cell-caption"])]), content);
+
 let simple_caption = (caption: string) =>
-  Node.div(
-    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
-    [Node.text(caption)],
+  cell_caption([Node.text(caption)]);
+
+let bolded_caption = (~rest: option(string)=?, bolded: string) =>
+  cell_caption(
+    [Node.strong([Node.text(bolded)])]
+    @ (rest |> Option.map(rest => Node.text(rest)) |> Option.to_list),
   );
 
 let simple_cell_view = (items: list(Node.t)) =>
@@ -94,7 +100,8 @@ let code_cell_view =
         ~attr=
           Attr.many([
             Attr.classes(
-              ["cell-item", "cell", ...clss] @ (selected ? ["selected"] : []),
+              ["cell-item", "cell", ...clss]
+              @ (selected ? ["selected"] : ["deselected"]),
             ),
             Attr.on_mousedown(
               mousedown_handler(
@@ -299,11 +306,16 @@ let editor_with_result_view =
 //     };
 
 let test_view =
-    (~title, ~inject, ~font_metrics, ~test_results: Interface.test_results)
+    (
+      ~title,
+      ~inject,
+      ~font_metrics,
+      ~test_results: option(Interface.test_results),
+    )
     : Node.t =>
   Node.(
     div(
-      ~attr=Attr.classes(["panel", "test-panel"]),
+      ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
       [
         TestView.view_of_main_title_bar(title),
         TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
@@ -312,15 +324,32 @@ let test_view =
     )
   );
 
-let test_report_footer_view = (~inject, ~test_results, ~title) => {
+let test_report_footer_view =
+    (
+      ~inject,
+      ~test_results: option(Interface.test_results),
+      ~title: option(Node.t),
+    ) => {
   Node.(
     div(
-      ~attr=Attr.classes(["cell-item", "cell-result"]),
-      [
-        title,
+      ~attr=Attr.classes(["cell-item", "cell-report"]),
+      Option.to_list(title)
+      @ [
         TestView.test_summary(~inject, ~test_results),
         // TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
       ],
     )
+  );
+};
+
+let panel = (~classes=[], content, ~footer: option(Node.t)) => {
+  simple_cell_view(
+    [
+      Node.div(
+        ~attr=Attr.classes(["cell-item", "panel"] @ classes),
+        content,
+      ),
+    ]
+    @ Option.to_list(footer),
   );
 };

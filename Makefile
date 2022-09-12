@@ -31,20 +31,16 @@ fmt:
 	dune fmt --auto-promote
 
 watch: setup-instructor
-	dune fmt --auto-promote &
-	dune build src --profile dev --watch
+	dune build @src/fmt --auto-promote src --profile dev --watch
 
 watch-release: setup-instructor
-	dune fmt --auto-promote &
-	dune build --profile release --watch
+	dune build @src/fmt --auto-promote src --profile release --watch
 
 release: setup-instructor
-	dune fmt --auto-promote
-	dune build src --profile release
+	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
-	dune fmt --auto-promote
-	dune build src --profile release
+	dune build @src/fmt --auto-promote src --profile release
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
