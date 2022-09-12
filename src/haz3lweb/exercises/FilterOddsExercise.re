@@ -2,6 +2,11 @@ open Virtual_dom.Vdom;
 open Node;
 
 let exercise: SchoolExercise.spec = {
+  point_distribution: {
+    test_validation: 10,
+    mutation_testing: 40,
+    impl_grading: 50,
+  },
   prompt:
     div([
       text(
@@ -25,7 +30,9 @@ if x == 0
 then false
 else not(odd(x-1))
 in yo",
-  your_tests: "test not(false) end;
+  your_tests: {
+    num_required: 4,
+    tests: "test not(false) end;
 test not(not(true)) end;
 test not(odd(0)) end;
 test odd(1) end;
@@ -33,6 +40,7 @@ test not(odd(2)) end;
 test odd(11) end;
 test not(odd(12)) end;
 test list_eq(filter_odds(1::2::3::4::5::nil), 1::3::5::nil) end;",
+  },
   your_impl: "let not: Bool -> Bool =
 fun x -> in
 let odd: Int -> Bool =

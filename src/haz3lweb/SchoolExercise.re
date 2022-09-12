@@ -15,11 +15,30 @@ type hidden_tests('code) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type your_tests('code) = {
+  tests: 'code,
+  num_required: int,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type point_distribution = {
+  test_validation: int,
+  mutation_testing: int,
+  impl_grading: int,
+};
+
+let validate_point_distribution =
+    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
+  test_validation + mutation_testing + impl_grading == 100
+    ? () : failwith("Invalid point distribution in exercise.");
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   prompt: [@opaque] Node.t,
+  point_distribution,
   prelude: 'code,
   correct_impl: 'code,
-  your_tests: 'code,
+  your_tests: your_tests('code),
   your_impl: 'code,
   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
@@ -55,8 +74,8 @@ let editor_of_state: state => Editor.t =
     switch (pos) {
     | Prelude => eds.prelude
     | CorrectImpl => eds.correct_impl
-    | YourTestsValidation => eds.your_tests
-    | YourTestsTesting => eds.your_tests
+    | YourTestsValidation => eds.your_tests.tests
+    | YourTestsTesting => eds.your_tests.tests
     | YourImpl => eds.your_impl
     | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
     | HiddenTests => eds.hidden_tests.tests
@@ -83,7 +102,10 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
-        your_tests: editor,
+        your_tests: {
+          ...eds.your_tests,
+          tests: editor,
+        },
       },
     }
   | YourImpl => {
@@ -121,8 +143,8 @@ let editors = ({eds, _}: state) =>
   [
     eds.prelude,
     eds.correct_impl,
-    eds.your_tests,
-    eds.your_tests,
+    eds.your_tests.tests,
+    eds.your_tests.tests,
     eds.your_impl,
   ]
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
@@ -172,6 +194,7 @@ let eds_of_spec: spec => (Id.t, eds) =
   (
     {
       prompt,
+      point_distribution,
       prelude,
       correct_impl,
       your_tests,
@@ -188,7 +211,10 @@ let eds_of_spec: spec => (Id.t, eds) =
     let id = 0;
     let (id, prelude) = editor_of_code(id, prelude);
     let (id, correct_impl) = editor_of_code(id, correct_impl);
-    let (id, your_tests) = editor_of_code(id, your_tests);
+    let (id, your_tests) = {
+      let (id, tests) = editor_of_code(id, your_tests.tests);
+      (id, {tests, num_required: your_tests.num_required});
+    };
     let (id, your_impl) = editor_of_code(id, your_impl);
     let (id, hidden_bugs) =
       List.fold_left(
@@ -208,6 +234,7 @@ let eds_of_spec: spec => (Id.t, eds) =
       id,
       {
         prompt,
+        point_distribution,
         prelude,
         correct_impl,
         your_tests,
@@ -249,9 +276,13 @@ let unpersist_state =
       pos,
       eds: {
         prompt: spec.prompt,
+        point_distribution: spec.point_distribution,
         prelude: lookup(Prelude),
         correct_impl: lookup(CorrectImpl),
-        your_tests: lookup(YourTestsValidation),
+        your_tests: {
+          tests: lookup(YourTestsValidation),
+          num_required: spec.your_tests.num_required,
+        },
         your_impl: lookup(YourImpl),
         hidden_bugs:
           List.mapi(
@@ -290,7 +321,7 @@ type stitched_statics = stitched(StaticsItem.t);
 
 let stitch_static = ({eds, _}: state): stitched_statics => {
   let (test_validation_term, _) =
-    EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests]);
+    EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests.tests]);
   let test_validation_map = Statics.mk_map(test_validation_term);
   let test_validation =
     StaticsItem.{term: test_validation_term, info_map: test_validation_map};
@@ -300,7 +331,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let user_impl = StaticsItem.{term: user_impl_term, info_map: user_impl_map};
 
   let (user_tests_term, _) =
-    EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests]);
+    EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests]);
   let user_tests_map = Statics.mk_map(user_tests_term);
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
@@ -319,7 +350,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
     List.map(
       ({impl, _}) => {
         let (term, _) =
-          EditorUtil.stitch([eds.prelude, impl, eds.your_tests]);
+          EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests]);
         let info_map = Statics.mk_map(term);
         StaticsItem.{term, info_map};
       },
