@@ -6,8 +6,10 @@
   let mk_id (): int =
     (let uid = !id_gen in id_gen := ((!id_gen) + 1); uid : int)
 
-  let mk_uexp term =
-    {UExp.ids = [mk_id ()]; term}
+  let mk_uexp term: UExp.t =
+    match term with
+    | UExp.Fun(p, e) -> {UExp.ids = [mk_id ()]@p.ids@e.ids; term}
+    | _ -> {UExp.ids = [mk_id ()]; term}
 
   let mk_upat term =
     {UPat.ids = [0]; term}
@@ -65,10 +67,8 @@
 %token COLON
 %token COLONCOLON
 %token COMMA
-%token <string> COMMENT
 %token DIV
 %token ELSE
-%token EMPTY
 %token EMPTY_HOLE
 %token END
 %token EOF
@@ -89,7 +89,6 @@
 %token IN
 %token <int> INT
 %token FUN
-%token LBRACE
 %token LBRACK
 %token LESSER
 %token LET
@@ -100,7 +99,6 @@
 %token OF
 %token OR
 %token PLUS
-%token RBRACE
 %token RBRACK
 %token RPAREN
 %token SEMICOLON
@@ -115,20 +113,18 @@
 (* Precedence levels and associativity - latter definitions are higher precedence *)
 %nonassoc IN
 %nonassoc LET
-%nonassoc THEN
 %nonassoc ELSE
 %right OR
 %right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL EQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
-%nonassoc unop
 %right COLONCOLON
 %left BAR
-%right TARROW
 %left COMMA
 %left COLON
-%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV TYPE IF SEMICOLON TEST
+%right TARROW
+%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV TYPE IF SEMICOLON TEST NIL
 %nonassoc app
 
 %start main
@@ -140,6 +136,10 @@ let main :=
   ~ = expr; EOF; <>
 
 let typ :=
+  | t1 = typ; TARROW; t2 = typ; { mk_utyp (UTyp.Arrow(t1, t2)) } 
+  | ~ = typ_; <>
+
+let typ_ :=
   | LPAREN; ~ = typ; RPAREN; { mk_utyp (UTyp.Parens(typ)) }
   | LBRACK; ~ = typ; RBRACK; { mk_utyp (UTyp.List(typ)) }
   | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
@@ -148,7 +148,7 @@ let typ :=
     | "Int" -> mk_utyp UTyp.Int
     | "Bool" -> mk_utyp UTyp.Bool
     | "Float" -> mk_utyp UTyp.Float
-    | _ -> mk_utyp UTyp.EmptyHole
+    | _ -> failwith ("Unknown Type: "^id)
   }
 
 
@@ -178,30 +178,46 @@ let pat_ :=
 let expr :=
   | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
   | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
-  | e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
+  | ~ = tuple; <>
   | ~ = simple_expr; <>
   | ~ = expr_; <>
 
 let expr_ :=
   | e1 = expr; e2 = expr; { mk_uexp (UExp.Ap(e1, e2)) } %prec app
   | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
-  | MINUS; e = expr; {mk_uexp (UExp.UnOp(UExp.Int(Minus), e))} %prec unop 
+  (* FIXME: This might allow a match with no rules? *)
+  | CASE; e = expr; ruls = list(rule); END; { mk_uexp (UExp.Match(e, ruls))}
+
+let tuple :=
+  e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
+
+let rule ==
+  BAR; p = pat; ARROW; e = expr; { (p, e) }
+
+let fun_def :=
+  | _ = pat; TARROW; _ = expr; { mk_uexp UExp.EmptyHole }
+  | _ = pat; COLON; _ = typ; TARROW; _ = expr; { mk_uexp UExp.EmptyHole }
 
 let simple_expr :=
 (*
 type term =
-  | Invalid(parse_flag, Piece.t)
-  | MultiHole(list(Id.t), list(t))
-  | ListLit(list(Id.t), list(t))
-  | Match(list(Id.t), t, list((UPat.t, t)))
+    | Invalid(parse_flag)
+    | MultiHole(list(Any.t))
 *)
   | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
   | TRIV; { mk_uexp UExp.Triv }
-  | FUN; p = pat; TARROW; e = expr; { mk_uexp (UExp.Fun(p, e)) }
+  | FUN; ~ = fun_def; <>
   | TRUE; { mk_uexp (UExp.Bool true) }
   | FALSE; { mk_uexp (UExp.Bool false) }
   | i = INT; { mk_uexp (UExp.Int i) }
   | FLOAT; { mk_uexp (UExp.Float 0.) }
+  | NIL; { mk_uexp (ListLit([])) }
+  (* Need to differentiate between tuple and single list element*)
+  | LBRACK; e = expr; RBRACK; {
+    match e with
+    | { ids = _ ; term = Tuple(es)} -> mk_uexp (ListLit(es))
+    | _ -> mk_uexp (ListLit([e]))
+  }
   | id = IDENT; { mk_uexp (UExp.Var id) }
   | LET; p = pat; EQUAL; e1 = expr; IN; e2 = expr;
     { mk_uexp (UExp.Let(p, e1, e2)) }
@@ -209,6 +225,10 @@ type term =
     { mk_uexp (UExp.If(e1, e2, e3)) }
   | TEST; e = expr; END; { mk_uexp (UExp.Test e)}
   | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
+  | MINUS; i = INT; {
+    mk_uexp (UExp.UnOp(UExp.Int(Minus),  
+    mk_uexp (UExp.Int(i))))
+  } 
 
 let infix_op ==
     | PLUS; {op_of_optok Plus}

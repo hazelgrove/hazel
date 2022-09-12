@@ -30,12 +30,42 @@ let test_parse text : bool =
 
 let test_incorrect text = test_parse text = false
 
-let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f -> f"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
+
+let%test "basic let fun" =
+  test_parse "let a : Int -> Int = fun x -> x + 1 in a(4)"
+
+let%test "something" = test_parse "let a : [Int] = [1] in a"
+let%test "annotated fun" = test_parse "let f = fun x : Int -> x + 1 in f(0)"
 (*
+  fun x : Int -> x + 1
+  FUN pat TARROW e
+
+  conflicts with
+  fun [x : Int -> x] + 1
+  FUN [var COLON ident TARROW typ] PLUS 1
+  should be
+  fun [x : Int] -> x + 1
+*)
+
+let%test "major" =
+  test_parse
+    "let a = 2 in\n\
+     let b : Bool = true in\n\
+     let g : Int -> Int =\n\
+    \  fun x -> x + 1\n\
+     in\n\
+     let x =\n\
+    \  fun q -> if q < 0 then false else true in\n\
+     let f =\n\
+    \  fun x : Int -> x + 5 < 0 in\n\
+     true && f(a) && f(4) && (g(5) == 6)\n\
+    \  "
+(*
+let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
 let%test "bad comment" = test_incorrect "#Comment \n 3; #Comment"
@@ -44,10 +74,10 @@ let%test "only comment" = test_incorrect "# Comment"
 let%test "only empty" = test_incorrect "\n"
 *)
 
+(*
 let%test "mult" =
   test_parse
-    "\n\
-    \    let mult : [Int] -> Int =\n\
+    "    let mult : [Int] -> Int =\n\
     \      fun list {\n\
     \        case list\n\
     \        | hd::[] => hd\n\
@@ -96,9 +126,7 @@ let%test "incorrect pat type annotation" =
 
 let%test "exp shapes" =
   test_parse
-    "\n\
-    \  # EXP\n\n\
-     let a : (Int, (Int, Bool)), b : Float = ((1, (1, true)), 1.0) in\n\
+    "let a : (Int, (Int, Bool)), b : Float = ((1, (1, true)), 1.0) in\n\
      let c = a::(2, (2, false))::[] in\n\
      let d =\n\
     \  case c\n\
@@ -142,3 +170,4 @@ let%test "case in function position" =
   test_parse "case true\n    | true => fun f {f+1}\n   end 2"
 
 let%test "and, or" = test_parse "((a && b || c) && d || e) && (f || g)"
+*)

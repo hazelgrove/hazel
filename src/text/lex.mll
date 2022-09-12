@@ -50,15 +50,7 @@ let ident = ['_' 'a'-'z' 'A'-'Z' '0'-'9' '\'']+
 
 rule read =
   parse
-  newline {
-    let curr_p = lexbuf.lex_curr_p in
-    let count = curr_p.pos_cnum - curr_p.pos_bol in
-    Lexing.new_line lexbuf;
-    if count = 1 then
-      EMPTY
-    else
-      read lexbuf
-  }
+  newline { read lexbuf }
   | whitespace+ { read lexbuf }
   | int_lit { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | float_lit { FLOAT (Lexing.lexeme lexbuf) }
@@ -92,8 +84,6 @@ rule read =
   | ";" { SEMICOLON }
   | "(" { LPAREN }
   | ")" { RPAREN }
-  | "{" { LBRACE }
-  | "}" { RBRACE }
   | "[" { LBRACK }
   | "]" { RBRACK }
   | "?" { EMPTY_HOLE }
@@ -101,5 +91,4 @@ rule read =
   | "=>" { ARROW }
   | "->" { TARROW }
   | "→" { TARROW }
-  | "#" whitespace* ( [^'\n']* as t) { COMMENT t }
   | eof { EOF }
