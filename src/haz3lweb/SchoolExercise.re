@@ -497,3 +497,39 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     hidden_tests,
   };
 };
+
+let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
+  let {pos, eds} = state;
+  let {
+    test_validation,
+    user_impl,
+    user_tests,
+    instructor,
+    hidden_bugs,
+    hidden_tests,
+  } = stitched_dynamics;
+
+  let (focal_zipper, focal_info_map) =
+    switch (pos) {
+    | Prelude => (eds.prelude.state.zipper, instructor.info_map)
+    | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
+    | YourTestsValidation => (
+        eds.your_tests.tests.state.zipper,
+        test_validation.info_map,
+      )
+    | YourTestsTesting => (
+        eds.your_tests.tests.state.zipper,
+        user_tests.info_map,
+      )
+    | YourImpl => (eds.your_impl.state.zipper, user_impl.info_map)
+    | HiddenBugs(idx) =>
+      let editor = List.nth(eds.hidden_bugs, idx).impl;
+      let info_map = List.nth(hidden_bugs, idx).info_map;
+      (editor.state.zipper, info_map);
+    | HiddenTests => (
+        eds.hidden_tests.tests.state.zipper,
+        instructor.info_map,
+      )
+    };
+  (focal_zipper, focal_info_map);
+};

@@ -220,15 +220,15 @@ let editors_view =
       ~result,
     );
   | School(state) =>
+    let results = settings.dynamics ? Some(results) : None;
+    let school_mode = SchoolMode.mk(~settings, ~state, ~results);
     SchoolMode.view(
       ~inject,
       ~font_metrics,
       ~mousedown,
       ~show_backpack_targets,
-      ~settings,
-      ~state,
-      ~results=settings.dynamics ? Some(results) : None,
-    )
+      school_mode,
+    );
   };
 };
 
