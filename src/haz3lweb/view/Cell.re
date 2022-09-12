@@ -324,22 +324,13 @@ let test_view =
     )
   );
 
+let report_footer_view = content => {
+  Node.(div(~attr=Attr.classes(["cell-item", "cell-report"]), content));
+};
+
 let test_report_footer_view =
-    (
-      ~inject,
-      ~test_results: option(Interface.test_results),
-      ~title: option(Node.t),
-    ) => {
-  Node.(
-    div(
-      ~attr=Attr.classes(["cell-item", "cell-report"]),
-      Option.to_list(title)
-      @ [
-        TestView.test_summary(~inject, ~test_results),
-        // TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
-      ],
-    )
-  );
+    (~inject, ~test_results: option(Interface.test_results)) => {
+  report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 
 let panel = (~classes=[], content, ~footer: option(Node.t)) => {
