@@ -63,6 +63,20 @@ let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
   (InvalidText(u, t), id_gen);
 };
 
+/* helper function for assigning fuction name metadata */
+let rec set_function_name = (d: DHExp.t, p: t): DHExp.t => {
+  switch (d) {
+  | DHExp.Fun(dp, ty1p, d, None) =>
+    switch (p) {
+    | OpSeq(TypeAnn(_), _) => d
+    | OpSeq(Var(_, _, v), _) => DHExp.Fun(dp, ty1p, d, Some(v))
+    | OpSeq(Parenthesized(p1), _) => set_function_name(d, p1)
+    | _ => d
+    }
+  | _ => d
+  };
+};
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);

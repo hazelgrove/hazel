@@ -93,6 +93,7 @@ and syn_elab_line =
               ),
             )
           };
+        let d1 = UHPat.set_function_name(d1, p);
         let d1 = DHExp.cast(d1, ty1', ty1);
         switch (Elaborator_Pat.ana_elab(ctx, delta, p, ty1)) {
         | DoesNotElaborate => LinesDoNotElaborate
