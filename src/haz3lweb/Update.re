@@ -56,7 +56,11 @@ module Result = {
 let save = (model: Model.t): unit =>
   switch (model.editors) {
   | Scratch(n, slides) => LocalStorage.save_scratch((n, slides))
-  | School(n, exercises) => LocalStorage.save_school((n, exercises))
+  | School(n, exercises) =>
+    LocalStorage.save_school(
+      (n, exercises),
+      ~instructor_mode=model.settings.instructor_mode,
+    )
   };
 
 let update_settings = (a: settings_action, model: Model.t): Model.t => {
@@ -242,7 +246,10 @@ let apply =
         switch (n < List.length(exercises)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.save_school((n, exercises));
+          LocalStorage.save_school(
+            (n, exercises),
+            ~instructor_mode=model.settings.instructor_mode,
+          );
           print_endline("saved");
           Ok({...model, editors: School(n, exercises)});
         }
@@ -254,7 +261,10 @@ let apply =
         let exercise = List.nth(exercises, m);
         let exercise = SchoolExercise.switch_editor(n, exercise);
         let exercises = Util.ListUtil.put_nth(m, exercise, exercises);
-        LocalStorage.save_school((m, exercises));
+        LocalStorage.save_school(
+          (m, exercises),
+          ~instructor_mode=model.settings.instructor_mode,
+        );
         Ok({...model, editors: School(m, exercises)});
       }
     | ToggleMode =>

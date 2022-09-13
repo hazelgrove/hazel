@@ -53,9 +53,12 @@ type scratch_without_history = (int, list(ScratchSlide.persistent_state));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type school_without_history = (int, list(SchoolExercise.persistent_state));
 
-let prep_school_in = ((n, exercises): Editors.school): school_without_history => (
+let prep_school_in =
+    ((n, exercises): Editors.school, ~instructor_mode: bool)
+    : school_without_history => (
   n,
-  exercises |> List.map(SchoolExercise.persistent_state_of_state),
+  exercises
+  |> List.map(SchoolExercise.persistent_state_of_state(~instructor_mode)),
 );
 
 let prep_school_out =
@@ -67,8 +70,7 @@ let prep_school_out =
   n,
   List.combine(persistent_exercises, School.exercises)
   |> List.map(((state, spec)) => {
-       print_endline("unpresisting");
-       SchoolExercise.unpersist_state(state, spec, ~instructor_mode);
+       SchoolExercise.unpersist_state(state, spec, ~instructor_mode)
      }),
 );
 
@@ -105,11 +107,11 @@ let load_scratch_without_history = (): scratch_without_history =>
 let load_scratch = (): Editors.scratch =>
   load_scratch_without_history() |> prep_scratch_out;
 
-let save_school = (school: Editors.school): unit =>
+let save_school = (school: Editors.school, ~instructor_mode: bool): unit =>
   set_localstore(
     save_school_key,
     school
-    |> prep_school_in
+    |> prep_school_in(~instructor_mode)
     |> sexp_of_school_without_history
     |> Sexplib.Sexp.to_string,
   );
@@ -117,10 +119,10 @@ let save_school = (school: Editors.school): unit =>
 let load_school_without_history =
     (~instructor_mode: bool): school_without_history =>
   switch (get_localstore(save_school_key)) {
-  | None => prep_school_in(School.init(~instructor_mode))
+  | None => prep_school_in(School.init(~instructor_mode), ~instructor_mode)
   | Some(flag) =>
     try(flag |> Sexplib.Sexp.of_string |> school_without_history_of_sexp) {
-    | _ => prep_school_in(School.init(~instructor_mode))
+    | _ => prep_school_in(School.init(~instructor_mode), ~instructor_mode)
     }
   };
 
