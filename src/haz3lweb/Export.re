@@ -14,21 +14,22 @@ let of_ = (filename: string, contents: Yojson.Safe.t): t => {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
-  scratch: LocalStorage.scratch_without_history,
-  school: LocalStorage.school_without_history,
-  settings: Model.settings,
+  scratch: string,
+  school: string,
+  settings: string,
   log: string,
 };
 
 let all = (filename: string) => {
-  let settings = LocalStorage.load_settings();
   let data: all = {
-    scratch: LocalStorage.load_scratch_without_history(),
+    scratch:
+      Option.get(LocalStorage.get_localstore(LocalStorage.save_scratch_key)),
     school:
-      LocalStorage.load_school_without_history(
-        ~instructor_mode=settings.instructor_mode,
+      Option.get(LocalStorage.get_localstore(LocalStorage.save_school_key)),
+    settings:
+      Option.get(
+        LocalStorage.get_localstore(LocalStorage.save_settings_key),
       ),
-    settings,
     log: Log.get_json_update_log_string(),
   };
   yojson_of_all(data) |> of_(filename);

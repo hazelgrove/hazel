@@ -86,7 +86,7 @@ let prep_scratch_out =
   List.map(ScratchSlide.unpersist, slides),
 );
 
-let save_scratch = (scratch: Editors.scratch): unit =>
+let save_scratch = (scratch: Editors.scratch): unit => {
   set_localstore(
     save_scratch_key,
     scratch
@@ -94,6 +94,7 @@ let save_scratch = (scratch: Editors.scratch): unit =>
     |> sexp_of_scratch_without_history
     |> Sexplib.Sexp.to_string,
   );
+};
 
 let load_scratch_without_history = (): scratch_without_history =>
   switch (get_localstore(save_scratch_key)) {
@@ -107,14 +108,14 @@ let load_scratch_without_history = (): scratch_without_history =>
 let load_scratch = (): Editors.scratch =>
   load_scratch_without_history() |> prep_scratch_out;
 
-let save_school = (school: Editors.school, ~instructor_mode: bool): unit =>
-  set_localstore(
-    save_school_key,
+let save_school = (school: Editors.school, ~instructor_mode: bool): unit => {
+  let value =
     school
     |> prep_school_in(~instructor_mode)
     |> sexp_of_school_without_history
-    |> Sexplib.Sexp.to_string,
-  );
+    |> Sexplib.Sexp.to_string;
+  set_localstore(save_school_key, value);
+};
 
 let load_school_without_history =
     (~instructor_mode: bool): school_without_history =>
