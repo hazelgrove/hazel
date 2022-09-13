@@ -90,7 +90,7 @@ type t = {
   read_only: bool,
 };
 
-let init = (z, ~read_only) => {
+let init = (~read_only=false, z) => {
   state: State.init(z),
   history: History.empty,
   read_only,

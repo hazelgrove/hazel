@@ -1,7 +1,17 @@
-let the_exercise: SchoolExercise.spec = FilterOddsExercise.exercise;
+let exercises: list(SchoolExercise.spec) = [
+  FilterOddsExercise.exercise,
+  FilterOddsExercise.exercise,
+];
 
 let init = (~instructor_mode: bool): Editors.school => {
-  SchoolExercise.state_of_spec(the_exercise, ~instructor_mode);
+  assert(List.length(exercises) > 0);
+  (
+    0,
+    exercises
+    |> List.map(exercise =>
+         SchoolExercise.state_of_spec(exercise, ~instructor_mode)
+       ),
+  );
 };
 //TODO: make sure in the final version hidden editors are NOT PLAINTEXT STRINGS
 

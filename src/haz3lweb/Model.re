@@ -23,13 +23,19 @@ let settings_init = {
   dynamics: true,
   async_evaluation: false,
   context_inspector: false,
-  instructor_mode: true,
+  instructor_mode: SchoolSettings.show_instructor,
   mode: Editors.Scratch,
 };
 
+let fix_instructor_mode = settings =>
+  if (settings.instructor_mode && !SchoolSettings.show_instructor) {
+    {...settings, instructor_mode: false};
+  } else {
+    settings;
+  };
+
 type t = {
   editors: Editors.t,
-  id_gen: IdGen.state,
   results: ModelResults.t,
   settings,
   font_metrics: FontMetrics.t,
@@ -43,7 +49,6 @@ type t = {
 let cutoff = (===);
 
 let mk = editors => {
-  id_gen: 1,
   editors,
   results: ModelResults.empty,
   settings: settings_init,

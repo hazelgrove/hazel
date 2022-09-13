@@ -49,7 +49,6 @@ module TestValidationReport = {
   };
 
   let test_summary_str = (test_results: Interface.test_results) => {
-    print_endline(string_of_int(test_results.unfinished));
     TestView.result_summary_str(
       ~n=test_results.total,
       ~p=test_results.failing,
@@ -402,7 +401,6 @@ module ImplGradingReport = {
   };
 
   let test_summary_str = (test_results: Interface.test_results) => {
-    print_endline(string_of_int(test_results.unfinished));
     TestView.result_summary_str(
       ~n=test_results.total,
       ~p=test_results.failing,

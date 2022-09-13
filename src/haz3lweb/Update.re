@@ -21,6 +21,7 @@ type t =
   | LoadDefault
   | Save
   | ToggleMode
+  | SwitchSlide(int)
   | SwitchEditor(int)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)
@@ -54,8 +55,8 @@ module Result = {
 
 let save = (model: Model.t): unit =>
   switch (model.editors) {
-  | Scratch(n, eds) => LocalStorage.save_scratch((model.id_gen, n, eds))
-  | School(state) => LocalStorage.save_school((model.id_gen, state))
+  | Scratch(n, slides) => LocalStorage.save_scratch((n, slides))
+  | School(n, exercises) => LocalStorage.save_school((n, exercises))
   };
 
 let update_settings = (a: settings_action, model: Model.t): Model.t => {
@@ -127,12 +128,12 @@ let load_editor = (model: Model.t): Model.t => {
   let m =
     switch (model.settings.mode) {
     | Scratch =>
-      let (id_gen, idx, editors) = LocalStorage.load_scratch();
-      {...model, id_gen, editors: Scratch(idx, editors)};
+      let (idx, slides) = LocalStorage.load_scratch();
+      {...model, editors: Scratch(idx, slides)};
     | School =>
       let instructor_mode = model.settings.instructor_mode;
-      let (id_gen, state) = LocalStorage.load_school(~instructor_mode);
-      {...model, id_gen, editors: School(state)};
+      let (idx, exercises) = LocalStorage.load_school(~instructor_mode);
+      {...model, editors: School(idx, exercises)};
     };
   {
     ...m,
@@ -146,12 +147,12 @@ let load_editor = (model: Model.t): Model.t => {
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
   | Scratch(_) =>
-    let (id_gen, idx, editors) = Scratch.init;
-    {...model, editors: Scratch(idx, editors), id_gen};
+    let (idx, editors) = Scratch.init();
+    {...model, editors: Scratch(idx, editors)};
   | School(_) =>
     let instructor_mode = model.settings.instructor_mode;
-    let (id_gen, state) = School.init(~instructor_mode);
-    {...model, editors: School(state), id_gen};
+    let (idx, exercises) = School.init(~instructor_mode);
+    {...model, editors: School(idx, exercises)};
   };
 
 let reevaluate_post_update =
@@ -185,6 +186,7 @@ let reevaluate_post_update =
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | LoadDefault
   | SwitchEditor(_)
+  | SwitchSlide(_)
   | ToggleMode
   | Paste
   | Undo
@@ -226,20 +228,34 @@ let apply =
     | Save =>
       save(model);
       Ok(model);
-    | SwitchEditor(n) =>
+    | SwitchSlide(n) =>
       switch (model.editors) {
       | Scratch(m, _) when m == n => Error(FailedToSwitch)
-      | Scratch(_, zs) =>
-        switch (n < List.length(zs)) {
+      | Scratch(_, slides) =>
+        switch (n < List.length(slides)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.save_scratch((model.id_gen, n, zs));
-          Ok({...model, editors: Scratch(n, zs)});
+          LocalStorage.save_scratch((n, slides));
+          Ok({...model, editors: Scratch(n, slides)});
         }
-      | School(state) =>
-        LocalStorage.save_school((model.id_gen, state));
-        let state = SchoolExercise.switch_editor(n, state);
-        Ok({...model, editors: School(state)});
+      | School(_, exercises) =>
+        switch (n < List.length(exercises)) {
+        | false => Error(FailedToSwitch)
+        | true =>
+          LocalStorage.save_school((n, exercises));
+          print_endline("saved");
+          Ok({...model, editors: School(n, exercises)});
+        }
+      }
+    | SwitchEditor(n) =>
+      switch (model.editors) {
+      | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
+      | School(m, exercises) =>
+        let exercise = List.nth(exercises, m);
+        let exercise = SchoolExercise.switch_editor(n, exercise);
+        let exercises = Util.ListUtil.put_nth(m, exercise, exercises);
+        LocalStorage.save_school((m, exercises));
+        Ok({...model, editors: School(m, exercises)});
       }
     | ToggleMode =>
       let new_mode = Editors.rotate_mode(model.editors);
@@ -250,14 +266,13 @@ let apply =
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
     | PerformAction(a) =>
-      let ed_init = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Perform.go(a, ed_init, model.id_gen)) {
+      let (id, ed_init) = Editors.get_editor_and_id(model.editors);
+      switch (Haz3lcore.Perform.go(a, ed_init, id)) {
       | Error(err) => Error(FailedToPerform(err))
-      | Ok((ed, id_gen)) =>
+      | Ok((ed, id)) =>
         Ok({
           ...model,
-          id_gen,
-          editors: Editors.put_editor(ed, model.editors),
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
         })
       };
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
@@ -269,37 +284,38 @@ let apply =
     | Paste =>
       //let clipboard = JsUtil.get_from_clipboard();
       let clipboard = model.clipboard;
-      let ed = Editors.get_editor(model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
-        Printer.zipper_of_string(
-          ~zipper_init=ed.state.zipper,
-          model.id_gen,
-          clipboard,
-        )
+        Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
       ) {
       | None => Error(CantPaste)
-      | Some((z, id_gen)) =>
+      | Some((z, id)) =>
         //TODO: add correct action to history (Pick_up is wrong)
         let ed = Haz3lcore.Editor.new_state(Pick_up, z, ed);
         Ok({
           ...model,
-          id_gen,
-          editors: Editors.put_editor(ed, model.editors),
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
         });
       };
     | Undo =>
-      let ed = Editors.get_editor(model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
       | None => Error(CantUndo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        Ok({
+          ...model,
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
+        })
       };
     | Redo =>
-      let ed = Editors.get_editor(model.editors);
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.redo(ed)) {
       | None => Error(CantRedo)
       | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+        Ok({
+          ...model,
+          editors: Editors.put_editor_and_id(id, ed, model.editors),
+        })
       };
     | MoveToNextHole(_d) =>
       // TODO restore

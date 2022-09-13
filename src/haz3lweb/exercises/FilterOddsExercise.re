@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 let exercise: SchoolExercise.spec = {
+  next_id: 0,
   point_distribution: {
     test_validation: 10,
     mutation_testing: 40,

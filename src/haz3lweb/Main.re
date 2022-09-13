@@ -70,7 +70,7 @@ let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
 let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
   let key = Key.mk(dir, evt);
   Keyboard.handle_key_event(key, ~model)
-  |> Log.keystoke(key)
+  |> Log.keystroke(key)
   |> List.map(inject)
   |> do_many;
 };

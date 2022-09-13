@@ -55,57 +55,63 @@ let copy_log_to_clipboard = _ => {
   JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
   Virtual_dom.Vdom.Effect.Ignore;
 };
-
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
   Log.append_json_updates_log();
-  inject(SwitchEditor(next_ed));
+  inject(SwitchSlide(next_ed));
+};
+
+let download_editor_state = (model: Model.t) => {
+  let export = Export.all(SchoolSettings.filename);
+  Export.download(export);
+  Virtual_dom.Vdom.Effect.Ignore;
 };
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
   Log.append_json_updates_log();
-  inject(SwitchEditor(prev_ed));
+  inject(SwitchSlide(prev_ed));
+};
+
+let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
+  let id = Attr.id("editor-mode");
+  let tooltip = Attr.title("Toggle Mode");
+  let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
+  let cur_slide = Editors.cur_slide(model.editors);
+  let num_slides = Editors.num_slides(model.editors);
+  let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
+  div(
+    ~attr=id,
+    [
+      div(~attr=Attr.many([toggle_mode, tooltip]), [text(caption)]),
+      button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
+      text(cur_slide_text),
+      button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
+    ]
+    @ Option.to_list(control),
+  );
 };
 
 let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
-  let id = Attr.id("editor-mode");
-  let toggle_mode = Attr.on_mousedown(_ => inject(ToggleMode));
-  let num_slides = Editors.num_slides(model.editors);
-  let tooltip = Attr.title("Toggle Mode");
   switch (model.editors) {
   | Scratch(_) =>
-    let cur_slide = Editors.cur_slide(model.editors);
-    let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
-    div(
-      ~attr=id,
-      [
-        div(~attr=toggle_mode, [text("Scratch")]),
-        button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-        text(cur_slide_text),
-        button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
-      ],
-    );
+    slide_toggle_view(~inject, ~model, ~caption="Scratch", ~control=None)
   | School(_) =>
-    div(
-      ~attr=id,
-      [div(~attr=Attr.many([toggle_mode, tooltip]), [text("School")])]
-      @ (
-        if (SchoolSettings.show_instructor) {
-          [
-            toggle(
-              "🎓",
-              ~tooltip="Toggle Instructor Mode",
-              model.settings.instructor_mode,
-              _ =>
-              inject(Set(InstructorMode))
-            ),
-          ];
-        } else {
-          [];
-        }
-      ),
-    )
+    let control =
+      if (SchoolSettings.show_instructor) {
+        Some(
+          toggle(
+            "🎓",
+            ~tooltip="Toggle Instructor Mode",
+            model.settings.instructor_mode,
+            _ =>
+            inject(Set(InstructorMode))
+          ),
+        );
+      } else {
+        None;
+      };
+    slide_toggle_view(~inject, ~model, ~caption="Exercises", ~control);
   };
 };
 
@@ -154,8 +160,8 @@ let top_bar_view =
             ),
             button(
               Icons.export,
-              copy_log_to_clipboard,
-              ~tooltip="Copy Log to Clipboard",
+              _ => download_editor_state(model),
+              ~tooltip="Export Submission",
             ),
             button(
               Icons.eye,
@@ -213,7 +219,7 @@ let main_ui_view =
   switch (editors) {
   | Scratch(_) =>
     let top_bar_view = top_bar_view(~inject, model);
-    let result_key = Editors.single_result_key;
+    let result_key = ScratchSlide.scratch_key;
     let editor = Editors.get_editor(editors);
     let result =
       settings.dynamics
@@ -221,7 +227,7 @@ let main_ui_view =
         : None;
     [
       top_bar_view,
-      ScratchSlide.view(
+      ScratchMode.view(
         ~inject,
         ~font_metrics,
         ~mousedown,
@@ -231,9 +237,10 @@ let main_ui_view =
         ~result,
       ),
     ];
-  | School(state) =>
+  | School(n, exercises) =>
+    let exercise = List.nth(exercises, n);
     let results = settings.dynamics ? Some(results) : None;
-    let school_mode = SchoolMode.mk(~settings, ~state, ~results);
+    let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;
     let overall_score =
       Grading.GradingReport.view_overall_score(grading_report);
