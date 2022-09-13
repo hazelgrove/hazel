@@ -13,14 +13,30 @@ type entry = {
 [@deriving (show({with_path: false}), yojson)]
 type updates = list(entry);
 
-let mut_log: ref(updates) = ref([]);
+let mut_log: ref(updates) = ref([]); // TODO replace with mutable vec
 
 let is_action_logged: Update.t => bool =
   fun
-  | UpdateDoubleTap(_) => false
-  | Save => false
-  | SetFontMetrics(_) => false
-  | _ => true;
+  | UpdateDoubleTap(_)
+  | Mousedown
+  | Mouseup
+  | Save
+  | SetFontMetrics(_)
+  | SetLogoFontMetrics(_)
+  | SetShowBackpackTargets(_)
+  | UpdateResult(_) => false
+  | Set(_)
+  | LoadDefault
+  | ToggleMode
+  | SwitchSlide(_)
+  | SwitchEditor(_)
+  | PerformAction(_)
+  | FailedInput(_)
+  | Copy
+  | Paste
+  | Undo
+  | Redo
+  | MoveToNextHole(_) => true;
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
@@ -111,8 +127,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       | Ok(model) => model
       | Error(_) => old_model
       };
-    let zip = cur_model |> Model.get_zipper;
-    let measured = Model.get_editor(cur_model).state.meta.measured;
+    let zip = Editors.get_zipper(cur_model.editors);
+    let measured = Editors.get_editor(cur_model.editors).state.meta.measured;
     let new_entry = mk_entry(~measured, update, zip, res);
     mut_log := List.cons(new_entry, mut_log^);
     if (debug_update^) {
@@ -121,8 +137,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       //new_entry |> entry_to_yojson |> Yojson.Safe.to_string |> print_endline;
     };
     if (debug_zipper^) {
-      cur_model
-      |> Model.get_zipper
+      cur_model.editors
+      |> Editors.get_zipper
       |> Printer.to_string_log(~measured)
       |> print_endline;
     };
@@ -130,7 +146,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
   res;
 };
 
-let keystoke = (key: Key.t, updates) => {
+let keystroke = (key: Key.t, updates) => {
   if (is_keystroke_logged(key)) {
     if (debug_keystoke^) {
       let keystroke_str = key_entry_to_string(mk_key_entry(key, updates));

@@ -17,8 +17,8 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
   };
 };
 
-let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
-  let zipper = Model.get_zipper(model);
+let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
+  let zipper = Editors.get_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
   let now = a => [Update.PerformAction(a), Update.UpdateDoubleTap(None)];
   let now_save_u = u => Update.[u, Save, UpdateDoubleTap(None)];
@@ -112,7 +112,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
         PerformAction(Destruct(Left)),
         Paste,
       ]
-    | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -134,7 +134,7 @@ let handle_key_event = (k: Key.t, ~model): list(Update.t) => {
         PerformAction(Destruct(Left)),
         Paste,
       ]
-    | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
