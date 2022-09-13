@@ -250,7 +250,8 @@ let view =
         ~caption=
           Cell.bolded_caption(
             "Implementation Validation",
-            ~rest=": Your Tests vs. Your Implementation",
+            ~rest=
+              ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
           ),
         ~code_id="your-tests-testing-view",
         ~info_map=user_tests.info_map,

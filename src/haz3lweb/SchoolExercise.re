@@ -294,7 +294,7 @@ let persistent_state_of_state =
   let zippers =
     positioned_editors(state)
     |> List.filter(((pos, editor)) => visible_in(pos, ~instructor_mode))
-    |> List.map(((pos, editor)) => (pos, Editor.(editor.state.zipper)));
+    |> List.map(((pos, editor)) => {(pos, Editor.(editor.state.zipper))});
   (pos, eds.next_id, zippers);
 };
 
@@ -307,10 +307,8 @@ let unpersist_state =
     : state => {
   let lookup = (id, pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      print_endline("visible" ++ show_pos(pos));
       (id, Editor.init(List.assoc(pos, positioned_zippers)));
     } else {
-      print_endline("invisible" ++ show_pos(pos));
       editor_of_code(id, default);
     };
   let id = next_id;

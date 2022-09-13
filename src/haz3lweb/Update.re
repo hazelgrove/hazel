@@ -125,6 +125,7 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
       }
     };
   LocalStorage.save_settings(model.settings);
+  save(model);
   model;
 };
 
