@@ -14,3 +14,8 @@
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

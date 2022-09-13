@@ -58,7 +58,9 @@
 (env
  (dev
   (js_of_ocaml
-   (flags (:standard))))
+   (flags (:standard)))
+  (flags
+   (:standard -warn-error -A)))
  (release
   (js_of_ocaml
    (flags (:standard)))))
