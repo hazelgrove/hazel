@@ -68,7 +68,7 @@ type state = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (pos, Id.t, list(Zipper.t));
+type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
 
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
@@ -162,6 +162,14 @@ let editors = ({eds, _}: state) =>
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
+let editor_positions = ({eds, _}: state) =>
+  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+  @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
+  @ [HiddenTests];
+
+let positioned_editors = state =>
+  List.combine(editor_positions(state), editors(state));
+
 let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
   | Prelude => 0
@@ -202,6 +210,11 @@ let switch_editor = (idx: int, {eds, _}) => {
   eds,
 };
 
+let editor_of_code = (init_id, code) =>
+  switch (EditorUtil.editor_of_code(init_id, code)) {
+  | None => failwith("Exercise error: invalid code")
+  | Some(x) => x
+  };
 let eds_of_spec: spec => eds =
   (
     {
@@ -216,11 +229,6 @@ let eds_of_spec: spec => eds =
       hidden_tests,
     },
   ) => {
-    let editor_of_code = (init_id, code) =>
-      switch (EditorUtil.editor_of_code(init_id, code)) {
-      | None => failwith("Exercise error: invalid code")
-      | Some(x) => x
-      };
     let id = next_id;
     let (id, prelude) = editor_of_code(id, prelude);
     let (id, correct_impl) = editor_of_code(id, correct_impl);
@@ -264,49 +272,82 @@ let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
   },
 };
 
+let visible_in = (pos, ~instructor_mode) => {
+  switch (pos) {
+  | Prelude => instructor_mode
+  | CorrectImpl => instructor_mode
+  | YourTestsValidation => true
+  | YourTestsTesting => false
+  | YourImpl => true
+  | HiddenBugs(_) => instructor_mode
+  | HiddenTests => instructor_mode
+  };
+};
+
 let state_of_spec = (spec, ~instructor_mode: bool): state => {
   let eds = eds_of_spec(spec);
   set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
 };
 
-let persistent_state_of_state: state => persistent_state =
-  ({pos, eds} as state) => {
-    let editors = editors(state);
-    let zippers =
-      List.map((editor: Editor.t) => editor.state.zipper, editors);
-    (pos, eds.next_id, zippers);
-  };
+let persistent_state_of_state =
+    ({pos, eds} as state: state, ~instructor_mode: bool) => {
+  let zippers =
+    positioned_editors(state)
+    |> List.filter(((pos, editor)) => visible_in(pos, ~instructor_mode))
+    |> List.map(((pos, editor)) => (pos, Editor.(editor.state.zipper)));
+  (pos, eds.next_id, zippers);
+};
 
 let unpersist_state =
     (
-      (pos, next_id, zippers): persistent_state,
+      (pos, next_id, positioned_zippers): persistent_state,
       spec: spec,
       ~instructor_mode: bool,
     )
     : state => {
-  let lookup = pos =>
-    Editor.init(List.nth(zippers, idx_of_pos(pos, spec)), ~read_only=false);
+  let lookup = (id, pos, default) =>
+    if (visible_in(pos, ~instructor_mode)) {
+      print_endline("visible" ++ show_pos(pos));
+      (id, Editor.init(List.assoc(pos, positioned_zippers)));
+    } else {
+      print_endline("invisible" ++ show_pos(pos));
+      editor_of_code(id, default);
+    };
+  let id = next_id;
+  let (id, prelude) = lookup(id, Prelude, spec.prelude);
+  let (id, correct_impl) = lookup(id, CorrectImpl, spec.correct_impl);
+  let (id, your_tests_tests) =
+    lookup(id, YourTestsValidation, spec.your_tests.tests);
+  let (id, your_impl) = lookup(id, YourImpl, spec.your_impl);
+  let (_, id, hidden_bugs) =
+    List.fold_left(
+      ((i, id, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
+        let (id, impl) = lookup(id, HiddenBugs(i), impl);
+        (i + 1, id, hidden_bugs @ [{impl, hint}]);
+      },
+      (0, id, []),
+      spec.hidden_bugs,
+    );
+  let (id, hidden_tests_tests) =
+    lookup(id, HiddenTests, spec.hidden_tests.tests);
+
   set_instructor_mode(
     {
       pos,
       eds: {
-        next_id,
+        next_id: id,
         prompt: spec.prompt,
         point_distribution: spec.point_distribution,
-        prelude: lookup(Prelude),
-        correct_impl: lookup(CorrectImpl),
+        prelude,
+        correct_impl,
         your_tests: {
-          tests: lookup(YourTestsValidation),
+          tests: your_tests_tests,
           num_required: spec.your_tests.num_required,
         },
-        your_impl: lookup(YourImpl),
-        hidden_bugs:
-          List.mapi(
-            (i, {impl: _, hint}) => {{impl: lookup(HiddenBugs(i)), hint}},
-            spec.hidden_bugs,
-          ),
+        your_impl,
+        hidden_bugs,
         hidden_tests: {
-          tests: lookup(HiddenTests),
+          tests: hidden_tests_tests,
           hints: spec.hidden_tests.hints,
         },
       },

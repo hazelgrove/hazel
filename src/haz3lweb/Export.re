@@ -12,18 +12,6 @@ let of_ = (filename: string, contents: Yojson.Safe.t): t => {
   {contents, filename};
 };
 
-let of_scratch = (filename: string, study: Editors.scratch): t =>
-  study
-  |> LocalStorage.prep_scratch_in
-  |> LocalStorage.yojson_of_scratch_without_history
-  |> of_(filename);
-
-let of_school = (filename: string, school: Editors.school): t =>
-  school
-  |> LocalStorage.prep_school_in
-  |> LocalStorage.yojson_of_school_without_history
-  |> of_(filename);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   scratch: LocalStorage.scratch_without_history,
