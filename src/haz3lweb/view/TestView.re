@@ -166,7 +166,8 @@ let test_summary_str = (test_results: Interface.test_results): string =>
   );
 
 let percent_view = (n: int, p: int): Node.t => {
-  let percentage = 100. *. float_of_int(p) /. float_of_int(n);
+  let percentage =
+    n == 0 ? 100. : 100. *. float_of_int(p) /. float_of_int(n);
   div(
     ~attr=clss(["test-percent", n == p ? "all-pass" : "some-fail"]),
     [text(Printf.sprintf("%.0f%%", percentage))],
