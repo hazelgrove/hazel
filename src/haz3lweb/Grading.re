@@ -46,7 +46,7 @@ module TestValidationReport = {
       let minimum = float_of_int(report.minimum);
       let num_passing = float_of_int(test_results.passing);
 
-      num_required -. minimum <= 0.0
+      num_required -. minimum <= 0.0 || num_tests <= 0.0
         ? 0.0
         : num_passing
           /. num_tests
