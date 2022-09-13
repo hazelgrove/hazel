@@ -15,10 +15,10 @@ update-ocaml:
 	opam switch import opam.export --update-invariant
 
 setup-instructor:
-	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
+	cp src/haz3lweb/SchoolSettings_instructor.re src/haz3lweb/SchoolSettings.re
 
 setup-student: 
-	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
+	cp src/haz3lweb/SchoolSettings_student.re src/haz3lweb/SchoolSettings.re
 
 dev-helper: 
 	dune build @src/fmt --auto-promote src --profile dev
