@@ -26,7 +26,7 @@ let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
 
 let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
   List.map(
-    ((k, {item: typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)),
+    ((k, {item: typ, _}: Ctx.entry(Typ.t))) => (k, htyp_of_typ(typ)),
     ctx,
   );
 

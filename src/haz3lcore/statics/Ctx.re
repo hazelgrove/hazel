@@ -1,13 +1,13 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
+type entry('item) = {
   id: Id.t,
-  item: Typ.t,
+  item: 'item,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(entry);
+type ctx('item) = VarMap.t_(entry('item));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type co_item = {
@@ -23,7 +23,7 @@ type co = VarMap.t_(co_entry);
 
 let empty = VarMap.empty;
 
-let subtract = (ctx: t, free: co): co =>
+let subtract = (ctx: ctx('item), free: co): co =>
   VarMap.filter(
     ((k, _)) =>
       switch (VarMap.lookup(ctx, k)) {
@@ -33,7 +33,8 @@ let subtract = (ctx: t, free: co): co =>
     free,
   );
 
-let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
+let subtract_prefix =
+    (ctx: ctx('item), prefix_ctx: ctx('item)): option(ctx('item)) => {
   // NOTE: does not check that the prefix is an actual prefix
   // TODO: does not correctly handle shadowing!! (will be fixed with new context in type aliases branch so not worrying about it for now)
   let prefix_length = List.length(prefix_ctx);
@@ -52,3 +53,6 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
 //TODO(andrew): is this correct in the case of duplicates?
 let union: list(co) => co =
   List.fold_left((free1, free2) => free1 @ free2, []);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = ctx(Typ.t);
