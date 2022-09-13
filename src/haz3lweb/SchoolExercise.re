@@ -18,6 +18,7 @@ type hidden_tests('code) = {
 type your_tests('code) = {
   tests: 'code,
   num_required: int,
+  minimum: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -234,7 +235,14 @@ let eds_of_spec: spec => eds =
     let (id, correct_impl) = editor_of_code(id, correct_impl);
     let (id, your_tests) = {
       let (id, tests) = editor_of_code(id, your_tests.tests);
-      (id, {tests, num_required: your_tests.num_required});
+      (
+        id,
+        {
+          tests,
+          num_required: your_tests.num_required,
+          minimum: your_tests.minimum,
+        },
+      );
     };
     let (id, your_impl) = editor_of_code(id, your_impl);
     let (id, hidden_bugs) =
@@ -341,6 +349,7 @@ let unpersist_state =
         your_tests: {
           tests: your_tests_tests,
           num_required: spec.your_tests.num_required,
+          minimum: spec.your_tests.minimum,
         },
         your_impl,
         hidden_bugs,

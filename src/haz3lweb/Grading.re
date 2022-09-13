@@ -25,11 +25,16 @@ module TestValidationReport = {
   type t = {
     test_results: option(Interface.test_results),
     num_required: int,
+    minimum: int,
   };
 
   let mk =
       (eds: SchoolExercise.eds, test_results: option(Interface.test_results)) => {
-    {test_results, num_required: eds.your_tests.num_required};
+    {
+      test_results,
+      num_required: eds.your_tests.num_required,
+      minimum: eds.your_tests.minimum,
+    };
   };
 
   let percentage = (report: t): percentage => {
@@ -38,13 +43,20 @@ module TestValidationReport = {
     | Some(test_results) =>
       let num_tests = float_of_int(test_results.total);
       let num_required = float_of_int(report.num_required);
+      let minimum = float_of_int(report.minimum);
       let num_passing = float_of_int(test_results.passing);
 
-      num_required == 0.0
+      num_required -. minimum <= 0.0
         ? 0.0
         : num_passing
           /. num_tests
-          *. (Float.min(num_tests, num_required) /. num_required);
+          *. (
+            Float.max(
+              0.,
+              Float.min(num_tests -. minimum, num_required -. minimum),
+            )
+            /. (num_required -. minimum)
+          );
     };
   };
 
