@@ -1,7 +1,4 @@
-let exercises: list(SchoolExercise.spec) = [
-  FilterOddsExercise.exercise,
-  FilterOddsExercise.exercise,
-];
+let exercises: list(SchoolExercise.spec) = SchoolSettings.exercises;
 
 let init = (~instructor_mode: bool): Editors.school => {
   assert(List.length(exercises) > 0);
