@@ -112,7 +112,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         PerformAction(Destruct(Left)),
         Paste,
       ]
-    | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -134,7 +134,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
         PerformAction(Destruct(Left)),
         Paste,
       ]
-    | _ when is_digit(key) => [SwitchEditor(int_of_string(key))]
+    | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))

@@ -185,8 +185,10 @@ let deco =
 let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
-    | None => []
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => []
+    | None => [Node.text("No result available.")]
+    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
+        Node.text("No result available (exception)."),
+      ]
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
@@ -276,8 +278,7 @@ let editor_with_result_view =
       ~result: ModelResult.simple,
       editor: Editor.t,
     ) => {
-  let ModelResult.{opt_test_results: test_results, _} =
-    ModelResult.unwrap_simple(result);
+  let test_results = ModelResult.unwrap_test_results(result);
   let eval_result_footer = eval_result_footer_view(~font_metrics, result);
   editor_view(
     ~inject,

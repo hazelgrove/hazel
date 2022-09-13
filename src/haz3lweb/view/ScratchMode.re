@@ -3,6 +3,8 @@ open Node;
 open Haz3lcore;
 open Util.Web;
 
+type state = (Id.t, Editor.t);
+
 // let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
 //   div(
 //     ~attr=Attr.classes(["result"]),

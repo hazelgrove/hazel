@@ -13,14 +13,30 @@ type entry = {
 [@deriving (show({with_path: false}), yojson)]
 type updates = list(entry);
 
-let mut_log: ref(updates) = ref([]);
+let mut_log: ref(updates) = ref([]); // TODO replace with mutable vec
 
 let is_action_logged: Update.t => bool =
   fun
-  | UpdateDoubleTap(_) => false
-  | Save => false
-  | SetFontMetrics(_) => false
-  | _ => true;
+  | UpdateDoubleTap(_)
+  | Mousedown
+  | Mouseup
+  | Save
+  | SetFontMetrics(_)
+  | SetLogoFontMetrics(_)
+  | SetShowBackpackTargets(_)
+  | UpdateResult(_) => false
+  | Set(_)
+  | LoadDefault
+  | ToggleMode
+  | SwitchSlide(_)
+  | SwitchEditor(_)
+  | PerformAction(_)
+  | FailedInput(_)
+  | Copy
+  | Paste
+  | Undo
+  | Redo
+  | MoveToNextHole(_) => true;
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
@@ -130,7 +146,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
   res;
 };
 
-let keystoke = (key: Key.t, updates) => {
+let keystroke = (key: Key.t, updates) => {
   if (is_keystroke_logged(key)) {
     if (debug_keystoke^) {
       let keystroke_str = key_entry_to_string(mk_key_entry(key, updates));

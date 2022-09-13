@@ -18,17 +18,6 @@ true && f(a) && f(b) && g(true)",
   "",
 ];
 
-let init: Editors.scratch = {
-  let (id_gen, zs) =
-    List.fold_left(
-      ((acc_id, acc_zs), str) => {
-        switch (Printer.zipper_of_string(acc_id, str)) {
-        | None => (acc_id, acc_zs @ [Haz3lcore.Zipper.init(0)])
-        | Some((z, new_id)) => (new_id, acc_zs @ [z])
-        }
-      },
-      (0, []),
-      defaults,
-    );
-  (id_gen, 0, List.map(Haz3lcore.Editor.init(~read_only=false), zs));
+let init = (): Editors.scratch => {
+  (0, List.map(ScratchSlide.init, defaults));
 };

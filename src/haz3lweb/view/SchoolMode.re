@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 type t = {
-  state: SchoolExercise.state,
+  exercise: SchoolExercise.state,
   results: option(ModelResults.t),
   settings: Model.settings,
   stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
@@ -11,16 +11,16 @@ type t = {
 
 let mk =
     (
-      ~state: SchoolExercise.state,
+      ~exercise: SchoolExercise.state,
       ~results: option(ModelResults.t),
       ~settings,
     )
     : t => {
-  let SchoolExercise.{eds, _} = state;
-  let stitched_dynamics = SchoolExercise.stitch_dynamic(state, results);
+  let SchoolExercise.{eds, _} = exercise;
+  let stitched_dynamics = SchoolExercise.stitch_dynamic(exercise, results);
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
-  {state, results, settings, stitched_dynamics, grading_report};
+  {exercise, results, settings, stitched_dynamics, grading_report};
 };
 
 type vis_marked('a) =
@@ -40,8 +40,8 @@ let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {state, results, settings, stitched_dynamics, grading_report} = self;
-  let SchoolExercise.{pos, eds} = state;
+  let {exercise, results, settings, stitched_dynamics, grading_report} = self;
+  let SchoolExercise.{pos, eds} = exercise;
   let SchoolExercise.{
         test_validation,
         user_impl,
@@ -51,10 +51,10 @@ let view =
         hidden_tests,
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
-    SchoolExercise.focus(state, stitched_dynamics);
+    SchoolExercise.focus(exercise, stitched_dynamics);
 
   // partially apply for convenience below
-  let editor_view = pos =>
+  let editor_view = pos => {
     Cell.editor_view(
       ~inject,
       ~font_metrics,
@@ -65,6 +65,7 @@ let view =
       ],
       ~settings,
     );
+  };
 
   let prompt_view =
     Cell.narrative_cell(

@@ -34,6 +34,7 @@ let validate_point_distribution =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
+  next_id: Id.t,
   prompt: [@opaque] Node.t,
   point_distribution,
   prelude: 'code,
@@ -67,7 +68,7 @@ type state = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (pos, list(Zipper.t));
+type persistent_state = (pos, Id.t, list(Zipper.t));
 
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
@@ -81,12 +82,18 @@ let editor_of_state: state => Editor.t =
     | HiddenTests => eds.hidden_tests.tests
     };
 
-let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
+let id_of_state = ({eds, _}: state): Id.t => {
+  eds.next_id;
+};
+
+let put_editor_and_id =
+    ({pos, eds, _} as state: state, next_id, editor: Editor.t) =>
   switch (pos) {
   | Prelude => {
       ...state,
       eds: {
         ...eds,
+        next_id,
         prelude: editor,
       },
     }
@@ -94,6 +101,7 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
+        next_id,
         correct_impl: editor,
       },
     }
@@ -102,6 +110,7 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
+        next_id,
         your_tests: {
           ...eds.your_tests,
           tests: editor,
@@ -112,6 +121,7 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
+        next_id,
         your_impl: editor,
       },
     }
@@ -119,6 +129,7 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
+        next_id,
         hidden_bugs:
           Util.ListUtil.put_nth(
             n,
@@ -131,6 +142,7 @@ let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
       ...state,
       eds: {
         ...eds,
+        next_id,
         hidden_tests: {
           ...eds.hidden_tests,
           tests: editor,
@@ -190,9 +202,10 @@ let switch_editor = (idx: int, {eds, _}) => {
   eds,
 };
 
-let eds_of_spec: spec => (Id.t, eds) =
+let eds_of_spec: spec => eds =
   (
     {
+      next_id,
       prompt,
       point_distribution,
       prelude,
@@ -208,7 +221,7 @@ let eds_of_spec: spec => (Id.t, eds) =
       | None => failwith("Exercise error: invalid code")
       | Some(x) => x
       };
-    let id = 0;
+    let id = next_id;
     let (id, prelude) = editor_of_code(id, prelude);
     let (id, correct_impl) = editor_of_code(id, correct_impl);
     let (id, your_tests) = {
@@ -230,19 +243,17 @@ let eds_of_spec: spec => (Id.t, eds) =
       let (id, tests) = editor_of_code(id, tests);
       (id, {tests, hints});
     };
-    (
-      id,
-      {
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-      },
-    );
+    {
+      next_id: id,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests,
+      your_impl,
+      hidden_bugs,
+      hidden_tests,
+    };
   };
 
 let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
@@ -253,21 +264,25 @@ let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
   },
 };
 
-let state_of_spec = (spec, ~instructor_mode: bool): (Id.t, state) => {
-  let (id, eds) = eds_of_spec(spec);
-  (id, set_instructor_mode({pos: YourImpl, eds}, instructor_mode));
+let state_of_spec = (spec, ~instructor_mode: bool): state => {
+  let eds = eds_of_spec(spec);
+  set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
 };
 
 let persistent_state_of_state: state => persistent_state =
-  ({pos, _} as state) => {
+  ({pos, eds} as state) => {
     let editors = editors(state);
     let zippers =
       List.map((editor: Editor.t) => editor.state.zipper, editors);
-    (pos, zippers);
+    (pos, eds.next_id, zippers);
   };
 
 let unpersist_state =
-    ((pos, zippers): persistent_state, spec: spec, ~instructor_mode: bool)
+    (
+      (pos, next_id, zippers): persistent_state,
+      spec: spec,
+      ~instructor_mode: bool,
+    )
     : state => {
   let lookup = pos =>
     Editor.init(List.nth(zippers, idx_of_pos(pos, spec)), ~read_only=false);
@@ -275,6 +290,7 @@ let unpersist_state =
     {
       pos,
       eds: {
+        next_id,
         prompt: spec.prompt,
         point_distribution: spec.point_distribution,
         prelude: lookup(Prelude),

@@ -3,8 +3,7 @@ open Haz3lcore;
 open Sexplib.Std;
 
 let save_settings_key: string = "SETTINGS";
-let save_simple_key: string = "SAVE_SIMPLE";
-let save_study_key: string = "SAVE_STUDY";
+let save_scratch_key: string = "SAVE_SCRATCH";
 let save_school_key: string = "SAVE_SCHOOL";
 let action_log_key: string = "ACTION_LOG";
 let keystoke_log_key: string = "KEYSTROKE_LOG";
@@ -38,73 +37,73 @@ let load_settings = (): Model.settings =>
   switch (get_localstore(save_settings_key)) {
   | None => Model.settings_init
   | Some(flag) =>
-    try(flag |> Sexplib.Sexp.of_string |> Model.settings_of_sexp) {
+    try(
+      flag
+      |> Sexplib.Sexp.of_string
+      |> Model.settings_of_sexp
+      |> Model.fix_instructor_mode
+    ) {
     | _ => Model.settings_init
     }
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type scratch_without_history = (Id.t, int, list(Zipper.t));
+type scratch_without_history = (int, list(ScratchSlide.persistent_state));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type school_without_history = (Id.t, SchoolExercise.persistent_state);
+type school_without_history = (int, list(SchoolExercise.persistent_state));
 
-let prep_school_in =
-    ((id_gen, state): Editors.school): school_without_history => (
-  id_gen,
-  SchoolExercise.persistent_state_of_state(state),
+let prep_school_in = ((n, exercises): Editors.school): school_without_history => (
+  n,
+  exercises |> List.map(SchoolExercise.persistent_state_of_state),
 );
 
 let prep_school_out =
     (
-      (id_gen, persistent_state): school_without_history,
+      (n, persistent_exercises): school_without_history,
       ~instructor_mode: bool,
     )
     : Editors.school => (
-  id_gen,
-  SchoolExercise.unpersist_state(
-    persistent_state,
-    School.the_exercise,
-    ~instructor_mode,
-  ),
+  n,
+  List.combine(persistent_exercises, School.exercises)
+  |> List.map(((state, spec)) => {
+       print_endline("unpresisting");
+       SchoolExercise.unpersist_state(state, spec, ~instructor_mode);
+     }),
 );
 
 let prep_scratch_in =
-    ((id_gen, idx, eds): Editors.scratch): scratch_without_history => (
-  id_gen,
+    ((idx, slides): Editors.scratch): scratch_without_history => (
   idx,
-  List.map((ed: Editor.t) => ed.state.zipper, eds),
+  List.map(ScratchSlide.persist, slides),
 );
 
 let prep_scratch_out =
-    ((id_gen, idx, zs): scratch_without_history): Editors.scratch => (
-  id_gen,
+    ((idx, slides): scratch_without_history): Editors.scratch => (
   idx,
-  List.map(Editor.init(~read_only=false), zs),
+  List.map(ScratchSlide.unpersist, slides),
 );
 
-let save_scratch = (study: Editors.scratch): unit =>
+let save_scratch = (scratch: Editors.scratch): unit =>
   set_localstore(
-    save_study_key,
-    study
+    save_scratch_key,
+    scratch
     |> prep_scratch_in
     |> sexp_of_scratch_without_history
     |> Sexplib.Sexp.to_string,
   );
 
-let load_scratch = (): Editors.scratch =>
-  switch (get_localstore(save_study_key)) {
-  | None => Scratch.init
+let load_scratch_without_history = (): scratch_without_history =>
+  switch (get_localstore(save_scratch_key)) {
+  | None => prep_scratch_in(Scratch.init())
   | Some(flag) =>
-    try(
-      flag
-      |> Sexplib.Sexp.of_string
-      |> scratch_without_history_of_sexp
-      |> prep_scratch_out
-    ) {
-    | _ => Scratch.init
+    try(flag |> Sexplib.Sexp.of_string |> scratch_without_history_of_sexp) {
+    | _ => prep_scratch_in(Scratch.init())
     }
   };
+
+let load_scratch = (): Editors.scratch =>
+  load_scratch_without_history() |> prep_scratch_out;
 
 let save_school = (school: Editors.school): unit =>
   set_localstore(
@@ -115,16 +114,16 @@ let save_school = (school: Editors.school): unit =>
     |> Sexplib.Sexp.to_string,
   );
 
-let load_school = (~instructor_mode: bool): Editors.school =>
+let load_school_without_history =
+    (~instructor_mode: bool): school_without_history =>
   switch (get_localstore(save_school_key)) {
-  | None => School.init(~instructor_mode)
+  | None => prep_school_in(School.init(~instructor_mode))
   | Some(flag) =>
-    try(
-      flag
-      |> Sexplib.Sexp.of_string
-      |> school_without_history_of_sexp
-      |> prep_school_out(~instructor_mode)
-    ) {
-    | _ => School.init(~instructor_mode)
+    try(flag |> Sexplib.Sexp.of_string |> school_without_history_of_sexp) {
+    | _ => prep_school_in(School.init(~instructor_mode))
     }
   };
+
+let load_school = (~instructor_mode: bool): Editors.school =>
+  load_school_without_history(~instructor_mode)
+  |> prep_school_out(~instructor_mode);
