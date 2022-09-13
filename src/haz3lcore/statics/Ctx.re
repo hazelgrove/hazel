@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   id: Id.t,
-  typ: Typ.t,
+  item: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

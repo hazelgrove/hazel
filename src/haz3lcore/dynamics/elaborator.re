@@ -25,7 +25,10 @@ let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
 let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
 
 let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
+  List.map(
+    ((k, {item: typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)),
+    ctx,
+  );
 
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun

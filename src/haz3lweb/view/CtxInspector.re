@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 
 let context_entry_view =
-    ((name: string, {typ, _}: Haz3lcore.Ctx.entry)): Node.t =>
+    ((name: string, {item: typ, _}: Haz3lcore.Ctx.entry)): Node.t =>
   div(
     ~attr=clss(["context-entry"]),
     [text(name), text(":"), Type.view(typ)],

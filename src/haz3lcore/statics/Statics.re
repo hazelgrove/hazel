@@ -213,7 +213,7 @@ let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
   switch (ty_ann, pat.term, def.term) {
   | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
-    VarMap.extend(ctx, (x, {id: List.hd(pat.ids), typ: ty_ann}))
+    VarMap.extend(ctx, (x, {id: List.hd(pat.ids), item: ty_ann}))
   | _ => ctx
   };
 
@@ -305,7 +305,7 @@ and uexp_to_info_map =
     | None => atomic(Free)
     | Some(ce) =>
       add(
-        ~self=Just(ce.typ),
+        ~self=Just(ce.item),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
@@ -527,7 +527,11 @@ and upat_to_info_map =
     let typ = typ_after_fix(mode, self);
     add(
       ~self,
-      ~ctx=VarMap.extend(ctx, (name, {id: Term.UPat.rep_id(upat), typ})),
+      ~ctx=
+        VarMap.extend(
+          ctx,
+          (name, {id: Term.UPat.rep_id(upat), item: typ}),
+        ),
       Id.Map.empty,
     );
   | Tuple(ps) =>
