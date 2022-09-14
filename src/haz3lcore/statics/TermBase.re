@@ -50,7 +50,9 @@ and UExp: {
     | Times
     | Divide
     | LessThan
+    | LessThanOrEqual
     | GreaterThan
+    | GreaterThanOrEqual
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,7 +62,9 @@ and UExp: {
     | Times
     | Divide
     | LessThan
+    | LessThanOrEqual
     | GreaterThan
+    | GreaterThanOrEqual
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,7 +147,9 @@ and UExp: {
     | Times
     | Divide
     | LessThan
+    | LessThanOrEqual
     | GreaterThan
+    | GreaterThanOrEqual
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -153,7 +159,9 @@ and UExp: {
     | Times
     | Divide
     | LessThan
+    | LessThanOrEqual
     | GreaterThan
+    | GreaterThanOrEqual
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
