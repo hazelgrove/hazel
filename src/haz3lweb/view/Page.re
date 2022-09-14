@@ -61,7 +61,7 @@ let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   inject(SwitchSlide(next_ed));
 };
 
-let download_editor_state = (model: Model.t) => {
+let download_editor_state = () => {
   let export = Export.all(SchoolSettings.filename);
   Export.download(export);
   Virtual_dom.Vdom.Effect.Ignore;
@@ -160,7 +160,7 @@ let top_bar_view =
             ),
             button(
               Icons.export,
-              _ => download_editor_state(model),
+              _ => download_editor_state(),
               ~tooltip="Export Submission",
             ),
             button(

@@ -301,7 +301,7 @@ let persistent_state_of_state =
     ({pos, eds} as state: state, ~instructor_mode: bool) => {
   let zippers =
     positioned_editors(state)
-    |> List.filter(((pos, editor)) => visible_in(pos, ~instructor_mode))
+    |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
     |> List.map(((pos, editor)) => {(pos, Editor.(editor.state.zipper))});
   (pos, eds.next_id, zippers);
 };
@@ -592,7 +592,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
       (editor.state.zipper, info_map);
     | HiddenTests => (
         eds.hidden_tests.tests.state.zipper,
-        instructor.info_map,
+        hidden_tests.info_map,
       )
     };
   (focal_zipper, focal_info_map);

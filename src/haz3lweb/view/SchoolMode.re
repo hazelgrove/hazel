@@ -40,7 +40,7 @@ let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {exercise, results, settings, stitched_dynamics, grading_report} = self;
+  let {exercise, results: _, settings, stitched_dynamics, grading_report} = self;
   let SchoolExercise.{pos, eds} = exercise;
   let SchoolExercise.{
         test_validation,
@@ -48,7 +48,7 @@ let view =
         user_tests,
         instructor,
         hidden_bugs,
-        hidden_tests,
+        hidden_tests: _,
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
@@ -211,7 +211,6 @@ let view =
   let mutation_testing_view =
     Always(
       Grading.MutationTestingReport.view(
-        ~font_metrics,
         ~inject,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
@@ -287,7 +286,6 @@ let view =
     Always(
       Grading.ImplGradingReport.view(
         ~inject,
-        ~font_metrics,
         ~report=grading_report.impl_grading_report,
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
