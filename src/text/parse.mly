@@ -114,6 +114,9 @@
 %nonassoc IN
 %nonassoc LET
 %nonassoc ELSE
+%left COMMA
+%nonassoc below_tarrow
+%right TARROW
 %right OR
 %right AND
 %left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL EQUAL
@@ -121,9 +124,7 @@
 %left MULT DIV FMULT FDIV
 %right COLONCOLON
 %left BAR
-%left COMMA
 %left COLON
-%right TARROW
 %nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV TYPE IF SEMICOLON TEST NIL
 %nonassoc app
 
@@ -136,7 +137,7 @@ let main :=
   ~ = expr; EOF; <>
 
 let typ :=
-  | t1 = typ; TARROW; t2 = typ; { mk_utyp (UTyp.Arrow(t1, t2)) } 
+  | t1 = typ; TARROW; t2 = typ; { mk_utyp (UTyp.Arrow(t1, t2)) } %prec below_tarrow
   | ~ = typ_; <>
 
 let typ_ :=
@@ -194,10 +195,6 @@ let tuple :=
 let rule ==
   BAR; p = pat; ARROW; e = expr; { (p, e) }
 
-let fun_def :=
-  | _ = pat; TARROW; _ = expr; { mk_uexp UExp.EmptyHole }
-  | _ = pat; COLON; _ = typ; TARROW; _ = expr; { mk_uexp UExp.EmptyHole }
-
 let simple_expr :=
 (*
 type term =
@@ -206,7 +203,7 @@ type term =
 *)
   | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
   | TRIV; { mk_uexp UExp.Triv }
-  | FUN; ~ = fun_def; <>
+  | FUN; _ = pat; TARROW; ~ = expr; <>
   | TRUE; { mk_uexp (UExp.Bool true) }
   | FALSE; { mk_uexp (UExp.Bool false) }
   | i = INT; { mk_uexp (UExp.Int i) }

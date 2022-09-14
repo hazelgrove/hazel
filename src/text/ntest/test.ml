@@ -39,7 +39,8 @@ let%test "basic let fun" =
   test_parse "let a : Int -> Int = fun x -> x + 1 in a(4)"
 
 let%test "something" = test_parse "let a : [Int] = [1] in a"
-let%test "annotated fun" = test_parse "let f = fun x : Int -> x + 1 in f(0)"
+let%test "annotated fun" = test_parse "fun x : Int -> x"
+let%test "annotated fun2" = test_parse "fun x : Int -> Int -> x"
 (*
   fun x : Int -> x + 1
   FUN pat TARROW e
@@ -49,7 +50,6 @@ let%test "annotated fun" = test_parse "let f = fun x : Int -> x + 1 in f(0)"
   FUN [var COLON ident TARROW typ] PLUS 1
   should be
   fun [x : Int] -> x + 1
-*)
 
 let%test "major" =
   test_parse
@@ -64,6 +64,7 @@ let%test "major" =
     \  fun x : Int -> x + 5 < 0 in\n\
      true && f(a) && f(4) && (g(5) == 6)\n\
     \  "
+*)
 (*
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"
