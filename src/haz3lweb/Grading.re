@@ -190,7 +190,7 @@ module MutationTestingReport = {
       |> List.find_all(((status, _)) => status == TestStatus.Pass)
       |> List.length;
     switch (num_wrong_impls) {
-    | 0 => 0.0
+    | 0 => 1.0
     | _ => float_of_int(num_passed) /. float_of_int(num_wrong_impls)
     };
   };
@@ -255,7 +255,7 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (i, ~inject, ~font_metrics, ~hint: string, ~status) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status) =>
     div(
       ~attr=
         Attr.many([
@@ -287,11 +287,11 @@ module MutationTestingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~font_metrics, coverage_results) =>
+  let individual_reports = (~inject, coverage_results) =>
     div(
       coverage_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~font_metrics, ~hint, ~status)
+           individual_report(i, ~inject, ~hint, ~status)
          ),
     );
 
@@ -352,19 +352,22 @@ module MutationTestingReport = {
   //   };
   // };
 
-  let view = (~font_metrics, ~inject, report: t, max_points: int) => {
-    Cell.panel(
-      ~classes=["test-panel"],
-      [
-        Cell.bolded_caption(
-          "Mutation Testing",
-          ~rest=": Your Tests vs. Buggy Implementations (hidden)",
-        ),
-        individual_reports(~inject, ~font_metrics, report.results),
-      ],
-      ~footer=Some(summary(~inject, ~report, ~max_points)),
-    );
-  };
+  let view = (~inject, report: t, max_points: int) =>
+    if (max_points == 0) {
+      Node.div([]);
+    } else {
+      Cell.panel(
+        ~classes=["test-panel"],
+        [
+          Cell.bolded_caption(
+            "Mutation Testing",
+            ~rest=": Your Tests vs. Buggy Implementations (hidden)",
+          ),
+          individual_reports(~inject, report.results),
+        ],
+        ~footer=Some(summary(~inject, ~report, ~max_points)),
+      );
+    };
 };
 
 module ImplGradingReport = {
@@ -461,7 +464,7 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~font_metrics, ~hint: string, ~status) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status) =>
     div(
       ~attr=
         Attr.many([
@@ -493,15 +496,15 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~font_metrics, ~hinted_results) =>
+  let individual_reports = (~inject, ~hinted_results) =>
     div(
       hinted_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~font_metrics, ~hint, ~status)
+           individual_report(i, ~inject, ~hint, ~status)
          ),
     );
 
-  let view = (~inject, ~font_metrics, ~report: t, ~max_points: int) => {
+  let view = (~inject, ~report: t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -509,11 +512,7 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(
-          ~inject,
-          ~font_metrics,
-          ~hinted_results=report.hinted_results,
-        ),
+        individual_reports(~inject, ~hinted_results=report.hinted_results),
       ],
       ~footer=
         Some(

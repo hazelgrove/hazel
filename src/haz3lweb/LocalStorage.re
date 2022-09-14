@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Haz3lcore;
 open Sexplib.Std;
 
 let save_settings_key: string = "SETTINGS";
