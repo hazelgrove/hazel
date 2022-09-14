@@ -136,9 +136,9 @@ let forms: list((string, t)) = [
   //("fgte", mk_infix("<=.", Exp, P.eqs)),
   //("flte", mk_infix(">=.", Exp, P.eqs)),
   ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
-  ("logical_and", mk_infix("&&", Exp, P.and_)),
+  ("logical_and", mk_infix("and", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
-  ("logical_or", mk_infix("||", Exp, P.or_)),
+  ("logical_or", mk_infix("or", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),
