@@ -48,6 +48,9 @@ echo-html-dir:
 serve:
 	cd $(HTML_DIR); python3 -m http.server 8000
 
+serve2:
+	cd $(HTML_DIR); python3 -m http.server 8001
+
 repl:
 	dune utop src/hazelcore
 
