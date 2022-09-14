@@ -114,13 +114,13 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let rec remold = (seg: t, s: Sort.t) =>
+let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Any => seg
-  | Typ => remold_typ(Nib.Shape.concave(), seg)
-  | Pat => remold_pat(Nib.Shape.concave(), seg)
-  | Exp => remold_exp(Nib.Shape.concave(), seg)
-  | Rul => remold_rul(Nib.Shape.concave(), seg)
+  | Typ => remold_typ(shape, seg)
+  | Pat => remold_pat(shape, seg)
+  | Exp => remold_exp(shape, seg)
+  | Rul => remold_rul(shape, seg)
   | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
@@ -183,6 +183,11 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
       | Some(t) when t.label == Form.get("comma_typ").label => (
           [],
           shape,
@@ -207,6 +212,11 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Typ}) =>
@@ -253,6 +263,11 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => ([], shape, seg)
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
+        ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
         switch (Tile.nibs(t)) {
         | (_, {shape, sort: Pat}) =>
