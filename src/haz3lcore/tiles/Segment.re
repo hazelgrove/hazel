@@ -165,22 +165,10 @@ and remold_typ = (shape, seg: t): t =>
     | Whitespace(_)
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Tile(t) =>
-      let t_remolded =
-        Molds.get(t.label)
-        |> List.filter((m: Mold.t) => m.out == Typ)
-        |> List.map(mold => {...t, mold})
-        |> (
-          fun
-          | [_] as ts => ts
-          | ts =>
-            ts
-            |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-        )
-        |> ListUtil.hd_opt;
-      switch (t_remolded) {
+      switch (remold_tile(Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
       | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
-      };
+      }
     }
   }
 and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
