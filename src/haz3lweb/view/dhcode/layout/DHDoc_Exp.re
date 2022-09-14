@@ -15,7 +15,9 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   | Minus => DHDoc_common.precedence_Minus
   | Equals => DHDoc_common.precedence_Equals
   | LessThan => DHDoc_common.precedence_LessThan
+  | LessThanOrEqual => DHDoc_common.precedence_LessThan
   | GreaterThan => DHDoc_common.precedence_GreaterThan
+  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
 let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   switch (bfo) {
@@ -25,7 +27,9 @@ let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   | FMinus => DHDoc_common.precedence_Minus
   | FEquals => DHDoc_common.precedence_Equals
   | FLessThan => DHDoc_common.precedence_LessThan
+  | FLessThanOrEqual => DHDoc_common.precedence_LessThan
   | FGreaterThan => DHDoc_common.precedence_GreaterThan
+  | FGreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
@@ -80,7 +84,9 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
     | Times => "*"
     | Divide => "/"
     | LessThan => "<"
+    | LessThanOrEqual => "<="
     | GreaterThan => ">"
+    | GreaterThanOrEqual => ">="
     | Equals => "=="
     },
   );
@@ -93,7 +99,9 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FTimes => "*."
     | FDivide => "/."
     | FLessThan => "<."
+    | FLessThanOrEqual => "<=."
     | FGreaterThan => ">."
+    | FGreaterThanOrEqual => ">=."
     | FEquals => "==."
     },
   );

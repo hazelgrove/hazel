@@ -78,8 +78,10 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_triv = str => str == "triv";
 let is_bool = str => str == "true" || str == "false";
+let is_bool_op_kw = str => str == "and" || str == "or";
 let is_listnil = str => str == "nil";
-let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
+let is_reserved = str =>
+  is_listnil(str) || is_bool(str) || is_triv(str) || is_bool_op_kw(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_concrete_typ = str =>
   str == "Int" || str == "Float" || str == "Bool" || str == "Unit";
@@ -123,8 +125,8 @@ let forms: list((string, t)) = [
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
   //("not_equals", mk_infix("!=", Exp, 5)),
-  //("gte", mk_infix("<=", Exp, P.eqs)),
-  //("lte", mk_infix(">=", Exp, P.eqs)),
+  ("gte", mk_infix("<=", Exp, P.eqs)),
+  ("lte", mk_infix(">=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("fminus", mk_infix("-.", Exp, P.plus)),
   ("ftimes", mk_infix("*.", Exp, P.mult)),
@@ -133,12 +135,15 @@ let forms: list((string, t)) = [
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
   ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
-  //("fgte", mk_infix("<=.", Exp, P.eqs)),
-  //("flte", mk_infix(">=.", Exp, P.eqs)),
+  ("fgte", mk_infix("<=.", Exp, P.eqs)),
+  ("flte", mk_infix(">=.", Exp, P.eqs)),
+  ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
   ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
+  ("logical_and", mk_infix("and", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
+  ("logical_or", mk_infix("or", Exp, P.or_)),
   ("dot", mk(ss, ["."], mk_op(Any, []))), // HACK: SUBSTRING REQ (floats)
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("comma_exp", mk_infix(",", Exp, P.prod)),

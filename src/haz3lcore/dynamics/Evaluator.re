@@ -453,7 +453,9 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | Times => IntLit(n1 * n2)
   | Divide => IntLit(n1 / n2)
   | LessThan => BoolLit(n1 < n2)
+  | LessThanOrEqual => BoolLit(n1 <= n2)
   | GreaterThan => BoolLit(n1 > n2)
+  | GreaterThanOrEqual => BoolLit(n1 >= n2)
   | Equals => BoolLit(n1 == n2)
   };
 };
@@ -469,7 +471,9 @@ let eval_bin_float_op =
   | FTimes => FloatLit(f1 *. f2)
   | FDivide => FloatLit(f1 /. f2)
   | FLessThan => BoolLit(f1 < f2)
+  | FLessThanOrEqual => BoolLit(f1 <= f2)
   | FGreaterThan => BoolLit(f1 > f2)
+  | FGreaterThanOrEqual => BoolLit(f1 >= f2)
   | FEquals => BoolLit(f1 == f2)
   };
 };
