@@ -106,6 +106,7 @@ let result_summary_str =
   let mny_q = Printf.sprintf("%d are %s ", q, q_str);
   let of_n = Printf.sprintf("Out of %d %s, ", n, ns_str);
   switch (n, p, q) {
+  | (0, _, _) => "No " ++ ns_str ++ " available."
   | (_, 0, 0) => "All " ++ ns_str ++ " " ++ r_str ++ "! "
   | (n, _, c) when n == c => "All " ++ ns_str ++ " " ++ q_str ++ " "
   | (n, f, _) when n == f => "All " ++ ns_str ++ " " ++ p_str ++ " "
