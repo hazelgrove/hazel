@@ -53,6 +53,3 @@ let subtract_prefix =
 //TODO(andrew): is this correct in the case of duplicates?
 let union: list(co) => co =
   List.fold_left((free1, free2) => free1 @ free2, []);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = ctx(Typ.t);
