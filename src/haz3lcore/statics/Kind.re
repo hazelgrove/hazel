@@ -2,7 +2,7 @@
 type t =
   | Unknown
   | Abstract
-  | Singleton(Typ.t);
+  | Singleton(TypBase.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
