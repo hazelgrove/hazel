@@ -16,7 +16,9 @@ module rec DHExp: {
       | Times
       | Divide
       | LessThan
+      | LessThanOrEqual
       | GreaterThan
+      | GreaterThanOrEqual
       | Equals;
   };
 
@@ -28,7 +30,9 @@ module rec DHExp: {
       | FTimes
       | FDivide
       | FLessThan
+      | FLessThanOrEqual
       | FGreaterThan
+      | FGreaterThanOrEqual
       | FEquals;
   };
 
@@ -95,7 +99,9 @@ module rec DHExp: {
       | Times
       | Divide
       | LessThan
+      | LessThanOrEqual
       | GreaterThan
+      | GreaterThanOrEqual
       | Equals;
   };
 
@@ -107,7 +113,9 @@ module rec DHExp: {
       | FTimes
       | FDivide
       | FLessThan
+      | FLessThanOrEqual
       | FGreaterThan
+      | FGreaterThanOrEqual
       | FEquals;
   };
 
