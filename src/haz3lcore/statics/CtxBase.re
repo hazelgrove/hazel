@@ -10,20 +10,20 @@ type entry('item) = {
 type ctx('item) = VarMap.t_(entry('item));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type co_item = {
+type co_item('mode) = {
   id: Id.t,
-  mode: Typ.mode,
+  mode: 'mode,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type co_entry = list(co_item);
+type co_entry('mode) = list(co_item('mode));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type co = VarMap.t_(co_entry);
+type co_ctx('mode) = VarMap.t_(co_entry('mode));
 
 let empty = VarMap.empty;
 
-let subtract = (ctx: ctx('item), free: co): co =>
+let subtract = (ctx: ctx('item), free: co_ctx('mode)): co_ctx('mode) =>
   VarMap.filter(
     ((k, _)) =>
       switch (VarMap.lookup(ctx, k)) {
@@ -51,5 +51,5 @@ let subtract_prefix =
 };
 
 //TODO(andrew): is this correct in the case of duplicates?
-let union: list(co) => co =
-  List.fold_left((free1, free2) => free1 @ free2, []);
+let union = (co_ctxs: list(co_ctx('mode))): co_ctx('mode) =>
+  List.fold_left((free1, free2) => free1 @ free2, [], co_ctxs);

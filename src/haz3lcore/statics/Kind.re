@@ -8,3 +8,7 @@ type t =
 type self =
   | Just(t)
   | Free;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Syn;
