@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open ExerciseUtil;
 
 let exercise: SchoolExercise.spec = {
   title: "Oddly Recursive",
@@ -10,9 +11,17 @@ let exercise: SchoolExercise.spec = {
   },
   prompt:
     div([
-      text(
-        "Write tests cases for, and then implement, a function odd that recursively determines whether a given integer is odd.",
-      ),
+      p([
+        text(
+          "Write a function that determines whether the given integer is odd. ",
+        ),
+      ]),
+      p([
+        code("odd n"),
+        text(" should return true iff "),
+        code("n"),
+        text(" is odd."),
+      ]),
     ]),
   prelude: "let not : Bool -> Bool =
 fun x ->

@@ -1608,3 +1608,8 @@ svg.tile-selected {
 }
 
 /* END TOGGLE */
+
+/* Exercises */
+.exercise-code {
+  font-family: "Source Code Pro", monospace;
+}
