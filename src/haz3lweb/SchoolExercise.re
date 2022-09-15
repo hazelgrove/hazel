@@ -36,6 +36,7 @@ let validate_point_distribution =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   next_id: Id.t,
+  title: string,
   prompt: [@opaque] Node.t,
   point_distribution,
   prelude: 'code,
@@ -220,6 +221,7 @@ let eds_of_spec: spec => eds =
   (
     {
       next_id,
+      title,
       prompt,
       point_distribution,
       prelude,
@@ -261,6 +263,7 @@ let eds_of_spec: spec => eds =
     };
     {
       next_id: id,
+      title,
       prompt,
       point_distribution,
       prelude,
@@ -342,6 +345,7 @@ let unpersist_state =
       pos,
       eds: {
         next_id: id,
+        title: spec.title,
         prompt: spec.prompt,
         point_distribution: spec.point_distribution,
         prelude,

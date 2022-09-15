@@ -67,6 +67,8 @@ let view =
     );
   };
 
+  let title_view = Cell.title_cell(eds.title);
+
   let prompt_view =
     Cell.narrative_cell(
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
@@ -305,7 +307,7 @@ let view =
 
   div(
     ~attr=Attr.classes(["editor", "column"]),
-    [prompt_view]
+    [title_view, prompt_view]
     @ render_cells(
         settings,
         [
