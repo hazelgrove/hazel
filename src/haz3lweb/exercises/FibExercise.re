@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 let exercise: SchoolExercise.spec = {
-  next_id: 0,
+  title: "Recursive Fibonacci",
   point_distribution: {
     test_validation: 10,
     mutation_testing: 40,
@@ -57,4 +57,5 @@ test fib(7) == 21 end;
 test fib(8) == 34 end;",
     hints: ["base case 0", "base case 1"],
   },
+  next_id: 0,
 };

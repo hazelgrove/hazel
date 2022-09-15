@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 let exercise: SchoolExercise.spec = {
-  next_id: 0,
+  title: "Oddly Recursive",
   point_distribution: {
     test_validation: 10,
     mutation_testing: 40,
@@ -61,4 +61,5 @@ test not(odd(2)) end;
 test odd(42) end",
     hints: ["zero"],
   },
+  next_id: 0,
 };

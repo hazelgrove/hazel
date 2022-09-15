@@ -345,3 +345,14 @@ let panel = (~classes=[], content, ~footer: option(Node.t)) => {
     @ Option.to_list(footer),
   );
 };
+
+let title_cell = title => {
+  simple_cell_view([
+    Node.(
+      div(
+        ~attr=Attr.class_("title-cell"),
+        [Node.(div(~attr=Attr.class_("title-text"), [text(title)]))],
+      )
+    ),
+  ]);
+};
