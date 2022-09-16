@@ -1,3 +1,5 @@
+let paren = ["(", ")"];
+
 let comma = [","];
 
 let fun_ = ["fun", "->"];

@@ -60,37 +60,82 @@ exception Nonconvex_segment;
 [@deriving show({with_path: false})]
 type ip = (int, Piece.t);
 
-type rel =
-  | Lt
-  | Eq
-  | Gt;
+// when
+//   Precedence.compare(prec', prec) < 0
+//   || Precedence.compare(prec', prec) == 0
+//   && Precedence.associativity(prec') != Some(Left) => stacks
 
-let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
+// let rel_prec = (p1, p2) =>
+//   switch (Piece.shapes(p1), Piece.shapes(p2)) {
+//   | (None, _)
+//   | (_, None) => None
+//   | (Some((_, r1)), Some((l2, _))) =>
+//     switch (r1, l2) {
+//     | (Convex, Convex) => None
+//     | (Convex, Concave(_)) => Some(Lt)
+//     | (Concave(_), Convex) => Some(Gt)
+//     | (Concave({prec: p1, _}), Concave({prec: p2, _})) =>
+//       let c = Precedence.compare(p1, p2);
+//       if (c < 0) {
+//         Some(Lt)
+//       } else if (c > 0) {
+//         Some(Gt)
+//       } else {
+//         switch (Precedence.associativity(prec)) {
+//         | None => Some(Eq)
+//         | Some(Left) => Some(Gt)
+//         | Some(Right) => Some(Lt)
+//         }
+//       }
+//     }
+//   };
+
+let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
   switch (p1, p2) {
   | (Whitespace(_), _)
   | (_, Whitespace(_)) => None
   | (
       Grout({shape: Concave, sort: s1, _}),
       Grout({shape: Concave, sort: s2, _}),
-    )
-      when Sort.eq(s1, s2) =>
-    Some(Eq)
-  | (Grout({shape: Concave, sort, _}), Tile(t))
-      when !Tile.has_end(Left, t) && sort == t.mold.out =>
-    Some(Eq)
-  | (Tile(t), Grout({shape: Concave, sort, _}))
-      when !Tile.has_end(Right, t) && sort == t.mold.out =>
-    Some(Eq)
-  | (Grout({shape, _}), _) =>
-    switch (shape) {
-    | Convex => Some(Gt)
-    | Concave => Some(Lt)
-    }
-  | (_, Grout({shape, _})) =>
-    switch (shape) {
-    | Convex => Some(Lt)
-    | Concave => Some(Gt)
-    }
+    ) =>
+    Sort.ord(s1, s2) |> Option.map(Ord.flip)
+  | (Grout({shape: Concave, sort, _}), Tile(t)) when !Tile.has_end(Left, t) =>
+    assert(Nib.Shape.is_concave(fst(Tile.shapes(t))));
+    Sort.ord(sort, t.mold.out) |> Option.map(Ord.flip);
+  | (Tile(t), Grout({shape: Concave, sort, _})) when !Tile.has_end(Right, t) =>
+    // if (t.label == Labels.paren) {
+    //   print_endline("tile-grout");
+    //   print_endline(Tile.show(t));
+    //   print_endline(Grout.show(g));
+    // };
+    assert(Nib.Shape.is_concave(snd(Tile.shapes(t))));
+    Sort.ord(t.mold.out, sort) |> Option.map(Ord.flip);
+  | (Grout({shape, sort, _}), _) =>
+    let sort' = Option.get(Piece.sort(p2));
+    switch (Sort.ord(sort, sort') |> Option.map(Ord.flip)) {
+    | None
+    | Some(Eq) =>
+      switch (shape) {
+      | Convex => Some(Gt)
+      | Concave => Some(Lt)
+      }
+    | r => r
+    };
+  | (_, Grout({shape, sort, _})) =>
+    let sort' = Option.get(Piece.sort(p1));
+    switch (Sort.ord(sort', sort) |> Option.map(Ord.flip)) {
+    | None
+    | Some(Eq) =>
+      switch (shape) {
+      | Convex => Some(Lt)
+      | Concave => Some(Gt)
+      }
+    | r => r
+    };
+  // switch (shape) {
+  // | Convex => Some(Lt)
+  // | Concave => Some(Gt)
+  // }
   | (Tile(t1), Tile(t2)) =>
     open Labels;
     let lbl1 = (==)(t1.label);
@@ -112,9 +157,10 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
       | (Concave(_), Convex) => Some(Lt)
       | (Convex, Concave(_)) => Some(Gt)
       | (Concave({prec: p, _}), Concave({prec: p', _})) =>
-        if (p < p') {
+        let c = Precedence.compare(p, p');
+        if (c < 0) {
           Some(Lt);
-        } else if (p > p') {
+        } else if (c > 0) {
           Some(Gt);
         } else {
           switch (Precedence.associativity(p)) {
@@ -126,7 +172,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
             // want to bother with mold concerns here
             None
           };
-        }
+        };
       };
     };
   };
@@ -160,29 +206,23 @@ module Stacks = {
   let shapes = p =>
     Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_whitespace);
 
-  let shapes_of_chain =
-      (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
+  let ends_of_chain = (chain: list(ip)): option((ip, ip)) =>
     switch (chain, ListUtil.split_last_opt(chain)) {
-    | ([(_, first), ..._], Some((_, (_, last)))) =>
-      let (l, _) = shapes(first);
-      let (_, r) = shapes(last);
-      Some((l, r));
+    | ([first, ..._], Some((_, last))) => Some((first, last))
     | _ => None
     };
 
-  let rec push_output = (~prec: option(Precedence.t)=?, stacks: t): t => {
+  let rec push_output = (~hd: option(ip)=?, stacks: t): t => {
     let (chain, shunted) = pop_chain(stacks.shunted);
-    switch (prec, shapes_of_chain(chain)) {
-    | (Some(prec), Some((_, Concave({prec: prec', _}))))
-        when
-          Precedence.compare(prec', prec) < 0
-          || Precedence.compare(prec', prec) == 0
-          && Precedence.associativity(prec') != Some(Left) => stacks
+    switch (hd, ends_of_chain(chain)) {
     | (_, None) => stacks
-    | (_, Some((l, r))) =>
+    | (Some((_, hd)), Some((_, (_, r)))) when rel(r, hd) != Some(Gt) => stacks
+    | (_, Some(((_, l), (_, r)))) =>
       let is = List.map(fst, chain);
       let split_kids = n =>
         ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev);
+      let (l, _) = shapes(l);
+      let (_, r) = shapes(r);
       let output =
         switch (l, r) {
         | (Convex, Convex) =>
@@ -202,7 +242,7 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(~prec?, {shunted, output});
+      push_output(~hd?, {shunted, output});
     };
   };
 
@@ -211,7 +251,7 @@ module Stacks = {
     let stacks =
       switch (l) {
       | Convex => stacks
-      | Concave({prec, _}) => push_output(~prec, stacks)
+      | Concave(_) => push_output(~hd=ip, stacks)
       };
     {...stacks, shunted: [ip, ...stacks.shunted]};
   };

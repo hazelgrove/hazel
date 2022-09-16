@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Any
@@ -30,3 +32,15 @@ let to_string =
   | Typ => "Typ"
   | Rul => "Rul"
   | Exp => "Exp";
+
+let ord = (s1: t, s2: t): option(Ord.t) =>
+  switch (s1, s2) {
+  | _ when eq(s1, s2) => Some(Eq)
+  | (Typ, Pat)
+  | (Pat, Exp)
+  | (Typ, Exp) => Some(Lt)
+  | (Pat, Typ)
+  | (Exp, Pat)
+  | (Exp, Typ) => Some(Gt)
+  | _ => None
+  };

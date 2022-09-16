@@ -15,6 +15,11 @@ module Shape = {
   let concave = (~prec=Precedence.min, ~pad=false, ()) =>
     Concave({prec, pad});
 
+  let is_concave =
+    fun
+    | Convex => false
+    | Concave(_) => true;
+
   let fits = (l: t, r: t) =>
     switch (l, r) {
     | (Convex, Concave(_))

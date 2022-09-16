@@ -17,12 +17,13 @@ let get = (f_w, f_g, f_t, p: t) =>
 
 let id = get(w => w.id, Grout.id, Tile.id);
 
-let sort =
-  get(
-    _ => (Sort.Any, []),
-    _ => (Sort.Any, []),
-    t => (t.mold.out, t.mold.in_),
-  );
+// let sort =
+//   get(
+//     _ => (Sort.Any, []),
+//     _ => (Sort.Any, []),
+//     t => (t.mold.out, t.mold.in_),
+//   );
+let sort = get(_ => None, g => Some(g.sort), t => Some(t.mold.out));
 
 let nibs =
   get(
