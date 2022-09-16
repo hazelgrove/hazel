@@ -49,6 +49,46 @@ let load_settings = (): Model.settings =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch_without_history = (int, list(ScratchSlide.persistent_state));
 
+let prep_scratch_in =
+    ((idx, slides): Editors.scratch): scratch_without_history => (
+  idx,
+  List.map(ScratchSlide.persist, slides),
+);
+
+let prep_scratch_out =
+    ((idx, slides): scratch_without_history): Editors.scratch => (
+  idx,
+  List.map(ScratchSlide.unpersist, slides),
+);
+
+let save_scratch = (scratch: Editors.scratch): unit => {
+  set_localstore(
+    save_scratch_key,
+    scratch
+    |> prep_scratch_in
+    |> sexp_of_scratch_without_history
+    |> Sexplib.Sexp.to_string,
+  );
+};
+
+let init_scratch = () => {
+  let scratch = Scratch.init();
+  save_scratch(scratch);
+  scratch;
+};
+
+let load_scratch_without_history = (): scratch_without_history =>
+  switch (get_localstore(save_scratch_key)) {
+  | None => prep_scratch_in(init_scratch())
+  | Some(flag) =>
+    try(flag |> Sexplib.Sexp.of_string |> scratch_without_history_of_sexp) {
+    | _ => prep_scratch_in(init_scratch())
+    }
+  };
+
+let load_scratch = (): Editors.scratch =>
+  load_scratch_without_history() |> prep_scratch_out;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exercise_store = list(option(SchoolExercise.persistent_state));
 
@@ -91,40 +131,6 @@ let prep_school_out =
   },
 );
 
-let prep_scratch_in =
-    ((idx, slides): Editors.scratch): scratch_without_history => (
-  idx,
-  List.map(ScratchSlide.persist, slides),
-);
-
-let prep_scratch_out =
-    ((idx, slides): scratch_without_history): Editors.scratch => (
-  idx,
-  List.map(ScratchSlide.unpersist, slides),
-);
-
-let save_scratch = (scratch: Editors.scratch): unit => {
-  set_localstore(
-    save_scratch_key,
-    scratch
-    |> prep_scratch_in
-    |> sexp_of_scratch_without_history
-    |> Sexplib.Sexp.to_string,
-  );
-};
-
-let load_scratch_without_history = (): scratch_without_history =>
-  switch (get_localstore(save_scratch_key)) {
-  | None => prep_scratch_in(Scratch.init())
-  | Some(flag) =>
-    try(flag |> Sexplib.Sexp.of_string |> scratch_without_history_of_sexp) {
-    | _ => prep_scratch_in(Scratch.init())
-    }
-  };
-
-let load_scratch = (): Editors.scratch =>
-  load_scratch_without_history() |> prep_scratch_out;
-
 let init_exercise_store = (~specs): exercise_store => {
   List.init(List.length(specs), _ => None);
 };
@@ -164,29 +170,29 @@ let save_school =
 let init_school = (~instructor_mode) => {
   let school = School.init(~instructor_mode);
   save_school(school, ~instructor_mode);
+  school;
 };
 
 let rec load_school_without_history =
-        (~specs, ~instructor_mode: bool): school_without_history =>
+        (~instructor_mode: bool): school_without_history =>
   switch (get_localstore(save_school_key)) {
   | None =>
-    init_school(~instructor_mode);
-    load_school_without_history(~specs, ~instructor_mode);
+    let school = init_school(~instructor_mode);
+    prep_school_in(school, [], ~instructor_mode);
   | Some(s) =>
     try(s |> Sexplib.Sexp.of_string |> school_without_history_of_sexp) {
     | _ =>
-      init_school(~instructor_mode);
-      load_school_without_history(~specs, ~instructor_mode);
+      let school = init_school(~instructor_mode);
+      prep_school_in(school, [], ~instructor_mode);
     }
   };
 
 let load_school = (~specs, ~instructor_mode: bool): Editors.school =>
-  load_school_without_history(~specs, ~instructor_mode)
+  load_school_without_history(~instructor_mode)
   |> prep_school_out(~specs, ~instructor_mode);
 
 let load_school_slide = (n, ~specs, ~instructor_mode): SchoolExercise.state => {
-  let (_, exercise_store) =
-    load_school_without_history(~specs, ~instructor_mode);
+  let (_, exercise_store) = load_school_without_history(~instructor_mode);
   let spec = List.nth(specs, n);
   switch (List.nth(exercise_store, n)) {
   | None =>
