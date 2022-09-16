@@ -1622,4 +1622,5 @@ svg.tile-selected {
   font-family: "Source Code Pro", monospace;
   display: inline-flex;
   align-items: center;
+  white-space: pre;
 }
