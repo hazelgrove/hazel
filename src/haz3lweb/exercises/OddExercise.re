@@ -67,7 +67,7 @@ else odd(x - 1) in
     tests: "test not(odd(0)) end;
 test odd(1) end;
 test not(odd(2)) end;
-test odd(42) end",
+test not(odd(42)) end",
     hints: ["zero"],
   },
   next_id: 0,
