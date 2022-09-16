@@ -8,14 +8,15 @@
 
   let mk_uexp term: UExp.t =
     match term with
+    (*FIXME: Inefficient *)
     | UExp.Fun(p, e) -> {UExp.ids = [mk_id ()]@p.ids@e.ids; term}
     | _ -> {UExp.ids = [mk_id ()]; term}
 
   let mk_upat term =
-    {UPat.ids = [0]; term}
+    {UPat.ids = [mk_id ()]; term}
 
   let mk_utyp term =
-    {UTyp.ids = [0]; term}
+    {UTyp.ids = [mk_id ()]; term}
 
   type optok =
     (* Int *)
@@ -180,11 +181,8 @@ let expr :=
   | e1 = expr; e2 = expr; { mk_uexp (UExp.Ap(e1, e2)) } %prec app
   | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
   (* FIXME: This might allow a match with no rules? *)
-  | ~ = tuple; <>
+  | e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
   | ~ = expr_; <>
-
-let tuple :=
-  e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
 
 let rule ==
   BAR; p = pat; ARROW; e = expr; { (p, e) }

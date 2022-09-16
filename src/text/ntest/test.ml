@@ -18,11 +18,11 @@ open Text.Parsing
 let test_parse text : bool =
   let ast = ast_of_string text in
   match ast with
-  | Ok _ ->
-      (*
+  | Ok b ->
       let c = Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t b) in
+      print_endline ("Test: " ^ text);
       print_endline c;
-      *)
+      print_endline "";
       true
   | Error e ->
       print_endline ("Error: " ^ e);
@@ -38,9 +38,11 @@ let%test "something" = test_parse "let a : [Int] = [1] in a"
 
 let%test "basic let fun" =
   test_parse "let a : Int -> Int = fun x -> x + 1 in a(4)"
+
 let%test "annotated fun" = test_parse "fun (x : Int) -> x"
 let%test "annotated fun2" = test_parse "fun (x : Int -> Int) -> x"
 
+(*
 let%test "major" =
   test_parse
     "let a = 2 in\n\
@@ -54,7 +56,6 @@ let%test "major" =
     \  fun (x : Int) -> x + 5 < 0 in\n\
      true && f(a) && f(4) && (g(5) == 6)\n\
     \  "
-(*
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
