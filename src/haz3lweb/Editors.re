@@ -63,7 +63,7 @@ let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   | Scratch(n, slides) =>
     let slide = List.nth(slides, n);
     ScratchSlide.spliced_elabs(slide);
-  | School(n, _, exercise) => SchoolExercise.spliced_elabs(exercise)
+  | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };
 };
 
