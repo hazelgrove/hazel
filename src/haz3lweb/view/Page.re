@@ -237,8 +237,7 @@ let main_ui_view =
         ~result,
       ),
     ];
-  | School(n, exercises) =>
-    let exercise = List.nth(exercises, n);
+  | School(_, _, exercise) =>
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;
