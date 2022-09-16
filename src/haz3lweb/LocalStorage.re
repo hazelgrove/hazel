@@ -162,7 +162,7 @@ let save_school =
 };
 
 let init_school = (~instructor_mode) => {
-  let (_, specs, _) as school = School.init(~instructor_mode);
+  let school = School.init(~instructor_mode);
   save_school(school, ~instructor_mode);
 };
 
