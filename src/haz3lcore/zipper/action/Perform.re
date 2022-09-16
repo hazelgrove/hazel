@@ -79,7 +79,6 @@ let go =
     (a: Action.t, ed: Editor.t, id_gen: IdGen.state)
     : Action.Result.t((Editor.t, IdGen.state)) =>
   if (ed.read_only && is_write_action(a)) {
-    print_endline("READONLY");
     Result.Ok((ed, id_gen));
   } else {
     open Result.Syntax;

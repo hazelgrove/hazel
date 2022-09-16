@@ -19,6 +19,7 @@ type t =
   | Mousedown
   | Mouseup
   | LoadDefault
+  | ResetSlide
   | Save
   | ToggleMode
   | SwitchSlide(int)
@@ -192,6 +193,7 @@ let reevaluate_post_update =
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | LoadDefault
+  | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
@@ -233,6 +235,27 @@ let apply =
     | Mouseup => Ok({...model, mousedown: false})
     | LoadDefault => Ok(load_default_editor(model))
     | Save =>
+      save(model);
+      Ok(model);
+    | ResetSlide =>
+      let model =
+        switch (model.editors) {
+        | Scratch(n, slides) =>
+          let slides = Util.ListUtil.put_nth(n, Scratch.init_nth(n), slides);
+          {...model, editors: Scratch(n, slides)};
+        | School(n, specs, _) =>
+          let instructor_mode = model.settings.instructor_mode;
+          {
+            ...model,
+            editors:
+              School(
+                n,
+                specs,
+                List.nth(specs, n)
+                |> SchoolExercise.state_of_spec(~instructor_mode),
+              ),
+          };
+        };
       save(model);
       Ok(model);
     | SwitchSlide(n) =>

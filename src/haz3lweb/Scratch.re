@@ -59,3 +59,7 @@ in
 let init = (): Editors.scratch => {
   (0, List.map(ScratchSlide.init, defaults));
 };
+
+let init_nth = n => {
+  ScratchSlide.init(List.nth(defaults, n));
+};
