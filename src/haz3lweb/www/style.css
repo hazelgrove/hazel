@@ -1210,20 +1210,21 @@ svg.tile-selected {
   /* padding-left: 0.2em;*/
 }
 
-.bottom-bar .cursor-inspector .icon {
+.bottom-bar .cursor-inspector .gamma {
   background-color: #b69f79;
   padding: 0.16em;
   display: flex;
-  filter: invert(0.9) sepia(1);
   border-radius: 0 1.1em 0 0;
-  /*border-radius: 0 0.3em 0.3em 0;*/
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  color: var(--light-page-color);
 }
 
 /* DYNAMICS */
 
 .cell-result {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.5em;
   /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
@@ -1618,4 +1619,6 @@ svg.tile-selected {
 .equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
+  display: flex;
+  align-items: center;
 }

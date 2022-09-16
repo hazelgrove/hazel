@@ -100,7 +100,7 @@ let term_tag = (is_err, sort) =>
       Attr.many([
         clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
       ]),
-    [div(~attr=clss(["icon"]), [Icons.magnify]), text(sort)],
+    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort)],
   );
 
 let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {

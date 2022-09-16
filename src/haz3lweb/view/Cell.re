@@ -202,7 +202,10 @@ let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   Node.(
     div(
       ~attr=Attr.classes(["cell-item", "cell-result"]),
-      [div(~attr=Attr.classes(["result"]), d_view)],
+      [
+        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+        div(~attr=Attr.classes(["result"]), d_view),
+      ],
     )
   );
 };
