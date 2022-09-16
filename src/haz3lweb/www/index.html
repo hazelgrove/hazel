@@ -19,6 +19,8 @@
           <img width="200px" height="200px" src="img/hazelnut.svg" style="position:fixed; transform: scale(0.25); filter: invert()"/>
         </div>
         <p style="font-size:4em; color: black;">loading</p>
+        <p>if the program is taking too long to load, please click the button below</p>
+        <button id = "reload" type="button" onclick="localStorage.clear(); location.reload(), document.getElementById('reload').innerHTML='loading';">clear and reload</button>
       </div>
     </div>
   </body>
