@@ -448,6 +448,7 @@ svg {
 .editor {
   display: flex;
   justify-content: space-between;
+  padding-bottom: 3em;
 }
 
 .editor.column {
