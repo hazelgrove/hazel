@@ -1223,7 +1223,7 @@ svg.tile-selected {
 
 .cell-result {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.5em;
   /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
@@ -1618,4 +1618,6 @@ svg.tile-selected {
 .equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
+  display: flex;
+  align-items: center;
 }
