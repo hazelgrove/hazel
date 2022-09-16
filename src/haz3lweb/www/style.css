@@ -1620,6 +1620,6 @@ svg.tile-selected {
 .equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
-  display: flex;
+  display: inline-flex;
   align-items: center;
 }
