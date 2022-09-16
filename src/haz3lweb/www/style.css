@@ -1611,5 +1611,11 @@ svg.tile-selected {
 
 /* Exercises */
 .exercise-code {
+  white-space: nowrap;
+  font-family: "Source Code Pro", monospace;
+}
+
+.equiv {
+  white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }
