@@ -18,7 +18,9 @@ let exercise: SchoolExercise.spec = {
       ]),
       p([
         code("odd n"),
-        text(" should return true iff "),
+        text(" should return "),
+        code("true"),
+        text(" iff "),
         code("n"),
         text(" is odd."),
       ]),
