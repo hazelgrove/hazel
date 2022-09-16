@@ -193,6 +193,12 @@ let top_bar_view =
           ~tooltip="Redo",
         ),
         editor_mode_toggle_view(~inject, ~model),
+        button_d(
+          Icons.trash,
+          inject(ResetSlide),
+          ~disabled=false,
+          ~tooltip="Reset",
+        ),
       ],
     );
   let top_right_bar =
