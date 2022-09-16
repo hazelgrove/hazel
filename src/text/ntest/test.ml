@@ -34,22 +34,12 @@ let%test "let basic" = test_parse "let a = 1 in a"
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f -> f"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
+let%test "something" = test_parse "let a : [Int] = [1] in a"
 
 let%test "basic let fun" =
   test_parse "let a : Int -> Int = fun x -> x + 1 in a(4)"
-
-let%test "something" = test_parse "let a : [Int] = [1] in a"
-let%test "annotated fun" = test_parse "fun x : Int -> x"
-let%test "annotated fun2" = test_parse "fun x : Int -> Int -> x"
-(*
-  fun x : Int -> x + 1
-  FUN pat TARROW e
-
-  conflicts with
-  fun [x : Int -> x] + 1
-  FUN [var COLON ident TARROW typ] PLUS 1
-  should be
-  fun [x : Int] -> x + 1
+let%test "annotated fun" = test_parse "fun (x : Int) -> x"
+let%test "annotated fun2" = test_parse "fun (x : Int -> Int) -> x"
 
 let%test "major" =
   test_parse
@@ -61,10 +51,9 @@ let%test "major" =
      let x =\n\
     \  fun q -> if q < 0 then false else true in\n\
      let f =\n\
-    \  fun x : Int -> x + 5 < 0 in\n\
+    \  fun (x : Int) -> x + 5 < 0 in\n\
      true && f(a) && f(4) && (g(5) == 6)\n\
     \  "
-*)
 (*
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"

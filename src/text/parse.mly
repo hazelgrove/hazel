@@ -114,18 +114,16 @@
 %nonassoc IN
 %nonassoc LET
 %nonassoc ELSE
-%left COMMA
-%nonassoc below_tarrow
+%right COMMA
+%right COLON
 %right TARROW
 %right OR
 %right AND
-%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL EQUAL
+%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
 %right COLONCOLON
-%left BAR
-%left COLON
-%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV TYPE IF SEMICOLON TEST NIL
+%nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV IF SEMICOLON TEST NIL
 %nonassoc app
 
 %start main
@@ -137,7 +135,7 @@ let main :=
   ~ = expr; EOF; <>
 
 let typ :=
-  | t1 = typ; TARROW; t2 = typ; { mk_utyp (UTyp.Arrow(t1, t2)) } %prec below_tarrow
+  | t1 = typ; TARROW; t2 = typ_; { mk_utyp (UTyp.Arrow(t1, t2)) }
   | ~ = typ_; <>
 
 let typ_ :=
@@ -179,15 +177,11 @@ let pat_ :=
 let expr :=
   | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
   | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
-  | ~ = tuple; <>
-  | ~ = simple_expr; <>
-  | ~ = expr_; <>
-
-let expr_ :=
   | e1 = expr; e2 = expr; { mk_uexp (UExp.Ap(e1, e2)) } %prec app
   | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
   (* FIXME: This might allow a match with no rules? *)
-  | CASE; e = expr; ruls = list(rule); END; { mk_uexp (UExp.Match(e, ruls))}
+  | ~ = tuple; <>
+  | ~ = expr_; <>
 
 let tuple :=
   e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
@@ -195,12 +189,7 @@ let tuple :=
 let rule ==
   BAR; p = pat; ARROW; e = expr; { (p, e) }
 
-let simple_expr :=
-(*
-type term =
-    | Invalid(parse_flag)
-    | MultiHole(list(Any.t))
-*)
+let expr_ :=
   | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
   | TRIV; { mk_uexp UExp.Triv }
   | FUN; _ = pat; TARROW; ~ = expr; <>
@@ -222,10 +211,13 @@ type term =
     { mk_uexp (UExp.If(e1, e2, e3)) }
   | TEST; e = expr; END; { mk_uexp (UExp.Test e)}
   | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
+  | CASE; e = expr; ruls = list(rule); END; { mk_uexp (UExp.Match(e, ruls))}
+  (*
   | MINUS; i = INT; {
     mk_uexp (UExp.UnOp(UExp.Int(Minus),  
     mk_uexp (UExp.Int(i))))
   } 
+  *)
 
 let infix_op ==
     | PLUS; {op_of_optok Plus}
