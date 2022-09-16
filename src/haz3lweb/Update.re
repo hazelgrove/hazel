@@ -154,11 +154,11 @@ let load_editor = (model: Model.t): Model.t => {
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
   | Scratch(_) =>
-    let (idx, editors) = Scratch.init();
+    let (idx, editors) = LocalStorage.init_scratch();
     {...model, editors: Scratch(idx, editors)};
   | School(_) =>
     let instructor_mode = model.settings.instructor_mode;
-    let (n, specs, exercise) = School.init(~instructor_mode);
+    let (n, specs, exercise) = LocalStorage.init_school(~instructor_mode);
     {...model, editors: School(n, specs, exercise)};
   };
 
