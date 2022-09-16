@@ -126,8 +126,8 @@ let forms: list((string, t)) = [
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
   //("not_equals", mk_infix("!=", Exp, 5)),
-  //("gte", mk_infix("<=", Exp, P.eqs)),
-  //("lte", mk_infix(">=", Exp, P.eqs)),
+  ("gte", mk_infix("<=", Exp, P.eqs)),
+  ("lte", mk_infix(">=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("fminus", mk_infix("-.", Exp, P.plus)),
   ("ftimes", mk_infix("*.", Exp, P.mult)),
@@ -136,8 +136,9 @@ let forms: list((string, t)) = [
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
   ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
-  //("fgte", mk_infix("<=.", Exp, P.eqs)),
-  //("flte", mk_infix(">=.", Exp, P.eqs)),
+  ("fgte", mk_infix("<=.", Exp, P.eqs)),
+  ("flte", mk_infix(">=.", Exp, P.eqs)),
+  ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
   ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
   //("bitwise_or", mk_infix("|", Exp, 5)),

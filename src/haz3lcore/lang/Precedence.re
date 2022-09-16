@@ -9,10 +9,6 @@ type t = int;
 
 let max: t = 0;
 
-// TODO fix these placeholder values
-let and_ = 5;
-let or_ = 6;
-
 let ap = 1;
 let neg = 2;
 let mult = 3;
@@ -20,18 +16,20 @@ let plus = 4;
 let cons = 5;
 let concat = 6;
 let eqs = 7;
-let ann = 8;
-let prod = 9;
-let if_ = 10;
-let semi = 11;
-let let_ = 12;
+let and_ = 8;
+let or_ = 9;
+let ann = 10;
+let prod = 11;
+let if_ = 12;
+let semi = 13;
+let let_ = 14;
 
-let rule_arr = 13;
-let rule_pre = 14;
-let rule_sep = 15;
-let case_ = 16;
+let rule_arr = 15;
+let rule_pre = 16;
+let rule_sep = 17;
+let case_ = 18;
 
-let min = 17;
+let min = 19;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

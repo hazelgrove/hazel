@@ -2,6 +2,7 @@ open Util;
 
 // TODO(d) clean up this module, overdetermined wrt ids
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Touch(Id.t)
   | Delete(Id.t)

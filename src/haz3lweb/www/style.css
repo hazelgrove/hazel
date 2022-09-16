@@ -258,13 +258,22 @@ svg {
 
 #editor-mode,
 .cell-caption,
-.cell-chapter,
+.cell-prompt,
+.test-panel,
+.test-reports,
+.test-summary,
+.title-bar {
+  font-family: 'Helvetica Neue';
+}
+
+#editor-mode,
+.cell-caption,
+.cell-prompt,
 .test-panel,
 .test-reports,
 .test-summary,
 .title-bar {
   font-size: 0.9rem;
-  font-family: 'Helvetica Neue';
 }
 
 /* TOP BAR */
@@ -272,14 +281,31 @@ svg {
 #top-bar {
   z-index: var(--top-bar-z);
   position: fixed;
-  left: 2.75em;
   box-sizing: border-box;
-  width: 100vw;
+  width: 100%;
+  min-width: fit-content;
   padding: 0.75em;
+  padding-left: 3.5em; /* to accommodate Hazel icon */
+  display: flex;
+  background-color: var(--light-page-color);
+}
+
+#top-bar-content {
+  display: flex;
+  justify-content:space-between;
+  width: 100%;
+  max-width: 68vw;
+}
+
+#top-left-bar {
   display: flex;
   gap: 1em;
-  background-color: var(--light-page-color);
-  /*justify-content: space-between;*/
+}
+
+#top-right-bar {
+  display: flex;
+  justify-content: right;
+  gap: 1em;
 }
 
 #top-bar .menu-icon {
@@ -434,7 +460,6 @@ svg {
 
 .code-container {
   position: relative;
-  margin-bottom: 2em;;
 }
 
 .code {
@@ -447,32 +472,19 @@ svg {
   max-width: 70vw;
 }
 
-.cell-container .cell:not(.school):first-child {
-  border-radius: 0.4em 0.4em 0 0;
+.cell-container .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
 }
 
-.cell-container .cell:nth-child(2) {
-  border-radius: 0.4em 0.4em 0 0;
-}
-.cell-container .cell:last-child {
-  border-radius: 0 0 0.4em 0.4em;
-}
-.cell-container .cell:only-child {
-  border-radius: 0.4em;
+.cell-container .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
 }
 
-.cell-chapter {
+.cell-prompt {
   padding: 1em;
-}
-.cell-chapter::first-letter {
-  color: #c7b480;
-  float: left;
-  font-family: 'Times New Roman';
-  font-size: 32px;
-  line-height: 27px;
-  padding-top: 0px;
-  padding-right: 3px;
-  padding-left: 0px;
+  font-size: 1rem;
 }
 
 .cell {
@@ -1110,7 +1122,6 @@ svg.tile-selected {
   gap: 0.5em;
   /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
-  border-left: 1px solid #c7b480;
   /*max-height: 4.5em;
   min-height: 1.6em;
   overflow-y: auto;*/
@@ -1121,16 +1132,25 @@ svg.tile-selected {
   padding-left: 1.2em;
 }
 
-.cell.selected + .cell-result {
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid rgba(0,0,0,0);
+}
+
+.cell.selected + .cell-item {
   border-left: 1px solid var(--cell-selected-accent);
+}
+
+.cell.deselected + .cell-item {
+  border-left: 1px solid var(--top_bar_icon_fill)
+}
+
+.cell-result {
   background-color: #efe7d6;
 }
 
 .result {
-<<<<<<< HEAD
-  /* max-height: 1.6em; */
-=======
->>>>>>> haz3l-tests
   min-height: 1.6em;
   overflow: hidden;
 }
@@ -1201,7 +1221,6 @@ svg.tile-selected {
 }
 
 .test-panel {
-  border-radius: 0.5em;
   z-index: var(--test-panel-z);
   display: flex;
   flex-direction: column;
@@ -1251,7 +1270,7 @@ svg.tile-selected {
   font-size: 64%;
   vertical-align: super;
 }
-.test-inspector .test-instance:before {
+.test-instance:before {
   position: relative;
   margin-top: 0.2em;
   margin-right: 1em;
@@ -1260,19 +1279,19 @@ svg.tile-selected {
   align-items: center;
 }
 
-.test-inspector  .test-instance.Pass:before,
+.test-instance.Pass:before,
 .test-result.Pass:after {
   content: "✔"; /*"🤩";*/
   color: green;
 }
 
-.test-inspector  .test-instance.Fail:before,
+.test-instance.Fail:before,
 .test-result.Fail:after {
   content: "✘"; /*"🤮";*/
   color: var(--err-color);
 }
 
-.test-inspector  .test-instance.Indet:before,
+.test-instance.Indet:before,
 .test-result.Indet:after{
   content: "?"; /*"🤔";*/
   color: rgb(143, 129, 87);
@@ -1330,14 +1349,7 @@ svg.tile-selected {
   color: #fefcf3;
 }
 
-.test-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-}
-
-.cell .test-report,
-.school-panel .test-report {
+.test-report {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -1348,37 +1360,29 @@ svg.tile-selected {
   cursor: pointer;
 }
 
-.cell .test-summary,
-.school-panel .test-summary {
+.test-summary {
   display: flex;
   flex-direction: row;
   gap: 1em;
-  padding-right: 1em;
   justify-content: space-between;
 }
 
-.cell .test-summary .test-bar,
-.school-panel .test-summary .test-bar {
+.test-bar {
   width: 16em;
   display: flex;
   align-items: center;
   gap: 1px;
 }
 
-.cell .test-text,
-.school-panel .test-text {
+.test-text {
   display: flex;
   gap: 0.5em;
   white-space: nowrap;
 }
 
-.test-text {
-  display: flex;
-  gap: 0.5em;
-}
-
 .test-percent {
   font-weight: bold;
+  font-family: 'Helvetica Neue'
 }
 
 .test-percent.all-pass {
@@ -1387,12 +1391,6 @@ svg.tile-selected {
 
 .test-percent.some-fail {
   color: tan;
-}
-
-.test-bar {
-  display: flex;
-  width: 100%;
-  gap: 1px;
 }
 
 .test-bar .segment:first-child {
