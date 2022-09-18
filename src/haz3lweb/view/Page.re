@@ -2,69 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-
-let button = (~tooltip="", icon, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["icon"]),
-        Attr.on_mousedown(action),
-        Attr.title(tooltip),
-      ]),
-    [icon],
-  );
-
-let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["icon"] @ (disabled ? ["disabled"] : [])),
-        Attr.title(tooltip),
-        Attr.on_mousedown(_ => unless(disabled, action)),
-      ]),
-    [icon],
-  );
-
-let link = (~tooltip="", icon, url) =>
-  div(
-    ~attr=clss(["icon"]),
-    [
-      a(
-        ~attr=
-          Attr.many(
-            Attr.[href(url), title(tooltip), create("target", "_blank")],
-          ),
-        [icon],
-      ),
-    ],
-  );
-
-let toggle = (~tooltip="", label, active, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["toggle-switch"] @ (active ? ["active"] : [])),
-        Attr.on_click(action),
-        Attr.title(tooltip),
-      ]),
-    [div(~attr=clss(["toggle-knob"]), [text(label)])],
-  );
-
-let file_select_button = (~tooltip="", id, icon, on_input) => {
-  /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
-  label(
-    ~attr=Attr.for_(id),
-    [
-      Vdom_input_widgets.File_select.single(
-        ~extra_attrs=[Attr.class_("file-select-button"), Attr.id(id)],
-        ~accept=[`Extension("json")],
-        ~on_input,
-        (),
-      ),
-      div(~attr=Attr.many([clss(["icon"]), Attr.title(tooltip)]), [icon]),
-    ],
-  );
-};
+open Widgets;
 
 let copy_log_to_clipboard = _ => {
   JsUtil.copy_to_clipboard(Log.export());
@@ -154,7 +92,12 @@ let menu_icon =
   );
 
 let top_bar_view =
-    (~inject: Update.t => 'a, ~top_right: option(Node.t)=?, model: Model.t) => {
+    (
+      ~inject: Update.t => 'a,
+      ~toolbar_buttons: list(Node.t),
+      ~top_right: option(Node.t)=?,
+      model: Model.t,
+    ) => {
   let ed = Editors.get_editor(model.editors);
   let can_undo = Editor.can_undo(ed);
   let can_redo = Editor.can_redo(ed);
@@ -185,18 +128,17 @@ let top_bar_view =
               "import-submission",
               Icons.export, // TODO import button
               file => {
-                print_endline("file read...");
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
                 | Some(file) => inject(InitiateImport(file))
-                };
+                }
               },
               ~tooltip="Import Submission",
             ),
             button(
               Icons.trash,
               _ => inject(LoadDefault),
-              ~tooltip="Reset Everything",
+              ~tooltip="Reset All Slides",
             ),
             button(
               Icons.eye,
@@ -223,6 +165,9 @@ let top_bar_view =
           ~tooltip="Redo",
         ),
         editor_mode_toggle_view(~inject, ~model),
+      ]
+      @ toolbar_buttons
+      @ [
         button_d(
           Icons.trash,
           inject(ResetSlide),
@@ -253,8 +198,10 @@ let main_ui_view =
       } as model: Model.t,
     ) => {
   switch (editors) {
-  | Scratch(_) =>
-    let top_bar_view = top_bar_view(~inject, model);
+  | Scratch(idx, slides) =>
+    let toolbar_buttons =
+      ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
+    let top_bar_view = top_bar_view(~inject, ~toolbar_buttons, model);
     let result_key = ScratchSlide.scratch_key;
     let editor = Editors.get_editor(editors);
     let result =
@@ -274,12 +221,19 @@ let main_ui_view =
       ),
     ];
   | School(_, _, exercise) =>
+    let toolbar_buttons = SchoolMode.toolbar_buttons(~inject, editors);
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;
     let overall_score =
       Grading.GradingReport.view_overall_score(grading_report);
-    let top_bar_view = top_bar_view(~inject, model, ~top_right=overall_score);
+    let top_bar_view =
+      top_bar_view(
+        ~inject,
+        model,
+        ~toolbar_buttons,
+        ~top_right=overall_score,
+      );
     [
       top_bar_view,
       SchoolMode.view(
