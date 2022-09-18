@@ -88,3 +88,16 @@ let download_string_file =
   link##.onclick := Dom_html.handler(_ => {Js._true});
   link##click;
 };
+
+let read_file = (file, k) => {
+  let reader = [%js new File.fileReader];
+  reader##readAsText(file);
+  reader##.onload :=
+    Dom.handler(_ => {
+      let result = reader##.result;
+      let option = Js.Opt.to_option(File.CoerceTo.string(result));
+      let data = Option.map(Js.to_string, option);
+      k(data);
+      Js._true;
+    });
+};

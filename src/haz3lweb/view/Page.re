@@ -1,5 +1,4 @@
 open Virtual_dom.Vdom;
-open Virtual_dom.Vdom.Vdom_input_widgets;
 open Node;
 open Util.Web;
 open Haz3lcore;
@@ -51,8 +50,20 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
-let file_upload_button = (~tooltip="", icon, action) => {
-  input;
+let file_select_button = (~tooltip="", id, icon, on_input) => {
+  /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
+  label(
+    ~attr=Attr.for_(id),
+    [
+      Vdom_input_widgets.File_select.single(
+        ~extra_attrs=[Attr.class_("file-select-button"), Attr.id(id)],
+        ~accept=[`Extension("json")],
+        ~on_input,
+        (),
+      ),
+      div(~attr=Attr.many([clss(["icon"]), Attr.title(tooltip)]), [icon]),
+    ],
+  );
 };
 
 let copy_log_to_clipboard = _ => {
@@ -172,15 +183,25 @@ let top_bar_view =
                 ),
               ~tooltip="Export Submission",
             ),
-            button(
-              Icons.eye,
-              _ => inject(Set(WhitespaceIcons)),
-              ~tooltip="Toggle Visible Whitespace",
+            file_select_button(
+              "import-submission",
+              Icons.export, // TODO import button
+              file =>
+                switch (file) {
+                | None => Virtual_dom.Vdom.Effect.Ignore
+                | Some(file) => inject(InitiateImport(file))
+                },
+              ~tooltip="Import Submission",
             ),
             button(
               Icons.trash,
               _ => inject(LoadDefault),
-              ~tooltip="Load Default",
+              ~tooltip="Reset Everything",
+            ),
+            button(
+              Icons.eye,
+              _ => inject(Set(WhitespaceIcons)),
+              ~tooltip="Toggle Visible Whitespace",
             ),
             link(
               Icons.github,

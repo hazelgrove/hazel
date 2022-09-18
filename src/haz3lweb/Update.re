@@ -18,6 +18,8 @@ type t =
   | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
+  | InitiateImport([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+  | FinishImport(option(string))
   | LoadDefault
   | ResetSlide
   | Save
@@ -192,6 +194,8 @@ let reevaluate_post_update =
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | InitiateImport(_)
+  | FinishImport(_)
   | LoadDefault
   | ResetSlide
   | SwitchEditor(_)
@@ -237,6 +241,16 @@ let apply =
     | Save =>
       save(model);
       Ok(model);
+    | InitiateImport(file) =>
+      JsUtil.read_file(file, data => schedule_action(FinishImport(data)));
+      Ok(model);
+    | FinishImport(data) =>
+      switch (data) {
+      | None => Ok(model)
+      | Some(data) =>
+        print_endline(data);
+        Ok(model);
+      }
     | ResetSlide =>
       let model =
         switch (model.editors) {
