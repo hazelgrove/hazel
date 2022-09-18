@@ -164,6 +164,11 @@ let top_bar_view =
               ~tooltip="Export Submission",
             ),
             button(
+              Icons.import,
+              _ => download_editor_state(),
+              ~tooltip="Export Submission",
+            ),
+            button(
               Icons.eye,
               _ => inject(Set(WhitespaceIcons)),
               ~tooltip="Toggle Visible Whitespace",
