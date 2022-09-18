@@ -328,3 +328,8 @@ let view =
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };
+
+let toolbar_buttons = (~inject, _editors) => {
+  let _ = inject;
+  [];
+};

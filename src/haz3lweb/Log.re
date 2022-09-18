@@ -27,9 +27,11 @@ let is_action_logged: Update.t => bool =
   | SetLogoFontMetrics(_)
   | SetShowBackpackTargets(_)
   | InitiateImport(_)
+  | InitiateScratchpadImport(_)
   | UpdateResult(_) => false
   | Set(_)
   | FinishImport(_)
+  | FinishScratchpadImport(_)
   | LoadDefault
   | ResetSlide
   | ToggleMode

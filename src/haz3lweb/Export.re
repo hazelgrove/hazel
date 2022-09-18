@@ -1,5 +1,16 @@
 open Sexplib.Std;
 
+let export_scratchpad = (state: ScratchSlide.state) => {
+  ScratchSlide.persist(state) |> ScratchSlide.yojson_of_persistent_state;
+};
+
+let import_scratchpad = data => {
+  data
+  |> Yojson.Safe.from_string
+  |> ScratchSlide.persistent_state_of_yojson
+  |> ScratchSlide.unpersist;
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   settings: string,
@@ -33,12 +44,8 @@ let download_json = (filename, contents): unit =>
 let import = (data, ~specs) => {
   let all = data |> Yojson.Safe.from_string |> all_of_yojson;
   let settings = LocalStorage.Settings.import(all.settings); // TODO how does it get into model?
-  print_endline("settings imported");
   let instructor_mode = settings.instructor_mode;
   LocalStorage.Scratch.import(all.scratch);
-  print_endline("scratch imported");
   LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
-  print_endline("school imported");
   Log.import(all.log);
-  print_endline("log imported");
 };

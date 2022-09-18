@@ -139,12 +139,14 @@ let reevaluate_post_update =
   | SetLogoFontMetrics(_)
   | Copy
   | UpdateResult(_)
+  | InitiateImport(_)
+  | InitiateScratchpadImport(_)
   | FailedInput(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
-  | InitiateImport(_)
   | FinishImport(_)
+  | FinishScratchpadImport(_)
   | LoadDefault
   | ResetSlide
   | SwitchEditor(_)
@@ -191,19 +193,34 @@ let apply =
       save_editors(model);
       Ok(model);
     | InitiateImport(file) =>
-      print_endline("Initiating import...");
       JsUtil.read_file(file, data => schedule_action(FinishImport(data)));
       Ok(model);
     | FinishImport(data) =>
       switch (data) {
-      | None =>
-        print_endline("No data.");
-        Ok(model);
+      | None => Ok(model)
       | Some(data) =>
-        print_endline("data here!");
         let specs = School.exercises;
         Export.import(data, ~specs);
         Ok(load_model(model));
+      }
+    | InitiateScratchpadImport(file) =>
+      JsUtil.read_file(file, data =>
+        schedule_action(FinishScratchpadImport(data))
+      );
+      Ok(model);
+    | FinishScratchpadImport(data) =>
+      switch (model.editors) {
+      | School(_) => assert(false)
+      | Scratch(idx, slides) =>
+        switch (data) {
+        | None => Ok(model)
+        | Some(data) =>
+          let state = Export.import_scratchpad(data);
+          let slides = Util.ListUtil.put_nth(idx, state, slides);
+          LocalStorage.Scratch.save((idx, slides));
+
+          Ok({...model, editors: Scratch(idx, slides)});
+        }
       }
     | ResetSlide =>
       let model =

@@ -5,30 +5,6 @@ open Util.Web;
 
 type state = (Id.t, Editor.t);
 
-// let res_view = (~font_metrics: FontMetrics.t, eval_result): Node.t =>
-//   div(
-//     ~attr=Attr.classes(["result"]),
-//     [
-//       DHCode.view_tylr(
-//         ~settings=Settings.Evaluation.init,
-//         ~selected_hole_instance=None,
-//         ~font_metrics,
-//         ~width=80,
-//         eval_result,
-//       ),
-//     ],
-//   );
-
-// let mk_results = (r: ProgramResult.t): (DHExp.t, Interface.test_results) => {
-//   let eval_result = r |> ProgramResult.get_dhexp;
-//   let test_results =
-//     r
-//     |> ProgramResult.get_state
-//     |> EvaluatorState.get_tests
-//     |> Interface.mk_results;
-//   (eval_result, test_results);
-// };
-
 let view =
     (
       ~inject,
@@ -64,4 +40,34 @@ let view =
   let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
 
   div(~attr=clss(["editor", "single"]), [editor_view] @ bottom_bar);
+};
+
+let download_slide_state = state => {
+  let data = Export.export_scratchpad(state);
+  Export.download_json("hazel-scratchpad", data);
+};
+
+let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
+  let export_button =
+    Widgets.button(
+      Icons.export,
+      _ => {
+        download_slide_state(state);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Scratchpad",
+    );
+  let import_button =
+    Widgets.file_select_button(
+      "import-scratchpad",
+      Icons.export, // TODO import icon
+      file => {
+        switch (file) {
+        | None => Virtual_dom.Vdom.Effect.Ignore
+        | Some(file) => inject(UpdateAction.InitiateScratchpadImport(file))
+        }
+      },
+      ~tooltip="Import Scratchpad",
+    );
+  [export_button, import_button];
 };
