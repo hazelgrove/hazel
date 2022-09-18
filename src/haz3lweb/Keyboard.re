@@ -22,7 +22,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let restricted = Backpack.restricted(zipper.backpack);
   let now = a => [Update.PerformAction(a), Update.UpdateDoubleTap(None)];
   let now_save_u = u => Update.[u, Save, UpdateDoubleTap(None)];
-  let now_save = a => now_save_u(PerformAction(a));
+  let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
   let toggle = m => (m := ! m^) |> (_ => []);
   switch (k) {
@@ -35,10 +35,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
     switch (key) {
-    | "F1" => print(Log.get_json_update_log_string())
+    | "F1" => print(Log.serialize())
     | "F2" => print(Zipper.show(zipper))
     | "F3" => toggle(Log.debug_update)
-    | "F4" => toggle(Log.debug_keystoke)
+    | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
     | "F6" => []
     | "F7" => []
