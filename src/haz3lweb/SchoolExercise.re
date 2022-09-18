@@ -55,18 +55,6 @@ let key_of = p => {
   (p.title, p.version);
 };
 
-let keystring_of_key = key => {
-  key |> sexp_of_key |> Sexplib.Sexp.to_string;
-};
-
-let keystring_of = p => {
-  key_of(p) |> keystring_of_key;
-};
-
-let key_of_keystring = keystring => {
-  keystring |> Sexplib.Sexp.of_string |> key_of_sexp;
-};
-
 let find_key_opt = (key, specs: list(p('code))) => {
   specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
 };
@@ -92,6 +80,8 @@ type state = {
   pos,
   eds,
 };
+
+let key_of_state = ({eds, _}) => key_of(eds);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (pos, Id.t, list((pos, Zipper.t)));

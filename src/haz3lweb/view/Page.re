@@ -67,26 +67,24 @@ let file_select_button = (~tooltip="", id, icon, on_input) => {
 };
 
 let copy_log_to_clipboard = _ => {
-  Log.append_json_updates_log();
-  JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
+  JsUtil.copy_to_clipboard(Log.export());
   Virtual_dom.Vdom.Effect.Ignore;
 };
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
-  Log.append_json_updates_log();
+  Log.append_updates();
   inject(SwitchSlide(next_ed));
 };
 
 let download_editor_state = (~instructor_mode) => {
-  let specs = School.exercises;
-  let export = Export.all(SchoolSettings.filename, ~specs, ~instructor_mode);
-  Export.download(export);
+  let data = Export.export_all(~instructor_mode);
+  Export.download_json(SchoolSettings.filename, data);
   Virtual_dom.Vdom.Effect.Ignore;
 };
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  Log.append_json_updates_log();
+  Log.append_updates();
   inject(SwitchSlide(prev_ed));
 };
 
@@ -186,11 +184,13 @@ let top_bar_view =
             file_select_button(
               "import-submission",
               Icons.export, // TODO import button
-              file =>
+              file => {
+                print_endline("file read...");
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
                 | Some(file) => inject(InitiateImport(file))
-                },
+                };
+              },
               ~tooltip="Import Submission",
             ),
             button(
