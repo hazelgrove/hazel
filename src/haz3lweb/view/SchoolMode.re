@@ -67,6 +67,57 @@ let coverage_bar = (~inject as _, instances) =>
     ),
   );
 
+let color_highlight_overlay =
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings,
+      ~doc,
+      focal_zipper,
+      _combined_info_map,
+      editor: Editor.t,
+    ) => {
+  let (_, map) = spliced_statics([editor]);
+  let colorings =
+    ColorSteps.to_list(
+      LangDoc.get_color_map(
+        ~inject,
+        ~font_metrics,
+        ~settings,
+        ~doc,
+        Indicated.index(focal_zipper),
+        map,
+      ),
+    );
+  let unselected = Zipper.unselect_and_zip(editor.state.zipper);
+  print_endline(Sexplib.Sexp.to_string(Segment.sexp_of_t(unselected)));
+  let (term, _) = MakeTerm.go(unselected);
+  print_endline(
+    "Term: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(term)),
+  );
+  module Deco =
+    Deco.Deco({
+      let font_metrics = font_metrics;
+      let map = Measured.of_segment(unselected);
+      let show_backpack_targets = false;
+      let (term, terms) = MakeTerm.go(unselected);
+      let info_map = Statics.mk_map(term);
+      let term_ranges = TermRanges.mk(unselected);
+      let tiles = TileMap.mk(unselected);
+    });
+  print_endline("ATTEMPTING TO COLOR");
+  let color_highlight_overlay =
+    List.map(
+      ((id, color)) => {
+        print_endline("Id: " ++ string_of_int(id));
+        Deco.term_highlight(~clss=["highlight-code-" ++ color], id);
+      },
+      colorings,
+    );
+  print_endline("ADDED THE COLOR OVERLAY");
+  color_highlight_overlay;
+};
+
 let coverage_summary = (~inject, instances) => {
   let total = List.length(instances);
   let found =
@@ -446,35 +497,6 @@ let view =
         );
       }
       : [];
-  let colorings =
-    ColorSteps.to_list(
-      LangDoc.get_color_map(
-        ~inject,
-        ~font_metrics,
-        ~settings,
-        ~doc,
-        Indicated.index(focal_zipper),
-        combined_info_map,
-      ),
-    );
-  let map = Measured.of_segment(Zipper.unselect_and_zip(focal_zipper));
-  let unselected = Zipper.unselect_and_zip(focal_zipper);
-  module Deco =
-    Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = map;
-      let show_backpack_targets = false;
-      let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Statics.mk_map(term);
-      let term_ranges = TermRanges.mk(unselected);
-      let tiles = TileMap.mk(unselected);
-    });
-  let color_highlight_overlay =
-    List.map(
-      ((id, color)) =>
-        Deco.term_highlight(~clss=["highlight-code-" ++ color], id),
-      colorings,
-    );
 
   let lang_doc =
     div(
@@ -487,6 +509,17 @@ let view =
         ]),
       [div(~attr=clss(["icon"]), [Icons.circle_question])],
     );
+  let color_highlight_overlay_ =
+    color_highlight_overlay(
+      ~inject,
+      ~font_metrics,
+      ~settings,
+      ~doc,
+      focal_zipper,
+      combined_info_map,
+    );
+  let current_editor = List.nth(editors, selected);
+  let (_, current_editor_map) = spliced_statics([current_editor]);
   div(
     ~attr=Attr.classes(["editor", "column"]),
     (
@@ -496,7 +529,7 @@ let view =
           | 0 => [
               cell_view(
                 ~result_bar=student_imp_res_view,
-                ~overlays=selected == i ? color_highlight_overlay : [],
+                ~overlays=selected == i ? color_highlight_overlay_(ed) : [],
                 i,
                 ed,
               ),
@@ -509,7 +542,7 @@ let view =
                 ],
                 ~overlays=
                   your_tests_layer
-                  @ (selected == i ? color_highlight_overlay : []),
+                  @ (selected == i ? color_highlight_overlay_(ed) : []),
                 i,
                 ed,
               ),
@@ -533,6 +566,7 @@ let view =
       )
       |> List.flatten
     )
+    // TODO When the CI is hidden, langDoc button view weird
     @ [div(~attr=clss(["bottom-bar"]), ci_view @ [lang_doc])]
     @ (
       doc.show
@@ -543,7 +577,7 @@ let view =
             ~settings,
             ~doc,
             Indicated.index(focal_zipper),
-            combined_info_map,
+            current_editor_map,
           ),
         ]
         : []
