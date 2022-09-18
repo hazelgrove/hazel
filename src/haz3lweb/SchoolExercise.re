@@ -37,6 +37,7 @@ let validate_point_distribution =
 type p('code) = {
   next_id: Id.t,
   title: string,
+  version: int,
   prompt: [@opaque] Node.t,
   point_distribution,
   prelude: 'code,
@@ -45,6 +46,29 @@ type p('code) = {
   your_impl: 'code,
   hidden_bugs: list(wrong_impl('code)),
   hidden_tests: hidden_tests('code),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type key = (string, int);
+
+let key_of = p => {
+  (p.title, p.version);
+};
+
+let keystring_of_key = key => {
+  key |> sexp_of_key |> Sexplib.Sexp.to_string;
+};
+
+let keystring_of = p => {
+  key_of(p) |> keystring_of_key;
+};
+
+let key_of_keystring = keystring => {
+  keystring |> Sexplib.Sexp.of_string |> key_of_sexp;
+};
+
+let find_key_opt = (key, specs: list(p('code))) => {
+  specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -222,6 +246,7 @@ let eds_of_spec: spec => eds =
     {
       next_id,
       title,
+      version,
       prompt,
       point_distribution,
       prelude,
@@ -264,6 +289,7 @@ let eds_of_spec: spec => eds =
     {
       next_id: id,
       title,
+      version,
       prompt,
       point_distribution,
       prelude,
@@ -312,7 +338,7 @@ let persistent_state_of_state =
 let unpersist_state =
     (
       (pos, next_id, positioned_zippers): persistent_state,
-      spec: spec,
+      ~spec: spec,
       ~instructor_mode: bool,
     )
     : state => {
@@ -346,6 +372,7 @@ let unpersist_state =
       eds: {
         next_id: id,
         title: spec.title,
+        version: spec.version,
         prompt: spec.prompt,
         point_distribution: spec.point_distribution,
         prelude,

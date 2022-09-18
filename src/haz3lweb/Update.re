@@ -273,8 +273,10 @@ let apply =
         | false => Error(FailedToSwitch)
         | true =>
           let instructor_mode = model.settings.instructor_mode;
+          let spec = List.nth(specs, n);
+          let key = SchoolExercise.key_of(spec);
           let exercise =
-            LocalStorage.load_school_slide(n, ~specs, ~instructor_mode);
+            LocalStorage.load_exercise(key, spec, ~instructor_mode);
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }

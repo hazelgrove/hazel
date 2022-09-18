@@ -20,12 +20,12 @@ type all = {
   log: string,
 };
 
-let all = (filename: string) => {
+let all =
+    (filename: string, ~specs: list(SchoolExercise.spec), ~instructor_mode) => {
   let data: all = {
     scratch:
       Option.get(LocalStorage.get_localstore(LocalStorage.save_scratch_key)),
-    school:
-      Option.get(LocalStorage.get_localstore(LocalStorage.save_school_key)),
+    school: LocalStorage.export_school(~specs, ~instructor_mode),
     settings:
       Option.get(
         LocalStorage.get_localstore(LocalStorage.save_settings_key),

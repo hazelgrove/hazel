@@ -1,4 +1,5 @@
 open Virtual_dom.Vdom;
+open Virtual_dom.Vdom.Vdom_input_widgets;
 open Node;
 open Util.Web;
 open Haz3lcore;
@@ -50,6 +51,10 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
 
+let file_upload_button = (~tooltip="", icon, action) => {
+  input;
+};
+
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
   JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
@@ -61,8 +66,9 @@ let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   inject(SwitchSlide(next_ed));
 };
 
-let download_editor_state = () => {
-  let export = Export.all(SchoolSettings.filename);
+let download_editor_state = (~instructor_mode) => {
+  let specs = School.exercises;
+  let export = Export.all(SchoolSettings.filename, ~specs, ~instructor_mode);
   Export.download(export);
   Virtual_dom.Vdom.Effect.Ignore;
 };
@@ -160,7 +166,10 @@ let top_bar_view =
             ),
             button(
               Icons.export,
-              _ => download_editor_state(),
+              _ =>
+                download_editor_state(
+                  ~instructor_mode=model.settings.instructor_mode,
+                ),
               ~tooltip="Export Submission",
             ),
             button(
