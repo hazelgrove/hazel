@@ -37,3 +37,7 @@ let all =
 
 let download = ({contents, filename}: t): unit =>
   JsUtil.download_string_file(filename, "application/json", contents);
+
+// let import_editor_state = (data) => {
+//  data |> Yojson.Safe.from_string |> Export.all_of_yojson
+// }

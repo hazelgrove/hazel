@@ -24,8 +24,10 @@ let is_action_logged: Update.t => bool =
   | SetFontMetrics(_)
   | SetLogoFontMetrics(_)
   | SetShowBackpackTargets(_)
+  | InitiateImport(_)
   | UpdateResult(_) => false
   | Set(_)
+  | FinishImport(_)
   | LoadDefault
   | ResetSlide
   | ToggleMode
