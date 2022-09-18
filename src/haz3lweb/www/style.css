@@ -1184,6 +1184,10 @@ svg.tile-selected {
   padding: 1em;
 }
 
+.lang-doc .section .explanation-contents .code {
+  font-family: "Source Code Pro", monospace;
+}
+
 .lang-doc .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
@@ -1294,10 +1298,6 @@ svg.expandable path {
 }
 
 .result {
-<<<<<<< HEAD
-  /* max-height: 1.6em; */
-=======
->>>>>>> haz3l-tests
   min-height: 1.6em;
   overflow: hidden;
 }

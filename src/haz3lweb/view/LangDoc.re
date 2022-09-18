@@ -262,6 +262,7 @@ let deco =
       ~inject,
       ~font_metrics,
       ~options,
+      ~group_id,
       ~form_id,
     ) => {
   module Deco =
@@ -278,7 +279,9 @@ let deco =
   let term_lang_doc =
     switch (expandable) {
     | None => []
-    | Some(expandable) => [
+    | Some(expandable) =>
+      print_endline("EXPANDABLE: " ++ string_of_int(expandable));
+      [
         Deco.term_decoration(
           ~id=expandable,
           ((origin, path)) => {
@@ -302,18 +305,49 @@ let deco =
                     clss(["specificity-options-menu", "expandable"]),
                     specificity_style,
                   ]),
-                List.map(
-                  ((id, segment)) => {
+                List.mapi(
+                  (index, (id, segment)) => {
+                    print_endline("Drawing specificity menu items");
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(~unselected=segment, ~map, ~settings);
                     id == form_id
-                      ? Node.div(~attr=clss(["selected"]), [code_view])
-                      : Node.div([code_view]);
+                      ? Node.div(
+                          ~attr=
+                            Attr.many([
+                              clss(["selected"]),
+                              Attr.on_click(_ =>
+                                inject(
+                                  Update.UpdateLangDocMessages(
+                                    LangDocMessages.UpdateGroupSelection(
+                                      group_id,
+                                      index,
+                                    ),
+                                  ),
+                                )
+                              ),
+                            ]),
+                          [code_view],
+                        )
+                      : Node.div(
+                          ~attr=
+                            Attr.on_click(_ =>
+                              inject(
+                                Update.UpdateLangDocMessages(
+                                  LangDocMessages.UpdateGroupSelection(
+                                    group_id,
+                                    index,
+                                  ),
+                                ),
+                              )
+                            ),
+                          [code_view],
+                        );
                   },
                   options,
                 ),
               );
+            print_endline("TRYING TO DRAW EXPANDABLE");
             let expandable_deco =
               DecUtil.code_svg(
                 ~font_metrics,
@@ -322,6 +356,7 @@ let deco =
                 ~abs_pos=false,
                 path,
               );
+            print_endline("FINISHED DRAWING EXPANDABLE");
             Node.div(
               ~attr=
                 Attr.many([
@@ -341,7 +376,7 @@ let deco =
             );
           },
         ),
-      ]
+      ];
     };
 
   let color_highlight =
@@ -354,7 +389,6 @@ let deco =
     } else {
       [];
     };
-  let _ = inject;
   color_highlight @ term_lang_doc;
 };
 
@@ -369,6 +403,7 @@ let syntactic_form_view =
       ~settings,
       ~id,
       ~options,
+      ~group_id,
       ~form_id,
     ) => {
   let map = Measured.of_segment(unselected);
@@ -384,6 +419,7 @@ let syntactic_form_view =
       ~inject,
       ~font_metrics,
       ~options,
+      ~group_id,
       ~form_id,
     );
   div(
@@ -402,39 +438,56 @@ let example_view =
     ) => {
   div(
     ~attr=Attr.id("examples"),
-    List.map(
-      ({term, message, _} as example: LangDocMessages.example) => {
-        let map_code = Measured.of_segment(term);
-        let code_view =
-          Code.simple_view(~unselected=term, ~map=map_code, ~settings);
-        let (uhexp, _) = MakeTerm.go(term);
-        let info_map = Statics.mk_map(uhexp);
-        let result_view =
-          switch (Interface.evaluation_result(info_map, uhexp)) {
-          | None => []
-          | Some(dhexp) => [SimpleMode.res_view(~font_metrics, dhexp)]
-          };
-        let code_container = view =>
-          div(~attr=clss(["code-container"]), view);
-        div(
-          ~attr=clss(["example"]),
-          [
-            code_container([code_view]),
+    List.length(examples) == 0
+      ? [text("No examples available")]
+      : List.map(
+          ({term, message, _} as example: LangDocMessages.example) => {
+            let map_code = Measured.of_segment(term);
+            let code_view =
+              Code.simple_view(~unselected=term, ~map=map_code, ~settings);
+            let (uhexp, _) = MakeTerm.go(term);
+            let info_map = Statics.mk_map(uhexp);
+            let result_view =
+              switch (Interface.evaluation_result(info_map, uhexp)) {
+              | None => []
+              | Some(dhexp) => [SimpleMode.res_view(~font_metrics, dhexp)]
+              };
+            let code_container = view =>
+              div(~attr=clss(["code-container"]), view);
             div(
-              ~attr=clss(["ex-result"]),
-              [text("Result: "), code_container(result_view)],
-            ),
-            div(
-              ~attr=clss(["explanation"]),
-              [text("Explanation: "), text(message)],
-            ),
-            example_feedback_view(~inject, id, example),
-          ],
-        );
-      },
-      examples,
-    ),
+              ~attr=clss(["example"]),
+              [
+                code_container([code_view]),
+                div(
+                  ~attr=clss(["ex-result"]),
+                  [text("Result: "), code_container(result_view)],
+                ),
+                div(
+                  ~attr=clss(["explanation"]),
+                  [text("Explanation: "), text(message)],
+                ),
+                example_feedback_view(~inject, id, example),
+              ],
+            );
+          },
+          examples,
+        ),
   );
+};
+
+let rec bypass_parens_and_annot_pat = pat => {
+  switch (pat) {
+  | TermBase.UPat.Parens(p)
+  | TypeAnn(p, _) => bypass_parens_and_annot_pat(p.term)
+  | _ => pat
+  };
+};
+
+let rec bypass_parens_exp = exp => {
+  switch (exp) {
+  | TermBase.UExp.Parens(e) => bypass_parens_exp(e.term)
+  | _ => exp
+  };
 };
 
 let get_doc =
@@ -451,8 +504,14 @@ let get_doc =
     text("No examples available"),
   );
   let get_message =
-      (doc: LangDocMessages.form, options, explanation_msg, colorings) => {
-    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+      (
+        doc: LangDocMessages.form,
+        options,
+        group_id,
+        explanation_msg,
+        colorings,
+      ) => {
+    print_endline("Making the explanation");
     let (explanation, color_map) =
       mk_explanation(
         ~inject,
@@ -461,6 +520,7 @@ let get_doc =
         explanation_msg,
         docs.highlight,
       );
+    print_endline("Making the syntactic form");
     let syntactic_form_view =
       syntactic_form_view(
         ~doc=docs,
@@ -479,8 +539,10 @@ let get_doc =
         ~settings,
         ~id="syntactic-form-code",
         ~options,
+        ~group_id,
         ~form_id=doc.id,
       );
+    print_endline("Making the example");
     let example_view =
       example_view(
         ~inject,
@@ -491,46 +553,1644 @@ let get_doc =
       );
     (syntactic_form_view, (explanation, color_map), example_view);
   };
+
   switch (info) {
   | Some(InfoExp({term, _})) =>
-    switch (term.term) {
-    | Invalid(_) => default
-    | EmptyHole => default
-    | MultiHole(_children) => default
-    | Triv => default
-    | Bool(_bool_lit) => default
-    | Int(_int_lit) => default
-    | Float(_float_lit) => default
-    | ListLit(_terms) => default
-    | Fun(_pat, _body) => default
-    | Tuple(_terms) => default
-    | Var(_var) => default
-    | Let(_pat, _def, _body) => default
-    | Ap(_fun, _arg) => default
-    | If(_cond, _then, _else) => default
-    | Seq(_seq1, _seq2) => default
-    | Test(_uexp) => default
-    | Parens(_uexp) => default
-    | Cons(hd, tl) =>
-      let (doc, options) =
-        LangDocMessages.get_form_and_options("cons_exp", docs);
-      get_message(
-        doc,
-        options,
-        Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%i%i"),
-          List.nth(hd.ids, 0),
-          List.nth(tl.ids, 0),
-        ),
-        [
-          (Piece.id(List.nth(doc.syntactic_form, 0)), List.nth(hd.ids, 0)),
-          (Piece.id(List.nth(doc.syntactic_form, 2)), List.nth(tl.ids, 0)),
-        ],
-      );
-    | UnOp(_op, _uexp) => default
-    | BinOp(_op, _left, _right) => default
-    | Match(_scrut, _rules) => default
-    }
+    let rec get_message_exp = term =>
+      switch (term) {
+      | TermBase.UExp.Invalid(_) => default
+      | EmptyHole =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.empty_hole_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.empty_hole_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | MultiHole(_children) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.multi_hole_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.multi_hole_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | Triv =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.triv_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.triv_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | Bool(_bool_lit) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.bool_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.bool_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | Int(_int_lit) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.int_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.int_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | Float(_float_lit) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.float_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.float_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | ListLit(terms) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.list_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.list_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            List.length(terms),
+          ),
+          [],
+        );
+      | Fun(pat, body) =>
+        //print_endline("Getting the function group");
+
+        let basic = (doc: LangDocMessages.form, group_id, options) => {
+          //print_endline(
+          //  "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
+          //); // The body is a seq with a bunch of extra stuff in it...
+          // and the top id isn't anywhere in the segment
+          //print_endline("Here2");
+          //let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
+          //let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
+          let pat_id = List.nth(pat.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          //print_endline(
+          //  Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
+          //);
+          let pat_coloring_ids =
+            switch (List.nth(doc.syntactic_form, 0)) {
+            | Tile(tile) => [
+                (
+                  Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                  pat_id,
+                ),
+              ]
+            | _ => []
+            };
+          //print_endline("GOT THE PAT COLOR ID");
+          get_message(
+            doc,
+            options,
+            group_id,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              pat_id,
+              body_id,
+            ),
+            pat_coloring_ids
+            @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+          );
+        };
+        switch (bypass_parens_and_annot_pat(pat.term)) {
+        | EmptyHole =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_empty_hole_group,
+              docs,
+            );
+          if (LangDocMessages.function_empty_hole_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_empty_hole_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_empty_hole_group, options);
+          };
+        | MultiHole(_) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_multi_hole_group,
+              docs,
+            );
+          if (LangDocMessages.function_multi_hole_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_multi_hole_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_multi_hole_group, options);
+          };
+        | Wild =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_wild_group,
+              docs,
+            );
+          if (LangDocMessages.function_wild_exp.id == doc.id) {
+            let body_id = List.nth(body.ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_wild_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i"),
+                body_id,
+              ),
+              [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_wild_group, options);
+          };
+        | Int(i) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_int_group,
+              docs,
+            );
+          if (LangDocMessages.function_intlit_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_int_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id,
+                i,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_int_group, options);
+          };
+        | Float(f) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_float_group,
+              docs,
+            );
+          if (LangDocMessages.function_floatlit_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_float_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%f%i%i"),
+                pat_id,
+                f,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_float_group, options);
+          };
+        | Bool(b) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_bool_group,
+              docs,
+            );
+          if (LangDocMessages.function_boollit_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_bool_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%b%i%i"),
+                pat_id,
+                b,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_bool_group, options);
+          };
+        | Triv =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_triv_group,
+              docs,
+            );
+          if (LangDocMessages.function_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_triv_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_triv_group, options);
+          };
+        | ListLit(elements) =>
+          if (List.length(elements) == 0) {
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.function_listnil_group,
+                docs,
+              );
+            if (LangDocMessages.function_listnil_exp.id == doc.id) {
+              let pat_id = List.nth(pat.ids, 0);
+              let body_id = List.nth(body.ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) => [
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                      pat_id,
+                    ),
+                  ]
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.function_listnil_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  pat_id,
+                  pat_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else {
+              basic(doc, LangDocMessages.function_listnil_group, options);
+            };
+          } else {
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.function_listlit_group,
+                docs,
+              );
+            if (LangDocMessages.function_listlit_exp.id == doc.id) {
+              let pat_id = List.nth(pat.ids, 0);
+              let body_id = List.nth(body.ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) => [
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                      pat_id,
+                    ),
+                  ]
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.function_listlit_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i",
+                  ),
+                  pat_id,
+                  List.length(elements),
+                  pat_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else {
+              basic(doc, LangDocMessages.function_listlit_group, options);
+            };
+          }
+        | Cons(hd, tl) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_cons_group,
+              docs,
+            );
+          if (LangDocMessages.function_cons_exp.id == doc.id) {
+            let hd_id = List.nth(hd.ids, 0);
+            let tl_id = List.nth(tl.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) =>
+                let pat = List.nth(tile.children, 0);
+                [
+                  (Piece.id(List.nth(pat, 0)), hd_id),
+                  (Piece.id(List.nth(pat, 2)), tl_id),
+                ];
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_cons_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                hd_id,
+                tl_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_cons_group, options);
+          };
+        | Var(var) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_var_group,
+              docs,
+            );
+          if (LangDocMessages.function_var_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_var_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%s%i"),
+                pat_id,
+                var,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_var_group, options);
+          };
+        | Tuple(elements) =>
+          let pat_id = List.nth(pat.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 1)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              group_id,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id,
+                List.length(elements),
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          };
+
+          switch (List.length(elements)) {
+          | 2 =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.function_tuple_2_group,
+                docs,
+              );
+            if (LangDocMessages.function_tuple2_exp.id == doc.id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) =>
+                  let pat = List.nth(tile.children, 0);
+                  [
+                    (Piece.id(List.nth(pat, 0)), pat1_id),
+                    (Piece.id(List.nth(pat, 2)), pat2_id),
+                  ];
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.function_tuple_2_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  pat1_id,
+                  pat2_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                LangDocMessages.function_tuple_2_group,
+                options,
+              );
+            } else {
+              basic(doc, LangDocMessages.function_tuple_2_group, options);
+            };
+          | 3 =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.function_tuple_3_group,
+                docs,
+              );
+            if (LangDocMessages.function_tuple3_exp.id == doc.id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) =>
+                  let pat = List.nth(tile.children, 0);
+                  [
+                    (Piece.id(List.nth(pat, 0)), pat1_id),
+                    (Piece.id(List.nth(pat, 2)), pat2_id),
+                    (Piece.id(List.nth(pat, 4)), pat3_id),
+                  ];
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.function_tuple_3_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i",
+                  ),
+                  pat1_id,
+                  pat2_id,
+                  pat3_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                LangDocMessages.function_tuple_3_group,
+                options,
+              );
+            } else {
+              basic(doc, LangDocMessages.function_tuple_3_group, options);
+            };
+          | _ =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.function_tuple_group,
+                docs,
+              );
+            if (LangDocMessages.function_tuple_exp.id == doc.id) {
+              basic_tuple(doc, LangDocMessages.function_tuple_group, options);
+            } else {
+              basic(doc, LangDocMessages.function_tuple_group, options);
+            };
+          };
+        | Invalid(_) => default // Shouldn't get hit
+        | Parens(_) => default // Shouldn't get hit?
+        | TypeAnn(_) => default // Shouldn't get hit?
+        };
+      | Tuple(terms) =>
+        let basic = (doc, group_id, options) =>
+          get_message(
+            doc,
+            options,
+            group_id,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i"),
+              List.length(terms),
+            ),
+            [],
+          );
+        switch (List.length(terms)) {
+        | 2 =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.tuple_exp_2_group,
+              docs,
+            );
+          if (LangDocMessages.tuple_exp_size2.id == doc.id) {
+            let left_id = List.nth(List.nth(terms, 0).ids, 0);
+            let right_id = List.nth(List.nth(terms, 1).ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.tuple_exp_2_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i"),
+                left_id,
+                right_id,
+              ),
+              [
+                (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
+                (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
+              ],
+            );
+          } else {
+            basic(doc, LangDocMessages.tuple_exp_2_group, options);
+          };
+        | 3 =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.tuple_exp_3_group,
+              docs,
+            );
+          if (LangDocMessages.tuple_exp_size3.id == doc.id) {
+            let first_id = List.nth(List.nth(terms, 0).ids, 0);
+            let second_id = List.nth(List.nth(terms, 1).ids, 0);
+            let third_id = List.nth(List.nth(terms, 2).ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.tuple_exp_3_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                first_id,
+                second_id,
+                third_id,
+              ),
+              [
+                (Piece.id(List.nth(doc.syntactic_form, 0)), first_id),
+                (Piece.id(List.nth(doc.syntactic_form, 2)), second_id),
+                (Piece.id(List.nth(doc.syntactic_form, 4)), third_id),
+              ],
+            );
+          } else {
+            basic(doc, LangDocMessages.tuple_exp_3_group, options);
+          };
+        | _ =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.tuple_exp_group,
+              docs,
+            );
+          basic(doc, LangDocMessages.tuple_exp_group, options);
+        };
+      | Var(_var) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.var_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.var_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | Let(pat, def, body) =>
+        let basic = (doc: LangDocMessages.form, group_id, options) => {
+          //print_endline(
+          //  "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
+          //); // The body is a seq with a bunch of extra stuff in it...
+          // and the top id isn't anywhere in the segment
+          //print_endline("Here2");
+          //let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
+          //let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
+          let pat_id = List.nth(pat.ids, 0);
+          let def_id = List.nth(def.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          //print_endline(
+          //  Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
+          //);
+          let pat_coloring_ids =
+            switch (List.nth(doc.syntactic_form, 0)) {
+            | Tile(tile) => [
+                (
+                  Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                  pat_id,
+                ),
+                (
+                  Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                  def_id,
+                ),
+              ]
+            | _ => []
+            };
+          //print_endline("GOT THE PAT COLOR ID");
+          get_message(
+            doc,
+            options,
+            group_id,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              pat_id,
+              def_id,
+              body_id,
+            ),
+            pat_coloring_ids
+            @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+          );
+        };
+        switch (bypass_parens_and_annot_pat(pat.term)) {
+        | EmptyHole =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_empty_hole_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_empty_hole_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_empty_hole_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id,
+                def_id,
+                body_id,
+                pat_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.let_empty_hole_exp_group, options);
+          };
+        | MultiHole(_) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_multi_hole_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_multi_hole_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_multi_hole_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id,
+                def_id,
+                body_id,
+                pat_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.let_multi_hole_exp_group, options);
+          };
+        | Wild =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_wild_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_wild_exp.id == doc.id) {
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_wild_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                def_id,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.let_wild_exp_group, options);
+          };
+        | Int(i) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_int_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_int_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_int_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%i%i%i",
+                ),
+                def_id,
+                pat_id,
+                i,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              doc,
+              LangDocMessages.let_int_exp_group,
+              options,
+            );
+          };
+        | Float(f) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_float_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_float_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            // TODO Make sure everywhere printing the float literal print it prettier
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_float_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%f%i%i",
+                ),
+                def_id,
+                pat_id,
+                f,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              doc,
+              LangDocMessages.let_float_exp_group,
+              options,
+            );
+          };
+        | Bool(b) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_bool_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_bool_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            // TODO Make sure everywhere printing the float literal print it prettier
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_bool_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%b%i%i",
+                ),
+                def_id,
+                pat_id,
+                b,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              doc,
+              LangDocMessages.let_bool_exp_group,
+              options,
+            );
+          };
+        | Triv =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_triv_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            // TODO Make sure everywhere printing the float literal print it prettier
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_triv_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                def_id,
+                pat_id,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... */
+            basic(
+              doc,
+              LangDocMessages.let_triv_exp_group,
+              options,
+            );
+          };
+        | ListLit(elements) =>
+          if (List.length(elements) == 0) {
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.let_listnil_exp_group,
+                docs,
+              );
+            if (LangDocMessages.let_listnil_exp.id == doc.id) {
+              let pat_id = List.nth(pat.ids, 0);
+              let def_id = List.nth(def.ids, 0);
+              let body_id = List.nth(body.ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) => [
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                      pat_id,
+                    ),
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                      def_id,
+                    ),
+                  ]
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.let_listnil_exp_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i",
+                  ),
+                  def_id,
+                  pat_id,
+                  def_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else {
+              basic(doc, LangDocMessages.let_listnil_exp_group, options);
+            };
+          } else {
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.let_listlit_exp_group,
+                docs,
+              );
+            if (LangDocMessages.let_listlit_exp.id == doc.id) {
+              let pat_id = List.nth(pat.ids, 0);
+              let def_id = List.nth(def.ids, 0);
+              let body_id = List.nth(body.ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) => [
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                      pat_id,
+                    ),
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                      def_id,
+                    ),
+                  ]
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.let_listlit_exp_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i%i",
+                  ),
+                  def_id,
+                  pat_id,
+                  List.length(elements),
+                  def_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else {
+              basic(doc, LangDocMessages.let_listlit_exp_group, options);
+            };
+          }
+        | Cons(hd, tl) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_cons_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_cons_exp.id == doc.id) {
+            let hd_id = List.nth(hd.ids, 0);
+            let tl_id = List.nth(tl.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) =>
+                let pat = List.nth(tile.children, 0);
+                [
+                  (Piece.id(List.nth(pat, 0)), hd_id),
+                  (Piece.id(List.nth(pat, 2)), tl_id),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ];
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_cons_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%i%i%i%i%i",
+                ),
+                def_id,
+                hd_id,
+                tl_id,
+                hd_id,
+                tl_id,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.let_cons_exp_group, options);
+          };
+        | Var(var) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_var_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_var_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            // TODO Make sure everywhere printing the float literal print it prettier
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_var_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%s%i"),
+                def_id,
+                pat_id,
+                var,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              doc,
+              LangDocMessages.let_var_exp_group,
+              options,
+            );
+          };
+        | Tuple(elements) =>
+          let pat_id = List.nth(pat.ids, 0);
+          let def_id = List.nth(def.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 1)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              group_id,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%i%i%i%i",
+                ),
+                def_id,
+                pat_id,
+                List.length(elements),
+                def_id,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          };
+
+          switch (List.length(elements)) {
+          | 2 =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.let_tuple2_exp_group,
+                docs,
+              );
+            if (LangDocMessages.let_tuple2_exp.id == doc.id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) =>
+                  let pat = List.nth(tile.children, 0);
+                  [
+                    (Piece.id(List.nth(pat, 0)), pat1_id),
+                    (Piece.id(List.nth(pat, 2)), pat2_id),
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                      def_id,
+                    ),
+                  ];
+                | _ => []
+                };
+              print_endline("Message: " ++ doc.explanation.message);
+              get_message(
+                doc,
+                options,
+                LangDocMessages.let_tuple2_exp_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i%i",
+                  ),
+                  def_id,
+                  pat1_id,
+                  pat2_id,
+                  def_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
+              basic_tuple(doc, LangDocMessages.let_tuple2_exp_group, options);
+            } else {
+              basic(doc, LangDocMessages.let_tuple2_exp_group, options);
+            };
+          | 3 =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.let_tuple3_exp_group,
+                docs,
+              );
+            // TODO Syntactic form can go off page - so can examples
+            if (LangDocMessages.let_tuple3_exp.id == doc.id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+              let pat_coloring_ids =
+                switch (List.nth(doc.syntactic_form, 0)) {
+                | Tile(tile) =>
+                  let pat = List.nth(tile.children, 0);
+                  [
+                    (Piece.id(List.nth(pat, 0)), pat1_id),
+                    (Piece.id(List.nth(pat, 2)), pat2_id),
+                    (Piece.id(List.nth(pat, 4)), pat3_id),
+                    (
+                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                      def_id,
+                    ),
+                  ];
+                | _ => []
+                };
+              get_message(
+                doc,
+                options,
+                LangDocMessages.let_tuple3_exp_group,
+                Printf.sprintf(
+                  Scanf.format_from_string(
+                    doc.explanation.message,
+                    "%i%i%i%i%i%i",
+                  ),
+                  def_id,
+                  pat1_id,
+                  pat2_id,
+                  pat3_id,
+                  def_id,
+                  body_id,
+                ),
+                pat_coloring_ids
+                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              );
+            } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
+              basic_tuple(doc, LangDocMessages.let_tuple3_exp_group, options);
+            } else {
+              basic(doc, LangDocMessages.let_tuple3_exp_group, options);
+            };
+          | _ =>
+            let (doc, options) =
+              LangDocMessages.get_form_and_options(
+                LangDocMessages.let_tuple_base_exp_group,
+                docs,
+              );
+            if (LangDocMessages.let_tuple_exp.id == doc.id) {
+              basic_tuple(
+                doc,
+                LangDocMessages.let_tuple_base_exp_group,
+                options,
+              );
+            } else {
+              basic(doc, LangDocMessages.let_tuple_base_exp_group, options);
+            };
+          };
+        | Invalid(_) => default // Shouldn't get hit
+        | Parens(_) => default // Shouldn't get hit?
+        | TypeAnn(_) => default // Shouldn't get hit?
+        };
+      | Ap(fun_, arg) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.funapp_exp_group,
+            docs,
+          );
+        let fun_id = List.nth(fun_.ids, 0);
+        let arg_id = List.nth(arg.ids, 0);
+        let coloring_ids =
+          switch (List.nth(doc.syntactic_form, 1)) {
+          | Tile(tile) => [
+              (Piece.id(List.nth(List.nth(tile.children, 0), 0)), arg_id),
+            ]
+          | _ => []
+          };
+        get_message(
+          doc,
+          options,
+          LangDocMessages.funapp_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            fun_id,
+            arg_id,
+          ),
+          [(Piece.id(List.nth(doc.syntactic_form, 0)), fun_id)]
+          @ coloring_ids,
+        );
+      | If(cond, then_, else_) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.if_exp_group,
+            docs,
+          );
+        let cond_id = List.nth(cond.ids, 0);
+        let then_id = List.nth(then_.ids, 0);
+        let else_id = List.nth(else_.ids, 0);
+        let coloring_ids =
+          switch (List.nth(doc.syntactic_form, 0)) {
+          | Tile(tile) => [
+              (Piece.id(List.nth(List.nth(tile.children, 0), 0)), cond_id),
+              (Piece.id(List.nth(List.nth(tile.children, 1), 0)), then_id),
+            ]
+          | _ => []
+          };
+        get_message(
+          doc,
+          options,
+          LangDocMessages.if_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+            cond_id,
+            then_id,
+            else_id,
+          ),
+          coloring_ids
+          @ [(Piece.id(List.nth(doc.syntactic_form, 1)), else_id)],
+        );
+      | Seq(left, right) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.seq_exp_group,
+            docs,
+          );
+        let left_id = List.nth(left.ids, 0);
+        let right_id = List.nth(right.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.seq_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            left_id,
+            right_id,
+          ),
+          [
+            (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
+            (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
+          ],
+        );
+      | Test(body) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.test_group,
+            docs,
+          );
+        let body_id = List.nth(body.ids, 0);
+        let coloring_ids =
+          switch (List.nth(doc.syntactic_form, 0)) {
+          | Tile(tile) => [
+              (Piece.id(List.nth(List.nth(tile.children, 0), 0)), body_id),
+            ]
+          | _ => []
+          };
+        get_message(
+          doc,
+          options,
+          LangDocMessages.test_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            body_id,
+          ),
+          coloring_ids,
+        );
+      | Parens(term) => get_message_exp(term.term) // No Special message?
+      | Cons(hd, tl) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.cons_exp_group,
+            docs,
+          );
+        let hd_id = List.nth(hd.ids, 0);
+        let tl_id = List.nth(tl.ids, 0);
+        get_message(
+          doc,
+          options,
+          LangDocMessages.cons_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id,
+            tl_id,
+          ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+          [
+            (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
+            (Piece.id(List.nth(doc.syntactic_form, 2)), tl_id),
+          ],
+        );
+      | UnOp(op, exp) =>
+        switch (op) {
+        | Int(Minus) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.int_unary_minus_group,
+              docs,
+            );
+          let exp_id = List.nth(exp.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.int_unary_minus_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i"),
+              exp_id,
+            ),
+            [(Piece.id(List.nth(doc.syntactic_form, 1)), exp_id)],
+          );
+        }
+      | BinOp(op, left, right) =>
+        let group =
+          switch (op) {
+          | Int(Plus) => LangDocMessages.int_plus_group
+          | Int(Minus) => LangDocMessages.int_minus_group
+          | Int(Times) => LangDocMessages.int_times_group
+          | Int(Divide) => LangDocMessages.int_divide_group
+          | Int(LessThan) => LangDocMessages.int_lt_group
+          | Int(GreaterThan) => LangDocMessages.int_gt_group
+          | Int(Equals) => LangDocMessages.int_eq_group
+          | Float(Plus) => LangDocMessages.float_plus_group
+          | Float(Minus) => LangDocMessages.float_minus_group
+          | Float(Times) => LangDocMessages.float_times_group
+          | Float(Divide) => LangDocMessages.float_divide_group
+          | Float(LessThan) => LangDocMessages.float_lt_group
+          | Float(GreaterThan) => LangDocMessages.float_gt_group
+          | Float(Equals) => LangDocMessages.float_eq_group
+          | Bool(And) => LangDocMessages.bool_and_group
+          | Bool(Or) => LangDocMessages.bool_or_group
+          };
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(group, docs);
+        let left_id = List.nth(left.ids, 0);
+        let right_id = List.nth(right.ids, 0);
+        get_message(
+          doc,
+          options,
+          group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            left_id,
+            right_id,
+          ),
+          [
+            (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
+            (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
+          ],
+        );
+      | Match(_scrut, _rules) => default
+      };
+    get_message_exp(term.term);
   | Some(InfoPat(_))
   | Some(InfoTyp(_))
   | Some(InfoRul(_))
@@ -565,13 +2225,14 @@ let get_color_map =
     };
   let (_, (_, color_map), _) =
     get_doc(~inject, ~font_metrics, ~settings, ~docs=doc, info);
+  print_endline("GOT THE COLORS");
   color_map;
 };
 
 let view =
     (
       ~inject,
-      ~font_metrics,
+      ~font_metrics: FontMetrics.t,
       ~settings: Model.settings,
       ~doc: LangDocMessages.t,
       index': option(int),
@@ -586,8 +2247,11 @@ let view =
       }
     | None => None
     };
+  // TODO Make sure code examples aren't flowing off the page
+  print_endline("TRYING TO GET THE DOC");
   let (syn_form, (explanation, _), example) =
     get_doc(~inject, ~font_metrics, ~settings, ~docs=doc, info);
+  print_endline("GOT THE DOC");
   div(
     ~attr=clss(["lang-doc"]),
     [
