@@ -173,8 +173,8 @@ let init_school = (~instructor_mode) => {
   school;
 };
 
-let rec load_school_without_history =
-        (~instructor_mode: bool): school_without_history =>
+let load_school_without_history =
+    (~instructor_mode: bool): school_without_history =>
   switch (get_localstore(save_school_key)) {
   | None =>
     let school = init_school(~instructor_mode);
