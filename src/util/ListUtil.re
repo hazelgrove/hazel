@@ -400,3 +400,15 @@ let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
   | [_] => []
   | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
   };
+
+let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
+  (f, xs) => {
+    List.mapi((i, x) => (i, x), xs)
+    |> List.find_map(((_, x) as pair) =>
+         if (f(x)) {
+           Some(pair);
+         } else {
+           None;
+         }
+       );
+  };

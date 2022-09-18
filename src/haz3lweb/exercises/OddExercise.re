@@ -4,6 +4,7 @@ open ExerciseUtil;
 
 let exercise: SchoolExercise.spec = {
   title: "Oddly Recursive",
+  version: 1,
   point_distribution: {
     test_validation: 10,
     mutation_testing: 40,
