@@ -24,9 +24,9 @@ let pat_self_htyp = (m, e) => htyp_of_typ(Statics.pat_self_typ(m, e));
 let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
 let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
 
-let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
+let ctx_to_varctx = (ctx: TermCtx.t): VarCtx.t =>
   List.map(
-    ((k, {item: typ, _}: Ctx.entry(Typ.t))) => (k, htyp_of_typ(typ)),
+    ((k, {item: typ, _}: TermCtx.entry(Typ.t))) => (k, htyp_of_typ(typ)),
     ctx,
   );
 
