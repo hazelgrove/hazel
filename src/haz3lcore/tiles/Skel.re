@@ -60,36 +60,6 @@ exception Nonconvex_segment;
 [@deriving show({with_path: false})]
 type ip = (int, Piece.t);
 
-// when
-//   Precedence.compare(prec', prec) < 0
-//   || Precedence.compare(prec', prec) == 0
-//   && Precedence.associativity(prec') != Some(Left) => stacks
-
-// let rel_prec = (p1, p2) =>
-//   switch (Piece.shapes(p1), Piece.shapes(p2)) {
-//   | (None, _)
-//   | (_, None) => None
-//   | (Some((_, r1)), Some((l2, _))) =>
-//     switch (r1, l2) {
-//     | (Convex, Convex) => None
-//     | (Convex, Concave(_)) => Some(Lt)
-//     | (Concave(_), Convex) => Some(Gt)
-//     | (Concave({prec: p1, _}), Concave({prec: p2, _})) =>
-//       let c = Precedence.compare(p1, p2);
-//       if (c < 0) {
-//         Some(Lt)
-//       } else if (c > 0) {
-//         Some(Gt)
-//       } else {
-//         switch (Precedence.associativity(prec)) {
-//         | None => Some(Eq)
-//         | Some(Left) => Some(Gt)
-//         | Some(Right) => Some(Lt)
-//         }
-//       }
-//     }
-//   };
-
 let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
   switch (p1, p2) {
   | (Whitespace(_), _)
@@ -103,11 +73,6 @@ let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
     assert(Nib.Shape.is_concave(fst(Tile.shapes(t))));
     Sort.ord(sort, t.mold.out) |> Option.map(Ord.flip);
   | (Tile(t), Grout({shape: Concave, sort, _})) when !Tile.has_end(Right, t) =>
-    // if (t.label == Labels.paren) {
-    //   print_endline("tile-grout");
-    //   print_endline(Tile.show(t));
-    //   print_endline(Grout.show(g));
-    // };
     assert(Nib.Shape.is_concave(snd(Tile.shapes(t))));
     Sort.ord(t.mold.out, sort) |> Option.map(Ord.flip);
   | (Grout({shape, sort, _}), _) =>
@@ -132,10 +97,6 @@ let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
       }
     | r => r
     };
-  // switch (shape) {
-  // | Convex => Some(Lt)
-  // | Concave => Some(Gt)
-  // }
   | (Tile(t1), Tile(t2)) =>
     open Labels;
     let lbl1 = (==)(t1.label);
