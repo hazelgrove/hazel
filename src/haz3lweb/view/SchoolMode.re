@@ -133,7 +133,7 @@ let view =
               Some(prelude_trailing_hole_ctx),
             ) =>
             let specific_ctx =
-              Haz3lcore.Ctx.subtract_prefix(
+              Haz3lcore.TermCtx.subtract_prefix(
                 correct_impl_trailing_hole_ctx,
                 prelude_trailing_hole_ctx,
               );
