@@ -84,6 +84,7 @@ module UPat = {
     | Int
     | Float
     | Bool
+    | String
     | Triv
     | ListLit
     | Cons
@@ -114,6 +115,7 @@ module UPat = {
     | Int(_) => Int
     | Float(_) => Float
     | Bool(_) => Bool
+    | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
     | Cons(_) => Cons
@@ -131,6 +133,7 @@ module UPat = {
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
+    | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
     | ListLit => "List Literal Pattern"
     | Cons => "List Cons"
@@ -163,6 +166,7 @@ module UExp = {
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
+    | String(_) => String
     | ListLit(_) => ListLit
     | Fun(_) => Fun
     | Tuple(_) => Tuple
@@ -230,6 +234,7 @@ module UExp = {
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
+    | String => "String Literal"
     | ListLit => "List Literal"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"

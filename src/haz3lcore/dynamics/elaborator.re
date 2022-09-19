@@ -14,6 +14,7 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  | String => String
   | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
@@ -101,6 +102,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
+    | String(s) =>
+      //TODO: string dynamics
+      wrap(InvalidText(-1, -1, s))
     | ListLit(es) =>
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
@@ -324,6 +328,9 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
+    | String(s) =>
+      //TODO: string dynamics
+      wrap(InvalidText(-1, -1, s))
     | ListLit(ps) =>
       switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
       | Some(ty) =>

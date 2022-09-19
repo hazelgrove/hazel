@@ -295,6 +295,7 @@ and uexp_to_info_map =
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
+  | String(_) => atomic(Just(String))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
     | None => atomic(Free)
@@ -483,6 +484,7 @@ and upat_to_info_map =
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
+  | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
     let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
