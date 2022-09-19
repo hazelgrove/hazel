@@ -73,9 +73,13 @@ rule read =
   | "==" { EQUALEQUAL }
   | "==." { FEQUALEQUAL }
   | ">" { GREATER }
+  | ">=" { GREATEREQUAL }
   | ">." { FGREATER }
+  | ">=." { FGREATEREQUAL }
   | "<" { LESSER }
+  | "<=" { LESSEREQUAL }
   | "<." { FLESSER }
+  | "<=." { FLESSEREQUAL }
   | "&&" { AND }
   | "||" { OR }
   | "," { COMMA }

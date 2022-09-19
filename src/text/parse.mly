@@ -25,7 +25,9 @@
     | Times
     | Divide
     | LessThan
+    | LessThanEqual
     | GreaterThan
+    | GreaterThanEqual
     | Equals
     (* Float *)
     | FPlus
@@ -33,7 +35,9 @@
     | FTimes
     | FDivide
     | FLessThan
+    | FLessThanEqual
     | FGreaterThan
+    | FGreaterThanEqual
     | FEquals
     (* Binary *)
     | And
@@ -46,7 +50,9 @@
     | Times -> UExp.Int(UExp.Times)
     | Divide -> UExp.Int(UExp.Divide)
     | LessThan -> UExp.Int(UExp.LessThan)
+    | LessThanEqual -> UExp.Int(UExp.LessThanOrEqual)
     | GreaterThan -> UExp.Int(UExp.GreaterThan)
+    | GreaterThanEqual -> UExp.Int(UExp.GreaterThanOrEqual)
     | Equals -> UExp.Int(UExp.Equals)
     (* Float *)
     | FPlus -> UExp.Float(UExp.Plus)
@@ -54,7 +60,9 @@
     | FTimes -> UExp.Float(UExp.Times)
     | FDivide -> UExp.Float(UExp.Divide)
     | FLessThan -> UExp.Float(UExp.LessThan)
+    | FLessThanEqual -> UExp.Float(UExp.LessThanOrEqual)
     | FGreaterThan -> UExp.Float(UExp.GreaterThan)
+    | FGreaterThanEqual -> UExp.Float(UExp.GreaterThanOrEqual)
     | FEquals -> UExp.Float(UExp.Equals)
     (* Binary *)
     | And -> UExp.Bool(UExp.And)
@@ -79,12 +87,15 @@
 %token FDIV
 %token FEQUALEQUAL
 %token FGREATER
+%token FGREATEREQUAL
 %token FLESSER
+%token FLESSEREQUAL
 %token <string> FLOAT
 %token FMINUS
 %token FMULT
 %token FPLUS
 %token GREATER
+%token GREATEREQUAL
 %token <string> IDENT
 %token IF
 %token IN
@@ -92,6 +103,7 @@
 %token FUN
 %token LBRACK
 %token LESSER
+%token LESSEREQUAL
 %token LET
 %token LPAREN
 %token MINUS
@@ -120,9 +132,10 @@
 %right TARROW
 %right OR
 %right AND
-%left LESSER GREATER FLESSER FGREATER EQUALEQUAL FEQUALEQUAL
+%left LESSER LESSEREQUAL GREATER GREATEREQUAL FLESSER FLESSEREQUAL FGREATER FGREATEREQUAL EQUALEQUAL FEQUALEQUAL
 %left PLUS MINUS FPLUS FMINUS
 %left MULT DIV FMULT FDIV
+%nonassoc uminus
 %right COLONCOLON
 %nonassoc LBRACK CASE LPAREN IDENT FUN EMPTY_HOLE INT FLOAT TRUE FALSE TRIV IF SEMICOLON TEST NIL
 %nonassoc app
@@ -137,12 +150,14 @@ let main :=
 
 let typ :=
   | t1 = typ; TARROW; t2 = typ_; { mk_utyp (UTyp.Arrow(t1, t2)) }
+  (* Tuple *)
   | ~ = typ_; <>
 
 let typ_ :=
+  (* Invalid, Multihole *)
+  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
   | LPAREN; ~ = typ; RPAREN; { mk_utyp (UTyp.Parens(typ)) }
   | LBRACK; ~ = typ; RBRACK; { mk_utyp (UTyp.List(typ)) }
-  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
   | id = IDENT; {
     match id with
     | "Int" -> mk_utyp UTyp.Int
@@ -160,6 +175,7 @@ let pat :=
   | ~ = pat_; <>
 
 let pat_ :=
+(* Invalid *)
   | EMPTY_HOLE; { mk_upat (UPat.EmptyHole) }
 (* MultiHole *)
   | WILD; {mk_upat (UPat.Wild)}
@@ -169,6 +185,7 @@ let pat_ :=
   | FALSE; { mk_upat (UPat.Bool(false)) }
   | TRIV; { mk_upat (UPat.Triv) }
   | LBRACK; RBRACK; { mk_upat (UPat.ListLit([])) }
+  (* Cons *)
   | id = IDENT; { mk_upat (UPat.Var(id)) }
   | LPAREN; p = pat; RPAREN; { mk_upat (UPat.Parens p)}
 
@@ -178,7 +195,7 @@ let pat_ :=
 let expr :=
   | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
   | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
-  | e1 = expr; e2 = expr; { mk_uexp (UExp.Ap(e1, e2)) } %prec app
+  | e1 = expr; LPAREN; e2 = expr; RPAREN; { mk_uexp (UExp.Ap(e1, e2)) }
   | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
   (* FIXME: This might allow a match with no rules? *)
   | e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
@@ -188,14 +205,18 @@ let rule ==
   BAR; p = pat; ARROW; e = expr; { (p, e) }
 
 let expr_ :=
+  (* Invalid *)
   | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
+  (* Multihole *)
   | TRIV; { mk_uexp UExp.Triv }
-  | FUN; _ = pat; TARROW; ~ = expr; <>
   | TRUE; { mk_uexp (UExp.Bool true) }
   | FALSE; { mk_uexp (UExp.Bool false) }
   | i = INT; { mk_uexp (UExp.Int i) }
   | FLOAT; { mk_uexp (UExp.Float 0.) }
   | NIL; { mk_uexp (ListLit([])) }
+  | FUN; p = pat; TARROW; e = expr; {
+    mk_uexp (UExp.Fun(p, e))
+  }
   (* Need to differentiate between tuple and single list element*)
   | LBRACK; e = expr; RBRACK; {
     match e with
@@ -210,12 +231,9 @@ let expr_ :=
   | TEST; e = expr; END; { mk_uexp (UExp.Test e)}
   | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
   | CASE; e = expr; ruls = list(rule); END; { mk_uexp (UExp.Match(e, ruls))}
-  (*
-  | MINUS; i = INT; {
-    mk_uexp (UExp.UnOp(UExp.Int(Minus),  
-    mk_uexp (UExp.Int(i))))
+  | MINUS; e = expr; %prec uminus {
+    mk_uexp (UExp.UnOp(UExp.Int(Minus), e))
   } 
-  *)
 
 let infix_op ==
     | PLUS; {op_of_optok Plus}
@@ -223,7 +241,9 @@ let infix_op ==
     | MULT; {op_of_optok Times}
     | DIV; {op_of_optok Divide}
     | LESSER; {op_of_optok LessThan}
+    | LESSEREQUAL; {op_of_optok LessThanEqual}
     | GREATER; {op_of_optok GreaterThan}
+    | GREATEREQUAL; {op_of_optok GreaterThanEqual}
     | EQUALEQUAL; {op_of_optok Equals}
     (* Float *)
     | FPLUS; {op_of_optok FPlus}
@@ -231,7 +251,9 @@ let infix_op ==
     | FMULT; {op_of_optok FTimes}
     | FDIV; {op_of_optok FDivide}
     | FLESSER; {op_of_optok FLessThan}
+    | FLESSEREQUAL; {op_of_optok FLessThanEqual}
     | FGREATER; {op_of_optok FGreaterThan}
+    | FGREATEREQUAL; {op_of_optok FGreaterThanEqual}
     | FEQUALEQUAL; {op_of_optok FEquals}
     (* Binary *)
     | AND; {op_of_optok And}
