@@ -2,6 +2,26 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
+let would_delete_quote_direction = (d: Direction.t, z: Zipper.t): option('a) => {
+  //TOOD(andrew): refactor to use neighbor monotiles, this indicated approach doest work
+  //for example 1+|"zzt", as + is indicated not "zzt"
+  let delete_left = Zipper.directional_destruct(Left);
+  let delete_right = z =>
+    z |> Zipper.set_caret(Outer) |> Zipper.directional_destruct(Right);
+  switch (Indicated.piece(z)) {
+  | Some((Base.Tile({label: [s], _}), _, _)) when Form.is_string(s) =>
+    switch (z.caret, d) {
+    | (Outer, Left) => Some(delete_left)
+    | (Outer, Right) => Some(delete_right)
+    | (Inner(_, 0), Left) => Some(delete_right)
+    | (Inner(_, n), Right) when n == String.length(s) - 2 =>
+      Some(delete_right)
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
 let destruct =
     (
       d: Direction.t,
@@ -14,6 +34,10 @@ let destruct =
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
+  | _ when would_delete_quote_direction(d, z) != None =>
+    /* When would delete quote, instead delete whole string token */
+    let* directional_delete = would_delete_quote_direction(d, z);
+    z |> directional_delete |> Option.map(IdGen.id(id_gen));
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
     Zipper.replace(Right, [Token.rm_nth(c_idx, t)], (z, id_gen));
