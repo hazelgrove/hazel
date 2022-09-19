@@ -238,12 +238,19 @@ let put_down = (z: t): option(t) => {
 let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
-    | ["\""] =>
-      let+ z = construct(from, ["\"\""], z);
+    | [t] when Form.is_string_delim(t) =>
+      //TODO(andrew): there is some weirdness when we insert
+      // quotes when the caret is at the beginning or end of a monotile... like caret position is wrong,
+      // and sometimes we can't insert without moving first
+      let+ z = construct(from, [Form.string_delim ++ Form.string_delim], z);
       /* Set position to between quotes */
       switch (move(Left, z)) {
-      | None => z
-      | Some(z) => z |> set_caret(Inner(0, 0))
+      | None =>
+        print_endline("AAAA");
+        z;
+      | Some(z) =>
+        print_endline("BBBB");
+        z |> set_caret(Inner(0, 0));
       };
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;

@@ -91,7 +91,8 @@ let is_wild = regexp("^_$");
 let is_bad_lit = str =>
   is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
 let is_string = regexp("^\".*\"$");
-let is_string_delim = str => str == "\"";
+let string_delim = "\"";
+let is_string_delim = str => str == string_delim;
 
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
