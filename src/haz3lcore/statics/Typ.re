@@ -53,12 +53,15 @@ let join_type_provenance =
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown */
-let rec join = (ty1: t, ty2: t): option(t) =>
+let rec join_hn = (tctx: TypCtx.t, ty1: hn, ty2: hn): option(hn) =>
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
+  // TODO: Fix the behavior for abstract types
+  | (TVar(_), ty)
+  | (ty, TVar(_)) => Some(ty)
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -66,7 +69,7 @@ let rec join = (ty1: t, ty2: t): option(t) =>
   | (Bool, Bool) => Some(Bool)
   | (Bool, _) => None
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    switch (join_hn(tctx, ty1_1, ty2_1), join_hn(tctx, ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
@@ -75,37 +78,57 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
+      switch (List.map2(join_hn(tctx), tys1, tys2) |> Util.OptUtil.sequence) {
       | None => None
       | Some(tys) => Some(Prod(tys))
       };
     }
   | (Prod(_), _) => None
   | (List(ty_1), List(ty_2)) =>
-    switch (join(ty_1, ty_2)) {
+    switch (join_hn(tctx, ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))
     | None => None
     }
   | (List(_), _) => None
   };
 
-let join_all: list(t) => option(t) =
-  List.fold_left(
-    (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
-    Some(Unknown(Internal)),
-  );
+let join = (tctx: TypCtx.t, ty1: t, ty2: t): option(t) => {
+  let ty1 = HeadNormalize.head_normalize(tctx, ty1);
+  let ty2 = HeadNormalize.head_normalize(tctx, ty2);
+  switch (join_hn(tctx, ty1, ty2)) {
+  | Some(ty) => Some(HeadNormalize.to_typ(ty))
+  | None => None
+  };
+};
 
-let join_or_fst = (ty: t, ty': t): t =>
-  switch (join(ty, ty')) {
+let join_all = (tctx: TypCtx.t, ts: list(t)): option(t) => {
+  let res =
+    List.fold_left(
+      (acc, ty) => {
+        let ty = HeadNormalize.head_normalize(tctx, ty);
+        Util.OptUtil.and_then(join_hn(tctx, ty), acc);
+      },
+      Some(Unknown(Internal)),
+      ts,
+    );
+
+  switch (res) {
+  | Some(ty) => Some(HeadNormalize.to_typ(ty))
+  | None => None
+  };
+};
+
+let join_or_fst = (tctx: TypCtx.t, ty: t, ty': t): t =>
+  switch (join(tctx, ty, ty')) {
   | None => ty
   | Some(ty) => ty
   };
 
-let t_of_self =
+let t_of_self = (tctx: TypCtx.t) =>
   fun
   | Just(t) => t
   | Joined(wrap, ss) =>
-    switch (ss |> List.map(s => s.ty) |> join_all) {
+    switch (ss |> List.map(s => s.ty) |> join_all(tctx)) {
     | None => Unknown(Internal)
     | Some(t) => wrap(t)
     }
