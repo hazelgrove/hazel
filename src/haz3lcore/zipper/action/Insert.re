@@ -81,15 +81,16 @@ let go =
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
-    /* Special cases for insertion of quotes when the caret is
-       in or is adjacent to a string. This is necessary to
-       avoid breaking paste. */
-  | (_, (_, Some(t))) when Form.is_string(t) && char == "\"" =>
+  /* Special cases for insertion of quotes when the caret is
+     in or is adjacent to a string. This is necessary to
+     avoid breaking paste. */
+  | (_, (_, Some(t))) when Form.is_string(t) && Form.is_string_delim(char) =>
     z
     |> Zipper.set_caret(Outer)
     |> Zipper.move(Right)
     |> Option.map(z => (z, id_gen))
-  | (Outer, (Some(t), _)) when Form.is_string(t) && char == "\"" =>
+  | (Outer, (Some(t), _))
+      when Form.is_string(t) && Form.is_string_delim(char) =>
     Some((z, id_gen))
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;

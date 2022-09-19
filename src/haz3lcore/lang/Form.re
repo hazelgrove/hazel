@@ -91,6 +91,7 @@ let is_wild = regexp("^_$");
 let is_bad_lit = str =>
   is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
 let is_string = regexp("^\".*\"$");
+let is_string_delim = str => str == "\"";
 
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
@@ -209,7 +210,7 @@ let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);
 
-let is_valid_char = t => is_valid_token(t) || t == "\""; //TODO(andrew): betterify this
+let is_valid_char = t => is_valid_token(t) || is_string_delim(t); //TODO(andrew): betterify this
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
