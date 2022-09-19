@@ -102,9 +102,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | String(s) =>
-      //TODO: string dynamics
-      wrap(InvalidText(-1, -1, s))
+    | String(s) => wrap(StringLit(s))
     | ListLit(es) =>
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
@@ -328,9 +326,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
-    | String(s) =>
-      //TODO: string dynamics
-      wrap(InvalidText(-1, -1, s))
+    | String(s) => wrap(StringLit(s))
     | ListLit(ps) =>
       switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
       | Some(ty) =>

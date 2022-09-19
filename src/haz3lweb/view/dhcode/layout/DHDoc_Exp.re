@@ -43,6 +43,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Sequence(_)
   | TestLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | ListLit(_)
   | Inj(_)
   | EmptyHole(_)
@@ -209,6 +210,7 @@ let rec mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));

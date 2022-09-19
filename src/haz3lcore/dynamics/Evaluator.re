@@ -102,6 +102,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Hole)) => matches(dp, d)
   | (FloatLit(_), Cast(d, Hole, Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
+  | (StringLit(s1), StringLit(s2)) =>
+    if (s1 == s2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (StringLit(_), Cast(d, String, Hole)) => matches(dp, d)
+  | (StringLit(_), Cast(d, Hole, String)) => matches(dp, d)
+  | (StringLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -209,6 +218,7 @@ and matches_cast_Inj =
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -279,6 +289,7 @@ and matches_cast_Pair =
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -412,6 +423,7 @@ and matches_cast_Cons =
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -578,6 +590,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
+    | StringLit(_)
     | Triv => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>

@@ -23,6 +23,7 @@ type t =
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)

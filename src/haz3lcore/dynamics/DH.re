@@ -56,6 +56,7 @@ module rec DHExp: {
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
@@ -142,6 +143,7 @@ module rec DHExp: {
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
@@ -178,6 +180,7 @@ module rec DHExp: {
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
+    | StringLit(_) => "StringLit"
     | BinBoolOp(_, _, _) => "BinBoolOp"
     | BinIntOp(_, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
@@ -261,6 +264,7 @@ module rec DHExp: {
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
+    | StringLit(_) as d
     | Triv as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
@@ -274,6 +278,7 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
+    | (StringLit(_), _)
     | (Triv, _) => d1 == d2
 
     /* Non-hole forms: recurse */
