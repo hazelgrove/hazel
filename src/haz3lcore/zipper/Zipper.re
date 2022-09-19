@@ -235,9 +235,18 @@ let put_down = (z: t): option(t) => {
   {...z, backpack} |> put_selection(popped) |> unselect;
 };
 
-let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
+    | ["\""] =>
+      let+ z = construct(from, ["\"\""], z);
+      /* Set position to between quotes */
+      switch (move(Left, z)) {
+      | None =>
+        z;
+      | Some(z) =>
+        z |> set_caret(Inner(0, 0));
+      };
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);

@@ -546,6 +546,7 @@ svg {
   position: absolute;
   z-index: var(--code-text-z);
   user-select: none;
+  white-space: pre;
 }
 
 /* NOTE(andrew): below 3 styles are part of
