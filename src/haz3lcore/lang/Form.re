@@ -90,6 +90,7 @@ let is_wild = regexp("^_$");
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
   is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
+let is_string = regexp("^\".*\"$");
 
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
@@ -107,6 +108,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
 /* C. Compound Forms:
@@ -207,7 +209,7 @@ let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);
 
-let is_valid_char = is_valid_token; //TODO(andrew): betterify this
+let is_valid_char = t => is_valid_token(t) || t == "\""; //TODO(andrew): betterify this
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
