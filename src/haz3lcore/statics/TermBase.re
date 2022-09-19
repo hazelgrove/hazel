@@ -86,6 +86,7 @@ and UExp: {
     | Bool
     | Int
     | Float
+    | String
     | ListLit
     | Fun
     | Tuple
@@ -110,6 +111,7 @@ and UExp: {
     | Bool(bool)
     | Int(int)
     | Float(float)
+    | String(string)
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
@@ -183,6 +185,7 @@ and UExp: {
     | Bool
     | Int
     | Float
+    | String
     | ListLit
     | Fun
     | Tuple
@@ -207,6 +210,7 @@ and UExp: {
     | Bool(bool)
     | Int(int)
     | Float(float)
+    | String(string)
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
@@ -238,6 +242,7 @@ and UPat: {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | String(string)
     | Triv
     | ListLit(list(t))
     | Cons(t, t)
@@ -259,6 +264,7 @@ and UPat: {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | String(string)
     | Triv
     | ListLit(list(t))
     | Cons(t, t)
