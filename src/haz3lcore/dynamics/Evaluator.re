@@ -1,3 +1,4 @@
+// open Lwt.Syntax;
 open Util;
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
@@ -484,6 +485,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     let* () = take_step;
 
     switch (d) {
+    // | _ when time_out =>
+    //   print_endline("OutOfFuel");
+    //   raise(EvaluatorError.Exception(OutOfFuel));
     | BoundVar(x) =>
       let d =
         x
