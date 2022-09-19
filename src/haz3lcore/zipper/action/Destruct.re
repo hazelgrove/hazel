@@ -2,26 +2,6 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let would_delete_quote_direction = (d: Direction.t, z: Zipper.t): option('a) => {
-  //TOOD(andrew): refactor to use neighbor monotiles, this indicated approach doest work
-  //for example 1+|"zzt", as + is indicated not "zzt"
-  let delete_left = Zipper.directional_destruct(Left);
-  let delete_right = z =>
-    z |> Zipper.set_caret(Outer) |> Zipper.directional_destruct(Right);
-  switch (Indicated.piece(z)) {
-  | Some((Base.Tile({label: [s], _}), _, _)) when Form.is_string(s) =>
-    switch (z.caret, d) {
-    | (Outer, Left) => Some(delete_left)
-    | (Outer, Right) => Some(delete_right)
-    | (Inner(_, 0), Left) => Some(delete_right)
-    | (Inner(_, n), Right) when n == String.length(s) - 2 =>
-      Some(delete_right)
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
 let destruct =
     (
       d: Direction.t,
@@ -30,14 +10,27 @@ let destruct =
     : option(state) => {
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
+  let delete_right = z =>
+    z
+    |> Zipper.set_caret(Outer)
+    |> Zipper.directional_destruct(Right)
+    |> Option.map(IdGen.id(id_gen));
+  let delete_left = z =>
+    z |> Zipper.directional_destruct(Left) |> Option.map(IdGen.id(id_gen));
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
-  | _ when would_delete_quote_direction(d, z) != None =>
-    /* When would delete quote, instead delete whole string token */
-    let* directional_delete = would_delete_quote_direction(d, z);
-    z |> directional_delete |> Option.map(IdGen.id(id_gen));
+  /* Special cases for string literals. When deletion would
+     remove an outer quote, we instead remove the whole string */
+  | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
+  | (Right, Outer, (_, Some(t))) when Form.is_string(t) => delete_right(z)
+  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
+    delete_right(z)
+  | (Right, Inner(_, n), (_, Some(t)))
+      when Form.is_string(t) && n == last_inner_pos(t) =>
+    delete_right(z)
+  /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
     Zipper.replace(Right, [Token.rm_nth(c_idx, t)], (z, id_gen));
