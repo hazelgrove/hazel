@@ -164,6 +164,11 @@ let top_bar_view =
               ~tooltip="Export Submission",
             ),
             button(
+              Icons.import,
+              _ => download_editor_state(),
+              ~tooltip="Export Submission",
+            ),
+            button(
               Icons.eye,
               _ => inject(Set(WhitespaceIcons)),
               ~tooltip="Toggle Visible Whitespace",
@@ -193,6 +198,12 @@ let top_bar_view =
           ~tooltip="Redo",
         ),
         editor_mode_toggle_view(~inject, ~model),
+        button_d(
+          Icons.trash,
+          inject(ResetSlide),
+          ~disabled=false,
+          ~tooltip="Reset",
+        ),
       ],
     );
   let top_right_bar =
@@ -237,8 +248,7 @@ let main_ui_view =
         ~result,
       ),
     ];
-  | School(n, exercises) =>
-    let exercise = List.nth(exercises, n);
+  | School(_, _, exercise) =>
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;

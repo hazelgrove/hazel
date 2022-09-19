@@ -19,6 +19,7 @@ type t =
   | Mousedown
   | Mouseup
   | LoadDefault
+  | ResetSlide
   | Save
   | ToggleMode
   | SwitchSlide(int)
@@ -56,9 +57,9 @@ module Result = {
 let save = (model: Model.t): unit =>
   switch (model.editors) {
   | Scratch(n, slides) => LocalStorage.save_scratch((n, slides))
-  | School(n, exercises) =>
+  | School(n, specs, exercise) =>
     LocalStorage.save_school(
-      (n, exercises),
+      (n, specs, exercise),
       ~instructor_mode=model.settings.instructor_mode,
     )
   };
@@ -137,8 +138,10 @@ let load_editor = (model: Model.t): Model.t => {
       {...model, editors: Scratch(idx, slides)};
     | School =>
       let instructor_mode = model.settings.instructor_mode;
-      let (idx, exercises) = LocalStorage.load_school(~instructor_mode);
-      {...model, editors: School(idx, exercises)};
+      let specs = School.exercises;
+      let (n, specs, exercise) =
+        LocalStorage.load_school(~specs, ~instructor_mode);
+      {...model, editors: School(n, specs, exercise)};
     };
   {
     ...m,
@@ -152,12 +155,12 @@ let load_editor = (model: Model.t): Model.t => {
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
   | Scratch(_) =>
-    let (idx, editors) = Scratch.init();
+    let (idx, editors) = LocalStorage.init_scratch();
     {...model, editors: Scratch(idx, editors)};
   | School(_) =>
     let instructor_mode = model.settings.instructor_mode;
-    let (idx, exercises) = School.init(~instructor_mode);
-    {...model, editors: School(idx, exercises)};
+    let (n, specs, exercise) = LocalStorage.init_school(~instructor_mode);
+    {...model, editors: School(n, specs, exercise)};
   };
 
 let reevaluate_post_update =
@@ -190,6 +193,7 @@ let reevaluate_post_update =
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | LoadDefault
+  | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
@@ -233,6 +237,27 @@ let apply =
     | Save =>
       save(model);
       Ok(model);
+    | ResetSlide =>
+      let model =
+        switch (model.editors) {
+        | Scratch(n, slides) =>
+          let slides = Util.ListUtil.put_nth(n, Scratch.init_nth(n), slides);
+          {...model, editors: Scratch(n, slides)};
+        | School(n, specs, _) =>
+          let instructor_mode = model.settings.instructor_mode;
+          {
+            ...model,
+            editors:
+              School(
+                n,
+                specs,
+                List.nth(specs, n)
+                |> SchoolExercise.state_of_spec(~instructor_mode),
+              ),
+          };
+        };
+      save(model);
+      Ok(model);
     | SwitchSlide(n) =>
       switch (model.editors) {
       | Scratch(m, _) when m == n => Error(FailedToSwitch)
@@ -243,30 +268,26 @@ let apply =
           LocalStorage.save_scratch((n, slides));
           Ok({...model, editors: Scratch(n, slides)});
         }
-      | School(_, exercises) =>
-        switch (n < List.length(exercises)) {
+      | School(_, specs, _) =>
+        switch (n < List.length(specs)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.save_school(
-            (n, exercises),
-            ~instructor_mode=model.settings.instructor_mode,
-          );
-          print_endline("saved");
-          Ok({...model, editors: School(n, exercises)});
+          let instructor_mode = model.settings.instructor_mode;
+          let exercise =
+            LocalStorage.load_school_slide(n, ~specs, ~instructor_mode);
+          Ok({...model, editors: School(n, specs, exercise)});
         }
       }
     | SwitchEditor(n) =>
       switch (model.editors) {
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
-      | School(m, exercises) =>
-        let exercise = List.nth(exercises, m);
+      | School(m, specs, exercise) =>
         let exercise = SchoolExercise.switch_editor(n, exercise);
-        let exercises = Util.ListUtil.put_nth(m, exercise, exercises);
         LocalStorage.save_school(
-          (m, exercises),
+          (m, specs, exercise),
           ~instructor_mode=model.settings.instructor_mode,
         );
-        Ok({...model, editors: School(m, exercises)});
+        Ok({...model, editors: School(m, specs, exercise)});
       }
     | ToggleMode =>
       let new_mode = Editors.rotate_mode(model.editors);

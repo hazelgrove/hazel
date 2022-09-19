@@ -1,8 +1,9 @@
 open Virtual_dom.Vdom;
 open Node;
+open ExerciseUtil;
 
 let exercise: SchoolExercise.spec = {
-  next_id: 0,
+  title: "Recursive Fibonacci",
   point_distribution: {
     test_validation: 10,
     mutation_testing: 40,
@@ -10,9 +11,20 @@ let exercise: SchoolExercise.spec = {
   },
   prompt:
     div([
-      text(
-        "Write tests cases for, and then implement, a function fib that recursively determines the nth fibonacci number, assuming n >= 0.",
-      ),
+      p([
+        div([
+          text(
+            "Write tests cases for, and then implement, a function, that recursively determines the nth fibonacci number.",
+          ),
+        ]),
+      ]),
+      p([
+        code("fib n"),
+        text(" should return the "),
+        code("n"),
+        text("th fibonacci number, assuming "),
+        code("n >= 0."),
+      ]),
     ]),
   prelude: "",
   correct_impl: "let fib: Int -> Int =
@@ -57,4 +69,5 @@ test fib(7) == 21 end;
 test fib(8) == 34 end;",
     hints: ["base case 0", "base case 1"],
   },
+  next_id: 0,
 };
