@@ -44,12 +44,15 @@ let exp = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
 let pat = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
+let typ = t =>
+  Example.mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
 let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
 let bool = b => Example.mk_monotile(Form.mk_atomic(Exp, b));
 let mk_parens_exp = Example.mk_tile(Form.get("parens_exp"));
 let mk_parens_pat = Example.mk_tile(Form.get("parens_pat"));
 let mk_list_exp = Example.mk_tile(Form.get("list_lit_exp"));
 let mk_list_pat = Example.mk_tile(Form.get("list_lit_pat"));
+let mk_list_typ = Example.mk_tile(Form.get("list_typ"));
 let unary_minus = () => Example.mk_monotile(Form.get("unary_minus"));
 let plus = () => Example.mk_monotile(Form.get("plus"));
 let minus = () => Example.mk_monotile(Form.get("minus"));
@@ -75,6 +78,8 @@ let mk_ap = Example.mk_tile(Form.get("ap"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
+let mk_case = Example.mk_tile(Form.get("case"));
+let mk_rule = Example.mk_tile(Form.get("rule"));
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
@@ -91,7 +96,7 @@ let empty_hole_exp: form = {
   };
   {
     id: "empty_hole_exp",
-    syntactic_form: [exp("EMPTYHOLE")],
+    syntactic_form: [exp("EmptyHole")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -318,7 +323,7 @@ let function_empty_hole_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("EMPTYHOLE")]]), exp("EXP")];
+  let form = [mk_fun([[pat("EmptyHole")]]), exp("EXP")];
   let expandable_id =
     switch (List.nth(form, 0)) {
     | Tile(tile) =>
@@ -1672,6 +1677,301 @@ let bool_or_exp: form = {
   };
 };
 
+let case_exp_group = "case_exp_group";
+let case_exp2_group = "case_exp2_group";
+let case_exp3_group = "case_exp3_group";
+let case_example_1 = {
+  sub_id: "example_1",
+  term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3"),
+  message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
+  feedback: Unselected,
+};
+let case_example_2 = {
+  sub_id: "example_2",
+  term: mk_example("case false | true => 1 | false => 2"),
+  message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
+  feedback: Unselected,
+};
+let case_exp: form = {
+  let explanation = {
+    message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
+    feedback: Unselected,
+  };
+  let _dot = exp("...");
+  {
+    id: "case_exp",
+    syntactic_form: [
+      mk_case([
+        [exp("EXP_scrut")],
+        [mk_rule([[pat("PAT1")]]), exp("EXP_clause1")],
+      ]),
+    ],
+    expandable_id: None, //Some(Piece.id(dot)),
+    explanation,
+    examples: [case_example_1, case_example_2],
+  };
+};
+let case_exp_rule2: form = {
+  let explanation = {
+    message: "Case expression. Consider each branch in order. \n-If the [*first pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*first clause*](%i). \n-Otherwise, if the [*second pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*second clause*](%i).",
+    feedback: Unselected,
+  };
+  let exp2 = exp("EXP2");
+  {
+    id: "case_exp_rule2",
+    syntactic_form: [exp("EXP1"), comma_exp(), exp2],
+    expandable_id: Some(Piece.id(exp2)),
+    explanation,
+    examples: [case_example_2],
+  };
+};
+let case_exp_rule3: form = {
+  let explanation = {
+    message: "Case expression. Consider each branch in order. \n-If the [*first pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*first clause*](%i). \n-Otherwise, if the [*second pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*second clause*](%i). \n-Otherwise, if the [*third pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*third clause*](%i).",
+    feedback: Unselected,
+  };
+  let comma = comma_exp();
+  {
+    id: "case_exp_rule3",
+    syntactic_form: [
+      exp("EXP1"),
+      comma_exp(),
+      exp("EXP2"),
+      comma,
+      exp("EXP3"),
+    ],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [case_example_1],
+  };
+};
+
+let empty_hole_pat_group = "empty_hole_pat_group";
+let empty_hole_pat: form = {
+  let explanation = {
+    message: "Empty hole pattern. Expressions are not matched against the *empty hole pattern* until it is filled.",
+    feedback: Unselected,
+  };
+  {
+    id: "empty_hole_pat",
+    syntactic_form: [pat("EmptyHole")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let multi_hole_pat_group = "multi_hole_pat_group";
+let multi_hole_pat: form = {
+  let explanation = {
+    message: "Multi hole pattern. Expressions are not matched against the invalid pattern until it is corrected.",
+    feedback: Unselected,
+  };
+  {
+    id: "multi_hole_pat",
+    syntactic_form: [pat("Invalid")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let wild_pat_group = "wild_pat_group";
+let wild_pat: form = {
+  let explanation = {
+    message: "Wildcard pattern. All expressions match the *wildcard pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "wild_pat",
+    syntactic_form: [pat("_")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let intlit_pat_group = "intlit_pat_group";
+let intlit_pat: form = {
+  let explanation = {
+    message: "Integer literal pattern. Only expressions with value `%i` match the *`%i` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "intlit_pat",
+    syntactic_form: [pat("IntLit")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let floatlit_pat_group = "floatlit_pat_group";
+let floatlit_pat: form = {
+  let explanation = {
+    message: "Floating-point literal pattern. Only expressions with value `%f` match the *`%f` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "floatlit_pat",
+    syntactic_form: [pat("FloatLit")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let boollit_pat_group = "boollit_pat_group";
+let boollit_pat: form = {
+  let explanation = {
+    message: "Boolean literal pattern. Only expressions with value `%b` match the *`%b` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "boollit_pat",
+    syntactic_form: [pat("BoolLit")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let triv_pat_group = "triv_pat_group";
+let triv_pat: form = {
+  let explanation = {
+    message: "Triv pattern. Only expressions with value `triv` match the *`triv` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "triv_pat",
+    syntactic_form: [pat("triv")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let listnil_pat_group = "listnil_pat_group";
+let listnil_pat: form = {
+  let explanation = {
+    message: "Boolean literal pattern. Only expressions that are empty lists `nil` match the *empty list `nil` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "listnil_pat",
+    syntactic_form: [pat("nil")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let var_pat_group = "var_pat_group";
+let var_pat: form = {
+  let explanation = {
+    message: "Variable pattern. All expressions match the *variable pattern*. The matching expression will be bound to variable `%s`.",
+    feedback: Unselected,
+  };
+  {
+    id: "var_pat",
+    syntactic_form: [pat("Var")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let empty_hole_typ_group = "empty_hole_typ_group";
+let empty_hole_typ: form = {
+  let explanation = {
+    message: "Empty hole type. This marks a type that needs to be filled in.",
+    feedback: Unselected,
+  };
+  {
+    id: "empty_hole_typ",
+    syntactic_form: [typ("EmptyHole")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+// TODO Did get a case where in type position had space between two variables where got into weird state
+let multi_hole_typ_group = "multi_hole_typ_group";
+let multi_hole_typ: form = {
+  let explanation = {
+    message: "Multi hole type. This is an invalid type.",
+    feedback: Unselected,
+  };
+  {
+    id: "multi_hole_typ",
+    syntactic_form: [typ("Invalid")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let int_typ_group = "int_typ_group";
+let int_typ: form = {
+  let explanation = {
+    message: "Int type. The `Int` type classifies integer values.",
+    feedback: Unselected,
+  };
+  {
+    id: "int_typ",
+    syntactic_form: [typ("Int")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let float_typ_group = "float_typ_group";
+let float_typ: form = {
+  let explanation = {
+    message: "Float type. The `Float` type classifies floating-point values.",
+    feedback: Unselected,
+  };
+  {
+    id: "float_typ",
+    syntactic_form: [typ("Float")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let bool_typ_group = "bool_typ_group";
+let bool_typ: form = {
+  let explanation = {
+    message: "Bool type. The `Bool` type classifies boolean values.",
+    feedback: Unselected,
+  };
+  {
+    id: "bool_typ",
+    syntactic_form: [typ("Bool")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let list_typ_group = "list_typ_group";
+let list_typ: form = {
+  let explanation = {
+    message: "List type. The list type classifies lists with elements with the corresponding [*element type*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "list_typ",
+    syntactic_form: [mk_list_typ([[typ("TYP_elem")]])],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 // Just have a flat list of forms w/ their explanations and examples
 // Keep track of options/groups in a separate structure
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1759,6 +2059,7 @@ let init = {
   highlight: true,
   specificity_open: false,
   forms: [
+    // Expressions
     empty_hole_exp,
     multi_hole_exp,
     triv_exp,
@@ -1822,6 +2123,25 @@ let init = {
     float_eq_exp,
     bool_and_exp,
     bool_or_exp,
+    case_exp,
+    // Rules
+    // Patterns
+    empty_hole_pat,
+    multi_hole_pat,
+    wild_pat,
+    intlit_pat,
+    floatlit_pat,
+    boollit_pat,
+    triv_pat,
+    listnil_pat,
+    var_pat,
+    // Types
+    empty_hole_typ,
+    multi_hole_typ,
+    int_typ,
+    float_typ,
+    bool_typ,
+    list_typ,
   ],
   groups: [
     // Expressions
@@ -1833,6 +2153,7 @@ let init = {
     (float_exp_group, init_options([(float_exp.id, [])])),
     (list_exp_group, init_options([(list_exp.id, [])])),
     // TODO Why is the PAT showing up red in the dropdown
+    // Also a problem when just showing pattern and type forms
     (function_group, init_options([(function_exp.id, [])])),
     (
       function_empty_hole_group,
@@ -2094,9 +2415,25 @@ let init = {
     (float_eq_group, init_options([(float_eq_exp.id, [])])),
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
+    (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns
+    (empty_hole_pat_group, init_options([(empty_hole_pat.id, [])])),
+    (multi_hole_pat_group, init_options([(multi_hole_pat.id, [])])),
+    (wild_pat_group, init_options([(wild_pat.id, [])])),
+    (intlit_pat_group, init_options([(intlit_pat.id, [])])),
+    (floatlit_pat_group, init_options([(floatlit_pat.id, [])])),
+    (boollit_pat_group, init_options([(boollit_pat.id, [])])),
+    (triv_pat_group, init_options([(triv_pat.id, [])])),
+    (listnil_pat_group, init_options([(listnil_pat.id, [])])),
+    (var_pat_group, init_options([(var_pat.id, [])])),
     // Types
+    (empty_hole_typ_group, init_options([(empty_hole_typ.id, [])])),
+    (multi_hole_typ_group, init_options([(multi_hole_typ.id, [])])),
+    (int_typ_group, init_options([(int_typ.id, [])])),
+    (float_typ_group, init_options([(float_typ.id, [])])),
+    (bool_typ_group, init_options([(bool_typ.id, [])])),
+    (list_typ_group, init_options([(list_typ.id, [])])),
   ],
 };
 
