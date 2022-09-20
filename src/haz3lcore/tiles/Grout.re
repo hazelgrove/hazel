@@ -70,28 +70,30 @@ let merge = (gs: list(t)): option(t) =>
   };
 
 let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
-  open IdGen.Syntax;
-  let* (l_hole, l_shape) =
+  open // TODO clean up
+       IdGen.Syntax;
+  let* (l_hole, l_nib) =
     switch (l) {
-    | {shape: Concave(_), sort: Rul} when s == Exp => return(([], l.shape))
+    | {shape: Concave(_), sort: Rul} when s == Exp => return(([], l))
     | {shape: Concave(_), sort} when sort != s && sort != r.sort =>
       let+ id = IdGen.fresh;
-      ([{id, sort, shape: Convex}], Nib.Shape.Convex);
-    | _ => return(([], l.shape))
+      ([{id, sort, shape: Convex}], Nib.{sort, shape: Convex});
+    | _ => return(([], l))
     };
-  let* (r_shape, r_hole) =
+  let* (r_nib, r_hole) =
     switch (r) {
-    | {shape: Concave(_), sort: Rul} when s == Exp => return((r.shape, []))
+    | {shape: Concave(_), sort: Rul} when s == Exp => return((r, []))
     | {shape: Concave(_), sort} when sort != s && sort != l.sort =>
       let+ id = IdGen.fresh;
-      (Nib.Shape.Convex, [{id, sort, shape: Convex}]);
-    | _ => return((r.shape, []))
+      (Nib.{sort, shape: Convex}, [{id, sort, shape: Convex}]);
+    | _ => return((r, []))
     };
   let+ mid_hole =
-    Nib.Shape.fits(l_shape, r_shape)
+    Nib.Shape.fits(l_nib.shape, r_nib.shape)
       ? return([])
       : {
-        let+ g = mk_fits_shape(l_shape, s);
+        let s = Sort.eq(l_nib.sort, r_nib.sort) ? l_nib.sort : s;
+        let+ g = mk_fits_shape(l_nib.shape, s);
         [g];
       };
   List.concat([l_hole, mid_hole, r_hole]);
