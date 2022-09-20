@@ -9,7 +9,10 @@
   let mk_uexp term: UExp.t =
     match term with
     (*FIXME: Inefficient *)
+    (*
     | UExp.Fun(p, e) -> {UExp.ids = [mk_id ()]@p.ids@e.ids; term}
+*)
+    | UExp.Fun(_, _) -> {UExp.ids = [mk_id ()]; term}
     | _ -> {UExp.ids = [mk_id ()]; term}
 
   let mk_upat term =
@@ -43,8 +46,8 @@
     | And
     | Or
 
-  let op_of_optok tok : UExp.op_bin =
-    match tok with
+  let op_of_optok optok : UExp.op_bin =
+    match optok with
     | Plus -> UExp.Int(UExp.Plus)
     | Minus -> UExp.Int(UExp.Minus)
     | Times -> UExp.Int(UExp.Times)

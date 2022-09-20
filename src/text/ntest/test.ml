@@ -1,6 +1,4 @@
 (*
-open Text.Parsing
-
 let%test "a" =
   let a = ast_of_string "let a = 4 in a" in
   match a with
@@ -12,15 +10,48 @@ let%test "a" =
       print_endline ("Error: " ^ e);
       false
       *)
-
 open Text.Parsing
 
+(*
 let test_parse text : bool =
+  (*Get the first AST*)
+  let ast_a = ast_of_string text in
+  match ast_a with
+  | Ok ast -> (
+      let printed_text = Text.Print.print_uexp ast in
+      (*Get the seconds AST*)
+      let ast_b = ast_of_string printed_text in
+      match ast_a = ast_b with
+      | true -> true
+      | false ->
+          print_endline "First:";
+          let ast_a = Result.get_ok ast_a in
+          let c =
+            Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t ast_a)
+          in
+          print_endline c;
+          print_endline "Second:";
+          let ast_a = Result.get_ok ast_b in
+          let c =
+            Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t ast_a)
+          in
+          print_endline c;
+          false)
+  | Error e ->
+      print_endline ("Error: " ^ e);
+      false
+      *)
+
+let test_parse text : bool =
+  print_endline ("Test:\n" ^ text);
   let ast = ast_of_string text in
   match ast with
   | Ok b ->
-      let c = Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t b) in
-      print_endline ("Test: " ^ text);
+      let c = Text.Print.print_uexp b in
+      (*
+      let d = Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t b) in
+      print_endline d;
+      *)
       print_endline c;
       print_endline "";
       true
@@ -42,7 +73,6 @@ let%test "basic let fun" =
 let%test "annotated fun" = test_parse "fun (x : Int) -> x"
 let%test "annotated fun2" = test_parse "fun (x : Int -> Int) -> x"
 
-(*
 let%test "major" =
   test_parse
     "let a = 2 in\n\
@@ -56,6 +86,7 @@ let%test "major" =
     \  fun (x : Int) -> x + 5 < 0 in\n\
      true && f(a) && f(4) && (g(5) == 6)\n\
     \  "
+(*
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)

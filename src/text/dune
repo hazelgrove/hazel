@@ -2,7 +2,7 @@
 
 (library
  (name text)
- (libraries pretty haz3lcore menhirLib)
+ (libraries pretty haz3lcore haz3lweb menhirLib)
  (preprocess
   (pps ppx_let)))
 
