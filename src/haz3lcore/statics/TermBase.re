@@ -286,6 +286,7 @@ and UTyp: {
     | Int
     | Float
     | Bool
+    | String
     | List(t)
     | Arrow(t, t)
     | Tuple(list(t))
@@ -303,6 +304,7 @@ and UTyp: {
     | Int
     | Float
     | Bool
+    | String
     | List(t)
     | Arrow(t, t)
     | Tuple(list(t))

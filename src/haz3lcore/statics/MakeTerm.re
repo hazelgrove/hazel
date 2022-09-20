@@ -373,6 +373,7 @@ and typ_term: unsorted => UTyp.term = {
       | (["Bool"], []) => Bool
       | (["Int"], []) => Int
       | (["Float"], []) => Float
+      | (["String"], []) => String
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
       | _ => hole(tm)

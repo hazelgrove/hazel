@@ -82,7 +82,11 @@ let is_listnil = str => str == "nil";
 let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_concrete_typ = str =>
-  str == "Int" || str == "Float" || str == "Bool" || str == "Unit";
+  str == "String"
+  || str == "Int"
+  || str == "Float"
+  || str == "Bool"
+  || str == "Unit";
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
 let is_wild = regexp("^_$");

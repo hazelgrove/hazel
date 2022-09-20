@@ -570,7 +570,8 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   | EmptyHole
   | Int
   | Float
-  | Bool => return(Id.Map.empty)
+  | Bool
+  | String => return(Id.Map.empty)
   | List(t)
   | Parens(t) =>
     let (_, m) = utyp_to_info_map(t);
