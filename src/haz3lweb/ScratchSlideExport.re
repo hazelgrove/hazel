@@ -6,7 +6,10 @@ type t = {
   backup_text: string,
 };
 
-let empty = {serialized_state: "", backup_text: ""};
+let empty = {
+  serialized_state: "(0((selection((focus Left)(content())))(backpack())(relatives((siblings(((Grout((id 0)(shape Convex))))()))(ancestors())))(caret Outer)))",
+  backup_text: "",
+};
 
 let defaults = [
   {
