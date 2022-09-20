@@ -406,8 +406,11 @@ let syntactic_form_view =
       ~group_id,
       ~form_id,
     ) => {
+  print_endline("Trying to get the map");
   let map = Measured.of_segment(unselected);
+  print_endline("Got map");
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
+  print_endline("Got the code view");
   let deco_view =
     deco(
       ~doc,
@@ -487,6 +490,13 @@ let rec bypass_parens_exp = exp => {
   switch (exp) {
   | TermBase.UExp.Parens(e) => bypass_parens_exp(e.term)
   | _ => exp
+  };
+};
+
+let rec bypass_parens_typ = typ => {
+  switch (typ) {
+  | TermBase.UTyp.Parens(t) => bypass_parens_typ(t.term)
+  | _ => typ
   };
 };
 
@@ -2188,11 +2198,258 @@ let get_doc =
             (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
           ],
         );
-      | Match(_scrut, _rules) => default
+      | Match(_scrut, _rules) => /*let (doc, options) =
+                                      LangDocMessages.get_form_and_options(
+                                        LangDocMessages.case_exp_group,
+                                        docs,
+                                      );
+                                    let scrut_id = List.nth(scrut.ids, 0);
+                                    let coloring_ids =
+                                      switch (List.nth(doc.syntactic_form, 0)) {
+                                      | Tile(tile) => [
+                                          (
+                                            Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                                            scrut_id,
+                                          ),
+                                        ]
+                                      | _ => []
+                                      };
+                                    get_message(
+                                      doc,
+                                      options,
+                                      LangDocMessages.case_exp_group,
+                                      Printf.sprintf(
+                                        Scanf.format_from_string(doc.explanation.message, "%i"),
+                                        scrut_id,
+                                      ),
+                                      coloring_ids,
+                                    );*/ default
       };
     get_message_exp(term.term);
-  | Some(InfoPat(_))
-  | Some(InfoTyp(_))
+  | Some(InfoPat({term, _})) =>
+    switch (bypass_parens_and_annot_pat(term.term)) {
+    | EmptyHole =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.empty_hole_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.empty_hole_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | MultiHole(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.multi_hole_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.multi_hole_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | Wild =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.wild_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.wild_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | Int(i) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.intlit_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.intlit_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          i,
+          i,
+        ),
+        [],
+      );
+    | Float(f) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.floatlit_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.floatlit_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%f%f"),
+          f,
+          f,
+        ),
+        [],
+      );
+    | Bool(b) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.boollit_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.boollit_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%b%b"),
+          b,
+          b,
+        ),
+        [],
+      );
+    | Triv =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.triv_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.triv_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | ListLit(_elements) => default
+    | Cons(_hd, _tl) => default
+    | Var(v) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.var_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.var_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s"),
+          v,
+        ),
+        [],
+      );
+    | Tuple(_elements) => default
+    | Invalid(_) // Shouldn't be hit
+    | Parens(_) // Shouldn't be hit?
+    | TypeAnn(_) => default // Shouldn't be hit?
+    }
+  | Some(InfoTyp({term, _})) =>
+    switch (bypass_parens_typ(term.term)) {
+    | EmptyHole =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.empty_hole_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.empty_hole_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | MultiHole(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.multi_hole_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.multi_hole_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | Int =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.int_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.int_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | Float =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.float_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.float_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | Bool =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.bool_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.bool_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | List(elem) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.list_typ_group,
+          docs,
+        );
+      let elem_id = List.nth(elem.ids, 0);
+      let coloring_ids =
+        switch (List.nth(doc.syntactic_form, 0)) {
+        | Tile(tile) => [
+            (Piece.id(List.nth(List.nth(tile.children, 0), 0)), elem_id),
+          ]
+        | _ => []
+        };
+      get_message(
+        doc,
+        options,
+        LangDocMessages.list_typ_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%i"),
+          elem_id,
+        ),
+        coloring_ids,
+      );
+    | Arrow(_arg, _result) => default
+    | Tuple(_elem) => default
+    | Invalid(_) // Shouldn't be hit
+    | Parens(_) => default // Shouldn't be hit?
+    }
   | Some(InfoRul(_))
   | None
   | Some(Invalid(_)) => default
