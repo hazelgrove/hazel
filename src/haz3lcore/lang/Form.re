@@ -218,6 +218,10 @@ let forms: list((string, t)) = [
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [mk_padded_child(Exp)]))),
   //("concat", mk_infix("@", Exp, P.concat)),
   //("rev_ap", mk_infix("|>", Exp, P.eqs)),
+  (
+    "cons_exp_prefix",
+    mk_infix(~pad_l=false, ~pad_r=false, ":", Exp, P.cons),
+  ), // HACK: SUBSTRING REQ
   ("cons_exp", mk_infix(~pad_l=false, ~pad_r=false, "::", Exp, P.cons)),
   ("cons_pat", mk_infix(~pad_l=false, ~pad_r=false, "::", Pat, P.cons)),
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [mk_child(Exp)]))),

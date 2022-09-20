@@ -70,8 +70,8 @@ let merge = (gs: list(t)): option(t) =>
   };
 
 let mk = ((l, r): Nibs.t, s: Sort.t): IdGen.t(list(t)) => {
-  open // TODO clean up
-       IdGen.Syntax;
+  open IdGen.Syntax; // TODO clean up
+
   let* (l_hole, l_nib) =
     switch (l) {
     | {shape: Concave(_), sort: Rul} when s == Exp => return(([], l))
