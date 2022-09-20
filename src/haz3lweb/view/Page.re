@@ -1,5 +1,4 @@
 open Virtual_dom.Vdom;
-open Virtual_dom.Vdom.Vdom_input_widgets;
 open Node;
 open Util.Web;
 open Haz3lcore;
@@ -50,10 +49,6 @@ let toggle = (~tooltip="", label, active, action) =>
       ]),
     [div(~attr=clss(["toggle-knob"]), [text(label)])],
   );
-
-let file_upload_button = (~tooltip="", icon, action) => {
-  input;
-};
 
 let copy_log_to_clipboard = _ => {
   Log.append_json_updates_log();
