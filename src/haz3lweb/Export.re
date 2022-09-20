@@ -19,7 +19,7 @@ type all = {
   log: string,
 };
 
-let all = (~instructor_mode) => {
+let mk_all = (~instructor_mode) => {
   let settings = LocalStorage.Settings.export();
   let specs = School.exercises;
   {
@@ -31,17 +31,10 @@ let all = (~instructor_mode) => {
 };
 
 let export_all = (~instructor_mode) => {
-  all(~instructor_mode) |> yojson_of_all;
+  mk_all(~instructor_mode) |> yojson_of_all;
 };
 
-let download_json = (filename, contents): unit =>
-  JsUtil.download_string_file(
-    filename ++ ".json",
-    "application/json",
-    contents |> Yojson.Safe.to_string,
-  );
-
-let import = (data, ~specs) => {
+let import_all = (data, ~specs) => {
   let all = data |> Yojson.Safe.from_string |> all_of_yojson;
   let settings = LocalStorage.Settings.import(all.settings); // TODO how does it get into model?
   let instructor_mode = settings.instructor_mode;

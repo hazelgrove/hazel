@@ -139,14 +139,14 @@ let reevaluate_post_update =
   | SetLogoFontMetrics(_)
   | Copy
   | UpdateResult(_)
-  | InitiateImport(_)
-  | InitiateScratchpadImport(_)
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
   | FailedInput(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
-  | FinishImport(_)
-  | FinishScratchpadImport(_)
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
   | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
@@ -190,23 +190,23 @@ let apply =
     | Save =>
       save_editors(model);
       Ok(model);
-    | InitiateImport(file) =>
-      JsUtil.read_file(file, data => schedule_action(FinishImport(data)));
+    | InitImportAll(file) =>
+      JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
       Ok(model);
-    | FinishImport(data) =>
+    | FinishImportAll(data) =>
       switch (data) {
       | None => Ok(model)
       | Some(data) =>
         let specs = School.exercises;
-        Export.import(data, ~specs);
+        Export.import_all(data, ~specs);
         Ok(load_model(model));
       }
-    | InitiateScratchpadImport(file) =>
+    | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
-        schedule_action(FinishScratchpadImport(data))
+        schedule_action(FinishImportScratchpad(data))
       );
       Ok(model);
-    | FinishScratchpadImport(data) =>
+    | FinishImportScratchpad(data) =>
       switch (model.editors) {
       | School(_) => assert(false)
       | Scratch(idx, slides) =>
