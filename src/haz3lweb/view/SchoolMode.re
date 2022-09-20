@@ -328,3 +328,24 @@ let view =
     @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
   );
 };
+
+let toolbar_buttons = (~inject, _editors) => {
+  let reset_button =
+    Widgets.button(
+      Icons.trash,
+      _ => {
+        let confirmed =
+          JsUtil.confirm(
+            "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+          );
+        if (confirmed) {
+          inject(Update.ResetSlide);
+        } else {
+          Virtual_dom.Vdom.Effect.Ignore;
+        };
+      },
+      ~tooltip="Reset Exercise",
+    );
+
+  [reset_button];
+};

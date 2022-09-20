@@ -1625,3 +1625,8 @@ svg.tile-selected {
   align-items: center;
   white-space: pre;
 }
+
+/* File Select */
+.file-select-button {
+  display: none;
+}

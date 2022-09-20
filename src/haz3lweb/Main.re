@@ -134,9 +134,9 @@ module App = {
 
 let initial_model = {
   // NOTE: load settings first to get last editor mode
-  let settings = LocalStorage.load_settings();
-  let model = {...Model.blank, settings};
-  Update.load_editor(model);
+  Update.load_model(
+    Model.blank,
+  );
 };
 
 Incr_dom.Start_app.start(

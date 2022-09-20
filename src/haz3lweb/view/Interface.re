@@ -75,6 +75,13 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
+  | exception _ =>
+    print_endline("Other evaluation exception raised (stack overflow?)");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
   };
 
 let get_result = (map, term): ProgramResult.t =>
