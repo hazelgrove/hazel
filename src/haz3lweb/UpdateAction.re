@@ -24,7 +24,6 @@ type t =
       [@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file),
     )
   | FinishScratchpadImport(option(string))
-  | LoadDefault
   | ResetSlide
   | Save
   | ToggleMode

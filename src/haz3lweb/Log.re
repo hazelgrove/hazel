@@ -32,7 +32,6 @@ let is_action_logged: Update.t => bool =
   | Set(_)
   | FinishImport(_)
   | FinishScratchpadImport(_)
-  | LoadDefault
   | ResetSlide
   | ToggleMode
   | SwitchSlide(_)
