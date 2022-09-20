@@ -147,7 +147,6 @@ let reevaluate_post_update =
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImport(_)
   | FinishScratchpadImport(_)
-  | LoadDefault
   | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
@@ -188,7 +187,6 @@ let apply =
     | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
-    | LoadDefault => Ok(load_default_editor(model))
     | Save =>
       save_editors(model);
       Ok(model);

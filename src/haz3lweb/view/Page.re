@@ -136,11 +136,6 @@ let top_bar_view =
               ~tooltip="Import Submission",
             ),
             button(
-              Icons.trash,
-              _ => inject(LoadDefault),
-              ~tooltip="Reset All Slides",
-            ),
-            button(
               Icons.eye,
               _ => inject(Set(WhitespaceIcons)),
               ~tooltip="Toggle Visible Whitespace",
