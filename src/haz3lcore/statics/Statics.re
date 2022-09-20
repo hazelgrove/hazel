@@ -213,7 +213,7 @@ let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
   switch (ty_ann, pat.term, def.term) {
   | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
-    VarMap.extend(ctx, (x, {id: List.hd(pat.ids), typ: ty_ann}))
+    Ctx.extend_term(ctx, x, {id: List.hd(pat.ids), item: ty_ann})
   | _ => ctx
   };
 
@@ -246,14 +246,14 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
     (co, map);
   | Pat(p) =>
     let (_, _, map) = upat_to_info_map(~ctx, p);
-    (VarMap.empty, map);
+    (Ctx.co_empty, map);
   | Typ(ty) =>
     let (_, map) = utyp_to_info_map(ty);
-    (VarMap.empty, map);
+    (Ctx.co_empty, map);
   // TODO(d) consider Rul case
   | Rul(_)
   | Nul ()
-  | Any () => (VarMap.empty, Id.Map.empty)
+  | Any () => (Ctx.co_empty, Id.Map.empty)
   }
 and uexp_to_info_map =
     (~ctx: Ctx.t, ~mode=Typ.Syn, {ids, term} as uexp: Term.UExp.t)
@@ -278,30 +278,33 @@ and uexp_to_info_map =
        )
     |> List.fold_left(Id.Map.disj_union, m),
   );
-  let atomic = self => add(~self, ~free=[], Id.Map.empty);
+  let atomic = self => add(~self, ~free=Ctx.co_empty, Id.Map.empty);
   switch (term) {
   | Invalid(msg) => (
       Unknown(Internal),
-      [],
+      Ctx.co_empty,
       ids
       |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
       |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
+    add(~self=Multi, ~free=Ctx.co_union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Var(name) =>
-    switch (VarMap.lookup(ctx, name)) {
+    switch (Ctx.lookup_term(ctx, name)) {
     | None => atomic(Free)
     | Some(ce) =>
       add(
-        ~self=Just(ce.typ),
-        ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+        ~self=Just(ce.item),
+        ~free={
+          term: [(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+          typ: [],
+        },
         Id.Map.empty,
       )
     }
@@ -318,13 +321,13 @@ and uexp_to_info_map =
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
       ~self=Just(ty_out),
-      ~free=Ctx.union([free1, free2]),
+      ~free=Ctx.co_union([free1, free2]),
       union_m([m1, m2]),
     );
   | Tuple(es) =>
     let modes = Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
-    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let free = Ctx.co_union(List.map(((_, f, _)) => f, infos));
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
@@ -334,7 +337,7 @@ and uexp_to_info_map =
     let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
     add(
       ~self=Just(List(ty1)),
-      ~free=Ctx.union([free1, free2]),
+      ~free=Ctx.co_union([free1, free2]),
       union_m([m1, m2]),
     );
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
@@ -352,7 +355,7 @@ and uexp_to_info_map =
         )
       | Some(ty) => Just(List(ty))
       };
-    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let free = Ctx.co_union(List.map(((_, f, _)) => f, infos));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
   | Test(test) =>
@@ -371,7 +374,7 @@ and uexp_to_info_map =
             {id: Term.UExp.rep_id(e2), ty: ty_e2},
           ],
         ),
-      ~free=Ctx.union([free_e0, free_e1, free_e2]),
+      ~free=Ctx.co_union([free_e0, free_e1, free_e2]),
       union_m([m1, m2, m3]),
     );
   | Seq(e1, e2) =>
@@ -379,7 +382,7 @@ and uexp_to_info_map =
     let (ty2, free2, m2) = go(~mode, e2);
     add(
       ~self=Just(ty2),
-      ~free=Ctx.union([free1, free2]),
+      ~free=Ctx.co_union([free1, free2]),
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
@@ -391,13 +394,13 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
       ~self=Just(ty_out),
-      ~free=Ctx.union([free_fn, free_arg]),
+      ~free=Ctx.co_union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
-    let ctx_body = VarMap.union(ctx_pat, ctx);
+    let ctx_body = Ctx.union(ctx_pat, ctx);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
@@ -412,12 +415,12 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
+    let ctx_body = Ctx.union(ctx_pat_ana, def_ctx);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
+      ~free=Ctx.co_union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
   | Match(scrut, rules) =>
@@ -428,7 +431,7 @@ and uexp_to_info_map =
     let branch_infos =
       List.map2(
         (branch, (_, ctx_pat, _)) =>
-          uexp_to_info_map(~ctx=VarMap.union(ctx_pat, ctx), ~mode, branch),
+          uexp_to_info_map(~ctx=Ctx.union(ctx_pat, ctx), ~mode, branch),
         branches,
         pat_infos,
       );
@@ -443,7 +446,7 @@ and uexp_to_info_map =
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);
     let self = Typ.Joined(Fun.id, branch_sources);
-    let free = Ctx.union([free_scrut] @ branch_frees);
+    let free = Ctx.co_union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
   };
 }
@@ -522,7 +525,8 @@ and upat_to_info_map =
     let typ = typ_after_fix(mode, self);
     add(
       ~self,
-      ~ctx=VarMap.extend(ctx, (name, {id: Term.UPat.rep_id(upat), typ})),
+      ~ctx=
+        Ctx.extend_term(ctx, name, {id: Term.UPat.rep_id(upat), item: typ}),
       Id.Map.empty,
     );
   | Tuple(ps) =>
