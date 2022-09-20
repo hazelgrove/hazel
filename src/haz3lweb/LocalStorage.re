@@ -1,27 +1,4 @@
-open Js_of_ocaml;
 open Sexplib.Std;
-
-// General API
-// TODO: move to JSUtil
-module Util = {
-  let set_localstore = (k: string, v: string): unit => {
-    let local_store =
-      Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-    local_store##setItem(Js.string(k), Js.string(v));
-  };
-
-  let get_localstore = (k: string): option(string) =>
-    try({
-      let local_store =
-        Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
-      local_store##getItem(Js.string(k))
-      |> (
-        x => Js.Opt.get(x, () => assert(false)) |> Js.to_string |> Option.some
-      );
-    }) {
-    | _ => None
-    };
-};
 
 // Settings serialization
 module Settings = {
@@ -43,15 +20,15 @@ module Settings = {
     };
 
   let save = (settings: Model.settings): unit =>
-    Util.set_localstore(save_settings_key, serialize(settings));
+    JsUtil.set_localstore(save_settings_key, serialize(settings));
 
   let load = (): Model.settings =>
-    switch (Util.get_localstore(save_settings_key)) {
+    switch (JsUtil.get_localstore(save_settings_key)) {
     | None => Model.settings_init
     | Some(data) => deserialize(data)
     };
 
-  let export = () => Option.get(Util.get_localstore(save_settings_key));
+  let export = () => Option.get(JsUtil.get_localstore(save_settings_key));
   let import = data => {
     let settings = deserialize(data);
     save(settings);
@@ -84,7 +61,7 @@ module Scratch = {
   };
 
   let save = (scratch: Editors.scratch): unit => {
-    Util.set_localstore(save_scratch_key, serialize(scratch));
+    JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
   let init = () => {
@@ -94,7 +71,7 @@ module Scratch = {
   };
 
   let load = () =>
-    switch (Util.get_localstore(save_scratch_key)) {
+    switch (JsUtil.get_localstore(save_scratch_key)) {
     | None => init()
     | Some(data) =>
       try(deserialize(data)) {
@@ -124,7 +101,7 @@ module School = {
   };
 
   let save_exercise_key = key => {
-    Util.set_localstore(cur_exercise_key, keystring_of_key(key));
+    JsUtil.set_localstore(cur_exercise_key, keystring_of_key(key));
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
@@ -144,7 +121,7 @@ module School = {
     let key = SchoolExercise.key_of_state(exercise);
     let keystring = keystring_of_key(key);
     let value = serialize_exercise(exercise, ~instructor_mode);
-    Util.set_localstore(keystring, value);
+    JsUtil.set_localstore(keystring, value);
   };
 
   let init_exercise = (spec, ~instructor_mode) => {
@@ -152,19 +129,19 @@ module School = {
     let keystring = keystring_of_key(key);
     let exercise = SchoolExercise.state_of_spec(spec, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
-    Util.set_localstore(cur_exercise_key, keystring);
+    JsUtil.set_localstore(cur_exercise_key, keystring);
     exercise;
   };
 
   let load_exercise = (key, spec, ~instructor_mode): SchoolExercise.state => {
     let keystring = keystring_of_key(key);
-    switch (Util.get_localstore(keystring)) {
+    switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
         try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
         | _ => init_exercise(spec, ~instructor_mode)
         };
-      Util.set_localstore(cur_exercise_key, keystring);
+      JsUtil.set_localstore(cur_exercise_key, keystring);
       exercise;
     | None => init_exercise(spec, ~instructor_mode)
     };
@@ -174,7 +151,7 @@ module School = {
     let key = key_of(List.nth(specs, n));
     let keystring = keystring_of_key(key);
     save_exercise(exercise, ~instructor_mode);
-    Util.set_localstore(cur_exercise_key, keystring);
+    JsUtil.set_localstore(cur_exercise_key, keystring);
   };
 
   let init = (~instructor_mode) => {
@@ -184,12 +161,12 @@ module School = {
   };
 
   let load = (~specs, ~instructor_mode): Editors.school => {
-    switch (Util.get_localstore(cur_exercise_key)) {
+    switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);
       switch (SchoolExercise.find_key_opt(key, specs)) {
       | Some((n, spec)) =>
-        switch (Util.get_localstore(keystring)) {
+        switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise = deserialize_exercise(data, ~spec, ~instructor_mode);
           (n, specs, exercise);
@@ -219,7 +196,9 @@ module School = {
   let prep_school_export = (~specs, ~instructor_mode) => {
     {
       cur_exercise:
-        key_of_keystring(Option.get(Util.get_localstore(cur_exercise_key))),
+        key_of_keystring(
+          Option.get(JsUtil.get_localstore(cur_exercise_key)),
+        ),
       exercise_data:
         specs
         |> List.map(spec => {

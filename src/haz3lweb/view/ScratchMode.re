@@ -1,6 +1,5 @@
 open Virtual_dom.Vdom;
 open Node;
-open Js_of_ocaml;
 open Haz3lcore;
 open Util.Web;
 
@@ -45,7 +44,7 @@ let view =
 
 let download_slide_state = state => {
   let data = Export.export_scratchpad(state);
-  Export.download_json("hazel-scratchpad", data);
+  JsUtil.download_json("hazel-scratchpad", data);
 };
 
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
@@ -65,7 +64,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       file => {
         switch (file) {
         | None => Virtual_dom.Vdom.Effect.Ignore
-        | Some(file) => inject(UpdateAction.InitiateScratchpadImport(file))
+        | Some(file) => inject(UpdateAction.InitImportScratchpad(file))
         }
       },
       ~tooltip="Import Scratchpad",

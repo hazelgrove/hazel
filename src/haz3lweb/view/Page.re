@@ -16,8 +16,7 @@ let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
 
 let download_editor_state = (~instructor_mode) => {
   let data = Export.export_all(~instructor_mode);
-  Export.download_json(SchoolSettings.filename, data);
-  Virtual_dom.Vdom.Effect.Ignore;
+  JsUtil.download_json(SchoolSettings.filename, data);
 };
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
@@ -118,10 +117,12 @@ let top_bar_view =
             ),
             button(
               Icons.export,
-              _ =>
+              _ => {
                 download_editor_state(
                   ~instructor_mode=model.settings.instructor_mode,
-                ),
+                );
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
               ~tooltip="Export Submission",
             ),
             file_select_button(
@@ -130,7 +131,7 @@ let top_bar_view =
               file => {
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(InitiateImport(file))
+                | Some(file) => inject(InitImportAll(file))
                 }
               },
               ~tooltip="Import Submission",

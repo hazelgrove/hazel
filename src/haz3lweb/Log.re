@@ -26,12 +26,12 @@ let is_action_logged: Update.t => bool =
   | SetFontMetrics(_)
   | SetLogoFontMetrics(_)
   | SetShowBackpackTargets(_)
-  | InitiateImport(_)
-  | InitiateScratchpadImport(_)
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
   | UpdateResult(_) => false
   | Set(_)
-  | FinishImport(_)
-  | FinishScratchpadImport(_)
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
   | ResetSlide
   | ToggleMode
   | SwitchSlide(_)
@@ -105,7 +105,7 @@ let updates_of_string: string => updates =
 let json_update_log_key = "JSON_UPDATE_LOG";
 
 let updates = () => {
-  LocalStorage.Util.get_localstore(json_update_log_key)
+  JsUtil.get_localstore(json_update_log_key)
   |> Option.value(~default="")
   |> updates_of_string;
 };
@@ -119,7 +119,7 @@ let append_updates = () => {
   let old_log = updates();
   let new_log = new_updates @ old_log;
   let blah = Yojson.Safe.to_string(yojson_of_updates(new_log));
-  LocalStorage.Util.set_localstore(json_update_log_key, blah);
+  JsUtil.set_localstore(json_update_log_key, blah);
 };
 
 let export = () => {
@@ -128,12 +128,12 @@ let export = () => {
 };
 
 let import = data => {
-  LocalStorage.Util.set_localstore(json_update_log_key, data);
+  JsUtil.set_localstore(json_update_log_key, data);
 };
 
 let reset_json_log = () => {
   mut_log := [];
-  LocalStorage.Util.set_localstore(json_update_log_key, "");
+  JsUtil.set_localstore(json_update_log_key, "");
 };
 
 let update = (update: Update.t, old_model: Model.t, res) => {

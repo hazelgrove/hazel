@@ -18,12 +18,10 @@ type t =
   | UpdateDoubleTap(option(float))
   | Mousedown
   | Mouseup
-  | InitiateImport([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-  | FinishImport(option(string))
-  | InitiateScratchpadImport(
-      [@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file),
-    )
-  | FinishScratchpadImport(option(string))
+  | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+  | FinishImportAll(option(string))
+  | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+  | FinishImportScratchpad(option(string))
   | ResetSlide
   | Save
   | ToggleMode

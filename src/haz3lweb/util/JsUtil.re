@@ -89,6 +89,13 @@ let download_string_file =
   link##click;
 };
 
+let download_json = (filename, contents): unit =>
+  download_string_file(
+    filename ++ ".json",
+    "application/json",
+    contents |> Yojson.Safe.to_string,
+  );
+
 let read_file = (file, k) => {
   let reader = [%js new File.fileReader];
   reader##readAsText(file);
@@ -101,6 +108,24 @@ let read_file = (file, k) => {
       Js._true;
     });
 };
+
+let set_localstore = (k: string, v: string): unit => {
+  let local_store =
+    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
+  local_store##setItem(Js.string(k), Js.string(v));
+};
+
+let get_localstore = (k: string): option(string) =>
+  try({
+    let local_store =
+      Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
+    local_store##getItem(Js.string(k))
+    |> (
+      x => Js.Opt.get(x, () => assert(false)) |> Js.to_string |> Option.some
+    );
+  }) {
+  | _ => None
+  };
 
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
