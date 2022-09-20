@@ -5,9 +5,9 @@ let debug_keystoke = ref(false);
 [@deriving (show({with_path: false}), yojson)]
 type entry = {
   update: Update.t,
-  error: option(Update.Failure.t),
+  //error: option(Update.Failure.t),
   timestamp: Model.timestamp,
-  zipper: Printer.t,
+  //zipper: Printer.t,
 };
 
 [@deriving (show({with_path: false}), yojson)]
@@ -41,31 +41,31 @@ let is_action_logged: Update.t => bool =
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
-let mk_entry = (~measured, update, z, error): entry => {
-  let error =
+let mk_entry = (~measured as _, update, _z, error): entry => {
+  let _error =
     switch (error) {
     | Ok(_) => None
     | Error(failure) => Some(failure)
     };
   {
-    zipper: Printer.of_zipper(~measured, z),
+    //zipper: Printer.of_zipper(~measured, z),
     update,
-    error,
+    //error,
     timestamp: JsUtil.timestamp(),
   };
 };
 
 let to_string = (entry: entry) => {
-  let status =
+  /*let status =
     switch (entry.error) {
     | None => "SUCCESS"
     | Some(failure) => "FAILURE(" ++ Update.Failure.show(failure) ++ ")"
-    };
+    };*/
   Printf.sprintf(
-    "%.0f: %s %s",
+    "%.0f: %s",
     entry.timestamp,
     Update.show(entry.update),
-    status,
+    //status,
   );
 };
 

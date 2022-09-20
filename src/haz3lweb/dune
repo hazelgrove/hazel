@@ -13,6 +13,7 @@
   Worker)
  (libraries
   incr_dom
+  virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
   haz3lcore
