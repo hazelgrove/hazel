@@ -22,9 +22,14 @@ module Settings = {
   let save = (settings: Model.settings): unit =>
     JsUtil.set_localstore(save_settings_key, serialize(settings));
 
+  let init = () => {
+    JsUtil.set_localstore(save_settings_key, serialize(Model.settings_init));
+    Model.settings_init;
+  };
+
   let load = (): Model.settings =>
     switch (JsUtil.get_localstore(save_settings_key)) {
-    | None => Model.settings_init
+    | None => init()
     | Some(data) => deserialize(data)
     };
 
@@ -41,15 +46,15 @@ module Scratch = {
   let save_scratch_key: string = "SAVE_SCRATCH";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list(ScratchSlide.persistent_state));
+  type persistent = (int, list(ScratchSlideExport.t));
 
   let to_persistent = ((idx, slides): Editors.scratch): persistent => (
     idx,
-    List.map(ScratchSlide.persist, slides),
+    List.map(ScratchSlideExport.of_state, slides),
   );
 
-  let of_persistent = ((idx, slides)): Editors.scratch => {
-    (idx, List.map(ScratchSlide.unpersist, slides));
+  let of_persistent = ((idx, slides): persistent): Editors.scratch => {
+    (idx, List.map(ScratchSlideExport.to_state, slides));
   };
 
   let serialize = scratch => {
@@ -65,7 +70,7 @@ module Scratch = {
   };
 
   let init = () => {
-    let scratch = Scratch.init();
+    let scratch = ScratchSlideExport.init();
     save(scratch);
     scratch;
   };
