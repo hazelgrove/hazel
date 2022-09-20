@@ -101,3 +101,7 @@ let read_file = (file, k) => {
       Js._true;
     });
 };
+
+let confirm = message => {
+  Js.to_bool(Dom_html.window##confirm(Js.string(message)));
+};
