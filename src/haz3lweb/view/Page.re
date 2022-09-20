@@ -2,75 +2,26 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-
-let button = (~tooltip="", icon, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["icon"]),
-        Attr.on_mousedown(action),
-        Attr.title(tooltip),
-      ]),
-    [icon],
-  );
-
-let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["icon"] @ (disabled ? ["disabled"] : [])),
-        Attr.title(tooltip),
-        Attr.on_mousedown(_ => unless(disabled, action)),
-      ]),
-    [icon],
-  );
-
-let link = (~tooltip="", icon, url) =>
-  div(
-    ~attr=clss(["icon"]),
-    [
-      a(
-        ~attr=
-          Attr.many(
-            Attr.[href(url), title(tooltip), create("target", "_blank")],
-          ),
-        [icon],
-      ),
-    ],
-  );
-
-let toggle = (~tooltip="", label, active, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["toggle-switch"] @ (active ? ["active"] : [])),
-        Attr.on_click(action),
-        Attr.title(tooltip),
-      ]),
-    [div(~attr=clss(["toggle-knob"]), [text(label)])],
-  );
+open Widgets;
 
 let copy_log_to_clipboard = _ => {
-  Log.append_json_updates_log();
-  JsUtil.copy_to_clipboard(Log.get_json_update_log_string());
+  JsUtil.copy_to_clipboard(Log.export());
   Virtual_dom.Vdom.Effect.Ignore;
 };
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
-  Log.append_json_updates_log();
+  Log.append_updates();
   inject(SwitchSlide(next_ed));
 };
 
 let download_editor_state = (~instructor_mode) => {
-  let specs = School.exercises;
-  let export = Export.all(SchoolSettings.filename, ~specs, ~instructor_mode);
-  Export.download(export);
-  Virtual_dom.Vdom.Effect.Ignore;
+  let data = Export.export_all(~instructor_mode);
+  JsUtil.download_json(SchoolSettings.filename, data);
 };
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  Log.append_json_updates_log();
+  Log.append_updates();
   inject(SwitchSlide(prev_ed));
 };
 
@@ -140,7 +91,12 @@ let menu_icon =
   );
 
 let top_bar_view =
-    (~inject: Update.t => 'a, ~top_right: option(Node.t)=?, model: Model.t) => {
+    (
+      ~inject: Update.t => 'a,
+      ~toolbar_buttons: list(Node.t),
+      ~top_right: option(Node.t)=?,
+      model: Model.t,
+    ) => {
   let ed = Editors.get_editor(model.editors);
   let can_undo = Editor.can_undo(ed);
   let can_redo = Editor.can_redo(ed);
@@ -161,21 +117,29 @@ let top_bar_view =
             ),
             button(
               Icons.export,
-              _ =>
+              _ => {
                 download_editor_state(
                   ~instructor_mode=model.settings.instructor_mode,
-                ),
+                );
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
               ~tooltip="Export Submission",
+            ),
+            file_select_button(
+              "import-submission",
+              Icons.import,
+              file => {
+                switch (file) {
+                | None => Virtual_dom.Vdom.Effect.Ignore
+                | Some(file) => inject(InitImportAll(file))
+                }
+              },
+              ~tooltip="Import Submission",
             ),
             button(
               Icons.eye,
               _ => inject(Set(WhitespaceIcons)),
               ~tooltip="Toggle Visible Whitespace",
-            ),
-            button(
-              Icons.trash,
-              _ => inject(LoadDefault),
-              ~tooltip="Load Default",
             ),
             link(
               Icons.github,
@@ -197,13 +161,8 @@ let top_bar_view =
           ~tooltip="Redo",
         ),
         editor_mode_toggle_view(~inject, ~model),
-        button_d(
-          Icons.trash,
-          inject(ResetSlide),
-          ~disabled=false,
-          ~tooltip="Reset",
-        ),
-      ],
+      ]
+      @ toolbar_buttons,
     );
   let top_right_bar =
     div(~attr=Attr.id("top-right-bar"), Option.to_list(top_right));
@@ -227,8 +186,10 @@ let main_ui_view =
       } as model: Model.t,
     ) => {
   switch (editors) {
-  | Scratch(_) =>
-    let top_bar_view = top_bar_view(~inject, model);
+  | Scratch(idx, slides) =>
+    let toolbar_buttons =
+      ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
+    let top_bar_view = top_bar_view(~inject, ~toolbar_buttons, model);
     let result_key = ScratchSlide.scratch_key;
     let editor = Editors.get_editor(editors);
     let result =
@@ -248,12 +209,19 @@ let main_ui_view =
       ),
     ];
   | School(_, _, exercise) =>
+    let toolbar_buttons = SchoolMode.toolbar_buttons(~inject, editors);
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;
     let overall_score =
       Grading.GradingReport.view_overall_score(grading_report);
-    let top_bar_view = top_bar_view(~inject, model, ~top_right=overall_score);
+    let top_bar_view =
+      top_bar_view(
+        ~inject,
+        model,
+        ~toolbar_buttons,
+        ~top_right=overall_score,
+      );
     [
       top_bar_view,
       SchoolMode.view(
