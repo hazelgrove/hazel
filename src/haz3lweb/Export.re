@@ -1,16 +1,6 @@
 open Sexplib.Std;
 
-let export_scratchpad = (state: ScratchSlide.state) => {
-  ScratchSlide.persist(state) |> ScratchSlide.yojson_of_persistent_state;
-};
-
-let import_scratchpad = data => {
-  data
-  |> Yojson.Safe.from_string
-  |> ScratchSlide.persistent_state_of_yojson
-  |> ScratchSlide.unpersist;
-};
-
+// TODO move
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   settings: string,
@@ -20,14 +10,16 @@ type all = {
 };
 
 let mk_all = (~instructor_mode) => {
+  print_endline("Mk all");
   let settings = LocalStorage.Settings.export();
+  print_endline("Settings OK");
+  let scratch = LocalStorage.Scratch.export();
+  print_endline("Scratch OK");
   let specs = School.exercises;
-  {
-    settings,
-    scratch: LocalStorage.Scratch.export(),
-    school: LocalStorage.School.export(~specs, ~instructor_mode),
-    log: Log.export(),
-  };
+  let school = LocalStorage.School.export(~specs, ~instructor_mode);
+  print_endline("School OK");
+  let log = Log.export();
+  {settings, scratch, school, log};
 };
 
 let export_all = (~instructor_mode) => {

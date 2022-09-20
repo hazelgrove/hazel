@@ -43,8 +43,8 @@ let view =
 };
 
 let download_slide_state = state => {
-  let data = Export.export_scratchpad(state);
-  JsUtil.download_json("hazel-scratchpad", data);
+  let json_data = ScratchSlideExport.export(state);
+  JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
