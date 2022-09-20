@@ -197,6 +197,9 @@ let main_ui_view =
       settings.dynamics
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
+    print_endline("main_ui_view");
+    let slide = List.nth(slides, idx);
+    print_endline(ScratchSlide.serialize(slide));
     [
       top_bar_view,
       ScratchMode.view(
