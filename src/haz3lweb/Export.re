@@ -1,39 +1,44 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  contents: string,
-  filename: string,
+let export_scratchpad = (state: ScratchSlide.state) => {
+  ScratchSlide.persist(state) |> ScratchSlide.yojson_of_persistent_state;
 };
 
-let of_ = (filename: string, contents: Yojson.Safe.t): t => {
-  let contents = contents |> Yojson.Safe.to_string;
-  let filename = filename ++ ".json";
-  {contents, filename};
+let import_scratchpad = data => {
+  data
+  |> Yojson.Safe.from_string
+  |> ScratchSlide.persistent_state_of_yojson
+  |> ScratchSlide.unpersist;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
+  settings: string,
   scratch: string,
   school: string,
-  settings: string,
   log: string,
 };
 
-let all = (filename: string) => {
-  let data: all = {
-    scratch:
-      Option.get(LocalStorage.get_localstore(LocalStorage.save_scratch_key)),
-    school:
-      Option.get(LocalStorage.get_localstore(LocalStorage.save_school_key)),
-    settings:
-      Option.get(
-        LocalStorage.get_localstore(LocalStorage.save_settings_key),
-      ),
-    log: Log.get_json_update_log_string(),
+let mk_all = (~instructor_mode) => {
+  let settings = LocalStorage.Settings.export();
+  let specs = School.exercises;
+  {
+    settings,
+    scratch: LocalStorage.Scratch.export(),
+    school: LocalStorage.School.export(~specs, ~instructor_mode),
+    log: Log.export(),
   };
-  yojson_of_all(data) |> of_(filename);
 };
 
-let download = ({contents, filename}: t): unit =>
-  JsUtil.download_string_file(filename, "application/json", contents);
+let export_all = (~instructor_mode) => {
+  mk_all(~instructor_mode) |> yojson_of_all;
+};
+
+let import_all = (data, ~specs) => {
+  let all = data |> Yojson.Safe.from_string |> all_of_yojson;
+  let settings = LocalStorage.Settings.import(all.settings); // TODO how does it get into model?
+  let instructor_mode = settings.instructor_mode;
+  LocalStorage.Scratch.import(all.scratch);
+  LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
+  Log.import(all.log);
+};
