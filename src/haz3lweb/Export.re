@@ -1,39 +1,36 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  contents: string,
-  filename: string,
-};
-
-let of_ = (filename: string, contents: Yojson.Safe.t): t => {
-  let contents = contents |> Yojson.Safe.to_string;
-  let filename = filename ++ ".json";
-  {contents, filename};
-};
-
+// TODO move
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
+  settings: string,
   scratch: string,
   school: string,
-  settings: string,
   log: string,
 };
 
-let all = (filename: string) => {
-  let data: all = {
-    scratch:
-      Option.get(LocalStorage.get_localstore(LocalStorage.save_scratch_key)),
-    school:
-      Option.get(LocalStorage.get_localstore(LocalStorage.save_school_key)),
-    settings:
-      Option.get(
-        LocalStorage.get_localstore(LocalStorage.save_settings_key),
-      ),
-    log: Log.get_json_update_log_string(),
-  };
-  yojson_of_all(data) |> of_(filename);
+let mk_all = (~instructor_mode) => {
+  print_endline("Mk all");
+  let settings = LocalStorage.Settings.export();
+  print_endline("Settings OK");
+  let scratch = LocalStorage.Scratch.export();
+  print_endline("Scratch OK");
+  let specs = School.exercises;
+  let school = LocalStorage.School.export(~specs, ~instructor_mode);
+  print_endline("School OK");
+  let log = Log.export();
+  {settings, scratch, school, log};
 };
 
-let download = ({contents, filename}: t): unit =>
-  JsUtil.download_string_file(filename, "application/json", contents);
+let export_all = (~instructor_mode) => {
+  mk_all(~instructor_mode) |> yojson_of_all;
+};
+
+let import_all = (data, ~specs) => {
+  let all = data |> Yojson.Safe.from_string |> all_of_yojson;
+  let settings = LocalStorage.Settings.import(all.settings); // TODO how does it get into model?
+  let instructor_mode = settings.instructor_mode;
+  LocalStorage.Scratch.import(all.scratch);
+  LocalStorage.School.import(all.school, ~specs, ~instructor_mode);
+  Log.import(all.log);
+};

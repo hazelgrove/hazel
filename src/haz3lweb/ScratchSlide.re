@@ -6,13 +6,8 @@ type state = (Id.t, Editor.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (Id.t, Zipper.t);
 
-let init = (code: CodeString.t) => {
-  let init_id = 0;
-  switch (Printer.zipper_of_string(init_id, code)) {
-  | None => (0, Editor.init(Haz3lcore.Zipper.init(0), ~read_only=false))
-  | Some((z, new_id)) => (new_id, Editor.init(z, ~read_only=false))
-  };
-};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_state_backup = CodeString.t;
 
 let editor_of_state = ((_, editor): state) => editor;
 
@@ -33,5 +28,42 @@ let persist = ((id, editor: Editor.t)) => {
 };
 
 let unpersist = ((id, zipper): persistent_state) => {
-  (id, Editor.init(zipper));
+  (id, Editor.init(zipper, ~read_only=false));
+};
+
+let serialize = (state: state) => {
+  persist(state) |> sexp_of_persistent_state |> Sexplib.Sexp.to_string;
+};
+
+let deserialize = (data: string) => {
+  Sexplib.Sexp.of_string(data) |> persistent_state_of_sexp |> unpersist;
+};
+
+let deserialize_opt = (data: string) => {
+  let sexp =
+    try(Some(Sexplib.Sexp.of_string(data) |> persistent_state_of_sexp)) {
+    | _ => None
+    };
+  sexp |> Option.map(sexp => sexp |> unpersist);
+};
+
+let persist_backup = (state: state) => {
+  let (_, zipper) = persist(state);
+  Printer.to_string_basic(zipper);
+};
+
+let unpersist_backup = (data: persistent_state_backup) => {
+  let init_id = 0;
+  switch (Printer.zipper_of_string(init_id, data)) {
+  | None => (0, Editor.init(Haz3lcore.Zipper.init(0), ~read_only=false))
+  | Some((z, new_id)) => (new_id, Editor.init(z, ~read_only=false))
+  };
+};
+
+let serialize_backup = (state: state) => {
+  persist_backup(state);
+};
+
+let deserialize_backup = (data: string) => {
+  unpersist_backup(data);
 };

@@ -1,64 +1,12 @@
-open Sexplib.Std;
-open Util;
 open Haz3lcore;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type settings_action =
-  | Captions
-  | WhitespaceIcons
-  | Statics
-  | Dynamics
-  | ContextInspector
-  | InstructorMode
-  | Mode(Editors.mode);
+include UpdateAction; // to prevent circularity
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | Set(settings_action)
-  | UpdateDoubleTap(option(float))
-  | Mousedown
-  | Mouseup
-  | LoadDefault
-  | ResetSlide
-  | Save
-  | ToggleMode
-  | SwitchSlide(int)
-  | SwitchEditor(int)
-  | SetFontMetrics(FontMetrics.t)
-  | SetLogoFontMetrics(FontMetrics.t)
-  | PerformAction(Action.t)
-  | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
-  | Copy
-  | Paste
-  | Undo
-  | Redo
-  | SetShowBackpackTargets(bool)
-  | MoveToNextHole(Direction.t)
-  | UpdateResult(ModelResults.Key.t, ModelResult.current);
-
-module Failure = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | CantUndo
-    | CantRedo
-    | CantPaste
-    | FailedToLoad
-    | FailedToSwitch
-    | UnrecognizedInput(FailedInput.reason)
-    | FailedToPerform(Action.Failure.t)
-    | Exception(string);
-};
-
-module Result = {
-  include Result;
-  type t('success) = Result.t('success, Failure.t);
-};
-
-let save = (model: Model.t): unit =>
+let save_editors = (model: Model.t): unit =>
   switch (model.editors) {
-  | Scratch(n, slides) => LocalStorage.save_scratch((n, slides))
+  | Scratch(n, slides) => LocalStorage.Scratch.save((n, slides))
   | School(n, specs, exercise) =>
-    LocalStorage.save_school(
+    LocalStorage.School.save(
       (n, specs, exercise),
       ~instructor_mode=model.settings.instructor_mode,
     )
@@ -125,29 +73,32 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
         },
       }
     };
-  LocalStorage.save_settings(model.settings);
-  save(model);
+  LocalStorage.Settings.save(model.settings);
+  save_editors(model);
   model;
 };
 
-let load_editor = (model: Model.t): Model.t => {
-  let m =
+let load_model = (model: Model.t): Model.t => {
+  let settings = LocalStorage.Settings.load();
+  let model = {...model, settings};
+  let model =
     switch (model.settings.mode) {
     | Scratch =>
-      let (idx, slides) = LocalStorage.load_scratch();
+      let (idx, slides) = LocalStorage.Scratch.load();
       {...model, editors: Scratch(idx, slides)};
     | School =>
       let instructor_mode = model.settings.instructor_mode;
       let specs = School.exercises;
       let (n, specs, exercise) =
-        LocalStorage.load_school(~specs, ~instructor_mode);
+        LocalStorage.School.load(~specs, ~instructor_mode);
       {...model, editors: School(n, specs, exercise)};
     };
   {
-    ...m,
+    ...model,
     results:
       ModelResults.init(
-        model.settings.dynamics ? Editors.get_spliced_elabs(m.editors) : [],
+        model.settings.dynamics
+          ? Editors.get_spliced_elabs(model.editors) : [],
       ),
   };
 };
@@ -155,11 +106,11 @@ let load_editor = (model: Model.t): Model.t => {
 let load_default_editor = (model: Model.t): Model.t =>
   switch (model.editors) {
   | Scratch(_) =>
-    let (idx, editors) = LocalStorage.init_scratch();
+    let (idx, editors) = LocalStorage.Scratch.init();
     {...model, editors: Scratch(idx, editors)};
   | School(_) =>
     let instructor_mode = model.settings.instructor_mode;
-    let (n, specs, exercise) = LocalStorage.init_school(~instructor_mode);
+    let (n, specs, exercise) = LocalStorage.School.init(~instructor_mode);
     {...model, editors: School(n, specs, exercise)};
   };
 
@@ -188,11 +139,14 @@ let reevaluate_post_update =
   | SetLogoFontMetrics(_)
   | Copy
   | UpdateResult(_)
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
   | FailedInput(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
-  | LoadDefault
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
   | ResetSlide
   | SwitchEditor(_)
   | SwitchSlide(_)
@@ -233,15 +187,45 @@ let apply =
     | UpdateDoubleTap(double_tap) => Ok({...model, double_tap})
     | Mousedown => Ok({...model, mousedown: true})
     | Mouseup => Ok({...model, mousedown: false})
-    | LoadDefault => Ok(load_default_editor(model))
     | Save =>
-      save(model);
+      save_editors(model);
       Ok(model);
+    | InitImportAll(file) =>
+      JsUtil.read_file(file, data => schedule_action(FinishImportAll(data)));
+      Ok(model);
+    | FinishImportAll(data) =>
+      switch (data) {
+      | None => Ok(model)
+      | Some(data) =>
+        let specs = School.exercises;
+        Export.import_all(data, ~specs);
+        Ok(load_model(model));
+      }
+    | InitImportScratchpad(file) =>
+      JsUtil.read_file(file, data =>
+        schedule_action(FinishImportScratchpad(data))
+      );
+      Ok(model);
+    | FinishImportScratchpad(data) =>
+      switch (model.editors) {
+      | School(_) => assert(false)
+      | Scratch(idx, slides) =>
+        switch (data) {
+        | None => Ok(model)
+        | Some(data) =>
+          let state = ScratchSlideExport.import(data);
+          let slides = Util.ListUtil.put_nth(idx, state, slides);
+          LocalStorage.Scratch.save((idx, slides));
+
+          Ok({...model, editors: Scratch(idx, slides)});
+        }
+      }
     | ResetSlide =>
       let model =
         switch (model.editors) {
         | Scratch(n, slides) =>
-          let slides = Util.ListUtil.put_nth(n, Scratch.init_nth(n), slides);
+          let slides =
+            Util.ListUtil.put_nth(n, ScratchSlideExport.init_nth(n), slides);
           {...model, editors: Scratch(n, slides)};
         | School(n, specs, _) =>
           let instructor_mode = model.settings.instructor_mode;
@@ -256,7 +240,7 @@ let apply =
               ),
           };
         };
-      save(model);
+      save_editors(model);
       Ok(model);
     | SwitchSlide(n) =>
       switch (model.editors) {
@@ -265,7 +249,7 @@ let apply =
         switch (n < List.length(slides)) {
         | false => Error(FailedToSwitch)
         | true =>
-          LocalStorage.save_scratch((n, slides));
+          LocalStorage.Scratch.save((n, slides));
           Ok({...model, editors: Scratch(n, slides)});
         }
       | School(_, specs, _) =>
@@ -273,8 +257,10 @@ let apply =
         | false => Error(FailedToSwitch)
         | true =>
           let instructor_mode = model.settings.instructor_mode;
+          let spec = List.nth(specs, n);
+          let key = SchoolExercise.key_of(spec);
           let exercise =
-            LocalStorage.load_school_slide(n, ~specs, ~instructor_mode);
+            LocalStorage.School.load_exercise(key, spec, ~instructor_mode);
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
@@ -283,8 +269,8 @@ let apply =
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch
       | School(m, specs, exercise) =>
         let exercise = SchoolExercise.switch_editor(n, exercise);
-        LocalStorage.save_school(
-          (m, specs, exercise),
+        LocalStorage.School.save_exercise(
+          exercise,
           ~instructor_mode=model.settings.instructor_mode,
         );
         Ok({...model, editors: School(m, specs, exercise)});
@@ -292,7 +278,7 @@ let apply =
     | ToggleMode =>
       let new_mode = Editors.rotate_mode(model.editors);
       let model = update_settings(Mode(new_mode), model);
-      Ok(load_editor(model));
+      Ok(load_model(model));
     | SetShowBackpackTargets(b) => Ok({...model, show_backpack_targets: b})
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
