@@ -166,15 +166,7 @@ let top_bar_view =
         ),
         editor_mode_toggle_view(~inject, ~model),
       ]
-      @ toolbar_buttons
-      @ [
-        button_d(
-          Icons.trash,
-          inject(ResetSlide),
-          ~disabled=false,
-          ~tooltip="Reset",
-        ),
-      ],
+      @ toolbar_buttons,
     );
   let top_right_bar =
     div(~attr=Attr.id("top-right-bar"), Option.to_list(top_right));
