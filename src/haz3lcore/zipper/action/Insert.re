@@ -72,12 +72,26 @@ let split =
 let opt_regrold = d =>
   Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen));
 
+let move_into_if_stringlit = (char, z) =>
+  /* This is special-case logic for advancing the caret to position between the quotes
+     in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
+     and ideally this logic would be located there as well, but both regrouting and
+     subsequent caret position logic at this function's callsites dicate that this
+     be done after. Not too happy about this tbh. */
+  Form.is_string_delim(char)
+    ? switch (move(Left, z)) {
+      | None => z
+      | Some(z) => z |> set_caret(Inner(0, 0))
+      }
+    : z;
+
 let go =
     (
       char: string,
       ({caret, relatives: {siblings, _}, _} as z, id_gen): state,
     )
     : option(state) => {
+  print_endline("INSERT");
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -115,8 +129,15 @@ let go =
     (z, id_gen)
     |> insert_outer(char)
     |> Option.map(((z, id_gen)) => (Zipper.set_caret(caret, z), id_gen))
-    |> opt_regrold(Left);
+    |> opt_regrold(Left)
+    |> Option.map(((z, id_gen)) =>
+         (move_into_if_stringlit(char, z), id_gen)
+       );
   | (Outer, (_, None)) =>
-    insert_outer(char, (z, id_gen)) |> opt_regrold(Left)
+    insert_outer(char, (z, id_gen))
+    |> opt_regrold(Left)
+    |> Option.map(((z, id_gen)) =>
+         (move_into_if_stringlit(char, z), id_gen)
+       )
   };
 };
