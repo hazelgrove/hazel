@@ -187,30 +187,30 @@ let view =
       zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
     ) => {
-  let backpack = zipper.backpack;
-  if (List.length(backpack) > 0) {
-    div([]);
-  } else {
-    let index = Haz3lcore.Indicated.index(zipper);
+  // let backpack = zipper.backpack;
+  // if (List.length(backpack) > 0) {
+  //   div([]);
+  // } else {
+  let index = Haz3lcore.Indicated.index(zipper);
 
-    switch (index) {
-    | Some(index) =>
-      switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
-      | Some(ci) => inspector_view(~inject, ~settings, index, ci)
-      | None =>
-        div(
-          ~attr=clss(["cursor-inspector"]),
-          [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
-        )
-      }
+  switch (index) {
+  | Some(index) =>
+    switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
+    | Some(ci) => inspector_view(~inject, ~settings, index, ci)
     | None =>
       div(
         ~attr=clss(["cursor-inspector"]),
-        [
-          div(~attr=clss(["icon"]), [Icons.magnify]),
-          text("No Indicated Index"),
-        ],
+        [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
       )
-    };
+    }
+  | None =>
+    div(
+      ~attr=clss(["cursor-inspector"]),
+      [
+        div(~attr=clss(["icon"]), [Icons.magnify]),
+        text("No Indicated Index"),
+      ],
+    )
   };
+  // };
 };
