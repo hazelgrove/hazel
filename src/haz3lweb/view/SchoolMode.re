@@ -344,7 +344,7 @@ let toolbar_buttons = (~inject, _editors) => {
           Virtual_dom.Vdom.Effect.Ignore;
         };
       },
-      ~tooltip="Reset Scratchpad",
+      ~tooltip="Reset Exercise",
     );
 
   [reset_button];

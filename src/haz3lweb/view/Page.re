@@ -129,10 +129,11 @@ let top_bar_view =
               "import-submission",
               Icons.import,
               file => {
+                print_endline("Hello");
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
                 | Some(file) => inject(InitImportAll(file))
-                }
+                };
               },
               ~tooltip="Import Submission",
             ),
