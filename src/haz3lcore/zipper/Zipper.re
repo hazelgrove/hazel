@@ -239,19 +239,9 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
     | [t] when Form.is_string_delim(t) =>
-      //TODO(andrew): there is some weirdness when we insert
-      // quotes when the caret is at the beginning or end of a monotile... like caret position is wrong,
-      // and sometimes we can't insert without moving first
-      let+ z = construct(from, [Form.string_delim ++ Form.string_delim], z);
-      /* Set position to between quotes */
-      switch (move(Left, z)) {
-      | None =>
-        print_endline("AAAA");
-        z;
-      | Some(z) =>
-        print_endline("BBBB");
-        z |> set_caret(Inner(0, 0));
-      };
+      /* Special case for constructing string literals.
+         See Insert.move_into_if_stringlit for more special-casing. */
+      construct(Left, [Form.string_delim ++ Form.string_delim], z)
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
