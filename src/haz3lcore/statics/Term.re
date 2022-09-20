@@ -29,6 +29,7 @@ module UTyp = {
     | Int
     | Float
     | Bool
+    | String
     | Arrow
     | Tuple
     | List
@@ -55,6 +56,7 @@ module UTyp = {
     | Int => Int
     | Float => Float
     | Bool => Bool
+    | String => String
     | List(_) => List
     | Arrow(_) => Arrow
     | Tuple(_) => Tuple
@@ -67,6 +69,7 @@ module UTyp = {
     | MultiHole => "Multi Type Hole"
     | Int
     | Float
+    | String
     | Bool => "Base Type"
     | List => "List Type"
     | Arrow => "Function Type"
@@ -261,6 +264,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Bool => Bool
     | Int => Int
     | Float => Float
+    | String => String
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
