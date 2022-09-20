@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open Js_of_ocaml;
 open Haz3lcore;
 open Util.Web;
 
@@ -60,7 +61,7 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let import_button =
     Widgets.file_select_button(
       "import-scratchpad",
-      Icons.export, // TODO import icon
+      Icons.import,
       file => {
         switch (file) {
         | None => Virtual_dom.Vdom.Effect.Ignore
@@ -69,5 +70,21 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Import Scratchpad",
     );
-  [export_button, import_button];
+  let reset_button =
+    Widgets.button(
+      Icons.trash,
+      _ => {
+        let confirmed =
+          JsUtil.confirm(
+            "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+          );
+        if (confirmed) {
+          inject(ResetSlide);
+        } else {
+          Virtual_dom.Vdom.Effect.Ignore;
+        };
+      },
+      ~tooltip="Reset Scratchpad",
+    );
+  [export_button, import_button, reset_button];
 };

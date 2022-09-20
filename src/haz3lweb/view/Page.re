@@ -126,7 +126,7 @@ let top_bar_view =
             ),
             file_select_button(
               "import-submission",
-              Icons.export, // TODO import button
+              Icons.import,
               file => {
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
