@@ -13,7 +13,8 @@ let prompt =
     ]),
     p([
       code("fib n"),
-      text(" should return the "),
+      equiv,
+      text("the "),
       code("n"),
       text("th fibonacci number, assuming "),
       code("n >= 0."),
