@@ -512,18 +512,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Let(dp, d1, d2) =>
-      let* r1 = evaluate(env, d1);
-      switch (r1) {
-      | BoxedValue(d1)
-      | Indet(d1) =>
-        switch (matches(dp, d1)) {
-        | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
-        | Matches(env') =>
-          let* env = evaluate_extend_env(env', env);
-          evaluate(env, d2);
-        }
-      };
+      let+ (_, r) = evaluate_let(env, dp, d1, d2);
+      r;
 
     | FixF(f, _, d') =>
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
@@ -1011,6 +1001,32 @@ and evaluate_test_eq =
   let* arg_result = evaluate(env, arg_show);
 
   (arg_show, arg_result) |> return;
+}
+
+and evaluate_let =
+    (
+      ~evaluate_body=(env, d) => {
+                       let+ r = evaluate(env, d);
+                       (env, r);
+                     },
+      env,
+      dp,
+      d1,
+      d2,
+    )
+    : m((ClosureEnvironment.t, EvaluatorResult.t)) => {
+  let* r1 = evaluate(env, d1);
+  switch (r1) {
+  | BoxedValue(d1)
+  | Indet(d1) =>
+    switch (matches(dp, d1)) {
+    | IndetMatch
+    | DoesNotMatch => (env, Indet(Closure(env, Let(dp, d1, d2)))) |> return
+    | Matches(env') =>
+      let* env = evaluate_extend_env(env', env);
+      evaluate_body(env, d2);
+    }
+  };
 };
 
 let rec evaluate_top =
@@ -1020,19 +1036,7 @@ let rec evaluate_top =
 
   switch (d) {
   | Let(dp, d1, d2) =>
-    let* r1 = evaluate(env, d1);
-    switch (r1) {
-    | BoxedValue(d1)
-    | Indet(d1) =>
-      switch (matches(dp, d1)) {
-      | IndetMatch
-      | DoesNotMatch =>
-        (env, Indet(Closure(env, Let(dp, d1, d2)))) |> return
-      | Matches(env') =>
-        let* env = evaluate_extend_env(env', env);
-        evaluate_top(env, d2);
-      }
-    };
+    evaluate_let(~evaluate_body=evaluate_top, env, dp, d1, d2)
   | _ =>
     let+ r = evaluate(env, d);
     (env, r);
