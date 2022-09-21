@@ -280,6 +280,75 @@ let eds_of_spec: spec => eds =
     };
   };
 
+//
+// Old version of above that did string-based parsing, may be useful
+// for transitions between zipper data structure versions (TODO)
+//
+// let editor_of_code = (init_id, code) =>
+//   switch (EditorUtil.editor_of_code(init_id, code)) {
+//   | None => failwith("Exercise error: invalid code")
+//   | Some(x) => x
+//   };
+// let eds_of_spec: spec => eds =
+//   (
+//     {
+//       next_id,
+//       title,
+//       version,
+//       prompt,
+//       point_distribution,
+//       prelude,
+//       correct_impl,
+//       your_tests,
+//       your_impl,
+//       hidden_bugs,
+//       hidden_tests,
+//     },
+//   ) => {
+//     let id = next_id;
+//     let (id, prelude) = editor_of_code(id, prelude);
+//     let (id, correct_impl) = editor_of_code(id, correct_impl);
+//     let (id, your_tests) = {
+//       let (id, tests) = editor_of_code(id, your_tests.tests);
+//       (
+//         id,
+//         {
+//           tests,
+//           num_required: your_tests.num_required,
+//           minimum: your_tests.minimum,
+//         },
+//       );
+//     };
+//     let (id, your_impl) = editor_of_code(id, your_impl);
+//     let (id, hidden_bugs) =
+//       List.fold_left(
+//         ((id, acc), {impl, hint}) => {
+//           let (id, impl) = editor_of_code(id, impl);
+//           (id, acc @ [{impl, hint}]);
+//         },
+//         (id, []),
+//         hidden_bugs,
+//       );
+//     let (id, hidden_tests) = {
+//       let {tests, hints} = hidden_tests;
+//       let (id, tests) = editor_of_code(id, tests);
+//       (id, {tests, hints});
+//     };
+//     {
+//       next_id: id,
+//       title,
+//       version,
+//       prompt,
+//       point_distribution,
+//       prelude,
+//       correct_impl,
+//       your_tests,
+//       your_impl,
+//       hidden_bugs,
+//       hidden_tests,
+//     };
+//   };
+
 let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
   ...state,
   eds: {
