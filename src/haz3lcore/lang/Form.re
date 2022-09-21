@@ -98,6 +98,14 @@ let is_string = regexp("^\".*\"$");
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
 
+/* Whitelist: A regexp determining any other chars, not occuring in specific forms,
+   which we want to let through. right now, this means that we'll be able to use
+   them in strings/comments/any other free text forms. Currently these will cause
+   exceptions when used elsewhere, as no molds will be found. Such exceptions are
+   currently caught. This should be replaced by a more disciplined
+   approach to invalid text.*/
+let is_whitelisted_char = regexp("[!@]");
+
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
 
@@ -215,7 +223,8 @@ let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);
 
-let is_valid_char = t => is_valid_token(t) || is_string_delim(t); //TODO(andrew): betterify this
+let is_valid_char = t =>
+  is_valid_token(t) || is_string_delim(t) || is_whitelisted_char(t); //TODO(andrew): betterify this
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));

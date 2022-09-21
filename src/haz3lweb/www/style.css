@@ -110,6 +110,8 @@
 
   /* END SORT COLORS */
 
+  --string-lit-color: rgb(205 165 56);
+
   --bar-color: #dfdacc;
 
   --key-bg-color: var(--light-text-color);
@@ -697,21 +699,30 @@ svg {
   font-weight: bold;
 }
 
-.code .delim {
+/* TOKEN COLORS */
+
+.code .token.mono {
+}
+
+.code .token.mono-string-lit {
+  color: var(--string-lit-color);
+}
+
+.code .token.mono-inconsistent {
+  color: var(--err-color);
+}
+
+.code .token.delim {
   color: var(--delim-color);
   font-weight: bold;
 }
 
-.code .delim-incomplete {
+.code .token.delim-incomplete {
   color: var(--code-emphasis);
   font-weight: bold;
 }
 
-.code .mono-sort-inconsistent {
-  color: var(--err-color);
-}
-
-.code .delim-sort-inconsistent {
+.code .token.delim-inconsistent {
   color: var(--err-color);
   font-weight: bold;
 }
