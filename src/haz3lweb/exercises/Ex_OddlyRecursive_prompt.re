@@ -10,8 +10,8 @@ let prompt =
       ),
     ]),
     p([
-      code("odd n"),
-      text(" should return "),
+      code("odd(n)"),
+      equiv,
       code("true"),
       text(" iff "),
       code("n"),
