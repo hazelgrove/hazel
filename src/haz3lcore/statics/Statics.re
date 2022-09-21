@@ -239,6 +239,16 @@ let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun
   | Int(Minus) => (Int, Int);
 
+let add_uexp = (~ids, ~cls, ~term, ~mode, ~ctx, ~self, ~free, m) => (
+  typ_after_fix(mode, self),
+  free,
+  ids
+  |> List.map(id =>
+       Id.Map.singleton(id, InfoExp({cls, self, mode, ctx, free, term}))
+     )
+  |> List.fold_left(Id.Map.disj_union, m),
+);
+
 let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   switch (any) {
   | Exp(e) =>
@@ -266,18 +276,7 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
-  let add = (~self, ~free, m) => (
-    typ_after_fix(mode, self),
-    free,
-    ids
-    |> List.map(id =>
-         Id.Map.singleton(
-           id,
-           InfoExp({cls, self, mode, ctx, free, term: uexp}),
-         )
-       )
-    |> List.fold_left(Id.Map.disj_union, m),
-  );
+  let add = add_uexp(~ids, ~cls, ~term=uexp, ~mode, ~ctx);
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(msg) => (
@@ -585,6 +584,38 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     let (_, maps) =
       tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
     return(union_m(maps));
+  };
+};
+
+let rec top_to_info_map =
+        (~ctx: Ctx.t, {ids, term} as uexp: Term.UExp.t)
+        : (Typ.t, Ctx.t, Ctx.co, map) => {
+  switch (term) {
+  | Let(pat, def, body) =>
+    let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
+    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
+    let (ty_def, free_def, m_def) =
+      uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
+    /* Analyze pattern to incorporate def type into ctx */
+    let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
+    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
+    let (ty_body, final_ctx, free_body, m_body) =
+      top_to_info_map(~ctx=ctx_body, body);
+    let (ty, free, map) =
+      add_uexp(
+        ~ids,
+        ~cls=Term.UExp.cls_of_term(term),
+        ~term=uexp,
+        ~mode=Syn,
+        ~ctx,
+        ~self=Just(ty_body),
+        ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
+        union_m([m_pat, m_def, m_body]),
+      );
+    (ty, final_ctx, free, map);
+  | _ =>
+    let (ty, free, map) = uexp_to_info_map(~ctx, uexp);
+    (ty, ctx, free, map);
   };
 };
 
