@@ -129,11 +129,10 @@ let top_bar_view =
               "import-submission",
               Icons.import,
               file => {
-                print_endline("Hello");
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
                 | Some(file) => inject(InitImportAll(file))
-                };
+                }
               },
               ~tooltip="Import Submission",
             ),
@@ -210,7 +209,8 @@ let main_ui_view =
       ),
     ];
   | School(_, _, exercise) =>
-    let toolbar_buttons = SchoolMode.toolbar_buttons(~inject, editors);
+    let toolbar_buttons =
+      SchoolMode.toolbar_buttons(~inject, ~settings, editors);
     let results = settings.dynamics ? Some(results) : None;
     let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
     let grading_report = school_mode.grading_report;
