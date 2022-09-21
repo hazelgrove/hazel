@@ -220,12 +220,14 @@ let extend_let_def_ctx =
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Divide) as _op => Int
-  | (LessThan | GreaterThan | Equals) as _op => Bool;
+  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+    Bool;
 
 let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Divide) as _op => Float
-  | (LessThan | GreaterThan | Equals) as _op => Bool;
+  | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
+    Bool;
 
 let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
@@ -436,7 +438,6 @@ and uexp_to_info_map =
         branches,
         branch_infos,
       );
-
     let pat_ms = List.map(((_, _, m)) => m, pat_infos);
     let branch_ms = List.map(((_, _, m)) => m, branch_infos);
     let branch_frees = List.map(((_, free, _)) => free, branch_infos);

@@ -453,7 +453,9 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | Times => IntLit(n1 * n2)
   | Divide => IntLit(n1 / n2)
   | LessThan => BoolLit(n1 < n2)
+  | LessThanOrEqual => BoolLit(n1 <= n2)
   | GreaterThan => BoolLit(n1 > n2)
+  | GreaterThanOrEqual => BoolLit(n1 >= n2)
   | Equals => BoolLit(n1 == n2)
   };
 };
@@ -469,7 +471,9 @@ let eval_bin_float_op =
   | FTimes => FloatLit(f1 *. f2)
   | FDivide => FloatLit(f1 /. f2)
   | FLessThan => BoolLit(f1 < f2)
+  | FLessThanOrEqual => BoolLit(f1 <= f2)
   | FGreaterThan => BoolLit(f1 > f2)
+  | FGreaterThanOrEqual => BoolLit(f1 >= f2)
   | FEquals => BoolLit(f1 == f2)
   };
 };
@@ -484,9 +488,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let d =
         x
         |> ClosureEnvironment.lookup(env)
-        |> OptUtil.get(() =>
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)))
-           );
+        |> OptUtil.get(() => {
+             print_endline("FreeInvalidVar");
+             raise(EvaluatorError.Exception(FreeInvalidVar(x)));
+           });
       /* We need to call [evaluate] on [d] again since [env] does not store
        * final expressions. */
       evaluate(env, d);
@@ -556,7 +561,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
         };
       | BoxedValue(d1') =>
-        print_endline("111111111");
+        print_endline("InvalidBoxedFun");
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -586,13 +591,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | BoxedValue(BoolLit(b2)) =>
             BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
           | BoxedValue(d2') =>
-            print_endline("2222222");
+            print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
           | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
           };
         }
       | BoxedValue(d1') =>
-        print_endline("3333333");
+        print_endline("InvalidBoxedBoolLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -621,12 +626,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
           }
         | BoxedValue(d2') =>
-          print_endline("4444444");
+          print_endline("InvalidBoxedIntLit");
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
-        print_endline("5555555");
+        print_endline("InvalidBoxedIntLit");
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -645,12 +650,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(FloatLit(f2)) =>
           BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
         | BoxedValue(d2') =>
-          print_endline("666666");
+          print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
-        print_endline("7777777");
+        print_endline("InvalidBoxedFloatLit");
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -699,7 +704,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           )
           |> return
         | _ =>
-          print_endline("88888");
+          print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
       };
@@ -776,11 +781,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
           | _ =>
-            print_endline("9999999");
             print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
             print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty)));
             print_endline(Sexplib.Sexp.to_string_hum(HTyp.sexp_of_t(ty')));
-            //BoxedValue(d1) |> return;
+            print_endline("CastBVHoleGround");
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
@@ -936,7 +940,7 @@ and evaluate_ap_builtin =
   switch (Builtins.lookup_form(ident)) {
   | Some((eval, _)) => eval(env, args, evaluate)
   | None =>
-    print_endline("XXXXXXX");
+    print_endline("InvalidBuiltin");
     raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
   };
 }

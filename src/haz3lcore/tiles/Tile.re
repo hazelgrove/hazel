@@ -17,8 +17,12 @@ let l_shard = t =>
 let r_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
 
-let has_ends = t =>
-  l_shard(t) == 0 && r_shard(t) == List.length(t.label) - 1;
+let has_end = (d: Direction.t, t) =>
+  switch (d) {
+  | Left => l_shard(t) == 0
+  | Right => r_shard(t) == List.length(t.label) - 1
+  };
+let has_ends = t => has_end(Left, t) && has_end(Right, t);
 
 let nibs = (t: t) => {
   let (l, _) = Mold.nibs(~index=l_shard(t), t.mold);

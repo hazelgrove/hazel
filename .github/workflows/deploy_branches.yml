@@ -24,7 +24,7 @@ jobs:
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Install dependencies and build hazel # STEP 3
         run: |
-          sudo apt --assume-yes install m4 opam
+          sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.4.14.0
           eval $(opam env)

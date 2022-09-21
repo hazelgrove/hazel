@@ -96,11 +96,17 @@ let rec holes =
   |> List.concat;
 
 let view =
-    (~font_metrics, ~segment, ~unselected, ~map, ~settings: Model.settings)
+    (
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings: Model.settings,
+    )
     : Node.t => {
   module Text =
     Text({
-      let map = map;
+      let map = measured;
       let settings = settings;
     });
   div(
@@ -109,6 +115,6 @@ let view =
       span_c("code-text", Text.of_segment(unselected)),
       span_c("code-text-shards", Text.of_segment(segment)),
     ]
-    @ holes(~map, ~font_metrics, segment),
+    @ holes(~map=measured, ~font_metrics, segment),
   );
 };

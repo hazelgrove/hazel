@@ -14,40 +14,42 @@ update-ocaml:
 	opam switch create 4.14 ocaml-base-compiler.4.14.0
 	opam switch import opam.export --update-invariant
 
-dev:
-	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
-	make dev-helper
+setup-instructor:
+	cp src/haz3lweb/SchoolSettings_instructor.re src/haz3lweb/SchoolSettings.re
 
-dev-student:
-	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
-	make dev-helper
+setup-student: 
+	cp src/haz3lweb/SchoolSettings_student.re src/haz3lweb/SchoolSettings.re
 
-dev-helper:
-	dune build @src/fmt --auto-promote || true
-	dune build src --profile dev
+dev-helper: 
+	dune build @src/fmt --auto-promote src --profile dev
 
-watch:
+dev: setup-instructor dev-helper
+
+dev-student: setup-student dev
+
+fmt:
+	dune fmt --auto-promote
+
+watch: setup-instructor
 	dune build @src/fmt --auto-promote src --profile dev --watch
 
-watch-release:
+watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
 
-release:
-	cp src/haz3lweb/view/SchoolSettings_instructor.re src/haz3lweb/view/SchoolSettings.re
-	make release-helper
+release: setup-instructor
+	dune build @src/fmt --auto-promote src --profile release
 
-release-student:
-	cp src/haz3lweb/view/SchoolSettings_student.re src/haz3lweb/view/SchoolSettings.re
-	make release-helper
-
-release-helper:
-	dune build src --profile release
+release-student: setup-student
+	dune build @src/fmt --auto-promote src --profile release
 
 echo-html-dir:
 	@echo "$(HTML_DIR)"
 
 serve:
 	cd $(HTML_DIR); python3 -m http.server 8000
+
+serve2:
+	cd $(HTML_DIR); python3 -m http.server 8001
 
 repl:
 	dune utop src/hazelcore
@@ -64,5 +66,3 @@ fix-test-answers:
 
 clean:
 	dune clean
-
-.PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean
