@@ -24,16 +24,16 @@ let score_view = ((earned: points, max: points)) => {
 module TestValidationReport = {
   type t = {
     test_results: option(Interface.test_results),
-    num_required: int,
-    minimum: int,
+    required: int,
+    provided: int,
   };
 
   let mk =
       (eds: SchoolExercise.eds, test_results: option(Interface.test_results)) => {
     {
       test_results,
-      num_required: eds.your_tests.num_required,
-      minimum: eds.your_tests.minimum,
+      required: eds.your_tests.required,
+      provided: eds.your_tests.provided,
     };
   };
 
@@ -42,20 +42,20 @@ module TestValidationReport = {
     | None => 0.0
     | Some(test_results) =>
       let num_tests = float_of_int(test_results.total);
-      let num_required = float_of_int(report.num_required);
-      let minimum = float_of_int(report.minimum);
+      let required = float_of_int(report.required);
+      let provided = float_of_int(report.provided);
       let num_passing = float_of_int(test_results.passing);
 
-      num_required -. minimum <= 0.0 || num_tests <= 0.0
+      required -. provided <= 0.0 || num_tests <= 0.0
         ? 0.0
         : num_passing
           /. num_tests
           *. (
             Float.max(
               0.,
-              Float.min(num_tests -. minimum, num_required -. minimum),
+              Float.min(num_tests -. provided, required -. provided),
             )
-            /. (num_required -. minimum)
+            /. (required -. provided)
           );
     };
   };
@@ -79,13 +79,13 @@ module TestValidationReport = {
     | Some(test_results) => [
         {
           let total_tests = test_results.total;
-          let num_required = report.num_required;
+          let required = report.required;
           let num_tests_message =
-            total_tests >= num_required
-              ? "at least " ++ string_of_int(num_required)
+            total_tests >= required
+              ? "at least " ++ string_of_int(required)
               : string_of_int(test_results.total)
                 ++ " of "
-                ++ string_of_int(report.num_required);
+                ++ string_of_int(report.required);
           text(
             "Entered "
             ++ num_tests_message
