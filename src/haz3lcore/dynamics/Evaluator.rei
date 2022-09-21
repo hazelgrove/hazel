@@ -10,3 +10,12 @@ type ground_cases =
  */
 let evaluate:
   (Environment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
+
+/**
+  [evaluate_top env d] is [(es, env', r)], where [es] is the accumulated
+  state, [r] is the result of evaluating [d], and [env'] is the environment
+  produced by the top-level let expressions in [d].
+ */
+let evaluate_top:
+  (Environment.t, DHExp.t) =>
+  (EvaluatorState.t, Environment.t, EvaluatorResult.t);

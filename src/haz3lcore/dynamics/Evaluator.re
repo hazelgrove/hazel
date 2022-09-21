@@ -1013,9 +1013,43 @@ and evaluate_test_eq =
   (arg_show, arg_result) |> return;
 };
 
+let rec evaluate_top =
+        (env, d: DHExp.t): m((ClosureEnvironment.t, EvaluatorResult.t)) => {
+  /* Increment number of evaluation steps (calls to `evaluate`). */
+  let* () = take_step;
+
+  switch (d) {
+  | Let(dp, d1, d2) =>
+    let* r1 = evaluate(env, d1);
+    switch (r1) {
+    | BoxedValue(d1)
+    | Indet(d1) =>
+      switch (matches(dp, d1)) {
+      | IndetMatch
+      | DoesNotMatch =>
+        (env, Indet(Closure(env, Let(dp, d1, d2)))) |> return
+      | Matches(env') =>
+        let* env = evaluate_extend_env(env', env);
+        evaluate_top(env, d2);
+      }
+    };
+  | _ =>
+    let+ r = evaluate(env, d);
+    (env, r);
+  };
+};
+
 let evaluate = (env, d) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
   evaluate(env, d, es);
+};
+
+let evaluate_top = (env, d) => {
+  let es = EvaluatorState.init;
+  let (env, es) =
+    es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
+  let (es, (env, r)) = evaluate_top(env, d, es);
+  (es, ClosureEnvironment.map_of(env), r);
 };
