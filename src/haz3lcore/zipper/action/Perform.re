@@ -1,6 +1,20 @@
 open Util;
 open Zipper;
 
+let is_write_action = (a: Action.t) => {
+  switch (a) {
+  | Move(_)
+  | Unselect
+  | Select(_) => false
+  | Destruct(_)
+  | Insert(_)
+  | Pick_up
+  | Put_down
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => true
+  };
+};
+
 let go_z =
     (
       ~meta: option(Editor.Meta.t)=?,
@@ -63,11 +77,14 @@ let go_z =
 
 let go =
     (a: Action.t, ed: Editor.t, id_gen: IdGen.state)
-    : Action.Result.t((Editor.t, IdGen.state)) => {
-  open Result.Syntax;
-  let Editor.State.{zipper, meta} = ed.state;
-  Effect.s_clear();
-  let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
-  let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
-  (ed, id_gen);
-};
+    : Action.Result.t((Editor.t, IdGen.state)) =>
+  if (ed.read_only && is_write_action(a)) {
+    Result.Ok((ed, id_gen));
+  } else {
+    open Result.Syntax;
+    let Editor.State.{zipper, meta} = ed.state;
+    Effect.s_clear();
+    let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
+    let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
+    (ed, id_gen);
+  };

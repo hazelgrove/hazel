@@ -34,7 +34,9 @@ let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   | Times => Times
   | Divide => Divide
   | LessThan => LessThan
+  | LessThanOrEqual => LessThanOrEqual
   | GreaterThan => GreaterThan
+  | GreaterThanOrEqual => GreaterThanOrEqual
   | Equals => Equals;
 
 let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
@@ -44,7 +46,9 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | Times => FTimes
   | Divide => FDivide
   | LessThan => FLessThan
+  | LessThanOrEqual => FLessThanOrEqual
   | GreaterThan => FGreaterThan
+  | GreaterThanOrEqual => FGreaterThanOrEqual
   | Equals => FEquals;
 
 let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
@@ -90,7 +94,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       switch (ds) {
       | [] => Some(DHExp.EmptyHole(u, 0))
       | [hd, ...tl] =>
-        // placeholder logic: sequence
+        // TODO: placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
     | Triv => wrap(Triv)
@@ -98,29 +102,20 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListLit(es) =>
-      let* ds =
-        List.fold_left(
-          (acc, e) => {
-            let* acc = acc;
-            let+ dc = cast_exp(m, e);
-            acc @ [dc];
-          },
-          Some([]),
-          es,
-        );
+      let* ds = es |> List.map(cast_exp(m)) |> OptUtil.sequence;
+      //TODO: err status and type below
       wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = pat_htyp(m, p);
-      wrap(DHExp.Fun(dp, ty1, d1));
+      wrap(DHExp.Fun(dp, pat_htyp(m, p), d1));
     | Tuple(es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")
       | [e0, ...es] =>
-        let* ds =
+        let* d =
           List.fold_left(
             (acc, e) => {
               let* acc = acc;
@@ -130,7 +125,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             dhexp_of_uexp(m, e0),
             es,
           );
-        wrap(ds);
+        wrap(d);
       }
     | Cons(e1, e2) =>
       let* dc1 = cast_exp(m, e1);
@@ -292,9 +287,13 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 and cast_exp = (m, e) => {
   let* d = dhexp_of_uexp(m, e);
   switch (Statics.exp_mode(m, e)) {
-  | Syn => Some(d)
+  | Syn =>
+    print_endline("cast_exp: syn");
+    Some(d);
   | Ana(ana_ty) =>
+    print_endline("cast_exp: ana");
     let exp_self_typ = Statics.exp_self_typ(m, e);
+    print_endline(Typ.show(exp_self_typ));
     Some(DHExp.cast(d, htyp_of_typ(exp_self_typ), htyp_of_typ(ana_ty)));
   };
 };
