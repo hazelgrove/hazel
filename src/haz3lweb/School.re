@@ -1,5 +1,5 @@
 let exercises: list(SchoolExercise.spec) = SchoolSettings.exercises;
-assert(List.length(exercises) > 0);
+// assert(List.length(exercises) > 0);
 
 let init = (~instructor_mode: bool): Editors.school => {
   (
