@@ -329,7 +329,14 @@ let view =
   );
 };
 
-let toolbar_buttons = (~inject, _editors) => {
+let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Model.settings) => {
+  let (_idx, _specs, exercise): Editors.school =
+    switch (editors) {
+    | School(idx, specs, exercise) => (idx, specs, exercise)
+    | _ => assert(false)
+    };
+  let SchoolExercise.{pos: _, eds} = exercise;
+
   let reset_button =
     Widgets.button(
       Icons.trash,
@@ -347,5 +354,29 @@ let toolbar_buttons = (~inject, _editors) => {
       ~tooltip="Reset Exercise",
     );
 
-  [reset_button];
+  let instructor_export =
+    settings.instructor_mode
+      ? Some(
+          Widgets.button(
+            Icons.export, // TODO(cyrus) distinct icon
+            _ => {
+              // .ml files because show uses OCaml syntax (dune handles seamlessly)
+              let module_name = eds.module_name;
+              let filename = eds.module_name ++ ".ml";
+              let content_type = "text/plain";
+              let contents =
+                SchoolExercise.export_module(module_name, exercise);
+              JsUtil.download_string_file(
+                ~filename,
+                ~content_type,
+                ~contents,
+              );
+              Virtual_dom.Vdom.Effect.Ignore;
+            },
+            ~tooltip="Export Exercise Module (Instructor Mode)",
+          ),
+        )
+      : None;
+
+  [reset_button] @ Option.to_list(instructor_export);
 };
