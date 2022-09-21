@@ -8,7 +8,7 @@ let exercise : SchoolExercise.spec =
     module_name = "Ex_RecursiveFibonacci";
     prompt;
     point_distribution =
-      { test_validation = 10; mutation_testing = 40; impl_grading = 50 };
+      { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
         selection = { focus = Left; content = [] };
