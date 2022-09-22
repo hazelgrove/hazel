@@ -19,6 +19,7 @@ type t =
   | Bool
   | List(t)
   | Arrow(t, t)
+  | Sum(t, t) // unused
   | Prod(list(t));
 
 /* SOURCE: Hazel type annotated with a relevant source location.
@@ -101,6 +102,12 @@ let rec join = (ty1: t, ty2: t): option(t) =>
       };
     }
   | (Prod(_), _) => None
+  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
     switch (join(ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))

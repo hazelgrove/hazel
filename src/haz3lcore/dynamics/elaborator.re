@@ -16,7 +16,8 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Bool => Bool
   | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
-  | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
+  | Prod(ts) => Prod(List.map(htyp_of_typ, ts))
+  | Sum(t1, t2) => Sum(htyp_of_typ(t1), htyp_of_typ(t2));
 
 let exp_self_htyp = (m, e) => htyp_of_typ(Statics.exp_self_typ(m, e));
 let pat_self_htyp = (m, e) => htyp_of_typ(Statics.pat_self_typ(m, e));
