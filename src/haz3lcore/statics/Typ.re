@@ -183,3 +183,27 @@ let matched_list_lit_mode = (mode: mode, length): list(mode) =>
   };
 
 let ap_mode: mode = Ana(Arrow(Unknown(Internal), Unknown(Internal)));
+
+/* Legacy code from HTyp */
+
+let precedence_Prod = 1;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_const = 4;
+let precedence = (ty: t): int =>
+  switch (ty) {
+  | Int
+  | Float
+  | Bool
+  | Unknown(_)
+  | Prod([])
+  | List(_) => precedence_const
+  | Prod(_) => precedence_Prod
+  | Sum(_, _) => precedence_Sum
+  | Arrow(_, _) => precedence_Arrow
+  };
+
+/* equality
+   At the moment, this coincides with default equality,
+   but this will change when polymorphic types are implemented */
+let eq = (==);

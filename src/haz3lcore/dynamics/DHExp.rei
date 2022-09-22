@@ -15,8 +15,8 @@ type t =
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
+    | FixF(Var.t, Typ.t, t)
+    | Fun(DHPat.t, Typ.t, t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
@@ -26,14 +26,14 @@ type t =
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
+    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
+    | Inj(Typ.t, InjSide.t, t)
     | Pair(t, t)
     | Triv
     | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
 [@deriving sexp]
 and case = DH.DHExp.case = | Case(t, list(rule), int)
@@ -42,8 +42,8 @@ and rule = DH.DHExp.rule = | Rule(DHPat.t, t);
 
 let constructor_string: t => string;
 let mk_tuple: list(t) => t;
-let cast: (t, HTyp.t, HTyp.t) => t;
-let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+let cast: (t, Typ.t, Typ.t) => t;
+let apply_casts: (t, list((Typ.t, Typ.t))) => t;
 let strip_casts: t => t;
 
 let fast_equal: (t, t) => bool;
