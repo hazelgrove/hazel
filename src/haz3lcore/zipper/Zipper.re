@@ -176,7 +176,7 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
   if (Selection.is_empty(z.selection)) {
     // let balanced = !Backpack.is_balanced(z.backpack);
-    let d' = Direction.toggle(d);
+    let b = Direction.toggle(d);
     let sort = Ancestors.sort(z.relatives.ancestors);
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
     let (relatives, id_gen) =
@@ -184,7 +184,7 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
       | Whitespace(_)
       | Grout(_) => (relatives, id_gen)
       | Tile(t) =>
-        let (trim, relatives) = Relatives.pop_trim(d', relatives);
+        let (trim, relatives) = Relatives.pop_trim(b, relatives);
         let (rel_l, rel_r) = Relatives.nibs(relatives);
         let (t_l, t_r) = Tile.nibs(t);
         let nibs =
@@ -204,11 +204,10 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
         //   relatives
         //   |> Relatives.push(Direction.toggle(d), p)
         //   |> Relatives.reassemble;
-        let pushed = Relatives.push_trim(d', trim, relatives);
+        let pushed = Relatives.push_trim(b, trim, relatives);
         (pushed, id_gen);
       };
-    let relatives =
-      relatives |> Relatives.push(d', p) |> Relatives.reassemble;
+    let relatives = relatives |> Relatives.push(b, p) |> Relatives.reassemble;
     ({...z, relatives}, id_gen);
   } else {
     Some((directional_unselect(d, z), id_gen));

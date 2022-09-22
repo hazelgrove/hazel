@@ -580,6 +580,50 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
+let matches = (l: Tile.t, r: Tile.t): bool =>
+  l.label == r.label && Tile.r_shard(l) + 1 == Tile.l_shard(r);
+
+type split = Aba.t(t, Tile.t);
+
+let find_match = (t: Tile.t, split: split): option((Tile.t, split)) => {
+  let rec go = (popped, split): option((Tile.t, split)) => {
+    open OptUtil.Syntax;
+    let* (seg, t', split) = Aba.pop_ab(split);
+    if (matches(t, t')) {
+      let t = {
+        ...t,
+        shards: t.shards @ t'.shards,
+        children: t.children @ [popped, ...t'.children],
+      };
+      Some((t, split));
+    } else {
+      go(concat([seg, [Piece.Tile(t'), ...popped]]), split);
+    };
+  };
+  go(empty, split);
+};
+
+let rec reassemble_split = (seg: t): Aba.t(t, Tile.t) =>
+  switch (seg) {
+  | [] => Aba.mk([seg], [])
+  | [hd, ...tl] =>
+    let split = reassemble_split(tl);
+    let cons_complete = (p, split) => Aba.update_first_a(cons(p), split);
+    let cons_incomplete = (t, split) => Aba.cons(empty, t, split);
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => cons_complete(hd, split)
+    | Tile(t) when Tile.is_complete(t) => cons_complete(hd, split)
+    | Tile(t) =>
+      switch (find_match(t, split)) {
+      | None => cons_incomplete(t, split)
+      | Some((t, split)) =>
+        Tile.is_complete(t)
+          ? cons_complete(Piece.Tile(t), split) : cons_incomplete(t, split)
+      }
+    };
+  };
+
 // module Match = Tile.Match.Make(Orientation.R);
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {

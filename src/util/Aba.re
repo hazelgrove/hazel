@@ -20,6 +20,19 @@ let last_a = ((as_, _): t('a, _)): 'a => {
   ListUtil.last(as_);
 };
 
+let pop_ab = (aba: t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
+  switch (aba) {
+  | ([], _) => raise(Invalid)
+  | (_, []) => None
+  | ([a, ...as_], [b, ...bs]) => Some((a, b, (as_, bs)))
+  };
+
+let update_first_a = (f: 'a => 'a, aba: t('a, _)): t('a, _) =>
+  switch (aba) {
+  | ([], _) => raise(Invalid)
+  | ([a, ...as_], bs) => ([f(a), ...as_], bs)
+  };
+
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   List.rev_map(rev_a, as_),
   List.rev_map(rev_b, bs),
