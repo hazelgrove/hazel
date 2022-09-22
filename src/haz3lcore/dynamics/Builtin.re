@@ -21,7 +21,7 @@ type builtin_elaboration = DHExp.t;
 [@deriving sexp]
 type t = {
   ident: Var.t,
-  ty: HTyp.t,
+  ty: Typ.t,
   eval: builtin_evaluate,
   elab: builtin_elaboration,
 };
@@ -38,9 +38,9 @@ type t = {
        )
      )
  */
-let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
+let mk_elab = (ident: Var.t, ty: Typ.t): DHExp.t => {
   let rec mk_elab_inner =
-          (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
+          (ty': Typ.t, n: int, bindings: list(Var.t)): DHExp.t => {
     switch (ty') {
     | Arrow(_, ty'') =>
       let var = "x" ++ string_of_int(n);
@@ -54,12 +54,12 @@ let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
   mk_elab_inner(ty, 0, []);
 };
 
-let mk = (ident: Var.t, ty: HTyp.t, eval: builtin_evaluate): t => {
+let mk = (ident: Var.t, ty: Typ.t, eval: builtin_evaluate): t => {
   let elab = mk_elab(ident, ty);
   {ident, ty, eval, elab};
 };
 
-let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
+let mk_zero = (ident: Var.t, ty: Typ.t, v: DHExp.t): t => {
   let fn = (env, args, evaluate) => {
     switch (args) {
     | [] => evaluate(env, v)
@@ -73,7 +73,7 @@ let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
 let mk_one =
     (
       ident: Var.t,
-      ty: HTyp.t,
+      ty: Typ.t,
       fn: (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t),
     )
     : t => {
@@ -92,7 +92,7 @@ let mk_one =
 let mk_two =
     (
       ident: Var.t,
-      ty: HTyp.t,
+      ty: Typ.t,
       fn:
         (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
         EvaluatorMonad.t(EvaluatorResult.t),

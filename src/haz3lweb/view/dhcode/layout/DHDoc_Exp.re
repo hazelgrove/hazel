@@ -116,7 +116,7 @@ let rec mk =
         )
         : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
-  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
+  let mk_cast = ((doc: DHDoc.t, ty: option(Typ.t))): DHDoc.t =>
     switch (ty) {
     | Some(ty) when settings.show_casts =>
       Doc.(
@@ -132,7 +132,7 @@ let rec mk =
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc.t, option(HTyp.t)) => {
+          : (DHDoc.t, option(Typ.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -288,7 +288,7 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -333,7 +333,7 @@ let rec mk =
          ])
          |> annot(DHAnnot.FailedCastDecoration);
        switch (d_cast) {
-       | Some(ty1') when HTyp.eq(ty1, ty1') =>
+       | Some(ty1') when Typ.eq(ty1, ty1') =>
          hcats([d_doc, cast_decoration])
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };

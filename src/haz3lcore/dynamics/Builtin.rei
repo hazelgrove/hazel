@@ -16,7 +16,7 @@ type builtin_elaboration = DHExp.t;
 [@deriving sexp]
 type t = {
   ident: Var.t,
-  ty: HTyp.t,
+  ty: Typ.t,
   eval: builtin_evaluate,
   elab: builtin_elaboration,
 };
@@ -24,12 +24,12 @@ type t = {
 /*
    Create a built-in function.
  */
-let mk: (Var.t, HTyp.t, builtin_evaluate) => t;
+let mk: (Var.t, Typ.t, builtin_evaluate) => t;
 
 /*
    Create a built-in constant.
  */
-let mk_zero: (Var.t, HTyp.t, DHExp.t) => t;
+let mk_zero: (Var.t, Typ.t, DHExp.t) => t;
 
 /*
    Create a built-in function that takes a single argument. The given type
@@ -38,7 +38,7 @@ let mk_zero: (Var.t, HTyp.t, DHExp.t) => t;
 let mk_one:
   (
     Var.t,
-    HTyp.t,
+    Typ.t,
     (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t)
   ) =>
   t;
@@ -50,7 +50,7 @@ let mk_one:
 let mk_two:
   (
     Var.t,
-    HTyp.t,
+    Typ.t,
     (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
     EvaluatorMonad.t(EvaluatorResult.t)
   ) =>

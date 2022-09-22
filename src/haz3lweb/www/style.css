@@ -264,13 +264,7 @@ svg {
   font-size: 13pt;
 }
 
-#editor-mode,
-.cell-caption,
-.cell-prompt,
-.test-panel,
-.test-reports,
-.test-summary,
-.title-bar {
+body {
   font-family: 'Helvetica Neue';
 }
 
@@ -1620,9 +1614,6 @@ svg.tile-selected {
 .equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
-  display: inline-flex;
-  align-items: center;
-  white-space: pre;
 }
 
 /* File Select */
