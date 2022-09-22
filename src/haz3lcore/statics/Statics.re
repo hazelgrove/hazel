@@ -182,8 +182,24 @@ let exp_self_typ = (m: map, e: Term.UExp.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
+//TODO:cleanup
+let exp_self_typ_id = (m: map, id): Typ.t =>
+  switch (Id.Map.find_opt(id, m)) {
+  | Some(InfoExp({self, _})) => Typ.t_of_self(self)
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | None => failwith(__LOC__ ++ ": XXX")
+  };
+
 let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+  | Some(InfoExp({mode, _})) => mode
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | None => failwith(__LOC__ ++ ": XXX")
+  };
+
+//TODO:cleanup
+let exp_mode_id = (m: map, id): Typ.mode =>
+  switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, _})) => mode
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
