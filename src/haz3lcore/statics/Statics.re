@@ -229,11 +229,16 @@ let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
+let typ_exp_binop_bin_string: Term.UExp.op_bin_string => Typ.t =
+  fun
+  | Equals as _op => Bool;
+
 let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
   | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
-  | Float(op) => (Float, Float, typ_exp_binop_bin_float(op));
+  | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
+  | String(op) => (String, String, typ_exp_binop_bin_string(op));
 
 let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun

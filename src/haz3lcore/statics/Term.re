@@ -222,11 +222,16 @@ module UExp = {
     | GreaterThanOrEqual => "Float Greater Than or Equal"
     | Equals => "Float Equality";
 
+  let show_op_bin_string: op_bin_string => string =
+    fun
+    | Equals => "String Equality";
+
   let show_binop: op_bin => string =
     fun
     | Int(op) => show_op_bin_int(op)
     | Float(op) => show_op_bin_float(op)
-    | Bool(op) => show_op_bin_bool(op);
+    | Bool(op) => show_op_bin_bool(op)
+    | String(op) => show_op_bin_string(op);
 
   let show_cls: cls => string =
     fun

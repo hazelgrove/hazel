@@ -52,6 +52,10 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | GreaterThanOrEqual => FGreaterThanOrEqual
   | Equals => FEquals;
 
+let string_op_of: Term.UExp.op_bin_string => DHExp.BinStringOp.t =
+  fun
+  | Equals => SEquals;
+
 let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   fun
   | And => And
@@ -61,7 +65,11 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
   fun
   | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
-  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)));
+  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)))
+  | String(op) => (
+      String,
+      ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
+    );
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */

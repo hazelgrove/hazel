@@ -213,6 +213,7 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -284,6 +285,7 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -418,6 +420,7 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -490,6 +493,12 @@ let eval_bin_float_op =
   | FEquals => BoolLit(f1 == f2)
   };
 };
+
+let eval_bin_string_op =
+    (op: DHExp.BinStringOp.t, s1: string, s2: string): DHExp.t =>
+  switch (op) {
+  | SEquals => BoolLit(s1 == s2)
+  };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
@@ -676,6 +685,30 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
+        };
+      };
+
+    | BinStringOp(op, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(StringLit(f1) as d1') =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(StringLit(f2)) =>
+          BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
+        | BoxedValue(d2') =>
+          print_endline("InvalidBoxedStringLit");
+          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
+        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        };
+      | BoxedValue(d1') =>
+        print_endline("InvalidBoxedStringLit");
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')));
+      | Indet(d1') =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
         };
       };
 
