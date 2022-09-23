@@ -91,7 +91,6 @@ let go =
       ({caret, relatives: {siblings, _}, _} as z, id_gen): state,
     )
     : option(state) => {
-  print_endline("INSERT");
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
