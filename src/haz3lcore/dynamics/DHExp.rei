@@ -1,6 +1,7 @@
 module BinBoolOp = DH.DHExp.BinBoolOp;
 module BinIntOp = DH.DHExp.BinIntOp;
 module BinFloatOp = DH.DHExp.BinFloatOp;
+module BinStringOp = DH.DHExp.BinStringOp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -23,9 +24,11 @@ type t =
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
+    | BinStringOp(BinStringOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)

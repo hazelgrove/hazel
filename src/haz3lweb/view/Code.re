@@ -61,14 +61,17 @@ module Text = (M: {
   and of_delim =
       (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) => {
     let cls =
-      List.length(t.label) == 1
-        ? is_consistent ? "single" : "mono-sort-inconsistent"
-        : is_consistent
-            ? Tile.is_complete(t) ? "delim" : "delim-incomplete"
-            : "delim-sort-inconsistent";
+      switch (t.label) {
+      | [_] when !is_consistent => "mono-inconsistent"
+      | [s] when Form.is_string(s) => "mono-string-lit"
+      | [_] => "mono"
+      | _ when !is_consistent => "delim-inconsistent"
+      | _ when !Tile.is_complete(t) => "delim-incomplete"
+      | _ => "delim"
+      };
     [
       span(
-        ~attr=Attr.classes([cls, "text-" ++ Sort.to_string(sort)]),
+        ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
         [Node.text(List.nth(t.label, i))],
       ),
     ];
