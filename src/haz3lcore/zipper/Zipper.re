@@ -45,6 +45,10 @@ let init: int => t =
     // col_target: 0,
   };
 
+let next_blank = id => {
+  (id + 1, init(id));
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (t, IdGen.state);
 
@@ -313,4 +317,12 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
 let caret_point = (measured, z: t): Measured.Point.t => {
   let Measured.Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
+};
+
+let serialize = (z: t): string => {
+  sexp_of_t(z) |> Sexplib.Sexp.to_string;
+};
+
+let deserialize = (data: string): t => {
+  Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };

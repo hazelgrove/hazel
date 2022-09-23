@@ -17,8 +17,8 @@ type hidden_tests('code) = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type your_tests('code) = {
   tests: 'code,
-  num_required: int,
-  minimum: int,
+  required: int,
+  provided: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -38,7 +38,9 @@ type p('code) = {
   next_id: Id.t,
   title: string,
   version: int,
-  prompt: [@opaque] Node.t,
+  module_name: string,
+  prompt:
+    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
   point_distribution,
   prelude: 'code,
   correct_impl: 'code,
@@ -70,7 +72,7 @@ type pos =
   | HiddenTests;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type spec = p(CodeString.t);
+type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type eds = p(Editor.t);
@@ -226,17 +228,14 @@ let switch_editor = (idx: int, {eds, _}) => {
   eds,
 };
 
-let editor_of_code = (init_id, code) =>
-  switch (EditorUtil.editor_of_code(init_id, code)) {
-  | None => failwith("Exercise error: invalid code")
-  | Some(x) => x
-  };
+let editor_of_serialization = zipper => Editor.init(zipper);
 let eds_of_spec: spec => eds =
   (
     {
       next_id,
       title,
       version,
+      module_name,
       prompt,
       point_distribution,
       prelude,
@@ -247,39 +246,29 @@ let eds_of_spec: spec => eds =
       hidden_tests,
     },
   ) => {
-    let id = next_id;
-    let (id, prelude) = editor_of_code(id, prelude);
-    let (id, correct_impl) = editor_of_code(id, correct_impl);
-    let (id, your_tests) = {
-      let (id, tests) = editor_of_code(id, your_tests.tests);
-      (
-        id,
-        {
-          tests,
-          num_required: your_tests.num_required,
-          minimum: your_tests.minimum,
-        },
-      );
+    let prelude = editor_of_serialization(prelude);
+    let correct_impl = editor_of_serialization(correct_impl);
+    let your_tests = {
+      let tests = editor_of_serialization(your_tests.tests);
+      {tests, required: your_tests.required, provided: your_tests.provided};
     };
-    let (id, your_impl) = editor_of_code(id, your_impl);
-    let (id, hidden_bugs) =
-      List.fold_left(
-        ((id, acc), {impl, hint}) => {
-          let (id, impl) = editor_of_code(id, impl);
-          (id, acc @ [{impl, hint}]);
-        },
-        (id, []),
-        hidden_bugs,
-      );
-    let (id, hidden_tests) = {
+    let your_impl = editor_of_serialization(your_impl);
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl = editor_of_serialization(impl);
+           {impl, hint};
+         });
+    let hidden_tests = {
       let {tests, hints} = hidden_tests;
-      let (id, tests) = editor_of_code(id, tests);
-      (id, {tests, hints});
+      let tests = editor_of_serialization(tests);
+      {tests, hints};
     };
     {
-      next_id: id,
+      next_id,
       title,
       version,
+      module_name,
       prompt,
       point_distribution,
       prelude,
@@ -290,6 +279,75 @@ let eds_of_spec: spec => eds =
       hidden_tests,
     };
   };
+
+//
+// Old version of above that did string-based parsing, may be useful
+// for transitions between zipper data structure versions (TODO)
+//
+// let editor_of_code = (init_id, code) =>
+//   switch (EditorUtil.editor_of_code(init_id, code)) {
+//   | None => failwith("Exercise error: invalid code")
+//   | Some(x) => x
+//   };
+// let eds_of_spec: spec => eds =
+//   (
+//     {
+//       next_id,
+//       title,
+//       version,
+//       prompt,
+//       point_distribution,
+//       prelude,
+//       correct_impl,
+//       your_tests,
+//       your_impl,
+//       hidden_bugs,
+//       hidden_tests,
+//     },
+//   ) => {
+//     let id = next_id;
+//     let (id, prelude) = editor_of_code(id, prelude);
+//     let (id, correct_impl) = editor_of_code(id, correct_impl);
+//     let (id, your_tests) = {
+//       let (id, tests) = editor_of_code(id, your_tests.tests);
+//       (
+//         id,
+//         {
+//           tests,
+//           num_required: your_tests.num_required,
+//           minimum: your_tests.minimum,
+//         },
+//       );
+//     };
+//     let (id, your_impl) = editor_of_code(id, your_impl);
+//     let (id, hidden_bugs) =
+//       List.fold_left(
+//         ((id, acc), {impl, hint}) => {
+//           let (id, impl) = editor_of_code(id, impl);
+//           (id, acc @ [{impl, hint}]);
+//         },
+//         (id, []),
+//         hidden_bugs,
+//       );
+//     let (id, hidden_tests) = {
+//       let {tests, hints} = hidden_tests;
+//       let (id, tests) = editor_of_code(id, tests);
+//       (id, {tests, hints});
+//     };
+//     {
+//       next_id: id,
+//       title,
+//       version,
+//       prompt,
+//       point_distribution,
+//       prelude,
+//       correct_impl,
+//       your_tests,
+//       your_impl,
+//       hidden_bugs,
+//       hidden_tests,
+//     };
+//   };
 
 let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
   ...state,
@@ -336,7 +394,7 @@ let unpersist_state =
     if (visible_in(pos, ~instructor_mode)) {
       (id, Editor.init(List.assoc(pos, positioned_zippers)));
     } else {
-      editor_of_code(id, default);
+      (next_id, editor_of_serialization(default));
     };
   let id = next_id;
   let (id, prelude) = lookup(id, Prelude, spec.prelude);
@@ -363,14 +421,15 @@ let unpersist_state =
         next_id: id,
         title: spec.title,
         version: spec.version,
+        module_name: spec.module_name,
         prompt: spec.prompt,
         point_distribution: spec.point_distribution,
         prelude,
         correct_impl,
         your_tests: {
           tests: your_tests_tests,
-          num_required: spec.your_tests.num_required,
-          minimum: spec.your_tests.minimum,
+          required: spec.your_tests.required,
+          provided: spec.your_tests.provided,
         },
         your_impl,
         hidden_bugs,
@@ -617,4 +676,72 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
       )
     };
   (focal_zipper, focal_info_map);
+};
+
+// Module Export
+
+let editor_pp = (fmt, editor: Editor.t) => {
+  let zipper = editor.state.zipper;
+  let serialization = Zipper.show(zipper);
+  // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
+  Format.pp_print_string(fmt, serialization);
+};
+
+let export_module = (module_name, {eds, _}: state) => {
+  let prefix =
+    "let prompt = "
+    ++ module_name
+    ++ "_prompt.prompt\n"
+    ++ "let exercise: SchoolExercise.spec = ";
+  let record = show_p(editor_pp, eds);
+  let data = prefix ++ record;
+  print_endline(data);
+  data;
+};
+
+let blank_spec =
+    (
+      ~title,
+      ~module_name,
+      ~point_distribution,
+      ~required_tests,
+      ~provided_tests,
+      ~num_wrong_impls,
+    ) => {
+  let id = 0;
+  let (id, prelude) = Zipper.next_blank(id);
+  let (id, correct_impl) = Zipper.next_blank(id);
+  let (id, your_tests_tests) = Zipper.next_blank(id);
+  let (id, your_impl) = Zipper.next_blank(id);
+  let (id, hidden_bugs) =
+    Util.ListUtil.init_fold(
+      num_wrong_impls,
+      id,
+      (i, id) => {
+        let (id, zipper) = Zipper.next_blank(id);
+        (id, {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)});
+      },
+    );
+  let (id, hidden_tests_tests) = Zipper.next_blank(id);
+  {
+    next_id: id,
+    title,
+    version: 1,
+    module_name,
+    prompt: Node.text("TODO: prompt"),
+    point_distribution,
+    prelude,
+    correct_impl,
+    your_tests: {
+      tests: your_tests_tests,
+      required: required_tests,
+      provided: provided_tests,
+    },
+    your_impl,
+    hidden_bugs,
+    hidden_tests: {
+      tests: hidden_tests_tests,
+      hints: [],
+    },
+  };
 };

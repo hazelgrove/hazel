@@ -78,7 +78,7 @@ let get_from_clipboard = (): string => {
 };
 
 let download_string_file =
-    (filename: string, content_type: string, contents: string) => {
+    (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
   let url = Dom_html.window##._URL##createObjectURL(blob);
 
@@ -91,9 +91,9 @@ let download_string_file =
 
 let download_json = (filename, contents): unit =>
   download_string_file(
-    filename ++ ".json",
-    "application/json",
-    contents |> Yojson.Safe.to_string,
+    ~filename=filename ++ ".json",
+    ~content_type="application/json",
+    ~contents=contents |> Yojson.Safe.to_string,
   );
 
 let read_file = (file, k) => {
