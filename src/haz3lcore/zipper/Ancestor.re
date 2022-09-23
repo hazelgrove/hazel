@@ -24,6 +24,11 @@ let inner_shards = ({shards: (pre, suf), _}: t) => {
   (get(ListUtil.last_opt(pre)), get(ListUtil.hd_opt(suf)));
 };
 
+let complete = (a: t): list(Token.t) => {
+  let (l, r) = inner_shards(a);
+  ListUtil.range(~lo=l + 1, r) |> List.map(i => List.nth(a.label, i));
+};
+
 let outer_nibs = (a: t) => {
   let (l, r) = outer_shards(a);
   let (l, _) = Mold.nibs(~index=l, a.mold);

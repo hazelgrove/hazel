@@ -17,6 +17,15 @@ let l_shard = t =>
 let r_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
 
+let complete = (d: Direction.t, t: t): list(Token.t) =>
+  switch (d) {
+  | Left =>
+    ListUtil.range(l_shard(t)) |> List.rev_map(i => List.nth(t.label, i))
+  | Right =>
+    ListUtil.range(~lo=r_shard(t) + 1, List.length(t.label))
+    |> List.map(i => List.nth(t.label, i))
+  };
+
 let has_end = (d: Direction.t, t) =>
   switch (d) {
   | Left => l_shard(t) == 0
