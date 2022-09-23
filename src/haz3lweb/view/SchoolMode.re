@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
@@ -378,5 +379,31 @@ let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Model.settings) =
         )
       : None;
 
-  [reset_button] @ Option.to_list(instructor_export);
+  let instructor_grading_export =
+    settings.instructor_mode
+      ? Some(
+          Widgets.button(
+            Icons.export, // TODO(cyrus) distinct icon
+            _ => {
+              // .ml files because show uses OCaml syntax (dune handles seamlessly)
+              let module_name = eds.module_name;
+              let filename = eds.module_name ++ "_grading.ml";
+              let content_type = "text/plain";
+              let contents =
+                SchoolExercise.export_grading_module(module_name, exercise);
+              JsUtil.download_string_file(
+                ~filename,
+                ~content_type,
+                ~contents,
+              );
+              Virtual_dom.Vdom.Effect.Ignore;
+            },
+            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
+          ),
+        )
+      : None;
+
+  [reset_button]
+  @ Option.to_list(instructor_export)
+  @ Option.to_list(instructor_grading_export);
 };

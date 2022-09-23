@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 
 [@deriving (show({with_path: false}), yojson)]
@@ -26,7 +25,8 @@ and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 
 let lines_to_list = String.split_on_char('\n');
 
-let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
+let pretty_print_rows =
+    (~measured: Measured.t, ~caret: string, z: Zipper.t): list(string) => {
   let unselected = Zipper.unselect_and_zip(z);
   let mrows = measured.rows;
   let Measured.Point.{row, col} = Zipper.caret_point(measured, z);
@@ -42,19 +42,24 @@ let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
   let rows =
     switch (ListUtil.split_nth_opt(row, rows)) {
     | Some((pre, caret_row, suf)) when col < String.length(caret_row) =>
-      pre @ [StringUtil.insert_nth(col, caret_str, caret_row)] @ suf
-    | Some((pre, caret_row, suf)) => pre @ [caret_row ++ caret_str] @ suf
+      pre @ [StringUtil.insert_nth(col, caret, caret_row)] @ suf
+    | Some((pre, caret_row, suf)) => pre @ [caret_row ++ caret] @ suf
     | _ => rows
     };
-  {
-    code: rows, //String.concat("", rows),
-    selection: z.selection.content |> of_segment |> lines_to_list,
-    backpack:
-      List.map(
-        (s: Selection.t) => s.content |> of_segment |> lines_to_list,
-        z.backpack,
-      ),
-  };
+  rows;
+};
+
+let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
+  String.concat("\n", pretty_print_rows(~measured, ~caret="", z));
+
+let of_zipper = (~measured: Measured.t, z: Zipper.t): t => {
+  code: pretty_print_rows(~measured, ~caret=caret_str, z),
+  selection: z.selection.content |> of_segment |> lines_to_list,
+  backpack:
+    List.map(
+      (s: Selection.t) => s.content |> of_segment |> lines_to_list,
+      z.backpack,
+    ),
 };
 
 let zipper_of_string =

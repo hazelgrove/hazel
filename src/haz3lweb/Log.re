@@ -155,7 +155,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
     if (debug_zipper^) {
       cur_model.editors
       |> Editors.get_zipper
-      |> Printer.to_string_log(~measured)
+      |> Haz3lcore.Printer.to_string_log(~measured)
       |> print_endline;
     };
   };
@@ -170,4 +170,10 @@ let keystroke = (key: Key.t, updates) => {
     };
   };
   updates;
+};
+
+let pretty_print = (m: Model.t): string => {
+  let z = Editors.get_zipper(m.editors);
+  let measured = Editors.get_editor(m.editors).state.meta.measured;
+  Haz3lcore.Printer.pretty_print(~measured, z);
 };

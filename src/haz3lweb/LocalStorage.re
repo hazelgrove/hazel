@@ -109,23 +109,10 @@ module School = {
     JsUtil.set_localstore(cur_exercise_key, keystring_of_key(key));
   };
 
-  let serialize_exercise = (exercise, ~instructor_mode) => {
-    SchoolExercise.persistent_state_of_state(exercise, ~instructor_mode)
-    |> SchoolExercise.sexp_of_persistent_state
-    |> Sexplib.Sexp.to_string;
-  };
-
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
-    data
-    |> Sexplib.Sexp.of_string
-    |> SchoolExercise.persistent_state_of_sexp
-    |> SchoolExercise.unpersist_state(~spec, ~instructor_mode);
-  };
-
   let save_exercise = (exercise, ~instructor_mode) => {
     let key = SchoolExercise.key_of_state(exercise);
     let keystring = keystring_of_key(key);
-    let value = serialize_exercise(exercise, ~instructor_mode);
+    let value = SchoolExercise.serialize_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(keystring, value);
   };
 
@@ -143,7 +130,9 @@ module School = {
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
+        try(
+          SchoolExercise.deserialize_exercise(data, ~spec, ~instructor_mode)
+        ) {
         | _ => init_exercise(spec, ~instructor_mode)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -191,12 +180,7 @@ module School = {
     };
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type school_export = {
-    cur_exercise: SchoolExercise.key,
-    exercise_data:
-      list((SchoolExercise.key, SchoolExercise.persistent_state)),
-  };
+  type school_export = SchoolExercise.school_export;
 
   let prep_school_export = (~specs, ~instructor_mode) => {
     {
@@ -220,10 +204,6 @@ module School = {
     prep_school_export(~specs, ~instructor_mode)
     |> sexp_of_school_export
     |> Sexplib.Sexp.to_string;
-  };
-
-  let deserialize_school_export = data => {
-    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
   };
 
   let export = (~specs, ~instructor_mode) => {
