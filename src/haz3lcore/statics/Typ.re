@@ -182,7 +182,8 @@ let matched_list_lit_mode = (mode: mode, length): list(mode) =>
   | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
   };
 
-let ap_mode: mode = Ana(Arrow(Unknown(Internal), Unknown(Internal)));
+//TODO(andrew): temp change
+let ap_mode: mode = Syn; //Ana(Arrow(Unknown(Internal), Unknown(Internal)));
 
 /* Legacy code from HTyp */
 
@@ -206,4 +207,24 @@ let precedence = (ty: t): int =>
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let eq = (==);
+let rec eq = (t1, t2) =>
+  switch (t1, t2) {
+  | (Int, Int) => true
+  | (Int, _) => false
+  | (Float, Float) => true
+  | (Float, _) => false
+  | (Bool, Bool) => true
+  | (Bool, _) => false
+  | (Unknown(_), Unknown(_)) => true
+  | (Unknown(_), _) => false
+  | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
+    eq(t1_1, t2_1) && eq(t1_2, t2_2)
+  | (Arrow(_), _) => false
+  | (Prod(tys1), Prod(tys2)) =>
+    List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
+  | (Prod(_), _) => false
+  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
+  | (Sum(_), _) => false
+  | (List(t1), List(t2)) => eq(t1, t2)
+  | (List(_), _) => false
+  };
