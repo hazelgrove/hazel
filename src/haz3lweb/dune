@@ -8,15 +8,20 @@
 (library
  (name haz3lweb)
  (modules
-  (:standard \ Main)
+  (((:standard \ Main)
+    \
+    Worker)
+   \
+   SchoolSerde)
   \
-  Worker)
+  SchoolData)
  (libraries
   incr_dom
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
   haz3lcore
+  haz3lschooldata
   pretty
   lwt
   lwtutil)
@@ -30,6 +35,13 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show)))
+
+(library
+ (name haz3lschooldata)
+ (modules SchoolData)
+ (libraries util ppx_yojson_conv.expander haz3lcore pretty lwt lwtutil)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (executable
  (name main)
@@ -54,6 +66,13 @@
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
+
+; (executable
+;  (name haz3lschoolserde)
+;  (modules SchoolSerde)
+;  (libraries ppx_yojson_conv.expander haz3lcore haz3lschooldata)
+;  (preprocess
+;   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (env
  (dev

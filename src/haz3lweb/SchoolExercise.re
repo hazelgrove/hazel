@@ -1,32 +1,8 @@
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Haz3lcore;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type wrong_impl('code) = {
-  impl: 'code,
-  hint: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hidden_tests('code) = {
-  tests: 'code,
-  hints: list(string),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type your_tests('code) = {
-  tests: 'code,
-  required: int,
-  provided: int,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type point_distribution = {
-  test_validation: int,
-  mutation_testing: int,
-  impl_grading: int,
-};
+module SchoolData = Haz3lschooldata.SchoolData;
+include SchoolData.Common;
 
 let validate_point_distribution =
     ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
@@ -34,42 +10,22 @@ let validate_point_distribution =
     ? () : failwith("Invalid point distribution in exercise.");
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type p('code) = {
-  next_id: Id.t,
-  title: string,
-  version: int,
-  module_name: string,
-  prompt:
+type p('code) =
+  SchoolData.p(
+    'code,
     [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
-  point_distribution,
-  prelude: 'code,
-  correct_impl: 'code,
-  your_tests: your_tests('code),
-  your_impl: 'code,
-  hidden_bugs: list(wrong_impl('code)),
-  hidden_tests: hidden_tests('code),
-};
+  );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key = (string, int);
 
-let key_of = p => {
+let key_of = (p: p('code)) => {
   (p.title, p.version);
 };
 
 let find_key_opt = (key, specs: list(p('code))) => {
   specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type pos =
-  | Prelude
-  | CorrectImpl
-  | YourTestsValidation
-  | YourTestsTesting
-  | YourImpl
-  | HiddenBugs(int)
-  | HiddenTests;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type spec = p(Zipper.t);
@@ -707,7 +663,8 @@ let blank_spec =
       ~required_tests,
       ~provided_tests,
       ~num_wrong_impls,
-    ) => {
+    )
+    : p('code) => {
   let id = 0;
   let (id, prelude) = Zipper.next_blank(id);
   let (id, correct_impl) = Zipper.next_blank(id);
