@@ -1303,6 +1303,24 @@ svg.tile-selected {
   display: inline-block;
 }
 
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration,
+.DHCode .DivideByZero {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+.DHCode .FailedCastDelim {
+  color: red;
+}
+.DHCode .CastDecoration {
+  background-color: rgba(150, 0, 255, 0.2);
+}
+.DHCode .FailedCastDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
 /* DYNAMICS - test panel */
 
 .school-panel {

@@ -633,12 +633,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
           }
         | BoxedValue(d2') =>
-          print_endline("InvalidBoxedIntLit");
+          print_endline("InvalidBoxedIntLit1");
+          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
-        print_endline("InvalidBoxedIntLit");
+        print_endline("InvalidBoxedIntLit2");
+        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
