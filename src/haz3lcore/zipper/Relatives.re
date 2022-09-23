@@ -223,6 +223,41 @@ let reassemble = (rs: t): t => {
   rs |> reassemble_siblings |> reassemble_parent |> go;
 };
 
+let _reassemble = (rs: t): t => {
+  open OptUtil.Syntax;
+  let rec go_l = (l_split, r_split, rs): option(t) => {
+    let* (l_seg, l_t, l_split) = Aba.uncons(l_split);
+    let rec go_r = (split, rs): option(t) =>
+      switch (Aba.unsnoc(split)) {
+      | None =>
+        let inner = (l_seg @ [Piece.Tile(l_t)], []);
+        let siblings = Siblings.concat([inner, rs.siblings]);
+        go_l(l_split, r_split, {...rs, siblings});
+      | Some((r_split, r_t, r_seg)) =>
+        // TODO review matches
+        if (Segment.matches(l_t, r_t)) {
+          let a = failwith("todo a");
+          let sibs = Siblings.concat([(l_seg, r_seg), rs.siblings]);
+          let rs = {
+            siblings: ([], []),
+            ancestors: [(a, sibs), ...rs.ancestors],
+          };
+          go_l(l_split, r_split, rs);
+        } else {
+          let siblings =
+            Siblings.concat([([], [Tile(r_t), ...r_seg]), rs.siblings]);
+          go_r(r_split, {...rs, siblings});
+        }
+      };
+    go_r(r_split, rs);
+  };
+
+  let (l, r) = rs.siblings;
+  let (l_split, r_split) = Segment.Split.(reassemble(l), reassemble(r));
+  go_l(l_split, r_split, {...rs, siblings: ([], [])})
+  |> OptUtil.get(() => rs);
+};
+
 // let rec reassemble = (rs: t): t => {
 //   let siblings = Siblings.reassemble(rs.siblings);
 //   switch (Siblings.incomplete_tiles(siblings)) {

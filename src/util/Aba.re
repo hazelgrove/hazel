@@ -20,13 +20,6 @@ let last_a = ((as_, _): t('a, _)): 'a => {
   ListUtil.last(as_);
 };
 
-let pop_ab = (aba: t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
-  switch (aba) {
-  | ([], _) => raise(Invalid)
-  | (_, []) => None
-  | ([a, ...as_], [b, ...bs]) => Some((a, b, (as_, bs)))
-  };
-
 let update_first_a = (f: 'a => 'a, aba: t('a, _)): t('a, _) =>
   switch (aba) {
   | ([], _) => raise(Invalid)
@@ -46,6 +39,19 @@ let snoc = ((as_, bs): t('a, 'b), b: 'b, a: 'a): t('a, 'b) => (
   as_ @ [a],
   bs @ [b],
 );
+
+let uncons = (aba: t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
+  switch (aba) {
+  | ([], _) => raise(Invalid)
+  | (_, []) => None
+  | ([a, ...as_], [b, ...bs]) => Some((a, b, (as_, bs)))
+  };
+let unsnoc = ((as_, bs): t('a, 'b)): option((t('a, 'b), 'b, 'a)) =>
+  switch (ListUtil.split_last_opt(as_), ListUtil.split_last_opt(bs)) {
+  | (None, _)
+  | (_, None) => None
+  | (Some((as_, a)), Some((bs, b))) => Some(((as_, bs), b, a))
+  };
 
 let singleton = (a: 'a): t('a, _) => ([a], []);
 
