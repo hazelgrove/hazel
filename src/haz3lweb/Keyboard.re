@@ -10,7 +10,10 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
   | None => [UpdateDoubleTap(Some(cur_time))]
   | Some(prev_time) =>
     if (cur_time -. prev_time < 400.) {
-      [UpdateDoubleTap(None), PerformAction(RotateBackpack)];
+      [
+        UpdateDoubleTap(None),
+        // PerformAction(RotateBackpack) // TODO(cyrus) disabling double tab here, but would be good to give it a different hotkey
+      ];
     } else {
       [UpdateDoubleTap(Some(cur_time))];
     }
