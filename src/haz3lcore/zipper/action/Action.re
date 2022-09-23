@@ -15,7 +15,6 @@ type t =
   | Unselect
   | Destruct(Direction.t)
   | Insert(string)
-  | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up
   | Put_down;

@@ -126,9 +126,7 @@ let reevaluate_post_update =
     | ContextInspector
     | Mode(_) => true
     }
-  | PerformAction(
-      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_),
-    )
+  | PerformAction(Move(_) | Select(_) | Unselect | MoveToBackpackTarget(_))
   | MoveToNextHole(_) //
   | UpdateDoubleTap(_)
   | Mousedown

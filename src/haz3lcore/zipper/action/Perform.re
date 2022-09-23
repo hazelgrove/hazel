@@ -10,7 +10,6 @@ let is_write_action = (a: Action.t) => {
   | Insert(_)
   | Pick_up
   | Put_down
-  | RotateBackpack
   | MoveToBackpackTarget(_) => true
   };
 };
@@ -63,9 +62,6 @@ let go_z =
     z
     |> Option.map(((z, id_gen)) => remold_regrout(Left, z, id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
-  | RotateBackpack =>
-    let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
-    Ok((z, id_gen));
   | MoveToBackpackTarget(d) =>
     Move.to_backpack_target(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_move)
