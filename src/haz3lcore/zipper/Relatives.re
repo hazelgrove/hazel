@@ -248,6 +248,8 @@ module Backpack = {
     };
   };
 
+  let push_from_pre = (ts: list(Tile.t), bp: t) =>
+    List.fold_left(Fun.flip(push_from_sib(Left)), bp, ts);
   let push_from_suf = (ts: list(Tile.t), bp: t) =>
     List.fold_right(push_from_sib(Right), ts, bp);
 
@@ -255,6 +257,20 @@ module Backpack = {
     ...bp,
     b: Ancestor.complete(a),
   };
+};
+
+// assumes relatives are maximally assembled
+let mk_backpack = (rs: t): Backpack.t => {
+  open Backpack;
+  let (l, r) = rs.siblings;
+  let push_from_anc =
+    switch (rs.ancestors) {
+    | [] => Fun.id
+    | [(a, _), ..._] => push_from_anc(a)
+    };
+  push_from_anc(empty)
+  |> push_from_pre(Segment.incomplete_tiles(l))
+  |> push_from_suf(Segment.incomplete_tiles(r));
 };
 
 let _reassemble = (rs: t): t => {
