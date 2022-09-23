@@ -223,39 +223,82 @@ let reassemble = (rs: t): t => {
   rs |> reassemble_siblings |> reassemble_parent |> go;
 };
 
-let _reassemble = (rs: t): t => {
-  open OptUtil.Syntax;
-  let rec go_l = (l_split, r_split, rs): option(t) => {
-    let* (l_seg, l_t, l_split) = Aba.uncons(l_split);
-    let rec go_r = (split, rs): option(t) =>
-      switch (Aba.unsnoc(split)) {
-      | None =>
-        let inner = (l_seg @ [Piece.Tile(l_t)], []);
-        let siblings = Siblings.concat([inner, rs.siblings]);
-        go_l(l_split, r_split, {...rs, siblings});
-      | Some((r_split, r_t, r_seg)) =>
-        // TODO review matches
-        if (Segment.matches(l_t, r_t)) {
-          let a = failwith("todo a");
-          let sibs = Siblings.concat([(l_seg, r_seg), rs.siblings]);
-          let rs = {
-            siblings: ([], []),
-            ancestors: [(a, sibs), ...rs.ancestors],
-          };
-          go_l(l_split, r_split, rs);
-        } else {
-          let siblings =
-            Siblings.concat([([], [Tile(r_t), ...r_seg]), rs.siblings]);
-          go_r(r_split, {...rs, siblings});
-        }
-      };
-    go_r(r_split, rs);
+module Backpack = {
+  module Stack = {
+    type t = list(Token.t);
+    let empty = [];
   };
 
+  type t = {
+    // obligations from the left
+    l: Stack.t,
+    // obligations from the right
+    r: Stack.t,
+    // obligations from both left and right
+    b: Stack.t,
+  };
+
+  let empty = Stack.{l: empty, r: empty, b: empty};
+
+  let push_from_sib = (d: Direction.t, t: Tile.t, bp: t): t => {
+    let toks = Tile.complete(Direction.toggle(d), t);
+    switch (d) {
+    | Left => {...bp, l: toks @ bp.l}
+    | Right => {...bp, r: toks @ bp.r}
+    };
+  };
+
+  let push_from_suf = (ts: list(Tile.t), bp: t) =>
+    List.fold_right(push_from_sib(Right), ts, bp);
+
+  let push_from_anc = (a: Ancestor.t, bp: t): t => {
+    ...bp,
+    b: Ancestor.complete(a),
+  };
+};
+
+let _reassemble = (rs: t): t => {
+  let rec go_l = (split_l, split_r, rs: t): t =>
+    switch (Aba.uncons(split_l)) {
+    | None =>
+      let l = Segment.Split.flatten(split_l);
+      let siblings = Siblings.concat([(l, []), rs.siblings]);
+      {...rs, siblings};
+    | Some((seg_l, t_l, split_l)) =>
+      let rec go_r = (split, rs): t =>
+        switch (Aba.unsnoc(split)) {
+        | None =>
+          let inner = (seg_l @ [Piece.Tile(t_l)], []);
+          let siblings = Siblings.concat([inner, rs.siblings]);
+          go_l(split_l, split_r, {...rs, siblings});
+        | Some((split_r, t_r, seg_r)) =>
+          // TODO review matches
+          if (Segment.matches(t_l, t_r)) {
+            let a =
+              Ancestor.{
+                id: t_l.id,
+                label: t_l.label,
+                mold: t_l.mold,
+                shards: (t_l.shards, t_r.shards),
+                children: (t_l.children, t_r.children),
+              };
+            let sibs = Siblings.concat([(seg_l, seg_r), rs.siblings]);
+            let rs = {
+              siblings: ([], []),
+              ancestors: [(a, sibs), ...rs.ancestors],
+            };
+            go_l(split_l, split_r, rs);
+          } else {
+            let siblings =
+              Siblings.concat([([], [Tile(t_r), ...seg_r]), rs.siblings]);
+            go_r(split_r, {...rs, siblings});
+          }
+        };
+      go_r(split_r, rs);
+    };
   let (l, r) = rs.siblings;
-  let (l_split, r_split) = Segment.Split.(reassemble(l), reassemble(r));
-  go_l(l_split, r_split, {...rs, siblings: ([], [])})
-  |> OptUtil.get(() => rs);
+  let (split_l, split_r) = Segment.Split.(reassemble(l), reassemble(r));
+  go_l(split_l, split_r, {...rs, siblings: ([], [])});
 };
 
 // let rec reassemble = (rs: t): t => {
