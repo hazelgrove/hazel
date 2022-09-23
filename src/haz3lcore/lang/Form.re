@@ -94,7 +94,10 @@ let is_wild = regexp("^_$");
    type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
   is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
-let is_string = regexp("^\".*\"$");
+/* is_string: last clause is a somewhat hacky way of making sure
+   there are at most two quotes, in order to prevent merges */
+let is_string = t =>
+  regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
 
