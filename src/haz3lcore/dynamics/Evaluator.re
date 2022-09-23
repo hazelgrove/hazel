@@ -709,21 +709,25 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | ListLit(x1, x2, x3, ty, lst) =>
-      let+ evaluated_lst =
+    | ListLit(u, i, err, ty, lst) =>
+      let+ lst = lst |> List.map(evaluate(env)) |> sequence;
+      let (lst, indet) =
         List.fold_right(
-          (ele, ele_list) => {
-            let* ele_list = ele_list;
-            let+ ele' = evaluate(env, ele);
-            switch (ele') {
-            | BoxedValue(ele') => [ele'] @ ele_list
-            | _ => [ele, ...ele_list]
-            };
-          },
+          (el, (lst, indet)) =>
+            switch (el) {
+            | BoxedValue(el) => ([el, ...lst], false || indet)
+            | Indet(el) => ([el, ...lst], true)
+            },
           lst,
-          return([]),
+          ([], false),
         );
-      BoxedValue(ListLit(x1, x2, x3, ty, evaluated_lst));
+
+      let d = DHExp.ListLit(u, i, err, ty, lst);
+      if (indet) {
+        Indet(d);
+      } else {
+        BoxedValue(d);
+      };
 
     | ConsistentCase(Case(d1, rules, n)) =>
       evaluate_case(env, None, d1, rules, n)
