@@ -412,3 +412,18 @@ let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
          }
        );
   };
+
+let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
+  (n, b, f) => {
+    let range = List.init(n, n => n);
+    let (acc, rev_xs) =
+      List.fold_left(
+        ((acc, xs), n) => {
+          let (acc', elt) = f(n, acc);
+          (acc', [elt, ...xs]);
+        },
+        (b, []),
+        range,
+      );
+    (acc, List.rev(rev_xs));
+  };
