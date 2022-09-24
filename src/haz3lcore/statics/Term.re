@@ -95,6 +95,7 @@ module UPat = {
     | Var
     | Tuple
     | Parens
+    | Ap
     | TypeAnn;
 
   include TermBase.UPat;
@@ -127,6 +128,7 @@ module UPat = {
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Ap(_) => Ap
     | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
@@ -146,6 +148,7 @@ module UPat = {
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
+    | Ap => "Constructor Application"
     | TypeAnn => "Type Annotation";
 };
 
@@ -253,7 +256,7 @@ module UExp = {
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | Ap => "Function Application"
+    | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"

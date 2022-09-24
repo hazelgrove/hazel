@@ -58,6 +58,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Tag(_)
   | Triv => d |> return
 
   | Sequence(d1, d2) =>
@@ -249,6 +250,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Tag(_)
   | Triv => d |> return
 
   | Sequence(d1, d2) =>
@@ -405,6 +407,7 @@ let rec track_children_of_hole =
         : HoleInstanceInfo.t =>
   switch (d) {
   | Triv
+  | Tag(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
