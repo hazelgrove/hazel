@@ -68,6 +68,10 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_string =
+    | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Int(op_un_int);
 
@@ -75,7 +79,8 @@ and UExp: {
   type op_bin =
     | Int(op_bin_int)
     | Float(op_bin_float)
-    | Bool(op_bin_bool);
+    | Bool(op_bin_bool)
+    | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -86,6 +91,7 @@ and UExp: {
     | Bool
     | Int
     | Float
+    | String
     | ListLit
     | Fun
     | Tuple
@@ -110,6 +116,7 @@ and UExp: {
     | Bool(bool)
     | Int(int)
     | Float(float)
+    | String(string)
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
@@ -165,6 +172,10 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_string =
+    | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Int(op_un_int);
 
@@ -172,7 +183,8 @@ and UExp: {
   type op_bin =
     | Int(op_bin_int)
     | Float(op_bin_float)
-    | Bool(op_bin_bool);
+    | Bool(op_bin_bool)
+    | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -183,6 +195,7 @@ and UExp: {
     | Bool
     | Int
     | Float
+    | String
     | ListLit
     | Fun
     | Tuple
@@ -207,6 +220,7 @@ and UExp: {
     | Bool(bool)
     | Int(int)
     | Float(float)
+    | String(string)
     | ListLit(list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
@@ -238,6 +252,7 @@ and UPat: {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | String(string)
     | Triv
     | ListLit(list(t))
     | Cons(t, t)
@@ -259,6 +274,7 @@ and UPat: {
     | Int(int)
     | Float(float)
     | Bool(bool)
+    | String(string)
     | Triv
     | ListLit(list(t))
     | Cons(t, t)
@@ -280,6 +296,7 @@ and UTyp: {
     | Int
     | Float
     | Bool
+    | String
     | List(t)
     | Arrow(t, t)
     | Tuple(list(t))
@@ -297,6 +314,7 @@ and UTyp: {
     | Int
     | Float
     | Bool
+    | String
     | List(t)
     | Arrow(t, t)
     | Tuple(list(t))

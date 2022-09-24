@@ -49,6 +49,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Int => (text("Int"), parenthesize)
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
+    | String => (text("String"), parenthesize)
     | List(ty) => (
         hcats([
           mk_delim("["),

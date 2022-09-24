@@ -106,6 +106,8 @@ let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
+let mk_StringLit = Doc.text;
+
 let mk_FloatLit = (f: float) =>
   switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
   | (false, true, _) => Doc.text("Inf")

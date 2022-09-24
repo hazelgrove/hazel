@@ -9,48 +9,48 @@ type movability =
   | CanPass
   | CantEven;
 
+let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
+  assert(delim_idx < List.length(label));
+  switch (chunkiness, label, delim_idx) {
+  | (ByChar, _, _)
+  | (MonoByChar, [_], 0) =>
+    let char_max = Token.length(List.nth(label, delim_idx)) - 2;
+    char_max < 0 ? CanPass : CanEnter(delim_idx, char_max);
+  | (ByToken, _, _)
+  | (MonoByChar, _, _) => CanPass
+  };
+};
+
+let neighbor_movability =
+    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
+    : (movability, movability) => {
+  let movability = movability(chunkiness);
+  let (supernhbr_l, supernhbr_r) =
+    switch (ancestors) {
+    | [] => (CantEven, CantEven)
+    | [({children: (l_kids, _), label, _}, _), ..._] => (
+        movability(label, List.length(l_kids)),
+        movability(label, List.length(l_kids) + 1),
+      )
+    };
+  let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
+  let l =
+    switch (l_nhbr) {
+    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
+    | Some(_) => CanPass
+    | _ => supernhbr_l
+    };
+  let r =
+    switch (r_nhbr) {
+    | Some(Tile({label, _})) => movability(label, 0)
+    | Some(_) => CanPass
+    | _ => supernhbr_r
+    };
+  (l, r);
+};
+
 module Make = (M: Editor.Meta.S) => {
   let caret_point = Zipper.caret_point(M.measured);
-
-  let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
-    assert(delim_idx < List.length(label));
-    switch (chunkiness, label, delim_idx) {
-    | (ByChar, _, _)
-    | (MonoByChar, [_], 0) =>
-      let char_max = Token.length(List.nth(label, delim_idx)) - 2;
-      char_max < 0 ? CanPass : CanEnter(delim_idx, char_max);
-    | (ByToken, _, _)
-    | (MonoByChar, _, _) => CanPass
-    };
-  };
-
-  let neighbor_movability =
-      (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
-      : (movability, movability) => {
-    let movability = movability(chunkiness);
-    let (supernhbr_l, supernhbr_r) =
-      switch (ancestors) {
-      | [] => (CantEven, CantEven)
-      | [({children: (l_kids, _), label, _}, _), ..._] => (
-          movability(label, List.length(l_kids)),
-          movability(label, List.length(l_kids) + 1),
-        )
-      };
-    let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-    let l =
-      switch (l_nhbr) {
-      | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
-      | Some(_) => CanPass
-      | _ => supernhbr_l
-      };
-    let r =
-      switch (r_nhbr) {
-      | Some(Tile({label, _})) => movability(label, 0)
-      | Some(_) => CanPass
-      | _ => supernhbr_r
-      };
-    (l, r);
-  };
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
   let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);

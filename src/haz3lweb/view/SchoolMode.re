@@ -232,7 +232,6 @@ let view =
         ~footer=
           Some(
             Cell.eval_result_footer_view(
-              ~elab=None, //TODO: placeholder
               ~font_metrics,
               user_impl.simple_result,
             ),

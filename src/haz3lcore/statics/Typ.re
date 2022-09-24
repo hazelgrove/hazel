@@ -17,6 +17,7 @@ type t =
   | Int
   | Float
   | Bool
+  | String
   | List(t)
   | Arrow(t, t)
   | Sum(t, t) // unused
@@ -86,6 +87,8 @@ let rec join = (ty1: t, ty2: t): option(t) =>
   | (Float, _) => None
   | (Bool, Bool) => Some(Bool)
   | (Bool, _) => None
+  | (String, String) => Some(String)
+  | (String, _) => None
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
     switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
@@ -196,6 +199,7 @@ let precedence = (ty: t): int =>
   | Int
   | Float
   | Bool
+  | String
   | Unknown(_)
   | Prod([])
   | List(_) => precedence_const
@@ -215,6 +219,8 @@ let rec eq = (t1, t2) =>
   | (Float, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
+  | (String, String) => true
+  | (String, _) => false
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
   | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
