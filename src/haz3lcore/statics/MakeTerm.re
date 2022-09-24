@@ -258,13 +258,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Exp(arg)]) =>
-          switch (l, arg) {
-          | ({term: Tag(name, []), _}, {term: Tuple(es), _}) =>
-            Tag(name, es)
-          | ({term: Tag(name, []), _}, _) => Tag(name, [arg])
-          | _ => Ap(l, arg)
-          }
+        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },
       )
@@ -336,6 +330,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           }
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+        | ([t], []) when Form.is_constructor(t) => Tag(t, [])
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_listnil(t) => ListLit([])
@@ -345,7 +340,18 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Post(Pat(l), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))

@@ -15,6 +15,7 @@ let precedence = (dp: DHPat.t) =>
   | StringLit(_)
   | Inj(_)
   | Triv
+  | Tag(_)
   | ListLit(_)
   | Pair(_) => DHDoc_common.precedence_const
   | Cons(_) => DHDoc_common.precedence_Cons
@@ -43,6 +44,7 @@ let rec mk =
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
     | Triv => DHDoc_common.Delim.triv
+    | Tag(name) => DHDoc_common.mk_TagLit(name)
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)

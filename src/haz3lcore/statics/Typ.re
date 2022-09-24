@@ -189,8 +189,7 @@ let matched_list_lit_mode = (mode: mode, length): list(mode) =>
   | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
   };
 
-//TODO(andrew): temp change
-let ap_mode: mode = Syn; //Ana(Arrow(Unknown(Internal), Unknown(Internal)));
+let ap_mode: mode = Ana(Arrow(Unknown(SynSwitch), Unknown(SynSwitch)));
 
 /* Legacy code from HTyp */
 

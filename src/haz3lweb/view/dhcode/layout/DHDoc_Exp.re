@@ -52,6 +52,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Inj(_)
   | EmptyHole(_)
   | Triv
+  | Tag(_)
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
@@ -219,6 +220,7 @@ let rec mk =
 
       | BoundVar(x) => text(x)
       | Triv => DHDoc_common.Delim.triv
+      | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)

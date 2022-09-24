@@ -342,8 +342,12 @@ and uexp_to_info_map =
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
-  | Tag(name, es) =>
+  | Tag(name, _es) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free) //TODO(andrew)
+    | Some(typ) => atomic(Just(typ))
+    }
+  /*switch (BuiltinADTs.get_tag_typ(name)) {
     | None => atomic(Free) //TODO(andrew)
     | Some((param_tys, _output_ty))
         when List.length(param_tys) != List.length(es) =>
@@ -355,7 +359,7 @@ and uexp_to_info_map =
       let self = Typ.Just(output_ty);
       let m = union_m(List.map(((_, _, m)) => m, infos));
       add(~self, ~free, m);
-    }
+    }*/
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
@@ -545,8 +549,12 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
-  | Tag(name, ps) =>
+  | Tag(name, _ps) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free) //TODO(andrew)
+    | Some(typ) => atomic(Just(typ))
+    }
+  /*switch (BuiltinADTs.get_tag_typ(name)) {
     | None => atomic(Free) //TODO(andrew)
     | Some((param_tys, _output_ty))
         when List.length(param_tys) != List.length(ps) =>
@@ -566,7 +574,7 @@ and upat_to_info_map =
       let self = Typ.Just(output_ty);
       let m = union_m(List.map(((_, _, m)) => m, infos));
       add(~self, ~ctx, m);
-    }
+    }*/
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);
@@ -593,6 +601,13 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
+  | Ap(fn, arg) =>
+    /* Contructor application */
+    /* Function position mode Ana(Hole->Hole) instead of Syn */
+    let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+    add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
