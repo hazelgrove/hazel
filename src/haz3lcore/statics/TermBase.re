@@ -93,6 +93,7 @@ and UExp: {
     | Float
     | String
     | ListLit
+    | Tag
     | Fun
     | Tuple
     | Var
@@ -118,6 +119,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | Tag(string, list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
@@ -197,6 +199,7 @@ and UExp: {
     | Float
     | String
     | ListLit
+    | Tag
     | Fun
     | Tuple
     | Var
@@ -222,6 +225,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | Tag(string, list(t))
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
@@ -255,6 +259,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
+    | Tag(string, list(t))
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))
@@ -277,6 +282,7 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
+    | Tag(string, list(t))
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))
