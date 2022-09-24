@@ -9,7 +9,7 @@ module ElaborationResult = {
 };
 
 let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, typ), ctx);
+  List.map(((k, Ctx.{typ, _})) => (k, typ), ctx);
 
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
@@ -44,7 +44,7 @@ let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   | And => And
   | Or => Or;
 
-let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
+let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
   fun
   | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
@@ -59,16 +59,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
-    let maybe_reason: option(ErrStatus.HoleReason.t) =
-      switch (err_status) {
-      | NotInHole(_) => None
-      | InHole(_) => Some(TypeInconsistent)
-      };
     let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let wrap = (d: DHExp.t): option(DHExp.t) =>
-      switch (maybe_reason) {
-      | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
+      switch (err_status) {
+      | NotInHole(_) =>
+        switch (Statics.exp_mode_id(m, u)) {
+        | Syn => Some(d)
+        | Ana(ana_ty) =>
+          let exp_self_typ = Statics.exp_self_typ_id(m, u);
+          //print_endline(Typ.show(exp_self_typ));
+          Some(DHExp.cast(d, exp_self_typ, ana_ty));
+        }
+      | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
@@ -86,7 +88,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       switch (ds) {
       | [] => Some(DHExp.EmptyHole(u, 0))
       | [hd, ...tl] =>
-        // placeholder logic: sequence
+        // TODO: placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
     | Triv => wrap(Triv)
@@ -95,51 +97,21 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Float(n) => wrap(FloatLit(n))
     | String(s) => wrap(StringLit(s))
     | ListLit(es) =>
-      //TODO: rewrite this whole case
-      switch (Statics.exp_mode(m, uexp)) {
-      | Syn =>
-        let ty = Typ.matched_list(Statics.exp_self_typ(m, uexp));
-        let* ds =
-          List.fold_left(
-            (acc, e) => {
-              let* acc = acc;
-              let e_ty = Statics.exp_self_typ(m, e);
-              let+ d = dhexp_of_uexp(m, e);
-              let dc = DHExp.cast(d, e_ty, ty);
-              acc @ [dc];
-            },
-            Some([]),
-            es,
-          );
-        wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-      | Ana(ana_ty) =>
-        let ty = Typ.matched_list(ana_ty);
-        let* ds =
-          List.fold_left(
-            (acc, e) => {
-              let* acc = acc;
-              let e_ty = Statics.exp_self_typ(m, e);
-              let+ d = dhexp_of_uexp(m, e);
-              let dc = DHExp.cast(d, e_ty, ty);
-              acc @ [dc];
-            },
-            Some([]),
-            es,
-          );
-        wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-      }
+      let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+      let ty = Statics.exp_typ(m, uexp) |> Typ.matched_list;
+      //TODO: err status below?
+      wrap(ListLit(u, 0, StandardErrStatus(NotInHole), ty, ds));
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = Statics.pat_typ(m, p);
-      wrap(DHExp.Fun(dp, ty1, d1));
+      wrap(DHExp.Fun(dp, Statics.pat_typ(m, p), d1));
     | Tuple(es) =>
       //TODO(andrew): review below
       switch (List.rev(es)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")
       | [e0, ...es] =>
-        let* ds =
+        let* d =
           List.fold_left(
             (acc, e) => {
               let* acc = acc;
@@ -149,36 +121,19 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             dhexp_of_uexp(m, e0),
             es,
           );
-        wrap(ds);
+        wrap(d);
       }
     | Cons(e1, e2) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = Statics.exp_self_typ(m, e1);
-      let ty2 = Statics.exp_self_typ(m, e2);
-      let dc1 =
-        switch (Statics.exp_mode(m, uexp)) {
-        | Syn => d1
-        | Ana(ty_ana) =>
-          let ty = Typ.matched_list(ty_ana);
-          DHExp.cast(d1, ty1, ty);
-        };
-      let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
-      let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
+      let* dc1 = dhexp_of_uexp(m, e1);
+      let* dc2 = dhexp_of_uexp(m, e2);
       wrap(Cons(dc1, dc2));
     | UnOp(Int(Minus), e) =>
-      let* d = dhexp_of_uexp(m, e);
-      let ty = Statics.exp_self_typ(m, e);
-      let dc = DHExp.cast(d, ty, Int);
+      let* dc = dhexp_of_uexp(m, e);
       wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
-      let (ty, cons) = exp_binop_of(op);
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = Statics.exp_self_typ(m, e1);
-      let ty2 = Statics.exp_self_typ(m, e2);
-      let dc1 = DHExp.cast(d1, ty1, ty);
-      let dc2 = DHExp.cast(d2, ty2, ty);
+      let (_, cons) = exp_binop_of(op);
+      let* dc1 = dhexp_of_uexp(m, e1);
+      let* dc2 = dhexp_of_uexp(m, e2);
       wrap(cons(dc1, dc2));
     | Parens(e) => dhexp_of_uexp(m, e)
     | Seq(e1, e2) =>
@@ -213,13 +168,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* dbody = dhexp_of_uexp(m, body);
       wrap(Let(dp, ddef, dbody));
     | Ap(fn, arg) =>
-      let* d_fn = dhexp_of_uexp(m, fn);
-      let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = Statics.exp_self_typ(m, fn);
-      let ty_arg = Statics.exp_self_typ(m, arg);
-      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-      let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
-      let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
+      let* c_fn = dhexp_of_uexp(m, fn);
+      let* c_arg = dhexp_of_uexp(m, arg);
       wrap(Ap(c_fn, c_arg));
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -284,17 +234,8 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Float(n) => wrap(FloatLit(n))
     | String(s) => wrap(StringLit(s))
     | ListLit(ps) =>
-      let ty = Typ.matched_list(Statics.pat_self_typ(m, upat));
-      let* ds =
-        List.fold_left(
-          (acc, p) => {
-            let* acc = acc;
-            let+ d = dhpat_of_upat(m, p);
-            acc @ [d];
-          },
-          Some([]),
-          ps,
-        );
+      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
+      let ty = Statics.pat_typ(m, upat) |> Typ.matched_list;
       wrap(ListLit(ty, ds));
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
@@ -332,5 +273,5 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
-  | Some(d) => Elaborates(d, Typ.Unknown(Internal), Delta.empty) //TODO: get type from ci
+  | Some(d) => Elaborates(d, Unknown(Internal), Delta.empty) //TODO: get type from ci
   };
