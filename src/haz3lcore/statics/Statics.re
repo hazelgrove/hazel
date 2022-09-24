@@ -342,6 +342,20 @@ and uexp_to_info_map =
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
+  | Tag(name, es) =>
+    switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free) //TODO(andrew)
+    | Some((param_tys, _output_ty))
+        when List.length(param_tys) != List.length(es) =>
+      atomic(Free) //TODO(andrew)
+    | Some((param_tys, output_ty)) =>
+      let modes = List.map(ty => Typ.Ana(ty), param_tys);
+      let infos = List.map2((e, mode) => go(~mode, e), es, modes);
+      let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+      let self = Typ.Just(output_ty);
+      let m = union_m(List.map(((_, _, m)) => m, infos));
+      add(~self, ~free, m);
+    }
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
@@ -531,6 +545,28 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
+  | Tag(name, ps) =>
+    switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free) //TODO(andrew)
+    | Some((param_tys, _output_ty))
+        when List.length(param_tys) != List.length(ps) =>
+      atomic(Free) //TODO(andrew)
+    | Some((param_tys, output_ty)) =>
+      let modes = List.map(ty => Typ.Ana(ty), param_tys);
+      let (ctx, infos) =
+        List.fold_left2(
+          ((ctx, infos), e, mode) => {
+            let (_, ctx, _) as info = upat_to_info_map(~mode, ~ctx, e);
+            (ctx, infos @ [info]);
+          },
+          (ctx, []),
+          ps,
+          modes,
+        );
+      let self = Typ.Just(output_ty);
+      let m = union_m(List.map(((_, _, m)) => m, infos));
+      add(~self, ~ctx, m);
+    }
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);

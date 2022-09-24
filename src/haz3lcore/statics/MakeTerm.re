@@ -221,7 +221,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_string(t) => ret(String(t))
+      | ([t], []) when Form.is_constructor(t) => ret(Tag(t, []))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["nil"], []) => ret(ListLit([]))
@@ -258,7 +258,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | (["(", ")"], [Exp(arg)]) =>
+          switch (l, arg) {
+          | ({term: Tag(name, []), _}, {term: Tuple(es), _}) =>
+            Tag(name, es)
+          | ({term: Tag(name, []), _}, _) => Tag(name, [arg])
+          | _ => Ap(l, arg)
+          }
         | _ => hole(tm)
         },
       )
