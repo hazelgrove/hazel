@@ -16,7 +16,7 @@ Code in `hazelcore`should be pure OCaml.
 Users edit external expressions, of type `UHExp.t`, via edit actions. External
 expressions are elaborated to internal expressions, of type `DHExp.t`, for
 evaluation. The external and internal languages share a type system. Types are
-of type `HTyp.t`.
+of type `Typ.t`.
 
   - external language syntax:
     - (mention convention in terms of `UH` vs `Z` prefixes)

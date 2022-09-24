@@ -4,29 +4,12 @@ open OptUtil.Syntax;
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t, HTyp.t, Delta.t)
+    | Elaborates(DHExp.t, Typ.t, Delta.t)
     | DoesNotElaborate;
 };
 
-let rec htyp_of_typ: Typ.t => HTyp.t =
-  fun
-  | Unknown(_) => Hole
-  | Int => Int
-  | Float => Float
-  | Bool => Bool
-  | String => String
-  | List(t) => List(htyp_of_typ(t))
-  | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
-  | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
-
-let exp_self_htyp = (m, e) => htyp_of_typ(Statics.exp_self_typ(m, e));
-let pat_self_htyp = (m, e) => htyp_of_typ(Statics.pat_self_typ(m, e));
-
-let exp_htyp = (m, e) => htyp_of_typ(Statics.exp_typ(m, e));
-let pat_htyp = (m, p) => htyp_of_typ(Statics.pat_typ(m, p));
-
 let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, htyp_of_typ(typ)), ctx);
+  List.map(((k, {typ, _}: Ctx.entry)) => (k, typ), ctx);
 
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
@@ -61,7 +44,7 @@ let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   | And => And
   | Or => Or;
 
-let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
+let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   fun
   | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
@@ -115,69 +98,40 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
       | Syn =>
-        switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
-        | Some(ty) =>
-          let* ds =
-            List.fold_left(
-              (acc, e) => {
-                let* acc = acc;
-                let e_ty = exp_self_htyp(m, e);
-                let+ d = dhexp_of_uexp(m, e);
-                let dc = DHExp.cast(d, e_ty, ty);
-                acc @ [dc];
-              },
-              Some([]),
-              es,
-            );
-          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None =>
-          let* ds =
-            List.fold_left(
-              (acc, e) => {
-                let* acc = acc;
-                let+ d = dhexp_of_uexp(m, e);
-                acc @ [d];
-              },
-              Some([]),
-              es,
-            );
-          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        }
+        let ty = Typ.matched_list(Statics.exp_self_typ(m, uexp));
+        let* ds =
+          List.fold_left(
+            (acc, e) => {
+              let* acc = acc;
+              let e_ty = Statics.exp_self_typ(m, e);
+              let+ d = dhexp_of_uexp(m, e);
+              let dc = DHExp.cast(d, e_ty, ty);
+              acc @ [dc];
+            },
+            Some([]),
+            es,
+          );
+        wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       | Ana(ana_ty) =>
-        switch (HTyp.matched_list(htyp_of_typ(ana_ty))) {
-        | Some(ty) =>
-          let* ds =
-            List.fold_left(
-              (acc, e) => {
-                let* acc = acc;
-                let e_ty = exp_self_htyp(m, e);
-                let+ d = dhexp_of_uexp(m, e);
-                let dc = DHExp.cast(d, e_ty, ty);
-                acc @ [dc];
-              },
-              Some([]),
-              es,
-            );
-          wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None =>
-          let* ds =
-            List.fold_left(
-              (acc, e) => {
-                let* acc = acc;
-                let+ d = dhexp_of_uexp(m, e);
-                acc @ [d];
-              },
-              Some([]),
-              es,
-            );
-          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        }
+        let ty = Typ.matched_list(ana_ty);
+        let* ds =
+          List.fold_left(
+            (acc, e) => {
+              let* acc = acc;
+              let e_ty = Statics.exp_self_typ(m, e);
+              let+ d = dhexp_of_uexp(m, e);
+              let dc = DHExp.cast(d, e_ty, ty);
+              acc @ [dc];
+            },
+            Some([]),
+            es,
+          );
+        wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       }
-
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = pat_htyp(m, p);
+      let ty1 = Statics.pat_typ(m, p);
       wrap(DHExp.Fun(dp, ty1, d1));
     | Tuple(es) =>
       //TODO(andrew): review below
@@ -200,35 +154,29 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = exp_self_htyp(m, e1);
-      let ty2 = exp_self_htyp(m, e2);
+      let ty1 = Statics.exp_self_typ(m, e1);
+      let ty2 = Statics.exp_self_typ(m, e2);
       let dc1 =
         switch (Statics.exp_mode(m, uexp)) {
         | Syn => d1
         | Ana(ty_ana) =>
-          switch (HTyp.matched_list(htyp_of_typ(ty_ana))) {
-          | None => d1
-          | Some(ty) => DHExp.cast(d1, ty1, ty)
-          }
+          let ty = Typ.matched_list(ty_ana);
+          DHExp.cast(d1, ty1, ty);
         };
-      let ty_hd =
-        switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
-        | None => failwith("dhexp_of_uexp Cons: non-list htyp")
-        | Some(ty2') => ty2'
-        };
+      let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
       wrap(Cons(dc1, dc2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
-      let ty = exp_self_htyp(m, e);
+      let ty = Statics.exp_self_typ(m, e);
       let dc = DHExp.cast(d, ty, Int);
       wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = exp_self_htyp(m, e1);
-      let ty2 = exp_self_htyp(m, e2);
+      let ty1 = Statics.exp_self_typ(m, e1);
+      let ty2 = Statics.exp_self_typ(m, e2);
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
@@ -251,8 +199,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         body,
       ) =>
       /* NOTE: recursive case */
-      let pat_typ = pat_self_htyp(m, p);
-      let def_typ = exp_self_htyp(m, def);
+      let pat_typ = Statics.pat_self_typ(m, p);
+      let def_typ = Statics.exp_self_typ(m, def);
       let* p = dhpat_of_upat(m, p);
       let* def = dhexp_of_uexp(m, def);
       let* body = dhexp_of_uexp(m, body);
@@ -267,10 +215,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Ap(fn, arg) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = exp_self_htyp(m, fn);
-      let ty_arg = exp_self_htyp(m, arg);
-      let* (ty_in, ty_out) = HTyp.matched_arrow(ty_fn);
-      let c_fn = DHExp.cast(d_fn, ty_fn, HTyp.Arrow(ty_in, ty_out));
+      let ty_fn = Statics.exp_self_typ(m, fn);
+      let ty_arg = Statics.exp_self_typ(m, arg);
+      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+      let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
     | If(scrut, e1, e2) =>
@@ -336,21 +284,18 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Float(n) => wrap(FloatLit(n))
     | String(s) => wrap(StringLit(s))
     | ListLit(ps) =>
-      switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
-      | Some(ty) =>
-        let* ds =
-          List.fold_left(
-            (acc, p) => {
-              let* acc = acc;
-              let+ d = dhpat_of_upat(m, p);
-              acc @ [d];
-            },
-            Some([]),
-            ps,
-          );
-        wrap(ListLit(ty, ds));
-      | None => failwith("ListLit pattern with non-list htyp")
-      }
+      let ty = Typ.matched_list(Statics.pat_self_typ(m, upat));
+      let* ds =
+        List.fold_left(
+          (acc, p) => {
+            let* acc = acc;
+            let+ d = dhpat_of_upat(m, p);
+            acc @ [d];
+          },
+          Some([]),
+          ps,
+        );
+      wrap(ListLit(ty, ds));
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
@@ -387,5 +332,5 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
-  | Some(d) => Elaborates(d, HTyp.Hole, Delta.empty) //TODO: get type from ci
+  | Some(d) => Elaborates(d, Typ.Unknown(Internal), Delta.empty) //TODO: get type from ci
   };
