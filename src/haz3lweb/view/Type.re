@@ -23,6 +23,7 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
+  | TypeVar(name) => ty_view("TypeVar", name)
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),

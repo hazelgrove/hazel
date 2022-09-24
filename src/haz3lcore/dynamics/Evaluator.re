@@ -35,6 +35,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
+  | TypeVar(_) // TODO(andrew): ?
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
