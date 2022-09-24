@@ -90,6 +90,7 @@ module UPat = {
     | String
     | Triv
     | ListLit
+    | Tag
     | Cons
     | Var
     | Tuple
@@ -121,6 +122,7 @@ module UPat = {
     | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
@@ -139,6 +141,7 @@ module UPat = {
     | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
     | ListLit => "List Literal Pattern"
+    | Tag => "Constructor Pattern"
     | Cons => "List Cons"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
@@ -171,6 +174,7 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -244,6 +248,7 @@ module UExp = {
     | Float => "Float Literal"
     | String => "String Literal"
     | ListLit => "List Literal"
+    | Tag => "Constructor"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
