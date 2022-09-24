@@ -239,9 +239,13 @@ let put_down = (z: t): option(t) => {
   {...z, backpack} |> put_selection(popped) |> unselect;
 };
 
-let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
+    | [t] when Form.is_string_delim(t) =>
+      /* Special case for constructing string literals.
+         See Insert.move_into_if_stringlit for more special-casing. */
+      construct(Left, [Form.string_delim ++ Form.string_delim], z)
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);

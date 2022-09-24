@@ -14,8 +14,8 @@ module Evaluation = {
   let init = {
     evaluate: true,
     show_case_clauses: false,
-    show_fn_bodies: true, //false,
-    show_casts: true, //false,
+    show_fn_bodies: false,
+    show_casts: false,
     show_unevaluated_elaboration: false,
   };
 

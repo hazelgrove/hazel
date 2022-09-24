@@ -182,34 +182,14 @@ let deco =
   };
 };
 
-let eval_result_footer_view =
-    (~font_metrics, ~elab, simple: ModelResult.simple) => {
+let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
-    switch (simple, elab) {
-    | (None, None) => [Node.text("No result or elaboration available.")]
-    | (None, Some(elab)) => [
-        Node.text("No result available. Elaboration: "),
-        DHCode.view_tylr(
-          ~settings=Settings.Evaluation.init,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
+    switch (simple) {
+    | None => [Node.text("No result available.")]
+    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
+        Node.text("No result available (exception)."),
       ]
-    | (Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}), Some(elab)) =>
-      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(elab)));
-      [
-        Node.text("No result available (exception). Elaboration: "),
-        DHCode.view_tylr(
-          ~settings=Settings.Evaluation.init,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          elab,
-        ),
-      ];
-    | (Some({eval_result, _}), _) => [
+    | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
@@ -299,13 +279,10 @@ let editor_with_result_view =
       ~code_id: string,
       ~info_map: Statics.map,
       ~result: ModelResult.simple,
-      ~term: Term.UExp.t,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let elab = Elaborator.dhexp_of_uexp(info_map, term);
-  let eval_result_footer =
-    eval_result_footer_view(~font_metrics, ~elab, result);
+  let eval_result_footer = eval_result_footer_view(~font_metrics, result);
   editor_view(
     ~inject,
     ~font_metrics,

@@ -9,6 +9,7 @@ type t =
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
+  | StringLit(string)
   | Inj(InjSide.t, t)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)

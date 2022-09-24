@@ -221,6 +221,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
+      | ([t], []) when Form.is_string(t) => ret(String(t))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["nil"], []) => ret(ListLit([]))
@@ -293,6 +294,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
+          | (["$=="], []) => BinOp(String(Equals), l, r)
           | _ => hole(tm)
           },
         )
@@ -331,6 +333,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_listnil(t) => ListLit([])
+        | ([t], []) when Form.is_string(t) => String(t)
         | _ => hole(tm)
         },
       )
@@ -371,6 +374,7 @@ and typ_term: unsorted => UTyp.term = {
       | (["Bool"], []) => Bool
       | (["Int"], []) => Int
       | (["Float"], []) => Float
+      | (["String"], []) => String
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
       | _ => hole(tm)

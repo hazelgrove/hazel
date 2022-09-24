@@ -30,7 +30,6 @@ let view =
       ~mousedown,
       ~code_id,
       ~settings,
-      ~term,
       ~info_map,
       ~result,
       editor,

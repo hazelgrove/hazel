@@ -34,6 +34,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Bool
   | Int
   | Float
+  | String
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
@@ -109,6 +110,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (FloatLit(_), Cast(d, Float, Unknown(_))) => matches(dp, d)
   | (FloatLit(_), Cast(d, Unknown(_), Float)) => matches(dp, d)
   | (FloatLit(_), _) => DoesNotMatch
+  | (StringLit(s1), StringLit(s2)) =>
+    if (s1 == s2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (StringLit(_), Cast(d, String, Unknown(_))) => matches(dp, d)
+  | (StringLit(_), Cast(d, Unknown(_), String)) => matches(dp, d)
+  | (StringLit(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -211,11 +221,13 @@ and matches_cast_Inj =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
@@ -281,11 +293,13 @@ and matches_cast_Pair =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
@@ -413,11 +427,13 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
+  | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
   | TestLit(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
+  | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
@@ -484,6 +500,12 @@ let eval_bin_float_op =
   | FEquals => BoolLit(f1 == f2)
   };
 };
+
+let eval_bin_string_op =
+    (op: DHExp.BinStringOp.t, s1: string, s2: string): DHExp.t =>
+  switch (op) {
+  | SEquals => BoolLit(s1 == s2)
+  };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
@@ -584,6 +606,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
+    | StringLit(_)
     | Triv => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
@@ -674,6 +697,30 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
+    | BinStringOp(op, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(StringLit(f1) as d1') =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(StringLit(f2)) =>
+          BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
+        | BoxedValue(d2') =>
+          print_endline("InvalidBoxedStringLit");
+          raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
+        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        };
+      | BoxedValue(d1') =>
+        print_endline("InvalidBoxedStringLit");
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')));
+      | Indet(d1') =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
+        };
+      };
+
     | Inj(ty, side, d1) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
@@ -718,21 +765,25 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | ListLit(x1, x2, x3, ty, lst) =>
-      let+ evaluated_lst =
+    | ListLit(u, i, err, ty, lst) =>
+      let+ lst = lst |> List.map(evaluate(env)) |> sequence;
+      let (lst, indet) =
         List.fold_right(
-          (ele, ele_list) => {
-            let* ele_list = ele_list;
-            let+ ele' = evaluate(env, ele);
-            switch (ele') {
-            | BoxedValue(ele') => [ele'] @ ele_list
-            | _ => [ele, ...ele_list]
-            };
-          },
+          (el, (lst, indet)) =>
+            switch (el) {
+            | BoxedValue(el) => ([el, ...lst], false || indet)
+            | Indet(el) => ([el, ...lst], true)
+            },
           lst,
-          return([]),
+          ([], false),
         );
-      BoxedValue(ListLit(x1, x2, x3, ty, evaluated_lst));
+
+      let d = DHExp.ListLit(u, i, err, ty, lst);
+      if (indet) {
+        Indet(d);
+      } else {
+        BoxedValue(d);
+      };
 
     | ConsistentCase(Case(d1, rules, n)) =>
       evaluate_case(env, None, d1, rules, n)
