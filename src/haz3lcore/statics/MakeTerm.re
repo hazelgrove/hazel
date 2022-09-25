@@ -387,6 +387,7 @@ and typ_term: unsorted => UTyp.term = {
       | (["Int"], []) => Int
       | (["Float"], []) => Float
       | (["String"], []) => String
+      | ([t], []) when Form.is_var(t) => Var(t)
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
       | _ => hole(tm)

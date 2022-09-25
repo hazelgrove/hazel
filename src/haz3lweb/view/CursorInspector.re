@@ -123,11 +123,17 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       ~attr=clss([infoc, "pat"]),
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
-  | InfoTyp({ty, _}) =>
+  | InfoTyp({self: Free, _}) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [term_tag(is_err, "typ"), error_view(FreeVariable)],
+    )
+  | InfoTyp({self, _}) =>
+    let ty = Haz3lcore.Statics.typ_ann_after_fix(self);
     div(
       ~attr=clss([infoc, "typ"]),
       [term_tag(is_err, "typ"), text("is"), Type.view(ty)],
-    )
+    );
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),

@@ -306,6 +306,7 @@ and UTyp: {
     | Bool
     | String
     | List(t)
+    | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
@@ -324,6 +325,7 @@ and UTyp: {
     | Bool
     | String
     | List(t)
+    | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
