@@ -35,7 +35,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
-  | TypeVar(_) // TODO(andrew): ?
+  | Var(_) // TODO(andrew): ?
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
@@ -140,24 +140,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj(_, _), Cast(d, Sum(_, _), Unknown(_))) => matches(dp, d)
   | (Inj(_, _), Cast(d, Unknown(_), Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Pair(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
+  | (Pair(dp1, dp2), Pair(d1, d2))
   | (Ap(dp1, dp2), Ap(d1, d2)) =>
-    //TODO(andrew): is this right
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
     | IndetMatch =>

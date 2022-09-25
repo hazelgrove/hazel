@@ -151,7 +151,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           );
         wrap(ds);
       }
-    | Tag(name, _) => wrap(Tag(name))
+    | Tag(name) => wrap(Tag(name))
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
@@ -297,7 +297,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
           ps,
         );
       wrap(ListLit(ty, ds));
-    | Tag(name, _) => wrap(Tag(name))
+    | Tag(name) => wrap(Tag(name))
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);

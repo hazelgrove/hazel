@@ -20,8 +20,8 @@ let adts: list(adt) = [
     [
       {name: "IntLit", arg: Some(Int)},
       {name: "Var", arg: Some(String)},
-      {name: "Fun", arg: Some(Prod([String, TypeVar("exp")]))},
-      {name: "Ap", arg: Some(Prod([TypeVar("exp"), TypeVar("exp")]))},
+      {name: "Fun", arg: Some(Prod([String, Var("exp")]))},
+      {name: "Ap", arg: Some(Prod([Var("exp"), Var("exp")]))},
     ],
   ),
 ];
@@ -36,8 +36,8 @@ let tags: list((string, Typ.t)) =
           (
             adt.name,
             switch (adt.arg) {
-            | None => Typ.TypeVar(name)
-            | Some(typ) => Arrow(typ, TypeVar(name))
+            | None => Typ.Var(name)
+            | Some(typ) => Arrow(typ, Var(name))
             },
           ),
         tags,

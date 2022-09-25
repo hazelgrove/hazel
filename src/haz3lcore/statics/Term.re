@@ -281,7 +281,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | String => String
-    | Var(name) => TypeVar(name)
+    | Var(name) => Var(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))

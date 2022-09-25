@@ -18,7 +18,7 @@ type t =
   | Float
   | Bool
   | String
-  | TypeVar(string)
+  | Var(string)
   | List(t)
   | Arrow(t, t)
   | Sum(t, t) // unused
@@ -118,9 +118,9 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     | None => None
     }
   | (List(_), _) => None
-  | (TypeVar(n1), TypeVar(n2)) when n1 == n2 => Some(ty1)
-  //TODO: should this be structural comparison?
-  | (TypeVar(_), _) => None
+  | (Var(n1), Var(n2)) when n1 == n2 => Some(ty1)
+  //TODO: structural comparison?
+  | (Var(_), _) => None
   };
 
 let join_all: list(t) => option(t) =
@@ -204,7 +204,7 @@ let precedence = (ty: t): int =>
   | Bool
   | String
   | Unknown(_)
-  | TypeVar(_)
+  | Var(_)
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -237,6 +237,6 @@ let rec eq = (t1, t2) =>
   | (Sum(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
-  | (TypeVar(n1), TypeVar(n2)) => n1 == n2 //TODO: structural comparison?
-  | (TypeVar(_), _) => false
+  | (Var(n1), Var(n2)) => n1 == n2 //TODO: structural comparison?
+  | (Var(_), _) => false
   };
