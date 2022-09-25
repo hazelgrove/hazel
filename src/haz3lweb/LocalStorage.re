@@ -191,13 +191,6 @@ module School = {
     };
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type school_export = {
-    cur_exercise: SchoolExercise.key,
-    exercise_data:
-      list((SchoolExercise.key, SchoolExercise.persistent_state)),
-  };
-
   let prep_school_export = (~specs, ~instructor_mode) => {
     {
       cur_exercise:

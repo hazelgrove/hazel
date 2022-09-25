@@ -1,5 +1,4 @@
 open Virtual_dom.Vdom;
-open Sexplib.Std;
 open Haz3lcore;
 module SchoolData = Haz3lschooldata.SchoolData;
 include SchoolData.Common;
@@ -12,9 +11,6 @@ let validate_point_distribution =
   test_validation + mutation_testing + impl_grading == 100
     ? () : failwith("Invalid point distribution in exercise.");
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type key = (string, int);
-
 let key_of = (p: p('code)) => {
   (p.title, p.version);
 };
@@ -24,9 +20,6 @@ let find_key_opt = (key, specs: list(p('code))) => {
 };
 
 let key_of_state = ({eds, _}) => key_of(eds);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
 
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>

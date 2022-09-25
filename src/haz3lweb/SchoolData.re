@@ -37,6 +37,9 @@ module Common = {
     | YourImpl
     | HiddenBugs(int)
     | HiddenTests;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type key = (string, int);
 };
 
 open Common;
@@ -75,4 +78,10 @@ module State = (Node: Node) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type school_export = {
+    cur_exercise: key,
+    exercise_data: list((key, persistent_state)),
+  };
 };
