@@ -9,8 +9,17 @@ type tag = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type adt = (string, list(tag));
 
-/* Add Built-In ADTs here */
+/* Add Built-In ADTs here. Type names and constructor names
+   must be globally unique (enforced by assertions below) */
 let adts: list(adt) = [
+  (
+    "color",
+    [
+      {name: "Red", arg: None},
+      {name: "Green", arg: None},
+      {name: "Blue", arg: None},
+    ],
+  ),
   (
     "option_int",
     [{name: "None", arg: None}, {name: "Some", arg: Some(Int)}],
@@ -18,7 +27,7 @@ let adts: list(adt) = [
   (
     "exp",
     [
-      {name: "IntLit", arg: Some(Int)},
+      {name: "Error", arg: Some(Int)},
       {name: "Var", arg: Some(String)},
       {name: "Fun", arg: Some(Prod([String, Var("exp")]))},
       {name: "Ap", arg: Some(Prod([Var("exp"), Var("exp")]))},
@@ -50,10 +59,7 @@ let tags: list((string, Typ.t)) =
 let get_tag_typ = (tag_name: string): option(Typ.t) =>
   List.assoc_opt(tag_name, tags);
 
-let are_duplicates = xs =>
-  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
-
 // Check type names are unique
-assert(are_duplicates(List.map(fst, adts)));
+assert(Util.ListUtil.are_duplicates(List.map(fst, adts)));
 // Check tag names are unique
-assert(are_duplicates(List.map(fst, tags)));
+assert(Util.ListUtil.are_duplicates(List.map(fst, tags)));
