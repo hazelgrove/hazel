@@ -3,18 +3,14 @@ open Sexplib.Std;
 open Haz3lcore;
 module SchoolData = Haz3lschooldata.SchoolData;
 include SchoolData.Common;
+include SchoolData.State({
+  type node = Node.t;
+});
 
 let validate_point_distribution =
     ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
   test_validation + mutation_testing + impl_grading == 100
     ? () : failwith("Invalid point distribution in exercise.");
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p('code) =
-  SchoolData.p(
-    'code,
-    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
-  );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key = (string, int);
@@ -25,18 +21,6 @@ let key_of = (p: p('code)) => {
 
 let find_key_opt = (key, specs: list(p('code))) => {
   specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type spec = p(Zipper.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type eds = p(Editor.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state = {
-  pos,
-  eds,
 };
 
 let key_of_state = ({eds, _}) => key_of(eds);

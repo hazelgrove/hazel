@@ -12,7 +12,7 @@
     \
     Worker)
    \
-   SchoolSerde)
+   Serde)
   \
   SchoolData)
  (libraries
@@ -67,12 +67,12 @@
  (preprocess
   (pps js_of_ocaml-ppx)))
 
-; (executable
-;  (name haz3lschoolserde)
-;  (modules SchoolSerde)
-;  (libraries ppx_yojson_conv.expander haz3lcore haz3lschooldata)
-;  (preprocess
-;   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
+(executable
+ (name serde)
+ (modules Serde)
+ (libraries ppx_yojson_conv.expander haz3lcore haz3lschooldata)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (env
  (dev

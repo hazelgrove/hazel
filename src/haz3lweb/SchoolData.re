@@ -41,33 +41,38 @@ module Common = {
 
 open Common;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type p('code, 'node) = {
-  next_id: Id.t,
-  title: string,
-  version: int,
-  module_name: string,
-  prompt: 'node,
-  point_distribution,
-  prelude: 'code,
-  correct_impl: 'code,
-  your_tests: your_tests('code),
-  your_impl: 'code,
-  hidden_bugs: list(wrong_impl('code)),
-  hidden_tests: hidden_tests('code),
+module type Node = {type node;};
+
+module State = (Node: Node) => {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type p('code) = {
+    next_id: Id.t,
+    title: string,
+    version: int,
+    module_name: string,
+    prompt:
+      [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.node,
+    point_distribution,
+    prelude: 'code,
+    correct_impl: 'code,
+    your_tests: your_tests('code),
+    your_impl: 'code,
+    hidden_bugs: list(wrong_impl('code)),
+    hidden_tests: hidden_tests('code),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type spec = p(Zipper.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type eds = p(Editor.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type state = {
+    pos,
+    eds,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type spec('node) = p(Zipper.t, 'node);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type eds('node) = p(Editor.t, 'node);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state('node) = {
-  pos,
-  eds: eds('node),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
