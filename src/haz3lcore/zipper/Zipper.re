@@ -45,6 +45,10 @@ let init: int => t =
     // col_target: 0,
   };
 
+let next_blank = id => {
+  (id + 1, init(id));
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = (t, IdGen.state);
 
@@ -235,9 +239,13 @@ let put_down = (z: t): option(t) => {
   {...z, backpack} |> put_selection(popped) |> unselect;
 };
 
-let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
+    | [t] when Form.is_string_delim(t) =>
+      /* Special case for constructing string literals.
+         See Insert.move_into_if_stringlit for more special-casing. */
+      construct(Left, [Form.string_delim ++ Form.string_delim], z)
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
@@ -309,4 +317,12 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
 let caret_point = (measured, z: t): Measured.Point.t => {
   let Measured.Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
+};
+
+let serialize = (z: t): string => {
+  sexp_of_t(z) |> Sexplib.Sexp.to_string;
+};
+
+let deserialize = (data: string): t => {
+  Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };

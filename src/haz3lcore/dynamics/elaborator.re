@@ -14,6 +14,7 @@ let rec htyp_of_typ: Typ.t => HTyp.t =
   | Int => Int
   | Float => Float
   | Bool => Bool
+  | String => String
   | List(t) => List(htyp_of_typ(t))
   | Arrow(t1, t2) => Arrow(htyp_of_typ(t1), htyp_of_typ(t2))
   | Prod(ts) => Prod(List.map(htyp_of_typ, ts));
@@ -51,6 +52,10 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | GreaterThanOrEqual => FGreaterThanOrEqual
   | Equals => FEquals;
 
+let string_op_of: Term.UExp.op_bin_string => DHExp.BinStringOp.t =
+  fun
+  | Equals => SEquals;
+
 let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   fun
   | And => And
@@ -60,7 +65,11 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
   fun
   | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(float_op_of(op), e1, e2)))
-  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)));
+  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(bool_op_of(op), e1, e2)))
+  | String(op) => (
+      String,
+      ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
+    );
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
@@ -101,6 +110,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
+    | String(s) => wrap(StringLit(s))
     | ListLit(es) =>
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
@@ -324,6 +334,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
+    | String(s) => wrap(StringLit(s))
     | ListLit(ps) =>
       switch (HTyp.matched_list(pat_self_htyp(m, upat))) {
       | Some(ty) =>

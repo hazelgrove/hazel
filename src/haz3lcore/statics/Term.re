@@ -29,6 +29,7 @@ module UTyp = {
     | Int
     | Float
     | Bool
+    | String
     | Arrow
     | Tuple
     | List
@@ -55,6 +56,7 @@ module UTyp = {
     | Int => Int
     | Float => Float
     | Bool => Bool
+    | String => String
     | List(_) => List
     | Arrow(_) => Arrow
     | Tuple(_) => Tuple
@@ -67,6 +69,7 @@ module UTyp = {
     | MultiHole => "Multi Type Hole"
     | Int
     | Float
+    | String
     | Bool => "Base Type"
     | List => "List Type"
     | Arrow => "Function Type"
@@ -84,6 +87,7 @@ module UPat = {
     | Int
     | Float
     | Bool
+    | String
     | Triv
     | ListLit
     | Cons
@@ -114,6 +118,7 @@ module UPat = {
     | Int(_) => Int
     | Float(_) => Float
     | Bool(_) => Bool
+    | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
     | Cons(_) => Cons
@@ -131,6 +136,7 @@ module UPat = {
     | Int => "Integer Literal"
     | Float => "Float Literal"
     | Bool => "Boolean Literal"
+    | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
     | ListLit => "List Literal Pattern"
     | Cons => "List Cons"
@@ -163,6 +169,7 @@ module UExp = {
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
+    | String(_) => String
     | ListLit(_) => ListLit
     | Fun(_) => Fun
     | Tuple(_) => Tuple
@@ -215,11 +222,16 @@ module UExp = {
     | GreaterThanOrEqual => "Float Greater Than or Equal"
     | Equals => "Float Equality";
 
+  let show_op_bin_string: op_bin_string => string =
+    fun
+    | Equals => "String Equality";
+
   let show_binop: op_bin => string =
     fun
     | Int(op) => show_op_bin_int(op)
     | Float(op) => show_op_bin_float(op)
-    | Bool(op) => show_op_bin_bool(op);
+    | Bool(op) => show_op_bin_bool(op)
+    | String(op) => show_op_bin_string(op);
 
   let show_cls: cls => string =
     fun
@@ -230,6 +242,7 @@ module UExp = {
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
+    | String => "String Literal"
     | ListLit => "List Literal"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
@@ -256,6 +269,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Bool => Bool
     | Int => Int
     | Float => Float
+    | String => String
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
