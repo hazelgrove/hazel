@@ -60,14 +60,18 @@ let times = () => Example.mk_monotile(Form.get("times"));
 let divide = () => Example.mk_monotile(Form.get("divide"));
 let equals = () => Example.mk_monotile(Form.get("equals"));
 let lt = () => Example.mk_monotile(Form.get("lt"));
+let lte = () => Example.mk_monotile(Form.get("lte"));
 let gt = () => Example.mk_monotile(Form.get("gt"));
+let gte = () => Example.mk_monotile(Form.get("gte"));
 let fplus = () => Example.mk_monotile(Form.get("fplus"));
 let fminus = () => Example.mk_monotile(Form.get("fminus"));
 let ftimes = () => Example.mk_monotile(Form.get("ftimes"));
 let fdivide = () => Example.mk_monotile(Form.get("fdivide"));
 let fequals = () => Example.mk_monotile(Form.get("fequals"));
 let flt = () => Example.mk_monotile(Form.get("flt"));
+let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
+let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -1293,14 +1297,18 @@ let int_minus_group = "int_minus_group";
 let int_times_group = "int_times_group";
 let int_divide_group = "int_divide_group";
 let int_lt_group = "int_lt_group";
+let int_lte_group = "int_lte_group";
 let int_gt_group = "int_gt_group";
+let int_gte_group = "int_gte_group";
 let int_eq_group = "int_eq_group";
 let float_plus_group = "float_plus_group";
 let float_minus_group = "float_minus_group";
 let float_times_group = "float_times_group";
 let float_divide_group = "float_divide_group";
 let float_lt_group = "float_lt_group";
+let float_lte_group = "float_lte_group";
 let float_gt_group = "float_gt_group";
+let float_gte_group = "float_gte_group";
 let float_eq_group = "float_eq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
@@ -1346,6 +1354,24 @@ let int_lt2_ex = {
   message: "4 is less not less than 3, so the expression evaluates to false.",
   feedback: Unselected,
 };
+let int_lte1_ex = {
+  sub_id: "example_1",
+  term: mk_example("1 <= 2"),
+  message: "1 is less than 2, so the expression evalutes to true.",
+  feedback: Unselected,
+};
+let int_lte2_ex = {
+  sub_id: "example_2",
+  term: mk_example("4 <= 3"),
+  message: "4 is less not less than or equal to 3, so the expression evaluates to false.",
+  feedback: Unselected,
+};
+let int_lte3_ex = {
+  sub_id: "example_3",
+  term: mk_example("5 <= 5"),
+  message: "5 is equal to 5, so the expression evaluates to true.",
+  feedback: Unselected,
+};
 let int_gt1_ex = {
   sub_id: "example_1",
   term: mk_example("1 > 2"),
@@ -1356,6 +1382,24 @@ let int_gt2_ex = {
   sub_id: "example_2",
   term: mk_example("4 > 3"),
   message: "4 is greater than 3, so the expression evaluates to true.",
+  feedback: Unselected,
+};
+let int_gte1_ex = {
+  sub_id: "example_1",
+  term: mk_example("1 >= 2"),
+  message: "1 is not greater than or equal to 2, so the expression evaluates to false.",
+  feedback: Unselected,
+};
+let int_gte2_ex = {
+  sub_id: "example_2",
+  term: mk_example("4 >= 3"),
+  message: "4 is greater than 3, so the expression evaluates to true.",
+  feedback: Unselected,
+};
+let int_gte3_ex = {
+  sub_id: "example_3",
+  term: mk_example("5 >= 5"),
+  message: "5 is equal to 5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_eq1_ex = {
@@ -1406,6 +1450,24 @@ let float_lt2_ex = {
   message: "4. is less not less than 3.1, so the expression evaluates to false.",
   feedback: Unselected,
 };
+let float_lte1_ex = {
+  sub_id: "example_1",
+  term: mk_example("1. <=. 2.1"),
+  message: "1. is less than 2.1, so the expression evalutes to true.",
+  feedback: Unselected,
+};
+let float_lte2_ex = {
+  sub_id: "example_2",
+  term: mk_example("4. <=. 3.1"),
+  message: "4. is less not less than or equal to 3.1, so the expression evaluates to false.",
+  feedback: Unselected,
+};
+let float_lte3_ex = {
+  sub_id: "example_3",
+  term: mk_example("5.5 <=. 5.5"),
+  message: "5.5 is equal to 5.5, so the expression evaluates to true.",
+  feedback: Unselected,
+};
 let float_gt1_ex = {
   sub_id: "example_1",
   term: mk_example("1.1 >. 2.1"),
@@ -1416,6 +1478,24 @@ let float_gt2_ex = {
   sub_id: "example_2",
   term: mk_example("4. >. 3.1"),
   message: "4. is greater than 3.1, so the expression evaluates to true.",
+  feedback: Unselected,
+};
+let float_gte1_ex = {
+  sub_id: "example_1",
+  term: mk_example("1.1 >=. 2.1"),
+  message: "1.1 is not greater than or equal to 2.1, so the expression evaluates to false.",
+  feedback: Unselected,
+};
+let float_gte2_ex = {
+  sub_id: "example_2",
+  term: mk_example("4. >=. 3.1"),
+  message: "4. is greater than 3.1, so the expression evaluates to true.",
+  feedback: Unselected,
+};
+let float_gte3_ex = {
+  sub_id: "example_3",
+  term: mk_example("5.5 >=. 5.5"),
+  message: "5.5 is equal to 5.5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_eq1_ex = {
@@ -1532,6 +1612,19 @@ let int_lt_exp: form = {
     examples: [int_lt1_ex, int_lt2_ex],
   };
 };
+let int_lte_exp: form = {
+  let explanation = {
+    message: "Integer less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "int_lte_exp",
+    syntactic_form: [exp("EXP1"), lte(), exp("EXP2")],
+    expandable_id: None,
+    explanation,
+    examples: [int_lte1_ex, int_lte2_ex, int_lte3_ex],
+  };
+};
 let int_gt_exp: form = {
   let explanation = {
     message: "Integer greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1543,6 +1636,19 @@ let int_gt_exp: form = {
     expandable_id: None,
     explanation,
     examples: [int_gt1_ex, int_gt2_ex],
+  };
+};
+let int_gte_exp: form = {
+  let explanation = {
+    message: "Integer greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "int_gte_exp",
+    syntactic_form: [exp("EXP1"), gte(), exp("EXP2")],
+    expandable_id: None,
+    explanation,
+    examples: [int_gte1_ex, int_gte2_ex, int_gte3_ex],
   };
 };
 let int_eq_exp: form = {
@@ -1623,6 +1729,19 @@ let float_lt_exp: form = {
     examples: [float_lt1_ex, float_lt2_ex],
   };
 };
+let float_lte_exp: form = {
+  let explanation = {
+    message: "Floating-point less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "float_lte_exp",
+    syntactic_form: [exp("EXP1"), flte(), exp("EXP2")],
+    expandable_id: None,
+    explanation,
+    examples: [float_lte1_ex, float_lte2_ex, float_lte3_ex],
+  };
+};
 let float_gt_exp: form = {
   let explanation = {
     message: "Floating-point greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1634,6 +1753,19 @@ let float_gt_exp: form = {
     expandable_id: None,
     explanation,
     examples: [float_gt1_ex, float_gt2_ex],
+  };
+};
+let float_gte_exp: form = {
+  let explanation = {
+    message: "Floating-point greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "float_gt_exp",
+    syntactic_form: [exp("EXP1"), fgte(), exp("EXP2")],
+    expandable_id: None,
+    explanation,
+    examples: [float_gte1_ex, float_gte2_ex, float_gte3_ex],
   };
 };
 let float_eq_exp: form = {
@@ -2112,14 +2244,18 @@ let init = {
     int_times_exp,
     int_divide_exp,
     int_lt_exp,
+    int_lte_exp,
     int_gt_exp,
+    int_gte_exp,
     int_eq_exp,
     float_plus_exp,
     float_minus_exp,
     float_times_exp,
     float_divide_exp,
     float_lt_exp,
+    float_lte_exp,
     float_gt_exp,
+    float_gte_exp,
     float_eq_exp,
     bool_and_exp,
     bool_or_exp,
@@ -2404,14 +2540,18 @@ let init = {
     (int_times_group, init_options([(int_times_exp.id, [])])),
     (int_divide_group, init_options([(int_divide_exp.id, [])])),
     (int_lt_group, init_options([(int_lt_exp.id, [])])),
+    (int_lte_group, init_options([(int_lte_exp.id, [])])),
     (int_gt_group, init_options([(int_gt_exp.id, [])])),
+    (int_gte_group, init_options([(int_gte_exp.id, [])])),
     (int_eq_group, init_options([(int_eq_exp.id, [])])),
     (float_plus_group, init_options([(float_plus_exp.id, [])])),
     (float_minus_group, init_options([(float_minus_exp.id, [])])),
     (float_times_group, init_options([(float_times_exp.id, [])])),
     (float_divide_group, init_options([(float_divide_exp.id, [])])),
     (float_lt_group, init_options([(float_lt_exp.id, [])])),
+    (float_lte_group, init_options([(float_lte_exp.id, [])])),
     (float_gt_group, init_options([(float_gt_exp.id, [])])),
+    (float_gte_group, init_options([(float_gte_exp.id, [])])),
     (float_eq_group, init_options([(float_eq_exp.id, [])])),
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),

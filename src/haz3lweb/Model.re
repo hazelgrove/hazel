@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), yojson)]
@@ -12,7 +11,7 @@ type settings = {
   dynamics: bool,
   async_evaluation: bool,
   context_inspector: bool,
-  student: bool,
+  instructor_mode: bool,
   mode: Editors.mode,
 };
 
@@ -23,13 +22,19 @@ let settings_init = {
   dynamics: true,
   async_evaluation: false,
   context_inspector: false,
-  student: true,
-  mode: Simple,
+  instructor_mode: SchoolSettings.show_instructor,
+  mode: Editors.Scratch,
 };
+
+let fix_instructor_mode = settings =>
+  if (settings.instructor_mode && !SchoolSettings.show_instructor) {
+    {...settings, instructor_mode: false};
+  } else {
+    settings;
+  };
 
 type t = {
   editors: Editors.t,
-  id_gen: IdGen.state,
   results: ModelResults.t,
   settings,
   font_metrics: FontMetrics.t,
@@ -44,7 +49,6 @@ type t = {
 let cutoff = (===);
 
 let mk = editors => {
-  id_gen: 1,
   editors,
   results: ModelResults.empty,
   settings: settings_init,
@@ -58,54 +62,4 @@ let mk = editors => {
   langDocMessages: LangDocMessages.init,
 };
 
-let blank = mk(Editors.School(0, []));
-
-let get_editor = (model: t): Editor.t => Editors.get_editor(model.editors);
-
-let put_editor = (model: t, ed: Editor.t): Editors.t =>
-  Editors.put_editor(ed, model.editors);
-
-let get_zipper = (model: t): Zipper.t => Editors.get_zipper(model.editors);
-
-let get_history = (model: t): Editor.History.t =>
-  Editors.get_editor(model.editors).history;
-let get_touched = (model: t): Touched.t =>
-  Editors.get_editor(model.editors).state.meta.touched;
-
-let current_editor = (model: t): int =>
-  switch (model.editors) {
-  | Simple(_) => 0
-  | Study(n, zs) =>
-    assert(n < List.length(zs));
-    n;
-  | School(n, zs) =>
-    assert(n < List.length(zs));
-    n;
-  };
-
-let num_editors = (model: t): int =>
-  switch (model.editors) {
-  | Simple(_) => 1
-  | Study(_, zs)
-  | School(_, zs) => List.length(zs)
-  };
-
-let simple_init: Editors.simple = (1, Editor.empty(0));
-
-let editors_of_strings = (xs: list(string)): (Id.t, int, list(Editor.t)) => {
-  let (id_gen, zs) =
-    List.fold_left(
-      ((acc_id, acc_zs), str) => {
-        switch (Printer.zipper_of_string(acc_id, str)) {
-        | None => (acc_id, acc_zs @ [Zipper.init(0)])
-        | Some((z, new_id)) => (new_id, acc_zs @ [z])
-        }
-      },
-      (0, []),
-      xs,
-    );
-  (id_gen, 0, List.map(Editor.init, zs));
-};
-
-let get_result = (key: ModelResults.key, model: t): option(ModelResult.t) =>
-  ModelResults.find_opt(key, model.results);
+let blank = mk(Editors.Scratch(0, []));

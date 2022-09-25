@@ -18,7 +18,7 @@ let get_color = (id: Haz3lcore.Id.t, (mapping, index): t): (string, t) =>
   | Some(color) => (color, (mapping, index))
   };
 
-let to_list = ((map, _): t): list((int, string)) => {
+let to_list = (map: colorMap): list((int, string)) => {
   List.of_seq(Haz3lcore.Id.Map.to_seq(map));
 };
 /*

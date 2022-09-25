@@ -62,6 +62,8 @@ module Deco =
       // TermIds.find(Piece.id(p), M.terms)
       Id.Map.find(Piece.id(p), M.terms)
       |> Term.ids
+      // filter out dark ids (see MakeTerm)
+      |> List.filter(id => id >= 0)
       |> List.map(id => {
            let t = tile(id);
            (id, t.mold, Measured.find_shards(t, M.map));
@@ -251,6 +253,17 @@ module Deco =
   let term_highlight = (~clss: list(string), id: Id.t) => {
     term_decoration(~id, ((origin, path)) =>
       DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
+    );
+  };
+
+  let color_highlights = (colorMap: ColorSteps.colorMap) => {
+    let colorings = ColorSteps.to_list(colorMap);
+    List.map(
+      ((id, color)) => {
+        print_endline("Id: " ++ string_of_int(id));
+        term_highlight(~clss=["highlight-code-" ++ color], id);
+      },
+      colorings,
     );
   };
 
