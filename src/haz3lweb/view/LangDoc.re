@@ -181,9 +181,8 @@ let print_markdown = doc => {
  code: `code`
  italics: *word*
  */
-let mk_explanation =
-    (~inject, id, explanation, text: string, show_highlight: bool)
-    : (Node.t, ColorSteps.t) => {
+let mk_translation =
+    (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
   let rec translate =
@@ -241,7 +240,13 @@ let mk_explanation =
       ([], mapping),
       doc,
     );
-  let (msg, color_map) = translate(omd, ColorSteps.empty);
+  translate(omd, ColorSteps.empty);
+};
+
+let mk_explanation =
+    (~inject, id, explanation, text: string, show_highlight: bool)
+    : (Node.t, ColorSteps.t) => {
+  let (msg, color_map) = mk_translation(text, show_highlight);
   (
     div([
       div(~attr=clss(["explanation-contents"]), msg),
@@ -453,7 +458,15 @@ let example_view =
             let result_view =
               switch (Interface.evaluation_result(info_map, uhexp)) {
               | None => []
-              | Some(dhexp) => [SimpleMode.res_view(~font_metrics, dhexp)]
+              | Some(dhexp) => [
+                  DHCode.view_tylr(
+                    ~settings=Settings.Evaluation.init,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    dhexp,
+                  ),
+                ]
               };
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
@@ -500,18 +513,22 @@ let rec bypass_parens_typ = typ => {
   };
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type message_mode =
+  | MessageContent(
+      Update.t => Virtual_dom.Vdom.Effect.t(unit),
+      FontMetrics.t,
+      Model.settings,
+    )
+  | Colorings;
+
 let get_doc =
-    (
-      ~inject,
-      ~font_metrics,
-      ~settings: Model.settings,
-      ~docs: LangDocMessages.t,
-      info: option(Statics.t),
-    ) => {
+    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
-    text("No syntactic form available"),
-    (text("No explanation available"), ColorSteps.empty),
-    text("No examples available"),
+    [text("No syntactic form available")],
+    ([text("No explanation available")], ColorSteps.empty),
+    [text("No examples available")],
   );
   let get_message =
       (
@@ -520,53 +537,62 @@ let get_doc =
         group_id,
         explanation_msg,
         colorings,
-      ) => {
-    print_endline("Making the explanation");
-    let (explanation, color_map) =
-      mk_explanation(
-        ~inject,
-        doc.id,
-        doc.explanation,
-        explanation_msg,
-        docs.highlight,
-      );
-    print_endline("Making the syntactic form");
-    let syntactic_form_view =
-      syntactic_form_view(
-        ~doc=docs,
-        ~colorings=
-          List.map(
-            ((syntactic_form_id: int, code_id: int)) => {
-              let (color, _) = ColorSteps.get_color(code_id, color_map);
-              (syntactic_form_id, color);
-            },
-            colorings,
-          ),
-        ~expandable=doc.expandable_id,
-        ~inject,
-        ~font_metrics,
-        ~unselected=doc.syntactic_form,
-        ~settings,
-        ~id="syntactic-form-code",
-        ~options,
-        ~group_id,
-        ~form_id=doc.id,
-      );
-    print_endline("Making the example");
-    let example_view =
-      example_view(
-        ~inject,
-        ~font_metrics,
-        ~settings,
-        ~id=doc.id,
-        ~examples=doc.examples,
-      );
-    (syntactic_form_view, (explanation, color_map), example_view);
+      )
+      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+    switch (mode) {
+    | MessageContent(inject, font_metrics, settings) =>
+      print_endline("Making the explanation");
+      let (explanation, color_map) =
+        mk_explanation(
+          ~inject,
+          doc.id,
+          doc.explanation,
+          explanation_msg,
+          docs.highlight,
+        );
+      print_endline("Making the syntactic form");
+      let syntactic_form_view =
+        syntactic_form_view(
+          ~doc=docs,
+          ~colorings=
+            List.map(
+              ((syntactic_form_id: int, code_id: int)) => {
+                let (color, _) = ColorSteps.get_color(code_id, color_map);
+                (syntactic_form_id, color);
+              },
+              colorings,
+            ),
+          ~expandable=doc.expandable_id,
+          ~inject,
+          ~font_metrics,
+          ~unselected=doc.syntactic_form,
+          ~settings,
+          ~id="syntactic-form-code",
+          ~options,
+          ~group_id,
+          ~form_id=doc.id,
+        );
+      print_endline("Making the example");
+      let example_view =
+        example_view(
+          ~inject,
+          ~font_metrics,
+          ~settings,
+          ~id=doc.id,
+          ~examples=doc.examples,
+        );
+      ([syntactic_form_view], ([explanation], color_map), [example_view]);
+    | Colorings =>
+      let (_, color_map) = mk_translation(explanation_msg, docs.highlight);
+      ([], ([], color_map), []);
+    };
   };
 
   switch (info) {
   | Some(InfoExp({term, _})) =>
-    let rec get_message_exp = term =>
+    let rec get_message_exp =
+            (term)
+            : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
       | TermBase.UExp.Invalid(_) => default
       | EmptyHole =>
@@ -1310,20 +1336,20 @@ let get_doc =
           [],
         );
       | Let(pat, def, body) =>
+        print_endline(
+          "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
+        ); // The body is a seq with a bunch of extra stuff in it...
+        // and the top id isn't anywhere in the segment
+        print_endline("Here2");
+        let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
+        let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
         let basic = (doc: LangDocMessages.form, group_id, options) => {
-          //print_endline(
-          //  "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
-          //); // The body is a seq with a bunch of extra stuff in it...
-          // and the top id isn't anywhere in the segment
-          //print_endline("Here2");
-          //let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
-          //let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          //print_endline(
-          //  Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
-          //);
+          print_endline(
+            Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
+          );
           let pat_coloring_ids =
             switch (List.nth(doc.syntactic_form, 0)) {
             | Tile(tile) => [
@@ -2168,14 +2194,18 @@ let get_doc =
           | Int(Times) => LangDocMessages.int_times_group
           | Int(Divide) => LangDocMessages.int_divide_group
           | Int(LessThan) => LangDocMessages.int_lt_group
+          | Int(LessThanOrEqual) => LangDocMessages.int_lte_group
           | Int(GreaterThan) => LangDocMessages.int_gt_group
+          | Int(GreaterThanOrEqual) => LangDocMessages.int_gte_group
           | Int(Equals) => LangDocMessages.int_eq_group
           | Float(Plus) => LangDocMessages.float_plus_group
           | Float(Minus) => LangDocMessages.float_minus_group
           | Float(Times) => LangDocMessages.float_times_group
           | Float(Divide) => LangDocMessages.float_divide_group
           | Float(LessThan) => LangDocMessages.float_lt_group
+          | Float(LessThanOrEqual) => LangDocMessages.float_lte_group
           | Float(GreaterThan) => LangDocMessages.float_gt_group
+          | Float(GreaterThanOrEqual) => LangDocMessages.float_gte_group // TODO Equals not showing up
           | Float(Equals) => LangDocMessages.float_eq_group
           | Bool(And) => LangDocMessages.bool_and_group
           | Bool(Or) => LangDocMessages.bool_or_group
@@ -2456,21 +2486,14 @@ let get_doc =
   };
 };
 
-let section = (~section_clss: string, ~title: string, contents: Node.t) =>
+let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
     ~attr=clss(["section", section_clss]),
-    [div(~attr=clss(["section-title"]), [text(title)]), contents],
+    [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
   );
 
 let get_color_map =
-    (
-      ~inject,
-      ~font_metrics,
-      ~settings: Model.settings,
-      ~doc: LangDocMessages.t,
-      index': option(int),
-      info_map: Statics.map,
-    ) => {
+    (~doc: LangDocMessages.t, index': option(int), info_map: Statics.map) => {
   let info: option(Statics.t) =
     switch (index') {
     | Some(index) =>
@@ -2480,8 +2503,12 @@ let get_color_map =
       }
     | None => None
     };
-  let (_, (_, color_map), _) =
-    get_doc(~inject, ~font_metrics, ~settings, ~docs=doc, info);
+  let (_, (_, (color_map, _)), _): (
+    list(Node.t),
+    (list(Node.t), ColorSteps.t),
+    list(Node.t),
+  ) =
+    get_doc(~docs=doc, info, Colorings);
   print_endline("GOT THE COLORS");
   color_map;
 };
@@ -2506,8 +2533,12 @@ let view =
     };
   // TODO Make sure code examples aren't flowing off the page
   print_endline("TRYING TO GET THE DOC");
-  let (syn_form, (explanation, _), example) =
-    get_doc(~inject, ~font_metrics, ~settings, ~docs=doc, info);
+  let (syn_form, (explanation, _), example): (
+    list(Node.t),
+    (list(Node.t), ColorSteps.t),
+    list(Node.t),
+  ) =
+    get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
   print_endline("GOT THE DOC");
   div(
     ~attr=clss(["lang-doc"]),

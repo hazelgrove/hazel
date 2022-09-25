@@ -198,7 +198,9 @@ module UExp = {
     | Times => "Integer Multiplication"
     | Divide => "Integer Division"
     | LessThan => "Integer Less Than"
+    | LessThanOrEqual => "Integer Less Than or Equal"
     | GreaterThan => "Integer Greater Than"
+    | GreaterThanOrEqual => "Integer Greater Than or Equal"
     | Equals => "Integer Equality";
 
   let show_op_bin_float: op_bin_float => string =
@@ -208,7 +210,9 @@ module UExp = {
     | Times => "Float Multiplication"
     | Divide => "Float Division"
     | LessThan => "Float Less Than"
+    | LessThanOrEqual => "Float Less Than or Equal"
     | GreaterThan => "Float Greater Than"
+    | GreaterThanOrEqual => "Float Greater Than or Equal"
     | Equals => "Float Equality";
 
   let show_binop: op_bin => string =

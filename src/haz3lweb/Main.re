@@ -70,7 +70,7 @@ let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
 let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
   let key = Key.mk(dir, evt);
   Keyboard.handle_key_event(key, ~model)
-  |> Log.keystoke(key)
+  |> Log.keystroke(key)
   |> List.map(inject)
   |> do_many;
 };
@@ -134,8 +134,9 @@ module App = {
 
 let initial_model = {
   // NOTE: load settings first to get last editor mode
-  let model = {...Model.blank, settings: LocalStorage.load_settings()};
-  Update.load_editor(model);
+  Update.load_model(
+    Model.blank,
+  );
 };
 
 Incr_dom.Start_app.start(

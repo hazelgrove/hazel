@@ -34,7 +34,9 @@ let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   | Times => Times
   | Divide => Divide
   | LessThan => LessThan
+  | LessThanOrEqual => LessThanOrEqual
   | GreaterThan => GreaterThan
+  | GreaterThanOrEqual => GreaterThanOrEqual
   | Equals => Equals;
 
 let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
@@ -44,7 +46,9 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | Times => FTimes
   | Divide => FDivide
   | LessThan => FLessThan
+  | LessThanOrEqual => FLessThanOrEqual
   | GreaterThan => FGreaterThan
+  | GreaterThanOrEqual => FGreaterThanOrEqual
   | Equals => FEquals;
 
 let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
@@ -98,6 +102,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | ListLit(es) =>
+      //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
       | Syn =>
         switch (HTyp.matched_list(exp_self_htyp(m, uexp))) {
@@ -115,7 +120,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               es,
             );
           wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None => failwith("ListLit expression with non-list htyp")
+        | None =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let+ d = dhexp_of_uexp(m, e);
+                acc @ [d];
+              },
+              Some([]),
+              es,
+            );
+          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
         }
       | Ana(ana_ty) =>
         switch (HTyp.matched_list(htyp_of_typ(ana_ty))) {
@@ -133,7 +149,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
               es,
             );
           wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
-        | None => failwith("ListLit expression with non-list htyp")
+        | None =>
+          let* ds =
+            List.fold_left(
+              (acc, e) => {
+                let* acc = acc;
+                let+ d = dhexp_of_uexp(m, e);
+                acc @ [d];
+              },
+              Some([]),
+              es,
+            );
+          wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
         }
       }
 

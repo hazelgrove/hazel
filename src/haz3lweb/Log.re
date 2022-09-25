@@ -1,54 +1,79 @@
+module Update = UpdateAction;
+
 let debug_update = ref(false);
 let debug_zipper = ref(false);
-let debug_keystoke = ref(false);
+let debug_keystroke = ref(false);
 
 [@deriving (show({with_path: false}), yojson)]
 type entry = {
   update: Update.t,
-  error: option(Update.Failure.t),
+  //error: option(Update.Failure.t),
   timestamp: Model.timestamp,
-  zipper: Printer.t,
+  //zipper: Printer.t,
 };
 
 [@deriving (show({with_path: false}), yojson)]
 type updates = list(entry);
 
-let mut_log: ref(updates) = ref([]);
+let mut_log: ref(updates) = ref([]); // TODO replace with mutable vec
 
 let is_action_logged: Update.t => bool =
   fun
-  | UpdateDoubleTap(_) => false
-  | Save => false
-  | SetFontMetrics(_) => false
-  | _ => true;
+  | UpdateDoubleTap(_)
+  | Mousedown
+  | Mouseup
+  | Save
+  | SetFontMetrics(_)
+  | SetLogoFontMetrics(_)
+  | SetShowBackpackTargets(_)
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | UpdateResult(_) => false
+  | Set(_)
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | ResetSlide
+  | ToggleMode
+  | SwitchSlide(_)
+  | SwitchEditor(_)
+  | PerformAction(_)
+  | FailedInput(_)
+  | Copy
+  | Paste
+  | Undo
+  | Redo
+  | MoveToNextHole(_)
+  | UpdateLangDocMessages(_) =>
+    // TODO Do we want this logged - I think so?
+    true;
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
-let mk_entry = (~measured, update, z, error): entry => {
-  let error =
+let mk_entry = (~measured as _, update, _z, error): entry => {
+  let _error =
     switch (error) {
     | Ok(_) => None
     | Error(failure) => Some(failure)
     };
   {
-    zipper: Printer.of_zipper(~measured, z),
+    //zipper: Printer.of_zipper(~measured, z),
     update,
-    error,
+    //error,
     timestamp: JsUtil.timestamp(),
   };
 };
 
 let to_string = (entry: entry) => {
-  let status =
+  /*let status =
     switch (entry.error) {
     | None => "SUCCESS"
     | Some(failure) => "FAILURE(" ++ Update.Failure.show(failure) ++ ")"
-    };
+    };*/
   Printf.sprintf(
-    "%.0f: %s %s",
+    "%.0f: %s",
     entry.timestamp,
     Update.show(entry.update),
-    status,
+    //status,
   );
 };
 
@@ -81,27 +106,37 @@ let updates_of_string: string => updates =
       [];
     };
 let json_update_log_key = "JSON_UPDATE_LOG";
-let get_json_update_log = () =>
-  switch (LocalStorage.get_localstore(json_update_log_key)) {
-  | None => []
-  | Some(str) => updates_of_string(str)
-  };
 
-let get_json_update_log_string = () =>
-  get_json_update_log() |> yojson_of_updates |> Yojson.Safe.to_string;
+let updates = () => {
+  JsUtil.get_localstore(json_update_log_key)
+  |> Option.value(~default="")
+  |> updates_of_string;
+};
+
+let serialize = () => updates() |> yojson_of_updates |> Yojson.Safe.to_string;
+let deserialize = data => data |> Yojson.Safe.from_string |> updates_of_yojson;
+
+let append_updates = () => {
+  let new_updates = mut_log^;
+  mut_log := [];
+  let old_log = updates();
+  let new_log = new_updates @ old_log;
+  let blah = Yojson.Safe.to_string(yojson_of_updates(new_log));
+  JsUtil.set_localstore(json_update_log_key, blah);
+};
+
+let export = () => {
+  append_updates();
+  serialize();
+};
+
+let import = data => {
+  JsUtil.set_localstore(json_update_log_key, data);
+};
 
 let reset_json_log = () => {
   mut_log := [];
-  LocalStorage.set_localstore(json_update_log_key, "");
-};
-
-let append_json_updates_log = () => {
-  let new_updates = mut_log^;
-  mut_log := [];
-  let old_log = get_json_update_log();
-  let new_log = new_updates @ old_log;
-  let blah = Yojson.Safe.to_string(yojson_of_updates(new_log));
-  LocalStorage.set_localstore(json_update_log_key, blah);
+  JsUtil.set_localstore(json_update_log_key, "");
 };
 
 let update = (update: Update.t, old_model: Model.t, res) => {
@@ -111,8 +146,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       | Ok(model) => model
       | Error(_) => old_model
       };
-    let zip = cur_model |> Model.get_zipper;
-    let measured = Model.get_editor(cur_model).state.meta.measured;
+    let zip = Editors.get_zipper(cur_model.editors);
+    let measured = Editors.get_editor(cur_model.editors).state.meta.measured;
     let new_entry = mk_entry(~measured, update, zip, res);
     mut_log := List.cons(new_entry, mut_log^);
     if (debug_update^) {
@@ -121,8 +156,8 @@ let update = (update: Update.t, old_model: Model.t, res) => {
       //new_entry |> entry_to_yojson |> Yojson.Safe.to_string |> print_endline;
     };
     if (debug_zipper^) {
-      cur_model
-      |> Model.get_zipper
+      cur_model.editors
+      |> Editors.get_zipper
       |> Printer.to_string_log(~measured)
       |> print_endline;
     };
@@ -130,9 +165,9 @@ let update = (update: Update.t, old_model: Model.t, res) => {
   res;
 };
 
-let keystoke = (key: Key.t, updates) => {
+let keystroke = (key: Key.t, updates) => {
   if (is_keystroke_logged(key)) {
-    if (debug_keystoke^) {
+    if (debug_keystroke^) {
       let keystroke_str = key_entry_to_string(mk_key_entry(key, updates));
       print_endline(keystroke_str);
     };

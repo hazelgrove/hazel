@@ -24,8 +24,8 @@ let lookup_and_join = (n, test_map) =>
 
 let extend = ((id, report), test_map) => {
   switch (List.assoc_opt(id, test_map)) {
-  | Some(a) => [(id, a @ [report]), ...List.remove_assoc(id, test_map)]
-  | None => [(id, [report]), ...test_map]
+  | Some(a) => List.remove_assoc(id, test_map) @ [(id, a @ [report])]
+  | None => test_map @ [(id, [report])]
   };
 };
 

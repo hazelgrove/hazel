@@ -87,10 +87,15 @@ module History = {
 type t = {
   state: State.t,
   history: History.t,
+  read_only: bool,
 };
 
-let init = z => {state: State.init(z), history: History.empty};
-let empty = id => init(Zipper.init(id));
+let init = (~read_only=false, z) => {
+  state: State.init(z),
+  history: History.empty,
+  read_only,
+};
+let empty = id => init(~read_only=false, Zipper.init(id));
 
 let get_seg = (ed: t) => Zipper.unselect_and_zip(ed.state.zipper);
 
@@ -113,7 +118,7 @@ let new_state =
     (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
   let state = State.next(~effects, a, z, ed.state);
   let history = History.add(a, ed.state, ed.history);
-  {state, history};
+  {state, history, read_only: ed.read_only};
 };
 
 let caret_point = (ed: t): Measured.Point.t => {
@@ -125,14 +130,41 @@ let undo = (ed: t) =>
   switch (ed.history) {
   | ([], _) => None
   | ([(a, prev), ...before], after) =>
-    Some({state: prev, history: (before, [(a, ed.state), ...after])})
+    Some({
+      state: prev,
+      history: (before, [(a, ed.state), ...after]),
+      read_only: ed.read_only,
+    })
   };
 let redo = (ed: t) =>
   switch (ed.history) {
   | (_, []) => None
   | (before, [(a, next), ...after]) =>
-    Some({state: next, history: ([(a, ed.state), ...before], after)})
+    Some({
+      state: next,
+      history: ([(a, ed.state), ...before], after),
+      read_only: ed.read_only,
+    })
   };
 
 let can_undo = ed => Option.is_some(undo(ed));
 let can_redo = ed => Option.is_some(redo(ed));
+
+let set_read_only = (ed, read_only) => {...ed, read_only};
+
+let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
+  let segment = Zipper.unselect_and_zip(ed.state.zipper);
+  let convex_grout = Segment.convex_grout(segment);
+  // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
+  let last = Util.ListUtil.last_opt(convex_grout);
+  switch (last) {
+  | None => None
+  | Some(grout) =>
+    let id = grout.id;
+    let info = Id.Map.find(id, info_map);
+    switch (info) {
+    | InfoExp(info_exp) => Some(info_exp.ctx)
+    | _ => None
+    };
+  };
+};

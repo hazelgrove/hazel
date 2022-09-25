@@ -23,7 +23,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | FreeVariable =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
-      [text("Variable is not defined")],
+      [text("Variable is not bound")],
     )
   | SynInconsistentBranches(tys) =>
     div(
@@ -100,7 +100,7 @@ let term_tag = (is_err, sort) =>
       Attr.many([
         clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
       ]),
-    [div(~attr=clss(["icon"]), [Icons.magnify]), text(sort)],
+    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort)],
   );
 
 let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
@@ -184,26 +184,33 @@ let view =
     (
       ~inject,
       ~settings,
-      index': option(int),
+      zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
     ) => {
-  switch (index') {
-  | Some(index) =>
-    switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
-    | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+  let backpack = zipper.backpack;
+  if (List.length(backpack) > 0) {
+    div([]);
+  } else {
+    let index = Haz3lcore.Indicated.index(zipper);
+
+    switch (index) {
+    | Some(index) =>
+      switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
+      | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+      | None =>
+        div(
+          ~attr=clss(["cursor-inspector"]),
+          [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
+        )
+      }
     | None =>
       div(
         ~attr=clss(["cursor-inspector"]),
-        [div(~attr=clss(["icon"]), [Icons.magnify]), text("")],
+        [
+          div(~attr=clss(["icon"]), [Icons.magnify]),
+          text("No Indicated Index"),
+        ],
       )
-    }
-  | None =>
-    div(
-      ~attr=clss(["cursor-inspector"]),
-      [
-        div(~attr=clss(["icon"]), [Icons.magnify]),
-        text("No Indicated Index"),
-      ],
-    )
+    };
   };
 };

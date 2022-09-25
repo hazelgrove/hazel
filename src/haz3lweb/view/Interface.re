@@ -4,7 +4,11 @@ open Sexplib.Std;
 exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
   switch (Haz3lcore.Elaborator.uexp_elab(map, term)) {
-  | DoesNotElaborate => raise(DoesNotElaborate)
+  | DoesNotElaborate =>
+    print_endline("Interface.elaborate EXCEPTION");
+    //HACK(andrew): supress exceptions for release
+    //raise(DoesNotElaborate)
+    InvalidText(0, 0, "EXCEPTION");
   | Elaborates(d, _, _) => d
   };
 
@@ -62,7 +66,22 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
-  | exception (EvaluatorError.Exception(reason)) => raise(EvalError(reason))
+  | exception (EvaluatorError.Exception(_reason)) =>
+    //HACK(andrew): supress exceptions for release
+    //raise(EvalError(reason))
+    print_endline("Interface.evaluate EXCEPTION");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
+  | exception _ =>
+    print_endline("Other evaluation exception raised (stack overflow?)");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
   };
 
 let get_result = (map, term): ProgramResult.t =>

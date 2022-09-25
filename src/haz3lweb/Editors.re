@@ -3,75 +3,89 @@ open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Simple(Editor.t)
-  | Study(int, list(Editor.t))
-  | School(int, list(Editor.t));
+  | Scratch(int, list(ScratchSlide.state))
+  | School(int, list(SchoolExercise.spec), SchoolExercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type simple = (Id.t, Editor.t);
+type scratch = (int, list(ScratchSlide.state));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type study = (Id.t, int, list(Editor.t));
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type school = (Id.t, int, list(Editor.t));
+type school = (int, list(SchoolExercise.spec), SchoolExercise.state);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
-  | Simple
-  | Study
+  | Scratch
   | School;
 
-let simple_result_key = "simple";
-let study_result_key = "study";
-let school_result_key = "school";
-
-let get_editor = (editors: t): Editor.t =>
+let rotate_mode = (editors: t) =>
   switch (editors) {
-  | Simple(editor) => editor
-  | Study(n, eds) =>
-    assert(n < List.length(eds));
-    List.nth(eds, n);
-  | School(n, eds) =>
-    assert(n < List.length(eds));
-    List.nth(eds, n);
+  | Scratch(_) => School
+  | School(_) => Scratch
   };
 
-let put_editor = (ed: Editor.t, eds: t): t =>
+let get_editor_and_id = (editors: t): (Id.t, Editor.t) =>
+  switch (editors) {
+  | Scratch(n, slides) =>
+    assert(n < List.length(slides));
+    let slide = List.nth(slides, n);
+    let id = ScratchSlide.id_of_state(slide);
+    let ed = ScratchSlide.editor_of_state(slide);
+    (id, ed);
+  | School(_, _, exercise) =>
+    let id = SchoolExercise.id_of_state(exercise);
+    let ed = SchoolExercise.editor_of_state(exercise);
+    (id, ed);
+  };
+
+let get_editor = (editors: t): Editor.t => snd(get_editor_and_id(editors));
+
+let put_editor_and_id = (id: Id.t, ed: Editor.t, eds: t): t =>
   switch (eds) {
-  | Simple(_) => Simple(ed)
-  | Study(n, eds) =>
-    assert(n < List.length(eds));
-    Study(n, Util.ListUtil.put_nth(n, ed, eds));
-  | School(n, eds) =>
-    assert(n < List.length(eds));
-    School(n, Util.ListUtil.put_nth(n, ed, eds));
+  | Scratch(n, slides) =>
+    assert(n < List.length(slides));
+    let slide = List.nth(slides, n);
+    Scratch(
+      n,
+      Util.ListUtil.put_nth(
+        n,
+        ScratchSlide.put_editor_and_id(slide, id, ed),
+        slides,
+      ),
+    );
+  | School(n, specs, exercise) =>
+    School(n, specs, SchoolExercise.put_editor_and_id(exercise, id, ed))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
-let get_result_key: t => ModelResults.key =
-  fun
-  | Simple(_) => simple_result_key
-  | Study(_) => study_result_key
-  | School(_) => school_result_key;
-
-let get_spliced_segs = (editors: t): list((ModelResults.key, Segment.t)) => {
-  let result_key = get_result_key(editors);
+let get_spliced_elabs = (editors: t): list((ModelResults.key, DHExp.t)) => {
   switch (editors) {
-  | Simple(ed) => [(result_key, Editor.get_seg(ed))]
-  | Study(n, eds) => [(result_key, Editor.get_seg(List.nth(eds, n)))]
-  | School(_, eds) =>
-    // TODO(cyrus) replace placeholder
-    [(result_key, Editor.get_seg(List.hd(eds)))]
+  | Scratch(n, slides) =>
+    let slide = List.nth(slides, n);
+    ScratchSlide.spliced_elabs(slide);
+  | School(_, _, exercise) => SchoolExercise.spliced_elabs(exercise)
   };
 };
 
-let get_spliced_elabs = eds =>
-  eds
-  |> get_spliced_segs
-  |> List.map(((key, seg)) => {
-       let (term, _) = MakeTerm.go(seg);
-       let map = Statics.mk_map(term);
-       (key, Interface.elaborate(map, term));
-     });
+let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
+  switch (editors) {
+  | Scratch(_) => editors
+  | School(n, specs, exercise) =>
+    School(
+      n,
+      specs,
+      SchoolExercise.set_instructor_mode(exercise, instructor_mode),
+    )
+  };
+
+let num_slides = (editors: t): int =>
+  switch (editors) {
+  | Scratch(_, slides) => List.length(slides)
+  | School(_, specs, _) => List.length(specs)
+  };
+
+let cur_slide = (editors: t): int =>
+  switch (editors) {
+  | Scratch(n, _)
+  | School(n, _, _) => n
+  };

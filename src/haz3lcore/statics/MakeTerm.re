@@ -21,10 +21,13 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
   );
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tile = (Id.t, Aba.t(Token.t, t));
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, t);
 let single = (id, subst) => ([(id, subst)], []);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
   | Pre(tiles, t)
@@ -38,16 +41,18 @@ let dark_id = () => {
   dark_gen := id - 1;
   id;
 };
-let dark_hole = (s: Sort.t): t => {
+let dark_hole = (~ids=[], s: Sort.t): t => {
   let id = dark_id();
   switch (s) {
-  | Exp => Exp({ids: [id], term: EmptyHole})
+  // put dark id last to avoid messing with rep id
+  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
   | _ => failwith("dark_hole todo")
   };
 };
 
 // TODO flesh out incomplete cases
-let complete_root =
+// TODO review dark hole
+let _complete_root =
   fun
   | Op(_) as root => root
   | Pre(tiles, r) as root =>
@@ -164,6 +169,11 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
+let return_dark_hole = (~ids=[], s) => {
+  let hole = dark_hole(~ids, s);
+  map := TermMap.add_all(Term.ids(hole), hole, map^);
+  hole;
+};
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
@@ -174,12 +184,18 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   | Nul => Nul() //TODO
   | Any =>
     let tm = unsorted(skel, seg);
-    switch (ListUtil.hd_opt(ids(tm))) {
-    | None => dark_hole(Exp)
+    let ids = ids(tm);
+    switch (ListUtil.hd_opt(ids)) {
+    | None => return_dark_hole(Exp)
     | Some(id) =>
       switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => dark_hole(Exp)
-      | Some(t) => go_s(t.mold.out, skel, seg)
+      | None => return_dark_hole(~ids, Exp)
+      | Some(t) =>
+        if (t.mold.out == Any) {
+          return_dark_hole(~ids, Exp);
+        } else {
+          go_s(t.mold.out, skel, seg);
+        }
       }
     };
   }
@@ -261,6 +277,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["/"], []) => BinOp(Int(Divide), l, r)
           | (["<"], []) => BinOp(Int(LessThan), l, r)
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)
+          | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
+          | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
@@ -268,6 +286,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["/."], []) => BinOp(Float(Divide), l, r)
           | (["<."], []) => BinOp(Float(LessThan), l, r)
           | ([">."], []) => BinOp(Float(GreaterThan), l, r)
+          | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
+          | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
           | (["==."], []) => BinOp(Float(Equals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
           | (["||"], []) => BinOp(Bool(Or), l, r)
@@ -370,25 +390,28 @@ and typ_term: unsorted => UTyp.term = {
   | tm => hole(tm);
 }
 
-and rul = unsorted => {
-  let term = rul_term(unsorted);
-  let ids = ids(unsorted);
-  return(r => Rul(r), ids, {ids, term});
-}
-and rul_term = (unsorted: unsorted): URul.term => {
+// and rul = unsorted => {
+//   let term = rul_term(unsorted);
+//   let ids = ids(unsorted);
+//   return(r => Rul(r), ids, {ids, term});
+// }
+and rul = (unsorted: unsorted): URul.t => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) =>
-        Rules(scrut, List.combine(ps, leading_clauses @ [last_clause]))
-      | None => hole
+      | Some((ps, leading_clauses)) => {
+          ids: ids(unsorted),
+          term:
+            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+        }
+      | None => {ids: ids(unsorted), term: hole}
       }
-    | _ => hole
+    | _ => {ids: ids(unsorted), term: hole}
     }
-  | e => Rules(e, [])
+  | e => {ids: [], term: Rules(e, [])}
   };
 }
 
