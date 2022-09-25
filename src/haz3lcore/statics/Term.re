@@ -33,6 +33,7 @@ module UTyp = {
     | Arrow
     | Tuple
     | List
+    | Var
     | Parens;
 
   include TermBase.UTyp;
@@ -59,6 +60,7 @@ module UTyp = {
     | String => String
     | List(_) => List
     | Arrow(_) => Arrow
+    | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens;
 
@@ -71,6 +73,7 @@ module UTyp = {
     | Float
     | String
     | Bool => "Base Type"
+    | Var => "Type Variable"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
@@ -278,6 +281,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | String => String
+    | Var(name) => TypeVar(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
