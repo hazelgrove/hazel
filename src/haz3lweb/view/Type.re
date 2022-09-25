@@ -21,6 +21,7 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
+  | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
   | List(t) =>
     div(

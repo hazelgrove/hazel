@@ -92,6 +92,7 @@ installed: [
   "ocaml_intrinsics.v0.15.2"
   "ocamlbuild.0.14.1"
   "ocamlfind.1.9.5"
+  "ocamlformat.0.24.1"
   "ocamlformat-rpc-lib.0.22.4"
   "ocplib-endian.1.2"
   "octavius.1.2.2"

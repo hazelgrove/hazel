@@ -96,7 +96,7 @@ follow these instructions instead of the shorter instructions in the
   - If you are on Windows:
 
     ```sh
-    opam init --disable-sandboxing
+    opam init github git+https://github.com/ocaml/opam-repository.git
     ```
 
   - If you are on Linux or MacOS:
@@ -119,12 +119,12 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 4.12.1 (some older versions may also work, but see the
+- Install OCaml 4.14.0 (some older versions may also work, but see the
   ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
   why we do not use newer versions).
 
   ```sh
-  opam switch create 4.12.1 ocaml-base-compiler.4.12.1
+   opam switch create 4.14 ocaml-base-compiler.4.14.0
   ```
 
 ## Clone the Source Code
