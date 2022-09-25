@@ -182,9 +182,9 @@ let deco =
     | Some(test_results) =>
       decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
     };
-  switch (color_highlighting) {
-  | None => decos
-  | Some(colorMap) => decos @ Deco.color_highlights(colorMap)
+  switch (color_highlighting, selected) {
+  | (Some(colorMap), true) => decos @ Deco.color_highlights(colorMap)
+  | _ => decos
   };
 };
 
