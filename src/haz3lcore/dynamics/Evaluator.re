@@ -519,8 +519,9 @@ let eval_bin_string_op =
   | SEquals => BoolLit(s1 == s2)
   };
 
-let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
-  (env, d) => {
+let rec evaluate:
+  (Builtins.forms, ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
+  (builtins, env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
 
@@ -535,12 +536,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
            });
       /* We need to call [evaluate] on [d] again since [env] does not store
        * final expressions. */
-      evaluate(env, d);
+      evaluate(builtins, env, d);
 
     | Sequence(d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
-      | BoxedValue(_d1) => evaluate(env, d2)
+      | BoxedValue(_d1) => evaluate(builtins, env, d2)
       /* FIXME THIS IS A HACK FOR 490; for now, just return evaluated d2 even
        * if evaluated d1 is indet. */
       | Indet(_d1) =>
@@ -549,11 +550,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         /* | BoxedValue(d2) */
         /* | Indet(d2) => Indet(Sequence(d1, d2)) |> return */
         /* }; */
-        evaluate(env, d2)
+        evaluate(builtins, env, d2)
       };
 
     | Let(dp, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(d1)
       | Indet(d1) =>
@@ -562,28 +563,28 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
-          evaluate(env, d2);
+          evaluate(builtins, env, d2);
         }
       };
 
     | FixF(f, _, d') =>
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-      evaluate(env', d');
+      evaluate(builtins, env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
 
     | Ap(d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
-      | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
+      | BoxedValue(TestLit(id)) => evaluate_test(builtins, env, id, d2)
       | BoxedValue(Tag(_)) =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
         };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2)
         | Indet(d2) =>
@@ -594,30 +595,35 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             // evaluate a closure: extend the closure environment with the
             // new bindings introduced by the function application.
             let* env = evaluate_extend_env(env', closure_env);
-            evaluate(env, d3);
+            evaluate(builtins, env, d3);
           }
         };
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') =>
           /* ap cast rule */
-          evaluate(env, Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
+          evaluate(
+            builtins,
+            env,
+            Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'),
+          )
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
       | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(Ap(d1', d2')) |> return
         };
       };
 
-    | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
+    | ApBuiltin(ident, args) =>
+      evaluate_ap_builtin(builtins, env, ident, args)
 
     | TestLit(_)
     | BoolLit(_)
@@ -628,13 +634,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Tag(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(BoolLit(b1) as d1') =>
         switch (eval_bin_bool_op_short_circuit(op, b1)) {
         | Some(b3) => BoxedValue(b3) |> return
         | None =>
-          let* r2 = evaluate(env, d2);
+          let* r2 = evaluate(builtins, env, d2);
           switch (r2) {
           | BoxedValue(BoolLit(b2)) =>
             BoxedValue(eval_bin_bool_op(op, b1, b2)) |> return
@@ -648,7 +654,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         print_endline("InvalidBoxedBoolLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
       | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinBoolOp(op, d1', d2')) |> return
@@ -656,10 +662,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | BinIntOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(IntLit(n1) as d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(IntLit(n2)) =>
           switch (op, n1, n2) {
@@ -684,7 +690,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
@@ -692,10 +698,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | BinFloatOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(FloatLit(f1) as d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(FloatLit(f2)) =>
           BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
@@ -708,7 +714,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         print_endline("InvalidBoxedFloatLit");
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
       | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
@@ -716,10 +722,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | BinStringOp(op, d1, d2) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(StringLit(f1) as d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(StringLit(f2)) =>
           BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
@@ -732,7 +738,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         print_endline("InvalidBoxedStringLit");
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')));
       | Indet(d1') =>
-        let* r2 = evaluate(env, d2);
+        let* r2 = evaluate(builtins, env, d2);
         switch (r2) {
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
@@ -740,15 +746,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Inj(ty, side, d1) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1')) |> return
       | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
       };
 
     | Pair(d1, d2) =>
-      let* d1' = evaluate(env, d1);
-      let* d2' = evaluate(env, d2);
+      let* d1' = evaluate(builtins, env, d1);
+      let* d2' = evaluate(builtins, env, d2);
       switch (d1', d2') {
       | (Indet(d1), Indet(d2))
       | (Indet(d1), BoxedValue(d2))
@@ -758,8 +764,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | Cons(d1, d2) =>
-      let* d1 = evaluate(env, d1);
-      let* d2 = evaluate(env, d2);
+      let* d1 = evaluate(builtins, env, d1);
+      let* d2 = evaluate(builtins, env, d2);
       switch (d1, d2) {
       | (Indet(d1), Indet(d2))
       | (Indet(d1), BoxedValue(d2))
@@ -784,7 +790,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | ListLit(u, i, err, ty, lst) =>
-      let+ lst = lst |> List.map(evaluate(env)) |> sequence;
+      let+ lst = lst |> List.map(evaluate(builtins, env)) |> sequence;
       let (lst, indet) =
         List.fold_right(
           (el, (lst, indet)) =>
@@ -804,7 +810,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | ConsistentCase(Case(d1, rules, n)) =>
-      evaluate_case(env, None, d1, rules, n)
+      evaluate_case(builtins, env, None, d1, rules, n)
 
     /* Generalized closures evaluate to themselves. Only
        lambda closures are BoxedValues; other closures are all Indet. */
@@ -816,12 +822,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      evaluate_case(env, Some((u, i)), d1, rules, n)
+      evaluate_case(builtins, env, Some((u, i)), d1, rules, n)
 
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 
     | NonEmptyHole(reason, u, i, d1) =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') =>
@@ -838,7 +844,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Cast calculus */
     | Cast(d1, ty, ty') =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(d1') as result =>
         switch (ground_cases_of(ty), ground_cases_of(ty')) {
@@ -869,11 +875,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(env, d');
+          evaluate(builtins, env, d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(env, d');
+          evaluate(builtins, env, d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
@@ -909,11 +915,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           /* ITExpand rule */
           let d' =
             DHExp.Cast(Cast(d1', ty, ty'_grounded), ty'_grounded, ty');
-          evaluate(env, d');
+          evaluate(builtins, env, d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
           let d' = DHExp.Cast(Cast(d1', ty, ty_grounded), ty_grounded, ty');
-          evaluate(env, d');
+          evaluate(builtins, env, d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
@@ -929,7 +935,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | FailedCast(d1, ty, ty') =>
-      let* r1 = evaluate(env, d1);
+      let* r1 = evaluate(builtins, env, d1);
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') => Indet(FailedCast(d1', ty, ty')) |> return
@@ -945,6 +951,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
  */
 and evaluate_case =
     (
+      builtins: Builtins.forms,
       env: ClosureEnvironment.t,
       inconsistent_info: option(HoleInstance.t),
       scrut: DHExp.t,
@@ -952,7 +959,7 @@ and evaluate_case =
       current_rule_index: int,
     )
     : m(EvaluatorResult.t) => {
-  let* rscrut = evaluate(env, scrut);
+  let* rscrut = evaluate(builtins, env, scrut);
   switch (rscrut) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
@@ -982,10 +989,11 @@ and evaluate_case =
       | Matches(env') =>
         // extend environment with new bindings introduced
         let* env = evaluate_extend_env(env', env);
-        evaluate(env, d);
+        evaluate(builtins, env, d);
       // by the rule and evaluate the expression.
       | DoesNotMatch =>
         evaluate_case(
+          builtins,
           env,
           inconsistent_info,
           scrut,
@@ -1013,10 +1021,15 @@ and evaluate_extend_env =
   [ident] with [args].
  */
 and evaluate_ap_builtin =
-    (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
+    (
+      builtins: Builtins.forms,
+      env: ClosureEnvironment.t,
+      ident: string,
+      args: list(DHExp.t),
+    )
     : m(EvaluatorResult.t) => {
-  switch (Builtins.lookup_form(ident)) {
-  | Some((eval, _)) => eval(env, args, evaluate)
+  switch (VarMap.lookup(builtins, ident)) {
+  | Some((_, eval)) => eval(env, args, evaluate(builtins))
   | None =>
     print_endline("InvalidBuiltin");
     raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
@@ -1024,38 +1037,43 @@ and evaluate_ap_builtin =
 }
 
 and evaluate_test =
-    (env: ClosureEnvironment.t, n: KeywordID.t, arg: DHExp.t)
+    (
+      builtins: Builtins.forms,
+      env: ClosureEnvironment.t,
+      n: KeywordID.t,
+      arg: DHExp.t,
+    )
     : m(EvaluatorResult.t) => {
   let* (arg_show, arg_result) =
     switch (DHExp.strip_casts(arg)) {
     | BinBoolOp(op, arg_d1, arg_d2) =>
       let mk_op = (arg_d1, arg_d2) => DHExp.BinBoolOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+      evaluate_test_eq(builtins, env, mk_op, arg_d1, arg_d2);
     | BinIntOp(op, arg_d1, arg_d2) =>
       let mk_op = (arg_d1, arg_d2) => DHExp.BinIntOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+      evaluate_test_eq(builtins, env, mk_op, arg_d1, arg_d2);
     | BinFloatOp(op, arg_d1, arg_d2) =>
       let mk_op = (arg_d1, arg_d2) => DHExp.BinFloatOp(op, arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+      evaluate_test_eq(builtins, env, mk_op, arg_d1, arg_d2);
 
     | Ap(Ap(arg_d1, arg_d2), arg_d3) =>
-      let* arg_d1 = evaluate(env, arg_d1);
-      let* arg_d2 = evaluate(env, arg_d2);
-      let* arg_d3 = evaluate(env, arg_d3);
+      let* arg_d1 = evaluate(builtins, env, arg_d1);
+      let* arg_d2 = evaluate(builtins, env, arg_d2);
+      let* arg_d3 = evaluate(builtins, env, arg_d3);
       let arg_show =
         DHExp.Ap(
           Ap(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2)),
           EvaluatorResult.unbox(arg_d3),
         );
-      let* arg_result = evaluate(env, arg_show);
+      let* arg_result = evaluate(builtins, env, arg_show);
       (arg_show, arg_result) |> return;
 
     | Ap(arg_d1, arg_d2) =>
       let mk = (arg_d1, arg_d2) => DHExp.Ap(arg_d1, arg_d2);
-      evaluate_test_eq(env, mk, arg_d1, arg_d2);
+      evaluate_test_eq(builtins, env, mk, arg_d1, arg_d2);
 
     | _ =>
-      let* arg = evaluate(env, arg);
+      let* arg = evaluate(builtins, env, arg);
       (EvaluatorResult.unbox(arg), arg) |> return;
     };
 
@@ -1078,25 +1096,26 @@ and evaluate_test =
 
 and evaluate_test_eq =
     (
+      builtins: Builtins.forms,
       env: ClosureEnvironment.t,
       mk_arg_op: (DHExp.t, DHExp.t) => DHExp.t,
       arg_d1: DHExp.t,
       arg_d2: DHExp.t,
     )
     : m((DHExp.t, EvaluatorResult.t)) => {
-  let* arg_d1 = evaluate(env, arg_d1);
-  let* arg_d2 = evaluate(env, arg_d2);
+  let* arg_d1 = evaluate(builtins, env, arg_d1);
+  let* arg_d2 = evaluate(builtins, env, arg_d2);
 
   let arg_show =
     mk_arg_op(EvaluatorResult.unbox(arg_d1), EvaluatorResult.unbox(arg_d2));
-  let* arg_result = evaluate(env, arg_show);
+  let* arg_result = evaluate(builtins, env, arg_show);
 
   (arg_show, arg_result) |> return;
 };
 
-let evaluate = (env, d) => {
+let evaluate = (builtins, env, d) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  evaluate(env, d, es);
+  evaluate(builtins, env, d, es);
 };
