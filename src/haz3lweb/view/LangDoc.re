@@ -673,6 +673,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | String(_str_lit) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.string_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.string_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | ListLit(terms) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -928,6 +941,42 @@ let get_doc =
             );
           } else {
             basic(doc, LangDocMessages.function_bool_group, options);
+          };
+        | String(s) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_str_group,
+              docs,
+            );
+          if (LangDocMessages.function_strlit_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_str_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
+                pat_id,
+                s,
+                pat_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            basic(doc, LangDocMessages.function_str_group, options);
           };
         | Triv =>
           let (doc, options) =
@@ -1622,7 +1671,6 @@ let get_doc =
                 ]
               | _ => []
               };
-            // TODO Make sure everywhere printing the float literal print it prettier
             get_message(
               doc,
               options,
@@ -1646,6 +1694,56 @@ let get_doc =
             basic(
               doc,
               LangDocMessages.let_bool_exp_group,
+              options,
+            );
+          };
+        | String(s) =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_str_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_str_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            let pat_coloring_ids =
+              switch (List.nth(doc.syntactic_form, 0)) {
+              | Tile(tile) => [
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                    pat_id,
+                  ),
+                  (
+                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
+                    def_id,
+                  ),
+                ]
+              | _ => []
+              };
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_str_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(
+                  doc.explanation.message,
+                  "%i%i%s%i%i",
+                ),
+                def_id,
+                pat_id,
+                s,
+                def_id,
+                body_id,
+              ),
+              pat_coloring_ids
+              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              doc,
+              LangDocMessages.let_str_exp_group,
               options,
             );
           };
@@ -2209,6 +2307,7 @@ let get_doc =
           | Float(Equals) => LangDocMessages.float_eq_group
           | Bool(And) => LangDocMessages.bool_and_group
           | Bool(Or) => LangDocMessages.bool_or_group
+          | String(Equals) => LangDocMessages.str_eq_group
           };
         let (doc, options) =
           LangDocMessages.get_form_and_options(group, docs);
@@ -2348,6 +2447,23 @@ let get_doc =
         ),
         [],
       );
+    | String(s) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.strlit_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.strlit_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s%s"),
+          s,
+          s,
+        ),
+        [],
+      );
     | Triv =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2448,6 +2564,19 @@ let get_doc =
         doc,
         options,
         LangDocMessages.bool_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    | String =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.str_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.str_typ_group,
         doc.explanation.message,
         [],
       );
