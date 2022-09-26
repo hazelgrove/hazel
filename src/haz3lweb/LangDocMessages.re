@@ -72,6 +72,7 @@ let flt = () => Example.mk_monotile(Form.get("flt"));
 let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
 let fgte = () => Example.mk_monotile(Form.get("fgte"));
+let sequals = () => Example.mk_monotile(Form.get("string_equals"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -173,6 +174,18 @@ let float_exp: form = {
   };
 };
 
+let string_exp_group = "string_exp_group";
+let string_exp: form = {
+  let explanation = {message: "Stromg literal.", feedback: Unselected};
+  {
+    id: "string_exp",
+    syntactic_form: [exp("StringLit")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let list_exp_group = "list_exp_group";
 let list_exp: form = {
   let example_1 = {
@@ -201,7 +214,7 @@ let list_exp: form = {
     examples: [example_1, example_2],
   };
 };
-
+// TODO Probably makes more sense to rename the sub ids to something more meaningful
 let function_group = "function_group";
 let function_empty_hole_group = "function_empty_hole_group";
 let function_multi_hole_group = "function_multi_hole_group";
@@ -209,6 +222,7 @@ let function_wild_group = "function_wild_group";
 let function_int_group = "function_int_group";
 let function_float_group = "function_float_group";
 let function_bool_group = "function_bool_group";
+let function_str_group = "function_str_group";
 let function_triv_group = "function_triv_group";
 let function_listnil_group = "function_listnil_group";
 let function_listlit_group = "function_listlit_group";
@@ -247,56 +261,62 @@ let boollit_fun_ex = {
   message: "When given an argument with value true, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
-let triv_fun_ex = {
+let strlit_fun_ex = {
   sub_id: "example_6",
+  term: mk_example("fun \"abc\" -> 2"),
+  message: "When given an argument with value \"abc\", the function throws away the supplied argument and always evaluates to 2.",
+  feedback: Unselected,
+};
+let triv_fun_ex = {
+  sub_id: "example_7",
   term: mk_example("fun triv -> 2"),
   message: "When given an argument with the triv value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let listnil_fun_ex = {
-  sub_id: "example_7",
+  sub_id: "example_8",
   term: mk_example("fun nil -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let listlist_fun_ex = {
-  sub_id: "example_8",
+  sub_id: "example_9",
   term: mk_example("fun [x, y] -> x"),
   message: "When given an argument that is a list of two elements, the function evaluates to the first element of that list.",
   feedback: Unselected,
 };
 let cons_hd_fun_ex = {
-  sub_id: "example_9",
+  sub_id: "example_10",
   term: mk_example("fun hd::tl -> hd"),
   message: "When given an argument that is a non-empty list, the function evaluates to the head of that list.",
   feedback: Unselected,
 };
 let cons_snd_fun_ex = {
-  sub_id: "example_10",
+  sub_id: "example_11",
   term: mk_example("fun fst::snd::tl -> snd"),
   message: "When given an argument that is a list with at least two elements, the function evaluates to the second element of that list.",
   feedback: Unselected,
 };
 let var_incr_fun_ex = {
-  sub_id: "example_11",
+  sub_id: "example_12",
   term: mk_example("fun x -> x + 1"),
   message: "When given an integer argument, the function evaluates to the argument plus 1.",
   feedback: Unselected,
 };
 let var_and_fun_ex = {
-  sub_id: "example_12",
+  sub_id: "example_13",
   term: mk_example("fun b -> b && true"),
   message: "When given a boolean argument, the function evaluates to the logical-and of the argument and true, which evaluates to the truth value of the argument.",
   feedback: Unselected,
 };
 let tuple2_fun_ex = {
-  sub_id: "example_13",
+  sub_id: "example_14",
   term: mk_example("fun (x, y) -> x + y"),
   message: "When given a 2-tuple of integers, the function evaluates to the sum of the two integers.",
   feedback: Unselected,
 };
 let tuple3_fun_ex = {
-  sub_id: "example_14",
+  sub_id: "example_15",
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
   feedback: Unselected,
@@ -441,6 +461,26 @@ let function_boollit_exp: form = {
     expandable_id,
     explanation,
     examples: [boollit_fun_ex],
+  };
+};
+let function_strlit_exp: form = {
+  let explanation = {
+    message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    feedback: Unselected,
+  };
+  let form = [mk_fun([[pat("StringLit")]]), exp("EXP")];
+  let expandable_id =
+    switch (List.nth(form, 0)) {
+    | Tile(tile) =>
+      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
+    | _ => None
+    };
+  {
+    id: "function_strlit_exp",
+    syntactic_form: form,
+    expandable_id,
+    explanation,
+    examples: [strlit_fun_ex],
   };
 };
 let function_triv_exp: form = {
@@ -709,6 +749,7 @@ let let_wild_exp_group = "let_wild_hole_exp_group";
 let let_int_exp_group = "let_int_exp_group";
 let let_float_exp_group = "let_float_exp_group";
 let let_bool_exp_group = "let_bool_exp_group";
+let let_str_exp_group = "let_str_exp_group";
 let let_triv_exp_group = "let_triv_exp_group";
 let let_listlit_exp_group = "let_listlit_exp_group";
 let let_listnil_exp_group = "let_listnil_exp_group";
@@ -747,51 +788,57 @@ let let_bool_ex = {
   message: "The true is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
-let let_triv_ex = {
+let let_str_ex = {
   sub_id: "example_6",
+  term: mk_example("let \"abc\" = \"abc\" in 2"),
+  message: "The true is thrown away, so the expression evaluates to 2.",
+  feedback: Unselected,
+};
+let let_triv_ex = {
+  sub_id: "example_7",
   term: mk_example("let triv = triv in 2"),
   message: "The triv is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_listlit_ex = {
-  sub_id: "example_7",
+  sub_id: "example_8",
   term: mk_example("let [x, y] = [1, 2] in x"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 let let_listnil_ex = {
-  sub_id: "example_8",
+  sub_id: "example_9",
   term: mk_example("let nil = nil in 2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_cons_hd_ex = {
-  sub_id: "example_9",
+  sub_id: "example_10",
   term: mk_example("let hd::tl = 1::nil in hd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 // TODO This example is throwing errors for some reason - also throws errors if just entered in the editor...
 /*let let_cons_snd_ex = {
-    sub_id: "example_10",
+    sub_id: "example_11",
     term: mk_example("let fst::snd::tl = true::false::nil in snd"),
     message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
     feedback: Unselected,
   };*/
 let let_var_ex = {
-  sub_id: "example_11",
+  sub_id: "example_12",
   term: mk_example("let x = 1 in x + 2"),
   message: "The x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple2_ex = {
-  sub_id: "example_12",
+  sub_id: "example_13",
   term: mk_example("let (x, y) = (1, 2) in x + y"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple3_ex = {
-  sub_id: "example_13",
+  sub_id: "example_14",
   term: mk_example("let (x, y, z) = (1, 2, 3) in x + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
   feedback: Unselected,
@@ -952,6 +999,29 @@ let let_bool_exp: form = {
     expandable_id,
     explanation,
     examples: [let_bool_ex],
+  };
+};
+let let_str_exp: form = {
+  let explanation = {
+    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_let([[pat("StringLit")], [exp("EXP_def")]]),
+    exp("EXP_body"),
+  ];
+  let expandable_id =
+    switch (List.nth(form, 0)) {
+    | Tile(tile) =>
+      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
+    | _ => None
+    };
+  {
+    id: "let_str_exp",
+    syntactic_form: form,
+    expandable_id,
+    explanation,
+    examples: [let_str_ex],
   };
 };
 let let_triv_exp: form = {
@@ -1312,6 +1382,7 @@ let float_gte_group = "float_gte_group";
 let float_eq_group = "float_eq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
+let str_eq_group = "str_eq_group";
 let int_unary_minus_ex = {
   sub_id: "example_1",
   term: mk_example("-1"),
@@ -1532,6 +1603,18 @@ let bool_or2_ex = {
   sub_id: "example_2",
   term: mk_example("3 < 4 || false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
+  feedback: Unselected,
+};
+let str_eq1_ex = {
+  sub_id: "example_1",
+  term: mk_example("\"abc\" $== \"xyz\""),
+  message: "\"abc\" does not equal \"xyz\", so the expression evaluates to false.",
+  feedback: Unselected,
+};
+let str_eq2_ex = {
+  sub_id: "example_2",
+  term: mk_example("\"abc\" $== \"abc\""),
+  message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_unary_minus_exp: form = {
@@ -1809,6 +1892,20 @@ let bool_or_exp: form = {
   };
 };
 
+let str_eq_exp: form = {
+  let explanation = {
+    message: "String equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
+    feedback: Unselected,
+  };
+  {
+    id: "str_eq_exp",
+    syntactic_form: [exp("EXP1"), sequals(), exp("EXP2")],
+    expandable_id: None,
+    explanation,
+    examples: [str_eq1_ex, str_eq2_ex],
+  };
+};
+
 let case_exp_group = "case_exp_group";
 let case_exp2_group = "case_exp2_group";
 let case_exp3_group = "case_exp3_group";
@@ -1968,6 +2065,21 @@ let boollit_pat: form = {
   };
 };
 
+let strlit_pat_group = "strlit_pat_group";
+let strlit_pat: form = {
+  let explanation = {
+    message: "String literal pattern. Only expressions with value `%s` match the *`%s` pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "strlit_pat",
+    syntactic_form: [pat("StringLit")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let triv_pat_group = "triv_pat_group";
 let triv_pat: form = {
   let explanation = {
@@ -2089,6 +2201,21 @@ let bool_typ: form = {
   };
 };
 
+let str_typ_group = "str_typ_group";
+let str_typ: form = {
+  let explanation = {
+    message: "String type. The `String` type classifies string values.",
+    feedback: Unselected,
+  };
+  {
+    id: "str_typ",
+    syntactic_form: [typ("String")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let list_typ_group = "list_typ_group";
 let list_typ: form = {
   let explanation = {
@@ -2198,6 +2325,7 @@ let init = {
     bool_exp,
     int_exp,
     float_exp,
+    string_exp,
     list_exp,
     function_exp,
     function_empty_hole_exp,
@@ -2206,6 +2334,7 @@ let init = {
     function_intlit_exp,
     function_floatlit_exp,
     function_boollit_exp,
+    function_strlit_exp,
     function_triv_exp,
     function_listnil_exp,
     function_listlit_exp,
@@ -2225,6 +2354,7 @@ let init = {
     let_int_exp,
     let_float_exp,
     let_bool_exp,
+    let_str_exp,
     let_triv_exp,
     let_listlit_exp,
     let_listnil_exp,
@@ -2259,6 +2389,7 @@ let init = {
     float_eq_exp,
     bool_and_exp,
     bool_or_exp,
+    str_eq_exp,
     case_exp,
     // Rules
     // Patterns
@@ -2268,6 +2399,7 @@ let init = {
     intlit_pat,
     floatlit_pat,
     boollit_pat,
+    strlit_pat,
     triv_pat,
     listnil_pat,
     var_pat,
@@ -2277,6 +2409,7 @@ let init = {
     int_typ,
     float_typ,
     bool_typ,
+    str_typ,
     list_typ,
   ],
   groups: [
@@ -2287,6 +2420,7 @@ let init = {
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),
     (float_exp_group, init_options([(float_exp.id, [])])),
+    (string_exp_group, init_options([(string_exp.id, [])])),
     (list_exp_group, init_options([(list_exp.id, [])])),
     // TODO Why is the PAT showing up red in the dropdown
     // Also a problem when just showing pattern and type forms
@@ -2331,6 +2465,13 @@ let init = {
       init_options([
         (function_exp.id, [pat("PAT")]),
         (function_boollit_exp.id, [pat("BoolLit")]),
+      ]),
+    ),
+    (
+      function_str_group,
+      init_options([
+        (function_exp.id, [pat("PAT")]),
+        (function_strlit_exp.id, [pat("StringLit")]),
       ]),
     ),
     (
@@ -2463,6 +2604,13 @@ let init = {
       ]),
     ),
     (
+      let_str_exp_group,
+      init_options([
+        (let_base_exp.id, [pat("PAT")]),
+        (let_str_exp.id, [pat("StringLit")]),
+      ]),
+    ),
+    (
       let_triv_exp_group,
       init_options([
         (let_base_exp.id, [pat("PAT")]),
@@ -2555,6 +2703,7 @@ let init = {
     (float_eq_group, init_options([(float_eq_exp.id, [])])),
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
+    (str_eq_group, init_options([(str_eq_exp.id, [])])),
     (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns
@@ -2564,6 +2713,7 @@ let init = {
     (intlit_pat_group, init_options([(intlit_pat.id, [])])),
     (floatlit_pat_group, init_options([(floatlit_pat.id, [])])),
     (boollit_pat_group, init_options([(boollit_pat.id, [])])),
+    (strlit_pat_group, init_options([(strlit_pat.id, [])])),
     (triv_pat_group, init_options([(triv_pat.id, [])])),
     (listnil_pat_group, init_options([(listnil_pat.id, [])])),
     (var_pat_group, init_options([(var_pat.id, [])])),
@@ -2573,6 +2723,7 @@ let init = {
     (int_typ_group, init_options([(int_typ.id, [])])),
     (float_typ_group, init_options([(float_typ.id, [])])),
     (bool_typ_group, init_options([(bool_typ.id, [])])),
+    (str_typ_group, init_options([(str_typ.id, [])])),
     (list_typ_group, init_options([(list_typ.id, [])])),
   ],
 };
