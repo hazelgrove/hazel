@@ -1,9 +1,12 @@
 open Sexplib.Std;
 open Haz3lcore;
 
-module type Node = {type node;};
+module type Node = {
+  type node;
+  let default: node;
+};
 
-module State = (Node: Node) => {
+module SchoolExercise = (Node: Node) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type wrong_impl('code) = {
     impl: 'code,
@@ -29,6 +32,11 @@ module State = (Node: Node) => {
     mutation_testing: int,
     impl_grading: int,
   };
+
+  let validate_point_distribution =
+      ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
+    test_validation + mutation_testing + impl_grading == 100
+      ? () : failwith("Invalid point distribution in exercise.");
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type pos =
@@ -60,6 +68,41 @@ module State = (Node: Node) => {
     hidden_tests: hidden_tests('code),
   };
 
+  let idx_of_pos = (pos, p: p('code)) =>
+    switch (pos) {
+    | Prelude => 0
+    | CorrectImpl => 1
+    | YourTestsTesting => 2
+    | YourTestsValidation => 3
+    | YourImpl => 4
+    | HiddenBugs(i) =>
+      if (i < List.length(p.hidden_bugs)) {
+        5 + i;
+      } else {
+        failwith("invalid hidden bug index");
+      }
+    | HiddenTests => 5 + List.length(p.hidden_bugs)
+    };
+
+  let pos_of_idx = (p: p('code), idx: int) =>
+    switch (idx) {
+    | 0 => Prelude
+    | 1 => CorrectImpl
+    | 2 => YourTestsTesting
+    | 3 => YourTestsValidation
+    | 4 => YourImpl
+    | _ =>
+      if (idx < 0) {
+        failwith("negative idx");
+      } else if (idx < 5 + List.length(p.hidden_bugs)) {
+        HiddenBugs(idx - 5);
+      } else if (idx == 5 + List.length(p.hidden_bugs)) {
+        HiddenTests;
+      } else {
+        failwith("element idx");
+      }
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type spec = p(Zipper.t);
 
@@ -69,6 +112,11 @@ module State = (Node: Node) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = {
     pos,
+    eds,
+  };
+
+  let switch_editor = (idx: int, {eds, _}) => {
+    pos: pos_of_idx(eds, idx),
     eds,
   };
 
@@ -265,6 +313,75 @@ module State = (Node: Node) => {
     | YourImpl => true
     | HiddenBugs(_) => instructor_mode
     | HiddenTests => instructor_mode
+    };
+  };
+
+  // Module Export
+
+  let editor_pp = (fmt, editor: Editor.t) => {
+    let zipper = editor.state.zipper;
+    let serialization = Zipper.show(zipper);
+    // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
+    Format.pp_print_string(fmt, serialization);
+  };
+
+  let export_module = (module_name, {eds, _}: state) => {
+    let prefix =
+      "let prompt = "
+      ++ module_name
+      ++ "_prompt.prompt\n"
+      ++ "let exercise: SchoolExercise.spec = ";
+    let record = show_p(editor_pp, eds);
+    let data = prefix ++ record;
+    print_endline(data);
+    data;
+  };
+
+  let blank_spec =
+      (
+        ~title,
+        ~module_name,
+        ~point_distribution,
+        ~required_tests,
+        ~provided_tests,
+        ~num_wrong_impls,
+      )
+      : p('code) => {
+    let id = 0;
+    let (id, prelude) = Zipper.next_blank(id);
+    let (id, correct_impl) = Zipper.next_blank(id);
+    let (id, your_tests_tests) = Zipper.next_blank(id);
+    let (id, your_impl) = Zipper.next_blank(id);
+    let (id, hidden_bugs) =
+      Util.ListUtil.init_fold(
+        num_wrong_impls,
+        id,
+        (i, id) => {
+          let (id, zipper) = Zipper.next_blank(id);
+          (id, {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)});
+        },
+      );
+    let (id, hidden_tests_tests) = Zipper.next_blank(id);
+    {
+      next_id: id,
+      title,
+      version: 1,
+      module_name,
+      prompt: Node.default,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests: {
+        tests: your_tests_tests,
+        required: required_tests,
+        provided: provided_tests,
+      },
+      your_impl,
+      hidden_bugs,
+      hidden_tests: {
+        tests: hidden_tests_tests,
+        hints: [],
+      },
     };
   };
 
