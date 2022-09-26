@@ -1,13 +1,15 @@
-/* Context of built-in functions. */
-let ctx: VarCtx.t;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = VarMap.t_((Typ.t, DHExp.t));
 
-/* Map of built-in function names to implementations. */
-let forms:
-  VarMap.t_((Builtin.builtin_evaluate, Builtin.builtin_elaboration));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
 
-/* Lookup the type of a built-in function. */
-let lookup_type: Var.t => option(Typ.t);
+/**
+  [to_ctx builtins] is the static type context of the builtins.
+ */
+let to_ctx: t => Ctx.t;
 
-/* Lookup the implementation of a built-in function. */
-let lookup_form:
-  Var.t => option((Builtin.builtin_evaluate, Builtin.builtin_elaboration));
+/**
+  [to_forms builtins] is the map of the dynamic forms of the builtins.
+ */
+let to_forms: t => forms;
