@@ -215,10 +215,6 @@ module School = {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_school_export = data => {
-    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
-  };
-
   let export = (~specs, ~instructor_mode) => {
     serialize_school_export(~specs, ~instructor_mode);
   };
