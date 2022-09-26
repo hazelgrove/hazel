@@ -1,0 +1,5 @@
+(rule
+ (copy ../main.bc.js hazel.js))
+
+(rule
+ (copy ../worker.bc.js worker.js))
