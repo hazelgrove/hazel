@@ -119,18 +119,15 @@ let view =
     SchoolExercise.focus(exercise, stitched_dynamics);
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight) {
-      print_endline(
-        "Zipper: " ++ Sexplib.Sexp.to_string(Zipper.sexp_of_t(focal_zipper)),
+      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
+      let map = Statics.mk_map(term);
+      Some(
+        LangDoc.get_color_map(
+          ~doc=langDocMessages,
+          Indicated.index(focal_zipper),
+          map,
+        ),
       );
-      // TODO  THE COLOR HIGHLIGHTING IN THE EDITOR ISN'T WORKING ANYMORE
-      /*Some(
-          LangDoc.get_color_map(
-            ~doc=langDocMessages,
-            Indicated.index(focal_zipper),
-            focal_info_map,
-          ),
-        );*/
-      None;
     } else {
       None;
     };
