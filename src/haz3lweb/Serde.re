@@ -29,9 +29,10 @@ module Main = {
       school_export.exercise_data
       |> List.map(~f=((_key, (_, _, pos_zippers))) => {
            pos_zippers
-           |> List.map(~f=(_pos, zipper) => {
-                print_endline(Printer.to_string_basic(zipper))
-              })
+           |> List.map(~f=((pos, zipper)) => {
+                print_endline(sexp_of_pos(pos) |> Sexp.to_string_hum);
+                print_endline(Printer.to_string_basic(zipper));
+              });
          });
     // let yj_str_school_export =
     //   school_export |> yojson_of_school_export |> Yojson.Safe.to_string;
