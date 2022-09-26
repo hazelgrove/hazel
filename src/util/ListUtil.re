@@ -182,6 +182,13 @@ let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
     [hd, ...tl];
   };
 
+let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
+  switch (n, xs) {
+  | (_, []) => failwith("out of bounds")
+  | (0, [hd, ...tl]) => [f(hd), ...tl]
+  | (_, [hd, ...tl]) => [hd, ...map_nth(n - 1, f, tl)]
+  };
+
 let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
   switch (xs) {
   | [] => None
@@ -190,7 +197,7 @@ let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
     split_last_opt(xs)
     |> Option.map(((leading, last)) => ([x, ...leading], last))
   };
-let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
+// let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
   switch (split_last_opt(xs)) {
@@ -199,6 +206,14 @@ let split_last = (xs: list('x)): (list('x), 'x) =>
   };
 let leading = xs => fst(split_last(xs));
 let last = xs => snd(split_last(xs));
+let last_opt = xs => {
+  let length = List.length(xs);
+  if (length == 0) {
+    None;
+  } else {
+    Some(List.nth(xs, length - 1));
+  };
+};
 
 let split_first_opt = (xs: list('x)): option(('x, list('x))) =>
   switch (xs) {
@@ -310,4 +325,105 @@ let single_elem = (xs: list('x)): option('x) =>
   switch (xs) {
   | [] => None
   | [hd, ...tl] => List.for_all((==)(hd), tl) ? Some(hd) : None
+  };
+
+let count_pred = (f: 'a => bool, xs: list('a)): int =>
+  List.fold_left((n, x) => f(x) ? n + 1 : n, 0, xs);
+
+let for_all2_opt =
+    (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
+  switch (List.for_all2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
+let map2_opt =
+    (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
+  switch (List.map2(f, xs, ys)) {
+  | b => Some(b)
+  | exception (Invalid_argument(_)) => None
+  };
+
+/* repeat an element n times */
+let replicate = (n: int, e: 'a): list('a) => {
+  /* add c additional copies of e to xs */
+  let rec f = (c, xs) =>
+    if (c > 0) {
+      f(c - 1, [e, ...xs]);
+    } else {
+      xs;
+    };
+  f(n, []);
+};
+
+/**
+ * Zips together two lists, returning None if different lengths
+ */
+let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
+  switch (xs, ys) {
+  | ([], [_, ..._])
+  | ([_, ..._], []) => None
+  | ([], []) => Some([])
+  | ([x, ...xs], [y, ...ys]) =>
+    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
+  };
+
+let rec zip_defaults =
+        (xs: list('a), ys: list('b), default_x: 'a, default_y: 'b)
+        : list(('a, 'b)) =>
+  switch (xs, ys) {
+  | ([], []) => []
+  | ([x, ...xs], [y, ...ys]) => [
+      (x, y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  | ([], [y, ...ys]) => [
+      (default_x, y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  | ([x, ...xs], []) => [
+      (x, default_y),
+      ...zip_defaults(xs, ys, default_x, default_y),
+    ]
+  };
+
+let rec update_nth = (n, xs, f) =>
+  switch (n, xs) {
+  | (_, []) => []
+  | (0, [x, ...xs]) => [f(x), ...xs]
+  | (n, [x, ...xs]) => [x, ...update_nth(n - 1, xs, f)]
+  };
+
+let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
+  switch (xs) {
+  | []
+  | [_] => []
+  | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
+  };
+
+let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
+  (f, xs) => {
+    List.mapi((i, x) => (i, x), xs)
+    |> List.find_map(((_, x) as pair) =>
+         if (f(x)) {
+           Some(pair);
+         } else {
+           None;
+         }
+       );
+  };
+
+let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
+  (n, b, f) => {
+    let range = List.init(n, n => n);
+    let (acc, rev_xs) =
+      List.fold_left(
+        ((acc, xs), n) => {
+          let (acc', elt) = f(n, acc);
+          (acc', [elt, ...xs]);
+        },
+        (b, []),
+        range,
+      );
+    (acc, List.rev(rev_xs));
   };
