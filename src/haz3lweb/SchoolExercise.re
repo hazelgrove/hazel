@@ -86,7 +86,7 @@ type state = {
 let key_of_state = ({eds, _}) => key_of(eds);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
+type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
 
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
@@ -379,7 +379,9 @@ let persistent_state_of_state =
   let zippers =
     positioned_editors(state)
     |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
-    |> List.map(((pos, editor)) => {(pos, Editor.(editor.state.zipper))});
+    |> List.map(((pos, editor)) => {
+         (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
+       });
   (pos, eds.next_id, zippers);
 };
 
@@ -392,9 +394,11 @@ let unpersist_state =
     : state => {
   let lookup = (id, pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      (id, Editor.init(List.assoc(pos, positioned_zippers)));
+      let persisted_zipper = List.assoc(pos, positioned_zippers);
+      let (id, zipper) = PersistentZipper.unpersist(persisted_zipper, id);
+      (id, Editor.init(zipper));
     } else {
-      (next_id, editor_of_serialization(default));
+      (id, editor_of_serialization(default));
     };
   let id = next_id;
   let (id, prelude) = lookup(id, Prelude, spec.prelude);
