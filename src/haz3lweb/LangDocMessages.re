@@ -683,11 +683,11 @@ let tuple_exp: form = {
     message: "Tuple literal. The tuple has %i elements.",
     feedback: Unselected,
   };
-  let dot = exp("...");
+  let comma = comma_exp();
   {
     id: "tuple_exp",
-    syntactic_form: [exp("EXP1"), comma_exp(), dot],
-    expandable_id: Some(Piece.id(dot)),
+    syntactic_form: [exp("EXP1"), comma, exp("...")],
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1, tuple_example_2],
   };
@@ -697,11 +697,11 @@ let tuple_exp_size2: form = {
     message: "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.",
     feedback: Unselected,
   };
-  let exp2 = exp("EXP2");
+  let comma = comma_exp();
   {
     id: "tuple_exp_size2",
-    syntactic_form: [exp("EXP1"), comma_exp(), exp2],
-    expandable_id: Some(Piece.id(exp2)),
+    syntactic_form: [exp("EXP1"), comma_exp(), exp("EXP2")],
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1],
   };
@@ -2095,16 +2095,69 @@ let triv_pat: form = {
   };
 };
 
+let listlit_pat_group = "listlit_pat_group";
+let listlit_pat: form = {
+  let explanation = {
+    message: "List literal pattern. Only expressions that are lists with %i-elements where each element matches the corresponding element pattern match this *list literal pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "listlit_pat",
+    syntactic_form: [
+      mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]),
+    ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let listnil_pat_group = "listnil_pat_group";
 let listnil_pat: form = {
   let explanation = {
-    message: "Boolean literal pattern. Only expressions that are empty lists `nil` match the *empty list `nil` pattern*.",
+    message: "Empty list pattern. Only expressions that are empty lists `nil` match the *empty list `nil` pattern*.",
     feedback: Unselected,
   };
   {
     id: "listnil_pat",
     syntactic_form: [pat("nil")],
     expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let cons_pat_group = "cons_pat_group";
+let cons2_pat_group = "cons2_pat_group";
+let cons_base_pat: form = {
+  let explanation = {
+    message: "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%i) and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
+    feedback: Unselected,
+  };
+  let tl = pat("PAT_tl");
+  {
+    id: "cons_base_pat",
+    syntactic_form: [pat("PAT_hd"), cons_pat(), tl],
+    expandable_id: Some(Piece.id(tl)),
+    explanation,
+    examples: [],
+  };
+};
+let cons2_pat: form = {
+  let explanation = {
+    message: "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%i), *second element* matching the [*second element pattern*](%i), and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
+    feedback: Unselected,
+  };
+  let c = cons_pat();
+  {
+    id: "cons2_pat",
+    syntactic_form: [
+      pat("PAT_fst"),
+      cons_pat(),
+      pat("PAT_snd"),
+      c,
+      pat("PAT_tl"),
+    ],
+    expandable_id: Some(Piece.id(c)),
     explanation,
     examples: [],
   };
@@ -2120,6 +2173,58 @@ let var_pat: form = {
     id: "var_pat",
     syntactic_form: [pat("Var")],
     expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let tuple_pat_group = "tuple_pat_group";
+let tuple_pat_2_group = "tuple_pat_2_group";
+let tuple_pat_3_group = "tuple_pat_3_group";
+let tuple_pat: form = {
+  let explanation = {
+    message: "Tuple pattern. Only expressions that are %i-tuples with elements matching the corresponding element patterns match this tuple pattern.",
+    feedback: Unselected,
+  };
+  let comma = comma_pat();
+  {
+    id: "tuple_pat",
+    syntactic_form: [pat("PAT1"), comma, pat("...")],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [],
+  };
+};
+let tuple_pat_size2: form = {
+  let explanation = {
+    message: "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%i) and second element matching the [second element pattern](%i) match this tuple pattern.",
+    feedback: Unselected,
+  };
+  let comma = comma_pat();
+  {
+    id: "tuple_pat_size2",
+    syntactic_form: [pat("PAT1"), comma, pat("PAT2")],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [],
+  };
+};
+let tuple_pat_size3: form = {
+  let explanation = {
+    message: "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%i), second element matching the [second element pattern](%i), and third element matching the [third element pattern](%i) match this tuple pattern.",
+    feedback: Unselected,
+  };
+  let comma = comma_pat();
+  {
+    id: "tuple_pat_size3",
+    syntactic_form: [
+      pat("PAT1"),
+      comma_pat(),
+      pat("PAT2"),
+      comma,
+      pat("PAT3"),
+    ],
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
   };
@@ -2401,8 +2506,14 @@ let init = {
     boollit_pat,
     strlit_pat,
     triv_pat,
+    listlit_pat,
     listnil_pat,
+    cons_base_pat,
+    cons2_pat,
     var_pat,
+    tuple_pat,
+    tuple_pat_size2,
+    tuple_pat_size3,
     // Types
     empty_hole_typ,
     multi_hole_typ,
@@ -2548,15 +2659,24 @@ let init = {
     (
       tuple_exp_2_group,
       init_options([
-        (tuple_exp.id, [exp("...")]),
-        (tuple_exp_size2.id, [exp("EXP2")]),
+        (tuple_exp.id, [exp("EXP1"), comma_exp(), exp("...")]),
+        (tuple_exp_size2.id, [exp("EXP1"), comma_exp(), exp("EXP2")]),
       ]),
     ),
     (
-      tuple_exp_2_group,
+      tuple_exp_3_group,
       init_options([
-        (tuple_exp.id, [exp("...")]),
-        (tuple_exp_size3.id, [exp("EXP2"), comma_exp(), exp("EXP3")]),
+        (tuple_exp.id, [exp("EXP1"), comma_exp(), exp("...")]),
+        (
+          tuple_exp_size3.id,
+          [
+            exp("EXP1"),
+            comma_exp(),
+            exp("EXP2"),
+            comma_exp(),
+            exp("EXP3"),
+          ],
+        ),
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
@@ -2715,8 +2835,41 @@ let init = {
     (boollit_pat_group, init_options([(boollit_pat.id, [])])),
     (strlit_pat_group, init_options([(strlit_pat.id, [])])),
     (triv_pat_group, init_options([(triv_pat.id, [])])),
+    (listlit_pat_group, init_options([(listlit_pat.id, [])])),
     (listnil_pat_group, init_options([(listnil_pat.id, [])])),
+    (cons_pat_group, init_options([(cons_base_pat.id, [])])),
+    (
+      cons2_pat_group,
+      init_options([
+        (cons_base_pat.id, [pat("PAT_tl")]),
+        (cons2_pat.id, [pat("PAT_snd"), cons_pat(), pat("PAT_tl")]),
+      ]),
+    ),
     (var_pat_group, init_options([(var_pat.id, [])])),
+    (tuple_pat_group, init_options([(tuple_pat.id, [])])),
+    (
+      tuple_pat_2_group,
+      init_options([
+        (tuple_pat.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (tuple_pat_size2.id, [pat("PAT1"), comma_pat(), pat("PAT2")]),
+      ]),
+    ),
+    (
+      tuple_pat_3_group,
+      init_options([
+        (tuple_pat.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (
+          tuple_pat_size3.id,
+          [
+            pat("PAT1"),
+            comma_pat(),
+            pat("PAT2"),
+            comma_pat(),
+            pat("PAT3"),
+          ],
+        ),
+      ]),
+    ),
     // Types
     (empty_hole_typ_group, init_options([(empty_hole_typ.id, [])])),
     (multi_hole_typ_group, init_options([(multi_hole_typ.id, [])])),
