@@ -50,9 +50,11 @@ let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
 let bool = b => Example.mk_monotile(Form.mk_atomic(Exp, b));
 let mk_parens_exp = Example.mk_tile(Form.get("parens_exp"));
 let mk_parens_pat = Example.mk_tile(Form.get("parens_pat"));
+let mk_parens_typ = Example.mk_tile(Form.get("parens_typ"));
 let mk_list_exp = Example.mk_tile(Form.get("list_lit_exp"));
 let mk_list_pat = Example.mk_tile(Form.get("list_lit_pat"));
 let mk_list_typ = Example.mk_tile(Form.get("list_typ"));
+let arrow = () => Example.mk_monotile(Form.get("type-arrow"));
 let unary_minus = () => Example.mk_monotile(Form.get("unary_minus"));
 let plus = () => Example.mk_monotile(Form.get("plus"));
 let minus = () => Example.mk_monotile(Form.get("minus"));
@@ -77,6 +79,7 @@ let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
+let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("nil");
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap = Example.mk_tile(Form.get("ap"));
@@ -2336,6 +2339,95 @@ let list_typ: form = {
   };
 };
 
+let arrow_typ_group = "arrow_typ_group";
+let arrow3_typ_group = "arrow3_typ_group";
+let arrow_typ: form = {
+  let explanation = {
+    message: "Arrow type. This arrow type classifies functions with [*argument type*](%i) and [*output type*](%i).",
+    feedback: Unselected,
+  };
+  let out = typ("TYP_out");
+  {
+    id: "arrow_typ",
+    syntactic_form: [typ("TYP_arg"), arrow(), out],
+    expandable_id: Some(Piece.id(out)),
+    explanation,
+    examples: [],
+  };
+};
+let arrow3_typ: form = {
+  let explanation = {
+    message: "Arrow type. This arrow type classifies functions with [*first argument type*](%i), [*second argument type*](%i), and [*output type*](%i).",
+    feedback: Unselected,
+  };
+  let arrow2 = arrow();
+  {
+    id: "arrow3_typ",
+    syntactic_form: [
+      typ("TYP_arg1"),
+      arrow(),
+      typ("TYP_arg2"),
+      arrow2,
+      typ("TYP_out"),
+    ],
+    expandable_id: Some(Piece.id(arrow2)),
+    explanation,
+    examples: [],
+  };
+};
+
+let tuple_typ_group = "tuple_typ_group";
+let tuple2_typ_group = "tuple2_typ_group";
+let tuple3_typ_group = "tuple3_typ_group";
+let tuple_typ: form = {
+  let explanation = {
+    message: "Tuple type. This tuple type classifies %i-tuples with corresponding element types.",
+    feedback: Unselected,
+  };
+  let comma = comma_typ();
+  {
+    id: "tuple_typ",
+    syntactic_form: [typ("TYP1"), comma, typ("...")],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [],
+  };
+};
+let tuple2_typ: form = {
+  let explanation = {
+    message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).",
+    feedback: Unselected,
+  };
+  let comma = comma_typ();
+  {
+    id: "tuple2_typ",
+    syntactic_form: [typ("TYP1"), comma, typ("TYP2")],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [],
+  };
+};
+let tuple3_typ: form = {
+  let explanation = {
+    message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).",
+    feedback: Unselected,
+  };
+  let comma = comma_typ();
+  {
+    id: "tuple3_typ",
+    syntactic_form: [
+      typ("TYP1"),
+      comma_typ(),
+      typ("TYP2"),
+      comma,
+      typ("TYP3"),
+    ],
+    expandable_id: Some(Piece.id(comma)),
+    explanation,
+    examples: [],
+  };
+};
+
 // Just have a flat list of forms w/ their explanations and examples
 // Keep track of options/groups in a separate structure
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -2522,6 +2614,11 @@ let init = {
     bool_typ,
     str_typ,
     list_typ,
+    arrow_typ,
+    arrow3_typ,
+    tuple_typ,
+    tuple2_typ,
+    tuple3_typ,
   ],
   groups: [
     // Expressions
@@ -2878,6 +2975,38 @@ let init = {
     (bool_typ_group, init_options([(bool_typ.id, [])])),
     (str_typ_group, init_options([(str_typ.id, [])])),
     (list_typ_group, init_options([(list_typ.id, [])])),
+    (arrow_typ_group, init_options([(arrow_typ.id, [])])),
+    (
+      arrow3_typ_group,
+      init_options([
+        (arrow_typ.id, [typ("TYP_out")]),
+        (arrow3_typ.id, [typ("TYP_arg2"), arrow(), typ("TYP_out")]),
+      ]),
+    ),
+    (tuple_typ_group, init_options([(tuple_typ.id, [])])),
+    (
+      tuple2_typ_group,
+      init_options([
+        (tuple_typ.id, [typ("TYP1"), comma_typ(), typ("...")]),
+        (tuple2_typ.id, [typ("TYP1"), comma_typ(), typ("TYP2")]),
+      ]),
+    ),
+    (
+      tuple3_typ_group,
+      init_options([
+        (tuple_typ.id, [typ("TYP1"), comma_typ(), typ("...")]),
+        (
+          tuple3_typ.id,
+          [
+            typ("TYP1"),
+            comma_typ(),
+            typ("TYP2"),
+            comma_typ(),
+            typ("TYP3"),
+          ],
+        ),
+      ]),
+    ),
   ],
 };
 

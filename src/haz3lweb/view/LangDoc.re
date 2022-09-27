@@ -2767,8 +2767,138 @@ let get_doc =
         ),
         coloring_ids,
       );
-    | Arrow(_arg, _result) => default
-    | Tuple(_elem) => default
+    | Arrow(arg, result) =>
+      let arg_id = List.nth(arg.ids, 0);
+      let result_id = List.nth(result.ids, 0);
+      let basic = (doc, group, options) =>
+        get_message(
+          doc,
+          options,
+          group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            arg_id,
+            result_id,
+          ),
+          [
+            (Piece.id(List.nth(doc.syntactic_form, 0)), arg_id),
+            (Piece.id(List.nth(doc.syntactic_form, 2)), result_id),
+          ],
+        );
+      switch (result.term) {
+      | TermBase.UTyp.Arrow(arg2, result2) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.arrow3_typ_group,
+            docs,
+          );
+        if (LangDocMessages.arrow3_typ.id == doc.id) {
+          let arg2_id = List.nth(arg2.ids, 0);
+          let result2_id = List.nth(result2.ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.arrow3_typ_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              arg_id,
+              arg2_id,
+              result2_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), arg_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), arg2_id),
+              (Piece.id(List.nth(doc.syntactic_form, 4)), result2_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.arrow3_typ_group, options);
+        };
+      | _ =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.arrow_typ_group,
+            docs,
+          );
+        basic(doc, LangDocMessages.arrow_typ_group, options);
+      };
+    | Tuple(elements) =>
+      let basic = (doc, group, options) =>
+        get_message(
+          doc,
+          options,
+          group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            List.length(elements),
+          ),
+          [],
+        );
+      switch (List.length(elements)) {
+      | 2 =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple2_typ_group,
+            docs,
+          );
+        print_endline(string_of_int(List.length(options)));
+        if (LangDocMessages.tuple2_typ.id == doc.id) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.tuple2_typ_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              elem1_id,
+              elem2_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.tuple2_typ_group, options);
+        };
+      | 3 =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple3_typ_group,
+            docs,
+          );
+        if (LangDocMessages.tuple3_typ.id == doc.id) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.tuple3_typ_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              elem1_id,
+              elem2_id,
+              elem3_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
+              (Piece.id(List.nth(doc.syntactic_form, 4)), elem3_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.tuple3_typ_group, options);
+        };
+      | _ =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple_typ_group,
+            docs,
+          );
+        basic(doc, LangDocMessages.tuple_typ_group, options);
+      };
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
