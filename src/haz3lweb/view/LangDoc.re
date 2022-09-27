@@ -282,9 +282,10 @@ let deco =
     });
 
   let term_lang_doc =
-    switch (expandable) {
-    | None => []
-    | Some(expandable) =>
+    switch (expandable, List.length(options)) {
+    | (None, _)
+    | (_, 0 | 1) => []
+    | (Some(expandable), _) =>
       print_endline("EXPANDABLE: " ++ string_of_int(expandable));
       [
         Deco.term_decoration(
@@ -2327,32 +2328,33 @@ let get_doc =
             (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
           ],
         );
-      | Match(_scrut, _rules) => /*let (doc, options) =
-                                      LangDocMessages.get_form_and_options(
-                                        LangDocMessages.case_exp_group,
-                                        docs,
-                                      );
-                                    let scrut_id = List.nth(scrut.ids, 0);
-                                    let coloring_ids =
-                                      switch (List.nth(doc.syntactic_form, 0)) {
-                                      | Tile(tile) => [
-                                          (
-                                            Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                                            scrut_id,
-                                          ),
-                                        ]
-                                      | _ => []
-                                      };
-                                    get_message(
-                                      doc,
-                                      options,
-                                      LangDocMessages.case_exp_group,
-                                      Printf.sprintf(
-                                        Scanf.format_from_string(doc.explanation.message, "%i"),
-                                        scrut_id,
-                                      ),
-                                      coloring_ids,
-                                    );*/ default
+      | Match(_scrut, _rules) => default
+      /*let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.case_exp_group,
+            docs,
+          );
+        let scrut_id = List.nth(scrut.ids, 0);
+        let coloring_ids =
+          switch (List.nth(doc.syntactic_form, 0)) {
+          | Tile(tile) => [
+              (
+                Piece.id(List.nth(List.nth(tile.children, 0), 0)),
+                scrut_id,
+              ),
+            ]
+          | _ => []
+          };
+        get_message(
+          doc,
+          options,
+          LangDocMessages.case_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            scrut_id,
+          ),
+          coloring_ids,
+        );*/
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2477,8 +2479,93 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    | ListLit(_elements) => default
-    | Cons(_hd, _tl) => default
+    | ListLit(elements) =>
+      if (List.length(elements) == 0) {
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.listnil_pat_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.function_listnil_group,
+          doc.explanation.message,
+          [],
+        );
+      } else {
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.listlit_pat_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.listlit_pat_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            List.length(elements),
+          ),
+          [],
+        );
+      }
+    | Cons(hd, tl) =>
+      let hd_id = List.nth(hd.ids, 0);
+      let tl_id = List.nth(tl.ids, 0);
+      let basic = (doc, group, options) =>
+        get_message(
+          doc,
+          options,
+          group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id,
+            tl_id,
+          ),
+          [
+            (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
+            (Piece.id(List.nth(doc.syntactic_form, 2)), tl_id),
+          ],
+        );
+      switch (tl.term) {
+      | TermBase.UPat.Cons(hd2, tl2) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.cons2_pat_group,
+            docs,
+          );
+        if (LangDocMessages.cons2_pat.id == doc.id) {
+          let hd2_id = List.nth(hd2.ids, 0);
+          let tl2_id = List.nth(tl2.ids, 0);
+          print_endline("HEREHEREHRE");
+          get_message(
+            doc,
+            options,
+            LangDocMessages.cons2_pat_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              hd_id,
+              hd2_id,
+              tl2_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), hd2_id),
+              (Piece.id(List.nth(doc.syntactic_form, 4)), tl2_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.cons2_pat_group, options);
+        };
+      | _ =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.cons_pat_group,
+            docs,
+          );
+        basic(doc, LangDocMessages.cons_pat_group, options);
+      };
     | Var(v) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2495,7 +2582,83 @@ let get_doc =
         ),
         [],
       );
-    | Tuple(_elements) => default
+    | Tuple(elements) =>
+      let basic = (doc, group, options) =>
+        get_message(
+          doc,
+          options,
+          group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            List.length(elements),
+          ),
+          [],
+        );
+      switch (List.length(elements)) {
+      | 2 =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple_pat_2_group,
+            docs,
+          );
+        print_endline(string_of_int(List.length(options)));
+        if (LangDocMessages.tuple_pat_size2.id == doc.id) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.tuple_pat_2_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              elem1_id,
+              elem2_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.tuple_pat_2_group, options);
+        };
+      | 3 =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple_pat_3_group,
+            docs,
+          );
+        if (LangDocMessages.tuple_pat_size3.id == doc.id) {
+          let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
+          let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
+          let elem3_id = List.nth(List.nth(elements, 2).ids, 0);
+          get_message(
+            doc,
+            options,
+            LangDocMessages.tuple_pat_3_group,
+            Printf.sprintf(
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              elem1_id,
+              elem2_id,
+              elem3_id,
+            ),
+            [
+              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
+              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
+              (Piece.id(List.nth(doc.syntactic_form, 4)), elem3_id),
+            ],
+          );
+        } else {
+          basic(doc, LangDocMessages.tuple_pat_3_group, options);
+        };
+      | _ =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.tuple_pat_group,
+            docs,
+          );
+        basic(doc, LangDocMessages.tuple_pat_group, options);
+      };
     | Invalid(_) // Shouldn't be hit
     | Parens(_) // Shouldn't be hit?
     | TypeAnn(_) => default // Shouldn't be hit?
