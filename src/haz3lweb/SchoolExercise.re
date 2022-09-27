@@ -75,6 +75,40 @@ type pos =
 type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type transitionary_spec = p(CodeString.t);
+
+let map = (p: p('a), f: 'a => 'b): p('b) => {
+  {
+    next_id: p.next_id,
+    title: p.title,
+    version: p.version,
+    module_name: p.module_name,
+    prompt: p.prompt,
+    point_distribution: p.point_distribution,
+    prelude: f(p.prelude),
+    correct_impl: f(p.correct_impl),
+    your_tests: {
+      tests: f(p.your_tests.tests),
+      required: p.your_tests.required,
+      provided: p.your_tests.provided,
+    },
+    your_impl: f(p.your_impl),
+    hidden_bugs:
+      p.hidden_bugs
+      |> List.map(wrong_impl => {
+           {
+             impl: PersistentZipper.persist(wrong_impl.impl),
+             hint: wrong_impl.hint,
+           }
+         }),
+    hidden_tests: {
+      tests: PersistentZipper.persist(p.hidden_tests.tests),
+      hints: p.hidden_tests.hints,
+    },
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type eds = p(Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -227,6 +261,72 @@ let switch_editor = (idx: int, {eds, _}) => {
   pos: pos_of_idx(eds, idx),
   eds,
 };
+
+let zipper_of_code = (id, code) => {
+  switch (Printer.zipper_of_string(id, code)) {
+  | None => failwith("Transition failed.")
+  | Some((zipper, id)) => (id, zipper)
+  };
+};
+
+let transition: transitionary_spec => spec =
+  (
+    {
+      next_id: _,
+      title,
+      version,
+      module_name,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests,
+      your_impl,
+      hidden_bugs,
+      hidden_tests,
+    },
+  ) => {
+    let id = 0;
+    let (id, prelude) = zipper_of_code(id, prelude);
+    let (id, correct_impl) = zipper_of_code(id, correct_impl);
+    let (id, your_tests) = {
+      let (id, tests) = zipper_of_code(id, your_tests.tests);
+      (
+        id,
+        {tests, required: your_tests.required, provided: your_tests.provided},
+      );
+    };
+    let (id, your_impl) = zipper_of_code(id, your_impl);
+    let (id, hidden_bugs) =
+      List.fold_left(
+        ((id, acc), {impl, hint}) => {
+          let (id, impl) = zipper_of_code(id, impl);
+          (id, acc @ [{impl, hint}]);
+        },
+        (id, []),
+        hidden_bugs,
+      );
+    let (id, hidden_tests) = {
+      let {tests, hints} = hidden_tests;
+      let (id, tests) = zipper_of_code(id, tests);
+      (id, {tests, hints});
+    };
+    let next_id = id;
+    {
+      next_id,
+      title,
+      version,
+      module_name,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests,
+      your_impl,
+      hidden_bugs,
+      hidden_tests,
+    };
+  };
 
 let editor_of_serialization = zipper => Editor.init(zipper);
 let eds_of_spec: spec => eds =
@@ -698,8 +798,24 @@ let export_module = (module_name, {eds, _}: state) => {
     ++ "_prompt.prompt\n"
     ++ "let exercise: SchoolExercise.spec = ";
   let record = show_p(editor_pp, eds);
-  let data = prefix ++ record;
-  print_endline(data);
+  let data = prefix ++ record ++ "\n";
+  data;
+};
+
+let transitionary_editor_pp = (fmt, editor: Editor.t) => {
+  let zipper = editor.state.zipper;
+  let code = Printer.to_string_basic(zipper);
+  Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
+};
+
+let export_transitionary_module = (module_name, {eds, _}: state) => {
+  let prefix =
+    "let prompt = "
+    ++ module_name
+    ++ "_prompt.prompt\n"
+    ++ "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
+  let record = show_p(transitionary_editor_pp, eds);
+  let data = prefix ++ record ++ ")\n";
   data;
 };
 
