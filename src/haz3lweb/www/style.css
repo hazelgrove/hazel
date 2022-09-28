@@ -1249,6 +1249,22 @@ svg.tile-selected {
   color: #586e75;
   background-color: #f7ebc5; /*#fbebaa;*/
 }
+/* TODO seems like should be better way to ignore inconsistentcy colorings...*/
+.code .text-Pat.mono-inconsistent {
+  color: var(--pat-text-color);
+}
+
+.code .text-Exp.mono-inconsistent {
+  color: var(--exp-text-color);
+}
+
+.code .text-Typ.mono-inconsistent {
+  color: var(--typ-text-color);
+}
+
+.code .text-Rul.mono-inconsistent {
+  color: var(--rul-text-color);
+}
 
 .lang-doc .example {
   border-bottom: 1px dotted #a69461;
@@ -1280,12 +1296,11 @@ svg.tile-selected {
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.07s ease;
-  background-color: #a69461;
-  color: #fefcf3;
+  background-color: var(--top_bar_icon_fill);
 }
 
 .specificity-options-menu .selected {
-  filter: brightness(1.2);
+  filter: brightness(0.8);
 }
 
 .lang-doc-button .icon {
@@ -1397,7 +1412,7 @@ svg.expandable path {
 }
 
 .feedback .option.active {
-  background-color: #c7b480;
+  background-color: var(--top_bar_icon_fill);
 }
 
 /* DYNAMICS */
