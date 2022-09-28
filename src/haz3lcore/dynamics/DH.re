@@ -223,7 +223,9 @@ module rec DHExp: {
       //HACK(andrew, cyrus)
       d
     | _ =>
-      if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+      if (Typ.eq(t1, t2)
+          || t2 == Unknown(SynSwitch)
+          || t1 == Unknown(SynSwitch)) {
         d;
       } else {
         Cast(d, t1, t2);

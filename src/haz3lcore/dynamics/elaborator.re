@@ -66,9 +66,26 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         switch (Statics.exp_mode_id(m, u)) {
         | Syn => Some(d)
         | Ana(ana_ty) =>
-          let exp_self_typ = Statics.exp_self_typ_id(m, u);
-          //print_endline(Typ.show(exp_self_typ));
-          Some(DHExp.cast(d, exp_self_typ, ana_ty));
+          switch (d) {
+          | ListLit(_) =>
+            switch (ana_ty) {
+            | Unknown(prov) =>
+              Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
+            | _ => Some(d)
+            }
+          | Fun(_) =>
+            switch (ana_ty) {
+            | Unknown(prov) =>
+              Some(
+                DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty),
+              )
+            | _ => Some(d)
+            }
+          | _ =>
+            let exp_self_typ = Statics.exp_self_typ_id(m, u);
+            //print_endline(Typ.show(exp_self_typ));
+            Some(DHExp.cast(d, exp_self_typ, ana_ty));
+          }
         }
       | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
       };

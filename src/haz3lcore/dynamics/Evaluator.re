@@ -591,6 +591,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
+        //print_endline(
+        //  Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(Ap(d1, d2))),
+        //);
+        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
