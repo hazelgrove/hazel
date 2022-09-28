@@ -19,7 +19,6 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-//TODO(andrew): should these be unknown internal?
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Sum =
