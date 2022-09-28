@@ -1,3 +1,3 @@
 open Haz3lcore;
 
-let mk: (~enforce_inline: bool, HTyp.t) => DHDoc.t;
+let mk: (~enforce_inline: bool, Typ.t) => DHDoc.t;
