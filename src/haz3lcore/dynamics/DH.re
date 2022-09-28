@@ -54,8 +54,8 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
+    | FixF(Var.t, Typ.t, t)
+    | Fun(DHPat.t, Typ.t, t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
@@ -67,14 +67,14 @@ module rec DHExp: {
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
     | BinStringOp(BinStringOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
+    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
+    | Inj(Typ.t, InjSide.t, t)
     | Pair(t, t)
     | Triv
     | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
     | Case(t, list(rule), int)
@@ -85,9 +85,9 @@ module rec DHExp: {
 
   let mk_tuple: list(t) => t;
 
-  let cast: (t, HTyp.t, HTyp.t) => t;
+  let cast: (t, Typ.t, Typ.t) => t;
 
-  let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+  let apply_casts: (t, list((Typ.t, Typ.t))) => t;
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
@@ -148,8 +148,8 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
+    | FixF(Var.t, Typ.t, t)
+    | Fun(DHPat.t, Typ.t, t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
@@ -161,14 +161,14 @@ module rec DHExp: {
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
     | BinStringOp(BinStringOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
+    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
+    | Inj(Typ.t, InjSide.t, t)
     | Pair(t, t)
     | Triv
     | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
     | Case(t, list(rule), int)
@@ -217,22 +217,22 @@ module rec DHExp: {
     | [d] => d
     | [d, ...ds] => Pair(d, mk_tuple(ds));
 
-  let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
+  let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
     switch (d, t2) {
     | (ListLit(_, _, _, _, []), List(_)) =>
       //HACK(andrew, cyrus)
       d
     | _ =>
-      if (HTyp.eq(t1, t2)) {
+      if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
         d;
       } else {
         Cast(d, t1, t2);
       }
     };
 
-  let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+  let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left(
-      (d, c: (HTyp.t, HTyp.t)) => {
+      (d, c: (Typ.t, Typ.t)) => {
         let (ty1, ty2) = c;
         cast(d, ty1, ty2);
       },
