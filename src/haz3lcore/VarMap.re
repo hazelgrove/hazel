@@ -28,3 +28,5 @@ let filter = List.filter;
 let length = List.length;
 
 let to_list = ctx => ctx;
+
+let find_map = List.find_map;

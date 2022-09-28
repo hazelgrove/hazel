@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 
 let context_entry_view =
-    (~inject, (name: string, {typ, id, _}: Haz3lcore.Ctx.entry)): Node.t =>
+    (~inject, (name: string, {value, id, _}: Haz3lcore.Ctx.entry)): Node.t =>
   div(
     ~attr=
       Attr.many([
@@ -12,7 +12,14 @@ let context_entry_view =
           inject(UpdateAction.PerformAction(JumpToId(id)))
         ),
       ]),
-    [text(name), text(":"), Type.view(typ)],
+    [
+      text(name),
+      text(":"),
+      switch (value) {
+      | Typ(typ) => Type.view(typ)
+      | Kind(kind) => Kind.view(kind)
+      },
+    ],
   );
 
 let ctxc = "context-entries";

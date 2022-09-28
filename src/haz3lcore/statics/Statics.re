@@ -310,11 +310,11 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
   | Var(name) =>
-    switch (VarMap.lookup(ctx, name)) {
+    switch (Ctx.lookup_typ(ctx, name)) {
     | None => atomic(Free(Variable))
-    | Some(ce) =>
+    | Some(typ) =>
       add(
-        ~self=Just(ce.typ),
+        ~self=Just(typ),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
@@ -421,7 +421,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract(ctx_pat, free_body),
+      ~free=Ctx.subtract_typ(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
@@ -436,7 +436,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
+      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
   | Match(scrut, rules) =>
@@ -540,7 +540,11 @@ and upat_to_info_map =
     let typ = typ_after_fix(mode, self);
     add(
       ~self,
-      ~ctx=VarMap.extend(ctx, (name, {id: Term.UPat.rep_id(upat), typ})),
+      ~ctx=
+        VarMap.extend(
+          ctx,
+          (name, {id: Term.UPat.rep_id(upat), value: Ctx.Typ(typ)}),
+        ),
       Id.Map.empty,
     );
   | Tuple(ps) =>
