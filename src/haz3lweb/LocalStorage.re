@@ -173,7 +173,10 @@ module School = {
       | Some((n, spec)) =>
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
-          let exercise = deserialize_exercise(data, ~spec, ~instructor_mode);
+          let exercise =
+            try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
+            | _ => init_exercise(spec, ~instructor_mode)
+            };
           (n, specs, exercise);
         | None =>
           // initialize exercise from spec
