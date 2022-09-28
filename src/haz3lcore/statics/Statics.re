@@ -83,6 +83,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
 type error =
   | FreeVariable
   | Multi
+  | NotFunction(Typ.t)
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
@@ -106,8 +107,28 @@ type error_status =
    makeup of the expression / pattern itself. */
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
-  | (Syn | Ana(_), Free) => InHole(FreeVariable)
-  | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Internal)))
+  | (SynFun, Just(ty)) =>
+    switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    | None => InHole(NotFunction(ty))
+    | Some(_) => NotInHole(SynConsistent(ty))
+    }
+  | (SynFun, Joined(_wrap, tys_syn)) =>
+    /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
+    // Above can be commented out if we actually switch to syn on synswitch
+    let tys_syn = Typ.source_tys(tys_syn);
+    switch (Typ.join_all(tys_syn)) {
+    | None => InHole(SynInconsistentBranches(tys_syn))
+    | Some(ty_joined) =>
+      switch (
+        Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty_joined)
+      ) {
+      | None => InHole(NotFunction(ty_joined))
+      | Some(_) => NotInHole(SynConsistent(ty_joined))
+      }
+    };
+  | (Syn | SynFun | Ana(_), Free) => InHole(FreeVariable)
+  | (Syn | SynFun | Ana(_), Multi) =>
+    NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
@@ -117,7 +138,6 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
     };
-
   | (Ana(ty_ana), Just(ty_syn)) =>
     switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
@@ -357,6 +377,7 @@ and uexp_to_info_map =
     let e_ids = List.map(Term.UExp.rep_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
+    //TODO(andrew): review wrap logic
     let self: Typ.self =
       switch (Typ.join_all(tys)) {
       | None =>
