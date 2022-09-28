@@ -176,7 +176,6 @@ let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
-//TODO:cleanup
 let exp_self_typ_id = (m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => Typ.t_of_self(self)
