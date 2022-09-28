@@ -1357,6 +1357,18 @@ div.expandable-target {
   cursor: pointer;
   z-index: 40;
 }
+
+/* https://www.w3schools.com/howto/howto_css_arrows.asp */
+.arrow {
+  border: solid;
+  border-width: 0 2px 2px 0;
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+}
+
+
 svg.expandable {
   fill: rgba(19, 17, 17, 0.067);
   stroke-dasharray: 1,1;
