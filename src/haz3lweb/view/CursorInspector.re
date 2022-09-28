@@ -94,16 +94,34 @@ let status_view = (err: Haz3lcore.Statics.error_status) => {
   };
 };
 
-let term_tag = (is_err, sort) =>
+let term_tag = (~inject, is_err, sort) => {
+  let lang_doc =
+    div(
+      ~attr=
+        Attr.many([
+          Attr.classes(["lang-doc-button"]),
+          Attr.on_click(_ =>
+            Effect.Many([
+              inject(
+                Update.UpdateLangDocMessages(LangDocMessages.ToggleShow),
+              ),
+              Effect.Stop_propagation,
+            ])
+          ),
+        ]),
+      [div(~attr=Attr.classes(["icon"]), [Icons.circle_question])],
+    );
+
   div(
     ~attr=
       Attr.many([
         clss(["term-tag", "term-tag-" ++ sort] @ (is_err ? [errorc] : [])),
       ]),
-    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort)],
+    [div(~attr=clss(["gamma"]), [text("Γ")]), text(sort), lang_doc],
   );
+};
 
-let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
+let view_of_info = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
@@ -115,23 +133,23 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
-      [term_tag(is_err, "exp"), status_view(error_status)],
+      [term_tag(~inject, is_err, "exp"), status_view(error_status)],
     );
   | InfoPat({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
-      [term_tag(is_err, "pat"), status_view(error_status)],
+      [term_tag(~inject, is_err, "pat"), status_view(error_status)],
     );
   | InfoTyp({ty, _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(is_err, "typ"), text("is"), Type.view(ty)],
+      [term_tag(~inject, is_err, "typ"), text("is"), Type.view(ty)],
     )
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
-      [term_tag(is_err, "rul"), text("Rule")],
+      [term_tag(~inject, is_err, "rul"), text("Rule")],
     )
   };
 };
@@ -175,7 +193,7 @@ let inspector_view =
       ]),
     [
       extra_view(settings.context_inspector, id, ci),
-      view_of_info(ci),
+      view_of_info(~inject, ci),
       CtxInspector.inspector_view(~settings, id, ci),
     ],
   );

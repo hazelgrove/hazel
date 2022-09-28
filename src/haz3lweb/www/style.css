@@ -1288,25 +1288,9 @@ svg.tile-selected {
   filter: brightness(1.2);
 }
 
-.lang-doc-button {
-  z-index: var(--type-inspector-z);
-  display: flex;
-  color: #8c795b;
-  /*border-radius: 0.3em;*/
-  border-radius: 1.1em 0 0 0;
-  /* border-right: 1px solid #daca9f; */
-  background-color: #fbecaa; /*#fefcf3;*/
-  align-items: center;
-}
-
 .lang-doc-button .icon {
-  background-color: #b69f79;
-  padding: 0.16em;
-  padding-left: 0.32em;
   display: flex;
-  filter: invert(0.9) sepia(1);
-  border-radius: 1.1em 0 0 0;
-  /*border-radius: 0 0.3em 0.3em 0;*/
+  cursor: pointer;
 }
 
 .lang-doc .section {

@@ -117,6 +117,8 @@ let view =
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
+  //let unselected = Zipper.unselect_and_zip(focal_zipper);
+  //print_endline(Sexplib.Sexp.to_string(Segment.sexp_of_t(unselected)));
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight) {
       let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
@@ -385,19 +387,6 @@ let view =
       ]
       : [];
 
-  let lang_doc =
-    div(
-      ~attr=
-        Attr.many([
-          Attr.classes(["lang-doc-button"]),
-          Attr.on_click(_ =>
-            inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow))
-          ),
-        ]),
-      [div(~attr=Attr.classes(["icon"]), [Icons.circle_question])],
-    );
-  ();
-
   div(
     ~attr=Attr.classes(["editor", "column"]),
     [title_view, prompt_view]
@@ -418,10 +407,10 @@ let view =
           impl_grading_view,
         ],
       )
-    // TODO When the CI is hidden, langDoc button view weird
-    @ [div(~attr=Attr.class_("bottom-bar"), ci_view @ [lang_doc])]
+    // TODO lang doc visibility tied to ci visibility (is this desired?)
+    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
     @ (
-      langDocMessages.show
+      langDocMessages.show && settings.statics
         ? [
           LangDoc.view(
             ~inject,
