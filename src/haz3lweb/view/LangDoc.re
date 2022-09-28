@@ -353,6 +353,15 @@ let deco =
                   options,
                 ),
               );
+
+            let expand_arrow_style = Attr.create("style", specificity_pos);
+
+            let expand_arrow =
+              Node.div(
+                ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
+                [],
+              );
+
             print_endline("TRYING TO DRAW EXPANDABLE");
             let expandable_deco =
               DecUtil.code_svg(
@@ -378,7 +387,8 @@ let deco =
                     )
                   }),
                 ]),
-              [expandable_deco, specificity_menu],
+              [expandable_deco, specificity_menu]
+              @ (doc.specificity_open ? [] : [expand_arrow]),
             );
           },
         ),
@@ -770,8 +780,8 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
-                pat_id,
                 body_id,
+                pat_id,
               ),
               pat_coloring_ids
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
@@ -805,8 +815,8 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                 pat_id,
-                pat_id,
                 body_id,
+                pat_id,
               ),
               pat_coloring_ids
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
