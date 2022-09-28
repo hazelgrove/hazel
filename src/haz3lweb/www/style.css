@@ -1235,7 +1235,7 @@ svg.tile-selected {
   /* top: 3.8em; */
   /* bottom: 1.8em; */
   width: 25vw;
-  height: 100vw;
+  height: 100vh;
   overflow: auto;
   padding: 0.2em;
   padding-bottom: 1.5em;
@@ -1243,6 +1243,12 @@ svg.tile-selected {
   color: #586e75;
   background-color: #f7ebc5; /*#fbebaa;*/
 }
+
+/* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though... */
+.lang-doc .content {
+  padding-bottom: 8em;
+}
+
 /* TODO seems like should be better way to ignore inconsistentcy colorings...*/
 .code .text-Pat.mono-inconsistent {
   color: var(--pat-text-color);

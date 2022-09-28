@@ -1600,7 +1600,7 @@ let get_doc =
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
             );
           } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            /* TODO The coloring for the syntactic form is sometimes wrong here... maybe a Safari issue... */
             basic(
               doc,
               LangDocMessages.let_int_exp_group,
@@ -2977,24 +2977,27 @@ let view =
   div(
     ~attr=clss(["lang-doc"]),
     [
-      div([
-        toggle("🔆", doc.highlight, _ =>
-          inject(
-            Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
-          )
-        ),
-        section(
-          ~section_clss="syntactic-form",
-          ~title="Syntactic Form",
-          syn_form,
-        ),
-        section(
-          ~section_clss="explanation",
-          ~title="Explanation",
-          explanation,
-        ),
-        section(~section_clss="examples", ~title="Examples", example),
-      ]),
+      div(
+        ~attr=clss(["content"]),
+        [
+          toggle("🔆", doc.highlight, _ =>
+            inject(
+              Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
+            )
+          ),
+          section(
+            ~section_clss="syntactic-form",
+            ~title="Syntactic Form",
+            syn_form,
+          ),
+          section(
+            ~section_clss="explanation",
+            ~title="Explanation",
+            explanation,
+          ),
+          section(~section_clss="examples", ~title="Examples", example),
+        ],
+      ),
     ],
   );
 };
