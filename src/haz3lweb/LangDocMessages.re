@@ -703,7 +703,7 @@ let tuple_exp_size2: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size2",
-    syntactic_form: [exp("EXP1"), comma_exp(), exp("EXP2")],
+    syntactic_form: [exp("EXP1"), comma, exp("EXP2")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1],
@@ -1914,16 +1914,17 @@ let case_exp2_group = "case_exp2_group";
 let case_exp3_group = "case_exp3_group";
 let case_example_1 = {
   sub_id: "example_1",
-  term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3"),
+  term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3 end"),
   message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
   feedback: Unselected,
 };
 let case_example_2 = {
   sub_id: "example_2",
-  term: mk_example("case false | true => 1 | false => 2"),
+  term: mk_example("case false | true => 1 | false => 2 end"),
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
 };
+// TODO Sort of hacked together syntactic form for now
 let case_exp: form = {
   let explanation = {
     message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
@@ -1933,10 +1934,8 @@ let case_exp: form = {
   {
     id: "case_exp",
     syntactic_form: [
-      mk_case([
-        [exp("EXP_scrut")],
-        [mk_rule([[pat("PAT1")]]), exp("EXP_clause1")],
-      ]),
+      mk_case([[exp("EXP_scrut"), exp("...")]]),
+      //mk_rule([[pat("...")], [exp("e")]]),
     ],
     expandable_id: None, //Some(Piece.id(dot)),
     explanation,

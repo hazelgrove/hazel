@@ -2328,8 +2328,10 @@ let get_doc =
             (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
           ],
         );
-      | Match(_scrut, _rules) => default
-      /*let (doc, options) =
+      | Match(scrut, _rules) =>
+        print_endline("In Case");
+        //default;
+        let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.case_exp_group,
             docs,
@@ -2354,7 +2356,7 @@ let get_doc =
             scrut_id,
           ),
           coloring_ids,
-        );*/
+        );
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2902,7 +2904,7 @@ let get_doc =
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
-  | Some(InfoRul(_))
+  | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default
   };
