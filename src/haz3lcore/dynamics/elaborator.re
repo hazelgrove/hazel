@@ -64,10 +64,23 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       switch (err_status) {
       | NotInHole(_) =>
         switch (Statics.exp_mode_id(m, u)) {
+        | SynFun =>
+          let exp_self_typ = Statics.exp_self_typ_id(m, u);
+          switch (exp_self_typ) {
+          | Unknown(prov) =>
+            Some(
+              DHExp.cast(
+                d,
+                exp_self_typ,
+                Arrow(Unknown(prov), Unknown(prov)),
+              ),
+            )
+          | _ => Some(d)
+          };
         | Syn => Some(d)
         | Ana(ana_ty) =>
           switch (d) {
-          | ListLit(_) =>
+          | ListLit(_, _, _, _, []) =>
             switch (ana_ty) {
             | Unknown(prov) =>
               Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))

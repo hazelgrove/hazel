@@ -193,7 +193,7 @@ let eval_result_footer_view =
         DHCode.view_tylr(
           ~settings={
             evaluate: true,
-            show_case_clauses: false,
+            show_case_clauses: true,
             show_fn_bodies: true,
             show_casts: true,
             show_unevaluated_elaboration: false,
@@ -209,7 +209,7 @@ let eval_result_footer_view =
         DHCode.view_tylr(
           ~settings={
             evaluate: true,
-            show_case_clauses: false,
+            show_case_clauses: true,
             show_fn_bodies: true,
             show_casts: true,
             show_unevaluated_elaboration: false,
