@@ -7,6 +7,10 @@ include SchoolData.SchoolExercise({
   let default = ();
 });
 
+[@deriving (sexp, yojson)]
+// [@deriving (show({with_path: false}), sexp, yojson)]
+type section = list((string, string));
+
 module Main = {
   let get_school_export = yj => {
     switch (yj) {
@@ -25,18 +29,22 @@ module Main = {
     let file_path = Sys.get_argv()[1];
     let yj = Yojson.Safe.from_file(file_path);
     let school_export = get_school_export(yj);
-    let _ =
+    let export_lst_pr =
       school_export.exercise_data
       |> List.map(~f=((_key, (_, _, pos_zippers))) => {
            pos_zippers
-           |> List.map(~f=((pos, zipper)) => {
-                print_endline(sexp_of_pos(pos) |> Sexp.to_string_hum);
-                print_endline(Printer.to_string_basic(zipper));
-              });
-         });
+           |> List.map(~f=((pos, zipper)) =>
+                (
+                  sexp_of_pos(pos) |> Sexp.to_string_hum,
+                  Printer.to_string_basic(zipper),
+                )
+              )
+         })
+      |> List.concat;
+    let s = export_lst_pr |> yojson_of_section |> Yojson.Safe.to_string;
+    print_endline(s);
     // let yj_str_school_export =
     //   school_export |> yojson_of_school_export |> Yojson.Safe.to_string;
-    ();
   };
 };
 
