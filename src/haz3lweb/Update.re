@@ -224,7 +224,7 @@ let apply =
         switch (data) {
         | None => Ok(model)
         | Some(data) =>
-          let state = ScratchSlideExport.import(data);
+          let state = ScratchSlide.import(data);
           let slides = Util.ListUtil.put_nth(idx, state, slides);
           LocalStorage.Scratch.save((idx, slides));
 
@@ -236,7 +236,7 @@ let apply =
         switch (model.editors) {
         | Scratch(n, slides) =>
           let slides =
-            Util.ListUtil.put_nth(n, ScratchSlideExport.init_nth(n), slides);
+            Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
           {...model, editors: Scratch(n, slides)};
         | School(n, specs, _) =>
           let instructor_mode = model.settings.instructor_mode;

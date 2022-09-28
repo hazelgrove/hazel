@@ -13,7 +13,7 @@ type t =
   | BoolLit(bool)
   | StringLit(string)
   | Inj(InjSide.t, t)
-  | ListLit(HTyp.t, list(t))
+  | ListLit(Typ.t, list(t))
   | Cons(t, t)
   | Pair(t, t)
   | Triv /* unit intro */
