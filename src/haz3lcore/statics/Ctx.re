@@ -1,9 +1,14 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type value =
+  | Typ(Typ.t)
+  | Kind(Kind.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   id: Id.t,
-  typ: Typ.t,
+  value,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,10 +28,25 @@ type co = VarMap.t_(co_entry);
 
 let empty = VarMap.empty;
 
-let subtract = (ctx: t, free: co): co =>
+let lookup_typ = (ctx: t, x) =>
+  VarMap.find_map(
+    ((k, {id: _, value})) =>
+      switch (value) {
+      | Typ(t) =>
+        if (k == x) {
+          Some(t);
+        } else {
+          None;
+        }
+      | _ => None
+      },
+    ctx,
+  );
+
+let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
     ((k, _)) =>
-      switch (VarMap.lookup(ctx, k)) {
+      switch (lookup_typ(ctx, k)) {
       | None => true
       | Some(_) => false
       },
