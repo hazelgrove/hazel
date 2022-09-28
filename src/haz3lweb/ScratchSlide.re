@@ -4,10 +4,7 @@ open Haz3lcore;
 type state = (Id.t, Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (Id.t, Zipper.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state_backup = CodeString.t;
+type persistent_state = (Id.t, PersistentZipper.t);
 
 let editor_of_state = ((_, editor): state) => editor;
 
@@ -24,10 +21,11 @@ let spliced_elabs = ((_, editor)) => {
 };
 
 let persist = ((id, editor: Editor.t)) => {
-  (id, editor.state.zipper);
+  (id, PersistentZipper.persist(editor.state.zipper));
 };
 
 let unpersist = ((id, zipper): persistent_state) => {
+  let (id, zipper) = PersistentZipper.unpersist(zipper, id);
   (id, Editor.init(zipper, ~read_only=false));
 };
 
@@ -47,23 +45,10 @@ let deserialize_opt = (data: string) => {
   sexp |> Option.map(sexp => sexp |> unpersist);
 };
 
-let persist_backup = (state: state) => {
-  let (_, zipper) = persist(state);
-  Printer.to_string_basic(zipper);
+let export = (state: state) => {
+  state |> persist |> yojson_of_persistent_state;
 };
 
-let unpersist_backup = (data: persistent_state_backup) => {
-  let init_id = 0;
-  switch (Printer.zipper_of_string(init_id, data)) {
-  | None => (0, Editor.init(Haz3lcore.Zipper.init(0), ~read_only=false))
-  | Some((z, new_id)) => (new_id, Editor.init(z, ~read_only=false))
-  };
-};
-
-let serialize_backup = (state: state) => {
-  persist_backup(state);
-};
-
-let deserialize_backup = (data: string) => {
-  unpersist_backup(data);
+let import = (data: string) => {
+  data |> Yojson.Safe.from_string |> persistent_state_of_yojson |> unpersist;
 };
