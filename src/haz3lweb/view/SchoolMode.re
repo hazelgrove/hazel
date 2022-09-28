@@ -233,6 +233,7 @@ let view =
           Some(
             Cell.eval_result_footer_view(
               ~font_metrics,
+              ~elab=Haz3lcore.DHExp.Triv, //TODO: placeholder
               user_impl.simple_result,
             ),
           ),
