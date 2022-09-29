@@ -260,8 +260,7 @@ module Deco =
     let colorings = ColorSteps.to_list(colorMap);
     List.map(
       ((id, color)) => {
-        print_endline("Id: " ++ string_of_int(id));
-        term_highlight(~clss=["highlight-code-" ++ color], id);
+        term_highlight(~clss=["highlight-code-" ++ color], id)
       },
       colorings,
     );

@@ -2,17 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-
-/* TODO copied from Page */
-let toggle = (label, active, action) =>
-  div(
-    ~attr=
-      Attr.many([
-        clss(["toggle-switch"] @ (active ? ["active"] : [])),
-        Attr.on_click(action),
-      ]),
-    [div(~attr=clss(["toggle-knob"]), [text(label)])],
-  );
+open Widgets;
 
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
@@ -92,85 +82,13 @@ let example_feedback_view = (~inject, id, example: LangDocMessages.example) => {
   );
 };
 
-/* TODO - Hannah - this is used (or something pretty similar) other places and should probably be refactored to somewhere
-   centeralized like AssistantView_common - or maybe the different uses are different enough... */
 let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
 
 let highlight =
     (msg: list(Node.t), id: Haz3lcore.Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
-  /*print_endline(
-      "Color chosen at highlight: ("
-      ++ Sexp.to_string(CursorPath.sexp_of_steps(steps))
-      ++ ", "
-      ++ c
-      ++ ")",
-    );*/
   (Node.span(~attr=clss(["highlight-" ++ c]), msg), mapping);
-};
-
-let _max_elems = 7;
-let int_to_word_number = (n: int): string => {
-  switch (n) {
-  | 1 => "first"
-  | 2 => "second"
-  | 3 => "third"
-  | 4 => "fourth"
-  | 5 => "fifth"
-  | 6 => "sixth"
-  | 7 => "seventh"
-  | _ => ""
-  };
-};
-let comma_separated_list = (items: list(string)): string => {
-  /*let _ = List.map(item => print_endline(item), items);*/
-  let length = List.length(items);
-  let items =
-    List.mapi(
-      (index, item) => {
-        let separator =
-          if (index == length - 1) {
-            length > 2 ? ", and" : " and";
-          } else if (index == 0) {
-            "";
-          } else {
-            ",";
-          };
-        separator ++ " " ++ item;
-      },
-      items,
-    );
-  List.fold_left((acc, item) => acc ++ item, "", items);
-};
-
-let print_markdown = doc => {
-  print_endline("-----------------BEGIN PRINTING------------------");
-  let rec print_markdown' = doc => {
-    let _ =
-      List.mapi(
-        (index, element) => {
-          print_endline(string_of_int(index));
-          switch (element) {
-          | Omd.Paragraph(d) =>
-            print_endline("------Paragraph---------");
-            print_markdown'(d);
-          | Ul(_items) => print_endline("Ul")
-          | Ulp(_items) => print_endline("Ul  PPPPPP")
-          | Text(_) => print_endline("Text")
-          | Url(_, d, _) =>
-            print_endline("URL");
-            print_markdown'(d);
-          | Code(_) => print_endline("Code")
-          | _ => print_endline("Something else")
-          };
-        },
-        doc,
-      );
-    ();
-  };
-  print_markdown'(doc);
-  print_endline("---------------------END PRINTING-----------------");
 };
 
 /*
@@ -193,7 +111,6 @@ let mk_translation =
         | Omd.Paragraph(d) => translate(d, mapping)
         | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
         | Ul(items) =>
-          //print_endline("IN THE LIST THINGY");
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
@@ -232,9 +149,7 @@ let mk_translation =
             ),
             mapping,
           );
-        | _ =>
-          print_endline("OTHER");
-          (msg, mapping);
+        | _ => (msg, mapping)
         }
       },
       ([], mapping),
@@ -285,9 +200,7 @@ let deco =
     switch (expandable, List.length(options)) {
     | (None, _)
     | (_, 0 | 1) => []
-    | (Some(expandable), _) =>
-      print_endline("EXPANDABLE: " ++ string_of_int(expandable));
-      [
+    | (Some(expandable), _) => [
         Deco.term_decoration(
           ~id=expandable,
           ((origin, path)) => {
@@ -313,7 +226,6 @@ let deco =
                   ]),
                 List.mapi(
                   (index, (id, segment)) => {
-                    print_endline("Drawing specificity menu items");
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(~unselected=segment, ~map, ~settings);
@@ -353,16 +265,14 @@ let deco =
                   options,
                 ),
               );
-
+            // TODO placement of arrow different depending on browser it seems
             let expand_arrow_style = Attr.create("style", specificity_pos);
-
             let expand_arrow =
               Node.div(
                 ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
                 [],
               );
 
-            print_endline("TRYING TO DRAW EXPANDABLE");
             let expandable_deco =
               DecUtil.code_svg(
                 ~font_metrics,
@@ -371,7 +281,7 @@ let deco =
                 ~abs_pos=false,
                 path,
               );
-            print_endline("FINISHED DRAWING EXPANDABLE");
+
             Node.div(
               ~attr=
                 Attr.many([
@@ -392,7 +302,7 @@ let deco =
             );
           },
         ),
-      ];
+      ]
     };
 
   let color_highlight =
@@ -422,11 +332,8 @@ let syntactic_form_view =
       ~group_id,
       ~form_id,
     ) => {
-  print_endline("Trying to get the map");
   let map = Measured.of_segment(unselected);
-  print_endline("Got map");
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
-  print_endline("Got the code view");
   let deco_view =
     deco(
       ~doc,
@@ -552,7 +459,6 @@ let get_doc =
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
     switch (mode) {
     | MessageContent(inject, font_metrics, settings) =>
-      print_endline("Making the explanation");
       let (explanation, color_map) =
         mk_explanation(
           ~inject,
@@ -561,7 +467,6 @@ let get_doc =
           explanation_msg,
           docs.highlight,
         );
-      print_endline("Making the syntactic form");
       let syntactic_form_view =
         syntactic_form_view(
           ~doc=docs,
@@ -583,7 +488,6 @@ let get_doc =
           ~group_id,
           ~form_id=doc.id,
         );
-      print_endline("Making the example");
       let example_view =
         example_view(
           ~inject,
@@ -714,21 +618,9 @@ let get_doc =
           [],
         );
       | Fun(pat, body) =>
-        //print_endline("Getting the function group");
-
         let basic = (doc: LangDocMessages.form, group_id, options) => {
-          //print_endline(
-          //  "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
-          //); // The body is a seq with a bunch of extra stuff in it...
-          // and the top id isn't anywhere in the segment
-          //print_endline("Here2");
-          //let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
-          //let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          //print_endline(
-          //  Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
-          //);
           let pat_coloring_ids =
             switch (List.nth(doc.syntactic_form, 0)) {
             | Tile(tile) => [
@@ -739,7 +631,6 @@ let get_doc =
               ]
             | _ => []
             };
-          //print_endline("GOT THE PAT COLOR ID");
           get_message(
             doc,
             options,
@@ -1396,20 +1287,10 @@ let get_doc =
           [],
         );
       | Let(pat, def, body) =>
-        print_endline(
-          "BODY: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(body)),
-        ); // The body is a seq with a bunch of extra stuff in it...
-        // and the top id isn't anywhere in the segment
-        print_endline("Here2");
-        let _ = List.map(i => print_endline(string_of_int(i)), body.ids);
-        let _ = List.map(i => print_endline(string_of_int(i)), pat.ids);
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          print_endline(
-            Sexplib.Sexp.to_string(Segment.sexp_of_t(doc.syntactic_form)),
-          );
           let pat_coloring_ids =
             switch (List.nth(doc.syntactic_form, 0)) {
             | Tile(tile) => [
@@ -1424,7 +1305,6 @@ let get_doc =
               ]
             | _ => []
             };
-          //print_endline("GOT THE PAT COLOR ID");
           get_message(
             doc,
             options,
@@ -1782,7 +1662,6 @@ let get_doc =
                 ]
               | _ => []
               };
-            // TODO Make sure everywhere printing the float literal print it prettier
             get_message(
               doc,
               options,
@@ -1798,7 +1677,7 @@ let get_doc =
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
             );
           } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... */
+            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
             basic(
               doc,
               LangDocMessages.let_triv_exp_group,
@@ -1968,7 +1847,6 @@ let get_doc =
                 ]
               | _ => []
               };
-            // TODO Make sure everywhere printing the float literal print it prettier
             get_message(
               doc,
               options,
@@ -1984,12 +1862,7 @@ let get_doc =
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
             );
           } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              doc,
-              LangDocMessages.let_var_exp_group,
-              options,
-            );
+            basic(doc, LangDocMessages.let_var_exp_group, options);
           };
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
@@ -2055,7 +1928,6 @@ let get_doc =
                   ];
                 | _ => []
                 };
-              print_endline("Message: " ++ doc.explanation.message);
               get_message(
                 doc,
                 options,
@@ -2085,7 +1957,7 @@ let get_doc =
                 LangDocMessages.let_tuple3_exp_group,
                 docs,
               );
-            // TODO Syntactic form can go off page - so can examples
+            // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
             if (LangDocMessages.let_tuple3_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
@@ -2339,8 +2211,6 @@ let get_doc =
           ],
         );
       | Match(scrut, _rules) =>
-        print_endline("In Case");
-        //default;
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.case_exp_group,
@@ -2550,7 +2420,6 @@ let get_doc =
         if (LangDocMessages.cons2_pat.id == doc.id) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
-          print_endline("HEREHEREHRE");
           get_message(
             doc,
             options,
@@ -2613,7 +2482,6 @@ let get_doc =
             LangDocMessages.tuple_pat_2_group,
             docs,
           );
-        print_endline(string_of_int(List.length(options)));
         if (LangDocMessages.tuple_pat_size2.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
@@ -2853,7 +2721,6 @@ let get_doc =
             LangDocMessages.tuple2_typ_group,
             docs,
           );
-        print_endline(string_of_int(List.length(options)));
         if (LangDocMessages.tuple2_typ.id == doc.id) {
           let elem1_id = List.nth(List.nth(elements, 0).ids, 0);
           let elem2_id = List.nth(List.nth(elements, 1).ids, 0);
@@ -2937,13 +2804,7 @@ let get_color_map =
       }
     | None => None
     };
-  let (_, (_, (color_map, _)), _): (
-    list(Node.t),
-    (list(Node.t), ColorSteps.t),
-    list(Node.t),
-  ) =
-    get_doc(~docs=doc, info, Colorings);
-  print_endline("GOT THE COLORS");
+  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
   color_map;
 };
 
@@ -2965,15 +2826,8 @@ let view =
       }
     | None => None
     };
-  // TODO Make sure code examples aren't flowing off the page
-  print_endline("TRYING TO GET THE DOC");
-  let (syn_form, (explanation, _), example): (
-    list(Node.t),
-    (list(Node.t), ColorSteps.t),
-    list(Node.t),
-  ) =
+  let (syn_form, (explanation, _), example) =
     get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
-  print_endline("GOT THE DOC");
   div(
     ~attr=clss(["lang-doc"]),
     [

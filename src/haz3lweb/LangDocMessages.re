@@ -36,7 +36,7 @@ type form_group = {
   current_selection: int,
 };
 
-// TODO Make sure using this for al lthe forms that should
+// TODO Make sure using this for all the forms that should
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
 let seq = () => Example.mk_monotile(Form.get("cell-join"));
@@ -191,14 +191,14 @@ let string_exp: form = {
 
 let list_exp_group = "list_exp_group";
 let list_exp: form = {
-  let example_1 = {
-    sub_id: "example_1",
+  let int_list = {
+    sub_id: "int_list",
     term: mk_example("[1, 2]"),
     message: "A list with two elements, 1 and 2.",
     feedback: Unselected,
   };
-  let example_2 = {
-    sub_id: "example_2",
+  let tuple_list = {
+    sub_id: "tuple_list",
     term: mk_example("[(1,true), (2,false)]"),
     message: "A list with two elements, a tuple with 1 and true and a tuple with 2 and false.",
     feedback: Unselected,
@@ -214,10 +214,10 @@ let list_exp: form = {
     ],
     expandable_id: None,
     explanation,
-    examples: [example_1, example_2],
+    examples: [int_list, tuple_list],
   };
 };
-// TODO Probably makes more sense to rename the sub ids to something more meaningful
+
 let function_group = "function_group";
 let function_empty_hole_group = "function_empty_hole_group";
 let function_multi_hole_group = "function_multi_hole_group";
@@ -235,91 +235,91 @@ let function_tuple_group = "function_tuple_group";
 let function_tuple_2_group = "function_tuple_2_group";
 let function_tuple_3_group = "function_tuple_3_group";
 let basic_fun_ex = {
-  sub_id: "example_1",
+  sub_id: "basic_fun_ex",
   term: mk_example("fun x -> x"),
   message: "The identity function. When given an argument, the function evaluates to that argument.",
   feedback: Unselected,
 };
 let wild_fun_ex = {
-  sub_id: "example_2",
+  sub_id: "wild_fun_ex",
   term: mk_example("fun _ -> 3"),
   message: "When given an argument, the function throws away the supplied argument and always evaluates to 3.",
   feedback: Unselected,
 };
 let intlit_fun_ex = {
-  sub_id: "example_3",
+  sub_id: "intlit_fun_ex",
   term: mk_example("fun 1 -> 2"),
   message: "When given an argument with value 1, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let floatlit_fun_ex = {
-  sub_id: "example_4",
+  sub_id: "floatlit_fun_ex",
   term: mk_example("fun 1.1 -> 2"),
   message: "When given an argument with value 1.1, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let boollit_fun_ex = {
-  sub_id: "example_5",
+  sub_id: "boollit_fun_ex",
   term: mk_example("fun true -> 2"),
   message: "When given an argument with value true, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let strlit_fun_ex = {
-  sub_id: "example_6",
+  sub_id: "strlit_fun_ex",
   term: mk_example("fun \"abc\" -> 2"),
   message: "When given an argument with value \"abc\", the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let triv_fun_ex = {
-  sub_id: "example_7",
+  sub_id: "triv_fun_ex",
   term: mk_example("fun triv -> 2"),
   message: "When given an argument with the triv value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let listnil_fun_ex = {
-  sub_id: "example_8",
+  sub_id: "listnil_fun_ex",
   term: mk_example("fun nil -> 2"),
   message: "When given an argument with the empty list value, the function throws away the supplied argument and always evaluates to 2.",
   feedback: Unselected,
 };
 let listlist_fun_ex = {
-  sub_id: "example_9",
+  sub_id: "listlist_fun_ex",
   term: mk_example("fun [x, y] -> x"),
   message: "When given an argument that is a list of two elements, the function evaluates to the first element of that list.",
   feedback: Unselected,
 };
 let cons_hd_fun_ex = {
-  sub_id: "example_10",
+  sub_id: "cons_hd_fun_ex",
   term: mk_example("fun hd::tl -> hd"),
   message: "When given an argument that is a non-empty list, the function evaluates to the head of that list.",
   feedback: Unselected,
 };
 let cons_snd_fun_ex = {
-  sub_id: "example_11",
+  sub_id: "cons_snd_fun_ex",
   term: mk_example("fun fst::snd::tl -> snd"),
   message: "When given an argument that is a list with at least two elements, the function evaluates to the second element of that list.",
   feedback: Unselected,
 };
 let var_incr_fun_ex = {
-  sub_id: "example_12",
+  sub_id: "var_incr_fun_ex",
   term: mk_example("fun x -> x + 1"),
   message: "When given an integer argument, the function evaluates to the argument plus 1.",
   feedback: Unselected,
 };
 let var_and_fun_ex = {
-  sub_id: "example_13",
+  sub_id: "var_and_fun_ex",
   term: mk_example("fun b -> b && true"),
   message: "When given a boolean argument, the function evaluates to the logical-and of the argument and true, which evaluates to the truth value of the argument.",
   feedback: Unselected,
 };
 let tuple2_fun_ex = {
-  sub_id: "example_14",
+  sub_id: "tuple2_fun_ex",
   term: mk_example("fun (x, y) -> x + y"),
   message: "When given a 2-tuple of integers, the function evaluates to the sum of the two integers.",
   feedback: Unselected,
 };
 let tuple3_fun_ex = {
-  sub_id: "example_15",
+  sub_id: "tuple3_fun_ex",
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
   feedback: Unselected,
@@ -330,17 +330,12 @@ let function_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("PAT")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("PAT");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [basic_fun_ex] // TODO What other examples should be here
   };
@@ -350,17 +345,12 @@ let function_empty_hole_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("EmptyHole")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("EmptyHole");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_empty_hole_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [basic_fun_ex],
   };
@@ -370,17 +360,12 @@ let function_multi_hole_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("INVALID")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("INVALID");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_multi_hole_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [basic_fun_ex],
   };
@@ -390,17 +375,12 @@ let function_wild_exp: form = {
     message: "Function literal. When applied to an argument that is ignored, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("_")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("_");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_wild_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [wild_fun_ex],
   };
@@ -410,17 +390,12 @@ let function_intlit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("IntLit")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("IntLit");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_intlit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [intlit_fun_ex],
   };
@@ -430,18 +405,13 @@ let function_floatlit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
+  let pat = pat("FloatLit");
   // TODO print out the float literal nicer
-  let form = [mk_fun([[pat("FloatLit")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_floatlit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [floatlit_fun_ex],
   };
@@ -451,17 +421,12 @@ let function_boollit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("BoolLit")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("BoolLit");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_boollit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [boollit_fun_ex],
   };
@@ -471,17 +436,12 @@ let function_strlit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("StringLit")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("StringLit");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_strlit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [strlit_fun_ex],
   };
@@ -491,17 +451,12 @@ let function_triv_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `triv`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("triv")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("triv");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_triv_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [triv_fun_ex],
   };
@@ -511,17 +466,12 @@ let function_listnil_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `nil`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("nil")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("nil");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_listnil_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [listnil_fun_ex],
   };
@@ -531,20 +481,12 @@ let function_listlit_exp: form = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_fun([[mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]])]]),
-    exp("EXP"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]);
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_listlit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [listnil_fun_ex, listlist_fun_ex],
   };
@@ -554,20 +496,15 @@ let function_cons_exp: form = {
     message: "Function literal. The only values that match the *argument pattern* are non-empty lists that match the [*head pattern*](%i) and [*tail pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
+  let cons = cons_pat();
   let form = [
-    mk_fun([[pat("PAT_hd"), cons_pat(), pat("PAT_tl")]]),
+    mk_fun([[pat("PAT_hd"), cons, pat("PAT_tl")]]),
     exp("EXP"),
   ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "function_cons_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(cons)),
     explanation,
     examples: [cons_hd_fun_ex, cons_snd_fun_ex],
   };
@@ -577,17 +514,12 @@ let function_var_exp: form = {
     message: "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("Var")]]), exp("EXP")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("Var");
+  let form = [mk_fun([[pat]]), exp("EXP")];
   {
     id: "function_var_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [basic_fun_ex, var_incr_fun_ex, var_and_fun_ex],
   };
@@ -597,22 +529,12 @@ let function_tuple_exp: form = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_fun([[pat("PAT1"), comma_pat(), pat("...")]]),
-    exp("EXP"),
-  ];
-  // TODO do I need to do this in some of these places or
-  // just keep track of the subpattern id in form?
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
+  let comma = comma_pat();
+  let form = [mk_fun([[pat("PAT1"), comma, pat("...")]]), exp("EXP")];
   {
     id: "function_tuple_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple2_fun_ex, tuple3_fun_ex],
   };
@@ -622,20 +544,12 @@ let function_tuple2_exp: form = {
     message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_fun([[pat("PAT1"), comma_pat(), pat("PAT2")]]),
-    exp("EXP"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
+  let comma = comma_pat();
+  let form = [mk_fun([[pat("PAT1"), comma, pat("PAT2")]]), exp("EXP")];
   {
     id: "function_tuple2_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple2_fun_ex],
   };
@@ -645,22 +559,15 @@ let function_tuple3_exp: form = {
     message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
+  let comma = comma_pat();
   let form = [
-    mk_fun([
-      [pat("PAT1"), comma_pat(), pat("PAT2"), comma_pat(), pat("PAT3")],
-    ]),
+    mk_fun([[pat("PAT1"), comma_pat(), pat("PAT2"), comma, pat("PAT3")]]),
     exp("EXP"),
   ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "function_tuple3_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple3_fun_ex],
   };
@@ -670,13 +577,13 @@ let tuple_exp_group = "tuple_exp_group";
 let tuple_exp_2_group = "tuple_exp_2_group";
 let tuple_exp_3_group = "tuple_exp_3_group";
 let tuple_example_1 = {
-  sub_id: "example_1",
+  sub_id: "tuple_example_1",
   term: mk_example("(true, 1)"),
   message: "A tuple with first elment true and second element 1.",
   feedback: Unselected,
 };
 let tuple_example_2 = {
-  sub_id: "example_2",
+  sub_id: "tuple_example_2",
   term: mk_example("(1, 2, 3)"),
   message: "A tuple with first element 1, second element 2, and third element 3.",
   feedback: Unselected,
@@ -762,86 +669,85 @@ let let_tuple_base_exp_group = "let_tuple_base_exp_group";
 let let_tuple2_exp_group = "let_tuple2_exp_group";
 let let_tuple3_exp_group = "let_tuple3_exp_group";
 let let_base_ex = {
-  sub_id: "example_1",
+  sub_id: "let_base_ex",
   term: mk_example("let x = 1 in x"),
   message: "The variable x is bound to 1, so the expression evaluates to 1",
   feedback: Unselected,
 };
 let let_wild_ex = {
-  sub_id: "example_2",
+  sub_id: "let_wild_ex",
   term: mk_example("let _ = 1 in 2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_int_ex = {
-  sub_id: "example_3",
+  sub_id: "let_int_ex",
   term: mk_example("let 1 = 1 in 2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_float_ex = {
-  sub_id: "example_4",
+  sub_id: "let_float_ex",
   term: mk_example("let 1.1 = 1.1 in 2"),
   message: "The 1.1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_bool_ex = {
-  sub_id: "example_5",
+  sub_id: "let_bool_ex",
   term: mk_example("let true = true in 2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_str_ex = {
-  sub_id: "example_6",
+  sub_id: "let_str_ex",
   term: mk_example("let \"abc\" = \"abc\" in 2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_triv_ex = {
-  sub_id: "example_7",
+  sub_id: "let_triv_ex",
   term: mk_example("let triv = triv in 2"),
   message: "The triv is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_listlit_ex = {
-  sub_id: "example_8",
+  sub_id: "let_listlit_ex",
   term: mk_example("let [x, y] = [1, 2] in x"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 let let_listnil_ex = {
-  sub_id: "example_9",
+  sub_id: "let_listnil_ex",
   term: mk_example("let nil = nil in 2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_cons_hd_ex = {
-  sub_id: "example_10",
+  sub_id: "let_cons_hd_ex",
   term: mk_example("let hd::tl = 1::nil in hd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
   feedback: Unselected,
 };
-// TODO This example is throwing errors for some reason - also throws errors if just entered in the editor...
-/*let let_cons_snd_ex = {
-    sub_id: "example_11",
-    term: mk_example("let fst::snd::tl = true::false::nil in snd"),
-    message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
-    feedback: Unselected,
-  };*/
+let let_cons_snd_ex = {
+  sub_id: "let_cons_snd_ex",
+  term: mk_example("let fst::snd::tl = true::false::nil in snd"),
+  message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
+  feedback: Unselected,
+};
 let let_var_ex = {
-  sub_id: "example_12",
+  sub_id: "let_var_ex",
   term: mk_example("let x = 1 in x + 2"),
   message: "The x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple2_ex = {
-  sub_id: "example_13",
+  sub_id: "let_tuple2_ex",
   term: mk_example("let (x, y) = (1, 2) in x + y"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple3_ex = {
-  sub_id: "example_14",
+  sub_id: "let_tuple3_ex",
   term: mk_example("let (x, y, z) = (1, 2, 3) in x + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
   feedback: Unselected,
@@ -851,20 +757,12 @@ let let_base_exp: form = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("PAT")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("PAT");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_base_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_base_ex],
   };
@@ -874,20 +772,12 @@ let let_empty_hole_exp: form = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i), after the [*empty hole pattern*](%i) is filled.",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("EmptyHole")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("EmptyHole");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_empty_hole_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_base_ex],
   };
@@ -897,20 +787,12 @@ let let_multi_hole_exp: form = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i), after the [invalid pattern](%i) is corrected.",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("INVALID")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("INVALID");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_multi_hole_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_base_ex],
   };
@@ -920,17 +802,12 @@ let let_wild_exp: form = {
     message: "Let expression. The [*definition*](%i) is evaluated and ignored. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[pat("_")], [exp("EXP_def")]]), exp("EXP_body")];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("_");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_wild_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_wild_ex],
   };
@@ -940,20 +817,12 @@ let let_int_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%i`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("IntLit")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("IntLit");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_int_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_int_ex],
   };
@@ -963,20 +832,12 @@ let let_float_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%f`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("FloatLit")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("FloatLit");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_float_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_float_ex],
   };
@@ -986,20 +847,12 @@ let let_bool_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%b`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("BoolLit")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("BoolLit");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_bool_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_bool_ex],
   };
@@ -1009,20 +862,12 @@ let let_str_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("StringLit")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("StringLit");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_str_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_str_ex],
   };
@@ -1032,20 +877,12 @@ let let_triv_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("triv")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("triv");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_triv_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_triv_ex],
   };
@@ -1055,23 +892,12 @@ let let_listlit_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern. The matching element patterns are bound to the elements of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([
-      [mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]])],
-      [exp("EXP_def")],
-    ]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]);
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_listlit_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_listlit_ex],
   };
@@ -1081,20 +907,12 @@ let let_listnil_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `nil`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("nil")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("nil");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_listnil_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_listnil_ex],
   };
@@ -1104,27 +922,17 @@ let let_cons_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns. Matching [*head*](%i) and [*tail*](%i) patterns are bound to the head and tail of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
+  let cons = cons_pat();
   let form = [
-    mk_let([
-      [pat("PAT_hd"), cons_pat(), pat("PAT_tl")],
-      [exp("EXP_def")],
-    ]),
+    mk_let([[pat("PAT_hd"), cons, pat("PAT_tl")], [exp("EXP_def")]]),
     exp("EXP_body"),
   ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "let_cons_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(cons)),
     explanation,
-    // TODO Add the example back when evaluation is fixed
-    // examples: [let_cons_hd_ex, let_cons_snd_ex],
-    examples: [let_cons_hd_ex],
+    examples: [let_cons_hd_ex, let_cons_snd_ex],
   };
 };
 let let_var_exp: form = {
@@ -1132,20 +940,12 @@ let let_var_exp: form = {
     message: "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [
-    mk_let([[pat("Var")], [exp("EXP_def")]]),
-    exp("EXP_body"),
-  ];
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 0)))
-    | _ => None
-    };
+  let pat = pat("Var");
+  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
   {
     id: "let_var_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(pat)),
     explanation,
     examples: [let_var_ex],
     // TODO Does this example being slightly different actually add anything?
@@ -1156,22 +956,15 @@ let let_tuple_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern. The [*definition*](%i) is bound to the [*pattern*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
+  let comma = comma_pat();
   let form = [
-    mk_let([[pat("PAT1"), comma_pat(), pat("...")], [exp("EXP_def")]]),
+    mk_let([[pat("PAT1"), comma, pat("...")], [exp("EXP_def")]]),
     exp("EXP_body"),
   ];
-  // TODO do I need to do this in some of these places or
-  // just keep track of the subpattern id in form?
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "let_tuple_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [let_tuple2_ex, let_tuple3_ex],
   };
@@ -1181,22 +974,15 @@ let let_tuple2_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
     feedback: Unselected,
   };
+  let comma = comma_pat();
   let form = [
-    mk_let([[pat("PAT1"), comma_pat(), pat("PAT2")], [exp("EXP_def")]]),
+    mk_let([[pat("PAT1"), comma, pat("PAT2")], [exp("EXP_def")]]),
     exp("EXP_body"),
   ];
-  // TODO do I need to do this in some of these places or
-  // just keep track of the subpattern id in form?
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "let_tuple2_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [let_tuple2_ex],
   };
@@ -1206,25 +992,18 @@ let let_tuple3_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
     feedback: Unselected,
   };
+  let comma = comma_pat();
   let form = [
     mk_let([
-      [pat("PAT1"), comma_pat(), pat("PAT2"), comma_pat(), pat("PAT3")],
+      [pat("PAT1"), comma_pat(), pat("PAT2"), comma, pat("PAT3")],
       [exp("EXP_def")],
     ]),
     exp("EXP_body"),
   ];
-  // TODO do I need to do this in some of these places or
-  // just keep track of the subpattern id in form?
-  let expandable_id =
-    switch (List.nth(form, 0)) {
-    | Tile(tile) =>
-      Some(Piece.id(List.nth(List.nth(tile.children, 0), 1)))
-    | _ => None
-    };
   {
     id: "let_tuple3_exp",
     syntactic_form: form,
-    expandable_id,
+    expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [let_tuple3_ex],
   };
@@ -1232,7 +1011,7 @@ let let_tuple3_exp: form = {
 
 let funapp_exp_group = "funapp_exp_group";
 let funapp_exp_ex = {
-  sub_id: "example_1",
+  sub_id: "funapp_exp_ex",
   term: mk_example("(fun x -> x)(1)"),
   message: "The identity function is applied to 1. The argument x is bound to 1 in the function body and the body evaluates to 1.",
   feedback: Unselected,
@@ -1253,13 +1032,13 @@ let funapp_exp: form = {
 
 let if_exp_group = "if_exp_group";
 let if_basic1_exp_ex = {
-  sub_id: "example_1",
+  sub_id: "if_basic1_exp_ex",
   term: mk_example("if (true) then 1 else 2"),
   message: "Since the condition is true, the if expression evaluates to the then branch, 1.",
   feedback: Unselected,
 };
 let if_basic2_exp_ex = {
-  sub_id: "example_2",
+  sub_id: "if_basic2_exp_ex",
   term: mk_example("if (2 < 1) then 3 else 4"),
   message: "Since the condition is 2 < 1 is false, the if expression evaluates to the else branch, 4.",
   feedback: Unselected,
@@ -1283,14 +1062,14 @@ let if_exp: form = {
 
 let seq_exp_group = "sequence_exp_group";
 let seq_basic_exp_ex = {
-  sub_id: "example_1",
+  sub_id: "seq_basic_exp_ex",
   term: mk_example("1; 2"),
   message: "The left expression evaluates to 1, which is ignored. Then the right expression is evaluated to 2.",
   feedback: Unselected,
 };
 // TODO are these really the correct messages/explanations
 let seq_test_exp_ex = {
-  sub_id: "example_2",
+  sub_id: "seq_test_exp_ex",
   term: mk_example("test true end; 3"),
   message: "The left expression is evaluated and recorded as a passing test because the body of the test is true. Then the right expression is evalautes to 3.",
   feedback: Unselected,
@@ -1311,14 +1090,14 @@ let seq_exp: form = {
 
 let test_group = "test_group";
 let test_true_ex = {
-  sub_id: "example_1",
+  sub_id: "test_true_ex",
   term: mk_example("test true end"),
   message: "This is reported as a passing test because the body of the test is true.",
   feedback: Unselected,
 };
 // TODO are these really the correct messages/explanations; maybe include something about the result being triv
 let test_false_ex = {
-  sub_id: "example_2",
+  sub_id: "test_false_ex",
   term: mk_example("test 3 < 1 end"),
   message: "This is reported as a failing test because the body of the test is 3 < 1 which evaluates to false.",
   feedback: Unselected,
@@ -1339,13 +1118,13 @@ let test_exp: form = {
 
 let cons_exp_group = "cons_exp_group";
 let cons1_ex = {
-  sub_id: "example_1",
+  sub_id: "cons1_ex",
   term: [int("1"), cons_exp(), nil()],
   message: "A single element list of 1.",
   feedback: Unselected,
 };
 let cons2_ex = {
-  sub_id: "example_2",
+  sub_id: "cons2_ex",
   term: [int("true"), cons_exp(), int("false"), cons_exp(), nil()],
   message: "A list with two elements, true and false.",
   feedback: Unselected,
@@ -1387,235 +1166,235 @@ let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
 let int_unary_minus_ex = {
-  sub_id: "example_1",
+  sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
   message: "The 1 is negated.",
   feedback: Unselected,
 };
 let int_plus_ex = {
-  sub_id: "example_1",
+  sub_id: "int_plus_ex",
   term: mk_example("1 + 2"),
   message: "1 added to 2 evalutes to 3.",
   feedback: Unselected,
 };
 let int_minus_ex = {
-  sub_id: "example_1",
+  sub_id: "int_minus_ex",
   term: mk_example("2 - 1"),
   message: "2 minus 1 evalutes to 1.",
   feedback: Unselected,
 };
 let int_times_ex = {
-  sub_id: "example_1",
+  sub_id: "int_times_ex",
   term: mk_example("1 * 2"),
   message: "1 multiplied be 2 evalutes to 2.",
   feedback: Unselected,
 };
 let int_divide_ex = {
-  sub_id: "example_1",
+  sub_id: "int_divide_ex",
   term: mk_example("6 / 3"),
   message: "6 divided by 3 evalutes to 2.",
   feedback: Unselected,
 };
 let int_lt1_ex = {
-  sub_id: "example_1",
+  sub_id: "int_lt1_ex",
   term: mk_example("1 < 2"),
   message: "1 is less than 2, so the expression evalutes to true.",
   feedback: Unselected,
 };
 let int_lt2_ex = {
-  sub_id: "example_2",
+  sub_id: "int_lt2_ex",
   term: mk_example("4 < 3"),
   message: "4 is less not less than 3, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let int_lte1_ex = {
-  sub_id: "example_1",
+  sub_id: "int_lte1_ex",
   term: mk_example("1 <= 2"),
   message: "1 is less than 2, so the expression evalutes to true.",
   feedback: Unselected,
 };
 let int_lte2_ex = {
-  sub_id: "example_2",
+  sub_id: "int_lte2_ex",
   term: mk_example("4 <= 3"),
   message: "4 is less not less than or equal to 3, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let int_lte3_ex = {
-  sub_id: "example_3",
+  sub_id: "int_lte3_ex",
   term: mk_example("5 <= 5"),
   message: "5 is equal to 5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_gt1_ex = {
-  sub_id: "example_1",
+  sub_id: "int_gt1_ex",
   term: mk_example("1 > 2"),
   message: "1 is not greater than 2, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let int_gt2_ex = {
-  sub_id: "example_2",
+  sub_id: "int_gt2_ex",
   term: mk_example("4 > 3"),
   message: "4 is greater than 3, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_gte1_ex = {
-  sub_id: "example_1",
+  sub_id: "int_gte1_ex",
   term: mk_example("1 >= 2"),
   message: "1 is not greater than or equal to 2, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let int_gte2_ex = {
-  sub_id: "example_2",
+  sub_id: "int_gte2_ex",
   term: mk_example("4 >= 3"),
   message: "4 is greater than 3, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_gte3_ex = {
-  sub_id: "example_3",
+  sub_id: "int_gte3_ex",
   term: mk_example("5 >= 5"),
   message: "5 is equal to 5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let int_eq1_ex = {
-  sub_id: "example_1",
+  sub_id: "int_eq1_ex",
   term: mk_example("1 == 2"),
   message: "1 does not equal 2, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let int_eq2_ex = {
-  sub_id: "example_2",
+  sub_id: "int_eq2_ex",
   term: mk_example("3 == 3"),
   message: "3 is equal to 3, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_plus_ex = {
-  sub_id: "example_1",
+  sub_id: "float_plus_ex",
   term: mk_example("1. +. 2.1"),
   message: "1. added to 2.1 evalutes to 3.1",
   feedback: Unselected,
 };
 let float_minus_ex = {
-  sub_id: "example_1",
+  sub_id: "float_minus_ex",
   term: mk_example("2. -. 1.1"),
   message: "2. minus 1.1 evalutes to 0.9",
   feedback: Unselected,
 };
 let float_times_ex = {
-  sub_id: "example_1",
+  sub_id: "float_times_ex",
   term: mk_example("1. *. 2.2"),
   message: "1 multiplied be 2.2 evalutes to 2.2.",
   feedback: Unselected,
 };
 let float_divide_ex = {
-  sub_id: "example_1",
+  sub_id: "float_divide_ex",
   term: mk_example("4.2 /. 2.1"),
   message: "4.2 divided by 2.1 evalutes to 2.",
   feedback: Unselected,
 };
 let float_lt1_ex = {
-  sub_id: "example_1",
+  sub_id: "float_lt1_ex",
   term: mk_example("1. <. 2.1"),
   message: "1. is less than 2.1, so the expression evalutes to true.",
   feedback: Unselected,
 };
 let float_lt2_ex = {
-  sub_id: "example_2",
+  sub_id: "float_lt2_ex",
   term: mk_example("4. <. 3.1"),
   message: "4. is less not less than 3.1, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let float_lte1_ex = {
-  sub_id: "example_1",
+  sub_id: "float_lte1_ex",
   term: mk_example("1. <=. 2.1"),
   message: "1. is less than 2.1, so the expression evalutes to true.",
   feedback: Unselected,
 };
 let float_lte2_ex = {
-  sub_id: "example_2",
+  sub_id: "float_lte2_ex",
   term: mk_example("4. <=. 3.1"),
   message: "4. is less not less than or equal to 3.1, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let float_lte3_ex = {
-  sub_id: "example_3",
+  sub_id: "float_lte3_ex",
   term: mk_example("5.5 <=. 5.5"),
   message: "5.5 is equal to 5.5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_gt1_ex = {
-  sub_id: "example_1",
+  sub_id: "float_gt1_ex",
   term: mk_example("1.1 >. 2.1"),
   message: "1.1 is not greater than 2.1, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let float_gt2_ex = {
-  sub_id: "example_2",
+  sub_id: "float_gt2_ex",
   term: mk_example("4. >. 3.1"),
   message: "4. is greater than 3.1, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_gte1_ex = {
-  sub_id: "example_1",
+  sub_id: "float_gte1_ex",
   term: mk_example("1.1 >=. 2.1"),
   message: "1.1 is not greater than or equal to 2.1, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let float_gte2_ex = {
-  sub_id: "example_2",
+  sub_id: "float_gte2_ex",
   term: mk_example("4. >=. 3.1"),
   message: "4. is greater than 3.1, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_gte3_ex = {
-  sub_id: "example_3",
+  sub_id: "float_gte3_ex",
   term: mk_example("5.5 >=. 5.5"),
   message: "5.5 is equal to 5.5, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let float_eq1_ex = {
-  sub_id: "example_1",
+  sub_id: "float_eq1_ex",
   term: mk_example("1. ==. 2."),
   message: "1. does not equal 2., so the expression evaluates to false.",
   feedback: Unselected,
 };
 let float_eq2_ex = {
-  sub_id: "example_2",
+  sub_id: "float_eq2_ex",
   term: mk_example("3.1 ==. 3.1"),
   message: "3.1 is equal to 3.1, so the expression evaluates to true.",
   feedback: Unselected,
 };
 let bool_and1_ex = {
-  sub_id: "example_1",
+  sub_id: "bool_and1_ex",
   term: mk_example("true && false"),
   message: "The left operand is true, so evaluate the right operand. Since the right operand is false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_and2_ex = {
-  sub_id: "example_2",
+  sub_id: "bool_and2_ex",
   term: mk_example("1 < 2 && 3 < 4"),
   message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evalutes to true, the whole expression evaluates to true.",
   feedback: Unselected,
 };
 let bool_or1_ex = {
-  sub_id: "example_1",
+  sub_id: "bool_or1_ex",
   term: mk_example("false || 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
   feedback: Unselected,
 };
 let bool_or2_ex = {
-  sub_id: "example_2",
+  sub_id: "bool_or2_ex",
   term: mk_example("3 < 4 || false"),
   message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
   feedback: Unselected,
 };
 let str_eq1_ex = {
-  sub_id: "example_1",
+  sub_id: "str_eq1_ex",
   term: mk_example("\"abc\" $== \"xyz\""),
   message: "\"abc\" does not equal \"xyz\", so the expression evaluates to false.",
   feedback: Unselected,
 };
 let str_eq2_ex = {
-  sub_id: "example_2",
+  sub_id: "str_eq2_ex",
   term: mk_example("\"abc\" $== \"abc\""),
   message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
   feedback: Unselected,
@@ -1913,13 +1692,13 @@ let case_exp_group = "case_exp_group";
 let case_exp2_group = "case_exp2_group";
 let case_exp3_group = "case_exp3_group";
 let case_example_1 = {
-  sub_id: "example_1",
+  sub_id: "case_example_1",
   term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3 end"),
   message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
   feedback: Unselected,
 };
 let case_example_2 = {
-  sub_id: "example_2",
+  sub_id: "case_example_2",
   term: mk_example("case false | true => 1 | false => 2 end"),
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
@@ -2444,18 +2223,10 @@ let get_group = (group_id, doc: t) => {
 };
 
 let get_form_and_options = (group_id, doc: t) => {
-  print_endline("Getting form");
-  print_endline(group_id);
-  /* For some reason, changing around specificity is causing errors here
-     it seems
-      -- I am thinking this has to do with some problem in the updating this data structure code? */
   let form_group = get_group(group_id, doc);
-  print_endline("Got the group");
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
-  print_endline("Got the selected id");
   let form = List.find(({id, _}) => id == selected_id, doc.forms);
-  print_endline("Got form");
   (form, form_group.options);
 };
 
@@ -2629,8 +2400,6 @@ let init = {
     (float_exp_group, init_options([(float_exp.id, [])])),
     (string_exp_group, init_options([(string_exp.id, [])])),
     (list_exp_group, init_options([(list_exp.id, [])])),
-    // TODO Why is the PAT showing up red in the dropdown
-    // Also a problem when just showing pattern and type forms
     (function_group, init_options([(function_exp.id, [])])),
     (
       function_empty_hole_group,
