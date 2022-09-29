@@ -4,6 +4,7 @@ module SchoolData = Haz3lschooldata.SchoolData;
 include SchoolData.SchoolExercise({
   type node = Node.t;
   let default = Node.text("TODO: prompt");
+  let output_header = module_name => module_name ++ "_prompt.prompt";
 });
 
 //

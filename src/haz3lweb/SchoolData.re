@@ -4,6 +4,7 @@ open Haz3lcore;
 module type Node = {
   type node;
   let default: node;
+  let output_header: string => string;
 };
 
 module SchoolExercise = (Node: Node) => {
@@ -328,9 +329,17 @@ module SchoolExercise = (Node: Node) => {
   let export_module = (module_name, {eds, _}: state) => {
     let prefix =
       "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
+      ++ Node.output_header(module_name)
+      ++ "\n"
       ++ "let exercise: SchoolExercise.spec = ";
+    let record = show_p(editor_pp, eds);
+    let data = prefix ++ record;
+    print_endline(data);
+    data;
+  };
+
+  let export_module_autograder = ({eds, _}: state) => {
+    let prefix = "let prompt = ()\n" ++ "let exercise: SchoolExercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = prefix ++ record;
     print_endline(data);

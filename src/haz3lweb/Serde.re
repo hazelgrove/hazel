@@ -5,6 +5,7 @@ open Core;
 include SchoolData.SchoolExercise({
   type node = unit;
   let default = ();
+  let output_header = _ => "";
 });
 
 [@deriving (sexp, yojson)]
