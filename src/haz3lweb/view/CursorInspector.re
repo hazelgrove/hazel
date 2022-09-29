@@ -25,7 +25,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
     )
-  | NotFunction(typ) =>
+  | NoFun(typ) =>
     div(
       ~attr=clss([errorc, "err-not-function"]),
       [text("Not a function: "), Type.view(typ)],
