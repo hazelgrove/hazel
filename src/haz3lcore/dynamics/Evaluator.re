@@ -227,6 +227,7 @@ and matches_cast_Inj =
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
+  | Prj(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -300,6 +301,7 @@ and matches_cast_Tuple =
   | Inj(_, _, _) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
+  | Prj(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -434,6 +436,7 @@ and matches_cast_Cons =
   | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
+  | Prj(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -741,6 +744,53 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       } else {
         BoxedValue(d);
       };
+
+    | Prj(targ, n) =>
+      if (n < 0) {
+        return(
+          Indet(
+            InvalidOperation(d, InvalidOperationError.InvalidProjection),
+          ),
+        );
+      } else {
+        let* r = evaluate(env, targ);
+        switch (r) {
+        | BoxedValue(Tuple(ds) as rv) =>
+          if (n >= List.length(ds)) {
+            return(
+              Indet(
+                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
+              ),
+            );
+          } else {
+            return(BoxedValue(List.nth(ds, n)));
+          }
+        | Indet(Tuple(ds) as rv) =>
+          if (n >= List.length(ds)) {
+            return(
+              Indet(
+                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
+              ),
+            );
+          } else {
+            return(Indet(List.nth(ds, n)));
+          }
+        | BoxedValue(Cast(targ', Prod(tys), Prod(tys')) as rv)
+        | Indet(Cast(targ', Prod(tys), Prod(tys')) as rv) =>
+          if (n >= List.length(tys)) {
+            return(
+              Indet(
+                InvalidOperation(rv, InvalidOperationError.InvalidProjection),
+              ),
+            );
+          } else {
+            let ty = List.nth(tys, n);
+            let ty' = List.nth(tys', n);
+            evaluate(env, Cast(Prj(targ', n), ty, ty'));
+          }
+        | _ => return(Indet(d))
+        };
+      }
     | Cons(d1, d2) =>
       let* d1 = evaluate(env, d1);
       let* d2 = evaluate(env, d2);
