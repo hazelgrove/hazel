@@ -37,54 +37,6 @@ type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
 
-/*let color_highlight_overlay =
-      (
-        ~inject,
-        ~font_metrics,
-        ~settings,
-        ~doc,
-        focal_zipper,
-        _combined_info_map,
-        editor: Editor.t,
-      ) => {
-    let (_, map) = spliced_statics([editor]);
-    let colorings =
-      ColorSteps.to_list(
-        LangDoc.get_color_map(
-          ~doc,
-          Indicated.index(focal_zipper),
-          map,
-        ),
-      );
-    let unselected = Zipper.unselect_and_zip(editor.state.zipper);
-    print_endline(Sexplib.Sexp.to_string(Segment.sexp_of_t(unselected)));
-    let (term, _) = MakeTerm.go(unselected);
-    print_endline(
-      "Term: " ++ Sexplib.Sexp.to_string(TermBase.UExp.sexp_of_t(term)),
-    );
-    module Deco =
-      Deco.Deco({
-        let font_metrics = font_metrics;
-        let map = Measured.of_segment(unselected);
-        let show_backpack_targets = false;
-        let (term, terms) = MakeTerm.go(unselected);
-        let info_map = Statics.mk_map(term);
-        let term_ranges = TermRanges.mk(unselected);
-        let tiles = TileMap.mk(unselected);
-      });
-    print_endline("ATTEMPTING TO COLOR");
-    let color_highlight_overlay =
-      List.map(
-        ((id, color)) => {
-          print_endline("Id: " ++ string_of_int(id));
-          Deco.term_highlight(~clss=["highlight-code-" ++ color], id);
-        },
-        colorings,
-      );
-    print_endline("ADDED THE COLOR OVERLAY");
-    color_highlight_overlay;
-  };*/
-
 let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
   List.filter_map(
     vis =>
@@ -117,8 +69,7 @@ let view =
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
-  //let unselected = Zipper.unselect_and_zip(focal_zipper);
-  //print_endline(Sexplib.Sexp.to_string(Segment.sexp_of_t(unselected)));
+
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight) {
       let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));

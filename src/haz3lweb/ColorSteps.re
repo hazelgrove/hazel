@@ -21,17 +21,3 @@ let get_color = (id: Haz3lcore.Id.t, (mapping, index): t): (string, t) =>
 let to_list = (map: colorMap): list((int, string)) => {
   List.of_seq(Haz3lcore.Id.Map.to_seq(map));
 };
-/*
- let pring_color_map = ((map, _): t): unit => {
-   Map.iter(
-     (key, v) =>
-       print_endline(
-         "("
-         ++ Sexp.to_string(CursorPath.sexp_of_steps(key))
-         ++ ", "
-         ++ v
-         ++ ")",
-       ),
-     map,
-   );
- };*/
