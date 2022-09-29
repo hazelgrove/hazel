@@ -12,7 +12,7 @@ type builtin_evaluate =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  ty: Typ.t,
+  typ: Typ.t,
   eval: builtin_evaluate,
   elab: DHExp.t,
 };
