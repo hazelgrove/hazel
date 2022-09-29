@@ -31,9 +31,9 @@ type t =
     | BinStringOp(BinStringOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(Typ.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Inj(HTyp.t, InjSide.t, t)
+    | Tuple(list(t))
+    | Prj(t, int)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
