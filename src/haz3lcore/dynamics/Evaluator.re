@@ -117,49 +117,51 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     | (R, R) => matches(dp, d)
     | _ => DoesNotMatch
     }
-  | (Inj(side, dp), Cast(d, Sum(tyL1, tyR1), Sum(tyL2, tyR2))) =>
-    matches_cast_Inj(side, dp, d, [(tyL1, tyR1, tyL2, tyR2)])
-  | (Inj(_, _), Cast(d, Sum(_, _), Hole)) => matches(dp, d)
-  | (Inj(_, _), Cast(d, Hole, Sum(_, _))) => matches(dp, d)
+  | (Inj(side, dp), Cast(_)) => matches_cast_Inj(side, dp, d, [])
   | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Pair(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
+  | (Tuple(dps), Tuple(ds)) =>
+    if (List.length(dps) != List.length(ds)) {
+      DoesNotMatch;
+    } else {
+      List.fold_left2(
+        (result, dp, d) =>
+          switch (result) {
+          | DoesNotMatch => DoesNotMatch
+          | IndetMatch => IndetMatch
+          | Matches(env) =>
+            switch (matches(dp, d)) {
+            | DoesNotMatch => DoesNotMatch
+            | IndetMatch => IndetMatch
+            | Matches(env') => Matches(Environment.union(env, env'))
+            }
+          },
+        Matches(Environment.empty),
+        dps,
+        ds,
+      );
     }
-  | (
-      Pair(dp1, dp2),
-      Cast(d, Prod([head1, ...tail1]), Prod([head2, ...tail2])),
-    ) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
+  | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
+    matches_cast_Tuple(dps, d, [List.combine(tys, tys')])
+  | (Tuple(dps), Cast(d, Prod(tys), Hole)) =>
+    matches_cast_Tuple(
+      dps,
       d,
-      [(head1, head2)],
-      List.combine(tail1, tail2),
+      [List.combine(tys, List.init(List.length(tys), _ => HTyp.Hole))],
     )
-  | (Pair(_, _), Cast(d, Hole, Prod(_)))
-  | (Pair(_, _), Cast(d, Prod(_), Hole)) => matches(dp, d)
-  | (Pair(_, _), _) => DoesNotMatch
-  | (Triv, Triv) => Matches(Environment.empty)
-  | (Triv, Cast(d, Hole, Prod([]))) => matches(dp, d)
-  | (Triv, Cast(d, Prod([]), Hole)) => matches(dp, d)
-  | (Triv, _) => DoesNotMatch
+  | (Tuple(dps), Cast(d, Hole, Prod(tys'))) =>
+    matches_cast_Tuple(
+      dps,
+      d,
+      [List.combine(List.init(List.length(tys'), _ => HTyp.Hole), tys')],
+    )
+  | (Tuple(_), Cast(_)) => DoesNotMatch
+  | (Tuple(_), _) => DoesNotMatch
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
-  | (Cons(_) | ListLit(_), Cast(d, Hole, List(_))) => matches(dp, d)
-  | (Cons(_) | ListLit(_), Cast(d, List(_), Hole)) => matches(dp, d)
+  | (Cons(_) | ListLit(_), Cast(d, Hole, List(ty2))) =>
+    matches_cast_Cons(dp, d, [(Hole, ty2)])
+  | (Cons(_) | ListLit(_), Cast(d, List(ty1), Hole)) =>
+    matches_cast_Cons(dp, d, [(ty1, Hole)])
   | (Cons(_, _), Cons(_, _))
   | (ListLit(_, _), Cons(_, _))
   | (Cons(_, _), ListLit(_))
@@ -196,8 +198,10 @@ and matches_cast_Inj =
     }
   | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
     matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  | Cast(d', Sum(_, _), Hole)
-  | Cast(d', Hole, Sum(_, _)) => matches_cast_Inj(side, dp, d', casts)
+  | Cast(d', Sum(tyL1, tyR1), Hole) =>
+    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, Hole, Hole)])
+  | Cast(d', Hole, Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(side, dp, d', [(Hole, Hole, tyL2, tyR2)])
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -222,8 +226,7 @@ and matches_cast_Inj =
   | StringLit(_) => DoesNotMatch
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
+  | Tuple(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -231,45 +234,47 @@ and matches_cast_Inj =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   }
-and matches_cast_Pair =
+and matches_cast_Tuple =
     (
-      dp1: DHPat.t,
-      dp2: DHPat.t,
+      dps: list(DHPat.t),
       d: DHExp.t,
-      left_casts: list((HTyp.t, HTyp.t)),
-      right_casts: list((HTyp.t, HTyp.t)),
+      elt_casts: list(list((HTyp.t, HTyp.t))),
     )
     : match_result =>
   switch (d) {
-  | Pair(d1, d2) =>
-    switch (matches(dp1, DHExp.apply_casts(d1, left_casts))) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, DHExp.apply_casts(d2, right_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
+  | Tuple(ds) =>
+    if (List.length(dps) != List.length(ds)) {
+      DoesNotMatch;
+    } else {
+      List.fold_right(
+        (((dp, d), casts), result) => {
+          switch (result) {
+          | DoesNotMatch
+          | IndetMatch => result
+          | Matches(env) =>
+            switch (matches(dp, DHExp.apply_casts(d, casts))) {
+            | DoesNotMatch => DoesNotMatch
+            | IndetMatch => IndetMatch
+            | Matches(env') => Matches(Environment.union(env, env'))
+            }
+          }
+        },
+        List.combine(List.combine(dps, ds), elt_casts),
+        Matches(Environment.empty),
+      );
     }
-  | Cast(d', Prod([]), Prod([])) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
-  | Cast(d', Prod([head1, ...tail1]), Prod([head2, ...tail2])) =>
-    matches_cast_Pair(
-      dp1,
-      dp2,
-      d',
-      [(head1, head2), ...left_casts],
-      List.combine(tail1, tail2) @ right_casts,
-    )
-  | Cast(d', Prod(_), Hole)
-  | Cast(d', Hole, Prod(_)) =>
-    matches_cast_Pair(dp1, dp2, d', left_casts, right_casts)
+  | Cast(d', Prod(tys), Prod(tys')) =>
+    if (List.length(dps) != List.length(tys)) {
+      DoesNotMatch;
+    } else {
+      matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    }
+  | Cast(d', Prod(tys), Hole) =>
+    let tys' = List.init(List.length(tys), _ => HTyp.Hole);
+    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+  | Cast(d', Hole, Prod(tys')) =>
+    let tys = List.init(List.length(tys'), _ => HTyp.Hole);
+    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -295,7 +300,6 @@ and matches_cast_Pair =
   | Inj(_, _, _) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -312,7 +316,6 @@ and matches_cast_Cons =
     | ListLit(_, []) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
-
   | ListLit(u, i, err, ty, [dhd, ...dtl] as ds) =>
     switch (dp) {
     | Cons(dp1, dp2) =>
@@ -404,8 +407,10 @@ and matches_cast_Cons =
     }
   | Cast(d', List(ty1), List(ty2)) =>
     matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(_), Hole) => matches_cast_Cons(dp, d', elt_casts)
-  | Cast(d', Hole, List(_)) => matches_cast_Cons(dp, d', elt_casts)
+  | Cast(d', List(ty1), Hole) =>
+    matches_cast_Cons(dp, d', [(ty1, Hole), ...elt_casts])
+  | Cast(d', Hole, List(ty2)) =>
+    matches_cast_Cons(dp, d', [(Hole, ty2), ...elt_casts])
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -428,8 +433,7 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Inj(_, _, _) => DoesNotMatch
-  | Pair(_, _) => DoesNotMatch
-  | Triv => DoesNotMatch
+  | Tuple(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -599,8 +603,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
-    | StringLit(_)
-    | Triv => BoxedValue(d) |> return
+    | StringLit(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -719,17 +722,25 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | Indet(d1') => Indet(Inj(ty, side, d1')) |> return
       };
 
-    | Pair(d1, d2) =>
-      let* d1' = evaluate(env, d1);
-      let* d2' = evaluate(env, d2);
-      switch (d1', d2') {
-      | (Indet(d1), Indet(d2))
-      | (Indet(d1), BoxedValue(d2))
-      | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2)) |> return
-      | (BoxedValue(d1), BoxedValue(d2)) =>
-        BoxedValue(Pair(d1, d2)) |> return
-      };
+    | Tuple(ds) =>
+      let+ lst = ds |> List.map(evaluate(env)) |> sequence;
+      let (ds', indet) =
+        List.fold_right(
+          (el, (lst, indet)) =>
+            switch (el) {
+            | BoxedValue(el) => ([el, ...lst], false || indet)
+            | Indet(el) => ([el, ...lst], true)
+            },
+          lst,
+          ([], false),
+        );
 
+      let d = DHExp.Tuple(ds');
+      if (indet) {
+        Indet(d);
+      } else {
+        BoxedValue(d);
+      };
     | Cons(d1, d2) =>
       let* d1 = evaluate(env, d1);
       let* d2 = evaluate(env, d2);
@@ -1039,7 +1050,7 @@ and evaluate_test =
   let* _ = add_test(n, (arg_show, test_status));
   let r: EvaluatorResult.t =
     switch (arg_result) {
-    | BoxedValue(BoolLit(_)) => BoxedValue(Triv)
+    | BoxedValue(BoolLit(_)) => BoxedValue(Tuple([]))
     | BoxedValue(arg)
     | Indet(arg) => Indet(Ap(TestLit(n), arg))
     };

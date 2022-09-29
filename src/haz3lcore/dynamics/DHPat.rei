@@ -13,8 +13,7 @@ type t =
   | Inj(InjSide.t, t)
   | ListLit(HTyp.t, list(t))
   | Cons(t, t)
-  | Pair(t, t)
-  | Triv
+  | Tuple(list(t))
   | Ap(t, t);
 
 let mk_tuple: list(t) => t;

@@ -70,8 +70,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Tuple(list(t))
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
@@ -164,8 +163,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Tuple(list(t))
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
@@ -202,8 +200,7 @@ module rec DHExp: {
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | Inj(_, _, _) => "Inj"
-    | Pair(_, _) => "Pair"
-    | Triv => "Triv"
+    | Tuple(_) => "Tuple"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -211,11 +208,10 @@ module rec DHExp: {
     | InvalidOperation(_) => "InvalidOperation"
     };
 
-  let rec mk_tuple: list(t) => t =
+  let mk_tuple: list(t) => t =
     fun
     | [] => failwith("mk_tuple: expected at least 1 element")
-    | [d] => d
-    | [d, ...ds] => Pair(d, mk_tuple(ds));
+    | xs => Tuple(xs);
 
   let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
     switch (d, t2) {
@@ -246,7 +242,7 @@ module rec DHExp: {
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
     | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
-    | Pair(d1, d2) => Pair(strip_casts(d1), strip_casts(d2))
+    | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, d, ds) =>
       ListLit(a, b, c, d, List.map(strip_casts, ds))
@@ -282,7 +278,6 @@ module rec DHExp: {
     | IntLit(_) as d
     | FloatLit(_) as d
     | StringLit(_) as d
-    | Triv as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
@@ -295,8 +290,7 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
-    | (StringLit(_), _)
-    | (Triv, _) => d1 == d2
+    | (StringLit(_), _) => d1 == d2
 
     /* Non-hole forms: recurse */
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
@@ -308,9 +302,11 @@ module rec DHExp: {
     | (Fun(dp1, ty1, d1), Fun(dp2, ty2, d2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Ap(d11, d21), Ap(d12, d22))
-    | (Cons(d11, d21), Cons(d12, d22))
-    | (Pair(d11, d21), Pair(d12, d22)) =>
+    | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Tuple(ds1), Tuple(ds2)) =>
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(fast_equal, ds1, ds2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
     | (ListLit(_, _, _, _, ds1), ListLit(_, _, _, _, ds2)) =>
@@ -342,7 +338,7 @@ module rec DHExp: {
     | (ApBuiltin(_), _)
     | (Cons(_), _)
     | (ListLit(_), _)
-    | (Pair(_), _)
+    | (Tuple(_), _)
     | (BinBoolOp(_), _)
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
