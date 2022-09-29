@@ -134,7 +134,6 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let ty1 = Statics.pat_typ(m, p);
       wrap(DHExp.Fun(dp, ty1, d1));
     | Tuple(es) =>
-      //TODO(andrew): review below
       switch (List.rev(es)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")
@@ -303,7 +302,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
     | Tuple(ps) =>
-      //TODO(andrew): review below
       switch (List.rev(ps)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")

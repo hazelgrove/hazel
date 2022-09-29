@@ -46,15 +46,15 @@ module Scratch = {
   let save_scratch_key: string = "SAVE_SCRATCH";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list(ScratchSlideExport.t));
+  type persistent = (int, list(ScratchSlide.persistent_state));
 
   let to_persistent = ((idx, slides): Editors.scratch): persistent => (
     idx,
-    List.map(ScratchSlideExport.of_state, slides),
+    List.map(ScratchSlide.persist, slides),
   );
 
   let of_persistent = ((idx, slides): persistent): Editors.scratch => {
-    (idx, List.map(ScratchSlideExport.to_state, slides));
+    (idx, List.map(ScratchSlide.unpersist, slides));
   };
 
   let serialize = scratch => {
@@ -70,7 +70,7 @@ module Scratch = {
   };
 
   let init = () => {
-    let scratch = ScratchSlideExport.init();
+    let scratch = ScratchSlidesInit.init();
     save(scratch);
     scratch;
   };
@@ -173,7 +173,10 @@ module School = {
       | Some((n, spec)) =>
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
-          let exercise = deserialize_exercise(data, ~spec, ~instructor_mode);
+          let exercise =
+            try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
+            | _ => init_exercise(spec, ~instructor_mode)
+            };
           (n, specs, exercise);
         | None =>
           // initialize exercise from spec
