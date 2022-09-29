@@ -46,7 +46,7 @@ type info_pat = {
 type info_typ = {
   cls: Term.UTyp.cls,
   term: Term.UTyp.t,
-  ty: Typ.t,
+  self: Typ.self,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,7 +81,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
-  | FreeVariable
+  | Free(Typ.free_errors)
   | Multi
   | NoFun(Typ.t)
   | SynInconsistentBranches(list(Typ.t))
@@ -126,7 +126,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
       | Some(_) => NotInHole(SynConsistent(ty_joined))
       }
     };
-  | (Syn | SynFun | Ana(_), Free) => InHole(FreeVariable)
+  | (Syn | SynFun | Ana(_), Free(free_error)) => InHole(Free(free_error))
   | (Syn | SynFun | Ana(_), Multi) =>
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
@@ -171,7 +171,11 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp(_) => false
+  | InfoTyp({self, _}) =>
+    switch (self) {
+    | Free(TypeVariable) => true
+    | _ => false
+    }
   | InfoRul(_) => false //TODO
   };
 };
@@ -235,6 +239,11 @@ let union_m =
     (m1, m2) => Id.Map.union((_, _, b) => Some(b), m1, m2),
     Id.Map.empty,
   );
+
+let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
+  ids
+  |> List.map(id => Id.Map.singleton(id, info))
+  |> List.fold_left(Id.Map.disj_union, m);
 
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
@@ -301,23 +310,14 @@ and uexp_to_info_map =
   let add = (~self, ~free, m) => (
     typ_after_fix(mode, self),
     free,
-    ids
-    |> List.map(id =>
-         Id.Map.singleton(
-           id,
-           InfoExp({cls, self, mode, ctx, free, term: uexp}),
-         )
-       )
-    |> List.fold_left(Id.Map.disj_union, m),
+    add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(msg) => (
       Unknown(Internal),
       [],
-      ids
-      |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
-      |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
+      add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
@@ -330,7 +330,7 @@ and uexp_to_info_map =
   | String(_) => atomic(Just(String))
   | Var(name) =>
     switch (VarMap.lookup(ctx, name)) {
-    | None => atomic(Free)
+    | None => atomic(Free(Variable))
     | Some(ce) =>
       add(
         ~self=Just(ce.typ),
@@ -361,6 +361,11 @@ and uexp_to_info_map =
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
+  | Tag(name) =>
+    switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free(Tag))
+    | Some(typ) => atomic(Just(typ))
+    }
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
@@ -497,11 +502,7 @@ and upat_to_info_map =
   let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self),
     ctx,
-    ids
-    |> List.map(id =>
-         Id.Map.singleton(id, InfoPat({cls, self, mode, ctx, term: upat}))
-       )
-    |> List.fold_left(Id.Map.disj_union, m),
+    add_info(ids, InfoPat({cls, self, mode, ctx, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let unknown = Typ.Just(Unknown(SynSwitch));
@@ -509,9 +510,7 @@ and upat_to_info_map =
   | Invalid(msg) => (
       Unknown(Internal),
       ctx,
-      ids
-      |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
-      |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
+      add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
@@ -557,6 +556,11 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
+  | Tag(name) =>
+    switch (BuiltinADTs.get_tag_typ(name)) {
+    | None => atomic(Free(Tag))
+    | Some(typ) => atomic(Just(typ))
+    }
   | Var(name) =>
     let self = unknown;
     let typ = typ_after_fix(mode, self);
@@ -583,6 +587,13 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
+  | Ap(fn, arg) =>
+    /* Contructor application */
+    /* Function position mode Ana(Hole->Hole) instead of Syn */
+    let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+    add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
@@ -592,40 +603,39 @@ and upat_to_info_map =
 and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
-  let return = m => (
-    ty,
-    ids
-    |> List.map(id => Id.Map.singleton(id, InfoTyp({cls, ty, term: utyp})))
-    |> List.fold_left(Id.Map.disj_union, m),
-  );
+  let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
+  let just = m => (ty, add(Just(ty), m));
   switch (term) {
   | Invalid(msg) => (
       Unknown(Internal),
-      ids
-      |> List.map(id => Id.Map.singleton(id, Invalid(msg)))
-      |> List.fold_left(Id.Map.disj_union, Id.Map.empty),
+      add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | EmptyHole
   | Int
   | Float
   | Bool
-  | String => return(Id.Map.empty)
+  | String => just(Id.Map.empty)
   | List(t)
   | Parens(t) =>
     let (_, m) = utyp_to_info_map(t);
-    return(m);
+    just(m);
   | Arrow(t1, t2) =>
     let (_, m_t1) = utyp_to_info_map(t1);
     let (_, m_t2) = utyp_to_info_map(t2);
-    return(union_m([m_t1, m_t2]));
+    just(union_m([m_t1, m_t2]));
   | Tuple(ts) =>
     let m = ts |> List.map(utyp_to_info_map) |> List.map(snd) |> union_m;
-    return(m);
+    just(m);
+  | Var(name) =>
+    switch (BuiltinADTs.is_typ_var(name)) {
+    | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+    | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
+    }
   | MultiHole(tms) =>
     // TODO thread ctx through to multihole terms once ctx is available
     let (_, maps) =
       tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
-    return(union_m(maps));
+    just(union_m(maps));
   };
 };
 

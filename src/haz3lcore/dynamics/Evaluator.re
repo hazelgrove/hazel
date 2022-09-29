@@ -34,6 +34,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
+  | Var(_) // TODO(andrew): ?
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
@@ -73,7 +74,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, Let(_)) => IndetMatch
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
-  | (_, Ap(_)) => IndetMatch
   | (_, BinBoolOp(_)) => IndetMatch
   | (_, BinIntOp(_)) => IndetMatch
   | (_, BinFloatOp(_)) => IndetMatch
@@ -118,6 +118,15 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (StringLit(_), Cast(d, String, Unknown(_))) => matches(dp, d)
   | (StringLit(_), Cast(d, Unknown(_), String)) => matches(dp, d)
   | (StringLit(_), _) => DoesNotMatch
+  | (Tag(n1), Tag(n2)) =>
+    if (n1 == n2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
+  | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
+  | (Tag(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
@@ -129,7 +138,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Inj(_, _), Cast(d, Sum(_, _), Unknown(_))) => matches(dp, d)
   | (Inj(_, _), Cast(d, Unknown(_), Sum(_, _))) => matches(dp, d)
   | (Inj(_, _), _) => DoesNotMatch
-  | (Pair(dp1, dp2), Pair(d1, d2)) =>
+  | (Pair(dp1, dp2), Pair(d1, d2))
+  | (Ap(dp1, dp2), Ap(d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
     | IndetMatch =>
@@ -230,6 +240,7 @@ and matches_cast_Inj =
   | ListLit(_, _, _, _, _) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
+  | Tag(_) => DoesNotMatch
   | Triv => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
@@ -303,6 +314,7 @@ and matches_cast_Pair =
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
+  | Tag(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -436,6 +448,7 @@ and matches_cast_Cons =
   | Inj(_, _, _) => DoesNotMatch
   | Pair(_, _) => DoesNotMatch
   | Triv => DoesNotMatch
+  | Tag(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
@@ -563,7 +576,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(TestLit(id)) => evaluate_test(env, id, d2)
-
+      | BoxedValue(Tag(_)) =>
+        let* r2 = evaluate(env, d2);
+        switch (r2) {
+        | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
+        | Indet(d2) => Indet(Ap(d1, d2)) |> return
+        };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -610,7 +628,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Triv => BoxedValue(d) |> return
+    | Triv
+    | Tag(_) => BoxedValue(d) |> return
 
     | BinBoolOp(op, d1, d2) =>
       let* r1 = evaluate(env, d1);

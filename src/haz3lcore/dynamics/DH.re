@@ -72,6 +72,7 @@ module rec DHExp: {
     | Inj(Typ.t, InjSide.t, t)
     | Pair(t, t)
     | Triv
+    | Tag(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -166,6 +167,7 @@ module rec DHExp: {
     | Inj(Typ.t, InjSide.t, t)
     | Pair(t, t)
     | Triv
+    | Tag(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -204,6 +206,7 @@ module rec DHExp: {
     | Inj(_, _, _) => "Inj"
     | Pair(_, _) => "Pair"
     | Triv => "Triv"
+    | Tag(_) => "Constructor"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -283,6 +286,7 @@ module rec DHExp: {
     | FloatLit(_) as d
     | StringLit(_) as d
     | Triv as d
+    | Tag(_) as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
@@ -296,7 +300,8 @@ module rec DHExp: {
     | (IntLit(_), _)
     | (FloatLit(_), _)
     | (StringLit(_), _)
-    | (Triv, _) => d1 == d2
+    | (Triv, _)
+    | (Tag(_), _) => d1 == d2
 
     /* Non-hole forms: recurse */
     | (Sequence(d11, d21), Sequence(d12, d22)) =>

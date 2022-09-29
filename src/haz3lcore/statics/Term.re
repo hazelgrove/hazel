@@ -33,6 +33,7 @@ module UTyp = {
     | Arrow
     | Tuple
     | List
+    | Var
     | Parens;
 
   include TermBase.UTyp;
@@ -59,6 +60,7 @@ module UTyp = {
     | String => String
     | List(_) => List
     | Arrow(_) => Arrow
+    | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens;
 
@@ -71,6 +73,7 @@ module UTyp = {
     | Float
     | String
     | Bool => "Base Type"
+    | Var => "Type Variable"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
@@ -90,10 +93,12 @@ module UPat = {
     | String
     | Triv
     | ListLit
+    | Tag
     | Cons
     | Var
     | Tuple
     | Parens
+    | Ap
     | TypeAnn;
 
   include TermBase.UPat;
@@ -121,10 +126,12 @@ module UPat = {
     | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Ap(_) => Ap
     | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
@@ -139,10 +146,12 @@ module UPat = {
     | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
     | ListLit => "List Literal Pattern"
+    | Tag => "Constructor Pattern"
     | Cons => "List Cons"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
+    | Ap => "Constructor Application"
     | TypeAnn => "Type Annotation";
 };
 
@@ -171,6 +180,7 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -244,11 +254,12 @@ module UExp = {
     | Float => "Float Literal"
     | String => "String Literal"
     | ListLit => "List Literal"
+    | Tag => "Constructor"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | Ap => "Function Application"
+    | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -270,6 +281,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | String => String
+    | Var(name) => Var(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
