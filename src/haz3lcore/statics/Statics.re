@@ -83,7 +83,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
 type error =
   | FreeVariable
   | Multi
-  | NotFunction(Typ.t)
+  | NoFun(Typ.t)
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
@@ -109,7 +109,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (SynFun, Just(ty)) =>
     switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
-    | None => InHole(NotFunction(ty))
+    | None => InHole(NoFun(ty))
     | Some(_) => NotInHole(SynConsistent(ty))
     }
   | (SynFun, Joined(_wrap, tys_syn)) =>
@@ -122,7 +122,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
       switch (
         Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty_joined)
       ) {
-      | None => InHole(NotFunction(ty_joined))
+      | None => InHole(NoFun(ty_joined))
       | Some(_) => NotInHole(SynConsistent(ty_joined))
       }
     };
@@ -196,7 +196,6 @@ let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
-//TODO:cleanup
 let exp_self_typ_id = (m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => Typ.t_of_self(self)
@@ -365,7 +364,13 @@ and uexp_to_info_map =
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
-    let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
+    let mode: Typ.mode =
+      switch (mode) {
+      | Syn
+      | SynFun => Ana(List(ty1))
+      | Ana(ty) => Ana(List(Typ.matched_list(ty)))
+      };
+    let (_, free2, m2) = go(~mode, e2);
     add(
       ~self=Just(List(ty1)),
       ~free=Ctx.union([free1, free2]),

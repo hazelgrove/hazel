@@ -19,7 +19,6 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-//TODO(andrew): should these be unknown internal?
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 let grounded_Sum =
@@ -765,6 +764,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
+          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
+          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2)));
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
       };

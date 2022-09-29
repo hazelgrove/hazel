@@ -54,54 +54,43 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
+/* Wrap: Handles cast insertion and non-empty-hole wrapping
+   for elaborated expressions */
+let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
+  switch (Statics.error_status(mode, self)) {
+  | NotInHole(_) =>
+    switch (mode) {
+    | Syn => Some(d)
+    | SynFun =>
+      /* Things in function position get cast to an arrow type */
+      let ty_self = Typ.t_of_self(self);
+      switch (ty_self) {
+      | Unknown(prov) =>
+        Some(DHExp.cast(d, ty_self, Arrow(Unknown(prov), Unknown(prov))))
+      | _ => Some(d)
+      };
+    | Ana(ana_ty) =>
+      /* Forms with no Syn rule get cast from their appropriate Matched types */
+      switch (d, ana_ty) {
+      | (ListLit(_, _, _, _, []), Unknown(prov)) =>
+        Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
+      | (ListLit(_, _, _, _, []), _) => Some(d)
+      | (Fun(_), Unknown(prov)) =>
+        Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
+      | (Fun(_), _) => Some(d)
+      | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
+      }
+    }
+  | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
+  };
+
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let wrap = (d: DHExp.t): option(DHExp.t) =>
-      switch (err_status) {
-      | NotInHole(_) =>
-        switch (Statics.exp_mode_id(m, u)) {
-        | SynFun =>
-          let exp_self_typ = Statics.exp_self_typ_id(m, u);
-          switch (exp_self_typ) {
-          | Unknown(prov) =>
-            Some(
-              DHExp.cast(
-                d,
-                exp_self_typ,
-                Arrow(Unknown(prov), Unknown(prov)),
-              ),
-            )
-          | _ => Some(d)
-          };
-        | Syn => Some(d)
-        | Ana(ana_ty) =>
-          switch (d) {
-          | ListLit(_, _, _, _, []) =>
-            switch (ana_ty) {
-            | Unknown(prov) =>
-              Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
-            | _ => Some(d)
-            }
-          | Fun(_) =>
-            switch (ana_ty) {
-            | Unknown(prov) =>
-              Some(
-                DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty),
-              )
-            | _ => Some(d)
-            }
-          | _ =>
-            let exp_self_typ = Statics.exp_self_typ_id(m, u);
-            //print_endline(Typ.show(exp_self_typ));
-            Some(DHExp.cast(d, exp_self_typ, ana_ty));
-          }
-        }
-      | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
-      };
+    let wrap = wrap(u, mode, self);
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0))
@@ -129,14 +118,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | ListLit(es) =>
       let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
       let ty = Statics.exp_typ(m, uexp) |> Typ.matched_list;
-      //TODO: err status below?
+      //TODO: why is there an err status on below?
       wrap(ListLit(u, 0, StandardErrStatus(NotInHole), ty, ds));
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       wrap(DHExp.Fun(dp, Statics.pat_typ(m, p), d1));
     | Tuple(es) =>
-      //TODO(andrew): review below
       switch (List.rev(es)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")
@@ -272,7 +260,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
     | Tuple(ps) =>
-      //TODO(andrew): review below
       switch (List.rev(ps)) {
       | [] => wrap(Triv)
       | [_] => failwith("ERROR: Tuple with one element")
