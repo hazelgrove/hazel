@@ -32,8 +32,7 @@ type t =
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Tuple(list(t))
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
