@@ -74,6 +74,8 @@ module Delim = {
     mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
   let close_Inj = mk(")");
 
+  let projection_dot = mk(".");
+
   let open_Case = mk("case");
   let close_Case = mk("end");
 
@@ -124,22 +126,27 @@ let mk_Inj = (inj_side, padded_child) =>
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 
-let rec mk_ListLit = (l, ol) =>
+let rec mk_comma_seq = (ld, rd, l, ol) =>
   switch (l) {
   | [] =>
     if (l == ol) {
-      Doc.(hcats([text("["), text("]")]));
+      Doc.(hcats([text(ld), text(rd)]));
     } else {
-      Doc.(hcats([text("]")]));
+      Doc.(hcats([text(rd)]));
     }
   | [hd, ...tl] =>
     if (l == ol) {
-      Doc.(hcats([text("["), hd, mk_ListLit(tl, ol)]));
+      Doc.(hcats([text(ld), hd, mk_comma_seq(ld, rd, tl, ol)]));
     } else {
-      Doc.(hcats([text(", "), hd, mk_ListLit(tl, ol)]));
+      Doc.(hcats([text(", "), hd, mk_comma_seq(ld, rd, tl, ol)]));
     }
   };
 
-let mk_Pair = (doc1, doc2) => Doc.(hcats([doc1, text(", "), doc2]));
+let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
+
+let mk_Tuple = elts => mk_comma_seq("(", ")", elts, elts);
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
+
+let mk_Prj = (targ, n) =>
+  Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
