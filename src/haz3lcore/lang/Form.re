@@ -82,7 +82,8 @@ let is_listnil = str => str == "nil";
 let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_constructor = is_capitalized_name;
+let is_tag = is_capitalized_name;
+let is_typ_var = is_capitalized_name;
 let is_concrete_typ = str =>
   str == "String"
   || str == "Int"
@@ -119,8 +120,9 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
-  ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])])),
-  ("ctr", (is_constructor, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),

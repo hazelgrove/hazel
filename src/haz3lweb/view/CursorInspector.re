@@ -20,10 +20,20 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
   | Multi =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
-  | FreeVariable =>
+  | Free(Variable) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
+    )
+  | Free(TypeVariable) =>
+    div(
+      ~attr=clss([errorc, "err-free-variable"]),
+      [text("Type Variable is not bound")],
+    )
+  | Free(Tag) =>
+    div(
+      ~attr=clss([errorc, "err-free-variable"]),
+      [text("Constructor is not defined")],
     )
   | SynInconsistentBranches(tys) =>
     div(
@@ -123,17 +133,18 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
       ~attr=clss([infoc, "pat"]),
       [term_tag(is_err, "pat"), status_view(error_status)],
     );
-  | InfoTyp({self: Free, _}) =>
+  | InfoTyp({self: Free(free_error), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(is_err, "typ"), error_view(FreeVariable)],
+      [term_tag(is_err, "typ"), error_view(Free(free_error))],
     )
-  | InfoTyp({self, _}) =>
-    let ty = Haz3lcore.Statics.typ_ann_after_fix(self);
+  | InfoTyp({self: Just(ty), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [term_tag(is_err, "typ"), text("is"), Type.view(ty)],
-    );
+    )
+  | InfoTyp({self: _, _}) =>
+    failwith("CursorInspector: Impossible type error")
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
