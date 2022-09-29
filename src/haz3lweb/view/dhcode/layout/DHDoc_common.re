@@ -74,6 +74,8 @@ module Delim = {
     mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
   let close_Inj = mk(")");
 
+  let projection_dot = mk(".");
+
   let open_Case = mk("case");
   let close_Case = mk("end");
 
@@ -145,3 +147,6 @@ let mk_ListLit = l => mk_comma_seq("[", "]", l, l);
 let mk_Tuple = elts => mk_comma_seq("(", ")", elts, elts);
 
 let mk_Ap = (doc1, doc2) => Doc.hseps([doc1, doc2]);
+
+let mk_Prj = (targ, n) =>
+  Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);

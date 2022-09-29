@@ -50,6 +50,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | StringLit(_)
   | ListLit(_)
   | Inj(_)
+  | Prj(_)
   | EmptyHole(_)
   | FailedCast(_)
   | InvalidOperation(_)
@@ -69,6 +70,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Tuple(_) => DHDoc_common.precedence_Comma
+
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
@@ -282,6 +284,7 @@ let rec mk =
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
+      | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);

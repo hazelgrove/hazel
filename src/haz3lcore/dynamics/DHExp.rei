@@ -33,6 +33,7 @@ type t =
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
     | Tuple(list(t))
+    | Prj(t, int)
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)

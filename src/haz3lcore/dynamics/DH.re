@@ -71,6 +71,7 @@ module rec DHExp: {
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
     | Tuple(list(t))
+    | Prj(t, int)
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
@@ -164,6 +165,7 @@ module rec DHExp: {
     | Cons(t, t)
     | Inj(HTyp.t, InjSide.t, t)
     | Tuple(list(t))
+    | Prj(t, int)
     | ConsistentCase(case)
     | Cast(t, HTyp.t, HTyp.t)
     | FailedCast(t, HTyp.t, HTyp.t)
@@ -201,6 +203,7 @@ module rec DHExp: {
     | Cons(_, _) => "Cons"
     | Inj(_, _, _) => "Inj"
     | Tuple(_) => "Tuple"
+    | Prj(_) => "Prj"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -243,6 +246,7 @@ module rec DHExp: {
     | FailedCast(d, _, _) => strip_casts(d)
     | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
+    | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, d, ds) =>
       ListLit(a, b, c, d, List.map(strip_casts, ds))
@@ -307,6 +311,7 @@ module rec DHExp: {
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
+    | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
     | (ListLit(_, _, _, _, ds1), ListLit(_, _, _, _, ds2)) =>
@@ -339,6 +344,7 @@ module rec DHExp: {
     | (Cons(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
+    | (Prj(_), _)
     | (BinBoolOp(_), _)
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
