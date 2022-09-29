@@ -13,7 +13,7 @@ type adt = (string, list(tag));
    must be globally unique (enforced by assertions below) */
 let adts: list(adt) = [
   (
-    "color",
+    "Color",
     [
       {name: "Red", arg: None},
       {name: "Green", arg: None},
@@ -21,11 +21,11 @@ let adts: list(adt) = [
     ],
   ),
   (
-    "option_int",
+    "OptionInt",
     [{name: "None", arg: None}, {name: "Some", arg: Some(Int)}],
   ),
   (
-    "exp",
+    "Exp",
     [
       {name: "Error", arg: Some(Int)},
       {name: "Var", arg: Some(String)},

@@ -125,9 +125,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  //TODO(andrew): below cases?
-  //| (Tag(_), Cast(d, ty, Unknown(_))) => matches(dp, d)
-  //| (Tag(_), Cast(d, Unknown(_), ty)) => matches(dp, d)
+  | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
+  | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
   | (Tag(_), _) => DoesNotMatch
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
@@ -581,10 +580,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | BoxedValue(Tag(_)) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
-        | BoxedValue(d2)
-        | Indet(d2) =>
-          //TODO(andrew): finish this. do we need a seperate value form?
-          BoxedValue(Ap(d1, d2)) |> return
+        | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
+        | Indet(d2) => Indet(Ap(d1, d2)) |> return
         };
       | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
         let* r2 = evaluate(env, d2);

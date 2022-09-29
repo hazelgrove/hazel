@@ -34,6 +34,12 @@ type source = {
   ty: t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type free_errors =
+  | Variable
+  | Tag
+  | TypeVariable;
+
 /* SELF: The (synthetic) type information derivable from a term
    in isolation, using the typing context but not the syntactic
    context. This can either be Free (no type, in the case of
@@ -45,7 +51,7 @@ type self =
   | Just(t)
   | Joined(t => t, list(source))
   | Multi
-  | Free;
+  | Free(free_errors);
 
 /* MODE: The (analytic) type information derived from a term's
    syntactic context. This can either Syn (no type expectation),
@@ -119,7 +125,6 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     }
   | (List(_), _) => None
   | (Var(n1), Var(n2)) when n1 == n2 => Some(ty1)
-  //TODO: structural comparison?
   | (Var(_), _) => None
   };
 
@@ -144,7 +149,7 @@ let t_of_self =
     | Some(t) => wrap(t)
     }
   | Multi
-  | Free => Unknown(Internal);
+  | Free(_) => Unknown(Internal);
 
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
@@ -237,6 +242,6 @@ let rec eq = (t1, t2) =>
   | (Sum(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
-  | (Var(n1), Var(n2)) => n1 == n2 //TODO: structural comparison?
+  | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
   };
