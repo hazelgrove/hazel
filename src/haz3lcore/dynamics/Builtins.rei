@@ -1,15 +1,26 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_((Typ.t, DHExp.t));
+type t = VarMap.t_(Builtin.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
 
 /**
-  [to_ctx builtins] is the static type context of the builtins.
+  [ctx builtins] is the static type context of the builtins.
  */
-let to_ctx: t => Ctx.t;
+let ctx: t => Ctx.t;
 
 /**
-  [to_forms builtins] is the map of the dynamic forms of the builtins.
+  [forms builtins] is the map of the dynamic forms of the builtins.
  */
-let to_forms: t => forms;
+let forms: t => forms;
+
+/**
+  Module of some builtin functions.
+ */
+module Pervasives: {
+  let pi: string => Builtin.t;
+
+  let int_of_float: string => Builtin.t;
+  let float_of_int: string => Builtin.t;
+  let modulo: string => Builtin.t;
+};

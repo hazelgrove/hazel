@@ -7,6 +7,24 @@
    See the existing ones for reference.
  */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = VarMap.t_(Builtin.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
+
+let ctx = (builtins: t): Ctx.t =>
+  List.map(
+    ((name, Builtin.{typ, _})) => (name, Ctx.{typ, id: Id.invalid}),
+    builtins,
+  );
+
+let forms = (builtins: t): forms =>
+  List.map(
+    ((name, Builtin.{typ: _, eval, elab})) => (name, (elab, eval)),
+    builtins,
+  );
+
 module Pervasives = {
   module Impls = {
     open EvaluatorMonad;
@@ -73,18 +91,3 @@ module Pervasives = {
   let modulo = name =>
     Builtin.mk_two(name, Arrow(Int, Arrow(Int, Int)), Impls.int_mod);
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(Builtin.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
-
-let ctx = (builtins: t): Ctx.t =>
-  List.map(((name, Builtin.{ty, _})) => (name, ty), builtins);
-
-let forms = (builtins: t): forms =>
-  List.map(
-    ((name, Builtin.{ty: _, eval, elab})) => (name, (elab, eval)),
-    builtins,
-  );

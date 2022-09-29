@@ -17,7 +17,7 @@ type builtin_evaluate =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  ty: Typ.t,
+  typ: Typ.t,
   eval: builtin_evaluate,
   elab: DHExp.t,
 };
@@ -34,28 +34,28 @@ type t = {
        )
      )
  */
-let mk_elab = (name: Var.t, ty: Typ.t): DHExp.t => {
+let mk_elab = (name: Var.t, typ: Typ.t): DHExp.t => {
   let rec mk_elab_inner =
-          (ty': Typ.t, n: int, bindings: list(Var.t)): DHExp.t => {
-    switch (ty') {
-    | Arrow(_, ty'') =>
+          (typ': Typ.t, n: int, bindings: list(Var.t)): DHExp.t => {
+    switch (typ') {
+    | Arrow(_, typ'') =>
       let var = "x" ++ string_of_int(n);
-      Fun(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
+      Fun(Var(var), typ', mk_elab_inner(typ'', n + 1, [var, ...bindings]));
     | _ =>
       let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
       ApBuiltin(name, bindings);
     };
   };
 
-  mk_elab_inner(ty, 0, []);
+  mk_elab_inner(typ, 0, []);
 };
 
-let mk = (name: Var.t, ty: Typ.t, eval: builtin_evaluate): t => {
-  let elab = mk_elab(name, ty);
-  {ty, eval, elab};
+let mk = (name: Var.t, typ: Typ.t, eval: builtin_evaluate): t => {
+  let elab = mk_elab(name, typ);
+  {typ, eval, elab};
 };
 
-let mk_zero = (name: Var.t, ty: Typ.t, v: DHExp.t): t => {
+let mk_zero = (name: Var.t, typ: Typ.t, v: DHExp.t): t => {
   let fn = (env, args, evaluate) => {
     switch (args) {
     | [] => evaluate(env, v)
@@ -63,13 +63,13 @@ let mk_zero = (name: Var.t, ty: Typ.t, v: DHExp.t): t => {
     };
   };
 
-  mk(name, ty, fn);
+  mk(name, typ, fn);
 };
 
 let mk_one =
     (
       name: Var.t,
-      ty: Typ.t,
+      typ: Typ.t,
       fn: (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t),
     )
     : t => {
@@ -82,7 +82,7 @@ let mk_one =
     };
   };
 
-  mk(name, ty, fn);
+  mk(name, typ, fn);
 };
 
 let mk_two =
