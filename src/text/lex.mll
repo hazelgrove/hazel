@@ -23,6 +23,12 @@ let _ =
       "NaN", FLOAT ("NaN");
       "Inf", FLOAT "Inf";
       "NegInf", FLOAT "NegInf"]
+
+(* String buffer *)
+let string_buf = Buffer.create 32
+let reset_string_buf () = Buffer.reset string_buf
+let get_string () = Buffer.contents string_buf
+let add_string_char c = Buffer.add_char string_buf c
 }
 
 (*
@@ -48,8 +54,7 @@ let newline = ('\r'* '\n')
 let wild = ['_']
 let ident = ['_' 'a'-'z' 'A'-'Z' '0'-'9' '\'']+
 
-rule read =
-  parse
+rule read = parse
   newline { read lexbuf }
   | whitespace+ { read lexbuf }
   | int_lit { INT (int_of_string (Lexing.lexeme lexbuf)) }
@@ -82,6 +87,12 @@ rule read =
   | "<=." { FLESSEREQUAL }
   | "&&" { AND }
   | "||" { OR }
+  | "$==" { SEQUAL }
+  | "\"" {
+    reset_string_buf ();
+    string lexbuf;
+    STRING (get_string ())
+  }
   | "," { COMMA }
   | ":" { COLON }
   | "::" { COLONCOLON }
@@ -96,3 +107,7 @@ rule read =
   | "->" { TARROW }
   | "→" { TARROW }
   | eof { EOF }
+
+and string = parse
+  | "\"" { () }
+  | _ as c { add_string_char c; string lexbuf }

@@ -118,6 +118,8 @@
 %token RBRACK
 %token RPAREN
 %token SEMICOLON
+%token SEQUAL
+%token <string> STRING
 %token TARROW
 %token TEST
 %token THEN
@@ -166,6 +168,7 @@ let typ_ :=
     | "Int" -> mk_utyp UTyp.Int
     | "Bool" -> mk_utyp UTyp.Bool
     | "Float" -> mk_utyp UTyp.Float
+    | "String" -> mk_utyp UTyp.String
     | _ -> failwith ("Unknown Type: "^id)
   }
 
@@ -237,6 +240,7 @@ let expr_ :=
   | MINUS; e = expr; %prec uminus {
     mk_uexp (UExp.UnOp(UExp.Int(Minus), e))
   } 
+  | s = STRING; { mk_uexp (UExp.String s) }
 
 let infix_op ==
     | PLUS; {op_of_optok Plus}

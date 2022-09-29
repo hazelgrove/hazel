@@ -66,6 +66,7 @@ let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f -> f"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
 let%test "something" = test_parse "let a : [Int] = [1] in a"
+let%test "string" = test_parse "let s : String = \"foo\" in s"
 
 let%test "basic let fun" =
   test_parse "let a : Int -> Int = fun x -> x + 1 in a(4)"
