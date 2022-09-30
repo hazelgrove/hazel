@@ -71,7 +71,7 @@ let view =
     SchoolExercise.focus(exercise, stitched_dynamics);
 
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight) {
+    if (langDocMessages.highlight && langDocMessages.show) {
       let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
       let map = Statics.mk_map(term);
       Some(
