@@ -1174,11 +1174,10 @@ svg.tile-selected {
   display: none;
   z-index: 20;
   position: fixed;
-  left: 0.3em;
-  /* top: 3.8em; */
-  bottom: 1.8em;
+  left: 0.2em;
+  bottom: 2.1em;
   min-width: 10em;
-  max-width: 12em;
+  max-width: 14em;
   max-height: 12em;
   overflow: auto;
   padding: 0.2em;
@@ -1189,13 +1188,11 @@ svg.tile-selected {
   border-left: 1px solid #daca9f;
   border-right: 1px solid #daca9f;
   background-color: #f7ebc5;
-  /*#fbebaa;*/
   box-shadow: 0px 3px 0px #77580255;
 }
 
 .context-entry {
   display: flex;
-  width: 10em;
   gap: 0.5em;
 }
 

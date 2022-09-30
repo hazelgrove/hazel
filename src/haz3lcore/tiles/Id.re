@@ -3,6 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = int;
 let compare = Int.compare;
+let invalid = (-1);
 
 module Map = Util.IntMap;
 

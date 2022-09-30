@@ -81,6 +81,9 @@ let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
 let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_tag = is_capitalized_name;
+let is_typ_var = is_capitalized_name;
 let is_concrete_typ = str =>
   str == "String"
   || str == "Int"
@@ -88,7 +91,7 @@ let is_concrete_typ = str =>
   || str == "Bool"
   || str == "Unit";
 let is_partial_concrete_typ = x =>
-  !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
+  !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
 /* The below case represents tokens which we want the user to be able to
    type in, but which have no reasonable semantic interpretation */
@@ -118,6 +121,8 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -171,9 +176,10 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
-  ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
+  ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),

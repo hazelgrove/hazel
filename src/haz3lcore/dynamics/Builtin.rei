@@ -1,24 +1,20 @@
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type evaluate =
   (ClosureEnvironment.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type args = list(DHExp.t);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type builtin_evaluate =
   (ClosureEnvironment.t, args, evaluate) =>
   EvaluatorMonad.t(EvaluatorResult.t);
 
-[@deriving sexp]
-type builtin_elaboration = DHExp.t;
-
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  ident: Var.t,
-  ty: Typ.t,
+  typ: Typ.t,
   eval: builtin_evaluate,
-  elab: builtin_elaboration,
+  elab: DHExp.t,
 };
 
 /*
