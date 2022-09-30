@@ -1703,7 +1703,11 @@ let case_example_2 = {
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
 };
-// TODO Sort of hacked together syntactic form for now
+// TODO - I don't think changing specificity on the number of cases is really the most
+// beneficial specificity change - I think instead have generic at top level 
+// and then have a slightly different setup for specific that is created more
+// dynamically calling setup methods here but more
+// work done in the LangDoc code - maybe just up to 3 or 4 branches?
 let case_exp: form = {
   let explanation = {
     message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
@@ -1713,8 +1717,15 @@ let case_exp: form = {
   {
     id: "case_exp",
     syntactic_form: [
-      mk_case([[exp("EXP_scrut"), exp("...")]]),
-      //mk_rule([[pat("...")], [exp("e")]]),
+      mk_case([
+        [
+          exp("EXP_scrut"),
+          mk_rule([[pat("PAT1")]]),
+          exp("EXP1"),
+          mk_rule([[pat("...")]]),
+          exp("..."),
+        ],
+      ]),
     ],
     expandable_id: None, //Some(Piece.id(dot)),
     explanation,
