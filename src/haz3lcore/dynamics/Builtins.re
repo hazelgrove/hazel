@@ -56,30 +56,18 @@ module Pervasives = {
       };
 
     /* mod implementation */
-    let int_mod = (name, r1, r2) =>
+    let int_mod = (name, r1) =>
       switch (r1) {
-      | BoxedValue(IntLit(n) as d1) =>
-        switch (r2) {
-        | BoxedValue(IntLit(m) as d2) =>
-          switch (n, m) {
-          | (_, 0) =>
-            Indet(
-              InvalidOperation(ApBuiltin(name, [d1, d2]), DivideByZero),
-            )
-            |> return
-          | (n, m) => BoxedValue(IntLit(n mod m)) |> return
-          }
-        | BoxedValue(d2) =>
-          raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
-        | Indet(d2) => Indet(ApBuiltin(name, [d1, d2])) |> return
+      | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
+        switch (m) {
+        | 0 =>
+          Indet(InvalidOperation(ApBuiltin(name, [d1]), DivideByZero))
+          |> return
+        | _ => return(BoxedValue(IntLit(n mod m)))
         }
       | BoxedValue(d1) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-      | Indet(d1) =>
-        switch (r2) {
-        | BoxedValue(d2)
-        | Indet(d2) => Indet(ApBuiltin(name, [d1, d2])) |> return
-        }
+        raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
+      | Indet(d1) => return(Indet(ApBuiltin(name, [d1])))
       };
 
     /* PI implementation. */
@@ -92,7 +80,7 @@ module Pervasives = {
   let float_of_int = name =>
     Builtin.mk_one(name, Arrow(Int, Float), Impls.float_of_int);
   let modulo = name =>
-    Builtin.mk_two(name, Arrow(Int, Arrow(Int, Int)), Impls.int_mod);
+    Builtin.mk_one(name, Arrow(Prod([Int, Int]), Int), Impls.int_mod);
 
   let builtins =
     VarMap.empty
