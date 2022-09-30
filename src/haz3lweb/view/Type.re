@@ -12,7 +12,7 @@ let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
 let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
-  //TODO(andrew): parens on ops when ambiguous
+  //TODO: parens on ops when ambiguous
   switch (ty) {
   | Unknown(prov) =>
     div(
@@ -23,6 +23,7 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
+  | Var(name) => ty_view("Var", name)
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),

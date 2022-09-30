@@ -7,6 +7,9 @@ let dedup = xs =>
     [],
   );
 
+let are_duplicates = xs =>
+  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
+
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
