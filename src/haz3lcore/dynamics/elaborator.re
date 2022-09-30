@@ -221,12 +221,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           fs
           |> List.fold_left(
                ((i, ddef), f) => {
-                 print_endline(
-                   "projection: " ++ self_id ++ "." ++ string_of_int(i),
-                 );
                  let ddef =
                    Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
-                 print_endline(DHExp.show(ddef));
                  (i + 1, ddef);
                },
                (0, ddef),
