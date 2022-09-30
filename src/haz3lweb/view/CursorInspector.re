@@ -211,7 +211,7 @@ let inspector_view =
     [
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ci),
-      CtxInspector.inspector_view(~settings, id, ci),
+      CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
 
