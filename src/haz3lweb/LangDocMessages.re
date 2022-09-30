@@ -1704,7 +1704,7 @@ let case_example_2 = {
   feedback: Unselected,
 };
 // TODO - I don't think changing specificity on the number of cases is really the most
-// beneficial specificity change - I think instead have generic at top level 
+// beneficial specificity change - I think instead have generic at top level
 // and then have a slightly different setup for specific that is created more
 // dynamically calling setup methods here but more
 // work done in the LangDoc code - maybe just up to 3 or 4 branches?

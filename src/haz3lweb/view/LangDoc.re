@@ -217,6 +217,20 @@ let deco =
                 ++ (doc.specificity_open ? "transform: scaleY(1);" : ""),
               );
 
+            let get_clss = segment =>
+              switch (List.nth(segment, 0)) {
+              | Base.Tile({mold, _}) =>
+                switch (mold.out) {
+                | Pat => ["term-tag-pat"]
+                | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
+                | Typ => ["term-tag-typ"]
+                | Any
+                | Nul
+                | Rul => []
+                }
+              | _ => []
+              };
+
             let specificity_menu =
               Node.div(
                 ~attr=
@@ -229,11 +243,12 @@ let deco =
                     let map = Measured.of_segment(segment);
                     let code_view =
                       Code.simple_view(~unselected=segment, ~map, ~settings);
+                    let classes = get_clss(segment);
                     id == form_id
                       ? Node.div(
                           ~attr=
                             Attr.many([
-                              clss(["selected"]),
+                              clss(["selected"] @ classes),
                               Attr.on_click(_ =>
                                 inject(
                                   Update.UpdateLangDocMessages(
@@ -249,23 +264,26 @@ let deco =
                         )
                       : Node.div(
                           ~attr=
-                            Attr.on_click(_ =>
-                              inject(
-                                Update.UpdateLangDocMessages(
-                                  LangDocMessages.UpdateGroupSelection(
-                                    group_id,
-                                    index,
+                            Attr.many([
+                              clss(classes),
+                              Attr.on_click(_ =>
+                                inject(
+                                  Update.UpdateLangDocMessages(
+                                    LangDocMessages.UpdateGroupSelection(
+                                      group_id,
+                                      index,
+                                    ),
                                   ),
-                                ),
-                              )
-                            ),
+                                )
+                              ),
+                            ]),
                           [code_view],
                         );
                   },
                   options,
                 ),
               );
-            // TODO placement of arrow different depending on browser it seems
+
             let expand_arrow_style = Attr.create("style", specificity_pos);
             let expand_arrow =
               Node.div(
@@ -2834,7 +2852,7 @@ let view =
       div(
         ~attr=clss(["content"]),
         [
-          toggle("🔆", doc.highlight, _ =>
+          toggle(~tooltip="Show highlight", "🔆", doc.highlight, _ =>
             inject(
               Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
             )
