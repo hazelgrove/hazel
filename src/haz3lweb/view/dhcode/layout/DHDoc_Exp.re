@@ -52,6 +52,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Inj(_)
   | Prj(_)
   | EmptyHole(_)
+  | Tag(_)
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
@@ -219,7 +220,7 @@ let rec mk =
         raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
 
       | BoundVar(x) => text(x)
-      // | Triv => DHDoc_common.Delim.triv
+      | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
