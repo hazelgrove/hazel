@@ -615,8 +615,9 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
 let mk_map =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    (ctx, e) => {
-      let (_, _, map) = uexp_to_info_map(~ctx, e);
+    e => {
+      let (_, _, map) =
+        uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
       map;
     },
   );

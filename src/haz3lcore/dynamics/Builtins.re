@@ -25,6 +25,9 @@ let forms = (builtins: t): forms =>
     builtins,
   );
 
+let using = (name: Var.t, impl: Var.t => Builtin.t, builtins: t): t =>
+  VarMap.extend(builtins, (name, impl(name)));
+
 module Pervasives = {
   module Impls = {
     open EvaluatorMonad;
@@ -90,4 +93,11 @@ module Pervasives = {
     Builtin.mk_one(name, Arrow(Int, Float), Impls.float_of_int);
   let modulo = name =>
     Builtin.mk_two(name, Arrow(Int, Arrow(Int, Int)), Impls.int_mod);
+
+  let builtins =
+    VarMap.empty
+    |> using("pi", pi)
+    |> using("int_of_float", int_of_float)
+    |> using("float_of_int", float_of_int)
+    |> using("mod", modulo);
 };
