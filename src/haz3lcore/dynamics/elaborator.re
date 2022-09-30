@@ -193,25 +193,47 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(Free(Variable)) => Some(FreeVar(u, 0, name))
       | _ => wrap(BoundVar(name))
       }
-    | Let(
-        {term: TypeAnn({term: Var(x), _}, {term: Arrow(_), _}), _} as p,
-        {term: Fun(_), _} as def,
-        body,
-      ) =>
-      /* NOTE: recursive case */
-      let pat_typ = Statics.pat_self_typ(m, p);
-      let def_typ = Statics.exp_self_typ(m, def);
-      let* p = dhpat_of_upat(m, p);
-      let* def = dhexp_of_uexp(m, def);
-      let* body = dhexp_of_uexp(m, body);
-      let cast_var = DHExp.cast(BoundVar(x), def_typ, pat_typ);
-      let def_subst = Substitution.subst_var(cast_var, x, def);
-      wrap(Let(p, FixF(x, def_typ, def_subst), body));
     | Let(p, def, body) =>
-      let* dp = dhpat_of_upat(m, p);
-      let* ddef = dhexp_of_uexp(m, def);
-      let* dbody = dhexp_of_uexp(m, body);
-      wrap(Let(dp, ddef, dbody));
+      switch (Term.UPat.get_recursive_bindings(p)) {
+      | None =>
+        /* not recursive */
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* dbody = dhexp_of_uexp(m, body);
+        wrap(Let(dp, ddef, dbody));
+      | Some([f]) =>
+        /* simple recursion */
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* dbody = dhexp_of_uexp(m, body);
+        let ty = Statics.pat_self_typ(m, p);
+        wrap(Let(dp, FixF(f, ty, ddef), dbody));
+      | Some(fs) =>
+        /* mutual recursion */
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* dbody = dhexp_of_uexp(m, body);
+        let ty = Statics.pat_self_typ(m, p);
+        let uniq_id = List.nth(def.ids, 0);
+        let self_id = "__mutual__" ++ string_of_int(uniq_id);
+        let self_var = DHExp.BoundVar(self_id);
+        let (_, substituted_def) =
+          fs
+          |> List.fold_left(
+               ((i, ddef), f) => {
+                 print_endline(
+                   "projection: " ++ self_id ++ "." ++ string_of_int(i),
+                 );
+                 let ddef =
+                   Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
+                 print_endline(DHExp.show(ddef));
+                 (i + 1, ddef);
+               },
+               (0, ddef),
+             );
+        let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
+        wrap(Let(dp, fixpoint, dbody));
+      }
     | Ap(fn, arg) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
