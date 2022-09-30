@@ -33,6 +33,7 @@ module UTyp = {
     | Arrow
     | Tuple
     | List
+    | Var
     | Parens;
 
   include TermBase.UTyp;
@@ -59,6 +60,7 @@ module UTyp = {
     | String => String
     | List(_) => List
     | Arrow(_) => Arrow
+    | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens;
 
@@ -71,10 +73,28 @@ module UTyp = {
     | Float
     | String
     | Bool => "Base Type"
+    | Var => "Type Variable"
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Parens => "Parenthesized Type Term";
+
+  let rec is_arrow = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_arrow(typ)
+    | Arrow(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Var(_) => false
+    };
+  };
 };
 
 module UPat = {
@@ -90,10 +110,12 @@ module UPat = {
     | String
     | Triv
     | ListLit
+    | Tag
     | Cons
     | Var
     | Tuple
     | Parens
+    | Ap
     | TypeAnn;
 
   include TermBase.UPat;
@@ -121,10 +143,12 @@ module UPat = {
     | String(_) => String
     | Triv => Triv
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Cons(_) => Cons
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Ap(_) => Ap
     | TypeAnn(_) => TypeAnn;
 
   let show_cls: cls => string =
@@ -139,11 +163,162 @@ module UPat = {
     | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
     | ListLit => "List Literal Pattern"
+    | Tag => "Constructor Pattern"
     | Cons => "List Cons"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
+    | Ap => "Constructor Application"
     | TypeAnn => "Type Annotation";
+
+  let rec is_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => is_var(pat)
+    | Var(_) => true
+    | TypeAnn(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Tuple(_)
+    | Tag(_)
+    | Ap(_) => false
+    };
+  };
+
+  let rec is_fun_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => is_fun_var(pat)
+    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Var(_)
+    | Tuple(_)
+    | Tag(_)
+    | Ap(_) => false
+    };
+  };
+
+  let rec is_tuple_of_arrows = (pat: t) =>
+    is_fun_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat) => is_tuple_of_arrows(pat)
+      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | TypeAnn(_)
+      | Tag(_)
+      | Ap(_) => false
+      }
+    );
+
+  let rec get_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_var(pat)
+    | Var(x) => Some(x)
+    | TypeAnn(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Tuple(_)
+    | Tag(_)
+    | Ap(_) => None
+    };
+  };
+
+  let rec get_fun_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_fun_var(pat)
+    | TypeAnn(pat, typ) =>
+      if (UTyp.is_arrow(typ)) {
+        get_var(pat) |> Option.map(var => var);
+      } else {
+        None;
+      }
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Var(_)
+    | Tuple(_)
+    | Tag(_)
+    | Ap(_) => None
+    };
+  };
+
+  let rec get_recursive_bindings = (pat: t) => {
+    switch (get_fun_var(pat)) {
+    | Some(x) => Some([x])
+    | None =>
+      switch (pat.term) {
+      | Parens(pat) => get_recursive_bindings(pat)
+      | Tuple(pats) =>
+        let fun_vars = pats |> List.map(get_fun_var);
+        if (List.exists(Option.is_none, fun_vars)) {
+          None;
+        } else {
+          Some(List.map(Option.get, fun_vars));
+        };
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | TypeAnn(_)
+      | Tag(_)
+      | Ap(_) => None
+      }
+    };
+  };
 };
 
 module UExp = {
@@ -171,6 +346,7 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | ListLit(_) => ListLit
+    | Tag(_) => Tag
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -244,11 +420,12 @@ module UExp = {
     | Float => "Float Literal"
     | String => "String Literal"
     | ListLit => "List Literal"
+    | Tag => "Constructor"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | Ap => "Function Application"
+    | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -257,6 +434,64 @@ module UExp = {
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Match Expression";
+
+  let rec is_fun = (e: t) => {
+    switch (e.term) {
+    | Parens(e) => is_fun(e)
+    | Fun(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Triv
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
+    | ListLit(_)
+    | Tuple(_)
+    | Var(_)
+    | Let(_)
+    | Ap(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | Cons(_)
+    | UnOp(_)
+    | BinOp(_)
+    | Match(_)
+    | Tag(_) => false
+    };
+  };
+
+  let rec is_tuple_of_functions = (e: t) =>
+    is_fun(e)
+    || (
+      switch (e.term) {
+      | Parens(e) => is_tuple_of_functions(e)
+      | Tuple(es) => es |> List.for_all(is_fun)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | Var(_)
+      | Let(_)
+      | Ap(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Tag(_) => false
+      }
+    );
 };
 
 /* Converts a syntactic type into a semantic type */
@@ -270,6 +505,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Int => Int
     | Float => Float
     | String => String
+    | Var(name) => Var(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | List(u) => List(utyp_to_ty(u))
