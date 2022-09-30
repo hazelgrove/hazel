@@ -216,7 +216,8 @@ module rec DHExp: {
 
   let mk_tuple: list(t) => t =
     fun
-    | [] => failwith("mk_tuple: expected at least 1 element")
+    | []
+    | [_] => failwith("mk_tuple: expected at least 2 elements")
     | xs => Tuple(xs);
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
