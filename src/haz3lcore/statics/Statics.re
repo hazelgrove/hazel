@@ -617,7 +617,8 @@ let mk_map =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
-      let (_, _, map) = uexp_to_info_map(~ctx=Ctx.empty, e);
+      let (_, _, map) =
+        uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
       map;
     },
   );
