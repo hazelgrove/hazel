@@ -246,11 +246,12 @@ let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
   |> List.fold_left(Id.Map.disj_union, m);
 
 let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: Term.UPat.t, def: Term.UExp.t, ty_ann: Typ.t) =>
-  switch (ty_ann, pat.term, def.term) {
-  | (Arrow(_), Var(x) | TypeAnn({term: Var(x), _}, _), Fun(_)) =>
-    VarMap.extend(ctx, (x, {id: List.hd(pat.ids), typ: ty_ann}))
-  | _ => ctx
+    (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
+  if (Term.UPat.is_tuple_of_arrows(pat)
+      && Term.UExp.is_tuple_of_functions(def)) {
+    VarMap.union(ctx, pat_ctx);
+  } else {
+    ctx;
   };
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
@@ -451,8 +452,8 @@ and uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
-    let (ty_pat, _ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
-    let def_ctx = extend_let_def_ctx(ctx, pat, def, ty_pat);
+    let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
+    let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
@@ -643,7 +644,8 @@ let mk_map =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
-      let (_, _, map) = uexp_to_info_map(~ctx=Ctx.empty, e);
+      let (_, _, map) =
+        uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
       map;
     },
   );
