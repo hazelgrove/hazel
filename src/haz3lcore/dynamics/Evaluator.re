@@ -1111,8 +1111,8 @@ and evaluate_extend_env =
 and evaluate_ap_builtin =
     (env: ClosureEnvironment.t, ident: string, args: list(DHExp.t))
     : m(EvaluatorResult.t) => {
-  switch (Builtins.lookup_form(ident)) {
-  | Some((eval, _)) => eval(env, args, evaluate)
+  switch (VarMap.lookup(Builtins.forms(Builtins.Pervasives.builtins), ident)) {
+  | Some((_, eval)) => eval(env, args, evaluate)
   | None =>
     print_endline("InvalidBuiltin");
     raise(EvaluatorError.Exception(InvalidBuiltin(ident)));
