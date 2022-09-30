@@ -154,7 +154,7 @@ let view_of_info = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   | InfoTyp({self: Free(free_error), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(is_err, "typ"), error_view(Free(free_error))],
+      [term_tag(~inject, is_err, "typ"), error_view(Free(free_error))],
     )
   | InfoTyp({self: Just(ty), _}) =>
     div(

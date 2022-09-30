@@ -82,7 +82,7 @@ let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("nil");
 let mk_fun = Example.mk_tile(Form.get("fun_"));
-let mk_ap = Example.mk_tile(Form.get("ap"));
+let mk_ap = Example.mk_tile(Form.get("ap_exp"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
