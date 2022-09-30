@@ -4,6 +4,7 @@ open Zipper;
 let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
+  | JumpToId(_)
   | Unselect
   | Select(_) => false
   | Destruct(_)
@@ -34,6 +35,10 @@ let go_z =
   switch (a) {
   | Move(d) =>
     Move.go(d, z)
+    |> Option.map(IdGen.id(id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_move)
+  | JumpToId(id) =>
+    Move.jump_to_id(z, id)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect =>

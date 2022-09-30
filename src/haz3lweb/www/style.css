@@ -1192,6 +1192,7 @@ svg.tile-selected {
 }
 
 .context-entry {
+  cursor: pointer;
   display: flex;
   gap: 0.5em;
 }
