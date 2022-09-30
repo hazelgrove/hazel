@@ -220,149 +220,6 @@ let union_m =
     Id.Map.empty,
   );
 
-let rec pat_is_var = (pat: Term.UPat.t) => {
-  switch (pat.term) {
-  | Parens(pat) => pat_is_var(pat)
-  | Var(_) => true
-  | TypeAnn(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Triv
-  | ListLit(_)
-  | Cons(_, _)
-  | Tuple(_)
-  | Tag(_)
-  | Ap(_) => false
-  };
-};
-
-let rec typ_is_arrow = (typ: Term.UTyp.t) => {
-  switch (typ.term) {
-  | Parens(typ) => typ_is_arrow(typ)
-  | Arrow(_) => true
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Int
-  | Float
-  | Bool
-  | String
-  | List(_)
-  | Tuple(_)
-  | Var(_) => false
-  };
-};
-
-let rec pat_is_fun_var = (pat: Term.UPat.t) => {
-  switch (pat.term) {
-  | Parens(pat) => pat_is_fun_var(pat)
-  | TypeAnn(pat, typ) => pat_is_var(pat) && typ_is_arrow(typ)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Triv
-  | ListLit(_)
-  | Cons(_, _)
-  | Var(_)
-  | Tuple(_)
-  | Tag(_)
-  | Ap(_) => false
-  };
-};
-
-let rec pat_is_tuple_of_arrows = (pat: Term.UPat.t) =>
-  pat_is_fun_var(pat)
-  || (
-    switch (pat.term) {
-    | Parens(pat) => pat_is_tuple_of_arrows(pat)
-    | Tuple(pats) => pats |> List.for_all(pat_is_fun_var)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | TypeAnn(_)
-    | Tag(_)
-    | Ap(_) => false
-    }
-  );
-
-let rec exp_is_fun = (e: Term.UExp.t) => {
-  switch (e.term) {
-  | Parens(e) => exp_is_fun(e)
-  | Fun(_) => true
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Triv
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | ListLit(_)
-  | Tuple(_)
-  | Var(_)
-  | Let(_)
-  | Ap(_)
-  | If(_)
-  | Seq(_)
-  | Test(_)
-  | Cons(_)
-  | UnOp(_)
-  | BinOp(_)
-  | Match(_)
-  | Tag(_) => false
-  };
-};
-
-let rec exp_is_tuple_of_functions = (e: Term.UExp.t) =>
-  exp_is_fun(e)
-  || (
-    switch (e.term) {
-    | Parens(e) => exp_is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(exp_is_fun)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Triv
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
-    | ListLit(_)
-    | Fun(_)
-    | Var(_)
-    | Let(_)
-    | Ap(_)
-    | If(_)
-    | Seq(_)
-    | Test(_)
-    | Cons(_)
-    | UnOp(_)
-    | BinOp(_)
-    | Match(_)
-    | Tag(_) => false
-    }
-  );
-
 let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
   ids
   |> List.map(id => Id.Map.singleton(id, info))
@@ -370,7 +227,8 @@ let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
 
 let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
-  if (pat_is_tuple_of_arrows(pat) && exp_is_tuple_of_functions(def)) {
+  if (Term.UPat.is_tuple_of_arrows(pat)
+      && Term.UExp.is_tuple_of_functions(def)) {
     VarMap.union(ctx, pat_ctx);
   } else {
     ctx;
