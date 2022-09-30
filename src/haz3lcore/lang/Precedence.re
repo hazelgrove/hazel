@@ -20,9 +20,11 @@ let and_ = 8;
 let or_ = 9;
 let ann = 10;
 
-let fun_ = 11;
-let prod = 12;
-let if_ = 13;
+let if_ = 11;
+let fun_ = 12;
+
+let prod = 13;
+
 let semi = 14;
 let let_ = 15;
 
