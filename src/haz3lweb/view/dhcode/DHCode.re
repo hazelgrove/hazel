@@ -64,6 +64,11 @@ let view_of_layout =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
+             | OperationError(InvalidProjection) => (
+                 //TODO: custom class
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
@@ -185,6 +190,11 @@ let view_of_layout_tylr =
                  ds,
                )
              | OperationError(OutOfFuel) => (
+                 //TODO: custom class
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
+             | OperationError(InvalidProjection) => (
                  //TODO: custom class
                  [with_cls("DivideByZero", txt)],
                  ds,
