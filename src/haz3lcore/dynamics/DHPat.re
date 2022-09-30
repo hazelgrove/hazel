@@ -21,7 +21,8 @@ type t =
 
 let mk_tuple: list(t) => t =
   fun
-  | [] => failwith("mk_tuple: expected at least 1 element")
+  | []
+  | [_] => failwith("mk_tuple: expected at least 2 elements")
   | dps => Tuple(dps);
 
 /**
