@@ -1214,6 +1214,8 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | Tag(_) => default // TODO Fill in
+        | Ap(_, _) => default // TODO Fill in
         };
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
@@ -2038,6 +2040,8 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
+        | Ap(_, _) => default // TODO Fill in
+        | Tag(_) => default // TODO Fill in
         };
       | Ap(fun_, arg) =>
         let (doc, options) =
@@ -2255,6 +2259,7 @@ let get_doc =
           ),
           coloring_ids,
         );
+      | Tag(_) => default // TODO Fill in
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2560,6 +2565,8 @@ let get_doc =
     | Invalid(_) // Shouldn't be hit
     | Parens(_) // Shouldn't be hit?
     | TypeAnn(_) => default // Shouldn't be hit?
+    | Ap(_, _) => default // TODO Fill in
+    | Tag(_) => default // TODO Fill in
     }
   | Some(InfoTyp({term, _})) =>
     switch (bypass_parens_typ(term.term)) {
@@ -2798,6 +2805,7 @@ let get_doc =
       };
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
+    | Var(_) => default //TODO Fill this in
     }
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
