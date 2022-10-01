@@ -282,6 +282,7 @@ let editor_with_result_view =
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
       ~settings: Model.settings,
+      ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -305,7 +306,7 @@ let editor_with_result_view =
     ~info_map,
     ~test_results,
     ~footer=Some(eval_result_footer),
-    ~color_highlighting=None,
+    ~color_highlighting,
     editor,
   );
 };
