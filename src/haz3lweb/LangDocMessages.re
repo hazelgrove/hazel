@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open Haz3lcore;
-
+// TODO Make unified way of using consistent metavariables for syntactic forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type feedback_option =
   | ThumbsUp
@@ -210,9 +210,7 @@ let list_exp: form = {
   };
   {
     id: "list_exp",
-    syntactic_form: [
-      mk_list_exp([[exp("EXP1"), comma_exp(), exp("...")]]),
-    ],
+    syntactic_form: [mk_list_exp([[exp("e1"), comma_exp(), exp("...")]])],
     expandable_id: None,
     explanation,
     examples: [int_list, tuple_list],
@@ -345,8 +343,8 @@ let function_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("PAT");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let pat = pat("p");
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_exp",
     syntactic_form: form,
@@ -361,7 +359,7 @@ let function_empty_hole_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("EmptyHole");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_empty_hole_exp",
     syntactic_form: form,
@@ -376,7 +374,7 @@ let function_multi_hole_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("INVALID");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_multi_hole_exp",
     syntactic_form: form,
@@ -391,7 +389,7 @@ let function_wild_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_wild_exp",
     syntactic_form: form,
@@ -406,7 +404,7 @@ let function_intlit_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("IntLit");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_intlit_exp",
     syntactic_form: form,
@@ -422,7 +420,7 @@ let function_floatlit_exp: form = {
   };
   let pat = pat("FloatLit");
   // TODO print out the float literal nicer
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_floatlit_exp",
     syntactic_form: form,
@@ -437,7 +435,7 @@ let function_boollit_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("BoolLit");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_boollit_exp",
     syntactic_form: form,
@@ -452,7 +450,7 @@ let function_strlit_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("StringLit");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_strlit_exp",
     syntactic_form: form,
@@ -467,7 +465,7 @@ let function_triv_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("triv");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_triv_exp",
     syntactic_form: form,
@@ -482,7 +480,7 @@ let function_listnil_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("nil");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_listnil_exp",
     syntactic_form: form,
@@ -496,8 +494,8 @@ let function_listlit_exp: form = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]);
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_listlit_exp",
     syntactic_form: form,
@@ -512,10 +510,7 @@ let function_cons_exp: form = {
     feedback: Unselected,
   };
   let cons = cons_pat();
-  let form = [
-    mk_fun([[pat("PAT_hd"), cons, pat("PAT_tl")]]),
-    exp("EXP"),
-  ];
+  let form = [mk_fun([[pat("p_hd"), cons, pat("p_tl")]]), exp("e")];
   {
     id: "function_cons_exp",
     syntactic_form: form,
@@ -529,8 +524,8 @@ let function_var_exp: form = {
     message: "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("Var");
-  let form = [mk_fun([[pat]]), exp("EXP")];
+  let pat = pat("x");
+  let form = [mk_fun([[pat]]), exp("e")];
   {
     id: "function_var_exp",
     syntactic_form: form,
@@ -545,7 +540,7 @@ let function_tuple_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_fun([[pat("PAT1"), comma, pat("...")]]), exp("EXP")];
+  let form = [mk_fun([[pat("p1"), comma, pat("...")]]), exp("e")];
   {
     id: "function_tuple_exp",
     syntactic_form: form,
@@ -560,7 +555,7 @@ let function_tuple2_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_fun([[pat("PAT1"), comma, pat("PAT2")]]), exp("EXP")];
+  let form = [mk_fun([[pat("p1"), comma, pat("p2")]]), exp("e")];
   {
     id: "function_tuple2_exp",
     syntactic_form: form,
@@ -576,8 +571,8 @@ let function_tuple3_exp: form = {
   };
   let comma = comma_pat();
   let form = [
-    mk_fun([[pat("PAT1"), comma_pat(), pat("PAT2"), comma, pat("PAT3")]]),
-    exp("EXP"),
+    mk_fun([[pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")]]),
+    exp("e"),
   ];
   {
     id: "function_tuple3_exp",
@@ -593,7 +588,7 @@ let function_tag_exp: form = {
     feedback: Unselected,
   };
   let tag = pat("Tag");
-  let form = [mk_fun([[tag]]), exp("EXP")];
+  let form = [mk_fun([[tag]]), exp("e")];
   {
     id: "function_tag_exp",
     syntactic_form: form,
@@ -607,8 +602,8 @@ let function_ap_exp: form = {
     message: "Function literal. The only values that match the *argument pattern* are the [*constructor*](%i) where the *constructor argument* matches the [*constructor argument pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let ap = mk_ap_pat([[pat("PAT_arg")]]);
-  let form = [mk_fun([[pat("PAT_con"), ap]]), exp("EXP")];
+  let ap = mk_ap_pat([[pat("p_arg")]]);
+  let form = [mk_fun([[pat("p_con"), ap]]), exp("e")];
   {
     id: "function_ap_exp",
     syntactic_form: form,
@@ -641,7 +636,7 @@ let tuple_exp: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp",
-    syntactic_form: [exp("EXP1"), comma, exp("...")],
+    syntactic_form: [exp("e1"), comma, exp("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1, tuple_example_2],
@@ -655,7 +650,7 @@ let tuple_exp_size2: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size2",
-    syntactic_form: [exp("EXP1"), comma, exp("EXP2")],
+    syntactic_form: [exp("e1"), comma, exp("e2")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1],
@@ -669,13 +664,7 @@ let tuple_exp_size3: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size3",
-    syntactic_form: [
-      exp("EXP1"),
-      comma_exp(),
-      exp("EXP2"),
-      comma,
-      exp("EXP3"),
-    ],
+    syntactic_form: [exp("e1"), comma_exp(), exp("e2"), comma, exp("e3")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_2],
@@ -690,7 +679,7 @@ let var_exp: form = {
   };
   {
     id: "var_exp",
-    syntactic_form: [exp("Var")],
+    syntactic_form: [exp("x")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -828,8 +817,8 @@ let let_base_exp: form = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("PAT");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let pat = pat("p");
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_base_exp",
     syntactic_form: form,
@@ -844,7 +833,7 @@ let let_empty_hole_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("EmptyHole");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_empty_hole_exp",
     syntactic_form: form,
@@ -859,7 +848,7 @@ let let_multi_hole_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("INVALID");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_multi_hole_exp",
     syntactic_form: form,
@@ -874,7 +863,7 @@ let let_wild_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_wild_exp",
     syntactic_form: form,
@@ -889,7 +878,7 @@ let let_int_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("IntLit");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_int_exp",
     syntactic_form: form,
@@ -904,7 +893,7 @@ let let_float_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("FloatLit");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_float_exp",
     syntactic_form: form,
@@ -919,7 +908,7 @@ let let_bool_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("BoolLit");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_bool_exp",
     syntactic_form: form,
@@ -934,7 +923,7 @@ let let_str_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("StringLit");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_str_exp",
     syntactic_form: form,
@@ -949,7 +938,7 @@ let let_triv_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("triv");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_triv_exp",
     syntactic_form: form,
@@ -963,8 +952,8 @@ let let_listlit_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern. The matching element patterns are bound to the elements of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]);
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_listlit_exp",
     syntactic_form: form,
@@ -979,7 +968,7 @@ let let_listnil_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("nil");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_listnil_exp",
     syntactic_form: form,
@@ -995,8 +984,8 @@ let let_cons_exp: form = {
   };
   let cons = cons_pat();
   let form = [
-    mk_let([[pat("PAT_hd"), cons, pat("PAT_tl")], [exp("EXP_def")]]),
-    exp("EXP_body"),
+    mk_let([[pat("p_hd"), cons, pat("p_tl")], [exp("e_def")]]),
+    exp("e_body"),
   ];
   {
     id: "let_cons_exp",
@@ -1011,8 +1000,8 @@ let let_var_exp: form = {
     message: "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("Var");
-  let form = [mk_let([[pat], [exp("EXP_def")]]), exp("EXP_body")];
+  let pat = pat("x");
+  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_var_exp",
     syntactic_form: form,
@@ -1029,8 +1018,8 @@ let let_tuple_exp: form = {
   };
   let comma = comma_pat();
   let form = [
-    mk_let([[pat("PAT1"), comma, pat("...")], [exp("EXP_def")]]),
-    exp("EXP_body"),
+    mk_let([[pat("p1"), comma, pat("...")], [exp("e_def")]]),
+    exp("e_body"),
   ];
   {
     id: "let_tuple_exp",
@@ -1047,8 +1036,8 @@ let let_tuple2_exp: form = {
   };
   let comma = comma_pat();
   let form = [
-    mk_let([[pat("PAT1"), comma, pat("PAT2")], [exp("EXP_def")]]),
-    exp("EXP_body"),
+    mk_let([[pat("p1"), comma, pat("p2")], [exp("e_def")]]),
+    exp("e_body"),
   ];
   {
     id: "let_tuple2_exp",
@@ -1066,10 +1055,10 @@ let let_tuple3_exp: form = {
   let comma = comma_pat();
   let form = [
     mk_let([
-      [pat("PAT1"), comma_pat(), pat("PAT2"), comma, pat("PAT3")],
-      [exp("EXP_def")],
+      [pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")],
+      [exp("e_def")],
     ]),
-    exp("EXP_body"),
+    exp("e_body"),
   ];
   {
     id: "let_tuple3_exp",
@@ -1085,7 +1074,7 @@ let let_tag_exp: form = {
     feedback: Unselected,
   };
   let tag = pat("Tag");
-  let form = [mk_let([[tag], [exp("EXP_def")]]), exp("EXP_body")];
+  let form = [mk_let([[tag], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_tag_exp",
     syntactic_form: form,
@@ -1099,10 +1088,10 @@ let let_ap_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
     feedback: Unselected,
   };
-  let ap = mk_ap_pat([[pat("PAT_arg")]]);
+  let ap = mk_ap_pat([[pat("p_arg")]]);
   let form = [
-    mk_let([[pat("PAT_con"), ap], [exp("EXP_def")]]),
-    exp("EXP_body"),
+    mk_let([[pat("p_con"), ap], [exp("e_def")]]),
+    exp("e_body"),
   ];
   {
     id: "let_ap_exp",
@@ -1134,7 +1123,7 @@ let funapp_exp: form = {
   };
   {
     id: "funapp_exp",
-    syntactic_form: [exp("EXP_fun"), mk_ap_exp([[exp("EXP_arg")]])],
+    syntactic_form: [exp("e_fun"), mk_ap_exp([[exp("e_arg")]])],
     expandable_id: None,
     explanation,
     examples: [funapp_exp_ex],
@@ -1147,7 +1136,7 @@ let conapp_exp: form = {
   };
   {
     id: "conapp_exp",
-    syntactic_form: [exp("EXP_con"), mk_ap_exp([[exp("EXP_arg")]])],
+    syntactic_form: [exp("e_con"), mk_ap_exp([[exp("e_arg")]])],
     expandable_id: None,
     explanation,
     examples: [conapp_exp_ex],
@@ -1175,8 +1164,8 @@ let if_exp: form = {
   {
     id: "if_exp",
     syntactic_form: [
-      mk_if([[exp("EXP_cond")], [exp("EXP_then")]]),
-      exp("EXP_else"),
+      mk_if([[exp("e_cond")], [exp("e_then")]]),
+      exp("e_else"),
     ],
     expandable_id: None,
     explanation,
@@ -1205,7 +1194,7 @@ let seq_exp: form = {
   };
   {
     id: "seq_exp",
-    syntactic_form: [exp("EXP1"), seq(), exp("EXP2")],
+    syntactic_form: [exp("e1"), seq(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [seq_basic_exp_ex, seq_test_exp_ex],
@@ -1233,7 +1222,7 @@ let test_exp: form = {
   };
   {
     id: "test_exp",
-    syntactic_form: [mk_test([[exp("EXP")]])],
+    syntactic_form: [mk_test([[exp("e")]])],
     expandable_id: None,
     explanation,
     examples: [test_true_ex, test_false_ex],
@@ -1260,7 +1249,7 @@ let cons_exp: form = {
   };
   {
     id: "cons_exp",
-    syntactic_form: [exp("EXP_hd"), cons_exp(), exp("EXP_tl")],
+    syntactic_form: [exp("e_hd"), cons_exp(), exp("e_tl")],
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],
@@ -1530,7 +1519,7 @@ let int_unary_minus_exp: form = {
   };
   {
     id: "int_unary_minus_exp",
-    syntactic_form: [unary_minus(), exp("EXP")],
+    syntactic_form: [unary_minus(), exp("e")],
     expandable_id: None,
     explanation,
     examples: [int_unary_minus_ex],
@@ -1543,7 +1532,7 @@ let int_plus_exp: form = {
   };
   {
     id: "int_plus_exp",
-    syntactic_form: [exp("EXP1"), plus(), exp("EXP2")],
+    syntactic_form: [exp("e1"), plus(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_plus_ex],
@@ -1556,7 +1545,7 @@ let int_minus_exp: form = {
   };
   {
     id: "int_minus_exp",
-    syntactic_form: [exp("EXP1"), minus(), exp("EXP2")],
+    syntactic_form: [exp("e1"), minus(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_minus_ex],
@@ -1569,7 +1558,7 @@ let int_times_exp: form = {
   };
   {
     id: "int_times_exp",
-    syntactic_form: [exp("EXP1"), times(), exp("EXP2")],
+    syntactic_form: [exp("e1"), times(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_times_ex],
@@ -1582,7 +1571,7 @@ let int_divide_exp: form = {
   };
   {
     id: "int_divide_exp",
-    syntactic_form: [exp("EXP1"), divide(), exp("EXP2")],
+    syntactic_form: [exp("e1"), divide(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_divide_ex],
@@ -1595,7 +1584,7 @@ let int_lt_exp: form = {
   };
   {
     id: "int_lt_exp",
-    syntactic_form: [exp("EXP1"), lt(), exp("EXP2")],
+    syntactic_form: [exp("e1"), lt(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_lt1_ex, int_lt2_ex],
@@ -1608,7 +1597,7 @@ let int_lte_exp: form = {
   };
   {
     id: "int_lte_exp",
-    syntactic_form: [exp("EXP1"), lte(), exp("EXP2")],
+    syntactic_form: [exp("e1"), lte(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_lte1_ex, int_lte2_ex, int_lte3_ex],
@@ -1621,7 +1610,7 @@ let int_gt_exp: form = {
   };
   {
     id: "int_gt_exp",
-    syntactic_form: [exp("EXP1"), gt(), exp("EXP2")],
+    syntactic_form: [exp("e1"), gt(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_gt1_ex, int_gt2_ex],
@@ -1634,7 +1623,7 @@ let int_gte_exp: form = {
   };
   {
     id: "int_gte_exp",
-    syntactic_form: [exp("EXP1"), gte(), exp("EXP2")],
+    syntactic_form: [exp("e1"), gte(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_gte1_ex, int_gte2_ex, int_gte3_ex],
@@ -1647,7 +1636,7 @@ let int_eq_exp: form = {
   };
   {
     id: "int_eq_exp",
-    syntactic_form: [exp("EXP1"), equals(), exp("EXP2")],
+    syntactic_form: [exp("e1"), equals(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [int_eq1_ex, int_eq2_ex],
@@ -1660,7 +1649,7 @@ let float_plus_exp: form = {
   };
   {
     id: "float_plus_exp",
-    syntactic_form: [exp("EXP1"), fplus(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fplus(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_plus_ex],
@@ -1673,7 +1662,7 @@ let float_minus_exp: form = {
   };
   {
     id: "float_minus_exp",
-    syntactic_form: [exp("EXP1"), fminus(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fminus(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_minus_ex],
@@ -1686,7 +1675,7 @@ let float_times_exp: form = {
   };
   {
     id: "float_times_exp",
-    syntactic_form: [exp("EXP1"), ftimes(), exp("EXP2")],
+    syntactic_form: [exp("e1"), ftimes(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_times_ex],
@@ -1699,7 +1688,7 @@ let float_divide_exp: form = {
   };
   {
     id: "float_divide_exp",
-    syntactic_form: [exp("EXP1"), fdivide(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fdivide(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_divide_ex],
@@ -1712,7 +1701,7 @@ let float_lt_exp: form = {
   };
   {
     id: "float_lt_exp",
-    syntactic_form: [exp("EXP1"), flt(), exp("EXP2")],
+    syntactic_form: [exp("e1"), flt(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_lt1_ex, float_lt2_ex],
@@ -1725,7 +1714,7 @@ let float_lte_exp: form = {
   };
   {
     id: "float_lte_exp",
-    syntactic_form: [exp("EXP1"), flte(), exp("EXP2")],
+    syntactic_form: [exp("e1"), flte(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_lte1_ex, float_lte2_ex, float_lte3_ex],
@@ -1738,7 +1727,7 @@ let float_gt_exp: form = {
   };
   {
     id: "float_gt_exp",
-    syntactic_form: [exp("EXP1"), fgt(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fgt(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_gt1_ex, float_gt2_ex],
@@ -1751,7 +1740,7 @@ let float_gte_exp: form = {
   };
   {
     id: "float_gt_exp",
-    syntactic_form: [exp("EXP1"), fgte(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fgte(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_gte1_ex, float_gte2_ex, float_gte3_ex],
@@ -1764,7 +1753,7 @@ let float_eq_exp: form = {
   };
   {
     id: "float_eq_exp",
-    syntactic_form: [exp("EXP1"), fequals(), exp("EXP2")],
+    syntactic_form: [exp("e1"), fequals(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [float_eq1_ex, float_eq2_ex],
@@ -1778,7 +1767,7 @@ let bool_and_exp: form = {
   };
   {
     id: "bool_and_exp",
-    syntactic_form: [exp("EXP1"), logical_and(), exp("EXP2")],
+    syntactic_form: [exp("e1"), logical_and(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [bool_and1_ex, bool_and2_ex],
@@ -1791,7 +1780,7 @@ let bool_or_exp: form = {
   };
   {
     id: "bool_or_exp",
-    syntactic_form: [exp("EXP1"), logical_or(), exp("EXP2")],
+    syntactic_form: [exp("e1"), logical_or(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [bool_or1_ex, bool_or2_ex],
@@ -1805,7 +1794,7 @@ let str_eq_exp: form = {
   };
   {
     id: "str_eq_exp",
-    syntactic_form: [exp("EXP1"), sequals(), exp("EXP2")],
+    syntactic_form: [exp("e1"), sequals(), exp("e2")],
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
@@ -1843,9 +1832,9 @@ let case_exp: form = {
     syntactic_form: [
       mk_case([
         [
-          exp("EXP_scrut"),
-          mk_rule([[pat("PAT1")]]),
-          exp("EXP1"),
+          exp("e_scrut"),
+          mk_rule([[pat("p1")]]),
+          exp("e1"),
           mk_rule([[pat("...")]]),
           exp("..."),
         ],
@@ -1861,10 +1850,10 @@ let case_exp_rule2: form = {
     message: "Case expression. Consider each branch in order. \n-If the [*first pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*first clause*](%i). \n-Otherwise, if the [*second pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*second clause*](%i).",
     feedback: Unselected,
   };
-  let exp2 = exp("EXP2");
+  let exp2 = exp("e2");
   {
     id: "case_exp_rule2",
-    syntactic_form: [exp("EXP1"), comma_exp(), exp2],
+    syntactic_form: [exp("e1"), comma_exp(), exp2],
     expandable_id: Some(Piece.id(exp2)),
     explanation,
     examples: [case_example_2],
@@ -1878,13 +1867,7 @@ let case_exp_rule3: form = {
   let comma = comma_exp();
   {
     id: "case_exp_rule3",
-    syntactic_form: [
-      exp("EXP1"),
-      comma_exp(),
-      exp("EXP2"),
-      comma,
-      exp("EXP3"),
-    ],
+    syntactic_form: [exp("e1"), comma_exp(), exp("e2"), comma, exp("e3")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [case_example_1],
@@ -2019,9 +2002,7 @@ let listlit_pat: form = {
   };
   {
     id: "listlit_pat",
-    syntactic_form: [
-      mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]]),
-    ],
+    syntactic_form: [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2049,10 +2030,10 @@ let cons_base_pat: form = {
     message: "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%i) and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
     feedback: Unselected,
   };
-  let tl = pat("PAT_tl");
+  let tl = pat("p_tl");
   {
     id: "cons_base_pat",
-    syntactic_form: [pat("PAT_hd"), cons_pat(), tl],
+    syntactic_form: [pat("p_hd"), cons_pat(), tl],
     expandable_id: Some(Piece.id(tl)),
     explanation,
     examples: [],
@@ -2067,11 +2048,11 @@ let cons2_pat: form = {
   {
     id: "cons2_pat",
     syntactic_form: [
-      pat("PAT_fst"),
+      pat("p_fst"),
       cons_pat(),
-      pat("PAT_snd"),
+      pat("p_snd"),
       c,
-      pat("PAT_tl"),
+      pat("p_tl"),
     ],
     expandable_id: Some(Piece.id(c)),
     explanation,
@@ -2087,7 +2068,7 @@ let var_pat: form = {
   };
   {
     id: "var_pat",
-    syntactic_form: [pat("Var")],
+    syntactic_form: [pat("x")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2105,7 +2086,7 @@ let tuple_pat: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat",
-    syntactic_form: [pat("PAT1"), comma, pat("...")],
+    syntactic_form: [pat("p1"), comma, pat("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2119,7 +2100,7 @@ let tuple_pat_size2: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size2",
-    syntactic_form: [pat("PAT1"), comma, pat("PAT2")],
+    syntactic_form: [pat("p1"), comma, pat("p2")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2133,13 +2114,7 @@ let tuple_pat_size3: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size3",
-    syntactic_form: [
-      pat("PAT1"),
-      comma_pat(),
-      pat("PAT2"),
-      comma,
-      pat("PAT3"),
-    ],
+    syntactic_form: [pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2169,7 +2144,7 @@ let ap_pat: form = {
   };
   {
     id: "ap_pat",
-    syntactic_form: [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])],
+    syntactic_form: [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2275,7 +2250,7 @@ let list_typ: form = {
   };
   {
     id: "list_typ",
-    syntactic_form: [mk_list_typ([[typ("TYP_elem")]])],
+    syntactic_form: [mk_list_typ([[typ("𝜏_elem")]])],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2289,10 +2264,10 @@ let arrow_typ: form = {
     message: "Arrow type. This arrow type classifies functions with [*argument type*](%i) and [*output type*](%i).",
     feedback: Unselected,
   };
-  let out = typ("TYP_out");
+  let out = typ("𝜏_out");
   {
     id: "arrow_typ",
-    syntactic_form: [typ("TYP_arg"), arrow(), out],
+    syntactic_form: [typ("𝜏_arg"), arrow(), out],
     expandable_id: Some(Piece.id(out)),
     explanation,
     examples: [],
@@ -2307,11 +2282,11 @@ let arrow3_typ: form = {
   {
     id: "arrow3_typ",
     syntactic_form: [
-      typ("TYP_arg1"),
+      typ("𝜏_arg1"),
       arrow(),
-      typ("TYP_arg2"),
+      typ("𝜏_arg2"),
       arrow2,
-      typ("TYP_out"),
+      typ("𝜏_out"),
     ],
     expandable_id: Some(Piece.id(arrow2)),
     explanation,
@@ -2330,7 +2305,7 @@ let tuple_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple_typ",
-    syntactic_form: [typ("TYP1"), comma, typ("...")],
+    syntactic_form: [typ("𝜏1"), comma, typ("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2344,7 +2319,7 @@ let tuple2_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple2_typ",
-    syntactic_form: [typ("TYP1"), comma, typ("TYP2")],
+    syntactic_form: [typ("𝜏1"), comma, typ("𝜏2")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2359,11 +2334,11 @@ let tuple3_typ: form = {
   {
     id: "tuple3_typ",
     syntactic_form: [
-      typ("TYP1"),
+      typ("𝜏1"),
       comma_typ(),
-      typ("TYP2"),
+      typ("𝜏2"),
       comma,
-      typ("TYP3"),
+      typ("𝜏3"),
     ],
     expandable_id: Some(Piece.id(comma)),
     explanation,
@@ -2376,7 +2351,7 @@ let var_typ: form = {
   let explanation = {message: "`%s` type.", feedback: Unselected};
   {
     id: "var_typ",
-    syntactic_form: [typ("Var")],
+    syntactic_form: [typ("x")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2590,136 +2565,130 @@ let init = {
     (
       function_empty_hole_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_empty_hole_exp.id, [pat("EMPTYHOLE")]),
       ]),
     ),
     (
       function_multi_hole_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_multi_hole_exp.id, [pat("INVALID")]),
       ]),
     ),
     (
       function_wild_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_wild_exp.id, [pat("_")]),
       ]),
     ),
     (
       function_int_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_intlit_exp.id, [pat("IntLit")]),
       ]),
     ),
     (
       function_float_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_floatlit_exp.id, [pat("FloatLit")]),
       ]),
     ),
     (
       function_bool_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_boollit_exp.id, [pat("BoolLit")]),
       ]),
     ),
     (
       function_str_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_strlit_exp.id, [pat("StringLit")]),
       ]),
     ),
     (
       function_triv_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_triv_exp.id, [pat("triv")]),
       ]),
     ),
     (
       function_listnil_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_listnil_exp.id, [pat("nil")]),
       ]),
     ),
     (
       function_listlit_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (
           function_listlit_exp.id,
-          [mk_list_pat([[pat("PAT1"), comma_pat(), pat("...")]])],
+          [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
         ),
       ]),
     ),
     (
       function_cons_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
-        (function_cons_exp.id, [pat("PAT_hd"), cons_pat(), pat("PAT_tl")]),
+        (function_exp.id, [pat("p")]),
+        (function_cons_exp.id, [pat("p_hd"), cons_pat(), pat("p_tl")]),
       ]),
     ),
     (
       function_var_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
-        (function_var_exp.id, [pat("Var")]),
+        (function_exp.id, [pat("p")]),
+        (function_var_exp.id, [pat("x")]),
       ]),
     ),
     (
       function_tuple_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
-        (function_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (function_exp.id, [pat("p")]),
+        (function_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
       ]),
     ),
     (
       function_tuple_2_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
-        (function_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
-        (function_tuple2_exp.id, [pat("PAT1"), comma_pat(), pat("PAT2")]),
+        (function_exp.id, [pat("p")]),
+        (function_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+        (function_tuple2_exp.id, [pat("p1"), comma_pat(), pat("p2")]),
       ]),
     ),
     (
       function_tuple_3_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
-        (function_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (function_exp.id, [pat("p")]),
+        (function_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
         (
           function_tuple3_exp.id,
-          [
-            pat("PAT1"),
-            comma_pat(),
-            pat("PAT2"),
-            comma_pat(),
-            pat("PAT3"),
-          ],
+          [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
         ),
       ]),
     ),
     (
       function_tag_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (function_tag_exp.id, [pat("Tag")]),
       ]),
     ),
     (
       function_ap_group,
       init_options([
-        (function_exp.id, [pat("PAT")]),
+        (function_exp.id, [pat("p")]),
         (
           function_ap_exp.id,
-          [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])],
+          [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
         ),
       ]),
     ),
@@ -2727,23 +2696,17 @@ let init = {
     (
       tuple_exp_2_group,
       init_options([
-        (tuple_exp.id, [exp("EXP1"), comma_exp(), exp("...")]),
-        (tuple_exp_size2.id, [exp("EXP1"), comma_exp(), exp("EXP2")]),
+        (tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
+        (tuple_exp_size2.id, [exp("e1"), comma_exp(), exp("e2")]),
       ]),
     ),
     (
       tuple_exp_3_group,
       init_options([
-        (tuple_exp.id, [exp("EXP1"), comma_exp(), exp("...")]),
+        (tuple_exp.id, [exp("e1"), comma_exp(), exp("...")]),
         (
           tuple_exp_size3.id,
-          [
-            exp("EXP1"),
-            comma_exp(),
-            exp("EXP2"),
-            comma_exp(),
-            exp("EXP3"),
-          ],
+          [exp("e1"), comma_exp(), exp("e2"), comma_exp(), exp("e3")],
         ),
       ]),
     ),
@@ -2753,131 +2716,125 @@ let init = {
     (
       let_empty_hole_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_empty_hole_exp.id, [pat("EmptyHole")]),
       ]),
     ),
     (
       let_multi_hole_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_multi_hole_exp.id, [pat("INVALID")]),
       ]),
     ),
     (
       let_wild_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_wild_exp.id, [pat("_")]),
       ]),
     ),
     (
       let_int_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_int_exp.id, [pat("IntLit")]),
       ]),
     ),
     (
       let_float_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_float_exp.id, [pat("FloatLit")]),
       ]),
     ),
     (
       let_bool_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_bool_exp.id, [pat("BoolLit")]),
       ]),
     ),
     (
       let_str_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_str_exp.id, [pat("StringLit")]),
       ]),
     ),
     (
       let_triv_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_triv_exp.id, [pat("triv")]),
       ]),
     ),
     (
       let_listlit_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_listlit_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_listlit_exp.id, [pat("p1"), comma_pat(), pat("...")]),
       ]),
     ),
     (
       let_listnil_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_listnil_exp.id, [pat("nil")]),
       ]),
     ),
     (
       let_cons_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_cons_exp.id, [pat("PAT_hd"), cons_pat(), pat("PAT_tl")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_cons_exp.id, [pat("p_hd"), cons_pat(), pat("p_tl")]),
       ]),
     ),
     (
       let_var_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_var_exp.id, [pat("Var")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_var_exp.id, [pat("x")]),
       ]),
     ),
     (
       let_tuple_base_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
       ]),
     ),
     (
       let_tuple2_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
-        (let_tuple2_exp.id, [pat("PAT1"), comma_pat(), pat("PAT2")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
+        (let_tuple2_exp.id, [pat("p1"), comma_pat(), pat("p2")]),
       ]),
     ),
     (
       let_tuple3_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_tuple_exp.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (let_base_exp.id, [pat("p")]),
+        (let_tuple_exp.id, [pat("p1"), comma_pat(), pat("...")]),
         (
           let_tuple3_exp.id,
-          [
-            pat("PAT1"),
-            comma_pat(),
-            pat("PAT2"),
-            comma_pat(),
-            pat("PAT3"),
-          ],
+          [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
         ),
       ]),
     ),
     (
       let_tag_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
+        (let_base_exp.id, [pat("p")]),
         (let_tag_exp.id, [pat("Tag")]),
       ]),
     ),
     (
       let_ap_exp_group,
       init_options([
-        (let_base_exp.id, [pat("PAT")]),
-        (let_ap_exp.id, [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])]),
+        (let_base_exp.id, [pat("p")]),
+        (let_ap_exp.id, [pat("p_con"), mk_ap_pat([[pat("p_arg")]])]),
       ]),
     ),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
@@ -2925,8 +2882,8 @@ let init = {
     (
       cons2_pat_group,
       init_options([
-        (cons_base_pat.id, [pat("PAT_tl")]),
-        (cons2_pat.id, [pat("PAT_snd"), cons_pat(), pat("PAT_tl")]),
+        (cons_base_pat.id, [pat("p_tl")]),
+        (cons2_pat.id, [pat("p_snd"), cons_pat(), pat("p_tl")]),
       ]),
     ),
     (var_pat_group, init_options([(var_pat.id, [])])),
@@ -2934,23 +2891,17 @@ let init = {
     (
       tuple_pat_2_group,
       init_options([
-        (tuple_pat.id, [pat("PAT1"), comma_pat(), pat("...")]),
-        (tuple_pat_size2.id, [pat("PAT1"), comma_pat(), pat("PAT2")]),
+        (tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
+        (tuple_pat_size2.id, [pat("p1"), comma_pat(), pat("p2")]),
       ]),
     ),
     (
       tuple_pat_3_group,
       init_options([
-        (tuple_pat.id, [pat("PAT1"), comma_pat(), pat("...")]),
+        (tuple_pat.id, [pat("p1"), comma_pat(), pat("...")]),
         (
           tuple_pat_size3.id,
-          [
-            pat("PAT1"),
-            comma_pat(),
-            pat("PAT2"),
-            comma_pat(),
-            pat("PAT3"),
-          ],
+          [pat("p1"), comma_pat(), pat("p2"), comma_pat(), pat("p3")],
         ),
       ]),
     ),
@@ -2968,30 +2919,30 @@ let init = {
     (
       arrow3_typ_group,
       init_options([
-        (arrow_typ.id, [typ("TYP_out")]),
-        (arrow3_typ.id, [typ("TYP_arg2"), arrow(), typ("TYP_out")]),
+        (arrow_typ.id, [typ("𝜏_out")]),
+        (arrow3_typ.id, [typ("𝜏_arg2"), arrow(), typ("𝜏_out")]),
       ]),
     ),
     (tuple_typ_group, init_options([(tuple_typ.id, [])])),
     (
       tuple2_typ_group,
       init_options([
-        (tuple_typ.id, [typ("TYP1"), comma_typ(), typ("...")]),
-        (tuple2_typ.id, [typ("TYP1"), comma_typ(), typ("TYP2")]),
+        (tuple_typ.id, [typ("𝜏1"), comma_typ(), typ("...")]),
+        (tuple2_typ.id, [typ("𝜏1"), comma_typ(), typ("𝜏2")]),
       ]),
     ),
     (
       tuple3_typ_group,
       init_options([
-        (tuple_typ.id, [typ("TYP1"), comma_typ(), typ("...")]),
+        (tuple_typ.id, [typ("𝜏1"), comma_typ(), typ("...")]),
         (
           tuple3_typ.id,
           [
-            typ("TYP1"),
+            typ("𝜏1"),
             comma_typ(),
-            typ("TYP2"),
+            typ("𝜏2"),
             comma_typ(),
-            typ("TYP3"),
+            typ("𝜏3"),
           ],
         ),
       ]),
