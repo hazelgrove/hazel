@@ -1371,9 +1371,9 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
                 pat_id,
+                pat_id,
                 def_id,
                 body_id,
-                pat_id,
               ),
               pat_coloring_ids
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
@@ -1412,9 +1412,9 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
                 pat_id,
+                pat_id,
                 def_id,
                 body_id,
-                pat_id,
               ),
               pat_coloring_ids
               @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
@@ -2860,7 +2860,7 @@ let view =
       div(
         ~attr=clss(["content"]),
         [
-          toggle(~tooltip="Show highlight", "🔆", doc.highlight, _ =>
+          toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
             inject(
               Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
             )
