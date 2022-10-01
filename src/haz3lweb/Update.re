@@ -80,7 +80,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
 
 let load_model = (model: Model.t): Model.t => {
   let settings = LocalStorage.Settings.load();
-  let model = {...model, settings};
+  let langDocMessages = LocalStorage.LangDocMessages.load();
+  let model = {...model, settings, langDocMessages};
   let model =
     switch (model.settings.mode) {
     | Scratch =>
@@ -351,10 +352,10 @@ let apply =
       // TODO restore
       Ok(model)
     | UpdateLangDocMessages(u) =>
-      Ok({
-        ...model,
-        langDocMessages: LangDocMessages.set_update(model.langDocMessages, u),
-      })
+      let langDocMessages =
+        LangDocMessages.set_update(model.langDocMessages, u);
+      LocalStorage.LangDocMessages.save(langDocMessages);
+      Ok({...model, langDocMessages});
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {
