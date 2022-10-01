@@ -82,7 +82,8 @@ let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("nil");
 let mk_fun = Example.mk_tile(Form.get("fun_"));
-let mk_ap = Example.mk_tile(Form.get("ap_exp"));
+let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
+let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
@@ -234,6 +235,8 @@ let function_var_group = "function_var_group";
 let function_tuple_group = "function_tuple_group";
 let function_tuple_2_group = "function_tuple_2_group";
 let function_tuple_3_group = "function_tuple_3_group";
+let function_tag_group = "function_tag_group";
+let function_ap_group = "function_ap_group";
 let basic_fun_ex = {
   sub_id: "basic_fun_ex",
   term: mk_example("fun x -> x"),
@@ -322,6 +325,18 @@ let tuple3_fun_ex = {
   sub_id: "tuple3_fun_ex",
   term: mk_example("fun (a, b, c) -> a && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
+  feedback: Unselected,
+};
+let tag_fun_ex = {
+  sub_id: "tag_fun_ex",
+  term: mk_example("fun None -> 1"),
+  message: "When given a None constructor argument, the function evaluates 1.",
+  feedback: Unselected,
+};
+let ap_fun_ex = {
+  sub_id: "ap_fun_ex",
+  term: mk_example("fun Some(a) -> a"),
+  message: "When given a Some constructor argument, the function evaluates to the constructor's argument.",
   feedback: Unselected,
 };
 // TODO for shared examples, should the feedback be stored separately for each "instance"?
@@ -572,6 +587,36 @@ let function_tuple3_exp: form = {
     examples: [tuple3_fun_ex],
   };
 };
+let function_tag_exp: form = {
+  let explanation = {
+    message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
+    feedback: Unselected,
+  };
+  let tag = pat("Tag");
+  let form = [mk_fun([[tag]]), exp("EXP")];
+  {
+    id: "function_tag_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(tag)),
+    explanation,
+    examples: [tag_fun_ex],
+  };
+};
+let function_ap_exp: form = {
+  let explanation = {
+    message: "Function literal. The only values that match the *argument pattern* are the [*constructor*](%i) where the *constructor argument* matches the [*constructor argument pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
+    feedback: Unselected,
+  };
+  let ap = mk_ap_pat([[pat("PAT_arg")]]);
+  let form = [mk_fun([[pat("PAT_con"), ap]]), exp("EXP")];
+  {
+    id: "function_ap_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(ap)),
+    explanation,
+    examples: [ap_fun_ex],
+  };
+};
 
 let tuple_exp_group = "tuple_exp_group";
 let tuple_exp_2_group = "tuple_exp_2_group";
@@ -652,6 +697,18 @@ let var_exp: form = {
   };
 };
 
+let tag_exp_group = "tag_exp_group";
+let tag_exp: form = {
+  let explanation = {message: "`%s` constructor.", feedback: Unselected};
+  {
+    id: "tag_exp",
+    syntactic_form: [exp("Tag")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
 let let_multi_hole_exp_group = "let_multi_hole_exp_group";
@@ -668,6 +725,8 @@ let let_var_exp_group = "let_var_exp_group";
 let let_tuple_base_exp_group = "let_tuple_base_exp_group";
 let let_tuple2_exp_group = "let_tuple2_exp_group";
 let let_tuple3_exp_group = "let_tuple3_exp_group";
+let let_tag_exp_group = "let_tag_exp_group";
+let let_ap_exp_group = "let_ap_exp_group";
 let let_base_ex = {
   sub_id: "let_base_ex",
   term: mk_example("let x = 1 in x"),
@@ -750,6 +809,18 @@ let let_tuple3_ex = {
   sub_id: "let_tuple3_ex",
   term: mk_example("let (x, y, z) = (1, 2, 3) in x + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
+  feedback: Unselected,
+};
+let let_tag_ex = {
+  sub_id: "let_tag_ex",
+  term: mk_example("let None = None in 2"),
+  message: "The None is thrown away, so the expression evaluates to 2.",
+  feedback: Unselected,
+};
+let let_ap_ex = {
+  sub_id: "let_ap_ex",
+  term: mk_example("let Some(a) = Some(2) in a"),
+  message: "The a is bound to 2, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_base_exp: form = {
@@ -1008,12 +1079,52 @@ let let_tuple3_exp: form = {
     examples: [let_tuple3_ex],
   };
 };
+let let_tag_exp: form = {
+  let explanation = {
+    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    feedback: Unselected,
+  };
+  let tag = pat("Tag");
+  let form = [mk_let([[tag], [exp("EXP_def")]]), exp("EXP_body")];
+  {
+    id: "let_tag_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(tag)),
+    explanation,
+    examples: [let_tag_ex],
+  };
+};
+let let_ap_exp: form = {
+  let explanation = {
+    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
+    feedback: Unselected,
+  };
+  let ap = mk_ap_pat([[pat("PAT_arg")]]);
+  let form = [
+    mk_let([[pat("PAT_con"), ap], [exp("EXP_def")]]),
+    exp("EXP_body"),
+  ];
+  {
+    id: "let_ap_exp",
+    syntactic_form: form,
+    expandable_id: Some(Piece.id(ap)),
+    explanation,
+    examples: [let_ap_ex],
+  };
+};
 
 let funapp_exp_group = "funapp_exp_group";
+let conapp_exp_group = "conapp_exp_group";
 let funapp_exp_ex = {
   sub_id: "funapp_exp_ex",
   term: mk_example("(fun x -> x)(1)"),
   message: "The identity function is applied to 1. The argument x is bound to 1 in the function body and the body evaluates to 1.",
+  feedback: Unselected,
+};
+let conapp_exp_ex = {
+  sub_id: "conapp_exp_ex",
+  term: mk_example("Some(1)"),
+  message: "The constructor Some is applied to 1, which evaluates to Some(1).",
   feedback: Unselected,
 };
 let funapp_exp: form = {
@@ -1023,10 +1134,23 @@ let funapp_exp: form = {
   };
   {
     id: "funapp_exp",
-    syntactic_form: [exp("EXP_fun"), mk_ap([[exp("EXP_arg")]])],
+    syntactic_form: [exp("EXP_fun"), mk_ap_exp([[exp("EXP_arg")]])],
     expandable_id: None,
     explanation,
     examples: [funapp_exp_ex],
+  };
+};
+let conapp_exp: form = {
+  let explanation = {
+    message: "Constructor application. Apply the [*`%s` constructor*](%i) to the [*argument*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "conapp_exp",
+    syntactic_form: [exp("EXP_con"), mk_ap_exp([[exp("EXP_arg")]])],
+    expandable_id: None,
+    explanation,
+    examples: [conapp_exp_ex],
   };
 };
 
@@ -2022,6 +2146,36 @@ let tuple_pat_size3: form = {
   };
 };
 
+let tag_pat_group = "tag_pat_group";
+let tag_pat: form = {
+  let explanation = {
+    message: "Constructor pattern. Only expressions that match the *`%s` constructor* match this constructor pattern.",
+    feedback: Unselected,
+  };
+  {
+    id: "tag_pat",
+    syntactic_form: [pat("Tag")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let ap_pat_group = "ap_pat_group";
+let ap_pat: form = {
+  let explanation = {
+    message: "Constructor application pattern. Only expressions that match the [*constructor*](%i) with an *argument* matching the [*argument pattern*](%i) match this *constructor application pattern*.",
+    feedback: Unselected,
+  };
+  {
+    id: "ap_pat",
+    syntactic_form: [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let empty_hole_typ_group = "empty_hole_typ_group";
 let empty_hole_typ: form = {
   let explanation = {
@@ -2217,6 +2371,18 @@ let tuple3_typ: form = {
   };
 };
 
+let var_typ_group = "var_typ_group";
+let var_typ: form = {
+  let explanation = {message: "`%s` type.", feedback: Unselected};
+  {
+    id: "var_typ",
+    syntactic_form: [typ("Var")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 // Just have a flat list of forms w/ their explanations and examples
 // Keep track of options/groups in a separate structure
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -2321,10 +2487,13 @@ let init = {
     function_tuple_exp,
     function_tuple2_exp,
     function_tuple3_exp,
+    function_tag_exp,
+    function_ap_exp,
     tuple_exp,
     tuple_exp_size2,
     tuple_exp_size3,
     var_exp,
+    tag_exp,
     let_base_exp,
     let_empty_hole_exp,
     let_multi_hole_exp,
@@ -2341,7 +2510,10 @@ let init = {
     let_tuple_exp,
     let_tuple2_exp,
     let_tuple3_exp,
+    let_tag_exp,
+    let_ap_exp,
     funapp_exp,
+    conapp_exp,
     if_exp,
     seq_exp,
     test_exp,
@@ -2387,6 +2559,8 @@ let init = {
     tuple_pat,
     tuple_pat_size2,
     tuple_pat_size3,
+    tag_pat,
+    ap_pat,
     // Types
     empty_hole_typ,
     multi_hole_typ,
@@ -2400,6 +2574,7 @@ let init = {
     tuple_typ,
     tuple2_typ,
     tuple3_typ,
+    var_typ,
   ],
   groups: [
     // Expressions
@@ -2531,6 +2706,23 @@ let init = {
         ),
       ]),
     ),
+    (
+      function_tag_group,
+      init_options([
+        (function_exp.id, [pat("PAT")]),
+        (function_tag_exp.id, [pat("Tag")]),
+      ]),
+    ),
+    (
+      function_ap_group,
+      init_options([
+        (function_exp.id, [pat("PAT")]),
+        (
+          function_ap_exp.id,
+          [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])],
+        ),
+      ]),
+    ),
     (tuple_exp_group, init_options([(tuple_exp.id, [])])),
     (
       tuple_exp_2_group,
@@ -2556,6 +2748,7 @@ let init = {
       ]),
     ),
     (var_exp_group, init_options([(var_exp.id, [])])),
+    (tag_exp_group, init_options([(tag_exp.id, [])])),
     (let_base_exp_group, init_options([(let_base_exp.id, [])])),
     (
       let_empty_hole_exp_group,
@@ -2673,7 +2866,22 @@ let init = {
         ),
       ]),
     ),
+    (
+      let_tag_exp_group,
+      init_options([
+        (let_base_exp.id, [pat("PAT")]),
+        (let_tag_exp.id, [pat("Tag")]),
+      ]),
+    ),
+    (
+      let_ap_exp_group,
+      init_options([
+        (let_base_exp.id, [pat("PAT")]),
+        (let_ap_exp.id, [pat("PAT_con"), mk_ap_pat([[pat("PAT_arg")]])]),
+      ]),
+    ),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
+    (conapp_exp_group, init_options([(conapp_exp.id, [])])),
     (if_exp_group, init_options([(if_exp.id, [])])),
     (seq_exp_group, init_options([(seq_exp.id, [])])),
     (test_group, init_options([(test_exp.id, [])])),
@@ -2746,6 +2954,8 @@ let init = {
         ),
       ]),
     ),
+    (tag_pat_group, init_options([(tag_pat.id, [])])),
+    (ap_pat_group, init_options([(ap_pat.id, [])])),
     // Types
     (empty_hole_typ_group, init_options([(empty_hole_typ.id, [])])),
     (multi_hole_typ_group, init_options([(multi_hole_typ.id, [])])),
@@ -2786,6 +2996,7 @@ let init = {
         ),
       ]),
     ),
+    (var_typ_group, init_options([(var_typ.id, [])])),
   ],
 };
 
