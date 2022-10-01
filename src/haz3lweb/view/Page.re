@@ -205,6 +205,7 @@ let main_ui_view =
         ~mousedown,
         ~show_backpack_targets,
         ~settings,
+        ~langDocMessages,
         ~editor,
         ~result,
       ),

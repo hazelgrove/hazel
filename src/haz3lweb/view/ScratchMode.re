@@ -13,12 +13,27 @@ let view =
       ~mousedown,
       ~editor: Editor.t,
       ~settings: Model.settings,
+      ~langDocMessages: LangDocMessages.t,
       ~result: ModelResult.simple,
     ) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
+
+  let color_highlighting: option(ColorSteps.colorMap) =
+    if (langDocMessages.highlight && langDocMessages.show) {
+      Some(
+        LangDoc.get_color_map(
+          ~doc=langDocMessages,
+          Indicated.index(zipper),
+          info_map,
+        ),
+      );
+    } else {
+      None;
+    };
+
   let code_id = "code-container";
   let editor_view =
     Cell.editor_with_result_view(
@@ -30,6 +45,7 @@ let view =
       ~mousedown,
       ~code_id,
       ~settings,
+      ~color_highlighting,
       ~info_map,
       ~result,
       editor,
@@ -38,8 +54,24 @@ let view =
     settings.statics
       ? [CursorInspector.view(~inject, ~settings, zipper, info_map)] : [];
   let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
+  let right_panel =
+    langDocMessages.show && settings.statics
+      ? [
+        LangDoc.view(
+          ~inject,
+          ~font_metrics,
+          ~settings,
+          ~doc=langDocMessages,
+          Indicated.index(zipper),
+          info_map,
+        ),
+      ]
+      : [];
 
-  div(~attr=clss(["editor", "single"]), [editor_view] @ bottom_bar);
+  div(
+    ~attr=clss(["editor", "single"]),
+    [editor_view] @ bottom_bar @ right_panel,
+  );
 };
 
 let download_slide_state = state => {
