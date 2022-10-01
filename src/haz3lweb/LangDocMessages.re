@@ -769,7 +769,7 @@ let let_base_exp: form = {
 };
 let let_empty_hole_exp: form = {
   let explanation = {
-    message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i), after the [*empty hole pattern*](%i) is filled.",
+    message: "Let expression. After the [*empty hole pattern*](%i) is filled, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
   let pat = pat("EmptyHole");
@@ -784,7 +784,7 @@ let let_empty_hole_exp: form = {
 };
 let let_multi_hole_exp: form = {
   let explanation = {
-    message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i), after the [invalid pattern](%i) is corrected.",
+    message: "Let expression. After the [invalid pattern](%i) is corrected, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
   let pat = pat("INVALID");
@@ -874,7 +874,7 @@ let let_str_exp: form = {
 };
 let let_triv_exp: form = {
   let explanation = {
-    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
+    message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
   let pat = pat("triv");
@@ -1785,7 +1785,7 @@ let empty_hole_pat: form = {
 let multi_hole_pat_group = "multi_hole_pat_group";
 let multi_hole_pat: form = {
   let explanation = {
-    message: "Multi hole pattern. Expressions are not matched against the invalid pattern until it is corrected.",
+    message: "Unrecognized pattern. Expressions are not matched against the invalid pattern until it is corrected.",
     feedback: Unselected,
   };
   {
@@ -1875,7 +1875,7 @@ let strlit_pat: form = {
 let triv_pat_group = "triv_pat_group";
 let triv_pat: form = {
   let explanation = {
-    message: "Triv pattern. Only expressions with value `triv` match the *`triv` pattern*.",
+    message: "Triv pattern. Only expressions with the trivial value `triv` match the *trivial pattern `triv`*.",
     feedback: Unselected,
   };
   {

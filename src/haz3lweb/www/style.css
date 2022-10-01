@@ -1409,7 +1409,7 @@ svg.expandable path {
 }
 
 .feedback .option {
-  padding-left: 5px;
+  margin-left: 5px;
   cursor: pointer;
 }
 
