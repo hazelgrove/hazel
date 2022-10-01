@@ -587,7 +587,7 @@ let function_tag_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let tag = pat("Tag");
+  let tag = pat("C");
   let form = [mk_fun([[tag]]), exp("e")];
   {
     id: "function_tag_exp",
@@ -691,7 +691,7 @@ let tag_exp: form = {
   let explanation = {message: "`%s` constructor.", feedback: Unselected};
   {
     id: "tag_exp",
-    syntactic_form: [exp("Tag")],
+    syntactic_form: [exp("C")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -1073,7 +1073,7 @@ let let_tag_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let tag = pat("Tag");
+  let tag = pat("C");
   let form = [mk_let([[tag], [exp("e_def")]]), exp("e_body")];
   {
     id: "let_tag_exp",
@@ -2129,7 +2129,7 @@ let tag_pat: form = {
   };
   {
     id: "tag_pat",
-    syntactic_form: [pat("Tag")],
+    syntactic_form: [pat("C")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2679,7 +2679,7 @@ let init = {
       function_tag_group,
       init_options([
         (function_exp.id, [pat("p")]),
-        (function_tag_exp.id, [pat("Tag")]),
+        (function_tag_exp.id, [pat("C")]),
       ]),
     ),
     (
@@ -2827,7 +2827,7 @@ let init = {
       let_tag_exp_group,
       init_options([
         (let_base_exp.id, [pat("p")]),
-        (let_tag_exp.id, [pat("Tag")]),
+        (let_tag_exp.id, [pat("C")]),
       ]),
     ),
     (
