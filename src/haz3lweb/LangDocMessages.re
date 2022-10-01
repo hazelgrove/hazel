@@ -2382,8 +2382,8 @@ let get_form_and_options = (group_id, doc: t) => {
   (form, form_group.options);
 };
 
-let get_example = (example_sub_id, docs) =>
-  List.find(({sub_id, _}) => sub_id == example_sub_id, docs);
+let get_example = (example_sub_id, examples) =>
+  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
 
 let get_form = (form_id, docs) =>
   List.find(({id, _}) => id == form_id, docs);
@@ -3012,4 +3012,122 @@ let set_update = (docLangMessages: t, u: update): t => {
         update_group(group_id, new_selection_index, docLangMessages.groups),
     }
   };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_example = {
+  sub_id: string,
+  feedback: feedback_option,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_form = {
+  id: string,
+  explanation_feedback: feedback_option,
+  examples: list(persistent_example),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_form_group = {
+  id: string,
+  current_selection: int,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_state = {
+  show: bool,
+  highlight: bool,
+  specificity_open: bool,
+  forms: list(persistent_form),
+  groups: list(persistent_form_group),
+};
+
+let persist =
+    ({show, highlight, specificity_open, forms, groups, _}: t)
+    : persistent_state => {
+  let persist_example = ({sub_id, feedback, _}: example): persistent_example => {
+    {sub_id, feedback};
+  };
+  let persist_form = ({id, explanation, examples, _}: form): persistent_form => {
+    let {feedback, _}: explanation = explanation;
+    {
+      id,
+      explanation_feedback: feedback,
+      examples: List.map(persist_example, examples),
+    };
+  };
+
+  {
+    show,
+    highlight,
+    specificity_open,
+    forms: List.map(persist_form, forms),
+    groups:
+      List.map(
+        ((group_id, group: form_group)) =>
+          {id: group_id, current_selection: group.current_selection},
+        groups,
+      ),
+  };
+};
+
+// TODO Make more robust to added messages
+let unpersist =
+    ({show, highlight, specificity_open, forms, groups}: persistent_state): t => {
+  let unpersist_examples = (persistent_examples, examples) => {
+    List.map(
+      ({sub_id, feedback}: persistent_example) => {
+        let init_example = get_example(sub_id, examples);
+        {
+          sub_id,
+          term: init_example.term,
+          message: init_example.message,
+          feedback,
+        };
+      },
+      persistent_examples,
+    );
+  };
+  let forms_unpersist =
+    List.map(
+      ({id, explanation_feedback, examples}: persistent_form) => {
+        let init_form = get_form(id, init.forms);
+        {
+          id,
+          syntactic_form: init_form.syntactic_form,
+          expandable_id: init_form.expandable_id,
+          explanation: {
+            message: init_form.explanation.message,
+            feedback: explanation_feedback,
+          },
+          examples: unpersist_examples(examples, init_form.examples),
+        };
+      },
+      forms,
+    );
+  let groups_unpersist =
+    List.map(
+      ({id, current_selection}: persistent_form_group) => {
+        let init_group = get_group(id, init);
+        (id, {options: init_group.options, current_selection});
+      },
+      groups,
+    );
+  {
+    show,
+    highlight,
+    specificity_open,
+    forms: forms_unpersist,
+    groups: groups_unpersist,
+  };
+};
+
+let serialize = (langDocMessages: t): string => {
+  persist(langDocMessages)
+  |> sexp_of_persistent_state
+  |> Sexplib.Sexp.to_string;
+};
+
+let deserialize = (data: string) => {
+  Sexplib.Sexp.of_string(data) |> persistent_state_of_sexp |> unpersist;
 };
