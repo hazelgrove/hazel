@@ -124,7 +124,8 @@ let view =
     ~attr=Attr.class_("code"),
     [
       span_c("code-text", unselected),
-      span_c("code-text-shards", Text.of_segment(segment)),
+      // TODO restore (already regressed so no loss in commenting atm)
+      // span_c("code-text-shards", Text.of_segment(segment)),
       ...holes,
     ],
   );
