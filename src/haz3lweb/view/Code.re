@@ -21,7 +21,9 @@ module Text = (M: {
       | None => Sort.Any
       | Some(sort) => sort
       };
-    seg |> List.mapi((i, p) => of_piece(sort_of_p_idx(i), p)) |> List.concat;
+    seg
+    |> List.mapi((i, p) => (i, p))
+    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
   }
   and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
@@ -112,10 +114,15 @@ let view =
       let map = measured;
       let settings = settings;
     });
+  let unselected =
+    TimeUtil.measure_time(
+      "Code.Text.of_segment(unselected)", settings.benchmark, () =>
+      Text.of_segment(unselected)
+    );
   div(
     ~attr=Attr.class_("code"),
     [
-      span_c("code-text", Text.of_segment(unselected)),
+      span_c("code-text", unselected),
       span_c("code-text-shards", Text.of_segment(segment)),
     ]
     @ holes(~map=measured, ~font_metrics, segment),
