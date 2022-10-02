@@ -68,11 +68,13 @@ let view =
   let caret_adj_px =
     //TODO(andrew): figure out why we need this mystery pixel below
     (-1.) +. caret_adj *. font_metrics.col_width;
-  let style =
+  let max_disp = 3; /* Maximum vertical backpack displacement */
+  let vertical_disp = origin.row <= max_disp ? origin.row : max_disp;
+  let selections_style =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      Float.of_int(/* origin.row */ - height_head - 1)
+      Float.of_int(origin.row - vertical_disp - height_head - 1)
       *. font_metrics.row_height,
     );
   let scale_fn = idx => float_of_int(100 - 12 * idx) /. 100.;
@@ -106,7 +108,7 @@ let view =
     div(
       ~attr=
         Attr.many([
-          Attr.create("style", style),
+          Attr.create("style", selections_style),
           Attr.classes(["backpack"]),
         ]),
       selections,
@@ -116,12 +118,15 @@ let view =
     | [] => 0
     | [hd, ..._] => Measured.segment_width(hd.content)
     };
+
   let joiner_style =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx; height: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      -3.,
-      Float.of_int(origin.row) *. font_metrics.row_height +. 3.,
+      (-3.)
+      +. Float.of_int(origin.row - vertical_disp)
+      *. font_metrics.row_height,
+      3. +. Float.of_int(vertical_disp) *. font_metrics.row_height,
     );
   let joiner =
     div(
@@ -151,7 +156,9 @@ let view =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      1.,
+      Float.of_int(origin.row - vertical_disp)
+      *. font_metrics.row_height
+      +. 1.,
     );
   div(
     ~attr=
