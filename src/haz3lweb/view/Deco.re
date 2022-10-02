@@ -115,8 +115,7 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let ranges = TermRanges.mk(Zipper.zip(z));
-        switch (TermRanges.find_opt(Piece.id(p), ranges)) {
+        switch (TermRanges.find_opt(Piece.id(p), M.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
           let l = Measured.find_p(p_l, M.map).origin;
