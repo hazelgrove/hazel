@@ -83,11 +83,10 @@ module Text = (M: {
 let rec holes =
         (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
   seg
-  |> List.map(
+  |> List.concat_map(
        fun
        | Piece.Whitespace(_) => []
-       | Tile(t) =>
-         t.children |> List.map(holes(~map, ~font_metrics)) |> List.concat
+       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
@@ -97,8 +96,7 @@ let rec holes =
              },
            ),
          ],
-     )
-  |> List.concat;
+     );
 
 let view =
     (
@@ -115,16 +113,19 @@ let view =
       let settings = settings;
     });
   let unselected =
-    TimeUtil.measure_time(
-      "Code.Text.of_segment(unselected)", settings.benchmark, () =>
+    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
       Text.of_segment(unselected)
+    );
+  let holes =
+    TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
+      holes(~map=measured, ~font_metrics, segment)
     );
   div(
     ~attr=Attr.class_("code"),
     [
       span_c("code-text", unselected),
       span_c("code-text-shards", Text.of_segment(segment)),
-    ]
-    @ holes(~map=measured, ~font_metrics, segment),
+      ...holes,
+    ],
   );
 };
