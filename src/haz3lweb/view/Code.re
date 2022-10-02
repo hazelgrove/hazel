@@ -4,6 +4,32 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+let of_delim' =
+  Core.Memo.general(
+    ~cache_size_bound=100000,
+    ((sort, is_consistent, is_complete, label, i)) => {
+      let cls =
+        switch (label) {
+        | [_] when !is_consistent => "mono-inconsistent"
+        | [s] when Form.is_string(s) => "mono-string-lit"
+        | [_] => "mono"
+        | _ when !is_consistent => "delim-inconsistent"
+        | _ when !is_complete => "delim-incomplete"
+        | _ => "delim"
+        };
+      [
+        span(
+          ~attr=
+            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+          [Node.text(List.nth(label, i))],
+        ),
+      ];
+    },
+  );
+let of_delim =
+    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+
 module Text = (M: {
                  let map: Measured.t;
                  let settings: Model.settings;
@@ -59,24 +85,6 @@ module Text = (M: {
          of_segment(~sort, seg)
        )
     |> List.concat;
-  }
-  and of_delim =
-      (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) => {
-    let cls =
-      switch (t.label) {
-      | [_] when !is_consistent => "mono-inconsistent"
-      | [s] when Form.is_string(s) => "mono-string-lit"
-      | [_] => "mono"
-      | _ when !is_consistent => "delim-inconsistent"
-      | _ when !Tile.is_complete(t) => "delim-incomplete"
-      | _ => "delim"
-      };
-    [
-      span(
-        ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-        [Node.text(List.nth(t.label, i))],
-      ),
-    ];
   };
 };
 
