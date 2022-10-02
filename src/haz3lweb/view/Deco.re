@@ -129,20 +129,20 @@ module Deco =
         | Some(i) => i
         };
       //TODO(andrew): get this working
-      let _segs =
-        switch (p) {
-        | Tile({children, mold, _}) =>
-          children
-          |> List.flatten
-          |> List.filter(
-               fun
-               | Piece.Whitespace(w) when w.content == Whitespace.linebreak =>
-                 false
-               | _ => true,
-             )
-          |> List.map(p => (mold, Measured.find_p(p, M.map)))
-        | _ => []
-        };
+      // let _segs =
+      //   switch (p) {
+      //   | Tile({children, mold, _}) =>
+      //     children
+      //     |> List.flatten
+      //     |> List.filter(
+      //          fun
+      //          | Piece.Whitespace(w) when w.content == Whitespace.linebreak =>
+      //            false
+      //          | _ => true,
+      //        )
+      //     |> List.map(p => (mold, Measured.find_p(p, M.map)))
+      //   | _ => []
+      //   };
       switch (range) {
       | None => []
       | Some(range) =>
