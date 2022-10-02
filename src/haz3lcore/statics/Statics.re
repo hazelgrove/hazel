@@ -249,7 +249,7 @@ let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
   if (Term.UPat.is_tuple_of_arrows(pat)
       && Term.UExp.is_tuple_of_functions(def)) {
-    VarMap.union(ctx, pat_ctx);
+    VarMap.union(pat_ctx, ctx);
   } else {
     ctx;
   };
