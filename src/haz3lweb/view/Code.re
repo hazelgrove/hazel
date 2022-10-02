@@ -30,6 +30,26 @@ let of_delim =
     (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
+let of_grout = [Node.text(Unicode.nbsp)];
+
+let of_whitespace =
+  Core.Memo.general(
+    ~cache_size_bound=1000000, ((whitespace_icons, indent, content)) =>
+    if (content == Whitespace.linebreak) {
+      let str = whitespace_icons ? Whitespace.linebreak : "";
+      [
+        span_c("linebreak", [text(str)]),
+        Node.br(),
+        Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
+      ];
+    } else if (content == Whitespace.space) {
+      let str = whitespace_icons ? "·" : Unicode.nbsp;
+      [span_c("whitespace", [text(str)])];
+    } else {
+      [Node.text(content)];
+    }
+  );
+
 module Text = (M: {
                  let map: Measured.t;
                  let settings: Model.settings;
@@ -54,21 +74,9 @@ module Text = (M: {
   and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(expected_sort, t)
-    | Grout(_) => [Node.text(Unicode.nbsp)]
+    | Grout(_) => of_grout
     | Whitespace({content, _}) =>
-      if (content == Whitespace.linebreak) {
-        let str = M.settings.whitespace_icons ? Whitespace.linebreak : "";
-        [
-          span_c("linebreak", [text(str)]),
-          Node.br(),
-          Node.text(StringUtil.repeat(m(p).last.col, Unicode.nbsp)),
-        ];
-      } else if (content == Whitespace.space) {
-        let str = M.settings.whitespace_icons ? "·" : Unicode.nbsp;
-        [span_c("whitespace", [text(str)])];
-      } else {
-        [Node.text(content)];
-      }
+      of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
   }
   and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
