@@ -34,6 +34,13 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
           dynamics: !settings.dynamics,
         },
       }
+    | Benchmark => {
+        ...model,
+        settings: {
+          ...settings,
+          benchmark: !settings.benchmark,
+        },
+      }
     | Captions => {
         ...model,
         settings: {
@@ -120,7 +127,8 @@ let reevaluate_post_update =
     switch (s_action) {
     | Captions
     | WhitespaceIcons
-    | Statics => false
+    | Statics
+    | Benchmark => false
     | Dynamics
     | InstructorMode
     | ContextInspector
