@@ -13,7 +13,9 @@ let union = union((_, range, _) => Some(range));
 // include the container in the ranges for those inner
 // separators.
 // TODO(d) fix or derive from other info
-let rec mk = (seg: Segment.t) => {
+//
+// tail-recursive in outer recursion
+let rec mk = (~map=empty, seg: Segment.t) => {
   let rec go = (skel: Skel.t): (range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
@@ -46,8 +48,9 @@ let rec mk = (seg: Segment.t) => {
          );
     (range, map);
   };
-  let unichild_map = snd(go(Segment.skel(seg)));
-  let bichild_map =
-    Segment.children(seg) |> List.map(mk) |> List.fold_left(union, empty);
-  union(unichild_map, bichild_map);
+  Segment.children(seg)
+  |> List.fold_left(
+       (map, kid) => mk(~map, kid),
+       union(map, snd(go(Segment.skel(seg)))),
+     );
 };
