@@ -165,7 +165,7 @@ module Deco =
       };
     let root_targets =
       ListUtil.splits(seg)
-      |> List.map(((l, r)) => {
+      |> List.concat_map(((l, r)) => {
            let sibs =
              Segment.(incomplete_tiles(l), incomplete_tiles(r))
              |> with_container_shards;
@@ -187,8 +187,7 @@ module Deco =
                CaretPosDec.Profile.{style: `Sibling, measurement, sort: Exp};
              [CaretPosDec.view(~font_metrics, profile)];
            };
-         })
-      |> List.concat;
+         });
     switch (root_targets) {
     | [_, ..._] => root_targets
     | [] =>
@@ -198,15 +197,13 @@ module Deco =
            | Piece.Tile(t) => Some(t)
            | _ => None,
          )
-      |> List.map((t: Tile.t) => {
+      |> List.concat_map((t: Tile.t) => {
            // TODO(d): unify with Relatives.local_incomplete_tiles
            Tile.contained_children(t)
-           |> List.map(((l, seg, r)) =>
+           |> List.concat_map(((l, seg, r)) =>
                 targets(~container_shards=(l, r), bp, seg)
               )
-           |> List.concat
          })
-      |> List.concat
     };
   };
 
