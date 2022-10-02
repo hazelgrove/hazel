@@ -31,3 +31,5 @@ let find_instance:
   i)]. Assumes both the parent and the hole exist in [hii].
  */
 let add_parent: (HoleInstance.t, HoleInstanceParents.t_, t) => t;
+
+let fast_equal: (t, t) => bool;

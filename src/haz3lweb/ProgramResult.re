@@ -1,29 +1,35 @@
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
+type ok = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 
-let get_dhexp = ((r, _, _): t) => EvaluatorResult.unbox(r);
-let get_state = ((_, es, _): t) => es;
-let get_hii = ((_, _, hii): t) => hii;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | Ok(ok)
+  | Error(EvaluatorError.t);
 
-let fast_equal_hii = (hii1, hii2) => {
-  let fast_equal_his = (his1, his2) =>
-    List.equal(
-      ((sigma1, _), (sigma2, _)) =>
-        ClosureEnvironment.id_equal(sigma1, sigma2)
-        /* Check that variable mappings in ClosureEnvironment are equal */
-        && List.equal(
-             ((x1, d1), (x2, d2)) => x1 == x2 && DHExp.fast_equal(d1, d2),
-             ClosureEnvironment.to_list(sigma1),
-             ClosureEnvironment.to_list(sigma2),
-           ),
-      his1,
-      his2,
-    );
+let get_dhexp = (result: t): option(DHExp.t) =>
+  switch (result) {
+  | Ok((r, _, _)) => Some(EvaluatorResult.unbox(r))
+  | Error(_) => None
+  };
 
-  MetaVarMap.equal(fast_equal_his, hii1, hii2);
-};
+let get_state = (result: t): option(EvaluatorState.t) =>
+  switch (result) {
+  | Ok((_, es, _)) => Some(es)
+  | Error(_) => None
+  };
 
-let fast_equal = ((r1, _, hii1): t, (r2, _, hii2): t): bool =>
-  fast_equal_hii(hii1, hii2) && EvaluatorResult.fast_equal(r1, r2);
+let get_hii = (result: t): option(HoleInstanceInfo.t) =>
+  switch (result) {
+  | Ok((_, _, hii)) => Some(hii)
+  | Error(_) => None
+  };
+
+let fast_equal = (result1: t, result2: t): bool =>
+  switch (result1, result2) {
+  | (Ok((r1, _, hii1)), Ok((r2, _, hii2))) =>
+    HoleInstanceInfo.fast_equal(hii1, hii2)
+    && EvaluatorResult.fast_equal(r1, r2)
+  | _ => false
+  };

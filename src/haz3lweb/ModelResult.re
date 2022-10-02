@@ -1,3 +1,6 @@
+open Util.OptUtil.Syntax;
+open Sexplib.Std;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type previous = ProgramResult.t;
 
@@ -13,6 +16,21 @@ type t = {
   previous,
   current,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type optional_simple_data = {
+  opt_eval_result: option(Haz3lcore.DHExp.t),
+  opt_test_results: option(Interface.test_results),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type simple_data = {
+  eval_result: Haz3lcore.DHExp.t,
+  test_results: Interface.test_results,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type simple = option(simple_data);
 
 let init = previous => {previous, current: ResultPending};
 
@@ -45,32 +63,16 @@ let update_current = (current, res) => {
   res;
 };
 
-type optional_simple_data = {
-  opt_eval_result: option(Haz3lcore.DHExp.t),
-  opt_test_results: option(Interface.test_results),
+let get_simple = (res: option(t)): simple => {
+  let* res = res;
+  let prev =
+    res |> get_current_ok |> Option.value(~default=get_previous(res));
+  let* eval_result = ProgramResult.get_dhexp(prev);
+  let+ state = ProgramResult.get_state(prev);
+  let test_results =
+    state |> Haz3lcore.EvaluatorState.get_tests |> Interface.mk_results;
+  {eval_result, test_results};
 };
-
-type simple_data = {
-  eval_result: Haz3lcore.DHExp.t,
-  test_results: Interface.test_results,
-};
-
-type simple = option(simple_data);
-
-let get_simple = (res: option(t)): simple =>
-  res
-  |> Option.map(res =>
-       res |> get_current_ok |> Option.value(~default=get_previous(res))
-     )
-  |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
-       let test_results =
-         r
-         |> ProgramResult.get_state
-         |> Haz3lcore.EvaluatorState.get_tests
-         |> Interface.mk_results;
-       {eval_result, test_results};
-     });
 
 let unwrap_test_results = (simple: simple): option(Interface.test_results) => {
   Option.map(simple_data => simple_data.test_results, simple);

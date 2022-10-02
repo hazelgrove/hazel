@@ -62,26 +62,15 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   switch (evaluate(d)) {
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);
-    (BoxedValue(d), es, hii);
+    Ok((BoxedValue(d), es, hii));
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
-    (Indet(d), es, hii);
-  | exception (EvaluatorError.Exception(_reason)) =>
-    //HACK(andrew): supress exceptions for release
-    //raise(EvalError(reason))
-    print_endline("Interface.evaluate EXCEPTION");
-    (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
+    Ok((Indet(d), es, hii));
+  | exception (EvaluatorError.Exception(err)) => Error(err)
   | exception _ =>
     print_endline("Other evaluation exception raised (stack overflow?)");
-    (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
-      EvaluatorState.init,
-      HoleInstanceInfo.empty,
-    );
+    //TODO(andrew): this is a hack; check this is actually a stack overflow
+    Error(StackOverflow);
   };
 
 let get_result = (map, term): ProgramResult.t =>
@@ -89,7 +78,8 @@ let get_result = (map, term): ProgramResult.t =>
 
 let evaluation_result = (map, term): option(DHExp.t) =>
   switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
+  | Ok((result, _, _)) => Some(EvaluatorResult.unbox(result))
+  | Error(_) => None
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -115,7 +105,8 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
   switch (get_result(map, term)) {
-  | (_, state, _) =>
+  | Ok((_, state, _)) =>
     Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
+  | Error(_) => None
   };
 };
