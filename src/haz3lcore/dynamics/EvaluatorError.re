@@ -15,6 +15,7 @@ type t =
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t))
-  | StackOverflow;
+  | StackOverflow
+  | OtherException;
 
 exception Exception(t);

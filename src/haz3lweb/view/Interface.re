@@ -67,10 +67,10 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
     let ((d, hii), es) = postprocess(es, d);
     Ok((Indet(d), es, hii));
   | exception (EvaluatorError.Exception(err)) => Error(err)
-  | exception _ =>
-    print_endline("Other evaluation exception raised (stack overflow?)");
-    //TODO(andrew): this is a hack; check this is actually a stack overflow
-    Error(StackOverflow);
+  | exception Stack_overflow => Error(StackOverflow)
+  | exception exn =>
+    Printf.printf("Interface.evaluate: %s", Printexc.to_string(exn));
+    Error(OtherException);
   };
 
 let get_result = (map, term): ProgramResult.t =>

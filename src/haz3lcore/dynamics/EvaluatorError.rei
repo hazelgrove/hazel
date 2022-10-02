@@ -13,7 +13,8 @@ type t =
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t))
-  | StackOverflow;
+  | StackOverflow
+  | OtherException;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);
