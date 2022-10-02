@@ -172,10 +172,7 @@ let deco =
       let (_term, terms) = MakeTerm.go(unselected);
       let info_map = info_map;
       let term_ranges = TermRanges.mk(unselected);
-      let tiles =
-        Util.TimeUtil.measure_time("TileMap.mk", true, () =>
-          TileMap.mk(unselected)
-        );
+      let tiles = TileMap.mk(unselected);
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
   switch (test_results) {
