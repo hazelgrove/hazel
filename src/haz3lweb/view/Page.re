@@ -257,6 +257,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
       ),
     [FontSpecimen.view("font-specimen"), DecUtil.filters]
     @ main_ui
-    @ [div(~attr=Attr.id("blorg"), [])] // hack for clipboard management, see JsUtil
+    @ [div(~attr=Attr.id(JsUtil.clipboard_id), [])] /* system clipboard interface, see JsUtil */
   );
 };

@@ -315,11 +315,11 @@ let apply =
     | Copy =>
       let clipboard =
         Printer.to_string_selection(Editors.get_zipper(model.editors));
-      //JsUtil.copy_to_clipboard(clipboard);
-      Ok({...model, clipboard});
+      JsUtil.copy_to_clipboard(clipboard);
+      Ok(model /*{...model, clipboard}*/);
     | Paste =>
-      //let clipboard = JsUtil.get_from_clipboard();
-      let clipboard = model.clipboard;
+      let clipboard = JsUtil.get_from_clipboard'();
+      //let clipboard = model.clipboard;
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
         Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
