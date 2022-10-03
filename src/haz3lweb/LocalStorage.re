@@ -194,12 +194,7 @@ module School = {
     };
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type school_export = {
-    cur_exercise: SchoolExercise.key,
-    exercise_data:
-      list((SchoolExercise.key, SchoolExercise.persistent_state)),
-  };
+  type school_export = SchoolExercise.school_export;
 
   let prep_school_export = (~specs, ~instructor_mode) => {
     {
@@ -223,10 +218,6 @@ module School = {
     prep_school_export(~specs, ~instructor_mode)
     |> sexp_of_school_export
     |> Sexplib.Sexp.to_string;
-  };
-
-  let deserialize_school_export = data => {
-    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
   };
 
   let export = (~specs, ~instructor_mode) => {
