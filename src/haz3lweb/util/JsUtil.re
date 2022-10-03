@@ -46,27 +46,23 @@ let copy_to_clipboard = (string: string): unit => {
 let get_from_clipboard = (): string => {
   let _ =
     Js.Unsafe.js_expr(
-      "window.navigator.clipboard.readText().then(
-      function(text)
-      {var guy = document.getElementById('clipboard_id'); guy.innerHTML = text; console.log('Clipboard content is: ', text); return text;}).catch
-      (function(err)
+      "window.navigator.clipboard.readText()
+      .then(function(text) {
+        var guy = document.getElementById('clipboard_id');
+        guy.innerHTML = text; console.log('Clipboard content is: ', text);
+        return Promise.resolve(text);
+        })
+      .catch(function(err)
         {console.error('Failed to read clipboard contents: ', err);})",
     );
-  /*
-   let _ =
-     Js.Unsafe.js_expr("document.getElementById('clipboard_id').select()");
-   let _ =
-     Dom_html.document##execCommand(
-       Js.string("paste"),
-       Js.bool(true),
-       Js.Opt.empty,
-     );*/
   let elem = get_elem_by_id(clipboard_id);
-  let result = Js.Unsafe.get(elem, "innerHTML") |> Js.to_string;
+  let result =
+    Js.Unsafe.get(elem, "innerHTML")
+    |> Js.to_string
+    |> Str.global_replace(Str.regexp("&gt;"), ">");
   print_endline("get from clipboard: ");
   print_endline(result);
   result;
-  //t |> Js.to_string;
 };
 
 let download_string_file =
