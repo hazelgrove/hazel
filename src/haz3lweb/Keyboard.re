@@ -23,8 +23,8 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let zipper = Editors.get_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
-  let now = a => [Update.PerformAction(a), Update.UpdateDoubleTap(None)];
-  let now_save_u = u => Update.[u, Save, UpdateDoubleTap(None)];
+  let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
+  let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
   let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
   let toggle = m => (m := ! m^) |> (_ => []);

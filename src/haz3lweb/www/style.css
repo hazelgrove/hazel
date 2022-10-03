@@ -539,7 +539,7 @@ body {
 }
 
 .code-text {
-  position: absolute;
+  position: relative;
   z-index: var(--code-text-z);
   user-select: none;
   white-space: pre;

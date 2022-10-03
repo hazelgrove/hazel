@@ -12,7 +12,7 @@ let prompt =
       ]),
     ]),
     p([
-      code("fib n"),
+      code("fib(n)"),
       equiv,
       text("the "),
       code("n"),
