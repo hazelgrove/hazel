@@ -482,7 +482,7 @@ let eval_bin_float_op =
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
-    // let* () = take_step;
+    let* () = take_step;
     let* state = get;
     let (_, depth_out) = time_out(state);
     // let (state, steps) = state |> time_out;
@@ -490,7 +490,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     switch (d) {
     | _ when depth_out =>
       print_endline("OutOfFuel");
-      raise(EvaluatorError.Exception(OutOfFuel));
+      // raise(EvaluatorError.Exception(OutOfFuel));
+      Indet(InvalidOperation(Triv, OutOfFuel)) |> return;
 
     | BoundVar(x) =>
       let d =
@@ -534,7 +535,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       };
 
     | FixF(f, _, d') =>
-      let* () = take_step;
+      // let* () = take_step;
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
 
