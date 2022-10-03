@@ -1376,6 +1376,10 @@ div.expandable-target {
   z-index: 40;
 }
 
+.clickable {
+  cursor: pointer;
+}
+
 /* https://css-tricks.com/snippets/css/css-triangle/ */
 .arrow {
   width: 0;
