@@ -4,6 +4,52 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+let of_delim' =
+  Core.Memo.general(
+    ~cache_size_bound=100000,
+    ((sort, is_consistent, is_complete, label, i)) => {
+      let cls =
+        switch (label) {
+        | [_] when !is_consistent => "mono-inconsistent"
+        | [s] when Form.is_string(s) => "mono-string-lit"
+        | [_] => "mono"
+        | _ when !is_consistent => "delim-inconsistent"
+        | _ when !is_complete => "delim-incomplete"
+        | _ => "delim"
+        };
+      [
+        span(
+          ~attr=
+            Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
+          [Node.text(List.nth(label, i))],
+        ),
+      ];
+    },
+  );
+let of_delim =
+    (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+  of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
+
+let of_grout = [Node.text(Unicode.nbsp)];
+
+let of_whitespace =
+  Core.Memo.general(
+    ~cache_size_bound=1000000, ((whitespace_icons, indent, content)) =>
+    if (content == Whitespace.linebreak) {
+      let str = whitespace_icons ? Whitespace.linebreak : "";
+      [
+        span_c("linebreak", [text(str)]),
+        Node.br(),
+        Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
+      ];
+    } else if (content == Whitespace.space) {
+      let str = whitespace_icons ? "·" : Unicode.nbsp;
+      [span_c("whitespace", [text(str)])];
+    } else {
+      [Node.text(content)];
+    }
+  );
+
 module Text = (M: {
                  let map: Measured.t;
                  let settings: Model.settings;
@@ -21,26 +67,16 @@ module Text = (M: {
       | None => Sort.Any
       | Some(sort) => sort
       };
-    seg |> List.mapi((i, p) => of_piece(sort_of_p_idx(i), p)) |> List.concat;
+    seg
+    |> List.mapi((i, p) => (i, p))
+    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
   }
   and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(expected_sort, t)
-    | Grout(_) => [Node.text(Unicode.nbsp)]
+    | Grout(_) => of_grout
     | Whitespace({content, _}) =>
-      if (content == Whitespace.linebreak) {
-        let str = M.settings.whitespace_icons ? Whitespace.linebreak : "";
-        [
-          span_c("linebreak", [text(str)]),
-          Node.br(),
-          Node.text(StringUtil.repeat(m(p).last.col, Unicode.nbsp)),
-        ];
-      } else if (content == Whitespace.space) {
-        let str = M.settings.whitespace_icons ? "·" : Unicode.nbsp;
-        [span_c("whitespace", [text(str)])];
-      } else {
-        [Node.text(content)];
-      }
+      of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
   }
   and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -57,35 +93,16 @@ module Text = (M: {
          of_segment(~sort, seg)
        )
     |> List.concat;
-  }
-  and of_delim =
-      (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) => {
-    let cls =
-      switch (t.label) {
-      | [_] when !is_consistent => "mono-inconsistent"
-      | [s] when Form.is_string(s) => "mono-string-lit"
-      | [_] => "mono"
-      | _ when !is_consistent => "delim-inconsistent"
-      | _ when !Tile.is_complete(t) => "delim-incomplete"
-      | _ => "delim"
-      };
-    [
-      span(
-        ~attr=Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-        [Node.text(List.nth(t.label, i))],
-      ),
-    ];
   };
 };
 
 let rec holes =
         (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
   seg
-  |> List.map(
+  |> List.concat_map(
        fun
        | Piece.Whitespace(_) => []
-       | Tile(t) =>
-         t.children |> List.map(holes(~map, ~font_metrics)) |> List.concat
+       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
@@ -95,8 +112,7 @@ let rec holes =
              },
            ),
          ],
-     )
-  |> List.concat;
+     );
 
 let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
   module Text =
@@ -124,12 +140,21 @@ let view =
       let map = measured;
       let settings = settings;
     });
+  let unselected =
+    TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
+      Text.of_segment(unselected)
+    );
+  let holes =
+    TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
+      holes(~map=measured, ~font_metrics, segment)
+    );
   div(
     ~attr=Attr.class_("code"),
     [
-      span_c("code-text", Text.of_segment(unselected)),
-      span_c("code-text-shards", Text.of_segment(segment)),
-    ]
-    @ holes(~map=measured, ~font_metrics, segment),
+      span_c("code-text", unselected),
+      // TODO restore (already regressed so no loss in commenting atm)
+      // span_c("code-text-shards", Text.of_segment(segment)),
+      ...holes,
+    ],
   );
 };

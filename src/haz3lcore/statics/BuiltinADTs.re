@@ -9,8 +9,10 @@ type tag = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type adt = (string, list(tag));
 
-/* Add Built-In ADTs here. Type names and constructor names
-   must be globally unique (enforced by assertions below) */
+let alftyp = Typ.Var("ALFTyp");
+let alfexpr = Typ.Var("ALFExpr");
+let option_alftyp = Typ.Var("Option_ALFTyp");
+
 let adts: list(adt) = [
   (
     "Color",
@@ -21,17 +23,47 @@ let adts: list(adt) = [
     ],
   ),
   (
-    "OptionInt",
-    [{name: "None", arg: None}, {name: "Some", arg: Some(Int)}],
+    "Option_ALFTyp",
+    [{name: "None", arg: None}, {name: "Some", arg: Some(alftyp)}],
   ),
   (
-    "Exp",
-    [
-      {name: "Error", arg: Some(Int)},
-      {name: "Var", arg: Some(String)},
-      {name: "Fun", arg: Some(Prod([String, Var("exp")]))},
-      {name: "Ap", arg: Some(Prod([Var("exp"), Var("exp")]))},
-    ],
+    "ALFTyp",
+    {
+      [
+        {name: "Num", arg: None},
+        {name: "Bool", arg: None},
+        {name: "Arrow", arg: Some(Prod([alftyp, alftyp]))},
+        {name: "Prod", arg: Some(Prod([alftyp, alftyp]))},
+      ];
+    },
+  ),
+  (
+    "ALFExpr",
+    {
+      [
+        {name: "NumLit", arg: Some(Int)},
+        {name: "Plus", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Times", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Minus", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Eq", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Lt", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Gt", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Neg", arg: Some(alfexpr)},
+        {name: "BoolLit", arg: Some(Bool)},
+        {name: "If", arg: Some(Prod([alfexpr, alfexpr, alfexpr]))},
+        {name: "Var", arg: Some(String)},
+        {name: "Let", arg: Some(Prod([String, alfexpr, alfexpr]))},
+        {name: "Fun", arg: Some(Prod([String, alftyp, alfexpr]))},
+        {name: "Ap", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "Pair", arg: Some(Prod([alfexpr, alfexpr]))},
+        {name: "PrjL", arg: Some(alfexpr)},
+        {name: "PrjR", arg: Some(alfexpr)},
+        {
+          name: "LetPair",
+          arg: Some(Prod([String, String, alfexpr, alfexpr])),
+        },
+      ];
+    },
   ),
 ];
 
