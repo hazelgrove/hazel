@@ -43,7 +43,7 @@ let view =
 };
 
 let download_slide_state = state => {
-  let json_data = ScratchSlideExport.export(state);
+  let json_data = ScratchSlide.export(state);
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 

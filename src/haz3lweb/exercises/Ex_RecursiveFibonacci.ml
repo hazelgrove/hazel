@@ -28,8 +28,8 @@ let exercise : SchoolExercise.spec =
           {
             siblings =
               ( [
-                  Whitespace { id = 38; content = " " };
-                  Whitespace { id = 39; content = "\226\143\142" };
+                  Whitespace { id = 38; content = WSpace " " };
+                  Whitespace { id = 39; content = WSpace "\226\143\142" };
                   Tile
                     {
                       id = 43;
@@ -46,7 +46,7 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 44; content = " " };
+                            Whitespace { id = 44; content = WSpace " " };
                             Tile
                               {
                                 id = 47;
@@ -62,12 +62,12 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 48; content = " " };
+                            Whitespace { id = 48; content = WSpace " " };
                           ];
                         ];
                     };
-                  Whitespace { id = 51; content = " " };
-                  Whitespace { id = 52; content = "\226\143\142" };
+                  Whitespace { id = 51; content = WSpace " " };
+                  Whitespace { id = 52; content = WSpace "\226\143\142" };
                   Tile
                     {
                       id = 55;
@@ -84,7 +84,7 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 56; content = " " };
+                            Whitespace { id = 56; content = WSpace " " };
                             Tile
                               {
                                 id = 59;
@@ -100,7 +100,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 60; content = " " };
+                            Whitespace { id = 60; content = WSpace " " };
                             Tile
                               {
                                 id = 63;
@@ -116,7 +116,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 64; content = " " };
+                            Whitespace { id = 64; content = WSpace " " };
                             Tile
                               {
                                 id = 66;
@@ -132,10 +132,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 69; content = " " };
+                            Whitespace { id = 69; content = WSpace " " };
                           ];
                           [
-                            Whitespace { id = 73; content = " " };
+                            Whitespace { id = 73; content = WSpace " " };
                             Tile
                               {
                                 id = 77;
@@ -151,12 +151,13 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 80; content = " " };
-                            Whitespace { id = 78; content = "\226\143\142" };
+                            Whitespace { id = 80; content = WSpace " " };
+                            Whitespace
+                              { id = 78; content = WSpace "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = 84; content = " " };
+                  Whitespace { id = 84; content = WSpace " " };
                   Tile
                     {
                       id = 88;
@@ -203,7 +204,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 93; content = " " };
+                            Whitespace { id = 93; content = WSpace " " };
                             Tile
                               {
                                 id = 96;
@@ -219,7 +220,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 97; content = " " };
+                            Whitespace { id = 97; content = WSpace " " };
                             Tile
                               {
                                 id = 99;
@@ -238,7 +239,7 @@ let exercise : SchoolExercise.spec =
                           ];
                         ];
                     };
-                  Whitespace { id = 100; content = " " };
+                  Whitespace { id = 100; content = WSpace " " };
                   Tile
                     {
                       id = 103;
@@ -254,7 +255,7 @@ let exercise : SchoolExercise.spec =
                       shards = [ 0 ];
                       children = [];
                     };
-                  Whitespace { id = 104; content = " " };
+                  Whitespace { id = 104; content = WSpace " " };
                   Tile
                     {
                       id = 108;
@@ -301,7 +302,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 113; content = " " };
+                            Whitespace { id = 113; content = WSpace " " };
                             Tile
                               {
                                 id = 116;
@@ -317,7 +318,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 117; content = " " };
+                            Whitespace { id = 117; content = WSpace " " };
                             Tile
                               {
                                 id = 119;
@@ -336,9 +337,9 @@ let exercise : SchoolExercise.spec =
                           ];
                         ];
                     };
-                  Whitespace { id = 122; content = " " };
+                  Whitespace { id = 122; content = WSpace " " };
                 ],
-                [ Whitespace { id = 126; content = "\226\143\142" } ] );
+                [ Whitespace { id = 126; content = WSpace "\226\143\142" } ] );
             ancestors =
               [
                 ( {
@@ -356,7 +357,7 @@ let exercise : SchoolExercise.spec =
                     children =
                       ( [
                           [
-                            Whitespace { id = 12; content = " " };
+                            Whitespace { id = 12; content = WSpace " " };
                             Tile
                               {
                                 id = 17;
@@ -387,7 +388,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 21; content = " " };
+                            Whitespace { id = 21; content = WSpace " " };
                             Tile
                               {
                                 id = 25;
@@ -403,7 +404,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 26; content = " " };
+                            Whitespace { id = 26; content = WSpace " " };
                             Tile
                               {
                                 id = 30;
@@ -419,7 +420,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 31; content = " " };
+                            Whitespace { id = 31; content = WSpace " " };
                             Tile
                               {
                                 id = 35;
@@ -435,14 +436,14 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 36; content = " " };
+                            Whitespace { id = 36; content = WSpace " " };
                           ];
                         ],
                         [] );
                   },
                   ( [],
                     [
-                      Whitespace { id = 124; content = " " };
+                      Whitespace { id = 124; content = WSpace " " };
                       Grout { id = 123; shape = Convex };
                     ] ) );
               ];
@@ -489,7 +490,7 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 473; content = " " };
+                            Whitespace { id = 473; content = WSpace " " };
                             Tile
                               {
                                 id = 478;
@@ -505,7 +506,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 479; content = " " };
+                            Whitespace { id = 479; content = WSpace " " };
                             Tile
                               {
                                 id = 482;
@@ -521,7 +522,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 483; content = " " };
+                            Whitespace { id = 483; content = WSpace " " };
                             Tile
                               {
                                 id = 487;
@@ -537,7 +538,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 488; content = " " };
+                            Whitespace { id = 488; content = WSpace " " };
                             Tile
                               {
                                 id = 492;
@@ -553,7 +554,7 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 493; content = " " };
+                            Whitespace { id = 493; content = WSpace " " };
                             Tile
                               {
                                 id = 497;
@@ -569,11 +570,12 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 498; content = " " };
+                            Whitespace { id = 498; content = WSpace " " };
                           ];
                           [
-                            Whitespace { id = 500; content = " " };
-                            Whitespace { id = 501; content = "\226\143\142" };
+                            Whitespace { id = 500; content = WSpace " " };
+                            Whitespace
+                              { id = 501; content = WSpace "\226\143\142" };
                             Tile
                               {
                                 id = 505;
@@ -590,7 +592,8 @@ let exercise : SchoolExercise.spec =
                                 children =
                                   [
                                     [
-                                      Whitespace { id = 506; content = " " };
+                                      Whitespace
+                                        { id = 506; content = WSpace " " };
                                       Tile
                                         {
                                           id = 509;
@@ -607,17 +610,19 @@ let exercise : SchoolExercise.spec =
                                           shards = [ 0 ];
                                           children = [];
                                         };
-                                      Whitespace { id = 510; content = " " };
+                                      Whitespace
+                                        { id = 510; content = WSpace " " };
                                     ];
                                   ];
                               };
-                            Whitespace { id = 521; content = " " };
+                            Whitespace { id = 521; content = WSpace " " };
                             Grout { id = 518; shape = Convex };
-                            Whitespace { id = 516; content = "\226\143\142" };
+                            Whitespace
+                              { id = 516; content = WSpace "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = 520; content = " " };
+                  Whitespace { id = 520; content = WSpace " " };
                   Grout { id = 519; shape = Convex };
                 ],
                 [] );
@@ -652,7 +657,7 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace { id = 132; content = " " };
+                                  Whitespace { id = 132; content = WSpace " " };
                                   Tile
                                     {
                                       id = 137;
@@ -684,7 +689,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 141; content = " " };
+                                  Whitespace { id = 141; content = WSpace " " };
                                   Tile
                                     {
                                       id = 145;
@@ -700,7 +705,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 146; content = " " };
+                                  Whitespace { id = 146; content = WSpace " " };
                                   Tile
                                     {
                                       id = 150;
@@ -717,7 +722,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 151; content = " " };
+                                  Whitespace { id = 151; content = WSpace " " };
                                   Tile
                                     {
                                       id = 155;
@@ -733,12 +738,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 156; content = " " };
+                                  Whitespace { id = 156; content = WSpace " " };
                                 ];
                                 [
-                                  Whitespace { id = 158; content = " " };
+                                  Whitespace { id = 158; content = WSpace " " };
                                   Whitespace
-                                    { id = 159; content = "\226\143\142" };
+                                    {
+                                      id = 159;
+                                      content = WSpace "\226\143\142";
+                                    };
                                   Tile
                                     {
                                       id = 163;
@@ -757,7 +765,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 164; content = " " };
+                                              { id = 164; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 167;
@@ -780,13 +788,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 168; content = " " };
+                                              { id = 168; content = WSpace " " };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 173; content = " " };
+                                  Whitespace { id = 173; content = WSpace " " };
                                   Whitespace
-                                    { id = 174; content = "\226\143\142" };
+                                    {
+                                      id = 174;
+                                      content = WSpace "\226\143\142";
+                                    };
                                   Tile
                                     {
                                       id = 177;
@@ -805,7 +816,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 178; content = " " };
+                                              { id = 178; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 181;
@@ -828,7 +839,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 182; content = " " };
+                                              { id = 182; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 185;
@@ -851,7 +862,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 186; content = " " };
+                                              { id = 186; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 188;
@@ -874,11 +885,11 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 191; content = " " };
+                                              { id = 191; content = WSpace " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 195; content = " " };
+                                              { id = 195; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 197;
@@ -901,16 +912,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 200; content = " " };
+                                              { id = 200; content = WSpace " " };
                                             Whitespace
                                               {
                                                 id = 198;
-                                                content = "\226\143\142";
+                                                content = WSpace "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 204; content = " " };
+                                  Whitespace { id = 204; content = WSpace " " };
                                   Tile
                                     {
                                       id = 219;
@@ -929,7 +940,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 220; content = " " };
+                                              { id = 220; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 223;
@@ -952,7 +963,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 224; content = " " };
+                                              { id = 224; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 227;
@@ -975,7 +986,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 228; content = " " };
+                                              { id = 228; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 230;
@@ -998,11 +1009,11 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 233; content = " " };
+                                              { id = 233; content = WSpace " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 237; content = " " };
+                                              { id = 237; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 239;
@@ -1025,16 +1036,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 242; content = " " };
+                                              { id = 242; content = WSpace " " };
                                             Whitespace
                                               {
                                                 id = 240;
-                                                content = "\226\143\142";
+                                                content = WSpace "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 246; content = " " };
+                                  Whitespace { id = 246; content = WSpace " " };
                                   Tile
                                     {
                                       id = 250;
@@ -1088,7 +1099,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 258; content = " " };
+                                              { id = 258; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 261;
@@ -1111,7 +1122,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 262; content = " " };
+                                              { id = 262; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 264;
@@ -1136,7 +1147,7 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 265; content = " " };
+                                  Whitespace { id = 265; content = WSpace " " };
                                   Tile
                                     {
                                       id = 268;
@@ -1153,7 +1164,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 269; content = " " };
+                                  Whitespace { id = 269; content = WSpace " " };
                                   Tile
                                     {
                                       id = 273;
@@ -1207,7 +1218,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 278; content = " " };
+                                              { id = 278; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 281;
@@ -1230,7 +1241,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 282; content = " " };
+                                              { id = 282; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 284;
@@ -1255,14 +1266,17 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 288; content = " " };
-                                  Whitespace { id = 285; content = " " };
+                                  Whitespace { id = 288; content = WSpace " " };
+                                  Whitespace { id = 285; content = WSpace " " };
                                   Whitespace
-                                    { id = 286; content = "\226\143\142" };
+                                    {
+                                      id = 286;
+                                      content = WSpace "\226\143\142";
+                                    };
                                 ];
                               ];
                           };
-                        Whitespace { id = 290; content = " " };
+                        Whitespace { id = 290; content = WSpace " " };
                       ],
                       [ Grout { id = 289; shape = Convex } ] );
                   ancestors = [];
@@ -1296,7 +1310,7 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace { id = 296; content = " " };
+                                  Whitespace { id = 296; content = WSpace " " };
                                   Tile
                                     {
                                       id = 301;
@@ -1328,7 +1342,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 305; content = " " };
+                                  Whitespace { id = 305; content = WSpace " " };
                                   Tile
                                     {
                                       id = 309;
@@ -1344,7 +1358,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 310; content = " " };
+                                  Whitespace { id = 310; content = WSpace " " };
                                   Tile
                                     {
                                       id = 314;
@@ -1361,7 +1375,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 315; content = " " };
+                                  Whitespace { id = 315; content = WSpace " " };
                                   Tile
                                     {
                                       id = 319;
@@ -1377,12 +1391,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 320; content = " " };
+                                  Whitespace { id = 320; content = WSpace " " };
                                 ];
                                 [
-                                  Whitespace { id = 322; content = " " };
+                                  Whitespace { id = 322; content = WSpace " " };
                                   Whitespace
-                                    { id = 323; content = "\226\143\142" };
+                                    {
+                                      id = 323;
+                                      content = WSpace "\226\143\142";
+                                    };
                                   Tile
                                     {
                                       id = 327;
@@ -1401,7 +1418,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 328; content = " " };
+                                              { id = 328; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 331;
@@ -1424,13 +1441,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 332; content = " " };
+                                              { id = 332; content = WSpace " " };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 335; content = " " };
+                                  Whitespace { id = 335; content = WSpace " " };
                                   Whitespace
-                                    { id = 336; content = "\226\143\142" };
+                                    {
+                                      id = 336;
+                                      content = WSpace "\226\143\142";
+                                    };
                                   Tile
                                     {
                                       id = 339;
@@ -1449,7 +1469,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 340; content = " " };
+                                              { id = 340; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 343;
@@ -1472,7 +1492,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 344; content = " " };
+                                              { id = 344; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 347;
@@ -1495,7 +1515,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 348; content = " " };
+                                              { id = 348; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 350;
@@ -1518,11 +1538,11 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 353; content = " " };
+                                              { id = 353; content = WSpace " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 357; content = " " };
+                                              { id = 357; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 359;
@@ -1545,18 +1565,18 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 363; content = " " };
+                                              { id = 363; content = WSpace " " };
                                             Whitespace
-                                              { id = 360; content = " " };
+                                              { id = 360; content = WSpace " " };
                                             Whitespace
                                               {
                                                 id = 361;
-                                                content = "\226\143\142";
+                                                content = WSpace "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 409; content = " " };
+                                  Whitespace { id = 409; content = WSpace " " };
                                   Tile
                                     {
                                       id = 415;
@@ -1610,7 +1630,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 420; content = " " };
+                                              { id = 420; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 423;
@@ -1633,7 +1653,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 424; content = " " };
+                                              { id = 424; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 440;
@@ -1658,7 +1678,7 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 441; content = " " };
+                                  Whitespace { id = 441; content = WSpace " " };
                                   Tile
                                     {
                                       id = 445;
@@ -1675,7 +1695,7 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 446; content = " " };
+                                  Whitespace { id = 446; content = WSpace " " };
                                   Tile
                                     {
                                       id = 450;
@@ -1729,7 +1749,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 455; content = " " };
+                                              { id = 455; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 458;
@@ -1752,7 +1772,7 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 459; content = " " };
+                                              { id = 459; content = WSpace " " };
                                             Tile
                                               {
                                                 id = 461;
@@ -1777,13 +1797,16 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 464; content = " " };
+                                  Whitespace { id = 464; content = WSpace " " };
                                   Whitespace
-                                    { id = 466; content = "\226\143\142" };
+                                    {
+                                      id = 466;
+                                      content = WSpace "\226\143\142";
+                                    };
                                 ];
                               ];
                           };
-                        Whitespace { id = 467; content = " " };
+                        Whitespace { id = 467; content = WSpace " " };
                       ],
                       [ Grout { id = 465; shape = Convex } ] );
                   ancestors = [];
@@ -1819,7 +1842,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 529; content = " " };
+                                Whitespace { id = 529; content = WSpace " " };
                                 Tile
                                   {
                                     id = 534;
@@ -1875,7 +1898,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 539; content = " " };
+                                Whitespace { id = 539; content = WSpace " " };
                                 Tile
                                   {
                                     id = 543;
@@ -1891,7 +1914,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 544; content = " " };
+                                Whitespace { id = 544; content = WSpace " " };
                                 Tile
                                   {
                                     id = 546;
@@ -1907,7 +1930,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 549; content = " " };
+                                Whitespace { id = 549; content = WSpace " " };
                               ];
                             ];
                         };
@@ -1926,7 +1949,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 554; content = "\226\143\142" };
+                      Whitespace { id = 554; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 559;
@@ -1943,7 +1966,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 560; content = " " };
+                                Whitespace { id = 560; content = WSpace " " };
                                 Tile
                                   {
                                     id = 565;
@@ -1999,7 +2022,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 570; content = " " };
+                                Whitespace { id = 570; content = WSpace " " };
                                 Tile
                                   {
                                     id = 574;
@@ -2015,7 +2038,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 575; content = " " };
+                                Whitespace { id = 575; content = WSpace " " };
                                 Tile
                                   {
                                     id = 577;
@@ -2031,7 +2054,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 580; content = " " };
+                                Whitespace { id = 580; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2050,7 +2073,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 585; content = "\226\143\142" };
+                      Whitespace { id = 585; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 590;
@@ -2067,7 +2090,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 591; content = " " };
+                                Whitespace { id = 591; content = WSpace " " };
                                 Tile
                                   {
                                     id = 596;
@@ -2123,7 +2146,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 601; content = " " };
+                                Whitespace { id = 601; content = WSpace " " };
                                 Tile
                                   {
                                     id = 605;
@@ -2139,7 +2162,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 606; content = " " };
+                                Whitespace { id = 606; content = WSpace " " };
                                 Tile
                                   {
                                     id = 612;
@@ -2155,7 +2178,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 614; content = " " };
+                                Whitespace { id = 614; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2174,7 +2197,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 619; content = "\226\143\142" };
+                      Whitespace { id = 619; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 624;
@@ -2191,7 +2214,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 625; content = " " };
+                                Whitespace { id = 625; content = WSpace " " };
                                 Tile
                                   {
                                     id = 630;
@@ -2247,7 +2270,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 635; content = " " };
+                                Whitespace { id = 635; content = WSpace " " };
                                 Tile
                                   {
                                     id = 639;
@@ -2263,7 +2286,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 640; content = " " };
+                                Whitespace { id = 640; content = WSpace " " };
                                 Tile
                                   {
                                     id = 642;
@@ -2279,7 +2302,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 645; content = " " };
+                                Whitespace { id = 645; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2298,7 +2321,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 650; content = "\226\143\142" };
+                      Whitespace { id = 650; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 655;
@@ -2315,7 +2338,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 656; content = " " };
+                                Whitespace { id = 656; content = WSpace " " };
                                 Tile
                                   {
                                     id = 661;
@@ -2371,7 +2394,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 666; content = " " };
+                                Whitespace { id = 666; content = WSpace " " };
                                 Tile
                                   {
                                     id = 670;
@@ -2387,7 +2410,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 671; content = " " };
+                                Whitespace { id = 671; content = WSpace " " };
                                 Tile
                                   {
                                     id = 683;
@@ -2403,7 +2426,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 676; content = " " };
+                                Whitespace { id = 676; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2422,7 +2445,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 681; content = "\226\143\142" };
+                      Whitespace { id = 681; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 688;
@@ -2439,7 +2462,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 689; content = " " };
+                                Whitespace { id = 689; content = WSpace " " };
                                 Tile
                                   {
                                     id = 694;
@@ -2495,7 +2518,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 699; content = " " };
+                                Whitespace { id = 699; content = WSpace " " };
                                 Tile
                                   {
                                     id = 703;
@@ -2511,7 +2534,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 704; content = " " };
+                                Whitespace { id = 704; content = WSpace " " };
                                 Tile
                                   {
                                     id = 706;
@@ -2527,7 +2550,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 709; content = " " };
+                                Whitespace { id = 709; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2546,7 +2569,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 714; content = "\226\143\142" };
+                      Whitespace { id = 714; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 719;
@@ -2563,7 +2586,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 720; content = " " };
+                                Whitespace { id = 720; content = WSpace " " };
                                 Tile
                                   {
                                     id = 725;
@@ -2619,7 +2642,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 730; content = " " };
+                                Whitespace { id = 730; content = WSpace " " };
                                 Tile
                                   {
                                     id = 734;
@@ -2635,7 +2658,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 735; content = " " };
+                                Whitespace { id = 735; content = WSpace " " };
                                 Tile
                                   {
                                     id = 738;
@@ -2651,7 +2674,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 741; content = " " };
+                                Whitespace { id = 741; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2670,7 +2693,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 746; content = "\226\143\142" };
+                      Whitespace { id = 746; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 751;
@@ -2687,7 +2710,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 752; content = " " };
+                                Whitespace { id = 752; content = WSpace " " };
                                 Tile
                                   {
                                     id = 757;
@@ -2743,7 +2766,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 762; content = " " };
+                                Whitespace { id = 762; content = WSpace " " };
                                 Tile
                                   {
                                     id = 766;
@@ -2759,7 +2782,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 767; content = " " };
+                                Whitespace { id = 767; content = WSpace " " };
                                 Tile
                                   {
                                     id = 770;
@@ -2775,7 +2798,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 773; content = " " };
+                                Whitespace { id = 773; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2794,7 +2817,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 778; content = "\226\143\142" };
+                      Whitespace { id = 778; content = WSpace "\226\143\142" };
                       Tile
                         {
                           id = 783;
@@ -2811,7 +2834,7 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 784; content = " " };
+                                Whitespace { id = 784; content = WSpace " " };
                                 Tile
                                   {
                                     id = 789;
@@ -2867,7 +2890,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 794; content = " " };
+                                Whitespace { id = 794; content = WSpace " " };
                                 Tile
                                   {
                                     id = 798;
@@ -2883,7 +2906,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 799; content = " " };
+                                Whitespace { id = 799; content = WSpace " " };
                                 Tile
                                   {
                                     id = 802;
@@ -2899,7 +2922,7 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = 805; content = " " };
+                                Whitespace { id = 805; content = WSpace " " };
                               ];
                             ];
                         };
@@ -2918,7 +2941,7 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 812; content = "\226\143\142" };
+                      Whitespace { id = 812; content = WSpace "\226\143\142" };
                     ],
                     [ Grout { id = 810; shape = Convex } ] );
                 ancestors = [];

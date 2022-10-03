@@ -50,8 +50,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | StringLit(_)
   | ListLit(_)
   | Inj(_)
+  | Prj(_)
   | EmptyHole(_)
-  | Triv
+  | Tag(_)
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
@@ -69,7 +70,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
-  | Pair(_) => DHDoc_common.precedence_Comma
+  | Tuple(_) => DHDoc_common.precedence_Comma
+
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
@@ -129,7 +131,7 @@ let rec mk =
         )
         : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
-  let mk_cast = ((doc: DHDoc.t, ty: option(HTyp.t))): DHDoc.t =>
+  let mk_cast = ((doc: DHDoc.t, ty: option(Typ.t))): DHDoc.t =>
     switch (ty) {
     | Some(ty) when settings.show_casts =>
       Doc.(
@@ -145,7 +147,7 @@ let rec mk =
     };
   let rec go =
           (~parenthesize=false, ~enforce_inline, d: DHExp.t)
-          : (DHDoc.t, option(HTyp.t)) => {
+          : (DHDoc.t, option(Typ.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
     let go_case = (dscrut, drs) =>
@@ -218,7 +220,7 @@ let rec mk =
         raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
 
       | BoundVar(x) => text(x)
-      | Triv => DHDoc_common.Delim.triv
+      | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
@@ -229,10 +231,10 @@ let rec mk =
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
       | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
-        DHDoc_common.mk_ListLit(ol, ol);
+        DHDoc_common.mk_ListLit(ol);
       | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
-        DHDoc_common.mk_ListLit(ol, ol)
+        DHDoc_common.mk_ListLit(ol)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
@@ -280,8 +282,10 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
-      | Pair(d1, d2) =>
-        DHDoc_common.mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2)))
+      | Tuple([]) => DHDoc_common.Delim.triv
+      | Tuple(ds) =>
+        DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
+      | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
@@ -307,7 +311,7 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -352,7 +356,7 @@ let rec mk =
          ])
          |> annot(DHAnnot.FailedCastDecoration);
        switch (d_cast) {
-       | Some(ty1') when HTyp.eq(ty1, ty1') =>
+       | Some(ty1') when Typ.eq(ty1, ty1') =>
          hcats([d_doc, cast_decoration])
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };

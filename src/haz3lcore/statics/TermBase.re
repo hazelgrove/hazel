@@ -93,6 +93,7 @@ and UExp: {
     | Float
     | String
     | ListLit
+    | Tag
     | Fun
     | Tuple
     | Var
@@ -118,6 +119,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
@@ -197,6 +199,7 @@ and UExp: {
     | Float
     | String
     | ListLit
+    | Tag
     | Fun
     | Tuple
     | Var
@@ -222,6 +225,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | ListLit(list(t))
+    | Tag(string)
     | Fun(UPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
@@ -255,10 +259,12 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
+    | Tag(string)
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))
     | Parens(t)
+    | Ap(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),
@@ -277,10 +283,12 @@ and UPat: {
     | String(string)
     | Triv
     | ListLit(list(t))
+    | Tag(string)
     | Cons(t, t)
     | Var(Token.t)
     | Tuple(list(t))
     | Parens(t)
+    | Ap(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),
@@ -298,6 +306,7 @@ and UTyp: {
     | Bool
     | String
     | List(t)
+    | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
@@ -316,6 +325,7 @@ and UTyp: {
     | Bool
     | String
     | List(t)
+    | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)

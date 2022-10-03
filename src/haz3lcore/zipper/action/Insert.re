@@ -119,8 +119,8 @@ let go =
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> (z => Zipper.replace(Right, [new_t], (z, id_gen)))
         |> opt_regrold(Left)
-      : split((z, id_gen), char, idx, t) |> opt_regrold(Right);
-  /* Can't insert inside delimiter */
+      : split((z, id_gen), char, idx, t)
+        |> opt_regrold(Right) /* Can't insert inside delimiter */;
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
     let caret: Zipper.Caret.t =

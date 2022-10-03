@@ -210,8 +210,7 @@ let destruct = (~destroy_kids=true, z: t): t => {
     |> List.partition(t =>
          Siblings.contains_matching(t, z.relatives.siblings)
          || Ancestors.parent_matches(t, z.relatives.ancestors)
-       );
-  /* If flag is set, break up tiles and remove children */
+       ) /* If flag is set, break up tiles and remove children */;
   let to_pick_up =
     destroy_kids
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
@@ -239,6 +238,16 @@ let put_down = (z: t): option(t) => {
   {...z, backpack} |> put_selection(popped) |> unselect;
 };
 
+let which_whitespace = (input_string: string): Whitespace.whitespace_content =>
+  // TODO: make this only an if statement for comments
+  if (input_string == Whitespace.space) {
+    Whitespace.WSpace(" ");
+  } else if (input_string == Whitespace.linebreak) {
+    Whitespace.WSpace("⏎");
+  } else {
+    Whitespace.Comment(input_string);
+  };
+
 let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
@@ -246,9 +255,23 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
       /* Special case for constructing string literals.
          See Insert.move_into_if_stringlit for more special-casing. */
       construct(Left, [Form.string_delim ++ Form.string_delim], z)
+    | [content] when Form.is_comment(content) =>
+      /* Let complete destruction of the comment be handled in Destruct.re */
+      let content = Whitespace.Comment(content);
+      let+ id = IdGen.fresh;
+      Effect.s_touch([id]); // (?)
+      let z = destruct(z);
+      let selections = [
+        Selection.mk(from, Base.mk_whitespace(id, content)),
+      ];
+      let backpack = Backpack.push_s(selections, z.backpack);
+      Option.get(put_down({...z, backpack})); //ADDED
+
     | [content] when Form.is_whitespace(content) =>
+      let content = which_whitespace(content); // ADDED
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
+      // Destruct z (?)
       z
       |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
     | _ =>

@@ -3,27 +3,23 @@ open Sexplib.Std;
 open EvaluatorMonad.Syntax;
 
 /* Evaluator alias. */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type evaluate =
   (ClosureEnvironment.t, DHExp.t) => EvaluatorMonad.t(EvaluatorResult.t);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type args = list(DHExp.t);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type builtin_evaluate =
   (ClosureEnvironment.t, args, evaluate) =>
   EvaluatorMonad.t(EvaluatorResult.t);
 
-[@deriving sexp]
-type builtin_elaboration = DHExp.t;
-
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  ident: Var.t,
-  ty: HTyp.t,
+  typ: Typ.t,
   eval: builtin_evaluate,
-  elab: builtin_elaboration,
+  elab: DHExp.t,
 };
 
 /*
@@ -38,42 +34,42 @@ type t = {
        )
      )
  */
-let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
+let mk_elab = (name: Var.t, typ: Typ.t): DHExp.t => {
   let rec mk_elab_inner =
-          (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {
-    switch (ty') {
-    | Arrow(_, ty'') =>
+          (typ': Typ.t, n: int, bindings: list(Var.t)): DHExp.t => {
+    switch (typ') {
+    | Arrow(_, typ'') =>
       let var = "x" ++ string_of_int(n);
-      Fun(Var(var), ty', mk_elab_inner(ty'', n + 1, [var, ...bindings]));
+      Fun(Var(var), typ', mk_elab_inner(typ'', n + 1, [var, ...bindings]));
     | _ =>
       let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
-      ApBuiltin(ident, bindings);
+      ApBuiltin(name, bindings);
     };
   };
 
-  mk_elab_inner(ty, 0, []);
+  mk_elab_inner(typ, 0, []);
 };
 
-let mk = (ident: Var.t, ty: HTyp.t, eval: builtin_evaluate): t => {
-  let elab = mk_elab(ident, ty);
-  {ident, ty, eval, elab};
+let mk = (name: Var.t, typ: Typ.t, eval: builtin_evaluate): t => {
+  let elab = mk_elab(name, typ);
+  {typ, eval, elab};
 };
 
-let mk_zero = (ident: Var.t, ty: HTyp.t, v: DHExp.t): t => {
+let mk_zero = (name: Var.t, typ: Typ.t, v: DHExp.t): t => {
   let fn = (env, args, evaluate) => {
     switch (args) {
     | [] => evaluate(env, v)
-    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
+    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(name, args)))
     };
   };
 
-  mk(ident, ty, fn);
+  mk(name, typ, fn);
 };
 
 let mk_one =
     (
-      ident: Var.t,
-      ty: HTyp.t,
+      name: Var.t,
+      typ: Typ.t,
       fn: (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t),
     )
     : t => {
@@ -81,18 +77,18 @@ let mk_one =
     switch (args) {
     | [d1] =>
       let* r1 = evaluate(env, d1);
-      fn(ident, r1);
-    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
+      fn(name, r1);
+    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(name, args)))
     };
   };
 
-  mk(ident, ty, fn);
+  mk(name, typ, fn);
 };
 
 let mk_two =
     (
-      ident: Var.t,
-      ty: HTyp.t,
+      name: Var.t,
+      ty: Typ.t,
       fn:
         (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
         EvaluatorMonad.t(EvaluatorResult.t),
@@ -103,10 +99,10 @@ let mk_two =
     | [d1, d2] =>
       let* r1 = evaluate(env, d1);
       let* r2 = evaluate(env, d2);
-      fn(ident, r1, r2);
-    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(ident, args)))
+      fn(name, r1, r2);
+    | _ => raise(EvaluatorError.Exception(BadBuiltinAp(name, args)))
     };
   };
 
-  mk(ident, ty, fn);
+  mk(name, ty, fn);
 };
