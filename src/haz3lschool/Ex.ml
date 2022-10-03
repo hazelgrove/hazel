@@ -1,6 +1,6 @@
 let prompt = ()
 
-module SchoolExercise = SerdePrelude.SchoolExercise
+module SchoolExercise = GradePrelude.SchoolExercise
 
 let exercise : SchoolExercise.spec =
   {

@@ -2,7 +2,7 @@
 open Haz3lschool;
 open Core;
 
-open SerdePrelude.SchoolExercise;
+open GradePrelude.SchoolExercise;
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 [@deriving (sexp, yojson)]

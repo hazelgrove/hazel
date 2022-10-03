@@ -7,7 +7,7 @@ module type ExerciseEnv = {
   let output_header: string => string;
 };
 
-module SchoolExercise = (ExerciseEnv: ExerciseEnv) => {
+module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type wrong_impl('code) = {
     impl: 'code,
