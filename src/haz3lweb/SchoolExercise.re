@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
-module SchoolData = Haz3lschooldata.SchoolData;
+module SchoolData = Haz3lschool.SchoolData;
 include SchoolData.SchoolExercise({
   type node = Node.t;
   let default = Node.text("TODO: prompt");
