@@ -171,3 +171,9 @@ let keystroke = (key: Key.t, updates) => {
   };
   updates;
 };
+
+let pretty_print = (m: Model.t): string => {
+  let z = Editors.get_zipper(m.editors);
+  let measured = Editors.get_editor(m.editors).state.meta.measured;
+  Haz3lcore.Printer.pretty_print(~measured, z);
+};
