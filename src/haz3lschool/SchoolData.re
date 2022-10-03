@@ -338,14 +338,6 @@ module SchoolExercise = (Node: Node) => {
     data;
   };
 
-  let export_module_autograder = ({eds, _}: state) => {
-    let prefix = "let prompt = ()\n" ++ "let exercise: SchoolExercise.spec = ";
-    let record = show_p(editor_pp, eds);
-    let data = prefix ++ record;
-    print_endline(data);
-    data;
-  };
-
   let blank_spec =
       (
         ~title,
