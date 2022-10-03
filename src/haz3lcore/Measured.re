@@ -239,7 +239,7 @@ let is_indented_map = (seg: Segment.t) => {
     |> List.fold_left(
          ((is_indented, map), p: Piece.t) =>
            switch (p) {
-           | Whitespace(w) when w.content == Whitespace.linebreak => (
+           | Whitespace(w) when Whitespace.is_linebreak(w) /* ADDED */ => (
                false,
                Id.Map.add(w.id, is_indented, map),
              )
@@ -313,7 +313,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
       | [hd, ...tl] =>
         let (contained_indent, origin, hd_map) =
           switch (hd) {
-          | Whitespace(w) when w.content == Whitespace.linebreak =>
+          | Whitespace(w) when Whitespace.is_linebreak(w) /* ADDED */ =>
             let row_indent = container_indent + contained_indent;
             let indent =
               if (Segment.sameline_whitespace(tl)) {
@@ -341,7 +341,9 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
               |> add_lb(w.id, indent);
             (indent, last, map);
           | Whitespace(w) =>
-            let last = {...origin, col: origin.col + 1};
+            let wspace_length =
+              Unicode.length(Whitespace.get_content_string(w)); //ADDED
+            let last = {...origin, col: origin.col + wspace_length};
             (contained_indent, last, singleton_w(w, {origin, last}));
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};

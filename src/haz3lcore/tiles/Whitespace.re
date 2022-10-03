@@ -12,7 +12,7 @@ and whitespace_content =
 
 let space = " ";
 let linebreak = "⏎"; //alternative: "¶"
-let comment = Re.Str.regexp("^#[_a-zA-Z0-9 ']*#?$"); //added (?)
+let comment = Re.Str.regexp("^#[^#]*#?$"); //added (?)
 // "##"
 let incomplete_comment1 = Re.Str.regexp("^#[_a-zA-Z0-9 ']*$"); // added
 let incomplete_comment2 = Re.Str.regexp("^[_a-zA-Z0-9 ']*#$"); // added

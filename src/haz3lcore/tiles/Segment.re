@@ -404,24 +404,18 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim;
-    /* If we're adding a grout, remove a whitespace. Note that
-       changes made to the logic here should also take into
-       account the other direction in 'regrout' below. */
+    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that   changes made to the logic here should also take into   account the other direction in 'regrout' below. */;
+
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
-    let (wss', gs') = cons_g(g, trim);
-    /* Hack to supress the addition of leading whitespace on a line */
+    let (wss', gs') = cons_g(g, trim) /* ANDREW: disabled above hack; with calmer indent it seems annoying */ /* Hack to supress the addition of leading whitespace on a line */;
     //let wss' = scooch_over_linebreak(wss');
-    /* ANDREW: disabled above hack; with calmer indent it seems annoying */
     (wss', gs');
   };
 
   // assumes grout in trim fit r but may not fit l
   let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made
-   to the logic here should also take into account the
-   conversion of spaces to grout in 'add_grout' above. */;
+      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made   to the logic here should also take into account the   conversion of spaces to grout in 'add_grout' above. */;
 
       let new_spaces =
         List.filter_map(
@@ -431,8 +425,7 @@ module Trim = {
             | Convex => None
             },
           gs,
-        );
-      /* Note below that it is important that we add the new spaces
+        ) /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
          somewhat hacky; we may just want to remove all the spaces

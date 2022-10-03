@@ -1,42 +1,21 @@
 open Sexplib.Std;
 open Mold;
-module P = Precedence;
+module P = Precedence /* FORM         This module determines the syntactic extent of the language; the      entire Syntax module is driven by the below definitions. Adding      a new syntactic form is simply a matter of adding a new line to either      the 'convex_monos' table, for single-token forms, or the 'forms'      table, for compound forms.         The wrapping functions seen in both of those tables determine the      shape, precedence, and expansion behavior of the form. */;
 
-/* FORM
+let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0) /* A label is the textual expression of a form's delimiters */;
 
-   This module determines the syntactic extent of the language; the
-   entire Syntax module is driven by the below definitions. Adding
-   a new syntactic form is simply a matter of adding a new line to either
-   the 'convex_monos' table, for single-token forms, or the 'forms'
-   table, for compound forms.
-
-   The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form. */
-
-let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
-
-/* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type label = list(Token.t);
+type label = list(Token.t) /* The construction of a compound forms can be triggered by inserting   one of its delimiters through a process called expansion. Expansion   can either occur (Instant)ly upon delimiter creation, or be (Delayed)   until after a token boundary event is triggered (say by pressing   space after entering 'let'). The (Static) case is used for monos   aka single-token forms. */;
 
-/* The construction of a compound forms can be triggered by inserting
-   one of its delimiters through a process called expansion. Expansion
-   can either occur (Instant)ly upon delimiter creation, or be (Delayed)
-   until after a token boundary event is triggered (say by pressing
-   space after entering 'let'). The (Static) case is used for monos
-   aka single-token forms. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion_time =
   | Static
   | Instant
-  | Delayed;
+  | Delayed /* Expansion can be triggered by either/both the first or last token   of a form, represented here by the first/last elements of this pair. */;
 
-/* Expansion can be triggered by either/both the first or last token
-   of a form, represented here by the first/last elements of this pair. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type expansion = (expansion_time, expansion_time);
+type expansion = (expansion_time, expansion_time) /* A label, a mold, and expansion behavior together determine a form. */;
 
-/* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   label,
@@ -44,9 +23,8 @@ type t = {
   mold: Mold.t,
 };
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
+let mk = (expansion, label, mold) => {label, mold, expansion} /* Abbreviations for expansion behaviors */;
 
-/* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
 let ii: expansion = (Instant, Instant);
 let id: expansion = (Instant, Delayed);
@@ -58,19 +36,14 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
 let mk_nul_infix = (t: Token.t, prec) =>
-  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
+  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, [])) /* Token Recognition Predicates */;
 
-/* Token Recognition Predicates */
 let is_arbitary_int = regexp("^[0-9]*$");
 let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
-let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
-/* NOTE: The is_arbitary_int check is necessary to prevent
-   minuses from being parsed as part of the int token. */
-let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
-/* NOTE: As well as making is_float  disjoint from is_int,
-   the is_arbitary_int  also prevents ints over int_max from being
-   cast as floats. The is_arbitary_float check is necessary to prevent
-   minuses from being parsed as part of the float token. */
+let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None /* NOTE: The is_arbitary_int check is necessary to prevent   minuses from being parsed as part of the int token. */;
+
+let is_bad_int = str => is_arbitary_int(str) && !is_int(str) /* NOTE: As well as making is_float  disjoint from is_int,   the is_arbitary_int  also prevents ints over int_max from being   cast as floats. The is_arbitary_float check is necessary to prevent   minuses from being parsed as part of the float token. */;
+
 let is_float = str =>
   !is_arbitary_int(str)
   && is_arbitary_float(str)
@@ -81,6 +54,9 @@ let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
 let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
+let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_tag = is_capitalized_name;
+let is_typ_var = is_capitalized_name;
 let is_concrete_typ = str =>
   str == "String"
   || str == "Int"
@@ -88,33 +64,21 @@ let is_concrete_typ = str =>
   || str == "Bool"
   || str == "Unit";
 let is_partial_concrete_typ = x =>
-  !is_concrete_typ(x) && regexp("^[A-Z][A-Za-z0-9_]*$", x);
-let is_wild = regexp("^_$");
-/* The below case represents tokens which we want the user to be able to
-   type in, but which have no reasonable semantic interpretation */
+  !is_concrete_typ(x) && is_capitalized_name(x);
+let is_wild = regexp("^_$") /* The below case represents tokens which we want the user to be able to   type in, but which have no reasonable semantic interpretation */;
+
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str);
-/* is_string: last clause is a somewhat hacky way of making sure
-   there are at most two quotes, in order to prevent merges */
+  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str) /* is_string: last clause is a somewhat hacky way of making sure   there are at most two quotes, in order to prevent merges */;
+
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
-let is_string_delim = str => str == string_delim;
+let is_string_delim = str => str == string_delim /* Whitelist: A regexp determining any other chars, not occuring in specific forms,   which we want to let through. right now, this means that we'll be able to use   them in strings/comments/any other free text forms. Currently these will cause   exceptions when used elsewhere, as no molds will be found. Such exceptions are   currently caught. This should be replaced by a more disciplined   approach to invalid text.*/;
 
-/* Whitelist: A regexp determining any other chars, not occuring in specific forms,
-   which we want to let through. right now, this means that we'll be able to use
-   them in strings/comments/any other free text forms. Currently these will cause
-   exceptions when used elsewhere, as no molds will be found. Such exceptions are
-   currently caught. This should be replaced by a more disciplined
-   approach to invalid text.*/
-let is_whitelisted_char = regexp("[!@]");
+let is_whitelisted_char = regexp("[!@]") /* A. Whitespace: */;
 
-/* A. Whitespace: */
-let whitespace = [Whitespace.space, Whitespace.linebreak];
+let whitespace = [Whitespace.space, Whitespace.linebreak] /* B. Operands:   Order in this list determines relative remolding   priority for forms with overlapping regexps */;
 
-/* B. Operands:
-   Order in this list determines relative remolding
-   priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -126,11 +90,10 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
-];
-
-/* C. Compound Forms:
+] /* C. Compound Forms:
    Order in this list determines relative remolding
-   priority for forms which share the same labels */
+   priority for forms which share the same labels */;
+
 let forms: list((string, t)) = [
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
@@ -171,9 +134,10 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
-  ("fun_", mk(ds, ["fun", "->"], mk_pre(P.let_, Exp, [Pat]))),
+  ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("if_", mk(di, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  ("ap", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
+  ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
@@ -224,7 +188,13 @@ let atomic_molds: Token.t => list(Mold.t) =
     );
 
 let is_atomic = t => atomic_molds(t) != [];
-let is_whitespace = t => List.mem(t, whitespace);
+let is_whitespace = t =>
+  List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0) /* comments ADDED */;
+// };
+let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0) || t == "#" /* ADDED */;
+let is_incomplete_comment = t =>
+  Re.Str.string_match(Whitespace.incomplete_comment1, t, 0)
+  || Re.Str.string_match(Whitespace.incomplete_comment2, t, 0) /* ADDED */;
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);

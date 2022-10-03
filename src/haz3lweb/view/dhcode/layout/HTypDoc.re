@@ -27,22 +27,22 @@ let pad_child =
 
 let mk_delim = s => Doc.(annot(HTypAnnot.Delim, text(s)));
 
-let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
+let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
     annot(
       HTypAnnot.Step(0),
-      mk'(~parenthesize=HTyp.precedence(ty1) <= precedence_op, ty1),
+      mk'(~parenthesize=Typ.precedence(ty1) <= precedence_op, ty1),
     ),
     annot(
       HTypAnnot.Step(1),
-      mk'(~parenthesize=HTyp.precedence(ty2) < precedence_op, ty2),
+      mk'(~parenthesize=Typ.precedence(ty2) < precedence_op, ty2),
     ),
   );
   let (doc, parenthesize) =
     switch (ty) {
-    | Hole => (
+    | Unknown(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
       )
@@ -50,6 +50,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
+    | Var(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([
           mk_delim("["),
@@ -64,7 +65,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
       )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(HTyp.precedence_Arrow, ty1, ty2);
+        mk_right_associative_operands(Typ.precedence_Arrow, ty1, ty2);
       (
         hcats([
           d1,
@@ -83,7 +84,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
           annot(
             HTypAnnot.Step(0),
             mk'(
-              ~parenthesize=HTyp.precedence(head) <= HTyp.precedence_Prod,
+              ~parenthesize=Typ.precedence(head) <= Typ.precedence_Prod,
               head,
             ),
           ),
@@ -92,8 +93,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
                  annot(
                    HTypAnnot.Step(i + 1),
                    mk'(
-                     ~parenthesize=
-                       HTyp.precedence(ty) <= HTyp.precedence_Prod,
+                     ~parenthesize=Typ.precedence(ty) <= Typ.precedence_Prod,
                      ty,
                    ),
                  ),
@@ -107,7 +107,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
       (center, true);
     | Sum(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(HTyp.precedence_Sum, ty1, ty2);
+        mk_right_associative_operands(Typ.precedence_Sum, ty1, ty2);
       (
         hcats([
           d1,
