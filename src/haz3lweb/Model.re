@@ -12,6 +12,7 @@ type settings = {
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,
+  benchmark: bool,
   mode: Editors.mode,
 };
 
@@ -23,6 +24,7 @@ let settings_init = {
   async_evaluation: false,
   context_inspector: false,
   instructor_mode: SchoolSettings.show_instructor,
+  benchmark: false,
   mode: Editors.Scratch,
 };
 
