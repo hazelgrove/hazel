@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
 
-include Haz3lschool.SchoolData.SchoolExercise({
+include Haz3lschool.SchoolExercise.F({
   type node = Node.t;
   let default = Node.text("TODO: prompt");
   let output_header = _ => "";
