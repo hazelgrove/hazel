@@ -318,7 +318,7 @@ let apply =
       JsUtil.copy_to_clipboard(clipboard);
       Ok(model /*{...model, clipboard}*/);
     | Paste =>
-      let clipboard = JsUtil.get_from_clipboard'();
+      let clipboard = JsUtil.get_from_clipboard();
       //let clipboard = model.clipboard;
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
