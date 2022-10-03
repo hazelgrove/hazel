@@ -85,10 +85,22 @@ let example_feedback_view = (~inject, id, example: LangDocMessages.example) => {
 let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
 
 let highlight =
-    (msg: list(Node.t), id: Haz3lcore.Id.t, mapping: ColorSteps.t)
+    (~inject, msg: list(Node.t), id: Haz3lcore.Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
-  (Node.span(~attr=clss(["highlight-" ++ c]), msg), mapping);
+  let classes = clss(["highlight-" ++ c, "clickable"]);
+  let attr =
+    switch (inject) {
+    | Some(inject) =>
+      Attr.many([
+        classes,
+        Attr.on_click(_ =>
+          inject(UpdateAction.PerformAction(JumpToId(id)))
+        ),
+      ])
+    | None => classes
+    };
+  (Node.span(~attr, msg), mapping);
 };
 
 /*
@@ -100,7 +112,8 @@ let highlight =
  italics: *word*
  */
 let mk_translation =
-    (text: string, show_highlight: bool): (list(Node.t), ColorSteps.t) => {
+    (~inject, text: string, show_highlight: bool)
+    : (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
   let rec translate =
@@ -124,12 +137,27 @@ let mk_translation =
         | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
         | Url(id, d, _title) =>
           let (d, mapping) = translate(d, mapping);
+          let id = int_of_string(id);
           let (inner_msg, mapping) =
             if (show_highlight) {
-              let id = int_of_string(id);
-              highlight(d, id, mapping);
+              highlight(~inject, d, id, mapping);
             } else {
-              (Node.span(d), mapping);
+              switch (inject) {
+              | Some(inject) => (
+                  Node.span(
+                    ~attr=
+                      Attr.many([
+                        clss(["clickable"]),
+                        Attr.on_click(_ =>
+                          inject(UpdateAction.PerformAction(JumpToId(id)))
+                        ),
+                      ]),
+                    d,
+                  ),
+                  mapping,
+                )
+              | None => (Node.span(d), mapping)
+              };
             };
           (List.append(msg, [inner_msg]), mapping);
         | Emph(d) =>
@@ -161,7 +189,8 @@ let mk_translation =
 let mk_explanation =
     (~inject, id, explanation, text: string, show_highlight: bool)
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) = mk_translation(text, show_highlight);
+  let (msg, color_map) =
+    mk_translation(~inject=Some(inject), text, show_highlight);
   (
     div([
       div(~attr=clss(["explanation-contents"]), msg),
@@ -516,7 +545,8 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
     | Colorings =>
-      let (_, color_map) = mk_translation(explanation_msg, docs.highlight);
+      let (_, color_map) =
+        mk_translation(~inject=None, explanation_msg, docs.highlight);
       ([], ([], color_map), []);
     };
   };

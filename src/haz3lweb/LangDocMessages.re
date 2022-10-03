@@ -1802,16 +1802,27 @@ let str_eq_exp: form = {
 };
 
 let case_exp_group = "case_exp_group";
-let case_exp2_group = "case_exp2_group";
-let case_exp3_group = "case_exp3_group";
-let case_example_1 = {
-  sub_id: "case_example_1",
+let case_rules_group = "case_rules_group";
+let case_example_wild_simple = {
+  sub_id: "case_example_wild_simple",
+  term: mk_example("case 1 | 2 => 3 | _ => 4 end"),
+  message: "The scrutinee of the case expression is 1. Since the scrutinee does not match the the first pattern 2. Since the scrutinee does match the second pattern which is a wildcard, the second branch is taken. The whole expression evaluates to the second clause 4.",
+  feedback: Unselected,
+};
+let case_example_wild_tuple = {
+  sub_id: "case_example_wild_tuple",
+  term: mk_example("case (1, 2) | (_, 2) => 3 | _ => 4 end"),
+  message: "The scrutinee of the case expression is (1, 2). Since the scrutinee matches the first pattern (_, 2), the first branch is taken. This pattern is matched because the first element 1 matches the first element pattern, which is a wildcard, and the second element 2 matches the second element pattern 2. The whole expression evaluates to the first clause 3.",
+  feedback: Unselected,
+};
+let case_example_int = {
+  sub_id: "case_example_int",
   term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3 end"),
   message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
   feedback: Unselected,
 };
-let case_example_2 = {
-  sub_id: "case_example_2",
+let case_example_bool = {
+  sub_id: "case_example_bool",
   term: mk_example("case false | true => 1 | false => 2 end"),
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
@@ -1826,51 +1837,45 @@ let case_exp: form = {
     message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
     feedback: Unselected,
   };
-  let _dot = exp("...");
+  let case =
+    mk_case([
+      [
+        exp("e_scrut"),
+        mk_rule([[pat("p1")]]),
+        exp("e1"),
+        mk_rule([[pat("...")]]),
+        exp("..."),
+      ],
+    ]);
   {
     id: "case_exp",
-    syntactic_form: [
-      mk_case([
-        [
-          exp("e_scrut"),
-          mk_rule([[pat("p1")]]),
-          exp("e1"),
-          mk_rule([[pat("...")]]),
-          exp("..."),
-        ],
-      ]),
-    ],
-    expandable_id: None, //Some(Piece.id(dot)),
+    syntactic_form: [case],
+    expandable_id: Some(Piece.id(case)),
     explanation,
-    examples: [case_example_1, case_example_2],
+    examples: [case_example_int, case_example_bool],
   };
 };
-let case_exp_rule2: form = {
+let case_exp_rules: form = {
   let explanation = {
-    message: "Case expression. Consider each branch in order. \n-If the [*first pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*first clause*](%i). \n-Otherwise, if the [*second pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*second clause*](%i).",
+    message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
     feedback: Unselected,
   };
-  let exp2 = exp("e2");
+  let case =
+    mk_case([
+      [
+        exp("EXP_scrut"),
+        mk_rule([[pat("PAT1")]]),
+        exp("EXP1"),
+        mk_rule([[pat("...")]]),
+        exp("..."),
+      ],
+    ]);
   {
-    id: "case_exp_rule2",
-    syntactic_form: [exp("e1"), comma_exp(), exp2],
-    expandable_id: Some(Piece.id(exp2)),
+    id: "case_exp_rules",
+    syntactic_form: [case],
+    expandable_id: Some(Piece.id(case)),
     explanation,
-    examples: [case_example_2],
-  };
-};
-let case_exp_rule3: form = {
-  let explanation = {
-    message: "Case expression. Consider each branch in order. \n-If the [*first pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*first clause*](%i). \n-Otherwise, if the [*second pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*second clause*](%i). \n-Otherwise, if the [*third pattern*](%i) matches the [*scrutinee*](%i), evaluate to the [*third clause*](%i).",
-    feedback: Unselected,
-  };
-  let comma = comma_exp();
-  {
-    id: "case_exp_rule3",
-    syntactic_form: [exp("e1"), comma_exp(), exp("e2"), comma, exp("e3")],
-    expandable_id: Some(Piece.id(comma)),
-    explanation,
-    examples: [case_example_1],
+    examples: [case_example_int, case_example_bool],
   };
 };
 
