@@ -115,6 +115,13 @@ let top_bar_view =
               "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
               inject(Set(Dynamics))
             ),
+            toggle(
+              "b",
+              ~tooltip="Toggle Performance Benchmark",
+              model.settings.benchmark,
+              _ =>
+              inject(Set(Benchmark))
+            ),
             button(
               Icons.export,
               _ => {

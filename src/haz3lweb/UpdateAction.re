@@ -8,6 +8,7 @@ type settings_action =
   | WhitespaceIcons
   | Statics
   | Dynamics
+  | Benchmark
   | ContextInspector
   | InstructorMode
   | Mode(Editors.mode);
