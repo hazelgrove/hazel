@@ -640,4 +640,14 @@ module SchoolExercise = (ExerciseEnv: ExerciseEnv) => {
       },
     };
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type school_export = {
+    cur_exercise: key,
+    exercise_data: list((key, persistent_state)),
+  };
+
+  let deserialize_school_export = data => {
+    data |> Sexplib.Sexp.of_string |> school_export_of_sexp;
+  };
 };
