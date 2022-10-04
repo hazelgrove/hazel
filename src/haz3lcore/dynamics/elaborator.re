@@ -163,26 +163,19 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(BoundVar(name))
       }
     | Let(p, def, body) =>
+      let* dp = dhpat_of_upat(m, p);
+      let* ddef = dhexp_of_uexp(m, def);
+      let* dbody = dhexp_of_uexp(m, body);
+      let ty = Statics.pat_self_typ(m, p);
       switch (Term.UPat.get_recursive_bindings(p)) {
       | None =>
         /* not recursive */
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let* dbody = dhexp_of_uexp(m, body);
-        wrap(Let(dp, ddef, dbody));
+        wrap(Let(dp, ddef, dbody))
       | Some([f]) =>
         /* simple recursion */
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let* dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(m, p);
-        wrap(Let(dp, FixF(f, ty, ddef), dbody));
+        wrap(Let(dp, FixF(f, ty, ddef), dbody))
       | Some(fs) =>
         /* mutual recursion */
-        let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
-        let* dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(m, p);
         let uniq_id = List.nth(def.ids, 0);
         let self_id = "__mutual__" ++ string_of_int(uniq_id);
         let self_var = DHExp.BoundVar(self_id);
@@ -198,7 +191,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
              );
         let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
         wrap(Let(dp, fixpoint, dbody));
-      }
+      };
     | Ap(fn, arg) =>
       let* c_fn = dhexp_of_uexp(m, fn);
       let* c_arg = dhexp_of_uexp(m, arg);
