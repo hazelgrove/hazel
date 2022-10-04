@@ -57,70 +57,13 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
 // DynamicsItem
 
 let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
-  let {
-    test_validation,
-    user_impl,
-    user_tests,
-    instructor,
-    hidden_bugs,
-    hidden_tests,
-  } =
-    stitch_static(state);
   let simple_result_of = key =>
     switch (results) {
     | None => None
     | Some(results) =>
       ModelResult.get_simple(ModelResults.lookup(results, key))
     };
-  let test_validation =
-    DynamicsItem.{
-      term: test_validation.term,
-      info_map: test_validation.info_map,
-      simple_result: simple_result_of(test_validation_key),
-    };
-  let user_impl =
-    DynamicsItem.{
-      term: user_impl.term,
-      info_map: user_impl.info_map,
-      simple_result: simple_result_of(user_impl_key),
-    };
-  let user_tests =
-    DynamicsItem.{
-      term: user_tests.term,
-      info_map: user_tests.info_map,
-      simple_result: simple_result_of(user_tests_key),
-    };
-  let instructor =
-    DynamicsItem.{
-      term: instructor.term,
-      info_map: instructor.info_map,
-      simple_result: simple_result_of(instructor_key),
-    };
-  let hidden_bugs =
-    List.mapi(
-      (n, statics_item: StaticsItem.t) =>
-        DynamicsItem.{
-          term: statics_item.term,
-          info_map: statics_item.info_map,
-          simple_result: simple_result_of(hidden_bugs_key(n)),
-        },
-      hidden_bugs,
-    );
-  let hidden_tests =
-    DynamicsItem.{
-      term: hidden_tests.term,
-      info_map: hidden_tests.info_map,
-      simple_result: simple_result_of(hidden_tests_key),
-    };
-
-  {
-    test_validation,
-    user_impl,
-    user_tests,
-    instructor,
-    hidden_bugs,
-    hidden_tests,
-  };
+  stitch_dynamic(state, simple_result_of);
 };
 
 let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {

@@ -1,12 +1,21 @@
 // open Haz3lcore;
+// open Sexplib.Std;
 open Haz3lschool;
 open Core;
 
-open GradePrelude.SchoolExercise;
 open Specs;
+open GradePrelude.SchoolExercise;
+open GradePrelude.Grading;
 
 [@deriving (sexp, yojson)]
-type section = list((string, string));
+type item = {
+  idx: int,
+  name: string,
+  report: string,
+};
+
+[@deriving (sexp, yojson)]
+type section = list(item);
 
 module Main = {
   let name_to_school_export = path => {
@@ -28,7 +37,7 @@ module Main = {
     let hw = name_to_school_export(hw_path);
     let export_lst_pr =
       hw.exercise_data
-      |> List.map(~f=((key, persistent_state)) => {
+      |> List.map(~f=(((name, idx) as key, persistent_state)) => {
            switch (find_key_opt(key, specs)) {
            | Some((_n, spec)) =>
              let state =
@@ -37,14 +46,21 @@ module Main = {
                  ~spec,
                  ~instructor_mode=true,
                );
-             (
-               state.eds.title,
-               state.eds.point_distribution
-               |> yojson_of_point_distribution
-               |> Yojson.Safe.to_string,
-             );
-           | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
-           //  | None => failwith("Invalid spec")
+             let stitched_dynamics =
+               stitch_dynamic(state, _ => {failwith("")});
+             {
+               idx,
+               name,
+               report:
+                 state.eds
+                 |> GradingReport.mk(~stitched_dynamics)
+                 |> GradingReport.overall_score
+                 |> (
+                   ((earn, max)) => Printf.sprintf("%.1f / %.1f", earn, max)
+                 ),
+             };
+           //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
+           | None => failwith("Invalid spec")
            // List.nth(specs, 0)
            }
          });
