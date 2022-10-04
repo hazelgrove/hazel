@@ -669,16 +669,6 @@ let get_doc =
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          let pat_coloring_ids =
-            switch (List.nth(doc.syntactic_form, 0)) {
-            | Tile(tile) => [
-                (
-                  Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                  pat_id,
-                ),
-              ]
-            | _ => []
-            };
           get_message(
             doc,
             options,
@@ -688,8 +678,7 @@ let get_doc =
               pat_id,
               body_id,
             ),
-            pat_coloring_ids
-            @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            LangDocMessages.function_exp_coloring_ids(~pat_id, ~body_id),
           );
         };
         switch (bypass_parens_and_annot_pat(pat.term)) {
@@ -702,16 +691,6 @@ let get_doc =
           if (LangDocMessages.function_empty_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -721,9 +700,11 @@ let get_doc =
                 pat_id,
                 body_id,
                 pat_id,
+              ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+              LangDocMessages.function_empty_hole_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
             );
           } else {
             basic(doc, LangDocMessages.function_empty_hole_group, options);
@@ -737,16 +718,6 @@ let get_doc =
           if (LangDocMessages.function_multi_hole_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -757,8 +728,10 @@ let get_doc =
                 body_id,
                 pat_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_multi_hole_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_multi_hole_group, options);
@@ -779,7 +752,7 @@ let get_doc =
                 Scanf.format_from_string(doc.explanation.message, "%i"),
                 body_id,
               ),
-              [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_wild_exp_coloring_ids(~body_id),
             );
           } else {
             basic(doc, LangDocMessages.function_wild_group, options);
@@ -793,16 +766,6 @@ let get_doc =
           if (LangDocMessages.function_intlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -814,8 +777,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_intlit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_int_group, options);
@@ -829,16 +794,6 @@ let get_doc =
           if (LangDocMessages.function_floatlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -850,8 +805,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_floatlit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_float_group, options);
@@ -865,16 +822,6 @@ let get_doc =
           if (LangDocMessages.function_boollit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -886,8 +833,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_boollit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_bool_group, options);
@@ -901,16 +850,6 @@ let get_doc =
           if (LangDocMessages.function_strlit_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -922,8 +861,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_strlit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_str_group, options);
@@ -937,16 +878,6 @@ let get_doc =
           if (LangDocMessages.function_triv_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -957,8 +888,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_triv_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_triv_group, options);
@@ -973,16 +906,6 @@ let get_doc =
             if (LangDocMessages.function_listnil_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let body_id = List.nth(body.ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                      pat_id,
-                    ),
-                  ]
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -993,8 +916,10 @@ let get_doc =
                   pat_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.function_listnil_exp_coloring_ids(
+                  ~pat_id,
+                  ~body_id,
+                ),
               );
             } else {
               basic(doc, LangDocMessages.function_listnil_group, options);
@@ -1008,16 +933,6 @@ let get_doc =
             if (LangDocMessages.function_listlit_exp.id == doc.id) {
               let pat_id = List.nth(pat.ids, 0);
               let body_id = List.nth(body.ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                      pat_id,
-                    ),
-                  ]
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -1032,8 +947,10 @@ let get_doc =
                   pat_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.function_listlit_exp_coloring_ids(
+                  ~pat_id,
+                  ~body_id,
+                ),
               );
             } else {
               basic(doc, LangDocMessages.function_listlit_group, options);
@@ -1049,16 +966,6 @@ let get_doc =
             let hd_id = List.nth(hd.ids, 0);
             let tl_id = List.nth(tl.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) =>
-                let pat = List.nth(tile.children, 0);
-                [
-                  (Piece.id(List.nth(pat, 0)), hd_id),
-                  (Piece.id(List.nth(pat, 2)), tl_id),
-                ];
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1069,8 +976,11 @@ let get_doc =
                 tl_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_cons_exp_coloring_ids(
+                ~hd_id,
+                ~tl_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_cons_group, options);
@@ -1084,16 +994,6 @@ let get_doc =
           if (LangDocMessages.function_var_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1104,8 +1004,10 @@ let get_doc =
                 var,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_var_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_var_group, options);
@@ -1114,16 +1016,6 @@ let get_doc =
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 1)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1135,8 +1027,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_tuple_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           };
 
@@ -1150,16 +1044,6 @@ let get_doc =
             if (LangDocMessages.function_tuple2_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) =>
-                  let pat = List.nth(tile.children, 0);
-                  [
-                    (Piece.id(List.nth(pat, 0)), pat1_id),
-                    (Piece.id(List.nth(pat, 2)), pat2_id),
-                  ];
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -1170,8 +1054,11 @@ let get_doc =
                   pat2_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.function_tuple2_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~body_id,
+                ),
               );
             } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
               basic_tuple(
@@ -1192,17 +1079,6 @@ let get_doc =
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) =>
-                  let pat = List.nth(tile.children, 0);
-                  [
-                    (Piece.id(List.nth(pat, 0)), pat1_id),
-                    (Piece.id(List.nth(pat, 2)), pat2_id),
-                    (Piece.id(List.nth(pat, 4)), pat3_id),
-                  ];
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -1217,8 +1093,12 @@ let get_doc =
                   pat3_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.function_tuple3_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~pat3_id,
+                  ~body_id,
+                ),
               );
             } else if (LangDocMessages.function_tuple_exp.id == doc.id) {
               basic_tuple(
@@ -1251,24 +1131,6 @@ let get_doc =
             let con_id = List.nth(con.ids, 0);
             let arg_id = List.nth(arg.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile1) =>
-                switch (List.nth(List.nth(tile1.children, 0), 1)) {
-                | Tile(tile2) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile1.children, 0), 0)),
-                      con_id,
-                    ),
-                    (
-                      Piece.id(List.nth(List.nth(tile2.children, 0), 0)),
-                      arg_id,
-                    ),
-                  ]
-                | _ => []
-                }
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1279,8 +1141,11 @@ let get_doc =
                 arg_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_ap_exp_coloring_ids(
+                ~con_id,
+                ~arg_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_ap_group, options);
@@ -1294,16 +1159,6 @@ let get_doc =
           if (LangDocMessages.function_tag_exp.id == doc.id) {
             let pat_id = List.nth(pat.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1315,8 +1170,10 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.function_tag_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.function_tag_group, options);
@@ -1345,21 +1202,21 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.tuple_exp_size2.id == doc.id) {
-            let left_id = List.nth(List.nth(terms, 0).ids, 0);
-            let right_id = List.nth(List.nth(terms, 1).ids, 0);
+            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
+            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
             get_message(
               doc,
               options,
               LangDocMessages.tuple_exp_2_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i"),
-                left_id,
-                right_id,
+                exp1_id,
+                exp2_id,
               ),
-              [
-                (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
-                (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
-              ],
+              LangDocMessages.tuple_exp_size2_coloring_ids(
+                ~exp1_id,
+                ~exp2_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.tuple_exp_2_group, options);
@@ -1371,24 +1228,24 @@ let get_doc =
               docs,
             );
           if (LangDocMessages.tuple_exp_size3.id == doc.id) {
-            let first_id = List.nth(List.nth(terms, 0).ids, 0);
-            let second_id = List.nth(List.nth(terms, 1).ids, 0);
-            let third_id = List.nth(List.nth(terms, 2).ids, 0);
+            let exp1_id = List.nth(List.nth(terms, 0).ids, 0);
+            let exp2_id = List.nth(List.nth(terms, 1).ids, 0);
+            let exp3_id = List.nth(List.nth(terms, 2).ids, 0);
             get_message(
               doc,
               options,
               LangDocMessages.tuple_exp_3_group,
               Printf.sprintf(
                 Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
-                first_id,
-                second_id,
-                third_id,
+                exp1_id,
+                exp2_id,
+                exp3_id,
               ),
-              [
-                (Piece.id(List.nth(doc.syntactic_form, 0)), first_id),
-                (Piece.id(List.nth(doc.syntactic_form, 2)), second_id),
-                (Piece.id(List.nth(doc.syntactic_form, 4)), third_id),
-              ],
+              LangDocMessages.tuple_exp_size3_coloring_ids(
+                ~exp1_id,
+                ~exp2_id,
+                ~exp3_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.tuple_exp_3_group, options);
@@ -1419,20 +1276,6 @@ let get_doc =
           let pat_id = List.nth(pat.ids, 0);
           let def_id = List.nth(def.ids, 0);
           let body_id = List.nth(body.ids, 0);
-          let pat_coloring_ids =
-            switch (List.nth(doc.syntactic_form, 0)) {
-            | Tile(tile) => [
-                (
-                  Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                  pat_id,
-                ),
-                (
-                  Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                  def_id,
-                ),
-              ]
-            | _ => []
-            };
           get_message(
             doc,
             options,
@@ -1443,8 +1286,11 @@ let get_doc =
               def_id,
               body_id,
             ),
-            pat_coloring_ids
-            @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+            LangDocMessages.let_base_exp_coloring_ids(
+              ~pat_id,
+              ~def_id,
+              ~body_id,
+            ),
           );
         };
         switch (bypass_parens_and_annot_pat(pat.term)) {
@@ -1458,20 +1304,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1483,8 +1315,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_empty_hole_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_empty_hole_exp_group, options);
@@ -1499,20 +1334,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1524,8 +1345,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_multi_hole_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_multi_hole_exp_group, options);
@@ -1539,16 +1363,6 @@ let get_doc =
           if (LangDocMessages.let_wild_exp.id == doc.id) {
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1559,8 +1373,7 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_wild_exp_coloring_ids(~def_id, ~body_id),
             );
           } else {
             basic(doc, LangDocMessages.let_wild_exp_group, options);
@@ -1575,20 +1388,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1604,11 +1403,14 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_int_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... maybe a Safari issue... */
+            /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
             basic(
               doc,
               LangDocMessages.let_int_exp_group,
@@ -1625,20 +1427,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             // TODO Make sure everywhere printing the float literal print it prettier
             get_message(
               doc,
@@ -1655,8 +1443,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_float_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
@@ -1676,20 +1467,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1705,8 +1482,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_bool_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
@@ -1726,20 +1506,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1755,8 +1521,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_str_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             /* TODO The coloring for the syntactic form is sometimes wrong here... */
@@ -1776,20 +1545,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1801,8 +1556,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_triv_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
@@ -1823,20 +1581,6 @@ let get_doc =
               let pat_id = List.nth(pat.ids, 0);
               let def_id = List.nth(def.ids, 0);
               let body_id = List.nth(body.ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                      pat_id,
-                    ),
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                      def_id,
-                    ),
-                  ]
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -1851,8 +1595,11 @@ let get_doc =
                   def_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.let_listnil_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
               );
             } else {
               basic(doc, LangDocMessages.let_listnil_exp_group, options);
@@ -1867,20 +1614,6 @@ let get_doc =
               let pat_id = List.nth(pat.ids, 0);
               let def_id = List.nth(def.ids, 0);
               let body_id = List.nth(body.ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                      pat_id,
-                    ),
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                      def_id,
-                    ),
-                  ]
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -1896,8 +1629,11 @@ let get_doc =
                   def_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.let_listlit_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
               );
             } else {
               basic(doc, LangDocMessages.let_listlit_exp_group, options);
@@ -1914,20 +1650,6 @@ let get_doc =
             let tl_id = List.nth(tl.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) =>
-                let pat = List.nth(tile.children, 0);
-                [
-                  (Piece.id(List.nth(pat, 0)), hd_id),
-                  (Piece.id(List.nth(pat, 2)), tl_id),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ];
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1945,8 +1667,12 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_cons_exp_coloring_ids(
+                ~hd_id,
+                ~tl_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_cons_exp_group, options);
@@ -1961,20 +1687,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -1986,8 +1698,11 @@ let get_doc =
                 var,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_var_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_var_exp_group, options);
@@ -1997,20 +1712,6 @@ let get_doc =
           let def_id = List.nth(def.ids, 0);
           let body_id = List.nth(body.ids, 0);
           let basic_tuple = (doc: LangDocMessages.form, group_id, options) => {
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 1)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -2027,8 +1728,11 @@ let get_doc =
                 pat_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_tuple_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           };
 
@@ -2042,20 +1746,6 @@ let get_doc =
             if (LangDocMessages.let_tuple2_exp.id == doc.id) {
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) =>
-                  let pat = List.nth(tile.children, 0);
-                  [
-                    (Piece.id(List.nth(pat, 0)), pat1_id),
-                    (Piece.id(List.nth(pat, 2)), pat2_id),
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                      def_id,
-                    ),
-                  ];
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -2071,8 +1761,12 @@ let get_doc =
                   def_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.let_tuple2_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~def_id,
+                  ~body_id,
+                ),
               );
             } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
               basic_tuple(doc, LangDocMessages.let_tuple2_exp_group, options);
@@ -2090,21 +1784,6 @@ let get_doc =
               let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
               let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
               let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
-              let pat_coloring_ids =
-                switch (List.nth(doc.syntactic_form, 0)) {
-                | Tile(tile) =>
-                  let pat = List.nth(tile.children, 0);
-                  [
-                    (Piece.id(List.nth(pat, 0)), pat1_id),
-                    (Piece.id(List.nth(pat, 2)), pat2_id),
-                    (Piece.id(List.nth(pat, 4)), pat3_id),
-                    (
-                      Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                      def_id,
-                    ),
-                  ];
-                | _ => []
-                };
               get_message(
                 doc,
                 options,
@@ -2121,8 +1800,13 @@ let get_doc =
                   def_id,
                   body_id,
                 ),
-                pat_coloring_ids
-                @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+                LangDocMessages.let_tuple3_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~pat3_id,
+                  ~def_id,
+                  ~body_id,
+                ),
               );
             } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
               basic_tuple(doc, LangDocMessages.let_tuple3_exp_group, options);
@@ -2156,28 +1840,6 @@ let get_doc =
             let arg_id = List.nth(arg.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile1) =>
-                switch (List.nth(List.nth(tile1.children, 0), 1)) {
-                | Tile(tile2) => [
-                    (
-                      Piece.id(List.nth(List.nth(tile1.children, 0), 0)),
-                      con_id,
-                    ),
-                    (
-                      Piece.id(List.nth(List.nth(tile2.children, 0), 0)),
-                      arg_id,
-                    ),
-                    (
-                      Piece.id(List.nth(List.nth(tile1.children, 1), 0)),
-                      def_id,
-                    ),
-                  ]
-                | _ => []
-                }
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -2193,8 +1855,12 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_ap_exp_coloring_ids(
+                ~con_id,
+                ~arg_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_ap_exp_group, options);
@@ -2209,20 +1875,6 @@ let get_doc =
             let pat_id = List.nth(pat.ids, 0);
             let def_id = List.nth(def.ids, 0);
             let body_id = List.nth(body.ids, 0);
-            let pat_coloring_ids =
-              switch (List.nth(doc.syntactic_form, 0)) {
-              | Tile(tile) => [
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                    pat_id,
-                  ),
-                  (
-                    Piece.id(List.nth(List.nth(tile.children, 1), 0)),
-                    def_id,
-                  ),
-                ]
-              | _ => []
-              };
             get_message(
               doc,
               options,
@@ -2238,8 +1890,11 @@ let get_doc =
                 def_id,
                 body_id,
               ),
-              pat_coloring_ids
-              @ [(Piece.id(List.nth(doc.syntactic_form, 1)), body_id)],
+              LangDocMessages.let_tag_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
             );
           } else {
             basic(doc, LangDocMessages.let_tag_exp_group, options);
@@ -2251,24 +1906,14 @@ let get_doc =
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
-        let basic = (doc: LangDocMessages.form, group, options, msg) => {
-          let coloring_ids =
-            switch (List.nth(doc.syntactic_form, 1)) {
-            | Tile(tile) => [
-                (
-                  Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                  arg_id,
-                ),
-              ]
-            | _ => []
-            };
+        let basic =
+            (doc: LangDocMessages.form, group, options, msg, coloring_ids) => {
           get_message(
             doc,
             options,
             group,
             msg,
-            [(Piece.id(List.nth(doc.syntactic_form, 0)), x_id)]
-            @ coloring_ids,
+            coloring_ids(~x_id, ~arg_id),
           );
         };
         switch (x.term) {
@@ -2288,6 +1933,7 @@ let get_doc =
               x_id,
               arg_id,
             ),
+            LangDocMessages.conapp_exp_coloring_ids,
           );
         | _ =>
           let (doc, options) =
@@ -2304,6 +1950,7 @@ let get_doc =
               x_id,
               arg_id,
             ),
+            LangDocMessages.funapp_exp_coloring_ids,
           );
         };
       | If(cond, then_, else_) =>
@@ -2315,14 +1962,6 @@ let get_doc =
         let cond_id = List.nth(cond.ids, 0);
         let then_id = List.nth(then_.ids, 0);
         let else_id = List.nth(else_.ids, 0);
-        let coloring_ids =
-          switch (List.nth(doc.syntactic_form, 0)) {
-          | Tile(tile) => [
-              (Piece.id(List.nth(List.nth(tile.children, 0), 0)), cond_id),
-              (Piece.id(List.nth(List.nth(tile.children, 1), 0)), then_id),
-            ]
-          | _ => []
-          };
         get_message(
           doc,
           options,
@@ -2333,8 +1972,7 @@ let get_doc =
             then_id,
             else_id,
           ),
-          coloring_ids
-          @ [(Piece.id(List.nth(doc.syntactic_form, 1)), else_id)],
+          LangDocMessages.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
         );
       | Seq(left, right) =>
         let (doc, options) =
@@ -2342,21 +1980,18 @@ let get_doc =
             LangDocMessages.seq_exp_group,
             docs,
           );
-        let left_id = List.nth(left.ids, 0);
-        let right_id = List.nth(right.ids, 0);
+        let exp1_id = List.nth(left.ids, 0);
+        let exp2_id = List.nth(right.ids, 0);
         get_message(
           doc,
           options,
           LangDocMessages.seq_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            left_id,
-            right_id,
+            exp1_id,
+            exp2_id,
           ),
-          [
-            (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
-          ],
+          LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
       | Test(body) =>
         let (doc, options) =
@@ -2365,13 +2000,6 @@ let get_doc =
             docs,
           );
         let body_id = List.nth(body.ids, 0);
-        let coloring_ids =
-          switch (List.nth(doc.syntactic_form, 0)) {
-          | Tile(tile) => [
-              (Piece.id(List.nth(List.nth(tile.children, 0), 0)), body_id),
-            ]
-          | _ => []
-          };
         get_message(
           doc,
           options,
@@ -2380,7 +2008,7 @@ let get_doc =
             Scanf.format_from_string(doc.explanation.message, "%i"),
             body_id,
           ),
-          coloring_ids,
+          LangDocMessages.test_exp_coloring_ids(~body_id),
         );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
@@ -2399,11 +2027,8 @@ let get_doc =
             Scanf.format_from_string(doc.explanation.message, "%i%i"),
             hd_id,
             tl_id,
-          ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
-          [
-            (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), tl_id),
-          ],
+          ),
+          LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
       | UnOp(op, exp) =>
         switch (op) {
@@ -2422,33 +2047,96 @@ let get_doc =
               Scanf.format_from_string(doc.explanation.message, "%i"),
               exp_id,
             ),
-            [(Piece.id(List.nth(doc.syntactic_form, 1)), exp_id)],
+            LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
           );
         }
       | BinOp(op, left, right) =>
-        let group =
+        let (group, coloring_ids) =
           switch (op) {
-          | Int(Plus) => LangDocMessages.int_plus_group
-          | Int(Minus) => LangDocMessages.int_minus_group
-          | Int(Times) => LangDocMessages.int_times_group
-          | Int(Divide) => LangDocMessages.int_divide_group
-          | Int(LessThan) => LangDocMessages.int_lt_group
-          | Int(LessThanOrEqual) => LangDocMessages.int_lte_group
-          | Int(GreaterThan) => LangDocMessages.int_gt_group
-          | Int(GreaterThanOrEqual) => LangDocMessages.int_gte_group
-          | Int(Equals) => LangDocMessages.int_eq_group
-          | Float(Plus) => LangDocMessages.float_plus_group
-          | Float(Minus) => LangDocMessages.float_minus_group
-          | Float(Times) => LangDocMessages.float_times_group
-          | Float(Divide) => LangDocMessages.float_divide_group
-          | Float(LessThan) => LangDocMessages.float_lt_group
-          | Float(LessThanOrEqual) => LangDocMessages.float_lte_group
-          | Float(GreaterThan) => LangDocMessages.float_gt_group
-          | Float(GreaterThanOrEqual) => LangDocMessages.float_gte_group // TODO Equals not showing up
-          | Float(Equals) => LangDocMessages.float_eq_group
-          | Bool(And) => LangDocMessages.bool_and_group
-          | Bool(Or) => LangDocMessages.bool_or_group
-          | String(Equals) => LangDocMessages.str_eq_group
+          | Int(Plus) => (
+              LangDocMessages.int_plus_group,
+              LangDocMessages.int_plus_exp_coloring_ids,
+            )
+          | Int(Minus) => (
+              LangDocMessages.int_minus_group,
+              LangDocMessages.int_minus_exp_coloring_ids,
+            )
+          | Int(Times) => (
+              LangDocMessages.int_times_group,
+              LangDocMessages.int_times_exp_coloring_ids,
+            )
+          | Int(Divide) => (
+              LangDocMessages.int_divide_group,
+              LangDocMessages.int_divide_exp_coloring_ids,
+            )
+          | Int(LessThan) => (
+              LangDocMessages.int_lt_group,
+              LangDocMessages.int_lt_exp_coloring_ids,
+            )
+          | Int(LessThanOrEqual) => (
+              LangDocMessages.int_lte_group,
+              LangDocMessages.int_lte_exp_coloring_ids,
+            )
+          | Int(GreaterThan) => (
+              LangDocMessages.int_gt_group,
+              LangDocMessages.int_gt_exp_coloring_ids,
+            )
+          | Int(GreaterThanOrEqual) => (
+              LangDocMessages.int_gte_group,
+              LangDocMessages.int_gte_exp_coloring_ids,
+            )
+          | Int(Equals) => (
+              LangDocMessages.int_eq_group,
+              LangDocMessages.int_eq_exp_coloring_ids,
+            )
+          | Float(Plus) => (
+              LangDocMessages.float_plus_group,
+              LangDocMessages.float_plus_exp_coloring_ids,
+            )
+          | Float(Minus) => (
+              LangDocMessages.float_minus_group,
+              LangDocMessages.float_minus_exp_coloring_ids,
+            )
+          | Float(Times) => (
+              LangDocMessages.float_times_group,
+              LangDocMessages.float_times_exp_coloring_ids,
+            )
+          | Float(Divide) => (
+              LangDocMessages.float_divide_group,
+              LangDocMessages.float_divide_exp_coloring_ids,
+            )
+          | Float(LessThan) => (
+              LangDocMessages.float_lt_group,
+              LangDocMessages.float_lt_exp_coloring_ids,
+            )
+          | Float(LessThanOrEqual) => (
+              LangDocMessages.float_lte_group,
+              LangDocMessages.float_lte_exp_coloring_ids,
+            )
+          | Float(GreaterThan) => (
+              LangDocMessages.float_gt_group,
+              LangDocMessages.float_gt_exp_coloring_ids,
+            )
+          | Float(GreaterThanOrEqual) => (
+              LangDocMessages.float_gte_group,
+              LangDocMessages.float_gte_exp_coloring_ids,
+            ) // TODO Equals not showing up
+          | Float(Equals) => (
+              LangDocMessages.float_eq_group,
+              LangDocMessages.float_eq_exp_coloring_ids,
+            )
+          | Bool(And) => (
+              LangDocMessages.bool_and_group,
+              LangDocMessages.bool_and_exp_coloring_ids,
+            )
+          | Bool(Or) => (
+              LangDocMessages.bool_or_group,
+              LangDocMessages.bool_or_exp_coloring_ids,
+            )
+          | String(Equals) => (
+              LangDocMessages.str_eq_group,
+              LangDocMessages.str_eq_exp_coloring_ids,
+            )
           };
         let (doc, options) =
           LangDocMessages.get_form_and_options(group, docs);
@@ -2463,10 +2151,7 @@ let get_doc =
             left_id,
             right_id,
           ),
-          [
-            (Piece.id(List.nth(doc.syntactic_form, 0)), left_id),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), right_id),
-          ],
+          coloring_ids(~left_id, ~right_id),
         );
       | Match(scrut, _rules) =>
         let (doc, options) =
@@ -2475,16 +2160,6 @@ let get_doc =
             docs,
           );
         let scrut_id = List.nth(scrut.ids, 0);
-        let coloring_ids =
-          switch (List.nth(doc.syntactic_form, 0)) {
-          | Tile(tile) => [
-              (
-                Piece.id(List.nth(List.nth(tile.children, 0), 0)),
-                scrut_id,
-              ),
-            ]
-          | _ => []
-          };
         get_message(
           doc,
           options,
@@ -2493,7 +2168,7 @@ let get_doc =
             Scanf.format_from_string(doc.explanation.message, "%i"),
             scrut_id,
           ),
-          coloring_ids,
+          LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
       | Tag(v) =>
         let (doc, options) =
@@ -2679,10 +2354,7 @@ let get_doc =
             hd_id,
             tl_id,
           ),
-          [
-            (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), tl_id),
-          ],
+          LangDocMessages.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
         );
       switch (tl.term) {
       | TermBase.UPat.Cons(hd2, tl2) =>
@@ -2704,11 +2376,11 @@ let get_doc =
               hd2_id,
               tl2_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), hd_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), hd2_id),
-              (Piece.id(List.nth(doc.syntactic_form, 4)), tl2_id),
-            ],
+            LangDocMessages.cons2_pat_coloring_ids(
+              ~fst_id=hd_id,
+              ~snd_id=hd2_id,
+              ~tl_id=tl2_id,
+            ),
           );
         } else {
           basic(doc, LangDocMessages.cons2_pat_group, options);
@@ -2768,10 +2440,10 @@ let get_doc =
               elem1_id,
               elem2_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
-            ],
+            LangDocMessages.tuple_pat_size2_coloring_ids(
+              ~elem1_id,
+              ~elem2_id,
+            ),
           );
         } else {
           basic(doc, LangDocMessages.tuple_pat_2_group, options);
@@ -2796,11 +2468,11 @@ let get_doc =
               elem2_id,
               elem3_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
-              (Piece.id(List.nth(doc.syntactic_form, 4)), elem3_id),
-            ],
+            LangDocMessages.tuple_pat_size3_coloring_ids(
+              ~elem1_id,
+              ~elem2_id,
+              ~elem3_id,
+            ),
           );
         } else {
           basic(doc, LangDocMessages.tuple_pat_3_group, options);
@@ -2821,13 +2493,6 @@ let get_doc =
         );
       let con_id = List.nth(con.ids, 0);
       let arg_id = List.nth(arg.ids, 0);
-      let coloring_ids =
-        switch (List.nth(doc.syntactic_form, 1)) {
-        | Tile(tile) => [
-            (Piece.id(List.nth(List.nth(tile.children, 0), 0)), arg_id),
-          ]
-        | _ => []
-        };
       get_message(
         doc,
         options,
@@ -2837,8 +2502,7 @@ let get_doc =
           con_id,
           arg_id,
         ),
-        [(Piece.id(List.nth(doc.syntactic_form, 0)), con_id)]
-        @ coloring_ids,
+        LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
     | Tag(con) =>
       let (doc, options) =
@@ -2947,13 +2611,6 @@ let get_doc =
           docs,
         );
       let elem_id = List.nth(elem.ids, 0);
-      let coloring_ids =
-        switch (List.nth(doc.syntactic_form, 0)) {
-        | Tile(tile) => [
-            (Piece.id(List.nth(List.nth(tile.children, 0), 0)), elem_id),
-          ]
-        | _ => []
-        };
       get_message(
         doc,
         options,
@@ -2962,7 +2619,7 @@ let get_doc =
           Scanf.format_from_string(doc.explanation.message, "%i"),
           elem_id,
         ),
-        coloring_ids,
+        LangDocMessages.list_typ_coloring_ids(~elem_id),
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(arg.ids, 0);
@@ -2977,10 +2634,7 @@ let get_doc =
             arg_id,
             result_id,
           ),
-          [
-            (Piece.id(List.nth(doc.syntactic_form, 0)), arg_id),
-            (Piece.id(List.nth(doc.syntactic_form, 2)), result_id),
-          ],
+          LangDocMessages.arrow_typ_coloring_ids(~arg_id, ~result_id),
         );
       switch (result.term) {
       | TermBase.UTyp.Arrow(arg2, result2) =>
@@ -3002,11 +2656,11 @@ let get_doc =
               arg2_id,
               result2_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), arg_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), arg2_id),
-              (Piece.id(List.nth(doc.syntactic_form, 4)), result2_id),
-            ],
+            LangDocMessages.arrow3_typ_coloring_ids(
+              ~arg1_id=arg_id,
+              ~arg2_id,
+              ~result_id=result2_id,
+            ),
           );
         } else {
           basic(doc, LangDocMessages.arrow3_typ_group, options);
@@ -3050,10 +2704,7 @@ let get_doc =
               elem1_id,
               elem2_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
-            ],
+            LangDocMessages.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
           );
         } else {
           basic(doc, LangDocMessages.tuple2_typ_group, options);
@@ -3078,11 +2729,11 @@ let get_doc =
               elem2_id,
               elem3_id,
             ),
-            [
-              (Piece.id(List.nth(doc.syntactic_form, 0)), elem1_id),
-              (Piece.id(List.nth(doc.syntactic_form, 2)), elem2_id),
-              (Piece.id(List.nth(doc.syntactic_form, 4)), elem3_id),
-            ],
+            LangDocMessages.tuple3_typ_coloring_ids(
+              ~elem1_id,
+              ~elem2_id,
+              ~elem3_id,
+            ),
           );
         } else {
           basic(doc, LangDocMessages.tuple3_typ_group, options);
