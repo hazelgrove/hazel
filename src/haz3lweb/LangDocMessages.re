@@ -36,7 +36,7 @@ type form_group = {
   current_selection: int,
 };
 
-// TODO Make sure using this for all the forms that should
+// TODO Make sure using this for all the forms that should, like wild and nil
 // TODO Should this have its own ID generator or is using the Example one fine?
 // TODO Double check all of the forms again to make sure didn't break anything with decoupling refactor
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
@@ -83,6 +83,7 @@ let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
 let comma_pat = () => Example.mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => Example.mk_monotile(Form.get("comma_typ"));
 let nil = () => exp("nil");
+let typeann = () => Example.mk_monotile(Form.get("typeann"));
 let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
@@ -2878,6 +2879,27 @@ let ap_pat: form = {
     examples: [],
   };
 };
+let typann_pat_group = "typann_pat_group";
+let _pat = pat("p");
+let _typ = typ("𝜏");
+let typann_pat_coloring_ids =
+    (~pat_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat), pat_id),
+  (Piece.id(_typ), typ_id),
+];
+let typann_pat: form = {
+  let explanation = {
+    message: "Type annotation pattern. Only expressions that match the [type annotated pattern](%i) and have the [indicated type](%i) match this type annotation pattern.",
+    feedback: Unselected,
+  };
+  {
+    id: "typann_pat",
+    syntactic_form: [_pat, space(), typeann(), space(), _typ],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 
 let empty_hole_typ_group = "empty_hole_typ_group";
 let empty_hole_typ: form = {
@@ -2972,7 +2994,7 @@ let str_typ: form = {
 
 let list_typ_group = "list_typ_group";
 let _typ_elem = typ("𝜏_elem");
-// TODO Syntactic form coloring looks off for this one and other arrow ones...
+// TODO Syntactic form coloring looks off for this one and other types ones...
 let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_elem), elem_id),
 ];
@@ -3306,6 +3328,7 @@ let init = {
     tuple_pat_size3,
     tag_pat,
     ap_pat,
+    typann_pat,
     // Types
     empty_hole_typ,
     multi_hole_typ,
@@ -3677,6 +3700,7 @@ let init = {
     ),
     (tag_pat_group, init_options([(tag_pat.id, [])])),
     (ap_pat_group, init_options([(ap_pat.id, [])])),
+    (typann_pat_group, init_options([(typann_pat.id, [])])),
     // Types
     (empty_hole_typ_group, init_options([(empty_hole_typ.id, [])])),
     (multi_hole_typ_group, init_options([(multi_hole_typ.id, [])])),

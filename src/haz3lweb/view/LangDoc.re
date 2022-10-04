@@ -464,6 +464,13 @@ let rec bypass_parens_and_annot_pat = pat => {
   };
 };
 
+let rec bypass_parens_pat = pat => {
+  switch (pat) {
+  | TermBase.UPat.Parens(p) => bypass_parens_pat(p.term)
+  | _ => pat
+  };
+};
+
 let rec bypass_parens_exp = exp => {
   switch (exp) {
   | TermBase.UExp.Parens(e) => bypass_parens_exp(e.term)
@@ -1901,7 +1908,7 @@ let get_doc =
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
+        | TypeAnn(_) => default // Shouldn't get hit? TODO Doesn't necessarily seem to be skipping parens and type annot when highlighting pattern part of lets and funs etc
         };
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2189,7 +2196,7 @@ let get_doc =
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
-    switch (bypass_parens_and_annot_pat(term.term)) {
+    switch (bypass_parens_pat(term.term)) {
     | EmptyHole =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2520,9 +2527,29 @@ let get_doc =
         ),
         [],
       );
+    | TypeAnn(pat, typ) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.typann_pat_group,
+          docs,
+        );
+      let pat_id = List.nth(pat.ids, 0);
+      let typ_id = List.nth(typ.ids, 0);
+      get_message(
+        doc,
+        options,
+        LangDocMessages.typann_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          pat_id,
+          typ_id,
+        ),
+        LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
+      );
     | Invalid(_) // Shouldn't be hit
-    | Parens(_) // Shouldn't be hit?
-    | TypeAnn(_) => default // Shouldn't be hit?
+    | Parens(_) =>
+      // Shouldn't be hit?
+      default
     }
   | Some(InfoTyp({term, _})) =>
     switch (bypass_parens_typ(term.term)) {
