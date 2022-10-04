@@ -345,72 +345,7 @@ module ImplGradingReport = {
 };
 
 module GradingReport = {
-  type t = {
-    point_distribution: SchoolExercise.point_distribution,
-    test_validation_report: TestValidationReport.t,
-    mutation_testing_report: MutationTestingReport.t,
-    impl_grading_report: ImplGradingReport.t,
-  };
-
-  let mk =
-      (
-        eds: SchoolExercise.eds,
-        ~stitched_dynamics:
-           SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
-      ) => {
-    point_distribution: eds.point_distribution,
-    test_validation_report:
-      TestValidationReport.mk(
-        eds,
-        ModelResult.unwrap_test_results(
-          stitched_dynamics.test_validation.simple_result,
-        ),
-      ),
-    mutation_testing_report:
-      MutationTestingReport.mk(
-        ~test_validation=stitched_dynamics.test_validation,
-        ~hidden_bugs_state=eds.hidden_bugs,
-        ~hidden_bugs=stitched_dynamics.hidden_bugs,
-      ),
-    impl_grading_report:
-      ImplGradingReport.mk(
-        ~hints=eds.hidden_tests.hints,
-        ~test_results=
-          ModelResult.unwrap_test_results(
-            stitched_dynamics.hidden_tests.simple_result,
-          ),
-      ),
-  };
-
-  let overall_score =
-      (
-        {
-          point_distribution,
-          test_validation_report,
-          mutation_testing_report,
-          impl_grading_report,
-        }: t,
-      )
-      : score => {
-    let (tv_points, tv_max) =
-      score_of_percent(
-        TestValidationReport.percentage(test_validation_report),
-        point_distribution.test_validation,
-      );
-    let (mt_points, mt_max) =
-      score_of_percent(
-        MutationTestingReport.percentage(mutation_testing_report),
-        point_distribution.mutation_testing,
-      );
-    let (ig_points, ig_max) =
-      score_of_percent(
-        ImplGradingReport.percentage(impl_grading_report),
-        point_distribution.impl_grading,
-      );
-    let total_points = tv_points +. mt_points +. ig_points;
-    let max_points = tv_max +. mt_max +. ig_max;
-    (total_points, max_points);
-  };
+  include GradingReport;
 
   let view_overall_score = (report: t) => {
     score_view(overall_score(report));

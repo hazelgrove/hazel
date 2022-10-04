@@ -74,9 +74,7 @@ let get_simple = (res: option(t)): simple =>
        {eval_result, test_results};
      });
 
-let unwrap_test_results = (simple: simple): option(Interface.test_results) => {
-  Option.map(simple_data => simple_data.test_results, simple);
-};
+let unwrap_test_results = Haz3lcore.TestResults.unwrap_test_results;
 
 let unwrap_eval_result = (simple: simple): option(Haz3lcore.DHExp.t) => {
   Option.map(simple_data => simple_data.eval_result, simple);
