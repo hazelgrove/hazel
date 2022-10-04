@@ -316,12 +316,13 @@ let apply =
     | Copy =>
       let clipboard =
         Printer.to_string_selection(Editors.get_zipper(model.editors));
-      JsUtil.copy_to_clipboard(clipboard);
+      JsUtil.to_sys_clipboard(clipboard);
       Ok(model /*{...model, clipboard}*/);
     | Paste =>
-      JsUtil.get_from_clipboard(str => schedule_action(PasteFinish(str)));
+      /* Dispatches async promise to be dealt with by PasteFinish */
+      let _ =
+        JsUtil.from_sys_clipboard(str => schedule_action(PasteFinish(str)));
       Ok(model);
-    //let clipboard = model.clipboard;
     | PasteFinish(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
@@ -336,7 +337,6 @@ let apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         });
       };
-
     | Undo =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {

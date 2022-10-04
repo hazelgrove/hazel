@@ -24,41 +24,16 @@ let shift_held = evt => Js.to_bool(evt##.shiftKey);
 let alt_held = evt => Js.to_bool(evt##.altKey);
 let meta_held = evt => Js.to_bool(evt##.metaKey);
 
-let clipboard_id = "clipboard_id";
-
-let _copy_to_clipboard = (string: string): unit => {
-  //print_endline("copy_to_clipboard");
-  let elem = get_elem_by_id(clipboard_id);
-  Js.Unsafe.set(elem, "innerHTML", Js.string(string));
-  /* TODO: figure out how to do below select call without unsafe
-     the way that it is now the element name needs to be hardcoded
-     to avoid runtime fallback warning */
-  //|> Str.global_replace(Str.regexp("&gt;"), ">");
-  let _ =
-    Js.Unsafe.js_expr("document.getElementById('clipboard_id').select()");
-  Dom_html.document##execCommand(
-    Js.string("copy"),
-    Js.bool(true),
-    Js.Opt.empty,
-  );
-  Js.Unsafe.set(elem, "innerHTML", Js.string(""));
-};
-
-let copy_to_clipboard = (string: string): unit => {
-  //print_endline("copy_to_clipboard");
+let to_sys_clipboard = (string: string): unit =>
   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
     Js.string(string),
   );
-};
 
-let get_from_clipboard = (callback: string => unit): unit => {
-  let _ =
-    Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
-    |> Promise.then_(~fulfilled=s =>
-         s |> Js.to_string |> callback |> Promise.resolve
-       );
-  ();
-};
+let from_sys_clipboard = (callback: string => unit): Promise.t(unit) =>
+  Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
+  |> Promise.then_(~fulfilled=s =>
+       s |> Js.to_string |> callback |> Promise.resolve
+     );
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {

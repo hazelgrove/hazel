@@ -5,7 +5,7 @@ open Haz3lcore;
 open Widgets;
 
 let copy_log_to_clipboard = _ => {
-  JsUtil.copy_to_clipboard(Log.export());
+  JsUtil.to_sys_clipboard(Log.export());
   Virtual_dom.Vdom.Effect.Ignore;
 };
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
@@ -255,8 +255,6 @@ let view = (~inject, ~handlers, model: Model.t) => {
           ...handlers(~inject, ~model),
         ],
       ),
-    [FontSpecimen.view("font-specimen"), DecUtil.filters]
-    @ main_ui
-    @ [textarea(~attr=Attr.id(JsUtil.clipboard_id), [])] /* system clipboard interface, see JsUtil */
+    [FontSpecimen.view("font-specimen"), DecUtil.filters] @ main_ui,
   );
 };
