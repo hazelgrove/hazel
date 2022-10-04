@@ -88,3 +88,10 @@ let test_summary_str = (test_results: test_results): string =>
     ~q_str="indeterminate",
     ~r_str="passing",
   );
+
+type simple_data = {
+  eval_result: DHExp.t,
+  test_results,
+};
+
+type simple = option(simple_data);
