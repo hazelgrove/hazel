@@ -26,13 +26,14 @@ let meta_held = evt => Js.to_bool(evt##.metaKey);
 
 let clipboard_id = "clipboard_id";
 
-let copy_to_clipboard = (string: string): unit => {
+let _copy_to_clipboard = (string: string): unit => {
   //print_endline("copy_to_clipboard");
   let elem = get_elem_by_id(clipboard_id);
   Js.Unsafe.set(elem, "innerHTML", Js.string(string));
   /* TODO: figure out how to do below select call without unsafe
      the way that it is now the element name needs to be hardcoded
      to avoid runtime fallback warning */
+  //|> Str.global_replace(Str.regexp("&gt;"), ">");
   let _ =
     Js.Unsafe.js_expr("document.getElementById('clipboard_id').select()");
   Dom_html.document##execCommand(
@@ -43,45 +44,20 @@ let copy_to_clipboard = (string: string): unit => {
   Js.Unsafe.set(elem, "innerHTML", Js.string(""));
 };
 
-let clipboard_atom = ref("");
+let copy_to_clipboard = (string: string): unit => {
+  //print_endline("copy_to_clipboard");
+  Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
+    Js.string(string),
+  );
+};
 
-let get_from_clipboard = callback => {
-  /*let _ =
-    Js.Unsafe.js_expr(
-      "window.navigator.clipboard.readText()
-      .then(function(text) {
-        var guy = document.getElementById('clipboard_id');
-        guy.innerHTML = text; console.log('Clipboard content is: ', text);
-        return Promise.resolve(text);
-        })
-      .catch(function(err)
-        {console.error('Failed to read clipboard contents: ', err);})",
-    );*/
+let get_from_clipboard = (callback: string => unit): unit => {
   let _ =
     Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
-    |> Promise.then_(~fulfilled=(text: Js.t(Js.js_string)) => {
-         /*let elem = get_elem_by_id(clipboard_id);
-           Js.Unsafe.set(elem, "innerHTML", text);*/
-         let result =
-           text
-           |> Js.to_string
-           |> Str.global_replace(Str.regexp("&gt;"), ">");
-         print_endline("get from clipboard: ");
-         print_endline(result);
-         callback(result);
-         //clipboard_atom := result;
-         Promise.resolve(text);
-       });
+    |> Promise.then_(~fulfilled=s =>
+         s |> Js.to_string |> callback |> Promise.resolve
+       );
   ();
-  /*let elem = get_elem_by_id(clipboard_id);
-    let result =
-      Js.Unsafe.get(elem, "innerHTML")
-      |> Js.to_string
-      |> Str.global_replace(Str.regexp("&gt;"), ">");
-    print_endline("get from clipboard: ");
-    print_endline(result);
-    result;*/
-  //clipboard_atom^;
 };
 
 let download_string_file =
