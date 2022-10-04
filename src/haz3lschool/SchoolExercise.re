@@ -8,8 +8,8 @@ module type ExerciseEnv = {
 };
 
 let output_header_grading = _module_name =>
-  "module SchoolExercise = GradPrelude.SchoolExercise;\n"
-  ++ "let prompt = ();\n";
+  "module SchoolExercise = GradePrelude.SchoolExercise\n"
+  ++ "let prompt = ()\n";
 
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -595,7 +595,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let export_grading_module = (module_name, {eds, _}: state) => {
     let header = output_header_grading(module_name);
     let prefix = "let exercise: SchoolExercise.spec = ";
-    let record = show_p(transitionary_editor_pp, eds);
+    let record = show_p(editor_pp, eds);
     let data = header ++ prefix ++ record ++ "\n";
     data;
   };
@@ -647,10 +647,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
+  // From LocalStorage
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type school_export = {
     cur_exercise: key,
     exercise_data: list((key, persistent_state)),
+  };
+
+  let serialize_exercise = (exercise, ~instructor_mode) => {
+    persistent_state_of_state(exercise, ~instructor_mode)
+    |> sexp_of_persistent_state
+    |> Sexplib.Sexp.to_string;
+  };
+
+  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
+    data
+    |> Sexplib.Sexp.of_string
+    |> persistent_state_of_sexp
+    |> unpersist_state(~spec, ~instructor_mode);
   };
 
   let deserialize_school_export = data => {

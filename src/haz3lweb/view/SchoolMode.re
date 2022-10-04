@@ -414,7 +414,7 @@ let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Model.settings) =
             _ => {
               // .ml files because show uses OCaml syntax (dune handles seamlessly)
               let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
+              let filename = eds.module_name ++ "_grading.ml";
               let content_type = "text/plain";
               let contents =
                 SchoolExercise.export_grading_module(module_name, exercise);
