@@ -159,4 +159,64 @@ module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
       );
     };
   };
+
+  module ImplGradingReport = {
+    type t = {
+      hints: list(string),
+      test_results: option(TestResults.test_results),
+      hinted_results: list((TestStatus.t, string)),
+    };
+
+    let mk =
+        (
+          ~hints: list(string),
+          ~test_results: option(TestResults.test_results),
+        )
+        : t => {
+      let hinted_results =
+        switch (test_results) {
+        | Some(test_results) =>
+          let statuses = test_results.statuses;
+          Util.ListUtil.zip_defaults(
+            statuses,
+            hints,
+            Haz3lcore.TestStatus.Indet,
+            "No hint available.",
+          );
+
+        | None =>
+          Util.ListUtil.zip_defaults(
+            [],
+            hints,
+            Haz3lcore.TestStatus.Indet,
+            "Exercise configuration error: Hint without a test.",
+          )
+        };
+      {hints, test_results, hinted_results};
+    };
+
+    let total = (report: t) => List.length(report.hinted_results);
+    let num_passed = (report: t) => {
+      report.hinted_results
+      |> List.find_all(((status, _)) => status == TestStatus.Pass)
+      |> List.length;
+    };
+
+    let percentage = (report: t): percentage => {
+      float_of_int(num_passed(report)) /. float_of_int(total(report));
+    };
+
+    let test_summary_str = (test_results: TestResults.test_results) => {
+      TestResults.result_summary_str(
+        ~n=test_results.total,
+        ~p=test_results.failing,
+        ~q=test_results.unfinished,
+        ~n_str="test",
+        ~ns_str="tests",
+        ~p_str="failing",
+        ~q_str="indeterminate",
+        ~r_str="valid",
+      );
+    };
+  };
 };
