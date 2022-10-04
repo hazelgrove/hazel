@@ -35,11 +35,13 @@ module Main = {
   let run = () => {
     // let spec_path = Sys.get_argv()[1];
     let spec = Ex.exercise;
-    let hw_path = Sys.get_argv()[2];
+    let hw_path = Sys.get_argv()[1];
+    // let hw_path = Sys.get_argv()[2];
     let hw = name_to_school_export(hw_path);
     let export_lst_pr =
       hw.exercise_data
       |> List.map(~f=((_key, persistent_state)) => {
+           print_endline(_key |> yojson_of_key |> Yojson.Safe.to_string);
            let eds =
              unpersist_state(persistent_state, ~spec, ~instructor_mode=true).
                eds;
