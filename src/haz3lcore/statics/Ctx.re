@@ -55,7 +55,6 @@ let subtract_typ = (ctx: t, free: co): co =>
 
 let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   // NOTE: does not check that the prefix is an actual prefix
-  // TODO: does not correctly handle shadowing!! (will be fixed with new context in type aliases branch so not worrying about it for now)
   let prefix_length = List.length(prefix_ctx);
   let ctx_length = List.length(ctx);
   if (prefix_length > ctx_length) {
