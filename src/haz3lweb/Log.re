@@ -40,6 +40,7 @@ let is_action_logged: Update.t => bool =
   | FailedInput(_)
   | Copy
   | Paste
+  | PasteFinish(_)
   | Undo
   | Redo
   | MoveToNextHole(_) => true;

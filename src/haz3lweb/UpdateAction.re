@@ -34,6 +34,7 @@ type t =
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
   | Copy
   | Paste
+  | PasteFinish(string)
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)

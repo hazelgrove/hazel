@@ -18,6 +18,7 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
+  promise_jsoo
   pretty
   lwt
   lwtutil)
