@@ -1,11 +1,14 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
 
-include Haz3lschool.SchoolExercise.F({
+module ExerciseEnv = {
   type node = Node.t;
   let default = Node.text("TODO: prompt");
-  let output_header = _ => "";
-});
+  let output_header = module_name =>
+    "let prompt = " ++ module_name ++ "_prompt.prompt\n";
+};
+
+include Haz3lschool.SchoolExercise.F(ExerciseEnv);
 
 // # Stitching
 

@@ -7,6 +7,10 @@ module type ExerciseEnv = {
   let output_header: string => string;
 };
 
+let output_header_grading = _module_name =>
+  "module SchoolExercise = GradPrelude.SchoolExercise;\n"
+  ++ "let prompt = ();\n";
+
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type wrong_impl('code) = {
@@ -567,13 +571,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let export_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = ";
+    let header = ExerciseEnv.output_header(module_name);
+    let prefix = "let exercise: SchoolExercise.spec = ";
     let record = show_p(editor_pp, eds);
-    let data = prefix ++ record ++ "\n";
+    let data = header ++ prefix ++ record ++ "\n";
     data;
   };
 
@@ -584,13 +585,18 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let export_transitionary_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
+    let header = ExerciseEnv.output_header(module_name);
+    let prefix = "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
     let record = show_p(transitionary_editor_pp, eds);
-    let data = prefix ++ record ++ ")\n";
+    let data = header ++ prefix ++ record ++ ")\n";
+    data;
+  };
+
+  let export_grading_module = (module_name, {eds, _}: state) => {
+    let header = output_header_grading(module_name);
+    let prefix = "let exercise: SchoolExercise.spec = ";
+    let record = show_p(transitionary_editor_pp, eds);
+    let data = header ++ prefix ++ record ++ "\n";
     data;
   };
 
