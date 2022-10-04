@@ -37,6 +37,8 @@ type form_group = {
 };
 
 // TODO Make sure using this for all the forms that should
+// TODO Should this have its own ID generator or is using the Example one fine?
+// TODO Double check all of the forms again to make sure didn't break anything with decoupling refactor
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
 let seq = () => Example.mk_monotile(Form.get("cell-join"));
@@ -89,6 +91,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
+let mk_linebreak = () => Example.mk_whitespace(Whitespace.linebreak);
+let mk_space = () => Example.mk_whitespace(Whitespace.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
@@ -200,7 +204,7 @@ let list_exp: form = {
   };
   let tuple_list = {
     sub_id: "tuple_list",
-    term: mk_example("[(1,true), (2,false)]"),
+    term: mk_example("[(1, true), (2, false)]"),
     message: "A list with two elements, a tuple with 1 and true and a tuple with 2 and false.",
     feedback: Unselected,
   };
@@ -338,50 +342,68 @@ let ap_fun_ex = {
   feedback: Unselected,
 };
 // TODO for shared examples, should the feedback be stored separately for each "instance"?
+let _pat_body_function_exp_coloring_ids =
+    (sf_pat_id: Id.t, sf_body_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_body_id, body_id)];
+};
+let _pat = pat("p");
+let _exp = exp("e");
+let function_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_exp: form = {
   let explanation = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("p");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[mk_space(), _pat, mk_space()]]), mk_space(), _exp];
   {
     id: "function_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [basic_fun_ex] // TODO What other examples should be here
   };
 };
+let _pat = pat("EmptyHole");
+let _exp = exp("e");
+let function_empty_hole_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_empty_hole_exp: form = {
   let explanation = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
     feedback: Unselected,
   };
-  let pat = pat("EmptyHole");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_empty_hole_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [basic_fun_ex],
   };
 };
+let _pat = pat("INVALID");
+let _exp = exp("e");
+let function_multi_hole_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_multi_hole_exp: form = {
   let explanation = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.",
     feedback: Unselected,
   };
-  let pat = pat("INVALID");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_multi_hole_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [basic_fun_ex],
   };
+};
+let _exp = exp("e");
+let function_wild_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => {
+  [(Piece.id(_exp), body_id)];
 };
 let function_wild_exp: form = {
   let explanation = {
@@ -389,7 +411,7 @@ let function_wild_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[pat]]), _exp];
   {
     id: "function_wild_exp",
     syntactic_form: form,
@@ -398,111 +420,143 @@ let function_wild_exp: form = {
     examples: [wild_fun_ex],
   };
 };
+let _pat = pat("IntLit");
+let _exp = exp("e");
+let function_intlit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_intlit_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("IntLit");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_intlit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [intlit_fun_ex],
   };
 };
+let _pat = pat("FloatLit");
+let _exp = exp("e");
+let function_floatlit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_floatlit_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%f`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("FloatLit");
   // TODO print out the float literal nicer
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_floatlit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [floatlit_fun_ex],
   };
 };
+let _pat = pat("BoolLit");
+let _exp = exp("e");
+let function_boollit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_boollit_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("BoolLit");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_boollit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [boollit_fun_ex],
   };
 };
+let _pat = pat("StringLit");
+let _exp = exp("e");
+let function_strlit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_strlit_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("StringLit");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_strlit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [strlit_fun_ex],
   };
 };
+let _pat = pat("triv");
+let _exp = exp("e");
+let function_triv_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_triv_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `triv`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
     feedback: Unselected,
   };
-  let pat = pat("triv");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_triv_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [triv_fun_ex],
   };
 };
+let _pat = pat("nil");
+let _exp = exp("e");
+let function_listnil_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listnil_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `nil`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("nil");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_listnil_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [listnil_fun_ex],
   };
 };
+let _pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+let _exp = exp("e");
+let function_listlit_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listlit_exp: form = {
   let explanation = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_listlit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [listnil_fun_ex, listlist_fun_ex],
   };
+};
+let _pat_hd = pat("p_hd");
+let _pat_tl = pat("p_tl");
+let _exp = exp("e");
+let function_cons_exp_coloring_ids =
+    (~hd_id: Id.t, ~tl_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_pat_hd), hd_id),
+    (Piece.id(_pat_tl), tl_id),
+    (Piece.id(_exp), body_id),
+  ];
 };
 let function_cons_exp: form = {
   let explanation = {
@@ -510,7 +564,7 @@ let function_cons_exp: form = {
     feedback: Unselected,
   };
   let cons = cons_pat();
-  let form = [mk_fun([[pat("p_hd"), cons, pat("p_tl")]]), exp("e")];
+  let form = [mk_fun([[_pat_hd, cons, _pat_tl]]), _exp];
   {
     id: "function_cons_exp",
     syntactic_form: form,
@@ -519,35 +573,52 @@ let function_cons_exp: form = {
     examples: [cons_hd_fun_ex, cons_snd_fun_ex],
   };
 };
+let _pat = pat("x");
+let _exp = exp("e");
+let function_var_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_var_exp: form = {
   let explanation = {
     message: "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("x");
-  let form = [mk_fun([[pat]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_var_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [basic_fun_ex, var_incr_fun_ex, var_and_fun_ex],
   };
 };
+let _comma = comma_pat();
+let _exp = exp("e");
+let function_tuple_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_tuple_exp: form = {
   let explanation = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let comma = comma_pat();
-  let form = [mk_fun([[pat("p1"), comma, pat("...")]]), exp("e")];
+  let form = [mk_fun([[pat("p1"), _comma, pat("...")]]), _exp];
   {
     id: "function_tuple_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(comma)),
+    expandable_id: Some(Piece.id(_comma)),
     explanation,
     examples: [tuple2_fun_ex, tuple3_fun_ex],
   };
+};
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let _exp = exp("e");
+let function_tuple2_exp_coloring_ids =
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_pat1), pat1_id),
+    (Piece.id(_pat2), pat2_id),
+    (Piece.id(_exp), body_id),
+  ];
 };
 let function_tuple2_exp: form = {
   let explanation = {
@@ -555,7 +626,7 @@ let function_tuple2_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_fun([[pat("p1"), comma, pat("p2")]]), exp("e")];
+  let form = [mk_fun([[_pat1, comma, _pat2]]), _exp];
   {
     id: "function_tuple2_exp",
     syntactic_form: form,
@@ -564,16 +635,27 @@ let function_tuple2_exp: form = {
     examples: [tuple2_fun_ex],
   };
 };
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let _pat3 = pat("p3");
+let _exp = exp("e");
+let function_tuple3_exp_coloring_ids =
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_pat1), pat1_id),
+    (Piece.id(_pat2), pat2_id),
+    (Piece.id(_pat3), pat3_id),
+    (Piece.id(_exp), body_id),
+  ];
+};
 let function_tuple3_exp: form = {
   let explanation = {
     message: "Function literal. The only values that match the *argument pattern* are 2-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [
-    mk_fun([[pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")]]),
-    exp("e"),
-  ];
+  let form = [mk_fun([[_pat1, comma_pat(), _pat2, comma, _pat3]]), _exp];
   {
     id: "function_tuple3_exp",
     syntactic_form: form,
@@ -582,28 +664,42 @@ let function_tuple3_exp: form = {
     examples: [tuple3_fun_ex],
   };
 };
+let _pat = pat("C");
+let _exp = exp("e");
+let function_tag_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_tag_exp: form = {
   let explanation = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let tag = pat("C");
-  let form = [mk_fun([[tag]]), exp("e")];
+  let form = [mk_fun([[_pat]]), _exp];
   {
     id: "function_tag_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(tag)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [tag_fun_ex],
   };
+};
+let _pat_con = pat("p_con");
+let _pat_arg = pat("p_arg");
+let _exp = exp("e");
+let function_ap_exp_coloring_ids =
+    (~con_id: Id.t, ~arg_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_pat_con), con_id),
+    (Piece.id(_pat_arg), arg_id),
+    (Piece.id(_exp), body_id),
+  ];
 };
 let function_ap_exp: form = {
   let explanation = {
     message: "Function literal. The only values that match the *argument pattern* are the [*constructor*](%i) where the *constructor argument* matches the [*constructor argument pattern*](%i). When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let ap = mk_ap_pat([[pat("p_arg")]]);
-  let form = [mk_fun([[pat("p_con"), ap]]), exp("e")];
+  let ap = mk_ap_pat([[_pat_arg]]);
+  let form = [mk_fun([[_pat_con, ap]]), _exp];
   {
     id: "function_ap_exp",
     syntactic_form: form,
@@ -642,6 +738,12 @@ let tuple_exp: form = {
     examples: [tuple_example_1, tuple_example_2],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let tuple_exp_size2_coloring_ids =
+    (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => {
+  [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
+};
 let tuple_exp_size2: form = {
   let explanation = {
     message: "Tuple literal. The 2-tuple has a [first](%i) and [second](%i) element.",
@@ -650,11 +752,22 @@ let tuple_exp_size2: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size2",
-    syntactic_form: [exp("e1"), comma, exp("e2")],
+    syntactic_form: [_exp1, comma, _exp2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1],
   };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let _exp3 = exp("e3");
+let tuple_exp_size3_coloring_ids =
+    (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): list((Id.t, Id.t)) => {
+  [
+    (Piece.id(_exp1), exp1_id),
+    (Piece.id(_exp2), exp2_id),
+    (Piece.id(_exp3), exp3_id),
+  ];
 };
 let tuple_exp_size3: form = {
   let explanation = {
@@ -664,7 +777,7 @@ let tuple_exp_size3: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size3",
-    syntactic_form: [exp("e1"), comma_exp(), exp("e2"), comma, exp("e3")],
+    syntactic_form: [_exp1, comma_exp(), _exp2, comma, _exp3],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_2],
@@ -812,58 +925,101 @@ let let_ap_ex = {
   message: "The a is bound to 2, so the expression evaluates to 2.",
   feedback: Unselected,
 };
+let _pat_def_body_let_exp_coloring_ids =
+    (
+      sf_pat_id: Id.t,
+      sf_def_id: Id.t,
+      sf_body_id: Id.t,
+      ~pat_id: Id.t,
+      ~def_id: Id.t,
+      ~body_id: Id.t,
+    )
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id), (sf_body_id, body_id)];
+};
+let _pat = pat("p");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_base_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_base_exp: form = {
   let explanation = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("p");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_base_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_base_ex],
   };
 };
+let _pat = pat("EmptyHole");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_empty_hole_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_empty_hole_exp: form = {
   let explanation = {
     message: "Let expression. After the [*empty hole pattern*](%i) is filled, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("EmptyHole");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_empty_hole_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_base_ex],
   };
 };
+let _pat = pat("INVALID");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_multi_hole_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_multi_hole_exp: form = {
   let explanation = {
     message: "Let expression. After the [invalid pattern](%i) is corrected, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("INVALID");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_multi_hole_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_base_ex],
   };
 };
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_wild_exp_coloring_ids =
+    (~def_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_def), def_id),
+  (Piece.id(_exp_body), body_id),
+];
 let let_wild_exp: form = {
   let explanation = {
     message: "Let expression. The [*definition*](%i) is evaluated and ignored. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[pat], [_exp_def]]), _exp_body];
   {
     id: "let_wild_exp",
     syntactic_form: form,
@@ -872,121 +1028,186 @@ let let_wild_exp: form = {
     examples: [let_wild_ex],
   };
 };
+let _pat = pat("IntLit");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_int_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_int_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%i`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("IntLit");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_int_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_int_ex],
   };
 };
+let _pat = pat("FloatLit");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_float_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_float_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%f`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("FloatLit");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_float_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_float_ex],
   };
 };
+let _pat = pat("BoolLit");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_bool_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_bool_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%b`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("BoolLit");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_bool_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_bool_ex],
   };
 };
+let _pat = pat("StringLit");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_str_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_str_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("StringLit");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_str_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_str_ex],
   };
 };
+let _pat = pat("triv");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_triv_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_triv_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("triv");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_triv_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_triv_ex],
   };
 };
+let _pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_listlit_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_listlit_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern. The matching element patterns are bound to the elements of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_listlit_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_listlit_ex],
   };
 };
+let _pat = pat("nil");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_listnil_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_listnil_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `nil`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("nil");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_listnil_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_listnil_ex],
   };
 };
+let _pat_hd = pat("p_hd");
+let _pat_tl = pat("p_tl");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_cons_exp_coloring_ids =
+    (~hd_id: Id.t, ~tl_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_pat_hd), hd_id),
+  (Piece.id(_pat_tl), tl_id),
+  (Piece.id(_exp_def), def_id),
+  (Piece.id(_exp_body), body_id),
+];
 let let_cons_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns. Matching [*head*](%i) and [*tail*](%i) patterns are bound to the head and tail of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
   let cons = cons_pat();
-  let form = [
-    mk_let([[pat("p_hd"), cons, pat("p_tl")], [exp("e_def")]]),
-    exp("e_body"),
-  ];
+  let form = [mk_let([[_pat_hd, cons, _pat_tl], [_exp_def]]), _exp_body];
   {
     id: "let_cons_exp",
     syntactic_form: form,
@@ -995,50 +1216,75 @@ let let_cons_exp: form = {
     examples: [let_cons_hd_ex, let_cons_snd_ex],
   };
 };
+let _pat = pat("x");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_var_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_var_exp: form = {
   let explanation = {
     message: "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).",
     feedback: Unselected,
   };
-  let pat = pat("x");
-  let form = [mk_let([[pat], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_var_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(pat)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_var_ex],
     // TODO Does this example being slightly different actually add anything?
   };
 };
+let _comma = comma_pat();
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_tuple_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_comma),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_tuple_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern. The [*definition*](%i) is bound to the [*pattern*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let comma = comma_pat();
   let form = [
-    mk_let([[pat("p1"), comma, pat("...")], [exp("e_def")]]),
-    exp("e_body"),
+    mk_let([[pat("p1"), _comma, pat("...")], [_exp_def]]),
+    _exp_body,
   ];
   {
     id: "let_tuple_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(comma)),
+    expandable_id: Some(Piece.id(_comma)),
     explanation,
     examples: [let_tuple2_ex, let_tuple3_ex],
   };
 };
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_tuple2_exp_coloring_ids =
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_pat1), pat1_id),
+  (Piece.id(_pat2), pat2_id),
+  (Piece.id(_exp_def), def_id),
+  (Piece.id(_exp_body), body_id),
+];
 let let_tuple2_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [
-    mk_let([[pat("p1"), comma, pat("p2")], [exp("e_def")]]),
-    exp("e_body"),
-  ];
+  let form = [mk_let([[_pat1, comma, _pat2], [_exp_def]]), _exp_body];
   {
     id: "let_tuple2_exp",
     syntactic_form: form,
@@ -1047,6 +1293,26 @@ let let_tuple2_exp: form = {
     examples: [let_tuple2_ex],
   };
 };
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let _pat3 = pat("p3");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_tuple3_exp_coloring_ids =
+    (
+      ~pat1_id: Id.t,
+      ~pat2_id: Id.t,
+      ~pat3_id: Id.t,
+      ~def_id: Id.t,
+      ~body_id: Id.t,
+    )
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_pat1), pat1_id),
+  (Piece.id(_pat2), pat2_id),
+  (Piece.id(_pat3), pat3_id),
+  (Piece.id(_exp_def), def_id),
+  (Piece.id(_exp_body), body_id),
+];
 let let_tuple3_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
@@ -1054,11 +1320,8 @@ let let_tuple3_exp: form = {
   };
   let comma = comma_pat();
   let form = [
-    mk_let([
-      [pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")],
-      [exp("e_def")],
-    ]),
-    exp("e_body"),
+    mk_let([[_pat1, comma_pat(), _pat2, comma, _pat3], [_exp_def]]),
+    _exp_body,
   ];
   {
     id: "let_tuple3_exp",
@@ -1068,31 +1331,48 @@ let let_tuple3_exp: form = {
     examples: [let_tuple3_ex],
   };
 };
+let _pat = pat("C");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_tag_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_comma),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
 let let_tag_exp: form = {
   let explanation = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let tag = pat("C");
-  let form = [mk_let([[tag], [exp("e_def")]]), exp("e_body")];
+  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
   {
     id: "let_tag_exp",
     syntactic_form: form,
-    expandable_id: Some(Piece.id(tag)),
+    expandable_id: Some(Piece.id(_pat)),
     explanation,
     examples: [let_tag_ex],
   };
 };
+let _pat_con = pat("p_con");
+let _pat_arg = pat("p_arg");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_ap_exp_coloring_ids =
+    (~con_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
+    : list((Id.t, Id.t)) => [
+  (Piece.id(_pat_con), con_id),
+  (Piece.id(_pat_arg), arg_id),
+  (Piece.id(_exp_def), def_id),
+  (Piece.id(_exp_body), body_id),
+];
 let let_ap_exp: form = {
   let explanation = {
     message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
     feedback: Unselected,
   };
-  let ap = mk_ap_pat([[pat("p_arg")]]);
-  let form = [
-    mk_let([[pat("p_con"), ap], [exp("e_def")]]),
-    exp("e_body"),
-  ];
+  let ap = mk_ap_pat([[_pat_arg]]);
+  let form = [mk_let([[_pat_con, ap], [_exp_def]]), _exp_body];
   {
     id: "let_ap_exp",
     syntactic_form: form,
@@ -1116,6 +1396,13 @@ let conapp_exp_ex = {
   message: "The constructor Some is applied to 1, which evaluates to Some(1).",
   feedback: Unselected,
 };
+let _exp_fun = exp("e_fun");
+let _exp_arg = exp("e_arg");
+let funapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_fun), x_id),
+  (Piece.id(_exp_arg), arg_id),
+];
 let funapp_exp: form = {
   let explanation = {
     message: "Function application. Apply the [*function*](%i) to the [*argument*](%i).",
@@ -1123,12 +1410,19 @@ let funapp_exp: form = {
   };
   {
     id: "funapp_exp",
-    syntactic_form: [exp("e_fun"), mk_ap_exp([[exp("e_arg")]])],
+    syntactic_form: [_exp_fun, mk_ap_exp([[_exp_arg]])],
     expandable_id: None,
     explanation,
     examples: [funapp_exp_ex],
   };
 };
+let _exp_con = exp("e_con");
+let _exp_arg = exp("e_arg");
+let conapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_con), x_id),
+  (Piece.id(_pat_arg), arg_id),
+];
 let conapp_exp: form = {
   let explanation = {
     message: "Constructor application. Apply the [*`%s` constructor*](%i) to the [*argument*](%i).",
@@ -1136,7 +1430,7 @@ let conapp_exp: form = {
   };
   {
     id: "conapp_exp",
-    syntactic_form: [exp("e_con"), mk_ap_exp([[exp("e_arg")]])],
+    syntactic_form: [_exp_con, mk_ap_exp([[_exp_arg]])],
     expandable_id: None,
     explanation,
     examples: [conapp_exp_ex],
@@ -1156,6 +1450,15 @@ let if_basic2_exp_ex = {
   message: "Since the condition is 2 < 1 is false, the if expression evaluates to the else branch, 4.",
   feedback: Unselected,
 };
+let _exp_cond = exp("e_cond");
+let _exp_then = exp("e_then");
+let _exp_else = exp("e_else");
+let if_exp_coloring_ids =
+    (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_cond), cond_id),
+  (Piece.id(_exp_then), then_id),
+  (Piece.id(_exp_else), else_id),
+];
 let if_exp: form = {
   let explanation = {
     message: "If expression. If the [*condition*](%i) evaluates to `true`, evaluate the [*then branch*](%i). Otherwise, evaluate the [*else branch*](%i).",
@@ -1163,10 +1466,7 @@ let if_exp: form = {
   };
   {
     id: "if_exp",
-    syntactic_form: [
-      mk_if([[exp("e_cond")], [exp("e_then")]]),
-      exp("e_else"),
-    ],
+    syntactic_form: [mk_if([[_exp_cond], [_exp_then]]), _exp_else],
     expandable_id: None,
     explanation,
     examples: [if_basic1_exp_ex, if_basic2_exp_ex],
@@ -1187,6 +1487,13 @@ let seq_test_exp_ex = {
   message: "The left expression is evaluated and recorded as a passing test because the body of the test is true. Then the right expression is evalautes to 3.",
   feedback: Unselected,
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let seq_exp_coloring_ids =
+    (~exp1_id: Id.t, ~exp2_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp1), exp1_id),
+  (Piece.id(_exp2), exp2_id),
+];
 let seq_exp: form = {
   let explanation = {
     message: "Expression sequence. The [left expression](%i) is evaluated, then the [right expression](%i) is evaluated.",
@@ -1194,7 +1501,7 @@ let seq_exp: form = {
   };
   {
     id: "seq_exp",
-    syntactic_form: [exp("e1"), seq(), exp("e2")],
+    syntactic_form: [_exp1, seq(), _exp2],
     expandable_id: None,
     explanation,
     examples: [seq_basic_exp_ex, seq_test_exp_ex],
@@ -1215,6 +1522,10 @@ let test_false_ex = {
   message: "This is reported as a failing test because the body of the test is 3 < 1 which evaluates to false.",
   feedback: Unselected,
 };
+let _exp_body = exp("e");
+let test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_body), body_id),
+];
 let test_exp: form = {
   let explanation = {
     message: "Test expression. If the [*body*](%i) of the test evalutes to `true`, the test passes. Otherwise, the test fails.",
@@ -1222,7 +1533,7 @@ let test_exp: form = {
   };
   {
     id: "test_exp",
-    syntactic_form: [mk_test([[exp("e")]])],
+    syntactic_form: [mk_test([[_exp_body]])],
     expandable_id: None,
     explanation,
     examples: [test_true_ex, test_false_ex],
@@ -1242,6 +1553,12 @@ let cons2_ex = {
   message: "A list with two elements, true and false.",
   feedback: Unselected,
 };
+let _exp_hd = exp("e_hd");
+let _exp_tl = exp("e_tl");
+let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_hd), hd_id),
+  (Piece.id(_exp_tl), tl_id),
+];
 let cons_exp: form = {
   let explanation = {
     message: "Cons operator. Creates a list with [*head element*](%i) and [*tail element*](%i).",
@@ -1249,7 +1566,7 @@ let cons_exp: form = {
   };
   {
     id: "cons_exp",
-    syntactic_form: [exp("e_hd"), cons_exp(), exp("e_tl")],
+    syntactic_form: [_exp_hd, cons_exp(), _exp_tl],
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],
@@ -1512,6 +1829,10 @@ let str_eq2_ex = {
   message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
   feedback: Unselected,
 };
+let _exp = exp("e");
+let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp), exp_id),
+];
 let int_unary_minus_exp: form = {
   let explanation = {
     message: "Unary minus. Performs integer negation of the [*operand*](%i).",
@@ -1519,12 +1840,27 @@ let int_unary_minus_exp: form = {
   };
   {
     id: "int_unary_minus_exp",
-    syntactic_form: [unary_minus(), exp("e")],
+    syntactic_form: [unary_minus(), _exp],
     expandable_id: None,
     explanation,
     examples: [int_unary_minus_ex],
   };
 };
+let _binop_exp_coloring_ids =
+    (sf_left_id: Id.t, sf_right_id: Id.t, ~left_id: Id.t, ~right_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [(sf_left_id, left_id), (sf_right_id, right_id)];
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_plus_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_plus_exp: form = {
   let explanation = {
     message: "Integer addition. Gives the sum of the [*left*](%i) and [*right*](%i) operands.",
@@ -1532,12 +1868,22 @@ let int_plus_exp: form = {
   };
   {
     id: "int_plus_exp",
-    syntactic_form: [exp("e1"), plus(), exp("e2")],
+    syntactic_form: [_exp1, plus(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_plus_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_minus_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_minus_exp: form = {
   let explanation = {
     message: "Integer subtraction. Gives the difference of the [*left*](%i) and [*right*](%i) operands.",
@@ -1545,12 +1891,22 @@ let int_minus_exp: form = {
   };
   {
     id: "int_minus_exp",
-    syntactic_form: [exp("e1"), minus(), exp("e2")],
+    syntactic_form: [_exp1, minus(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_minus_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_times_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_times_exp: form = {
   let explanation = {
     message: "Integer multiplication. Gives the product of the [*left*](%i) and [*right*](%i) operands.",
@@ -1558,12 +1914,22 @@ let int_times_exp: form = {
   };
   {
     id: "int_times_exp",
-    syntactic_form: [exp("e1"), times(), exp("e2")],
+    syntactic_form: [_exp1, times(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_times_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_divide_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_divide_exp: form = {
   let explanation = {
     message: "Integer division. Gives the quotient of the [*left*](%i) and [*right*](%i) operands.",
@@ -1571,12 +1937,22 @@ let int_divide_exp: form = {
   };
   {
     id: "int_divide_exp",
-    syntactic_form: [exp("e1"), divide(), exp("e2")],
+    syntactic_form: [_exp1, divide(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_divide_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_lt_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_lt_exp: form = {
   let explanation = {
     message: "Integer less than. If the [*left operand*](%i) is less than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1584,12 +1960,22 @@ let int_lt_exp: form = {
   };
   {
     id: "int_lt_exp",
-    syntactic_form: [exp("e1"), lt(), exp("e2")],
+    syntactic_form: [_exp1, lt(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_lt1_ex, int_lt2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_lte_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_lte_exp: form = {
   let explanation = {
     message: "Integer less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1597,12 +1983,22 @@ let int_lte_exp: form = {
   };
   {
     id: "int_lte_exp",
-    syntactic_form: [exp("e1"), lte(), exp("e2")],
+    syntactic_form: [_exp1, lte(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_lte1_ex, int_lte2_ex, int_lte3_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_gt_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_gt_exp: form = {
   let explanation = {
     message: "Integer greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1610,12 +2006,22 @@ let int_gt_exp: form = {
   };
   {
     id: "int_gt_exp",
-    syntactic_form: [exp("e1"), gt(), exp("e2")],
+    syntactic_form: [_exp1, gt(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_gt1_ex, int_gt2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_gte_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_gte_exp: form = {
   let explanation = {
     message: "Integer greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1623,12 +2029,22 @@ let int_gte_exp: form = {
   };
   {
     id: "int_gte_exp",
-    syntactic_form: [exp("e1"), gte(), exp("e2")],
+    syntactic_form: [_exp1, gte(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_gte1_ex, int_gte2_ex, int_gte3_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let int_eq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let int_eq_exp: form = {
   let explanation = {
     message: "Integer equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
@@ -1636,12 +2052,22 @@ let int_eq_exp: form = {
   };
   {
     id: "int_eq_exp",
-    syntactic_form: [exp("e1"), equals(), exp("e2")],
+    syntactic_form: [_exp1, equals(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_eq1_ex, int_eq2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_plus_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_plus_exp: form = {
   let explanation = {
     message: "Floating-point addition. Gives the sum of the [*left*](%i) and [*right*](%i) operands.",
@@ -1649,12 +2075,22 @@ let float_plus_exp: form = {
   };
   {
     id: "float_plus_exp",
-    syntactic_form: [exp("e1"), fplus(), exp("e2")],
+    syntactic_form: [_exp1, fplus(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_plus_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_minus_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_minus_exp: form = {
   let explanation = {
     message: "Floating-point subtraction. Gives the difference of the [*left*](%i) and [*right*](%i) operands.",
@@ -1662,12 +2098,22 @@ let float_minus_exp: form = {
   };
   {
     id: "float_minus_exp",
-    syntactic_form: [exp("e1"), fminus(), exp("e2")],
+    syntactic_form: [_exp1, fminus(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_minus_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_times_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_times_exp: form = {
   let explanation = {
     message: "Floating-point multiplication. Gives the product of the [*left*](%i) and [*right*](%i) operands.",
@@ -1675,12 +2121,22 @@ let float_times_exp: form = {
   };
   {
     id: "float_times_exp",
-    syntactic_form: [exp("e1"), ftimes(), exp("e2")],
+    syntactic_form: [_exp1, ftimes(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_times_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_divide_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_divide_exp: form = {
   let explanation = {
     message: "Floating-point division. Gives the quotient of the [*left*](%i) and [*right*](%i) operands.",
@@ -1688,12 +2144,22 @@ let float_divide_exp: form = {
   };
   {
     id: "float_divide_exp",
-    syntactic_form: [exp("e1"), fdivide(), exp("e2")],
+    syntactic_form: [_exp1, fdivide(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_divide_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_lt_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_lt_exp: form = {
   let explanation = {
     message: "Floating-point less than. If the [*left operand*](%i) is less than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1701,12 +2167,22 @@ let float_lt_exp: form = {
   };
   {
     id: "float_lt_exp",
-    syntactic_form: [exp("e1"), flt(), exp("e2")],
+    syntactic_form: [_exp1, flt(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_lt1_ex, float_lt2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_lte_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_lte_exp: form = {
   let explanation = {
     message: "Floating-point less than or equal to. If the [*left operand*](%i) is less than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1714,12 +2190,22 @@ let float_lte_exp: form = {
   };
   {
     id: "float_lte_exp",
-    syntactic_form: [exp("e1"), flte(), exp("e2")],
+    syntactic_form: [_exp1, flte(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_lte1_ex, float_lte2_ex, float_lte3_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_gt_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_gt_exp: form = {
   let explanation = {
     message: "Floating-point greater than. If the [*left operand*](%i) is greater than the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1727,12 +2213,22 @@ let float_gt_exp: form = {
   };
   {
     id: "float_gt_exp",
-    syntactic_form: [exp("e1"), fgt(), exp("e2")],
+    syntactic_form: [_exp1, fgt(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_gt1_ex, float_gt2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_gte_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_gte_exp: form = {
   let explanation = {
     message: "Floating-point greater than or equal to. If the [*left operand*](%i) is greater than or equal to the [*right operand*](%i), evaluates to `true`. Otherwise evaluates to `false`.",
@@ -1740,12 +2236,22 @@ let float_gte_exp: form = {
   };
   {
     id: "float_gt_exp",
-    syntactic_form: [exp("e1"), fgte(), exp("e2")],
+    syntactic_form: [_exp1, fgte(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_gte1_ex, float_gte2_ex, float_gte3_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_eq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let float_eq_exp: form = {
   let explanation = {
     message: "Floating-point equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
@@ -1753,13 +2259,22 @@ let float_eq_exp: form = {
   };
   {
     id: "float_eq_exp",
-    syntactic_form: [exp("e1"), fequals(), exp("e2")],
+    syntactic_form: [_exp1, fequals(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_eq1_ex, float_eq2_ex],
   };
 };
-// TODO Some of the examples are evaluating weirdly and can't type the || in the editor
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let bool_and_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let bool_and_exp: form = {
   let explanation = {
     message: "Boolean and. If the [*left operand*](%i) evaluates to `true`, evaluate the [*right operand*](%i). If that also evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
@@ -1767,12 +2282,23 @@ let bool_and_exp: form = {
   };
   {
     id: "bool_and_exp",
-    syntactic_form: [exp("e1"), logical_and(), exp("e2")],
+    syntactic_form: [_exp1, logical_and(), _exp2],
     expandable_id: None,
     explanation,
     examples: [bool_and1_ex, bool_and2_ex],
   };
 };
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let bool_or_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+// TODO Some of the examples are evaluating weirdly and can't type the || in the editor
 let bool_or_exp: form = {
   let explanation = {
     message: "Boolean or. If the [*left operand*](%i) evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluate the [*right operand*](%i). If that evaluates to `true`, the whole expression evaluates to `true`. Otherwise, evaluates to `false`.",
@@ -1780,13 +2306,22 @@ let bool_or_exp: form = {
   };
   {
     id: "bool_or_exp",
-    syntactic_form: [exp("e1"), logical_or(), exp("e2")],
+    syntactic_form: [_exp1, logical_or(), _exp2],
     expandable_id: None,
     explanation,
     examples: [bool_or1_ex, bool_or2_ex],
   };
 };
-
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let str_eq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
 let str_eq_exp: form = {
   let explanation = {
     message: "String equality. If the [*left operand*](%i) is equal to the [*right operand*](%i), evaluates to `true`. Otherwise, evaluates to `false`.",
@@ -1794,7 +2329,7 @@ let str_eq_exp: form = {
   };
   {
     id: "str_eq_exp",
-    syntactic_form: [exp("e1"), sequals(), exp("e2")],
+    syntactic_form: [_exp1, sequals(), _exp2],
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
@@ -1832,6 +2367,10 @@ let case_example_bool = {
 // and then have a slightly different setup for specific that is created more
 // dynamically calling setup methods here but more
 // work done in the LangDoc code - maybe just up to 3 or 4 branches?
+let _exp_scrut = exp("e_scrut");
+let case_exp_coloring_ids = (~scrut_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_scrut), scrut_id),
+];
 let case_exp: form = {
   let explanation = {
     message: "Case expression. Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%i), evaluates to the corresponding *clause*.",
@@ -1840,7 +2379,7 @@ let case_exp: form = {
   let case =
     mk_case([
       [
-        exp("e_scrut"),
+        _exp_scrut,
         mk_rule([[pat("p1")]]),
         exp("e1"),
         mk_rule([[pat("...")]]),
@@ -2030,20 +2569,35 @@ let listnil_pat: form = {
 
 let cons_pat_group = "cons_pat_group";
 let cons2_pat_group = "cons2_pat_group";
+let _pat_hd = pat("p_hd");
+let _pat_tl = pat("p_tl");
+let cons_base_pat_coloring_ids =
+    (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_hd), hd_id),
+  (Piece.id(_pat_tl), tl_id),
+];
 let cons_base_pat: form = {
   let explanation = {
     message: "Non-empty list pattern. Only expressions that are non-empty lists with *head element* matching the [*head element pattern*](%i) and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
     feedback: Unselected,
   };
-  let tl = pat("p_tl");
   {
     id: "cons_base_pat",
-    syntactic_form: [pat("p_hd"), cons_pat(), tl],
-    expandable_id: Some(Piece.id(tl)),
+    syntactic_form: [_pat_hd, cons_pat(), _pat_tl],
+    expandable_id: Some(Piece.id(_pat_tl)),
     explanation,
     examples: [],
   };
 };
+let _pat_fst = pat("p_fst");
+let _pat_snd = pat("p_snd");
+let _pat_tl = pat("p_tl");
+let cons2_pat_coloring_ids =
+    (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_fst), fst_id),
+  (Piece.id(_pat_snd), snd_id),
+  (Piece.id(_pat_tl), tl_id),
+];
 let cons2_pat: form = {
   let explanation = {
     message: "Non-empty list pattern. Only expressions that are non-empty lists with *first element* matching the [*first element pattern*](%i), *second element* matching the [*second element pattern*](%i), and *tail* list matching the [*tail pattern*](%i) match this non-empty list pattern.",
@@ -2052,13 +2606,7 @@ let cons2_pat: form = {
   let c = cons_pat();
   {
     id: "cons2_pat",
-    syntactic_form: [
-      pat("p_fst"),
-      cons_pat(),
-      pat("p_snd"),
-      c,
-      pat("p_tl"),
-    ],
+    syntactic_form: [_pat_fst, cons_pat(), _pat_snd, c, _pat_tl],
     expandable_id: Some(Piece.id(c)),
     explanation,
     examples: [],
@@ -2097,6 +2645,13 @@ let tuple_pat: form = {
     examples: [],
   };
 };
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let tuple_pat_size2_coloring_ids =
+    (~elem1_id: Id.t, ~elem2_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat1), elem1_id),
+  (Piece.id(_pat2), elem2_id),
+];
 let tuple_pat_size2: form = {
   let explanation = {
     message: "Tuple pattern. Only expressions that are 2-tuples with first element matching the [first element pattern](%i) and second element matching the [second element pattern](%i) match this tuple pattern.",
@@ -2105,12 +2660,21 @@ let tuple_pat_size2: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size2",
-    syntactic_form: [pat("p1"), comma, pat("p2")],
+    syntactic_form: [_pat1, comma, _pat2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
   };
 };
+let _pat1 = pat("p1");
+let _pat2 = pat("p2");
+let _pat3 = pat("p3");
+let tuple_pat_size3_coloring_ids =
+    (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat1), elem1_id),
+  (Piece.id(_pat2), elem2_id),
+  (Piece.id(_pat3), elem3_id),
+];
 let tuple_pat_size3: form = {
   let explanation = {
     message: "Tuple pattern. Only expressions that are 3-tuples with first element matching the [first element pattern](%i), second element matching the [second element pattern](%i), and third element matching the [third element pattern](%i) match this tuple pattern.",
@@ -2119,7 +2683,7 @@ let tuple_pat_size3: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size3",
-    syntactic_form: [pat("p1"), comma_pat(), pat("p2"), comma, pat("p3")],
+    syntactic_form: [_pat1, comma_pat(), _pat2, comma, _pat3],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2142,6 +2706,12 @@ let tag_pat: form = {
 };
 
 let ap_pat_group = "ap_pat_group";
+let _pat_con = pat("p_con");
+let _pat_arg = pat("p_arg");
+let ap_pat_coloring_ids = (~con_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_con), con_id),
+  (Piece.id(_pat_arg), arg_id),
+];
 let ap_pat: form = {
   let explanation = {
     message: "Constructor application pattern. Only expressions that match the [*constructor*](%i) with an *argument* matching the [*argument pattern*](%i) match this *constructor application pattern*.",
@@ -2149,7 +2719,7 @@ let ap_pat: form = {
   };
   {
     id: "ap_pat",
-    syntactic_form: [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
+    syntactic_form: [_pat_con, mk_ap_pat([[_pat_arg]])],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2248,6 +2818,10 @@ let str_typ: form = {
 };
 
 let list_typ_group = "list_typ_group";
+let _typ_elem = typ("𝜏_elem");
+let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ_elem), elem_id),
+];
 let list_typ: form = {
   let explanation = {
     message: "List type. The list type classifies lists with elements with the corresponding [*element type*](%i).",
@@ -2255,7 +2829,7 @@ let list_typ: form = {
   };
   {
     id: "list_typ",
-    syntactic_form: [mk_list_typ([[typ("𝜏_elem")]])],
+    syntactic_form: [mk_list_typ([[_typ_elem]])],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2264,20 +2838,35 @@ let list_typ: form = {
 
 let arrow_typ_group = "arrow_typ_group";
 let arrow3_typ_group = "arrow3_typ_group";
+let _typ_arg = typ("𝜏_arg");
+let _typ_out = typ("𝜏_out");
+let arrow_typ_coloring_ids =
+    (~arg_id: Id.t, ~result_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ_arg), arg_id),
+  (Piece.id(_typ_out), result_id),
+];
 let arrow_typ: form = {
   let explanation = {
     message: "Arrow type. This arrow type classifies functions with [*argument type*](%i) and [*output type*](%i).",
     feedback: Unselected,
   };
-  let out = typ("𝜏_out");
   {
     id: "arrow_typ",
-    syntactic_form: [typ("𝜏_arg"), arrow(), out],
-    expandable_id: Some(Piece.id(out)),
+    syntactic_form: [_typ_arg, arrow(), _typ_out],
+    expandable_id: Some(Piece.id(_typ_out)),
     explanation,
     examples: [],
   };
 };
+let _typ_arg1 = typ("𝜏_arg1");
+let _typ_arg2 = typ("𝜏_arg2");
+let _typ_out = typ("𝜏_out");
+let arrow3_typ_coloring_ids =
+    (~arg1_id: Id.t, ~arg2_id: Id.t, ~result_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ_arg1), arg1_id),
+  (Piece.id(_typ_arg2), arg2_id),
+  (Piece.id(_typ_out), result_id),
+];
 let arrow3_typ: form = {
   let explanation = {
     message: "Arrow type. This arrow type classifies functions with [*first argument type*](%i), [*second argument type*](%i), and [*output type*](%i).",
@@ -2286,13 +2875,7 @@ let arrow3_typ: form = {
   let arrow2 = arrow();
   {
     id: "arrow3_typ",
-    syntactic_form: [
-      typ("𝜏_arg1"),
-      arrow(),
-      typ("𝜏_arg2"),
-      arrow2,
-      typ("𝜏_out"),
-    ],
+    syntactic_form: [_typ_arg1, arrow(), _typ_arg2, arrow2, _typ_out],
     expandable_id: Some(Piece.id(arrow2)),
     explanation,
     examples: [],
@@ -2316,6 +2899,13 @@ let tuple_typ: form = {
     examples: [],
   };
 };
+let _typ_elem1 = typ("𝜏1");
+let _typ_elem2 = typ("𝜏2");
+let tuple2_typ_coloring_ids =
+    (~elem1_id: Id.t, ~elem2_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ_elem1), elem1_id),
+  (Piece.id(_typ_elem2), elem2_id),
+];
 let tuple2_typ: form = {
   let explanation = {
     message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).",
@@ -2324,12 +2914,21 @@ let tuple2_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple2_typ",
-    syntactic_form: [typ("𝜏1"), comma, typ("𝜏2")],
+    syntactic_form: [_typ_elem1, comma, _typ_elem2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
   };
 };
+let _typ_elem1 = typ("𝜏1");
+let _typ_elem2 = typ("𝜏2");
+let _typ_elem3 = typ("𝜏3");
+let tuple3_typ_coloring_ids =
+    (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_typ_elem1), elem1_id),
+  (Piece.id(_typ_elem2), elem2_id),
+  (Piece.id(_typ_elem3), elem3_id),
+];
 let tuple3_typ: form = {
   let explanation = {
     message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).",
@@ -2338,13 +2937,7 @@ let tuple3_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple3_typ",
-    syntactic_form: [
-      typ("𝜏1"),
-      comma_typ(),
-      typ("𝜏2"),
-      comma,
-      typ("𝜏3"),
-    ],
+    syntactic_form: [_typ_elem1, comma_typ(), _typ_elem2, comma, _typ_elem3],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
