@@ -3,6 +3,7 @@ open Haz3lschool;
 open Core;
 
 open GradePrelude.SchoolExercise;
+open Specs;
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 [@deriving (sexp, yojson)]
@@ -31,26 +32,32 @@ module Main = {
     let yj = Yojson.Safe.from_file(path);
     get_school_export(yj);
   };
-  module Spec = Ex;
   let run = () => {
     // let spec_path = Sys.get_argv()[1];
-    let spec = Ex.exercise;
     let hw_path = Sys.get_argv()[1];
     // let hw_path = Sys.get_argv()[2];
     let hw = name_to_school_export(hw_path);
     let export_lst_pr =
       hw.exercise_data
-      |> List.map(~f=((_key, persistent_state)) => {
-           print_endline(_key |> yojson_of_key |> Yojson.Safe.to_string);
-           let eds =
-             unpersist_state(persistent_state, ~spec, ~instructor_mode=true).
-               eds;
-           (
-             eds.title,
-             eds.point_distribution
-             |> yojson_of_point_distribution
-             |> Yojson.Safe.to_string,
-           );
+      |> List.map(~f=((key, persistent_state)) => {
+           switch (find_key_opt(key, specs)) {
+           | Some((_n, spec)) =>
+             let state =
+               unpersist_state(
+                 persistent_state,
+                 ~spec,
+                 ~instructor_mode=true,
+               );
+             (
+               state.eds.title,
+               state.eds.point_distribution
+               |> yojson_of_point_distribution
+               |> Yojson.Safe.to_string,
+             );
+           | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
+           //  | None => failwith("Invalid spec")
+           // List.nth(specs, 0)
+           }
          });
 
     let s = export_lst_pr |> yojson_of_section |> Yojson.Safe.to_string;
