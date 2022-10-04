@@ -5,17 +5,12 @@ open Core;
 open GradePrelude.SchoolExercise;
 open Specs;
 
-// [@deriving (show({with_path: false}), sexp, yojson)]
 [@deriving (sexp, yojson)]
 type section = list((string, string));
 
-// module type Spec = {
-//   type t;
-//   let exercise: spec
-// };
-
 module Main = {
-  let get_school_export = yj => {
+  let name_to_school_export = path => {
+    let yj = Yojson.Safe.from_file(path);
     switch (yj) {
     | `Assoc(l) =>
       let sch = List.Assoc.find_exn(~equal=String.(==), l, "school");
@@ -28,14 +23,8 @@ module Main = {
     | _ => failwith("Json without school key")
     };
   };
-  let name_to_school_export = path => {
-    let yj = Yojson.Safe.from_file(path);
-    get_school_export(yj);
-  };
   let run = () => {
-    // let spec_path = Sys.get_argv()[1];
     let hw_path = Sys.get_argv()[1];
-    // let hw_path = Sys.get_argv()[2];
     let hw = name_to_school_export(hw_path);
     let export_lst_pr =
       hw.exercise_data
