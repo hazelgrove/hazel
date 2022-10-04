@@ -95,3 +95,7 @@ type simple_data = {
 };
 
 type simple = option(simple_data);
+
+let unwrap_test_results = (simple: simple): option(test_results) => {
+  Option.map(simple_data => simple_data.test_results, simple);
+};
