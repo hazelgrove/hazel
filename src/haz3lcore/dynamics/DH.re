@@ -36,6 +36,12 @@ module rec DHExp: {
       | FEquals;
   };
 
+  module BinStringOp: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | SEquals;
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -48,25 +54,28 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
+    | FixF(Var.t, Typ.t, t)
+    | Fun(DHPat.t, Typ.t, t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
+    | BinStringOp(BinStringOp.t, t, t)
+    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Tuple(list(t))
+    | Prj(t, int)
+    | Inj(Typ.t, InjSide.t, t)
+    | Tag(string)
     | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
     | Case(t, list(rule), int)
@@ -77,9 +86,9 @@ module rec DHExp: {
 
   let mk_tuple: list(t) => t;
 
-  let cast: (t, HTyp.t, HTyp.t) => t;
+  let cast: (t, Typ.t, Typ.t) => t;
 
-  let apply_casts: (t, list((HTyp.t, HTyp.t))) => t;
+  let apply_casts: (t, list((Typ.t, Typ.t))) => t;
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
@@ -119,6 +128,12 @@ module rec DHExp: {
       | FEquals;
   };
 
+  module BinStringOp = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | SEquals;
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -134,25 +149,28 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, HTyp.t, t)
-    | Fun(DHPat.t, HTyp.t, t)
+    | FixF(Var.t, Typ.t, t)
+    | Fun(DHPat.t, Typ.t, t)
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
+    | StringLit(string)
     | BinBoolOp(BinBoolOp.t, t, t)
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, HTyp.t, list(t))
+    | BinStringOp(BinStringOp.t, t, t)
+    | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
-    | Inj(HTyp.t, InjSide.t, t)
-    | Pair(t, t)
-    | Triv
+    | Tuple(list(t))
+    | Prj(t, int)
+    | Inj(Typ.t, InjSide.t, t)
+    | Tag(string)
     | ConsistentCase(case)
-    | Cast(t, HTyp.t, HTyp.t)
-    | FailedCast(t, HTyp.t, HTyp.t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
   and case =
     | Case(t, list(rule), int)
@@ -178,14 +196,17 @@ module rec DHExp: {
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
+    | StringLit(_) => "StringLit"
     | BinBoolOp(_, _, _) => "BinBoolOp"
     | BinIntOp(_, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
+    | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
+    | Tuple(_) => "Tuple"
+    | Prj(_) => "Prj"
     | Inj(_, _, _) => "Inj"
-    | Pair(_, _) => "Pair"
-    | Triv => "Triv"
+    | Tag(_) => "Tag"
     | ConsistentCase(_) => "ConsistentCase"
     | InconsistentBranches(_, _, _) => "InconsistentBranches"
     | Cast(_, _, _) => "Cast"
@@ -193,28 +214,28 @@ module rec DHExp: {
     | InvalidOperation(_) => "InvalidOperation"
     };
 
-  let rec mk_tuple: list(t) => t =
+  let mk_tuple: list(t) => t =
     fun
-    | [] => failwith("mk_tuple: expected at least 1 element")
-    | [d] => d
-    | [d, ...ds] => Pair(d, mk_tuple(ds));
+    | []
+    | [_] => failwith("mk_tuple: expected at least 2 elements")
+    | xs => Tuple(xs);
 
-  let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
+  let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
     switch (d, t2) {
     | (ListLit(_, _, _, _, []), List(_)) =>
       //HACK(andrew, cyrus)
       d
     | _ =>
-      if (HTyp.eq(t1, t2)) {
+      if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
         d;
       } else {
         Cast(d, t1, t2);
       }
     };
 
-  let apply_casts = (d: t, casts: list((HTyp.t, HTyp.t))): t =>
+  let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left(
-      (d, c: (HTyp.t, HTyp.t)) => {
+      (d, c: (Typ.t, Typ.t)) => {
         let (ty1, ty2) = c;
         cast(d, ty1, ty2);
       },
@@ -228,7 +249,8 @@ module rec DHExp: {
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
     | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
-    | Pair(d1, d2) => Pair(strip_casts(d1), strip_casts(d2))
+    | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
+    | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, d, ds) =>
       ListLit(a, b, c, d, List.map(strip_casts, ds))
@@ -242,6 +264,8 @@ module rec DHExp: {
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
     | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
+    | BinStringOp(a, b, c) =>
+      BinStringOp(a, strip_casts(b), strip_casts(c))
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
@@ -261,7 +285,8 @@ module rec DHExp: {
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
-    | Triv as d
+    | StringLit(_) as d
+    | Tag(_) as d
     | InvalidOperation(_) as d => d
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
@@ -274,7 +299,9 @@ module rec DHExp: {
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)
-    | (Triv, _) => d1 == d2
+    | (Tag(_), _) => d1 == d2
+    | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
+    | (StringLit(_), _) => false
 
     /* Non-hole forms: recurse */
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
@@ -286,9 +313,12 @@ module rec DHExp: {
     | (Fun(dp1, ty1, d1), Fun(dp2, ty2, d2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Ap(d11, d21), Ap(d12, d22))
-    | (Cons(d11, d21), Cons(d12, d22))
-    | (Pair(d11, d21), Pair(d12, d22)) =>
+    | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Tuple(ds1), Tuple(ds2)) =>
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(fast_equal, ds1, ds2)
+    | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
       f1 == f2 && List.for_all2(fast_equal, args1, args2)
     | (ListLit(_, _, _, _, ds1), ListLit(_, _, _, _, ds2)) =>
@@ -298,6 +328,8 @@ module rec DHExp: {
     | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinFloatOp(op1, d11, d21), BinFloatOp(op2, d12, d22)) =>
+      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
       ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
@@ -318,10 +350,12 @@ module rec DHExp: {
     | (ApBuiltin(_), _)
     | (Cons(_), _)
     | (ListLit(_), _)
-    | (Pair(_), _)
+    | (Tuple(_), _)
+    | (Prj(_), _)
     | (BinBoolOp(_), _)
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
+    | (BinStringOp(_), _)
     | (Inj(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)

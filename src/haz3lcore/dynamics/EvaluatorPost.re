@@ -57,7 +57,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | Triv => d |> return
+  | StringLit(_)
+  | Tag(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -88,6 +89,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     BinFloatOp(op, d1', d2') |> return;
 
+  | BinStringOp(op, d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinStringOp(op, d1', d2') |> return;
+
   | Cons(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
@@ -110,10 +116,22 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_eval(d');
     Inj(ty, side, d'') |> return;
 
-  | Pair(d1, d2) =>
-    let* d1' = pp_eval(d1);
-    let* d2' = pp_eval(d2);
-    Pair(d1', d2') |> return;
+  | Tuple(ds) =>
+    let+ ds =
+      ds
+      |> List.fold_left(
+           (ds, d) => {
+             let* ds = ds;
+             let+ d = pp_eval(d);
+             ds @ [d];
+           },
+           return([]),
+         );
+    Tuple(ds);
+
+  | Prj(d, n) =>
+    let+ d = pp_eval(d);
+    Prj(d, n);
 
   | Cast(d', ty1, ty2) =>
     let* d'' = pp_eval(d');
@@ -242,7 +260,8 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | Triv => d |> return
+  | StringLit(_)
+  | Tag(_) => d |> return
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -285,6 +304,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     BinFloatOp(op, d1', d2') |> return;
 
+  | BinStringOp(op, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinStringOp(op, d1', d2') |> return;
+
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -307,10 +331,22 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     Inj(ty, side, d'') |> return;
 
-  | Pair(d1, d2) =>
-    let* d1' = pp_uneval(env, d1);
-    let* d2' = pp_uneval(env, d2);
-    Pair(d1', d2') |> return;
+  | Tuple(ds) =>
+    let+ ds =
+      ds
+      |> List.fold_left(
+           (ds, d) => {
+             let* ds = ds;
+             let+ d = pp_uneval(env, d);
+             ds @ [d];
+           },
+           return([]),
+         );
+    Tuple(ds);
+
+  | Prj(d, n) =>
+    let+ d = pp_uneval(env, d);
+    Prj(d, n);
 
   | Cast(d', ty1, ty2) =>
     let* d'' = pp_uneval(env, d');
@@ -392,15 +428,17 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d) {
-  | Triv
+  | Tag(_)
   | TestLit(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
+  | StringLit(_)
   | BoundVar(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d)
   | Inj(_, _, d)
+  | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
@@ -410,12 +448,19 @@ let rec track_children_of_hole =
   | BinBoolOp(_, d1, d2)
   | BinIntOp(_, d1, d2)
   | BinFloatOp(_, d1, d2)
-  | Cons(d1, d2)
-  | Pair(d1, d2) =>
+  | BinStringOp(_, d1, d2)
+  | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
 
   | ListLit(_, _, _, _, ds) =>
+    List.fold_right(
+      (d, hii) => track_children_of_hole(hii, parent, d),
+      ds,
+      hii,
+    )
+
+  | Tuple(ds) =>
     List.fold_right(
       (d, hii) => track_children_of_hole(hii, parent, d),
       ds,

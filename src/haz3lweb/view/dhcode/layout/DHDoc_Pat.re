@@ -12,10 +12,11 @@ let precedence = (dp: DHPat.t) =>
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
+  | StringLit(_)
   | Inj(_)
-  | Triv
   | ListLit(_)
-  | Pair(_) => DHDoc_common.precedence_const
+  | Tag(_) => DHDoc_common.precedence_const
+  | Tuple(_) => DHDoc_common.precedence_Comma
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   };
@@ -41,10 +42,11 @@ let rec mk =
     | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
-    | Triv => DHDoc_common.Delim.triv
+    | Tag(name) => DHDoc_common.mk_TagLit(name)
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
+    | StringLit(s) => DHDoc_common.mk_StringLit(s)
     | Inj(inj_side, dp) =>
       DHDoc_common.mk_Inj(
         inj_side,
@@ -52,12 +54,13 @@ let rec mk =
       )
     | ListLit(_, d_list) =>
       let ol = List.map(mk', d_list);
-      DHDoc_common.mk_ListLit(ol, ol);
+      DHDoc_common.mk_ListLit(ol);
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
-    | Pair(dp1, dp2) => DHDoc_common.mk_Pair(mk'(dp1), mk'(dp2))
+    | Tuple([]) => DHDoc_common.Delim.triv
+    | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     | Ap(dp1, dp2) =>
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);

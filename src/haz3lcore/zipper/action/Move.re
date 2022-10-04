@@ -9,6 +9,46 @@ type movability =
   | CanPass
   | CantEven;
 
+let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
+  assert(delim_idx < List.length(label));
+  switch (chunkiness, label, delim_idx) {
+  | (ByChar, _, _)
+  | (MonoByChar, [_], 0) =>
+    let char_max = Token.length(List.nth(label, delim_idx)) - 2;
+    char_max < 0 ? CanPass : CanEnter(delim_idx, char_max);
+  | (ByToken, _, _)
+  | (MonoByChar, _, _) => CanPass
+  };
+};
+
+let neighbor_movability =
+    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
+    : (movability, movability) => {
+  let movability = movability(chunkiness);
+  let (supernhbr_l, supernhbr_r) =
+    switch (ancestors) {
+    | [] => (CantEven, CantEven)
+    | [({children: (l_kids, _), label, _}, _), ..._] => (
+        movability(label, List.length(l_kids)),
+        movability(label, List.length(l_kids) + 1),
+      )
+    };
+  let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
+  let l =
+    switch (l_nhbr) {
+    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
+    | Some(_) => CanPass
+    | _ => supernhbr_l
+    };
+  let r =
+    switch (r_nhbr) {
+    | Some(Tile({label, _})) => movability(label, 0)
+    | Some(_) => CanPass
+    | _ => supernhbr_r
+    };
+  (l, r);
+};
+
 module Make = (M: Editor.Meta.S) => {
   let caret_point = Zipper.caret_point(M.measured);
 
@@ -180,6 +220,26 @@ module Make = (M: Editor.Meta.S) => {
       | Down => {col: Int.max_int, row: Int.max_int}
       };
     do_towards(f, goal, z, id_gen);
+  };
+
+  let rec move_left_until_p =
+          (z: t, id_gen, p: Piece.t => bool): option(state) => {
+    let* (piece, _, _) = Indicated.piece(z);
+    if (p(piece)) {
+      Some((z, id_gen));
+    } else {
+      let* (z, id_gen) = Zipper.move(Right, z, id_gen);
+      move_left_until_p(z, id_gen, p);
+    };
+  };
+
+  let jump_to_p = (z: t, id_gen, p: Piece.t => bool): option(state) => {
+    let* (z, id_gen) = do_extreme(primary(ByToken), Up, z, id_gen);
+    move_left_until_p(z, id_gen, p);
+  };
+
+  let jump_to_id = (z: t, id_gen, id: Id.t): option(state) => {
+    jump_to_p(z, id_gen, piece => Piece.id(piece) == id);
   };
 
   let vertical = (d: Direction.t, z: t, id_gen): option(state) =>

@@ -343,8 +343,7 @@ let skel = seg =>
   |> List.filter(((_, p)) => !Piece.is_whitespace(p))
   |> Skel.mk;
 
-let nibbed_children = seg =>
-  seg |> List.map(Piece.nibbed_children) |> List.concat;
+let nibbed_children = List.concat_map(Piece.nibbed_children);
 let children = seg => List.map(snd, nibbed_children(seg));
 
 module Trim = {
@@ -714,7 +713,7 @@ let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
 
 let rec serialize = (seg: t) =>
   seg
-  |> List.map(
+  |> List.concat_map(
        fun
        | (Piece.Whitespace(_) | Grout(_) | Tile({shards: [_], _})) as p => [
            p,
@@ -730,8 +729,7 @@ let rec serialize = (seg: t) =>
            |> Aba.join(s => [s], Fun.id)
            |> List.concat;
          },
-     )
-  |> List.concat;
+     );
 
 let sameline_whitespace =
   List.for_all(

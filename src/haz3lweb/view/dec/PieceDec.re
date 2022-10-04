@@ -186,7 +186,7 @@ let bi_lines =
   let intra_lines =
     shard_rows
     |> List.map(ListUtil.neighbors)
-    |> List.map(
+    |> List.concat_map(
          List.map(
            (((_, l: Measured.measurement), (_, r: Measured.measurement))) =>
            (
@@ -197,8 +197,7 @@ let bi_lines =
              ],
            )
          ),
-       )
-    |> List.concat;
+       );
   let inter_lines =
     ListUtil.neighbors(shard_rows)
     |> List.map(

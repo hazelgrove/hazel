@@ -7,6 +7,9 @@ let dedup = xs =>
     [],
   );
 
+let are_duplicates = xs =>
+  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
+
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
@@ -266,7 +269,7 @@ let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
 module Syntax = {
   let (let+) = (xs, f) => List.map(f, xs);
   let (and+) = product;
-  let ( let* ) = (xs, f) => List.concat(List.map(f, xs));
+  let ( let* ) = (xs, f) => List.concat_map(f, xs);
 };
 
 let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =

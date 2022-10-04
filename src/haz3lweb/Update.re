@@ -34,6 +34,13 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
           dynamics: !settings.dynamics,
         },
       }
+    | Benchmark => {
+        ...model,
+        settings: {
+          ...settings,
+          benchmark: !settings.benchmark,
+        },
+      }
     | Captions => {
         ...model,
         settings: {
@@ -120,13 +127,16 @@ let reevaluate_post_update =
     switch (s_action) {
     | Captions
     | WhitespaceIcons
-    | Statics => false
+    | Statics
+    | Benchmark => false
     | Dynamics
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
     }
-  | PerformAction(Move(_) | Select(_) | Unselect | MoveToBackpackTarget(_))
+  | PerformAction(
+      Move(_) | Select(_) | Unselect | MoveToBackpackTarget(_) | JumpToId(_),
+    )
   | MoveToNextHole(_) //
   | UpdateDoubleTap(_)
   | Mousedown
@@ -220,7 +230,7 @@ let apply =
         switch (data) {
         | None => Ok(model)
         | Some(data) =>
-          let state = ScratchSlideExport.import(data);
+          let state = ScratchSlide.import(data);
           let slides = Util.ListUtil.put_nth(idx, state, slides);
           LocalStorage.Scratch.save((idx, slides));
 
@@ -232,7 +242,7 @@ let apply =
         switch (model.editors) {
         | Scratch(n, slides) =>
           let slides =
-            Util.ListUtil.put_nth(n, ScratchSlideExport.init_nth(n), slides);
+            Util.ListUtil.put_nth(n, ScratchSlidesInit.init_nth(n), slides);
           {...model, editors: Scratch(n, slides)};
         | School(n, specs, _) =>
           let instructor_mode = model.settings.instructor_mode;

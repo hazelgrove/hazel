@@ -110,6 +110,8 @@
 
   /* END SORT COLORS */
 
+  --string-lit-color: rgb(205 165 56);
+
   --bar-color: #dfdacc;
 
   --key-bg-color: var(--light-text-color);
@@ -258,19 +260,13 @@ svg {
 .context-entry,
 .typ-view {
   line-height: var(--line-height);
-  white-space: nowrap;
+  white-space: pre;
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
 }
 
-#editor-mode,
-.cell-caption,
-.cell-prompt,
-.test-panel,
-.test-reports,
-.test-summary,
-.title-bar {
+body {
   font-family: 'Helvetica Neue';
 }
 
@@ -543,9 +539,10 @@ svg {
 }
 
 .code-text {
-  position: absolute;
+  position: relative;
   z-index: var(--code-text-z);
   user-select: none;
+  white-space: pre;
 }
 
 /* NOTE(andrew): below 3 styles are part of
@@ -696,21 +693,30 @@ svg {
   font-weight: bold;
 }
 
-.code .delim {
+/* TOKEN COLORS */
+
+.code .token.mono {
+}
+
+.code .token.mono-string-lit {
+  color: var(--string-lit-color);
+}
+
+.code .token.mono-inconsistent {
+  color: var(--err-color);
+}
+
+.code .token.delim {
   color: var(--delim-color);
   font-weight: bold;
 }
 
-.code .delim-incomplete {
+.code .token.delim-incomplete {
   color: var(--code-emphasis);
   font-weight: bold;
 }
 
-.code .mono-sort-inconsistent {
-  color: var(--err-color);
-}
-
-.code .delim-sort-inconsistent {
+.code .token.delim-inconsistent {
   color: var(--err-color);
   font-weight: bold;
 }
@@ -1168,11 +1174,10 @@ svg.tile-selected {
   display: none;
   z-index: 20;
   position: fixed;
-  left: 0.3em;
-  /* top: 3.8em; */
-  bottom: 1.8em;
+  left: 0.2em;
+  bottom: 2.1em;
   min-width: 10em;
-  max-width: 12em;
+  max-width: 14em;
   max-height: 12em;
   overflow: auto;
   padding: 0.2em;
@@ -1183,13 +1188,12 @@ svg.tile-selected {
   border-left: 1px solid #daca9f;
   border-right: 1px solid #daca9f;
   background-color: #f7ebc5;
-  /*#fbebaa;*/
   box-shadow: 0px 3px 0px #77580255;
 }
 
 .context-entry {
+  cursor: pointer;
   display: flex;
-  width: 10em;
   gap: 0.5em;
 }
 
@@ -1307,6 +1311,24 @@ svg.tile-selected {
 
 .DHCode .Align {
   display: inline-block;
+}
+
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration,
+.DHCode .DivideByZero {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+.DHCode .FailedCastDelim {
+  color: red;
+}
+.DHCode .CastDecoration {
+  background-color: rgba(150, 0, 255, 0.2);
+}
+.DHCode .FailedCastDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
 }
 
 /* DYNAMICS - test panel */
@@ -1620,9 +1642,6 @@ svg.tile-selected {
 .equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
-  display: inline-flex;
-  align-items: center;
-  white-space: pre;
 }
 
 /* File Select */

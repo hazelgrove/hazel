@@ -55,13 +55,16 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
-  | Triv => d2
+  | StringLit(_)
+  | Tag(_) => d2
   | ListLit(a, b, c, d, ds) =>
     ListLit(a, b, c, d, List.map(subst_var(d1, x), ds))
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Cons(d3, d4);
+  | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
+  | Prj(d, n) => Prj(subst_var(d1, x, d), n)
   | BinBoolOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -74,13 +77,13 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinFloatOp(op, d3, d4);
+  | BinStringOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinStringOp(op, d3, d4);
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
     Inj(ty, side, d3);
-  | Pair(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Pair(d3, d4);
   | ConsistentCase(Case(d3, rules, n)) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);

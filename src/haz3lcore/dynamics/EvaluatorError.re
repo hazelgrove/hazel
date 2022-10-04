@@ -11,6 +11,8 @@ type t =
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t)
   | InvalidBoxedListLit(DHExp.t)
+  | InvalidBoxedStringLit(DHExp.t)
+  | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t));
 
