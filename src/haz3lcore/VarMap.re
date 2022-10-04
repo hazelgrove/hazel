@@ -11,8 +11,7 @@ let is_empty =
   | [_, ..._] => false;
 
 let extend = (ctx, xa) => {
-  let (x, _) = xa;
-  [xa, ...List.remove_assoc(x, ctx)];
+  [xa, ...ctx];
 };
 
 let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
