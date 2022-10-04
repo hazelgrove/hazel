@@ -47,15 +47,17 @@ let update_current = (current, res) => {
 
 type optional_simple_data = {
   opt_eval_result: option(Haz3lcore.DHExp.t),
-  opt_test_results: option(Interface.test_results),
+  opt_test_results: option(Haz3lcore.TestResults.test_results),
 };
 
-type simple_data = {
-  eval_result: Haz3lcore.DHExp.t,
-  test_results: Interface.test_results,
-};
+// simple definitions are moved to Haz3lcore.TestResults
 
-type simple = option(simple_data);
+type simple_data =
+  Haz3lcore.TestResults.simple_data = {
+    eval_result: Haz3lcore.DHExp.t,
+    test_results: Haz3lcore.TestResults.test_results,
+  };
+type simple = Haz3lcore.TestResults.simple;
 
 let get_simple = (res: option(t)): simple =>
   res
