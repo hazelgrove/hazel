@@ -2120,7 +2120,7 @@ let get_doc =
           | Float(GreaterThanOrEqual) => (
               LangDocMessages.float_gte_group,
               LangDocMessages.float_gte_exp_coloring_ids,
-            ) // TODO Equals not showing up
+            )
           | Float(Equals) => (
               LangDocMessages.float_eq_group,
               LangDocMessages.float_eq_exp_coloring_ids,
