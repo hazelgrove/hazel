@@ -161,6 +161,7 @@ let reevaluate_post_update =
   | SwitchSlide(_)
   | ToggleMode
   | Paste
+  | PasteFinish(_)
   | Undo
   | Redo => true;
 
@@ -318,8 +319,10 @@ let apply =
       JsUtil.copy_to_clipboard(clipboard);
       Ok(model /*{...model, clipboard}*/);
     | Paste =>
-      let clipboard = JsUtil.get_from_clipboard();
-      //let clipboard = model.clipboard;
+      JsUtil.get_from_clipboard(str => schedule_action(PasteFinish(str)));
+      Ok(model);
+    //let clipboard = model.clipboard;
+    | PasteFinish(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
         Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
@@ -333,6 +336,7 @@ let apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         });
       };
+
     | Undo =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
