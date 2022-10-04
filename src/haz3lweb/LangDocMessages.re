@@ -91,8 +91,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let mk_linebreak = () => Example.mk_whitespace(Whitespace.linebreak);
-let mk_space = () => Example.mk_whitespace(Whitespace.space);
+let linebreak = () => Example.mk_whitespace(Whitespace.linebreak);
+let space = () => Example.mk_whitespace(Whitespace.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
@@ -214,7 +214,9 @@ let list_exp: form = {
   };
   {
     id: "list_exp",
-    syntactic_form: [mk_list_exp([[exp("e1"), comma_exp(), exp("...")]])],
+    syntactic_form: [
+      mk_list_exp([[exp("e1"), comma_exp(), space(), exp("...")]]),
+    ],
     expandable_id: None,
     explanation,
     examples: [int_list, tuple_list],
@@ -356,7 +358,7 @@ let function_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[mk_space(), _pat, mk_space()]]), mk_space(), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_exp",
     syntactic_form: form,
@@ -374,7 +376,7 @@ let function_empty_hole_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [empty hole pattern](%i) is filled.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_empty_hole_exp",
     syntactic_form: form,
@@ -392,7 +394,7 @@ let function_multi_hole_exp: form = {
     message: "Function literal. When applied to an argument that matches the [*argument pattern*](%i), evaluates to the function [*body*](%i), after the [invalid argument pattern](%i) is corrected.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_multi_hole_exp",
     syntactic_form: form,
@@ -411,7 +413,7 @@ let function_wild_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_fun([[pat]]), _exp];
+  let form = [mk_fun([[space(), pat, space()]]), space(), _exp];
   {
     id: "function_wild_exp",
     syntactic_form: form,
@@ -429,7 +431,7 @@ let function_intlit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%i`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_intlit_exp",
     syntactic_form: form,
@@ -448,7 +450,7 @@ let function_floatlit_exp: form = {
     feedback: Unselected,
   };
   // TODO print out the float literal nicer
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_floatlit_exp",
     syntactic_form: form,
@@ -466,7 +468,7 @@ let function_boollit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%b`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_boollit_exp",
     syntactic_form: form,
@@ -484,7 +486,7 @@ let function_strlit_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is `%s`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_strlit_exp",
     syntactic_form: form,
@@ -502,7 +504,7 @@ let function_triv_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the trivial value `triv`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i). This if functionally equivalent to a zero argument function.",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_triv_exp",
     syntactic_form: form,
@@ -520,7 +522,7 @@ let function_listnil_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the empty list `nil`. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_listnil_exp",
     syntactic_form: form,
@@ -529,7 +531,7 @@ let function_listnil_exp: form = {
     examples: [listnil_fun_ex],
   };
 };
-let _pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+let _pat = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
 let _exp = exp("e");
 let function_listlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
@@ -538,7 +540,7 @@ let function_listlit_exp: form = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_listlit_exp",
     syntactic_form: form,
@@ -564,7 +566,11 @@ let function_cons_exp: form = {
     feedback: Unselected,
   };
   let cons = cons_pat();
-  let form = [mk_fun([[_pat_hd, cons, _pat_tl]]), _exp];
+  let form = [
+    mk_fun([[space(), _pat_hd, cons, _pat_tl, space()]]),
+    space(),
+    _exp,
+  ];
   {
     id: "function_cons_exp",
     syntactic_form: form,
@@ -582,7 +588,7 @@ let function_var_exp: form = {
     message: "Function literal. When applied to an argument which is bound to the [*variable*](%i) `%s`, evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_var_exp",
     syntactic_form: form,
@@ -594,13 +600,17 @@ let function_var_exp: form = {
 let _comma = comma_pat();
 let _exp = exp("e");
 let function_tuple_exp_coloring_ids =
-  _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
+  _pat_body_function_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp));
 let function_tuple_exp: form = {
   let explanation = {
     message: "Function literal. The only values that match the [*argument pattern*](%i) are %i-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[pat("p1"), _comma, pat("...")]]), _exp];
+  let form = [
+    mk_fun([[space(), pat("p1"), _comma, space(), pat("..."), space()]]),
+    space(),
+    _exp,
+  ];
   {
     id: "function_tuple_exp",
     syntactic_form: form,
@@ -626,7 +636,11 @@ let function_tuple2_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_fun([[_pat1, comma, _pat2]]), _exp];
+  let form = [
+    mk_fun([[space(), _pat1, comma, space(), _pat2, space()]]),
+    space(),
+    _exp,
+  ];
   {
     id: "function_tuple2_exp",
     syntactic_form: form,
@@ -655,7 +669,23 @@ let function_tuple3_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_fun([[_pat1, comma_pat(), _pat2, comma, _pat3]]), _exp];
+  let form = [
+    mk_fun([
+      [
+        space(),
+        _pat1,
+        comma_pat(),
+        space(),
+        _pat2,
+        comma,
+        space(),
+        _pat3,
+        space(),
+      ],
+    ]),
+    space(),
+    _exp,
+  ];
   {
     id: "function_tuple3_exp",
     syntactic_form: form,
@@ -673,7 +703,7 @@ let function_tag_exp: form = {
     message: "Function literal. The only value that matches the [*argument pattern*](%i) is the *`%s` constructor*. When applied to an argument which matches the [*argument pattern*](%i), evaluates to the function [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_fun([[_pat]]), _exp];
+  let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: "function_tag_exp",
     syntactic_form: form,
@@ -699,7 +729,7 @@ let function_ap_exp: form = {
     feedback: Unselected,
   };
   let ap = mk_ap_pat([[_pat_arg]]);
-  let form = [mk_fun([[_pat_con, ap]]), _exp];
+  let form = [mk_fun([[space(), _pat_con, ap, space()]]), space(), _exp];
   {
     id: "function_ap_exp",
     syntactic_form: form,
@@ -732,7 +762,7 @@ let tuple_exp: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp",
-    syntactic_form: [exp("e1"), comma, exp("...")],
+    syntactic_form: [exp("e1"), comma, space(), exp("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1, tuple_example_2],
@@ -752,7 +782,7 @@ let tuple_exp_size2: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size2",
-    syntactic_form: [_exp1, comma, _exp2],
+    syntactic_form: [_exp1, comma, space(), _exp2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_1],
@@ -777,7 +807,15 @@ let tuple_exp_size3: form = {
   let comma = comma_exp();
   {
     id: "tuple_exp_size3",
-    syntactic_form: [_exp1, comma_exp(), _exp2, comma, _exp3],
+    syntactic_form: [
+      _exp1,
+      comma_exp(),
+      space(),
+      _exp2,
+      comma,
+      space(),
+      _exp3,
+    ],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [tuple_example_2],
@@ -831,97 +869,97 @@ let let_tag_exp_group = "let_tag_exp_group";
 let let_ap_exp_group = "let_ap_exp_group";
 let let_base_ex = {
   sub_id: "let_base_ex",
-  term: mk_example("let x = 1 in x"),
+  term: mk_example("let x = 1 in \nx"),
   message: "The variable x is bound to 1, so the expression evaluates to 1",
   feedback: Unselected,
 };
 let let_wild_ex = {
   sub_id: "let_wild_ex",
-  term: mk_example("let _ = 1 in 2"),
+  term: mk_example("let _ = 1 in \n2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_int_ex = {
   sub_id: "let_int_ex",
-  term: mk_example("let 1 = 1 in 2"),
+  term: mk_example("let 1 = 1 in \n2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_float_ex = {
   sub_id: "let_float_ex",
-  term: mk_example("let 1.1 = 1.1 in 2"),
+  term: mk_example("let 1.1 = 1.1 in \n2"),
   message: "The 1.1 is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_bool_ex = {
   sub_id: "let_bool_ex",
-  term: mk_example("let true = true in 2"),
+  term: mk_example("let true = true in \n2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_str_ex = {
   sub_id: "let_str_ex",
-  term: mk_example("let \"abc\" = \"abc\" in 2"),
+  term: mk_example("let \"abc\" = \"abc\" in \n2"),
   message: "The true is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_triv_ex = {
   sub_id: "let_triv_ex",
-  term: mk_example("let triv = triv in 2"),
+  term: mk_example("let triv = triv in \n2"),
   message: "The triv is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_listlit_ex = {
   sub_id: "let_listlit_ex",
-  term: mk_example("let [x, y] = [1, 2] in x"),
+  term: mk_example("let [x, y] = [1, 2] in \nx"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 let let_listnil_ex = {
   sub_id: "let_listnil_ex",
-  term: mk_example("let nil = nil in 2"),
+  term: mk_example("let nil = nil in \n2"),
   message: "The empty list is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_cons_hd_ex = {
   sub_id: "let_cons_hd_ex",
-  term: mk_example("let hd::tl = 1::nil in hd"),
+  term: mk_example("let hd::tl = 1::nil in \nhd"),
   message: "The hd is bound to 1 and the tl is bound to the empty list, so the expression evaluates to 1.",
   feedback: Unselected,
 };
 let let_cons_snd_ex = {
   sub_id: "let_cons_snd_ex",
-  term: mk_example("let fst::snd::tl = true::false::nil in snd"),
+  term: mk_example("let fst::snd::tl = true::false::nil in \nsnd"),
   message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
   feedback: Unselected,
 };
 let let_var_ex = {
   sub_id: "let_var_ex",
-  term: mk_example("let x = 1 in x + 2"),
+  term: mk_example("let x = 1 in \nx + 2"),
   message: "The x is bound to 1, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple2_ex = {
   sub_id: "let_tuple2_ex",
-  term: mk_example("let (x, y) = (1, 2) in x + y"),
+  term: mk_example("let (x, y) = (1, 2) in \nx + y"),
   message: "The x is bound to 1 and the y is bound to 2, so the expression evaluates to 1 + 2, which is 3.",
   feedback: Unselected,
 };
 let let_tuple3_ex = {
   sub_id: "let_tuple3_ex",
-  term: mk_example("let (x, y, z) = (1, 2, 3) in x + y + z"),
+  term: mk_example("let (x, y, z) = (1, 2, 3) in \nx + y + z"),
   message: "The x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
   feedback: Unselected,
 };
 let let_tag_ex = {
   sub_id: "let_tag_ex",
-  term: mk_example("let None = None in 2"),
+  term: mk_example("let None = None in \n2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
   feedback: Unselected,
 };
 let let_ap_ex = {
   sub_id: "let_ap_ex",
-  term: mk_example("let Some(a) = Some(2) in a"),
+  term: mk_example("let Some(a) = Some(2) in \na"),
   message: "The a is bound to 2, so the expression evaluates to 2.",
   feedback: Unselected,
 };
@@ -951,7 +989,11 @@ let let_base_exp: form = {
     message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_base_exp",
     syntactic_form: form,
@@ -974,7 +1016,11 @@ let let_empty_hole_exp: form = {
     message: "Let expression. After the [*empty hole pattern*](%i) is filled, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_empty_hole_exp",
     syntactic_form: form,
@@ -997,7 +1043,11 @@ let let_multi_hole_exp: form = {
     message: "Let expression. After the [invalid pattern](%i) is corrected, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_multi_hole_exp",
     syntactic_form: form,
@@ -1019,7 +1069,11 @@ let let_wild_exp: form = {
     feedback: Unselected,
   };
   let pat = pat("_");
-  let form = [mk_let([[pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_wild_exp",
     syntactic_form: form,
@@ -1042,7 +1096,11 @@ let let_int_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%i`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_int_exp",
     syntactic_form: form,
@@ -1065,7 +1123,11 @@ let let_float_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%f`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_float_exp",
     syntactic_form: form,
@@ -1088,7 +1150,11 @@ let let_bool_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%b`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_bool_exp",
     syntactic_form: form,
@@ -1111,7 +1177,11 @@ let let_str_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is `%s`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_str_exp",
     syntactic_form: form,
@@ -1134,7 +1204,11 @@ let let_triv_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the trivial value `triv`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_triv_exp",
     syntactic_form: form,
@@ -1143,7 +1217,7 @@ let let_triv_exp: form = {
     examples: [let_triv_ex],
   };
 };
-let _pat = mk_list_pat([[pat("p1"), comma_pat(), pat("...")]]);
+let _pat = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_listlit_exp_coloring_ids =
@@ -1157,7 +1231,11 @@ let let_listlit_exp: form = {
     message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern. The matching element patterns are bound to the elements of the [*definition*](%i) in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_listlit_exp",
     syntactic_form: form,
@@ -1180,7 +1258,11 @@ let let_listnil_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the empty list `nil`. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_listnil_exp",
     syntactic_form: form,
@@ -1207,7 +1289,14 @@ let let_cons_exp: form = {
     feedback: Unselected,
   };
   let cons = cons_pat();
-  let form = [mk_let([[_pat_hd, cons, _pat_tl], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([
+      [space(), _pat_hd, cons, _pat_tl, space()],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_cons_exp",
     syntactic_form: form,
@@ -1230,7 +1319,11 @@ let let_var_exp: form = {
     message: "Let expression. The [*definition*](%i) is bound to the [*variable*](%i) `%s` in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_var_exp",
     syntactic_form: form,
@@ -1255,7 +1348,11 @@ let let_tuple_exp: form = {
     feedback: Unselected,
   };
   let form = [
-    mk_let([[pat("p1"), _comma, pat("...")], [_exp_def]]),
+    mk_let([
+      [space(), pat("p1"), _comma, space(), pat("..."), space()],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
     _exp_body,
   ];
   {
@@ -1284,7 +1381,14 @@ let let_tuple2_exp: form = {
     feedback: Unselected,
   };
   let comma = comma_pat();
-  let form = [mk_let([[_pat1, comma, _pat2], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([
+      [space(), _pat1, comma, space(), _pat2, space()],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_tuple2_exp",
     syntactic_form: form,
@@ -1320,7 +1424,21 @@ let let_tuple3_exp: form = {
   };
   let comma = comma_pat();
   let form = [
-    mk_let([[_pat1, comma_pat(), _pat2, comma, _pat3], [_exp_def]]),
+    mk_let([
+      [
+        space(),
+        _pat1,
+        comma_pat(),
+        space(),
+        _pat2,
+        comma,
+        space(),
+        _pat3,
+        space(),
+      ],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
     _exp_body,
   ];
   {
@@ -1336,7 +1454,7 @@ let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
 let let_tag_exp_coloring_ids =
   _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_comma),
+    Piece.id(_pat),
     Piece.id(_exp_def),
     Piece.id(_exp_body),
   );
@@ -1345,7 +1463,11 @@ let let_tag_exp: form = {
     message: "Let expression. The only value for the [*definition*](%i) that matches the [*pattern*](%i) is the *`%s` constructor*. The [*definition*](%i) can't be referenced in the [*body*](%i).",
     feedback: Unselected,
   };
-  let form = [mk_let([[_pat], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_tag_exp",
     syntactic_form: form,
@@ -1372,7 +1494,14 @@ let let_ap_exp: form = {
     feedback: Unselected,
   };
   let ap = mk_ap_pat([[_pat_arg]]);
-  let form = [mk_let([[_pat_con, ap], [_exp_def]]), _exp_body];
+  let form = [
+    mk_let([
+      [space(), _pat_con, ap, space()],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
+    _exp_body,
+  ];
   {
     id: "let_ap_exp",
     syntactic_form: form,
@@ -1390,6 +1519,7 @@ let funapp_exp_ex = {
   message: "The identity function is applied to 1. The argument x is bound to 1 in the function body and the body evaluates to 1.",
   feedback: Unselected,
 };
+// TODO Has a red box around it in the result
 let conapp_exp_ex = {
   sub_id: "conapp_exp_ex",
   term: mk_example("Some(1)"),
@@ -1420,8 +1550,8 @@ let _exp_con = exp("e_con");
 let _exp_arg = exp("e_arg");
 let conapp_exp_coloring_ids =
     (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_con), x_id),
-  (Piece.id(_pat_arg), arg_id),
+  (Piece.id(_exp_con), x_id),
+  (Piece.id(_exp_arg), arg_id),
 ];
 let conapp_exp: form = {
   let explanation = {
@@ -1466,7 +1596,14 @@ let if_exp: form = {
   };
   {
     id: "if_exp",
-    syntactic_form: [mk_if([[_exp_cond], [_exp_then]]), _exp_else],
+    syntactic_form: [
+      mk_if([
+        [space(), _exp_cond, linebreak()],
+        [space(), _exp_then, linebreak()],
+      ]),
+      space(),
+      _exp_else,
+    ],
     expandable_id: None,
     explanation,
     examples: [if_basic1_exp_ex, if_basic2_exp_ex],
@@ -1501,7 +1638,7 @@ let seq_exp: form = {
   };
   {
     id: "seq_exp",
-    syntactic_form: [_exp1, seq(), _exp2],
+    syntactic_form: [_exp1, seq(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [seq_basic_exp_ex, seq_test_exp_ex],
@@ -1533,7 +1670,7 @@ let test_exp: form = {
   };
   {
     id: "test_exp",
-    syntactic_form: [mk_test([[_exp_body]])],
+    syntactic_form: [mk_test([[space(), _exp_body, space()]])],
     expandable_id: None,
     explanation,
     examples: [test_true_ex, test_false_ex],
@@ -1543,13 +1680,13 @@ let test_exp: form = {
 let cons_exp_group = "cons_exp_group";
 let cons1_ex = {
   sub_id: "cons1_ex",
-  term: [int("1"), cons_exp(), nil()],
+  term: mk_example("1::nil"),
   message: "A single element list of 1.",
   feedback: Unselected,
 };
 let cons2_ex = {
   sub_id: "cons2_ex",
-  term: [int("true"), cons_exp(), int("false"), cons_exp(), nil()],
+  term: mk_example("true::false::nil"),
   message: "A list with two elements, true and false.",
   feedback: Unselected,
 };
@@ -1868,7 +2005,7 @@ let int_plus_exp: form = {
   };
   {
     id: "int_plus_exp",
-    syntactic_form: [_exp1, plus(), _exp2],
+    syntactic_form: [_exp1, space(), plus(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_plus_ex],
@@ -1891,7 +2028,7 @@ let int_minus_exp: form = {
   };
   {
     id: "int_minus_exp",
-    syntactic_form: [_exp1, minus(), _exp2],
+    syntactic_form: [_exp1, space(), minus(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_minus_ex],
@@ -1914,7 +2051,7 @@ let int_times_exp: form = {
   };
   {
     id: "int_times_exp",
-    syntactic_form: [_exp1, times(), _exp2],
+    syntactic_form: [_exp1, space(), times(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_times_ex],
@@ -1937,7 +2074,7 @@ let int_divide_exp: form = {
   };
   {
     id: "int_divide_exp",
-    syntactic_form: [_exp1, divide(), _exp2],
+    syntactic_form: [_exp1, space(), divide(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_divide_ex],
@@ -1960,7 +2097,7 @@ let int_lt_exp: form = {
   };
   {
     id: "int_lt_exp",
-    syntactic_form: [_exp1, lt(), _exp2],
+    syntactic_form: [_exp1, space(), lt(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_lt1_ex, int_lt2_ex],
@@ -1983,7 +2120,7 @@ let int_lte_exp: form = {
   };
   {
     id: "int_lte_exp",
-    syntactic_form: [_exp1, lte(), _exp2],
+    syntactic_form: [_exp1, space(), lte(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_lte1_ex, int_lte2_ex, int_lte3_ex],
@@ -2006,7 +2143,7 @@ let int_gt_exp: form = {
   };
   {
     id: "int_gt_exp",
-    syntactic_form: [_exp1, gt(), _exp2],
+    syntactic_form: [_exp1, space(), gt(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_gt1_ex, int_gt2_ex],
@@ -2029,7 +2166,7 @@ let int_gte_exp: form = {
   };
   {
     id: "int_gte_exp",
-    syntactic_form: [_exp1, gte(), _exp2],
+    syntactic_form: [_exp1, space(), gte(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_gte1_ex, int_gte2_ex, int_gte3_ex],
@@ -2052,7 +2189,7 @@ let int_eq_exp: form = {
   };
   {
     id: "int_eq_exp",
-    syntactic_form: [_exp1, equals(), _exp2],
+    syntactic_form: [_exp1, space(), equals(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [int_eq1_ex, int_eq2_ex],
@@ -2075,7 +2212,7 @@ let float_plus_exp: form = {
   };
   {
     id: "float_plus_exp",
-    syntactic_form: [_exp1, fplus(), _exp2],
+    syntactic_form: [_exp1, space(), fplus(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_plus_ex],
@@ -2098,7 +2235,7 @@ let float_minus_exp: form = {
   };
   {
     id: "float_minus_exp",
-    syntactic_form: [_exp1, fminus(), _exp2],
+    syntactic_form: [_exp1, space(), fminus(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_minus_ex],
@@ -2121,7 +2258,7 @@ let float_times_exp: form = {
   };
   {
     id: "float_times_exp",
-    syntactic_form: [_exp1, ftimes(), _exp2],
+    syntactic_form: [_exp1, space(), ftimes(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_times_ex],
@@ -2144,7 +2281,7 @@ let float_divide_exp: form = {
   };
   {
     id: "float_divide_exp",
-    syntactic_form: [_exp1, fdivide(), _exp2],
+    syntactic_form: [_exp1, space(), fdivide(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_divide_ex],
@@ -2167,7 +2304,7 @@ let float_lt_exp: form = {
   };
   {
     id: "float_lt_exp",
-    syntactic_form: [_exp1, flt(), _exp2],
+    syntactic_form: [_exp1, space(), flt(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_lt1_ex, float_lt2_ex],
@@ -2190,7 +2327,7 @@ let float_lte_exp: form = {
   };
   {
     id: "float_lte_exp",
-    syntactic_form: [_exp1, flte(), _exp2],
+    syntactic_form: [_exp1, space(), flte(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_lte1_ex, float_lte2_ex, float_lte3_ex],
@@ -2213,7 +2350,7 @@ let float_gt_exp: form = {
   };
   {
     id: "float_gt_exp",
-    syntactic_form: [_exp1, fgt(), _exp2],
+    syntactic_form: [_exp1, space(), fgt(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_gt1_ex, float_gt2_ex],
@@ -2235,8 +2372,8 @@ let float_gte_exp: form = {
     feedback: Unselected,
   };
   {
-    id: "float_gt_exp",
-    syntactic_form: [_exp1, fgte(), _exp2],
+    id: "float_gte_exp",
+    syntactic_form: [_exp1, space(), fgte(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_gte1_ex, float_gte2_ex, float_gte3_ex],
@@ -2259,7 +2396,7 @@ let float_eq_exp: form = {
   };
   {
     id: "float_eq_exp",
-    syntactic_form: [_exp1, fequals(), _exp2],
+    syntactic_form: [_exp1, space(), fequals(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [float_eq1_ex, float_eq2_ex],
@@ -2282,7 +2419,7 @@ let bool_and_exp: form = {
   };
   {
     id: "bool_and_exp",
-    syntactic_form: [_exp1, logical_and(), _exp2],
+    syntactic_form: [_exp1, space(), logical_and(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [bool_and1_ex, bool_and2_ex],
@@ -2306,7 +2443,7 @@ let bool_or_exp: form = {
   };
   {
     id: "bool_or_exp",
-    syntactic_form: [_exp1, logical_or(), _exp2],
+    syntactic_form: [_exp1, space(), logical_or(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [bool_or1_ex, bool_or2_ex],
@@ -2329,7 +2466,7 @@ let str_eq_exp: form = {
   };
   {
     id: "str_eq_exp",
-    syntactic_form: [_exp1, sequals(), _exp2],
+    syntactic_form: [_exp1, space(), sequals(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
@@ -2340,25 +2477,25 @@ let case_exp_group = "case_exp_group";
 let case_rules_group = "case_rules_group";
 let case_example_wild_simple = {
   sub_id: "case_example_wild_simple",
-  term: mk_example("case 1 | 2 => 3 | _ => 4 end"),
+  term: mk_example("case 1 \n| 2 => 3 \n| _ => 4 \nend"),
   message: "The scrutinee of the case expression is 1. Since the scrutinee does not match the the first pattern 2. Since the scrutinee does match the second pattern which is a wildcard, the second branch is taken. The whole expression evaluates to the second clause 4.",
   feedback: Unselected,
 };
 let case_example_wild_tuple = {
   sub_id: "case_example_wild_tuple",
-  term: mk_example("case (1, 2) | (_, 2) => 3 | _ => 4 end"),
+  term: mk_example("case (1, 2) \n| (_, 2) => 3 \n| _ => 4 \nend"),
   message: "The scrutinee of the case expression is (1, 2). Since the scrutinee matches the first pattern (_, 2), the first branch is taken. This pattern is matched because the first element 1 matches the first element pattern, which is a wildcard, and the second element 2 matches the second element pattern 2. The whole expression evaluates to the first clause 3.",
   feedback: Unselected,
 };
 let case_example_int = {
   sub_id: "case_example_int",
-  term: mk_example("case 1 | 1 => 1.1 | 2 => 2.2 | _ => 3.3 end"),
+  term: mk_example("case 1 \n| 1 => 1.1 \n| 2 => 2.2 \n| _ => 3.3 \nend"),
   message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
   feedback: Unselected,
 };
 let case_example_bool = {
   sub_id: "case_example_bool",
-  term: mk_example("case false | true => 1 | false => 2 end"),
+  term: mk_example("case false \n| true => 1 | \nfalse => 2 \nend"),
   message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
   feedback: Unselected,
 };
@@ -2379,11 +2516,17 @@ let case_exp: form = {
   let case =
     mk_case([
       [
+        space(),
         _exp_scrut,
-        mk_rule([[pat("p1")]]),
+        linebreak(),
+        mk_rule([[space(), pat("p1"), space()]]),
+        space(),
         exp("e1"),
-        mk_rule([[pat("...")]]),
+        linebreak(),
+        mk_rule([[space(), pat("..."), space()]]),
+        space(),
         exp("..."),
+        linebreak(),
       ],
     ]);
   {
@@ -2394,29 +2537,29 @@ let case_exp: form = {
     examples: [case_example_int, case_example_bool],
   };
 };
-let case_exp_rules: form = {
-  let explanation = {
-    message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
-    feedback: Unselected,
-  };
-  let case =
-    mk_case([
-      [
-        exp("EXP_scrut"),
-        mk_rule([[pat("PAT1")]]),
-        exp("EXP1"),
-        mk_rule([[pat("...")]]),
-        exp("..."),
-      ],
-    ]);
-  {
-    id: "case_exp_rules",
-    syntactic_form: [case],
-    expandable_id: Some(Piece.id(case)),
-    explanation,
-    examples: [case_example_int, case_example_bool],
-  };
-};
+/*let case_exp_rules: form = {
+    let explanation = {
+      message: "Case expression. Consider each branch in order. If the [*scrutinee*] matches:",
+      feedback: Unselected,
+    };
+    let case =
+      mk_case([
+        [
+          exp("EXP_scrut"),
+          mk_rule([[pat("PAT1")]]),
+          exp("EXP1"),
+          mk_rule([[pat("...")]]),
+          exp("..."),
+        ],
+      ]);
+    {
+      id: "case_exp_rules",
+      syntactic_form: [case],
+      expandable_id: Some(Piece.id(case)),
+      explanation,
+      examples: [case_example_int, case_example_bool],
+    };
+  };*/
 
 let empty_hole_pat_group = "empty_hole_pat_group";
 let empty_hole_pat: form = {
@@ -2546,7 +2689,9 @@ let listlit_pat: form = {
   };
   {
     id: "listlit_pat",
-    syntactic_form: [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
+    syntactic_form: [
+      mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]),
+    ],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2639,7 +2784,7 @@ let tuple_pat: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat",
-    syntactic_form: [pat("p1"), comma, pat("...")],
+    syntactic_form: [pat("p1"), comma, space(), pat("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2660,7 +2805,7 @@ let tuple_pat_size2: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size2",
-    syntactic_form: [_pat1, comma, _pat2],
+    syntactic_form: [_pat1, comma, space(), _pat2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2683,7 +2828,15 @@ let tuple_pat_size3: form = {
   let comma = comma_pat();
   {
     id: "tuple_pat_size3",
-    syntactic_form: [_pat1, comma_pat(), _pat2, comma, _pat3],
+    syntactic_form: [
+      _pat1,
+      comma_pat(),
+      space(),
+      _pat2,
+      comma,
+      space(),
+      _pat3,
+    ],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2819,6 +2972,7 @@ let str_typ: form = {
 
 let list_typ_group = "list_typ_group";
 let _typ_elem = typ("𝜏_elem");
+// TODO Syntactic form coloring looks off for this one and other arrow ones...
 let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_elem), elem_id),
 ];
@@ -2852,7 +3006,7 @@ let arrow_typ: form = {
   };
   {
     id: "arrow_typ",
-    syntactic_form: [_typ_arg, arrow(), _typ_out],
+    syntactic_form: [_typ_arg, space(), arrow(), space(), _typ_out],
     expandable_id: Some(Piece.id(_typ_out)),
     explanation,
     examples: [],
@@ -2875,7 +3029,17 @@ let arrow3_typ: form = {
   let arrow2 = arrow();
   {
     id: "arrow3_typ",
-    syntactic_form: [_typ_arg1, arrow(), _typ_arg2, arrow2, _typ_out],
+    syntactic_form: [
+      _typ_arg1,
+      space(),
+      arrow(),
+      space(),
+      _typ_arg2,
+      space(),
+      arrow2,
+      space(),
+      _typ_out,
+    ],
     expandable_id: Some(Piece.id(arrow2)),
     explanation,
     examples: [],
@@ -2893,7 +3057,7 @@ let tuple_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple_typ",
-    syntactic_form: [typ("𝜏1"), comma, typ("...")],
+    syntactic_form: [typ("𝜏1"), comma, space(), typ("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2908,13 +3072,13 @@ let tuple2_typ_coloring_ids =
 ];
 let tuple2_typ: form = {
   let explanation = {
-    message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).",
+    message: "Tuple type. This tuple type classifies 2-tuples with the first element of the [first element type](%i) and second element of the [second element type](%i).",
     feedback: Unselected,
   };
   let comma = comma_typ();
   {
     id: "tuple2_typ",
-    syntactic_form: [_typ_elem1, comma, _typ_elem2],
+    syntactic_form: [_typ_elem1, comma, space(), _typ_elem2],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
@@ -2931,13 +3095,21 @@ let tuple3_typ_coloring_ids =
 ];
 let tuple3_typ: form = {
   let explanation = {
-    message: "Tuple type. This tuple type classifies %i-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).",
+    message: "Tuple type. This tuple type classifies 3-tuples with the first element of the [first element type](%i), second element of the [second element type](%i), and third element of the [third element type](%i).",
     feedback: Unselected,
   };
   let comma = comma_typ();
   {
     id: "tuple3_typ",
-    syntactic_form: [_typ_elem1, comma_typ(), _typ_elem2, comma, _typ_elem3],
+    syntactic_form: [
+      _typ_elem1,
+      comma_typ(),
+      space(),
+      _typ_elem2,
+      comma,
+      space(),
+      _typ_elem3,
+    ],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
