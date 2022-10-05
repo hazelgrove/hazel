@@ -114,20 +114,52 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
-let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
-  switch (s) {
-  | Any => seg
-  | Typ => remold_typ(shape, seg)
-  | Pat => remold_pat(shape, seg)
-  | Exp => remold_exp(shape, seg)
-  | Rul => remold_rul(shape, seg)
-  | _ => failwith("remold unexpected")
+let rec remold =
+        (
+          ~stack: list(Sort.t)=[],
+          ~sort: Sort.t,
+          ~shape=Nib.Shape.concave(),
+          seg: t,
+        )
+        : t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) =>
+      // failwith("todo: add trim to remold accumulator")
+      [hd, ...remold(~stack, ~sort, ~shape, tl)]
+    | Tile(t) =>
+      // let _ =
+      //   failwith(
+      //     "todo: check to see if tile can be
+      //   remolded as stack head with concave left nib,
+      //   and transition from stack head was complete;
+      //   prioritize that remolding if so",
+      //   );
+      let remold_rest = (t: Tile.t): t => {
+        let (_, Nib.{sort: s, shape}) = Tile.nibs(t);
+        let stack = s != sort ? [sort, ...stack] : stack;
+        [Tile(t), ...remold(~stack, ~sort=s, ~shape, tl)];
+      };
+      switch (remold_tile(~sort, ~shape, t)) {
+      | Some(t) => remold_rest(t)
+      | None =>
+        switch (stack) {
+        | [] => remold_rest(t)
+        | [sort, ...stack] =>
+          // pop stack and try again
+          remold(~stack, ~sort, ~shape, seg)
+        }
+      };
+    }
   }
-and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
+and remold_tile = (~sort: Sort.t, ~shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
     Molds.get(t.label)
-    |> List.filter((m: Mold.t) => m.out == s)
+    |> List.filter((m: Mold.t) => m.out == sort)
     |> List.map(mold => {...t, mold})
     |> (
       fun
@@ -147,7 +179,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
                 List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)
                 || Effect.s_touched(remolded.id)
               )) {
-            remold(child, List.nth(remolded.mold.in_, l).sort);
+            remold(~sort=List.nth(remolded.mold.in_, l).sort, child);
           } else {
             child;
           };
@@ -157,185 +189,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       [],
     );
   {...remolded, children};
-}
-and remold_typ = (shape, seg: t): t =>
-  switch (seg) {
-  | [] => []
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) => [hd, ...remold_typ(shape, tl)]
-    | Tile(t) =>
-      switch (remold_tile(Typ, shape, t)) {
-      | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
-      | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
-      }
-    }
-  }
-and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
-  switch (seg) {
-  | [] => ([], shape, [])
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) =>
-      let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-      ([hd, ...remolded], shape, rest);
-    | Tile(t) =>
-      switch (remold_tile(Typ, shape, t)) {
-      | None => ([], shape, seg)
-      | Some(t) when !Tile.has_end(Right, t) =>
-        let (_, r) = Tile.nibs(t);
-        let remolded = remold(~shape=r.shape, tl, r.sort);
-        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
-        ([Tile(t), ...remolded], shape, []);
-      | Some(t) when t.label == Form.get("comma_typ").label => (
-          [],
-          shape,
-          seg,
-        )
-      | Some(t) =>
-        let (remolded, shape, rest) =
-          remold_typ_uni(snd(Tile.shapes(t)), tl);
-        ([Tile(t), ...remolded], shape, rest);
-      }
-    }
-  }
-and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
-  switch (seg) {
-  | [] => ([], shape, [])
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) =>
-      let (remolded, shape, rest) = remold_pat_uni(shape, tl);
-      ([hd, ...remolded], shape, rest);
-    | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
-      | None => ([], shape, seg)
-      | Some(t) when !Tile.has_end(Right, t) =>
-        let (_, r) = Tile.nibs(t);
-        let remolded = remold(~shape=r.shape, tl, r.sort);
-        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
-        ([Tile(t), ...remolded], shape, []);
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Typ}) =>
-          let (remolded_typ, shape, rest) = remold_typ_uni(shape, tl);
-          let (remolded_pat, shape, rest) = remold_pat_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
-        | _ =>
-          let (remolded, shape, rest) =
-            remold_pat_uni(snd(Tile.shapes(t)), tl);
-          ([Tile(t), ...remolded], shape, rest);
-        }
-      }
-    }
-  }
-and remold_pat = (shape, seg: t): t =>
-  switch (seg) {
-  | [] => []
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) => [hd, ...remold_pat(shape, tl)]
-    | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
-      | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Typ}) =>
-          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
-        | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
-        }
-      }
-    }
-  }
-and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
-  switch (seg) {
-  | [] => ([], shape, [])
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) =>
-      let (remolded, shape, rest) = remold_exp_uni(shape, tl);
-      ([hd, ...remolded], shape, rest);
-    | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
-      | None => ([], shape, seg)
-      | Some(t) when !Tile.has_end(Right, t) =>
-        let (_, r) = Tile.nibs(t);
-        let remolded = remold(~shape=r.shape, tl, r.sort);
-        let (_, shape, _) = shape_affix(Left, remolded, r.shape);
-        ([Tile(t), ...remolded], shape, []);
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Pat}) =>
-          let (remolded_pat, shape, rest) = remold_pat_uni(shape, tl);
-          let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest);
-          ([Piece.Tile(t), ...remolded_pat] @ remolded_exp, shape, rest);
-        | (_, {shape, sort: Rul}) =>
-          // TODO review short circuit
-          ([Tile(t)], shape, tl)
-        | _ =>
-          let (remolded, shape, rest) =
-            remold_exp_uni(snd(Tile.shapes(t)), tl);
-          ([Tile(t), ...remolded], shape, rest);
-        }
-      }
-    }
-  }
-and remold_rul = (shape, seg: t): t =>
-  switch (seg) {
-  | [] => []
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) => [hd, ...remold_rul(shape, tl)]
-    | Tile(t) =>
-      switch (remold_tile(Rul, shape, t)) {
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Exp}) =>
-          let (remolded, shape, rest) = remold_exp_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
-        | (_, {shape, sort: Pat}) =>
-          let (remolded, shape, rest) = remold_pat_uni(shape, tl);
-          // TODO(d) continuing onto rule might not be right right...
-          [Piece.Tile(t), ...remolded] @ remold_rul(shape, rest);
-        | _ => failwith("remold_rul unexpected")
-        }
-      | None =>
-        let (remolded, shape, rest) = remold_exp_uni(shape, [hd, ...tl]);
-        switch (remolded) {
-        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
-        | [_, ..._] => remolded @ remold_rul(shape, rest)
-        };
-      }
-    }
-  }
-and remold_exp = (shape, seg: t): t =>
-  switch (seg) {
-  | [] => []
-  | [hd, ...tl] =>
-    switch (hd) {
-    | Whitespace(_)
-    | Grout(_) => [hd, ...remold_exp(shape, tl)]
-    | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
-      | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
-      | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | (_, {shape, sort: Pat}) =>
-          let (remolded, shape, rest) = remold_pat_uni(shape, tl);
-          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
-        | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
-        | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
-        }
-      }
-    }
-  };
+};
 
 let skel = seg =>
   seg
