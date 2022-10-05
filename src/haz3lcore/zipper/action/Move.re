@@ -224,7 +224,7 @@ module Make = (M: Editor.Meta.S) => {
 
   let rec move_left_until_p =
           (z: t, id_gen, p: Piece.t => bool): option(state) => {
-    let* (piece, _, _) = Indicated.piece(z);
+    let* (piece, _, _) = Indicated.piece'(~no_ws=true, ~ign=_ => false, z);
     if (p(piece)) {
       Some((z, id_gen));
     } else {
