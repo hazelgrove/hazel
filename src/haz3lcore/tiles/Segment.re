@@ -181,24 +181,15 @@ and remold_tile =
   let+ remolded = remold_tile_shallow(~sort, ~shape, t);
   Effect.s_remold(t.id, t.mold, remolded.mold);
   let children =
-    List.fold_right(
-      ((l, child, r), children) => {
-        let child =
-          if (l
-              + 1 == r
-              && (
-                List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)
-                || Effect.s_touched(remolded.id)
-              )) {
-            remold(~sort=List.nth(remolded.mold.in_, l).sort, child);
-          } else {
-            child;
-          };
-        [child, ...children];
-      },
-      Aba.aba_triples(Aba.mk(remolded.shards, remolded.children)),
-      [],
-    );
+    Aba.aba_triples(Aba.mk(remolded.shards, remolded.children))
+    |> List.map(((l, child, r)) => {
+         let lr_neighbors = l + 1 == r;
+         let sort_changed =
+           List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l);
+         let just_touched = Effect.s_touched(remolded.id);
+         lr_neighbors && (sort_changed || just_touched)
+           ? remold(~sort=List.nth(remolded.mold.in_, l).sort, child) : child;
+       });
   {...remolded, children};
 };
 
