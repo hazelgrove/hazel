@@ -46,18 +46,18 @@ let update_current = (current, res) => {
 };
 
 type optional_simple_data = {
-  opt_eval_result: option(Haz3lcore.DHExp.t),
-  opt_test_results: option(Haz3lcore.TestResults.test_results),
+  opt_eval_result: option(DHExp.t),
+  opt_test_results: option(TestResults.test_results),
 };
 
-// simple definitions are moved to Haz3lcore.TestResults
+// simple definitions are moved to TestResults
 
 type simple_data =
-  Haz3lcore.TestResults.simple_data = {
-    eval_result: Haz3lcore.DHExp.t,
-    test_results: Haz3lcore.TestResults.test_results,
+  TestResults.simple_data = {
+    eval_result: DHExp.t,
+    test_results: TestResults.test_results,
   };
-type simple = Haz3lcore.TestResults.simple;
+type simple = TestResults.simple;
 
 let get_simple = (res: option(t)): simple =>
   res
@@ -69,14 +69,14 @@ let get_simple = (res: option(t)): simple =>
        let test_results =
          r
          |> ProgramResult.get_state
-         |> Haz3lcore.EvaluatorState.get_tests
+         |> EvaluatorState.get_tests
          |> Interface.mk_results;
        {eval_result, test_results};
      });
 
-let unwrap_test_results = Haz3lcore.TestResults.unwrap_test_results;
+let unwrap_test_results = TestResults.unwrap_test_results;
 
-let unwrap_eval_result = (simple: simple): option(Haz3lcore.DHExp.t) => {
+let unwrap_eval_result = (simple: simple): option(DHExp.t) => {
   Option.map(simple_data => simple_data.eval_result, simple);
 };
 
