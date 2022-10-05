@@ -114,6 +114,32 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
     | p => L(p),
   );
 
+// remold top-level mold of tile according to given sort and shape
+let remold_tile_shallow =
+    (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) =>
+  Molds.get(t.label)
+  |> List.filter_map((mold: Mold.t) => mold.out == sort ? Some({...t, mold}) : None)
+  |> (
+    fun
+    | [_] as ts => ts
+    | ts =>
+      ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+  )
+  |> ListUtil.hd_opt;
+
+// attempt to remold tile as sorts in the stack with concave left nib
+let rec remold_tile_via_stack =
+    (~stack: list(Sort.t), t: Tile.t): option((list(Sort.t), Tile.t)) =>
+  switch (stack) {
+  | [] => None
+  | [sort, ...stack] =>
+    // Convex to get parent
+    switch (remold_tile_shallow(~sort, ~shape=Nib.Shape.Convex, t)) {
+    | Some(t) when fst(Tile.shapes(t)) != Convex => Some((stack, t))
+    | _ => remold_tile_via_stack(~stack, t)
+    }
+  }
+
 let rec remold =
         (
           ~stack: list(Sort.t)=[],
@@ -152,29 +178,6 @@ let rec remold =
       };
     }
   }
-and remold_tile_via_stack =
-    (~stack: list(Sort.t), t: Tile.t): option((list(Sort.t), Tile.t)) =>
-  switch (stack) {
-  | [] => None
-  | [sort, ...stack] =>
-    // Convex to get parent
-    switch (remold_tile_shallow(~sort, ~shape=Nib.Shape.Convex, t)) {
-    | Some(t) when fst(Tile.shapes(t)) != Convex => Some((stack, t))
-    | _ => remold_tile_via_stack(~stack, t)
-    }
-  }
-and remold_tile_shallow =
-    (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) =>
-  Molds.get(t.label)
-  |> List.filter((m: Mold.t) => m.out == sort)
-  |> List.map(mold => {...t, mold})
-  |> (
-    fun
-    | [_] as ts => ts
-    | ts =>
-      ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-  )
-  |> ListUtil.hd_opt
 and remold_tile =
     (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
