@@ -1,8 +1,6 @@
-open Haz3lcore;
-
 exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term)) {
+  switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release
@@ -91,7 +89,7 @@ let evaluation_result = (map, term): option(DHExp.t) =>
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
-include Haz3lcore.TestResults;
+include TestResults;
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
   switch (get_result(map, term)) {

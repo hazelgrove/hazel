@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 /**
   The result of a program evaluation. Includes the {!type:EvaluatorResult.t},
   the {!type:EvaluatorState}, and the tracked hole instance information
