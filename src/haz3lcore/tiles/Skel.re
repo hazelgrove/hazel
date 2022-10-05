@@ -97,6 +97,10 @@ let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
       }
     | r => r
     };
+  | (Tile(t1), Tile(t2)) when Sort.ord(t1.mold.out, t2.mold.out) == Some(Lt) =>
+    Some(Gt)
+  | (Tile(t1), Tile(t2)) when Sort.ord(t1.mold.out, t2.mold.out) == Some(Gt) =>
+    Some(Lt)
   | (Tile(t1), Tile(t2)) =>
     open Labels;
     let lbl1 = (==)(t1.label);
@@ -105,7 +109,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(Ord.t) =>
       [
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
-        lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
+        lbl1(comma) && lbl2(comma),
       ]
       |> List.fold_left((||), false);
     if (eq) {
