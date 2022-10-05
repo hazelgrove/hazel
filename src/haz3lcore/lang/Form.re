@@ -83,13 +83,13 @@ let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
-let is_typ_var = is_capitalized_name;
 let is_concrete_typ = str =>
   str == "String"
   || str == "Int"
   || str == "Float"
   || str == "Bool"
   || str == "Unit";
+let is_typ_var = str => !is_concrete_typ(str) && is_capitalized_name(str);
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
