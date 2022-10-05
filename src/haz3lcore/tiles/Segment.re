@@ -131,43 +131,54 @@ let rec remold =
       // failwith("todo: add trim to remold accumulator")
       [hd, ...remold(~stack, ~sort, ~shape, tl)]
     | Tile(t) =>
-      // let _ =
-      //   failwith(
-      //     "todo: check to see if tile can be
-      //   remolded as stack head with concave left nib,
-      //   and transition from stack head was complete;
-      //   prioritize that remolding if so",
-      //   );
-      let remold_rest = (t: Tile.t): t => {
+      let remold_rest = (~stack, t: Tile.t): t => {
         let (_, Nib.{sort: s, shape}) = Tile.nibs(t);
         let stack = s != sort ? [sort, ...stack] : stack;
         [Tile(t), ...remold(~stack, ~sort=s, ~shape, tl)];
       };
-      switch (remold_tile(~sort, ~shape, t)) {
-      | Some(t) => remold_rest(t)
+      switch (remold_tile_via_stack(~stack, t)) {
+      | Some((stack, t)) => remold_rest(~stack, t)
       | None =>
-        switch (stack) {
-        | [] => remold_rest(t)
-        | [sort, ...stack] =>
-          // pop stack and try again
-          remold(~stack, ~sort, ~shape, seg)
+        switch (remold_tile(~sort, ~shape, t)) {
+        | Some(t) => remold_rest(~stack, t)
+        | None =>
+          switch (stack) {
+          | [] => remold_rest(~stack, t)
+          | [sort, ...stack] =>
+            // pop stack and try again
+            remold(~stack, ~sort, ~shape, seg)
+          }
         }
       };
     }
   }
-and remold_tile = (~sort: Sort.t, ~shape, t: Tile.t): option(Tile.t) => {
+and remold_tile_via_stack =
+    (~stack: list(Sort.t), t: Tile.t): option((list(Sort.t), Tile.t)) =>
+  switch (stack) {
+  | [] => None
+  | [sort, ...stack] =>
+    // Convex to get parent
+    switch (remold_tile_shallow(~sort, ~shape=Nib.Shape.Convex, t)) {
+    | Some(t) when fst(Tile.shapes(t)) != Convex => Some((stack, t))
+    | _ => remold_tile_via_stack(~stack, t)
+    }
+  }
+and remold_tile_shallow =
+    (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) =>
+  Molds.get(t.label)
+  |> List.filter((m: Mold.t) => m.out == sort)
+  |> List.map(mold => {...t, mold})
+  |> (
+    fun
+    | [_] as ts => ts
+    | ts =>
+      ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+  )
+  |> ListUtil.hd_opt
+and remold_tile =
+    (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  let+ remolded =
-    Molds.get(t.label)
-    |> List.filter((m: Mold.t) => m.out == sort)
-    |> List.map(mold => {...t, mold})
-    |> (
-      fun
-      | [_] as ts => ts
-      | ts =>
-        ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-    )
-    |> ListUtil.hd_opt;
+  let+ remolded = remold_tile_shallow(~sort, ~shape, t);
   Effect.s_remold(t.id, t.mold, remolded.mold);
   let children =
     List.fold_right(
