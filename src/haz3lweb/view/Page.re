@@ -1,4 +1,5 @@
 open Virtual_dom.Vdom;
+open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Haz3lcore;
@@ -243,18 +244,93 @@ let main_ui_view =
   };
 };
 
+let clipboard_shim_id = "clipboard-shim";
+let focus_clipboard_shim = () => {
+  let clipboard_shim = JsUtil.get_elem_by_id(clipboard_shim_id);
+  clipboard_shim##focus;
+};
+
+let clipboard_shim = (editors: Editors.t) => {
+  textarea(
+    ~attr=
+      Attr.many([
+        Attr.id(clipboard_shim_id),
+        Attr.on_blur(_ => {
+          focus_clipboard_shim();
+          Virtual_dom.Vdom.Effect.Ignore;
+        }),
+      ]),
+    [],
+  );
+};
+
+let copy = editors => {
+  focus_clipboard_shim();
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
+  // TODO: (cyrus) doesn't do indentation correctly...
+  Dom_html.document##execCommand(
+    Js.string("insertText"),
+    Js.bool(false),
+    Js.Opt.option(
+      Some(
+        Js.string(Printer.to_string_selection(Editors.get_zipper(editors))),
+      ),
+    ),
+  );
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
+};
+
+let page_id = "page";
+
 let view = (~inject, ~handlers, model: Model.t) => {
   let main_ui = main_ui_view(~inject, model);
   div(
     ~attr=
       Attr.many(
         Attr.[
-          id("page"),
+          id(page_id),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
+          on_blur(_ => {
+            focus_clipboard_shim();
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_focus(_ => {
+            focus_clipboard_shim();
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_copy(_ => {
+            focus_clipboard_shim();
+            copy(model.editors);
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_cut(_ => {
+            focus_clipboard_shim();
+            copy(model.editors);
+            inject(UpdateAction.PerformAction(Destruct(Left)));
+          }),
+          on_paste(evt => {
+            let pasted_text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
+            Dom.preventDefault(evt);
+            inject(UpdateAction.Paste(pasted_text));
+          }),
           ...handlers(~inject, ~model),
         ],
       ),
-    [FontSpecimen.view("font-specimen"), DecUtil.filters] @ main_ui,
+    [
+      FontSpecimen.view("font-specimen"),
+      DecUtil.filters,
+      clipboard_shim(model.editors),
+    ]
+    @ main_ui,
   );
 };

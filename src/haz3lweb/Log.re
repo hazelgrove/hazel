@@ -38,9 +38,9 @@ let is_action_logged: Update.t => bool =
   | SwitchEditor(_)
   | PerformAction(_)
   | FailedInput(_)
+  | Cut
   | Copy
-  | Paste
-  | PasteFinish(_)
+  | Paste(_)
   | Undo
   | Redo
   | MoveToNextHole(_) => true;
