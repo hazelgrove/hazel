@@ -1,4 +1,4 @@
-// open Haz3lcore;
+open Haz3lcore;
 // open Sexplib.Std;
 open Haz3lschool;
 open Core;
@@ -40,19 +40,20 @@ module Main = {
       |> List.map(~f=(((name, idx) as key, persistent_state)) => {
            switch (find_key_opt(key, specs)) {
            | Some((_n, spec)) =>
-             let state =
+             let exercise =
                unpersist_state(
                  persistent_state,
                  ~spec,
                  ~instructor_mode=true,
                );
-             let stitched_dynamics =
-               stitch_dynamic(state, _ => {failwith("")});
+             let ed = editor_of_state(exercise);
+             let _info_map = EditorUtil.info_map(ed);
+             let stitched_dynamics = stitch_dynamic(exercise, failwith(""));
              {
                idx,
                name,
                report:
-                 state.eds
+                 exercise.eds
                  |> GradingReport.mk(~stitched_dynamics)
                  |> GradingReport.overall_score
                  |> (
