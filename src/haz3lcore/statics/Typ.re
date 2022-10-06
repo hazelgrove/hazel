@@ -250,3 +250,20 @@ let rec eq = (t1, t2) =>
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
   };
+
+//TODO(andrew): figure out if this is a hack
+let rec internalize_the_unknown: t => t =
+  fun
+  | Unknown(SynSwitch | Internal) => Unknown(Internal)
+  | Unknown(TypeHole) => Unknown(TypeHole)
+  | Arrow(ty1, ty2) =>
+    Arrow(internalize_the_unknown(ty1), internalize_the_unknown(ty2))
+  | Prod(tys) => Prod(List.map(internalize_the_unknown, tys))
+  | Sum(ty1, ty2) =>
+    Sum(internalize_the_unknown(ty1), internalize_the_unknown(ty2))
+  | List(ty) => List(internalize_the_unknown(ty))
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | Var(n) => Var(n);

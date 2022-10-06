@@ -506,7 +506,6 @@ and upat_to_info_map =
     add_info(ids, InfoPat({cls, self, mode, ctx, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
-  let unknown = Typ.Just(Unknown(SynSwitch));
   switch (term) {
   | Invalid(msg) => (
       Unknown(Internal),
@@ -517,7 +516,6 @@ and upat_to_info_map =
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~ctx, union_m(maps));
   | EmptyHole
-  | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
@@ -562,11 +560,13 @@ and upat_to_info_map =
     | None => atomic(Free(Tag))
     | Some(typ) => atomic(Just(typ))
     }
+  | Wild => atomic(Just(Unknown(SynSwitch)))
   | Var(name) =>
-    let self = unknown;
-    let typ = typ_after_fix(mode, Just(Typ.Unknown(Internal)));
+    let typ =
+      typ_after_fix(mode, Just(Unknown(Internal)))
+      |> Typ.internalize_the_unknown;
     add(
-      ~self,
+      ~self=Just(Unknown(SynSwitch)),
       ~ctx=VarMap.extend(ctx, (name, {id: Term.UPat.rep_id(upat), typ})),
       Id.Map.empty,
     );
