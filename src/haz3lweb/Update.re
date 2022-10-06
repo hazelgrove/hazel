@@ -160,8 +160,8 @@ let reevaluate_post_update =
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
-  | Paste
-  | PasteFinish(_)
+  | Cut
+  | Paste(_)
   | Undo
   | Redo => true;
 
@@ -195,6 +195,17 @@ let evaluate_and_schedule =
   //      });
   // };
   model;
+};
+
+let perform_action =
+    (model: Model.t, a: Action.t, state: State.t, ~schedule_action)
+    : Result.t(Model.t) => {
+  let (id, ed_init) = Editors.get_editor_and_id(model.editors);
+  switch (Haz3lcore.Perform.go(a, ed_init, id)) {
+  | Error(err) => Error(FailedToPerform(err))
+  | Ok((ed, id)) =>
+    Ok({...model, editors: Editors.put_editor_and_id(id, ed, model.editors)})
+  };
 };
 
 let apply =
@@ -302,28 +313,16 @@ let apply =
     | SetFontMetrics(font_metrics) => Ok({...model, font_metrics})
     | SetLogoFontMetrics(logo_font_metrics) =>
       Ok({...model, logo_font_metrics})
-    | PerformAction(a) =>
-      let (id, ed_init) = Editors.get_editor_and_id(model.editors);
-      switch (Haz3lcore.Perform.go(a, ed_init, id)) {
-      | Error(err) => Error(FailedToPerform(err))
-      | Ok((ed, id)) =>
-        Ok({
-          ...model,
-          editors: Editors.put_editor_and_id(id, ed, model.editors),
-        })
-      };
+    | PerformAction(a) => perform_action(model, a, state, ~schedule_action)
     | FailedInput(reason) => Error(UnrecognizedInput(reason))
+    | Cut =>
+      // system clipboard handling itself is done in Page.view handlers
+      perform_action(model, Destruct(Left), state, ~schedule_action)
     | Copy =>
-      let clipboard =
-        Printer.to_string_selection(Editors.get_zipper(model.editors));
-      JsUtil.to_sys_clipboard(clipboard);
-      Ok(model /*{...model, clipboard}*/);
-    | Paste =>
-      /* Dispatches async promise to be dealt with by PasteFinish */
-      let _ =
-        JsUtil.from_sys_clipboard(str => schedule_action(PasteFinish(str)));
-      Ok(model);
-    | PasteFinish(clipboard) =>
+      // system clipboard handling itself is done in Page.view handlers
+      // doesn't change the state but including as an action for logging purposes
+      Ok(model)
+    | Paste(clipboard) =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (
         Printer.zipper_of_string(~zipper_init=ed.state.zipper, id, clipboard)
