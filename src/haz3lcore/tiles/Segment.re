@@ -158,6 +158,7 @@ let rec remold =
       [hd, ...remold(~stack, ~sort, ~shape, tl)]
     | Tile(t) =>
       let remold_rest = (~stack, t: Tile.t): t => {
+        // if convex shape, s should be same as sort
         let (_, Nib.{sort: s, shape}) = Tile.nibs(t);
         let stack = s != sort ? [sort, ...stack] : stack;
         [Tile(t), ...remold(~stack, ~sort=s, ~shape, tl)];
