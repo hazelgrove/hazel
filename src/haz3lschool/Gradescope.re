@@ -7,13 +7,11 @@ open Specs;
 open GradePrelude.SchoolExercise;
 open GradePrelude.Grading;
 
-
 [@deriving (sexp, yojson)]
-type item = percentage;
-// type item = {
-//   src: string,
-//   percentage,
-// };
+type item = {
+  src: string,
+  percentage,
+};
 
 [@deriving (sexp, yojson)]
 type report = {
@@ -52,14 +50,23 @@ module Main = {
     let model_results = ModelResults.init(spliced_elabs(exercise));
     let stitched_dynamics = stitch_dynamic(exercise, Some(model_results));
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
-    grading_report;
-  };
-  let gen_report = (grading_report: GradingReport.t) => {
     let details = grading_report;
     let point_distribution = details.point_distribution;
-    let test_validation = details.test_validation_report |> TestValidationReport.percentage;
-    let mutation_testing = details.mutation_testing_report |> MutationTestingReport.percentage;
-    let impl_grading = details.impl_grading_report |> ImplGradingReport.percentage;
+    let test_validation = {
+      src:
+        exercise.eds.your_tests.tests.state.zipper |> Printer.to_string_basic,
+      percentage:
+        details.test_validation_report |> TestValidationReport.percentage,
+    };
+    let mutation_testing = {
+      src: "",
+      percentage:
+        details.mutation_testing_report |> MutationTestingReport.percentage,
+    };
+    let impl_grading = {
+      src: exercise.eds.your_impl.state.zipper |> Printer.to_string_basic,
+      percentage: details.impl_grading_report |> ImplGradingReport.percentage,
+    };
     let overall = grading_report |> GradingReport.overall_score;
     {
       point_distribution,
@@ -83,7 +90,7 @@ module Main = {
                  ~spec,
                  ~instructor_mode=true,
                );
-             let report = exercise |> gen_grading_report |> gen_report;
+             let report = exercise |> gen_grading_report;
              {idx, name, report};
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            | None => failwith("Invalid spec")
