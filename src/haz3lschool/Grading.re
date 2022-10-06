@@ -1,10 +1,14 @@
 open Haz3lcore;
+open Sexplib.Std;
 
 module F = (ExerciseEnv: SchoolExercise.ExerciseEnv) => {
   open SchoolExercise.F(ExerciseEnv);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type points = float;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type score = (points, points);
 
   let score_of_percent = (percent, max_points) => {
