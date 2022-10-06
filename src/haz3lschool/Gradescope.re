@@ -9,13 +9,13 @@ open GradePrelude.Grading;
 
 [@deriving (sexp, yojson)]
 type item = {
+  max: int,
   src: string,
   percentage,
 };
 
 [@deriving (sexp, yojson)]
 type report = {
-  point_distribution,
   test_validation: item,
   mutation_testing: item,
   impl_grading: item,
@@ -23,8 +23,8 @@ type report = {
 };
 [@deriving (sexp, yojson)]
 type section = {
-  idx: int,
   name: string,
+  idx: int,
   report,
 };
 
@@ -53,33 +53,30 @@ module Main = {
     let details = grading_report;
     let point_distribution = details.point_distribution;
     let test_validation = {
+      max: point_distribution.test_validation,
       src:
         exercise.eds.your_tests.tests.state.zipper |> Printer.to_string_basic,
       percentage:
         details.test_validation_report |> TestValidationReport.percentage,
     };
     let mutation_testing = {
+      max: point_distribution.mutation_testing,
       src: "",
       percentage:
         details.mutation_testing_report |> MutationTestingReport.percentage,
     };
     let impl_grading = {
+      max: point_distribution.impl_grading,
       src: exercise.eds.your_impl.state.zipper |> Printer.to_string_basic,
       percentage: details.impl_grading_report |> ImplGradingReport.percentage,
     };
     let overall = grading_report |> GradingReport.overall_score;
-    {
-      point_distribution,
-      test_validation,
-      mutation_testing,
-      impl_grading,
-      overall,
-    };
+    {test_validation, mutation_testing, impl_grading, overall};
   };
   let run = () => {
     let hw_path = Sys.get_argv()[1];
     let hw = name_to_school_export(hw_path);
-    let export_lst_pr =
+    let export_chapter =
       hw.exercise_data
       |> List.map(~f=(((name, idx) as key, persistent_state)) => {
            switch (find_key_opt(key, specs)) {
@@ -91,17 +88,15 @@ module Main = {
                  ~instructor_mode=true,
                );
              let report = exercise |> gen_grading_report;
-             {idx, name, report};
-           //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
+             {name, idx, report};
            | None => failwith("Invalid spec")
-           // List.nth(specs, 0)
+           //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }
          });
-
-    let s = export_lst_pr |> yojson_of_chapter |> Yojson.Safe.pretty_to_string;
-    print_endline(s);
-    // let yj_str_school_export =
-    //   school_export |> yojson_of_school_export |> Yojson.Safe.to_string;
+    export_chapter
+    |> yojson_of_chapter
+    |> Yojson.Safe.pretty_to_string
+    |> print_endline;
   };
 };
 
