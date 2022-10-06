@@ -208,7 +208,7 @@ let rec mk =
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ =>
           //raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
-          //TODO: reinstate
+          //TODO(andrew): reinstate
 
           DHDoc_common.mk_BoolLit(true)
         }
@@ -221,7 +221,7 @@ let rec mk =
       | FreeVar(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
-        //TODO: reinstate
+        //TODO(andrew): reinstate
         //raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
         DHDoc_common.mk_BoolLit(true)
 

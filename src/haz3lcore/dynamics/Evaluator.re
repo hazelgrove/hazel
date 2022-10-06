@@ -857,6 +857,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | _ => return(Indet(d))
         };
       }
+
     | Cons(d1, d2) =>
       let* d1 = evaluate(env, d1);
       let* d2 = evaluate(env, d2);
@@ -866,17 +867,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
-        | ListLit(x1, x2, x3, x4, lst) =>
-          BoxedValue(ListLit(x1, x2, x3, x4, [d1, ...lst])) |> return
-        | Cast(ListLit(x1, x2, x3, x4, lst), List(ty), List(ty')) =>
-          BoxedValue(
-            Cast(
-              ListLit(x1, x2, x3, x4, [d1, ...lst]),
-              List(ty),
-              List(ty'),
-            ),
-          )
-          |> return
+        | ListLit(u, i, err, ty, ds) =>
+          BoxedValue(ListLit(u, i, err, ty, [d1, ...ds])) |> return
+        | Cons(_)
+        | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
           print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
@@ -897,7 +891,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           lst,
           ([], false),
         );
-
       let d = DHExp.ListLit(u, i, err, ty, lst);
       if (indet) {
         Indet(d);

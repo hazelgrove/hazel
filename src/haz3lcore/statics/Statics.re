@@ -564,7 +564,7 @@ and upat_to_info_map =
     }
   | Var(name) =>
     let self = unknown;
-    let typ = typ_after_fix(mode, self);
+    let typ = typ_after_fix(mode, Just(Typ.Unknown(Internal)));
     add(
       ~self,
       ~ctx=VarMap.extend(ctx, (name, {id: Term.UPat.rep_id(upat), typ})),
