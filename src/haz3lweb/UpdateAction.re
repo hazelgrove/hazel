@@ -32,8 +32,9 @@ type t =
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
+  | Cut
   | Copy
-  | Paste
+  | Paste(string)
   | Undo
   | Redo
   | SetShowBackpackTargets(bool)

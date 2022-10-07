@@ -93,6 +93,8 @@ module App = {
         schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
       );
 
+    JsUtil.focus_clipboard_shim();
+
     /* initialize state. */
     let state = State.init();
 
