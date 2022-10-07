@@ -118,7 +118,9 @@ let split_by_grout: t => Aba.t(t, Grout.t) =
 let remold_tile_shallow =
     (~sort: Sort.t, ~shape: Nib.Shape.t, t: Tile.t): option(Tile.t) =>
   Molds.get(t.label)
-  |> List.filter_map((mold: Mold.t) => mold.out == sort ? Some({...t, mold}) : None)
+  |> List.filter_map((mold: Mold.t) =>
+       mold.out == sort ? Some({...t, mold}) : None
+     )
   |> (
     fun
     | [_] as ts => ts
@@ -129,7 +131,7 @@ let remold_tile_shallow =
 
 // attempt to remold tile as sorts in the stack with concave left nib
 let rec remold_tile_via_stack =
-    (~stack: list(Sort.t), t: Tile.t): option((list(Sort.t), Tile.t)) =>
+        (~stack: list(Sort.t), t: Tile.t): option((list(Sort.t), Tile.t)) =>
   switch (stack) {
   | [] => None
   | [sort, ...stack] =>
@@ -138,7 +140,7 @@ let rec remold_tile_via_stack =
     | Some(t) when fst(Tile.shapes(t)) != Convex => Some((stack, t))
     | _ => remold_tile_via_stack(~stack, t)
     }
-  }
+  };
 
 let rec remold =
         (
