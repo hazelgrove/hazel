@@ -263,12 +263,10 @@ let view = (~inject, ~handlers, model: Model.t) => {
             Virtual_dom.Vdom.Effect.Ignore;
           }),
           on_copy(_ => {
-            JsUtil.focus_clipboard_shim();
             JsUtil.copy(get_selection(model));
             Virtual_dom.Vdom.Effect.Ignore;
           }),
           on_cut(_ => {
-            JsUtil.focus_clipboard_shim();
             JsUtil.copy(get_selection(model));
             inject(UpdateAction.PerformAction(Destruct(Left)));
           }),
