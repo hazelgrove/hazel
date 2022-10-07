@@ -1368,18 +1368,15 @@ let let_tuple_exp: form = {
 let _pat1 = pat("p1");
 let _pat2 = pat("p2");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_tuple2_exp_coloring_ids =
-    (~pat1_id: Id.t, ~pat2_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
-    : list((Id.t, Id.t)) => [
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_pat1), pat1_id),
   (Piece.id(_pat2), pat2_id),
   (Piece.id(_exp_def), def_id),
-  (Piece.id(_exp_body), body_id),
 ];
 let let_tuple2_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 2-tuples where the first element matches the [*first element pattern*](%i) and the second element matches the [*second element pattern*](%i).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -1389,7 +1386,7 @@ let let_tuple2_exp: form = {
       [space(), _exp_def, space()],
     ]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_tuple2_exp",
@@ -1403,25 +1400,17 @@ let _pat1 = pat("p1");
 let _pat2 = pat("p2");
 let _pat3 = pat("p3");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_tuple3_exp_coloring_ids =
-    (
-      ~pat1_id: Id.t,
-      ~pat2_id: Id.t,
-      ~pat3_id: Id.t,
-      ~def_id: Id.t,
-      ~body_id: Id.t,
-    )
+    (~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t, ~def_id: Id.t)
     : list((Id.t, Id.t)) => [
   (Piece.id(_pat1), pat1_id),
   (Piece.id(_pat2), pat2_id),
   (Piece.id(_pat3), pat3_id),
   (Piece.id(_exp_def), def_id),
-  (Piece.id(_exp_body), body_id),
 ];
 let let_tuple3_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are 3-tuples where the first element matches the [*first element pattern*](%i), the second element matches the [*second element pattern*](%i), and the third element matches the [*third element pattern*](%i).",
     feedback: Unselected,
   };
   let comma = comma_pat();
@@ -1441,7 +1430,7 @@ let let_tuple3_exp: form = {
       [space(), _exp_def, space()],
     ]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_tuple3_exp",
