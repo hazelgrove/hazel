@@ -362,7 +362,7 @@ let rec mk =
        };
        */
 
-      | Fun(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody, _) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
