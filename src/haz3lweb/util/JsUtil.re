@@ -25,16 +25,16 @@ let shift_held = evt => Js.to_bool(evt##.shiftKey);
 let alt_held = evt => Js.to_bool(evt##.altKey);
 let meta_held = evt => Js.to_bool(evt##.metaKey);
 
-let to_sys_clipboard = (string: string): unit =>
-  Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
-    Js.string(string),
-  );
+// let to_sys_clipboard = (string: string): unit =>
+//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
+//     Js.string(string),
+//   );
 
-let from_sys_clipboard = (callback: string => unit): Promise.t(unit) =>
-  Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
-  |> Promise.then_(~fulfilled=s =>
-       s |> Js.to_string |> callback |> Promise.resolve
-     );
+// let from_sys_clipboard = (callback: string => unit): Promise.t(unit) =>
+//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
+//   |> Promise.then_(~fulfilled=s =>
+//        s |> Js.to_string |> callback |> Promise.resolve
+//      );
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
