@@ -452,31 +452,31 @@ let example_view =
   );
 };
 
-let rec bypass_parens_and_annot_pat = pat => {
-  switch (pat) {
-  | TermBase.UPat.Parens(p)
-  | TypeAnn(p, _) => bypass_parens_and_annot_pat(p.term)
+let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
+  switch (pat.term) {
+  | Parens(p)
+  | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_pat = pat => {
-  switch (pat) {
-  | TermBase.UPat.Parens(p) => bypass_parens_pat(p.term)
+let rec bypass_parens_pat = (pat: TermBase.UPat.t) => {
+  switch (pat.term) {
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_exp = exp => {
-  switch (exp) {
-  | TermBase.UExp.Parens(e) => bypass_parens_exp(e.term)
+let rec bypass_parens_exp = (exp: TermBase.UExp.t) => {
+  switch (exp.term) {
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
 
-let rec bypass_parens_typ = typ => {
-  switch (typ) {
-  | TermBase.UTyp.Parens(t) => bypass_parens_typ(t.term)
+let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
+  switch (typ.term) {
+  | Parens(t) => bypass_parens_typ(t)
   | _ => typ
   };
 };
@@ -684,7 +684,8 @@ let get_doc =
             LangDocMessages.function_exp_coloring_ids(~pat_id, ~body_id),
           );
         };
-        switch (bypass_parens_and_annot_pat(pat.term)) {
+        let pat = bypass_parens_and_annot_pat(pat);
+        switch (pat.term) {
         | EmptyHole =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1296,7 +1297,8 @@ let get_doc =
             ),
           );
         };
-        switch (bypass_parens_and_annot_pat(pat.term)) {
+        let pat = bypass_parens_and_annot_pat(pat);
+        switch (pat.term) {
         | EmptyHole =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1895,7 +1897,7 @@ let get_doc =
           };
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit? TODO Doesn't necessarily seem to be skipping parens and type annot when highlighting pattern part of lets and funs etc
+        | TypeAnn(_) => default // Shouldn't get hit?
         };
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
@@ -2183,7 +2185,7 @@ let get_doc =
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
-    switch (bypass_parens_pat(term.term)) {
+    switch (bypass_parens_pat(term).term) {
     | EmptyHole =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2539,7 +2541,7 @@ let get_doc =
       default
     }
   | Some(InfoTyp({term, _})) =>
-    switch (bypass_parens_typ(term.term)) {
+    switch (bypass_parens_typ(term).term) {
     | EmptyHole =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
