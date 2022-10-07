@@ -104,22 +104,19 @@ let status_view = (err: Haz3lcore.Statics.error_status) => {
   };
 };
 
-let term_tag = (~inject, is_err, sort) => {
+let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
   let lang_doc =
     div(
-      ~attr=
-        Attr.many([
-          Attr.classes(["lang-doc-button"]),
-          Attr.on_click(_ =>
-            Effect.Many([
-              inject(
-                Update.UpdateLangDocMessages(LangDocMessages.ToggleShow),
-              ),
-              Effect.Stop_propagation,
-            ])
-          ),
-        ]),
-      [div(~attr=Attr.classes(["icon"]), [Icons.circle_question])],
+      ~attr=clss(["lang-doc-button"]),
+      [
+        Widgets.toggle(
+          ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
+          Effect.Many([
+            inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
+            Effect.Stop_propagation,
+          ])
+        ),
+      ],
     );
 
   div(
@@ -131,7 +128,8 @@ let term_tag = (~inject, is_err, sort) => {
   );
 };
 
-let view_of_info = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
+let view_of_info =
+    (~inject, ~show_lang_doc: bool, ci: Haz3lcore.Statics.t): Node.t => {
   let is_err = Haz3lcore.Statics.is_error(ci);
   switch (ci) {
   | Invalid(msg) =>
@@ -143,30 +141,43 @@ let view_of_info = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
-      [term_tag(~inject, is_err, "exp"), status_view(error_status)],
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "exp"),
+        status_view(error_status),
+      ],
     );
   | InfoPat({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
-      [term_tag(~inject, is_err, "pat"), status_view(error_status)],
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "pat"),
+        status_view(error_status),
+      ],
     );
   | InfoTyp({self: Free(free_error), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(~inject, is_err, "typ"), error_view(Free(free_error))],
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+        error_view(Free(free_error)),
+      ],
     )
   | InfoTyp({self: Just(ty), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
-      [term_tag(~inject, is_err, "typ"), text("is"), Type.view(ty)],
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
+        text("is"),
+        Type.view(ty),
+      ],
     )
   | InfoTyp({self: _, _}) =>
     failwith("CursorInspector: Impossible type error")
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
-      [term_tag(~inject, is_err, "rul"), text("Rule")],
+      [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
     )
   };
 };
@@ -197,7 +208,13 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 };
 
 let inspector_view =
-    (~inject, ~settings: Model.settings, id: int, ci: Haz3lcore.Statics.t)
+    (
+      ~inject,
+      ~settings: Model.settings,
+      ~show_lang_doc: bool,
+      id: int,
+      ci: Haz3lcore.Statics.t,
+    )
     : Node.t =>
   div(
     ~attr=
@@ -210,7 +227,7 @@ let inspector_view =
       ]),
     [
       extra_view(settings.context_inspector, id, ci),
-      view_of_info(~inject, ci),
+      view_of_info(~inject, ~show_lang_doc, ci),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
@@ -219,6 +236,7 @@ let view =
     (
       ~inject,
       ~settings,
+      ~show_lang_doc: bool,
       zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
     ) => {
@@ -231,7 +249,8 @@ let view =
     switch (index) {
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
-      | Some(ci) => inspector_view(~inject, ~settings, index, ci)
+      | Some(ci) =>
+        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
