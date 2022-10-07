@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open Haz3lcore;
 // TODO Make unified way of using consistent metavariables for syntactic forms
+// TODO Use /tau instead of ty when can do that and still have highlighting work
 [@deriving (show({with_path: false}), sexp, yojson)]
 type feedback_option =
   | ThumbsUp
@@ -2881,7 +2882,7 @@ let ap_pat: form = {
 };
 let typann_pat_group = "typann_pat_group";
 let _pat = pat("p");
-let _typ = typ("𝜏");
+let _typ = typ("ty");
 let typann_pat_coloring_ids =
     (~pat_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_pat), pat_id),
@@ -2993,7 +2994,7 @@ let str_typ: form = {
 };
 
 let list_typ_group = "list_typ_group";
-let _typ_elem = typ("𝜏_elem");
+let _typ_elem = typ("ty_elem");
 // TODO Syntactic form coloring looks off for this one and other types ones...
 let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_elem), elem_id),
@@ -3014,8 +3015,8 @@ let list_typ: form = {
 
 let arrow_typ_group = "arrow_typ_group";
 let arrow3_typ_group = "arrow3_typ_group";
-let _typ_arg = typ("𝜏_arg");
-let _typ_out = typ("𝜏_out");
+let _typ_arg = typ("ty_arg");
+let _typ_out = typ("ty_out");
 let arrow_typ_coloring_ids =
     (~arg_id: Id.t, ~result_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_arg), arg_id),
@@ -3034,9 +3035,9 @@ let arrow_typ: form = {
     examples: [],
   };
 };
-let _typ_arg1 = typ("𝜏_arg1");
-let _typ_arg2 = typ("𝜏_arg2");
-let _typ_out = typ("𝜏_out");
+let _typ_arg1 = typ("ty_arg1");
+let _typ_arg2 = typ("ty_arg2");
+let _typ_out = typ("ty_out");
 let arrow3_typ_coloring_ids =
     (~arg1_id: Id.t, ~arg2_id: Id.t, ~result_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_arg1), arg1_id),
@@ -3079,14 +3080,14 @@ let tuple_typ: form = {
   let comma = comma_typ();
   {
     id: "tuple_typ",
-    syntactic_form: [typ("𝜏1"), comma, space(), typ("...")],
+    syntactic_form: [typ("ty1"), comma, space(), typ("...")],
     expandable_id: Some(Piece.id(comma)),
     explanation,
     examples: [],
   };
 };
-let _typ_elem1 = typ("𝜏1");
-let _typ_elem2 = typ("𝜏2");
+let _typ_elem1 = typ("ty1");
+let _typ_elem2 = typ("ty2");
 let tuple2_typ_coloring_ids =
     (~elem1_id: Id.t, ~elem2_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_elem1), elem1_id),
@@ -3106,9 +3107,9 @@ let tuple2_typ: form = {
     examples: [],
   };
 };
-let _typ_elem1 = typ("𝜏1");
-let _typ_elem2 = typ("𝜏2");
-let _typ_elem3 = typ("𝜏3");
+let _typ_elem1 = typ("ty1");
+let _typ_elem2 = typ("ty2");
+let _typ_elem3 = typ("ty3");
 let tuple3_typ_coloring_ids =
     (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_typ_elem1), elem1_id),
@@ -3713,31 +3714,25 @@ let init = {
     (
       arrow3_typ_group,
       init_options([
-        (arrow_typ.id, [typ("𝜏_out")]),
-        (arrow3_typ.id, [typ("𝜏_arg2"), arrow(), typ("𝜏_out")]),
+        (arrow_typ.id, [typ("ty_out")]),
+        (arrow3_typ.id, [typ("ty_arg2"), arrow(), typ("ty_out")]),
       ]),
     ),
     (tuple_typ_group, init_options([(tuple_typ.id, [])])),
     (
       tuple2_typ_group,
       init_options([
-        (tuple_typ.id, [typ("𝜏1"), comma_typ(), typ("...")]),
-        (tuple2_typ.id, [typ("𝜏1"), comma_typ(), typ("𝜏2")]),
+        (tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
+        (tuple2_typ.id, [typ("ty1"), comma_typ(), typ("ty2")]),
       ]),
     ),
     (
       tuple3_typ_group,
       init_options([
-        (tuple_typ.id, [typ("𝜏1"), comma_typ(), typ("...")]),
+        (tuple_typ.id, [typ("ty1"), comma_typ(), typ("...")]),
         (
           tuple3_typ.id,
-          [
-            typ("𝜏1"),
-            comma_typ(),
-            typ("𝜏2"),
-            comma_typ(),
-            typ("𝜏3"),
-          ],
+          [typ("ty1"), comma_typ(), typ("ty2"), comma_typ(), typ("ty3")],
         ),
       ]),
     ),
