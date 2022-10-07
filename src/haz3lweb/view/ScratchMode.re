@@ -52,7 +52,16 @@ let view =
     );
   let ci_view =
     settings.statics
-      ? [CursorInspector.view(~inject, ~settings, zipper, info_map)] : [];
+      ? [
+        CursorInspector.view(
+          ~inject,
+          ~settings,
+          ~show_lang_doc=langDocMessages.show,
+          zipper,
+          info_map,
+        ),
+      ]
+      : [];
   let bottom_bar = [div(~attr=Attr.class_("bottom-bar"), ci_view)];
   let right_panel =
     langDocMessages.show && settings.statics

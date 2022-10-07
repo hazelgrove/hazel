@@ -1306,9 +1306,8 @@ svg.tile-selected {
   filter: brightness(0.9);
 }
 
-.lang-doc-button .icon {
-  display: flex;
-  cursor: pointer;
+.lang-doc-button  {
+  text-transform: none;
 }
 
 .lang-doc .section {
