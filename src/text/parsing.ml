@@ -5,6 +5,22 @@ exception SyntaxError of ((int * int) option * string option)
 
 module I = Parse.MenhirInterpreter
 
+let old_pos : int ref = ref 0
+let cur_ws : int ref = ref 0
+
+let set_whitespace l =
+  let count = lexeme_start l - !old_pos in
+  old_pos := lexeme_end l;
+  cur_ws := count
+
+let get_whitespace () = !cur_ws
+
+let print_whitespace l =
+  set_whitespace l;
+  let count = get_whitespace () in
+  print_endline ("considering: " ^ (lexeme l));
+  print_endline ("ws should be: " ^ Int.to_string count)
+
 let rec parse lexbuf c =
   match c with
   | I.InputNeeded _ ->
