@@ -43,9 +43,6 @@ type t = {
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   double_tap: option(timestamp),
-  clipboard: string, /* NOTE(andrew): no longer used in favor of
-   system clipboard, but leaving for now in case we decide to
-   switch back */
   mousedown: bool,
 };
 
@@ -60,7 +57,6 @@ let mk = editors => {
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   double_tap: None,
-  clipboard: ",",
   mousedown: false,
 };
 

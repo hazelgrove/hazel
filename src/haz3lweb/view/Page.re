@@ -5,10 +5,6 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let copy_log_to_clipboard = _ => {
-  JsUtil.to_sys_clipboard(Log.export());
-  Virtual_dom.Vdom.Effect.Ignore;
-};
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
   Log.append_updates();
