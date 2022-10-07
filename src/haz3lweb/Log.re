@@ -103,7 +103,7 @@ let updates_of_string: string => updates =
       );
       [];
     };
-let json_update_log_key = "JSON_UPDATE_LOG";
+let json_update_log_key = "JSON_UPDATE_LOG_" ++ SchoolSettings.log_key;
 
 let updates = () => {
   JsUtil.get_localstore(json_update_log_key)
