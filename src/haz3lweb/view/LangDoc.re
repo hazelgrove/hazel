@@ -354,11 +354,7 @@ let deco =
 
   let color_highlight =
     if (doc.highlight) {
-      List.map(
-        ((id, color)) =>
-          Deco.term_highlight(~clss=["highlight-code-" ++ color], id),
-        colorings,
-      );
+      Deco.color_highlights(colorings);
     } else {
       [];
     };
