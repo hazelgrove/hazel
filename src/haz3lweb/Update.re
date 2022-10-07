@@ -198,7 +198,7 @@ let evaluate_and_schedule =
 };
 
 let perform_action =
-    (model: Model.t, a: Action.t, state: State.t, ~schedule_action)
+    (model: Model.t, a: Action.t, _state: State.t, ~schedule_action as _)
     : Result.t(Model.t) => {
   let (id, ed_init) = Editors.get_editor_and_id(model.editors);
   switch (Haz3lcore.Perform.go(a, ed_init, id)) {

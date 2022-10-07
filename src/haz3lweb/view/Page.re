@@ -244,51 +244,10 @@ let main_ui_view =
   };
 };
 
-let clipboard_shim_id = "clipboard-shim";
-let focus_clipboard_shim = () => {
-  let clipboard_shim = JsUtil.get_elem_by_id(clipboard_shim_id);
-  clipboard_shim##focus;
-};
-
-let clipboard_shim = (editors: Editors.t) => {
-  textarea(
-    ~attr=
-      Attr.many([
-        Attr.id(clipboard_shim_id),
-        Attr.on_blur(_ => {
-          focus_clipboard_shim();
-          Virtual_dom.Vdom.Effect.Ignore;
-        }),
-      ]),
-    [],
-  );
-};
-
-let copy = editors => {
-  focus_clipboard_shim();
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
-  );
-  // TODO: (cyrus) doesn't do indentation correctly...
-  Dom_html.document##execCommand(
-    Js.string("insertText"),
-    Js.bool(false),
-    Js.Opt.option(
-      Some(
-        Js.string(Printer.to_string_selection(Editors.get_zipper(editors))),
-      ),
-    ),
-  );
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
-  );
-};
-
 let page_id = "page";
+
+let get_selection = (model: Model.t): string =>
+  model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
 let view = (~inject, ~handlers, model: Model.t) => {
   let main_ui = main_ui_view(~inject, model);
@@ -300,26 +259,27 @@ let view = (~inject, ~handlers, model: Model.t) => {
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
           on_blur(_ => {
-            focus_clipboard_shim();
+            JsUtil.focus_clipboard_shim();
             Virtual_dom.Vdom.Effect.Ignore;
           }),
           on_focus(_ => {
-            focus_clipboard_shim();
+            JsUtil.focus_clipboard_shim();
             Virtual_dom.Vdom.Effect.Ignore;
           }),
           on_copy(_ => {
-            focus_clipboard_shim();
-            copy(model.editors);
+            JsUtil.focus_clipboard_shim();
+            JsUtil.copy(get_selection(model));
             Virtual_dom.Vdom.Effect.Ignore;
           }),
           on_cut(_ => {
-            focus_clipboard_shim();
-            copy(model.editors);
+            JsUtil.focus_clipboard_shim();
+            JsUtil.copy(get_selection(model));
             inject(UpdateAction.PerformAction(Destruct(Left)));
           }),
           on_paste(evt => {
             let pasted_text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
             Dom.preventDefault(evt);
             inject(UpdateAction.Paste(pasted_text));
           }),
@@ -329,7 +289,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
-      clipboard_shim(model.editors),
+      JsUtil.clipboard_shim,
     ]
     @ main_ui,
   );
