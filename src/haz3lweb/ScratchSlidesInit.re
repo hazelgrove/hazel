@@ -7,8 +7,8 @@ let slide0: PersistentZipper.t = {
 };
 
 let empty: PersistentZipper.t = {
-  zipper: "(0((selection((focus Left)(content())))(backpack())(relatives((siblings(((Grout((id 0)(shape Convex))))()))(ancestors())))(caret Outer)))",
-  backup_text: " ",
+  zipper: "((selection((focus Left)(content())))(backpack())(relatives((siblings(()((Grout((id 0)(shape Convex))))))(ancestors())))(caret Outer))",
+  backup_text: "",
 };
 
 let init_data = [slide0, empty, empty, empty, empty, empty, empty, empty];
