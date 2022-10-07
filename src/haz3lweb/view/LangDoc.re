@@ -1754,21 +1754,15 @@ let get_doc =
                 options,
                 LangDocMessages.let_tuple2_exp_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(
-                    doc.explanation.message,
-                    "%i%i%i%i%i",
-                  ),
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
                   def_id,
                   pat1_id,
                   pat2_id,
-                  def_id,
-                  body_id,
                 ),
                 LangDocMessages.let_tuple2_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~def_id,
-                  ~body_id,
                 ),
               );
             } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
@@ -1794,21 +1788,18 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%i%i%i%i%i%i",
+                    "%i%i%i%i",
                   ),
                   def_id,
                   pat1_id,
                   pat2_id,
                   pat3_id,
-                  def_id,
-                  body_id,
                 ),
                 LangDocMessages.let_tuple3_exp_coloring_ids(
                   ~pat1_id,
                   ~pat2_id,
                   ~pat3_id,
                   ~def_id,
-                  ~body_id,
                 ),
               );
             } else if (LangDocMessages.let_tuple_exp.id == doc.id) {
