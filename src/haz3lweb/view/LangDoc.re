@@ -2841,10 +2841,31 @@ let view =
       div(
         ~attr=clss(["content"]),
         [
-          toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
-            inject(
-              Update.UpdateLangDocMessages(LangDocMessages.ToggleHighlight),
-            )
+          div(
+            ~attr=clss(["top-bar"]),
+            [
+              toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
+                inject(
+                  Update.UpdateLangDocMessages(
+                    LangDocMessages.ToggleHighlight,
+                  ),
+                )
+              ),
+              div(
+                ~attr=
+                  Attr.many([
+                    clss(["close"]),
+                    Attr.on_click(_ =>
+                      inject(
+                        Update.UpdateLangDocMessages(
+                          LangDocMessages.ToggleShow,
+                        ),
+                      )
+                    ),
+                  ]),
+                [text("X")],
+              ),
+            ],
           ),
           section(
             ~section_clss="syntactic-form",

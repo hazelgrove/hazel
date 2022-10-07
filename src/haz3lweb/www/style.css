@@ -1310,6 +1310,16 @@ svg.tile-selected {
   text-transform: none;
 }
 
+.lang-doc .top-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25em;
+}
+
+.lang-doc .top-bar .close {
+  cursor: pointer;
+}
+
 .lang-doc .section {
   display: flex;
   flex-direction: column;
