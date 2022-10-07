@@ -1654,7 +1654,7 @@ svg.tile-selected {
 /* clipboard shim */
 #clipboard-shim {
   /* probably overkill for hiding it... */
-  position: absolute;
+  position: fixed;
   opacity: 0.01;
   width: 1em;
   height: 1em;
