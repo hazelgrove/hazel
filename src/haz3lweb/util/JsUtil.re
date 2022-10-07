@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -91,4 +92,41 @@ let confirm = message => {
 
 let log = data => {
   Firebug.console##log(data);
+};
+
+let clipboard_shim_id = "clipboard-shim";
+
+let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+
+let clipboard_shim = {
+  Node.textarea(
+    ~attr=
+      Attr.many([
+        Attr.id(clipboard_shim_id),
+        Attr.on_blur(_ => {
+          focus_clipboard_shim();
+          Virtual_dom.Vdom.Effect.Ignore;
+        }),
+      ]),
+    [],
+  );
+};
+
+let copy = (str: string) => {
+  focus_clipboard_shim();
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
+  Dom_html.document##execCommand(
+    Js.string("insertText"),
+    Js.bool(false),
+    Js.Opt.option(Some(Js.string(str))),
+  );
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
 };
