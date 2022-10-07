@@ -1,13 +1,10 @@
 open Virtual_dom.Vdom;
+open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let copy_log_to_clipboard = _ => {
-  JsUtil.copy_to_clipboard(Log.export());
-  Virtual_dom.Vdom.Effect.Ignore;
-};
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
   Log.append_updates();
@@ -243,20 +240,51 @@ let main_ui_view =
   };
 };
 
+let page_id = "page";
+
+let get_selection = (model: Model.t): string =>
+  model.editors |> Editors.get_editor |> Printer.to_string_selection;
+
 let view = (~inject, ~handlers, model: Model.t) => {
   let main_ui = main_ui_view(~inject, model);
   div(
     ~attr=
       Attr.many(
         Attr.[
-          id("page"),
+          id(page_id),
           // safety handler in case mousedown overlay doesn't catch it
           on_mouseup(_ => inject(Update.Mouseup)),
+          on_blur(_ => {
+            JsUtil.focus_clipboard_shim();
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_focus(_ => {
+            JsUtil.focus_clipboard_shim();
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_copy(_ => {
+            JsUtil.copy(get_selection(model));
+            Virtual_dom.Vdom.Effect.Ignore;
+          }),
+          on_cut(_ => {
+            JsUtil.copy(get_selection(model));
+            inject(UpdateAction.PerformAction(Destruct(Left)));
+          }),
+          on_paste(evt => {
+            let pasted_text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+            Dom.preventDefault(evt);
+            inject(UpdateAction.Paste(pasted_text));
+          }),
           ...handlers(~inject, ~model),
         ],
       ),
-    [FontSpecimen.view("font-specimen"), DecUtil.filters]
-    @ main_ui
-    @ [div(~attr=Attr.id("blorg"), [])] // hack for clipboard management, see JsUtil
+    [
+      FontSpecimen.view("font-specimen"),
+      DecUtil.filters,
+      JsUtil.clipboard_shim,
+    ]
+    @ main_ui,
   );
 };
