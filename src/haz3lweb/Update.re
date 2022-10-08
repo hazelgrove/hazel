@@ -151,7 +151,8 @@ let reevaluate_post_update =
   | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FailedInput(_) => false
+  | FailedInput(_)
+  | UpdateLangDocMessages(_) => false
   // may not be necessary on all of these
   // TODO review and prune
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
@@ -163,9 +164,7 @@ let reevaluate_post_update =
   | ToggleMode
   | Paste
   | Undo
-  | Redo
-  | UpdateLangDocMessages(_) /* TODO Should this be true or false for lang doc*/ =>
-    true;
+  | Redo => true;
 
 let evaluate_and_schedule =
     (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
