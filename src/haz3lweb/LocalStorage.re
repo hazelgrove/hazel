@@ -71,12 +71,18 @@ module LangDocMessages = {
 
   let load = (): LangDocMessages.t =>
     switch (JsUtil.get_localstore(save_langDocMessages_key)) {
-    | None => LangDocMessages.init
+    | None => init()
     | Some(data) => deserialize(data)
     };
 
-  let export = () =>
-    Option.get(JsUtil.get_localstore(save_langDocMessages_key));
+  let rec export = () =>
+    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    | None =>
+      let _ = init();
+      export();
+    | Some(data) => data
+    };
+
   let import = data => {
     let langDocMessages = deserialize(data);
     save(langDocMessages);
