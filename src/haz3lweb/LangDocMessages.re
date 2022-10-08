@@ -39,7 +39,6 @@ type form_group = {
 
 // TODO Make sure using this for all the forms that should, like wild and nil
 // TODO Should this have its own ID generator or is using the Example one fine?
-// TODO Double check all of the forms again to make sure didn't break anything with decoupling refactor
 let cons_exp = () => Example.mk_monotile(Form.get("cons_exp"));
 let cons_pat = () => Example.mk_monotile(Form.get("cons_pat"));
 let seq = () => Example.mk_monotile(Form.get("cell-join"));
