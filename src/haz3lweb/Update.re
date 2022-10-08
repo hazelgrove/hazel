@@ -170,9 +170,12 @@ let evaluate_and_schedule =
   let model = {
     ...model,
     results:
-      ModelResults.init(
-        model.settings.dynamics
-          ? Editors.get_spliced_elabs(model.editors) : [],
+      Util.TimeUtil.measure_time(
+        "ModelResults.init", model.settings.benchmark, () =>
+        ModelResults.init(
+          model.settings.dynamics
+            ? Editors.get_spliced_elabs(model.editors) : [],
+        )
       ),
   };
 

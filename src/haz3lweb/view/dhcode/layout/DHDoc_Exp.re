@@ -206,7 +206,12 @@ let rec mk =
         | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
-        | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
+        | d =>
+          let (r, _) = go'(d);
+          r;
+        // | _ =>
+        //   print_endline("OOPS");
+        //   raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure));
         }
 
       /* Hole expressions must appear within a closure in
