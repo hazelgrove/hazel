@@ -120,3 +120,25 @@ let copy = (str: string) => {
     Js.Opt.empty,
   );
 };
+
+module Fragment = {
+  let set_current = frag => {
+    let frag =
+      switch (frag) {
+      | "" => ""
+      | frag => "#" ++ frag
+      };
+    let history = Js_of_ocaml.Dom_html.window##.history;
+    history##pushState(Js.null, Js.string(""), Js.some(Js.string(frag)));
+  };
+
+  let get_current = () => {
+    let fragment_of_url = (url: Url.url): string =>
+      switch (url) {
+      | Http({hu_fragment: str, _})
+      | Https({hu_fragment: str, _})
+      | File({fu_fragment: str, _}) => str
+      };
+    Url.Current.get() |> Option.map(fragment_of_url);
+  };
+};
