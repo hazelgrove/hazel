@@ -977,24 +977,24 @@ let _pat_def_body_let_exp_coloring_ids =
     : list((Id.t, Id.t)) => {
   [(sf_pat_id, pat_id), (sf_def_id, def_id), (sf_body_id, body_id)];
 };
+let _pat_def_let_exp_coloring_ids =
+    (sf_pat_id: Id.t, sf_def_id: Id.t, ~pat_id: Id.t, ~def_id: Id.t)
+    : list((Id.t, Id.t)) => {
+  [(sf_pat_id, pat_id), (sf_def_id, def_id)];
+};
 let _pat = pat("p");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_base_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
+  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_base_exp: form = {
   let explanation = {
-    message: "Let expression. Binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
+    message: "Let expression. The [*definition*](%i) is matched against the [*pattern*](%i).",
     feedback: Unselected,
   };
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_base_exp",
@@ -1006,22 +1006,17 @@ let let_base_exp: form = {
 };
 let _pat = pat("EmptyHole");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_empty_hole_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
+  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_empty_hole_exp: form = {
   let explanation = {
-    message: "Let expression. After the [*empty hole pattern*](%i) is filled, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
+    message: "Let expression. After the [*empty hole pattern*](%i) is filled, the [*definition*](%i) is matched against the [*pattern*](%i).",
     feedback: Unselected,
   };
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_empty_hole_exp",
@@ -1033,22 +1028,17 @@ let let_empty_hole_exp: form = {
 };
 let _pat = pat("INVALID");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_multi_hole_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
+  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_multi_hole_exp: form = {
   let explanation = {
-    message: "Let expression. After the [invalid pattern](%i) is corrected, binds the [*pattern*](%i) to the [*definition*](%i) in the [*body*](%i).",
+    message: "Let expression. After the [invalid pattern](%i) is corrected, the [*definition*](%i) is matched against the [*pattern*](%i).",
     feedback: Unselected,
   };
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_multi_hole_exp",
@@ -1221,22 +1211,17 @@ let let_triv_exp: form = {
 };
 let _pat = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_listlit_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_pat),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
+  _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
 let let_listlit_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern. The matching element patterns are bound to the elements of the [*definition*](%i) in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are lists with %i-elements, where each element matches the corresponding element pattern.",
     feedback: Unselected,
   };
   let form = [
     mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_listlit_exp",
@@ -1276,18 +1261,15 @@ let let_listnil_exp: form = {
 let _pat_hd = pat("p_hd");
 let _pat_tl = pat("p_tl");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_cons_exp_coloring_ids =
-    (~hd_id: Id.t, ~tl_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
-    : list((Id.t, Id.t)) => [
+    (~hd_id: Id.t, ~tl_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_pat_hd), hd_id),
   (Piece.id(_pat_tl), tl_id),
   (Piece.id(_exp_def), def_id),
-  (Piece.id(_exp_body), body_id),
 ];
 let let_cons_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns. Matching [*head*](%i) and [*tail*](%i) patterns are bound to the head and tail of the [*definition*](%i) in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are non-empty lists that match the [*head*](%i) and [*tail*](%i) patterns.",
     feedback: Unselected,
   };
   let cons = cons_pat();
@@ -1297,7 +1279,7 @@ let let_cons_exp: form = {
       [space(), _exp_def, space()],
     ]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_cons_exp",
@@ -1337,16 +1319,11 @@ let let_var_exp: form = {
 };
 let _comma = comma_pat();
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_tuple_exp_coloring_ids =
-  _pat_def_body_let_exp_coloring_ids(
-    Piece.id(_comma),
-    Piece.id(_exp_def),
-    Piece.id(_exp_body),
-  );
+  _pat_def_let_exp_coloring_ids(Piece.id(_comma), Piece.id(_exp_def));
 let let_tuple_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern. The [*definition*](%i) is bound to the [*pattern*](%i) in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the [*pattern*](%i) are %i-tuples where each element matches the corresponding element pattern.",
     feedback: Unselected,
   };
   let form = [
@@ -1355,7 +1332,7 @@ let let_tuple_exp: form = {
       [space(), _exp_def, space()],
     ]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_tuple_exp",
@@ -1470,18 +1447,15 @@ let let_tag_exp: form = {
 let _pat_con = pat("p_con");
 let _pat_arg = pat("p_arg");
 let _exp_def = exp("e_def");
-let _exp_body = exp("e_body");
 let let_ap_exp_coloring_ids =
-    (~con_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t, ~body_id: Id.t)
-    : list((Id.t, Id.t)) => [
+    (~con_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_pat_con), con_id),
   (Piece.id(_pat_arg), arg_id),
   (Piece.id(_exp_def), def_id),
-  (Piece.id(_exp_body), body_id),
 ];
 let let_ap_exp: form = {
   let explanation = {
-    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i). The [*definition*](%i) is bound to the *pattern* in the [*body*](%i).",
+    message: "Let expression. The only values for the [*definition*](%i) that match the *pattern* are the [*constructor*](%i) where the *argument* matches the [*argument pattern*](%i).",
     feedback: Unselected,
   };
   let ap = mk_ap_pat([[_pat_arg]]);
@@ -1491,7 +1465,7 @@ let let_ap_exp: form = {
       [space(), _exp_def, space()],
     ]),
     linebreak(),
-    _exp_body,
+    exp("e_body"),
   ];
   {
     id: "let_ap_exp",
