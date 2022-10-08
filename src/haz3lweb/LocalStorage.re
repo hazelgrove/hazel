@@ -46,10 +46,10 @@ module LangDocMessages = {
   let save_langDocMessages_key: string = "LANGDOCMESSAGES";
 
   let serialize = langDocMessages =>
-    langDocMessages |> LangDocMessages.sexp_of_t |> Sexplib.Sexp.to_string;
+    LangDocMessages.serialize(langDocMessages);
 
   let deserialize = data =>
-    try(data |> Sexplib.Sexp.of_string |> LangDocMessages.t_of_sexp) {
+    try(LangDocMessages.deserialize(data)) {
     | _ =>
       print_endline("Could not deserialize langDocMessages.");
       LangDocMessages.init;
