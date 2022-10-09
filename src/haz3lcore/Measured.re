@@ -267,6 +267,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   // recursive across seg's bidelimited containers
   let rec go_nested =
           (
+            ~map,
             ~container_indent: abs_indent=0,
             ~origin=Point.zero,
             seg: Segment.t,
@@ -293,6 +294,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
     // recursive across seg's list structure
     let rec go_seq =
             (
+              ~map,
               ~contained_indent: rel_indent=0,
               ~origin: Point.t,
               seg: Segment.t,
@@ -301,7 +303,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
       switch (seg) {
       | [] =>
         let map =
-          empty
+          map
           |> add_row(
                origin.row,
                {
@@ -311,7 +313,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
              );
         (origin, map);
       | [hd, ...tl] =>
-        let (contained_indent, origin, hd_map) =
+        let (contained_indent, origin, map) =
           switch (hd) {
           | Whitespace(w) when Whitespace.is_linebreak(w) /* ADDED */ =>
             let row_indent = container_indent + contained_indent;
@@ -333,7 +335,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let last =
               Point.{row: origin.row + 1, col: container_indent + indent};
             let map =
-              singleton_w(w, {origin, last})
+              map
+              |> add_w(w, {origin, last})
               |> add_row(
                    origin.row,
                    {indent: row_indent, max_col: origin.col},
@@ -344,46 +347,46 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let wspace_length =
               Unicode.length(Whitespace.get_content_string(w)); //ADDED
             let last = {...origin, col: origin.col + wspace_length};
-            (contained_indent, last, singleton_w(w, {origin, last}));
+            let map = map |> add_w(w, {origin, last});
+            (contained_indent, last, map);
           | Grout(g) =>
             let last = {...origin, col: origin.col + 1};
-            (contained_indent, last, singleton_g(g, {origin, last}));
+            let map = map |> add_g(g, {origin, last});
+            (contained_indent, last, map);
           | Tile(t) =>
             let token = List.nth(t.label);
-            let of_shard = (origin, shard) => {
+            let add_shard = (origin, shard, map) => {
               let last =
                 Point.{
                   ...origin,
                   col: origin.col + String.length(token(shard)),
                 };
-              (last, singleton_s(t.id, shard, {origin, last}));
+              let map = map |> add_s(t.id, shard, {origin, last});
+              (last, map);
             };
             let (last, map) =
               Aba.mk(t.shards, t.children)
-              |> Aba.fold_left_map(
-                   of_shard(origin),
-                   (origin, child, shard) => {
+              |> Aba.fold_left(
+                   shard => add_shard(origin, shard, map),
+                   ((origin, map), child, shard) => {
                      let (child_last, child_map) =
                        go_nested(
+                         ~map,
                          ~container_indent=container_indent + contained_indent,
                          ~origin,
                          child,
                        );
-                     let (shard_last, shard_map) =
-                       of_shard(child_last, shard);
-                     (shard_last, child_map, shard_map);
+                     add_shard(child_last, shard, child_map);
                    },
-                 )
-              |> PairUtil.map_snd(Aba.join(Fun.id, Fun.id))
-              |> PairUtil.map_snd(union);
+                 );
             (contained_indent, last, map);
           };
-        let (tl_last, tl_map) = go_seq(~contained_indent, ~origin, tl);
-        (tl_last, union2(hd_map, tl_map));
+        let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
+        (tl_last, map);
       };
-    go_seq(~origin, seg);
+    go_seq(~map, ~origin, seg);
   };
-  snd(go_nested(seg));
+  snd(go_nested(~map=empty, seg));
 };
 
 let length = (seg: Segment.t, map: t): int =>

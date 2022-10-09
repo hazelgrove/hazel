@@ -342,8 +342,7 @@ let skel = seg =>
   |> List.filter(((_, p)) => !Piece.is_whitespace(p))
   |> Skel.mk;
 
-let sorted_children = seg =>
-  seg |> List.map(Piece.sorted_children) |> List.concat;
+let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
 
 module Trim = {
@@ -404,7 +403,9 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that   changes made to the logic here should also take into   account the other direction in 'regrout' below. */;
+    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that
+   changes made to the logic here should also take into
+   account the other direction in 'regrout' below. */;
 
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
     let (wss', gs') = cons_g(g, trim) /* ANDREW: disabled above hack; with calmer indent it seems annoying */ /* Hack to supress the addition of leading whitespace on a line */;
@@ -415,7 +416,9 @@ module Trim = {
   // assumes grout in trim fit r but may not fit l
   let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made   to the logic here should also take into account the   conversion of spaces to grout in 'add_grout' above. */;
+      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made
+   to the logic here should also take into account the
+   conversion of spaces to grout in 'add_grout' above. */;
 
       let new_spaces =
         List.filter_map(
@@ -582,7 +585,7 @@ let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
 
 let rec serialize = (seg: t) =>
   seg
-  |> List.map(
+  |> List.concat_map(
        fun
        | (Piece.Whitespace(_) | Grout(_) | Tile({shards: [_], _})) as p => [
            p,
@@ -598,8 +601,7 @@ let rec serialize = (seg: t) =>
            |> Aba.join(s => [s], Fun.id)
            |> List.concat;
          },
-     )
-  |> List.concat;
+     );
 
 let sameline_whitespace =
   List.for_all(

@@ -12,6 +12,7 @@ type settings = {
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,
+  benchmark: bool,
   mode: Editors.mode,
 };
 
@@ -23,6 +24,7 @@ let settings_init = {
   async_evaluation: false,
   context_inspector: false,
   instructor_mode: SchoolSettings.show_instructor,
+  benchmark: false,
   mode: Editors.Scratch,
 };
 
@@ -41,7 +43,6 @@ type t = {
   logo_font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   double_tap: option(timestamp),
-  clipboard: string,
   mousedown: bool,
 };
 
@@ -56,7 +57,6 @@ let mk = editors => {
   logo_font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   double_tap: None,
-  clipboard: ",",
   mousedown: false,
 };
 

@@ -1,17 +1,32 @@
 open Sexplib.Std;
 open Mold;
-module P = Precedence /* FORM         This module determines the syntactic extent of the language; the      entire Syntax module is driven by the below definitions. Adding      a new syntactic form is simply a matter of adding a new line to either      the 'convex_monos' table, for single-token forms, or the 'forms'      table, for compound forms.         The wrapping functions seen in both of those tables determine the      shape, precedence, and expansion behavior of the form. */;
+module P = Precedence /* FORM
+   
+      This module determines the syntactic extent of the language; the
+      entire Syntax module is driven by the below definitions. Adding
+      a new syntactic form is simply a matter of adding a new line to either
+      the 'convex_monos' table, for single-token forms, or the 'forms'
+      table, for compound forms.
+   
+      The wrapping functions seen in both of those tables determine the
+      shape, precedence, and expansion behavior of the form. */;
 
 let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0) /* A label is the textual expression of a form's delimiters */;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type label = list(Token.t) /* The construction of a compound forms can be triggered by inserting   one of its delimiters through a process called expansion. Expansion   can either occur (Instant)ly upon delimiter creation, or be (Delayed)   until after a token boundary event is triggered (say by pressing   space after entering 'let'). The (Static) case is used for monos   aka single-token forms. */;
+type label = list(Token.t) /* The construction of a compound forms can be triggered by inserting
+   one of its delimiters through a process called expansion. Expansion
+   can either occur (Instant)ly upon delimiter creation, or be (Delayed)
+   until after a token boundary event is triggered (say by pressing
+   space after entering 'let'). The (Static) case is used for monos
+   aka single-token forms. */;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion_time =
   | Static
   | Instant
-  | Delayed /* Expansion can be triggered by either/both the first or last token   of a form, represented here by the first/last elements of this pair. */;
+  | Delayed /* Expansion can be triggered by either/both the first or last token
+   of a form, represented here by the first/last elements of this pair. */;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion = (expansion_time, expansion_time) /* A label, a mold, and expansion behavior together determine a form. */;
@@ -40,9 +55,13 @@ let mk_nul_infix = (t: Token.t, prec) =>
 
 let is_arbitary_int = regexp("^[0-9]*$");
 let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
-let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None /* NOTE: The is_arbitary_int check is necessary to prevent   minuses from being parsed as part of the int token. */;
+let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None /* NOTE: The is_arbitary_int check is necessary to prevent
+   minuses from being parsed as part of the int token. */;
 
-let is_bad_int = str => is_arbitary_int(str) && !is_int(str) /* NOTE: As well as making is_float  disjoint from is_int,   the is_arbitary_int  also prevents ints over int_max from being   cast as floats. The is_arbitary_float check is necessary to prevent   minuses from being parsed as part of the float token. */;
+let is_bad_int = str => is_arbitary_int(str) && !is_int(str) /* NOTE: As well as making is_float  disjoint from is_int,
+   the is_arbitary_int  also prevents ints over int_max from being
+   cast as floats. The is_arbitary_float check is necessary to prevent
+   minuses from being parsed as part of the float token. */;
 
 let is_float = str =>
   !is_arbitary_int(str)
@@ -65,23 +84,34 @@ let is_concrete_typ = str =>
   || str == "Unit";
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
-let is_wild = regexp("^_$") /* The below case represents tokens which we want the user to be able to   type in, but which have no reasonable semantic interpretation */;
-
+let is_wild = regexp("^_$");
+/* The below case represents tokens which we want the user to be able to
+   type in, but which have no reasonable semantic interpretation */
 let is_bad_lit = str =>
-  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str) /* is_string: last clause is a somewhat hacky way of making sure   there are at most two quotes, in order to prevent merges */;
+  is_bad_int(str) || is_bad_float(str) || is_partial_concrete_typ(str) /* is_string: last clause is a somewhat hacky way of making sure
+   there are at most two quotes, in order to prevent merges */;
 
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
-let is_string_delim = str => str == string_delim /* Whitelist: A regexp determining any other chars, not occuring in specific forms,   which we want to let through. right now, this means that we'll be able to use   them in strings/comments/any other free text forms. Currently these will cause   exceptions when used elsewhere, as no molds will be found. Such exceptions are   currently caught. This should be replaced by a more disciplined   approach to invalid text.*/;
+let is_string_delim = str => str == string_delim /* Whitelist: A regexp determining any other chars, not occuring in specific forms,
+   which we want to let through. right now, this means that we'll be able to use
+   them in strings/comments/any other free text forms. Currently these will cause
+   exceptions when used elsewhere, as no molds will be found. Such exceptions are
+   currently caught. This should be replaced by a more disciplined
+   approach to invalid text.*/;
 
 let is_whitelisted_char = regexp("[!@]") /* A. Whitespace: */;
 
-let whitespace = [Whitespace.space, Whitespace.linebreak] /* B. Operands:   Order in this list determines relative remolding   priority for forms with overlapping regexps */;
+let whitespace = [Whitespace.space, Whitespace.linebreak] /* B. Operands:
+   Order in this list determines relative remolding
+   priority for forms with overlapping regexps */;
 
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),

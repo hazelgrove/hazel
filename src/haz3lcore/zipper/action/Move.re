@@ -172,6 +172,25 @@ module Make = (M: Editor.Meta.S) => {
     do_towards(f, goal, z);
   };
 
+  let rec move_left_until_p = (z: t, p: Piece.t => bool): option(t) => {
+    let* (piece, _, _) = Indicated.piece'(~no_ws=true, ~ign=_ => false, z);
+    if (p(piece)) {
+      Some(z);
+    } else {
+      let* z = Zipper.move(Right, z);
+      move_left_until_p(z, p);
+    };
+  };
+
+  let jump_to_p = (z: t, p: Piece.t => bool): option(t) => {
+    let* z = do_extreme(primary(ByToken), Up, z);
+    move_left_until_p(z, p);
+  };
+
+  let jump_to_id = (z: t, id: Id.t): option(t) => {
+    jump_to_p(z, piece => Piece.id(piece) == id);
+  };
+
   let vertical = (d: Direction.t, z: t): option(t) =>
     z.selection.content == []
       ? do_vertical(primary(ByChar), d, z)
