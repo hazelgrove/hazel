@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module Kid = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -56,18 +55,26 @@ type t = {
 };
 
 let pre =
-    (~sort: Sort.t, ~label: list(Token.t), ~bi: list(Kid.t)=[], r: Kid.t) => {
-  assert(List.length(label) == List.length(bi) + 1);
-  {sort, label, bi_kids: bi, uni_kids: (None, Some(r))};
+    (
+      ~sort: Sort.t,
+      ~prec: Precedence.t,
+      ~label: list(Token.t),
+      ~m: list(Kid.t)=[],
+      ~r: Kid.t,
+      (),
+    ) => {
+  assert(List.length(label) == List.length(m) + 1);
+  {label, mold: Mold.mk(~m, ~r, sort, prec)};
 };
 
-let post =
-    (~sort: Sort.t, ~label: list(Token.t), ~bi: list(Kid.t)=[], l: Kid.t) => {
-  assert(List.length(label) == List.length(bi) + 1);
-  {sort, label, bi_kids: bi, uni_kids: (Some(l), None)};
-};
-
-let let_ =
-  pre(~sort=Exp, ~label=["let", "=", "in"], ~bi=Kid.[pat(), exp()], exp());
+let let_: t =
+  pre(
+    ~sort=Exp,
+    ~prec=Precedence.let_,
+    ~label=["let", "=", "in"],
+    ~m=Kid.[pat(), exp()],
+    ~r=Kid.exp(),
+    (),
+  );
 
 let all = [let_];

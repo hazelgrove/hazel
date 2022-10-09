@@ -29,7 +29,7 @@ let view =
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
-    Util.TupleUtil.map2(Haz3lcore.Nib.shape, mold.nibs);
+    Util.TupleUtil.map2(Haz3lcore.Nib.shape_, mold.nibs);
   let (tip_l, tip_r): (Haz3lcore.Nib.t, Haz3lcore.Nib.t) = (
     {sort, shape: tip_l},
     {sort, shape: tip_r},
