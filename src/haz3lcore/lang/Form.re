@@ -195,6 +195,7 @@ let is_whitespace = t =>
   List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0) /* comments ADDED */;
 // };
 let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0) || t == "#" /* ADDED */;
+let is_comment_delim = t => t == "#";
 let is_incomplete_comment = t =>
   Re.Str.string_match(Whitespace.incomplete_comment1, t, 0)
   || Re.Str.string_match(Whitespace.incomplete_comment2, t, 0) /* ADDED */;
