@@ -16,8 +16,4 @@ let dhexp_to_uexp = (dhexp: DHExp.t, id_gen: Id.t) : (Term.UExp.t, Id.t) => {
     }
 }
 
-type myTestType = {
-    ids: list(int),
-    name: string
-};
 
