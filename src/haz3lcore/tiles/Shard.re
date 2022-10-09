@@ -4,6 +4,11 @@ module Mold = {
     sort: Sort.t,
     nibs: Nibs.t,
   };
+
+  let null = {
+    sort: Exp,
+    nibs: Nib.({sort: Exp, shape: Convex}, {sort: Exp, shape: Convex}),
+  };
 };
 
 module Form = {
@@ -45,6 +50,11 @@ module Form = {
   };
 
   let all: list(list(t)) = List.map(of_term, F0rm.all);
+
+  let map_token = (f: Token.t => Token.t, {mold, token}: t): t => {
+    mold,
+    token: f(token),
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,3 +64,5 @@ type t = {
 };
 
 let id_ = s => s.id;
+
+let map_form = (f, {id, form}) => {id, form: f(form)};

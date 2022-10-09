@@ -216,12 +216,11 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
+let destruct = (d: Direction.t, z: t): IdGen.t => {
   open IdGen.Syntax;
   let b = Direction.toggle(d);
   let (selected, z) = update_selection(Selection.empty, z);
-  switch (selected.content) {
-  | [] =>
+  if (Segment.is_empty(selected.content)) {
     switch (Relatives.pop(d, z.relatives)) {
     | None =>
       // should probably return type optional
@@ -232,12 +231,21 @@ let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
       | Grout(_) =>
         let relatives = Relatives.push(b, p, relatives);
         return({...z, relatives});
-      | Tile(_) =>
-        // guaranteed to be monotile
-        failwith("todo")
+      | Tile(t) =>
+        let Shard.{id, form} = Tile.hd(t);
+        let token = Token.(d == Left ? rm_last : rm_first)(form.token);
+        let t = ([Shard.{
+                    id,
+                    form: {
+                      token,
+                      mold: Mold.null,
+                    },
+                  }], []);
+        let relatives = Relatives.push(d, Tile(t), relatives);
+        return({...z, relatives});
       }
-    }
-  | [_, ..._] =>
+    };
+  } else {
     switch (
       Segment.edge_shape_of(Left, selected.content),
       Segment.edge_shape_of(Right, selected.content),
@@ -248,7 +256,7 @@ let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
       let+ g = Grout.mk_fits_shape(l, Any);
       {...z, relatives: Relatives.push(b, Grout(g), z.relatives)};
     | _ => return(z)
-    }
+    };
   };
 };
 
