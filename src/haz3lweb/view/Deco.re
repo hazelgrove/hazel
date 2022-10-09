@@ -118,8 +118,7 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let ranges = TermRanges.mk(Zipper.zip(z));
-        switch (TermRanges.find_opt(Piece.id(p), ranges)) {
+        switch (TermRanges.find_opt(Piece.id(p), M.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
           let l = Measured.find_p(p_l, M.map).origin;
@@ -133,22 +132,20 @@ module Deco =
         | Some(i) => i
         };
       //TODO(andrew): get this working
-      let _segs =
-        switch (p) {
-        | Tile({children, mold, _}) =>
-          children
-          |> List.flatten
-          |> List.filter(
-               fun
-               | Piece.Whitespace(w)
-                   when
-                     Whitespace.is_linebreak(w) /* ADDED w.content == Whitespace.linebreak*/ =>
-                 false
-               | _ => true,
-             )
-          |> List.map(p => (mold, Measured.find_p(p, M.map)))
-        | _ => []
-        };
+      // let _segs =
+      //   switch (p) {
+      //   | Tile({children, mold, _}) =>
+      //     children
+      //     |> List.flatten
+      //     |> List.filter(
+      //          fun
+      //          | Piece.Whitespace(w) when Whitespace.is_linebreak(w) =>
+      //            false
+      //          | _ => true,
+      //        )
+      //     |> List.map(p => (mold, Measured.find_p(p, M.map)))
+      //   | _ => []
+      //   };
       switch (range) {
       | None => []
       | Some(range) =>
@@ -170,7 +167,7 @@ module Deco =
       };
     let root_targets =
       ListUtil.splits(seg)
-      |> List.map(((l, r)) => {
+      |> List.concat_map(((l, r)) => {
            let sibs =
              Segment.(incomplete_tiles(l), incomplete_tiles(r))
              |> with_container_shards;
@@ -192,8 +189,7 @@ module Deco =
                CaretPosDec.Profile.{style: `Sibling, measurement, sort: Exp};
              [CaretPosDec.view(~font_metrics, profile)];
            };
-         })
-      |> List.concat;
+         });
     switch (root_targets) {
     | [_, ..._] => root_targets
     | [] =>
@@ -203,15 +199,13 @@ module Deco =
            | Piece.Tile(t) => Some(t)
            | _ => None,
          )
-      |> List.map((t: Tile.t) => {
+      |> List.concat_map((t: Tile.t) => {
            // TODO(d): unify with Relatives.local_incomplete_tiles
            Tile.contained_children(t)
-           |> List.map(((l, seg, r)) =>
+           |> List.concat_map(((l, seg, r)) =>
                 targets(~container_shards=(l, r), bp, seg)
               )
-           |> List.concat
          })
-      |> List.concat
     };
   };
 

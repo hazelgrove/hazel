@@ -23,8 +23,8 @@ let update_double_tap = (model: Model.t): list(Update.t) => {
 let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let zipper = Editors.get_zipper(model.editors);
   let restricted = Backpack.restricted(zipper.backpack);
-  let now = a => [Update.PerformAction(a), Update.UpdateDoubleTap(None)];
-  let now_save_u = u => Update.[u, Save, UpdateDoubleTap(None)];
+  let now = a => [Update.PerformAction(a) /*Update.UpdateDoubleTap(None)*/];
+  let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
   let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
   let toggle = m => (m := ! m^) |> (_ => []);
@@ -103,18 +103,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
-    | "c" => [Copy]
-    | "v" => now_save_u(Paste) //now(Put_down)
-    | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
-    | "k" => [
-        PerformAction(Move(Extreme(Up))),
-        PerformAction(Select(Extreme(Down))),
-        Copy,
-        PerformAction(Destruct(Left)),
-        Paste,
-      ]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
@@ -125,18 +115,8 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
-    | "c" => [Copy]
-    | "v" => now_save_u(Paste) //now(Put_down)
-    | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
-    | "k" => [
-        PerformAction(Move(Extreme(Up))),
-        PerformAction(Select(Extreme(Down))),
-        Copy,
-        PerformAction(Destruct(Left)),
-        Paste,
-      ]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
