@@ -403,9 +403,7 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that
-   changes made to the logic here should also take into
-   account the other direction in 'regrout' below. */;
+    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that   changes made to the logic here should also take into   account the other direction in 'regrout' below. */;
 
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
     let (wss', gs') = cons_g(g, trim) /* ANDREW: disabled above hack; with calmer indent it seems annoying */ /* Hack to supress the addition of leading whitespace on a line */;
@@ -416,9 +414,7 @@ module Trim = {
   // assumes grout in trim fit r but may not fit l
   let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made
-   to the logic here should also take into account the
-   conversion of spaces to grout in 'add_grout' above. */;
+      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made   to the logic here should also take into account the   conversion of spaces to grout in 'add_grout' above. */;
 
       let new_spaces =
         List.filter_map(
