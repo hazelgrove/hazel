@@ -1,42 +1,57 @@
-// open Util;
-// include Base.Shard;
-// module Label = {
-//   include Label;
-//   let token = ((n, lbl)) => {
-//     assert(n >= 0 && n < List.length(lbl));
-//     List.nth(lbl, n);
-//   };
-//   let is_next = (d: Direction.t, (n, lbl), (n', lbl')) =>
-//     lbl == lbl' && (d == Right ? n + 1 == n' : n == 1 + n');
-// };
-// let mk = (tile_id: Id.t, label: Label.t, nibs: Nibs.t) => {
-//   tile_id,
-//   label,
-//   nibs,
-// };
-// let mk_s = (tile_id: Id.t, label: Base.Tile.Label.t, mold: Mold.t): list(t) =>
-//   label
-//   |> List.mapi((i, _) =>
-//        mk(tile_id, (i, label), Mold.nibs(~index=i, mold))
-//      );
-// let to_piece = s => Base.Piece.Shard(s);
-// let tile_label = s => snd(s.label);
-// let is_next = (d: Direction.t, l: t, r: t) =>
-//   Label.is_next(d, l.label, r.label);
-// let id = s => s.tile_id;
-// let index = s => fst(s.label);
-// let remold = (s: t) =>
-//   Molds.get(tile_label(s))
-//   |> List.map(mold => {...s, nibs: Mold.nibs(~index=index(s), mold)})
-//   |> ListUtil.dedup;
-// let consistent_molds = (shards: list(t)): list(Mold.t) =>
-//   switch (shards) {
-//   | [] => raise(Invalid_argument("Shard.consistent"))
-//   | [s, ..._] =>
-//     Molds.get(tile_label(s))
-//     |> List.filter(mold =>
-//          shards
-//          |> List.for_all(s => s.nibs == Mold.nibs(~index=index(s), mold))
-//        )
-//   };
-// let shapes = ({nibs: (l, r), _}: t) => (l.shape, r.shape);
+module Mold = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    sort: Sort.t,
+    nibs: Nibs.t,
+  };
+};
+
+module Form = {
+  type t = {
+    mold: Mold.t,
+    token: Token.t,
+  };
+
+  let of_term = ({mold, label}: F0rm.t): list(t) => {
+    // let lbl = List.mapi((i, t) => (i, t), label);
+    let (l_kid, m_kids, r_kid) = mold.kids;
+    let outer_nib =
+      fun
+      | None => Nib.{sort: mold.sort, shape: Convex}
+      | Some(kid) => Nib.{
+        sort: kid.sort,
+        shape: Concave({prec: mold.prec, pad: kid.pad}),
+      };
+    let (l, r) = (outer_nib(l_kid), outer_nib(r_kid));
+    let m = i => {
+      let kid = List.nth(m_kids, i);
+      let sort = kid.sort;
+      let shape = Nib.Shape.Concave({
+          pad: kid.pad,
+          prec: failwith("sort-specific min"),
+        });
+      Nib.{sort, shape};
+    };
+    label
+    |> List.mapi((i, token) => {
+      let l = i == 0 ? l : m(i - 1);
+      let r = i == List.length(label) - 1 ? r : m(i);
+      let mold = Mold.{sort: mold.sort, nibs: (l, r)};
+      {mold, token};
+    });
+  };
+
+  let all: list(list(Shard.t)) =
+    List.map(of_term, F0rm.all);
+
+  let
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  id: Id.t,
+  mold: Mold.t,
+  token: Token.t,
+};
+
+let id_ = s => s.id;
