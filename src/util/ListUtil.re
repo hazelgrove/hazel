@@ -259,6 +259,18 @@ let rec ordered_pairs = (xs: list('x)): list(('x, 'x)) =>
   | [hd, ...tl] => List.map(x => (hd, x), tl) @ ordered_pairs(tl)
   };
 
+let index_of = (x: 'x, xs: list('x)): option(int) =>
+  xs
+  |> List.mapi((i, x) => (i, x))
+  |> List.fold_left(
+       (found, (i, x')) =>
+         switch (found) {
+         | Some(_) => found
+         | None => x == x' ? Some(i) : None
+         },
+       None,
+     );
+
 let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
   | []

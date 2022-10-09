@@ -24,7 +24,7 @@ module Caret = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   selection: Selection.t,
-  backpack: Backpack.t,
+  // backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
   // col_target: int,
@@ -36,7 +36,7 @@ let init: int => t =
       focus: Left,
       content: [],
     },
-    backpack: [],
+    // backpack: [],
     relatives: {
       siblings: ([], [Grout({id, sort: Exp, shape: Convex})]),
       ancestors: [],
@@ -106,8 +106,8 @@ let sibs_with_sel =
   | Right => (l_sibs @ content, r_sibs)
   };
 
-let pop_backpack = (z: t) =>
-  Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
+// let pop_backpack = (z: t) =>
+//   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
 let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
   siblings =>
@@ -216,25 +216,28 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let pick_up = (z: t): t => {
-  let (selected, z) = update_selection(Selection.empty, z);
-  let selection =
-    selected.content
-    |> Segment.trim_grout_around_whitespace(Left)
-    |> Segment.trim_grout_around_whitespace(Right)
-    |> Selection.mk(selected.focus);
-  Segment.tiles(selection.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
-  let backpack = Backpack.push(selection, z.backpack);
-  {...z, backpack};
-};
-
-// delete direction informs which side of caret to leave hole
-let destruct = (~destroy_kids=true, d: Direction.t, z: t): IdGen.t(t) => {
+let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
   open IdGen.Syntax;
+  let b = Direction.toggle(d);
   let (selected, z) = update_selection(Selection.empty, z);
-  let+ z =
+  switch (selected.content) {
+  | [] =>
+    switch (Relatives.pop(d, z.relatives)) {
+    | None =>
+      // should probably return type optional
+      return(z)
+    | Some((p, relatives)) =>
+      switch (p) {
+      | Whitespace(_) => return({...z, relatives})
+      | Grout(_) =>
+        let relatives = Relatives.push(b, p, relatives);
+        return({...z, relatives});
+      | Tile(_) =>
+        // guaranteed to be monotile
+        failwith("todo")
+      }
+    }
+  | [_, ..._] =>
     switch (
       Segment.edge_shape_of(Left, selected.content),
       Segment.edge_shape_of(Right, selected.content),
@@ -243,87 +246,153 @@ let destruct = (~destroy_kids=true, d: Direction.t, z: t): IdGen.t(t) => {
       // use any sort to insert grout anchor with assumption
       // that it will be regrouted to proper sort
       let+ g = Grout.mk_fits_shape(l, Any);
-      {
-        ...z,
-        relatives:
-          Relatives.push(Direction.toggle(d), Grout(g), z.relatives),
-      };
+      {...z, relatives: Relatives.push(b, Grout(g), z.relatives)};
     | _ => return(z)
+    }
+  };
+};
+
+// let pick_up = (z: t): t => {
+//   let (selected, z) = update_selection(Selection.empty, z);
+//   let selection =
+//     selected.content
+//     |> Segment.trim_grout_around_whitespace(Left)
+//     |> Segment.trim_grout_around_whitespace(Right)
+//     |> Selection.mk(selected.focus);
+//   Segment.tiles(selection.content)
+//   |> List.map((t: Tile.t) => t.id)
+//   |> Effect.s_touch;
+//   let backpack = Backpack.push(selection, z.backpack);
+//   {...z, backpack};
+// };
+
+// delete direction informs which side of caret to leave hole
+let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
+  open IdGen.Syntax;
+  let (selected, z) = update_selection(Selection.empty, z);
+  // let+ z =
+  switch (
+    Segment.edge_shape_of(Left, selected.content),
+    Segment.edge_shape_of(Right, selected.content),
+  ) {
+  | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
+    // use any sort to insert grout anchor with assumption
+    // that it will be regrouted to proper sort
+    let+ g = Grout.mk_fits_shape(l, Any);
+    {
+      ...z,
+      relatives: Relatives.push(Direction.toggle(d), Grout(g), z.relatives),
     };
-  let (to_pick_up, to_remove) =
-    Segment.incomplete_tiles(selected.content)
-    |> List.partition(t =>
-         Siblings.contains_matching(t, z.relatives.siblings)
-         || Ancestors.parent_matches(t, z.relatives.ancestors)
-       );
-  /* If flag is set, break up tiles and remove children */
-  let to_pick_up =
-    destroy_kids
-      ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
-  let backpack =
-    z.backpack
-    |> Backpack.remove_matching(to_remove)
-    |> Backpack.push_s(
-         to_pick_up
-         |> List.map(Segment.of_tile)
-         |> List.map(Selection.mk(z.selection.focus)),
-       );
-  {...z, backpack};
+  | _ => return(z)
+  };
+  // let (to_pick_up, to_remove) =
+  //   Segment.incomplete_tiles(selected.content)
+  //   |> List.partition(t =>
+  //        Siblings.contains_matching(t, z.relatives.siblings)
+  //        || Ancestors.parent_matches(t, z.relatives.ancestors)
+  //      );
+  // /* If flag is set, break up tiles and remove children */
+  // let to_pick_up =
+  //   destroy_kids
+  //     ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
+  // Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
+  // let backpack =
+  //   z.backpack
+  //   |> Backpack.remove_matching(to_remove)
+  //   |> Backpack.push_s(
+  //        to_pick_up
+  //        |> List.map(Segment.of_tile)
+  //        |> List.map(Selection.mk(z.selection.focus)),
+  //      );
+  // {...z, backpack};
 };
 
 let directional_destruct =
     (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
   z |> select(d) |> Option.map(z => destruct(d, z, id_gen));
 
-let put_down = (z: t, id_gen): option((t, IdGen.state)) => {
-  let (z, id_gen) = destruct(Left, z, id_gen);
-  let+ (_, popped, backpack) = pop_backpack(z);
-  Segment.tiles(popped.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
-  let z = {...z, backpack} |> put_selection(popped) |> unselect;
-  (z, id_gen);
-};
+// let put_down = (z: t, id_gen): option((t, IdGen.state)) => {
+//   let (z, id_gen) = destruct(Left, z, id_gen);
+//   let+ (_, popped, backpack) = pop_backpack(z);
+//   Segment.tiles(popped.content)
+//   |> List.map((t: Tile.t) => t.id)
+//   |> Effect.s_touch;
+//   let z = {...z, backpack} |> put_selection(popped) |> unselect;
+//   (z, id_gen);
+// };
 
-let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+// let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+//   IdGen.Syntax.(
+//     switch (label) {
+//     | [content] when Form.is_whitespace(content) =>
+//       let+ id = IdGen.fresh;
+//       Effect.s_touch([id]);
+//       z
+//       |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
+//     | _ =>
+//       let* z = destruct(Left, z);
+//       let molds = Molds.get(label);
+//       assert(molds != []);
+//       // initial mold to typecheck, will be remolded
+//       let mold = List.hd(molds);
+//       let* id = IdGen.fresh;
+//       Effect.s_touch([id]);
+//       let selections =
+//         Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+//         |> List.map(Segment.of_tile)
+//         |> List.map(Selection.mk(from))
+//         |> ListUtil.rev_if(from == Right);
+//       let backpack = Backpack.push_s(selections, z.backpack);
+//       let* id_gen = IdGen.get;
+//       let (z, id_gen) = Option.get(put_down({...z, backpack}, id_gen));
+//       let+ () = IdGen.put(id_gen);
+//       z;
+//     }
+//   );
+// };
+
+let rec construct = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) =>
   IdGen.Syntax.(
-    switch (label) {
-    | [t] when Form.is_string_delim(t) =>
+    if (Form.is_string_delim(token)) {
       /* Special case for constructing string literals.
          See Insert.move_into_if_stringlit for more special-casing. */
-      construct(Left, [Form.string_delim ++ Form.string_delim], z)
-    | [content] when Form.is_whitespace(content) =>
+      construct(
+        Left,
+        Form.string_delim ++ Form.string_delim,
+        z,
+      );
+    } else if (Form.is_whitespace(token)) {
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
       z
-      |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
-    | _ =>
+      |> update_siblings(((l, r)) =>
+           (l @ [Whitespace({id, content: token})], r)
+         );
+    } else {
       let* z = destruct(Left, z);
+      let label =
+        switch (Labels.with_token(token)) {
+        | [] => failwith("todo Zipper.construct no recognized label")
+        | [l, ..._] => l
+        };
       let molds = Molds.get(label);
       assert(molds != []);
       // initial mold to typecheck, will be remolded
       let mold = List.hd(molds);
-      let* id = IdGen.fresh;
+      let+ id = IdGen.fresh;
       Effect.s_touch([id]);
-      let selections =
-        Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-        |> List.map(Segment.of_tile)
-        |> List.map(Selection.mk(from))
-        |> ListUtil.rev_if(from == Right);
-      let backpack = Backpack.push_s(selections, z.backpack);
-      let* id_gen = IdGen.get;
-      let (z, id_gen) = Option.get(put_down({...z, backpack}, id_gen));
-      let+ () = IdGen.put(id_gen);
-      z;
+      // TODO(d) fix Option.get
+      let i = Option.get(ListUtil.index_of(token, label));
+      let t: Tile.t = {id, label, mold, shards: [i], children: []};
+      let sel = Selection.mk(from, Segment.of_tile(t));
+      z |> put_selection(sel) |> unselect;
     }
   );
-};
 
 let replace =
-    (d: Direction.t, l: Label.t, (z, id_gen): state): option(state) =>
+    (d: Direction.t, tok: Token.t, (z, id_gen): state): option(state) =>
   /* i.e. select and construct, overwriting the selection */
-  z |> select(d) |> Option.map(z => construct(d, l, z, id_gen));
+  z |> select(d) |> Option.map(z => construct(d, tok, z, id_gen));
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */

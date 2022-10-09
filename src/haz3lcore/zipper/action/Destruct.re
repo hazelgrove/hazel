@@ -30,15 +30,15 @@ let destruct =
   /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
-    Zipper.replace(Right, [Token.rm_nth(c_idx, t)], (z, id_gen));
+    Zipper.replace(Right, Token.rm_nth(c_idx, t), (z, id_gen));
   | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
-    Zipper.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
+    Zipper.replace(Right, Token.rm_nth(c_idx + 1, t), (z, id_gen))
     |> OptUtil.and_then(((z, id_gen)) =>
          z |> Zipper.set_caret(Outer) |> (z => Zipper.move(Right, z, id_gen))
        )
   /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>
-    Zipper.replace(Right, [Token.rm_nth(c_idx + 1, t)], (z, id_gen))
+    Zipper.replace(Right, Token.rm_nth(c_idx + 1, t), (z, id_gen))
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
@@ -47,9 +47,9 @@ let destruct =
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
     //Option.map(IdGen.id(id_gen)
-    Zipper.replace(Left, [Token.rm_last(t)], (z, id_gen))
+    Zipper.replace(Left, Token.rm_last(t), (z, id_gen))
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
-    Zipper.replace(Right, [Token.rm_first(t)], (z, id_gen))
+    Zipper.replace(Right, Token.rm_first(t), (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) => Zipper.directional_destruct(d, z, id_gen)
   };
@@ -62,9 +62,7 @@ let merge =
   |> OptUtil.and_then(((z, id_gen)) =>
        Zipper.directional_destruct(Right, z, id_gen)
      )
-  |> Option.map(((z, id_gen)) =>
-       Zipper.construct(Right, [l ++ r], z, id_gen)
-     );
+  |> Option.map(((z, id_gen)) => Zipper.construct(Right, l ++ r, z, id_gen));
 };
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {

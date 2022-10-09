@@ -16,9 +16,9 @@ type t =
   | Unselect
   | Destruct(Direction.t)
   | Insert(string)
-  | MoveToBackpackTarget(planar)
-  | Pick_up
-  | Put_down;
+  | MoveToBackpackTarget(planar);
+// | Pick_up
+// | Put_down;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -26,8 +26,8 @@ module Failure = {
     | Cant_move
     | Cant_insert
     | Cant_destruct
-    | Cant_select
-    | Cant_put_down;
+    | Cant_select;
+  // | Cant_put_down;
 };
 
 module Result = {
