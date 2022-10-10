@@ -695,8 +695,7 @@ body {
 
 /* TOKEN COLORS */
 
-.code .token.mono {
-}
+.code .token.mono {}
 
 .code .token.mono-string-lit {
   color: var(--string-lit-color);
@@ -1526,12 +1525,15 @@ svg.expandable path {
   font-size: 75%;
   top: -10px;
 }
+
 .DHCode .FailedCastDelim {
   color: red;
 }
+
 .DHCode .CastDecoration {
   background-color: rgba(150, 0, 255, 0.2);
 }
+
 .DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.2);
 }
@@ -1852,4 +1854,15 @@ svg.expandable path {
 /* File Select */
 .file-select-button {
   display: none;
+}
+
+/* clipboard shim */
+#clipboard-shim {
+  /* probably overkill for hiding it... */
+  position: fixed;
+  opacity: 0.01;
+  width: 1em;
+  height: 1em;
+  top: -1em;
+  left: -1em;
 }
