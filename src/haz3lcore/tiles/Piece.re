@@ -17,6 +17,39 @@ let get = (f_w, f_g, f_t, p: t) =>
 
 let id = get(w => w.id, Grout.id, Tile.id);
 
+let merge = (l: t, r: t) =>
+  switch (l, r) {
+  // eventually want to work out details of merging whitespace
+  // but today is not the day
+  | (Whitespace(_) | Grout(_), _)
+  | (_, Whitespace(_) | Grout(_)) => None
+  | (Tile(l), Tile(r)) =>
+    // should only be called on singleton shards
+    assert(Tile.(num_shards(l) == 1 && num_shards(r) == 1));
+    let (l, r) = Tile.(hd(l), hd(r));
+    let token = l.form.token ++ r.form.token;
+    let form = {...l.form, token};
+    Some(Tile(Tile.mono({...l, form})));
+  };
+
+let split = (n: int, p: t): IdGen.t(option((t, t))) =>
+  IdGen.Syntax.(
+    switch (p) {
+    | Whitespace(_)
+    | Grout(_) => return(None)
+    | Tile(t) =>
+      assert(Tile.num_shards(t) == 1);
+      let s = Tile.hd(t);
+      let (l, r) = Token.split_nth(n, s.form.token);
+      let form_l = {...s.form, token: l};
+      let form_r = {...s.form, token: r};
+      let s_l = {...s, form: form_l};
+      let+ id = IdGen.fresh;
+      let s_r = {id, form: form_r};
+      Some((Tile(Tile.mono(s_l)), Tile(Tile.mono(s_r))));
+    }
+  );
+
 // let sort =
 //   get(
 //     _ => (Sort.Any, []),

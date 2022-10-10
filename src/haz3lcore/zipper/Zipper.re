@@ -216,48 +216,34 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let destruct = (d: Direction.t, z: t): IdGen.t => {
+let merge = (z: t): t => {
+  let (let$) = (o, f) =>
+    switch (o) {
+    | None => z
+    | Some(x) => f(x)
+    };
+  let$ (l, rs) = Relatives.pop(Left, z.relatives);
+  let$ (r, rs) = Relatives.pop(Right, rs);
+  let$ p = Piece.merge(l, r);
+  // push Right since caret indexes into right token
+  let relatives = Relatives.push(Right, p, rs);
+  let caret = z.caret + Piece.length(l);
+  {...z, caret, relatives};
+};
+
+let split = (z: t): IdGen.t(t) => {
   open IdGen.Syntax;
-  let b = Direction.toggle(d);
-  let (selected, z) = update_selection(Selection.empty, z);
-  if (Segment.is_empty(selected.content)) {
-    switch (Relatives.pop(d, z.relatives)) {
-    | None =>
-      // should probably return type optional
-      return(z)
-    | Some((p, relatives)) =>
-      switch (p) {
-      | Whitespace(_) => return({...z, relatives})
-      | Grout(_) =>
-        let relatives = Relatives.push(b, p, relatives);
-        return({...z, relatives});
-      | Tile(t) =>
-        let Shard.{id, form} = Tile.hd(t);
-        let token = Token.(d == Left ? rm_last : rm_first)(form.token);
-        let t = ([Shard.{
-                    id,
-                    form: {
-                      token,
-                      mold: Mold.null,
-                    },
-                  }], []);
-        let relatives = Relatives.push(d, Tile(t), relatives);
-        return({...z, relatives});
-      }
+  let (let$) = (o, f) =>
+    switch (o) {
+    | None => return(z)
+    | Some(x) => f(x)
     };
-  } else {
-    switch (
-      Segment.edge_shape_of(Left, selected.content),
-      Segment.edge_shape_of(Right, selected.content),
-    ) {
-    | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
-      // use any sort to insert grout anchor with assumption
-      // that it will be regrouted to proper sort
-      let+ g = Grout.mk_fits_shape(l, Any);
-      {...z, relatives: Relatives.push(b, Grout(g), z.relatives)};
-    | _ => return(z)
-    };
-  };
+  let$ (p, rs) = Relatives.pop(z.relatives);
+  let* split = Piece.split(z.caret, p);
+  let$ (l, r) = split;
+  let relatives = rs |> Relatives.push(Left, l) |> Relatives.push(Right, r);
+  let caret = z.caret - Piece.length(l);
+  return({...z, caret, relatives});
 };
 
 // let pick_up = (z: t): t => {
@@ -274,11 +260,9 @@ let destruct = (d: Direction.t, z: t): IdGen.t => {
 //   {...z, backpack};
 // };
 
-// delete direction informs which side of caret to leave hole
-let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
+let delete_selection = (d: Direction.t, z: t): IdGen.t(t) => {
   open IdGen.Syntax;
   let (selected, z) = update_selection(Selection.empty, z);
-  // let+ z =
   switch (
     Segment.edge_shape_of(Left, selected.content),
     Segment.edge_shape_of(Right, selected.content),
@@ -287,37 +271,64 @@ let destruct = (d: Direction.t, z: t): IdGen.t(t) => {
     // use any sort to insert grout anchor with assumption
     // that it will be regrouted to proper sort
     let+ g = Grout.mk_fits_shape(l, Any);
-    {
-      ...z,
-      relatives: Relatives.push(Direction.toggle(d), Grout(g), z.relatives),
-    };
+    let b = Direction.toggle(d);
+    {...z, relatives: Relatives.push(b, Grout(g), z.relatives)};
   | _ => return(z)
   };
-  // let (to_pick_up, to_remove) =
-  //   Segment.incomplete_tiles(selected.content)
-  //   |> List.partition(t =>
-  //        Siblings.contains_matching(t, z.relatives.siblings)
-  //        || Ancestors.parent_matches(t, z.relatives.ancestors)
-  //      );
-  // /* If flag is set, break up tiles and remove children */
-  // let to_pick_up =
-  //   destroy_kids
-  //     ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  // Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
-  // let backpack =
-  //   z.backpack
-  //   |> Backpack.remove_matching(to_remove)
-  //   |> Backpack.push_s(
-  //        to_pick_up
-  //        |> List.map(Segment.of_tile)
-  //        |> List.map(Selection.mk(z.selection.focus)),
-  //      );
-  // {...z, backpack};
 };
 
-let directional_destruct =
-    (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
-  z |> select(d) |> Option.map(z => destruct(d, z, id_gen));
+let delete = (d: Direction.t, z: t): IdGen.t(t) =>
+  if (!Segment.is_empty(selected.content)) {
+    delete_selection(d, z);
+  } else {
+    IdGen.Syntax.(
+      switch (Relatives.pop(d, z.relatives)) {
+      | None =>
+        // should probably return type optional
+        return(z)
+      | Some((p, relatives)) =>
+        switch (p) {
+        | Whitespace(_) => return({...z, relatives})
+        | Grout(_) =>
+          let b = Direction.toggle(d);
+          let relatives = Relatives.push(b, p, relatives);
+          return({...z, relatives});
+        | Tile(t) =>
+          let Shard.{id, form} = Tile.hd(t);
+          let token = Token.(d == Left ? rm_last : rm_first)(form.token);
+          // TODO check if token is empty
+          let t = ([Shard.{
+                      id,
+                      form: {
+                        token,
+                        mold: Mold.null,
+                      },
+                    }], []);
+          let relatives = Relatives.push(d, Tile(t), relatives);
+          return({...z, relatives});
+        }
+      }
+    );
+  };
+
+// let insert = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) => {
+//   let z = delete_selection(z);
+//   if ()
+// }
+
+// let pick_up = (z: t): t => {
+//   let (selected, z) = update_selection(Selection.empty, z);
+//   let selection =
+//     selected.content
+//     |> Segment.trim_grout_around_whitespace(Left)
+//     |> Segment.trim_grout_around_whitespace(Right)
+//     |> Selection.mk(selected.focus);
+//   Segment.tiles(selection.content)
+//   |> List.map((t: Tile.t) => t.id)
+//   |> Effect.s_touch;
+//   let backpack = Backpack.push(selection, z.backpack);
+//   {...z, backpack};
+// };
 
 // let put_down = (z: t, id_gen): option((t, IdGen.state)) => {
 //   let (z, id_gen) = destruct(Left, z, id_gen);
@@ -359,43 +370,43 @@ let directional_destruct =
 //   );
 // };
 
-let rec construct = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) =>
-  IdGen.Syntax.(
-    if (Form.is_string_delim(token)) {
-      /* Special case for constructing string literals.
-         See Insert.move_into_if_stringlit for more special-casing. */
-      construct(
-        Left,
-        Form.string_delim ++ Form.string_delim,
-        z,
-      );
-    } else if (Form.is_whitespace(token)) {
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      z
-      |> update_siblings(((l, r)) =>
-           (l @ [Whitespace({id, content: token})], r)
-         );
-    } else {
-      let* z = destruct(Left, z);
-      let label =
-        switch (Labels.with_token(token)) {
-        | [] => failwith("todo Zipper.construct no recognized label")
-        | [l, ..._] => l
-        };
-      let molds = Molds.get(label);
-      assert(molds != []);
-      // initial mold to typecheck, will be remolded
-      let mold = List.hd(molds);
-      let+ id = IdGen.fresh;
-      Effect.s_touch([id]);
-      // TODO(d) fix Option.get
-      let i = Option.get(ListUtil.index_of(token, label));
-      let t: Tile.t = {id, label, mold, shards: [i], children: []};
-      let sel = Selection.mk(from, Segment.of_tile(t));
-      z |> put_selection(sel) |> unselect;
-    }
-  );
+let rec construct = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) => {
+  open IdGen.Syntax;
+  let (_, z) = update_selection(Selection.empty, z);
+  if (Form.is_string_delim(token)) {
+    /* Special case for constructing string literals.
+       See Insert.move_into_if_stringlit for more special-casing. */
+    construct(
+      Left,
+      Form.(string_delim ++ string_delim),
+      z,
+    );
+  } else if (Form.is_whitespace(token)) {
+    let+ id = IdGen.fresh;
+    Effect.s_touch([id]);
+    z
+    |> update_siblings(((l, r)) =>
+         (l @ [Whitespace({id, content: token})], r)
+       );
+  } else {
+    let label =
+      switch (Labels.with_token(token)) {
+      | [] => failwith("todo Zipper.construct no recognized label")
+      | [l, ..._] => l
+      };
+    let molds = Molds.get(label);
+    assert(molds != []);
+    // initial mold to typecheck, will be remolded
+    let mold = List.hd(molds);
+    let+ id = IdGen.fresh;
+    Effect.s_touch([id]);
+    // TODO(d) fix Option.get
+    let i = Option.get(ListUtil.index_of(token, label));
+    let t: Tile.t = {id, label, mold, shards: [i], children: []};
+    let sel = Selection.mk(from, Segment.of_tile(t));
+    z |> put_selection(sel) |> unselect;
+  };
+};
 
 let replace =
     (d: Direction.t, tok: Token.t, (z, id_gen): state): option(state) =>
