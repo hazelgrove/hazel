@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -24,58 +25,16 @@ let shift_held = evt => Js.to_bool(evt##.shiftKey);
 let alt_held = evt => Js.to_bool(evt##.altKey);
 let meta_held = evt => Js.to_bool(evt##.metaKey);
 
-let copy_to_clipboard = (string: string): unit => {
-  /* Note: To use (deprecated) execommand would need to introduce
-     an invisible textarea and insert the string as you cannot
-     directly copy from a variable using it */
-  /*let _ =
-    Dom_html.document##execCommand(
-      Js.string("copy"),
-      Js.bool(true),
-      Js.Opt.return(Js.string("testtest")),
-    );*/
-  /* So instead we use the mode modern clipboard API. however
-     js_of_ocaml doesn't have bindings for it, so in the interest
-     of time I'm just using Unsafe.js_expr. Note the use of backticks
-     around the string in order to make this robust to the presence
-     of linebreaks in the string.
+// let to_sys_clipboard = (string: string): unit =>
+//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
+//     Js.string(string),
+//   );
 
-     This currently seems to work fine, but generates a warning to the
-     console as described in the below println.
-     */
-
-  print_endline(
-    "Copying log to keyboard. An exception reading 'fallback to runtime evaluation' is expected.",
-  );
-  string
-  |> Printf.sprintf("window.navigator.clipboard.writeText(`%s`);")
-  |> Js.Unsafe.js_expr;
-};
-
-let get_from_clipboard = (): string => {
-  /* WIP(andrew):
-       This sorta works, somewhat hackily and inconsistently (requires a dom element
-       called blorg to be present and ideally hidden). However it prompts the user
-       for permissions each time.
-     */
-  let _ =
-    Js.Unsafe.js_expr(
-      "window.navigator.clipboard.readText().then(
-      function(text)
-      {var guy = document.getElementById('blorg'); guy.innerHTML = text; console.log('Clipboard content is: ', text)}).catch
-      (function(err)
-        {console.error('Failed to read clipboard contents: ', err)})",
-    );
-  let doc = Dom_html.document;
-  let elem =
-    Js.Opt.get(doc##getElementById(Js.string("blorg")), () => {
-      assert(false)
-    });
-  let result: Js.t('a) = Js.Unsafe.get(elem, "innerHTML");
-  let result = Js.to_string(result);
-  print_endline(result);
-  result;
-};
+// let from_sys_clipboard = (callback: string => unit): Promise.t(unit) =>
+//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
+//   |> Promise.then_(~fulfilled=s =>
+//        s |> Js.to_string |> callback |> Promise.resolve
+//      );
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
@@ -129,4 +88,57 @@ let get_localstore = (k: string): option(string) =>
 
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
+};
+
+let log = data => {
+  Firebug.console##log(data);
+};
+
+let clipboard_shim_id = "clipboard-shim";
+
+let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+
+let clipboard_shim = {
+  Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
+};
+
+let copy = (str: string) => {
+  focus_clipboard_shim();
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
+  Dom_html.document##execCommand(
+    Js.string("insertText"),
+    Js.bool(false),
+    Js.Opt.option(Some(Js.string(str))),
+  );
+  Dom_html.document##execCommand(
+    Js.string("selectAll"),
+    Js.bool(false),
+    Js.Opt.empty,
+  );
+};
+
+module Fragment = {
+  let set_current = frag => {
+    let frag =
+      switch (frag) {
+      | "" => ""
+      | frag => "#" ++ frag
+      };
+    let history = Js_of_ocaml.Dom_html.window##.history;
+    history##pushState(Js.null, Js.string(""), Js.some(Js.string(frag)));
+  };
+
+  let get_current = () => {
+    let fragment_of_url = (url: Url.url): string =>
+      switch (url) {
+      | Http({hu_fragment: str, _})
+      | Https({hu_fragment: str, _})
+      | File({fu_fragment: str, _}) => str
+      };
+    Url.Current.get() |> Option.map(fragment_of_url);
+  };
 };
