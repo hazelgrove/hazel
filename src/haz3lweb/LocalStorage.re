@@ -41,6 +41,54 @@ module Settings = {
   };
 };
 
+// LangDocMessages serialization
+module LangDocMessages = {
+  let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+
+  let serialize = langDocMessages =>
+    LangDocMessages.serialize(langDocMessages);
+
+  let deserialize = data =>
+    try(LangDocMessages.deserialize(data)) {
+    | _ =>
+      print_endline("Could not deserialize langDocMessages.");
+      LangDocMessages.init;
+    };
+
+  let save = (langDocMessages: LangDocMessages.t): unit =>
+    JsUtil.set_localstore(
+      save_langDocMessages_key,
+      serialize(langDocMessages),
+    );
+
+  let init = () => {
+    JsUtil.set_localstore(
+      save_langDocMessages_key,
+      serialize(LangDocMessages.init),
+    );
+    LangDocMessages.init;
+  };
+
+  let load = (): LangDocMessages.t =>
+    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    | None => init()
+    | Some(data) => deserialize(data)
+    };
+
+  let rec export = () =>
+    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    | None =>
+      let _ = init();
+      export();
+    | Some(data) => data
+    };
+
+  let import = data => {
+    let langDocMessages = deserialize(data);
+    save(langDocMessages);
+  };
+};
+
 // Scratch mode serialization
 module Scratch = {
   let save_scratch_key: string = "SAVE_SCRATCH";

@@ -12,6 +12,7 @@
   \
   Worker)
  (libraries
+  str
   incr_dom
   virtual_dom.input_widgets
   util
@@ -20,7 +21,8 @@
   haz3lschool
   pretty
   lwt
-  lwtutil)
+  lwtutil
+  omd)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
