@@ -32,6 +32,7 @@ type t =
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
+  | ResetCurrentEditor
   | Cut
   | Copy
   | Paste(string)
@@ -47,6 +48,7 @@ module Failure = {
     | CantUndo
     | CantRedo
     | CantPaste
+    | CantReset
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)

@@ -153,6 +153,7 @@ let reevaluate_post_update =
   | FailedInput(_) => false
   // may not be necessary on all of these
   // TODO review and prune
+  | ResetCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -335,6 +336,21 @@ let apply =
           ...model,
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         });
+      };
+    | ResetCurrentEditor =>
+      /* This serializes the current editor to text, resets the current
+         editor, and then deserializes. It is intended as a (tactical)
+         nuclear option for weird backpack states */
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let zipper_init = Zipper.init(id);
+      let ed_str = Printer.to_string_editor(ed);
+      switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
+      | None => Error(CantReset)
+      | Some((z, id)) =>
+        //TODO: add correct action to history (Pick_up is wrong)
+        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        let editors = Editors.put_editor_and_id(id, editor, model.editors);
+        Ok({...model, editors});
       };
     | Undo =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
