@@ -39,7 +39,8 @@ type t =
   | Redo
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
-  | UpdateResult(ModelResults.Key.t, ModelResult.current);
+  | UpdateResult(ModelResults.Key.t, ModelResult.current)
+  | UpdateLangDocMessages(LangDocMessages.update);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
