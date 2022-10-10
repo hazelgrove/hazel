@@ -45,27 +45,19 @@ let go_z =
     Select.go(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_select)
   | Destruct(d) =>
-    (z, id_gen)
-    |> Destruct.go(d)
-    |> Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen))
+    Zipper.delete(d, z, id_gen)
+    |> Option.map(((z, id_gen)) => {
+         let (z, id_gen) = Zipper.regrold(z, id_gen);
+         (reassemble(z), id_gen);
+       })
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
-    (z, id_gen)
-    |> Insert.go(char)
-    /* note: remolding here is done case-by-case */
-    //|> Option.map(((z, id_gen)) => remold_regrout(Right, z, id_gen))
+    Zipper.insert(Left, char, z, id_gen)
+    |> Option.map(((z, id_gen)) => {
+         let (z, id_gen) = Zipper.regrold(z, id_gen);
+         (reassemble(z), id_gen);
+       })
     |> Result.of_option(~error=Action.Failure.Cant_insert)
-  // | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z), id_gen))
-  // | Put_down =>
-  //   let z =
-  //     /* Alternatively, putting down inside token could eiter merge-in or split */
-  //     switch (z.caret) {
-  //     | Inner(_) => None
-  //     | Outer => Zipper.put_down(z, id_gen)
-  //     };
-  //   z
-  //   |> Option.map(((z, id_gen)) => remold_regrout(Left, z, id_gen))
-  //   |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | MoveToBackpackTarget(d) =>
     Move.to_backpack_target(d, z, id_gen)
     |> Result.of_option(~error=Action.Failure.Cant_move)

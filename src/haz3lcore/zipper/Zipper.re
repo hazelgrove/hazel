@@ -216,12 +216,14 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
+let (let$) = (z, o, f) =>
+  switch (o) {
+  | None => z
+  | Some(x) => f(x)
+  };
+
 let merge = (z: t): t => {
-  let (let$) = (o, f) =>
-    switch (o) {
-    | None => z
-    | Some(x) => f(x)
-    };
+  let (let$) = (let$)(z);
   let$ (l, rs) = Relatives.pop(Left, z.relatives);
   let$ (r, rs) = Relatives.pop(Right, rs);
   let$ p = Piece.merge(l, r);
@@ -231,16 +233,18 @@ let merge = (z: t): t => {
   {...z, caret, relatives};
 };
 
+let (let&) = (z, o, f) =>
+  switch (o) {
+  | None => IdGen.return(z)
+  | Some(x) => f(x)
+  };
+
 let split = (z: t): IdGen.t(t) => {
   open IdGen.Syntax;
-  let (let$) = (o, f) =>
-    switch (o) {
-    | None => return(z)
-    | Some(x) => f(x)
-    };
-  let$ (p, rs) = Relatives.pop(z.relatives);
+  let (let&) = (let&)(z);
+  let& (p, rs) = Relatives.pop(z.relatives);
   let* split = Piece.split(z.caret, p);
-  let$ (l, r) = split;
+  let& (l, r) = split;
   let relatives = rs |> Relatives.push(Left, l) |> Relatives.push(Right, r);
   let caret = z.caret - Piece.length(l);
   return({...z, caret, relatives});
@@ -277,141 +281,55 @@ let delete_selection = (d: Direction.t, z: t): IdGen.t(t) => {
   };
 };
 
+let pop = (d, z) => {
+  open OptUtil.Syntax;
+  let+ (p, relatives) = Relatives.pop(d, z.relatives);
+  (p, {...z, relatives});
+};
+let push = (d, p) => update_relatives(Relatives.push(d, p));
+
+let regrold = (z: t): IdGen.t => {
+  open IdGen.Syntax;
+  let+ relatives = Relatives.regrold(z.relatives);
+  {...z, relatives};
+};
+let reassemble = update_relatives(Relatives.reassemble);
+
 let delete = (d: Direction.t, z: t): IdGen.t(t) =>
   if (!Segment.is_empty(selected.content)) {
     delete_selection(d, z);
   } else {
-    IdGen.Syntax.(
-      switch (Relatives.pop(d, z.relatives)) {
-      | None =>
-        // should probably return type optional
-        return(z)
-      | Some((p, relatives)) =>
-        switch (p) {
-        | Whitespace(_) => return({...z, relatives})
-        | Grout(_) =>
-          let b = Direction.toggle(d);
-          let relatives = Relatives.push(b, p, relatives);
-          return({...z, relatives});
-        | Tile(t) =>
-          let Shard.{id, form} = Tile.hd(t);
-          let token = Token.(d == Left ? rm_last : rm_first)(form.token);
-          // TODO check if token is empty
-          let t = ([Shard.{
-                      id,
-                      form: {
-                        token,
-                        mold: Mold.null,
-                      },
-                    }], []);
-          let relatives = Relatives.push(d, Tile(t), relatives);
-          return({...z, relatives});
-        }
-      }
+    open IdGen.Syntax;
+    let (let&) = (let&)(z);
+    let* z = split(z);
+    let& (p, z) = pop(d, z);
+    return(
+      switch (p) {
+      | Whitespace(_) => z
+      | Grout(_) => z |> push(Direction.toggle(d), p)
+      | Tile(t) =>
+        let s = Tile.hd(t);
+        let token = Token.(d == Left ? rm_last : rm_first)(s.form.token);
+        let t = Tile.mono({...s, token});
+        z |> (Token.is_empty(token) ? Fun.id : push(d, Tile(t))) |> merge;
+      },
     );
   };
 
-// let insert = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) => {
-//   let z = delete_selection(z);
-//   if ()
-// }
-
-// let pick_up = (z: t): t => {
-//   let (selected, z) = update_selection(Selection.empty, z);
-//   let selection =
-//     selected.content
-//     |> Segment.trim_grout_around_whitespace(Left)
-//     |> Segment.trim_grout_around_whitespace(Right)
-//     |> Selection.mk(selected.focus);
-//   Segment.tiles(selection.content)
-//   |> List.map((t: Tile.t) => t.id)
-//   |> Effect.s_touch;
-//   let backpack = Backpack.push(selection, z.backpack);
-//   {...z, backpack};
-// };
-
-// let put_down = (z: t, id_gen): option((t, IdGen.state)) => {
-//   let (z, id_gen) = destruct(Left, z, id_gen);
-//   let+ (_, popped, backpack) = pop_backpack(z);
-//   Segment.tiles(popped.content)
-//   |> List.map((t: Tile.t) => t.id)
-//   |> Effect.s_touch;
-//   let z = {...z, backpack} |> put_selection(popped) |> unselect;
-//   (z, id_gen);
-// };
-
-// let construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
-//   IdGen.Syntax.(
-//     switch (label) {
-//     | [content] when Form.is_whitespace(content) =>
-//       let+ id = IdGen.fresh;
-//       Effect.s_touch([id]);
-//       z
-//       |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
-//     | _ =>
-//       let* z = destruct(Left, z);
-//       let molds = Molds.get(label);
-//       assert(molds != []);
-//       // initial mold to typecheck, will be remolded
-//       let mold = List.hd(molds);
-//       let* id = IdGen.fresh;
-//       Effect.s_touch([id]);
-//       let selections =
-//         Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-//         |> List.map(Segment.of_tile)
-//         |> List.map(Selection.mk(from))
-//         |> ListUtil.rev_if(from == Right);
-//       let backpack = Backpack.push_s(selections, z.backpack);
-//       let* id_gen = IdGen.get;
-//       let (z, id_gen) = Option.get(put_down({...z, backpack}, id_gen));
-//       let+ () = IdGen.put(id_gen);
-//       z;
-//     }
-//   );
-// };
-
-let rec construct = (from: Direction.t, token: Token.t, z: t): IdGen.t(t) => {
+let insert = (onto: Direction.t, token: Token.t, z: t): IdGen.t(t) => {
   open IdGen.Syntax;
-  let (_, z) = update_selection(Selection.empty, z);
-  if (Form.is_string_delim(token)) {
-    /* Special case for constructing string literals.
-       See Insert.move_into_if_stringlit for more special-casing. */
-    construct(
-      Left,
-      Form.(string_delim ++ string_delim),
-      z,
-    );
-  } else if (Form.is_whitespace(token)) {
-    let+ id = IdGen.fresh;
-    Effect.s_touch([id]);
-    z
-    |> update_siblings(((l, r)) =>
-         (l @ [Whitespace({id, content: token})], r)
-       );
-  } else {
-    let label =
-      switch (Labels.with_token(token)) {
-      | [] => failwith("todo Zipper.construct no recognized label")
-      | [l, ..._] => l
-      };
-    let molds = Molds.get(label);
-    assert(molds != []);
-    // initial mold to typecheck, will be remolded
-    let mold = List.hd(molds);
-    let+ id = IdGen.fresh;
-    Effect.s_touch([id]);
-    // TODO(d) fix Option.get
-    let i = Option.get(ListUtil.index_of(token, label));
-    let t: Tile.t = {id, label, mold, shards: [i], children: []};
-    let sel = Selection.mk(from, Segment.of_tile(t));
-    z |> put_selection(sel) |> unselect;
-  };
+  let* z = delete_selection(Left, z);
+  let* id = IdGen.fresh;
+  let t = Tile.mono({
+            id,
+            form: {
+              token,
+              mold: Mold.null,
+            },
+          });
+  let* z = split(z);
+  z |> push(onto, Tile(t)) |> merge;
 };
-
-let replace =
-    (d: Direction.t, tok: Token.t, (z, id_gen): state): option(state) =>
-  /* i.e. select and construct, overwriting the selection */
-  z |> select(d) |> Option.map(z => construct(d, tok, z, id_gen));
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */

@@ -98,7 +98,7 @@ let remold = ({siblings, ancestors}: t): t => {
   {ancestors, siblings};
 };
 
-let regrout = (_d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
+let regrout = ({siblings, ancestors}: t): IdGen.t(t) => {
   open IdGen.Syntax; /* Direction is side of grout caret will end up on */
 
   // let* ancestors = Ancestors.regrout(ancestors);
@@ -121,6 +121,8 @@ let regrout = (_d: Direction.t, {siblings, ancestors}: t): IdGen.t(t) => {
   };
   {siblings, ancestors};
 };
+
+let regrold = rs => regrout(remold(rs));
 
 let prepend_generation = ((a, sibs): Ancestors.generation, rs: t): t => {
   siblings: Siblings.empty,
