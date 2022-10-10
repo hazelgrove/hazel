@@ -93,6 +93,8 @@ module App = {
         schedule_action(Haz3lweb.Update.SetFontMetrics(fm))
       );
 
+    JsUtil.focus_clipboard_shim();
+
     /* initialize state. */
     let state = State.init();
 
@@ -132,11 +134,24 @@ module App = {
   };
 };
 
+let fragment =
+  switch (JsUtil.Fragment.get_current()) {
+  | None => ""
+  | Some(frag) => frag
+  };
+
 let initial_model = {
   // NOTE: load settings first to get last editor mode
-  Update.load_model(
-    Model.blank,
-  );
+  let model = Update.load_model(Model.blank);
+  switch (fragment) {
+  | "dynamics-off" =>
+    print_endline("Turning off dynamics...");
+    let settings = {...model.settings, dynamics: false};
+    LocalStorage.Settings.save(settings);
+    let model = {...model, settings};
+    model;
+  | _ => model
+  };
 };
 
 Incr_dom.Start_app.start(
