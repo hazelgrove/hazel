@@ -17,6 +17,8 @@ let empty: ScratchSlide.persistent_state = (
 
 let init_data = [slide0, empty, empty, empty, empty, empty, empty, empty];
 
+assert(List.length(init_data) > 0);
+
 let init = (): Editors.scratch => (
   0,
   init_data |> List.map(ScratchSlide.unpersist),
