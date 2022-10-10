@@ -159,7 +159,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
     if (debug_zipper^) {
       cur_model.editors
       |> Editors.get_zipper
-      |> Printer.to_log_flat(~measured)
+      |> Haz3lcore.Printer.to_log_flat(~measured)
       |> print_endline;
     };
   };

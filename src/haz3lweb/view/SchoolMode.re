@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore; // TODO maybe remove this - needed right now for the Indicated.index things
 
 type t = {
   exercise: SchoolExercise.state,
