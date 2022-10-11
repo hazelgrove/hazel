@@ -193,11 +193,11 @@ let move = (d: Direction.t, z: t, id_gen): option((t, IdGen.state)) =>
           | Right => (rel_l, t_l)
           };
         let (trim, id_gen) =
-          Segment.Trim.is_linted(nibs, trim, sort)
+          Grout.is_linted(nibs, trim, sort)
             ? (trim, id_gen)
             : {
               let ((_, trim), id_gen) =
-                Segment.Trim.regrout(nibs, trim, sort, id_gen);
+                Grout.regrout(nibs, trim, sort, id_gen);
               (trim, id_gen);
             };
         // let relatives =

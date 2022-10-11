@@ -77,10 +77,6 @@ let disassemble = ({id, label, mold, shards, children}: t): segment => {
   |> List.concat;
 };
 
-let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
-  split_shards(id, label, mold, shards);
-};
-
 let reassemble = (match: Aba.t(t, segment)): t => {
   let t = Aba.hd(match);
   let (shards, children) =

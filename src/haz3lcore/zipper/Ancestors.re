@@ -87,10 +87,10 @@ let skel = ((a, (pre, suf)): generation): Skel.t => {
 //       let* regrouted = regrouted;
 //       let* ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
 //       let (l', r') = TupleUtil.map2(Nib.shape_, Mold.nibs(a.mold));
-//       let* trim_l = Segment.Trim.regrout((l, l'), trim_l);
-//       let+ trim_r = Segment.Trim.regrout((r', r), trim_r);
-//       let pre = pre @ Segment.Trim.to_seg(trim_l);
-//       let suf = Segment.Trim.to_seg(trim_r) @ suf;
+//       let* trim_l = Grout.regrout((l, l'), trim_l);
+//       let+ trim_r = Grout.regrout((r', r), trim_r);
+//       let pre = pre @ Grout.to_seg(trim_l);
+//       let suf = Grout.to_seg(trim_r) @ suf;
 //       [(a, (pre, suf)), ...regrouted];
 //     },
 //     ancs,

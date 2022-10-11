@@ -48,8 +48,8 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
     }
   };
 
-let pop_trim = (d: Direction.t, rs: t): (Segment.Trim.t, t) => {
-  open Segment.Trim;
+let pop_trim = (d: Direction.t, rs: t): (Grout.t, t) => {
+  open Grout;
   let rec go = rs =>
     switch (pop(d, rs)) {
     | Some((Whitespace(w), rs)) =>
@@ -66,7 +66,7 @@ let pop_trim = (d: Direction.t, rs: t): (Segment.Trim.t, t) => {
 };
 
 let push_trim = (d: Direction.t, trim, rs: t): t =>
-  prepend(d, Segment.Trim.to_seg(trim), rs);
+  prepend(d, Grout.to_seg(trim), rs);
 
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
@@ -107,11 +107,11 @@ let regrout = ({siblings, ancestors}: t): IdGen.t(t) => {
   let+ siblings = {
     let* ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
       Siblings.regrout(siblings, nibs, s);
-    let caret = Segment.Trim.length(trim_l);
-    let trim = Segment.Trim.append(trim_l, trim_r);
+    let caret = Grout.length(trim_l);
+    let trim = Grout.append(trim_l, trim_r);
     let+ (caret, trim) =
-      Segment.Trim.regrout(~lint=false, ~caret, (s_l, s_r), trim, s);
-    let trim_seg = Segment.Trim.to_seg(trim);
+      Grout.regrout(~lint=false, ~caret, (s_l, s_r), trim, s);
+    let trim_seg = Grout.to_seg(trim);
     let (trim_l, trim_r) =
       switch (trim_seg |> ListUtil.split_n_opt(caret)) {
       | None => ([], trim_seg)
