@@ -85,40 +85,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type spec = p(Zipper.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type transitionary_spec = p(CodeString.t);
-
-  let map = (p: p('a), f: 'a => 'b): p('b) => {
-    {
-      next_id: p.next_id,
-      title: p.title,
-      version: p.version,
-      module_name: p.module_name,
-      prompt: p.prompt,
-      point_distribution: p.point_distribution,
-      prelude: f(p.prelude),
-      correct_impl: f(p.correct_impl),
-      your_tests: {
-        tests: f(p.your_tests.tests),
-        required: p.your_tests.required,
-        provided: p.your_tests.provided,
-      },
-      your_impl: f(p.your_impl),
-      hidden_bugs:
-        p.hidden_bugs
-        |> List.map(wrong_impl => {
-             {
-               impl: PersistentZipper.persist(wrong_impl.impl),
-               hint: wrong_impl.hint,
-             }
-           }),
-      hidden_tests: {
-        tests: PersistentZipper.persist(p.hidden_tests.tests),
-        hints: p.hidden_tests.hints,
-      },
-    };
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type eds = p(Editor.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -130,7 +96,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let key_of_state = ({eds, _}) => key_of(eds);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
+  type persistent_state = (pos, Id.t, list((pos, Zipper.t)));
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -271,76 +237,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     pos: pos_of_idx(eds, idx),
     eds,
   };
-
-  let zipper_of_code = (id, code) => {
-    switch (Printer.zipper_of_string(id, code)) {
-    | None => failwith("Transition failed.")
-    | Some((zipper, id)) => (id, zipper)
-    };
-  };
-
-  let transition: transitionary_spec => spec =
-    (
-      {
-        next_id: _,
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-      },
-    ) => {
-      let id = 0;
-      let (id, prelude) = zipper_of_code(id, prelude);
-      let (id, correct_impl) = zipper_of_code(id, correct_impl);
-      let (id, your_tests) = {
-        let (id, tests) = zipper_of_code(id, your_tests.tests);
-        (
-          id,
-          {
-            tests,
-            required: your_tests.required,
-            provided: your_tests.provided,
-          },
-        );
-      };
-      let (id, your_impl) = zipper_of_code(id, your_impl);
-      let (id, hidden_bugs) =
-        List.fold_left(
-          ((id, acc), {impl, hint}) => {
-            let (id, impl) = zipper_of_code(id, impl);
-            (id, acc @ [{impl, hint}]);
-          },
-          (id, []),
-          hidden_bugs,
-        );
-      let (id, hidden_tests) = {
-        let {tests, hints} = hidden_tests;
-        let (id, tests) = zipper_of_code(id, tests);
-        (id, {tests, hints});
-      };
-      let next_id = id;
-      {
-        next_id,
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-      };
-    };
 
   let editor_of_serialization = zipper => Editor.init(zipper);
   let eds_of_spec: spec => eds =
@@ -493,9 +389,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
-      |> List.map(((pos, editor)) => {
-           (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
-         });
+      |> List.map(((pos, editor)) => {(pos, Editor.(editor.state.zipper))});
     (pos, eds.next_id, zippers);
   };
 
@@ -508,11 +402,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       : state => {
     let lookup = (id, pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
-        let persisted_zipper = List.assoc(pos, positioned_zippers);
-        let (id, zipper) = PersistentZipper.unpersist(persisted_zipper, id);
-        (id, Editor.init(zipper));
+        (id, Editor.init(List.assoc(pos, positioned_zippers)));
       } else {
-        (id, editor_of_serialization(default));
+        (next_id, editor_of_serialization(default));
       };
     let id = next_id;
     let (id, prelude) = lookup(id, Prelude, spec.prelude);
@@ -570,25 +462,23 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     Format.pp_print_string(fmt, serialization);
   };
 
+  // let export_module = (module_name, {eds, _}: state) => {
+  //   let prefix =
+  //     "let prompt = "
+  //     ++ module_name
+  //     ++ "_prompt.prompt\n"
+  //     ++ "let exercise: SchoolExercise.spec = ";
+  //   let record = show_p(editor_pp, eds);
+  //   let data = prefix ++ record;
+  //   print_endline(data);
+  //   data;
+  // };
+
   let export_module = (module_name, {eds, _}: state) => {
     let header = ExerciseEnv.output_header(module_name);
     let prefix = "let exercise: SchoolExercise.spec = ";
     let record = show_p(editor_pp, eds);
     let data = header ++ prefix ++ record ++ "\n";
-    data;
-  };
-
-  let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-    let zipper = editor.state.zipper;
-    let code = Printer.to_string_basic(zipper);
-    Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
-  };
-
-  let export_transitionary_module = (module_name, {eds, _}: state) => {
-    let header = ExerciseEnv.output_header(module_name);
-    let prefix = "let exercise: SchoolExercise.spec = SchoolExercise.transition(";
-    let record = show_p(transitionary_editor_pp, eds);
-    let data = header ++ prefix ++ record ++ ")\n";
     data;
   };
 
@@ -648,15 +538,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   // # Stitching
-
-  let test_validation_key = "test_validation";
-  let user_impl_key = "user_impl";
-  let user_tests_key = "user_tests";
-  let instructor_key = "instructor";
-  let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
-  let hidden_tests_key = "hidden_tests";
-
-  // StaticsItem
 
   module StaticsItem = {
     type t = {
@@ -736,6 +617,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
+  let test_validation_key = "test_validation";
+  let user_impl_key = "user_impl";
+  let user_tests_key = "user_tests";
+  let instructor_key = "instructor";
+  let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
+  let hidden_tests_key = "hidden_tests";
+
   let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
     state => {
       let {
@@ -780,18 +668,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     };
 
-  // DynamicsItem
-
   module DynamicsItem = {
     type t = {
       term: TermBase.UExp.t,
       info_map: Statics.map,
-      simple_result: TestResults.simple,
+      simple_result: ModelResult.simple,
     };
   };
-
-  let stitch_dynamic =
-      (state: state, simple_result_of: string => TestResults.simple) => {
+  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     let {
       test_validation,
       user_impl,
@@ -801,6 +685,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(state);
+    let simple_result_of = key =>
+      switch (results) {
+      | None => None
+      | Some(results) =>
+        ModelResult.get_simple(ModelResults.lookup(results, key))
+      };
     let test_validation =
       DynamicsItem.{
         term: test_validation.term,
@@ -850,16 +740,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_bugs,
       hidden_tests,
     };
-  };
-
-  let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
-    let simple_result_of = key =>
-      switch (results) {
-      | None => None
-      | Some(results) =>
-        ModelResult.get_simple(ModelResults.lookup(results, key))
-      };
-    stitch_dynamic(state, simple_result_of);
   };
 
   let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
