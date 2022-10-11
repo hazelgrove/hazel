@@ -208,9 +208,9 @@ let rec mk =
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ =>
           //raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
-          //TODO(andrew): reinstate
 
-          DHDoc_common.mk_BoolLit(true)
+          DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
+        //TODO(andrew): reinstate
         }
 
       /* Hole expressions must appear within a closure in
@@ -223,7 +223,7 @@ let rec mk =
       | InconsistentBranches(_) =>
         //TODO(andrew): reinstate
         //raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
-        DHDoc_common.mk_BoolLit(true)
+        DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
 
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
