@@ -60,6 +60,15 @@ let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
   )
   |> String.concat("\n");
 
+let to_string_editor = (editor: Editor.t): string =>
+  to_rows(
+    ~measured=editor.state.meta.measured,
+    ~caret=None,
+    ~indent=" ",
+    ~segment=Zipper.unselect_and_zip(editor.state.zipper),
+  )
+  |> String.concat("\n");
+
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
     ~measured=editor.state.meta.measured,
