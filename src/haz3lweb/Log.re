@@ -29,6 +29,7 @@ let is_action_logged: Update.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_) => false
+  | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
