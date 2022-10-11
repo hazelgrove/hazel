@@ -3,7 +3,35 @@ let prompt = Ex_OddlyRecursive_prompt.prompt
 let exercise : SchoolExercise.spec =
   {
     next_id = 5134;
-    title = "Oddly Recursive";
+    title =
+      {
+        selection = { focus = Left; content = [] };
+        backpack = [];
+        relatives =
+          {
+            siblings =
+              ( [
+                  Tile
+                    {
+                      id = 5201;
+                      label = [ "Oddly Recursive" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Convex; sort = Exp } );
+                        };
+                      shards = [ 0 ];
+                      children = [];
+                    };
+                ],
+                [] );
+            ancestors = [];
+          };
+        caret = Outer;
+      };
     version = 1;
     module_name = "Ex_OddlyRecursive";
     prompt;

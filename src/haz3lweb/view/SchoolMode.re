@@ -67,7 +67,31 @@ let view =
     );
   };
 
-  let title_view = Cell.title_cell(eds.title);
+  let title_view =
+    settings.instructor_mode
+      ? render_cells(
+          settings,
+          [
+            Always(
+              editor_view(
+                Title,
+                ~selected=pos == Title,
+                ~code_id="title",
+                ~caption=Cell.bolded_caption("Title"),
+                ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
+                ~test_results=
+                  ModelResult.unwrap_test_results(user_tests.simple_result),
+                ~footer=None,
+                eds.title,
+              ),
+            ),
+          ],
+        )
+      : [
+        Cell.title_cell(
+          SchoolExercise.get_title_from_zipper(eds.title.state.zipper),
+        ),
+      ];
 
   let prompt_view =
     Cell.narrative_cell(
@@ -308,7 +332,8 @@ let view =
 
   div(
     ~attr=Attr.classes(["editor", "column"]),
-    [title_view, prompt_view]
+    title_view
+    @ [prompt_view]
     @ render_cells(
         settings,
         [

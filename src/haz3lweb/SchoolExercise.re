@@ -1,6 +1,8 @@
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Haz3lcore;
+open Zipper;
+open Editor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
@@ -36,7 +38,7 @@ let validate_point_distribution =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   next_id: Id.t,
-  title: string,
+  title: 'code,
   version: int,
   module_name: string,
   prompt:
@@ -50,11 +52,25 @@ type p('code) = {
   hidden_tests: hidden_tests('code),
 };
 
+let get_title_from_zipper = (title: Zipper.t): string => {
+  let (seg1, seg2) = title.relatives.siblings;
+  let seg_to_str = p =>
+    switch (p) {
+    | Base.Tile(tile) => List.hd(tile.label)
+    | _ => " "
+    };
+  seg1 @ seg2 |> List.map(seg_to_str) |> String.concat("");
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key = (string, int);
 
-let key_of = p => {
-  (p.title, p.version);
+let key_of = (p: p('code)) => {
+  (get_title_from_zipper(p.title), p.version);
+};
+
+let key_of_editor = (p: p('code)) => {
+  (get_title_from_zipper(p.title.state.zipper), p.version);
 };
 
 let find_key_opt = (key, specs: list(p('code))) => {
@@ -63,6 +79,7 @@ let find_key_opt = (key, specs: list(p('code))) => {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
+  | Title
   | Prelude
   | CorrectImpl
   | YourTestsValidation
@@ -80,7 +97,7 @@ type transitionary_spec = p(CodeString.t);
 let map = (p: p('a), f: 'a => 'b): p('b) => {
   {
     next_id: p.next_id,
-    title: p.title,
+    title: f(p.title),
     version: p.version,
     module_name: p.module_name,
     prompt: p.prompt,
@@ -117,7 +134,7 @@ type state = {
   eds,
 };
 
-let key_of_state = ({eds, _}) => key_of(eds);
+let key_of_state = ({eds, _}) => key_of_editor(eds);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
@@ -125,6 +142,7 @@ type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
     switch (pos) {
+    | Title => eds.title
     | Prelude => eds.prelude
     | CorrectImpl => eds.correct_impl
     | YourTestsValidation => eds.your_tests.tests
@@ -141,6 +159,14 @@ let id_of_state = ({eds, _}: state): Id.t => {
 let put_editor_and_id =
     ({pos, eds, _} as state: state, next_id, editor: Editor.t) =>
   switch (pos) {
+  | Title => {
+      ...state,
+      eds: {
+        ...eds,
+        next_id,
+        title: editor,
+      },
+    }
   | Prelude => {
       ...state,
       eds: {
@@ -205,6 +231,7 @@ let put_editor_and_id =
 
 let editors = ({eds, _}: state) =>
   [
+    eds.title,
     eds.prelude,
     eds.correct_impl,
     eds.your_tests.tests,
@@ -215,7 +242,14 @@ let editors = ({eds, _}: state) =>
   @ [eds.hidden_tests.tests];
 
 let editor_positions = ({eds, _}: state) =>
-  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+  [
+    Title,
+    Prelude,
+    CorrectImpl,
+    YourTestsTesting,
+    YourTestsValidation,
+    YourImpl,
+  ]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 
@@ -224,33 +258,35 @@ let positioned_editors = state =>
 
 let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
-  | Prelude => 0
-  | CorrectImpl => 1
-  | YourTestsTesting => 2
-  | YourTestsValidation => 3
-  | YourImpl => 4
+  | Title => 0
+  | Prelude => 1
+  | CorrectImpl => 2
+  | YourTestsTesting => 3
+  | YourTestsValidation => 4
+  | YourImpl => 5
   | HiddenBugs(i) =>
     if (i < List.length(p.hidden_bugs)) {
-      5 + i;
+      6 + i;
     } else {
       failwith("invalid hidden bug index");
     }
-  | HiddenTests => 5 + List.length(p.hidden_bugs)
+  | HiddenTests => 6 + List.length(p.hidden_bugs)
   };
 
 let pos_of_idx = (p: p('code), idx: int) =>
   switch (idx) {
-  | 0 => Prelude
-  | 1 => CorrectImpl
-  | 2 => YourTestsTesting
-  | 3 => YourTestsValidation
-  | 4 => YourImpl
+  | 0 => Title
+  | 1 => Prelude
+  | 2 => CorrectImpl
+  | 3 => YourTestsTesting
+  | 4 => YourTestsValidation
+  | 5 => YourImpl
   | _ =>
     if (idx < 0) {
       failwith("negative idx");
-    } else if (idx < 5 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
-    } else if (idx == 5 + List.length(p.hidden_bugs)) {
+    } else if (idx < 6 + List.length(p.hidden_bugs)) {
+      HiddenBugs(idx - 6);
+    } else if (idx == 6 + List.length(p.hidden_bugs)) {
       HiddenTests;
     } else {
       failwith("element idx");
@@ -287,6 +323,7 @@ let transition: transitionary_spec => spec =
     },
   ) => {
     let id = 0;
+    let (id, title) = zipper_of_code(id, title);
     let (id, prelude) = zipper_of_code(id, prelude);
     let (id, correct_impl) = zipper_of_code(id, correct_impl);
     let (id, your_tests) = {
@@ -346,6 +383,7 @@ let eds_of_spec: spec => eds =
       hidden_tests,
     },
   ) => {
+    let title = editor_of_serialization(title);
     let prelude = editor_of_serialization(prelude);
     let correct_impl = editor_of_serialization(correct_impl);
     let your_tests = {
@@ -459,6 +497,7 @@ let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
 
 let visible_in = (pos, ~instructor_mode) => {
   switch (pos) {
+  | Title => instructor_mode
   | Prelude => instructor_mode
   | CorrectImpl => instructor_mode
   | YourTestsValidation => true
@@ -501,6 +540,7 @@ let unpersist_state =
       (id, editor_of_serialization(default));
     };
   let id = next_id;
+  let (id, title) = lookup(id, Title, spec.title);
   let (id, prelude) = lookup(id, Prelude, spec.prelude);
   let (id, correct_impl) = lookup(id, CorrectImpl, spec.correct_impl);
   let (id, your_tests_tests) =
@@ -523,7 +563,7 @@ let unpersist_state =
       pos,
       eds: {
         next_id: id,
-        title: spec.title,
+        title,
         version: spec.version,
         module_name: spec.module_name,
         prompt: spec.prompt,
@@ -759,6 +799,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
+    | Title => (eds.title.state.zipper, instructor.info_map)
     | Prelude => (eds.prelude.state.zipper, instructor.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTestsValidation => (
@@ -819,6 +860,34 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
   data;
 };
 
+let put_title = (title: string, id: int): Zipper.t => {
+  selection: {
+    focus: Left,
+    content: [],
+  },
+  backpack: [],
+  relatives: {
+    siblings: (
+      [
+        Tile({
+          id,
+          label: [title],
+          mold: {
+            out: Exp,
+            in_: [],
+            nibs: ({shape: Convex, sort: Exp}, {shape: Convex, sort: Exp}),
+          },
+          shards: [0],
+          children: [],
+        }),
+      ],
+      [],
+    ),
+    ancestors: [],
+  },
+  caret: Outer,
+};
+
 let blank_spec =
     (
       ~title,
@@ -828,7 +897,8 @@ let blank_spec =
       ~provided_tests,
       ~num_wrong_impls,
     ) => {
-  let id = 0;
+  let title = put_title(title, 0);
+  let id = 1;
   let (id, prelude) = Zipper.next_blank(id);
   let (id, correct_impl) = Zipper.next_blank(id);
   let (id, your_tests_tests) = Zipper.next_blank(id);
