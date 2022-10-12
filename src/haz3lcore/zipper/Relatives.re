@@ -225,42 +225,6 @@ let reassemble = (rs: t): t => {
   rs |> reassemble_siblings |> reassemble_parent |> go;
 };
 
-module Backpack = {
-  module Stack = {
-    type t = list(Token.t);
-    let empty = [];
-  };
-
-  type t = {
-    // obligations from the left
-    l: Stack.t,
-    // obligations from the right
-    r: Stack.t,
-    // obligations from both left and right
-    b: Stack.t,
-  };
-
-  let empty = Stack.{l: empty, r: empty, b: empty};
-
-  let push_from_sib = (d: Direction.t, t: Tile.t, bp: t): t => {
-    let toks = Tile.complete(Direction.toggle(d), t);
-    switch (d) {
-    | Left => {...bp, l: toks @ bp.l}
-    | Right => {...bp, r: toks @ bp.r}
-    };
-  };
-
-  let push_from_pre = (ts: list(Tile.t), bp: t) =>
-    List.fold_left(Fun.flip(push_from_sib(Left)), bp, ts);
-  let push_from_suf = (ts: list(Tile.t), bp: t) =>
-    List.fold_right(push_from_sib(Right), ts, bp);
-
-  let push_from_anc = (a: Ancestor.t, bp: t): t => {
-    ...bp,
-    b: Ancestor.complete(a),
-  };
-};
-
 // assumes relatives are maximally assembled
 let mk_backpack = (rs: t): Backpack.t => {
   open Backpack;

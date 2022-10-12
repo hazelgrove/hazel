@@ -5,37 +5,25 @@ exception Ambiguous_molds;
 exception Invalid_mold;
 exception Empty_tile;
 
+module Form = {
+  type t = list(ShardForm.t);
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let ids = ((shards, _)) => List.map(Shard.id_, shards);
+let shards: t => list(Shard.t) = Aba.get_as;
 
-let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
+let ids = t => List.map(Shard.id_, shards(t));
 
-let l_shard = t =>
-  OptUtil.get_or_raise(Empty_tile, ListUtil.hd_opt(t.shards));
-let r_shard = t =>
-  OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
+let form = t => List.map(Shard.form_, shards(t));
 
-let complete = (d: Direction.t, t: t): list(Token.t) =>
-  switch (d) {
-  | Left =>
-    ListUtil.range(l_shard(t)) |> List.rev_map(i => List.nth(t.label, i))
-  | Right =>
-    ListUtil.range(~lo=r_shard(t) + 1, List.length(t.label))
-    |> List.map(i => List.nth(t.label, i))
-  };
+let l_shard = t => Aba.first_a(t);
+let r_shard = t => Aba.last_a(t);
 
-let has_end = (d: Direction.t, t) =>
-  switch (d) {
-  | Left => l_shard(t) == 0
-  | Right => r_shard(t) == List.length(t.label) - 1
-  };
-let has_ends = t => has_end(Left, t) && has_end(Right, t);
-
-let nibs = (t: t) => {
-  let (l, _) = Mold.nibs(~index=l_shard(t), t.mold);
-  let (_, r) = Mold.nibs(~index=r_shard(t), t.mold);
+let nibs = (t: t): Nibs.t => {
+  let (l, _) = Shard.nibs(l_shard(t));
+  let (_, r) = Shard.nibs(r_shard(t));
   (l, r);
 };
 let shapes = (t: t) => {
@@ -109,4 +97,3 @@ let pop_r = (tile: t): (segment, piece) =>
   disassemble(tile)
   |> ListUtil.split_last_opt
   |> OptUtil.get_or_raise(Empty_tile);
-

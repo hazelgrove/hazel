@@ -55,6 +55,13 @@ type t = {
   sort: Sort.t,
 };
 
+let convex = sort => {sort, shape: Convex};
+
+let concave = (~prec=Precedence.min, ~pad=true, sort) => {
+  sort,
+  shape: Concave({prec, pad}),
+};
+
 let shape_ = n => n.shape;
 
 let fits = (l: t, r: t): bool =>

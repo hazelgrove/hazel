@@ -10,6 +10,12 @@ module Kid = {
   let pat = (~pad=true, ()) => {pad, sort: Pat};
 
   let exp = (~pad=true, ()) => {pad, sort: Exp};
+
+  let mk = (~pad=true) =>
+    fun
+    | Sort.Pat => pat(~pad, ())
+    | Exp => exp(~pad, ())
+    | _ => failwith("todo");
 };
 
 // module Kids = {
@@ -57,24 +63,48 @@ type t = {
 let pre =
     (
       ~sort: Sort.t,
-      ~prec: Precedence.t,
-      ~label: list(Token.t),
       ~m: list(Kid.t)=[],
-      ~r: Kid.t,
-      (),
+      ~r=Kid.mk(sort),
+      label: list(Token.t),
+      prec: Precedence.t,
     ) => {
   assert(List.length(label) == List.length(m) + 1);
   {label, mold: Mold.mk(~m, ~r, sort, prec)};
 };
+let bin =
+    (
+      ~sort: Sort.t,
+      ~l=Kid.mk(sort),
+      ~m: list(Kid.t)=[],
+      ~r=Kid.mk(sort),
+      label: list(Token.t),
+      prec: Precedence.t,
+    ) => {
+  assert(List.length(label) == List.length(m) + 1);
+  {label, mold: Mold.mk(~l, ~m, ~r, sort, prec)};
+};
 
-let let_: t =
-  pre(
-    ~sort=Exp,
-    ~prec=Precedence.let_,
-    ~label=["let", "=", "in"],
-    ~m=Kid.[pat(), exp()],
-    ~r=Kid.exp(),
-    (),
-  );
-
-let all = [let_];
+let to_shards = ({mold, label}: t): list(ShardForm.t) => {
+  // let lbl = List.mapi((i, t) => (i, t), label);
+  let (l_kid, m_kids, r_kid) = mold.kids;
+  let outer_nib =
+    fun
+    | None => Nib.{sort: mold.sort, shape: Convex}
+    | Some(kid: Kid.t) =>
+      Nib.{sort: kid.sort, shape: Concave({prec: mold.prec, pad: kid.pad})};
+  let (l, r) = (outer_nib(l_kid), outer_nib(r_kid));
+  let m = i => {
+    let kid = List.nth(m_kids, i);
+    let sort = kid.sort;
+    let shape =
+      Nib.Shape.Concave({pad: kid.pad, prec: failwith("sort-specific min")});
+    Nib.{sort, shape};
+  };
+  label
+  |> List.mapi((i, token) => {
+       let l = i == 0 ? l : m(i - 1);
+       let r = i == List.length(label) - 1 ? r : m(i);
+       let mold = ShardMold.{sort: mold.sort, nibs: (l, r)};
+       ShardForm.{mold, token};
+     });
+};
