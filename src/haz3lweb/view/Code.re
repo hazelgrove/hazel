@@ -115,6 +115,18 @@ let rec holes =
          ],
      );
 
+let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
+  module Text =
+    Text({
+      let map = map;
+      let settings = settings;
+    });
+  div(
+    ~attr=Attr.class_("code"),
+    [span_c("code-text", Text.of_segment(unselected))],
+  );
+};
+
 let view =
     (
       ~font_metrics,

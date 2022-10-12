@@ -87,7 +87,8 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
 
 let load_model = (model: Model.t): Model.t => {
   let settings = LocalStorage.Settings.load();
-  let model = {...model, settings};
+  let langDocMessages = LocalStorage.LangDocMessages.load();
+  let model = {...model, settings, langDocMessages};
   let model =
     switch (model.settings.mode) {
     | Scratch =>
@@ -150,9 +151,11 @@ let reevaluate_post_update =
   | UpdateResult(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | FailedInput(_) => false
+  | FailedInput(_)
+  | UpdateLangDocMessages(_) => false
   // may not be necessary on all of these
   // TODO review and prune
+  | ResetCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -336,6 +339,21 @@ let apply =
           editors: Editors.put_editor_and_id(id, ed, model.editors),
         });
       };
+    | ResetCurrentEditor =>
+      /* This serializes the current editor to text, resets the current
+         editor, and then deserializes. It is intended as a (tactical)
+         nuclear option for weird backpack states */
+      let (id, ed) = Editors.get_editor_and_id(model.editors);
+      let zipper_init = Zipper.init(id);
+      let ed_str = Printer.to_string_editor(ed);
+      switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
+      | None => Error(CantReset)
+      | Some((z, id)) =>
+        //TODO: add correct action to history (Pick_up is wrong)
+        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        let editors = Editors.put_editor_and_id(id, editor, model.editors);
+        Ok({...model, editors});
+      };
     | Undo =>
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
@@ -359,6 +377,11 @@ let apply =
     | MoveToNextHole(_d) =>
       // TODO restore
       Ok(model)
+    | UpdateLangDocMessages(u) =>
+      let langDocMessages =
+        LangDocMessages.set_update(model.langDocMessages, u);
+      LocalStorage.LangDocMessages.save(langDocMessages);
+      Ok({...model, langDocMessages});
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {

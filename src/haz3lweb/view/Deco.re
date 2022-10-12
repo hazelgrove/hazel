@@ -220,7 +220,8 @@ module Deco =
       ? targets(backpack, seg) : [];
   };
 
-  let term_highlight = (~clss: list(string), id: Id.t) => {
+  let term_decoration =
+      (~id: Id.t, deco: ((Measured.Point.t, SvgUtil.Path.t)) => Node.t) => {
     let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
     let l = Measured.find_p(p_l, M.map).origin;
     let r = Measured.find_p(p_r, M.map).last;
@@ -238,10 +239,27 @@ module Deco =
            [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
       |> List.concat;
-    let path = [m(~x=l.col, ~y=l.row), ...r_edge] @ l_edge @ [Z];
-    path
-    |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)})
-    |> DecUtil.code_svg(~font_metrics, ~origin=l, ~base_cls=clss);
+    let path =
+      [m(~x=l.col, ~y=l.row), ...r_edge]
+      @ l_edge
+      @ [Z]
+      |> translate({dx: Float.of_int(- l.col), dy: Float.of_int(- l.row)});
+    (l, path) |> deco;
+  };
+
+  let term_highlight = (~clss: list(string), id: Id.t) => {
+    term_decoration(~id, ((origin, path)) =>
+      DecUtil.code_svg(~font_metrics, ~origin, ~base_cls=clss, path)
+    );
+  };
+
+  let color_highlights = (colorings: list((int, string))) => {
+    List.map(
+      ((id, color)) => {
+        term_highlight(~clss=["highlight-code-" ++ color], id)
+      },
+      colorings,
+    );
   };
 
   // recurses through skel structure to enable experimentation
