@@ -9,7 +9,7 @@ let mk_id = (): int => {
 };
 
 let mk_whitespace: string => Piece.t =
-  content => Whitespace({id: mk_id(), content});
+  content => Whitespace({id: mk_id(), content: WSpace(content)});
 
 let mk_tile: (Form.t, list(list(Piece.t))) => Piece.t =
   //TODO: asserts
