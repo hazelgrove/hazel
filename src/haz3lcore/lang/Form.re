@@ -38,7 +38,8 @@ let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
 let mk_nul_infix = (t: Token.t, prec) =>
   mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, [])) /* Token Recognition Predicates */;
 
-let is_arbitary_int = regexp("^[0-9]*$");
+/* Token Recognition Predicates */
+let is_arbitary_int = regexp("^[0-9_]*$");
 let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
 let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None /* NOTE: The is_arbitary_int check is necessary to prevent   minuses from being parsed as part of the int token. */;
 
@@ -111,8 +112,8 @@ let forms: list((string, t)) = [
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
   //("not_equals", mk_infix("!=", Exp, 5)),
-  ("gte", mk_infix("<=", Exp, P.eqs)),
-  ("lte", mk_infix(">=", Exp, P.eqs)),
+  ("gte", mk_infix(">=", Exp, P.eqs)),
+  ("lte", mk_infix("<=", Exp, P.eqs)),
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("fminus", mk_infix("-.", Exp, P.plus)),
   ("ftimes", mk_infix("*.", Exp, P.mult)),
@@ -121,8 +122,8 @@ let forms: list((string, t)) = [
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
   ("fgt", mk_infix(">.", Exp, 5)), //TODO: precedence
   //("fnot_equals", mk_infix("!=.", Exp, 5)),
-  ("fgte", mk_infix("<=.", Exp, P.eqs)),
-  ("flte", mk_infix(">=.", Exp, P.eqs)),
+  ("fgte", mk_infix(">=.", Exp, P.eqs)),
+  ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("substr1", mk_nul_infix("=.", P.eqs)), // HACK: SUBSTRING REQ
   ("bitwise_and", mk_nul_infix("&", P.and_)), // HACK: SUBSTRING REQ
   ("logical_and", mk_infix("&&", Exp, P.and_)),
