@@ -70,9 +70,6 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => Some(d)
       };
     | Ana(ana_ty) =>
-      print_endline("wrap::::");
-      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
-      print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ana_ty)));
       /* Forms with no Syn rule get cast from their appropriate Matched types */
       switch (d, ana_ty) {
       | (ListLit(_, _, _, _, []), Unknown(prov)) =>
