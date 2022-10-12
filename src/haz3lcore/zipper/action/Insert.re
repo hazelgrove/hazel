@@ -101,7 +101,7 @@ let go =
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
   /* Special cases for insertion of quotes when the caret is
-     in or is adjacent to a string. This is necessary to
+     in or is adjacent to a string/comment. This is necessary to
      avoid breaking paste. */
   | (_, (_, Some(t)))
       when

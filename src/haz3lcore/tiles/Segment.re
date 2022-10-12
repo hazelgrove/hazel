@@ -602,7 +602,7 @@ let rec serialize = (seg: t) =>
 let sameline_whitespace =
   List.for_all(
     fun
-    | Piece.Whitespace(w) => !Whitespace.is_linebreak(w) //ADDED w.content != Whitespace.linebreak
+    | Piece.Whitespace(w) => !Whitespace.is_linebreak(w) //ADDED
     | _ => false,
   );
 

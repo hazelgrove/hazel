@@ -80,9 +80,7 @@ module Deco =
     z.selection.content
     |> List.filter(
          fun
-         | Piece.Whitespace(w)
-             when
-               Whitespace.is_linebreak(w) /* ADDED w.content == Whitespace.linebreak*/ =>
+         | Piece.Whitespace(w) when Whitespace.is_linebreak(w) /* ADDED */ =>
            false
          | _ => true,
        )

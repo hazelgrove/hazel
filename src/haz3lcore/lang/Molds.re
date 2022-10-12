@@ -87,16 +87,8 @@ let delayed_completion:
 let instant_completion:
   (Token.t, Direction.t) => (list(Token.t), Direction.t) =
   (s, direction_preference) =>
-    // let tile_or_comment =
-    // if (s = "#") {
-    //   Comment // expansion
-    // };
     /* Completions which can or must be executed immediately */
     switch (List.assoc_opt(s, instant_completes)) {
     | Some(completion) => completion
-    // if (s = "#") {
-    //   | Comment((["#", "#"], Direction.Left))
-    //   | Tile(completion)
-    // };
     | None => ([s], direction_preference)
     };

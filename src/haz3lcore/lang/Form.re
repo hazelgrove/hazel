@@ -192,13 +192,11 @@ let atomic_molds: Token.t => list(Mold.t) =
 
 let is_atomic = t => atomic_molds(t) != [];
 let is_whitespace = t =>
-  List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0) /* comments ADDED */;
-// };
-let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0) || t == "#" /* ADDED */;
+  List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0); /* comments ADDED */
+
+let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0); /* ADDED */
 let is_comment_delim = t => t == "#";
-let is_incomplete_comment = t =>
-  Re.Str.string_match(Whitespace.incomplete_comment1, t, 0)
-  || Re.Str.string_match(Whitespace.incomplete_comment2, t, 0) /* ADDED */;
+
 let is_delim = t => List.mem(t, delims);
 
 let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);

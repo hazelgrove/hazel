@@ -15,9 +15,7 @@ and of_piece: Piece.t => string =
   | Tile(t) => of_tile(t)
   | Grout(_) => " "
   | Whitespace(w) =>
-    Whitespace.is_linebreak(w)
-      /* ADDED w.content == Whitespace.linebreak*/
-      ? "\n" : Whitespace.get_content_string(w) //ADDED
+    Whitespace.is_linebreak(w) ? "\n" : Whitespace.get_string(w.content) //ADDED
 and of_tile = (t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment)

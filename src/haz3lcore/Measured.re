@@ -345,7 +345,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             (indent, last, map);
           | Whitespace(w) =>
             let wspace_length =
-              Unicode.length(Whitespace.get_content_string(w)); //ADDED
+              Unicode.length(Whitespace.get_string(w.content)); //ADDED
             let last = {...origin, col: origin.col + wspace_length};
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
