@@ -20,7 +20,7 @@ let destruct =
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
-    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some /* Special cases for string literals. When deletion would   remove an outer quote, we instead remove the whole string */
+    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some /* Special cases for string literals and comments. When deletion would   remove an outer quote, we instead remove the whole string */
 
   | (Left, Outer, (Some(t), _))
       when Form.is_string(t) || Form.is_comment(t) =>
