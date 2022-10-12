@@ -34,7 +34,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
-  | Var(_) // TODO(andrew): ?
+  | Var(_)
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
@@ -911,7 +911,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      evaluate_case(env, Some((u, i)), d1, rules, n)
+      //TODO: revisit this, consider some kind of dynamic casting
+      Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
+      |> return
 
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 

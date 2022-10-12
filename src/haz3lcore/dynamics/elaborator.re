@@ -70,6 +70,9 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => Some(d)
       };
     | Ana(ana_ty) =>
+      print_endline("wrap::::");
+      print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+      print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ana_ty)));
       /* Forms with no Syn rule get cast from their appropriate Matched types */
       switch (d, ana_ty) {
       | (ListLit(_, _, _, _, []), Unknown(prov)) =>
@@ -79,7 +82,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
         Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
       | (Fun(_), _) => Some(d)
       | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
-      }
+      };
     }
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
   };
@@ -135,7 +138,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           es,
           Some([]),
         );
-      ds |> Option.map(ds => DHExp.Tuple(ds));
+      ds |> OptUtil.and_then(ds => wrap(DHExp.Tuple(ds)));
     | Tag(name) => wrap(Tag(name))
     | Cons(e1, e2) =>
       let* dc1 = dhexp_of_uexp(m, e1);
