@@ -9,7 +9,7 @@ let kind_view = (cls: string, s: string): Node.t =>
 // TODO: (poly) Finish the skeleton
 let view = (ty: Haz3lcore.Kind.t): Node.t =>
   switch (ty) {
-  | Singleton =>
+  | _ =>
     div(
       ~attr=clss(["kind-view"]),
       [text("S"), kind_view("Singleton", "Singleton")],

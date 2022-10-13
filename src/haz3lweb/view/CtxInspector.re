@@ -36,11 +36,19 @@ let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
     List.map(context_entry_view(~inject), List.rev(ctx)),
   );
 
+let tpat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+  div(
+    ~attr=clss([ctxc, "tpat"]),
+    // TODO: (poly) Finish the skeleton
+    List.map(context_entry_view(~inject), List.rev(ctx)),
+  );
+
 let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   switch (ci) {
   | Invalid(_) => div(~attr=clss([ctxc, "invalid"]), [text("")])
   | InfoExp({ctx, _}) => exp_ctx_view(~inject, ctx)
   | InfoPat({ctx, _}) => pat_ctx_view(~inject, ctx)
+  | InfoTPat({ctx, _}) => tpat_ctx_view(~inject, ctx)
   | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
   | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
   };

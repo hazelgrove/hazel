@@ -267,7 +267,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(ConsistentCase(d))
       };
     };
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 }
@@ -343,7 +343,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | InfoRul(_) | Invalid(_))
   | None => None
   };
 };

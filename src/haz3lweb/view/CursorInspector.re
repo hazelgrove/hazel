@@ -8,6 +8,7 @@ let cls_str = (ci: Haz3lcore.Statics.t): string =>
   | Invalid(msg) => Haz3lcore.TermBase.show_parse_flag(msg)
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
+  | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
   | InfoRul({cls, _}) => Haz3lcore.Term.URul.show_cls(cls)
   };
@@ -145,6 +146,12 @@ let view_of_info = (ci: Haz3lcore.Statics.t): Node.t => {
     )
   | InfoTyp({self: _, _}) =>
     failwith("CursorInspector: Impossible type error")
+  | InfoTPat({self: _, _}) =>
+    div(
+      ~attr=clss([infoc, "tpat"]),
+      // TODO
+      [term_tag(is_err, "tpat")],
+    )
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
