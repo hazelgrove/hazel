@@ -403,19 +403,27 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, trim: t): IdGen.t(t) => {
     open IdGen.Syntax;
     let+ g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim /* If we're adding a grout, remove a whitespace. Note that   changes made to the logic here should also take into   account the other direction in 'regrout' below. */;
+    let (wss, gs) = trim;
 
+    /* If we're adding a grout, remove a whitespace. Note that
+       changes made to the logic here should also take into
+       account the other direction in 'regrout' below. */
     let trim = (g.shape == Concave ? rm_up_to_one_space(wss) : wss, gs);
-    let (wss', gs') = cons_g(g, trim) /* ANDREW: disabled above hack; with calmer indent it seems annoying */ /* Hack to supress the addition of leading whitespace on a line */;
+    let (wss', gs') = cons_g(g, trim);
+    /* Hack to supress the addition of leading whitespace on a line */
     //let wss' = scooch_over_linebreak(wss');
+    /* ANDREW: disabled above hack; with calmer indent it seems annoying */
     (wss', gs');
   };
 
   // assumes grout in trim fit r but may not fit l
   let regrout = ((l, r): Nibs.shapes, trim: t): IdGen.t(t) =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim /* Convert unneeded grout to spaces. Note that changes made   to the logic here should also take into account the   conversion of spaces to grout in 'add_grout' above. */;
+      let (wss, gs) = trim;
 
+      /* Convert unneeded grout to spaces. Note that changes made
+         to the logic here should also take into account the
+         conversion of spaces to grout in 'add_grout' above. */
       let new_spaces =
         List.filter_map(
           ({id, shape}: Grout.t) =>
@@ -424,13 +432,25 @@ module Trim = {
             | Convex => None
             },
           gs,
-        ) /* Note below that it is important that we add the new spaces
+        ); /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
          somewhat hacky; we may just want to remove all the spaces
          whenever there is a linebreak; not making this chance now
-         as I'm worried about it introducing subtle jank */;
+         as I'm worried about it introducing subtle jank */
 
+      /* David PR comment:
+         All these changes assume the trim is ordered left-to-right,
+         but this may not be true when Trim.regrout is called by
+         regrout_affix(Left, ...) below, which reverses the affix before
+         processing. (This didn't pose an issue before with trim because
+         the whitespace and grout are symmetric and the existing code
+         didn't affect order.)
+         Proper fix would require threading through directional parameter
+         from regrout_affix into Trim.regrout and appending to correct side.
+         Similar threading for add_grout. That said, I couldn't trigger any
+         undesirable behavior with these changes and am fine with going ahead
+         with this for now. */
       let wss = [new_spaces @ List.concat(wss)];
       IdGen.return(Aba.mk(wss, []));
     } else {
@@ -602,7 +622,7 @@ let rec serialize = (seg: t) =>
 let sameline_whitespace =
   List.for_all(
     fun
-    | Piece.Whitespace(w) => !Whitespace.is_linebreak(w) //ADDED
+    | Piece.Whitespace(w) => !Whitespace.is_linebreak(w)
     | _ => false,
   );
 

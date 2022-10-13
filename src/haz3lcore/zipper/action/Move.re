@@ -38,7 +38,6 @@ let neighbor_movability =
     switch (l_nhbr) {
     | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
     | Some(Whitespace(w)) when Whitespace.is_comment(w) =>
-      // ADDED
       // Comments are always length >= 2
       let content_string = Whitespace.get_string(w.content);
       CanEnter(
@@ -52,7 +51,6 @@ let neighbor_movability =
     switch (r_nhbr) {
     | Some(Tile({label, _})) => movability(label, 0)
     | Some(Whitespace(w)) when Whitespace.is_comment(w) =>
-      // ADDED
       // Comments are always length >= 2
       let content_string = Whitespace.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);

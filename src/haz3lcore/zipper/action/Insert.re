@@ -35,12 +35,6 @@ let barf_or_construct =
   switch (barfed) {
   | Some(z) => IdGen.return(z)
   | None =>
-    // TODO: create a switch on the result of `Molds.instant_completion`
-    // to either do normal tile construction (below) or your new comment
-    // construction logic
-    // Need to do comment construction logic
-
-    // look up the expansion for a reserved/expanding keyword (eg "let")
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
   };
@@ -122,14 +116,15 @@ let go =
     Some((z, id_gen))
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
-    let new_t = Token.insert_nth(idx, char, t) /* If inserting wouldn't produce a valid token, split */;
+    let new_t = Token.insert_nth(idx, char, t);
+    /* If inserting wouldn't produce a valid token, split */
     Form.is_valid_token(new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> (z => Zipper.replace(Right, [new_t], (z, id_gen)))
         |> opt_regrold(Left)
-      : split((z, id_gen), char, idx, t)
-        |> opt_regrold(Right) /* Can't insert inside delimiter */;
+      : split((z, id_gen), char, idx, t) |> opt_regrold(Right);
+  /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
     let caret: Zipper.Caret.t =
