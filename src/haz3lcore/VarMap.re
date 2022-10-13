@@ -14,7 +14,8 @@ let extend = (ctx, xa) => {
   [xa, ...ctx];
 };
 
-let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
+// The new things should go to the right when concatenating
+let concat = (ctx, new_ctx) => new_ctx @ ctx;
 
 let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
