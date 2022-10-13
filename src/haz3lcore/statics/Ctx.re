@@ -71,3 +71,33 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
 //TODO(andrew): is this correct in the case of duplicates?
 let union: list(co) => co =
   List.fold_left((free1, free2) => free1 @ free2, []);
+
+module VarSet = Set.Make(Token);
+
+// Note: filter out duplicates when rendering
+let filter_duplicates = (ctx: t): t =>
+  ctx
+  |> List.fold_left(
+       ((ctx, term_set, typ_set), (x, entry)) => {
+         switch (entry.value) {
+         | Typ(_) =>
+           VarSet.mem(x, term_set)
+             ? (ctx, term_set, typ_set)
+             : (
+               VarMap.extend(ctx, (x, entry)),
+               VarSet.add(x, term_set),
+               typ_set,
+             )
+         | Kind(_) =>
+           VarSet.mem(x, term_set)
+             ? (ctx, term_set, typ_set)
+             : (
+               VarMap.extend(ctx, (x, entry)),
+               term_set,
+               VarSet.add(x, typ_set),
+             )
+         }
+       },
+       (VarMap.empty, VarSet.empty, VarSet.empty),
+     )
+  |> (((ctx, _, _)) => List.rev(ctx));
