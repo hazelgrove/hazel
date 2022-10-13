@@ -19,7 +19,8 @@ type t =
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up
-  | Put_down;
+  | Put_down
+  | GoToDefinition;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -28,7 +29,8 @@ module Failure = {
     | Cant_insert
     | Cant_destruct
     | Cant_select
-    | Cant_put_down;
+    | Cant_put_down
+    | Cant_go_to_definition;
 };
 
 module Result = {

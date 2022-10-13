@@ -6,6 +6,7 @@ let is_write_action = (a: Action.t) => {
   | Move(_)
   | JumpToId(_)
   | Unselect
+  | GoToDefinition => false
   | Select(_) => false
   | Destruct(_)
   | Insert(_)
@@ -77,6 +78,29 @@ let go_z =
     Move.to_backpack_target(d, z)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | GoToDefinition =>
+    Indicated.piece(z)
+    |> Option.bind(_, ((piece, _, _)) => {
+         switch (piece) {
+         | Base.Tile(tile) =>
+           let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+           Id.Map.find_opt(tile.id, Statics.mk_map(term));
+         | _ => None
+         }
+       })
+    |> Option.bind(_, s => {
+         switch (s) {
+         | Statics.InfoExp(info_exp) =>
+           switch (info_exp.term.term) {
+           | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
+           | _ => None
+           }
+         | _ => None
+         }
+       })
+    |> Option.bind(_, entry => Move.jump_to_id(z, entry.id))
+    |> Option.map(IdGen.id(id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_go_to_definition)
   };
 };
 

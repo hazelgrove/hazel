@@ -137,7 +137,8 @@ let reevaluate_post_update =
     }
   | PerformAction(
       Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_) |
-      JumpToId(_),
+      JumpToId(_) |
+      GoToDefinition,
     )
   | MoveToNextHole(_) //
   | UpdateDoubleTap(_)
