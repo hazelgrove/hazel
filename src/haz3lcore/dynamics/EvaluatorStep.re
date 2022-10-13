@@ -7,8 +7,6 @@ type step_result =
   | Step(DHExp.t)
   | Pause(DHExp.t);
 
-exception InvalidInput(int);
-
 [@deriving sexp]
 type evaluator_option = {pause_subexpression: bool};
 
@@ -17,7 +15,7 @@ let evaluate_all_option = {pause_subexpression: false};
 
 let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   switch (d) {
-  | BoundVar(_) => raise(InvalidInput(1))
+  | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
     switch (step(d1, opt)) {
     | Pause(d1') => Pause(Let(dp, d1', d2))
@@ -63,7 +61,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
         /* ap cast rule */
         Step(Cast(Ap(d1', Cast(d2', ty1', ty1)), ty2, ty2'))
       }
-    | BoxedValue(_) => raise(InvalidInput(2))
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedFun(d1')))
     | Indet(d1') =>
       switch (step(d2, opt)) {
       | Step(d2') => Step(Ap(d1, d2'))
@@ -92,10 +91,12 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Pause(d2') => Pause(BinBoolOp(op, d1, d2'))
       | BoxedValue(BoolLit(b2)) =>
         BoxedValue(Evaluator.eval_bin_bool_op(op, b1, b2))
-      | BoxedValue(_) => raise(InvalidInput(3))
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')))
       | Indet(d2') => Indet(BinBoolOp(op, d1', d2'))
       }
-    | BoxedValue(_) => raise(InvalidInput(4))
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
     | Indet(d1') =>
       switch (step(d2, opt)) {
       | Step(d2') => Step(BinBoolOp(op, d1, d2'))
@@ -129,10 +130,12 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
           )
         | _ => Step(Evaluator.eval_bin_int_op(op, n1, n2))
         }
-      | BoxedValue(_) => raise(InvalidInput(3))
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
       | Indet(d2') => Indet(BinIntOp(op, d1', d2'))
       }
-    | BoxedValue(_) => raise(InvalidInput(4))
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
     | Indet(d1') =>
       switch (step(d2, opt)) {
       | Pause(d2') => Pause(BinIntOp(op, d1, d2'))
@@ -157,10 +160,12 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Pause(d2') => Pause(BinFloatOp(op, d1, d2'))
       | BoxedValue(FloatLit(f2)) =>
         Step(Evaluator.eval_bin_float_op(op, f1, f2))
-      | BoxedValue(_) => raise(InvalidInput(8))
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
       | Indet(d2') => Indet(BinFloatOp(op, d1', d2'))
       }
-    | BoxedValue(_) => raise(InvalidInput(7))
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
     | Indet(d1') =>
       switch (step(d2, opt)) {
       | Step(d2') => Step(BinFloatOp(op, d1, d2'))
@@ -243,8 +248,11 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
             Indet(FailedCast(d1', ty, ty'));
           }
         | _ =>
-          // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
-          raise(InvalidInput(6))
+          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
+          print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty)));
+          print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty')));
+          print_endline("CastBVHoleGround");
+          raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
         }
       | (Hole, NotGroundOrHole(ty'_grounded)) =>
         /* ITExpand rule */
@@ -396,24 +404,15 @@ module EvalCtx = {
     | Pair2(DHExp.t, t)
     | Let(DHPat.t, t, DHExp.t)
     | Inj(Typ.t, InjSide.t, t)
-    | NonEmptyHole(
-        ErrStatus.HoleReason.t,
-        MetaVar.t,
-        HoleInstanceId.t,
-        t,
-      )
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | ConsistentCase(t, list(DHExp.rule), int)
-    | InconsistentBranches(
-        MetaVar.t,
-        MetaVarInst.t,
-        VarMap.t_(DHExp.t),
-        t,
-        list(DHExp.rule),
-        int,
-      );
+    | ConsistentCase(case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+  and case =
+    | Case(t, list(rule), int)
+  and rule = DHExp.rule;
 };
 
 module EvalType = {
@@ -586,14 +585,14 @@ let rec decompose = (d: DHExp.t, opt: evaluator_option): (EvalCtx.t, DHExp.t) =>
       (Mark, d);
     } else {
       let (ctx, d0) = decompose(d1, opt);
-      (ConsistentCase(ctx, rule, n), d0);
+      (ConsistentCase(Case(ctx, rule, n)), d0);
     }
   | InconsistentBranches(u, i, Case(d1, rule, n)) =>
     if (is_final(d1, opt)) {
       (Mark, d);
     } else {
       let (ctx, d0) = decompose(d1, opt);
-      (InconsistentBranches(u, i, ctx, rule, n), d0);
+      (InconsistentBranches(u, i, Case(ctx, rule, n)), d0);
     }
   };
 
@@ -788,7 +787,7 @@ let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
         let ld1 = decompose_all(d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(ConsistentCase(obj.ctx, rule, n), obj.exp),
+            EvalObj.mk(ConsistentCase(Case(obj.ctx, rule, n)), obj.exp),
           ld1,
         );
       }
@@ -800,7 +799,7 @@ let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(
-              InconsistentBranches(u, i, obj.ctx, rule, n),
+              InconsistentBranches(u, i, Case(obj.ctx, rule, n)),
               obj.exp,
             ),
           ld1,
@@ -831,9 +830,9 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | InvalidOperation(ctx1, err) => InvalidOperation(compose((ctx1, d)), err)
   | NonEmptyHole(reason, u, i, ctx1) =>
     NonEmptyHole(reason, u, i, compose((ctx1, d)))
-  | ConsistentCase(ctx1, rule, n) =>
+  | ConsistentCase(Case(ctx1, rule, n)) =>
     ConsistentCase(Case(compose((ctx1, d)), rule, n))
-  | InconsistentBranches(u, i, ctx1, rule, n) =>
+  | InconsistentBranches(u, i, Case(ctx1, rule, n)) =>
     InconsistentBranches(u, i, Case(compose((ctx1, d)), rule, n))
   };
 
@@ -873,20 +872,16 @@ let rec ctx_steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => {
 
 let step_evaluate = (d: DHExp.t, opt: evaluator_option): option(DHExp.t) =>
   try(Some(ctx_steps(d, opt))) {
-  | InvalidInput(_) => None
+  | _ => None
   };
 
 let quick_step_evaluate =
     (d: DHExp.t, opt: evaluator_option): EvaluatorResult.t =>
-  try(
-    switch (quick_steps(d, opt)) {
-    | Pause(d)
-    | Step(d)
-    | Indet(d) => Indet(d)
-    | BoxedValue(d) => BoxedValue(d)
-    }
-  ) {
-  | InvalidInput(i) => InvalidInput(i)
+  switch (quick_steps(d, opt)) {
+  | Pause(d)
+  | Step(d)
+  | Indet(d) => Indet(d)
+  | BoxedValue(d) => BoxedValue(d)
   };
 
 let rec step_evaluate_record =
