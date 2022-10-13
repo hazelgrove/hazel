@@ -43,6 +43,21 @@ let lookup_typ = (ctx: t, x) =>
     ctx,
   );
 
+let lookup_kind = (ctx: t, x) =>
+  VarMap.find_map(
+    ((k, {id: _, value})) =>
+      switch (value) {
+      | Kind(t) =>
+        if (k == x) {
+          Some(t);
+        } else {
+          None;
+        }
+      | _ => None
+      },
+    ctx,
+  );
+
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
     ((k, _)) =>

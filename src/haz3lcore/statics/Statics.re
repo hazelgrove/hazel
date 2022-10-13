@@ -455,6 +455,24 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
+  | TyAlias(tpat, def, body) =>
+    // TODO (poly): Support recursive type definitions
+    // let (ty_pat, ctx_pat, _m_pat) = utpat_to_info_map(~mode=Syn, ~ctx, tpat);
+    // let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    let def_ctx = ctx;
+    let (ty_def, m_def) = utyp_to_info_map(~ctx=def_ctx, def);
+    /* Analyze pattern to incorporate def type into ctx */
+    // FIXME (poly): This is wrong, we need to analyze the type pattern
+    let (_, ctx_pat_ana, m_pat) =
+      utpat_to_info_map(~mode=Typ.Ana(ty_def), ~ctx=def_ctx, tpat);
+    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
+    add(
+      ~self=Just(ty_body),
+      ~free=Ctx.union([Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+      union_m([m_pat, m_def, m_body]),
+    );
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
@@ -595,7 +613,11 @@ and upat_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx=Ctx.empty, {ids, term} as utpat: Term.UTPat.t)
+    (
+      ~mode: Typ.mode=Typ.Syn,
+      ~ctx=Ctx.empty,
+      {ids, term} as utpat: Term.UTPat.t,
+    )
     : (Kind.t, Ctx.t, map) => {
   let cls = Term.UTPat.cls_of_term(term);
   let add = (~self: Kind.t, ~ctx, m) => (
@@ -604,7 +626,7 @@ and utpat_to_info_map =
     add_info(ids, InfoTPat({cls, self, ctx, term: utpat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
-  let unknown = Kind.Hole;
+  let unknown = Kind.Singleton(Unknown(TypeHole), 0);
   switch (term) {
   | Invalid(msg) => (
       unknown,
@@ -613,11 +635,16 @@ and utpat_to_info_map =
     )
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    // TODO: (poly) What does MultiHole do?
+    // TODO (poly): What does MultiHole do?
     add(~self=unknown, ~ctx, union_m(maps));
   | EmptyHole => atomic(unknown)
   | Var(name) =>
-    let self = unknown;
+    let self =
+      switch (mode) {
+      | Syn => unknown
+      // TODO (poly): Use meaningful truncator
+      | Ana(ty) => Kind.Singleton(ty, 0)
+      };
     add(
       ~self,
       ~ctx=
@@ -629,7 +656,8 @@ and utpat_to_info_map =
     );
   };
 }
-and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+and utyp_to_info_map =
+    (~ctx=Ctx.empty, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
@@ -656,9 +684,18 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     let m = ts |> List.map(utyp_to_info_map) |> List.map(snd) |> union_m;
     just(m);
   | Var(name) =>
-    switch (BuiltinADTs.is_typ_var(name)) {
-    | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
-    | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
+    switch (Ctx.lookup_kind(ctx, name)) {
+    // TODO (poly): Use meaningful truncator
+    | Some(Singleton(typ, _)) => (
+        Kind.head_normalize(typ),
+        add(Just(Var(name)), Id.Map.empty),
+      )
+    | Some(Abstract) => failwith("Not implemented")
+    | None =>
+      switch (BuiltinADTs.is_typ_var(name)) {
+      | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+      | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
+      }
     }
   | MultiHole(tms) =>
     // TODO thread ctx through to multihole terms once ctx is available
