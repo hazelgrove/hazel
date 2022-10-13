@@ -229,7 +229,7 @@ let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
   if (Term.UPat.is_tuple_of_arrows(pat)
       && Term.UExp.is_tuple_of_functions(def)) {
-    VarMap.union(pat_ctx, ctx);
+    VarMap.concat(ctx, pat_ctx);
   } else {
     ctx;
   };
@@ -416,7 +416,7 @@ and uexp_to_info_map =
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
-    let ctx_body = VarMap.union(ctx_pat, ctx);
+    let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
     add(
@@ -431,7 +431,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) = upat_to_info_map(~mode=Ana(ty_def), pat);
-    let ctx_body = VarMap.union(ctx_pat_ana, def_ctx);
+    let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
     add(
@@ -447,7 +447,7 @@ and uexp_to_info_map =
     let branch_infos =
       List.map2(
         (branch, (_, ctx_pat, _)) =>
-          uexp_to_info_map(~ctx=VarMap.union(ctx_pat, ctx), ~mode, branch),
+          uexp_to_info_map(~ctx=VarMap.concat(ctx, ctx_pat), ~mode, branch),
         branches,
         pat_infos,
       );
