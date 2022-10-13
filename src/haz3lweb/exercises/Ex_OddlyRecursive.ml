@@ -14,7 +14,7 @@ let exercise : SchoolExercise.spec =
                   Tile
                     {
                       id = 5201;
-                      label = [ "Oddly Recursive" ];
+                      label = [ "OddlyRecursive" ];
                       mold =
                         {
                           out = Exp;

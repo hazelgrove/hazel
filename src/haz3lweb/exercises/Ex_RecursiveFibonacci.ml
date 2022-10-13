@@ -14,7 +14,7 @@ let exercise : SchoolExercise.spec =
                   Tile
                     {
                       id = 5135;
-                      label = [ "Recursive Fibonacci" ];
+                      label = [ "RecursiveFibonacci" ];
                       mold =
                         {
                           out = Exp;
