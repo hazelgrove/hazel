@@ -24,17 +24,21 @@ let context_entry_view =
 
 let ctxc = "context-entries";
 
-let exp_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+let exp_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
+  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
   div(
     ~attr=clss([ctxc, "exp"]),
     List.map(context_entry_view(~inject), List.rev(ctx)),
   );
+};
 
-let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+let pat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t => {
+  let ctx = ctx |> Haz3lcore.Ctx.filter_duplicates;
   div(
     ~attr=clss([ctxc, "pat"]),
     List.map(context_entry_view(~inject), List.rev(ctx)),
   );
+};
 
 let tpat_ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
   div(
