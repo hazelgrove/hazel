@@ -36,7 +36,6 @@ let of_whitespace =
   Core.Memo.general(
     ~cache_size_bound=1000000, ((whitespace_icons, indent, content)) =>
     if (Whitespace.get_string(content) == Whitespace.linebreak) {
-      // ADDED
       let str = whitespace_icons ? Whitespace.linebreak : "";
       [
         span_c("linebreak", [text(str)]),

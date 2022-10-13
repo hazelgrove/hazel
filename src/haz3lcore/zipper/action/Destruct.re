@@ -56,12 +56,9 @@ let destruct =
     |> Option.map(IdGen.id(id_gen))
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    /* ADDED skip over these options when deleting a comment */
     //Option.map(IdGen.id(id_gen)
-
     Zipper.replace(Left, [Token.rm_last(t)], (z, id_gen))
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
-    /* ADDED */
     Zipper.replace(Right, [Token.rm_first(t)], (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) =>

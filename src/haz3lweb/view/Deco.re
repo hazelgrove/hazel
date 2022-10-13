@@ -80,8 +80,7 @@ module Deco =
     z.selection.content
     |> List.filter(
          fun
-         | Piece.Whitespace(w) when Whitespace.is_linebreak(w) /* ADDED */ =>
-           false
+         | Piece.Whitespace(w) when Whitespace.is_linebreak(w) => false
          | _ => true,
        )
     |> ListUtil.fold_left_map(

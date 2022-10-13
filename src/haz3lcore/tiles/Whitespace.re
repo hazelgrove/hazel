@@ -10,8 +10,7 @@ and whitespace_content =
 
 let space = " ";
 let linebreak = "⏎"; //alternative: "¶"
-let comment = Re.Str.regexp("^#[^#]*#?$"); //added (?)
-// "##"
+let comment = Re.Str.regexp("^#[^#]*#?$");
 
 let mk_space = id => {content: WSpace(space), id};
 
@@ -34,8 +33,9 @@ let is_comment: t => bool =
     switch (w.content) {
     | Comment(_) => true
     | _ => false
-    }; //added
+    };
 
+// Returns the string value of the Whitespace
 let get_string: whitespace_content => string =
   content =>
     switch (content) {

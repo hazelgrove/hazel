@@ -210,7 +210,8 @@ let destruct = (~destroy_kids=true, z: t): t => {
     |> List.partition(t =>
          Siblings.contains_matching(t, z.relatives.siblings)
          || Ancestors.parent_matches(t, z.relatives.ancestors)
-       ) /* If flag is set, break up tiles and remove children */;
+       );
+  /* If flag is set, break up tiles and remove children */
   let to_pick_up =
     destroy_kids
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
@@ -255,10 +256,10 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
         Selection.mk(from, Base.mk_whitespace(id, content)),
       ];
       let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down({...z, backpack})); //ADDED
+      Option.get(put_down({...z, backpack}));
 
     | [content] when Form.is_whitespace(content) =>
-      let content = Whitespace.WSpace(content); // ADDED
+      let content = Whitespace.WSpace(content);
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
       z
