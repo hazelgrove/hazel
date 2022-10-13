@@ -10,21 +10,33 @@ open GradePrelude.Grading;
 [@deriving (sexp, yojson)]
 type item = {
   max: int,
-  src: string,
   percentage,
+  src: string,
 };
+
+let item_to_summary = (name, {max, percentage, src}) =>
+  Printf.sprintf(
+    "%s: %.1f/%.1f\n\n",
+    name,
+    percentage *. float_of_int(max),
+    float_of_int(max),
+  )
+  ++ (
+    if (String.equal(src, "")) {
+      "";
+    } else {
+      "Source Code:\n\n" ++ src ++ "\n\n";
+    }
+  );
 
 [@deriving (sexp, yojson)]
 type report = {
-  test_validation: item,
-  mutation_testing: item,
-  impl_grading: item,
+  summary: string,
   overall: score,
 };
 [@deriving (sexp, yojson)]
 type section = {
   name: string,
-  idx: int,
   report,
 };
 
@@ -47,6 +59,12 @@ module Main = {
     };
   };
   let gen_grading_report = exercise => {
+    let zipper_pp = zipper => {
+      Printer.pretty_print(
+        ~measured=Measured.of_segment(Zipper.unselect_and_zip(zipper)),
+        zipper,
+      );
+    };
     let model_results = ModelResults.init(spliced_elabs(exercise));
     let stitched_dynamics = stitch_dynamic(exercise, Some(model_results));
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
@@ -54,8 +72,7 @@ module Main = {
     let point_distribution = details.point_distribution;
     let test_validation = {
       max: point_distribution.test_validation,
-      src:
-        exercise.eds.your_tests.tests.state.zipper |> Printer.to_string_basic,
+      src: exercise.eds.your_tests.tests.state.zipper |> zipper_pp,
       percentage:
         details.test_validation_report |> TestValidationReport.percentage,
     };
@@ -67,18 +84,24 @@ module Main = {
     };
     let impl_grading = {
       max: point_distribution.impl_grading,
-      src: exercise.eds.your_impl.state.zipper |> Printer.to_string_basic,
+      src: exercise.eds.your_impl.state.zipper |> zipper_pp,
       percentage: details.impl_grading_report |> ImplGradingReport.percentage,
     };
     let overall = grading_report |> GradingReport.overall_score;
-    {test_validation, mutation_testing, impl_grading, overall};
+    let (a, b) = overall;
+    let summary =
+      Printf.sprintf("Overall: %.1f/%.1f\n\n", a, b)
+      ++ item_to_summary("Test Validation", test_validation)
+      ++ item_to_summary("Mutation Testing", mutation_testing)
+      ++ item_to_summary("Impl Grading", impl_grading);
+    {summary, overall};
   };
   let run = () => {
     let hw_path = Sys.get_argv()[1];
     let hw = name_to_school_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.map(~f=(((name, idx) as key, persistent_state)) => {
+      |> List.map(~f=(((name, _) as key, persistent_state)) => {
            switch (find_key_opt(key, specs)) {
            | Some((_n, spec)) =>
              let exercise =
@@ -88,7 +111,7 @@ module Main = {
                  ~instructor_mode=true,
                );
              let report = exercise |> gen_grading_report;
-             {name, idx, report};
+             {name, report};
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }
