@@ -179,7 +179,7 @@ let view_of_info =
     div(
       ~attr=clss([infoc, "tpat"]),
       // TODO
-      [term_tag(is_err, "tpat")],
+      [term_tag(~inject, ~show_lang_doc, is_err, "tpat")],
     )
   | InfoRul(_) =>
     div(

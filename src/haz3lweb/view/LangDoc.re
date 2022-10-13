@@ -252,6 +252,7 @@ let deco =
                 switch (mold.out) {
                 | Pat => ["term-tag-pat"]
                 | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
+                | TPat => ["term-tag-tpat"]
                 | Typ => ["term-tag-typ"]
                 | Any
                 | Nul
@@ -2735,6 +2736,7 @@ let get_doc =
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
+  | Some(InfoTPat(_))
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default
