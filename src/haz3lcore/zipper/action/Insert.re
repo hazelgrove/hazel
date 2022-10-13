@@ -12,7 +12,8 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     switch (neighbor_monotiles(siblings)) {
     | (Some(t), _) when Form.is_valid_token(t ++ char) =>
       AppendLeft(t ++ char)
-    | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
+    | (_, Some(t))
+        when Form.is_valid_token(char ++ t) && !Form.is_comment_delim(char) =>
       AppendRight(char ++ t)
     | _ => AppendNeither
     };
