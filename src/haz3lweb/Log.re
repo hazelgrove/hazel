@@ -29,6 +29,7 @@ let is_action_logged: Update.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_) => false
+  | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -38,11 +39,15 @@ let is_action_logged: Update.t => bool =
   | SwitchEditor(_)
   | PerformAction(_)
   | FailedInput(_)
+  | Cut
   | Copy
-  | Paste
+  | Paste(_)
   | Undo
   | Redo
-  | MoveToNextHole(_) => true;
+  | MoveToNextHole(_)
+  | UpdateLangDocMessages(_) =>
+    // TODO Do we want this logged - I think so?
+    true;
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
@@ -53,7 +58,7 @@ let mk_entry = (~measured as _, update, _z, error): entry => {
     | Error(failure) => Some(failure)
     };
   {
-    //zipper: Printer.of_zipper(~measured, z),
+    //zipper: Printer.to_log(~measured, z),
     update,
     //error,
     timestamp: JsUtil.timestamp(),
@@ -102,7 +107,7 @@ let updates_of_string: string => updates =
       );
       [];
     };
-let json_update_log_key = "JSON_UPDATE_LOG";
+let json_update_log_key = "JSON_UPDATE_LOG_" ++ SchoolSettings.log_key;
 
 let updates = () => {
   JsUtil.get_localstore(json_update_log_key)
@@ -155,7 +160,7 @@ let update = (update: Update.t, old_model: Model.t, res) => {
     if (debug_zipper^) {
       cur_model.editors
       |> Editors.get_zipper
-      |> Printer.to_string_log(~measured)
+      |> Printer.to_log_flat(~measured)
       |> print_endline;
     };
   };

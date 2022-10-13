@@ -103,18 +103,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
-    | "c" => [Copy]
-    | "v" => now_save_u(Paste) //now(Put_down)
-    | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
-    | "k" => [
-        PerformAction(Move(Extreme(Up))),
-        PerformAction(Select(Extreme(Down))),
-        Copy,
-        PerformAction(Destruct(Left)),
-        Paste,
-      ]
+    | "k" => [ResetCurrentEditor]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
@@ -125,18 +116,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
-    | "c" => [Copy]
-    | "v" => now_save_u(Paste) //now(Put_down)
-    | "x" => [Copy, PerformAction(Destruct(Left))] //now(Pick_up)
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
-    | "k" => [
-        PerformAction(Move(Extreme(Up))),
-        PerformAction(Select(Extreme(Down))),
-        Copy,
-        PerformAction(Destruct(Left)),
-        Paste,
-      ]
+    | "k" => [ResetCurrentEditor]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))

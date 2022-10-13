@@ -1,10 +1,12 @@
 open Virtual_dom.Vdom;
 open Node;
+open Haz3lcore; // TODO maybe remove this - needed right now for the Indicated.index things
 
 type t = {
   exercise: SchoolExercise.state,
   results: option(ModelResults.t),
   settings: Model.settings,
+  langDocMessages: LangDocMessages.t,
   stitched_dynamics: SchoolExercise.stitched(SchoolExercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
 };
@@ -14,13 +16,21 @@ let mk =
       ~exercise: SchoolExercise.state,
       ~results: option(ModelResults.t),
       ~settings,
+      ~langDocMessages,
     )
     : t => {
   let SchoolExercise.{eds, _} = exercise;
   let stitched_dynamics = SchoolExercise.stitch_dynamic(exercise, results);
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
-  {exercise, results, settings, stitched_dynamics, grading_report};
+  {
+    exercise,
+    results,
+    settings,
+    langDocMessages,
+    stitched_dynamics,
+    grading_report,
+  };
 };
 
 type vis_marked('a) =
@@ -40,7 +50,14 @@ let render_cells = (settings: Model.settings, v: list(vis_marked(Node.t))) => {
 
 let view =
     (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {exercise, results: _, settings, stitched_dynamics, grading_report} = self;
+  let {
+    exercise,
+    results: _,
+    settings,
+    stitched_dynamics,
+    grading_report,
+    langDocMessages,
+  } = self;
   let SchoolExercise.{pos, eds} = exercise;
   let SchoolExercise.{
         test_validation,
@@ -53,6 +70,21 @@ let view =
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
 
+  let color_highlighting: option(ColorSteps.colorMap) =
+    if (langDocMessages.highlight && langDocMessages.show) {
+      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));
+      let map = Statics.mk_map(term);
+      Some(
+        LangDoc.get_color_map(
+          ~doc=langDocMessages,
+          Indicated.index(focal_zipper),
+          map,
+        ),
+      );
+    } else {
+      None;
+    };
+
   // partially apply for convenience below
   let editor_view = pos => {
     Cell.editor_view(
@@ -64,6 +96,7 @@ let view =
         Update.SwitchEditor(SchoolExercise.idx_of_pos(pos, eds)),
       ],
       ~settings,
+      ~color_highlighting,
     );
   };
 
@@ -300,6 +333,7 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
+          ~show_lang_doc=langDocMessages.show,
           focal_zipper,
           focal_info_map,
         ),
@@ -326,7 +360,22 @@ let view =
           impl_grading_view,
         ],
       )
-    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)],
+    // TODO lang doc visibility tied to ci visibility (is this desired?)
+    @ [div(~attr=Attr.class_("bottom-bar"), ci_view)]
+    @ (
+      langDocMessages.show && settings.statics
+        ? [
+          LangDoc.view(
+            ~inject,
+            ~font_metrics,
+            ~settings,
+            ~doc=langDocMessages,
+            Indicated.index(focal_zipper),
+            focal_info_map,
+          ),
+        ]
+        : []
+    ),
   );
 };
 
