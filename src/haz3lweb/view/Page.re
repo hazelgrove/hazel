@@ -186,6 +186,7 @@ let main_ui_view =
         settings,
         mousedown,
         results,
+        langDocMessages,
         _,
       } as model: Model.t,
     ) => {
@@ -208,6 +209,7 @@ let main_ui_view =
         ~mousedown,
         ~show_backpack_targets,
         ~settings,
+        ~langDocMessages,
         ~editor,
         ~result,
       ),
@@ -216,7 +218,8 @@ let main_ui_view =
     let toolbar_buttons =
       SchoolMode.toolbar_buttons(~inject, ~settings, editors);
     let results = settings.dynamics ? Some(results) : None;
-    let school_mode = SchoolMode.mk(~settings, ~exercise, ~results);
+    let school_mode =
+      SchoolMode.mk(~settings, ~exercise, ~results, ~langDocMessages);
     let grading_report = school_mode.grading_report;
     let overall_score =
       Grading.GradingReport.view_overall_score(grading_report);

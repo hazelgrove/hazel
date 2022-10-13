@@ -29,6 +29,7 @@ let is_action_logged: Update.t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateResult(_) => false
+  | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
@@ -43,7 +44,10 @@ let is_action_logged: Update.t => bool =
   | Paste(_)
   | Undo
   | Redo
-  | MoveToNextHole(_) => true;
+  | MoveToNextHole(_)
+  | UpdateLangDocMessages(_) =>
+    // TODO Do we want this logged - I think so?
+    true;
 
 let is_keystroke_logged: Key.t => bool = _ => true;
 
