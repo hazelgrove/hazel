@@ -142,8 +142,8 @@ let top_bar_view =
             ),
             button(
               Icons.eye,
-              _ => inject(Set(WhitespaceIcons)),
-              ~tooltip="Toggle Visible Whitespace",
+              _ => inject(Set(SecondaryIcons)),
+              ~tooltip="Toggle Visible Secondary",
             ),
             link(
               Icons.github,

@@ -32,7 +32,8 @@ let destruct =
       when Form.is_string(t) || Form.is_comment(t) =>
     delete_right(z)
   | (Right, Inner(_, n), (_, Some(t)))
-      when Form.is_string(t) && n == last_inner_pos(t) =>
+      when
+        (Form.is_string(t) || Form.is_comment(t)) && n == last_inner_pos(t) =>
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
@@ -76,7 +77,7 @@ let merge =
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
-  let z_trimmed = update_siblings(Siblings.trim_whitespace_and_grout, z);
+  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
   switch (z.caret, neighbor_monotiles(z_trimmed.relatives.siblings)) {
   | (Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z_trimmed, id_gen))

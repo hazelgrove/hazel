@@ -48,11 +48,11 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
           captions: !settings.captions,
         },
       }
-    | WhitespaceIcons => {
+    | SecondaryIcons => {
         ...model,
         settings: {
           ...settings,
-          whitespace_icons: !settings.whitespace_icons,
+          secondary_icons: !settings.secondary_icons,
         },
       }
     | ContextInspector => {
@@ -127,7 +127,7 @@ let reevaluate_post_update =
   | Set(s_action) =>
     switch (s_action) {
     | Captions
-    | WhitespaceIcons
+    | SecondaryIcons
     | Statics
     | Benchmark => false
     | Dynamics

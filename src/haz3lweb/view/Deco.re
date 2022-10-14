@@ -34,14 +34,14 @@ module Deco =
     // TODO(d) fix sorts
     let mold =
       switch (p) {
-      | Whitespace(_) => Mold.of_whitespace({sort: Any, shape: nib_shape})
+      | Secondary(_) => Mold.of_secondary({sort: Any, shape: nib_shape})
       | Grout(g) => Mold.of_grout(g, Any)
       | Tile(t) => t.mold
       };
     // TODO(d) awkward
     let shards =
       switch (p) {
-      | Whitespace(w) => [(0, Measured.find_w(w, M.map))]
+      | Secondary(w) => [(0, Measured.find_w(w, M.map))]
       | Grout(g) => [(0, Measured.find_g(g, M.map))]
       | Tile(t) =>
         Measured.find_shards(t, M.map)
@@ -80,7 +80,7 @@ module Deco =
     z.selection.content
     |> List.filter(
          fun
-         | Piece.Whitespace(w) when Whitespace.is_linebreak(w) => false
+         | Piece.Secondary(w) when Secondary.is_linebreak(w) => false
          | _ => true,
        )
     |> ListUtil.fold_left_map(
@@ -136,7 +136,7 @@ module Deco =
       //     |> List.flatten
       //     |> List.filter(
       //          fun
-      //          | Piece.Whitespace(w) when Whitespace.is_linebreak(w) =>
+      //          | Piece.Secondary(w) when Secondary.is_linebreak(w) =>
       //            false
       //          | _ => true,
       //        )

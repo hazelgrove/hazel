@@ -193,8 +193,8 @@ let pick_up = (z: t): t => {
   let (selected, z) = update_selection(Selection.empty, z);
   let selection =
     selected.content
-    |> Segment.trim_grout_around_whitespace(Left)
-    |> Segment.trim_grout_around_whitespace(Right)
+    |> Segment.trim_grout_around_secondary(Left)
+    |> Segment.trim_grout_around_secondary(Right)
     |> Selection.mk(selected.focus);
   Segment.tiles(selection.content)
   |> List.map((t: Tile.t) => t.id)
@@ -248,22 +248,20 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
       construct(Left, [Form.string_delim ++ Form.string_delim], z)
     | [content] when Form.is_comment(content) =>
       /* Special case for comments, can't rely on the last branch to construct */
-      let content = Whitespace.Comment(content);
+      let content = Secondary.construct_comment(content);
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
       let z = destruct(z);
-      let selections = [
-        Selection.mk(from, Base.mk_whitespace(id, content)),
-      ];
+      let selections = [Selection.mk(from, Base.mk_secondary(id, content))];
       let backpack = Backpack.push_s(selections, z.backpack);
       Option.get(put_down({...z, backpack}));
 
-    | [content] when Form.is_whitespace(content) =>
-      let content = Whitespace.WSpace(content);
+    | [content] when Form.is_secondary(content) =>
+      let content = Secondary.Whitespace(content);
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
       z
-      |> update_siblings(((l, r)) => (l @ [Whitespace({id, content})], r));
+      |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
     | _ =>
       let z = destruct(z);
       let molds = Molds.get(label);
@@ -303,8 +301,7 @@ let caret_direction = (z: t): option(Direction.t) =>
   | Inner(_) => None
   | Outer =>
     switch (Siblings.neighbors(sibs_with_sel(z))) {
-    | (Some(l), Some(r))
-        when Piece.is_whitespace(l) && Piece.is_whitespace(r) =>
+    | (Some(l), Some(r)) when Piece.is_secondary(l) && Piece.is_secondary(r) =>
       None
     | _ => Siblings.direction_between(sibs_with_sel(z))
     }
