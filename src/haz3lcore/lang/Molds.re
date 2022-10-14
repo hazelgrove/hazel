@@ -66,8 +66,7 @@ let instant_completes: completions =
     Form.forms,
   )
   |> List.flatten
-  |> List.sort_uniq(compare)
-  |> List.append([("#", (["##"], Direction.Left))]);
+  |> List.sort_uniq(compare);
 
 let delayed_completion:
   (Token.t, Direction.t) => (list(Token.t), Direction.t) =

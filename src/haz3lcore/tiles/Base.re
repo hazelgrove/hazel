@@ -5,7 +5,7 @@ type segment = list(piece)
 and piece =
   | Tile(tile)
   | Grout(Grout.t)
-  | Whitespace(Whitespace.t)
+  | Secondary(Secondary.t)
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -20,4 +20,4 @@ and tile = {
 };
 
 // This is for comment insertion
-let mk_whitespace = (id, content) => [Whitespace({id, content})];
+let mk_secondary = (id, content) => [Secondary({id, content})];

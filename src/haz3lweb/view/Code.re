@@ -32,21 +32,21 @@ let of_delim =
 
 let of_grout = [Node.text(Unicode.nbsp)];
 
-let of_whitespace =
+let of_secondary =
   Core.Memo.general(
-    ~cache_size_bound=1000000, ((whitespace_icons, indent, content)) =>
-    if (Whitespace.get_string(content) == Whitespace.linebreak) {
-      let str = whitespace_icons ? Whitespace.linebreak : "";
+    ~cache_size_bound=1000000, ((secondary_icons, indent, content)) =>
+    if (String.equal(Secondary.get_string(content), Secondary.linebreak)) {
+      let str = secondary_icons ? Secondary.linebreak : "";
       [
         span_c("linebreak", [text(str)]),
         Node.br(),
         Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
       ];
-    } else if (Whitespace.get_string(content) == Whitespace.space) {
-      let str = whitespace_icons ? "·" : Unicode.nbsp;
-      [span_c("whitespace", [text(str)])];
+    } else if (String.equal(Secondary.get_string(content), Secondary.space)) {
+      let str = secondary_icons ? "·" : Unicode.nbsp;
+      [span_c("secondary", [text(str)])];
     } else {
-      [Node.text(Whitespace.get_string(content))];
+      [Node.text(Secondary.get_string(content))];
     }
   );
 
@@ -75,8 +75,8 @@ module Text = (M: {
     switch (p) {
     | Tile(t) => of_tile(expected_sort, t)
     | Grout(_) => of_grout
-    | Whitespace({content, _}) =>
-      of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
+    | Secondary({content, _}) =>
+      of_secondary((M.settings.secondary_icons, m(p).last.col, content))
     };
   }
   and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -101,7 +101,7 @@ let rec holes =
   seg
   |> List.concat_map(
        fun
-       | Piece.Whitespace(_) => []
+       | Piece.Secondary(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [
            EmptyHoleDec.view(

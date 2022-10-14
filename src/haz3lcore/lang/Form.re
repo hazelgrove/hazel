@@ -114,8 +114,8 @@ let is_string_delim = str => str == string_delim;
    approach to invalid text.*/
 let is_whitelisted_char = regexp("[!@]");
 
-/* A. Whitespace: */
-let whitespace = [Whitespace.space, Whitespace.linebreak];
+/* A. Secondary: */
+let secondary = [Secondary.space, Secondary.linebreak];
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -233,15 +233,15 @@ let atomic_molds: Token.t => list(Mold.t) =
     );
 
 let is_atomic = t => atomic_molds(t) != [];
-let is_whitespace = t =>
-  List.mem(t, whitespace) || Re.Str.string_match(Whitespace.comment, t, 0);
+let is_secondary = t =>
+  List.mem(t, secondary) || Re.Str.string_match(Secondary.comment, t, 0);
 
-let is_comment = t => Re.Str.string_match(Whitespace.comment, t, 0);
+let is_comment = t => Re.Str.string_match(Secondary.comment, t, 0);
 let is_comment_delim = t => t == "#";
 
 let is_delim = t => List.mem(t, delims);
 
-let is_valid_token = t => is_atomic(t) || is_whitespace(t) || is_delim(t);
+let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 
 let is_valid_char = t =>
   is_valid_token(t) || is_string_delim(t) || is_whitelisted_char(t); //TODO(andrew): betterify this

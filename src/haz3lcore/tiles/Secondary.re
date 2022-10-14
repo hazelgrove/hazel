@@ -2,29 +2,36 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  content: whitespace_content,
+  content: secondary_content,
 }
-and whitespace_content =
-  | WSpace(string)
+and secondary_content =
+  | Whitespace(string)
   | Comment(string);
 
 let space = " ";
 let linebreak = "⏎"; //alternative: "¶"
 let comment = Re.Str.regexp("^#[^#]*#?$");
 
-let mk_space = id => {content: WSpace(space), id};
+let mk_space = id => {content: Whitespace(space), id};
+
+let construct_comment = content =>
+  if (String.equal(content, "#")) {
+    Comment("##");
+  } else {
+    Comment(content);
+  };
 
 let is_space: t => bool =
   w =>
     switch (w.content) {
-    | WSpace(s) => s == space
+    | Whitespace(s) => s == space
     | _ => false
     };
 
 let is_linebreak: t => bool =
   w =>
     switch (w.content) {
-    | WSpace(s) => s == linebreak
+    | Whitespace(s) => s == linebreak
     | _ => false
     };
 
@@ -36,11 +43,11 @@ let is_comment: t => bool =
     };
 
 // Returns the string value of the Whitespace
-let get_string: whitespace_content => string =
+let get_string: secondary_content => string =
   content =>
     switch (content) {
     | Comment(s)
-    | WSpace(s) => s
+    | Whitespace(s) => s
     };
 
 let id = w => w.id;

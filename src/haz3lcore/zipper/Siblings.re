@@ -96,14 +96,14 @@ let neighbors: t => (option(Piece.t), option(Piece.t)) =
     r == [] ? None : Some(List.hd(r)),
   );
 
-let trim_whitespace = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace(Right, l_sibs),
-  Segment.trim_whitespace(Left, r_sibs),
+let trim_secondary = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary(Right, l_sibs),
+  Segment.trim_secondary(Left, r_sibs),
 );
 
-let trim_whitespace_and_grout = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace_and_grout(Right, l_sibs),
-  Segment.trim_whitespace_and_grout(Left, r_sibs),
+let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary_and_grout(Right, l_sibs),
+  Segment.trim_secondary_and_grout(Left, r_sibs),
 );
 
 let direction_between = ((l, r): t): option(Direction.t) =>

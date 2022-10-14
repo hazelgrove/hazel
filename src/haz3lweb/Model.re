@@ -6,7 +6,7 @@ type timestamp = float;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
   captions: bool,
-  whitespace_icons: bool,
+  secondary_icons: bool,
   statics: bool,
   dynamics: bool,
   async_evaluation: bool,
@@ -18,7 +18,7 @@ type settings = {
 
 let settings_init = {
   captions: true,
-  whitespace_icons: false,
+  secondary_icons: false,
   statics: true,
   dynamics: true,
   async_evaluation: false,
