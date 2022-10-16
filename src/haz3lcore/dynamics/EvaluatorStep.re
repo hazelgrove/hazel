@@ -7,6 +7,12 @@ type step_result =
   | Step(DHExp.t)
   | Pause(DHExp.t);
 
+type step_result_tag =
+  | TBoxedValue
+  | TIndet
+  | TStep
+  | TPause;
+
 [@deriving sexp]
 type evaluator_option = {pause_subexpression: bool};
 
@@ -15,6 +21,11 @@ let evaluate_all_option = {pause_subexpression: false};
 
 let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   switch (d) {
+  | Closure(_)
+  | Sequence(_)
+  | ApBuiltin(_)
+  | Prj(_) => BoxedValue(d)
+
   | BoundVar(x) => raise(EvaluatorError.Exception(FreeInvalidVar(x)))
   | Let(dp, d1, d2) =>
     switch (step(d1, opt)) {
@@ -78,12 +89,21 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Indet(d2') => Pause(Ap(d1', d2'))
       }
     }
-  | ListLit(_) => BoxedValue(d)
-  | BoolLit(_) => BoxedValue(d)
-  | IntLit(_) => BoxedValue(d)
-  | FloatLit(_) => BoxedValue(d)
-  | StringLit(_) => BoxedValue(d)
-  | TestLit(_) => BoxedValue(d) // What does this mean? -- Weijia
+  | ListLit(_)
+  | BoolLit(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | StringLit(_)
+  | Tag(_)
+  | TestLit(_) => BoxedValue(d)
+    // What does this mean? -- Weijia
+    // I don't know either, but I guess it for
+    // ```hazel
+    // test true end;
+    // ```
+    // You can see @ Evaluator.re, the none
+    // step evaluator also doesn't nothing to it. -- Haoxiang
+
   | BinBoolOp(op, d1, d2) =>
     switch (step(d1, opt)) {
     | Step(d1') => Step(BinBoolOp(op, d1', d2))
@@ -220,26 +240,32 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
-  // | Tuple(elts) => {
-  // Weijia : I have forgotten most of FP,
-  // so I try imitate the logic of pair below with procedural pseudo code
-  // mapped := map(d => step(d, opt), elts)
-  // if Step(d_n') in mapped:
-  //   Step(Tuple(change d_n with d_n', and the rest are the same))
-  // if Pause(d_n') in mapped: similar to above
-  // else: BoxedValue(d)
-  // }
-  // | Pair(d1, d2) =>
-  //   switch (step(d1, opt), step(d2, opt)) {
-  //   | (Step(d1'), _) => Step(Pair(d1', d2))
-  //   | (_, Step(d2')) => Step(Pair(d1, d2'))
-  //   | (Pause(d1'), _) => Pause(Pair(d1', d2))
-  //   | (_, Pause(d2')) => Pause(Pair(d1, d2'))
-  //   | (Indet(d1), Indet(d2))
-  //   | (Indet(d1), BoxedValue(d2))
-  //   | (BoxedValue(d1), Indet(d2)) => Indet(Pair(d1, d2))
-  //   | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Pair(d1, d2))
-  //   }
+
+  | Tuple(ds) =>
+    let (ds', tag) =
+      List.fold_right(
+        (el, (lst, tag)) =>
+          switch (step(el, opt), tag) {
+          | (Step(el'), _) => ([el', ...lst], TStep)
+          | (_, TStep) => ([el, ...lst], TStep)
+          | (Pause(el'), _) => ([el', ...lst], TPause)
+          | (_, TPause) => ([el, ...lst], TPause)
+          | (Indet(el'), _) => ([el', ...lst], TIndet)
+          | (_, TIndet) => ([el, ...lst], TIndet)
+          | (BoxedValue(el'), TBoxedValue) => ([el', ...lst], tag)
+          },
+        ds,
+        ([], TBoxedValue),
+      );
+
+    let d = DHExp.Tuple(ds');
+    switch (tag) {
+    | TStep => Step(d)
+    | TPause => Pause(d)
+    | TIndet => Indet(d)
+    | TBoxedValue => BoxedValue(d)
+    };
+
   | Cons(d1, d2) =>
     switch (step(d1, opt), step(d2, opt)) {
     | (Step(d1'), _) => Step(Cons(d1', d2))
