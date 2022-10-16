@@ -4,7 +4,6 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-[@deriving sexp]
 type match_result =
   | Matches(Environment.t)
   | DoesNotMatch

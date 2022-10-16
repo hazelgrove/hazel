@@ -96,13 +96,13 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | StringLit(_)
   | Tag(_)
   | TestLit(_) => BoxedValue(d)
-    // What does this mean? -- Weijia
-    // I don't know either, but I guess it for
-    // ```hazel
-    // test true end;
-    // ```
-    // You can see @ Evaluator.re, the none
-    // step evaluator also doesn't nothing to it. -- Haoxiang
+  // What does this mean? -- Weijia
+  // I don't know either, but I guess it for
+  // ```hazel
+  // test true end;
+  // ```
+  // You can see @ Evaluator.re, the none
+  // step evaluator also doesn't nothing to it. -- Haoxiang
 
   | BinBoolOp(op, d1, d2) =>
     switch (step(d1, opt)) {
@@ -522,6 +522,15 @@ module EvalObj = {
 
 let rec decompose = (d: DHExp.t, opt: evaluator_option): (EvalCtx.t, DHExp.t) =>
   switch (d) {
+  | Closure(_)
+  | Sequence(_)
+  | ApBuiltin(_)
+  | TestLit(_)
+  | StringLit(_)
+  | BinStringOp(_)
+  | Tuple(_)
+  | Prj(_)
+  | Tag(_)
   | EmptyHole(_, _)
   | ExpandingKeyword(_)
   | FreeVar(_)
@@ -668,6 +677,15 @@ let rec decompose_all = (d: DHExp.t, opt: evaluator_option): list(EvalObj.t) =>
     [];
   } else {
     switch (d) {
+    | Closure(_)
+    | Sequence(_)
+    | ApBuiltin(_)
+    | TestLit(_)
+    | StringLit(_)
+    | BinStringOp(_)
+    | Tuple(_)
+    | Prj(_)
+    | Tag(_)
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
@@ -888,8 +906,9 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose((ctx1, d)))
   | Cons1(ctx1, d1) => Cons(compose((ctx1, d)), d1)
   | Cons2(d1, ctx1) => Cons(d1, compose((ctx1, d)))
-  // | Pair1(ctx1, d1) => Pair(compose((ctx1, d)), d1)
-  // | Pair2(d1, ctx1) => Pair(d1, compose((ctx1, d)))
+  // TODO: Pair -> Tuple
+  | Pair1(ctx1, d1) => Tuple([compose((ctx1, d)), d1])
+  | Pair2(d1, ctx1) => Tuple([d1, compose((ctx1, d))])
   | Let(dp, ctx1, d1) => Let(dp, compose((ctx1, d)), d1)
   | Inj(ty, side, ctx1) => Inj(ty, side, compose((ctx1, d)))
   | Cast(ctx1, ty1, ty2) => Cast(compose((ctx1, d)), ty1, ty2)
