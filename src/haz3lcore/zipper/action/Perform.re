@@ -6,7 +6,7 @@ let is_write_action = (a: Action.t) => {
   | Move(_)
   | JumpToId(_)
   | Unselect
-  | GoToDefinition => false
+  | GoToDefinition
   | Select(_) => false
   | Destruct(_)
   | Insert(_)
