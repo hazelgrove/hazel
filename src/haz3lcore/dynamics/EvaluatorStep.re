@@ -82,6 +82,8 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
   | BoolLit(_) => BoxedValue(d)
   | IntLit(_) => BoxedValue(d)
   | FloatLit(_) => BoxedValue(d)
+  | StringLit(_) => BoxedValue(d)
+  | TestLit(_) => BoxedValue(d) // What does this mean? -- Weijia
   | BinBoolOp(op, d1, d2) =>
     switch (step(d1, opt)) {
     | Step(d1') => Step(BinBoolOp(op, d1', d2))
@@ -181,6 +183,36 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
       | Indet(d2') => Pause(BinFloatOp(op, d1', d2'))
       }
     }
+  | BinStringOp(op, d1, d2) =>
+    switch (step(d1, opt)) {
+    | Step(d1') => Step(BinStringOp(op, d1', d2))
+    | BoxedValue(StringLit(s1) as d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinStringOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinStringOp(op, d1, d2'))
+      | BoxedValue(StringLit(s2)) =>
+        Step(Evaluator.eval_bin_string_op(op, s1, s2))
+      | BoxedValue(d2') =>
+        raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
+      | Indet(d2') => Indet(BinStringOp(op, d1', d2'))
+      }
+    | BoxedValue(d1') =>
+      raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
+    | Indet(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinStringOp(op, d1, d2'))
+      | Pause(d2') => Pause(BinStringOp(op, d1, d2'))
+      | BoxedValue(d2')
+      | Indet(d2') => Indet(BinStringOp(op, d1', d2'))
+      }
+    | Pause(d1') =>
+      switch (step(d2, opt)) {
+      | Step(d2') => Step(BinStringOp(op, d1, d2'))
+      | Pause(d2')
+      | BoxedValue(d2')
+      | Indet(d2') => Pause(BinStringOp(op, d1', d2'))
+      }
+    }
   | Inj(ty, side, d1) =>
     switch (step(d1, opt)) {
     | Step(d1') => Step(Inj(ty, side, d1'))
@@ -188,6 +220,15 @@ let rec step = (d: DHExp.t, opt: evaluator_option): step_result =>
     | BoxedValue(d1') => BoxedValue(Inj(ty, side, d1'))
     | Indet(d1') => Indet(Inj(ty, side, d1'))
     }
+  // | Tuple(elts) => {
+  // Weijia : I have forgotten most of FP,
+  // so I try imitate the logic of pair below with procedural pseudo code
+  // mapped := map(d => step(d, opt), elts)
+  // if Step(d_n') in mapped:
+  //   Step(Tuple(change d_n with d_n', and the rest are the same))
+  // if Pause(d_n') in mapped: similar to above
+  // else: BoxedValue(d)
+  // }
   // | Pair(d1, d2) =>
   //   switch (step(d1, opt), step(d2, opt)) {
   //   | (Step(d1'), _) => Step(Pair(d1', d2))
