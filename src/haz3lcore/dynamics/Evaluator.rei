@@ -26,3 +26,5 @@ let eval_bin_bool_op: (DHExp.BinBoolOp.t, bool, bool) => DHExp.t;
 let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
 
 let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
+
+let eval_bin_string_op: (DHExp.BinStringOp.t, string, string) => DHExp.t;
