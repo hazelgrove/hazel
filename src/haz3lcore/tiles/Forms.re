@@ -57,7 +57,7 @@ let tiles: list(Tile.Form.t) =
   [Exp.all] |> List.concat_map(((_name, form)) => TermForm.to_shards(form));
 
 type ishard = (int, Shard.Form.t);
-let backpacks: Hashtbl.t(Tile.Form.t, Stacks.t) = {
+let stacks_tbl: Hashtbl.t(Tile.Form.t, Stacks.t) = {
   let bps = Hashtbl.empty;
   let rec go = (ishards: list(ishard), ibp: Stacks.t(ishard)) => {
     let shards = List.map(snd, ishards);
@@ -91,6 +91,6 @@ let backpacks: Hashtbl.t(Tile.Form.t, Stacks.t) = {
   bps;
 };
 
-let backpack = (t: Tile.Form.t): Stacks.t => Hashtbl.find(backpacks, t);
+let stacks = (t: Tile.Form.t): Stacks.t => Hashtbl.find(stacks_tbl, t);
 
 let is_complete = (t: Tile.Form.t): bool => Stacks.is_empty(backpack(t));

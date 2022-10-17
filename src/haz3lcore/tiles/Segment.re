@@ -299,69 +299,44 @@ let matches = (l: Tile.t, r: Tile.t): bool =>
 
 module Split = {
   type seg = t;
+  // invariant: segs consist of tiles with both ends
+  // invariant: tiles are missing an end
   type t = Aba.t(seg, Tile.t);
+
+  let empty = Aba.mk([empty], []);
 
   let flatten = split =>
     split |> Aba.join(Fun.id, t => [Tile.to_piece(t)]) |> List.flatten;
 
-  let find_match = (t: Tile.t, split: t): option((Tile.t, t)) => {
-    let rec go = (popped, split): option((Tile.t, t)) => {
-      open OptUtil.Syntax;
-      let* (seg, t', split) = Aba.uncons(split);
-      if (matches(t, t')) {
-        let t = {
-          ...t,
-          shards: t.shards @ t'.shards,
-          children: t.children @ [popped, ...t'.children],
-        };
-        Some((t, split));
-      } else {
-        go(concat([seg, [Piece.Tile(t'), ...popped]]), split);
-      };
-    };
-    go(empty, split);
-  };
-
   let cons_complete = (p, split) => Aba.update_first_a(cons(p), split);
   let cons_incomplete = (t, split) => Aba.cons(empty, t, split);
 
-  let rec reassemble = (seg: seg): t =>
-    switch (seg) {
-    | [] => Aba.mk([seg], [])
-    | [hd, ...tl] =>
-      let split = reassemble(tl);
-      switch (hd) {
-      | Whitespace(_)
-      | Grout(_) => cons_complete(hd, split)
-      | Tile(t) when Tile.is_complete(t) => cons_complete(hd, split)
-      | Tile(t) =>
-        switch (find_match(t, split)) {
-        | None => cons_incomplete(t, split)
-        | Some((t, split)) =>
-          Tile.is_complete(t)
-            ? cons_complete(Piece.Tile(t), split)
-            : cons_incomplete(t, split)
-        }
-      };
+  let push = (p: Piece.t, split: t) => {
+    switch (p) {
+    | Tile(t) when !Tile.has_end(Right, t) =>
+      let cons = t =>
+        Tile.has_end(Left, t)
+        ? cons_complete(Piece.Tile(t))
+        : cons_incomplete(t);
+      let rec match = (split: t) =>
+        switch (Aba.uncons(split)) {
+        | None => cons(t, split)
+        | Some((seg, t', split')) =>
+          switch (assemble(t, seg, t')) {
+          | None => Aba.cons(seg, t', match(split'))
+          | Some(t) => cons(t, split')
+          }
+        };
+      match(split);
+    | Tile(t) when !Tile.has_end(Left, t) =>
+      cons_incomplete(t, split)
+    | _ => cons_complete(p, split)
     };
 };
 
-let _reassemble = (seg: t) => Split.(flatten(reassemble(seg)));
-
-// module Match = Tile.Match.Make(Orientation.R);
-let rec reassemble = (seg: t): t =>
-  switch (incomplete_tiles(seg)) {
-  | [] => seg
-  | [t, ..._] =>
-    switch (Aba.trim(split_by_matching(t.id, seg))) {
-    | None => seg
-    | Some((seg_l, match, seg_r)) =>
-      let t = Tile.reassemble(match);
-      let children = List.map(reassemble, t.children);
-      let p = Tile.to_piece({...t, children});
-      seg_l @ [p, ...reassemble(seg_r)];
-    }
-  };
+let reassemble = (seg: t): t =>
+  List.fold_right(Split.push, seg, ([empty], []))
+  |> Split.flatten;
 
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {

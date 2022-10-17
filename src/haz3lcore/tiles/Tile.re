@@ -33,36 +33,23 @@ let shapes = (t: t) => {
 
 let to_piece = t => Tile(t);
 
-let nibbed_children = ({mold, shards, children, _}: t) =>
-  Aba.mk(shards, children)
-  |> Aba.aba_triples
+let mono = s => Aba.mk([s], []);
+
+let nibbed_children = t =>
+  Aba.aba_triples(t)
   |> List.map(((l, child, r)) => {
-       let (_, l) = Mold.nibs(~index=l, mold);
-       let (r, _) = Mold.nibs(~index=r, mold);
+       let (_, l) = Shard.nibs(l);
+       let (r, _) = Shard.nibs(r);
        ((l, r), child);
      });
 
 let contained_children = (t: t): list((t, Base.segment, t)) =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
-       let l = {...t, shards: [l], children: []};
-       let r = {...t, shards: [r], children: []};
-       (l, child, r);
-     });
-
-// let remold = (t: t): list(t) =>
-//   Molds.get(t.label) |> List.map(mold => {...t, mold});
-
-let split_shards = (id, label, mold, shards) =>
-  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+  Aba.aba_triples(t)
+  |> List.map(((l, child, r)) => (mono(l), child, mono(r)));
 
 // postcond: output segment is nonempty
-let disassemble = ({id, label, mold, shards, children}: t): segment => {
-  let shards = split_shards(id, label, mold, shards);
-  Aba.mk(shards, children)
-  |> Aba.join(s => [to_piece(s)], Fun.id)
-  |> List.concat;
+let disassemble = (t: t): segment => {
+  t |> Aba.join(s => [to_piece(mono(s))], Fun.id) |> List.concat;
 };
 
 let reassemble = (match: Aba.t(t, segment)): t => {
