@@ -142,6 +142,35 @@ let rec remold_tile_via_stack =
     }
   };
 
+module Greg = {
+  type seg = t;
+  type t = Aba.t(Grout.t, Tile.t);
+
+  let empty = ([Grout.empty], []);
+
+  let cons_w = (w: Whitespace.t) => Aba.update_first_a(Grout.cons_w(w));
+  let cons_h = (h: Hole.t) => Aba.update_first_a(Grout.cons_h(h));
+  let cons_t = (t: Tile.t) => Aba.cons(Grout.empty, t);
+
+  let cons = (p: Piece.t) =>
+    switch (p) {
+    | Whitespace(w) => cons_w(w)
+    | Grout(h) => cons_h(h)
+    | Tile(t) => cons_t(t)
+    };
+
+  let of_seg = (seg: seg) => List.fold_right(cons, seg, empty);
+
+  let rec remold =
+          (
+            ~stack: list(Sort.t)=[],
+            ~sort: Sort.t,
+            ~shape=Nib.Shape.concave(),
+          )
+          : (t => t) =>
+    failwith("todo");
+};
+
 let rec remold =
         (
           ~stack: list(Sort.t)=[],

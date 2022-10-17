@@ -12,12 +12,8 @@ let length = trim =>
 
 let append: (t, t) => t = Aba.append((@));
 
-let cons_w = (w: Whitespace.t, (wss, gs)) => {
-  // safe bc Aba always has at least one A element
-  let (ws, wss) = ListUtil.split_first(wss);
-  Aba.mk([[w, ...ws], ...wss], gs);
-};
-let cons_g = (g: Hole.t, (wss, gs)) => Aba.mk([[], ...wss], [g, ...gs]);
+let cons_w = (w: Whitespace.t) => Aba.update_first_a(List.cons(w));
+let cons_h = (h: Hole.t) => Aba.cons([], h);
 
 // TODO clean up l_pad bool in return type
 let repad = (l_pad, trim: t, r_pad): IdGen.t((bool, t)) =>
