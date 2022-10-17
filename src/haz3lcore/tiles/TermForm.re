@@ -84,7 +84,7 @@ let bin =
   {label, mold: Mold.mk(~l, ~m, ~r, sort, prec)};
 };
 
-let to_shards = ({mold, label}: t): list(ShardForm.t) => {
+let to_shards = ({mold, label}: t): list(Shard.Form.t) => {
   // let lbl = List.mapi((i, t) => (i, t), label);
   let (l_kid, m_kids, r_kid) = mold.kids;
   let outer_nib =
@@ -104,7 +104,7 @@ let to_shards = ({mold, label}: t): list(ShardForm.t) => {
   |> List.mapi((i, token) => {
        let l = i == 0 ? l : m(i - 1);
        let r = i == List.length(label) - 1 ? r : m(i);
-       let mold = ShardMold.{sort: mold.sort, nibs: (l, r)};
-       ShardForm.{mold, token};
+       let mold = Shard.Mold.{sort: mold.sort, nibs: (l, r)};
+       Shard.Form.{mold, token};
      });
 };

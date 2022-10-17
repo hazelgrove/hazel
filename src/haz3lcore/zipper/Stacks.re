@@ -1,8 +1,3 @@
-module Stack = {
-  type t('shard) = list('shard);
-  let empty = [];
-};
-
 type t'('shard) = {
   // obligations from the left
   l: Stack.t('shard),
@@ -11,7 +6,7 @@ type t'('shard) = {
   // obligations from the right
   r: Stack.t('shard),
 };
-type t = t'(ShardForm.t);
+type t = t'(Shard.Form.t);
 
 let empty = Stack.{l: empty, m: empty, r: empty};
 let is_empty = (==)(empty);

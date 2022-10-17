@@ -6,7 +6,7 @@ exception Invalid_mold;
 exception Empty_tile;
 
 module Form = {
-  type t = list(ShardForm.t);
+  type t = list(Shard.Form.t);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

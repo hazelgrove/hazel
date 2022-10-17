@@ -53,15 +53,15 @@ module Exp = {
 };
 
 // TODO turn this into a hash table
-let tiles: list(list(ShardForm.t)) =
+let tiles: list(Tile.Form.t) =
   [Exp.all] |> List.concat_map(((_name, form)) => TermForm.to_shards(form));
 
-type ishard = (int, ShardForm.t);
-let backpacks: Hashtbl.t(list(ShardForm.t), Backpack.t) = {
+type ishard = (int, Shard.Form.t);
+let backpacks: Hashtbl.t(Tile.Form.t, Stacks.t) = {
   let bps = Hashtbl.empty;
-  let rec go = (ishards: list(ishard), ibp: Backpack.t(ishard)) => {
+  let rec go = (ishards: list(ishard), ibp: Stacks.t(ishard)) => {
     let shards = List.map(snd, ishards);
-    let bp = Backpack.map(snd, ibp);
+    let bp = Stacks.map(snd, ibp);
     Hashtbl.add(bps, shards, bp);
     ListUtil.elem_splits(ishards)
     |> List.iter(((pre, (j, s), suf)) =>
@@ -87,12 +87,10 @@ let backpacks: Hashtbl.t(list(ShardForm.t), Backpack.t) = {
 
   tiles
   |> List.rev_map(List.mapi((i, s) => (i, s)))
-  |> List.iter(ishards => go(ishards, Backpack.empty));
+  |> List.iter(ishards => go(ishards, Stacks.empty));
   bps;
 };
 
-let backpack = (t: list(ShardForm.t)): Backpack.t =>
-  Hashtbl.find(backpacks, t);
+let backpack = (t: Tile.Form.t): Stacks.t => Hashtbl.find(backpacks, t);
 
-let is_complete = (t: list(ShardForm.t)): bool =>
-  Backpack.is_empty(backpack(t));
+let is_complete = (t: Tile.Form.t): bool => Stacks.is_empty(backpack(t));
