@@ -9,7 +9,7 @@ let context_entry_view =
       Attr.many([
         clss(["context-entry"]),
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(JumpToId(id)))
+          inject(UpdateAction.PerformAction(Jump(TileId(id))))
         ),
       ]),
     [text(name), text(":"), Type.view(typ)],

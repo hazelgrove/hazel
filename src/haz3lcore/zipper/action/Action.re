@@ -16,7 +16,6 @@ type jump_target =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
-  | JumpToId(Id.t)
   | Jump(jump_target)
   | Select(move)
   | Unselect
