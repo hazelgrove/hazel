@@ -9,9 +9,15 @@ type move =
   | Goal(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type jump_target =
+  | TileId(Id.t)
+  | BindingSiteOfIndicatedVar;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
   | JumpToId(Id.t)
+  | Jump(jump_target)
   | Select(move)
   | Unselect
   | Destruct(Direction.t)
@@ -19,8 +25,7 @@ type t =
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up
-  | Put_down
-  | GoToDefinition;
+  | Put_down;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -29,8 +34,7 @@ module Failure = {
     | Cant_insert
     | Cant_destruct
     | Cant_select
-    | Cant_put_down
-    | Cant_go_to_definition;
+    | Cant_put_down;
 };
 
 module Result = {

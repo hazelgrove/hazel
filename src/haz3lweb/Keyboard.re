@@ -43,7 +43,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => now(GoToDefinition) // Figure out actual keybinding
+    | "F6" => now(Jump(BindingSiteOfIndicatedVar)) // Figure out actual keybinding
     | "F7" => []
     | "F8" => []
     | "F10" =>
