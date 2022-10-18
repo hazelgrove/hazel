@@ -197,19 +197,21 @@ let find_p = (p: Piece.t, map): measurement =>
        t => find_t(t, map),
      );
 
-let find_by_id = (id: Id.t, map: t): measurement => {
+let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.whitespace)) {
-  | Some(m) => m
+  | Some(m) => Some(m)
   | None =>
     switch (Id.Map.find_opt(id, map.grout)) {
-    | Some(m) => m
+    | Some(m) => Some(m)
     | None =>
       switch (Id.Map.find_opt(id, map.tiles)) {
       | Some(shards) =>
         let first = List.assoc(List.hd(shards) |> fst, shards);
         let last = List.assoc(ListUtil.last(shards) |> fst, shards);
-        {origin: first.origin, last: last.last};
-      | None => failwith("Measured.find_by_id: not found")
+        Some({origin: first.origin, last: last.last});
+      | None =>
+        Printf.printf("Measured.WARNING: id %d not found", id);
+        None;
       }
     }
   };

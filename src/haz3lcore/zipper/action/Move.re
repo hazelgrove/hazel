@@ -162,9 +162,16 @@ module Make = (M: Editor.Meta.S) => {
   let to_start = do_extreme(primary(ByToken), Up);
 
   let jump_to_id = (z: t, id: Id.t): option(t) => {
-    let* z = to_start(z);
-    let Measured.{origin, _} = Measured.find_by_id(id, M.measured);
-    do_towards(primary(ByChar), origin, z);
+    let z =
+      switch (to_start(z)) {
+      | None => z
+      | Some(z) => z
+      };
+    let* {origin, _} = Measured.find_by_id(id, M.measured);
+    switch (do_towards(primary(ByChar), origin, z)) {
+    | None => Some(z)
+    | Some(z) => Some(z)
+    };
   };
 
   let vertical = (d: Direction.t, z: t): option(t) =>
