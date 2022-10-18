@@ -43,7 +43,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => []
+    | "F6" => now(Select(Term(Current)))
     | "F7" => []
     | "F8" => []
     | "F10" =>
@@ -63,10 +63,10 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect)
     | (Up, "Tab") => now_save(Put_down) //TODO: if empty, move to next hole
-    | (Down, "ArrowLeft") => now(Select(Local(Left(ByToken))))
-    | (Down, "ArrowRight") => now(Select(Local(Right(ByToken))))
-    | (Down, "ArrowUp") => now(Select(Local(Up)))
-    | (Down, "ArrowDown") => now(Select(Local(Down)))
+    | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
+    | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
+    | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
+    | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
       //TODO(andrew): using funky char to avoid weird regexp issues with using \n
@@ -82,29 +82,29 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     switch (key) {
     | "Z"
     | "z" => now_save_u(Redo)
-    | "ArrowLeft" => now(Select(Extreme(Left(ByToken))))
-    | "ArrowRight" => now(Select(Extreme(Right(ByToken))))
-    | "ArrowUp" => now(Select(Extreme(Up)))
-    | "ArrowDown" => now(Select(Extreme(Down)))
+    | "ArrowLeft" => now(Select(Resize(Extreme(Left(ByToken)))))
+    | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
+    | "ArrowUp" => now(Select(Resize(Extreme(Up))))
+    | "ArrowDown" => now(Select(Resize(Extreme(Down))))
     | _ => []
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "Z"
     | "z" => now_save_u(Redo)
-    | "ArrowLeft" => now(Select(Local(Left(ByToken))))
-    | "ArrowRight" => now(Select(Local(Right(ByToken))))
-    | "ArrowUp" => now(Select(Local(Up)))
-    | "ArrowDown" => now(Select(Local(Down)))
-    | "Home" => now(Select(Extreme(Up)))
-    | "End" => now(Select(Extreme(Down)))
+    | "ArrowLeft" => now(Select(Resize(Local(Left(ByToken)))))
+    | "ArrowRight" => now(Select(Resize(Local(Right(ByToken)))))
+    | "ArrowUp" => now(Select(Resize(Local(Up))))
+    | "ArrowDown" => now(Select(Resize(Local(Down))))
+    | "Home" => now(Select(Resize(Extreme(Up))))
+    | "End" => now(Select(Resize(Extreme(Down))))
     | _ => []
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
     | "p" => now(Pick_up)
-    | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
+    | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
@@ -117,7 +117,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     switch (key) {
     | "z" => now_save_u(Undo)
     | "p" => now(Pick_up)
-    | "a" => now(Move(Extreme(Up))) @ now(Select(Extreme(Down)))
+    | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
     | _ when is_digit(key) => [SwitchSlide(int_of_string(key))]
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
