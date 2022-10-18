@@ -200,9 +200,7 @@ module Make = (M: Editor.Meta.S) => {
       | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
       | _ => None
       };
-
-    let+ move = jump_to_id(z, entry.id);
-    move;
+    jump_to_id(z, entry.id);
   };
 
   let vertical = (d: Direction.t, z: t): option(t) =>
