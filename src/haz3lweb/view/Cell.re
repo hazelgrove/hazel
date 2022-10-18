@@ -191,8 +191,6 @@ let deco =
 
 let eval_result_footer_view =
     (~font_metrics, ~elab, simple: ModelResult.simple) => {
-  print_endline("elab:");
-  print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(elab)));
   let d_view =
     switch (simple) {
     | None => [

@@ -650,10 +650,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
-        //print_endline(
-        //  Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(Ap(d1, d2))),
-        //);
-        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -720,13 +716,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
-        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -873,8 +867,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2)));
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
         }
       };
@@ -956,9 +948,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
           | _ =>
-            print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty')));
             print_endline("CastBVHoleGround");
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
