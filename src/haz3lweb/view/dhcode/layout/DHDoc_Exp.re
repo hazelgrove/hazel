@@ -208,7 +208,7 @@ let rec mk =
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ =>
           //raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
-          print_endline("DHDoc_exp EXCEPTIONNN 1:");
+          print_endline("DHDoc_exp EXCEPTION 1:");
           print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
           DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure");
         //TODO(andrew): reinstate
@@ -226,7 +226,7 @@ let rec mk =
         //raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
         // this is throwing for InconsistentBranches
         // if i look in evaluatorPost, it doesnt look like its putting InconsistentBranches in a closure in the pp_eval case?
-        print_endline("DHDoc_exp EXCEPTIONNN 2:");
+        print_endline("DHDoc_exp EXCEPTION 2:");
         print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
         DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure");
 
