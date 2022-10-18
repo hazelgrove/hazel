@@ -89,15 +89,19 @@ let go_z =
           Id.Map.find_opt(tile.id, Statics.mk_map(term));
         | _ => None
         };
-      let* entry =
+
+      let* info_exp =
         switch (statics) {
-        | Statics.InfoExp(info_exp) =>
-          switch (info_exp.term.term) {
-          | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
-          | _ => None
-          }
+        | Statics.InfoExp(info_exp) => Some(info_exp)
         | _ => None
         };
+
+      let* entry =
+        switch (info_exp.term.term) {
+        | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
+        | _ => None
+        };
+
       let+ move = Move.jump_to_id(z, entry.id);
       IdGen.id(id_gen, move);
     };
