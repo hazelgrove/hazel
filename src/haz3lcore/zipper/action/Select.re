@@ -21,11 +21,12 @@ module Make = (M: Editor.Meta.S) => {
 
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, l);
-    let Measured.{last, _} = Measured.find_by_id(r, M.measured);
+    let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
     Move.do_towards(primary, last, z);
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+    //TODO: check if selection is already a term: no-op in this case
     let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
     range(Piece.id(l), Piece.id(r), z);
   };

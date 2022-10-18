@@ -103,6 +103,9 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
+            Attr.on_double_click(_ =>
+              inject(Update.PerformAction(Select(Term(Current))))
+            ),
             Attr.on_mousedown(
               mousedown_handler(
                 ~inject,
