@@ -43,7 +43,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => now(Jump(BindingSiteOfIndicatedVar)) // Figure out actual keybinding
+    | "F6" => []
     | "F7" => []
     | "F8" => []
     | "F10" =>
@@ -63,6 +63,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Up, "Delete") => now_save(Destruct(Right))
     | (Up, "Escape") => now(Unselect)
     | (Up, "Tab") => now_save(Put_down) //TODO: if empty, move to next hole
+    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "ArrowLeft") => now(Select(Local(Left(ByToken))))
     | (Down, "ArrowRight") => now(Select(Local(Right(ByToken))))
     | (Down, "ArrowUp") => now(Select(Local(Up)))
