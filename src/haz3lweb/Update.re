@@ -152,7 +152,9 @@ let reevaluate_post_update =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | FailedInput(_)
-  | UpdateLangDocMessages(_) => false
+  | UpdateLangDocMessages(_)
+  | StepForward(_)
+  | StepBackward => false
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
@@ -401,6 +403,8 @@ let apply =
         |> ModelResult.update_current(res);
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
+    | StepForward(_) => Ok(model)
+    | StepBackward => Ok(model)
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

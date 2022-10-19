@@ -41,6 +41,8 @@ type t =
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
+  | StepForward(int)
+  | StepBackward
   | UpdateLangDocMessages(LangDocMessages.update);
 
 module Failure = {
