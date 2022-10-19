@@ -45,7 +45,9 @@ let is_action_logged: Update.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
-  | UpdateLangDocMessages(_) =>
+  | UpdateLangDocMessages(_)
+  | StepForward(_)
+  | StepBackward =>
     // TODO Do we want this logged - I think so?
     true;
 
