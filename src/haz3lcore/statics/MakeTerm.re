@@ -178,6 +178,7 @@ let return_dark_hole = (~ids=[], s) => {
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
+  | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
@@ -247,6 +248,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
+          TAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -406,6 +409,30 @@ and typ_term: unsorted => UTyp.term = {
       }
     }
   | tm => hole(tm);
+}
+and tpat = unsorted => {
+  let term = tpat_term(unsorted);
+  let ids = ids(unsorted);
+  return(ty => TPat(ty), ids, {ids, term});
+}
+and tpat_term: unsorted => UTPat.term = {
+  let ret = (term: UTPat.term) => term;
+  let _unrecog = UTPat.Invalid(UnrecognizedTerm);
+  let hole = unsorted => Term.UTPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_var(t) => Var(t)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | tm => ret(hole(tm));
 }
 
 // and rul = unsorted => {

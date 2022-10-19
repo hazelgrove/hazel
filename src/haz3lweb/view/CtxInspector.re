@@ -35,6 +35,7 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   | InfoExp({ctx, _}) => exp_ctx_view(~inject, ctx)
   | InfoPat({ctx, _}) => pat_ctx_view(~inject, ctx)
   | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
+  | InfoTPat(_) => text("TODO") //TODO(andrew)
   | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
   };
 };

@@ -50,6 +50,9 @@ type info_typ = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type info_tpat = unit;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type info_rul = {
   cls: Term.URul.cls,
   term: Term.UExp.t,
@@ -61,6 +64,7 @@ type t =
   | Invalid(TermBase.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
+  | InfoTPat(info_tpat)
   | InfoTyp(info_typ)
   | InfoRul(info_rul);
 
@@ -74,6 +78,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | Invalid(_) => None
        | InfoExp({term, _}) => Some(Term.Exp(term))
        | InfoPat({term, _}) => Some(Term.Pat(term))
+       | InfoTPat(_) => None //TODO(andrew)
        | InfoTyp({term, _}) => Some(Term.Typ(term))
        | InfoRul({term, _}) => Some(Term.Exp(term))
      );
@@ -156,7 +161,8 @@ let is_error = (ci: t): bool => {
     | Free(TypeVariable) => true
     | _ => false
     }
-  | InfoRul(_) => false //TODO
+  | InfoRul(_)
+  | InfoTPat(_) => false //TODO
   };
 };
 
@@ -176,14 +182,14 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
 let exp_self_typ_id = (m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => Typ.t_of_self(self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -193,7 +199,7 @@ let exp_self_typ = (m: map, e: Term.UExp.t): Typ.t =>
 let exp_mode_id = (m: map, id): Typ.mode =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, _})) => mode
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -204,13 +210,13 @@ let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 let pat_self_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({self, _})) => Typ.t_of_self(self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -269,6 +275,10 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   | Pat(p) =>
     let (_, _, map) = upat_to_info_map(~ctx, p);
     (VarMap.empty, map);
+  | TPat(_p) =>
+    //TODO(andrew)
+    //let (_, _, map) = utpat_to_info_map(~ctx, p);
+    (VarMap.empty, Ptmap.empty)
   | Typ(ty) =>
     let (_, map) = utyp_to_info_map(ty);
     (VarMap.empty, map);
@@ -439,6 +449,10 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
+  | TAlias(_, _, e) =>
+    //TODO(andrew)
+    let (ty, free, m) = go(~mode, e);
+    add(~self=Just(ty), ~free, m);
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);

@@ -253,6 +253,7 @@ let deco =
                 | Pat => ["term-tag-pat"]
                 | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
                 | Typ => ["term-tag-typ"]
+                | TPat
                 | Any
                 | Nul
                 | Rul => []
@@ -584,6 +585,20 @@ let get_doc =
           doc,
           options,
           LangDocMessages.multi_hole_exp_group,
+          doc.explanation.message,
+          [],
+        );
+      | TAlias(_, _, _) =>
+        //TODO(andrew): this is just copied from triv
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.triv_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.triv_exp_group,
           doc.explanation.message,
           [],
         );
@@ -2735,6 +2750,7 @@ let get_doc =
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
+  | Some(InfoTPat(_)) //TODO(andrew)
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default

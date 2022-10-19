@@ -9,6 +9,7 @@ let cls_str = (ci: Haz3lcore.Statics.t): string =>
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
+  | InfoTPat () => "" //TODO(andrew)
   | InfoRul({cls, _}) => Haz3lcore.Term.URul.show_cls(cls)
   };
 
@@ -155,6 +156,11 @@ let view_of_info =
         status_view(error_status),
       ],
     );
+  | InfoTPat () =>
+    div(
+      ~attr=clss([infoc, "tpat"]),
+      [term_tag(~inject, ~show_lang_doc, is_err, "tpat")],
+    )
   | InfoTyp({self: Free(free_error), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),

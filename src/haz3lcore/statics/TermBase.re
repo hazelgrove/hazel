@@ -20,6 +20,7 @@ module rec Any: {
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
+    | TPat(UTPat.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -29,6 +30,7 @@ module rec Any: {
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
+    | TPat(UTPat.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -98,6 +100,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
+    | TAlias
     | Ap
     | If
     | Seq
@@ -124,7 +127,7 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    // Let_pat(UPat.t, t)
+    | TAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -204,6 +207,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
+    | TAlias
     | Ap
     | If
     | Seq
@@ -230,7 +234,7 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    // Let_pat(UPat.t, t)
+    | TAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -329,6 +333,29 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+}
+and UTPat: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Var(Token.t)
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Var(Token.t)
   and t = {
     ids: list(Id.t),
     term,
