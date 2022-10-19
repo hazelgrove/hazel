@@ -1,0 +1,12 @@
+(library
+ (name smyth)
+ (libraries
+  ; user libraries
+  stdlib2
+  ; opam libraries
+  unix
+  bark)
+ (flags
+  ; (-open Pervasives2)
+  (-open Pervasives2 -w +a-4-9-42-48 -warn-error -a+1..66-3-33))
+ (ocamlopt_flags (-O3)))
