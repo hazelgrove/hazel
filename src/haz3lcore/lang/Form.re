@@ -122,6 +122,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ty_var", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -181,6 +182,10 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "type_alias",
+    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (
