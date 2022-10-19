@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 /* STATICS
 
@@ -622,3 +623,20 @@ let mk_map =
       map;
     },
   );
+
+let get_binding_site = (id, statics_map) => {
+  open OptUtil.Syntax;
+  let* opt = Id.Map.find_opt(id, statics_map);
+  let* info_exp =
+    switch (opt) {
+    | InfoExp(info_exp) => Some(info_exp)
+    | _ => None
+    };
+
+  let+ entry =
+    switch (info_exp.term.term) {
+    | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
+    | _ => None
+    };
+  entry.id;
+};

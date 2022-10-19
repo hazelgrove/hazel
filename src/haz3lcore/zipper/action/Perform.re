@@ -24,11 +24,17 @@ let go_z =
       id_gen: IdGen.state,
     )
     : Action.Result.t((Zipper.t, IdGen.state)) => {
+  open OptUtil.Syntax;
+
   let meta =
     switch (meta) {
     | Some(m) => m
     | None => Editor.Meta.init(z)
     };
+  let idx = Indicated.index(z);
+  let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+  let statics = Statics.mk_map(term);
+
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
@@ -40,7 +46,10 @@ let go_z =
   | Jump(jump_target) =>
     (
       switch (jump_target) {
-      | BindingSiteOfIndicatedVar => Move.jump_to_indicated_var(z)
+      | BindingSiteOfIndicatedVar =>
+        let* binding_id =
+          Option.bind(idx, Statics.get_binding_site(_, statics));
+        Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
     )

@@ -178,27 +178,6 @@ module Make = (M: Editor.Meta.S) => {
     jump_to_p(z, piece => Piece.id(piece) == id);
   };
 
-  let jump_to_indicated_var = (z: t): option(t) => {
-    open OptUtil.Syntax;
-    let* idx = Indicated.index(z);
-    let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
-    let* statics = Id.Map.find_opt(idx, Statics.mk_map(term));
-
-    let* info_exp =
-      switch (statics) {
-      | Statics.InfoExp(info_exp) => Some(info_exp)
-      | _ => None
-      };
-
-    let* entry =
-      switch (info_exp.term.term) {
-      | TermBase.UExp.Var(name) => VarMap.lookup(info_exp.ctx, name)
-      | _ => None
-      };
-
-    jump_to_id(z, entry.id);
-  };
-
   let vertical = (d: Direction.t, z: t): option(t) =>
     z.selection.content == []
       ? do_vertical(primary(ByChar), d, z)
