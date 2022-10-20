@@ -624,7 +624,7 @@ let mk_map =
     },
   );
 
-let get_binding_site = (id, statics_map) => {
+let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
   open OptUtil.Syntax;
   let* opt = Id.Map.find_opt(id, statics_map);
   let* info_exp =
