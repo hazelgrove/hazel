@@ -24,17 +24,11 @@ let go_z =
       id_gen: IdGen.state,
     )
     : Action.Result.t((Zipper.t, IdGen.state)) => {
-  open OptUtil.Syntax;
-
   let meta =
     switch (meta) {
     | Some(m) => m
     | None => Editor.Meta.init(z)
     };
-  let idx = Indicated.index(z);
-  let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
-  let statics = Statics.mk_map(term);
-
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
@@ -44,6 +38,12 @@ let go_z =
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
+    open OptUtil.Syntax;
+
+    let idx = Indicated.index(z);
+    let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+    let statics = Statics.mk_map(term);
+
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
@@ -54,7 +54,7 @@ let go_z =
       }
     )
     |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Unselect =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
