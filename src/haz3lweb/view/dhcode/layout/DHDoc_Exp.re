@@ -402,38 +402,14 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       };
-    let doc = {
-      let eva_objs =
-        switch (
-          EvaluatorStep.decompose_all(d, EvaluatorStep.evaluate_all_option)
-        ) {
-        | d => d
-        | exception _ =>
-          print_endline("Evaluator EXCEPTION");
-          [];
-        };
-      if (eva_objs == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
-        print_endline(
-          "eva_objs: "
-          ++ Sexplib.Sexp.to_string_hum(
-               Sexplib.Std.sexp_of_list(
-                 EvaluatorStep.EvalObj.sexp_of_t,
-                 eva_objs,
-               ),
-             ),
-        );
-        /* let obj = EvaluatorStep.EvalObj.mk(Mark, d); */
-        annot(DHAnnot.Step(-1), fdoc(~enforce_inline));
-      } else {
-        parenthesize
-          ? hcats([
-              DHDoc_common.Delim.open_Parenthesized,
-              fdoc |> DHDoc_common.pad_child(~enforce_inline),
-              DHDoc_common.Delim.close_Parenthesized,
-            ])
-          : fdoc(~enforce_inline);
-      };
-    };
+    let doc =
+      parenthesize
+        ? hcats([
+            DHDoc_common.Delim.open_Parenthesized,
+            fdoc |> DHDoc_common.pad_child(~enforce_inline),
+            DHDoc_common.Delim.close_Parenthesized,
+          ])
+        : fdoc(~enforce_inline);
     (doc, cast);
   };
   mk_cast(go(~parenthesize, ~enforce_inline, d));
