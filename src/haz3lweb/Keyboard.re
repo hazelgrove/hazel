@@ -43,7 +43,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => now(Select(Term(Current)))
+    | "F6" => []
     | "F7" => []
     | "F8" => []
     | "F10" =>
@@ -103,6 +103,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
+    | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
@@ -116,6 +117,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "z" => now_save_u(Undo)
+    | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Move(Extreme(Up))) @ now(Select(Resize(Extreme(Down))))
     | "k" => [ResetCurrentEditor]
