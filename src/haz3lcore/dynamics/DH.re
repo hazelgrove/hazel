@@ -225,6 +225,7 @@ module rec DHExp: {
     | (ListLit(_, _, _, _, []), List(_)) =>
       //HACK(andrew, cyrus)
       d
+
     | _ =>
       if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
         d;
