@@ -103,17 +103,16 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_double_click(_ => {
-              print_endline("double click detected");
-              inject(Update.PerformAction(Select(Term(Current))));
-            }),
-            Attr.on_mousedown(
-              mousedown_handler(
-                ~inject,
-                ~font_metrics,
-                ~target_id=code_id,
-                ~additional_updates=mousedown_updates,
-              ),
+            Attr.on_mousedown(evt =>
+              JsUtil.is_double_click(evt)
+                ? inject(Update.PerformAction(Select(Term(Current))))
+                : mousedown_handler(
+                    ~inject,
+                    ~font_metrics,
+                    ~target_id=code_id,
+                    ~additional_updates=mousedown_updates,
+                    evt,
+                  )
             ),
           ]),
         Option.to_list(caption) @ code,
