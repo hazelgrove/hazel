@@ -22,8 +22,23 @@ let matches: (DHPat.t, DHExp.t) => match_result;
 
 let eval_bin_bool_op: (DHExp.BinBoolOp.t, bool, bool) => DHExp.t;
 
+let eval_bin_bool_op_short_circuit:
+  (DHExp.BinBoolOp.t, bool) => option(DHExp.t);
+
 let eval_bin_int_op: (DHExp.BinIntOp.t, int, int) => DHExp.t;
 
 let eval_bin_float_op: (DHExp.BinFloatOp.t, float, float) => DHExp.t;
 
 let eval_bin_string_op: (DHExp.BinStringOp.t, string, string) => DHExp.t;
+
+let evaluate_extend_env:
+  (Environment.t, ClosureEnvironment.t) =>
+  EvaluatorMonad.t(ClosureEnvironment.t);
+
+let evaluate_test:
+  (ClosureEnvironment.t, KeywordID.t, DHExp.t) =>
+  EvaluatorMonad.t(EvaluatorResult.t);
+
+let evaluate_ap_builtin:
+  (ClosureEnvironment.t, string, list(DHExp.t)) =>
+  EvaluatorMonad.t(EvaluatorResult.t);
