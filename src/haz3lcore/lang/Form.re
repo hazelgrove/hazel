@@ -77,9 +77,10 @@ let is_float = str =>
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_triv = str => str == "triv";
+let is_undefined = str => str == "undefined";
 let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
-let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
+let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str) || is_undefined(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
@@ -89,7 +90,8 @@ let is_concrete_typ = str =>
   || str == "Int"
   || str == "Float"
   || str == "Bool"
-  || str == "Unit";
+  || str == "Unit"
+  || str == "Void";
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
@@ -125,6 +127,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("void_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
