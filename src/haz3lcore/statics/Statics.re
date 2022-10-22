@@ -305,6 +305,7 @@ and uexp_to_info_map =
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
+  | Undefined => atomic(Just(Void))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -494,6 +495,7 @@ and upat_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
+  | Undefined => atomic(Just(Void))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
@@ -585,6 +587,7 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | EmptyHole
+  | Void
   | Int
   | Float
   | Bool

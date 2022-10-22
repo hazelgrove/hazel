@@ -26,6 +26,7 @@ module UTyp = {
     | Invalid
     | EmptyHole
     | MultiHole
+    | Void
     | Int
     | Float
     | Bool
@@ -54,6 +55,7 @@ module UTyp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | Void => Void
     | Int => Int
     | Float => Float
     | Bool => Bool
@@ -69,6 +71,7 @@ module UTyp = {
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
     | MultiHole => "Multi Type Hole"
+    | Void
     | Int
     | Float
     | String
@@ -86,6 +89,7 @@ module UTyp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Void
     | Int
     | Float
     | Bool
@@ -109,6 +113,7 @@ module UPat = {
     | Bool
     | String
     | Triv
+    | Undefined
     | ListLit
     | Tag
     | Cons
@@ -142,6 +147,7 @@ module UPat = {
     | Bool(_) => Bool
     | String(_) => String
     | Triv => Triv
+    | Undefined => Undefined
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Cons(_) => Cons
@@ -162,6 +168,7 @@ module UPat = {
     | Bool => "Boolean Literal"
     | String => "String Literal"
     | Triv => "Trivial Literal. Pathetic, really."
+    | Undefined => "Undefined Literal"
     | ListLit => "List Literal Pattern"
     | Tag => "Constructor Pattern"
     | Cons => "List Cons"
@@ -185,6 +192,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -206,6 +214,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -230,6 +239,7 @@ module UPat = {
       | Bool(_)
       | String(_)
       | Triv
+      | Undefined
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -253,6 +263,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -279,6 +290,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -310,6 +322,7 @@ module UPat = {
       | Bool(_)
       | String(_)
       | Triv
+      | Undefined
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -341,6 +354,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Undefined => Undefined
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -415,6 +429,7 @@ module UExp = {
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
     | Triv => "Trivial Literal. Pathetic, really."
+    | Undefined => "Undefined Literal"
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -443,6 +458,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Undefined
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -473,6 +489,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)

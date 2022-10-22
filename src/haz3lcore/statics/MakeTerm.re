@@ -216,6 +216,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | (["triv"], []) => ret(Triv)
+      | (["undefined"], []) => ret(Undefined)
       | (["true"], []) => ret(Bool(true))
       | (["false"], []) => ret(Bool(false))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
@@ -321,6 +322,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | (["triv"], []) => Triv
+        | (["undefined"], []) => Undefined
         | (["true"], []) => Bool(true)
         | (["false"], []) => Bool(false)
         | (["(", ")"], [Pat(body)]) => Parens(body)
@@ -384,6 +386,7 @@ and typ_term: unsorted => UTyp.term = {
     | ([(_id, tile)], []) =>
       switch (tile) {
       | (["Unit"], []) => Tuple([])
+      | (["Void"], []) => Void
       | (["Bool"], []) => Bool
       | (["Int"], []) => Int
       | (["Float"], []) => Float

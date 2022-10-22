@@ -88,6 +88,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Undefined
     | Bool
     | Int
     | Float
@@ -114,6 +115,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -194,6 +196,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Undefined
     | Bool
     | Int
     | Float
@@ -220,6 +223,7 @@ and UExp: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -258,6 +262,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | Triv
+    | Undefined
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
@@ -282,6 +287,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | Triv
+    | Undefined
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
