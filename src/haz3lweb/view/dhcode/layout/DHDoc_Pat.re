@@ -9,6 +9,7 @@ let precedence = (dp: DHPat.t) =>
   | ExpandingKeyword(_)
   | InvalidText(_)
   | Var(_)
+  | VoidLit
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)
@@ -43,6 +44,7 @@ let rec mk =
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
     | Tag(name) => DHDoc_common.mk_TagLit(name)
+    | VoidLit => DHDoc_common.mk_VoidLit
     | IntLit(n) => DHDoc_common.mk_IntLit(n)
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
