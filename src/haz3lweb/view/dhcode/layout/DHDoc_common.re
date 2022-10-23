@@ -121,7 +121,7 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
-let mk_VoidLit = _ => Doc.text("undefined");
+let mk_VoidLit = Doc.text("undefined");
 
 let mk_TagLit = Doc.text;
 

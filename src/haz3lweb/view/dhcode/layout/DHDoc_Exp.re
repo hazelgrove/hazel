@@ -222,7 +222,7 @@ let rec mk =
 
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
-      | VoidLit => DHDoc_common.mk_VoidLit()
+      | VoidLit => DHDoc_common.mk_VoidLit
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
