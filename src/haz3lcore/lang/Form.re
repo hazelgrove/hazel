@@ -80,7 +80,8 @@ let is_triv = str => str == "triv";
 let is_undefined = str => str == "undefined";
 let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
-let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str) || is_undefined(str);
+let is_reserved = str =>
+  is_listnil(str) || is_bool(str) || is_triv(str) || is_undefined(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;

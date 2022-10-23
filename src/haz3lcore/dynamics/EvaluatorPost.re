@@ -54,6 +54,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | TestLit(_)
+  | VoidLit
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -257,6 +258,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
 
   /* Non-hole expressions: expand recursively */
   | TestLit(_)
+  | VoidLit
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -430,6 +432,7 @@ let rec track_children_of_hole =
   switch (d) {
   | Tag(_)
   | TestLit(_)
+  | VoidLit
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

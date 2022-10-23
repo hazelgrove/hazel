@@ -518,6 +518,7 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Invalid(_)
     | MultiHole(_) => Unknown(Internal)
     | EmptyHole => Unknown(TypeHole)
+    | Void => Void
     | Bool => Bool
     | Int => Int
     | Float => Float
