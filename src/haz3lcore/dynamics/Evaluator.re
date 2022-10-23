@@ -646,8 +646,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             evaluate(env, d3);
           }
         };
+      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit)
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
@@ -723,14 +723,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             |> return
           | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
           }
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit)
+        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
           print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit)
+      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
         print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
@@ -751,13 +751,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(FloatLit(f2)) =>
           BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit)
+        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
         };
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit)
+      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFloatLit");
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
@@ -777,7 +777,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(StringLit(f2)) =>
           BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit)
+        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
