@@ -48,8 +48,9 @@ module StateEvaluator = {
   /**
     [next evaluator d] makes an evaluation request for d.
    */
-  let next = ({next, _}: t, key: string, d: Haz3lcore.DHExp.t) => {
-    next((key, d));
+  let next =
+      ({next, _}: t, key: string, d: Haz3lcore.DHExp.t, m_res: ModelResult.t) => {
+    next((key, d, m_res));
   };
 
   /**

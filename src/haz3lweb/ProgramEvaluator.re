@@ -7,7 +7,7 @@ open Haz3lcore;
 type key = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = (key, DHExp.t);
+type request = (key, DHExp.t, ModelResult.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type eval_result =
@@ -37,9 +37,12 @@ module Sync: M with type response = response = {
 
   let init = () => ();
 
-  let get_response = ((): t, (key, d): request) => {
+  let get_response = ((): t, (key, d, m_res): request) => {
     let lwt = {
-      let+ r = Lwt.wrap(() => d |> Interface.evaluate);
+      let prev = m_res |> ModelResult.get_previous;
+      let d_prev = prev |> ProgramResult.get_elaborator_result;
+      let d_prev_result = prev |> ProgramResult.get_dhexp;
+      let+ r = Lwt.wrap(() => Interface.evaluate(d, ~d_prev, ~d_prev_result));
       let res =
         switch (r) {
         | r => EvaluationOk(r)
@@ -124,7 +127,7 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
   };
 
   let get_response =
-      (pool: t, (k, _) as req: request): (Lwt.t(response), t) => {
+      (pool: t, (k, _, _) as req: request): (Lwt.t(response), t) => {
     let res = Pool.request(pool, req);
     let _ = Pool.add(pool);
     (Lwt.map(r => (k, Option.map(snd, r)), res), pool);

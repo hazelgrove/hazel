@@ -1,13 +1,24 @@
 open Haz3lcore;
 
+module ElaboratorResult: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = DHExp.t;
+};
+
 /**
   The result of a program evaluation. Includes the {!type:EvaluatorResult.t},
   the {!type:EvaluatorState}, and the tracked hole instance information
   ({!type:HoleInstanceInfo.t}). Constructed by {!val:Program.get_result}.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
+type t = (
+  ElaboratorResult.t,
+  EvaluatorResult.t,
+  EvaluatorState.t,
+  HoleInstanceInfo.t,
+);
 
+let get_elaborator_result: t => ElaboratorResult.t;
 /**
   [get_dhexp r] is the {!type:DHExp.t} in [r].
  */

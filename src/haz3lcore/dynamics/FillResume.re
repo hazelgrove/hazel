@@ -1,21 +1,34 @@
 //fill hole u with d in d0
-let rec fill = (u: MetaVar.t, d: DHExp.t, d0: DHExp.t): DHExp.t => {
-  let filld = fill(u, d);
-  let fills = fill_env(u, d);
-  switch (d0) {
+module FillResumeState = {
+  type t = {
+    metavar: MetaVar.t,
+    d_inserted: DHExp.t,
+  };
+
+  let mk = (metavar: MetaVar.t, d_inserted: DHExp.t): t => {
+    {metavar, d_inserted};
+  };
+};
+
+let rec fill = (s: FillResumeState.t, d_prev_result: DHExp.t): DHExp.t => {
+  let filld = fill(s);
+  let fills = fill_env(s);
+  switch (d_prev_result) {
   | EmptyHole(v, _)
   | NonEmptyHole(_, v, _, _)
   | ExpandingKeyword(v, _, _)
   | FreeVar(v, _, _)
-  | InvalidText(v, _, _) => MetaVar.eq(v, u) ? d : d0
+  | InvalidText(v, _, _) =>
+    MetaVar.eq(v, s.metavar) ? s.d_inserted : d_prev_result
   | InconsistentBranches(v, i, c) =>
-    if (MetaVar.eq(v, u)) {
-      d;
+    if (MetaVar.eq(v, s.metavar)) {
+      s.d_inserted;
     } else {
-      InconsistentBranches(v, i, c |> fill_case(u, d));
+      InconsistentBranches(v, i, c |> fill_case(s));
     }
   | ListLit(v, i, err, ty, ld) =>
-    MetaVar.eq(v, u) ? d : ListLit(v, i, err, ty, ld |> List.map(filld))
+    MetaVar.eq(v, s.metavar)
+      ? s.d_inserted : ListLit(v, i, err, ty, ld |> List.map(filld))
 
   | Closure(env, d1) => Closure(env |> fills, d1 |> filld)
 
@@ -34,7 +47,7 @@ let rec fill = (u: MetaVar.t, d: DHExp.t, d0: DHExp.t): DHExp.t => {
   | Tuple(ld) => Tuple(ld |> List.map(filld))
   | Prj(d1, i) => Prj(d1 |> filld, i)
   | Inj(ty, side, d1) => Inj(ty, side, d1 |> filld)
-  | ConsistentCase(c) => ConsistentCase(c |> fill_case(u, d))
+  | ConsistentCase(c) => ConsistentCase(c |> fill_case(s))
   | Cast(d1, ty1, ty2) => Cast(d1 |> filld, ty1, ty2)
   | FailedCast(d1, ty1, ty2) => FailedCast(d1 |> filld, ty1, ty2)
   | InvalidOperation(d1, _) => d1 |> filld
@@ -45,22 +58,22 @@ let rec fill = (u: MetaVar.t, d: DHExp.t, d0: DHExp.t): DHExp.t => {
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
-  | Tag(_) => d0
+  | Tag(_) => d_prev_result
   };
 }
 and fill_env =
-    (u: MetaVar.t, d: DHExp.t, c: ClosureEnvironment.t): ClosureEnvironment.t => {
+    (s: FillResumeState.t, c: ClosureEnvironment.t): ClosureEnvironment.t => {
   let (c', _) =
     ClosureEnvironment.map(
-      ((_, d0)) => fill(u, d, d0),
+      ((_, d0)) => fill(s, d0),
       c,
       EnvironmentIdGen.init,
     );
   c';
 }
-and fill_case = (u: MetaVar.t, d: DHExp.t, c: DHExp.case): DHExp.case => {
+and fill_case = (s: FillResumeState.t, c: DHExp.case): DHExp.case => {
   //TODO: pattern
-  let filld = fill(u, d);
+  let filld = fill(s);
   switch (c) {
   | Case(d1, rules, _) =>
     Case(
@@ -69,4 +82,33 @@ and fill_case = (u: MetaVar.t, d: DHExp.t, c: DHExp.case): DHExp.case => {
       0,
     )
   };
+};
+
+let diff_of_DHExp =
+    (d_prev: DHExp.t, d_now: DHExp.t): option(FillResumeState.t) => {
+  switch (d_prev, d_now) {
+  | (EmptyHole(v, _), _) => Some(FillResumeState.mk(v, d_now))
+  | _ => None
+  };
+};
+
+let fill_resume_evaluate =
+    (
+      env: Environment.t,
+      d_now: DHExp.t,
+      d_prev: option(DHExp.t),
+      d_prev_result: option(DHExp.t),
+    )
+    : (EvaluatorState.t, EvaluatorResult.t) => {
+  let state =
+    switch (d_prev) {
+    | Some(d_prev') => diff_of_DHExp(d_prev', d_now)
+    | _ => None
+    };
+  let fill_result =
+    switch (state, d_prev_result) {
+    | (Some(s), Some(d_prev_result')) => fill(s, d_prev_result')
+    | _ => d_now
+    };
+  Evaluator.evaluate(env, fill_result);
 };

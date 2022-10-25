@@ -37,7 +37,7 @@ type key = string;
   The type of an evaluation request.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = (key, DHExp.t);
+type request = (key, DHExp.t, ModelResult.t);
 
 /**
   The type of the evaluation response. [EvaluationFail] indicates some
