@@ -16,7 +16,7 @@ type forms = VarMap.t_((DHExp.t, Builtin.builtin_evaluate));
 let ctx = (builtins: t): Ctx.t =>
   List.map(
     ((name, Builtin.{typ, _})) =>
-      (name, Ctx.{value: Ctx.Typ(typ), id: Id.invalid}),
+      Ctx.{name, value: Ctx.Typ(typ), id: Id.invalid},
     builtins,
   );
 
