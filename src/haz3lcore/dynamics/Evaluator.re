@@ -3,6 +3,9 @@ open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 open EvaluatorResult;
 
+open Sexplib.Std;
+[@deriving sexp]
+type blah = list(list((Typ.t, Typ.t)));
 /**
   Alias for EvaluatorMonad.
  */
@@ -173,28 +176,35 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
-    matches_cast_Tuple(dps, d, [List.combine(tys, tys')])
+    assert(List.length(tys) == List.length(tys'));
+    matches_cast_Tuple(
+      dps,
+      d,
+      List.map(p => [p], List.combine(tys, tys')),
+    );
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           tys,
           List.init(List.length(tys), _ => Typ.Unknown(Internal)),
         ),
-      ],
-    )
+      ),
+    );
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           List.init(List.length(tys'), _ => Typ.Unknown(Internal)),
           tys',
         ),
-      ],
+      ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
   | (Tuple(_), _) => DoesNotMatch
@@ -300,6 +310,7 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
+      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
         (((dp, d), casts), result) => {
           switch (result) {
@@ -321,14 +332,27 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
     } else {
-      matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+      assert(List.length(tys) == List.length(tys'));
+      matches_cast_Tuple(
+        dps,
+        d',
+        List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+      );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
     let tys' = List.init(List.length(tys), _ => Typ.Unknown(Internal));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(d', Unknown(_), Prod(tys')) =>
     let tys = List.init(List.length(tys'), _ => Typ.Unknown(Internal));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
