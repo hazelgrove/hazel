@@ -1,75 +1,58 @@
 %{
-  open Haz3lcore.TermBase
-
+  (*
   let id_gen: int ref = ref 0
 
   let mk_id (): int =
     (let uid = !id_gen in id_gen := ((!id_gen) + 1); uid : int)
+  let s (children: Haz3lcore.Segment.t list) =
+    match children with
+    | seg::_ -> (
+      let rec go child acc =
+        match child with
+          | [] -> acc
+          | Haz3lcore.Base.Tile(c)::xs -> (c.mold.out)::(go xs acc)
+          | _::xs -> go xs acc
+      in go seg []
+    )
+    | _ -> []
+    *)
 
-  let mk_uexp term: UExp.t =
-    match term with
-    (*FIXME: Inefficient *)
-    (*
-    | UExp.Fun(p, e) -> {UExp.ids = [mk_id ()]@p.ids@e.ids; term}
-*)
-    | UExp.Fun(_, _) -> {UExp.ids = [mk_id ()]; term}
-    | _ -> {UExp.ids = [mk_id ()]; term}
+  let sorts_of_children children =
+    (* for each child, need to see the mold *)
+    (* in should be set of outs *)
+    let rec go child acc =
+      match child with
+        | [] -> acc
+        | Haz3lcore.Base.Tile(c)::xs -> (c.mold.out)::(go xs acc)
+        | _::xs -> go xs acc
+    in go children []
 
-  let mk_upat term =
-    {UPat.ids = [mk_id ()]; term}
+  let sorts_of_segments segments =
+    List.concat_map sorts_of_children segments
 
-  let mk_utyp term =
-    {UTyp.ids = [mk_id ()]; term}
+  let mk_tile (sort, label) children: Haz3lcore.Base.tile =
+    let sorts = sorts_of_segments children in
+    let mold = Haz3lcore.Mold.mk_op sort sorts in
+    {
+      id = 0;
+      label = label;
+      mold = mold;
+      shards = [];
+      children = children;
+    }
 
-  type optok =
-    (* Int *)
-    | Plus
-    | Minus
-    | Times
-    | Divide
-    | LessThan
-    | LessThanEqual
-    | GreaterThan
-    | GreaterThanEqual
-    | Equals
-    (* Float *)
-    | FPlus
-    | FMinus
-    | FTimes
-    | FDivide
-    | FLessThan
-    | FLessThanEqual
-    | FGreaterThan
-    | FGreaterThanEqual
-    | FEquals
-    (* Binary *)
-    | And
-    | Or
+  let mk_segment t children =
+    Haz3lcore.Segment.of_tile (mk_tile t children)
 
-  let op_of_optok optok : UExp.op_bin =
-    match optok with
-    | Plus -> UExp.Int(UExp.Plus)
-    | Minus -> UExp.Int(UExp.Minus)
-    | Times -> UExp.Int(UExp.Times)
-    | Divide -> UExp.Int(UExp.Divide)
-    | LessThan -> UExp.Int(UExp.LessThan)
-    | LessThanEqual -> UExp.Int(UExp.LessThanOrEqual)
-    | GreaterThan -> UExp.Int(UExp.GreaterThan)
-    | GreaterThanEqual -> UExp.Int(UExp.GreaterThanOrEqual)
-    | Equals -> UExp.Int(UExp.Equals)
-    (* Float *)
-    | FPlus -> UExp.Float(UExp.Plus)
-    | FMinus -> UExp.Float(UExp.Minus)
-    | FTimes -> UExp.Float(UExp.Times)
-    | FDivide -> UExp.Float(UExp.Divide)
-    | FLessThan -> UExp.Float(UExp.LessThan)
-    | FLessThanEqual -> UExp.Float(UExp.LessThanOrEqual)
-    | FGreaterThan -> UExp.Float(UExp.GreaterThan)
-    | FGreaterThanEqual -> UExp.Float(UExp.GreaterThanOrEqual)
-    | FEquals -> UExp.Float(UExp.Equals)
-    (* Binary *)
-    | And -> UExp.Bool(UExp.And)
-    | Or -> UExp.Bool(UExp.Or)
+  let mk_exp label children =
+    mk_segment (Haz3lcore.Sort.Exp, label) children
+
+  let mk_pat label children =
+    mk_segment (Haz3lcore.Sort.Pat, label) children
+
+  let mk_typ label children =
+    mk_segment (Haz3lcore.Sort.Typ, label) children
+
 %}
 
 %token AND
@@ -146,7 +129,7 @@
 %nonassoc app
 
 %start main
-%type <UExp.t> main
+%type <Haz3lcore.Base.segment> main
 
 %%
 
@@ -154,21 +137,21 @@ let main :=
   ~ = expr; EOF; <>
 
 let typ :=
-  | t1 = typ; TARROW; t2 = typ_; { mk_utyp (UTyp.Arrow(t1, t2)) }
+  | t1 = typ; TARROW; t2 = typ_; { mk_typ ["->"] [t1; t2] }
   (* Tuple *)
   | ~ = typ_; <>
 
 let typ_ :=
   (* Invalid, Multihole *)
-  | EMPTY_HOLE; { mk_utyp UTyp.EmptyHole }
-  | LPAREN; ~ = typ; RPAREN; { mk_utyp (UTyp.Parens(typ)) }
-  | LBRACK; ~ = typ; RBRACK; { mk_utyp (UTyp.List(typ)) }
+  | EMPTY_HOLE; { mk_typ ["?"] [] }
+  | LPAREN; ~ = typ; RPAREN; { mk_typ ["("; ")"] [typ] }
+  | LBRACK; ~ = typ; RBRACK; { mk_typ ["["; "]"] [typ] }
   | id = IDENT; {
     match id with
-    | "Int" -> mk_utyp UTyp.Int
-    | "Bool" -> mk_utyp UTyp.Bool
-    | "Float" -> mk_utyp UTyp.Float
-    | "String" -> mk_utyp UTyp.String
+    | "Int" -> mk_typ ["Int"] []
+    | "Bool" -> mk_typ ["Bool"] []
+    | "Float" -> mk_typ ["Float"] []
+    | "String" -> mk_typ ["String"] []
     | _ -> failwith ("Unknown Type: "^id)
   }
 
@@ -176,35 +159,38 @@ let typ_ :=
 (* Patterns *)
 
 let pat :=
-  | p1 = pat; COMMA; p2 = pat; { mk_upat (UPat.Tuple(p1::[p2])) }
-  | p = pat; COLON; t = typ; {mk_upat (UPat.TypeAnn(p, t))}
+  | p1 = pat; COMMA; p2 = pat; { mk_pat [","] [p1; p2] }
+  | p = pat; COLON; t = typ; { mk_pat [":"] [p; t] }
   | ~ = pat_; <>
 
 let pat_ :=
 (* Invalid *)
-  | EMPTY_HOLE; { mk_upat (UPat.EmptyHole) }
+  | EMPTY_HOLE; { mk_pat ["?"] [] }
 (* MultiHole *)
+  (*
   | WILD; {mk_upat (UPat.Wild)}
-  | i = INT; { mk_upat (UPat.Int i) }
-  | FLOAT; { mk_upat (UPat.Float(0.)) }
-  | TRUE; { mk_upat (UPat.Bool(true)) }
-  | FALSE; { mk_upat (UPat.Bool(false)) }
-  | TRIV; { mk_upat (UPat.Triv) }
-  | LBRACK; RBRACK; { mk_upat (UPat.ListLit([])) }
+  *)
+  | i = INT; { mk_pat [Int.to_string i] [] }
+  | f = FLOAT; { mk_pat [f] [] }
+  | TRUE; { mk_pat ["true"] [] }
+  | FALSE; { mk_pat ["false"] [] }
+  | TRIV; { mk_pat ["triv"] [] }
+  | LBRACK; RBRACK; { mk_pat ["{"; "}"] [] }
   (* Cons *)
-  | id = IDENT; { mk_upat (UPat.Var(id)) }
-  | LPAREN; p = pat; RPAREN; { mk_upat (UPat.Parens p)}
+  | id = IDENT; { mk_pat [id] [] }
+  | LPAREN; p = pat; RPAREN; { mk_pat ["("; ")"] [p] }
 
 
 (* Expressions *)
 
 let expr :=
-  | e1 = expr; COLONCOLON; e2 = expr; { mk_uexp (UExp.Cons(e1, e2)) }
-  | e1 = expr; SEMICOLON; e2 = expr; { mk_uexp (UExp.Seq(e1, e2)) }
-  | e1 = expr; LPAREN; e2 = expr; RPAREN; { mk_uexp (UExp.Ap(e1, e2)) }
-  | e1 = expr; op = infix_op; e2 = expr; { mk_uexp (UExp.BinOp(op, e1, e2))}
+  | e1 = expr; COLONCOLON; e2 = expr; { mk_exp ["::"] [e1; e2] }
+  | e1 = expr; SEMICOLON; e2 = expr; { mk_exp [";"] [e1; e2] }
+  | e1 = expr; LPAREN; e2 = expr; RPAREN; { mk_exp ["("; ")"] [e1; e2] }
+  (* FIXME: How to do op? *)
+  | e1 = expr; _ = infix_op; e2 = expr; { mk_exp [] [e1; e2] }
   (* FIXME: This might allow a match with no rules? *)
-  | e1 = expr; COMMA; e2 = expr; { mk_uexp (UExp.Tuple(e1::[e2])) }
+  | e1 = expr; COMMA; e2 = expr; { mk_exp [","] [e1; e2] }
   | ~ = expr_; <>
 
 let rule ==
@@ -212,56 +198,48 @@ let rule ==
 
 let expr_ :=
   (* Invalid *)
-  | EMPTY_HOLE; { mk_uexp UExp.EmptyHole }
+  | EMPTY_HOLE; { mk_exp ["?"] [] }
   (* Multihole *)
-  | TRIV; { mk_uexp UExp.Triv }
-  | TRUE; { mk_uexp (UExp.Bool true) }
-  | FALSE; { mk_uexp (UExp.Bool false) }
-  | i = INT; { mk_uexp (UExp.Int i) }
-  | FLOAT; { mk_uexp (UExp.Float 0.) }
-  | NIL; { mk_uexp (ListLit([])) }
-  | FUN; p = pat; TARROW; e = expr; {
-    mk_uexp (UExp.Fun(p, e))
-  }
+  | TRIV; { mk_exp ["triv"] [] }
+  | TRUE; { mk_exp ["true"] [] }
+  | FALSE; { mk_exp ["false"] [] }
+  | i = INT; { mk_exp [Int.to_string i] [] }
+  | f = FLOAT; { mk_exp [f] [] }
+  | NIL; { mk_exp ["nil"] [] }
+  | FUN; p = pat; TARROW; e = expr; { mk_exp ["fun"; "->"] [p; e] }
   (* Need to differentiate between tuple and single list element*)
-  | LBRACK; e = expr; RBRACK; {
-    match e with
-    | { ids = _ ; term = Tuple(es)} -> mk_uexp (ListLit(es))
-    | _ -> mk_uexp (ListLit([e]))
-  }
-  | id = IDENT; { mk_uexp (UExp.Var id) }
+  | LBRACK; e = expr; RBRACK; { mk_exp ["["; "]"] [e] }
+  | id = IDENT; { mk_exp [id] [] }
   | LET; p = pat; EQUAL; e1 = expr; IN; e2 = expr;
-    { mk_uexp (UExp.Let(p, e1, e2)) }
+    { mk_exp ["let"; "="; "in"] [p; e1; e2] }
   | IF; e1 = expr; THEN; e2 = expr; ELSE; e3 = expr;
-    { mk_uexp (UExp.If(e1, e2, e3)) }
-  | TEST; e = expr; END; { mk_uexp (UExp.Test e)}
-  | LPAREN; e = expr; RPAREN; { mk_uexp (UExp.Parens e) }
-  | CASE; e = expr; ruls = list(rule); END; { mk_uexp (UExp.Match(e, ruls))}
-  | MINUS; e = expr; %prec uminus {
-    mk_uexp (UExp.UnOp(UExp.Int(Minus), e))
-  } 
-  | s = STRING; { mk_uexp (UExp.String s) }
+    { mk_exp ["if"; "then"; "else"] [e1; e2; e3] }
+  | TEST; e = expr; END; { mk_exp ["test"; "end"] [e] }
+  | LPAREN; e = expr; RPAREN; { mk_exp ["("; ")"] [e] }
+  | CASE; e = expr; _ = list(rule); END; { mk_exp ["case"; "end"] [e]}
+  | MINUS; e = expr; %prec uminus { mk_exp ["-"] [e] }
+  | _ = STRING; { mk_exp ["^s^"] [] }
 
 let infix_op ==
-    | PLUS; {op_of_optok Plus}
-    | MINUS; {op_of_optok Minus}
-    | MULT; {op_of_optok Times}
-    | DIV; {op_of_optok Divide}
-    | LESSER; {op_of_optok LessThan}
-    | LESSEREQUAL; {op_of_optok LessThanEqual}
-    | GREATER; {op_of_optok GreaterThan}
-    | GREATEREQUAL; {op_of_optok GreaterThanEqual}
-    | EQUALEQUAL; {op_of_optok Equals}
-    (* Float *)
-    | FPLUS; {op_of_optok FPlus}
-    | FMINUS; {op_of_optok FMinus}
-    | FMULT; {op_of_optok FTimes}
-    | FDIV; {op_of_optok FDivide}
-    | FLESSER; {op_of_optok FLessThan}
-    | FLESSEREQUAL; {op_of_optok FLessThanEqual}
-    | FGREATER; {op_of_optok FGreaterThan}
-    | FGREATEREQUAL; {op_of_optok FGreaterThanEqual}
-    | FEQUALEQUAL; {op_of_optok FEquals}
-    (* Binary *)
-    | AND; {op_of_optok And}
-    | OR; {op_of_optok Or}
+  | PLUS; {}
+  | MINUS; {}
+  | MULT; {}
+  | DIV; {}
+  | LESSER; {}
+  | LESSEREQUAL; {}
+  | GREATER; {}
+  | GREATEREQUAL; {}
+  | EQUALEQUAL; {}
+  (* Float *)
+  | FPLUS; {}
+  | FMINUS; {}
+  | FMULT; {}
+  | FDIV; {}
+  | FLESSER; {}
+  | FLESSEREQUAL; {}
+  | FGREATER; {}
+  | FGREATEREQUAL; {}
+  | FEQUALEQUAL; {}
+  (* Binary *)
+  | AND; {}
+  | OR; {}

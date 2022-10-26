@@ -47,12 +47,14 @@ let test_parse text : bool =
   let ast = ast_of_string text in
   match ast with
   | Ok b ->
-      let c = Text.Print.print_uexp b in
+      let s = Haz3lcore.Segment.sexp_of_t b in
+      print_endline (Sexplib.Sexp.to_string_hum s);
       (*
+      let c = Text.Print.print_uexp b in
       let d = Sexplib.Sexp.to_string_hum (Haz3lcore.Term.UExp.sexp_of_t b) in
       print_endline d;
-      *)
       print_endline c;
+      *)
       print_endline "";
       true
   | Error e ->
@@ -62,6 +64,7 @@ let test_parse text : bool =
 let test_incorrect text = test_parse text = false
 
 let%test "let basic" = test_parse "let a = 1 in a"
+(*
 let%test "let type annotation" = test_parse "let a : Int = 1 in a"
 let%test "basic lambda" = test_parse "fun f -> f"
 let%test "multiline" = test_parse "let a =\n 1\n in\n a"
@@ -87,7 +90,6 @@ let%test "major" =
     \  fun (x : Int) -> x + 5 < 0 in\n\
      true && f(a) && f(4) && (g(5) == 6)\n\
     \  "
-(*
 let%test "basic types" = test_parse "1; two; 3.0; true; false"
 let%test "comment" = test_parse "#Comment\n 3"
 (* Currently, the final line must be an Exp line *)
