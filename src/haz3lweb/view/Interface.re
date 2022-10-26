@@ -77,8 +77,9 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
-  | exception _ =>
+  | exception exn =>
     print_endline("Other evaluation exception raised (stack overflow?)");
+    Printexc.to_string(exn) |> print_endline;
     (
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,
