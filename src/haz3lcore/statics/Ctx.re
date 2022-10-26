@@ -7,12 +7,13 @@ type value =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
+  name: Token.t,
   id: Id.t,
   value,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(entry);
+type t = list(entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type co_item = {
@@ -29,16 +30,16 @@ type co = VarMap.t_(co_entry);
 let empty = VarMap.empty;
 
 let lookup_typ = (ctx: t, x) =>
-  VarMap.find_map(
-    ((k, {id: _, value})) =>
+  List.find_map(
+    ({name, value, _}) =>
       switch (value) {
       | Typ(t) =>
-        if (k == x) {
+        if (name == x) {
           Some(t);
         } else {
           None;
         }
-      | _ => None
+      | Kind(_) => None
       },
     ctx,
   );
@@ -78,26 +79,18 @@ module VarSet = Set.Make(Token);
 let filter_duplicates = (ctx: t): t =>
   ctx
   |> List.fold_left(
-       ((ctx, term_set, typ_set), (x, entry)) => {
+       ((ctx, term_set, typ_set), entry) => {
          switch (entry.value) {
          | Typ(_) =>
-           VarSet.mem(x, term_set)
+           VarSet.mem(entry.name, term_set)
              ? (ctx, term_set, typ_set)
-             : (
-               VarMap.extend(ctx, (x, entry)),
-               VarSet.add(x, term_set),
-               typ_set,
-             )
+             : ([entry, ...ctx], VarSet.add(entry.name, term_set), typ_set)
          | Kind(_) =>
-           VarSet.mem(x, term_set)
+           VarSet.mem(entry.name, term_set)
              ? (ctx, term_set, typ_set)
-             : (
-               VarMap.extend(ctx, (x, entry)),
-               term_set,
-               VarSet.add(x, typ_set),
-             )
+             : ([entry, ...ctx], term_set, VarSet.add(entry.name, typ_set))
          }
        },
-       (VarMap.empty, VarSet.empty, VarSet.empty),
+       ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
