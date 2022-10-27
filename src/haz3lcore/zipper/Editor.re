@@ -5,18 +5,24 @@ module Meta = {
   type t = {
     touched: Touched.t,
     measured: Measured.t,
+    term_ranges: TermRanges.t,
     col_target: int,
   };
 
   let init = (z: Zipper.t) => {
-    touched: Touched.empty,
-    measured: Measured.of_segment(Zipper.unselect_and_zip(z)),
-    col_target: 0,
+    let unselected = Zipper.unselect_and_zip(z);
+    {
+      touched: Touched.empty,
+      measured: Measured.of_segment(unselected),
+      term_ranges: TermRanges.mk(unselected),
+      col_target: 0,
+    };
   };
 
   module type S = {
     let touched: Touched.t;
     let measured: Measured.t;
+    let term_ranges: TermRanges.t;
     let col_target: int;
   };
   let module_of_t = (m: t): (module S) =>
@@ -24,6 +30,7 @@ module Meta = {
      {
        let touched = m.touched;
        let measured = m.measured;
+       let term_ranges = m.term_ranges;
        let col_target = m.col_target;
      });
 
@@ -35,21 +42,18 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target} = meta;
+    let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
-    let measured =
-      Measured.of_segment(
-        ~touched,
-        ~old=measured,
-        Zipper.unselect_and_zip(z),
-      );
+    let unselected = Zipper.unselect_and_zip(z);
+    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
+    let term_ranges = TermRanges.mk(unselected);
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
-      | Select(Local(Up | Down)) => col_target
+      | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, col_target};
+    {touched, measured, term_ranges, col_target};
   };
 };
 
