@@ -310,7 +310,7 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
   | Var(name) =>
-    switch (Ctx.lookup_typ(ctx, name)) {
+    switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
     | Some(typ) =>
       add(
