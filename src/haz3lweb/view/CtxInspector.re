@@ -2,19 +2,22 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let context_entry_view =
-    (~inject, {name, value, id, _}: Haz3lcore.Ctx.entry): Node.t =>
+let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
   div(
     ~attr=
       Attr.many([
         clss(["context-entry"]),
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(JumpToId(id)))
+          inject(
+            UpdateAction.PerformAction(
+              JumpToId(Haz3lcore.Ctx.get_id(entry)),
+            ),
+          )
         ),
       ]),
-    switch (value) {
-    | Typ(typ) => [text(name), text(":"), Type.view(typ)]
-    | Kind(kind) => [
+    switch (entry) {
+    | VarEntry({name, typ, _}) => [text(name), text(":"), Type.view(typ)]
+    | TVarEntry({name, kind, _}) => [
         text("type "),
         text(name),
         text("::"),
