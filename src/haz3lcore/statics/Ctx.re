@@ -36,6 +36,8 @@ type co = VarMap.t_(co_entry);
 
 let empty = VarMap.empty;
 
+let extend = (entry: entry, ctx: t) => [entry, ...ctx];
+
 let lookup_var = (ctx: t, x) =>
   List.find_map(
     entry =>
