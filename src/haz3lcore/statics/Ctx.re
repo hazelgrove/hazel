@@ -1,16 +1,23 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type value =
-  | Typ(Typ.t)
-  | Kind(Kind.t);
+type entry =
+  | VarEntry({
+      name: Token.t,
+      id: Id.t,
+      typ: Typ.t,
+    })
+  | TVarEntry({
+      name: Token.t,
+      id: Id.t,
+      kind: Kind.t,
+    });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
-  name: Token.t,
-  id: Id.t,
-  value,
-};
+let get_id = (entry: entry) =>
+  switch (entry) {
+  | VarEntry({id, _}) => id
+  | TVarEntry({id, _}) => id
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
@@ -31,15 +38,15 @@ let empty = VarMap.empty;
 
 let lookup_var = (ctx: t, x) =>
   List.find_map(
-    ({name, value, _}) =>
-      switch (value) {
-      | Typ(t) =>
+    entry =>
+      switch (entry) {
+      | VarEntry({name, typ, _}) =>
         if (name == x) {
-          Some(t);
+          Some(typ);
         } else {
           None;
         }
-      | Kind(_) => None
+      | TVarEntry(_) => None
       },
     ctx,
   );
@@ -80,15 +87,15 @@ let filter_duplicates = (ctx: t): t =>
   ctx
   |> List.fold_left(
        ((ctx, term_set, typ_set), entry) => {
-         switch (entry.value) {
-         | Typ(_) =>
-           VarSet.mem(entry.name, term_set)
+         switch (entry) {
+         | VarEntry({name, _}) =>
+           VarSet.mem(name, term_set)
              ? (ctx, term_set, typ_set)
-             : ([entry, ...ctx], VarSet.add(entry.name, term_set), typ_set)
-         | Kind(_) =>
-           VarSet.mem(entry.name, term_set)
+             : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+         | TVarEntry({name, _}) =>
+           VarSet.mem(name, term_set)
              ? (ctx, term_set, typ_set)
-             : ([entry, ...ctx], term_set, VarSet.add(entry.name, typ_set))
+             : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
          }
        },
        ([], VarSet.empty, VarSet.empty),

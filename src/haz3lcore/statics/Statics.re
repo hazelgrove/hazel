@@ -540,10 +540,7 @@ and upat_to_info_map =
     let typ = typ_after_fix(mode, self);
     add(
       ~self,
-      ~ctx=[
-        {name, id: Term.UPat.rep_id(upat), value: Ctx.Typ(typ)},
-        ...ctx,
-      ],
+      ~ctx=[VarEntry({name, id: Term.UPat.rep_id(upat), typ}), ...ctx],
       Id.Map.empty,
     );
   | Tuple(ps) =>
