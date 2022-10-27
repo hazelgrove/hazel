@@ -29,7 +29,7 @@ type co = VarMap.t_(co_entry);
 
 let empty = VarMap.empty;
 
-let lookup_typ = (ctx: t, x) =>
+let lookup_var = (ctx: t, x) =>
   List.find_map(
     ({name, value, _}) =>
       switch (value) {
@@ -47,7 +47,7 @@ let lookup_typ = (ctx: t, x) =>
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
     ((k, _)) =>
-      switch (lookup_typ(ctx, k)) {
+      switch (lookup_var(ctx, k)) {
       | None => true
       | Some(_) => false
       },
