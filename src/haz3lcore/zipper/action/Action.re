@@ -14,10 +14,20 @@ type jump_target =
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type term =
+  | Current
+  | Id(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type select =
+  | Resize(move)
+  | Term(term);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
   | Jump(jump_target)
-  | Select(move)
+  | Select(select)
   | Unselect
   | Destruct(Direction.t)
   | Insert(string)
