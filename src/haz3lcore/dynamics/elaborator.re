@@ -72,11 +72,12 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | (ListLit(_, _, _, _, []), Unknown(prov)) =>
         Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
       | (ListLit(_, _, _, _, []), _) => Some(d)
-      | (Tuple(_), Prod(_)) => Some(d)
-      //| (Tuple(_), Unknown(_)) => Some(d)
       | (Fun(_), Unknown(prov)) =>
         Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
       | (Fun(_), _) => Some(d)
+      | (Tuple(_), Prod(_)) => Some(d)
+      | (ConsistentCase(_), _) => Some(d)
+      | (InconsistentBranches(_), _) => Some(d)
       | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
