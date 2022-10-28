@@ -11,11 +11,11 @@ let is_empty =
   | [_, ..._] => false;
 
 let extend = (ctx, xa) => {
-  let (x, _) = xa;
-  [xa, ...List.remove_assoc(x, ctx)];
+  [xa, ...ctx];
 };
 
-let union = (ctx1, ctx2) => List.fold_left(extend, ctx2, ctx1);
+// The new things should go to the right when concatenating
+let concat = (ctx, new_ctx) => new_ctx @ ctx;
 
 let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
@@ -28,3 +28,5 @@ let filter = List.filter;
 let length = List.length;
 
 let to_list = ctx => ctx;
+
+let find_map = List.find_map;

@@ -8,9 +8,6 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, Ctx.{typ, _})) => (k, typ), ctx);
-
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
