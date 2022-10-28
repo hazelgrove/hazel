@@ -193,7 +193,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
           List.init(List.length(tys), _ => Typ.Unknown(Internal)),
         ),
       ),
-    );
+    )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
     matches_cast_Tuple(
       dps,
