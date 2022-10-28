@@ -384,7 +384,7 @@ let rec mk =
         } else {
           switch (s) {
           | None => annot(DHAnnot.Collapsed, text("<fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<fn> " ++ name))
+          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
       | FixF(x, ty, dbody) =>

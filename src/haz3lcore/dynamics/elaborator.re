@@ -207,6 +207,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         /* simple recursion */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
+        let ddef =
+          switch (ddef) {
+          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
+          | _ => ddef
+          };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         wrap(Let(dp, FixF(f, ty, ddef), dbody));
