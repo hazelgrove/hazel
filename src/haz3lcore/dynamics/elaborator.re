@@ -79,7 +79,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       //| (Tuple(_), Unknown(_)) => Some(d)
       | (Fun(_), Unknown(prov)) =>
         Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
-      //| (Fun(_), _) => Some(d)
+      | (Fun(_), _) => Some(d)
       | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
