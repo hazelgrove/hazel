@@ -402,14 +402,31 @@ let rec mk =
           annot(DHAnnot.Collapsed, text("<fn>"));
         }
       };
-    let doc =
-      parenthesize
-        ? hcats([
-            DHDoc_common.Delim.open_Parenthesized,
-            fdoc |> DHDoc_common.pad_child(~enforce_inline),
-            DHDoc_common.Delim.close_Parenthesized,
-          ])
-        : fdoc(~enforce_inline);
+    let doc = {
+      let (_, objs) =
+        EvaluatorStep.decompose(
+          Environment.empty,
+          d,
+          EvaluatorStep.default_option,
+        );
+      print_endline(
+        "objs: "
+        ++ Sexplib.Sexp.to_string_hum(
+             Sexplib.Std.sexp_of_list(EvaluatorStep.EvalObj.sexp_of_t, objs),
+           ),
+      );
+      if (objs == [EvaluatorStep.EvalObj.mk(Mark, d)]) {
+        annot(DHAnnot.Step(-1), fdoc(~enforce_inline));
+      } else {
+        parenthesize
+          ? hcats([
+              DHDoc_common.Delim.open_Parenthesized,
+              fdoc |> DHDoc_common.pad_child(~enforce_inline),
+              DHDoc_common.Delim.close_Parenthesized,
+            ])
+          : fdoc(~enforce_inline);
+      };
+    };
     (doc, cast);
   };
   mk_cast(go(~parenthesize, ~enforce_inline, d));

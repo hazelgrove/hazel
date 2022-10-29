@@ -421,6 +421,7 @@ let example_view =
               | None => []
               | Some(dhexp) => [
                   DHCode.view_tylr(
+                    ~inject,
                     ~settings=Settings.Evaluation.init,
                     ~selected_hole_instance=None,
                     ~font_metrics,

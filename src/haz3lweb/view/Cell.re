@@ -189,7 +189,8 @@ let deco =
   };
 };
 
-let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
+let eval_result_footer_view =
+    (~inject, ~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => [Node.text("No result available.")]
@@ -198,6 +199,7 @@ let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
       ]
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
+          ~inject,
           ~settings=Settings.Evaluation.init,
           ~selected_hole_instance=None,
           ~font_metrics,
@@ -292,7 +294,8 @@ let editor_with_result_view =
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
-  let eval_result_footer = eval_result_footer_view(~font_metrics, result);
+  let eval_result_footer =
+    eval_result_footer_view(~inject, ~font_metrics, result);
   editor_view(
     ~inject,
     ~font_metrics,

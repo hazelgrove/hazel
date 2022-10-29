@@ -71,7 +71,9 @@ let evaluate_all_option = {pause_subexpression: false};
 
 let rec transition =
         (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option): m(t) => {
-  print_endline("step: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+  /* print_endline( */
+  /*   "transition: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)), */
+  /* ); */
   // TODO: Investigate
   /* Increment number of evaluation steps (calls to `evaluate`). */
   // let* () = take_step;
@@ -86,7 +88,8 @@ let rec transition =
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
      * final expressions. */
-    transition(env, d, opt);
+    Step(d) |> return;
+  // transition(env, d, opt);
 
   | Sequence(d1, d2) =>
     let* r1 = transition(env, d1, opt);
@@ -110,14 +113,20 @@ let rec transition =
     switch (r1) {
     | Pause(d1') => Pause(Let(dp, d1', d2)) |> return
     | Step(d1') => Step(Let(dp, d1', d2)) |> return
-    | BoxedValue(d1)
-    | Indet(d1) =>
-      switch (matches(dp, d1)) {
+    | BoxedValue(d1')
+    | Indet(d1') =>
+      switch (matches(dp, d1')) {
       | IndetMatch
       | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
       | Matches(env') =>
-        let* env = evaluate_extend_env(env', env);
-        transition(env, d2, opt);
+        // let* env'' = evaluate_extend_env(env', env);
+        // print_endline(
+        //   "transition: Let: d2: "
+        //   ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2)),
+        // );
+        // transition(env, d2, opt);
+        // Step(Closure(env'', Let(dp, d1', d2))) |> return;
+        Step(Substitution.subst(env', d2)) |> return
       }
     };
 
@@ -204,7 +213,11 @@ let rec transition =
     };
 
   | ApBuiltin(ident, args) =>
-    evaluate_ap_builtin(env, ident, args) >>| t_of_evaluator_result
+    let* r = evaluate_ap_builtin(env, ident, args);
+    switch (r) {
+    | BoxedValue(d) => Step(d) |> return
+    | Indet(d) => Indet(d) |> return
+    };
 
   | TestLit(_)
   | BoolLit(_)
@@ -857,7 +870,7 @@ and evaluate_test_eq =
 };
 
 module EvalCtx = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
     | Ap1(t, DHExp.t)
@@ -886,7 +899,7 @@ module EvalCtx = {
 };
 
 module EvalType = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Step
     | Pause;
@@ -912,7 +925,7 @@ let is_pause = (d: t): bool => {
 };
 
 module EvalObj = {
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     ctx: EvalCtx.t,
     exp: DHExp.t,
@@ -929,196 +942,9 @@ module EvalObj = {
 
 let rec decompose =
         (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
-        : m((EvalCtx.t, DHExp.t)) => {
-  // Have to manually type the return here, since OCaml cannot infer the type of
-  // the monad of a pair.
-  let return = (x: (EvalCtx.t, DHExp.t), s: 'a): ('a, (EvalCtx.t, DHExp.t)) => (
-    s,
-    x,
-  );
-  switch (d) {
-  | Closure(_)
-  | Sequence(_)
-  | ApBuiltin(_)
-  | TestLit(_)
-  | StringLit(_)
-  | BinStringOp(_)
-  | Tuple(_)
-  | Prj(_)
-  | Tag(_)
-  // TODO:
-  | EmptyHole(_, _)
-  | ExpandingKeyword(_)
-  | FreeVar(_)
-  | InvalidText(_)
-  | BoundVar(_)
-  | Fun(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | ListLit(_)
-  | FixF(_) => (Mark, d) |> return
-  | Ap(d1, d2) =>
-    // What we do here is to first evaluate/step d1 then d2 in function
-    // application expression like d1(d2).
-    let* r1 = transition(env, d, opt);
-    if (is_final(r1)) {
-      let* r2 = transition(env, d, opt);
-      if (is_final(r2)) {
-        (Mark, d) |> return;
-      } else {
-        /* d2 = ctx{d2'} */
-        let* (ctx, d2') = decompose(env, d2, opt);
-        /* d1(ctx){d2'} */
-        (Ap2(d1, ctx), d2') |> return;
-      };
-    } else {
-      /* d1 = ctx{d1'} */
-      let* (ctx, d1') = decompose(env, d1, opt);
-      /* ctx(d2){d1'} */
-      (Ap1(ctx, d2), d1') |> return;
-    };
-  | NonEmptyHole(reason, u, i, d1) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (NonEmptyHole(reason, u, i, ctx), d0) |> return;
-    };
-  // All binary operations are just alike.
-  | BinBoolOp(op, d1, d2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      let* r2 = transition(env, d2, opt);
-      if (is_final(r2)) {
-        (Mark, d) |> return;
-      } else {
-        let* (ctx, d0) = decompose(env, d2, opt);
-        (BinBoolOp2(op, d1, ctx), d0) |> return;
-      };
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (BinBoolOp1(op, ctx, d2), d0) |> return;
-    };
-  | BinIntOp(op, d1, d2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      let* r2 = transition(env, d2, opt);
-      if (is_final(r2)) {
-        (Mark, d) |> return;
-      } else {
-        let* (ctx, d0) = decompose(env, d2, opt);
-        (BinIntOp2(op, d1, ctx), d0) |> return;
-      };
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (BinIntOp1(op, ctx, d2), d0) |> return;
-    };
-  | BinFloatOp(op, d1, d2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      let* r2 = transition(env, d2, opt);
-      if (is_final(r2)) {
-        (Mark, d) |> return;
-      } else {
-        let* (ctx, d0) = decompose(env, d2, opt);
-        (BinFloatOp2(op, d1, ctx), d0) |> return;
-      };
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (BinFloatOp1(op, ctx, d2), d0) |> return;
-    };
-  | Cons(d1, d2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      let* r2 = transition(env, d2, opt);
-      if (is_final(r2)) {
-        (Mark, d) |> return;
-      } else {
-        let* (ctx, d0) = decompose(env, d2, opt);
-        (Cons2(d1, ctx), d0) |> return;
-      };
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (Cons1(ctx, d2), d0) |> return;
-    };
-  | Cast(d1, ty1, ty2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (Cast(ctx, ty1, ty2), d0) |> return;
-    };
-  | FailedCast(d1, ty1, ty2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (FailedCast(ctx, ty1, ty2), d0) |> return;
-    };
-  // | Pair(d1, d2) =>
-  //   if (is_final(r1)) {
-  //     if (is_final(r2)) {
-  //       (Mark, d);
-  //     } else {
-  //       let* (ctx, d0) = decompose(env, d2, opt);
-  //       (Pair2(d1, ctx), d0);
-  //     };
-  //   } else {
-  //     let* (ctx, d0) = decompose(env, d1, opt);
-  //     (Pair1(ctx, d2), d0);
-  //   }
-  | Let(dp, d1, d2) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (Let(dp, ctx, d2), d0) |> return;
-    };
-  | Inj(ty, side, d1) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (Inj(ty, side, ctx), d0) |> return;
-    };
-  | InvalidOperation(d1, err) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (InvalidOperation(ctx, err), d0) |> return;
-    };
-  | ConsistentCase(Case(d1, rule, n)) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (ConsistentCase(Case(ctx, rule, n)), d0) |> return;
-    };
-  | InconsistentBranches(u, i, Case(d1, rule, n)) =>
-    let* r1 = transition(env, d1, opt);
-    if (is_final(r1)) {
-      (Mark, d) |> return;
-    } else {
-      let* (ctx, d0) = decompose(env, d1, opt);
-      (InconsistentBranches(u, i, Case(ctx, rule, n)), d0) |> return;
-    };
-  };
-};
-
-let rec decompose_all =
-        (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
         : m(list(EvalObj.t)) => {
   let* r = transition(env, d, opt);
-  print_endline("transition: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)));
+  // print_endline("decompose: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)));
   if (is_final(r)) {
     [] |> return;
   } else {
@@ -1149,8 +975,8 @@ let rec decompose_all =
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
-        let* ld2 = decompose_all(env, d2, opt);
+        let* ld1 = decompose(env, d1, opt);
+        let* ld2 = decompose(env, d2, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(Ap1(obj.ctx, d2), obj.exp),
@@ -1168,7 +994,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(NonEmptyHole(reason, u, i, obj.ctx), obj.exp),
@@ -1182,8 +1008,8 @@ let rec decompose_all =
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
-        let* ld2 = decompose_all(env, d2, opt);
+        let* ld1 = decompose(env, d1, opt);
+        let* ld2 = decompose(env, d2, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(BinBoolOp1(op, obj.ctx, d2), obj.exp),
@@ -1202,8 +1028,8 @@ let rec decompose_all =
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
-        let* ld2 = decompose_all(env, d2, opt);
+        let* ld1 = decompose(env, d1, opt);
+        let* ld2 = decompose(env, d2, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(BinIntOp1(op, obj.ctx, d2), obj.exp),
@@ -1224,8 +1050,8 @@ let rec decompose_all =
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
-        let* ld2 = decompose_all(env, d2, opt);
+        let* ld1 = decompose(env, d1, opt);
+        let* ld2 = decompose(env, d2, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(BinFloatOp1(op, obj.ctx, d2), obj.exp),
@@ -1244,8 +1070,8 @@ let rec decompose_all =
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
-        let* ld2 = decompose_all(env, d2, opt);
+        let* ld1 = decompose(env, d1, opt);
+        let* ld2 = decompose(env, d2, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(Cons1(obj.ctx, d2), obj.exp),
@@ -1263,7 +1089,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(Cast(obj.ctx, ty1, ty2), obj.exp),
@@ -1276,7 +1102,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(FailedCast(obj.ctx, ty1, ty2), obj.exp),
@@ -1306,7 +1132,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(Let(dp, obj.ctx, d2), obj.exp),
@@ -1319,7 +1145,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(Inj(ty, side, obj.ctx), obj.exp),
@@ -1332,7 +1158,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(InvalidOperation(obj.ctx, err), obj.exp),
@@ -1345,7 +1171,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(ConsistentCase(Case(obj.ctx, rule, n)), obj.exp),
@@ -1358,7 +1184,7 @@ let rec decompose_all =
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
-        let* ld1 = decompose_all(env, d1, opt);
+        let* ld1 = decompose(env, d1, opt);
         List.map(
           (obj: EvalObj.t): EvalObj.t =>
             EvalObj.mk(
@@ -1373,7 +1199,13 @@ let rec decompose_all =
   };
 };
 
-let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
+let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t => {
+  print_endline(
+    "compose: ctx: " ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
+  );
+  print_endline(
+    "compose: d: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+  );
   switch (ctx) {
   | Mark => d
   | Ap1(ctx1, d1) => Ap(compose((ctx1, d)), d1)
@@ -1401,42 +1233,54 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t =>
   | InconsistentBranches(u, i, Case(ctx1, rule, n)) =>
     InconsistentBranches(u, i, Case(compose((ctx1, d)), rule, n))
   };
-
-let step =
-    (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option): m(t) => {
-  let* r = transition(env, d, opt);
-  if (is_final(r)) {
-    r |> return;
-  } else {
-    let* (ctx, d0) = decompose(env, d, opt);
-    let* r0 = transition(env, d0, opt);
-    (
-      switch (r0) {
-      | Pause(d0') => Pause(compose((ctx, d0')))
-      | BoxedValue(d0') => BoxedValue(compose((ctx, d0')))
-      | Indet(d0') => Indet(compose((ctx, d0')))
-      | Step(d0') => Step(compose((ctx, d0')))
-      }
-    )
-    |> return;
-  };
 };
 
-/* let ctx_step = (d: DHExp.t, opt: evaluator_option): DHExp.t => */
-/*   if (is_final(d, opt)) { */
-/*     d; */
-/*   } else { */
-/*     //let ld = decompose_all(d, opt); */
-/*     //let ctx = List.nth(ld, 0).ctx; */
-/*     //let d0 = List.nth(ld, 0).exp; */
-/*     let (ctx, d0) = decompose(d, opt); */
-/*     switch (step(d0, opt)) { */
-/*     | Pause(d0') */
-/*     | BoxedValue(d0') */
-/*     | Indet(d0') */
-/*     | Step(d0') => compose((ctx, d0')) */
-/*     }; */
-/*   }; */
+// let step =
+//     (env: ClosureEnvironment.t, obj: EvalObj.t, opt: evaluator_option)
+//     : m((t, list(EvalObj.t))) => {
+//   let* (d, r) =
+//     switch (obj.typ) {
+//     | Pause => (compose((obj.ctx, obj.exp)), Pause(obj.exp)) |> return
+//     | Step =>
+//       let* r = transition(env, obj.exp, opt);
+//       switch (r) {
+//       | Pause(d)
+//       | BoxedValue(d)
+//       | Indet(d)
+//       | Step(d) => (compose((obj.ctx, d)), r) |> return
+//       };
+//     };
+//   print_endline(
+//     "composed: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+//   );
+//   let* ld = decompose(env, d, opt);
+//   (r, ld) |> return;
+// };
+
+let step =
+    (env: ClosureEnvironment.t, d: DHExp.t, ind: int, opt: evaluator_option)
+    : m(t) =>
+  if (ind == (-1)) {
+    BoxedValue(d) |> return;
+  } else {
+    let* r = transition(env, d, opt);
+    if (is_final(r)) {
+      BoxedValue(d) |> return;
+    } else {
+      let* ld = decompose(env, d, opt);
+      let obj = List.nth(ld, ind);
+      let* r = transition(env, obj.exp, opt);
+      (
+        switch (r) {
+        | Pause(d) => Pause(compose((obj.ctx, d)))
+        | BoxedValue(d) => BoxedValue(compose((obj.ctx, d)))
+        | Indet(d) => Indet(compose((obj.ctx, d)))
+        | Step(d) => Step(compose((obj.ctx, d)))
+        }
+      )
+      |> return;
+    };
+  };
 
 /* let obj_step = (obj: EvalObj.t, opt: evaluator_option): DHExp.t => { */
 /*   switch (step(obj.exp, opt)) { */
@@ -1461,34 +1305,37 @@ let step =
 /*   | _ => None */
 /*   }; */
 
-/* let quick_step_evaluate = */
-/*     (d: DHExp.t, opt: evaluator_option): EvaluatorResult.t => */
-/*   switch (quick_steps(d, opt)) { */
-/*   | Pause(d) */
-/*   | Step(d) */
-/*   | Indet(d) => Indet(d) */
-/*   | BoxedValue(d) => BoxedValue(d) */
-/*   }; */
-
-let rec record =
-        (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
-        : m(list(t)) => {
-  let* r' = step(env, d, opt);
-  if (is_final(r')) {
-    [r'] |> return;
-  } else {
-    let+ lst = record(env, unbox(r'), opt);
-    [r', ...lst];
+let quick_step_evaluate =
+    (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
+    : m(EvaluatorResult.t) => {
+  let* r = quick_steps(env, d, opt);
+  switch (r) {
+  | Pause(d)
+  | Step(d)
+  | Indet(d) => EvaluatorResult.Indet(d) |> return
+  | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
   };
 };
 
-let record = (env: Environment.t, d: DHExp.t): (state, list(t)) => {
-  let es = EvaluatorState.init;
-  let (env, es) =
-    es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  let opt = default_option;
-  record(env, d, opt, es);
-};
+/* let rec record = */
+/*         (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option) */
+/*         : m(list(t)) => { */
+/*   let* r' = step(env, d, opt); */
+/*   if (is_final(r')) { */
+/*     [r'] |> return; */
+/*   } else { */
+/*     let+ lst = record(env, unbox(r'), opt); */
+/*     [r', ...lst]; */
+/*   }; */
+/* }; */
+/**/
+/* let record = (env: Environment.t, d: DHExp.t): (state, list(t)) => { */
+/*   let es = EvaluatorState.init; */
+/*   let (env, es) = */
+/*     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env)); */
+/*   let opt = default_option; */
+/*   record(env, d, opt, es); */
+/* }; */
 
 /* let ctx_step_index = (d: DHExp.t, opt: evaluator_option, index: int): DHExp.t => */
 /*   if (is_final(d, opt)) { */
@@ -1505,49 +1352,29 @@ let record = (env: Environment.t, d: DHExp.t): (state, list(t)) => {
 /*     }; */
 /*   }; */
 
-let step = (env, d) => {
-  print_endline(
-    "stepping: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  );
+let step = (env: Environment.t, d: DHExp.t, ind: int, opt: evaluator_option) => {
+  // print_endline(
+  //   "stepping: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+  // );
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  let opt = default_option;
-  let (es, (ctx, d0)) =
-    TimeUtil.measure_time("decompose", true, () =>
-      decompose(env, d, opt, es)
-    );
-  print_endline(
-    "decomposed: ctx: " ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
-  );
-  print_endline(
-    "decomposed: d0: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d0)),
-  );
-  let (es, r) =
-    TimeUtil.measure_time("step", true, () => transition(env, d0, opt, es));
-  print_endline("stepped: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)));
-  TimeUtil.measure_time(
-    "compose",
-    true,
-    () => {
-      let (es, cr) =
-        switch (r) {
-        | Pause(d0') => (es, Pause(compose((ctx, d0'))))
-        | BoxedValue(d0') => (es, BoxedValue(compose((ctx, d0'))))
-        | Indet(d0') => (es, Indet(compose((ctx, d0'))))
-        | Step(d0') => (es, Step(compose((ctx, d0'))))
-        };
-      print_endline(
-        "composed: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(cr)),
-      );
-      (es, cr);
-    },
-  );
+  step(env, d, ind, opt, es);
 };
 
-let decompose_all = (env: Environment.t, d: DHExp.t, opt: evaluator_option) => {
+// let step = (env: Environment.t, obj: EvalObj.t, opt: evaluator_option) => {
+//   print_endline(
+//     "stepping: " ++ Sexplib.Sexp.to_string_hum(EvalObj.sexp_of_t(obj)),
+//   );
+//   let es = EvaluatorState.init;
+//   let (env, es) =
+//     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
+//   step(env, obj, opt, es);
+// };
+
+let decompose = (env: Environment.t, d: DHExp.t, opt: evaluator_option) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  decompose_all(env, d, opt, es);
+  decompose(env, d, opt, es);
 };

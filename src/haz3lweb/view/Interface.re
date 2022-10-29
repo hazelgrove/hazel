@@ -19,6 +19,23 @@ let evaluate =
     ~cache_size_bound=1000,
     Evaluator.evaluate(Environment.empty),
   );
+
+let step =
+  Core.Memo.general(~cache_size_bound=1000, (d, ind) =>
+    EvaluatorStep.step(
+      Environment.empty,
+      d,
+      ind,
+      EvaluatorStep.default_option,
+    )
+  );
+
+// let step =
+//   Core.Memo.general(
+//     ~cache_size_bound=1000,
+//     EvaluatorStep.step(Environment.empty, _, EvaluatorStep.default_option),
+//   );
+
 let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
   let ((d, hii), es) =
     es
@@ -63,9 +80,64 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (BoxedValue(d), es, hii);
+  // {result: BoxedValue(d), record: [], context: [], state: es, hii};
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
+  // {result: Indet(d), record: [], context: [], state: es, hii};
+  | exception (EvaluatorError.Exception(_reason)) =>
+    //HACK(andrew): supress exceptions for release
+    //raise(EvalError(reason))
+    print_endline("Interface.evaluate EXCEPTION");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
+  // {
+  //   result: Indet(InvalidText(0, 0, "EXCEPTION")),
+  //   record: [],
+  //   context: [],
+  //   state: EvaluatorState.init,
+  //   hii: HoleInstanceInfo.empty,
+  // };
+  | exception _ =>
+    print_endline("Other evaluation exception raised (stack overflow?)");
+    (
+      Indet(InvalidText(0, 0, "EXCEPTION")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
+  // {
+  //   result: Indet(InvalidText(0, 0, "EXCEPTION")),
+  //   record: [],
+  //   context: [],
+  //   state: EvaluatorState.init,
+  //   hii: HoleInstanceInfo.empty,
+  // };
+  };
+
+let step = (d: DHExp.t, ind: int): ProgramResult.t => {
+  let (es, d) = step(d, ind);
+  switch (d) {
+  | Step(d)
+  | Pause(d)
+  | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+  // {
+  //   result: BoxedValue(d),
+  //   record: [],
+  //   context: objs,
+  //   state: es,
+  //   hii: HoleInstanceInfo.empty,
+  // }
+  | Indet(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+  // {
+  //   result: Indet(d),
+  //   record: [],
+  //   context: objs,
+  //   state: es,
+  //   hii: HoleInstanceInfo.empty,
+  // }
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
@@ -83,14 +155,59 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
       HoleInstanceInfo.empty,
     );
   };
+};
+
+// let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
+//   let (es, (d, _)) = step(obj);
+//   switch (d) {
+//   | Step(d)
+//   | Pause(d)
+//   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+//   // {
+//   //   result: BoxedValue(d),
+//   //   record: [],
+//   //   context: objs,
+//   //   state: es,
+//   //   hii: HoleInstanceInfo.empty,
+//   // }
+//   | Indet(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
+//   // {
+//   //   result: Indet(d),
+//   //   record: [],
+//   //   context: objs,
+//   //   state: es,
+//   //   hii: HoleInstanceInfo.empty,
+//   // }
+//   | exception (EvaluatorError.Exception(_reason)) =>
+//     //HACK(andrew): supress exceptions for release
+//     //raise(EvalError(reason))
+//     print_endline("Interface.evaluate EXCEPTION");
+//     (
+//       Indet(InvalidText(0, 0, "EXCEPTION")),
+//       EvaluatorState.init,
+//       HoleInstanceInfo.empty,
+//     );
+//   | exception _ =>
+//     print_endline("Other evaluation exception raised (stack overflow?)");
+//     (
+//       Indet(InvalidText(0, 0, "EXCEPTION")),
+//       EvaluatorState.init,
+//       HoleInstanceInfo.empty,
+//     );
+//   };
+// };
 
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
+let get_step = (map, term): ProgramResult.t =>
+  term |> elaborate(map) |> evaluate;
+
 let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
-  };
+  Some(ProgramResult.get_dhexp(get_result(map, term)));
+
+let evaluation_step = (map, term): option(DHExp.t) =>
+  Some(ProgramResult.get_dhexp(get_result(map, term)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type test_results = {
@@ -114,8 +231,12 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 };
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (get_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
-  };
+  Some(
+    mk_results(
+      ~descriptions,
+      EvaluatorState.get_tests(
+        ProgramResult.get_state(get_result(map, term)),
+      ),
+    ),
+  );
 };
