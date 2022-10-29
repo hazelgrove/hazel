@@ -266,6 +266,7 @@ let view =
         ~footer=
           Some(
             Cell.eval_result_footer_view(
+              ~inject,
               ~font_metrics,
               user_impl.simple_result,
             ),

@@ -6,12 +6,13 @@ module TestStatus = Haz3lcore.TestStatus;
 module TestMap = Haz3lcore.TestMap;
 
 let test_instance_view =
-    (~font_metrics, (d, status): TestMap.instance_report) =>
+    (~inject, ~font_metrics, (d, status): TestMap.instance_report) =>
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [
       DHCode.view_tylr(
+        ~inject,
         ~settings=Settings.Evaluation.init,
         ~selected_hole_instance=None,
         ~font_metrics,
@@ -47,7 +48,10 @@ let test_report_view =
       ),
       div(
         ~attr=Attr.class_("test-instances"),
-        List.map(test_instance_view(~font_metrics), instance_reports),
+        List.map(
+          test_instance_view(~inject, ~font_metrics),
+          instance_reports,
+        ),
       ),
     ]
     @ (
@@ -210,7 +214,7 @@ let view_of_main_title_bar = (title_text: string) =>
   );
 
 let inspector_view =
-    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
+    (~inject, ~font_metrics, ~test_map: TestMap.t, id: int): option(t) => {
   switch (TestMap.lookup(id, test_map)) {
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
     Some(
@@ -219,7 +223,7 @@ let inspector_view =
         [
           div(
             ~attr=Attr.class_("test-instances"),
-            List.map(test_instance_view(~font_metrics), instances),
+            List.map(test_instance_view(~inject, ~font_metrics), instances),
           ),
         ],
       ),

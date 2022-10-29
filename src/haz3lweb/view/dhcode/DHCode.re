@@ -109,6 +109,12 @@ let view_of_layout =
 };
 
 let assign_step_indices = (layout): Layout.t(DHAnnot.t) => {
+  // print_endline(
+  //   "before index: "
+  //   ++ Sexplib.Sexp.to_string_hum(
+  //        Layout.sexp_of_t(DHAnnot.sexp_of_t, layout),
+  //      ),
+  // );
   let rec assign = (index: int, l: Layout.t(DHAnnot.t)) =>
     switch (l) {
     | Text(_)
@@ -127,6 +133,12 @@ let assign_step_indices = (layout): Layout.t(DHAnnot.t) => {
       }
     };
   let (_, layout') = assign(0, layout);
+  // print_endline(
+  //   "after index: "
+  //   ++ Sexplib.Sexp.to_string_hum(
+  //        Layout.sexp_of_t(DHAnnot.sexp_of_t, layout'),
+  //      ),
+  // );
   layout';
 };
 
@@ -175,7 +187,7 @@ let view_of_hole_instance =
 let view_of_var = x => Node.text(x);
 
 let view_of_layout_tylr =
-    (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+    (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -190,7 +202,21 @@ let view_of_layout_tylr =
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
              let (txt, ds) = go(m);
              switch (annot) {
-             | Step(_)
+             | Step(ind) => (
+                 [
+                   Node.span(
+                     ~attr=
+                       Attr.many([
+                         Attr.classes(["Steppable"]),
+                         Attr.on_click(_ =>
+                           inject(UpdateAction.StepForward(ind))
+                         ),
+                       ]),
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              | Term => (txt, ds)
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)
@@ -263,6 +289,7 @@ let view_of_layout_tylr =
 
 let view_tylr =
     (
+      ~inject,
       ~settings: Settings.Evaluation.t,
       ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
@@ -277,7 +304,8 @@ let view_tylr =
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
-  |> view_of_layout_tylr(~font_metrics);
+  |> assign_step_indices
+  |> view_of_layout_tylr(~inject, ~font_metrics);
 };
 
 type font_metrics = FontMetrics.t;

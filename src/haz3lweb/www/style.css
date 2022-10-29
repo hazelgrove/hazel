@@ -125,6 +125,7 @@
 
   --line-height: 1.45;
 
+  --step-hole-color: green;
   --selection-box-z: 1;
   --genie-z: 1;
   --empty-hole-z: 5;
@@ -1865,4 +1866,11 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+.Steppable {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(231, 255, 186);
+  margin: -1px;
+  cursor: pointer;
 }

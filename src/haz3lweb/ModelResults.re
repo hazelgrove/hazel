@@ -16,7 +16,7 @@ type t = M.t(ModelResult.t);
 let init = (ds: list((Key.t, DHExp.t))): t =>
   ds
   |> List.map(((key, d)) =>
-       (key, ModelResult.init(Interface.evaluate(d)))
+       (key, ModelResult.init(Interface.step(d, -1)))
      )
   |> List.to_seq
   |> of_seq;
