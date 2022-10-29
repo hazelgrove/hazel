@@ -130,6 +130,16 @@ module App = {
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
+      ~on_display=(_, ~schedule_action as _) => {
+        let caret_elem = JsUtil.get_elem_by_id("caret");
+        let page_rect = JsUtil.get_elem_by_id("page")##getBoundingClientRect;
+        let caret_rect = caret_elem##getBoundingClientRect;
+        if (caret_rect##.top < page_rect##.top) {
+          caret_elem##scrollIntoView(Js._true);
+        } else if (caret_rect##.bottom > page_rect##.bottom) {
+          caret_elem##scrollIntoView(Js._false);
+        };
+      },
     );
   };
 };
