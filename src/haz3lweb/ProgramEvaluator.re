@@ -40,8 +40,8 @@ module Sync: M with type response = response = {
   let get_response = ((): t, (key, d, m_res): request) => {
     let lwt = {
       let prev = m_res |> ModelResult.get_previous;
-      let d_prev = prev |> ProgramResult.get_elaborator_result;
-      let d_prev_result = prev |> ProgramResult.get_dhexp;
+      let d_prev = Some(prev |> ProgramResult.get_elaborator_result);
+      let d_prev_result = Some(prev |> ProgramResult.get_dhexp);
       let+ r = Lwt.wrap(() => Interface.evaluate(d, ~d_prev, ~d_prev_result));
       let res =
         switch (r) {

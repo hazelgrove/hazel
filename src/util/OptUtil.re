@@ -35,5 +35,6 @@ let and_then = (f, o) => Option.bind(o, f);
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);
+  let (>>|) = (let+);
   let (and+) = zip;
 };

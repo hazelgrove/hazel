@@ -65,7 +65,8 @@ let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
   ((d, hii), EvaluatorState.put_tests(tests, es));
 };
 
-let evaluate = (~d_prev=?, ~d_prev_result=?, d0: DHExp.t): ProgramResult.t =>
+let evaluate =
+    (~d_prev=None, ~d_prev_result=None, d0: DHExp.t): ProgramResult.t =>
   switch (fill_resume_evaluate(d0, d_prev, d_prev_result)) {
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);

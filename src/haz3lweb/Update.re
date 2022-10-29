@@ -169,34 +169,29 @@ let reevaluate_post_update =
   | Redo => true;
 
 let evaluate_and_schedule =
-    (_state: State.t, ~schedule_action as _, model: Model.t): Model.t => {
-  let model = {
-    ...model,
-    results:
-      ModelResults.init(
-        model.settings.dynamics
-          ? Editors.get_spliced_elabs(model.editors) : [],
-      ),
+    (_state: State.t, ~schedule_action, model: Model.t): Model.t => {
+  open Util.OptUtil.Syntax;
+  open ModelResult;
+
+  if (model.settings.dynamics) {
+    Editors.get_spliced_elabs(model.editors)
+    |> List.iter(((key, d)) => {
+         let m_res = ModelResults.lookup(model.results, key);
+         let prev = m_res >>| ModelResult.get_previous;
+         let d_prev = prev >>| ProgramResult.get_elaborator_result;
+         let d_prev_result = prev >>| ProgramResult.get_dhexp;
+         let r = Interface.evaluate(d, ~d_prev, ~d_prev_result);
+         let res =
+           switch (r) {
+           | r => ResultOk(r)
+           | exception (Interface.EvalError(error)) =>
+             ResultFail(Program_EvalError(error))
+           | exception Interface.DoesNotElaborate =>
+             ResultFail(Program_DoesNotElaborate)
+           };
+         schedule_action(UpdateResult(key, res));
+       });
   };
-
-  // if (model.settings.dynamics) {
-  //   Editors.get_spliced_elabs(model.editors)
-  //   |> List.iter(((key, d)) => {
-  //        /* Send evaluation request. */
-  //        let pushed = State.evaluator_next(state, key, d);
-
-  //        /* Set evaluation to pending after short timeout. */
-  //        /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-  //         * updated before below action is scheduled. */
-  //        Delay.delay(
-  //          () =>
-  //            if (pushed |> Lwt.is_sleeping) {
-  //              schedule_action(UpdateResult(key, ResultPending));
-  //            },
-  //          300,
-  //        );
-  //      });
-  // };
   model;
 };
 
