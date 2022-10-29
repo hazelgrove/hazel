@@ -25,16 +25,11 @@ let shift_held = evt => Js.to_bool(evt##.shiftKey);
 let alt_held = evt => Js.to_bool(evt##.altKey);
 let meta_held = evt => Js.to_bool(evt##.metaKey);
 
-// let to_sys_clipboard = (string: string): unit =>
-//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##writeText(
-//     Js.string(string),
-//   );
+let num_clicks = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
+  Js.Unsafe.coerce(evt)##.detail;
 
-// let from_sys_clipboard = (callback: string => unit): Promise.t(unit) =>
-//   Js.Unsafe.coerce(Dom_html.window##.navigator)##.clipboard##readText()
-//   |> Promise.then_(~fulfilled=s =>
-//        s |> Js.to_string |> callback |> Promise.resolve
-//      );
+let is_double_click = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): bool =>
+  num_clicks(evt) == 2;
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {

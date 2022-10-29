@@ -23,7 +23,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Goal(goal))));
+            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
           }),
         ],
       ),
@@ -103,13 +103,16 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(
-              mousedown_handler(
-                ~inject,
-                ~font_metrics,
-                ~target_id=code_id,
-                ~additional_updates=mousedown_updates,
-              ),
+            Attr.on_mousedown(evt =>
+              JsUtil.is_double_click(evt)
+                ? inject(Update.PerformAction(Select(Term(Current))))
+                : mousedown_handler(
+                    ~inject,
+                    ~font_metrics,
+                    ~target_id=code_id,
+                    ~additional_updates=mousedown_updates,
+                    evt,
+                  )
             ),
           ]),
         Option.to_list(caption) @ code,

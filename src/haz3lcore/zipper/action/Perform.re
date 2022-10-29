@@ -44,7 +44,21 @@ let go_z =
   | Unselect =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
-  | Select(d) =>
+  | Select(Term(Current)) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.term(id, z)) {
+      | Some(z) => Ok((z, id_gen))
+      | None => Error(Action.Failure.Cant_select)
+      }
+    }
+  | Select(Term(Id(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok((z, id_gen))
+    | None => Error(Action.Failure.Cant_select)
+    }
+  | Select(Resize(d)) =>
     Select.go(d, z)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_select)
