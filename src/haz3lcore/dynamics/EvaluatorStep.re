@@ -3,6 +3,40 @@ open Util;
 open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 
+module EvalCtx = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Mark
+    | Ap1(t, DHExp.t)
+    | Ap2(DHExp.t, t)
+    | BinBoolOp1(DHExp.BinBoolOp.t, t, DHExp.t)
+    | BinBoolOp2(DHExp.BinBoolOp.t, DHExp.t, t)
+    | BinIntOp1(DHExp.BinIntOp.t, t, DHExp.t)
+    | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
+    | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
+    | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
+    | Cons1(t, DHExp.t)
+    | Cons2(DHExp.t, t)
+    | Let(DHPat.t, t, DHExp.t)
+    | Inj(Typ.t, InjSide.t, t)
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | Cast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t)
+    | InvalidOperation(t, InvalidOperationError.t)
+    | ConsistentCase(case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+  and case =
+    | Case(t, list(rule), int)
+  and rule = DHExp.rule;
+};
+
+module EvalType = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Step
+    | Pause;
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | BoxedValue(DHExp.t)
@@ -63,20 +97,11 @@ let eval_bin_string_op = Evaluator.eval_bin_string_op;
 
 let evaluate_ap_builtin = Evaluator.evaluate_ap_builtin;
 
-[@deriving sexp]
-type evaluator_option = {pause_subexpression: bool};
-
-let default_option = {pause_subexpression: true};
-let evaluate_all_option = {pause_subexpression: false};
-
 let rec transition =
-        (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option): m(t) => {
-  /* print_endline( */
-  /*   "transition: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)), */
-  /* ); */
-  // TODO: Investigate
+        (env: ClosureEnvironment.t, d: DHExp.t, opt: EvalType.t): m(t) => {
+  /* TODO: Investigate */
   /* Increment number of evaluation steps (calls to `evaluate`). */
-  // let* () = take_step;
+  /* let* () = take_step; */
   switch (d) {
   | BoundVar(x) =>
     let d =
@@ -88,8 +113,12 @@ let rec transition =
          });
     /* We need to call [evaluate] on [d] again since [env] does not store
      * final expressions. */
-    Step(d) |> return;
-  // transition(env, d, opt);
+    /* This is unreachable since every bound variable should be replaced
+     * in parent structure */
+    switch (opt) {
+    | Pause => Pause(BoundVar(x)) |> return
+    | Step => transition(env, d, Pause)
+    };
 
   | Sequence(d1, d2) =>
     let* r1 = transition(env, d1, opt);
@@ -115,18 +144,20 @@ let rec transition =
     | Step(d1') => Step(Let(dp, d1', d2)) |> return
     | BoxedValue(d1')
     | Indet(d1') =>
-      switch (matches(dp, d1')) {
-      | IndetMatch
-      | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2))) |> return
-      | Matches(env') =>
-        // let* env'' = evaluate_extend_env(env', env);
-        // print_endline(
-        //   "transition: Let: d2: "
-        //   ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2)),
-        // );
-        // transition(env, d2, opt);
-        // Step(Closure(env'', Let(dp, d1', d2))) |> return;
-        Step(Substitution.subst(env', d2)) |> return
+      switch (opt) {
+      | Pause => Pause(Let(dp, d1', d2)) |> return
+      | Step =>
+        switch (matches(dp, d1')) {
+        | IndetMatch
+        | DoesNotMatch => Indet(Closure(env, Let(dp, d1', d2))) |> return
+        | Matches(env') =>
+          /* We use substitution semantics here since we want to all the
+           * bound variables are substituted in one transition. */
+          // let* env = evaluate_extend_env(env', env);
+          // transition(env, d2, Pause);
+          Step(Substitution.subst(env', d2)) |> return
+        // Step(Closure(env, Let(dp, d1', d2))) |> return;
+        }
       }
     };
 
@@ -152,7 +183,6 @@ let rec transition =
     | BoxedValue(Tag(_)) =>
       let* r2 = transition(env, d2, opt);
       switch (r2) {
-      // TODO: What does it mean?
       | Step(d2) => Step(Ap(d1, d2)) |> return
       | Pause(d2) => Pause(Ap(d1, d2)) |> return
       | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
@@ -173,14 +203,14 @@ let rec transition =
           // evaluate a closure: extend the closure environment with the
           // new bindings introduced by the function application.
           let* env = evaluate_extend_env(env', closure_env);
-          if (opt.pause_subexpression) {
+          switch (opt) {
+          | Pause =>
             let* r3 = quick_steps(env, d3, opt);
             switch (r3) {
             | Pause(_) => Pause(Ap(d1, d2')) |> return
             | _ => transition(env, d3, opt)
             };
-          } else {
-            transition(env, d3, opt);
+          | Step => transition(env, d3, opt)
           };
         }
       };
@@ -213,11 +243,15 @@ let rec transition =
     };
 
   | ApBuiltin(ident, args) =>
-    let* r = evaluate_ap_builtin(env, ident, args);
-    switch (r) {
-    | BoxedValue(d) => Step(d) |> return
-    | Indet(d) => Indet(d) |> return
-    };
+    switch (opt) {
+    | Step =>
+      let* r = evaluate_ap_builtin(env, ident, args);
+      switch (r) {
+      | BoxedValue(d) => Step(d) |> return
+      | Indet(d) => Indet(d) |> return
+      };
+    | Pause => Pause(ApBuiltin(ident, args)) |> return
+    }
 
   | TestLit(_)
   | BoolLit(_)
@@ -225,14 +259,6 @@ let rec transition =
   | FloatLit(_)
   | StringLit(_)
   | Tag(_) => BoxedValue(d) |> return
-  // Do nothing to tag and all kinds of literals.
-  // What does this mean? -- Weijia
-  // I don't know either, but I guess it for
-  // ```hazel
-  // test true end;
-  // ```
-  // You can see @ Evaluator.re, the none
-  // step evaluator also doesn't nothing to it. -- Haoxiang
 
   | BinBoolOp(op, d1, d2) =>
     let* r1 = transition(env, d1, opt);
@@ -302,7 +328,11 @@ let rec transition =
             ),
           )
           |> return
-        | _ => Step(eval_bin_int_op(op, n1, n2)) |> return
+        | _ =>
+          switch (opt) {
+          | Pause => Pause(BinIntOp(op, d1, d2)) |> return
+          | Step => Step(eval_bin_int_op(op, n1, n2)) |> return
+          }
         }
       | BoxedValue(d2') =>
         print_endline("InvalidBoxedIntLit1");
@@ -703,7 +733,7 @@ and evaluate_case =
       scrut: DHExp.t,
       rules: list(DHExp.rule),
       current_rule_index: int,
-      opt: evaluator_option,
+      opt: EvalType.t,
     )
     : m(t) => {
   let* rscrut = transition(env, scrut, opt);
@@ -732,7 +762,8 @@ and evaluate_case =
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
-      if (opt.pause_subexpression) {
+      switch (opt) {
+      | Pause =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         (
           switch (inconsistent_info) {
@@ -742,7 +773,7 @@ and evaluate_case =
           }
         )
         |> return;
-      } else {
+      | Step =>
         let case = DHExp.Case(scrut, rules, current_rule_index);
         (
           switch (inconsistent_info) {
@@ -783,7 +814,7 @@ and evaluate_case =
 }
 
 and quick_steps =
-    (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option): m(t) => {
+    (env: ClosureEnvironment.t, d: DHExp.t, opt: EvalType.t): m(t) => {
   let* r = transition(env, d, opt);
   switch (r) {
   | Pause(d) => Pause(d) |> return
@@ -794,12 +825,7 @@ and quick_steps =
 }
 
 and evaluate_test =
-    (
-      env: ClosureEnvironment.t,
-      n: KeywordID.t,
-      arg: DHExp.t,
-      opt: evaluator_option,
-    )
+    (env: ClosureEnvironment.t, n: KeywordID.t, arg: DHExp.t, opt: EvalType.t)
     : m(t) => {
   let* (arg_show, arg_result) =
     switch (DHExp.strip_casts(arg)) {
@@ -857,7 +883,7 @@ and evaluate_test_eq =
       mk_arg_op: (DHExp.t, DHExp.t) => DHExp.t,
       arg_d1: DHExp.t,
       arg_d2: DHExp.t,
-      opt: evaluator_option,
+      opt: EvalType.t,
     )
     : m((DHExp.t, t)) => {
   let* arg_d1 = transition(env, arg_d1, opt);
@@ -869,48 +895,12 @@ and evaluate_test_eq =
   (arg_show, arg_result) |> return;
 };
 
-module EvalCtx = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Mark
-    | Ap1(t, DHExp.t)
-    | Ap2(DHExp.t, t)
-    | BinBoolOp1(DHExp.BinBoolOp.t, t, DHExp.t)
-    | BinBoolOp2(DHExp.BinBoolOp.t, DHExp.t, t)
-    | BinIntOp1(DHExp.BinIntOp.t, t, DHExp.t)
-    | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
-    | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
-    | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
-    | Cons1(t, DHExp.t)
-    | Cons2(DHExp.t, t)
-    | Pair1(t, DHExp.t)
-    | Pair2(DHExp.t, t)
-    | Let(DHPat.t, t, DHExp.t)
-    | Inj(Typ.t, InjSide.t, t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | Cast(t, Typ.t, Typ.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-    | ConsistentCase(case)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-  and case =
-    | Case(t, list(rule), int)
-  and rule = DHExp.rule;
-};
-
-module EvalType = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Step
-    | Pause;
-};
-
 // Fig.11 Final Forms
 // d final
 let is_final = (d: t): bool =>
   switch (d) {
-  | Step(_) => false
-  | Pause(_)
+  | Step(_)
+  | Pause(_) => false
   | BoxedValue(_)
   | Indet(_) => true
   };
@@ -936,12 +926,119 @@ module EvalObj = {
     ctx,
     exp,
     /* typ: is_pause(exp) ? Pause : Step, */
+    typ: Step,
+  };
+
+  let init = (ctx: EvalCtx.t, exp: DHExp.t): t => {
+    ctx,
+    exp,
+    /* typ: is_pause(exp) ? Pause : Step, */
     typ: Pause,
+  };
+
+  let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
+  let get_exp = (obj: t): DHExp.t => obj.exp;
+
+  let unwrap = (obj: t, sel: EvalCtx.t): option(t) =>
+    switch (sel) {
+    | Mark => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | NonEmptyHole(_)
+    | InconsistentBranches(_) =>
+      raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
+    | Let(_) =>
+      switch (obj.ctx) {
+      | Let(_, c, _) => Some(mk(c, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | Ap1(_) =>
+      switch (obj.ctx) {
+      | Ap1(c1, _) => Some(mk(c1, obj.exp))
+      | Ap2(_, _) => None
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | Ap2(_) =>
+      switch (obj.ctx) {
+      | Ap1(_) => None
+      | Ap2(_, c2) => Some(mk(c2, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinBoolOp1(_) =>
+      switch (obj.ctx) {
+      | BinBoolOp1(_, c1, _) => Some(mk(c1, obj.exp))
+      | BinBoolOp2(_) => None
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinBoolOp2(_) =>
+      switch (obj.ctx) {
+      | BinBoolOp1(_) => None
+      | BinBoolOp2(_, _, c2) => Some(mk(c2, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinIntOp1(_) =>
+      switch (obj.ctx) {
+      | BinIntOp1(_, c1, _) => Some(mk(c1, obj.exp))
+      | BinIntOp2(_) => None
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinIntOp2(_) =>
+      switch (obj.ctx) {
+      | BinIntOp1(_) => None
+      | BinIntOp2(_, _, c2) => Some(mk(c2, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinFloatOp1(_) =>
+      switch (obj.ctx) {
+      | BinFloatOp1(_, c1, _) => Some(mk(c1, obj.exp))
+      | BinFloatOp2(_) => None
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | BinFloatOp2(_) =>
+      switch (obj.ctx) {
+      | BinFloatOp1(_) => None
+      | BinFloatOp2(_, _, c2) => Some(mk(c2, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | Cons1(_) =>
+      switch (obj.ctx) {
+      | Cons1(c1, _) => Some(mk(c1, obj.exp))
+      | Cons2(_) => None
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | Cons2(_) =>
+      switch (obj.ctx) {
+      | Cons1(_) => None
+      | Cons2(_, c2) => Some(mk(c2, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | Inj(_) =>
+      switch (obj.ctx) {
+      | Inj(_, _, c) => Some(mk(c, obj.exp))
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
+    | ConsistentCase(_)
+    | Cast(_)
+    | FailedCast(_)
+    | InvalidOperation(_) =>
+      raise(EvaluatorError.Exception(StepDoesNotMatch))
+    };
+
+  type slice = (t, t);
+
+  let unwrap_list = (l: list((t, t)), sel: EvalCtx.t): list('a) => {
+    List.fold_right(
+      ((step, full), lst) =>
+        switch (unwrap(step, sel)) {
+        | Some(obj) => [(obj, full), ...lst]
+        | None => lst
+        },
+      l,
+      [],
+    );
   };
 };
 
 let rec decompose =
-        (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
+        (env: ClosureEnvironment.t, d: DHExp.t, opt: EvalType.t)
         : m(list(EvalObj.t)) => {
   let* r = transition(env, d, opt);
   // print_endline("decompose: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)));
@@ -958,7 +1055,6 @@ let rec decompose =
     | Tuple(_)
     | Prj(_)
     | Tag(_)
-    | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
     | Fun(_)
@@ -966,12 +1062,13 @@ let rec decompose =
     | IntLit(_)
     | FloatLit(_)
     | ListLit(_, _, _, _, _)
+    | EmptyHole(_)
     | BoundVar(_)
     | ExpandingKeyword(_)
     | FixF(_, _, _) => [EvalObj.mk(Mark, d)] |> return
     | Ap(d1, d2) =>
-      let* r1 = transition(env, d1, opt);
-      let* r2 = transition(env, d2, opt);
+      let* r1 = transition(env, d1, Pause);
+      let* r2 = transition(env, d2, Pause);
       if (is_final(r1) && is_final(r2)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
@@ -1128,7 +1225,7 @@ let rec decompose =
     //       );
     //   }
     | Let(dp, d1, d2) =>
-      let* r1 = transition(env, d1, opt);
+      let* r1 = transition(env, d1, Pause);
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
@@ -1199,7 +1296,7 @@ let rec decompose =
   };
 };
 
-let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t => {
+let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   print_endline(
     "compose: ctx: " ++ Sexplib.Sexp.to_string_hum(EvalCtx.sexp_of_t(ctx)),
   );
@@ -1208,171 +1305,56 @@ let rec compose = ((ctx, d): (EvalCtx.t, DHExp.t)): DHExp.t => {
   );
   switch (ctx) {
   | Mark => d
-  | Ap1(ctx1, d1) => Ap(compose((ctx1, d)), d1)
-  | Ap2(d1, ctx1) => Ap(d1, compose((ctx1, d)))
-  | BinBoolOp1(op, ctx1, d1) => BinBoolOp(op, compose((ctx1, d)), d1)
-  | BinBoolOp2(op, d1, ctx1) => BinBoolOp(op, d1, compose((ctx1, d)))
-  | BinIntOp1(op, ctx1, d1) => BinIntOp(op, compose((ctx1, d)), d1)
-  | BinIntOp2(op, d1, ctx1) => BinIntOp(op, d1, compose((ctx1, d)))
-  | BinFloatOp1(op, ctx1, d1) => BinFloatOp(op, compose((ctx1, d)), d1)
-  | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose((ctx1, d)))
-  | Cons1(ctx1, d1) => Cons(compose((ctx1, d)), d1)
-  | Cons2(d1, ctx1) => Cons(d1, compose((ctx1, d)))
+  | Ap1(ctx1, d1) => Ap(compose(ctx1, d), d1)
+  | Ap2(d1, ctx1) => Ap(d1, compose(ctx1, d))
+  | BinBoolOp1(op, ctx1, d1) => BinBoolOp(op, compose(ctx1, d), d1)
+  | BinBoolOp2(op, d1, ctx1) => BinBoolOp(op, d1, compose(ctx1, d))
+  | BinIntOp1(op, ctx1, d1) => BinIntOp(op, compose(ctx1, d), d1)
+  | BinIntOp2(op, d1, ctx1) => BinIntOp(op, d1, compose(ctx1, d))
+  | BinFloatOp1(op, ctx1, d1) => BinFloatOp(op, compose(ctx1, d), d1)
+  | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose(ctx1, d))
+  | Cons1(ctx1, d1) => Cons(compose(ctx1, d), d1)
+  | Cons2(d1, ctx1) => Cons(d1, compose(ctx1, d))
   // TODO: Pair -> Tuple
-  | Pair1(ctx1, d1) => Tuple([compose((ctx1, d)), d1])
-  | Pair2(d1, ctx1) => Tuple([d1, compose((ctx1, d))])
-  | Let(dp, ctx1, d1) => Let(dp, compose((ctx1, d)), d1)
-  | Inj(ty, side, ctx1) => Inj(ty, side, compose((ctx1, d)))
-  | Cast(ctx1, ty1, ty2) => Cast(compose((ctx1, d)), ty1, ty2)
-  | FailedCast(ctx1, ty1, ty2) => FailedCast(compose((ctx1, d)), ty1, ty2)
-  | InvalidOperation(ctx1, err) => InvalidOperation(compose((ctx1, d)), err)
+  // | Pair1(ctx1, d1) => Tuple([compose((ctx1, d)), d1])
+  // | Pair2(d1, ctx1) => Tuple([d1, compose((ctx1, d))])
+  | Let(dp, ctx1, d1) => Let(dp, compose(ctx1, d), d1)
+  | Inj(ty, side, ctx1) => Inj(ty, side, compose(ctx1, d))
+  | Cast(ctx1, ty1, ty2) => Cast(compose(ctx1, d), ty1, ty2)
+  | FailedCast(ctx1, ty1, ty2) => FailedCast(compose(ctx1, d), ty1, ty2)
+  | InvalidOperation(ctx1, err) => InvalidOperation(compose(ctx1, d), err)
   | NonEmptyHole(reason, u, i, ctx1) =>
-    NonEmptyHole(reason, u, i, compose((ctx1, d)))
+    NonEmptyHole(reason, u, i, compose(ctx1, d))
   | ConsistentCase(Case(ctx1, rule, n)) =>
-    ConsistentCase(Case(compose((ctx1, d)), rule, n))
+    ConsistentCase(Case(compose(ctx1, d), rule, n))
   | InconsistentBranches(u, i, Case(ctx1, rule, n)) =>
-    InconsistentBranches(u, i, Case(compose((ctx1, d)), rule, n))
+    InconsistentBranches(u, i, Case(compose(ctx1, d), rule, n))
   };
 };
 
-// let step =
-//     (env: ClosureEnvironment.t, obj: EvalObj.t, opt: evaluator_option)
-//     : m((t, list(EvalObj.t))) => {
-//   let* (d, r) =
-//     switch (obj.typ) {
-//     | Pause => (compose((obj.ctx, obj.exp)), Pause(obj.exp)) |> return
-//     | Step =>
-//       let* r = transition(env, obj.exp, opt);
-//       switch (r) {
-//       | Pause(d)
-//       | BoxedValue(d)
-//       | Indet(d)
-//       | Step(d) => (compose((obj.ctx, d)), r) |> return
-//       };
-//     };
-//   print_endline(
-//     "composed: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-//   );
-//   let* ld = decompose(env, d, opt);
-//   (r, ld) |> return;
-// };
-
-let step =
-    (env: ClosureEnvironment.t, d: DHExp.t, ind: int, opt: evaluator_option)
-    : m(t) =>
-  if (ind == (-1)) {
-    BoxedValue(d) |> return;
-  } else {
-    let* r = transition(env, d, opt);
-    if (is_final(r)) {
-      BoxedValue(d) |> return;
-    } else {
-      let* ld = decompose(env, d, opt);
-      let obj = List.nth(ld, ind);
-      let* r = transition(env, obj.exp, opt);
-      (
-        switch (r) {
-        | Pause(d) => Pause(compose((obj.ctx, d)))
-        | BoxedValue(d) => BoxedValue(compose((obj.ctx, d)))
-        | Indet(d) => Indet(compose((obj.ctx, d)))
-        | Step(d) => Step(compose((obj.ctx, d)))
-        }
-      )
-      |> return;
-    };
-  };
-
-/* let obj_step = (obj: EvalObj.t, opt: evaluator_option): DHExp.t => { */
-/*   switch (step(obj.exp, opt)) { */
-/*   | Pause(d0') */
-/*   | BoxedValue(d0') */
-/*   | Indet(d0') */
-/*   | Step(d0') => compose((obj.ctx, d0')) */
-/*   }; */
-/* }; */
-
-/* let rec ctx_steps = (d: DHExp.t, opt: evaluator_option): DHExp.t => { */
-/*   let d' = ctx_step(d, opt); */
-/*   if (is_final(d', opt)) { */
-/*     d'; */
-/*   } else { */
-/*     ctx_steps(d', opt); */
-/*   }; */
-/* }; */
-
-/* let step_evaluate = (d: DHExp.t, opt: evaluator_option): option(DHExp.t) => */
-/*   try(Some(ctx_steps(d, opt))) { */
-/*   | _ => None */
-/*   }; */
-
-let quick_step_evaluate =
-    (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option)
-    : m(EvaluatorResult.t) => {
-  let* r = quick_steps(env, d, opt);
-  switch (r) {
-  | Pause(d)
-  | Step(d)
-  | Indet(d) => EvaluatorResult.Indet(d) |> return
-  | BoxedValue(d) => EvaluatorResult.BoxedValue(d) |> return
+let step = (env: ClosureEnvironment.t, obj: EvalObj.t): m(t) => {
+  let* r = transition(env, obj.exp, obj.typ);
+  let d = compose(obj.ctx, unbox(r));
+  switch (obj.typ) {
+  | Pause => Pause(d) |> return
+  | Step =>
+    switch (r) {
+    | Pause(_) => Pause(d) |> return
+    | Step(_) => Step(d) |> return
+    | BoxedValue(_) => BoxedValue(d) |> return
+    | Indet(_) => Indet(d) |> return
+    }
   };
 };
 
-/* let rec record = */
-/*         (env: ClosureEnvironment.t, d: DHExp.t, opt: evaluator_option) */
-/*         : m(list(t)) => { */
-/*   let* r' = step(env, d, opt); */
-/*   if (is_final(r')) { */
-/*     [r'] |> return; */
-/*   } else { */
-/*     let+ lst = record(env, unbox(r'), opt); */
-/*     [r', ...lst]; */
-/*   }; */
-/* }; */
-/**/
-/* let record = (env: Environment.t, d: DHExp.t): (state, list(t)) => { */
-/*   let es = EvaluatorState.init; */
-/*   let (env, es) = */
-/*     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env)); */
-/*   let opt = default_option; */
-/*   record(env, d, opt, es); */
-/* }; */
-
-/* let ctx_step_index = (d: DHExp.t, opt: evaluator_option, index: int): DHExp.t => */
-/*   if (is_final(d, opt)) { */
-/*     d; */
-/*   } else { */
-/*     let ld = decompose_all(d, opt); */
-/*     let ctx = List.nth(ld, index).ctx; */
-/*     let d0 = List.nth(ld, index).exp; */
-/*     switch (step(d0, opt)) { */
-/*     | Pause(d0') */
-/*     | BoxedValue(d0') */
-/*     | Indet(d0') */
-/*     | Step(d0') => compose((ctx, d0')) */
-/*     }; */
-/*   }; */
-
-let step = (env: Environment.t, d: DHExp.t, ind: int, opt: evaluator_option) => {
-  // print_endline(
-  //   "stepping: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-  // );
+let step = (env: Environment.t, obj: EvalObj.t) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  step(env, d, ind, opt, es);
+  step(env, obj, es);
 };
 
-// let step = (env: Environment.t, obj: EvalObj.t, opt: evaluator_option) => {
-//   print_endline(
-//     "stepping: " ++ Sexplib.Sexp.to_string_hum(EvalObj.sexp_of_t(obj)),
-//   );
-//   let es = EvaluatorState.init;
-//   let (env, es) =
-//     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-//   step(env, obj, opt, es);
-// };
-
-let decompose = (env: Environment.t, d: DHExp.t, opt: evaluator_option) => {
+let decompose = (env: Environment.t, d: DHExp.t, opt: EvalType.t) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));

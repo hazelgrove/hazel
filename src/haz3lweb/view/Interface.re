@@ -21,20 +21,60 @@ let evaluate =
   );
 
 let step =
-  Core.Memo.general(~cache_size_bound=1000, (d, ind) =>
-    EvaluatorStep.step(
-      Environment.empty,
-      d,
-      ind,
-      EvaluatorStep.default_option,
-    )
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    EvaluatorStep.step(Environment.empty),
   );
 
-// let step =
-//   Core.Memo.general(
-//     ~cache_size_bound=1000,
-//     EvaluatorStep.step(Environment.empty, _, EvaluatorStep.default_option),
-//   );
+let preprocess = (d: DHExp.t) => {
+  open EvaluatorMonad;
+  open EvaluatorMonad.Syntax;
+  let rec go =
+          (env: ClosureEnvironment.t, d: DHExp.t): EvaluatorMonad.t(DHExp.t) => {
+    print_endline(
+      "preprocess: go: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+    );
+    switch (d) {
+    | FreeVar(u, i, x) => DHExp.Closure(env, FreeVar(u, i, x)) |> return
+    | EmptyHole(u, i) => DHExp.Closure(env, EmptyHole(u, i)) |> return
+    | Let(dp, d1, d2) =>
+      let* r1 = go(env, d1);
+      let* r2 = go(env, d2);
+      DHExp.Let(dp, r1, r2) |> return;
+    | BinBoolOp(op, d1, d2) =>
+      let* r1 = go(env, d1);
+      let* r2 = go(env, d2);
+      DHExp.BinBoolOp(op, r1, r2) |> return;
+    | BinIntOp(op, d1, d2) =>
+      let* r1 = go(env, d1);
+      let* r2 = go(env, d2);
+      DHExp.BinIntOp(op, r1, r2) |> return;
+    | BinFloatOp(op, d1, d2) =>
+      let* r1 = go(env, d1);
+      let* r2 = go(env, d2);
+      DHExp.BinFloatOp(op, r1, r2) |> return;
+    | BinStringOp(op, d1, d2) =>
+      let* r1 = go(env, d1);
+      let* r2 = go(env, d2);
+      DHExp.BinStringOp(op, r1, r2) |> return;
+    | Cast(d, ty, ty') =>
+      let* r = go(env, d);
+      DHExp.Cast(r, ty, ty') |> return;
+    | _ => d |> return
+    };
+  };
+  let es = EvaluatorState.init;
+  let (env, es) =
+    es
+    |> EvaluatorState.with_eig(
+         ClosureEnvironment.of_environment(Environment.empty),
+       );
+  let (_, d) = go(env, d, es);
+  print_endline(
+    "preprocessed: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+  );
+  d;
+};
 
 let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
   let ((d, hii), es) =
@@ -80,11 +120,9 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (BoxedValue(d), es, hii);
-  // {result: BoxedValue(d), record: [], context: [], state: es, hii};
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
-  // {result: Indet(d), record: [], context: [], state: es, hii};
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
@@ -94,13 +132,6 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
-  // {
-  //   result: Indet(InvalidText(0, 0, "EXCEPTION")),
-  //   record: [],
-  //   context: [],
-  //   state: EvaluatorState.init,
-  //   hii: HoleInstanceInfo.empty,
-  // };
   | exception _ =>
     print_endline("Other evaluation exception raised (stack overflow?)");
     (
@@ -108,36 +139,15 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
-  // {
-  //   result: Indet(InvalidText(0, 0, "EXCEPTION")),
-  //   record: [],
-  //   context: [],
-  //   state: EvaluatorState.init,
-  //   hii: HoleInstanceInfo.empty,
-  // };
   };
 
-let step = (d: DHExp.t, ind: int): ProgramResult.t => {
-  let (es, d) = step(d, ind);
+let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
+  let (es, d) = step(obj);
   switch (d) {
   | Step(d)
   | Pause(d)
   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-  // {
-  //   result: BoxedValue(d),
-  //   record: [],
-  //   context: objs,
-  //   state: es,
-  //   hii: HoleInstanceInfo.empty,
-  // }
   | Indet(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-  // {
-  //   result: Indet(d),
-  //   record: [],
-  //   context: objs,
-  //   state: es,
-  //   hii: HoleInstanceInfo.empty,
-  // }
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
@@ -156,46 +166,6 @@ let step = (d: DHExp.t, ind: int): ProgramResult.t => {
     );
   };
 };
-
-// let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
-//   let (es, (d, _)) = step(obj);
-//   switch (d) {
-//   | Step(d)
-//   | Pause(d)
-//   | BoxedValue(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-//   // {
-//   //   result: BoxedValue(d),
-//   //   record: [],
-//   //   context: objs,
-//   //   state: es,
-//   //   hii: HoleInstanceInfo.empty,
-//   // }
-//   | Indet(d) => (BoxedValue(d), es, HoleInstanceInfo.empty)
-//   // {
-//   //   result: Indet(d),
-//   //   record: [],
-//   //   context: objs,
-//   //   state: es,
-//   //   hii: HoleInstanceInfo.empty,
-//   // }
-//   | exception (EvaluatorError.Exception(_reason)) =>
-//     //HACK(andrew): supress exceptions for release
-//     //raise(EvalError(reason))
-//     print_endline("Interface.evaluate EXCEPTION");
-//     (
-//       Indet(InvalidText(0, 0, "EXCEPTION")),
-//       EvaluatorState.init,
-//       HoleInstanceInfo.empty,
-//     );
-//   | exception _ =>
-//     print_endline("Other evaluation exception raised (stack overflow?)");
-//     (
-//       Indet(InvalidText(0, 0, "EXCEPTION")),
-//       EvaluatorState.init,
-//       HoleInstanceInfo.empty,
-//     );
-//   };
-// };
 
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;

@@ -15,4 +15,5 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | OperationError(InvalidOperationError.t);
+  | OperationError(InvalidOperationError.t)
+  | Steppable(EvaluatorStep.EvalObj.t);
