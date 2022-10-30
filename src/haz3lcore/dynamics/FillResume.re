@@ -84,10 +84,90 @@ and fill_case = (s: FillResumeState.t, c: DHExp.case): DHExp.case => {
   };
 };
 
-let diff_of_DHExp =
-    (d_prev: DHExp.t, d_now: DHExp.t): option(FillResumeState.t) => {
+let one_some = (d1: option('a), d2: option('a)): option('a) => {
+  switch (d1, d2) {
+  | (Some(_), Some(_)) => None
+  | (Some(_), None) => d1
+  | (None, Some(_)) => d2
+  | (None, None) => None
+  };
+};
+
+let rec diff_of_DHExp =
+        (d_prev: DHExp.t, d_now: DHExp.t): option(FillResumeState.t) => {
   switch (d_prev, d_now) {
-  | (EmptyHole(v, _), _) => Some(FillResumeState.mk(v, d_now))
+  | (EmptyHole(v, _), _)
+  | (NonEmptyHole(_, v, _, _), _)
+  | (ExpandingKeyword(v, _, _), _)
+  | (FreeVar(v, _, _), _)
+  | (InvalidText(v, _, _), _)
+  | (InconsistentBranches(v, _, _), _)
+  | (ListLit(v, _, _, _, _), _) => Some(FillResumeState.mk(v, d_now))
+  | (Sequence(d1p, d2p), Sequence(d1n, d2n))
+  | (Ap(d1p, d2p), Ap(d1n, d2n))
+  | (Cons(d1p, d2p), Cons(d1n, d2n)) =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (ApBuiltin(sp, d1ps), ApBuiltin(sn, d1ns)) when sp == sn =>
+    List.map2(diff_of_DHExp, d1ps, d1ns) |> List.fold_left(one_some, None)
+  | (Tuple(d1ps), Tuple(d1ns)) =>
+    List.map2(diff_of_DHExp, d1ps, d1ns) |> List.fold_left(one_some, None)
+  | (Let(dpp, d1p, d2p), Let(dpn, d1n, d2n)) when dpp == dpn =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (FixF(sp, typ, d1p), FixF(sn, tyn, d1n))
+      when sp == sn && Typ.eq(typ, tyn) =>
+    diff_of_DHExp(d1p, d1n)
+  | (Fun(dpp, typ, d1p), Fun(dpn, tyn, d1n))
+      when dpp == dpn && Typ.eq(typ, tyn) =>
+    diff_of_DHExp(d1p, d1n)
+  | (Inj(typ, sidep, d1p), Inj(tyn, siden, d1n))
+      when sidep == siden && Typ.eq(typ, tyn) =>
+    diff_of_DHExp(d1p, d1n)
+  | (Prj(d1p, intp), Prj(d1n, intn)) when intp == intn =>
+    diff_of_DHExp(d1p, d1n)
+  | (BinBoolOp(opp, d1p, d2p), BinBoolOp(opn, d1n, d2n)) when opp == opn =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (BinIntOp(opp, d1p, d2p), BinIntOp(opn, d1n, d2n)) when opp == opn =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (BinFloatOp(opp, d1p, d2p), BinFloatOp(opn, d1n, d2n)) when opp == opn =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (BinStringOp(opp, d1p, d2p), BinStringOp(opn, d1n, d2n)) when opp == opn =>
+    one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
+  | (Cast(d1p, ty1p, ty2p), Cast(d1n, ty1n, ty2n))
+      when Typ.eq(ty1p, ty1n) && Typ.eq(ty2p, ty2n) =>
+    diff_of_DHExp(d1p, d1n)
+  | (FailedCast(d1p, ty1p, ty2p), FailedCast(d1n, ty1n, ty2n))
+      when Typ.eq(ty1p, ty1n) && Typ.eq(ty2p, ty2n) =>
+    diff_of_DHExp(d1p, d1n)
+  | (InvalidOperation(d1p, errp), InvalidOperation(d1n, errn))
+      when errp == errn =>
+    diff_of_DHExp(d1p, d1n)
+  | (Closure(_, _), _) => None //TODO: not sure
+  | (TestLit(_), _)
+  | (BoolLit(_), _)
+  | (IntLit(_), _)
+  | (FloatLit(_), _)
+  | (StringLit(_), _)
+  | (BoundVar(_), _)
+  | (Tag(_), _) => None
+  | _ => None
+  };
+}
+and diff_of_case =
+    (c_prev: DHExp.case, c_now: DHExp.case): option(FillResumeState.t) => {
+  switch (c_prev, c_now) {
+  | (Case(d1p, rulesp, _), Case(d1n, rulesn, _)) =>
+    let diff_d1 = diff_of_DHExp(d1p, d1n);
+    let diff_rules =
+      List.map2(diff_of_rule, rulesp, rulesn)
+      |> List.fold_left(one_some, None);
+    one_some(diff_d1, diff_rules);
+  };
+}
+and diff_of_rule =
+    (r_prev: DHExp.rule, r_now: DHExp.rule): option(FillResumeState.t) => {
+  switch (r_prev, r_now) {
+  | (Rule(dpp, d1p), Rule(dpn, d1n)) when dpp == dpn =>
+    diff_of_DHExp(d1p, d1n)
   | _ => None
   };
 };
