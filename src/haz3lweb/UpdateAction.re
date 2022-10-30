@@ -41,7 +41,7 @@ type t =
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | StepForward(int)
+  | StepForward(EvaluatorStep.EvalObj.t)
   | StepBackward
   | UpdateLangDocMessages(LangDocMessages.update);
 

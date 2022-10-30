@@ -403,36 +403,33 @@ let apply =
         |> ModelResult.update_current(res);
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
-    | StepForward(ind) =>
+    | StepForward(obj) =>
       print_endline(
-        "Clicked on Steppable with index " ++ string_of_int(ind),
+        "stepping obj: "
+        ++ Sexplib.Sexp.to_string_hum(EvaluatorStep.EvalObj.sexp_of_t(obj)),
       );
-      let r = model.results;
       print_endline(
-        "model.results "
-        ++ Sexplib.Sexp.to_string_hum(ModelResults.sexp_of_t(r)),
+        "stepped obj: "
+        ++ Sexplib.Sexp.to_string_hum(
+             ProgramResult.sexp_of_t(Interface.step(obj)),
+           ),
       );
-      let r' = ModelResults.find(ScratchSlide.scratch_key, r);
-      let d = ModelResult.get_previous_dhexp(r');
-      // print_endline(
-      //   "stepping from: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-      // );
-      let dr = Interface.step(d, ind);
-      // print_endline(
-      //   "stepped to: "
-      //   ++ Sexplib.Sexp.to_string_hum(
-      //        DHExp.sexp_of_t(ProgramResult.get_dhexp(dr)),
-      //      ),
-      // );
-      let d' = ModelResult.ResultOk(dr);
-      let nr =
+      let pr =
+        switch (Interface.step(obj)) {
+        | pr => ModelResult.ResultOk(pr)
+        | exception (Interface.EvalError(error)) =>
+          ModelResult.ResultFail(Program_EvalError(error))
+        | exception Interface.DoesNotElaborate =>
+          ModelResult.ResultFail(Program_DoesNotElaborate)
+        };
+      let r =
         model.results
         |> ModelResults.find(ScratchSlide.scratch_key)
-        |> ModelResult.update_current(d');
+        |> ModelResult.update_current(pr);
       Ok({
         ...model,
         results:
-          model.results |> ModelResults.add(ScratchSlide.scratch_key, nr),
+          model.results |> ModelResults.add(ScratchSlide.scratch_key, r),
       });
     | StepBackward => Ok(model)
     };

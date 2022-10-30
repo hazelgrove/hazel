@@ -1,6 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | OutOfFuel
+  | StepDoesNotMatch
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
