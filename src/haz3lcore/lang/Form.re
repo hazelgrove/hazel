@@ -91,8 +91,7 @@ let is_concrete_typ = str =>
   || str == "Int"
   || str == "Float"
   || str == "Bool"
-  || str == "Unit"
-  || str == "Void";
+  || str == "Unit";
 let is_partial_concrete_typ = x =>
   !is_concrete_typ(x) && is_capitalized_name(x);
 let is_wild = regexp("^_$");
@@ -128,7 +127,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("void_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),

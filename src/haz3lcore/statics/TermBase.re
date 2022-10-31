@@ -307,7 +307,6 @@ and UTyp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Void
     | Int
     | Float
     | Bool
@@ -327,7 +326,6 @@ and UTyp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Void
     | Int
     | Float
     | Bool

@@ -59,7 +59,6 @@ module rec DHExp: {
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
-    | VoidLit
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -155,7 +154,6 @@ module rec DHExp: {
     | Ap(t, t)
     | ApBuiltin(string, list(t))
     | TestLit(KeywordID.t)
-    | VoidLit
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -195,7 +193,6 @@ module rec DHExp: {
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
     | TestLit(_) => "TestLit"
-    | VoidLit => "VoidLit"
     | BoolLit(_) => "BoolLit"
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
@@ -285,7 +282,6 @@ module rec DHExp: {
     | InvalidText(_) as d
     | BoundVar(_) as d
     | TestLit(_) as d
-    | VoidLit as d
     | BoolLit(_) as d
     | IntLit(_) as d
     | FloatLit(_) as d
@@ -300,7 +296,6 @@ module rec DHExp: {
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
     | (TestLit(_), _)
-    | (VoidLit, _)
     | (BoolLit(_), _)
     | (IntLit(_), _)
     | (FloatLit(_), _)

@@ -2652,19 +2652,6 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    | Void =>
-      let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.bool_typ_group,
-          docs,
-        );
-      get_message(
-        doc,
-        options,
-        LangDocMessages.bool_typ_group,
-        doc.explanation.message,
-        [],
-      );
     | String =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(

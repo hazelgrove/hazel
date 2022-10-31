@@ -77,8 +77,6 @@ let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_TestLit: KeywordID.t => Pretty.Doc.t('a);
 
-let mk_VoidLit: Pretty.Doc.t(DHAnnot.t);
-
 let mk_IntLit: int => Pretty.Doc.t('a);
 
 let mk_FloatLit: float => Pretty.Doc.t('a);

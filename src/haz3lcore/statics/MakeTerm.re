@@ -386,7 +386,6 @@ and typ_term: unsorted => UTyp.term = {
     | ([(_id, tile)], []) =>
       switch (tile) {
       | (["Unit"], []) => Tuple([])
-      | (["Void"], []) => Void
       | (["Bool"], []) => Bool
       | (["Int"], []) => Int
       | (["Float"], []) => Float

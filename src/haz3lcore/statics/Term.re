@@ -26,7 +26,6 @@ module UTyp = {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Void
     | Int
     | Float
     | Bool
@@ -55,7 +54,6 @@ module UTyp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Void => Void
     | Int => Int
     | Float => Float
     | Bool => Bool
@@ -71,7 +69,6 @@ module UTyp = {
     | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
     | MultiHole => "Multi Type Hole"
-    | Void
     | Int
     | Float
     | String
@@ -89,7 +86,6 @@ module UTyp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Void
     | Int
     | Float
     | Bool
@@ -518,7 +514,6 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Invalid(_)
     | MultiHole(_) => Unknown(Internal)
     | EmptyHole => Unknown(TypeHole)
-    | Void => Void
     | Bool => Bool
     | Int => Int
     | Float => Float

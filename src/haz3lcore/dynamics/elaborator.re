@@ -89,8 +89,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         // placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
+    | Undefined => Some(DHExp.EmptyHole(u, 0))
     | Triv => wrap(Tuple([]))
-    | Undefined => wrap(VoidLit)
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
@@ -297,7 +297,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       // TODO: dhexp, eval for multiholes
       Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
-    | Undefined => wrap(VoidLit)
+    | Undefined => Some(EmptyHole(u, 0))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))

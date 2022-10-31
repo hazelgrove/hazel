@@ -30,7 +30,6 @@ let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 let ground_cases_of = (ty: Typ.t): ground_cases =>
   switch (ty) {
   | Unknown(_) => Hole
-  | Void
   | Bool
   | Int
   | Float
@@ -82,9 +81,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d')) => matches(dp, d')
-
-  | (VoidLit, _) => DoesNotMatch
-  | (_, VoidLit) => IndetMatch
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -274,7 +270,6 @@ and matches_cast_Inj =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_, _, _)
-  | VoidLit => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -350,7 +345,6 @@ and matches_cast_Tuple =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
-  | VoidLit => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -487,7 +481,6 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
-  | VoidLit => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -646,7 +639,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             evaluate(env, d3);
           }
         };
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2')))
       | Indet(Cast(d1', Arrow(ty1, ty2), Arrow(ty1', ty2'))) =>
         let* r2 = evaluate(env, d2);
@@ -669,7 +661,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
 
-    | VoidLit
     | TestLit(_)
     | BoolLit(_)
     | IntLit(_)
@@ -723,14 +714,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             |> return
           | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
           }
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
           print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
         print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
@@ -751,13 +740,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(FloatLit(f2)) =>
           BoxedValue(eval_bin_float_op(op, f1, f2)) |> return
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
         | Indet(d2') => Indet(BinFloatOp(op, d1', d2')) |> return
         };
-      | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFloatLit");
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')));
@@ -777,7 +764,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(StringLit(f2)) =>
           BoxedValue(eval_bin_string_op(op, f1, f2)) |> return
-        | BoxedValue(VoidLit) => BoxedValue(VoidLit) |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));

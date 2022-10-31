@@ -8,7 +8,6 @@ type t =
   | ExpandingKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
-  | VoidLit
   | IntLit(int)
   | FloatLit(float)
   | BoolLit(bool)
@@ -35,7 +34,6 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | NonEmptyHole(_, _, _, _)
   | Wild
   | InvalidText(_)
-  | VoidLit
   | IntLit(_)
   | FloatLit(_)
   | BoolLit(_)

@@ -19,7 +19,6 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "atom", "unknown"]),
       [text("?"), prov_view(prov)],
     )
-  | Void => ty_view("Void", "Void")
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")

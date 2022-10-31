@@ -14,7 +14,6 @@ type type_provenance =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Unknown(type_provenance)
-  | Void
   | Int
   | Float
   | Bool
@@ -89,8 +88,6 @@ let rec join = (ty1: t, ty2: t): option(t) =>
     Some(Unknown(join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  | (ty, Void) => Some(ty)
-  | (Void, ty) => Some(ty)
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -207,7 +204,6 @@ let precedence_Sum = 3;
 let precedence_const = 4;
 let precedence = (ty: t): int =>
   switch (ty) {
-  | Void
   | Int
   | Float
   | Bool
@@ -226,8 +222,6 @@ let precedence = (ty: t): int =>
    but this will change when polymorphic types are implemented */
 let rec eq = (t1, t2) =>
   switch (t1, t2) {
-  | (Void, _) => true
-  | (_, Void) => true
   | (Int, Int) => true
   | (Int, _) => false
   | (Float, Float) => true
