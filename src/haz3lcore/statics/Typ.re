@@ -21,8 +21,13 @@ type t =
   | Var(string)
   | List(t)
   | Arrow(t, t)
+  | LSum(list(tsum))
   | Sum(t, t) // unused
-  | Prod(list(t));
+  | Prod(list(t))
+and tsum = {
+  label: Token.t,
+  typ: t,
+};
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -112,6 +117,33 @@ let rec join = (ty1: t, ty2: t): option(t) =>
       };
     }
   | (Prod(_), _) => None
+  | (LSum(tys1), LSum(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (
+        List.map2(
+          (ts1: tsum, ts2: tsum) =>
+            ts1.label == ts2.label ? join(ts1.typ, ts2.typ) : None,
+          tys1,
+          tys2,
+        )
+        |> Util.OptUtil.sequence
+      ) {
+      | None => None
+      | Some(tys) =>
+        Some(
+          LSum(
+            List.map2(
+              (ts1: tsum, typ) => {label: ts1.label, typ},
+              tys1,
+              tys,
+            ),
+          ),
+        )
+      };
+    }
+  | (LSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
     switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
@@ -211,6 +243,7 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Prod([])
+  | LSum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -237,6 +270,14 @@ let rec eq = (t1, t2) =>
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
+  | (LSum(tys1), LSum(tys2)) =>
+    List.length(tys1) == List.length(tys2)
+    && List.for_all2(
+         (ts1, ts2) => ts1.label == ts2.label && eq(ts1.typ, ts2.typ),
+         tys1,
+         tys2,
+       )
+  | (LSum(_), _) => false
   | (Prod(_), _) => false
   | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
   | (Sum(_), _) => false

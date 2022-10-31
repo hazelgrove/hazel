@@ -110,7 +110,7 @@ let is_string_delim = str => str == string_delim;
    exceptions when used elsewhere, as no molds will be found. Such exceptions are
    currently caught. This should be replaced by a more disciplined
    approach to invalid text.*/
-let is_whitelisted_char = regexp("[!@]");
+let is_whitelisted_char = regexp("[!@\\{\\}]");
 
 /* A. Whitespace: */
 let whitespace = [Whitespace.space, Whitespace.linebreak];
@@ -121,8 +121,9 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("ty_sum_cons", (is_typ_var, [mk_op(TSum, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
-  ("ty_var", (is_typ_var, [mk_op(TPat, [])])),
+  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -138,6 +139,12 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    Order in this list determines relative remolding
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
+  ("typ-sum", mk(is, ["sum{", "}"], mk_op(Typ, [TSum]))),
+  (
+    "ap_typ_sum_cons",
+    mk(ii, ["(", ")"], mk_post'(P.ap, TSum, TSum, [Typ], TSum)),
+  ),
+  ("typ_sum", mk_infix("+", TSum, P.or_)),
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),

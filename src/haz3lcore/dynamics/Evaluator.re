@@ -25,6 +25,15 @@ let grounded_Sum =
   NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
+let grounded_LSum = labels =>
+  NotGroundOrHole(
+    LSum(
+      List.map(
+        (ts: Typ.tsum) => Typ.{label: ts.label, typ: Typ.Unknown(Internal)},
+        labels,
+      ),
+    ),
+  );
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
 
 let ground_cases_of = (ty: Typ.t): ground_cases =>
@@ -48,6 +57,17 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
       Ground;
     } else {
       tys |> List.length |> grounded_Prod;
+    }
+  | LSum(tys) =>
+    if (List.for_all(
+          fun
+          | Typ.{typ: Typ.Unknown(_), _} => true
+          | _ => false,
+          tys,
+        )) {
+      Ground;
+    } else {
+      tys |> grounded_LSum;
     }
   | Arrow(_, _) => grounded_Arrow
   | Sum(_, _) => grounded_Sum

@@ -50,6 +50,28 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
+  | LSum([] | [_]) =>
+    div(~attr=clss(["typ-view", "Prod"]), [text("BadSum")])
+  | LSum([t0, ...ts]) =>
+    //TODO(andrew): finish dispaly
+    div(
+      ~attr=clss(["typ-view", "atom", "LSum"]),
+      [
+        text("("),
+        div(
+          ~attr=clss(["typ-view", "LSum"]),
+          [view(t0.typ)]
+          @ (
+            List.map(
+              (t: Haz3lcore.Typ.tsum) => [text("|"), view(t.typ)],
+              ts,
+            )
+            |> List.flatten
+          ),
+        ),
+        text(")"),
+      ],
+    )
   | Sum(t1, t2) =>
     div(~attr=clss(["typ-view", "Sum"]), [view(t1), text("+"), view(t2)])
   };

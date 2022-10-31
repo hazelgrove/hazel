@@ -110,6 +110,29 @@ let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
     None;
   };
 
+let is_sum_sumtyp = ((commas, kids): tiles): option(UTyp.t) =>
+  if (commas |> List.map(snd) |> List.for_all((==)((["+"], [])))) {
+    kids
+    |> List.map(
+         fun
+         | Typ({term: Sum([a]), ids: new_ids}) => Some(([a], new_ids))
+         | _ => None,
+       )
+    |> OptUtil.sequence
+    |> Option.map(xs => {
+         let (ts, ids) =
+           List.fold_left(
+             ((acc_g, acc_ids), (guys, ids)) =>
+               (acc_g @ guys, acc_ids @ ids),
+             ([], []),
+             xs,
+           );
+         UTyp.{term: Sum(ts), ids};
+       });
+  } else {
+    None;
+  };
+
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
@@ -179,6 +202,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
+  | TSum => Typ(tsum(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
@@ -373,6 +397,54 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   | tm => ret(hole(tm));
 }
 
+and tsum = unsorted => {
+  let (term, inner_ids) = tsum_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(p => Typ(p), ids, {ids, term});
+}
+and tsum_term: unsorted => (UTyp.term, list(Id.t)) = {
+  let ret = (term: UTyp.term) => (term, []);
+  let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_typ_var(t) =>
+          Sum([{label: t, typ: Tuple([])}])
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(Typ({term: Sum([{label: l, typ: _}]), _}), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["(", ")"], [Typ({term: typ, _})]) => Sum([{label: l, typ}])
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
+  | Bin(
+      Typ({term: Sum(guys_l), ids: ids_l}),
+      tiles,
+      Typ({term: Sum(guys_r), ids: ids_r}),
+    ) as tm =>
+    switch (is_sum_sumtyp(tiles)) {
+    | Some({term: Sum(guys_m), ids: ids_m}) => (
+        Sum(guys_l @ guys_m @ guys_r),
+        ids_l @ ids_m @ ids_r,
+      )
+    | _ => ret(hole(tm))
+    }
+  | tm => ret(hole(tm));
+}
+
 and typ = unsorted => {
   let term = typ_term(unsorted);
   let ids = ids(unsorted);
@@ -394,6 +466,7 @@ and typ_term: unsorted => UTyp.term = {
       | ([t], []) when Form.is_typ_var(t) => Var(t)
       | (["(", ")"], [Typ(body)]) => Parens(body)
       | (["[", "]"], [Typ(body)]) => List(body)
+      | (["sum{", "}"], [Typ({term: Sum(ts), _})]) => Sum(ts)
       | _ => hole(tm)
       }
     | _ => hole(tm)

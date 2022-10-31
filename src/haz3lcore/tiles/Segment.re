@@ -121,6 +121,9 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Pat => remold_pat(shape, seg)
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
+  | TSum => remold_tsum(shape, seg)
+  | TPat => remold_tpat(shape, seg)
+  //TODO(andrew): above just copied pat for now basically
   | _ => failwith("remold unexpected")
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
@@ -247,6 +250,46 @@ and remold_pat = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+and remold_tsum = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_tsum(shape, tl)]
+    | Tile(t) =>
+      switch (remold_tile(TSum, shape, t)) {
+      | None => [Tile(t), ...remold_tsum(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_tsum(shape, rest);
+        | _ => [Tile(t), ...remold_tsum(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+and remold_tpat = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Whitespace(_)
+    | Grout(_) => [hd, ...remold_tpat(shape, tl)]
+    | Tile(t) =>
+      switch (remold_tile(TPat, shape, t)) {
+      | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) = remold_typ_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_tpat(shape, rest);
+        | _ => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
         }
       }
     }
