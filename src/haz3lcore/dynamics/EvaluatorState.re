@@ -23,6 +23,11 @@ let take_step = ({stats, _} as es) => {
   stats: stats |> EvaluatorStats.take_step,
 };
 
+let reset_step = ({stats, _} as es) => {
+  ...es,
+  stats: stats |> EvaluatorStats.reset_step,
+};
+
 let get_step = ({stats, _}) => stats |> EvaluatorStats.get_step;
 
 let time_out = ({stats, _}) => stats |> EvaluatorStats.get_step > 64;

@@ -37,6 +37,8 @@ let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t), t) => ('a, t);
  */
 let take_step: t => t;
 
+let reset_step: t => t;
+
 /**
   [get_step es] is the number of steps taken.
  */

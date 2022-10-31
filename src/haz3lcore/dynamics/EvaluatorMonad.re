@@ -7,6 +7,8 @@ let put_eig = eig => modify(EvaluatorState.put_eig(eig));
 let with_eig = f => modify'(EvaluatorState.with_eig(f));
 
 let take_step = get >>= (state => put(EvaluatorState.take_step(state)));
+
+let reset_step = get >>= (state => put(EvaluatorState.reset_step(state)));
 let get_step = get >>| EvaluatorState.get_step;
 let time_out = get >>| EvaluatorState.time_out;
 

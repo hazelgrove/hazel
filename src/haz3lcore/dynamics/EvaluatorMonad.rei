@@ -23,6 +23,7 @@ let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t)) => t('a);
   See {!val:EvaluatorState.take_step}
  */
 let take_step: t(unit);
+let reset_step: t(unit);
 let get_step: t(int);
 
 let time_out: t(bool);

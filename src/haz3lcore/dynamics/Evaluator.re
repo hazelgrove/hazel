@@ -491,6 +491,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | _ when depth_out =>
       print_endline("OutOfFuel");
       // raise(EvaluatorError.Exception(OutOfFuel));
+      let* () = reset_step;
       Indet(InvalidOperation(Triv, OutOfFuel)) |> return;
 
     | BoundVar(x) =>
