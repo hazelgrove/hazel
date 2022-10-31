@@ -100,7 +100,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
-    | TAlias
+    | TyAlias
     | Ap
     | If
     | Seq
@@ -127,7 +127,7 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | TAlias(UTPat.t, UTyp.t, t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -207,7 +207,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
-    | TAlias
+    | TyAlias
     | Ap
     | If
     | Seq
@@ -234,7 +234,7 @@ and UExp: {
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
-    | TAlias(UTPat.t, UTyp.t, t)
+    | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)

@@ -391,7 +391,7 @@ module UExp = {
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
-    | TAlias(_) => TAlias
+    | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | If(_) => If
     | Seq(_) => Seq
@@ -466,7 +466,7 @@ module UExp = {
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
-    | TAlias => "Type Alias Definition"
+    | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
@@ -493,7 +493,7 @@ module UExp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
-    | TAlias(_)
+    | TyAlias(_)
     | Ap(_)
     | If(_)
     | Seq(_)
@@ -524,7 +524,7 @@ module UExp = {
       | Fun(_)
       | Var(_)
       | Let(_)
-      | TAlias(_)
+      | TyAlias(_)
       | Ap(_)
       | If(_)
       | Seq(_)
