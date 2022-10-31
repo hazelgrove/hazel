@@ -2,9 +2,10 @@
 type t =
   | Any
   | Nul
-  | TPat
   | Pat
   | Typ
+  | TPat
+  | TSum
   | Rul
   | Exp;
 
@@ -27,6 +28,7 @@ let to_string =
   | Nul => "Nul"
   | Pat => "Pat"
   | TPat => "TPat"
+  | TSum => "TSum"
   | Typ => "Typ"
   | Rul => "Rul"
   | Exp => "Exp";

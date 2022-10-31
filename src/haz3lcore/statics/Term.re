@@ -32,6 +32,7 @@ module UTyp = {
     | String
     | Arrow
     | Tuple
+    | Sum
     | List
     | Var
     | Parens;
@@ -62,6 +63,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Tuple(_) => Tuple
+    | Sum(_) => Sum
     | Parens(_) => Parens;
 
   let show_cls: cls => string =
@@ -77,6 +79,7 @@ module UTyp = {
     | List => "List Type"
     | Arrow => "Function Type"
     | Tuple => "Product Type"
+    | Sum => "Labelled Sum Type"
     | Parens => "Parenthesized Type Term";
 
   let rec is_arrow = (typ: t) => {
@@ -92,6 +95,7 @@ module UTyp = {
     | String
     | List(_)
     | Tuple(_)
+    | Sum(_)
     | Var(_) => false
     };
   };
@@ -548,6 +552,17 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Var(name) => Var(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
+    | Sum(ts) =>
+      LSum(
+        List.map(
+          (ts: UTyp.tsum) =>
+            Typ.{
+              label: ts.label,
+              typ: utyp_to_ty({ids: [(-1)], term: ts.typ}),
+            },
+          ts,
+        ),
+      )
     | List(u) => List(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
     };

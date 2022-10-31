@@ -313,7 +313,12 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
+    | Sum(list(tsum))
     | Parens(t)
+  and tsum = {
+    label: Token.t,
+    typ: term,
+  }
   and t = {
     ids: list(Id.t),
     term,
@@ -332,7 +337,12 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
+    | Sum(list(tsum))
     | Parens(t)
+  and tsum = {
+    label: Token.t,
+    typ: term,
+  }
   and t = {
     ids: list(Id.t),
     term,

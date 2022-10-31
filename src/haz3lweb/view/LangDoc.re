@@ -253,7 +253,8 @@ let deco =
                 | Pat => ["term-tag-pat"]
                 | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
                 | Typ => ["term-tag-typ"]
-                | TPat
+                | TPat //TODO(andrew)
+                | TSum //TODO(andrew)
                 | Any
                 | Nul
                 | Rul => []
@@ -2749,6 +2750,20 @@ let get_doc =
       );
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
+    | Sum(_) =>
+      //TODO(andrew): this is just copy-pasted from Int case
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.int_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.int_typ_group,
+        doc.explanation.message,
+        [],
+      );
     }
   | Some(InfoTPat(_)) //TODO(andrew)
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
