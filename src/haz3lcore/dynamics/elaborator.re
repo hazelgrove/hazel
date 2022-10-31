@@ -178,7 +178,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
     | Parens(e) => dhexp_of_uexp(m, e)
-    | TAlias(_, _, e) => dhexp_of_uexp(m, e)
+    | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
     | Seq(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);

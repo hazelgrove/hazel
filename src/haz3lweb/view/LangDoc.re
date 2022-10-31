@@ -589,7 +589,7 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | TAlias(_, _, _) =>
+      | TyAlias(_, _, _) =>
         //TODO(andrew): this is just copied from triv
         let (doc, options) =
           LangDocMessages.get_form_and_options(

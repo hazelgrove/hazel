@@ -17,11 +17,11 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
       ]),
     switch (entry) {
     | VarEntry({name, typ, _}) => [text(name), text(":"), Type.view(typ)]
-    | TVarEntry({name, kind, _}) => [
+    | TVarEntry({name, kind: _, _}) => [
         text("type "),
         text(name),
         text("::"),
-        Kind.view(kind),
+        Kind.view(Type) //TODO:unhardcode
       ]
     },
   );

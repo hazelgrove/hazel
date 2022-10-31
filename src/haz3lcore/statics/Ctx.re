@@ -1,6 +1,10 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type kind = Typ.t;
+//TODO(andrew)
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry({
       name: Token.t,
@@ -10,8 +14,8 @@ type entry =
   | TVarEntry({
       name: Token.t,
       id: Id.t,
-      kind: Kind.t,
-    });
+      kind,
+    }); //: Kind.t,
 
 let get_id = (entry: entry) =>
   switch (entry) {
@@ -49,6 +53,21 @@ let lookup_var = (ctx: t, x) =>
           None;
         }
       | TVarEntry(_) => None
+      },
+    ctx,
+  );
+
+let lookup_tvar = (ctx: t, x) =>
+  List.find_map(
+    entry =>
+      switch (entry) {
+      | TVarEntry({name, kind, _}) =>
+        if (name == x) {
+          Some(kind);
+        } else {
+          None;
+        }
+      | VarEntry(_) => None
       },
     ctx,
   );
@@ -103,3 +122,48 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
+
+let tags = (ctx: t): list((string, Typ.t)) => {
+  let adts: list(BuiltinADTs.adt) =
+    ctx
+    |> List.filter_map(entry =>
+         switch (entry) {
+         | VarEntry(_) => None
+         | TVarEntry({name, kind, _}) =>
+           switch (kind) {
+           | Typ.LSum(ts) =>
+             let guys =
+               List.map(
+                 ({label, typ}: Typ.tsum) => {
+                   let arg =
+                     switch (typ) {
+                     | Prod([]) => None
+                     | ty => Some(ty)
+                     };
+                   BuiltinADTs.{name: label, arg};
+                 },
+                 ts,
+               );
+             Some((name, guys));
+           | _ => None
+           }
+         }
+       );
+  List.map(
+    ((name, tags)) => {
+      List.map(
+        (adt: BuiltinADTs.tag) =>
+          (
+            adt.name,
+            switch (adt.arg) {
+            | None => Typ.Var(name)
+            | Some(typ) => Arrow(typ, Var(name))
+            },
+          ),
+        tags,
+      )
+    },
+    adts,
+  )
+  |> List.flatten;
+};
