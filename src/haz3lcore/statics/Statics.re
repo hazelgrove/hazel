@@ -495,7 +495,6 @@ and upat_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
-  | Undefined => atomic(Just(Unknown(TypeHole)))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
