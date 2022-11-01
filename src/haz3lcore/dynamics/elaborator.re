@@ -54,8 +54,8 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+  | Some(InfoExp({mode, self, ctx, _})) =>
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -67,6 +67,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | None => Some(d)
       | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
       };
+    let self_typ = Statics.exp_self_typ(ctx, m);
+    let pat_self_typ = Statics.pat_self_typ(ctx, m);
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0))
@@ -95,12 +97,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
       | Syn =>
-        let ty = Typ.matched_list(Statics.exp_self_typ(m, uexp));
+        let ty = Typ.matched_list(self_typ(uexp));
         let* ds =
           List.fold_left(
             (acc, e) => {
               let* acc = acc;
-              let e_ty = Statics.exp_self_typ(m, e);
+              let e_ty = self_typ(e);
               let+ d = dhexp_of_uexp(m, e);
               let dc = DHExp.cast(d, e_ty, ty);
               acc @ [dc];
@@ -115,7 +117,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           List.fold_left(
             (acc, e) => {
               let* acc = acc;
-              let e_ty = Statics.exp_self_typ(m, e);
+              let e_ty = self_typ(e);
               let+ d = dhexp_of_uexp(m, e);
               let dc = DHExp.cast(d, e_ty, ty);
               acc @ [dc];
@@ -128,7 +130,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
-      let ty1 = Statics.pat_typ(m, p);
+      let ty1 = Statics.pat_typ(ctx, m, p);
       wrap(DHExp.Fun(dp, ty1, d1));
     | Tuple(es) =>
       let ds =
@@ -151,8 +153,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = Statics.exp_self_typ(m, e1);
-      let ty2 = Statics.exp_self_typ(m, e2);
+      let ty1 = self_typ(e1);
+      let ty2 = self_typ(e2);
       let dc1 =
         switch (Statics.exp_mode(m, uexp)) {
         | Syn => d1
@@ -160,20 +162,20 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           let ty = Typ.matched_list(ty_ana);
           DHExp.cast(d1, ty1, ty);
         };
-      let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
+      let ty_hd = Typ.matched_list(self_typ(uexp));
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
       wrap(Cons(dc1, dc2));
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
-      let ty = Statics.exp_self_typ(m, e);
+      let ty = self_typ(e);
       let dc = DHExp.cast(d, ty, Int);
       wrap(BinIntOp(Minus, IntLit(0), dc));
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      let ty1 = Statics.exp_self_typ(m, e1);
-      let ty2 = Statics.exp_self_typ(m, e2);
+      let ty1 = self_typ(e1);
+      let ty2 = self_typ(e2);
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap(cons(dc1, dc2));
@@ -204,14 +206,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(m, p);
+        let ty = pat_self_typ(p);
         wrap(Let(dp, FixF(f, ty, ddef), dbody));
       | Some(fs) =>
         /* mutual recursion */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let ty = Statics.pat_self_typ(m, p);
+        let ty = pat_self_typ(p);
         let uniq_id = List.nth(def.ids, 0);
         let self_id = "__mutual__" ++ string_of_int(uniq_id);
         let self_var = DHExp.BoundVar(self_id);
@@ -231,8 +233,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     | Ap(fn, arg) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = Statics.exp_self_typ(m, fn);
-      let ty_arg = Statics.exp_self_typ(m, arg);
+      let ty_fn = self_typ(fn);
+      let ty_arg = self_typ(arg);
       let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
@@ -274,8 +276,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
-  | Some(InfoPat({mode, self, _})) =>
-    let err_status = Statics.error_status(mode, self);
+  | Some(InfoPat({mode, self, ctx, _})) =>
+    let err_status = Statics.error_status(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
       | NotInHole(_) => None
@@ -300,7 +302,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | String(s) => wrap(StringLit(s))
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
-      let ty = Typ.matched_list(Statics.pat_self_typ(m, upat));
+      let ty = Typ.matched_list(Statics.pat_self_typ(ctx, m, upat));
       let* ds =
         List.fold_left(
           (acc, p) => {

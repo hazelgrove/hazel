@@ -167,3 +167,96 @@ let tags = (ctx: t): list((string, Typ.t)) => {
   )
   |> List.flatten;
 };
+
+/* Lattice join on types. This is a LUB join in the hazel2
+   sense in that any type dominates Unknown */
+let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
+  switch (ty1, ty2) {
+  | (Var(n1), Var(n2)) =>
+    //TODO(andrew)
+    switch (lookup_tvar(ctx, n1), lookup_tvar(ctx, n2)) {
+    | (Some(ty1), Some(ty2)) => join(ctx, ty1, ty2)
+    | _ when n1 == n2 => Some(ty1) //BuiltIn ADT case (deprecate?)
+    | _ => None
+    }
+  | (Var(n1), ty2)
+  | (ty2, Var(n1)) =>
+    switch (lookup_tvar(ctx, n1)) {
+    | Some(ty1) => join(ctx, ty1, ty2)
+    | _ => None
+    }
+  | (Unknown(p1), Unknown(p2)) =>
+    Some(Unknown(Typ.join_type_provenance(p1, p2)))
+  | (Unknown(_), ty)
+  | (ty, Unknown(_)) => Some(ty)
+  | (Int, Int) => Some(Int)
+  | (Int, _) => None
+  | (Float, Float) => Some(Float)
+  | (Float, _) => None
+  | (Bool, Bool) => Some(Bool)
+  | (Bool, _) => None
+  | (String, String) => Some(String)
+  | (String, _) => None
+  | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
+    switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+    | _ => None
+    }
+  | (Arrow(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (List.map2(join(ctx), tys1, tys2) |> Util.OptUtil.sequence) {
+      | None => None
+      | Some(tys) => Some(Prod(tys))
+      };
+    }
+  | (Prod(_), _) => None
+  | (LSum(tys1), LSum(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (
+        List.map2(
+          (ts1: Typ.tsum, ts2: Typ.tsum) =>
+            ts1.label == ts2.label ? join(ctx, ts1.typ, ts2.typ) : None,
+          tys1,
+          tys2,
+        )
+        |> Util.OptUtil.sequence
+      ) {
+      | None => None
+      | Some(tys) =>
+        Some(
+          LSum(
+            List.map2(
+              (ts1: Typ.tsum, typ) => Typ.{label: ts1.label, typ},
+              tys1,
+              tys,
+            ),
+          ),
+        )
+      };
+    }
+  | (LSum(_), _) => None
+  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
+    switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
+  | (List(ty_1), List(ty_2)) =>
+    switch (join(ctx, ty_1, ty_2)) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
+  };
+
+let join_all = (ctx, ts: list(Typ.t)): option(Typ.t) =>
+  List.fold_left(
+    (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
+    Some(Unknown(Internal)),
+    ts,
+  );
