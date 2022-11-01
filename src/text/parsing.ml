@@ -5,7 +5,6 @@ exception SyntaxError of ((int * int) option * string option)
 
 module I = Parse.MenhirInterpreter
 
-(*
 let old_pos : int ref = ref 0
 let cur_ws : int ref = ref 0
 let get_whitespace () = !cur_ws
@@ -15,6 +14,7 @@ let set_whitespace l =
   old_pos := lexeme_end l;
   cur_ws := count
 
+(*
 let print_whitespace l =
   set_whitespace l;
   let count = get_whitespace () in
@@ -29,6 +29,7 @@ let rec parse lexbuf c =
       let startp = lexbuf.lex_start_p in
       let endp = lexbuf.lex_curr_p in
       let checkpoint = I.offer c (token, startp, endp) in
+      let _ = set_whitespace lexbuf in
       parse lexbuf checkpoint
   | I.Shifting _ | I.AboutToReduce _ ->
       let checkpoint = I.resume c in
