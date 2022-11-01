@@ -1,13 +1,8 @@
-open Sexplib.Std;
+let alftyp: Typ.t = Var("ALFTyp");
+let alfexpr: Typ.t = Var("ALFExpr");
+let option_alftyp: Typ.t = Var("Option_ALFTyp");
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type adt = (Token.t, list(Typ.tagged));
-
-let alftyp = Typ.Var("ALFTyp");
-let alfexpr = Typ.Var("ALFExpr");
-let option_alftyp = Typ.Var("Option_ALFTyp");
-
-let adts: list(adt) = [
+let adts: list(Typ.adt) = [
   (
     "Color",
     [
@@ -57,33 +52,3 @@ let adts: list(adt) = [
     },
   ),
 ];
-
-let is_typ_var = name => List.assoc_opt(name, adts);
-
-//TODO(andrew):cleanup
-let tags = (adts: list(adt)): list((Token.t, Typ.t)) =>
-  List.map(
-    ((name, tags)) => {
-      List.map(
-        (adt: Typ.tagged) =>
-          (
-            adt.tag,
-            switch (adt.typ) {
-            | Prod([]) => Typ.Var(name)
-            | typ => Arrow(typ, Var(name))
-            },
-          ),
-        tags,
-      )
-    },
-    adts,
-  )
-  |> List.flatten;
-
-let get_tag_typ = (tag: Token.t): option(Typ.t) =>
-  List.assoc_opt(tag, tags(adts));
-
-// Check type names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, adts)));
-// Check tag names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, tags(adts))));
