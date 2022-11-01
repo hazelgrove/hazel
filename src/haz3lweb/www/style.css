@@ -57,7 +57,6 @@
   --top-bar-text: #a79f89;
   --test-panel-bkg: #f8ebc6;
 
-  --delim-color: #586e75;
   --code-emphasis: #ce9600;
 
   --err-color: red;
@@ -72,8 +71,23 @@
 
   /* SORT COLORS */
 
+  --nul-text-color: red;
+  --nul-off-color: var(--nul-text-color);
+  --nul-delim-color: var(--nul-text-color);
+  --nul-shadow-color: var(--nul-text-color);
+  --nul-bg-color: #ffacac;
+  --nul-bg-off-color: var(--nul-bg-color);
+
+  --any-text-color: var(--nul-text-color);
+  --any-off-color: var(--nul-off-color);
+  --any-delim-color: var(--nul-delim-color);
+  --any-shadow-color: var(--nul-shadow-color);
+  --any-bg-color: var(--nul-bg-color);
+  --any-bg-off-color: var(--nul-bg-off-color);
+
   --exp-text-color: var(--light-text-color);
   --exp-off-color: #b1a47f;
+  --exp-delim-color: var(--light-text-color);
   --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
@@ -112,10 +126,6 @@
   --rul-shadow-color: var(--exp-shadow-color);
   --rul-bg-color: var(--exp-bg-color);
   --rul-bg-off-color: var(--exp-bg-off-color);
-
-
-  --nul-bg-color: #ffacac;
-  --nul-shadow-color: #690000;
 
   /* END SORT COLORS */
 
@@ -667,7 +677,7 @@ body {
 }
 
 .code .token.delim {
-  color: var(--delim-color);
+  color: var(--exp-delim-color);
   font-weight: bold;
 }
 
@@ -698,79 +708,6 @@ svg.tile-selected {
   filter: url(#raised-drop-shadow-Nul) !important;
 }
 
-/* TOKEN COLORS */
-
-.code .text-Exp { color: var(--exp-text-color); }
-.code .text-Pat { color: var(--pat-text-color); }
-.code .text-Typ { color: var(--typ-text-color); }
-.code .text-Rul { color: var(--rul-text-color); }
-.code .text-TSum { color: var(--tsum-text-color); }
-.code .text-TPat { color: var(--tpat-text-color); }
-
-/*.code .delim.test-Exp { color: var(--exp-delim-color); }*/
-.code .delim.text-Pat { color: var(--pat-delim-color); }
-.code .delim.text-Typ { color: var(--typ-delim-color); }
-.code .delim.text-Rul { color: var(--rul-delim-color); }
-.code .delim.text-TSum { color: var(--tsum-delim-color); }
-.code .delim.text-TPat { color: var(--tpat-delim-color); }
-
-.tile-path.Nul { filter: url(#drop-shadow-Nul); }
-.tile-path.Exp { filter: url(#drop-shadow-Exp); }
-.tile-path.Pat { filter: url(#drop-shadow-Pat); }
-.tile-path.Typ { filter: url(#drop-shadow-Typ); }
-.tile-path.Rul { filter: url(#drop-shadow-Rul); }
-.tile-path.TSum { filter: url(#drop-shadow-TSum); }
-.tile-path.TPat { filter: url(#drop-shadow-TPat); }
-
-.tile-path.Nul.indicated { fill: var(--nul-bg-color); }
-.tile-path.Exp.indicated { fill: var(--exp-bg-color); }
-.tile-path.Pat.indicated { fill: var(--pat-bg-off-color); }
-.tile-path.Typ.indicated { fill: var(--typ-bg-off-color); }
-.tile-path.Rul.indicated { fill: var(--rul-bg-color); }
-.tile-path.TSum.indicated { fill: var(--tsum-bg-off-color); }
-.tile-path.TPat.indicated { fill: var(--tpat-bg-off-color); }
-
-.tile-path.Nul.indicated-caret { fill: var(--nul-bg-color); }
-.tile-path.Exp.indicated-caret { fill: var(--exp-bg-off-color); }
-.tile-path.Pat.indicated-caret { fill: var(--pat-bg-color); }
-.tile-path.Typ.indicated-caret { fill: var(--typ-bg-color); }
-.tile-path.Rul.indicated-caret { fill: var(--rul-bg-color); }
-.tile-path.TSum.indicated-caret { fill: var(--tsum-bg-color); }
-.tile-path.TPat.indicated-caret { fill: var(--tpat-bg-color); }
-
-.tile-path.Nul.raised { filter: url(#raised-drop-shadow-Nul); }
-/*.tile-path.Exp.raised { filter: url(#raised-drop-shadow-Exp); }*/
-.tile-path.Pat.raised { filter: url(#raised-drop-shadow-Pat); }
-.tile-path.Typ.raised { filter: url(#raised-drop-shadow-Typ); }
-.tile-path.Rul.raised { filter: url(#raised-drop-shadow-Rul); }
-.tile-path.TSum.raised { filter: url(#raised-drop-shadow-TSum); }
-.tile-path.TPat.raised { filter: url(#raised-drop-shadow-TPat); }
-
-.child-line.Exp { stroke: var(--exp-shadow-color); }
-.child-line.Pat { stroke: var(--pat-shadow-color); }
-.child-line.Typ { stroke: var(--typ-shadow-color); }
-.child-line.Rul { stroke: var(--rul-shadow-color); }
-.child-line.TSum { stroke: var(--tsum-shadow-color); }
-.child-line.TPat { stroke: var(--tpat-shadow-color); }
-
-#drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
-#drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
-#drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
-#drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
-#drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
-#drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
-#drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
-
-#raised-drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
-#raised-drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
-#raised-drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
-#raised-drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
-#raised-drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
-#raised-drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
-#raised-drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
-
-/* END TOKEN COLORS */
-
 .caret-position-path {
   vector-effect: non-scaling-stroke;
   stroke-width: 0.1px;
@@ -779,40 +716,6 @@ svg.tile-selected {
 .caret-position-path.outer-cousin {
   stroke: var(--bar-color);
   fill: var(--bar-color);
-}
-
-.caret-position-path.Exp.sibling {
-  stroke: var(--exp-text-color);
-  fill: var(--exp-text-color);
-}
-
-.caret-position-path.Exp.inner-cousin {
-  stroke: var(--exp-text-color);
-  fill: var(--exp-text-color);
-}
-
-.caret-position-path.Pat.sibling,
-.caret-position-path.Pat.inner-cousin {
-  stroke: var(--pat-text-color);
-  fill: var(--pat-text-color);
-}
-
-.caret-position-path.Exp.anchor,
-.caret-position-path.Exp.current-caret-pos {
-  stroke: var(--exp-shadow-color);
-  fill: var(--exp-shadow-color);
-}
-
-.caret-position-path.Pat.anchor,
-.caret-position-path.Pat.current-caret-pos {
-  stroke: var(--pat-text-color);
-  fill: var(--pat-text-color);
-}
-
-.caret-position-path.Typ.anchor,
-.caret-position-path.Typ.current-caret-pos {
-  stroke: var(--typ-text-color);
-  fill: var(--typ-text-color);
 }
 
 @property --color {
@@ -832,40 +735,160 @@ svg.tile-selected {
   z-index: var(--caret-bar-z);
 }
 
-#caret-bar.Exp {
-  background-color: var(--exp-shadow-color);
-}
+/* TOKEN COLORS */
 
-#caret-bar.Pat {
-  background-color: var(--pat-text-color);
-}
+.code .text-Nul { color: var(--nul-text-color); }
+.code .text-Any { color: var(--any-text-color); }
+.code .text-Exp { color: var(--exp-text-color); }
+.code .text-Pat { color: var(--pat-text-color); }
+.code .text-Typ { color: var(--typ-text-color); }
+.code .text-Rul { color: var(--rul-text-color); }
+.code .text-TSum { color: var(--tsum-text-color); }
+.code .text-TPat { color: var(--tpat-text-color); }
 
-.sort-label {
-  border-radius: 2px;
-  font-weight: 600;
-}
+.code .delim.text-Nul { color: var(--nul-delim-color); }
+.code .delim.text-Any { color: var(--any-delim-color); }
+.code .delim.text-Exp { color: var(--exp-delim-color); }
+.code .delim.text-Pat { color: var(--pat-delim-color); }
+.code .delim.text-Typ { color: var(--typ-delim-color); }
+.code .delim.text-Rul { color: var(--rul-delim-color); }
+.code .delim.text-TSum { color: var(--tsum-delim-color); }
+.code .delim.text-TPat { color: var(--tpat-delim-color); }
 
-.sort-label.typ {
-  background-color: var(--typ-bg-color);
-}
+.tile-path.Nul { filter: url(#drop-shadow-Nul); }
+.tile-path.Any { filter: url(#drop-shadow-Any); }
+.tile-path.Exp { filter: url(#drop-shadow-Exp); }
+.tile-path.Pat { filter: url(#drop-shadow-Pat); }
+.tile-path.Typ { filter: url(#drop-shadow-Typ); }
+.tile-path.Rul { filter: url(#drop-shadow-Rul); }
+.tile-path.TSum { filter: url(#drop-shadow-TSum); }
+.tile-path.TPat { filter: url(#drop-shadow-TPat); }
 
-.sort-label.pat {
-  background-color: var(--pat-bg-color);
-}
+.tile-path.Nul.indicated { fill: var(--nul-bg-color); }
+.tile-path.Any.indicated { fill: var(--any-bg-color); }
+.tile-path.Exp.indicated { fill: var(--exp-bg-color); }
+.tile-path.Pat.indicated { fill: var(--pat-bg-off-color); }
+.tile-path.Typ.indicated { fill: var(--typ-bg-off-color); }
+.tile-path.Rul.indicated { fill: var(--rul-bg-color); }
+.tile-path.TSum.indicated { fill: var(--tsum-bg-off-color); }
+.tile-path.TPat.indicated { fill: var(--tpat-bg-off-color); }
 
-.sort-label.exp {
+.tile-path.Nul.indicated-caret { fill: var(--nul-bg-color); }
+.tile-path.Any.indicated-caret { fill: var(--any-bg-color); }
+.tile-path.Exp.indicated-caret { fill: var(--exp-bg-off-color); }
+.tile-path.Pat.indicated-caret { fill: var(--pat-bg-color); }
+.tile-path.Typ.indicated-caret { fill: var(--typ-bg-color); }
+.tile-path.Rul.indicated-caret { fill: var(--rul-bg-color); }
+.tile-path.TSum.indicated-caret { fill: var(--tsum-bg-color); }
+.tile-path.TPat.indicated-caret { fill: var(--tpat-bg-color); }
+
+.tile-path.Nul.raised { filter: url(#raised-drop-shadow-Nul); }
+.tile-path.Any.raised { filter: url(#raised-drop-shadow-Any); }
+.tile-path.Exp.raised { filter: url(#raised-drop-shadow-Exp); }
+.tile-path.Pat.raised { filter: url(#raised-drop-shadow-Pat); }
+.tile-path.Typ.raised { filter: url(#raised-drop-shadow-Typ); }
+.tile-path.Rul.raised { filter: url(#raised-drop-shadow-Rul); }
+.tile-path.TSum.raised { filter: url(#raised-drop-shadow-TSum); }
+.tile-path.TPat.raised { filter: url(#raised-drop-shadow-TPat); }
+
+.child-line.Nul { stroke: var(--nul-shadow-color); }
+.child-line.Any { stroke: var(--any-shadow-color); }
+.child-line.Exp { stroke: var(--exp-shadow-color); }
+.child-line.Pat { stroke: var(--pat-shadow-color); }
+.child-line.Typ { stroke: var(--typ-shadow-color); }
+.child-line.Rul { stroke: var(--rul-shadow-color); }
+.child-line.TSum { stroke: var(--tsum-shadow-color); }
+.child-line.TPat { stroke: var(--tpat-shadow-color); }
+
+#drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
+#drop-shadow-Any .tile-drop-shadow { flood-color: var(--any-shadow-color); }
+#drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
+#drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
+#drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
+#drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
+#drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
+#drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
+
+#raised-drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
+#raised-drop-shadow-Any .tile-drop-shadow { flood-color: var(--any-shadow-color); }
+#raised-drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
+#raised-drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
+#raised-drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
+#raised-drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
+#raised-drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
+#raised-drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
+
+/* OTHER SORT COLORS */
+
+.term-tag-nul {
+  background-color: var(--nul-bg-color);
+  color: var(--nul-off-color);
+}
+.term-tag-any {
+  background-color: var(--any-bg-color);
+  color: var(--any-off-color);
+}
+.term-tag-exp {
   background-color: var(--exp-bg-color);
+  color: var(--exp-off-color);
+}
+.term-tag-pat {
+  background-color: var(--pat-bg-color);
+  color: var(--pat-off-color);
+}
+.term-tag-typ {
+  background-color: var(--typ-bg-color);
+  color: var(--typ-off-color);
+}
+.term-tag-rul {
+  background-color: var(--rul-bg-color);
+  color: var(--rul-off-color);
+}
+.term-tag-tsum {
+  background-color: var(--tsum-bg-color);
+  color: var(--tsum-off-color);
+}
+.term-tag-tpat {
+  background-color: var(--tpat-bg-color);
+  color: var(--tpat-off-color);
 }
 
-.sort-label.Exp {
-  /*color: var(--light-page-color);*/
-  color: var(--exp-shadow-color);
+/* is this used? */
+.caret-position-path.Exp.sibling,
+.caret-position-path.Exp.inner-cousin {
+  stroke: var(--exp-text-color);
+  fill: var(--exp-text-color);
+}
+.caret-position-path.Pat.sibling,
+.caret-position-path.Pat.inner-cousin {
+  stroke: var(--pat-text-color);
+  fill: var(--pat-text-color);
+}
+.caret-position-path.Typ.sibling,
+.caret-position-path.Typ.inner-cousin {
+  stroke: var(--typ-text-color);
+  fill: var(--typ-text-color);
 }
 
-.sort-label.Pat {
-  /*color: var(--light-page-color);*/
-  color: var(--pat-text-color);
+/* is this used? */
+.caret-position-path.Exp.anchor,
+.caret-position-path.Exp.current-caret-pos {
+  stroke: var(--exp-shadow-color);
+  fill: var(--exp-shadow-color);
 }
+.caret-position-path.Pat.anchor,
+.caret-position-path.Pat.current-caret-pos {
+  stroke: var(--pat-text-color);
+  fill: var(--pat-text-color);
+}
+.caret-position-path.Typ.anchor,
+.caret-position-path.Typ.current-caret-pos {
+  stroke: var(--typ-text-color);
+  fill: var(--typ-text-color);
+}
+
+/* END SORT COLORS */
+
 
 .keyboard-arrow {
   position: relative;
@@ -1011,26 +1034,6 @@ svg.tile-selected {
   background-color: var(--err-color);
   color: #830000 !important;
   /* HACK(andrew) */
-}
-
-.term-tag-typ {
-  background-color: var(--typ-bg-color);
-  color: var(--typ-off-color);
-}
-
-.term-tag-pat {
-  background-color: var(--pat-bg-color);
-  color: var(--pat-off-color);
-}
-
-.term-tag-exp {
-  background-color: var(--exp-bg-color);
-  color: var(--exp-off-color);
-}
-
-.term-tag-rul {
-  background-color: var(--rul-bg-color);
-  color: var(--rul-off-color);
 }
 
 /* CURSOR INSPECTOR */
@@ -1194,7 +1197,7 @@ svg.tile-selected {
 }
 
 .lang-doc .code .token.delim-inconsistent {
-  color: var(--delim-color);
+  color: var(--exp-delim-color);
   font-weight: bold;
 }
 
