@@ -64,7 +64,7 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text("has expected type"), Type.view(ty_ana)],
+      [text("has expected & actual type"), Type.view(ty_ana)],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(

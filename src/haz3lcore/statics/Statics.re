@@ -135,7 +135,7 @@ let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
       let ty_syn = wrap(ty_syn);
       switch (Ctx.join(ctx, ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
-      | Some(ty_join) => NotInHole(AnaConsistent(ty_syn, ty_ana, ty_join))
+      | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
       };
     | None =>
       NotInHole(AnaInternalInconsistent(ty_ana, Typ.source_tys(tys_syn)))
@@ -467,14 +467,13 @@ and uexp_to_info_map =
       union_m([m_pat, m_def, m_body]),
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
-    print_endline("tyAlias: Extend!!");
     //TODO(andrew)
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
           name,
           id: Term.UTPat.rep_id(typat),
-          kind: Term.utyp_to_ty(utyp),
+          kind: Type(Term.utyp_to_ty(utyp)),
         }),
         ctx,
       );
@@ -483,7 +482,6 @@ and uexp_to_info_map =
     let (_ty_def, m_typ) = utyp_to_info_map(ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_body, m_typ]));
   | TyAlias(_, _, e) =>
-    print_endline("tyAlias: Non-Extend");
     //TODO(andrew)
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -580,12 +578,13 @@ and upat_to_info_map =
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
+    | Some(typ) => atomic(Just(typ))
     | None =>
       switch (List.assoc_opt(name, Ctx.tags(ctx))) {
       | None => atomic(Free(Tag))
       | Some(typ) => atomic(Just(typ))
       }
-    | Some(typ) => atomic(Just(typ))
+    
     }
   | Var(name) =>
     let self = unknown;

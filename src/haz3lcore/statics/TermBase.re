@@ -313,10 +313,10 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(list(tsum))
+    | Sum(list(tagged))
     | Parens(t)
-  and tsum = {
-    label: Token.t,
+  and tagged = {
+    tag: Token.t,
     typ: term,
   }
   and t = {
@@ -337,10 +337,10 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(list(tsum))
+    | Sum(list(tagged))
     | Parens(t)
-  and tsum = {
-    label: Token.t,
+  and tagged = {
+    tag: Token.t,
     typ: term,
   }
   and t = {

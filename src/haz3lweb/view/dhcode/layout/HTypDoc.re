@@ -116,7 +116,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       );
-    | LSum(_) =>
+    | LabelSum(_) =>
       //TODO(andrew)
       (text("LabelleSumTODO"), parenthesize)
     };
