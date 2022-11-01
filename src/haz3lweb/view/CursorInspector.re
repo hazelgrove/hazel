@@ -138,8 +138,8 @@ let view_of_info =
       ~attr=clss([infoc, "unknown"]),
       [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
     )
-  | InfoExp({mode, self, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(mode, self);
+  | InfoExp({mode, self, ctx, _}) =>
+    let error_status = Haz3lcore.Statics.error_status(ctx, mode, self);
     div(
       ~attr=clss([infoc, "exp"]),
       [
@@ -147,8 +147,8 @@ let view_of_info =
         status_view(error_status),
       ],
     );
-  | InfoPat({mode, self, _}) =>
-    let error_status = Haz3lcore.Statics.error_status(mode, self);
+  | InfoPat({mode, self, ctx, _}) =>
+    let error_status = Haz3lcore.Statics.error_status(ctx, mode, self);
     div(
       ~attr=clss([infoc, "pat"]),
       [
@@ -203,9 +203,9 @@ let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   print_endline(Haz3lcore.Statics.show(ci));
   switch (ci) {
-  | InfoPat({mode, self, _})
-  | InfoExp({mode, self, _}) =>
-    Haz3lcore.Statics.error_status(mode, self)
+  | InfoPat({mode, self, ctx, _})
+  | InfoExp({mode, self, ctx, _}) =>
+    Haz3lcore.Statics.error_status(ctx, mode, self)
     |> Haz3lcore.Statics.show_error_status
     |> print_endline
   | _ => ()
