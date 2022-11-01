@@ -8,13 +8,20 @@ let code_node = text =>
   Node.div(~attr=Attr.classes(["code-font"]), [Node.text(text)]);
 
 let example_lit_node = text =>
-  Node.div(~attr=Attr.classes(["code-font", "example"]), [Node.text(text)]);
+  Node.div(
+    ~attr=Attr.classes(["code-font", "example"]),
+    [Node.text(text)],
+  );
 
 let keyword_node = text =>
-  Node.div(~attr=Attr.classes(["code-font", "keyword"]), [Node.text(text)]);
+  Node.div(
+    ~attr=Attr.classes(["code-font", "keyword"]),
+    [Node.text(text)],
+  );
 
 let option = nodes => Node.div(~attr=Attr.classes(["option"]), nodes);
-let mini_option = nodes => Node.div(~attr=Attr.classes(["mini-option"]), nodes);
+let mini_option = nodes =>
+  Node.div(~attr=Attr.classes(["mini-option"]), nodes);
 let fill_space = Node.span(~attr=Attr.classes(["filler"]), []);
 let lit_msg = (ty: HTyp.t) => {
   let int_lit =
@@ -147,10 +154,10 @@ let operator_options = cursor_info => {
 
   let arithmetic_options_wrapper = options =>
     Node.div(
-      ~attr=Attr.classes(["option"])],
+      ~attr=Attr.classes(["option"]),
       [
         Node.div(
-          ~attr=Attr.classes(["sub-options"])],
+          ~attr=Attr.classes(["sub-options"]),
           [Node.text("Arithmetic Operation")] @ options,
         ),
       ],
@@ -158,7 +165,7 @@ let operator_options = cursor_info => {
 
   let boolean_options =
     Node.div(
-      ~attr=Attr.classes(["option"])],
+      ~attr=Attr.classes(["option"]),
       [
         Node.text("Boolean Operation"),
         fill_space,
@@ -169,7 +176,7 @@ let operator_options = cursor_info => {
 
   let list_options =
     Node.div(
-      ~attr=Attr.classes(["option"])],
+      ~attr=Attr.classes(["option"]),
       [
         Node.text("List Operation"),
         fill_space,
@@ -206,7 +213,7 @@ let operator_options = cursor_info => {
 
 let add_rule_after_option =
   Node.div(
-    ~attr=Attr.classes(["option"])],
+    ~attr=Attr.classes(["option"]),
     [
       Node.text("Add rule after"),
       fill_space,
@@ -216,7 +223,7 @@ let add_rule_after_option =
 
 let comment_line_option =
   Node.div(
-    ~attr=Attr.classes(["option"])],
+    ~attr=Attr.classes(["option"]),
     [
       Node.text("Create new comment line"),
       fill_space,
@@ -226,7 +233,8 @@ let comment_line_option =
     ],
   );
 
-let type_driven = body => Node.div(~attr=Attr.classes(["type-driven"])], body);
+let type_driven = body =>
+  Node.div(~attr=Attr.classes(["type-driven"]), body);
 
 let exp_hole_view =
     (
@@ -262,16 +270,14 @@ let exp_hole_view =
         Icons.left_arrow(["fill-arrow"]);
       };
     Node.div(
-      [
       ~attr=Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-        Attr.on_click(_ => {
-          Event.Many([
-            Event.Prevent_default,
-            Event.Stop_propagation,
-            inject(ModelAction.UpdateCursorInspector(toggle)),
-          ])
-        }),
-      ],
+      Attr.on_click(_ => {
+        Event.Many([
+          Event.Prevent_default,
+          Event.Stop_propagation,
+          inject(ModelAction.UpdateCursorInspector(toggle)),
+        ])
+      }),
       [Node.text(text), subsection_arrow],
     );
   };
@@ -283,7 +289,7 @@ let exp_hole_view =
       ~attr=Attr.classes(["title-bar", "panel-title-bar", "main-fill"]),
       [
         Node.div(
-          ~attr=Attr.classes(["words"])],
+          ~attr=Attr.classes(["words"]),
           [Node.text("Here are the options at this position")],
         ),
       ],
@@ -319,7 +325,10 @@ let exp_hole_view =
       var_open,
     );
   let var_body =
-    Node.div(~attr=Attr.classes(["panel-title-bar", "body-bar"]), [vars_view]);
+    Node.div(
+      ~attr=Attr.classes(["panel-title-bar", "body-bar"]),
+      [vars_view],
+    );
 
   let fun_h =
     subsection_header(
@@ -440,7 +449,7 @@ let exp_hole_view =
       ],
     ),
     Node.div(
-      ~attr=Attr.classes(["option"])],
+      ~attr=Attr.classes(["option"]),
       [
         Node.text("Swap operand left/right"),
         fill_space,
@@ -539,7 +548,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
 let lines_view = (suggest_comment: bool) => {
   let new_line =
     Node.div(
-      ~attr=Attr.classes(["option"])],
+      ~attr=Attr.classes(["option"]),
       [
         Node.text("Create new line"),
         fill_space,
@@ -548,6 +557,6 @@ let lines_view = (suggest_comment: bool) => {
     );
   let body = suggest_comment ? [new_line, comment_line_option] : [new_line];
   type_driven([
-    Node.div(~attr=Attr.classes(["panel-title-bar", "body-bar"])], body),
+    Node.div(~attr=Attr.classes(["panel-title-bar", "body-bar"]), body),
   ]);
 };
