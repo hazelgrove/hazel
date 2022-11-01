@@ -363,14 +363,10 @@ and uexp_to_info_map =
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
-  | Tag(name) =>
-    switch (BuiltinADTs.get_tag_typ(name)) {
-    | None =>
-      switch (List.assoc_opt(name, Ctx.tags(ctx))) {
-      | None => atomic(Free(Tag))
-      | Some(typ) => atomic(Just(typ))
-      }
+  | Tag(tag) =>
+    switch (Ctx.lookup_tag(ctx, tag)) {
     | Some(typ) => atomic(Just(typ))
+    | None => atomic(Free(Tag))
     }
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
@@ -512,11 +508,7 @@ and uexp_to_info_map =
   };
 }
 and upat_to_info_map =
-    (
-      ~ctx, //=Ctx.empty,
-      ~mode: Typ.mode=Typ.Syn,
-      {ids, term} as upat: Term.UPat.t,
-    )
+    (~ctx, ~mode: Typ.mode=Typ.Syn, {ids, term} as upat: Term.UPat.t)
     : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => (
@@ -576,15 +568,10 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
-  | Tag(name) =>
-    switch (BuiltinADTs.get_tag_typ(name)) {
+  | Tag(tag) =>
+    switch (Ctx.lookup_tag(ctx, tag)) {
     | Some(typ) => atomic(Just(typ))
-    | None =>
-      switch (List.assoc_opt(name, Ctx.tags(ctx))) {
-      | None => atomic(Free(Tag))
-      | Some(typ) => atomic(Just(typ))
-      }
-    
+    | None => atomic(Free(Tag))
     }
   | Var(name) =>
     let self = unknown;
@@ -658,7 +645,7 @@ and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => 
     just(m);
   | Var(name) =>
     //TODO(andrew): better tvar lookup
-    switch (BuiltinADTs.is_typ_var(name)) {
+    switch (List.assoc_opt(name, BuiltinADTs.adts)) {
     | None =>
       switch (Ctx.lookup_tvar(ctx, name)) {
       | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))

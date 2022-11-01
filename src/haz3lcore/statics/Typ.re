@@ -29,6 +29,9 @@ and tagged = {
   typ: t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type adt = (Token.t, list(tagged));
+
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
    branches errors, but could perhaps be used more broadly

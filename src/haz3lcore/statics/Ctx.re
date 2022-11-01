@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util.OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
@@ -34,37 +35,23 @@ type co_entry = list(co_item);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type co = VarMap.t_(co_entry);
 
-let empty = VarMap.empty;
+let empty: t = VarMap.empty;
 
-let extend = (entry: entry, ctx: t) => [entry, ...ctx];
+let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
 
-let lookup_var = (ctx: t, x) =>
+let lookup_var = (ctx: t, t: Token.t) =>
   List.find_map(
-    entry =>
-      switch (entry) {
-      | VarEntry({name, typ, _}) =>
-        if (name == x) {
-          Some(typ);
-        } else {
-          None;
-        }
-      | TVarEntry(_) => None
-      },
+    fun
+    | VarEntry({name, typ, _}) when name == t => Some(typ)
+    | _ => None,
     ctx,
   );
 
-let lookup_tvar = (ctx: t, x) =>
+let lookup_tvar = (ctx: t, t: Token.t) =>
   List.find_map(
-    entry =>
-      switch (entry) {
-      | TVarEntry({name, kind, _}) =>
-        if (name == x) {
-          Some(kind);
-        } else {
-          None;
-        }
-      | VarEntry(_) => None
-      },
+    fun
+    | TVarEntry({name, kind, _}) when name == t => Some(kind)
+    | _ => None,
     ctx,
   );
 
@@ -120,37 +107,64 @@ let filter_duplicates = (ctx: t): t =>
   |> (((ctx, _, _)) => List.rev(ctx));
 
 let adts: t => list((string, list(Typ.tagged))) =
-  List.filter_map(entry =>
-    switch (entry) {
+  List.filter_map(
+    fun
     | VarEntry(_) => None
     | TVarEntry({name, kind, _}) =>
       switch (kind) {
       | Type(LabelSum(ts)) => Some((name, ts))
       | _ => None
-      }
-    }
+      },
   );
 
-let tags = (ctx: t): list((string, Typ.t)) =>
-  ctx |> adts |> BuiltinADTs.tags;
+let adt_tag_and_typ =
+    (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
+  tag,
+  switch (typ) {
+  | Prod([]) => Var(name)
+  | _ => Arrow(typ, Var(name))
+  },
+);
+
+let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
+  adts
+  |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
+  |> List.flatten;
+
+let builtin_adt_tags = get_tags(BuiltinADTs.adts);
+
+// Check builtin type names are unique
+assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
+// Check builtin tag names are unique
+assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
+
+let lookup_tag = (ctx, name) =>
+  switch (List.assoc_opt(name, builtin_adt_tags)) {
+  | Some(typ) => Some(typ)
+  | None => List.assoc_opt(name, ctx |> adts |> get_tags)
+  };
 
 /* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown */
-let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
+   sense in that any type dominates Unknown. The optional
+   resolve parameter specifies whether, in the case of a type
+   variable and a succesful join, to return the resolved join type,
+   or to return the (first) type variable for readability */
+let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
   switch (ty1, ty2) {
   | (Var(n1), Var(n2)) =>
-    //TODO(andrew)
-    switch (lookup_tvar(ctx, n1), lookup_tvar(ctx, n2)) {
-    | (Some(Type(ty1)), Some(Type(ty2))) => join(ctx, ty1, ty2)
-    | _ when n1 == n2 => Some(ty1) //BuiltIn ADT case (deprecate?)
-    | _ => None
+    if (n1 == n2) {
+      Some(ty1);
+    } else {
+      let* Type(ty1) = lookup_tvar(ctx, n1);
+      let* Type(ty2) = lookup_tvar(ctx, n2);
+      let+ ty_join = join(ctx, ty1, ty2);
+      resolve ? ty_join : Var(n1);
     }
-  | (Var(n1), ty2)
-  | (ty2, Var(n1)) =>
-    switch (lookup_tvar(ctx, n1)) {
-    | Some(Type(ty1)) => join(ctx, ty1, ty2)
-    | _ => None
-    }
+  | (Var(name), ty)
+  | (ty, Var(name)) =>
+    let* Type(ty_name) = lookup_tvar(ctx, name);
+    let+ ty_join = join(ctx, ty_name, ty);
+    resolve ? ty_join : Var(name);
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
