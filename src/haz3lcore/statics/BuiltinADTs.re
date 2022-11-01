@@ -1,13 +1,7 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tag = {
-  name: Token.t,
-  arg: option(Typ.t),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type adt = (Token.t, list(tag));
+type adt = (Token.t, list(Typ.tagged));
 
 let alftyp = Typ.Var("ALFTyp");
 let alfexpr = Typ.Var("ALFExpr");
@@ -17,23 +11,23 @@ let adts: list(adt) = [
   (
     "Color",
     [
-      {name: "Red", arg: None},
-      {name: "Green", arg: None},
-      {name: "Blue", arg: None},
+      {tag: "Red", typ: Prod([])},
+      {tag: "Green", typ: Prod([])},
+      {tag: "Blue", typ: Prod([])},
     ],
   ),
   (
     "Option_ALFTyp",
-    [{name: "None", arg: None}, {name: "Some", arg: Some(alftyp)}],
+    [{tag: "None", typ: Prod([])}, {tag: "Some", typ: alftyp}],
   ),
   (
     "ALFTyp",
     {
       [
-        {name: "Num", arg: None},
-        {name: "Bool", arg: None},
-        {name: "Arrow", arg: Some(Prod([alftyp, alftyp]))},
-        {name: "Prod", arg: Some(Prod([alftyp, alftyp]))},
+        {tag: "Num", typ: Prod([])},
+        {tag: "Bool", typ: Prod([])},
+        {tag: "Arrow", typ: Prod([alftyp, alftyp])},
+        {tag: "Prod", typ: Prod([alftyp, alftyp])},
       ];
     },
   ),
@@ -41,27 +35,24 @@ let adts: list(adt) = [
     "ALFExpr",
     {
       [
-        {name: "NumLit", arg: Some(Int)},
-        {name: "Plus", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Times", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Minus", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Eq", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Lt", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Gt", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Neg", arg: Some(alfexpr)},
-        {name: "BoolLit", arg: Some(Bool)},
-        {name: "If", arg: Some(Prod([alfexpr, alfexpr, alfexpr]))},
-        {name: "Var", arg: Some(String)},
-        {name: "Let", arg: Some(Prod([String, alfexpr, alfexpr]))},
-        {name: "Fun", arg: Some(Prod([String, alftyp, alfexpr]))},
-        {name: "Ap", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "Pair", arg: Some(Prod([alfexpr, alfexpr]))},
-        {name: "PrjL", arg: Some(alfexpr)},
-        {name: "PrjR", arg: Some(alfexpr)},
-        {
-          name: "LetPair",
-          arg: Some(Prod([String, String, alfexpr, alfexpr])),
-        },
+        {tag: "NumLit", typ: Int},
+        {tag: "Plus", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Times", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Minus", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Eq", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Lt", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Gt", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Neg", typ: alfexpr},
+        {tag: "BoolLit", typ: Bool},
+        {tag: "If", typ: Prod([alfexpr, alfexpr, alfexpr])},
+        {tag: "Var", typ: String},
+        {tag: "Let", typ: Prod([String, alfexpr, alfexpr])},
+        {tag: "Fun", typ: Prod([String, alftyp, alfexpr])},
+        {tag: "Ap", typ: Prod([alfexpr, alfexpr])},
+        {tag: "Pair", typ: Prod([alfexpr, alfexpr])},
+        {tag: "PrjL", typ: alfexpr},
+        {tag: "PrjR", typ: alfexpr},
+        {tag: "LetPair", typ: Prod([String, String, alfexpr, alfexpr])},
       ];
     },
   ),
@@ -70,16 +61,16 @@ let adts: list(adt) = [
 let is_typ_var = name => List.assoc_opt(name, adts);
 
 //TODO(andrew):cleanup
-let tags: list((Token.t, Typ.t)) =
+let tags = (adts: list(adt)): list((Token.t, Typ.t)) =>
   List.map(
     ((name, tags)) => {
       List.map(
-        adt =>
+        (adt: Typ.tagged) =>
           (
-            adt.name,
-            switch (adt.arg) {
-            | None => Typ.Var(name)
-            | Some(typ) => Arrow(typ, Var(name))
+            adt.tag,
+            switch (adt.typ) {
+            | Prod([]) => Typ.Var(name)
+            | typ => Arrow(typ, Var(name))
             },
           ),
         tags,
@@ -89,10 +80,10 @@ let tags: list((Token.t, Typ.t)) =
   )
   |> List.flatten;
 
-let get_tag_typ = (tag_name: Token.t): option(Typ.t) =>
-  List.assoc_opt(tag_name, tags);
+let get_tag_typ = (tag: Token.t): option(Typ.t) =>
+  List.assoc_opt(tag, tags(adts));
 
 // Check type names are unique
 assert(Util.ListUtil.are_duplicates(List.map(fst, adts)));
 // Check tag names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, tags)));
+assert(Util.ListUtil.are_duplicates(List.map(fst, tags(adts))));

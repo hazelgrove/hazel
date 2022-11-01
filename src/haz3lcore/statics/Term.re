@@ -553,13 +553,10 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
     | Sum(ts) =>
-      LSum(
+      LabelSum(
         List.map(
-          (ts: UTyp.tsum) =>
-            Typ.{
-              label: ts.label,
-              typ: utyp_to_ty({ids: [(-1)], term: ts.typ}),
-            },
+          ({tag, typ}: UTyp.tagged) =>
+            Typ.{tag, typ: utyp_to_ty({ids: [(-1)], term: typ})},
           ts,
         ),
       )

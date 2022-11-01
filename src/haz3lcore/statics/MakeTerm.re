@@ -411,19 +411,19 @@ and tsum_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_typ_var(t) =>
-          Sum([{label: t, typ: Tuple([])}])
+        | ([tag], []) when Form.is_typ_var(tag) =>
+          Sum([{tag, typ: Tuple([])}])
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ({term: Sum([{label: l, typ: _}]), _}), tiles) as tm =>
+  | Post(Typ({term: Sum([{tag, typ: _}]), _}), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Typ({term: typ, _})]) => Sum([{label: l, typ}])
+        | (["(", ")"], [Typ({term: typ, _})]) => Sum([{tag, typ}])
         | _ => hole(tm)
         },
       )
@@ -490,7 +490,6 @@ and tpat = unsorted => {
 }
 and tpat_term: unsorted => UTPat.term = {
   let ret = (term: UTPat.term) => term;
-  let _unrecog = UTPat.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UTPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>

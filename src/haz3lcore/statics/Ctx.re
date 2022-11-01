@@ -1,10 +1,6 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type kind = Typ.t;
-//TODO(andrew)
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry({
       name: Token.t,
@@ -14,8 +10,8 @@ type entry =
   | TVarEntry({
       name: Token.t,
       id: Id.t,
-      kind,
-    }); //: Kind.t,
+      kind: Kind.t,
+    });
 
 let get_id = (entry: entry) =>
   switch (entry) {
@@ -123,50 +119,20 @@ let filter_duplicates = (ctx: t): t =>
      )
   |> (((ctx, _, _)) => List.rev(ctx));
 
-let tags = (ctx: t): list((string, Typ.t)) => {
-  let adts: list(BuiltinADTs.adt) =
-    ctx
-    |> List.filter_map(entry =>
-         switch (entry) {
-         | VarEntry(_) => None
-         | TVarEntry({name, kind, _}) =>
-           switch (kind) {
-           | Typ.LSum(ts) =>
-             let guys =
-               List.map(
-                 ({label, typ}: Typ.tsum) => {
-                   let arg =
-                     switch (typ) {
-                     | Prod([]) => None
-                     | ty => Some(ty)
-                     };
-                   BuiltinADTs.{name: label, arg};
-                 },
-                 ts,
-               );
-             Some((name, guys));
-           | _ => None
-           }
-         }
-       );
-  List.map(
-    ((name, tags)) => {
-      List.map(
-        (adt: BuiltinADTs.tag) =>
-          (
-            adt.name,
-            switch (adt.arg) {
-            | None => Typ.Var(name)
-            | Some(typ) => Arrow(typ, Var(name))
-            },
-          ),
-        tags,
-      )
-    },
-    adts,
-  )
-  |> List.flatten;
-};
+let adts: t => list((string, list(Typ.tagged))) =
+  List.filter_map(entry =>
+    switch (entry) {
+    | VarEntry(_) => None
+    | TVarEntry({name, kind, _}) =>
+      switch (kind) {
+      | Type(LabelSum(ts)) => Some((name, ts))
+      | _ => None
+      }
+    }
+  );
+
+let tags = (ctx: t): list((string, Typ.t)) =>
+  ctx |> adts |> BuiltinADTs.tags;
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown */
@@ -175,14 +141,14 @@ let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
   | (Var(n1), Var(n2)) =>
     //TODO(andrew)
     switch (lookup_tvar(ctx, n1), lookup_tvar(ctx, n2)) {
-    | (Some(ty1), Some(ty2)) => join(ctx, ty1, ty2)
+    | (Some(Type(ty1)), Some(Type(ty2))) => join(ctx, ty1, ty2)
     | _ when n1 == n2 => Some(ty1) //BuiltIn ADT case (deprecate?)
     | _ => None
     }
   | (Var(n1), ty2)
   | (ty2, Var(n1)) =>
     switch (lookup_tvar(ctx, n1)) {
-    | Some(ty1) => join(ctx, ty1, ty2)
+    | Some(Type(ty1)) => join(ctx, ty1, ty2)
     | _ => None
     }
   | (Unknown(p1), Unknown(p2)) =>
@@ -213,14 +179,14 @@ let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
       };
     }
   | (Prod(_), _) => None
-  | (LSum(tys1), LSum(tys2)) =>
+  | (LabelSum(tys1), LabelSum(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
       switch (
         List.map2(
-          (ts1: Typ.tsum, ts2: Typ.tsum) =>
-            ts1.label == ts2.label ? join(ctx, ts1.typ, ts2.typ) : None,
+          (t1: Typ.tagged, t2: Typ.tagged) =>
+            t1.tag == t2.tag ? join(ctx, t1.typ, t2.typ) : None,
           tys1,
           tys2,
         )
@@ -229,9 +195,9 @@ let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
       | None => None
       | Some(tys) =>
         Some(
-          LSum(
+          LabelSum(
             List.map2(
-              (ts1: Typ.tsum, typ) => Typ.{label: ts1.label, typ},
+              (t1: Typ.tagged, typ) => Typ.{tag: t1.tag, typ},
               tys1,
               tys,
             ),
@@ -239,7 +205,7 @@ let rec join = (ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
         )
       };
     }
-  | (LSum(_), _) => None
+  | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
     switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))

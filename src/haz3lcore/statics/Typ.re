@@ -21,11 +21,11 @@ type t =
   | Var(string)
   | List(t)
   | Arrow(t, t)
-  | LSum(list(tsum))
+  | LabelSum(list(tagged))
   | Sum(t, t) // unused
   | Prod(list(t))
-and tsum = {
-  label: Token.t,
+and tagged = {
+  tag: Token.t,
   typ: t,
 };
 
@@ -145,7 +145,7 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Prod([])
-  | LSum(_)
+  | LabelSum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
@@ -172,14 +172,14 @@ let rec eq = (t1, t2) =>
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
     List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
-  | (LSum(tys1), LSum(tys2)) =>
+  | (LabelSum(tys1), LabelSum(tys2)) =>
     List.length(tys1) == List.length(tys2)
     && List.for_all2(
-         (ts1, ts2) => ts1.label == ts2.label && eq(ts1.typ, ts2.typ),
+         (ts1, ts2) => ts1.tag == ts2.tag && eq(ts1.typ, ts2.typ),
          tys1,
          tys2,
        )
-  | (LSum(_), _) => false
+  | (LabelSum(_), _) => false
   | (Prod(_), _) => false
   | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
   | (Sum(_), _) => false
