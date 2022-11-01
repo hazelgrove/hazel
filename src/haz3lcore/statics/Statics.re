@@ -107,7 +107,7 @@ type error_status =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free(free_error)) => InHole(Free(free_error))
-  | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Internal)))
+  | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Anonymous)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
@@ -163,9 +163,9 @@ let is_error = (ci: t): bool => {
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
+let typ_after_fix = (mode: Typ.mode, self: Typ.self, termId: Id.t): Typ.t =>
   switch (error_status(mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(Internal(termId))
   | NotInHole(SynConsistent(t)) => t
   | NotInHole(AnaConsistent(_, _, ty_join)) => ty_join
   | NotInHole(AnaExternalInconsistent(ty_ana, _)) => ty_ana
@@ -175,7 +175,8 @@ let typ_after_fix = (mode: Typ.mode, self: Typ.self): Typ.t =>
 /* The type of an expression after hole wrapping */
 let exp_typ = (m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
-  | Some(InfoExp({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoExp({mode, self, _})) =>
+    typ_after_fix(mode, self, Term.UExp.rep_id(e))
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
@@ -203,7 +204,8 @@ let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
 /* The type of a pattern after hole wrapping */
 let pat_typ = (m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
-  | Some(InfoPat({mode, self, _})) => typ_after_fix(mode, self)
+  | Some(InfoPat({mode, self, _})) =>
+    typ_after_fix(mode, self, Term.UPat.rep_id(p))
   | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
@@ -283,27 +285,27 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
-    | Ana(Unknown(SynSwitch)) => Typ.Syn
+    | Ana(Unknown(SynSwitch(_))) => Typ.Syn
     | _ => mode
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
   let add = (~self, ~free, m) => (
-    typ_after_fix(mode, self),
+    typ_after_fix(mode, self, Term.UExp.rep_id(uexp)),
     free,
     add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
   | Invalid(msg) => (
-      Unknown(Internal),
+      Unknown(Internal(Term.UExp.rep_id(uexp))),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
-  | EmptyHole => atomic(Just(Unknown(Internal)))
+  | EmptyHole => atomic(Just(Unknown(Internal(Term.UExp.rep_id(uexp)))))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -348,7 +350,8 @@ and uexp_to_info_map =
     | Some(typ) => atomic(Just(typ))
     }
   | Cons(e1, e2) =>
-    let mode_ele = Typ.matched_list_mode(mode);
+    let (mode_ele, _constraints) =
+      Typ.matched_list_mode(mode, Term.UExp.rep_id(uexp));
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
     let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
     add(
@@ -356,9 +359,14 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
+  | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(es) =>
-    let modes = Typ.matched_list_lit_mode(mode, List.length(es));
+    let (modes, _constraints) =
+      Typ.matched_list_lit_mode(
+        mode,
+        List.length(es),
+        Term.UExp.rep_id(uexp),
+      );
     let e_ids = List.map(Term.UExp.rep_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
@@ -405,7 +413,8 @@ and uexp_to_info_map =
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let ((ty_in, ty_out), _constraints) =
+      Typ.matched_arrow_inf(ty_fn, Term.UExp.rep_id(uexp));
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
@@ -414,7 +423,8 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | Fun(pat, body) =>
-    let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
+    let ((mode_pat, mode_body), _constraints) =
+      Typ.matched_arrow_mode(mode, Term.UExp.rep_id(uexp));
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
@@ -474,15 +484,15 @@ and upat_to_info_map =
     : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => (
-    typ_after_fix(mode, self),
+    typ_after_fix(mode, self, Term.UPat.rep_id(upat)),
     ctx,
     add_info(ids, InfoPat({cls, self, mode, ctx, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
-  let unknown = Typ.Just(Unknown(SynSwitch));
+  let unknown = Typ.Just(Unknown(SynSwitch(Term.UPat.rep_id(upat))));
   switch (term) {
   | Invalid(msg) => (
-      Unknown(Internal),
+      Unknown(Internal(Term.UPat.rep_id(upat))),
       ctx,
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
@@ -496,9 +506,14 @@ and upat_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
+  | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(ps) =>
-    let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
+    let (modes, _constraints) =
+      Typ.matched_list_lit_mode(
+        mode,
+        List.length(ps),
+        Term.UPat.rep_id(upat),
+      );
     let p_ids = List.map(Term.UPat.rep_id, ps);
     let (ctx, infos) =
       List.fold_left2(
@@ -524,9 +539,10 @@ and upat_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
-    (typ_after_fix(mode, self), ctx, m);
+    (typ_after_fix(mode, self, Term.UPat.rep_id(upat)), ctx, m);
   | Cons(hd, tl) =>
-    let mode_elem = Typ.matched_list_mode(mode);
+    let (mode_elem, _constraints) =
+      Typ.matched_list_mode(mode, Term.UPat.rep_id(upat));
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
@@ -537,7 +553,7 @@ and upat_to_info_map =
     }
   | Var(name) =>
     let self = unknown;
-    let typ = typ_after_fix(mode, self);
+    let typ = typ_after_fix(mode, self, Term.UPat.rep_id(upat));
     add(
       ~self,
       ~ctx=
@@ -566,7 +582,8 @@ and upat_to_info_map =
     /* Contructor application */
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let ((ty_in, ty_out), _constraints) =
+      Typ.matched_arrow_inf(ty_fn, Term.UPat.rep_id(upat));
     let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
@@ -582,7 +599,7 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let just = m => (ty, add(Just(ty), m));
   switch (term) {
   | Invalid(msg) => (
-      Unknown(Internal),
+      Unknown(Internal(Term.UTyp.rep_id(utyp))),
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | EmptyHole
@@ -603,7 +620,10 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     just(m);
   | Var(name) =>
     switch (BuiltinADTs.is_typ_var(name)) {
-    | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+    | None => (
+        Unknown(Internal(Term.UTyp.rep_id(utyp))),
+        add(Free(TypeVariable), Id.Map.empty),
+      )
     | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
     }
   | MultiHole(tms) =>

@@ -188,9 +188,17 @@ let t_of_self =
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
    implicit. Somebody should check that what I'm doing
-   here actually makes sense -Andrew */
+   here actually makes sense -Andrew
 
-let matched_arrow = (ty: t, termId: Id.t): ((t, t), constraints) => {
+   Matched judgements come in three forms: non inference, inference, and mode
+   Inference and mode judgements are constraint generating and require the id of the term matched on
+   Mode judgements additionally require a mode as input
+   Non inference judgements simply require a type as input and do not generate constraint information
+
+   TLDR: Statics should never use non inference and all other modules should ONLY use non inference.
+   */
+
+let matched_arrow_inf = (ty: t, termId: Id.t): ((t, t), constraints) => {
   let prov_to_arrow = prov => {
     let (arrow_lhs, arrow_rhs) = (
       Unknown(Inference(Matched_Arrow_Left, prov)),
@@ -206,12 +214,18 @@ let matched_arrow = (ty: t, termId: Id.t): ((t, t), constraints) => {
   };
 };
 
+let matched_arrow = (ty: t): (t, t) => {
+  let dummy_id: Id.t = (-1);
+  let (res, _) = matched_arrow_inf(ty, dummy_id);
+  res;
+};
+
 let matched_arrow_mode =
     (mode: mode, termId: Id.t): ((mode, mode), constraints) => {
   switch (mode) {
   | Syn => ((Syn, Syn), [])
   | Ana(ty) =>
-    let ((ty_in, ty_out), constraints) = matched_arrow(ty, termId);
+    let ((ty_in, ty_out), constraints) = matched_arrow_inf(ty, termId);
     ((Ana(ty_in), Ana(ty_out)), constraints);
   };
 };
@@ -223,7 +237,7 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   | _ => List.init(length, _ => Syn)
   };
 
-let matched_list = (ty: t, termId: Id.t): (t, constraints) => {
+let matched_list_inf = (ty: t, termId: Id.t): (t, constraints) => {
   let prov_to_list = prov => {
     let list_elt_typ = Unknown(Inference(Matched_List, prov));
     (list_elt_typ, [(ty, List(list_elt_typ))]);
@@ -235,11 +249,17 @@ let matched_list = (ty: t, termId: Id.t): (t, constraints) => {
   };
 };
 
+let matched_list = (ty: t): t => {
+  let dummy_id: Id.t = (-1);
+  let (res, _) = matched_list_inf(ty, dummy_id);
+  res;
+};
+
 let matched_list_mode = (mode: mode, termId: Id.t): (mode, constraints) => {
   switch (mode) {
   | Syn => (Syn, [])
   | Ana(ty) =>
-    let (ty_elts, constraints) = matched_list(ty, termId);
+    let (ty_elts, constraints) = matched_list_inf(ty, termId);
     (Ana(ty_elts), constraints);
   };
 };
@@ -249,7 +269,7 @@ let matched_list_lit_mode =
   switch (mode) {
   | Syn => (List.init(length, _ => Syn), [])
   | Ana(ty) =>
-    let (ty_elts, constraints) = matched_list(ty, termId);
+    let (ty_elts, constraints) = matched_list_inf(ty, termId);
     (List.init(length, _ => Ana(ty_elts)), constraints);
   };
 

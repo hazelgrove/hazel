@@ -7,9 +7,13 @@ let ty_view = (cls: string, s: string): Node.t =>
 
 let prov_view: Haz3lcore.Typ.type_provenance => Node.t =
   fun
-  | Internal => div([])
-  | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
+  | Inference(_) => div([])
+  | Internal(_) => div([])
+  | TypeHole(_) =>
+    div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
+  | SynSwitch(_) =>
+    div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")])
+  | Anonymous => div([]);
 
 let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous

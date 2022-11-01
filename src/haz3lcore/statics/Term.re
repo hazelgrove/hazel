@@ -499,8 +499,8 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
   utyp =>
     switch (utyp.term) {
     | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(TypeHole)
+    | MultiHole(_) => Unknown(Internal(UTyp.rep_id(utyp)))
+    | EmptyHole => Unknown(TypeHole(UTyp.rep_id(utyp)))
     | Bool => Bool
     | Int => Int
     | Float => Float
