@@ -11,7 +11,7 @@ type t =
 
 let root = Exp;
 
-let all = [Any, Nul, TPat, Pat, Typ, Rul, Exp];
+let all = [Any, Nul, Pat, Typ, Rul, Exp, TPat, TSum];
 
 let consistent = (s, s') =>
   switch (s, s') {

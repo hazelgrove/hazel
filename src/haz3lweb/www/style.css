@@ -73,8 +73,8 @@
   /* SORT COLORS */
 
   --exp-text-color: var(--light-text-color);
-  --exp-shadow-color: #c4b599;
   --exp-off-color: #b1a47f;
+  --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
 
@@ -85,25 +85,34 @@
   --pat-bg-color: #b2e8ff;
   --pat-bg-off-color: #d7f3ff;
 
+  --tpat-text-color: #16c8dc;
+  --tpat-off-color: #13d2d2;
+  --tpat-delim-color: #a2fbf9;
+  --tpat-shadow-color: var(--pat-off-color);
+  --tpat-bg-color: #b2fbff;
+  --tpat-bg-off-color: #d7fff7;
+
   --typ-text-color: #772cff;
-  /*#24ae62;*/
   --typ-off-color: #975dff;
-  /*#7fc97f;*/
   --typ-delim-color: #cfb5ff;
-  /*#aee5c6;*/
   --typ-shadow-color: var(--typ-off-color);
   --typ-bg-color: #f2ccff;
-  /*#bdf5c4;*/
   --typ-bg-off-color: #f9e8ff;
 
-  --rul-text-color: #a6b29a;
-  /*#24ae62;*/
-  --rul-off-color: #bcc29b;
-  /*#7fc97f;*/
-  --rul-bg-color: #e7ead6;
-  /*#bdf5c4;*/
-  --rul-shadow-color: var(--rul-off-color);
-  --rul-delim-color: #aee5c6;
+  --tsum-text-color: #a02cff;
+  --tsum-off-color: #c45dff;
+  --tsum-delim-color: #e1b5ff;
+  --tsum-shadow-color: var(--tsum-off-color);
+  --tsum-bg-color: #feccff;
+  --tsum-bg-off-color: #ffe8ff;
+
+  --rul-text-color: var(--exp-text-color);
+  --rul-off-color: var(--exp-off-color);
+  --rul-delim-color: #ccc2af;
+  --rul-shadow-color: var(--exp-shadow-color);
+  --rul-bg-color: var(--exp-bg-color);
+  --rul-bg-off-color: var(--exp-bg-off-color);
+
 
   --nul-bg-color: #ffacac;
   --nul-shadow-color: #690000;
@@ -645,57 +654,9 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
-.child-line.Exp {
-  stroke: var(--exp-shadow-color);
-}
-
-.child-line.Pat {
-  stroke: var(--pat-shadow-color);
-}
-
-.child-line.Typ {
-  stroke: var(--typ-shadow-color);
-}
-
-.child-line.Rul {
-  stroke: var(--rul-shadow-color);
-}
-
-/*TODO(andrew): clean up text classes*/
-.code .text-Pat {
-  color: var(--pat-text-color);
-}
-
-.code .delim.text-Pat {
-  color: var(--pat-delim-color);
+.code .delim {
   font-weight: bold;
 }
-
-.code .text-Exp {
-  color: var(--exp-text-color);
-}
-
-.code .text-Typ {
-  color: var(--typ-text-color);
-}
-
-.code .delim.text-Typ {
-  color: var(--typ-delim-color);
-  font-weight: bold;
-}
-
-.code .text-Rul {
-  color: var(--rul-text-color);
-}
-
-.code .delim.text-Rul {
-  color: var(--rul-delim-color);
-  font-weight: bold;
-}
-
-/* TOKEN COLORS */
-
-.code .token.mono {}
 
 .code .token.mono-string-lit {
   color: var(--string-lit-color);
@@ -737,109 +698,78 @@ svg.tile-selected {
   filter: url(#raised-drop-shadow-Nul) !important;
 }
 
+/* TOKEN COLORS */
 
-.tile-path.Exp {
-  filter: url(#drop-shadow-Exp);
-}
+.code .text-Exp { color: var(--exp-text-color); }
+.code .text-Pat { color: var(--pat-text-color); }
+.code .text-Typ { color: var(--typ-text-color); }
+.code .text-Rul { color: var(--rul-text-color); }
+.code .text-TSum { color: var(--tsum-text-color); }
+.code .text-TPat { color: var(--tpat-text-color); }
 
-.tile-path.Exp.indicated {
-  fill: var(--exp-bg-color);
-}
+/*.code .delim.test-Exp { color: var(--exp-delim-color); }*/
+.code .delim.text-Pat { color: var(--pat-delim-color); }
+.code .delim.text-Typ { color: var(--typ-delim-color); }
+.code .delim.text-Rul { color: var(--rul-delim-color); }
+.code .delim.text-TSum { color: var(--tsum-delim-color); }
+.code .delim.text-TPat { color: var(--tpat-delim-color); }
 
-.tile-path.Exp.indicated-caret {
-  fill: var(--exp-bg-off-color);
-}
+.tile-path.Nul { filter: url(#drop-shadow-Nul); }
+.tile-path.Exp { filter: url(#drop-shadow-Exp); }
+.tile-path.Pat { filter: url(#drop-shadow-Pat); }
+.tile-path.Typ { filter: url(#drop-shadow-Typ); }
+.tile-path.Rul { filter: url(#drop-shadow-Rul); }
+.tile-path.TSum { filter: url(#drop-shadow-TSum); }
+.tile-path.TPat { filter: url(#drop-shadow-TPat); }
 
-#drop-shadow-Exp .tile-drop-shadow,
-#raised-drop-shadow-Exp .tile-drop-shadow {
-  flood-color: var(--exp-shadow-color);
-}
+.tile-path.Nul.indicated { fill: var(--nul-bg-color); }
+.tile-path.Exp.indicated { fill: var(--exp-bg-color); }
+.tile-path.Pat.indicated { fill: var(--pat-bg-off-color); }
+.tile-path.Typ.indicated { fill: var(--typ-bg-off-color); }
+.tile-path.Rul.indicated { fill: var(--rul-bg-color); }
+.tile-path.TSum.indicated { fill: var(--tsum-bg-off-color); }
+.tile-path.TPat.indicated { fill: var(--tpat-bg-off-color); }
 
-.tile-path.Pat {
-  /*stroke: var(--pat-text-color);*/
-  filter: url(#drop-shadow-Pat);
-}
+.tile-path.Nul.indicated-caret { fill: var(--nul-bg-color); }
+.tile-path.Exp.indicated-caret { fill: var(--exp-bg-off-color); }
+.tile-path.Pat.indicated-caret { fill: var(--pat-bg-color); }
+.tile-path.Typ.indicated-caret { fill: var(--typ-bg-color); }
+.tile-path.Rul.indicated-caret { fill: var(--rul-bg-color); }
+.tile-path.TSum.indicated-caret { fill: var(--tsum-bg-color); }
+.tile-path.TPat.indicated-caret { fill: var(--tpat-bg-color); }
 
-.tile-path.Pat.indicated {
-  fill: var(--pat-bg-off-color);
-}
+.tile-path.Nul.raised { filter: url(#raised-drop-shadow-Nul); }
+/*.tile-path.Exp.raised { filter: url(#raised-drop-shadow-Exp); }*/
+.tile-path.Pat.raised { filter: url(#raised-drop-shadow-Pat); }
+.tile-path.Typ.raised { filter: url(#raised-drop-shadow-Typ); }
+.tile-path.Rul.raised { filter: url(#raised-drop-shadow-Rul); }
+.tile-path.TSum.raised { filter: url(#raised-drop-shadow-TSum); }
+.tile-path.TPat.raised { filter: url(#raised-drop-shadow-TPat); }
 
-.tile-path.Pat.indicated-caret {
-  fill: var(--pat-bg-color);
-}
+.child-line.Exp { stroke: var(--exp-shadow-color); }
+.child-line.Pat { stroke: var(--pat-shadow-color); }
+.child-line.Typ { stroke: var(--typ-shadow-color); }
+.child-line.Rul { stroke: var(--rul-shadow-color); }
+.child-line.TSum { stroke: var(--tsum-shadow-color); }
+.child-line.TPat { stroke: var(--tpat-shadow-color); }
 
-.tile-path.Pat.raised {
-  filter: url(#raised-drop-shadow-Pat);
-}
+#drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
+#drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
+#drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
+#drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
+#drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
+#drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
+#drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
 
-#drop-shadow-Pat .tile-drop-shadow,
-#raised-drop-shadow-Pat .tile-drop-shadow {
-  flood-color: var(--pat-shadow-color);
-}
+#raised-drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
+#raised-drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
+#raised-drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
+#raised-drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
+#raised-drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
+#raised-drop-shadow-TSum .tile-drop-shadow { flood-color: var(--tsum-shadow-color); }
+#raised-drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
 
-.tile-path.Typ {
-  filter: url(#drop-shadow-Typ);
-}
-
-.tile-path.Typ.indicated {
-  fill: var(--typ-bg-off-color);
-}
-
-.tile-path.Typ.indicated-caret {
-  fill: var(--typ-bg-color);
-  /* TODO(andrew) */
-}
-
-.tile-path.Typ.raised {
-  filter: url(#raised-drop-shadow-Typ);
-}
-
-#drop-shadow-Typ .tile-drop-shadow,
-#raised-drop-shadow-Typ .tile-drop-shadow {
-  flood-color: var(--typ-shadow-color);
-}
-
-.tile-path.Rul {
-  filter: url(#drop-shadow-Rul);
-}
-
-.tile-path.Rul.indicated {
-  fill: var(--rul-bg-color);
-}
-
-.tile-path.Rul.indicated-caret {
-  fill: var(--rul-bg-color);
-}
-
-.tile-path.Rul.raised {
-  filter: url(#raised-drop-shadow-Rul);
-}
-
-#drop-shadow-Rul .tile-drop-shadow,
-#raised-drop-shadow-Rul .tile-drop-shadow {
-  flood-color: var(--rul-shadow-color);
-}
-
-.tile-path.Nul {
-  filter: url(#drop-shadow-Nul);
-}
-
-.tile-path.Nul.indicated {
-  fill: var(--nul-bg-color);
-}
-
-.tile-path.Nul.indicated-caret {
-  fill: var(--nul-bg-color);
-}
-
-.tile-path.Nul.raised {
-  filter: url(#raised-drop-shadow-Nul);
-}
-
-#drop-shadow-Nul .tile-drop-shadow,
-#raised-drop-shadow-Nul .tile-drop-shadow {
-  flood-color: var(--nul-shadow-color);
-}
+/* END TOKEN COLORS */
 
 .caret-position-path {
   vector-effect: non-scaling-stroke;
