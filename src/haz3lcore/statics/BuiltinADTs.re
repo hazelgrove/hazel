@@ -2,12 +2,12 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tag = {
-  name: string,
+  name: Token.t,
   arg: option(Typ.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type adt = (string, list(tag));
+type adt = (Token.t, list(tag));
 
 let alftyp = Typ.Var("ALFTyp");
 let alfexpr = Typ.Var("ALFExpr");
@@ -69,7 +69,8 @@ let adts: list(adt) = [
 
 let is_typ_var = name => List.assoc_opt(name, adts);
 
-let tags: list((string, Typ.t)) =
+//TODO(andrew):cleanup
+let tags: list((Token.t, Typ.t)) =
   List.map(
     ((name, tags)) => {
       List.map(
@@ -88,7 +89,7 @@ let tags: list((string, Typ.t)) =
   )
   |> List.flatten;
 
-let get_tag_typ = (tag_name: string): option(Typ.t) =>
+let get_tag_typ = (tag_name: Token.t): option(Typ.t) =>
   List.assoc_opt(tag_name, tags);
 
 // Check type names are unique
