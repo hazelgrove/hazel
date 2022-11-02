@@ -144,30 +144,6 @@ let triv_exp: form = {
   };
 };
 
-let undef_exp_group = "undef_exp_group";
-let undef_exp: form = {
-  let explanation = {
-    message: "Undefined expression. Equivalent to an empty hole, but expresses an intent to leave the code undefined",
-    feedback: Unselected,
-  };
-  let head_example = {
-    sub_id: "undef_head_function",
-    term:
-      mk_example(
-        "let head = fun xs -> case xs\n| hd::tl => hd\n|nil => undefined\nend in (head([2, 3]), head(nil))",
-      ),
-    message: "This function gets the head of a list, which does not exist in an empty list. Since there is no coherent value for the function to evaluate to, it evaluates to undefined if the function ever recieves it.",
-    feedback: Unselected,
-  };
-  {
-    id: "undef_exp",
-    syntactic_form: [exp("Undefined")],
-    expandable_id: None,
-    explanation,
-    examples: [head_example],
-  };
-};
-
 let bool_exp_group = "bool_exp_group";
 let bool_exp: form = {
   let explanation = {message: "Boolean literal.", feedback: Unselected};

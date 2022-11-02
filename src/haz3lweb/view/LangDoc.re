@@ -603,13 +603,13 @@ let get_doc =
       | Undefined =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.undef_exp_group,
+            LangDocMessages.triv_exp_group,
             docs,
           );
         get_message(
           doc,
           options,
-          LangDocMessages.undef_exp_group,
+          LangDocMessages.triv_exp_group,
           doc.explanation.message,
           [],
         );
@@ -887,6 +887,34 @@ let get_doc =
             basic(doc, LangDocMessages.function_str_group, options);
           };
         | Triv =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.function_triv_group,
+              docs,
+            );
+          if (LangDocMessages.function_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.function_triv_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id,
+                pat_id,
+                body_id,
+              ),
+              LangDocMessages.function_triv_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            );
+          } else {
+            basic(doc, LangDocMessages.function_triv_group, options);
+          };
+        | Undefined =>
+          // TODO: make documentation for undefined and put it here
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.function_triv_group,
@@ -1542,6 +1570,42 @@ let get_doc =
             );
           };
         | Triv =>
+          let (doc, options) =
+            LangDocMessages.get_form_and_options(
+              LangDocMessages.let_triv_exp_group,
+              docs,
+            );
+          if (LangDocMessages.let_triv_exp.id == doc.id) {
+            let pat_id = List.nth(pat.ids, 0);
+            let def_id = List.nth(def.ids, 0);
+            let body_id = List.nth(body.ids, 0);
+            get_message(
+              doc,
+              options,
+              LangDocMessages.let_triv_exp_group,
+              Printf.sprintf(
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                def_id,
+                pat_id,
+                def_id,
+                body_id,
+              ),
+              LangDocMessages.let_triv_exp_coloring_ids(
+                ~pat_id,
+                ~def_id,
+                ~body_id,
+              ),
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
+            basic(
+              doc,
+              LangDocMessages.let_triv_exp_group,
+              options,
+            );
+          };
+        | Undefined =>
+          /* TODO write language reference and put it here */
           let (doc, options) =
             LangDocMessages.get_form_and_options(
               LangDocMessages.let_triv_exp_group,
@@ -2261,6 +2325,20 @@ let get_doc =
         [],
       );
     | Triv =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.triv_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.triv_pat_group,
+        doc.explanation.message,
+        [],
+      );
+    | Undefined =>
+      /* TODO: write undefined language documentation and fix this */
       let (doc, options) =
         LangDocMessages.get_form_and_options(
           LangDocMessages.triv_pat_group,
