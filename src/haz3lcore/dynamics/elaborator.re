@@ -297,7 +297,6 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       // TODO: dhexp, eval for multiholes
       Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
-    | Undefined => Some(EmptyHole(u, 0))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
