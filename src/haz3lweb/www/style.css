@@ -113,12 +113,12 @@
   --typ-bg-color: #f2ccff;
   --typ-bg-off-color: #f9e8ff;
 
-  --tsum-text-color: #a02cff;
-  --tsum-off-color: #c45dff;
-  --tsum-delim-color: #e1b5ff;
-  --tsum-shadow-color: var(--tsum-off-color);
-  --tsum-bg-color: #feccff;
-  --tsum-bg-off-color: #ffe8ff;
+  --tsum-text-color: #7f50a6;
+  --tsum-off-color: var(--typ-off-color);
+  --tsum-delim-color: var(--typ-delim-color);
+  --tsum-shadow-color: var(--typ-shadow-color);
+  --tsum-bg-color: var(--typ-bg-color);
+  --tsum-bg-off-color: var(--typ-bg-off-color);
 
   --rul-text-color: var(--exp-text-color);
   --rul-off-color: var(--exp-off-color);
