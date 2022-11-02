@@ -90,24 +90,28 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
         | Prod(_) => Some(d)
         | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
         }
+      | Inj(_) //TODO
+      | Cons(_)
+      | FixF(_) =>
+        //TODO
+        Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       //TODO(andrew): why is these this way?
       | ConsistentCase(_)
-      | InconsistentBranches(_) => Some(d)
+      | InconsistentBranches(_)
+      | Sequence(_)
+      | Let(_) => Some(d)
       // don't cast:
       | InvalidText(_)
       | FreeVar(_)
       | ExpandingKeyword(_)
-      | Closure(_)
       | EmptyHole(_)
       | NonEmptyHole(_)
-      | Cast(_)
-      | FailedCast(_)
-      | InvalidOperation(_) => Some(d)
+      | Closure(_) //impossible?
+      | Cast(_) //impossible?
+      | FailedCast(_) //impossible?
+      | InvalidOperation(_) => Some(d) //impossible?
       // cast:
       | BoundVar(_)
-      | Sequence(_)
-      | Let(_)
-      | FixF(_)
       | Ap(_)
       | ApBuiltin(_)
       | TestLit(_)
@@ -119,9 +123,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
-      | Cons(_)
       | Prj(_)
-      | Inj(_)
       | Tag(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
