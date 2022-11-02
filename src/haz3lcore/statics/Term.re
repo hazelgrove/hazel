@@ -143,6 +143,7 @@ module UPat = {
     | Bool(_) => Bool
     | String(_) => String
     | Triv => Triv
+    | Undefined => Undefined
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Cons(_) => Cons
@@ -187,6 +188,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -208,6 +210,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -232,6 +235,7 @@ module UPat = {
       | Bool(_)
       | String(_)
       | Triv
+      | Undefined
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -255,6 +259,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -281,6 +286,7 @@ module UPat = {
     | Bool(_)
     | String(_)
     | Triv
+    | Undefined
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -312,6 +318,7 @@ module UPat = {
       | Bool(_)
       | String(_)
       | Triv
+      | Undefined
       | ListLit(_)
       | Cons(_, _)
       | Var(_)

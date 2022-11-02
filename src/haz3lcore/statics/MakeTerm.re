@@ -322,6 +322,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | (["triv"], []) => Triv
+        | (["undefined"], []) => Undefined
         | (["true"], []) => Bool(true)
         | (["false"], []) => Bool(false)
         | (["(", ")"], [Pat(body)]) => Parens(body)

@@ -262,6 +262,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | Triv
+    | Undefined
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
@@ -286,6 +287,7 @@ and UPat: {
     | Bool(bool)
     | String(string)
     | Triv
+    | Undefined
     | ListLit(list(t))
     | Tag(string)
     | Cons(t, t)
