@@ -775,7 +775,7 @@ let mk_map =
     },
   );
 
-let mk_map_and_constraints = 
+let mk_map_and_constraints =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
