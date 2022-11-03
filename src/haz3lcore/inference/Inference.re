@@ -3,8 +3,11 @@ let rec unify = (eq_graph: EqGraph.t, constraints: ITyp.constraints): unit => {
 }
 and unify_one = (eq_graph: EqGraph.t, typs: (ITyp.t, ITyp.t)): unit => {
   switch (typs) {
+  | (List(ty1), List(ty2)) =>
+    unify_one(eq_graph, (ty1, ty2))
   | (Arrow(ty1_lhs, ty1_rhs), Arrow(ty2_lhs, ty2_rhs))
-  | (Prod(ty1_lhs, ty1_rhs), Prod(ty2_lhs, ty2_rhs)) =>
+  | (Prod(ty1_lhs, ty1_rhs), Prod(ty2_lhs, ty2_rhs))
+  | (Sum(ty1_lhs, ty1_rhs), Sum(ty2_lhs, ty2_rhs)) =>
     unify(eq_graph, [(ty1_lhs, ty2_lhs), (ty1_rhs, ty2_rhs)])
   | (Unknown(_) as hole, t)
   | (t, Unknown(_) as hole) =>
