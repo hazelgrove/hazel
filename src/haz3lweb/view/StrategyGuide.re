@@ -52,7 +52,7 @@ let lit_msg = (ty: HTyp.t) => {
     option([
       Node.text("Enter a Function Literal"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Backslash),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Backslash),
       Node.text(" or "),
       example_lit_node("fun "),
     ]);
@@ -60,21 +60,21 @@ let lit_msg = (ty: HTyp.t) => {
     option([
       Node.text("Enter an Injection Literal"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_L),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Alt_L),
       Node.text("or"),
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_R),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Alt_R),
     ]);
   let prod_lit =
     option([
       Node.text("Enter a Tuple Literal"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftParen),
+      AssistantView_common.kc_shortcut_node(KeyCombo.LeftParen),
     ]);
   let list_lit =
     option([
       Node.text("Enter an Empty List Literal"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftBracket),
+      AssistantView_common.kc_shortcut_node(KeyCombo.LeftBracket),
     ]);
   switch (ty) {
   | Hole => [
@@ -120,15 +120,15 @@ let list_vars_view = (vars: VarCtx.t) => {
  */
 let operator_options = cursor_info => {
   let int_options = [
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Plus),
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Minus),
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Asterisk),
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Slash),
+    AssistantView_common.kc_shortcut_node(KeyCombo.Plus),
+    AssistantView_common.kc_shortcut_node(KeyCombo.Minus),
+    AssistantView_common.kc_shortcut_node(KeyCombo.Asterisk),
+    AssistantView_common.kc_shortcut_node(KeyCombo.Slash),
   ];
   let int_to_bool_options = [
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.LT),
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.GT),
-    AssistantView_common.kc_shortcut_node(HazelKeyCombos.Equals),
+    AssistantView_common.kc_shortcut_node(KeyCombo.LT),
+    AssistantView_common.kc_shortcut_node(KeyCombo.GT),
+    AssistantView_common.kc_shortcut_node(KeyCombo.Equals),
   ];
   let float_options = [
     AssistantView_common.text_shortcut_node("+."),
@@ -169,8 +169,8 @@ let operator_options = cursor_info => {
       [
         Node.text("Boolean Operation"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Ampersand),
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.VBar),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Ampersand),
+        AssistantView_common.kc_shortcut_node(KeyCombo.VBar),
       ],
     );
 
@@ -180,7 +180,7 @@ let operator_options = cursor_info => {
       [
         Node.text("List Operation"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Semicolon),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Semicolon),
       ],
     );
 
@@ -217,7 +217,7 @@ let add_rule_after_option =
     [
       Node.text("Add rule after"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Enter),
     ],
   );
 
@@ -227,9 +227,9 @@ let comment_line_option =
     [
       Node.text("Create new comment line"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Pound),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Pound),
       Node.text(" or "),
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Shift_Enter),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Shift_Enter),
     ],
   );
 
@@ -238,8 +238,8 @@ let type_driven = body =>
 
 let exp_hole_view =
     (
-      ~inject: ModelAction.t => Event.t,
-      cursor_inspector: CursorInspectorModel.t,
+      ~inject: Update.t => 'a,
+      cursor_inspector: Haz3lcore.Statics.t,
       cursor_info: CursorInfo.t,
     ) => {
   let lit_open = cursor_inspector.strategy_guide_lit;
@@ -341,7 +341,7 @@ let exp_hole_view =
     option([
       Node.text("Apply a Function"),
       fill_space,
-      AssistantView_common.kc_shortcut_node(HazelKeyCombos.Space),
+      AssistantView_common.kc_shortcut_node(KeyCombo.Space),
     ]);
   let fun_view =
     if (VarMap.is_empty(fun_ctx)) {
@@ -386,7 +386,7 @@ let exp_hole_view =
             fill_space,
             example_lit_node("\"case \""),
             Node.text(" or "),
-            AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_C),
+            AssistantView_common.kc_shortcut_node(KeyCombo.Alt_C),
           ],
         ),
       ],
@@ -427,7 +427,7 @@ let exp_hole_view =
       [
         Node.text("Parenthesize"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.LeftParen),
+        AssistantView_common.kc_shortcut_node(KeyCombo.LeftParen),
       ],
     ),
     Node.div(
@@ -435,8 +435,8 @@ let exp_hole_view =
       [
         Node.text("Move to next/previous hole"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Tab),
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.ShiftTab),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Tab),
+        AssistantView_common.kc_shortcut_node(KeyCombo.ShiftTab),
       ],
     ),
     Node.div(
@@ -444,8 +444,8 @@ let exp_hole_view =
       [
         Node.text("Swap line up/down"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Up),
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Down),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Alt_Up),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Alt_Down),
       ],
     ),
     Node.div(
@@ -453,8 +453,8 @@ let exp_hole_view =
       [
         Node.text("Swap operand left/right"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Left),
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Alt_Right),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Alt_Left),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Alt_Right),
       ],
     ),
   ];
@@ -524,7 +524,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
               [
                 Node.text("Add rule before"),
                 fill_space,
-                AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
+                AssistantView_common.kc_shortcut_node(KeyCombo.Enter),
               ],
             ),
           ],
@@ -552,7 +552,7 @@ let lines_view = (suggest_comment: bool) => {
       [
         Node.text("Create new line"),
         fill_space,
-        AssistantView_common.kc_shortcut_node(HazelKeyCombos.Enter),
+        AssistantView_common.kc_shortcut_node(KeyCombo.Enter),
       ],
     );
   let body = suggest_comment ? [new_line, comment_line_option] : [new_line];

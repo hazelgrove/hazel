@@ -241,6 +241,30 @@ let view =
       info_map: Haz3lcore.Statics.map,
     ) => {
   let backpack = zipper.backpack;
+  
+  /* StrategyGuide */
+  let (show_strategy_guide_icon, strategy_guide) =
+      switch (cursor_info.cursor_term, cursor_info.parent_info) {
+      | (ExpOperand(_, EmptyHole(_)), _) => (
+          true,
+          Some(
+            StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
+          ),
+        )
+      | (Rule(_), _)
+      | (ExpOperand(_, Case(_)), _)
+      | (_, AfterBranchClause) =>
+        switch (StrategyGuide.rules_view(cursor_info)) {
+        | None => (false, None)
+        | Some(sg_rules) => (true, Some(sg_rules))
+        }
+      | (Line(_, EmptyLine), _) => (
+          true,
+          Some(StrategyGuide.lines_view(true)),
+        )
+      | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
+      | _ => (false, None)
+      };
   if (List.length(backpack) > 0) {
     div([]);
   } else {
