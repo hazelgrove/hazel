@@ -120,8 +120,15 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
+  let c =
+    settings.step ?
+      DHDoc_Step.mk(
+        ~settings,
+        ~enforce_inline=false,
+        ~selected_hole_instance,
+      ) : DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance)
+  |> c
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

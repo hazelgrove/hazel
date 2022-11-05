@@ -1354,9 +1354,9 @@ let step = (env: Environment.t, obj: EvalObj.t) => {
   step(env, obj, es);
 };
 
-let decompose = (env: Environment.t, d: DHExp.t, opt: EvalType.t) => {
+let decompose = (env: Environment.t, d: DHExp.t) => {
   let es = EvaluatorState.init;
   let (env, es) =
     es |> EvaluatorState.with_eig(ClosureEnvironment.of_environment(env));
-  decompose(env, d, opt, es);
+  decompose(env, d, EvalType.Pause, es);
 };
