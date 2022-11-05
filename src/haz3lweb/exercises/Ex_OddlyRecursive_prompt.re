@@ -6,7 +6,7 @@ let prompt =
   div([
     p([
       text(
-        "Write a function that determines whether the given integer is odd. ",
+        "Write a recursive function that determines whether the given integer is odd. ",
       ),
     ]),
     p([
