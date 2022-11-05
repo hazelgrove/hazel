@@ -26,55 +26,11 @@ let step =
     EvaluatorStep.step(Environment.empty),
   );
 
-let preprocess = (d: DHExp.t) => {
-  open EvaluatorMonad;
-  open EvaluatorMonad.Syntax;
-  let rec go =
-          (env: ClosureEnvironment.t, d: DHExp.t): EvaluatorMonad.t(DHExp.t) => {
-    print_endline(
-      "preprocess: go: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
-    );
-    switch (d) {
-    | FreeVar(u, i, x) => DHExp.Closure(env, FreeVar(u, i, x)) |> return
-    | EmptyHole(u, i) => DHExp.Closure(env, EmptyHole(u, i)) |> return
-    | Let(dp, d1, d2) =>
-      let* r1 = go(env, d1);
-      let* r2 = go(env, d2);
-      DHExp.Let(dp, r1, r2) |> return;
-    | BinBoolOp(op, d1, d2) =>
-      let* r1 = go(env, d1);
-      let* r2 = go(env, d2);
-      DHExp.BinBoolOp(op, r1, r2) |> return;
-    | BinIntOp(op, d1, d2) =>
-      let* r1 = go(env, d1);
-      let* r2 = go(env, d2);
-      DHExp.BinIntOp(op, r1, r2) |> return;
-    | BinFloatOp(op, d1, d2) =>
-      let* r1 = go(env, d1);
-      let* r2 = go(env, d2);
-      DHExp.BinFloatOp(op, r1, r2) |> return;
-    | BinStringOp(op, d1, d2) =>
-      let* r1 = go(env, d1);
-      let* r2 = go(env, d2);
-      DHExp.BinStringOp(op, r1, r2) |> return;
-    | Cast(d, ty, ty') =>
-      let* r = go(env, d);
-      DHExp.Cast(r, ty, ty') |> return;
-    | _ => d |> return
-    };
-  };
-  let es = EvaluatorState.init;
-  let (env, es) =
-    es
-    |> EvaluatorState.with_eig(
-         ClosureEnvironment.of_environment(Environment.empty),
-       );
-  let (_, d) = go(env, d, es);
-  print_endline(
-    "preprocessed: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+let decompose = 
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    EvaluatorStep.decompose(Environment.empty),
   );
-  d;
-};
 
 let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
   let ((d, hii), es) =
@@ -167,6 +123,11 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   };
 };
 
+let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {
+  let (_, objs) = decompose(d);
+  objs;
+}
+
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
@@ -174,9 +135,6 @@ let get_step = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
 
 let evaluation_result = (map, term): option(DHExp.t) =>
-  Some(ProgramResult.get_dhexp(get_result(map, term)));
-
-let evaluation_step = (map, term): option(DHExp.t) =>
   Some(ProgramResult.get_dhexp(get_result(map, term)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]

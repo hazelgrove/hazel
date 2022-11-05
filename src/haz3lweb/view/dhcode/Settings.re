@@ -5,6 +5,7 @@
 module Evaluation = {
   type t = {
     evaluate: bool,
+    step: bool,
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_casts: bool,
@@ -13,6 +14,7 @@ module Evaluation = {
 
   let init = {
     evaluate: true,
+    step: false,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,
@@ -22,6 +24,7 @@ module Evaluation = {
   [@deriving sexp]
   type update =
     | Toggle_evaluate
+    | Toggle_step
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
     | Toggle_show_casts
@@ -30,6 +33,7 @@ module Evaluation = {
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_evaluate => {...settings, evaluate: !settings.evaluate}
+    | Toggle_step => {...settings, step: !settings.step}
     | Toggle_show_case_clauses => {
         ...settings,
         show_case_clauses: !settings.show_case_clauses,
