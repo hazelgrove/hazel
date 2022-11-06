@@ -23,7 +23,7 @@ let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
           on_mouseup(_ => inject(Update.Mouseup)),
           on_mousemove(e => {
             let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(Update.PerformAction(Select(Goal(goal))));
+            inject(Update.PerformAction(Select(Resize(Goal(goal)))));
           }),
         ],
       ),
@@ -103,13 +103,16 @@ let code_cell_view =
               ["cell-item", "cell", ...clss]
               @ (selected ? ["selected"] : ["deselected"]),
             ),
-            Attr.on_mousedown(
-              mousedown_handler(
-                ~inject,
-                ~font_metrics,
-                ~target_id=code_id,
-                ~additional_updates=mousedown_updates,
-              ),
+            Attr.on_mousedown(evt =>
+              JsUtil.is_double_click(evt)
+                ? inject(Update.PerformAction(Select(Term(Current))))
+                : mousedown_handler(
+                    ~inject,
+                    ~font_metrics,
+                    ~target_id=code_id,
+                    ~additional_updates=mousedown_updates,
+                    evt,
+                  )
             ),
           ]),
         Option.to_list(caption) @ code,
@@ -162,6 +165,7 @@ let deco =
       ~selected,
       ~info_map,
       ~test_results: option(Interface.test_results),
+      ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   let unselected = Zipper.unselect_and_zip(zipper);
   module Deco =
@@ -175,10 +179,16 @@ let deco =
       let tiles = TileMap.mk(unselected);
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
-  switch (test_results) {
-  | None => decos
-  | Some(test_results) =>
-    decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
+  let decos =
+    switch (test_results) {
+    | None => decos
+    | Some(test_results) =>
+      decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
+    };
+  switch (color_highlighting, selected) {
+  | (Some(colorMap), true) =>
+    decos @ Deco.color_highlights(ColorSteps.to_list(colorMap))
+  | _ => decos
   };
 };
 
@@ -225,6 +235,7 @@ let editor_view =
       ~info_map: Statics.map,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
+      ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
   //~eval_result: option(option(DHExp.t))
@@ -245,6 +256,7 @@ let editor_view =
       ~selected,
       ~info_map,
       ~test_results,
+      ~color_highlighting,
     );
   let code_view =
     Node.div(
@@ -274,6 +286,7 @@ let editor_with_result_view =
       ~mousedown: bool,
       ~mousedown_updates: list(Update.t)=[],
       ~settings: Model.settings,
+      ~color_highlighting: option(ColorSteps.colorMap),
       ~selected: bool,
       ~caption: option(Node.t)=?,
       ~code_id: string,
@@ -297,6 +310,7 @@ let editor_with_result_view =
     ~info_map,
     ~test_results,
     ~footer=Some(eval_result_footer),
+    ~color_highlighting,
     editor,
   );
 };
