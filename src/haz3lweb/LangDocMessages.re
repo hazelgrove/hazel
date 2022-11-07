@@ -70,6 +70,7 @@ let gte = () => Example.mk_monotile(Form.get("gte"));
 let fplus = () => Example.mk_monotile(Form.get("fplus"));
 let fminus = () => Example.mk_monotile(Form.get("fminus"));
 let ftimes = () => Example.mk_monotile(Form.get("ftimes"));
+let fpower = () => Example.mk_monotile(Form.get("power"));
 let fdivide = () => Example.mk_monotile(Form.get("fdivide"));
 let fequals = () => Example.mk_monotile(Form.get("fequals"));
 let flt = () => Example.mk_monotile(Form.get("flt"));
@@ -1687,6 +1688,7 @@ let int_eq_group = "int_eq_group";
 let float_plus_group = "float_plus_group";
 let float_minus_group = "float_minus_group";
 let float_times_group = "float_times_group";
+let float_power_group = "float_power_group";
 let float_divide_group = "float_divide_group";
 let float_lt_group = "float_lt_group";
 let float_lte_group = "float_lte_group";
@@ -1814,6 +1816,12 @@ let float_times_ex = {
   sub_id: "float_times_ex",
   term: mk_example("1. *. 2.2"),
   message: "1 multiplied be 2.2 evalutes to 2.2.",
+  feedback: Unselected,
+};
+let float_power_ex = {
+  sub_id: "float_power_ex",
+  term: mk_example("2. ** 4."),
+  message: "2. raised to 4. evaluates to 16.",
   feedback: Unselected,
 };
 let float_divide_ex = {
@@ -2226,6 +2234,27 @@ let float_times_exp: form = {
     expandable_id: None,
     explanation,
     examples: [float_times_ex],
+  };
+};
+let float_power_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let float_power_exp: form = {
+  let explanation = {
+    message: "Floating-point exponentiation.  Gives the result of raiding [*left*](%i) to the [*right*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "float_power_exp",
+    syntactic_form: [_exp1, space(), fpower(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [float_power_ex],
   };
 };
 let _exp1 = exp("e1");
@@ -3612,6 +3641,7 @@ let init = {
     (float_plus_group, init_options([(float_plus_exp.id, [])])),
     (float_minus_group, init_options([(float_minus_exp.id, [])])),
     (float_times_group, init_options([(float_times_exp.id, [])])),
+    (float_power_group, init_options([(float_power_exp.id, [])])),
     (float_divide_group, init_options([(float_divide_exp.id, [])])),
     (float_lt_group, init_options([(float_lt_exp.id, [])])),
     (float_lte_group, init_options([(float_lte_exp.id, [])])),

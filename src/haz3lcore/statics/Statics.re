@@ -242,7 +242,7 @@ let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
 
 let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Float
+  | (Plus | Minus | Times | Power | Divide) as _op => Float
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 

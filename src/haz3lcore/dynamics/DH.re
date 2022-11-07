@@ -28,6 +28,7 @@ module rec DHExp: {
       | FPlus
       | FMinus
       | FTimes
+      | FPower
       | FDivide
       | FLessThan
       | FLessThanOrEqual
@@ -120,6 +121,7 @@ module rec DHExp: {
       | FPlus
       | FMinus
       | FTimes
+      | FPower
       | FDivide
       | FLessThan
       | FLessThanOrEqual

@@ -60,6 +60,7 @@ and UExp: {
     | Plus
     | Minus
     | Times
+    | Power
     | Divide
     | LessThan
     | LessThanOrEqual
@@ -166,6 +167,7 @@ and UExp: {
     | Plus
     | Minus
     | Times
+    | Power
     | Divide
     | LessThan
     | LessThanOrEqual

@@ -9,6 +9,7 @@ module P = Precedence;
 let precedence_const = P.max;
 let precedence_Ap = P.ap;
 let precedence_Times = P.mult;
+let precedence_Power = P.semi;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
 let precedence_Minus = P.plus;

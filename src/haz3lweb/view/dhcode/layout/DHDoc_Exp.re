@@ -22,6 +22,7 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
 let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   switch (bfo) {
   | FTimes => DHDoc_common.precedence_Times
+  | FPower => DHDoc_common.precedence_Power
   | FDivide => DHDoc_common.precedence_Divide
   | FPlus => DHDoc_common.precedence_Plus
   | FMinus => DHDoc_common.precedence_Minus
@@ -105,6 +106,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FMinus => "-."
     | FPlus => "+."
     | FTimes => "*."
+    | FPower => "**"
     | FDivide => "/."
     | FLessThan => "<."
     | FLessThanOrEqual => "<=."

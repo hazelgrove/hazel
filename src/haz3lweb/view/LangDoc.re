@@ -2051,6 +2051,10 @@ let get_doc =
               LangDocMessages.float_times_group,
               LangDocMessages.float_times_exp_coloring_ids,
             )
+          | Float(Power) => (
+              LangDocMessages.float_power_group,
+              LangDocMessages.float_power_exp_coloring_ids,
+            )
           | Float(Divide) => (
               LangDocMessages.float_divide_group,
               LangDocMessages.float_divide_exp_coloring_ids,

@@ -391,6 +391,7 @@ module UExp = {
     | Plus => "Float Addition"
     | Minus => "Float Subtraction"
     | Times => "Float Multiplication"
+    | Power => "Float Exponentiation"
     | Divide => "Float Division"
     | LessThan => "Float Less Than"
     | LessThanOrEqual => "Float Less Than or Equal"

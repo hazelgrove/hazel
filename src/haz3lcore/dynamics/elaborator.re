@@ -28,6 +28,7 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | Plus => FPlus
   | Minus => FMinus
   | Times => FTimes
+  | Power => FPower
   | Divide => FDivide
   | LessThan => FLessThan
   | LessThanOrEqual => FLessThanOrEqual
