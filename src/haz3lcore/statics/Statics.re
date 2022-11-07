@@ -402,7 +402,9 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
+    /* | Pipeline(arg, fn) */
     /* Function position mode Ana(Hole->Hole) instead of Syn */
+
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -413,6 +415,8 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
+  | Pipeline(arg, fn) =>
+    uexp_to_info_map(~ctx, ~mode, {ids, term: Ap(fn, arg)})
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
