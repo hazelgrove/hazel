@@ -52,7 +52,7 @@ serve2:
 	cd $(HTML_DIR); python3 -m http.server 8001
 
 repl:
-	dune utop src/hazelcore
+	dune utop src/haz3lcore
 
 test:
 	dune build @src/fmt --auto-promote || true

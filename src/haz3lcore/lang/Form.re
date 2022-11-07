@@ -138,7 +138,11 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
   ("cell-join", mk_infix(";", Exp, 10)),
-  ("plus", mk_infix("+", Exp, P.plus)),
+  ("plus-", mk_nul_infix("+", P.plus)),
+  ("plus", mk_infix("~++~", Exp, P.plus)),
+  ("plus___", mk_nul_infix("~++", P.plus)),
+  ("plus__", mk_nul_infix("~+", P.plus)),
+  ("plus_", mk_nul_infix("~", P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
   ("divide", mk_infix("/", Exp, P.mult)),
