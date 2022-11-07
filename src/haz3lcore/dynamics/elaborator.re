@@ -219,6 +219,30 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         /* mutual recursion */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
+        let ddef =
+          switch (ddef) {
+          | Tuple(a) =>
+            switch (a) {
+            | [Fun(a1, b1, c1, _), Fun(a2, b2, c2, _)] =>
+              DHExp.Tuple([
+                DHExp.Fun(a1, b1, c1, Some(Array.of_list(fs)[0])),
+                DHExp.Fun(a2, b2, c2, Some(Array.of_list(fs)[1])),
+              ])
+            | [Fun(a1, b1, c1, _), _] =>
+              DHExp.Tuple([
+                DHExp.Fun(a1, b1, c1, Some(Array.of_list(fs)[0])),
+                Array.of_list(a)[1],
+              ])
+            | [_, Fun(a2, b2, c2, _)] =>
+              DHExp.Tuple([
+                Array.of_list(a)[0],
+                DHExp.Fun(a2, b2, c2, Some(Array.of_list(fs)[1])),
+              ])
+            | _ => ddef
+            }
+          | _ => ddef
+          };
+
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         let uniq_id = List.nth(def.ids, 0);
