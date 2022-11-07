@@ -106,7 +106,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FMinus => "-."
     | FPlus => "+."
     | FTimes => "*."
-    | FPower => "**"
+    | FPower => "^^"
     | FDivide => "/."
     | FLessThan => "<."
     | FLessThanOrEqual => "<=."
