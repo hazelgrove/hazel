@@ -50,9 +50,14 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
-  | Sum(t1, t2) =>
-    div(
-      ~attr=clss(["typ-view", "Sum"]),
-      [view(t1), text("~++~"), view(t2)],
-    )
+  /*   | Sum(t1, t2) =>
+         div(
+           ~attr=clss(["typ-view", "Sum"]),
+           [view(t1), text("~++~"), view(t2)],
+         )
+       | Power(t1, t2) =>
+         div(
+           ~attr=clss(["typ-view", "Power"]),
+           [view(t1), text("**"), view(t2)],
+         ) */
   };
