@@ -1,5 +1,6 @@
 //fill hole u with d in d0
 module FillResumeState = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     metavar: MetaVar.t,
     d_inserted: DHExp.t,
@@ -14,24 +15,23 @@ let rec fill = (s: FillResumeState.t, d_prev_result: DHExp.t): DHExp.t => {
   let filld = fill(s);
   let fills = fill_env(s);
   switch (d_prev_result) {
-  | EmptyHole(v, _)
-  | NonEmptyHole(_, v, _, _)
-  | ExpandingKeyword(v, _, _)
-  | FreeVar(v, _, _)
-  | InvalidText(v, _, _) =>
+  | Closure(_, EmptyHole(v, _))
+  | Closure(_, NonEmptyHole(_, v, _, _))
+  | Closure(_, ExpandingKeyword(v, _, _))
+  | Closure(_, FreeVar(v, _, _))
+  | Closure(_, InvalidText(v, _, _)) =>
     MetaVar.eq(v, s.metavar) ? s.d_inserted : d_prev_result
-  | InconsistentBranches(v, i, c) =>
+  | Closure(env, InconsistentBranches(v, i, c)) =>
     if (MetaVar.eq(v, s.metavar)) {
       s.d_inserted;
     } else {
-      InconsistentBranches(v, i, c |> fill_case(s));
+      Closure(env, InconsistentBranches(v, i, c |> fill_case(s)));
     }
+
+  | Closure(env, d1) => Closure(env |> fills, d1 |> filld)
   | ListLit(v, i, err, ty, ld) =>
     MetaVar.eq(v, s.metavar)
       ? s.d_inserted : ListLit(v, i, err, ty, ld |> List.map(filld))
-
-  | Closure(env, d1) => Closure(env |> fills, d1 |> filld)
-
   | Sequence(d1, d2) => Sequence(d1 |> filld, d2 |> filld)
   | Let(pat, d1, d2) => Let(pat, d1, d2 |> filld) //TODO: not correct
   | FixF(var, ty, d1) => FixF(var, ty, d1 |> filld)
@@ -51,7 +51,12 @@ let rec fill = (s: FillResumeState.t, d_prev_result: DHExp.t): DHExp.t => {
   | Cast(d1, ty1, ty2) => Cast(d1 |> filld, ty1, ty2)
   | FailedCast(d1, ty1, ty2) => FailedCast(d1 |> filld, ty1, ty2)
   | InvalidOperation(d1, _) => d1 |> filld
-
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | ExpandingKeyword(_)
+  | FreeVar(_)
+  | InvalidText(_)
+  | InconsistentBranches(_)
   | BoundVar(_)
   | TestLit(_)
   | BoolLit(_)
@@ -96,6 +101,8 @@ let one_some = (d1: option('a), d2: option('a)): option('a) => {
 let rec diff_of_DHExp =
         (d_prev: DHExp.t, d_now: DHExp.t): option(FillResumeState.t) => {
   switch (d_prev, d_now) {
+  | (dp, dn) when dp == dn => None
+  | (_, EmptyHole(_)) => None
   | (EmptyHole(v, _), _)
   | (NonEmptyHole(_, v, _, _), _)
   | (ExpandingKeyword(v, _, _), _)
@@ -103,6 +110,8 @@ let rec diff_of_DHExp =
   | (InvalidText(v, _, _), _)
   | (InconsistentBranches(v, _, _), _)
   | (ListLit(v, _, _, _, _), _) => Some(FillResumeState.mk(v, d_now))
+  | (Closure(_, d_closure), _) => diff_of_DHExp(d_closure, d_now) //TODO: not sure
+  | (Cast(d1p, _, _), _) => diff_of_DHExp(d1p, d_now)
   | (Sequence(d1p, d2p), Sequence(d1n, d2n))
   | (Ap(d1p, d2p), Ap(d1n, d2n))
   | (Cons(d1p, d2p), Cons(d1n, d2n)) =>
@@ -132,16 +141,12 @@ let rec diff_of_DHExp =
     one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
   | (BinStringOp(opp, d1p, d2p), BinStringOp(opn, d1n, d2n)) when opp == opn =>
     one_some(diff_of_DHExp(d1p, d1n), diff_of_DHExp(d2p, d2n))
-  | (Cast(d1p, ty1p, ty2p), Cast(d1n, ty1n, ty2n))
-      when Typ.eq(ty1p, ty1n) && Typ.eq(ty2p, ty2n) =>
-    diff_of_DHExp(d1p, d1n)
   | (FailedCast(d1p, ty1p, ty2p), FailedCast(d1n, ty1n, ty2n))
       when Typ.eq(ty1p, ty1n) && Typ.eq(ty2p, ty2n) =>
     diff_of_DHExp(d1p, d1n)
   | (InvalidOperation(d1p, errp), InvalidOperation(d1n, errn))
       when errp == errn =>
     diff_of_DHExp(d1p, d1n)
-  | (Closure(_, _), _) => None //TODO: not sure
   | (TestLit(_), _)
   | (BoolLit(_), _)
   | (IntLit(_), _)
@@ -191,4 +196,6 @@ let fill_resume_evaluate =
     | _ => d_now
     };
   Evaluator.evaluate(env, fill_result);
+  // let _ = (d_prev, d_prev_result);
+  // Evaluator.evaluate(env, d_now);
 };

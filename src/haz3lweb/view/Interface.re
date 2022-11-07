@@ -66,8 +66,40 @@ let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 };
 
 let evaluate =
-    (~d_prev=None, ~d_prev_result=None, d0: DHExp.t): ProgramResult.t =>
-  switch (fill_resume_evaluate(d0, d_prev, d_prev_result)) {
+    (~d_prev=None, ~d_prev_result=None, d0: DHExp.t): ProgramResult.t => {
+  let evaluate_result = fill_resume_evaluate(d0, d_prev, d_prev_result);
+  let state =
+    switch (d_prev) {
+    | Some(d_prev') =>
+      d_prev' |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+      FillResume.diff_of_DHExp(d_prev', d0);
+    | _ =>
+      "None" |> JsUtil.log;
+      None;
+    };
+  switch (d_prev_result) {
+  | Some(d_prev_result') =>
+    d_prev_result' |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log
+  | _ => "None" |> JsUtil.log
+  };
+  d0 |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+  switch (state) {
+  | Some(state) =>
+    state
+    |> FillResume.FillResumeState.sexp_of_t
+    |> Sexplib0.Sexp.to_string
+    |> JsUtil.log
+  | None => "None" |> JsUtil.log
+  };
+  switch (evaluate_result) {
+  | (_, BoxedValue(d))
+  | (_, Indet(d)) =>
+    //d0 |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+    //es |> EvaluatorState.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+    d |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log
+  };
+
+  switch (evaluate_result) {
   | (es, BoxedValue(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (d0, BoxedValue(d), es, hii);
@@ -93,6 +125,7 @@ let evaluate =
       HoleInstanceInfo.empty,
     );
   };
+};
 
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
