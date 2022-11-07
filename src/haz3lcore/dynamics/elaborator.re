@@ -230,7 +230,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
         wrap(Let(dp, fixpoint, dbody));
       }
-    | Ap(fn, arg) =>
+    | Ap(fn, arg)
+    | Pipeline(arg, fn) =>
       let* d_fn = dhexp_of_uexp(m, fn);
       let* d_arg = dhexp_of_uexp(m, arg);
       let ty_fn = Statics.exp_self_typ(m, fn);

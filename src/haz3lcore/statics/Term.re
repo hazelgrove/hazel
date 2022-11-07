@@ -352,6 +352,7 @@ module UExp = {
     | Var(_) => Var
     | Let(_) => Let
     | Ap(_) => Ap
+    | Pipeline(_, _) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -426,6 +427,7 @@ module UExp = {
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | Ap => "Function/Contructor Application"
+    | Pipeline => "Pipeline Expression"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -452,6 +454,7 @@ module UExp = {
     | Var(_)
     | Let(_)
     | Ap(_)
+    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -482,6 +485,7 @@ module UExp = {
       | Var(_)
       | Let(_)
       | Ap(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)

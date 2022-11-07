@@ -99,6 +99,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | Pipeline
     | If
     | Seq
     | Test
@@ -126,6 +127,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
+    | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -205,6 +207,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | Pipeline
     | If
     | Seq
     | Test
@@ -232,6 +235,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
+    | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -265,6 +269,7 @@ and UPat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
+    // | Pipeline(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),
@@ -289,6 +294,7 @@ and UPat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
+    // | Pipeline(t, t)
     | TypeAnn(t, UTyp.t)
   and t = {
     ids: list(Id.t),

@@ -296,7 +296,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | (["|>"], []) => Ap(r, l)
+          | (["|>"], []) => Pipeline(l, r)
           | _ => hole(tm)
           },
         )
