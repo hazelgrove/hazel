@@ -222,24 +222,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let ddef =
           switch (ddef) {
           | Tuple(a) =>
-            switch (a) {
-            | [Fun(a1, b1, c1, _), Fun(a2, b2, c2, _)] =>
-              DHExp.Tuple([
-                DHExp.Fun(a1, b1, c1, Some(Array.of_list(fs)[0])),
-                DHExp.Fun(a2, b2, c2, Some(Array.of_list(fs)[1])),
-              ])
-            | [Fun(a1, b1, c1, _), _] =>
-              DHExp.Tuple([
-                DHExp.Fun(a1, b1, c1, Some(Array.of_list(fs)[0])),
-                Array.of_list(a)[1],
-              ])
-            | [_, Fun(a2, b2, c2, _)] =>
-              DHExp.Tuple([
-                Array.of_list(a)[0],
-                DHExp.Fun(a2, b2, c2, Some(Array.of_list(fs)[1])),
-              ])
-            | _ => ddef
-            }
+            let b =
+              List.map2(
+                (s, d) => {
+                  switch (d) {
+                  | DHExp.Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(s))
+                  | _ => d
+                  }
+                },
+                fs,
+                a,
+              );
+            DHExp.Tuple(b);
           | _ => ddef
           };
 
