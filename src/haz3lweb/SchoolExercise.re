@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Haz3lcore;
-open Zipper;
 open Editor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -38,7 +37,7 @@ let validate_point_distribution =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   next_id: Id.t,
-  title: 'code,
+  title: string,
   version: int,
   module_name: string,
   prompt:
@@ -52,25 +51,11 @@ type p('code) = {
   hidden_tests: hidden_tests('code),
 };
 
-let get_title_from_zipper = (title: Zipper.t): string => {
-  let (seg1, seg2) = title.relatives.siblings;
-  let seg_to_str = p =>
-    switch (p) {
-    | Base.Tile(tile) => List.hd(tile.label)
-    | _ => " "
-    };
-  seg1 @ seg2 |> List.map(seg_to_str) |> String.concat("");
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key = (string, int);
 
-let key_of = (p: p('code)) => {
-  (get_title_from_zipper(p.title), p.version);
-};
-
-let key_of_editor = (p: p('code)) => {
-  (get_title_from_zipper(p.title.state.zipper), p.version);
+let key_of = p => {
+  (p.title, p.version);
 };
 
 let find_key_opt = (key, specs: list(p('code))) => {
@@ -97,7 +82,7 @@ type transitionary_spec = p(CodeString.t);
 let map = (p: p('a), f: 'a => 'b): p('b) => {
   {
     next_id: p.next_id,
-    title: f(p.title),
+    title: p.title,
     version: p.version,
     module_name: p.module_name,
     prompt: p.prompt,
@@ -134,7 +119,7 @@ type state = {
   eds,
 };
 
-let key_of_state = ({eds, _}) => key_of_editor(eds);
+let key_of_state = ({eds, _}) => key_of(eds);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
@@ -142,7 +127,7 @@ type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
     switch (pos) {
-    | Title => eds.title
+    | Title => eds.prelude
     | Prelude => eds.prelude
     | CorrectImpl => eds.correct_impl
     | YourTestsValidation => eds.your_tests.tests
@@ -164,7 +149,6 @@ let put_editor_and_id =
       eds: {
         ...eds,
         next_id,
-        title: editor,
       },
     }
   | Prelude => {
@@ -231,7 +215,6 @@ let put_editor_and_id =
 
 let editors = ({eds, _}: state) =>
   [
-    eds.title,
     eds.prelude,
     eds.correct_impl,
     eds.your_tests.tests,
@@ -242,14 +225,7 @@ let editors = ({eds, _}: state) =>
   @ [eds.hidden_tests.tests];
 
 let editor_positions = ({eds, _}: state) =>
-  [
-    Title,
-    Prelude,
-    CorrectImpl,
-    YourTestsTesting,
-    YourTestsValidation,
-    YourImpl,
-  ]
+  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 
@@ -298,6 +274,16 @@ let switch_editor = (idx: int, {eds, _}) => {
   eds,
 };
 
+let switch_text_editor = ({eds, _}) => {pos: Title, eds};
+
+let update_title = ({eds, pos}, title) => {
+  pos,
+  eds: {
+    ...eds,
+    title,
+  },
+};
+
 let zipper_of_code = (id, code) => {
   switch (Printer.zipper_of_string(id, code)) {
   | None => failwith("Transition failed.")
@@ -323,7 +309,6 @@ let transition: transitionary_spec => spec =
     },
   ) => {
     let id = 0;
-    let (id, title) = zipper_of_code(id, title);
     let (id, prelude) = zipper_of_code(id, prelude);
     let (id, correct_impl) = zipper_of_code(id, correct_impl);
     let (id, your_tests) = {
@@ -383,7 +368,6 @@ let eds_of_spec: spec => eds =
       hidden_tests,
     },
   ) => {
-    let title = editor_of_serialization(title);
     let prelude = editor_of_serialization(prelude);
     let correct_impl = editor_of_serialization(correct_impl);
     let your_tests = {
@@ -540,7 +524,6 @@ let unpersist_state =
       (id, editor_of_serialization(default));
     };
   let id = next_id;
-  let (id, title) = lookup(id, Title, spec.title);
   let (id, prelude) = lookup(id, Prelude, spec.prelude);
   let (id, correct_impl) = lookup(id, CorrectImpl, spec.correct_impl);
   let (id, your_tests_tests) =
@@ -563,7 +546,7 @@ let unpersist_state =
       pos,
       eds: {
         next_id: id,
-        title,
+        title: spec.title,
         version: spec.version,
         module_name: spec.module_name,
         prompt: spec.prompt,
@@ -799,7 +782,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Title => (eds.title.state.zipper, instructor.info_map)
+    | Title => (eds.prelude.state.zipper, instructor.info_map)
     | Prelude => (eds.prelude.state.zipper, instructor.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTestsValidation => (
@@ -860,34 +843,6 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let put_title = (title: string, id: int): Zipper.t => {
-  selection: {
-    focus: Left,
-    content: [],
-  },
-  backpack: [],
-  relatives: {
-    siblings: (
-      [
-        Tile({
-          id,
-          label: [title],
-          mold: {
-            out: Exp,
-            in_: [],
-            nibs: ({shape: Convex, sort: Exp}, {shape: Convex, sort: Exp}),
-          },
-          shards: [0],
-          children: [],
-        }),
-      ],
-      [],
-    ),
-    ancestors: [],
-  },
-  caret: Outer,
-};
-
 let blank_spec =
     (
       ~title,
@@ -897,8 +852,7 @@ let blank_spec =
       ~provided_tests,
       ~num_wrong_impls,
     ) => {
-  let title = put_title(title, 0);
-  let id = 1;
+  let id = 0;
   let (id, prelude) = Zipper.next_blank(id);
   let (id, correct_impl) = Zipper.next_blank(id);
   let (id, your_tests_tests) = Zipper.next_blank(id);

@@ -3,35 +3,7 @@ let prompt = Ex_RecursiveFibonacci_prompt.prompt
 let exercise : SchoolExercise.spec =
   {
     next_id = 813;
-    title =
-      {
-        selection = { focus = Left; content = [] };
-        backpack = [];
-        relatives =
-          {
-            siblings =
-              ( [
-                  Tile
-                    {
-                      id = 5135;
-                      label = [ "RecursiveFibonacci" ];
-                      mold =
-                        {
-                          out = Exp;
-                          in_ = [];
-                          nibs =
-                            ( { shape = Convex; sort = Exp },
-                              { shape = Convex; sort = Exp } );
-                        };
-                      shards = [ 0 ];
-                      children = [];
-                    };
-                ],
-                [] );
-            ancestors = [];
-          };
-        caret = Outer;
-      };
+    title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";
     prompt;

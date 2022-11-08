@@ -160,6 +160,8 @@ let reevaluate_post_update =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetSlide
+  | SwitchTextEditor
+  | UpdateTitle(_)
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
@@ -297,6 +299,23 @@ let apply =
           Ok({...model, editors: School(n, specs, exercise)});
         }
       }
+
+    | SwitchTextEditor =>
+      switch (model.editors) {
+      | Scratch(_) => assert(false)
+      | School(m, specs, exercise) =>
+        let exercise = SchoolExercise.switch_text_editor(exercise);
+        Ok({...model, editors: School(m, specs, exercise)});
+      }
+
+    | UpdateTitle(title) =>
+      switch (model.editors) {
+      | Scratch(_) => assert(false)
+      | School(m, specs, exercise) =>
+        let exercise = SchoolExercise.update_title(exercise, title);
+        Ok({...model, editors: School(m, specs, exercise)});
+      }
+
     | SwitchEditor(n) =>
       switch (model.editors) {
       | Scratch(_) => Error(FailedToSwitch) // one editor per scratch

@@ -99,32 +99,33 @@ let view =
       ~color_highlighting,
     );
   };
+  let mousedown_handler = (~inject) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, Update.[Mousedown, Update.SwitchTextEditor]),
+    );
+  };
+
+  let input_handler = (~inject, title) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, [Update.UpdateTitle(title)]),
+    );
+  };
 
   let title_view =
     settings.instructor_mode
-      ? render_cells(
-          settings,
-          [
-            Always(
-              editor_view(
-                Title,
-                ~selected=pos == Title,
-                ~code_id="title",
-                ~caption=Cell.bolded_caption("Title"),
-                ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
-                ~test_results=
-                  ModelResult.unwrap_test_results(user_tests.simple_result),
-                ~footer=None,
-                eds.title,
-              ),
-            ),
-          ],
-        )
-      : [
-        Cell.title_cell(
-          SchoolExercise.get_title_from_zipper(eds.title.state.zipper),
+      ? [
+        Cell.text_cell_view(
+          ~attrs=
+            Attr.many([
+              Attr.on_mousedown(_ => mousedown_handler(~inject)),
+              Attr.on_input(_ => input_handler(~inject)),
+            ]),
+          ~selected=pos == Title,
+          ~caption="Title",
+          ~text=eds.title,
         ),
-      ];
+      ]
+      : [Cell.title_cell(eds.title)];
 
   let prompt_view =
     Cell.narrative_cell(
