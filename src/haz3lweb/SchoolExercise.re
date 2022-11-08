@@ -1,4 +1,3 @@
-open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Haz3lcore;
 open Editor;
@@ -40,8 +39,7 @@ type p('code) = {
   title: string,
   version: int,
   module_name: string,
-  prompt:
-    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
+  prompt: string,
   point_distribution,
   prelude: 'code,
   correct_impl: 'code,
@@ -281,6 +279,14 @@ let update_title = ({eds, pos}, title) => {
   eds: {
     ...eds,
     title,
+  },
+};
+
+let update_prompt = ({eds, pos}, prompt) => {
+  pos,
+  eds: {
+    ...eds,
+    prompt,
   },
 };
 
@@ -872,7 +878,7 @@ let blank_spec =
     title,
     version: 1,
     module_name,
-    prompt: Node.text("TODO: prompt"),
+    prompt: "TODO: prompt",
     point_distribution,
     prelude,
     correct_impl,

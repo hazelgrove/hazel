@@ -38,6 +38,7 @@ let is_action_logged: Update.t => bool =
   | SwitchSlide(_)
   | SwitchTextEditor
   | UpdateTitle(_)
+  | UpdatePrompt(_)
   | SwitchEditor(_)
   | PerformAction(_)
   | FailedInput(_)

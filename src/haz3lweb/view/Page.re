@@ -255,13 +255,7 @@ let view = (~inject, ~handlers, model: Model.t) => {
     switch (model.editors) {
     | School(_, _, exercise) =>
       let SchoolExercise.{pos, _} = exercise;
-      if (pos == Title) {
-        print_endline("additional_attrs");
-        [];
-      } else {
-        print_endline("no additional_attrs");
-        handlers(~inject, ~model);
-      };
+      pos == Title ? [] : handlers(~inject, ~model);
     | _ => handlers(~inject, ~model)
     };
   };

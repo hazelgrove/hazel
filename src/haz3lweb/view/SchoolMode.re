@@ -111,6 +111,12 @@ let view =
     );
   };
 
+  let input_handler_prompt = (~inject, title) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, [Update.UpdatePrompt(title)]),
+    );
+  };
+
   let title_view =
     settings.instructor_mode
       ? [
@@ -127,10 +133,29 @@ let view =
       ]
       : [Cell.title_cell(eds.title)];
 
+  let mdstring_to_node = s => {
+    let (node, _) = LangDoc.mk_translation(~inject=None, s, false);
+    node;
+  };
+
   let prompt_view =
-    Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
-    );
+    settings.instructor_mode
+      ? Cell.text_cell_view(
+          ~attrs=
+            Attr.many([
+              Attr.on_mousedown(_ => mousedown_handler(~inject)),
+              Attr.on_input(_ => input_handler_prompt(~inject)),
+            ]),
+          ~selected=pos == Title,
+          ~caption="Prompt",
+          ~text=eds.prompt,
+        )
+      : Cell.narrative_cell(
+          div(
+            ~attr=Attr.class_("cell-prompt"),
+            [div(mdstring_to_node(eds.prompt))],
+          ),
+        );
 
   let prelude_view =
     Always(

@@ -162,6 +162,7 @@ let reevaluate_post_update =
   | ResetSlide
   | SwitchTextEditor
   | UpdateTitle(_)
+  | UpdatePrompt(_)
   | SwitchEditor(_)
   | SwitchSlide(_)
   | ToggleMode
@@ -313,6 +314,14 @@ let apply =
       | Scratch(_) => assert(false)
       | School(m, specs, exercise) =>
         let exercise = SchoolExercise.update_title(exercise, title);
+        Ok({...model, editors: School(m, specs, exercise)});
+      }
+
+    | UpdatePrompt(prompt) =>
+      switch (model.editors) {
+      | Scratch(_) => assert(false)
+      | School(m, specs, exercise) =>
+        let exercise = SchoolExercise.update_prompt(exercise, prompt);
         Ok({...model, editors: School(m, specs, exercise)});
       }
 
