@@ -329,6 +329,33 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
+  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
+  | ListLit(es) =>
+    let modes = List.init(List.length(es), _ => Typ.matched_list_mode(mode));
+    let e_ids = List.map(Term.UExp.rep_id, es);
+    let infos = List.map2((e, mode) => go(~mode, e), es, modes);
+    let tys = List.map(((ty, _, _)) => ty, infos);
+    let self: Typ.self =
+      switch (Typ.join_all(tys)) {
+      | None =>
+        Joined(
+          ty => List(ty),
+          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
+        )
+      | Some(ty) => Just(List(ty))
+      };
+    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
+    let m = union_m(List.map(((_, _, m)) => m, infos));
+    add(~self, ~free, m);
+  | Cons(e1, e2) =>
+    let mode_e = Typ.matched_list_mode(mode);
+    let (ty1, free1, m1) = go(~mode=mode_e, e1);
+    let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
+    add(
+      ~self=Just(List(ty1)),
+      ~free=Ctx.union([free1, free2]),
+      union_m([m1, m2]),
+    );
   | Var(name) =>
     switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
@@ -367,40 +394,6 @@ and uexp_to_info_map =
     | None => atomic(Free(Tag))
     | Some(typ) => atomic(Just(typ))
     }
-  | Cons(e1, e2) =>
-    let mode_ele = Typ.matched_list_mode(mode);
-    let (ty1, free1, m1) = go(~mode=mode_ele, e1);
-    let mode: Typ.mode =
-      switch (mode) {
-      | Syn
-      | SynFun => Ana(List(ty1))
-      | Ana(ty) => Ana(List(Typ.matched_list(ty)))
-      };
-    let (_, free2, m2) = go(~mode, e2);
-    add(
-      ~self=Just(List(ty1)),
-      ~free=Ctx.union([free1, free2]),
-      union_m([m1, m2]),
-    );
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
-  | ListLit(es) =>
-    let modes = Typ.matched_list_lit_mode(mode, List.length(es));
-    let e_ids = List.map(Term.UExp.rep_id, es);
-    let infos = List.map2((e, mode) => go(~mode, e), es, modes);
-    let tys = List.map(((ty, _, _)) => ty, infos);
-    //TODO(andrew): review wrap logic
-    let self: Typ.self =
-      switch (Typ.join_all(tys)) {
-      | None =>
-        Joined(
-          ty => List(ty),
-          List.map2((id, ty) => Typ.{id, ty}, e_ids, tys),
-        )
-      | Some(ty) => Just(List(ty))
-      };
-    let free = Ctx.union(List.map(((_, f, _)) => f, infos));
-    let m = union_m(List.map(((_, _, m)) => m, infos));
-    add(~self, ~free, m);
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
     add(~self=Just(Prod([])), ~free=free_test, m1);
@@ -532,7 +525,7 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Internal))))
   | ListLit(ps) =>
-    let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
+    let modes = List.init(List.length(ps), _ => Typ.matched_list_mode(mode));
     let p_ids = List.map(Term.UPat.rep_id, ps);
     let (ctx, infos) =
       List.fold_left2(
@@ -560,10 +553,10 @@ and upat_to_info_map =
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), ctx, m);
   | Cons(hd, tl) =>
-    let mode_elem = Typ.matched_list_mode(mode);
-    let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
-    let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
-    add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
+    let mode_e = Typ.matched_list_mode(mode);
+    let (ty1, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_e, hd);
+    let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty1)), tl);
+    add(~self=Just(List(ty1)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
     | None => atomic(Free(Tag))
@@ -572,14 +565,8 @@ and upat_to_info_map =
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     let typ = typ_after_fix(mode, Just(Unknown(Internal)));
-    //|> Typ.internalize_the_unknown;
-    //TODO(andrew): cleanup
-    add(
-      ~self=Just(unknown),
-      ~ctx=
-        Ctx.extend(VarEntry({name, id: Term.UPat.rep_id(upat), typ}), ctx),
-      Id.Map.empty,
-    );
+    let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+    add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =
