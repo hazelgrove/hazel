@@ -192,13 +192,6 @@ let matched_list_mode: mode => mode =
   | Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
-let matched_list_lit_mode = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | SynFun
-  | Syn => List.init(length, _ => Syn)
-  | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
-  };
-
 let ap_mode: mode = SynFun;
 
 /* Legacy code from HTyp */

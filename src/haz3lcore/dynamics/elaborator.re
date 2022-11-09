@@ -67,14 +67,13 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => Some(d)
       };
     | Ana(ana_ty) =>
-      /* Forms with no Syn rule get cast from their appropriate Matched types */
+      /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
-      | ListLit(_, _, _, _, _) =>
+      | ListLit(_)
+      | Cons(_) =>
         switch (ana_ty) {
         | Unknown(prov) =>
           Some(DHExp.cast(d, List(Unknown(prov)), ana_ty))
-        // Now only casting ListLits if analyzed against unknown
-        // Now independent of whether the list is empty or not
         | _ => Some(d)
         }
       | Fun(_) =>
@@ -83,38 +82,49 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
-
       | Tuple(_) =>
-        //TODO(andrew): why is this this way?
         switch (ana_ty) {
         | Prod(_) => Some(d)
         | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
         }
-      | Inj(_) //TODO
-      | Cons(_)
+      /*| Tuple(ds) =>
+        switch (ana_ty) {
+        | Unknown(prov) =>
+          let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
+          Some(DHExp.cast(d, Prod(us), ana_ty));
+        | _ => Some(d)
+        }*/
+      | Inj(_) =>
+        switch (ana_ty) {
+        | Unknown(prov) =>
+          Some(DHExp.cast(d, Sum(Unknown(prov), Unknown(prov)), ana_ty))
+        | _ => Some(d)
+        }
       | FixF(_) =>
-        //TODO
+        //TODO(andrew): not sure what this should be?
         Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
-      //TODO(andrew): why is these this way?
+      /* Forms with special ana rules but no particular typing requirements */
       | ConsistentCase(_)
       | InconsistentBranches(_)
       | Sequence(_)
       | Let(_) => Some(d)
-      // don't cast:
+      /* Hole-like forms: Don't cast */
       | InvalidText(_)
       | FreeVar(_)
       | ExpandingKeyword(_)
       | EmptyHole(_)
-      | NonEmptyHole(_)
-      | Closure(_) //impossible?
-      | Cast(_) //impossible?
-      | FailedCast(_) //impossible?
-      | InvalidOperation(_) => Some(d) //impossible?
-      // cast:
+      | NonEmptyHole(_) => Some(d)
+      /* DHExp-specific forms: Don't cast */
+      | Cast(_)
+      | Closure(_)
+      | FailedCast(_)
+      | InvalidOperation(_) => Some(d)
+      /* Normal cases: wrap */
       | BoundVar(_)
       | Ap(_)
       | ApBuiltin(_)
-      | TestLit(_)
+      | Prj(_)
+      | Tag(_)
       | BoolLit(_)
       | IntLit(_)
       | FloatLit(_)
@@ -123,8 +133,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
-      | Prj(_)
-      | Tag(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
+      | TestLit(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
