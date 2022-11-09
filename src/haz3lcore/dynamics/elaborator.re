@@ -82,18 +82,18 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
-      | Tuple(_) =>
+      /*| Tuple(_) =>
         switch (ana_ty) {
         | Prod(_) => Some(d)
         | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
-        }
-      /*| Tuple(ds) =>
+        }*/
+      | Tuple(ds) =>
         switch (ana_ty) {
         | Unknown(prov) =>
           let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
           Some(DHExp.cast(d, Prod(us), ana_ty));
         | _ => Some(d)
-        }*/
+        }
       | Inj(_) =>
         switch (ana_ty) {
         | Unknown(prov) =>
