@@ -177,6 +177,7 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
+  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
   | _ => List.init(length, _ => Syn)
   };
 
