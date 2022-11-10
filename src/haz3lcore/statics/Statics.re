@@ -499,7 +499,7 @@ and uexp_to_info_map =
         TVarEntry({
           name,
           id: Term.UTPat.rep_id(typat),
-          kind: Singleton(ty),
+          kind: Singleton(Term.utyp_to_ty(utyp)),
         }),
         ctx,
       );
