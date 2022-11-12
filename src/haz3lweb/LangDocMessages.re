@@ -1820,7 +1820,7 @@ let float_times_ex = {
 };
 let float_power_ex = {
   sub_id: "float_power_ex",
-  term: mk_example("2. ^^ 4."),
+  term: mk_example("2. ^^. 4."),
   message: "2. raised to 4. evaluates to 16.",
   feedback: Unselected,
 };
