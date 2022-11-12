@@ -105,17 +105,17 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    // | Sum(ty1, ty2) =>
-    //   let (d1, d2) =
-    //     mk_right_associative_operands(Typ.precedence_Sum, ty1, ty2);
-    //   (
-    //     hcats([
-    //       d1,
-    //       hcats([choices([linebreak(), space()]), text("| ")]),
-    //       d2,
-    //     ]),
-    //     parenthesize,
-    //   );
+    | Sum(ty1, ty2) =>
+      let (d1, d2) =
+        mk_right_associative_operands(Typ.precedence_Sum, ty1, ty2);
+      (
+        hcats([
+          d1,
+          hcats([choices([linebreak(), space()]), text("| ")]),
+          d2,
+        ]),
+        parenthesize,
+      );
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;

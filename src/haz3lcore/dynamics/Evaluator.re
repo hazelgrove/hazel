@@ -21,8 +21,8 @@ type match_result =
 
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
-// let grounded_Sum =
-//   NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
+let grounded_Sum =
+  NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
   NotGroundOrHole(Prod(ListUtil.replicate(length, Typ.Unknown(Internal))));
 let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
@@ -36,7 +36,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | String
   | Var(_) // TODO(andrew): ?
   | Arrow(Unknown(_), Unknown(_))
-  // | Sum(Unknown(_), Unknown(_))
+  | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
   | Prod(tys) =>
     if (List.for_all(
@@ -50,7 +50,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
       tys |> List.length |> grounded_Prod;
     }
   | Arrow(_, _) => grounded_Arrow
-  //  | Sum(_, _) => grounded_Sum
+  | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
 
@@ -238,22 +238,22 @@ and matches_cast_Inj =
       matches(dp, DHExp.apply_casts(d', side_casts));
     | _ => DoesNotMatch
     }
-  // | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
-  //   matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
-  // | Cast(d', Sum(tyL1, tyR1), Unknown(_)) =>
-  //   matches_cast_Inj(
-  //     side,
-  //     dp,
-  //     d',
-  //     [(tyL1, tyR1, Unknown(Internal), Unknown(Internal))],
-  //   )
-  // | Cast(d', Unknown(_), Sum(tyL2, tyR2)) =>
-  //   matches_cast_Inj(
-  //     side,
-  //     dp,
-  //     d',
-  //     [(Unknown(Internal), Unknown(Internal), tyL2, tyR2)],
-  //   )
+  | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
+  | Cast(d', Sum(tyL1, tyR1), Unknown(_)) =>
+    matches_cast_Inj(
+      side,
+      dp,
+      d',
+      [(tyL1, tyR1, Unknown(Internal), Unknown(Internal))],
+    )
+  | Cast(d', Unknown(_), Sum(tyL2, tyR2)) =>
+    matches_cast_Inj(
+      side,
+      dp,
+      d',
+      [(Unknown(Internal), Unknown(Internal), tyL2, tyR2)],
+    )
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch

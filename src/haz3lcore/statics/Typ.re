@@ -21,7 +21,7 @@ type t =
   | Var(string)
   | List(t)
   | Arrow(t, t)
-  //  | Sum(t, t) // unused
+  | Sum(t, t) // unused
   | Prod(list(t));
 
 /* SOURCE: Hazel type annotated with a relevant source location.
@@ -112,12 +112,12 @@ let rec join = (ty1: t, ty2: t): option(t) =>
       };
     }
   | (Prod(_), _) => None
-  // | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
-  //   switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
-  //   | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-  //   | _ => None
-  //   }
-  // | (Sum(_), _) => None
+  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
     switch (join(ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))
@@ -213,7 +213,7 @@ let precedence = (ty: t): int =>
   | Prod([])
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
-  // | Sum(_, _) => precedence_Sum
+  | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
 
@@ -238,8 +238,8 @@ let rec eq = (t1, t2) =>
   | (Prod(tys1), Prod(tys2)) =>
     List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
   | (Prod(_), _) => false
-  // | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
-  // | (Sum(_), _) => false
+  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
+  | (Sum(_), _) => false
   | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
   | (Var(n1), Var(n2)) => n1 == n2
