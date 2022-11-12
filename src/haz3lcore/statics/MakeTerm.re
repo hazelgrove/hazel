@@ -322,7 +322,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | (["triv"], []) => Triv
-        | (["undefined"], []) => UPat.Invalid(UnrecognizedTerm)
+        | (["undefined"], []) => Term.UPat.hole([Term.Nul()])
         | (["true"], []) => Bool(true)
         | (["false"], []) => Bool(false)
         | (["(", ")"], [Pat(body)]) => Parens(body)
