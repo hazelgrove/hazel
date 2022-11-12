@@ -157,7 +157,6 @@ let forms: list((string, t)) = [
   ("fplus", mk_infix("+.", Exp, P.plus)),
   ("fminus", mk_infix("-.", Exp, P.plus)),
   ("ftimes", mk_infix("*.", Exp, P.mult)),
-  //("fpower", mk_infix("**.", Exp, P.semi)),
   ("fdivide", mk_infix("/.", Exp, P.mult)),
   ("fequals", mk_infix("==.", Exp, P.eqs)),
   ("flt", mk_infix("<.", Exp, 5)), //TODO: precedence
