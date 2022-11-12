@@ -609,7 +609,7 @@ let get_doc =
         get_message(
           doc,
           options,
-          LangDocMessages.triv_exp_group,
+          LangDocMessages.undef_exp_group,
           doc.explanation.message,
           [],
         );
