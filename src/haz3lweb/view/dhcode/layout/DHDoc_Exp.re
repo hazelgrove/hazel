@@ -89,7 +89,7 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | Minus => "-"
-    | Plus => "~++~"
+    | Plus => "+"
     | Times => "*"
     | Divide => "/"
     | LessThan => "<"
@@ -106,7 +106,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FMinus => "-."
     | FPlus => "+."
     | FTimes => "*."
-    | FPower => "^^."
+    | FPower => "**."
     | FDivide => "/."
     | FLessThan => "<."
     | FLessThanOrEqual => "<=."

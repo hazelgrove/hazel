@@ -1820,7 +1820,7 @@ let float_times_ex = {
 };
 let float_power_ex = {
   sub_id: "float_power_ex",
-  term: mk_example("2. ^^. 4."),
+  term: mk_example("2. **. 4."),
   message: "2. raised to 4. evaluates to 16.",
   feedback: Unselected,
 };
@@ -2246,7 +2246,7 @@ let float_power_exp_coloring_ids =
   );
 let float_power_exp: form = {
   let explanation = {
-    message: "Floating-point exponentiation.  Gives the result of raiding [*left*](%i) to the [*right*](%i).",
+    message: "Floating-point exponentiation.  Gives the result of raising [*left*](%i) to the [*right*](%i).",
     feedback: Unselected,
   };
   {
@@ -3290,6 +3290,7 @@ let init = {
     float_plus_exp,
     float_minus_exp,
     float_times_exp,
+    float_power_exp,
     float_divide_exp,
     float_lt_exp,
     float_lte_exp,
