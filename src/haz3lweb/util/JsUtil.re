@@ -116,6 +116,80 @@ let copy = (str: string) => {
   );
 };
 
+let scroll_to_line = (scroll_pos: int, ~font_metrics: FontMetrics.t): unit => {
+  let page = get_elem_by_id("page");
+  Js.Unsafe.meth_call(
+    page,
+    "scroll",
+    [|
+      Js.Unsafe.inject(0),
+      Js.Unsafe.inject(
+        float_of_int(scroll_pos - 1) *. font_metrics.row_height +. 80.0,
+      ),
+    |],
+  );
+};
+
+// TODO(abandukwala): Unused, looking at rearranging the dom so this would work
+let scroll_to_caret = () => {
+  let caret_elem = get_elem_by_id("caret");
+  let page = get_elem_by_id("page");
+  let page_rect = page##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._false);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._true);
+  };
+};
+
+let get_scroll_pos = (): int => {
+  let page = get_elem_by_id("page");
+  let scrollPos: int = page##.scrollTop;
+  print_endline(string_of_int(scrollPos));
+  scrollPos;
+};
+
+let scroll_cursor_into_view_if_needed = () => {
+  let page_rect = get_elem_by_id("page")##getBoundingClientRect;
+  let caret_elem = get_elem_by_id("caret");
+
+  let caret_rect = caret_elem##getBoundingClientRect;
+  if (caret_rect##.top < page_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > page_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
+  };
+};
+
+let in_view = (~font_metrics: FontMetrics.t) => {
+  let page = get_elem_by_id("page");
+  let page_rect = page##getBoundingClientRect;
+
+  let scroll_pos = page##.scrollTop;
+  let first_line_in_view =
+    float_of_int(max(scroll_pos - 44, 0)) /. font_metrics.row_height;
+  let num_lines =
+    (page_rect##.bottom -. 80.0)  //     (page_rect##.bottom +. float_of_int(scroll_pos) -. 30.656 -. 44.0)
+    /. font_metrics.row_height;
+
+  (
+    int_of_float(first_line_in_view),
+    int_of_float(num_lines),
+    int_of_float(num_lines +. first_line_in_view),
+  );
+};
+
+let scroll_cursor_into_view_if_needed2 =
+    (caret_line_num: int, ~font_metrics: FontMetrics.t) => {
+  let (first, num_lines, last) = in_view(~font_metrics);
+  if (caret_line_num < first) {
+    scroll_to_line(caret_line_num, ~font_metrics);
+  } else if (caret_line_num >= last) {
+    scroll_to_line(caret_line_num - num_lines, ~font_metrics);
+  };
+};
+
 module Fragment = {
   let set_current = frag => {
     let frag =

@@ -1,6 +1,7 @@
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
+open Haz3lcore;
 
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
@@ -123,23 +124,30 @@ module App = {
     Async_kernel.Deferred.return(state);
   };
 
-  let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
+  let create =
+      (
+        model: Incr.t(Haz3lweb.Model.t),
+        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~inject,
+      ) => {
     open Incr.Let_syntax;
-    let%map model = model;
+    let%map model = model
+    and old_model = old_model;
+
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
-      ~on_display=(_, ~schedule_action as _) => {
-        let caret_elem = JsUtil.get_elem_by_id("caret");
-        let page_rect = JsUtil.get_elem_by_id("page")##getBoundingClientRect;
-        let caret_rect = caret_elem##getBoundingClientRect;
-        if (caret_rect##.top < page_rect##.top) {
-          caret_elem##scrollIntoView(Js._true);
-        } else if (caret_rect##.bottom > page_rect##.bottom) {
-          caret_elem##scrollIntoView(Js._false);
-        };
-      },
+      ~on_display=(_, ~schedule_action as _) =>
+      if (old_model != model) {
+        let editor = Editors.get_editor(model.editors);
+        let measured =
+          Zipper.caret_point(editor.state.meta.measured, editor.state.zipper);
+        JsUtil.scroll_cursor_into_view_if_needed2(
+          measured.row,
+          ~font_metrics=model.font_metrics,
+        );
+      }
     );
   };
 };
