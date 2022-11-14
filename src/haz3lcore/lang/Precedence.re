@@ -40,6 +40,7 @@ let associativity_map: IntMap.t(Direction.t) =
   [
     (mult, Direction.Left),
     (plus, Left),
+    (power, Right),
     (cons, Right),
     (concat, Right),
     (ann, Left),
