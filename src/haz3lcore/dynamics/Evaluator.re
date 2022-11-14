@@ -565,8 +565,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
-
+    let* s = get;
+    let (_, scr) = time_out(s);
     switch (d) {
+    | _ when scr =>
+      print_endline("OutOfFuel");
+      raise(EvaluatorError.Exception(OutOfFuel));
     | BoundVar(x) =>
       let d =
         x
