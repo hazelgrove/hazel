@@ -9,6 +9,7 @@ module Index = {
 };
 
 let length = String.length;
+let compare = String.compare;
 let rm_nth = Util.StringUtil.remove_nth;
 let rm_last = Util.StringUtil.remove_last;
 let rm_first = Util.StringUtil.remove_first;
