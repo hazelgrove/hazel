@@ -141,8 +141,8 @@ let forms: list((string, t)) = [
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
-  ("power_", mk_nul_infix("**", P.semi)),
-  ("power", mk_infix("**.", Exp, P.semi)),
+  ("power_", mk_nul_infix("**", P.power)),
+  ("power", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
   ("assign", mk_nul_infix("=", P.eqs)), // HACK: SUBSTRING REQ
   ("equals", mk_infix("==", Exp, P.eqs)),
