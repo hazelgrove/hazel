@@ -7,6 +7,6 @@ type t =
 let err_msg = (err: t): string =>
   switch (err) {
   | DivideByZero => "Error: Divide by Zero"
-  | OutOfFuel => "Error: Out of Fuel"
+  | OutOfFuel => "Error: Recursion Limit Exceeded"
   | InvalidProjection => "Error: Invalid Projection"
   };

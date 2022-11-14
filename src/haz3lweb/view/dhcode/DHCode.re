@@ -61,7 +61,7 @@ let view_of_layout =
                )
              | OperationError(OutOfFuel) => (
                  //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("Recursion Limit Exceeded", txt)],
                  ds,
                )
              | OperationError(InvalidProjection) => (
@@ -191,7 +191,7 @@ let view_of_layout_tylr =
                )
              | OperationError(OutOfFuel) => (
                  //TODO: custom class
-                 [with_cls("DivideByZero", txt)],
+                 [with_cls("Recursion Limit Exceeded", txt)],
                  ds,
                )
              | OperationError(InvalidProjection) => (
