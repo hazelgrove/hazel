@@ -24,4 +24,8 @@ let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t)) => t('a);
  */
 let take_step: t(unit);
 
+let get_step: t(int);
+
+let time_out: t(bool);
+
 let add_test: (KeywordID.t, TestMap.instance_report) => t(unit);
