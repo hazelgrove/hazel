@@ -83,6 +83,12 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | InfoRul({term, _}) => Some(Term.Exp(term))
      );
 
+/* TODO(andrew): more sum/rec errors
+   incomplete type (holes)?
+   empty / singleton sum?
+   duplicate constructor?
+   */
+
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
@@ -464,12 +470,14 @@ and uexp_to_info_map =
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     //TODO(andrew)
+    let ty = Term.utyp_to_ty(utyp);
+    let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
           name,
           id: Term.UTPat.rep_id(typat),
-          kind: Type(Term.utyp_to_ty(utyp)),
+          kind: Singleton(ty),
         }),
         ctx,
       );

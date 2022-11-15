@@ -112,7 +112,8 @@ let adts: t => list((string, list(Typ.tagged))) =
     | VarEntry(_) => None
     | TVarEntry({name, kind, _}) =>
       switch (kind) {
-      | Type(LabelSum(ts)) => Some((name, ts))
+      | Singleton(Rec(_, LabelSum(ts))) => Some((name, ts))
+      | Singleton(LabelSum(ts)) => Some((name, ts))
       | _ => None
       },
   );
@@ -149,26 +150,30 @@ let lookup_tag = (ctx, name) =>
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
+let rec join =
+        (~d=[], ~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
+  let join' = join(~d, ctx);
   switch (ty1, ty2) {
-  | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
-      Some(ty1);
-    } else {
-      let* Type(ty1) = lookup_tvar(ctx, n1);
-      let* Type(ty2) = lookup_tvar(ctx, n2);
-      let+ ty_join = join(ctx, ty1, ty2);
-      resolve ? ty_join : Var(n1);
-    }
-  | (Var(name), ty)
-  | (ty, Var(name)) =>
-    let* Type(ty_name) = lookup_tvar(ctx, name);
-    let+ ty_join = join(ctx, ty_name, ty);
-    resolve ? ty_join : Var(name);
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
+  | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
+  | (Rec(_), _) => None
+  | (Var(n1), Var(n2)) =>
+    if (Typ.type_var_eq(d, n1, n2)) {
+      Some(Var(n1));
+    } else {
+      let* Singleton(ty1) = lookup_tvar(ctx, n1);
+      let* Singleton(ty2) = lookup_tvar(ctx, n2);
+      let+ ty_join = join'(ty1, ty2);
+      resolve ? ty_join : Var(n1);
+    }
+  | (Var(name), ty)
+  | (ty, Var(name)) =>
+    let* Singleton(ty_name) = lookup_tvar(ctx, name);
+    let+ ty_join = join'(ty_name, ty);
+    resolve ? ty_join : Var(name);
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -178,7 +183,7 @@ let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
   | (String, String) => Some(String)
   | (String, _) => None
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
+    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
@@ -187,7 +192,7 @@ let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      switch (List.map2(join(ctx), tys1, tys2) |> Util.OptUtil.sequence) {
+      switch (List.map2(join', tys1, tys2) |> Util.OptUtil.sequence) {
       | None => None
       | Some(tys) => Some(Prod(tys))
       };
@@ -197,10 +202,11 @@ let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
+      let (tys1, tys2) = (Typ.sort_tagged(tys1), Typ.sort_tagged(tys2));
       switch (
         List.map2(
           (t1: Typ.tagged, t2: Typ.tagged) =>
-            t1.tag == t2.tag ? join(ctx, t1.typ, t2.typ) : None,
+            t1.tag == t2.tag ? join'(t1.typ, t2.typ) : None,
           tys1,
           tys2,
         )
@@ -221,18 +227,19 @@ let rec join = (~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) =>
     }
   | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
-    switch (join(ctx, ty1_1, ty2_1), join(ctx, ty1_2, ty2_2)) {
+    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
   | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
-    switch (join(ctx, ty_1, ty_2)) {
+    switch (join'(ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))
     | None => None
     }
   | (List(_), _) => None
   };
+};
 
 let join_all = (ctx, ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
