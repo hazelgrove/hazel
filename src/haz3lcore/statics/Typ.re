@@ -29,6 +29,9 @@ and tagged = {
   typ: t,
 };
 
+let sort_tagged: list(tagged) => list(tagged) =
+  List.sort(({tag: t1, _}, {tag: t2, _}) => compare(t1, t2));
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type adt = (Token.t, list(tagged));
 
@@ -176,12 +179,13 @@ let rec eq = (t1, t2) =>
   | (Prod(tys1), Prod(tys2)) =>
     List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
   | (LabelSum(tys1), LabelSum(tys2)) =>
+    let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
     && List.for_all2(
          (ts1, ts2) => ts1.tag == ts2.tag && eq(ts1.typ, ts2.typ),
          tys1,
          tys2,
-       )
+       );
   | (LabelSum(_), _) => false
   | (Prod(_), _) => false
   | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
