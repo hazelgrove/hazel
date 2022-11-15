@@ -154,7 +154,7 @@ let undef_exp: form = {
     sub_id: "undef_head_example",
     term:
       mk_example(
-        "let head = fun xs: [Int] -> \ncase xs of\n| hd::tl => hd\n|nil => undefined\nin (head([1, 2]), head([])",
+        "let head = fun xs: [Int] -> case xs\n| hd::tl => hd\n| nil => undefined\nend in\n(head([1, 2]), head(nil))",
       ),
     message: "This function gets the head of a list. If the list is empty, there is no coherent definition for the head, so we leave that branch undefined.",
     feedback: Unselected,
