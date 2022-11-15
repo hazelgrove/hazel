@@ -110,28 +110,43 @@ let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
     None;
   };
 
-let is_sum_sumtyp = ((commas, kids): tiles): option(UTyp.t) =>
+//TODO(andrew): cleanup
+let is_sum_typ = ((commas, kids): tiles): option(list(UTSum.t)) =>
   if (commas |> List.map(snd) |> List.for_all((==)((["+"], [])))) {
     kids
     |> List.map(
          fun
-         | Typ({term: Sum([a]), ids: new_ids}) => Some(([a], new_ids))
+         | TSum(ty) => Some(ty)
          | _ => None,
        )
-    |> OptUtil.sequence
-    |> Option.map(xs => {
-         let (ts, ids) =
-           List.fold_left(
-             ((acc_g, acc_ids), (guys, ids)) =>
-               (acc_g @ guys, acc_ids @ ids),
-             ([], []),
-             xs,
-           );
-         UTyp.{term: Sum(ts), ids};
-       });
+    |> OptUtil.sequence;
   } else {
     None;
   };
+/*
+ let is_sum_sumtyp = ((commas, kids): tiles): option(UTyp.t) =>
+   if (commas |> List.map(snd) |> List.for_all((==)((["+"], [])))) {
+     kids
+     |> List.map(
+          fun
+          | Typ({term: Sum([a]), ids: new_ids}) => Some(([a], new_ids))
+          | _ => None,
+        )
+     |> OptUtil.sequence
+     |> Option.map(xs => {
+          let (ts, ids) =
+            List.fold_left(
+              ((acc_g, acc_ids), (guys, ids)) =>
+                (acc_g @ guys, acc_ids @ ids),
+              ([], []),
+              xs,
+            );
+          UTyp.{term: Sum(ts), ids};
+        });
+   } else {
+     None;
+   };
+   */
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -202,7 +217,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
-  | TSum => Typ(tsum(unsorted(skel, seg)))
+  | TSum => TSum(tsum(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
@@ -345,27 +360,25 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | (["triv"], []) => Triv
-        | (["true"], []) => Bool(true)
-        | (["false"], []) => Bool(false)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (["[", "]"], [Pat(body)]) =>
-          switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
-          | term => ListLit([term])
-          }
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_tag(t) => Tag(t)
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_listnil(t) => ListLit([])
-        | ([t], []) when Form.is_string(t) => String(t)
-        | _ => hole(tm)
-        },
-      )
+      switch (tile) {
+      | (["triv"], []) => ret(Triv)
+      | (["true"], []) => ret(Bool(true))
+      | (["false"], []) => ret(Bool(false))
+      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["[", "]"], [Pat(body)]) =>
+        switch (body) {
+        | {ids, term: Tuple(ps)} => (ListLit(ps), ids)
+        | term => ret(ListLit([term]))
+        }
+      | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
+      | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
+      | ([t], []) when Form.is_tag(t) => ret(Tag(t))
+      | ([t], []) when Form.is_var(t) => ret(Var(t))
+      | ([t], []) when Form.is_wild(t) => ret(Wild)
+      | ([t], []) when Form.is_listnil(t) => ret(ListLit([]))
+      | ([t], []) when Form.is_string(t) => ret(String(t))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Post(Pat(l), tiles) as tm =>
@@ -400,11 +413,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and tsum = unsorted => {
   let (term, inner_ids) = tsum_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Typ(p), ids, {ids, term});
+  return(p => TSum(p), ids, {ids, term});
 }
-and tsum_term: unsorted => (UTyp.term, list(Id.t)) = {
-  let ret = (term: UTyp.term) => (term, []);
-  let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
+and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
+  let ret = (term: UTSum.term) => (term, []);
+  let hole = unsorted => Term.UTSum.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -412,45 +425,44 @@ and tsum_term: unsorted => (UTyp.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([tag], []) when Form.is_typ_var(tag) =>
-          Sum([{tag, typ: Tuple([])}])
+          //TODO(andrew): as david about _id here
+          Ap(tag, {ids: [_id], term: Tuple([])})
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ({term: Sum([{tag, typ: _}]), _}), tiles) as tm =>
+  | Post(TSum({term: Ap(tag, _), _}), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Typ({term: typ, _})]) => Sum([{tag, typ}])
+        | (["(", ")"], [Typ({term: typ, _})]) =>
+          Ap(tag, {ids: [_id], term: typ})
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
-  | Bin(
-      Typ({term: Sum(guys_l), ids: ids_l}),
-      tiles,
-      Typ({term: Sum(guys_r), ids: ids_r}),
-    ) as tm =>
-    switch (is_sum_sumtyp(tiles)) {
-    | Some({term: Sum(guys_m), ids: ids_m}) => (
-        Sum(guys_l @ guys_m @ guys_r),
-        ids_l @ ids_m @ ids_r,
-      )
-    | _ => ret(hole(tm))
+  | Bin(TSum(l), tiles, TSum(r)) as tm =>
+    switch (is_sum_typ(tiles)) {
+    | Some(between_kids) => ret(Sum([l] @ between_kids @ [r]))
+    | None =>
+      switch (tiles) {
+      | _ => ret(hole(tm))
+      }
     }
   | tm => ret(hole(tm));
 }
 
 and typ = unsorted => {
-  let term = typ_term(unsorted);
-  let ids = ids(unsorted);
+  let (term, inner_ids) = typ_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
   return(ty => Typ(ty), ids, {ids, term});
 }
-and typ_term: unsorted => UTyp.term = {
+and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
+  let ret = (term: UTyp.term) => (term, []);
   let _unrecog = UTyp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   fun
@@ -458,30 +470,33 @@ and typ_term: unsorted => UTyp.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | (["Unit"], []) => Tuple([])
-      | (["Bool"], []) => Bool
-      | (["Int"], []) => Int
-      | (["Float"], []) => Float
-      | (["String"], []) => String
-      | ([t], []) when Form.is_typ_var(t) => Var(t)
-      | (["(", ")"], [Typ(body)]) => Parens(body)
-      | (["[", "]"], [Typ(body)]) => List(body)
-      | (["sum{", "}"], [Typ({term: Sum(ts), _})]) => Sum(ts)
-      | _ => hole(tm)
+      | (["Unit"], []) => ret(Tuple([]))
+      | (["Bool"], []) => ret(Bool)
+      | (["Int"], []) => ret(Int)
+      | (["Float"], []) => ret(Float)
+      | (["String"], []) => ret(String)
+      | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
+      | (["(", ")"], [Typ(body)]) => ret(Parens(body))
+      | (["[", "]"], [Typ(body)]) => ret(List(body))
+      | (["sum{", "}"], [TSum(x)]) =>
+        //TODO(andrew): modelling after listlit
+        ret(Sum(x))
+      //(Sum(x), ids)
+      | _ => ret(hole(tm))
       }
-    | _ => hole(tm)
+    | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => hole(tm)
+  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => Tuple([l] @ between_kids @ [r])
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
-      | ([(_id, (["->"], []))], []) => Arrow(l, r)
-      | _ => hole(tm)
+      | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | _ => ret(hole(tm))
       }
     }
-  | tm => hole(tm);
+  | tm => ret(hole(tm));
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);

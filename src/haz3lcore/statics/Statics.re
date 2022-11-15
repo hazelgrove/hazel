@@ -299,6 +299,7 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   | Typ(ty) =>
     let (_, map) = utyp_to_info_map(ctx, ty);
     (VarMap.empty, map);
+  | TSum(_) //TODO(andrew)
   // TODO(d) consider Rul case
   | Rul(_)
   | Nul ()
