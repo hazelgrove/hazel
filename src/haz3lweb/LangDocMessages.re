@@ -46,6 +46,8 @@ let exp = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
 let pat = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
+let tpat = v =>
+  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
 let typ = t =>
   Example.mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
 let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
@@ -88,6 +90,8 @@ let mk_fun = Example.mk_tile(Form.get("fun_"));
 let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
+let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
+
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
@@ -1472,6 +1476,32 @@ let let_ap_exp: form = {
     expandable_id: Some(Piece.id(ap)),
     explanation,
     examples: [let_ap_ex],
+  };
+};
+
+let tyalias_exp_group = "tyalias_exp_group";
+let _tpat = tpat("p");
+let _exp_def = exp("e_def");
+let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
+  (Piece.id(_tpat), tpat_id),
+  (Piece.id(_exp_def), def_id),
+];
+let tyalias_base_exp: form = {
+  let explanation = {
+    message: "Type Alias expression. The [*definition*](%i) is matched against the [*name*](%i).",
+    feedback: Unselected,
+  };
+  let form = [
+    mk_tyalias([[space(), _tpat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: "tyalias_base_exp",
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
   };
 };
 
@@ -3242,6 +3272,7 @@ let init = {
     let_tuple3_exp,
     let_tag_exp,
     let_ap_exp,
+    tyalias_base_exp,
     funapp_exp,
     conapp_exp,
     if_exp,
@@ -3593,6 +3624,7 @@ let init = {
         (let_ap_exp.id, [pat("p_con"), mk_ap_pat([[pat("p_arg")]])]),
       ]),
     ),
+    (tyalias_exp_group, init_options([(tyalias_base_exp.id, [])])),
     (funapp_exp_group, init_options([(funapp_exp.id, [])])),
     (conapp_exp_group, init_options([(conapp_exp.id, [])])),
     (if_exp_group, init_options([(if_exp.id, [])])),

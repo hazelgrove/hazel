@@ -589,19 +589,24 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | TyAlias(_, _, _) =>
-        //TODO(andrew): this is just copied from triv
+      | TyAlias(ty_pat, ty_def, _body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
-            LangDocMessages.triv_exp_group,
+            LangDocMessages.tyalias_exp_group,
             docs,
           );
+        let tpat_id = List.nth(ty_pat.ids, 0);
+        let def_id = List.nth(ty_def.ids, 0);
         get_message(
           doc,
           options,
-          LangDocMessages.triv_exp_group,
-          doc.explanation.message,
-          [],
+          LangDocMessages.tyalias_exp_group,
+          Printf.sprintf(
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            tpat_id,
+            def_id,
+          ),
+          LangDocMessages.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
         );
       | Triv =>
         let (doc, options) =
