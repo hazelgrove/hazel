@@ -50,7 +50,10 @@ type info_typ = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info_tpat = unit;
+type info_tpat = {
+  cls: Term.UTPat.cls,
+  term: Term.UTPat.t,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_rul = {
@@ -78,9 +81,9 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | Invalid(_) => None
        | InfoExp({term, _}) => Some(Term.Exp(term))
        | InfoPat({term, _}) => Some(Term.Pat(term))
-       | InfoTPat(_) => None //TODO(andrew)
        | InfoTyp({term, _}) => Some(Term.Typ(term))
        | InfoRul({term, _}) => Some(Term.Exp(term))
+       | InfoTPat({term, _}) => Some(Term.TPat(term))
      );
 
 /* TODO(andrew): more sum/rec errors
@@ -292,14 +295,13 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   | Pat(p) =>
     let (_, _, map) = upat_to_info_map(~ctx, p);
     (VarMap.empty, map);
-  | TPat(_p) =>
-    //TODO(andrew)
-    //let (_, _, map) = utpat_to_info_map(~ctx, p);
-    (VarMap.empty, Ptmap.empty)
+  | TSum(_) => (VarMap.empty, Ptmap.empty) //TODO(andrew)
+  | TPat(tp) =>
+    let map = utpat_to_info_map(~ctx, tp);
+    (VarMap.empty, map);
   | Typ(ty) =>
     let (_, map) = utyp_to_info_map(ctx, ty);
     (VarMap.empty, map);
-  | TSum(_) //TODO(andrew)
   // TODO(d) consider Rul case
   | Rul(_)
   | Nul ()
@@ -471,6 +473,7 @@ and uexp_to_info_map =
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     //TODO(andrew)
+    let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.utyp_to_ty(utyp);
     let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
     let ctx_def_and_body =
@@ -485,11 +488,12 @@ and uexp_to_info_map =
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
     let (_ty_def, m_typ) = utyp_to_info_map(ctx_def_and_body, utyp);
-    add(~self=Just(ty_body), ~free, union_m([m_body, m_typ]));
-  | TyAlias(_, _, e) =>
+    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
+  | TyAlias(typat, _, e) =>
     //TODO(andrew)
-    let (ty, free, m) = go(~mode, e);
-    add(~self=Just(ty), ~free, m);
+    let m_typat = utpat_to_info_map(~ctx, typat);
+    let (ty, free, m_body) = go(~mode, e);
+    add(~self=Just(ty), ~free, union_m([m_typat, m_body]));
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
@@ -627,6 +631,7 @@ and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => 
   let ty = Term.utyp_to_ty(utyp);
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
   let just = m => (ty, add(Just(ty), m));
+  //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
   | Invalid(msg) => (
       Unknown(Internal),
@@ -668,6 +673,10 @@ and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => 
       tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
     just(union_m(maps));
   };
+}
+and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
+  let cls = Term.UTPat.cls_of_term(term);
+  add_info(ids, InfoTPat({cls, term: utpat}), Id.Map.empty);
 };
 
 let mk_map =
