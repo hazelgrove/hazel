@@ -21,6 +21,7 @@ module rec Any: {
     | Pat(UPat.t)
     | Typ(UTyp.t)
     | TPat(UTPat.t)
+    | TSum(UTSum.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -31,6 +32,7 @@ module rec Any: {
     | Pat(UPat.t)
     | Typ(UTyp.t)
     | TPat(UTPat.t)
+    | TSum(UTSum.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -313,7 +315,7 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(list(tagged))
+    | Sum(UTSum.t)
     | Parens(t)
   and tagged = {
     tag: Token.t,
@@ -337,7 +339,7 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(list(tagged))
+    | Sum(UTSum.t)
     | Parens(t)
   and tagged = {
     tag: Token.t,
@@ -366,6 +368,31 @@ and UTPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(Token.t)
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+}
+and UTSum: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Ap(Token.t, UTyp.t)
+    | Sum(list(t))
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(parse_flag)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    | Ap(Token.t, UTyp.t)
+    | Sum(list(t))
   and t = {
     ids: list(Id.t),
     term,

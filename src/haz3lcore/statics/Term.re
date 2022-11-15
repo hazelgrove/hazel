@@ -137,6 +137,45 @@ module UTPat = {
     | Var => "Type Pattern Variable";
 };
 
+module UTSum = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Ap
+    | Sum;
+
+  include TermBase.UTSum;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Ap(_) => Ap
+    | Sum(_) => Sum;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Labelled Sum Type"
+    | EmptyHole => "Empty Labelled Sum Type Hole"
+    | MultiHole => "Multi Labelled Sum Type Hole"
+    | Ap => "Labelled Sum Type Constructor"
+    | Sum => "Labelled Sum Type";
+};
+
 module UPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -552,16 +591,26 @@ let rec utyp_to_ty: UTyp.t => Typ.t =
     | Var(name) => Var(name)
     | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
     | Tuple(us) => Prod(List.map(utyp_to_ty, us))
-    | Sum(ts) =>
-      LabelSum(
-        List.map(
-          ({tag, typ}: UTyp.tagged) =>
-            Typ.{tag, typ: utyp_to_ty({ids: [(-1)], term: typ})},
-          ts,
-        ),
-      )
+    | Sum(ts) => utsum_to_ty(ts)
     | List(u) => List(utyp_to_ty(u))
     | Parens(u) => utyp_to_ty(u)
+    }
+and utsum_to_ty: UTSum.t => Typ.t =
+  utsum =>
+    switch (utsum.term) {
+    | Invalid(_)
+    | MultiHole(_) => Unknown(Internal)
+    | EmptyHole => Unknown(Internal)
+    | Ap(tag, typ) => LabelSum([{tag, typ: utyp_to_ty(typ)}])
+    | Sum(ts) =>
+      List.map(utsum_to_ty, ts)
+      |> List.map(
+           fun
+           | Typ.LabelSum(ts) => ts
+           | _ => [],
+         )
+      |> List.flatten
+      |> (xs => Typ.LabelSum(xs))
     };
 
 // TODO(d): consider just folding this into UExp
@@ -599,6 +648,7 @@ let rec ids =
   | Pat(tm) => tm.ids
   | Typ(tm) => tm.ids
   | TPat(tm) => tm.ids
+  | TSum(tm) => tm.ids //TODO(andrew): ask david about this vs below?
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];
@@ -620,6 +670,7 @@ let rep_id =
   | Pat(tm) => UPat.rep_id(tm)
   | Typ(tm) => UTyp.rep_id(tm)
   | TPat(tm) => UTPat.rep_id(tm)
+  | TSum(tm) => UTSum.rep_id(tm)
   | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
   | Nul ()
   | Any () => raise(Invalid_argument("Term.rep_id"));

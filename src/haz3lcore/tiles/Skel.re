@@ -88,6 +88,7 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
         lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
+        lbl1(["+"]) && lbl2(["+"]),
       ]
       |> List.fold_left((||), false);
     if (eq) {
