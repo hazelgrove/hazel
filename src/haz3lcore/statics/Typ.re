@@ -227,3 +227,20 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
+
+let rec subst = (s: t, x: Token.t, ty: t) => {
+  switch (ty) {
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | Unknown(prov) => Unknown(prov)
+  | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
+  | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
+  | LabelSum(tys) =>
+    LabelSum(List.map(ty => {tag: ty.tag, typ: subst(s, x, ty.typ)}, tys))
+  | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))
+  | List(ty) => List(subst(s, x, ty))
+  | Var(y) => x == y ? s : Var(y)
+  };
+};
