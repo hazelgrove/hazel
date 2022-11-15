@@ -478,9 +478,9 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum{", "}"], [TSum(x)]) =>
+      | (["sum", "end"], [TSum(x)]) =>
         //TODO(andrew): modelling after listlit
-        ret(Sum(x))
+        (Sum(x), x.ids)
       //(Sum(x), ids)
       | _ => ret(hole(tm))
       }

@@ -139,7 +139,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    Order in this list determines relative remolding
    priority for forms which share the same labels */
 let forms: list((string, t)) = [
-  ("typ-sum", mk(is, ["sum{", "}"], mk_op(Typ, [TSum]))),
+  ("typ-sum", mk(is, ["sum", "end"], mk_op(Typ, [TSum]))),
   (
     "ap_typ_sum_cons",
     mk(ii, ["(", ")"], mk_post'(P.ap, TSum, TSum, [Typ], TSum)),
