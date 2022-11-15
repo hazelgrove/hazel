@@ -24,6 +24,7 @@ type t =
   | LabelSum(list(tagged))
   | Sum(t, t) // unused
   | Prod(list(t))
+  | Rec(Token.t, t)
 and tagged = {
   tag: Token.t,
   typ: t,
@@ -150,6 +151,7 @@ let precedence = (ty: t): int =>
   | String
   | Unknown(_)
   | Var(_)
+  | Rec(_)
   | Prod([])
   | LabelSum(_)
   | List(_) => precedence_const
@@ -158,10 +160,19 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
+let type_var_eq = (d, n1, n2) =>
+  switch (List.assoc_opt(n1, d), List.assoc_opt(n2, d)) {
+  | _ when n1 == n2 => true
+  | (Some(n), _) when n == n2 => true
+  | (_, Some(n)) when n1 == n => true
+  | _ => false
+  };
+
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let rec eq = (t1, t2) =>
+let rec eq = (~d=[], t1, t2) => {
+  let eq' = eq(~d);
   switch (t1, t2) {
   | (Int, Int) => true
   | (Int, _) => false
@@ -174,24 +185,45 @@ let rec eq = (t1, t2) =>
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
   | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
-    eq(t1_1, t2_1) && eq(t1_2, t2_2)
+    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
+    List.length(tys1) == List.length(tys2) && List.for_all2(eq', tys1, tys2)
+  | (Prod(_), _) => false
+  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) =>
+    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
+  | (Sum(_), _) => false
+  | (List(t1), List(t2)) => eq'(t1, t2)
+  | (List(_), _) => false
   | (LabelSum(tys1), LabelSum(tys2)) =>
     let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
     && List.for_all2(
-         (ts1, ts2) => ts1.tag == ts2.tag && eq(ts1.typ, ts2.typ),
+         (ts1, ts2) => ts1.tag == ts2.tag && eq'(ts1.typ, ts2.typ),
          tys1,
          tys2,
        );
   | (LabelSum(_), _) => false
-  | (Prod(_), _) => false
-  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
-  | (Sum(_), _) => false
-  | (List(t1), List(t2)) => eq(t1, t2)
-  | (List(_), _) => false
-  | (Var(n1), Var(n2)) => n1 == n2
+  | (Var(n1), Var(n2)) => type_var_eq(d, n1, n2)
   | (Var(_), _) => false
+  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
+  | (Rec(_), _) => false
+  };
+};
+
+let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
+  switch (ty) {
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String => []
+  | Var(v) => List.mem(v, bound) ? [] : [v]
+  | List(ty) => free_vars(~bound, ty)
+  | Arrow(t1, t2)
+  | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | LabelSum(tags) =>
+    List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
+  | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
+  | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };

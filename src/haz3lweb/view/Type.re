@@ -24,6 +24,11 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
+  | Rec(x, t) =>
+    div(
+      ~attr=clss(["typ-view", "Rec"]),
+      [text("Rec " ++ x ++ ". "), view(t)],
+    )
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),
@@ -32,7 +37,7 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
   | Arrow(t1, t2) =>
     div(
       ~attr=clss(["typ-view", "Arrow"]),
-      [view(t1), text("->"), view(t2)],
+      [view(t1), text(" -> "), view(t2)],
     )
   | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("Unit")])
   | Prod([_]) =>
@@ -45,33 +50,33 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         div(
           ~attr=clss(["typ-view", "Prod"]),
           [view(t0)]
-          @ (List.map(t => [text(","), view(t)], ts) |> List.flatten),
+          @ (List.map(t => [text(", "), view(t)], ts) |> List.flatten),
         ),
         text(")"),
       ],
     )
-  | LabelSum([] | [_]) =>
-    div(~attr=clss(["typ-view", "Prod"]), [text("BadSum")])
-  | LabelSum([t0, ...ts]) =>
-    //TODO(andrew): finish dispaly
+  | LabelSum([]) =>
+    div(~attr=clss(["typ-view", "Prod"]), [text("Nullary Sum")])
+  //TODO(andrew): cleanup
+  | LabelSum([t0]) =>
     div(
-      ~attr=clss(["typ-view", "atom", "LabelSum"]),
-      [
-        text("("),
-        div(
-          ~attr=clss(["typ-view", "LabelSum"]),
-          [view(t0.typ)]
-          @ (
-            List.map(
-              (t: Haz3lcore.Typ.tagged) => [text("|"), view(t.typ)],
-              ts,
-            )
-            |> List.flatten
-          ),
-        ),
-        text(")"),
-      ],
+      ~attr=clss(["typ-view", "LabelSum"]),
+      [text("sum{")] @ tagged_view(t0) @ [text("}")],
     )
+  | LabelSum([t0, ...ts]) =>
+    let tys_views =
+      tagged_view(t0)
+      @ (List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten);
+    div(
+      ~attr=clss(["typ-view", "LabelSum"]),
+      [text("sum{")] @ tys_views @ [text("}")],
+    );
   | Sum(t1, t2) =>
-    div(~attr=clss(["typ-view", "Sum"]), [view(t1), text("+"), view(t2)])
-  };
+    div(
+      ~attr=clss(["typ-view", "Sum"]),
+      [view(t1), text(" + "), view(t2)],
+    )
+  }
+and tagged_view = (t: Haz3lcore.Typ.tagged) =>
+  t.typ == Prod([])
+    ? [text(t.tag)] : [text(t.tag ++ "("), view(t.typ), text(")")];

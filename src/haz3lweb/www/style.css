@@ -1004,7 +1004,7 @@ svg.tile-selected {
 .typ-view {
   color: var(--typ-text-color);
   display: flex;
-  gap: 0.5em;
+  /*gap: 0.5em;*/
 }
 
 .typ-view.atom {
