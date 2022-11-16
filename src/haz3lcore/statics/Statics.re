@@ -50,15 +50,21 @@ type info_typ = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type info_rul = {
+  cls: Term.URul.cls,
+  term: Term.UExp.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type info_tpat = {
   cls: Term.UTPat.cls,
   term: Term.UTPat.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info_rul = {
-  cls: Term.URul.cls,
-  term: Term.UExp.t,
+type info_tsum = {
+  cls: Term.UTSum.cls,
+  term: Term.UTSum.t,
 };
 
 /* The Info aka Cursorinfo assigned to each subterm. */
@@ -67,9 +73,10 @@ type t =
   | Invalid(TermBase.parse_flag)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
-  | InfoTPat(info_tpat)
   | InfoTyp(info_typ)
-  | InfoRul(info_rul);
+  | InfoRul(info_rul)
+  | InfoTPat(info_tpat)
+  | InfoTSum(info_tsum);
 
 /* The InfoMap collating all info for a composite term */
 type map = Id.Map.t(t);
@@ -84,6 +91,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | InfoTyp({term, _}) => Some(Term.Typ(term))
        | InfoRul({term, _}) => Some(Term.Exp(term))
        | InfoTPat({term, _}) => Some(Term.TPat(term))
+       | InfoTSum({term, _}) => Some(Term.TSum(term))
      );
 
 /* TODO(andrew): more sum/rec errors
@@ -170,8 +178,9 @@ let is_error = (ci: t): bool => {
     | Free(TypeVariable) => true
     | _ => false
     }
-  | InfoRul(_)
-  | InfoTPat(_) => false //TODO
+  | InfoRul(_) => false
+  | InfoTSum(_) => false //TODO(andrew): TSum errors?
+  | InfoTPat(_) => false //TODO(andrew): TPat errors?
   };
 };
 
@@ -191,7 +200,10 @@ let typ_after_fix = (ctx, mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(
+      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
+      Invalid(_),
+    )
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -209,7 +221,10 @@ let t_of_self = (ctx): (Typ.self => Typ.t) =>
 let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => t_of_self(ctx, self)
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(
+      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
+      Invalid(_),
+    )
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -219,7 +234,10 @@ let exp_self_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
 let exp_mode_id = (m: map, id): Typ.mode =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, _})) => mode
-  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(
+      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
+      Invalid(_),
+    )
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -230,13 +248,19 @@ let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
 let pat_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(
+      InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
+      Invalid(_),
+    )
   | None => failwith(__LOC__ ++ ": XXX")
   };
 let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({self, _})) => t_of_self(ctx, self)
-  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
+  | Some(
+      InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
+      Invalid(_),
+    )
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -300,7 +324,7 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
     let map = utpat_to_info_map(~ctx, tp);
     (VarMap.empty, map);
   | Typ(ty) =>
-    let (_, map) = utyp_to_info_map(ctx, ty);
+    let (_, map) = utyp_to_info_map(~ctx, ty);
     (VarMap.empty, map);
   // TODO(d) consider Rul case
   | Rul(_)
@@ -487,7 +511,7 @@ and uexp_to_info_map =
       );
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
-    let (_ty_def, m_typ) = utyp_to_info_map(ctx_def_and_body, utyp);
+    let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias(typat, _, e) =>
     //TODO(andrew)
@@ -621,12 +645,13 @@ and upat_to_info_map =
     let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
-    let (ty_ann, m_typ) = utyp_to_info_map(ctx, ty);
+    let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
     add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
-and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+and utyp_to_info_map =
+    (~ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
@@ -642,20 +667,20 @@ and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => 
   | Float
   | Bool
   | String => just(Id.Map.empty)
-  | Sum(_) =>
-    //TODO(andrew)
-    just(Id.Map.empty)
+  | Sum({term, ids: _}) =>
+    let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
+    just(m);
   | List(t)
   | Parens(t) =>
-    let (_, m) = utyp_to_info_map(ctx, t);
+    let (_, m) = utyp_to_info_map(~ctx, t);
     just(m);
   | Arrow(t1, t2) =>
-    let (_, m_t1) = utyp_to_info_map(ctx, t1);
-    let (_, m_t2) = utyp_to_info_map(ctx, t2);
+    let (_, m_t1) = utyp_to_info_map(~ctx, t1);
+    let (_, m_t2) = utyp_to_info_map(~ctx, t2);
     just(union_m([m_t1, m_t2]));
   | Tuple(ts) =>
     let m =
-      ts |> List.map(utyp_to_info_map(ctx)) |> List.map(snd) |> union_m;
+      ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
     just(m);
   | Var(name) =>
     //TODO(andrew): better tvar lookup
@@ -677,6 +702,25 @@ and utyp_to_info_map = (ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => 
 and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
   add_info(ids, InfoTPat({cls, term: utpat}), Id.Map.empty);
+}
+and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
+  //TODO(andrew): CI could be better here
+  let cls = Term.UTSum.cls_of_term(term);
+  let just = m => add_info(ids, InfoTSum({cls, term: utsum}), m);
+  switch (term) {
+  | Invalid(msg) => add_info(ids, Invalid(msg), Id.Map.empty)
+  | EmptyHole => just(Id.Map.empty)
+  | MultiHole(tms) =>
+    let (_, maps) =
+      tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
+    just(union_m(maps));
+  | Sum(sum) =>
+    let ms = List.map(utsum_to_info_map(~ctx), sum);
+    union_m(ms); //just(union_m(ms));
+  | Ap(_, typ) =>
+    let (_, m) = utyp_to_info_map(~ctx, typ);
+    m; //just(m);
+  };
 };
 
 let mk_map =

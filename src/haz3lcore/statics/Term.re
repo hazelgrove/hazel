@@ -131,10 +131,10 @@ module UTPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type Pattern"
-    | EmptyHole => "Empty Type Pattern Hole"
-    | MultiHole => "Multi Type Pattern Hole"
-    | Var => "Type Pattern Variable";
+    | Invalid => "Invalid Type Variable"
+    | EmptyHole => "Empty Type Variable Hole"
+    | MultiHole => "Multi Type Variable Hole"
+    | Var => "Type Variable";
 };
 
 module UTSum = {
