@@ -264,11 +264,8 @@ let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
-let union_m =
-  List.fold_left(
-    (m1, m2) => Id.Map.union((_, _, b) => Some(b), m1, m2),
-    Id.Map.empty,
-  );
+// NOTE(andrew): changed this from union to disj_union...
+let union_m = List.fold_left(Id.Map.disj_union, Id.Map.empty);
 
 let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
   ids
@@ -704,7 +701,7 @@ and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => 
   add_info(ids, InfoTPat({cls, term: utpat}), Id.Map.empty);
 }
 and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
-  //TODO(andrew): CI could be better here
+  //TODO(andrew): check commented out below bits... triggers disj_union exceptions
   let cls = Term.UTSum.cls_of_term(term);
   let just = m => add_info(ids, InfoTSum({cls, term: utsum}), m);
   switch (term) {
