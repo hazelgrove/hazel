@@ -1001,7 +1001,7 @@ svg.tile-selected {
   vector-effect: non-scaling-stroke;
 }
 
-.typ-view {
+.typ-view, .kind-view {
   color: var(--typ-text-color);
   display: flex;
   /*gap: 0.5em;*/

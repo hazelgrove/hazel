@@ -10,8 +10,5 @@ let kind_view = (cls: string, s: string): Node.t =>
 let view = (ty: Haz3lcore.Kind.t): Node.t =>
   switch (ty) {
   | Singleton(_ty) =>
-    div(
-      ~attr=clss(["kind-view"]),
-      [text("S"), kind_view("Singleton", "Singleton")],
-    )
+    div(~attr=clss(["kind-view"]), [kind_view("Singleton", "Singleton")])
   };
