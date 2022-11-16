@@ -97,7 +97,7 @@ let filter_duplicates = (ctx: t): t =>
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
          | TVarEntry({name, _}) =>
-           VarSet.mem(name, term_set)
+           VarSet.mem(name, typ_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
          }
