@@ -276,7 +276,7 @@ let extend_let_def_ctx =
     (ctx: Ctx.t, pat: Term.UPat.t, pat_ctx: Ctx.t, def: Term.UExp.t) =>
   if (Term.UPat.is_tuple_of_arrows(pat)
       && Term.UExp.is_tuple_of_functions(def)) {
-    pat_ctx; //VarMap.concat(ctx, pat_ctx); //TODO(andrew): cleanup
+    pat_ctx;
   } else {
     ctx;
   };
@@ -468,12 +468,11 @@ and uexp_to_info_map =
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
       upat_to_info_map(~ctx, ~mode=mode_pat, pat);
-    let ctx_body = ctx_pat; //VarMap.concat(ctx, ctx_pat); //TODO(andrew):cleanup
     let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
+      uexp_to_info_map(~ctx=ctx_pat, ~mode=mode_body, body);
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
-      ~free=Ctx.subtract_typ(ctx_pat, free_body),
+      ~free=Ctx.subtract_typ(ctx_pat, free_body), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_body]),
     );
   | Let(pat, def, body) =>
@@ -484,16 +483,14 @@ and uexp_to_info_map =
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) =
       upat_to_info_map(~ctx, ~mode=Ana(ty_def), pat);
-    let ctx_body = ctx_pat_ana; //VarMap.concat(ctx, ctx_pat_ana);//TODO(andrew):cleanup
     let (ty_body, free_body, m_body) =
-      uexp_to_info_map(~ctx=ctx_body, ~mode, body);
+      uexp_to_info_map(~ctx=ctx_pat_ana, ~mode, body);
     add(
       ~self=Just(ty_body),
-      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
+      ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_def, m_body]),
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
-    //TODO(andrew)
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.utyp_to_ty(utyp);
     let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
@@ -511,7 +508,7 @@ and uexp_to_info_map =
     let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias(typat, _, e) =>
-    //TODO(andrew)
+    //TODO(andrew): cleanup
     let m_typat = utpat_to_info_map(~ctx, typat);
     let (ty, free, m_body) = go(~mode, e);
     add(~self=Just(ty), ~free, union_m([m_typat, m_body]));
@@ -523,12 +520,7 @@ and uexp_to_info_map =
     let branch_infos =
       List.map2(
         (branch, (_, ctx_pat, _)) =>
-          //TODO(andrew): cleanup
-          uexp_to_info_map(
-            ~ctx=ctx_pat /*VarMap.concat(ctx, ctx_pat)*/,
-            ~mode,
-            branch,
-          ),
+          uexp_to_info_map(~ctx=ctx_pat, ~mode, branch),
         branches,
         pat_infos,
       );
@@ -690,7 +682,7 @@ and utyp_to_info_map =
     | None =>
       switch (Ctx.lookup_tvar(ctx, name)) {
       | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
-      | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty)) //TODO
+      | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty)) //TODO(andrew)
       }
     | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
     }
