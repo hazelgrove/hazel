@@ -1481,18 +1481,18 @@ let let_ap_exp: form = {
 
 let tyalias_exp_group = "tyalias_exp_group";
 let _tpat = tpat("p");
-let _exp_def = exp("e_def");
+let _typ_def = typ("ty_def");
 let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
   (Piece.id(_tpat), tpat_id),
-  (Piece.id(_exp_def), def_id),
+  (Piece.id(_typ_def), def_id),
 ];
 let tyalias_base_exp: form = {
   let explanation = {
-    message: "Type Alias expression. The [*definition*](%i) is matched against the [*name*](%i).",
+    message: "Type Alias expression. The [*definition*](%i) is bound to the [*name*](%i).",
     feedback: Unselected,
   };
   let form = [
-    mk_tyalias([[space(), _tpat, space()], [space(), _exp_def, space()]]),
+    mk_tyalias([[space(), _tpat, space()], [space(), _typ_def, space()]]),
     linebreak(),
     exp("e_body"),
   ];

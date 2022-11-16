@@ -603,8 +603,8 @@ let get_doc =
           LangDocMessages.tyalias_exp_group,
           Printf.sprintf(
             Scanf.format_from_string(doc.explanation.message, "%i%i"),
-            tpat_id,
             def_id,
+            tpat_id,
           ),
           LangDocMessages.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
         );
@@ -2771,6 +2771,7 @@ let get_doc =
       );
     }
   | Some(InfoTPat(_)) //TODO(andrew)
+  | Some(InfoTSum(_)) //TODO(andrew)
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default

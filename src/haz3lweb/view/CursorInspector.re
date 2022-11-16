@@ -9,8 +9,9 @@ let cls_str = (ci: Haz3lcore.Statics.t): string =>
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
-  | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
   | InfoRul({cls, _}) => Haz3lcore.Term.URul.show_cls(cls)
+  | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
+  | InfoTSum({cls, _}) => Haz3lcore.Term.UTSum.show_cls(cls)
   };
 
 let errorc = "error";
@@ -156,11 +157,6 @@ let view_of_info =
         status_view(error_status),
       ],
     );
-  | InfoTPat(_) =>
-    div(
-      ~attr=clss([infoc, "tpat"]),
-      [term_tag(~inject, ~show_lang_doc, is_err, "tpat")],
-    )
   | InfoTyp({self: Free(free_error), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
@@ -184,6 +180,22 @@ let view_of_info =
     div(
       ~attr=clss([infoc, "rul"]),
       [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
+    )
+  | InfoTPat(_) =>
+    div(
+      ~attr=clss([infoc, "tpat"]),
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "tpat"),
+        div(~attr=clss([happyc]), [text("new type alias")]),
+      ],
+    )
+  | InfoTSum(_) =>
+    div(
+      ~attr=clss([infoc, "tsum"]),
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
+        div(~attr=clss([happyc]), [text("TODO labelles sum")]),
+      ],
     )
   };
 };
