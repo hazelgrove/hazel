@@ -343,7 +343,7 @@ let view =
 
   [
     div(
-      ~attr=Attr.classes(["main"]),
+      ~attr=Attr.id("main"),
       [
         div(
           ~attr=Attr.classes(["editor", "column"]),
