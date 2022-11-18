@@ -1881,7 +1881,7 @@ svg.expandable path {
   left: -1em;
 }
 
-.main {
+#main {
   overflow: auto;
   flex: 1;
 }

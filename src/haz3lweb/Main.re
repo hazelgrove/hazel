@@ -121,13 +121,27 @@ module App = {
     Async_kernel.Deferred.return(state);
   };
 
-  let create = (model: Incr.t(Haz3lweb.Model.t), ~old_model as _, ~inject) => {
+  let create =
+      (
+        model: Incr.t(Haz3lweb.Model.t),
+        ~old_model: Incr.t(Haz3lweb.Model.t),
+        ~inject,
+      ) => {
     open Incr.Let_syntax;
-    let%map model = model;
+    let%map model = model
+    and old_model = old_model;
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
+      ~on_display=(_, ~schedule_action as _) => {
+        let old_zipper = Editors.get_editor(model.editors).state.zipper;
+        let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
+
+        if (old_zipper != new_zipper) {
+          JsUtil.scroll_cursor_into_view_if_needed();
+        };
+      },
     );
   };
 };

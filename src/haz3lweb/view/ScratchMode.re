@@ -79,7 +79,7 @@ let view =
 
   [
     div(
-      ~attr=clss(["main"]),
+      ~attr=Attr.id("main"),
       [div(~attr=clss(["editor", "single"]), [editor_view] @ right_panel)],
     ),
     bottom_bar,
