@@ -1196,6 +1196,7 @@ svg.tile-selected {
 /* END STATICS*/
 
 .bottom-bar {
+  z-index: var(--result-z);
   /*max-height: 3.2em;
   overflow-y: auto;*/
   left: 0;
