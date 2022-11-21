@@ -177,7 +177,7 @@ let find_shards' = (id: Id.t, map) =>
   | Some(ss) => ss
   };
 
-let find_w = (w: Secondary.t, map): measurement => 
+let find_w = (w: Secondary.t, map): measurement =>
   Id.Map.find(w.id, map.secondary);
 let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
@@ -198,7 +198,7 @@ let find_p = (p: Piece.t, map): measurement =>
      );
 
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
-  switch (Id.Map.find_opt(id, map.whitespace)) {
+  switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
     switch (Id.Map.find_opt(id, map.grout)) {
