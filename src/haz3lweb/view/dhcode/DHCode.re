@@ -138,7 +138,7 @@ let view_of_hole_instance =
 let view_of_var = x => Node.text(x);
 
 let view_of_layout_tylr =
-    (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+    (~inject, ~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -164,15 +164,22 @@ let view_of_layout_tylr =
                      ~attr=
                        Attr.many([
                          Attr.classes([
+                           "clickable",
                            "EmptyHole",
                            ...selected ? ["selected"] : [],
                          ]),
-                         Attr.on_click(_ =>
-                           Vdom.Effect.Many([
-                             Vdom.Effect.Stop_propagation,
-                             //inject(ModelAction.SelectHoleInstance(inst)),
-                           ])
-                         ),
+                         Attr.on_click(_ => {
+                           inject(
+                             UpdateAction.PerformAction(
+                               JumpToId(HoleInstance.u_of(_inst)),
+                             ),
+                             //  print_endline("tylr");
+                             //  Vdom.Effect.Many([
+                             //    Vdom.Effect.Stop_propagation,
+                             //    //inject(ModelAction.SelectHoleInstance(inst)),
+                             //  ]);
+                           )
+                         }),
                        ]),
                      txt,
                    ),
@@ -226,6 +233,7 @@ let view_of_layout_tylr =
 
 let view_tylr =
     (
+      ~inject,
       ~settings: Settings.Evaluation.t,
       ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
@@ -240,7 +248,7 @@ let view_tylr =
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
-  |> view_of_layout_tylr(~font_metrics);
+  |> view_of_layout_tylr(~inject, ~font_metrics);
 };
 
 type font_metrics = FontMetrics.t;

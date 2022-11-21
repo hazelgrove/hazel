@@ -29,6 +29,7 @@ let view:
 
 let view_tylr:
   (
+    ~inject: Update.t => Vdom.Effect.t(unit),
     ~settings: Settings.Evaluation.t,
     ~selected_hole_instance: option(HoleInstance.t),
     ~font_metrics: FontMetrics.t,

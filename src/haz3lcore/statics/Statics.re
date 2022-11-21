@@ -303,7 +303,9 @@ and uexp_to_info_map =
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
-  | EmptyHole => atomic(Just(Unknown(Internal)))
+  | EmptyHole =>
+    print_endline("Empty hole");
+    atomic(Just(Unknown(Internal)));
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
