@@ -155,7 +155,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | ExpandingKeyword(_)
   | FreeVar(_)
   | InvalidText(_)
-  | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
+  | InconsistentBranches(_) =>
+    print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)));
+    raise(Exception(UnevalOutsideClosure));
 
   | FixF(_) => raise(Exception(FixFOutsideClosureEnv))
 

@@ -15,12 +15,27 @@ let rec fill = (s: FillResumeState.t, d_prev_result: DHExp.t): DHExp.t => {
   let filld = fill(s);
   let fills = fill_env(s);
   switch (d_prev_result) {
+  | Cast(Closure(_, EmptyHole(v, _)), _, _)
   | Closure(_, EmptyHole(v, _))
+  | Cast(Closure(_, NonEmptyHole(_, v, _, _)), _, _)
   | Closure(_, NonEmptyHole(_, v, _, _))
+  | Cast(Closure(_, ExpandingKeyword(v, _, _)), _, _)
   | Closure(_, ExpandingKeyword(v, _, _))
+  | Cast(Closure(_, FreeVar(v, _, _)), _, _)
   | Closure(_, FreeVar(v, _, _))
+  | Cast(Closure(_, InvalidText(v, _, _)), _, _)
   | Closure(_, InvalidText(v, _, _)) =>
     MetaVar.eq(v, s.metavar) ? s.d_inserted : d_prev_result
+  | Cast(Closure(env, InconsistentBranches(v, i, c)), ty1, ty2) =>
+    if (MetaVar.eq(v, s.metavar)) {
+      s.d_inserted;
+    } else {
+      Cast(
+        Closure(env, InconsistentBranches(v, i, c |> fill_case(s))),
+        ty1,
+        ty2,
+      );
+    }
   | Closure(env, InconsistentBranches(v, i, c)) =>
     if (MetaVar.eq(v, s.metavar)) {
       s.d_inserted;
