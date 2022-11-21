@@ -1,7 +1,7 @@
 opam-version: "2.0"
 compiler: ["ocaml-base-compiler.4.14.0"]
 roots: [
-  "async_js.v0.15.0"
+  "async_js.v0.15.1"
   "camomile.1.0.2"
   "incr_dom.v0.15.0"
   "lwt.5.6.1"
@@ -21,7 +21,7 @@ roots: [
 installed: [
   "abstract_algebra.v0.15.0"
   "angstrom.0.15.0"
-  "async_js.v0.15.0"
+  "async_js.v0.15.1"
   "async_kernel.v0.15.0"
   "async_rpc_kernel.v0.15.0"
   "async_unix.v0.15.0"
@@ -170,40 +170,11 @@ installed: [
   "yojson.1.7.0"
 ]
 pinned: [
-  "async_js.v0.15.0"
+  "async_js.v0.15.1"
   "incr_dom.v0.15.0"
   "sexplib.v0.15.1"
   "virtual_dom.v0.15.0"
 ]
-package "async_js" {
-  opam-version: "2.0"
-  version: "v0.15.0"
-  synopsis:
-    "A small library that provide Async support for JavaScript platforms"
-  maintainer: "Jane Street developers"
-  authors: "Jane Street Group, LLC"
-  license: "MIT"
-  homepage: "https://github.com/janestreet/async_js"
-  doc:
-    "https://ocaml.janestreet.com/ocaml-core/latest/doc/async_js/index.html"
-  bug-reports: "https://github.com/janestreet/async_js/issues"
-  depends: [
-    "ocaml" {>= "4.08.0"}
-    "async_kernel"
-    "async_rpc_kernel"
-    "ppx_jane"
-    "dune" {>= "2.0.0"}
-    "js_of_ocaml" {>= "4.0"}
-    "js_of_ocaml-ppx" {>= "4.0"}
-    "uri" {>= "3.0.0"}
-    "uri-sexp" {>= "3.0.0"}
-  ]
-  build: ["dune" "build" "-p" name "-j" jobs]
-  dev-repo: "git+https://github.com/janestreet/async_js.git"
-  url {
-    src: "git+https://github.com/janestreet/async_js.git"
-  }
-}
 package "incr_dom" {
   opam-version: "2.0"
   version: "v0.15.0"
