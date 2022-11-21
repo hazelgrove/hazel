@@ -11,6 +11,7 @@ let is_write_action = (a: Action.t) => {
   | Insert(_)
   | Pick_up
   | Put_down
+  | Comment_out
   | RotateBackpack
   | MoveToBackpackTarget(_) => true
   };
@@ -70,6 +71,16 @@ let go_z =
     z
     |> Option.map(z => remold_regrout(Left, z, id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
+  | Comment_out =>
+    let z =
+      if (z.selection.content != []) {
+        Zipper.comment_out(z);
+      } else {
+        None;
+      };
+    z
+    |> Option.map(z => remold_regrout(Left, z, id_gen))
+    |> Result.of_option(~error=Action.Failure.Cant_comment_out);
   | RotateBackpack =>
     let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
     Ok((z, id_gen));

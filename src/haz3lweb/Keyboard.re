@@ -67,6 +67,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | (Down, "ArrowRight") => now(Select(Local(Right(ByToken))))
     | (Down, "ArrowUp") => now(Select(Local(Up)))
     | (Down, "ArrowDown") => now(Select(Local(Down)))
+    | (Down, "#") => now(Comment_out)
     | (_, "Shift") => update_double_tap(model)
     | (_, "Enter") =>
       //TODO(andrew): using funky char to avoid weird regexp issues with using \n

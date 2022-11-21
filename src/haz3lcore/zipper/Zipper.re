@@ -281,6 +281,33 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
   );
 };
 
+let rec of_segment = (seg: Segment.t): string =>
+  seg |> List.map(of_piece) |> String.concat("")
+and of_piece: Piece.t => string =
+  fun
+  | Tile(t) => of_tile(t)
+  | Grout(_) => " "
+  | Secondary(w) =>
+    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+and of_tile = (t: Tile.t): string =>
+  Aba.mk(t.shards, t.children)
+  |> Aba.join(of_delim(t), of_segment)
+  |> String.concat("")
+and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+
+// Update this to return an option later
+let comment_out = (z: t): option(t) => {
+  let (selected, z) = update_selection(Selection.empty, z);
+  let segment =
+    selected.content
+    |> Segment.trim_grout_around_secondary(Left)
+    |> Segment.trim_grout_around_secondary(Right);
+
+  let content = "#" ++ of_segment(segment) ++ "#";
+
+  Some(fst(construct(Left, [content], z, 1)));
+};
+
 let replace =
     (d: Direction.t, l: Label.t, (z, id_gen): state): option(state) =>
   /* i.e. select and construct, overwriting the selection */

@@ -156,7 +156,7 @@ let reevaluate_post_update =
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | PerformAction(Destruct(_) | Insert(_) | Comment_out | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetSlide
