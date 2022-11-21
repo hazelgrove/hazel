@@ -177,9 +177,17 @@ let evaluate_and_schedule =
     Editors.get_spliced_elabs(model.editors)
     |> List.iter(((key, d)) => {
          let m_res = ModelResults.lookup(model.results, key);
+
+         // update current result as Result Pending
+         let m_res =
+           m_res >>| ModelResult.update_current(ModelResult.ResultPending);
+
+         // extract prev result
          let prev = m_res >>| ModelResult.get_previous;
          let d_prev = prev >>| ProgramResult.get_elaborator_result;
          let d_prev_result = prev >>| ProgramResult.get_dhexp;
+
+         // evaluate
          let r = Interface.evaluate(d, ~d_prev, ~d_prev_result);
          let res =
            switch (r) {
