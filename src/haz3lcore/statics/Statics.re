@@ -416,7 +416,16 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | Pipeline(arg, fn) =>
-    uexp_to_info_map(~ctx, ~mode, {ids, term: Ap(fn, arg)})
+    let (ty_fn, free_fn, m_fn) =
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let (_, free_arg, m_arg) =
+      uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+    add(
+      ~self=Just(ty_out),
+      ~free=Ctx.union([free_arg, free_fn]),
+      union_m([m_arg, m_fn]),
+    );
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
