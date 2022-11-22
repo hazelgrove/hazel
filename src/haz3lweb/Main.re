@@ -2,6 +2,8 @@ open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
 
+let action_applied = ref(true);
+
 let observe_font_specimen = (id, update) =>
   ResizeObserver.observe(
     ~node=JsUtil.get_elem_by_id(id),
@@ -33,6 +35,7 @@ let restart_caret_animation = () =>
 
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
+  action_applied := true;
   switch (
     try({
       let new_model = Update.apply(model, action, state, ~schedule_action);
@@ -134,14 +137,16 @@ module App = {
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, ~handlers, model),
-      ~on_display=(_, ~schedule_action as _) => {
+      ~on_display=(_, ~schedule_action as _) =>
+      if (action_applied.contents) {
         let old_zipper = Editors.get_editor(model.editors).state.zipper;
         let new_zipper = Editors.get_editor(old_model.editors).state.zipper;
 
+        action_applied := false;
         if (old_zipper != new_zipper) {
           JsUtil.scroll_cursor_into_view_if_needed();
         };
-      },
+      }
     );
   };
 };
