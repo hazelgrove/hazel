@@ -379,6 +379,7 @@ module UExp = {
     | Plus => "Integer Addition"
     | Minus => "Integer Subtraction"
     | Times => "Integer Multiplication"
+    | Power => "Integer Exponentiation"
     | Divide => "Integer Division"
     | LessThan => "Integer Less Than"
     | LessThanOrEqual => "Integer Less Than or Equal"

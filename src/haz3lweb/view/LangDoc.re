@@ -2015,6 +2015,10 @@ let get_doc =
               LangDocMessages.int_times_group,
               LangDocMessages.int_times_exp_coloring_ids,
             )
+          | Int(Power) => (
+              LangDocMessages.int_power_group,
+              LangDocMessages.int_power_exp_coloring_ids,
+            )
           | Int(Divide) => (
               LangDocMessages.int_divide_group,
               LangDocMessages.int_divide_exp_coloring_ids,

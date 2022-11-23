@@ -10,6 +10,7 @@ let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
 let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   switch (bio) {
   | Times => DHDoc_common.precedence_Times
+  | Power => DHDoc_common.precedence_Power
   | Divide => DHDoc_common.precedence_Divide
   | Plus => DHDoc_common.precedence_Plus
   | Minus => DHDoc_common.precedence_Minus
@@ -91,6 +92,7 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
     | Minus => "-"
     | Plus => "+"
     | Times => "*"
+    | Power => "**"
     | Divide => "/"
     | LessThan => "<"
     | LessThanOrEqual => "<="

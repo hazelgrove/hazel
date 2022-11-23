@@ -236,7 +236,7 @@ let extend_let_def_ctx =
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Int
+  | (Plus | Minus | Times | Power | Divide) as _op => Int
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
