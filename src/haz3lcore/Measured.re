@@ -177,10 +177,11 @@ let find_shards' = (id: Id.t, map) =>
   | Some(ss) => ss
   };
 
-let find_w = (w: Whitespace.t, map) => Id.Map.find(w.id, map.whitespace);
-let find_g = (g: Grout.t, map) => Id.Map.find(g.id, map.grout);
+let find_w = (w: Whitespace.t, map): measurement =>
+  Id.Map.find(w.id, map.whitespace);
+let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
-let find_t = (t: Tile.t, map) => {
+let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
   let first = List.assoc(Tile.l_shard(t), shards);
   let last = List.assoc(Tile.r_shard(t), shards);
@@ -188,13 +189,33 @@ let find_t = (t: Tile.t, map) => {
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
 //   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
-let find_p = (p: Piece.t, map) =>
+let find_p = (p: Piece.t, map): measurement =>
   p
   |> Piece.get(
        w => find_w(w, map),
        g => find_g(g, map),
        t => find_t(t, map),
      );
+
+let find_by_id = (id: Id.t, map: t): option(measurement) => {
+  switch (Id.Map.find_opt(id, map.whitespace)) {
+  | Some(m) => Some(m)
+  | None =>
+    switch (Id.Map.find_opt(id, map.grout)) {
+    | Some(m) => Some(m)
+    | None =>
+      switch (Id.Map.find_opt(id, map.tiles)) {
+      | Some(shards) =>
+        let first = List.assoc(List.hd(shards) |> fst, shards);
+        let last = List.assoc(ListUtil.last(shards) |> fst, shards);
+        Some({origin: first.origin, last: last.last});
+      | None =>
+        Printf.printf("Measured.WARNING: id %d not found", id);
+        None;
+      }
+    }
+  };
+};
 
 let union2 = (map: t, map': t) => {
   tiles:
