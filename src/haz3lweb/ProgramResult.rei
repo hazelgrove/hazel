@@ -5,6 +5,11 @@ module ElaboratorResult: {
   type t = DHExp.t;
 };
 
+module PostProcessResult: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = EvaluatorResult.t;
+};
+
 /**
   The result of a program evaluation. Includes the {!type:EvaluatorResult.t},
   the {!type:EvaluatorState}, and the tracked hole instance information
@@ -14,6 +19,7 @@ module ElaboratorResult: {
 type t = (
   ElaboratorResult.t,
   EvaluatorResult.t,
+  PostProcessResult.t,
   EvaluatorState.t,
   HoleInstanceInfo.t,
 );
@@ -25,6 +31,8 @@ let get_elaborator_result: t => ElaboratorResult.t;
 let get_dhexp: t => DHExp.t;
 
 let get_state: t => EvaluatorState.t;
+
+let get_evaluator_result: t => DHExp.t;
 
 /**
   [get_hii r] is the {!type:HoleInstanceInfo.t} in [r].

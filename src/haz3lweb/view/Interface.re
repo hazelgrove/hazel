@@ -67,7 +67,6 @@ let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
 
 let evaluate =
     (~d_prev=None, ~d_prev_result=None, d0: DHExp.t): ProgramResult.t => {
-  let evaluate_result = fill_resume_evaluate(d0, d_prev, d_prev_result);
   let state =
     switch (d_prev) {
     | Some(d_prev') =>
@@ -91,6 +90,7 @@ let evaluate =
     |> JsUtil.log
   | None => "None" |> JsUtil.log
   };
+  let evaluate_result = fill_resume_evaluate(d0, d_prev, d_prev_result);
   switch (evaluate_result) {
   | (_, BoxedValue(d))
   | (_, Indet(d)) =>
@@ -100,12 +100,14 @@ let evaluate =
   };
 
   switch (evaluate_result) {
-  | (es, BoxedValue(d)) =>
-    let ((d, hii), es) = postprocess(es, d);
-    (d0, BoxedValue(d), es, hii);
-  | (es, Indet(d)) =>
-    let ((d, hii), es) = postprocess(es, d);
-    (d0, Indet(d), es, hii);
+  | (es, BoxedValue(de)) =>
+    let ((d, hii), es) = postprocess(es, de);
+    d |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+    (d0, BoxedValue(de), BoxedValue(d), es, hii);
+  | (es, Indet(de)) =>
+    let ((d, hii), es) = postprocess(es, de);
+    d |> DHExp.sexp_of_t |> Sexplib0.Sexp.to_string |> JsUtil.log;
+    (d0, Indet(de), Indet(d), es, hii);
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     print_endline("Interface.evaluate EXCEPTION:");
@@ -115,6 +117,7 @@ let evaluate =
     (
       d0,
       Indet(InvalidText(0, 0, "EXCEPTION")),
+      Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
@@ -123,6 +126,7 @@ let evaluate =
     Printexc.to_string(exn) |> print_endline;
     (
       d0,
+      Indet(InvalidText(0, 0, "EXCEPTION")),
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
@@ -135,7 +139,7 @@ let get_result = (map, term): ProgramResult.t =>
 
 let evaluation_result = (map, term): option(DHExp.t) =>
   switch (get_result(map, term)) {
-  | (_, result, _, _) => Some(EvaluatorResult.unbox(result))
+  | (_, _, result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -161,7 +165,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
   switch (get_result(map, term)) {
-  | (_, _, state, _) =>
+  | (_, _, _, state, _) =>
     Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
   };
 };

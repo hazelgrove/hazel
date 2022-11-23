@@ -185,7 +185,7 @@ let evaluate_and_schedule =
          // extract prev result
          let prev = m_res >>| ModelResult.get_previous;
          let d_prev = prev >>| ProgramResult.get_elaborator_result;
-         let d_prev_result = prev >>| ProgramResult.get_dhexp;
+         let d_prev_result = prev >>| ProgramResult.get_evaluator_result;
 
          // evaluate
          let r = Interface.evaluate(d, ~d_prev, ~d_prev_result);
