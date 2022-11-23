@@ -383,7 +383,7 @@ let rec mk =
           ]);
         } else {
           switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<fn>"))
+          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
