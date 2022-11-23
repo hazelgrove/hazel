@@ -10,6 +10,7 @@ let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
 let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   switch (bio) {
   | Times => DHDoc_common.precedence_Times
+  | Power => DHDoc_common.precedence_Power
   | Divide => DHDoc_common.precedence_Divide
   | Plus => DHDoc_common.precedence_Plus
   | Minus => DHDoc_common.precedence_Minus
@@ -22,6 +23,7 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
 let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   switch (bfo) {
   | FTimes => DHDoc_common.precedence_Times
+  | FPower => DHDoc_common.precedence_Power
   | FDivide => DHDoc_common.precedence_Divide
   | FPlus => DHDoc_common.precedence_Plus
   | FMinus => DHDoc_common.precedence_Minus
@@ -90,6 +92,7 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
     | Minus => "-"
     | Plus => "+"
     | Times => "*"
+    | Power => "**"
     | Divide => "/"
     | LessThan => "<"
     | LessThanOrEqual => "<="
@@ -105,6 +108,7 @@ let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
     | FMinus => "-."
     | FPlus => "+."
     | FTimes => "*."
+    | FPower => "**."
     | FDivide => "/."
     | FLessThan => "<."
     | FLessThanOrEqual => "<=."
@@ -362,7 +366,7 @@ let rec mk =
        };
        */
 
-      | Fun(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -382,7 +386,10 @@ let rec mk =
             DHDoc_common.Delim.close_Fun,
           ]);
         } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
+          switch (s) {
+          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
+          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
+          };
         }
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {

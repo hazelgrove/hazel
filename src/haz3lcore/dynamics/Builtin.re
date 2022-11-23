@@ -40,7 +40,12 @@ let mk_elab = (name: Var.t, typ: Typ.t): DHExp.t => {
     switch (typ') {
     | Arrow(_, typ'') =>
       let var = "x" ++ string_of_int(n);
-      Fun(Var(var), typ', mk_elab_inner(typ'', n + 1, [var, ...bindings]));
+      Fun(
+        Var(var),
+        typ',
+        mk_elab_inner(typ'', n + 1, [var, ...bindings]),
+        Some(name),
+      );
     | _ =>
       let bindings = List.rev_map(x => DHExp.BoundVar(x), bindings);
       ApBuiltin(name, bindings);

@@ -31,12 +31,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d3);
       };
     FixF(y, ty, d3);
-  | Fun(dp, ty, d3) =>
+  | Fun(dp, ty, d3, s) =>
     if (DHPat.binds_var(x, dp)) {
-      d2;
+      Fun(dp, ty, d3, s);
     } else {
       let d3 = subst_var(d1, x, d3);
-      Fun(dp, ty, d3);
+      Fun(dp, ty, d3, s);
     }
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
