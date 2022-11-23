@@ -288,33 +288,6 @@ module UPat = {
     };
   };
 
-  let rec get_fun_name = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => get_fun_name(pat)
-    | Var(x) => Some(x)
-    | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
-        get_fun_name(pat);
-      } else {
-        None;
-      }
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Tuple(_)
-    | Tag(_)
-    | Ap(_) => None
-    };
-  };
-
   let rec get_recursive_bindings = (pat: t) => {
     switch (get_fun_var(pat)) {
     | Some(x) => Some([x])

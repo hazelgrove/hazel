@@ -198,7 +198,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* ddef = dhexp_of_uexp(m, def);
         let ddef =
           switch (ddef) {
-          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Term.UPat.get_fun_name(p))
+          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Term.UPat.get_var(p))
           | _ => ddef
           };
         let* dbody = dhexp_of_uexp(m, body);
