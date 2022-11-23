@@ -492,7 +492,7 @@ and uexp_to_info_map =
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    let ty = Term.utyp_to_ty(utyp);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
     let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
     let ctx_def_and_body =
       Ctx.extend(
@@ -648,7 +648,7 @@ and upat_to_info_map =
 and utyp_to_info_map =
     (~ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
-  let ty = Term.utyp_to_ty(utyp);
+  let ty = Term.UTyp.to_typ(ctx, utyp);
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
   let just = m => (ty, add(Just(ty), m));
   //TODO(andrew): make this return free, replacing Typ.free_vars
