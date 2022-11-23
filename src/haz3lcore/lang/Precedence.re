@@ -11,25 +11,26 @@ let max: t = 0;
 
 let ap = 1;
 let neg = 2;
-let mult = 3;
-let plus = 4;
-let cons = 5;
-let concat = 6;
-let eqs = 7;
-let and_ = 8;
-let or_ = 9;
-let ann = 10;
-let if_ = 11;
-let fun_ = 12;
-let prod = 13;
-let semi = 14;
-let let_ = 15;
-let rule_arr = 16;
-let rule_pre = 17;
-let rule_sep = 18;
-let case_ = 19;
+let power = 3;
+let mult = 4;
+let plus = 5;
+let cons = 6;
+let concat = 7;
+let eqs = 8;
+let and_ = 9;
+let or_ = 10;
+let ann = 11;
+let if_ = 12;
+let fun_ = 13;
+let prod = 14;
+let semi = 15;
+let let_ = 16;
+let rule_arr = 17;
+let rule_pre = 18;
+let rule_sep = 19;
+let case_ = 20;
 
-let min = 20;
+let min = 21;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
@@ -39,6 +40,7 @@ let associativity_map: IntMap.t(Direction.t) =
   [
     (mult, Direction.Left),
     (plus, Left),
+    (power, Right),
     (cons, Right),
     (concat, Right),
     (ann, Left),
