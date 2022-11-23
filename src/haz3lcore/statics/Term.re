@@ -20,6 +20,45 @@ include TermBase.Any;
 
 type any = t;
 
+module UTSum = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Ap
+    | Sum;
+
+  include TermBase.UTSum;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Ap(_) => Ap
+    | Sum(_) => Sum;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Labelled Sum Type"
+    | EmptyHole => "Empty Labelled Sum Type Hole"
+    | MultiHole => "Multi Labelled Sum Type Hole"
+    | Ap => "Labelled Sum Type Constructor"
+    | Sum => "Labelled Sum Type";
+};
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -99,6 +138,42 @@ module UTyp = {
     | Var(_) => false
     };
   };
+
+  /* Converts a syntactic type into a semantic type */
+  let rec to_typ: (Ctx.t, t) => Typ.t =
+    (ctx, utyp) =>
+      switch (utyp.term) {
+      | Invalid(_)
+      | MultiHole(_) => Unknown(Internal)
+      | EmptyHole => Unknown(TypeHole)
+      | Bool => Bool
+      | Int => Int
+      | Float => Float
+      | String => String
+      | Var(name) => Var(name)
+      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | Sum(ts) => utsum_to_ty(ctx, ts)
+      | List(u) => List(to_typ(ctx, u))
+      | Parens(u) => to_typ(ctx, u)
+      }
+  and utsum_to_ty: (Ctx.t, UTSum.t) => Typ.t =
+    (ctx, utsum) =>
+      switch (utsum.term) {
+      | Invalid(_)
+      | MultiHole(_) => Unknown(Internal)
+      | EmptyHole => Unknown(Internal)
+      | Ap(tag, typ) => LabelSum([{tag, typ: to_typ(ctx, typ)}])
+      | Sum(ts) =>
+        List.map(utsum_to_ty(ctx), ts)
+        |> List.map(
+             fun
+             | Typ.LabelSum(ts) => ts
+             | _ => [],
+           )
+        |> List.flatten
+        |> (xs => Typ.LabelSum(xs))
+      };
 };
 
 module UTPat = {
@@ -135,45 +210,6 @@ module UTPat = {
     | EmptyHole => "Empty Type Variable Hole"
     | MultiHole => "Multi Type Variable Hole"
     | Var => "Type Variable";
-};
-
-module UTSum = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Ap
-    | Sum;
-
-  include TermBase.UTSum;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Ap(_) => Ap
-    | Sum(_) => Sum;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Labelled Sum Type"
-    | EmptyHole => "Empty Labelled Sum Type Hole"
-    | MultiHole => "Multi Labelled Sum Type Hole"
-    | Ap => "Labelled Sum Type Constructor"
-    | Sum => "Labelled Sum Type";
 };
 
 module UPat = {
@@ -576,42 +612,6 @@ module UExp = {
       }
     );
 };
-
-/* Converts a syntactic type into a semantic type */
-let rec utyp_to_ty: UTyp.t => Typ.t =
-  utyp =>
-    switch (utyp.term) {
-    | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(TypeHole)
-    | Bool => Bool
-    | Int => Int
-    | Float => Float
-    | String => String
-    | Var(name) => Var(name)
-    | Arrow(u1, u2) => Arrow(utyp_to_ty(u1), utyp_to_ty(u2))
-    | Tuple(us) => Prod(List.map(utyp_to_ty, us))
-    | Sum(ts) => utsum_to_ty(ts)
-    | List(u) => List(utyp_to_ty(u))
-    | Parens(u) => utyp_to_ty(u)
-    }
-and utsum_to_ty: UTSum.t => Typ.t =
-  utsum =>
-    switch (utsum.term) {
-    | Invalid(_)
-    | MultiHole(_) => Unknown(Internal)
-    | EmptyHole => Unknown(Internal)
-    | Ap(tag, typ) => LabelSum([{tag, typ: utyp_to_ty(typ)}])
-    | Sum(ts) =>
-      List.map(utsum_to_ty, ts)
-      |> List.map(
-           fun
-           | Typ.LabelSum(ts) => ts
-           | _ => [],
-         )
-      |> List.flatten
-      |> (xs => Typ.LabelSum(xs))
-    };
 
 // TODO(d): consider just folding this into UExp
 module URul = {
