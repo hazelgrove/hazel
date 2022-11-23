@@ -29,6 +29,11 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "Rec"]),
       [text("Rec " ++ x ++ ". "), view(t)],
     )
+  | Forall(x, t) =>
+    div(
+      ~attr=clss(["typ-view", "Forall"]),
+      [text("Forall " ++ x ++ " -> "), view(t)],
+    )
   | List(t) =>
     div(
       ~attr=clss(["typ-view", "atom", "List"]),

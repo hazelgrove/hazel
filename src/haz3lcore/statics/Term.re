@@ -463,6 +463,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -540,6 +541,7 @@ module UExp = {
     | ListLit => "List Literal"
     | Tag => "Constructor"
     | Fun => "Function Literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
@@ -558,6 +560,7 @@ module UExp = {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
+    | TypFun(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -599,6 +602,7 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)

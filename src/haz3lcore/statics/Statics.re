@@ -477,6 +477,17 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_body]),
     );
+  | TypFun(tpat, body) =>
+    let (_x, mode_body) = Typ.matched_forall_mode(mode);
+    let m_pat = utpat_to_info_map(~ctx, tpat);
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx, ~mode=mode_body, body);
+    // TODO (typfun): Extract variable name from tpat
+    add(
+      ~self=Just(Forall("a", ty_body)),
+      ~free=Ctx.subtract_typ(ctx, free_body), // TODO: free may not be accurate since ctx now threaded through pat
+      union_m([m_pat, m_body]),
+    );
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~ctx, ~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);

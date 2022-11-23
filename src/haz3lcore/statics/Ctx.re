@@ -128,8 +128,16 @@ let rec join =
     Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
+  // TODO (typfun): Need to wrap joined type in a Rec
   | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
   | (Rec(_), _) => None
+  | (Forall(x1, t1), Forall(x2, t2)) =>
+    // TODO (typfun): What type variable to use in joined Forall
+    switch (join(~d=[(x1, x2), ...d], ctx, t1, t2)) {
+    | Some(t) => Some(Forall(x1, t))
+    | None => None
+    }
+  | (Forall(_), _) => None
   | (Var(n1), Var(n2)) =>
     if (Typ.type_var_eq(d, n1, n2)) {
       Some(Var(n1));

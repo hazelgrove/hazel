@@ -219,6 +219,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["typfun", "->"], [TPat(tpat), Exp(def)]) => TypFun(tpat, def)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)

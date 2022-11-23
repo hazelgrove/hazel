@@ -25,6 +25,7 @@ type t =
   | Sum(t, t) // unused
   | Prod(list(t))
   | Rec(Token.t, t)
+  | Forall(Token.t, t)
 and tagged = {
   tag: Token.t,
   typ: t,
@@ -103,12 +104,26 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
+let matched_forall: t => (Token.t, t) =
+  fun
+  | Forall(x, ty) => (x, ty)
+  | Unknown(prov) => ("a", Unknown(prov))
+  | _ => ("a", Unknown(Internal));
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
+    };
+
+let matched_forall_mode: mode => (Token.t, mode) =
+  fun
+  | Syn => ("a", Syn)
+  | Ana(ty) => {
+      let (x, ty_out) = matched_forall(ty);
+      (x, Ana(ty_out));
     };
 
 let matched_prod_mode = (mode: mode, length): list(mode) =>
@@ -155,7 +170,8 @@ let precedence = (ty: t): int =>
   | Prod([])
   | LabelSum(_)
   | List(_) => precedence_const
-  | Prod(_) => precedence_Prod
+  | Prod(_)
+  | Forall(_, _) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
@@ -209,6 +225,8 @@ let rec eq = (~d=[], t1, t2) => {
   | (Var(_), _) => false
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
   | (Rec(_), _) => false
+  | (Forall(x1, t1), Forall(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
+  | (Forall(_), _) => false
   };
 };
 
@@ -227,6 +245,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
     List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
   | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
+  | Forall(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
 
 let rec subst = (s: t, x: Token.t, ty: t) => {
@@ -242,6 +261,8 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
     LabelSum(List.map(ty => {tag: ty.tag, typ: subst(s, x, ty.typ)}, tys))
   | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
+  | Forall(y, ty) when Token.compare(x, y) == 0 => Forall(y, ty)
+  | Forall(y, ty) => Forall(y, subst(s, x, ty))
   | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))
   | List(ty) => List(subst(s, x, ty))
   | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)

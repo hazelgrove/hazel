@@ -123,6 +123,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
@@ -150,6 +151,7 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)
@@ -232,6 +234,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
@@ -259,6 +262,7 @@ and UExp: {
     | ListLit(list(t))
     | Tag(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Token.t)
     | Let(UPat.t, t, t)

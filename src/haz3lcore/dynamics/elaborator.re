@@ -134,6 +134,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = Statics.pat_typ(ctx, m, p);
       wrap(DHExp.Fun(dp, ty1, d1, None));
+    | TypFun(_, body) =>
+      // TODO (typfun)
+      dhexp_of_uexp(m, body)
     | Tuple(es) =>
       let ds =
         List.fold_right(

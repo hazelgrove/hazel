@@ -128,6 +128,17 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
+    | Forall(x, ty) => (
+        hcats([
+          text("Forall " ++ x ++ " -> "),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+        ]),
+        parenthesize,
+      )
     | LabelSum(_) =>
       //TODO(andrew)
       (text("LabelledSumTODO"), parenthesize)
