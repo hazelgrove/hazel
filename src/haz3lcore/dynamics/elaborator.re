@@ -8,9 +8,6 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let ctx_to_varctx = (ctx: Ctx.t): VarCtx.t =>
-  List.map(((k, {typ, _}: Ctx.entry)) => (k, typ), ctx);
-
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
   | Plus => Plus
@@ -134,7 +131,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = Statics.pat_typ(m, p);
-      wrap(DHExp.Fun(dp, ty1, d1));
+      wrap(DHExp.Fun(dp, ty1, d1, None));
     | Tuple(es) =>
       let ds =
         List.fold_right(
@@ -201,12 +198,22 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         /* not recursive */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
+        let ddef =
+          switch (ddef) {
+          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Term.UPat.get_var(p))
+          | _ => ddef
+          };
         let* dbody = dhexp_of_uexp(m, body);
         wrap(Let(dp, ddef, dbody));
       | Some([f]) =>
         /* simple recursion */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
+        let ddef =
+          switch (ddef) {
+          | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
+          | _ => ddef
+          };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         wrap(Let(dp, FixF(f, ty, ddef), dbody));
@@ -214,6 +221,24 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         /* mutual recursion */
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
+        let ddef =
+          switch (ddef) {
+          | Tuple(a) =>
+            let b =
+              List.map2(
+                (s, d) => {
+                  switch (d) {
+                  | DHExp.Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(s))
+                  | _ => d
+                  }
+                },
+                fs,
+                a,
+              );
+            DHExp.Tuple(b);
+          | _ => ddef
+          };
+
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         let uniq_id = List.nth(def.ids, 0);
