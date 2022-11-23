@@ -362,7 +362,7 @@ let rec mk =
        };
        */
 
-      | Fun(dp, ty, dbody) =>
+      | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -382,7 +382,10 @@ let rec mk =
             DHDoc_common.Delim.close_Fun,
           ]);
         } else {
-          annot(DHAnnot.Collapsed, text("<fn>"));
+          switch (s) {
+          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
+          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
+          };
         }
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
