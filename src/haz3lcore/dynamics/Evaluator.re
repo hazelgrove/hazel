@@ -21,6 +21,11 @@ type match_result =
 
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+// TODO (typfun): Maybe the Forall should allow a hole in the variable position?
+let grounded_Forall =
+  NotGroundOrHole(
+    Forall({item: Unknown(Internal), ann: "grounded_forall"}),
+  );
 let grounded_Sum =
   NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
@@ -71,6 +76,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
       tys |> grounded_LabelSum;
     }
   | Arrow(_, _) => grounded_Arrow
+  | Forall(_) => grounded_Forall
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
@@ -283,7 +289,9 @@ and matches_cast_Inj =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -358,7 +366,9 @@ and matches_cast_Tuple =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -495,6 +505,8 @@ and matches_cast_Cons =
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
+  | TypFun(_) => DoesNotMatch
+  | TypAp(_) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -636,7 +648,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
+    | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
+    | TypAp(d1, _ty) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
+        evaluate(closure_env, d3)
+      | _ => failwith("InvalidBoxedTypFun")
+      };
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
@@ -937,7 +957,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
        lambda closures are BoxedValues; other closures are all Indet. */
     | Closure(_, d') =>
       switch (d') {
-      | Fun(_) => BoxedValue(d) |> return
+      | Fun(_)
+      | TypFun(_) => BoxedValue(d) |> return
       | _ => Indet(d) |> return
       }
 

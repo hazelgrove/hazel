@@ -219,6 +219,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
@@ -235,6 +236,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
+        | (["@<", ">"], [Typ(ty)]) => TypAp(l, ty)
         | _ => hole(tm)
         },
       )
@@ -399,14 +401,30 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum(x)]) =>
+      | (["sum", "end"], [TSum({ids, term: Sum(_)} as ts)]) =>
+        /* Only want to pass ids up to be part of the sum-end
+           form if there are actually +s inside the sum */
+        (Sum(ts), ids)
+      | (["sum", "end"], [TSum(ts)]) =>
         /* Note: See corresponding Sum case in Statics. utyp_to_info_map */
-        (Sum(x), x.ids)
+        (Sum(ts), [])
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Pre(tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["forall", "->"], [TPat(tpat)]) => Forall(tpat, r)
+        | (["rec", "->"], [TPat(tpat)]) => Rec(tpat, r)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(_) as tm => ret(hole(tm))
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))

@@ -134,6 +134,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = Statics.pat_typ(ctx, m, p);
       wrap(DHExp.Fun(dp, ty1, d1, None));
+    | TypFun(tpat, body) =>
+      // TODO (typfun)
+      let* d1 = dhexp_of_uexp(m, body);
+      wrap(DHExp.TypFun(tpat, d1));
     | Tuple(es) =>
       let ds =
         List.fold_right(
@@ -269,6 +273,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
+    | TypAp(fn, uty_arg) =>
+      let* d_fn = dhexp_of_uexp(m, fn);
+      wrap(DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg)));
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);

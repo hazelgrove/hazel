@@ -10,6 +10,12 @@ type type_provenance =
   | TypeHole
   | Internal;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type ann('item) = {
+  item: 'item,
+  ann: string,
+};
+
 /* TYP.T: Hazel types */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -18,13 +24,14 @@ type t =
   | Float
   | Bool
   | String
-  | Var(string)
+  | Var(ann(option(int)))
   | List(t)
   | Arrow(t, t)
   | LabelSum(list(tagged))
   | Sum(t, t) // unused
   | Prod(list(t))
-  | Rec(Token.t, t)
+  | Rec(ann(t))
+  | Forall(ann(t))
 and tagged = {
   tag: Token.t,
   typ: t,
@@ -103,12 +110,40 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
+let matched_forall: t => ann(t) =
+  fun
+  | Forall(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), ann: "expected_forall"}
+  | _ => {item: Unknown(Internal), ann: "expected_forall"};
+
+let matched_rec: t => ann(t) =
+  fun
+  | Rec(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), ann: "expected_rec"}
+  | _ => {item: Unknown(Internal), ann: "expected_rec"};
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
       (Ana(ty_in), Ana(ty_out));
+    };
+
+let matched_forall_mode: mode => mode =
+  fun
+  | Syn => Syn
+  | Ana(ty) => {
+      let ann = matched_forall(ty);
+      Ana(ann.item);
+    };
+
+let matched_rec_mode: mode => mode =
+  fun
+  | Syn => Syn
+  | Ana(ty) => {
+      let ann = matched_rec(ty);
+      Ana(ann.item);
     };
 
 let matched_prod_mode = (mode: mode, length): list(mode) =>
@@ -155,25 +190,16 @@ let precedence = (ty: t): int =>
   | Prod([])
   | LabelSum(_)
   | List(_) => precedence_const
-  | Prod(_) => precedence_Prod
+  | Prod(_)
+  | Forall(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
-  };
-
-let type_var_eq = (d, n1, n2) =>
-  //TODO(andrew): handle shadowing
-  switch (List.assoc_opt(n1, d), List.assoc_opt(n2, d)) {
-  | _ when n1 == n2 => true //get rid of this
-  | (Some(n), _) when n == n2 => true
-  | (_, Some(n)) when n1 == n => true
-  | _ => false
   };
 
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let rec eq = (~d=[], t1, t2) => {
-  let eq' = eq(~d);
+let rec eq = (t1, t2) => {
   switch (t1, t2) {
   | (Int, Int) => true
   | (Int, _) => false
@@ -186,64 +212,94 @@ let rec eq = (~d=[], t1, t2) => {
   | (Unknown(_), Unknown(_)) => true
   | (Unknown(_), _) => false
   | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
-    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
+    eq(t1_1, t2_1) && eq(t1_2, t2_2)
   | (Arrow(_), _) => false
   | (Prod(tys1), Prod(tys2)) =>
-    List.length(tys1) == List.length(tys2) && List.for_all2(eq', tys1, tys2)
+    List.length(tys1) == List.length(tys2) && List.for_all2(eq, tys1, tys2)
   | (Prod(_), _) => false
-  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) =>
-    eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
+  | (Sum(t1_1, t1_2), Sum(t2_1, t2_2)) => eq(t1_1, t2_1) && eq(t1_2, t2_2)
   | (Sum(_), _) => false
-  | (List(t1), List(t2)) => eq'(t1, t2)
+  | (List(t1), List(t2)) => eq(t1, t2)
   | (List(_), _) => false
   | (LabelSum(tys1), LabelSum(tys2)) =>
     let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
     && List.for_all2(
-         (ts1, ts2) => ts1.tag == ts2.tag && eq'(ts1.typ, ts2.typ),
+         (ts1, ts2) => ts1.tag == ts2.tag && eq(ts1.typ, ts2.typ),
          tys1,
          tys2,
        );
   | (LabelSum(_), _) => false
-  | (Var(n1), Var(n2)) => type_var_eq(d, n1, n2)
+  | (Var({item: x1, _}), Var({item: x2, _})) => x1 == x2
   | (Var(_), _) => false
-  | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
+  | (Rec({item: t1, _}), Rec({item: t2, _})) => eq(t1, t2)
   | (Rec(_), _) => false
+  | (Forall({item: t1, _}), Forall({item: t2, _})) => eq(t1, t2)
+  | (Forall(_), _) => false
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
-  switch (ty) {
-  | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String => []
-  | Var(v) => List.mem(v, bound) ? [] : [v]
-  | List(ty) => free_vars(~bound, ty)
-  | Arrow(t1, t2)
-  | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | LabelSum(tags) =>
-    List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
-  | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
-  | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
-  };
+// let rec free_vars = (ty: t): list(Token.t) =>
+//   switch (ty) {
+//   | Unknown(_)
+//   | Int
+//   | Float
+//   | Bool
+//   | String => []
+//   | Var({item, ann}) =>
+//     switch (item) {
+//     | Some(_) => []
+//     | None => [ann]
+//     }
+//   // | List(ty) => free_vars(ty)
+//   // | Arrow(t1, t2)
+//   // | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+//   // | LabelSum(tags) =>
+//   //   List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
+//   // | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
+//   // | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
+//   // | Forall(x, ty) => free_vars(~bound=[x] @ bound, ty)
+//   };
 
-let rec subst = (s: t, x: Token.t, ty: t) => {
+// Substitute the type variable with de bruijn index 0
+let rec subst = (s: t, ~x: int=0, ty: t) => {
+  let subst_keep = subst(~x, s);
+  let subst_incr = subst(~x=x + 1, s);
   switch (ty) {
   | Int => Int
   | Float => Float
   | Bool => Bool
   | String => String
   | Unknown(prov) => Unknown(prov)
-  | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-  | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
+  | Arrow(ty1, ty2) => Arrow(subst_keep(ty1), subst_keep(ty2))
+  | Prod(tys) => Prod(List.map(ty => subst_keep(ty), tys))
   | LabelSum(tys) =>
-    LabelSum(List.map(ty => {tag: ty.tag, typ: subst(s, x, ty.typ)}, tys))
-  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
-  | Rec(y, ty) => Rec(y, subst(s, x, ty))
-  | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))
-  | List(ty) => List(subst(s, x, ty))
-  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
+    LabelSum(List.map(ty => {tag: ty.tag, typ: subst_keep(ty.typ)}, tys))
+  | Sum(ty1, ty2) => Sum(subst_keep(ty1), subst_keep(ty2))
+  | List(ty) => List(subst_keep(ty))
+  | Rec({item, ann}) => Rec({item: subst_incr(item), ann})
+  | Forall({item, ann}) => Forall({item: subst_incr(item), ann})
+  | Var({item: y, _}) => Some(x) == y ? s : ty
+  };
+};
+
+// Lookup the type variable with de bruijn index 0
+let rec lookup_surface = (~x: int=0, ty: t) => {
+  let lookup_keep = lookup_surface(~x);
+  let lookup_incr = lookup_surface(~x=x + 1);
+  switch (ty) {
+  | Int
+  | Float
+  | Bool
+  | String
+  | Unknown(_) => false
+  | Arrow(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
+  | Prod(tys) => List.exists(lookup_keep, tys)
+  | LabelSum(tys) => List.exists(ty => lookup_keep(ty.typ), tys)
+  | Sum(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
+  | List(ty) => lookup_keep(ty)
+  | Rec({item, _}) => lookup_incr(item)
+  | Forall({item, _}) => lookup_incr(item)
+  | Var({item: y, _}) => Some(x) == y
   };
 };

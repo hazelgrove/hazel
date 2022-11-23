@@ -14,6 +14,7 @@ let view = (ty: Haz3lcore.Kind.t): list(Node.t) =>
         [div(~attr=clss(["kind-view", "Singleton"]), [Type.view(ty)])],
       ),
     ]
+  | Abstract => [text(":: Abstract")]
   };
 
 let view_entry = (name, kind) => [

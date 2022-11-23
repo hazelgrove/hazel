@@ -58,6 +58,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
+  | TypFun(_)
   | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
@@ -70,6 +71,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
+  | TypAp(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | Tuple(_) => DHDoc_common.precedence_Comma
@@ -250,6 +252,11 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(DHDoc_common.precedence_Ap, d1, d2);
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
+      | TypAp(d1, ty) =>
+        DHDoc_common.mk_Ap(
+          mk_cast(go(~enforce_inline, d1)),
+          DHDoc_Typ.mk(~enforce_inline=true, ty),
+        )
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>
@@ -391,6 +398,8 @@ let rec mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
+      | TypFun(_tpat, _dbody) =>
+        annot(DHAnnot.Collapsed, text("<anon typfn>"))
       | FixF(x, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let doc_body = (~enforce_inline) =>

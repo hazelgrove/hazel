@@ -20,6 +20,42 @@ include TermBase.Any;
 
 type any = t;
 
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Variable"
+    | EmptyHole => "Empty Type Variable Hole"
+    | MultiHole => "Multi Type Variable Hole"
+    | Var => "Type Variable";
+};
+
 module UTSum = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -74,7 +110,9 @@ module UTyp = {
     | Sum
     | List
     | Var
-    | Parens;
+    | Parens
+    | Forall
+    | Rec;
 
   include TermBase.UTyp;
 
@@ -103,7 +141,9 @@ module UTyp = {
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Sum(_) => Sum
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
 
   let show_cls: cls => string =
     fun
@@ -119,7 +159,9 @@ module UTyp = {
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Sum => "Labelled Sum Type"
-    | Parens => "Parenthesized Type Term";
+    | Parens => "Parenthesized Type"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -135,7 +177,29 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Sum(_)
-    | Var(_) => false
+    | Var(_)
+    | Forall(_)
+    | Rec(_) => false
+    };
+  };
+
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Sum(_)
+    | Var(_)
+    | Arrow(_)
+    | Rec(_) => false
     };
   };
 
@@ -150,12 +214,47 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
-      | Var(name) => Var(name)
+      | Var(name) => Var({item: Ctx.lookup_tvar_idx(ctx, name), ann: name})
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(ts) => utsum_to_ty(ctx, ts)
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      | Forall(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Forall({item: to_typ(ctx, tbody), ann: name});
+      // Forall is same as Rec
+      | Rec(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Rec({item: to_typ(ctx, tbody), ann: name});
       }
   and utsum_to_ty: (Ctx.t, UTSum.t) => Typ.t =
     (ctx, utsum) =>
@@ -174,42 +273,6 @@ module UTyp = {
         |> List.flatten
         |> (xs => Typ.LabelSum(xs))
       };
-};
-
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.UTPat;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type Variable"
-    | EmptyHole => "Empty Type Variable Hole"
-    | MultiHole => "Multi Type Variable Hole"
-    | Var => "Type Variable";
 };
 
 module UPat = {
@@ -311,7 +374,8 @@ module UPat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -380,7 +444,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -463,11 +527,13 @@ module UExp = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -540,11 +606,13 @@ module UExp = {
     | ListLit => "List Literal"
     | Tag => "Constructor"
     | Fun => "Function Literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
+    | TypAp => "Type Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -556,7 +624,8 @@ module UExp = {
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | TypFun(_, e) => is_fun(e)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -572,6 +641,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -599,10 +669,12 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)
