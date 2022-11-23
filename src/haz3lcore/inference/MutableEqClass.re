@@ -110,8 +110,8 @@ let rec preorder_key_traversal_typ = (ty: ITyp.t): list(ITyp.t) => {
   | Unit
   | Float
   | String
-  | Bool => []
-  | Unknown(_) as u => [u]
+  | Bool
+  | Unknown(_) => [ty]
   | Arrow(ty_lhs, ty_rhs)
   | Prod(ty_lhs, ty_rhs)
   | Sum(ty_lhs, ty_rhs) => [

@@ -1,6 +1,8 @@
 open Util;
 open OptUtil.Syntax;
+open Sexplib.Std;
 
+[@deriving (show({with_path: false}), sexp)]
 type base_typ =
   | BUnit
   | BInt
@@ -9,14 +11,17 @@ type base_typ =
   | BString
   | BUnknown(Typ.type_provenance);
 
+[@deriving (show({with_path: false}), sexp)]
 type unary_ctor =
   | CList;
 
+[@deriving (show({with_path: false}), sexp)]
 type binary_ctor =
   | CArrow
   | CProd
   | CSum;
 
+[@deriving (show({with_path: false}), sexp)]
 type t = list(eq_typ)
 and eq_typ =
   | Base(base_typ)
@@ -107,10 +112,6 @@ and extend_with_eq_typ = (target: t, eq_typ_extension: eq_typ) => {
   };
 };
 
-let extend_with_typ = (target: t, typ: Typ.t) => {
-  typ |> typ_to_eq_typ |> extend_with_eq_typ(target);
-};
-
 type split_result =
   | Success
   | Error(split_error_status)
@@ -124,6 +125,7 @@ let split_eq_typ: eq_typ => option((t, t)) =
   | Base(_) => None
   | Compound(_, eq_class1, eq_class2) => Some((eq_class1, eq_class2));
 
+// not currently in use
 let split_eq_class = (ctor_used: binary_ctor, eq_class: t) => {
   let split_result_of: eq_typ => split_result =
     fun
@@ -171,6 +173,7 @@ let fuse = (ctor_used: binary_ctor, eq_class_lt: t, eq_class_rt: t) => {
 };
 
 let rec target_typ_is_in_eq_class = (target_typ: eq_typ, eq_class: t): bool => {
+  // is target_typ ∈ eq_class? this would make them equal (via transitivity)
   switch (eq_class) {
   | [] => false
   | [hd, ...tl] =>
@@ -181,7 +184,7 @@ let rec target_typ_is_in_eq_class = (target_typ: eq_typ, eq_class: t): bool => {
 and target_typ_is_in_eq_typ = (target_typ: eq_typ, eq_typ: eq_typ): bool => {
   switch (target_typ, eq_typ) {
   | (_, Base(_)) => target_typ == eq_typ
-  | (Mapped(target_ctor, eq_class), Mapped(ctor, target_eq_class)) =>
+  | (Mapped(target_ctor, target_eq_class), Mapped(ctor, eq_class)) =>
     target_ctor == ctor
     && target_class_is_in_eq_class(target_eq_class, eq_class)
   | (
@@ -196,6 +199,7 @@ and target_typ_is_in_eq_typ = (target_typ: eq_typ, eq_typ: eq_typ): bool => {
   };
 }
 and target_class_is_in_eq_class = (target_class: t, eq_class: t): bool => {
+  // is target_class ∈ eq_class? this would make them equal (via transitivity)
   let target_typ_contained = (target_typ: eq_typ): bool => {
     target_typ_is_in_eq_class(target_typ, eq_class);
   };
@@ -203,6 +207,7 @@ and target_class_is_in_eq_class = (target_class: t, eq_class: t): bool => {
 };
 
 let rec target_typ_used_in_eq_class = (target_typ: eq_typ, eq_class: t): bool => {
+  // is [target_typ] ⊆ eq_class?
   switch (eq_class) {
   | [] => false
   | [hd, ...tl] =>
@@ -229,6 +234,7 @@ and target_typ_used_in_eq_typ = (target_typ: eq_typ, eq_typ: eq_typ): bool => {
   };
 }
 and target_class_used_in_eq_class = (target_class: t, eq_class: t): bool => {
+  // is target_class ⊆ eq_class?
   let target_typ_used = (target_typ: eq_typ): bool => {
     target_typ_used_in_eq_class(target_typ, eq_class);
   };
@@ -242,6 +248,10 @@ let rec target_typ_in_domain_but_not_equal =
 }
 and target_typ_in_domain_but_not_equal_typ =
     (target_typ: eq_typ, eq_typ: eq_typ): bool => {
+  // is target_typ ⊂ eq_typ?
+  // NOTE:
+  //    target_typ != eq_typ ^ target_typ ⊆ eq_typ
+  //    => target_typ ⊂ eq_typ
   !target_typ_is_in_eq_typ(target_typ, eq_typ)
   && target_typ_used_in_eq_typ(target_typ, eq_typ);
 };

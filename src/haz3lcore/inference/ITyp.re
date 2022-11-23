@@ -1,5 +1,7 @@
+open Sexplib.Std;
 exception TypeVarUnsupported;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Unknown(Typ.type_provenance)
   | Unit
@@ -12,6 +14,7 @@ type t =
   | Sum(t, t)
   | Prod(t, t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type equivalence = (t, t)
 and constraints = list(equivalence);
 

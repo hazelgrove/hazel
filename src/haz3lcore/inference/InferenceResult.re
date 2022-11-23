@@ -4,6 +4,38 @@ type status =
 
 type t = (ITyp.t, status);
 
+let status_to_string: status => string =
+  fun
+  | Solved(ityp) =>
+    String.concat(
+      "Solved: ",
+      [ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum],
+    )
+  | Unsolved(eqClass) =>
+    String.concat(
+      "Unsolved: ",
+      [eqClass |> EqClass.sexp_of_t |> Sexplib.Sexp.to_string_hum],
+    );
+
+let t_to_string = ((ityp, status)) => {
+  String.concat(
+    "{For hole ",
+    [
+      ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum,
+      ", result is ",
+      status_to_string(status),
+      "}\n",
+    ],
+  );
+};
+
+let list_of_t_to_string = (statuses: list(t)): string => {
+  let acc_str = (acc: string, elt: t) => {
+    String.concat(acc, ["\n", t_to_string(elt)]);
+  };
+  List.fold_left(acc_str, "", statuses);
+};
+
 let condense = (eq_class: MutableEqClass.t): status => {
   let (eq_class, err) = MutableEqClass.snapshot_class(eq_class);
   let sorted_eq_class = EqClass.sort_eq_class(eq_class);

@@ -19,11 +19,21 @@ let add_typ_as_node = (eq_graph: t, typ: ITyp.t): unit => {
   List.iter2(add(eq_graph), keys, values);
 };
 
-let equate_typs = (eq_graph: t, typ1: ITyp.t, typ2: ITyp.t): unit => {
+let equate_nodes = (eq_graph: t, typ1: ITyp.t, typ2: ITyp.t): unit => {
   let elem1 = Hashtbl.find(eq_graph, typ1);
   let elem2 = Hashtbl.find(eq_graph, typ2);
 
   MutableEqClass.union(elem1, elem2);
+};
+
+let equate_node_to_primitive_typ =
+    (eq_graph: t, node_key: ITyp.t, equated_typ: ITyp.t): unit => {
+  let curr_eq_class = Hashtbl.find(eq_graph, node_key);
+  let mut_eq_typs_extension =
+    [equated_typ |> EqClass.ityp_to_eq_typ]
+    |> MutableEqClass.eq_class_to_mut_eq_class;
+
+  MutableEqClass.union(curr_eq_class, mut_eq_typs_extension);
 };
 
 let get_keys_in_eq_class = (eq_graph: t, eq_class: EqClass.t): list(ITyp.t) => {

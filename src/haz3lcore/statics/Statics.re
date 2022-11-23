@@ -769,8 +769,20 @@ let mk_map =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
-      let (_, _, map, _) =
+      let (_, _, map, constraints) =
         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
+      print_endline("constraints:\n");
+      print_endline(
+        Sexplib.Sexp.to_string_hum(
+          ITyp.sexp_of_constraints(constraints |> ITyp.to_ityp_constraints),
+        ),
+      );
+      print_endline("\n\nresults:\n");
+      print_endline(
+        InferenceResult.list_of_t_to_string(
+          Inference.unify_and_report_status(constraints),
+        ),
+      );
       map;
     },
   );
