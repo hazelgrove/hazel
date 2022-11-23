@@ -276,6 +276,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["+"], []) => BinOp(Int(Plus), l, r)
           | (["-"], []) => BinOp(Int(Minus), l, r)
           | (["*"], []) => BinOp(Int(Times), l, r)
+          | (["**"], []) => BinOp(Int(Power), l, r)
           | (["/"], []) => BinOp(Int(Divide), l, r)
           | (["<"], []) => BinOp(Int(LessThan), l, r)
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)

@@ -14,6 +14,7 @@ module rec DHExp: {
       | Minus
       | Plus
       | Times
+      | Power
       | Divide
       | LessThan
       | LessThanOrEqual
@@ -107,6 +108,7 @@ module rec DHExp: {
       | Minus
       | Plus
       | Times
+      | Power
       | Divide
       | LessThan
       | LessThanOrEqual
