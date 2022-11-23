@@ -236,7 +236,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Exp(arg)]) => Ap(l, arg)
-        | (["::<", ">"], [Typ(ty)]) => TypAp(l, ty)
+        | (["@<", ">"], [Typ(ty)]) => TypAp(l, ty)
         | _ => hole(tm)
         },
       )
