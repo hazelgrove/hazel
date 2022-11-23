@@ -3,9 +3,6 @@ open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 open EvaluatorResult;
 
-open Sexplib.Std;
-[@deriving sexp]
-type blah = list(list((Typ.t, Typ.t)));
 /**
   Alias for EvaluatorMonad.
  */

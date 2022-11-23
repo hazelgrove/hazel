@@ -61,12 +61,13 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
     switch (mode) {
     | Syn => Some(d)
     | SynFun =>
-      /* Things in function position get cast to an arrow type */
+      /* Things in function position get cast to the matched arrow type */
       let ty_self = Typ.t_of_self(self);
       switch (ty_self) {
       | Unknown(prov) =>
         Some(DHExp.cast(d, ty_self, Arrow(Unknown(prov), Unknown(prov))))
-      | _ => Some(d)
+      | Arrow(_) => Some(d)
+      | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       };
     | Ana(ana_ty) =>
       /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -84,11 +85,6 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Arrow(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
-      /*| Tuple(_) =>
-        switch (ana_ty) {
-        | Prod(_) => Some(d)
-        | _ => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
-        }*/
       | Tuple(ds) =>
         switch (ana_ty) {
         | Unknown(prov) =>
@@ -102,14 +98,12 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Sum(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
-      | FixF(_) =>
-        //TODO(andrew): not sure what this should be?
-        Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       /* Forms with special ana rules but no particular typing requirements */
       | ConsistentCase(_)
       | InconsistentBranches(_)
       | Sequence(_)
-      | Let(_) => Some(d)
+      | Let(_)
+      | FixF(_) => Some(d)
       /* Hole-like forms: Don't cast */
       | InvalidText(_)
       | FreeVar(_)
