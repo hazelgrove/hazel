@@ -201,7 +201,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+      |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
