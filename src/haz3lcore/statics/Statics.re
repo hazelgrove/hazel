@@ -114,8 +114,6 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | Some(_) => NotInHole(SynConsistent(ty))
     }
   | (SynFun, Joined(_wrap, tys_syn)) =>
-    /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
-    // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
@@ -132,8 +130,6 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
-    /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
-    // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
     switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
