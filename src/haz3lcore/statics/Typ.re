@@ -239,8 +239,10 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
   | LabelSum(tys) =>
     LabelSum(List.map(ty => {tag: ty.tag, typ: subst(s, x, ty.typ)}, tys))
+  | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
+  | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))
   | List(ty) => List(subst(s, x, ty))
-  | Var(y) => x == y ? s : Var(y)
+  | Var(y) => Token.compare(x, y) == 0 ? s : Var(y)
   };
 };
