@@ -18,7 +18,8 @@ let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   | LessThanOrEqual => LessThanOrEqual
   | GreaterThan => GreaterThan
   | GreaterThanOrEqual => GreaterThanOrEqual
-  | Equals => Equals;
+  | Equals => Equals
+  | Power => Power;
 
 let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   fun
@@ -30,7 +31,8 @@ let float_op_of: Term.UExp.op_bin_float => DHExp.BinFloatOp.t =
   | LessThanOrEqual => FLessThanOrEqual
   | GreaterThan => FGreaterThan
   | GreaterThanOrEqual => FGreaterThanOrEqual
-  | Equals => FEquals;
+  | Equals => FEquals
+  | Power => FPower;
 
 let string_op_of: Term.UExp.op_bin_string => DHExp.BinStringOp.t =
   fun
@@ -178,7 +180,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let+ d1 = dhexp_of_uexp(m, body);
-        DHExp.Fun(dp, Statics.pat_typ(m, p), d1);
+        DHExp.Fun(dp, Statics.pat_typ(m, p), d1, None);
       | Tuple(es) =>
         let+ ds =
           List.fold_right(
@@ -218,6 +220,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         | _ => Some(BoundVar(name))
         }
       | Let(p, def, body) =>
+        let add_name: (option(string), DHExp.t) => DHExp.t = (
+          name =>
+            fun
+            | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | d => d
+        );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let+ dbody = dhexp_of_uexp(m, body);
@@ -225,12 +233,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Let(dp, ddef, dbody)
+          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, ddef), dbody)
+          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
+          let ddef =
+            switch (ddef) {
+            | Tuple(a) =>
+              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+            | _ => ddef
+            };
           let uniq_id = List.nth(def.ids, 0);
           let self_id = "__mutual__" ++ string_of_int(uniq_id);
           let self_var = DHExp.BoundVar(self_id);
