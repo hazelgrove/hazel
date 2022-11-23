@@ -919,10 +919,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Generalized closures evaluate to themselves. Only
        lambda closures are BoxedValues; other closures are all Indet. */
-    | Closure(_, d') =>
+    | Closure(envc, d') =>
       switch (d') {
       | Fun(_) => BoxedValue(d) |> return
-      | _ => Indet(d) |> return
+      | _ =>
+        let envc = ClosureEnvironment.map_of(envc);
+        let new_env = ClosureEnvironment.merge_keep_id(env, envc);
+        evaluate(new_env, d');
       }
 
     /* Hole expressions */

@@ -454,6 +454,7 @@ and ClosureEnvironment: {
   let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
 
   let placeholder: t;
+  let merge_keep_id: (t, Environment.t) => t;
 } = {
   module Inner: {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -525,4 +526,9 @@ and ClosureEnvironment: {
   let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
+
+  let merge_keep_id = (env1, env2) => {
+    let lxr = env2 |> Environment.to_listo;
+    List.fold_left((env, xr) => extend_keep_id(env, xr), env1, lxr);
+  };
 };
