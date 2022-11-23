@@ -402,12 +402,17 @@ module UExp = {
     fun
     | Equals => "String Equality";
 
+  let show_op_bin_list: op_bin_list => string =
+    fun
+    | Concat => "List Concatenation";
+
   let show_binop: op_bin => string =
     fun
     | Int(op) => show_op_bin_int(op)
     | Float(op) => show_op_bin_float(op)
     | Bool(op) => show_op_bin_bool(op)
-    | String(op) => show_op_bin_string(op);
+    | String(op) => show_op_bin_string(op)
+    | List(op) => show_op_bin_list(op);
 
   let show_cls: cls => string =
     fun

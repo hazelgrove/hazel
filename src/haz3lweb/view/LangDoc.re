@@ -2089,6 +2089,10 @@ let get_doc =
               LangDocMessages.str_eq_group,
               LangDocMessages.str_eq_exp_coloring_ids,
             )
+          | List(Concat) => (
+              LangDocMessages.list_cc_group,
+              LangDocMessages.list_cc_exp_coloring_ids,
+            )
           };
         let (doc, options) =
           LangDocMessages.get_form_and_options(group, docs);

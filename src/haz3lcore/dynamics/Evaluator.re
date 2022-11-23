@@ -270,6 +270,7 @@ and matches_cast_Inj =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_, _, _)
+  | BinListOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -344,7 +345,8 @@ and matches_cast_Tuple =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinStringOp(_)
+  | BinStringOp(_, _, _)
+  | BinListOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -480,7 +482,8 @@ and matches_cast_Cons =
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
-  | BinStringOp(_)
+  | BinStringOp(_, _, _)
+  | BinListOp(_, _, _)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -559,6 +562,21 @@ let eval_bin_string_op =
     (op: DHExp.BinStringOp.t, s1: string, s2: string): DHExp.t =>
   switch (op) {
   | SEquals => BoolLit(s1 == s2)
+  };
+
+let eval_bin_list_op =
+    (
+      op: DHExp.BinListOp.t,
+      x1: MetaVar.t,
+      x2: MetaVarInst.t,
+      x3: ListErrStatus.t,
+      x4: Typ.t,
+      lst1: list(DHExp.t),
+      lst2: list(DHExp.t),
+    )
+    : DHExp.t =>
+  switch (op) {
+  | LConcat => ListLit(x1, x2, x3, x4, lst1 @ lst2)
   };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
@@ -778,6 +796,38 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2')
         | Indet(d2') => Indet(BinStringOp(op, d1', d2')) |> return
         };
+      };
+
+    | BinListOp(op, d1, d2) =>
+      let* d1 = evaluate(env, d1);
+      let* d2 = evaluate(env, d2);
+      switch (d1, d2) {
+      | (Indet(d1), Indet(d2))
+      | (Indet(d1), BoxedValue(d2))
+      | (BoxedValue(d1), Indet(d2)) =>
+        Indet(BinListOp(op, d1, d2)) |> return
+      | (BoxedValue(d1), BoxedValue(d2)) =>
+        switch (d1) {
+        | Cast(d1, List(ty), List(ty')) =>
+          evaluate(env, Cast(BinListOp(op, d1, d2), List(ty), List(ty')))
+        | ListLit(x1, x2, x3, x4, lst1) =>
+          switch (d2) {
+          | Cast(d2, List(ty), List(ty')) =>
+            evaluate(
+              env,
+              Cast(BinListOp(op, d1, d2), List(ty), List(ty')),
+            )
+          | ListLit(_, _, _, _, lst2) =>
+            BoxedValue(eval_bin_list_op(op, x1, x2, x3, x4, lst1, lst2))
+            |> return
+          | _ =>
+            print_endline("InvalidBoxedListLit");
+            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+          }
+        | _ =>
+          print_endline("InvalidBoxedListLit");
+          raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
+        }
       };
 
     | Inj(ty, side, d1) =>

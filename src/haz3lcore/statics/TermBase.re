@@ -72,6 +72,10 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_list =
+    | Concat;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Int(op_un_int);
 
@@ -80,7 +84,8 @@ and UExp: {
     | Int(op_bin_int)
     | Float(op_bin_float)
     | Bool(op_bin_bool)
-    | String(op_bin_string);
+    | String(op_bin_string)
+    | List(op_bin_list);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -178,6 +183,10 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_list =
+    | Concat;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Int(op_un_int);
 
@@ -186,7 +195,8 @@ and UExp: {
     | Int(op_bin_int)
     | Float(op_bin_float)
     | Bool(op_bin_bool)
-    | String(op_bin_string);
+    | String(op_bin_string)
+    | List(op_bin_list);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =

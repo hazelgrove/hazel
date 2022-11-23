@@ -35,6 +35,11 @@ let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
   switch (bso) {
   | SEquals => DHDoc_common.precedence_Equals
   };
+
+let precedence_bin_list_op = (blo: DHExp.BinListOp.t) =>
+  switch (blo) {
+  | LConcat => DHDoc_common.precedence_Plus
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -67,6 +72,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
+  | BinListOp(op, _, _) => precedence_bin_list_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
@@ -118,6 +124,13 @@ let mk_bin_string_op = (op: DHExp.BinStringOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
     | SEquals => "$=="
+    },
+  );
+
+let mk_bin_list_op = (op: DHExp.BinListOp.t): DHDoc.t =>
+  Doc.text(
+    switch (op) {
+    | LConcat => "@"
     },
   );
 
@@ -274,6 +287,11 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_string_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_string_op(op), mk_cast(doc2)]);
+      | BinListOp(op, d1, d2) =>
+        // TODO assumes all bin list ops are left associative
+        let (doc1, doc2) =
+          mk_left_associative_operands(precedence_bin_list_op(op), d1, d2);
+        hseps([mk_cast(doc1), mk_bin_list_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);

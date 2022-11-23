@@ -41,6 +41,10 @@ let bool_op_of: Term.UExp.op_bin_bool => DHExp.BinBoolOp.t =
   | And => And
   | Or => Or;
 
+let list_op_of: Term.UExp.op_bin_list => DHExp.BinListOp.t =
+  fun
+  | Concat => LConcat;
+
 let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   fun
   | Int(op) => (Int, ((e1, e2) => BinIntOp(int_op_of(op), e1, e2)))
@@ -49,6 +53,10 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   | String(op) => (
       String,
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
+    )
+  | List(op) => (
+      List(Unknown(Internal)),
+      ((e1, e2) => BinListOp(list_op_of(op), e1, e2)),
     );
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {

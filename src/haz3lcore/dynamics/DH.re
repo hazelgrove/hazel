@@ -42,6 +42,12 @@ module rec DHExp: {
       | SEquals;
   };
 
+  module BinListOp: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | LConcat;
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
@@ -67,6 +73,7 @@ module rec DHExp: {
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
     | BinStringOp(BinStringOp.t, t, t)
+    | BinListOp(BinListOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
     | Tuple(list(t))
@@ -134,6 +141,12 @@ module rec DHExp: {
       | SEquals;
   };
 
+  module BinListOp = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | LConcat;
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
@@ -162,6 +175,7 @@ module rec DHExp: {
     | BinIntOp(BinIntOp.t, t, t)
     | BinFloatOp(BinFloatOp.t, t, t)
     | BinStringOp(BinStringOp.t, t, t)
+    | BinListOp(BinListOp.t, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t, list(t))
     | Cons(t, t)
     | Tuple(list(t))
@@ -201,6 +215,7 @@ module rec DHExp: {
     | BinIntOp(_, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
     | BinStringOp(_, _, _) => "BinStringOp"
+    | BinListOp(_, _, _) => "BinListOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | Tuple(_) => "Tuple"
@@ -266,6 +281,7 @@ module rec DHExp: {
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
     | BinStringOp(a, b, c) =>
       BinStringOp(a, strip_casts(b), strip_casts(c))
+    | BinListOp(a, b, c) => BinListOp(a, strip_casts(b), strip_casts(c))
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
@@ -331,6 +347,8 @@ module rec DHExp: {
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (BinListOp(op1, d11, d21), BinListOp(op2, d12, d22)) =>
+      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Inj(ty1, side1, d1), Inj(ty2, side2, d2)) =>
       ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
@@ -356,6 +374,7 @@ module rec DHExp: {
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
     | (BinStringOp(_), _)
+    | (BinListOp(_), _)
     | (Inj(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)

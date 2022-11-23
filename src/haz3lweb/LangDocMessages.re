@@ -77,6 +77,7 @@ let flte = () => Example.mk_monotile(Form.get("flte"));
 let fgt = () => Example.mk_monotile(Form.get("fgt"));
 let fgte = () => Example.mk_monotile(Form.get("fgte"));
 let sequals = () => Example.mk_monotile(Form.get("string_equals"));
+let lconcat = () => Example.mk_monotile(Form.get("list_concat"));
 let logical_and = () => Example.mk_monotile(Form.get("logical_and"));
 let logical_or = () => Example.mk_monotile(Form.get("logical_or"));
 let comma_exp = () => Example.mk_monotile(Form.get("comma_exp"));
@@ -1696,6 +1697,7 @@ let float_eq_group = "float_eq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
+let list_cc_group = "list_cc_group";
 let int_unary_minus_ex = {
   sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
@@ -2434,6 +2436,30 @@ let str_eq_exp: form = {
     expandable_id: None,
     explanation,
     examples: [str_eq1_ex, str_eq2_ex],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let list_cc_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let list_cc_exp: form = {
+  let explanation = {
+    message: "List concatenation. Gives a list containing the elements of the [*left operand*](%i) followed by the elements of the [*right operand*](%i).",
+    feedback: Unselected,
+  };
+  {
+    id: "list_cc_exp",
+    syntactic_form: [_exp1, space(), lconcat(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    // TODO: Add examples for list concatenation
+    examples: [],
   };
 };
 
