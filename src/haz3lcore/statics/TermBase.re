@@ -129,6 +129,7 @@ and UExp: {
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -157,6 +158,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -240,6 +242,7 @@ and UExp: {
     | Let
     | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -268,6 +271,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)

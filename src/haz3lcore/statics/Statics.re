@@ -466,6 +466,12 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
+  | TypAp(fn, utyp) =>
+    let (ty_fn, free_fn, m_fn) =
+      uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (x, ty_body) = Typ.matched_forall(ty_fn);
+    let ty = Term.utyp_to_ty(utyp);
+    add(~self=Just(Typ.subst(ty_body, x, ty)), ~free=free_fn, m_fn);
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =

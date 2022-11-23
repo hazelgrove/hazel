@@ -469,6 +469,7 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -547,6 +548,7 @@ module UExp = {
     | Let => "Let Expression"
     | TyAlias => "Type Alias Definition"
     | Ap => "Function/Contructor Application"
+    | TypAp => "Type Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -575,6 +577,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -607,6 +610,7 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | If(_)
       | Seq(_)
       | Test(_)

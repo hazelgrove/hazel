@@ -272,6 +272,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
+    | TypAp(fn, _typ) =>
+      // TODO (typfun)
+      dhexp_of_uexp(m, fn)
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);
