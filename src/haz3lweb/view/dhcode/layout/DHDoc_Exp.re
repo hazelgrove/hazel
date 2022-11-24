@@ -40,7 +40,7 @@ let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
 
 let precedence_bin_list_op = (blo: DHExp.BinListOp.t) =>
   switch (blo) {
-  | LConcat => DHDoc_common.precedence_Plus
+  | LConcat => DHDoc_common.precedence_Concat
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);

@@ -149,6 +149,7 @@ let forms: list((string, t)) = [
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
   ("string_equals_", mk_nul_infix("$=", P.eqs)), // HACK: SUBSTRING REQ
   ("string_equals__", mk_nul_infix("$", P.eqs)), // HACK: SUBSTRING REQ
+  ("list_concat", mk_infix("@", Exp, P.concat)),
   ("lt", mk_infix("<", Exp, 5)), //TODO: precedence
   ("gt", mk_infix(">", Exp, 5)), //TODO: precedence
   //("not_equals", mk_infix("!=", Exp, 5)),

@@ -1948,6 +1948,12 @@ let str_eq2_ex = {
   message: "\"abc\" is equal to \"abc\", so the expression evaluates to true.",
   feedback: Unselected,
 };
+let list_cc_ex = {
+  sub_id: "list_cc_ex",
+  term: mk_example("[1, 2] @ [3, 4]"),
+  message: "[1, 2] concatenated with [3, 4] evaluates to [1, 2, 3, 4].",
+  feedback: Unselected,
+};
 let _exp = exp("e");
 let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp), exp_id),
@@ -2516,8 +2522,8 @@ let list_cc_exp: form = {
     syntactic_form: [_exp1, space(), lconcat(), space(), _exp2],
     expandable_id: None,
     explanation,
-    // TODO: Add examples for list concatenation
-    examples: [],
+    // TODO Add examples for list concatenation
+    examples: [list_cc_ex],
   };
 };
 
@@ -3356,6 +3362,7 @@ let init = {
     bool_and_exp,
     bool_or_exp,
     str_eq_exp,
+    list_cc_exp,
     case_exp,
     // Rules
     // Patterns
@@ -3709,6 +3716,7 @@ let init = {
     (bool_and_group, init_options([(bool_and_exp.id, [])])),
     (bool_or_group, init_options([(bool_or_exp.id, [])])),
     (str_eq_group, init_options([(str_eq_exp.id, [])])),
+    (list_cc_group, init_options([(list_cc_exp.id, [])])),
     (case_exp_group, init_options([(case_exp.id, [])])),
     // Rules
     // Patterns
