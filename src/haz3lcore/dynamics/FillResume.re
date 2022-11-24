@@ -170,22 +170,33 @@ and diff_of_rule =
   };
 };
 
+// list(d_prev, d_prev_result) => fill_result
+let rec find_fill_result =
+        (prev_combined: list((DHExp.t, DHExp.t)), d_now: DHExp.t) => {
+  switch (prev_combined) {
+  | [] => d_now
+  | [(d_prev, d_prev_result), ...rest] =>
+    let state = diff_of_DHExp(d_prev, d_now);
+    switch (state) {
+    | Some(state) => fill(state, d_prev_result)
+    | None => find_fill_result(rest, d_now)
+    };
+  };
+};
+
 let fill_resume_evaluate =
     (
       env: Environment.t,
       d_now: DHExp.t,
-      d_prev: option(DHExp.t),
-      d_prev_result: option(DHExp.t),
+      d_prevs: option(list(DHExp.t)),
+      d_prev_results: option(list(DHExp.t)),
     )
     : (EvaluatorState.t, EvaluatorResult.t) => {
-  let state =
-    switch (d_prev) {
-    | Some(d_prev') => diff_of_DHExp(d_prev', d_now)
-    | _ => None
-    };
   let fill_result =
-    switch (state, d_prev_result) {
-    | (Some(s), Some(d_prev_result')) => fill(s, d_prev_result')
+    switch (d_prevs, d_prev_results) {
+    | (Some(d_prevs), Some(d_prev_results)) =>
+      let prev_combined = List.combine(d_prevs, d_prev_results);
+      find_fill_result(prev_combined, d_now);
     | _ => d_now
     };
   Evaluator.evaluate(env, fill_result);

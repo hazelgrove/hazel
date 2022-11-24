@@ -1,5 +1,7 @@
+open Sexplib.Std;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type previous = ProgramResult.t;
+type past = list(ProgramResult.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
@@ -10,14 +12,15 @@ type current =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  previous,
+  past,
   current,
 };
 
-let init = previous => {previous, current: ResultPending};
+let init = previous => {past: [previous], current: ResultPending};
 
-let get_previous = ({previous, _}) => previous;
-let put_previous = (previous, cr) => {...cr, previous};
+let get_past = ({past, _}) => past;
+let get_previous = ({past, _}) => past |> List.hd;
+let put_previous = (previous, cr) => {...cr, past: [previous, ...cr.past]};
 let get_previous_dhexp = cr => cr |> get_previous |> ProgramResult.get_dhexp;
 
 let get_current = ({current, _}) => current;
@@ -43,6 +46,10 @@ let update_current = (current, res) => {
 
   let res = {...res, current};
   res;
+};
+
+let clear_past = mr => {
+  {...mr, past: [mr |> get_previous]};
 };
 
 type optional_simple_data = {

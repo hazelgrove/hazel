@@ -122,6 +122,40 @@ let load_default_editor = (model: Model.t): Model.t =>
     {...model, editors: School(n, specs, exercise)};
   };
 
+let delete_past_evaluation_result =
+  fun
+  | Set(_)
+  | PerformAction(Jump(_))
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | ResetSlide => true
+  | Copy
+  | Cut
+  | Paste(_)
+  | UpdateDoubleTap(_)
+  | MoveToNextHole(_)
+  | PerformAction(
+      Move(_) | Select(_) | Unselect | RotateBackpack | MoveToBackpackTarget(_),
+    )
+  | Mousedown
+  | Mouseup
+  | UpdateResult(_)
+  | ResetCurrentEditor
+  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | SwitchEditor(_)
+  | SwitchSlide(_)
+  | ToggleMode
+  | Undo
+  | Redo
+  | Save
+  | FailedInput(_)
+  | SetShowBackpackTargets(_)
+  | SetFontMetrics(_)
+  | UpdateLangDocMessages(_)
+  | SetLogoFontMetrics(_) => false;
+
 let reevaluate_post_update =
   fun
   | Set(s_action) =>
@@ -183,12 +217,14 @@ let evaluate_and_schedule =
            m_res >>| ModelResult.update_current(ModelResult.ResultPending);
 
          // extract prev result
-         let prev = m_res >>| ModelResult.get_previous;
-         let d_prev = prev >>| ProgramResult.get_elaborator_result;
-         let d_prev_result = prev >>| ProgramResult.get_evaluator_result;
+         let prevs = m_res >>| ModelResult.get_past;
+         let d_prevs =
+           prevs >>| List.map(ProgramResult.get_elaborator_result);
+         let d_prev_results =
+           prevs >>| List.map(ProgramResult.get_evaluator_result);
 
          // evaluate
-         let r = Interface.evaluate(d, ~d_prev, ~d_prev_result);
+         let r = Interface.evaluate(d, ~d_prevs, ~d_prev_results);
          let res =
            switch (r) {
            | r => ResultOk(r)
@@ -201,6 +237,11 @@ let evaluate_and_schedule =
        });
   };
   model;
+};
+
+let delete_past_evaluation = (model: Model.t): Model.t => {
+  let results = ModelResults.map(ModelResult.clear_past, model.results);
+  {...model, results};
 };
 
 let perform_action =
@@ -405,6 +446,10 @@ let apply =
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
     };
-  reevaluate_post_update(update)
-    ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
+  let m =
+    reevaluate_post_update(update)
+      ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action))
+      : m;
+  delete_past_evaluation_result(update)
+    ? m |> Result.map(~f=delete_past_evaluation) : m;
 };
