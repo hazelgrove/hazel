@@ -1,19 +1,22 @@
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
-  switch (d2) {
-  | BoundVar(y) =>
+  switch (d2.term) {
+  | Error(_) => failwith("subst_var on Error outside of Hole")
+  | EmptyHole => failwith("subst_var on EmptyHole outside of Hole")
+  | MultiHole(_) => failwith("subst_var on MultiHole")
+  | Var(y) =>
     if (Var.eq(x, y)) {
       d1;
     } else {
       d2;
     }
-  | FreeVar(_) => d2
-  | InvalidText(_) => d2
-  | ExpandingKeyword(_) => d2
-  | Sequence(d3, d4) =>
+  | Hole(_, {term: Error(FreeVar(_)), _}) => d2
+  | Hole(_, {term: Error(InvalidText(_)), _}) => d2
+  | Hole(_, {term: Error(ExpandingKeyword(_)), _}) => d2
+  | Seq(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    Sequence(d3, d4);
+    DHExp.{ids: d2.ids, term: Seq(d3, d4)};
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -22,7 +25,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       } else {
         subst_var(d1, x, d4);
       };
-    Let(dp, d3, d4);
+    DHExp.{ids: d2.ids, term: Let(dp, d3, d4)};
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {
@@ -30,94 +33,107 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       } else {
         subst_var(d1, x, d3);
       };
-    FixF(y, ty, d3);
+    DHExp.{ids: d2.ids, term: FixF(y, ty, d3)};
   | Fun(dp, ty, d3, s) =>
     if (DHPat.binds_var(x, dp)) {
-      Fun(dp, ty, d3, s);
+      DHExp.{ids: d2.ids, term: Fun(dp, ty, d3, s)};
     } else {
       let d3 = subst_var(d1, x, d3);
-      Fun(dp, ty, d3, s);
+      DHExp.{ids: d2.ids, term: Fun(dp, ty, d3, s)};
     }
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
     let env' = subst_var_env(d1, x, env);
     let d3' = subst_var(d1, x, d3);
-    Closure(env', d3');
+    DHExp.{ids: d2.ids, term: Closure(env', d3')};
   | Ap(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    Ap(d3, d4);
-  | ApBuiltin(ident, args) =>
-    let args = List.map(subst_var(d1, x), args);
-    ApBuiltin(ident, args);
-  | TestLit(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | StringLit(_)
+    DHExp.{ids: d2.ids, term: Ap(d3, d4)};
+  // | ApBuiltin(ident, args) =>
+  //   let args = List.map(subst_var(d1, x), args);
+  //   DHExp.{ids: d2.ids, term: ApBuiltin(ident, args)};
+  | Triv
+  | Test(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
   | Tag(_) => d2
-  | ListLit(a, b, c, d, ds) =>
-    ListLit(a, b, c, d, List.map(subst_var(d1, x), ds))
+  | ListLit(ds, info) =>
+    DHExp.{
+      ids: d2.ids,
+      term: ListLit(List.map(subst_var(d1, x), ds), info),
+    }
+  | Parens(d3) =>
+    let d3 = subst_var(d1, x, d3);
+    DHExp.{ids: d2.ids, term: Parens(d3)};
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    Cons(d3, d4);
-  | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
-  | Prj(d, n) => Prj(subst_var(d1, x, d), n)
-  | BinBoolOp(op, d3, d4) =>
+    DHExp.{ids: d2.ids, term: Cons(d3, d4)};
+  | Tuple(ds) =>
+    DHExp.{ids: d2.ids, term: Tuple(List.map(subst_var(d1, x), ds))}
+  | Prj(d, n) => DHExp.{ids: d2.ids, term: Prj(subst_var(d1, x, d), n)}
+  | BinOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
+    DHExp.{ids: d2.ids, term: BinOp(op, d3, d4)};
+  | UnOp(op, d3) =>
     let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
-  | BinFloatOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinFloatOp(op, d3, d4);
-  | BinStringOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinStringOp(op, d3, d4);
+    DHExp.{ids: d2.ids, term: UnOp(op, d3)};
   | Inj(ty, side, d3) =>
     let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
-  | ConsistentCase(Case(d3, rules, n)) =>
+    DHExp.{ids: d2.ids, term: Inj(ty, side, d3)};
+  | If(_) =>
+    failwith("subst_var on If, which should be elaborated into Match")
+  | Match(d3, rules, n) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, Case(d3, rules, n)) =>
+    DHExp.{ids: d2.ids, term: Match(d3, rules, n)};
+  | Hole(hi, {ids, term: Error(InconsistentBranches(d3, rules, n))}) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
-    InconsistentBranches(u, i, Case(d3, rules, n));
-  | EmptyHole(u, i) => EmptyHole(u, i)
-  | NonEmptyHole(reason, u, i, d3) =>
+    DHExp.{
+      ids: d2.ids,
+      term:
+        Hole(hi, {ids, term: Error(InconsistentBranches(d3, rules, n))}),
+    };
+  | Hole(_, {ids: _, term: EmptyHole}) as dterm =>
+    DHExp.{ids: d2.ids, term: dterm}
+  | Hole(hi, {ids, term: Error(NonEmptyHole(reason, d3))}) =>
     let d3' = subst_var(d1, x, d3);
-    NonEmptyHole(reason, u, i, d3');
+    DHExp.{
+      ids: d2.ids,
+      term: Hole(hi, {ids, term: Error(NonEmptyHole(reason, d3'))}),
+    };
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
-  | FailedCast(d, ty1, ty2) =>
+    DHExp.{ids: d2.ids, term: Cast(d', ty1, ty2)};
+  | Hole(hi, {ids, term: Error(FailedCast(d, ty1, ty2))}) =>
     let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
-  | InvalidOperation(d, err) =>
+    DHExp.{
+      ids: d2.ids,
+      term: Hole(hi, {ids, term: Error(FailedCast(d', ty1, ty2))}),
+    };
+  | Hole(hi, {ids, term: Error(InvalidOperation(err, d))}) =>
     let d' = subst_var(d1, x, d);
-    InvalidOperation(d', err);
+    DHExp.{
+      ids: d2.ids,
+      term: Hole(hi, {ids, term: Error(InvalidOperation(err, d'))}),
+    };
+  | Hole(_, _) => failwith("subst_var on Invalid Hole")
   }
 
 and subst_var_rules =
     (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
   rules
-  |> List.map((r: DHExp.rule) =>
-       switch (r) {
-       | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
-           r;
-         } else {
-           Rule(dp, subst_var(d1, x, d2));
-         }
+  |> List.map(((dp, d2): DHExp.rule) =>
+       if (DHPat.binds_var(x, dp)) {
+         (dp, d2);
+       } else {
+         (dp, subst_var(d1, x, d2));
        }
      )
 
@@ -130,16 +146,16 @@ and subst_var_env =
     |> Environment.foldo(
          ((x', d': DHExp.t), map) => {
            let d' =
-             switch (d') {
+             switch (d'.term) {
              /* Substitute each previously substituted binding into the
               * fixpoint. */
-             | FixF(_) as d =>
+             | FixF(_) =>
                map
                |> Environment.foldo(
                     ((x'', d''), d) => subst_var(d'', x'', d),
-                    d,
+                    d',
                   )
-             | d => d
+             | _ => d'
              };
 
            /* Substitute. */
