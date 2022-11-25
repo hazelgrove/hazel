@@ -225,14 +225,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (["nil"], []) => ret(ListLit([]))
+      | (["nil"], []) => ret(ListLit([], None))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
-        | term => ret(ListLit([term]))
+        | {ids, term: Tuple(es)} => (ListLit(es, None), ids)
+        | term => ret(ListLit([term], None))
         }
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
-          Match(scrut, rules),
+          Match(scrut, rules, 0),
           ids,
         )
       | _ => ret(hole(tm))
@@ -245,7 +245,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, None, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)

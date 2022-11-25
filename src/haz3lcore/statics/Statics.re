@@ -296,15 +296,18 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(msg) => (
+  | Error(Invalid(msg)) => (
       Unknown(Internal),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
+  | Error(_) => failwith("uexp_to_info_map Error")
+  | Closure(_) => failwith("uexp_to_info_map Closure")
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
+  | Hole(_) => failwith("uexp_to_info_map Hole")
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
@@ -357,8 +360,10 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
-  | ListLit(es) =>
+  | Prj(_) => failwith("uexp_to_info_map Prj")
+  | Inj(_) => failwith("uexp_to_info_map Inj")
+  | ListLit([], None) => atomic(Just(List(Unknown(Internal))))
+  | ListLit(es, None) =>
     let modes = Typ.matched_list_lit_mode(mode, List.length(es));
     let e_ids = List.map(Term.UExp.rep_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
@@ -375,6 +380,7 @@ and uexp_to_info_map =
     let free = Ctx.union(List.map(((_, f, _)) => f, infos));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
+  | ListLit(_, _) => failwith("uexp_to_info_map ListLit(_, _))")
   | Test(test) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
     add(~self=Just(Prod([])), ~free=free_test, m1);
@@ -414,7 +420,8 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
-  | Fun(pat, body) =>
+  | FixF(_) => failwith("uexp_to_info_map FixF")
+  | Fun(pat, None, body, None) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
@@ -425,6 +432,7 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
       union_m([m_pat, m_body]),
     );
+  | Fun(_, _, _, _) => failwith("uexp_to_info_map Fun with ty or name")
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
@@ -440,7 +448,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | Match(scrut, rules) =>
+  | Match(scrut, rules, _) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
     let pat_infos =
@@ -464,6 +472,7 @@ and uexp_to_info_map =
     let self = Typ.Joined(Fun.id, branch_sources);
     let free = Ctx.union([free_scrut] @ branch_frees);
     add(~self, ~free, union_m([m_scrut] @ pat_ms @ branch_ms));
+  | Cast(_) => failwith("uexp_to_info_map Cast")
   };
 }
 and upat_to_info_map =
@@ -531,6 +540,7 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
+  | Inj(_) => failwith("upat_to_info_map Prj")
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
     | None => atomic(Free(Tag))

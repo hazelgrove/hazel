@@ -112,6 +112,7 @@ module UPat = {
     | ListLit
     | Tag
     | Cons
+    | Inj
     | Var
     | Tuple
     | Parens
@@ -145,6 +146,7 @@ module UPat = {
     | ListLit(_) => ListLit
     | Tag(_) => Tag
     | Cons(_) => Cons
+    | Inj(_) => Inj
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
@@ -165,6 +167,7 @@ module UPat = {
     | ListLit => "List Literal Pattern"
     | Tag => "Constructor Pattern"
     | Cons => "List Cons"
+    | Inj => "Sum Type Injection"
     | Var => "Pattern Variable"
     | Tuple => "Tuple Pattern"
     | Parens => "Parenthesized Pattern"
@@ -187,6 +190,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | Inj(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => false
@@ -208,6 +212,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | Inj(_, _)
     | Var(_)
     | Tuple(_)
     | Tag(_)
@@ -232,6 +237,7 @@ module UPat = {
       | Triv
       | ListLit(_)
       | Cons(_, _)
+      | Inj(_, _)
       | Var(_)
       | TypeAnn(_)
       | Tag(_)
@@ -255,6 +261,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | Inj(_, _)
     | Tuple(_)
     | Tag(_)
     | Ap(_) => None
@@ -281,6 +288,7 @@ module UPat = {
     | Triv
     | ListLit(_)
     | Cons(_, _)
+    | Inj(_, _)
     | Var(_)
     | Tuple(_)
     | Tag(_)
@@ -312,6 +320,7 @@ module UPat = {
       | Triv
       | ListLit(_)
       | Cons(_, _)
+      | Inj(_, _)
       | Var(_)
       | TypeAnn(_)
       | Tag(_)
@@ -335,11 +344,24 @@ module UExp = {
     List.hd(ids);
   };
 
+  let error_cls_of_error: error => error_cls =
+    fun
+    | NonEmptyHole(_) => NonEmptyHole
+    | Invalid(_) => Invalid
+    | InvalidText(_) => InvalidText
+    | InvalidOperation(_) => InvalidOperation
+    | FreeVar(_) => FreeVar
+    | ExpandingKeyword(_) => ExpandingKeyword
+    | InconsistentBranches(_) => InconsistentBranches
+    | FailedCast(_) => FailedCast;
+
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
+    | Error(e) => Error(error_cls_of_error(e))
+    | Closure(_) => Closure
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | Hole(_) => Hole
     | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
@@ -347,6 +369,7 @@ module UExp = {
     | String(_) => String
     | ListLit(_) => ListLit
     | Tag(_) => Tag
+    | FixF(_) => FixF
     | Fun(_) => Fun
     | Tuple(_) => Tuple
     | Var(_) => Var
@@ -357,9 +380,12 @@ module UExp = {
     | Test(_) => Test
     | Parens(_) => Parens
     | Cons(_) => Cons
+    | Prj(_) => Prj
+    | Inj(_) => Inj
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
-    | Match(_) => Match;
+    | Match(_) => Match
+    | Cast(_) => Cast;
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -411,11 +437,24 @@ module UExp = {
     | Bool(op) => show_op_bin_bool(op)
     | String(op) => show_op_bin_string(op);
 
+  let show_error_cls: error_cls => string =
+    fun
+    | NonEmptyHole => "Non-Empty Expression Hole"
+    | Invalid
+    | InvalidText => "Invalid Expression"
+    | InvalidOperation => "Invalid Operation"
+    | FreeVar => "Free Variable Reference"
+    | ExpandingKeyword => "Expanding Keyword"
+    | InconsistentBranches => "Inconsistent Branches"
+    | FailedCast => "Failed Cast";
+
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Expression"
+    | Error(e) => show_error_cls(e)
+    | Closure => "Expression Closure"
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
+    | Hole => "Expression Hole"
     | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
@@ -423,6 +462,7 @@ module UExp = {
     | String => "String Literal"
     | ListLit => "List Literal"
     | Tag => "Constructor"
+    | FixF => "Fixpoint"
     | Fun => "Function Literal"
     | Tuple => "Tuple Literal"
     | Var => "Variable Reference"
@@ -433,17 +473,22 @@ module UExp = {
     | Test => "Test (Effectful)"
     | Parens => "Parenthesized Expression"
     | Cons => "Cons"
+    | Prj => "Product Type Projection"
+    | Inj => "Sum Type Injection"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | Match => "Match Expression";
+    | Match => "Match Expression"
+    | Cast => "Cast Expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
-    | Invalid(_)
+    | Error(_)
+    | Closure(_)
     | EmptyHole
     | MultiHole(_)
+    | Hole(_)
     | Triv
     | Bool(_)
     | Int(_)
@@ -451,6 +496,7 @@ module UExp = {
     | String(_)
     | ListLit(_)
     | Tuple(_)
+    | FixF(_)
     | Var(_)
     | Let(_)
     | Ap(_)
@@ -458,9 +504,12 @@ module UExp = {
     | Seq(_)
     | Test(_)
     | Cons(_)
+    | Prj(_)
+    | Inj(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | Cast(_)
     | Tag(_) => false
     };
   };
@@ -471,9 +520,11 @@ module UExp = {
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
-      | Invalid(_)
+      | Error(_)
+      | Closure(_)
       | EmptyHole
       | MultiHole(_)
+      | Hole(_)
       | Triv
       | Bool(_)
       | Int(_)
@@ -483,14 +534,18 @@ module UExp = {
       | Fun(_)
       | Var(_)
       | Let(_)
+      | FixF(_)
       | Ap(_)
       | If(_)
       | Seq(_)
       | Test(_)
       | Cons(_)
+      | Prj(_)
+      | Inj(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | Cast(_)
       | Tag(_) => false
       }
     );

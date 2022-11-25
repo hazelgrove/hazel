@@ -70,8 +70,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
       };
     switch (uexp.term) {
-    | Invalid(_) /* NOTE: treating invalid as a hole for now */
+    | Error(Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some(EmptyHole(u, 0))
+    | Error(_) => None
+    | Closure(_) => None
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
       let* ds =
@@ -88,12 +90,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         // placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
+    | Hole(_) => None
     | Triv => wrap(Tuple([]))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | String(s) => wrap(StringLit(s))
-    | ListLit(es) =>
+    | ListLit(es, None) =>
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
       | Syn =>
@@ -127,11 +130,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           );
         wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       }
-    | Fun(p, body) =>
+    | ListLit(_, Some(_)) => None
+    | FixF(_) => None
+    | Fun(p, None, body, None) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = Statics.pat_typ(m, p);
       wrap(DHExp.Fun(dp, ty1, d1, None));
+    | Fun(_) => None
     | Tuple(es) =>
       let ds =
         List.fold_right(
@@ -165,6 +171,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
       wrap(Cons(dc1, dc2));
+    | Prj(_) => None
+    | Inj(_) => None
     | UnOp(Int(Minus), e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = Statics.exp_self_typ(m, e);
@@ -278,7 +286,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
-    | Match(scrut, rules) =>
+    | Match(scrut, rules, _) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d_rules =
         List.map(
@@ -296,6 +304,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
+    | Cast(_) => None
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
@@ -346,6 +355,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
+    | Inj(_) => None
     | Tuple(ps) =>
       let dps =
         List.fold_right(
