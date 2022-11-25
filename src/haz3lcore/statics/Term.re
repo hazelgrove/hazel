@@ -344,20 +344,9 @@ module UExp = {
     List.hd(ids);
   };
 
-  let error_cls_of_error: error => error_cls =
-    fun
-    | NonEmptyHole(_) => NonEmptyHole
-    | Invalid(_) => Invalid
-    | InvalidText(_) => InvalidText
-    | InvalidOperation(_) => InvalidOperation
-    | FreeVar(_) => FreeVar
-    | ExpandingKeyword(_) => ExpandingKeyword
-    | InconsistentBranches(_) => InconsistentBranches
-    | FailedCast(_) => FailedCast;
-
   let cls_of_term: term => cls =
     fun
-    | Error(e) => Error(error_cls_of_error(e))
+    | Invalid(_) => Invalid
     | Closure(_) => Closure
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
@@ -437,20 +426,9 @@ module UExp = {
     | Bool(op) => show_op_bin_bool(op)
     | String(op) => show_op_bin_string(op);
 
-  let show_error_cls: error_cls => string =
-    fun
-    | NonEmptyHole => "Non-Empty Expression Hole"
-    | Invalid
-    | InvalidText => "Invalid Expression"
-    | InvalidOperation => "Invalid Operation"
-    | FreeVar => "Free Variable Reference"
-    | ExpandingKeyword => "Expanding Keyword"
-    | InconsistentBranches => "Inconsistent Branches"
-    | FailedCast => "Failed Cast";
-
   let show_cls: cls => string =
     fun
-    | Error(e) => show_error_cls(e)
+    | Invalid => "Invalid Expression"
     | Closure => "Expression Closure"
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
@@ -484,7 +462,7 @@ module UExp = {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
-    | Error(_)
+    | Invalid(_)
     | Closure(_)
     | EmptyHole
     | MultiHole(_)
@@ -520,7 +498,7 @@ module UExp = {
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
-      | Error(_)
+      | Invalid(_)
       | Closure(_)
       | EmptyHole
       | MultiHole(_)

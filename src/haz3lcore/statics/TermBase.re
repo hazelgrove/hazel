@@ -85,19 +85,8 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type error_cls =
-    | NonEmptyHole
-    | Invalid
-    | InvalidText
-    | InvalidOperation
-    | FreeVar
-    | ExpandingKeyword
-    | InconsistentBranches
-    | FailedCast;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Error(error_cls)
+    | Invalid
     | Closure
     | EmptyHole
     | MultiHole
@@ -129,11 +118,11 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Error(error)
+    | Invalid(parse_flag)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Hole(HoleInstance.t, t)
+    | Hole(HoleInstance.t, hole)
     | Triv
     | Bool(bool)
     | Int(int)
@@ -162,9 +151,9 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
-  and error =
-    | NonEmptyHole(ErrStatus.HoleReason.t, t)
-    | Invalid(parse_flag)
+  and hole =
+    | Empty
+    | NonEmpty(ErrStatus.HoleReason.t, t)
     | InvalidText(string)
     | InvalidOperation(InvalidOperationError.t, t)
     | FreeVar(Token.t)
@@ -228,19 +217,8 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type error_cls =
-    | NonEmptyHole
-    | Invalid
-    | InvalidText
-    | InvalidOperation
-    | FreeVar
-    | ExpandingKeyword
-    | InconsistentBranches
-    | FailedCast;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Error(error_cls)
+    | Invalid
     | Closure
     | EmptyHole
     | MultiHole
@@ -272,11 +250,11 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Error(error)
+    | Invalid(parse_flag)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Hole(HoleInstance.t, t)
+    | Hole(HoleInstance.t, hole)
     | Triv
     | Bool(bool)
     | Int(int)
@@ -305,9 +283,9 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
-  and error =
-    | NonEmptyHole(ErrStatus.HoleReason.t, t)
-    | Invalid(parse_flag)
+  and hole =
+    | Empty
+    | NonEmpty(ErrStatus.HoleReason.t, t)
     | InvalidText(string)
     | InvalidOperation(InvalidOperationError.t, t)
     | FreeVar(Token.t)

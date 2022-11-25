@@ -296,12 +296,11 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Error(Invalid(msg)) => (
+  | Invalid(msg) => (
       Unknown(Internal),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
-  | Error(_) => failwith("uexp_to_info_map Error")
   | Closure(_) => failwith("uexp_to_info_map Closure")
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;

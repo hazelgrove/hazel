@@ -45,20 +45,19 @@ module rec DHExp: {
 
   let constructor_string = (d: t): string =>
     switch (d.term) {
-    | Error(_) => failwith("constructor_string Error not in Hole")
+    | Invalid(_) => failwith("constructor_string Error not in Hole")
     | EmptyHole => failwith("constructor_string EmptyHole")
     | MultiHole(_) => failwith("constructor_string MultHole")
     | Hole(_, he) =>
-      switch (he.term) {
-      | EmptyHole => "EmptyHole"
-      | Error(NonEmptyHole(_, _)) => "NonEmptyHole"
-      | Error(ExpandingKeyword(_)) => "ExpandingKeyword"
-      | Error(FreeVar(_)) => "FreeVar"
-      | Error(InvalidText(_)) => "InvalidText"
-      | Error(InconsistentBranches(_)) => "InconsistentBranches"
-      | Error(FailedCast(_)) => "FailedCast"
-      | Error(InvalidOperation(_)) => "InvalidOperation"
-      | _ => failwith("constructor_string Hole(_, _)")
+      switch (he) {
+      | Empty => "EmptyHole"
+      | NonEmpty(_, _) => "NonEmptyHole"
+      | ExpandingKeyword(_) => "ExpandingKeyword"
+      | FreeVar(_) => "FreeVar"
+      | InvalidText(_) => "InvalidText"
+      | InconsistentBranches(_) => "InconsistentBranches"
+      | FailedCast(_) => "FailedCast"
+      | InvalidOperation(_) => "InvalidOperation"
       }
     | Triv => "Triv"
     | Var(_) => "BoundVar"
@@ -124,21 +123,20 @@ module rec DHExp: {
     ids: dexp.ids,
     term:
       switch (dexp.term) {
-      | Error(_) => failwith("strip_casts on Error outside of Hole")
+      | Invalid(_) => failwith("strip_casts on Invalid")
       | EmptyHole => failwith("strip_casts on EmptyHole")
       | MultiHole(_) => failwith("strip_casts on MultiHole")
       | Closure(ei, d) => Closure(ei, strip_casts(d))
       | Cast(d, _, _) => strip_casts(d).term
-      | Hole(_, {ids: _, term: Error(FailedCast(d, _, _))}) =>
-        strip_casts(d).term
+      | Hole(_, FailedCast(d, _, _)) => strip_casts(d).term
       | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
       | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
       | Prj(d, n) => Prj(strip_casts(d), n)
       | Parens(d) => Parens(strip_casts(d))
       | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
       | ListLit(ds, info) => ListLit(List.map(strip_casts, ds), info)
-      | Hole(hi, {ids, term: Error(NonEmptyHole(err, d))}) =>
-        Hole(hi, {ids, term: Error(NonEmptyHole(err, strip_casts(d)))})
+      | Hole(hi, NonEmpty(err, d)) =>
+        Hole(hi, NonEmpty(err, strip_casts(d)))
       | Seq(a, b) => Seq(strip_casts(a), strip_casts(b))
       | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
       | FixF(a, b, c) => FixF(a, b, strip_casts(c))
@@ -151,25 +149,19 @@ module rec DHExp: {
         failwith("strip_casts on If, which should be elaborated to Match")
       | Match(a, rs, b) =>
         Match(strip_casts(a), List.map(strip_casts_rule, rs), b)
-      | Hole(hi, {ids, term: Error(InconsistentBranches(scrut, rules, n))}) =>
+      | Hole(hi, InconsistentBranches(scrut, rules, n)) =>
         Hole(
           hi,
-          {
-            ids,
-            term:
-              Error(
-                InconsistentBranches(
-                  strip_casts(scrut),
-                  List.map(strip_casts_rule, rules),
-                  n,
-                ),
-              ),
-          },
+          InconsistentBranches(
+            strip_casts(scrut),
+            List.map(strip_casts_rule, rules),
+            n,
+          ),
         )
-      | Hole(_, {ids: _, term: EmptyHole}) as d
-      | Hole(_, {ids: _, term: Error(ExpandingKeyword(_))}) as d
-      | Hole(_, {ids: _, term: Error(FreeVar(_))}) as d
-      | Hole(_, {ids: _, term: Error(InvalidText(_))}) as d
+      | Hole(_, Empty) as d
+      | Hole(_, ExpandingKeyword(_)) as d
+      | Hole(_, FreeVar(_)) as d
+      | Hole(_, InvalidText(_)) as d
       | Triv as d
       | Var(_) as d
       | Test(_) as d
@@ -178,16 +170,15 @@ module rec DHExp: {
       | Float(_) as d
       | String(_) as d
       | Tag(_) as d
-      | Hole(_, {ids: _, term: Error(InvalidOperation(_))}) as d => d
-      | Hole(_) => failwith("strip_casts on Invalid Hole")
+      | Hole(_, InvalidOperation(_)) as d => d
       },
   }
   and strip_casts_rule = ((a, d)) => (a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1.term, d2.term) {
-    | (Error(_), _)
-    | (_, Error(_)) => failwith("fast_equal on Error outside of Hole")
+    | (Invalid(_), _)
+    | (_, Invalid(_)) => failwith("fast_equal on Invalid")
     | (EmptyHole, _)
     | (_, EmptyHole) => failwith("fast_equal on EmptyHole")
     | (MultiHole(_), _)
@@ -235,13 +226,13 @@ module rec DHExp: {
       ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (
-        Hole(_, {ids: _, term: Error(FailedCast(d1, ty11, ty21))}),
-        Hole(_, {ids: _, term: Error(FailedCast(d2, ty12, ty22))}),
+        Hole(_, FailedCast(d1, ty11, ty21)),
+        Hole(_, FailedCast(d2, ty12, ty22)),
       ) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
     | (
-        Hole(_, {ids: _, term: Error(InvalidOperation(reason1, d1))}),
-        Hole(_, {ids: _, term: Error(InvalidOperation(reason2, d2))}),
+        Hole(_, InvalidOperation(reason1, d1)),
+        Hole(_, InvalidOperation(reason2, d2)),
       ) =>
       fast_equal(d1, d2) && reason1 == reason2
     | (Match(scrut1, rule1, i1), Match(scrut2, rule2, i2)) =>
@@ -265,61 +256,48 @@ module rec DHExp: {
     | (UnOp(_), _)
     | (Inj(_), _)
     | (Cast(_), _)
-    | (Hole(_, {ids: _, term: Error(FailedCast(_))}), _)
-    | (Hole(_, {ids: _, term: Error(InvalidOperation(_))}), _)
+    | (Hole(_, FailedCast(_)), _)
+    | (Hole(_, InvalidOperation(_)), _)
     | (Match(_), _) => false
 
     /* Hole forms: when checking environments, only check that
        environment ID's are equal, don't check structural equality.
 
        (This resolves a performance issue with many nested holes.) */
-    | (
-        Hole((u1, i1), {ids: _, term: EmptyHole}),
-        Hole((u2, i2), {ids: _, term: EmptyHole}),
-      ) =>
+    | (Hole((u1, i1), Empty), Hole((u2, i2), Empty)) =>
       u1 == u2 && i1 == i2
     | (
-        Hole((u1, i1), {ids: _, term: Error(NonEmptyHole(reason1, d1))}),
-        Hole((u2, i2), {ids: _, term: Error(NonEmptyHole(reason2, d2))}),
+        Hole((u1, i1), NonEmpty(reason1, d1)),
+        Hole((u2, i2), NonEmpty(reason2, d2)),
       ) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
     | (
-        Hole((u1, i1), {ids: _, term: Error(ExpandingKeyword(kw1))}),
-        Hole((u2, i2), {ids: _, term: Error(ExpandingKeyword(kw2))}),
+        Hole((u1, i1), ExpandingKeyword(kw1)),
+        Hole((u2, i2), ExpandingKeyword(kw2)),
       ) =>
       u1 == u2 && i1 == i2 && kw1 == kw2
-    | (
-        Hole((u1, i1), {ids: _, term: Error(FreeVar(x1))}),
-        Hole((u2, i2), {ids: _, term: Error(FreeVar(x2))}),
-      ) =>
+    | (Hole((u1, i1), FreeVar(x1)), Hole((u2, i2), FreeVar(x2))) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (
-        Hole((u1, i1), {ids: _, term: Error(InvalidText(text1))}),
-        Hole((u2, i2), {ids: _, term: Error(InvalidText(text2))}),
+        Hole((u1, i1), InvalidText(text1)),
+        Hole((u2, i2), InvalidText(text2)),
       ) =>
       u1 == u2 && i1 == i2 && text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (
-        Hole(
-          (u1, hi1),
-          {ids: _, term: Error(InconsistentBranches(s1, r1, i1))},
-        ),
-        Hole(
-          (u2, hi2),
-          {ids: _, term: Error(InconsistentBranches(s2, r2, i2))},
-        ),
+        Hole((u1, hi1), InconsistentBranches(s1, r1, i1)),
+        Hole((u2, hi2), InconsistentBranches(s2, r2, i2)),
       ) =>
       let case1 = (s1, r1, i1);
       let case2 = (s2, r2, i2);
       u1 == u2 && hi1 == hi2 && fast_equal_case(case1, case2);
-    | (Hole(_, {ids: _, term: EmptyHole}), _)
-    | (Hole(_, {ids: _, term: Error(NonEmptyHole(_))}), _)
-    | (Hole(_, {ids: _, term: Error(ExpandingKeyword(_))}), _)
-    | (Hole(_, {ids: _, term: Error(FreeVar(_))}), _)
-    | (Hole(_, {ids: _, term: Error(InvalidText(_))}), _)
-    | (Hole(_, {ids: _, term: Error(InconsistentBranches(_))}), _)
-    | (Hole(_), _)
+    | (Hole(_, Empty), _)
+    | (Hole(_, NonEmpty(_)), _)
+    | (Hole(_, ExpandingKeyword(_)), _)
+    | (Hole(_, FreeVar(_)), _)
+    | (Hole(_, InvalidText(_)), _)
+    | (Hole(_, InconsistentBranches(_)), _)
     | (Closure(_), _) => false
     };
   }
