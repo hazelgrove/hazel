@@ -559,10 +559,12 @@ let get_doc =
   switch (info) {
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
-            (term)
+            (term: TermBase.UExp.term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
-      | TermBase.UExp.Invalid(_) => default
+      | Error(Invalid(_)) => default
+      | Error(_) => failwith("get_doc UExp.Error other than Invalid")
+      | Closure(_) => failwith("get_doc UExp.Closure")
       | EmptyHole =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -589,6 +591,7 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | Hole(_) => failwith("get_doc UExp.Hole")
       | Triv =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -654,7 +657,7 @@ let get_doc =
           doc.explanation.message,
           [],
         );
-      | ListLit(terms) =>
+      | ListLit(terms, None) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.list_exp_group,
@@ -670,7 +673,9 @@ let get_doc =
           ),
           [],
         );
-      | Fun(pat, body) =>
+      | ListLit(_, Some(_)) => failwith("get_doc UExp.ListLit(_, Some(_))")
+      | FixF(_) => failwith("get_doc UExp.FixF")
+      | Fun(pat, None, body, None) =>
         let basic = (doc: LangDocMessages.form, group_id, options) => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -991,6 +996,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_cons_group, options);
           };
+        | Inj(_) => failwith("get_doc UPat.Inj")
         | Var(var) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1188,6 +1194,7 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | Fun(_) => failwith("get_doc UExp.Fun with non-empty type or name")
       | Tuple(terms) =>
         let basic = (doc, group_id, options) =>
           get_message(
@@ -1656,6 +1663,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.let_cons_exp_group, options);
           };
+        | Inj(_) => failwith("get_doc UPat.Inj")
         | Var(var) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1982,6 +1990,8 @@ let get_doc =
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
+      | Prj(_) => failwith("get_doc UExp.Prj")
+      | Inj(_) => failwith("get_doc UExp.Inj")
       | UnOp(op, exp) =>
         switch (op) {
         | Int(Minus) =>
@@ -2113,7 +2123,7 @@ let get_doc =
           ),
           coloring_ids(~left_id, ~right_id),
         );
-      | Match(scrut, _rules) =>
+      | Match(scrut, _rules, _) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.case_exp_group,
@@ -2130,6 +2140,7 @@ let get_doc =
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
+      | Cast(_) => failwith("get_doc UExp.Cast")
       | Tag(v) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -2353,6 +2364,7 @@ let get_doc =
           );
         basic(doc, LangDocMessages.cons_pat_group, options);
       };
+    | Inj(_) => failwith("get_doc UPat.Inj")
     | Var(v) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
