@@ -567,18 +567,18 @@ let eval_bin_string_op =
   };
 
 let eval_bin_list_op =
-    (
-      op: DHExp.BinListOp.t,
-      x1: MetaVar.t,
-      x2: MetaVarInst.t,
-      x3: ListErrStatus.t,
-      x4: Typ.t,
-      lst1: list(DHExp.t),
-      lst2: list(DHExp.t),
-    )
-    : DHExp.t =>
-  switch (op) {
-  | LConcat => ListLit(x1, x2, x3, x4, lst1 @ lst2)
+    (op: DHExp.BinListOp.t, d1: DHExp.t, d2: DHExp.t): DHExp.t =>
+  switch (d1, d2) {
+  | (ListLit(u, i, err, ty, lst1), ListLit(_, _, _, _, lst2)) =>
+    switch (op) {
+    | LConcat => ListLit(u, i, err, ty, lst1 @ lst2)
+    }
+  | (ListLit(_), _) =>
+    print_endline("InvalidBoxedListLit");
+    raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
+  | _ =>
+    print_endline("InvalidBoxedListLit");
+    raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
   };
 
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
@@ -817,26 +817,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), Indet(d2)) =>
         Indet(BinListOp(op, d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
-        switch (d1) {
-        | Cast(d1, List(ty), List(ty')) =>
+        switch (d1, d2) {
+        | (Cast(d1, List(ty), List(ty')), d2)
+        | (d1, Cast(d2, List(ty), List(ty'))) =>
           evaluate(env, Cast(BinListOp(op, d1, d2), List(ty), List(ty')))
-        | ListLit(x1, x2, x3, x4, lst1) =>
-          switch (d2) {
-          | Cast(d2, List(ty), List(ty')) =>
-            evaluate(
-              env,
-              Cast(BinListOp(op, d1, d2), List(ty), List(ty')),
-            )
-          | ListLit(_, _, _, _, lst2) =>
-            BoxedValue(eval_bin_list_op(op, x1, x2, x3, x4, lst1, lst2))
-            |> return
-          | _ =>
-            print_endline("InvalidBoxedListLit");
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
-          }
-        | _ =>
-          print_endline("InvalidBoxedListLit");
-          raise(EvaluatorError.Exception(InvalidBoxedListLit(d1)));
+        | _ => evaluate(env, eval_bin_list_op(op, d1, d2))
         }
       };
 

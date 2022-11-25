@@ -292,9 +292,9 @@ let rec mk =
           mk_left_associative_operands(precedence_bin_string_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_string_op(op), mk_cast(doc2)]);
       | BinListOp(op, d1, d2) =>
-        // TODO assumes all bin list ops are left associative
+        // TODO assumes all bin list ops are right associative
         let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_list_op(op), d1, d2);
+          mk_right_associative_operands(precedence_bin_list_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_list_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =

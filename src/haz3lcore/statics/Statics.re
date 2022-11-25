@@ -251,21 +251,27 @@ let typ_exp_binop_bin_string: Term.UExp.op_bin_string => Typ.t =
   fun
   | Equals as _op => Bool;
 
-let typ_exp_binop_bin_list: Term.UExp.op_bin_list => Typ.t =
-  fun
-  | Concat as _op => List(Unknown(Internal));
+let typ_exp_binop_bin_list: (Typ.t, Typ.t, Term.UExp.op_bin_list) => Typ.t =
+  (ty1, _) =>
+    fun
+    | Concat as _op => List(ty1);
 
-let typ_exp_binop: Term.UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
-  fun
-  | Bool(And | Or) => (Bool, Bool, Bool)
-  | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
-  | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
-  | String(op) => (String, String, typ_exp_binop_bin_string(op))
-  | List(op) => (
-      List(Unknown(Internal)),
-      List(Unknown(Internal)),
-      typ_exp_binop_bin_list(op),
-    );
+let typ_exp_binop: (Typ.t, Typ.t, Term.UExp.op_bin) => (Typ.t, Typ.t, Typ.t) =
+  (ty1, ty2) =>
+    fun
+    | Bool(And | Or) => (Bool, Bool, Bool)
+    | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
+    | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
+    | String(op) => (String, String, typ_exp_binop_bin_string(op))
+    | List(op) =>
+      switch (ty1, ty2) {
+      | (List(ty1), List(ty2)) => (
+          List(ty1),
+          List(ty2),
+          typ_exp_binop_bin_list(ty1, ty2, op),
+        )
+      | _ => (ty1, ty2, Unknown(Internal))
+      };
 
 let typ_exp_unop: Term.UExp.op_un => (Typ.t, Typ.t) =
   fun
@@ -337,7 +343,9 @@ and uexp_to_info_map =
     let (_, free, m) = go(~mode=Ana(ty_in), e);
     add(~self=Just(ty_out), ~free, m);
   | BinOp(op, e1, e2) =>
-    let (ty1, ty2, ty_out) = typ_exp_binop(op);
+    let (ty1, _, _) = go(~mode, e1);
+    let (ty2, _, _) = go(~mode=Ana(ty1), e2);
+    let (ty1, ty2, ty_out) = typ_exp_binop(ty1, ty2, op);
     let (_, free1, m1) = go(~mode=Ana(ty1), e1);
     let (_, free2, m2) = go(~mode=Ana(ty2), e2);
     add(
