@@ -626,3 +626,7 @@ let rep_id =
   | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
   | Nul ()
   | Any () => raise(Invalid_argument("Term.rep_id"));
+
+module ClosureEnvironment = TermBase.ClosureEnvironment;
+
+module Environment = TermBase.Environment;
