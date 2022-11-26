@@ -8,6 +8,8 @@ module rec DHExp: {
 
   module BinStringOp: {type t = op_bin_string;};
 
+  module BinOp: {type t = op_bin;};
+
   type case = (t, list((Term.UPat.t, t)), int);
   type rule = (DHPat.t, t);
 
@@ -42,12 +44,21 @@ module rec DHExp: {
     type t = op_bin_string;
   };
 
+  module BinOp = {
+    type t = op_bin;
+  };
+
   type case = (t, list((Term.UPat.t, t)), int);
   type rule = (Term.UPat.t, t);
 
   let constructor_string = (d: t): string =>
     switch (d.term) {
-    | Invalid(_) => failwith("constructor_string Error not in Hole")
+    | Error(e) =>
+      switch (e) {
+      | Invalid(_) => "Invalid"
+      | InvalidOperation(_) => "InvalidOperation"
+      | FailedCast(_) => "FailedCast"
+      }
     | EmptyHole => failwith("constructor_string EmptyHole")
     | MultiHole(_) => failwith("constructor_string MultHole")
     | Hole(_, he) =>
@@ -58,8 +69,6 @@ module rec DHExp: {
       | FreeVar(_) => "FreeVar"
       | InvalidText(_) => "InvalidText"
       | InconsistentBranches(_) => "InconsistentBranches"
-      | FailedCast(_) => "FailedCast"
-      | InvalidOperation(_) => "InvalidOperation"
       }
     | Triv => "Triv"
     | Var(_) => "BoundVar"
@@ -125,12 +134,12 @@ module rec DHExp: {
     ids: dexp.ids,
     term:
       switch (dexp.term) {
-      | Invalid(_) => failwith("strip_casts on Invalid")
+      | Error(Invalid(_)) => failwith("strip_casts on Invalid")
       | EmptyHole => failwith("strip_casts on EmptyHole")
       | MultiHole(_) => failwith("strip_casts on MultiHole")
       | Closure(ei, d) => Closure(ei, strip_casts(d))
       | Cast(d, _, _) => strip_casts(d).term
-      | Hole(_, FailedCast(d, _, _)) => strip_casts(d).term
+      | Error(FailedCast(d, _, _)) => strip_casts(d).term
       | Inj(ty, side, d) => Inj(ty, side, strip_casts(d))
       | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
       | Prj(d, n) => Prj(strip_casts(d), n)
@@ -172,15 +181,15 @@ module rec DHExp: {
       | Float(_) as d
       | String(_) as d
       | Tag(_) as d
-      | Hole(_, InvalidOperation(_)) as d => d
+      | Error(InvalidOperation(_)) as d => d
       },
   }
   and strip_casts_rule = ((a, d)) => (a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1.term, d2.term) {
-    | (Invalid(_), _)
-    | (_, Invalid(_)) => failwith("fast_equal on Invalid")
+    | (Error(Invalid(_)), _)
+    | (_, Error(Invalid(_))) => failwith("fast_equal on Invalid")
     | (EmptyHole, _)
     | (_, EmptyHole) => failwith("fast_equal on EmptyHole")
     | (MultiHole(_), _)
@@ -228,13 +237,13 @@ module rec DHExp: {
       ty1 == ty2 && side1 == side2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (
-        Hole(_, FailedCast(d1, ty11, ty21)),
-        Hole(_, FailedCast(d2, ty12, ty22)),
+        Error(FailedCast(d1, ty11, ty21)),
+        Error(FailedCast(d2, ty12, ty22)),
       ) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
     | (
-        Hole(_, InvalidOperation(reason1, d1)),
-        Hole(_, InvalidOperation(reason2, d2)),
+        Error(InvalidOperation(reason1, d1)),
+        Error(InvalidOperation(reason2, d2)),
       ) =>
       fast_equal(d1, d2) && reason1 == reason2
     | (Match(scrut1, rule1, i1), Match(scrut2, rule2, i2)) =>
@@ -258,8 +267,8 @@ module rec DHExp: {
     | (UnOp(_), _)
     | (Inj(_), _)
     | (Cast(_), _)
-    | (Hole(_, FailedCast(_)), _)
-    | (Hole(_, InvalidOperation(_)), _)
+    | (Error(FailedCast(_)), _)
+    | (Error(InvalidOperation(_)), _)
     | (Match(_), _) => false
 
     /* Hole forms: when checking environments, only check that

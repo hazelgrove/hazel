@@ -1,7 +1,7 @@
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2.term) {
-  | Invalid(_) => failwith("subst_var on Invalid")
+  | Error(Invalid(_)) => failwith("subst_var on Invalid")
   | EmptyHole => failwith("subst_var on EmptyHole")
   | MultiHole(_) => failwith("subst_var on MultiHole")
   | Var(y) =>
@@ -103,12 +103,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
     DHExp.{ids: d2.ids, term: Cast(d', ty1, ty2)};
-  | Hole(hi, FailedCast(d, ty1, ty2)) =>
+  | Error(FailedCast(d, ty1, ty2)) =>
     let d' = subst_var(d1, x, d);
-    DHExp.{ids: d2.ids, term: Hole(hi, FailedCast(d', ty1, ty2))};
-  | Hole(hi, InvalidOperation(err, d)) =>
+    DHExp.{ids: d2.ids, term: Error(FailedCast(d', ty1, ty2))};
+  | Error(InvalidOperation(err, d)) =>
     let d' = subst_var(d1, x, d);
-    DHExp.{ids: d2.ids, term: Hole(hi, InvalidOperation(err, d'))};
+    DHExp.{ids: d2.ids, term: Error(InvalidOperation(err, d'))};
   }
 
 and subst_var_rules =

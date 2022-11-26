@@ -70,7 +70,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       };
     let ids = uexp.ids;
     switch (uexp.term) {
-    | Invalid(_) /* NOTE: treating invalid as a hole for now */
+    | Error(Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some({ids, term: Hole((u, 0), Empty)})
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
@@ -102,6 +102,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       };
     | Closure(_) => None
     | Hole(_) => None
+    | Error(_) => None
     | Triv => wrap({ids, term: Tuple([])})
     | Bool(b) => wrap({ids, term: Bool(b)})
     | Int(n) => wrap({ids, term: Int(n)})
@@ -207,9 +208,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
       wrap({ids, term: cons(dc1, dc2)});
-    | Parens(e1) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      wrap({ids, term: Parens(d1)});
+    | Parens(e1) => dhexp_of_uexp(m, e1)
     | Seq(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);

@@ -86,7 +86,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Invalid
+    | Error
     | Closure
     | EmptyHole
     | MultiHole
@@ -118,7 +118,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Error(error)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
     | MultiHole(list(Any.t))
@@ -151,15 +151,17 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
+  and error =
+    | Invalid(parse_flag)
+    | FailedCast(t, Typ.t, Typ.t)
+    | InvalidOperation(InvalidOperationError.t, t)
   and hole =
     | Empty
     | NonEmpty(ErrStatus.HoleReason.t, t)
     | InvalidText(string)
-    | InvalidOperation(InvalidOperationError.t, t)
     | FreeVar(Token.t)
     | ExpandingKeyword(ExpandingKeyword.t)
     | InconsistentBranches(t, list((UPat.t, t)), int)
-    | FailedCast(t, Typ.t, Typ.t)
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -218,7 +220,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Invalid
+    | Error
     | Closure
     | EmptyHole
     | MultiHole
@@ -250,7 +252,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
+    | Error(error)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
     | MultiHole(list(Any.t))
@@ -283,15 +285,17 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
+  and error =
+    | Invalid(parse_flag)
+    | FailedCast(t, Typ.t, Typ.t)
+    | InvalidOperation(InvalidOperationError.t, t)
   and hole =
     | Empty
     | NonEmpty(ErrStatus.HoleReason.t, t)
     | InvalidText(string)
-    | InvalidOperation(InvalidOperationError.t, t)
     | FreeVar(Token.t)
     | ExpandingKeyword(ExpandingKeyword.t)
     | InconsistentBranches(t, list((UPat.t, t)), int)
-    | FailedCast(t, Typ.t, Typ.t)
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -323,6 +327,8 @@ and UPat: {
   and hole =
     | Empty
     | NonEmpty(ErrStatus.HoleReason.t, t)
+    | ExpandingKeyword(ExpandingKeyword.t)
+    | InvalidText(string)
   and t = {
     ids: list(Id.t),
     term,
@@ -352,6 +358,8 @@ and UPat: {
   and hole =
     | Empty
     | NonEmpty(ErrStatus.HoleReason.t, t)
+    | ExpandingKeyword(ExpandingKeyword.t)
+    | InvalidText(string)
   and t = {
     ids: list(Id.t),
     term,

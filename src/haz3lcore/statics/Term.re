@@ -355,7 +355,7 @@ module UExp = {
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
+    | Error(_) => Error
     | Closure(_) => Closure
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
@@ -437,7 +437,7 @@ module UExp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Expression"
+    | Error => "Errornous Expression"
     | Closure => "Expression Closure"
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
@@ -471,7 +471,7 @@ module UExp = {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
-    | Invalid(_)
+    | Error(_)
     | Closure(_)
     | EmptyHole
     | MultiHole(_)
@@ -507,7 +507,7 @@ module UExp = {
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
-      | Invalid(_)
+      | Error(_)
       | Closure(_)
       | EmptyHole
       | MultiHole(_)

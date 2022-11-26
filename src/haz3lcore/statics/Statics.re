@@ -296,7 +296,7 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(msg) => (
+  | Error(Invalid(msg)) => (
       Unknown(Internal),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
@@ -306,6 +306,7 @@ and uexp_to_info_map =
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
+  | Error(_)
   | Hole(_) => failwith("uexp_to_info_map Hole")
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))

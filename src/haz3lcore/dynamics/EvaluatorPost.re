@@ -55,7 +55,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     DHExp.{ids: d.ids, term} |> return;
   };
   switch (d.term) {
-  | Invalid(_) => failwith("pp_eval on Invalid")
+  | Error(Invalid(_)) => failwith("pp_eval on Invalid")
   | EmptyHole => failwith("pp_eval on EmptyHole")
   | MultiHole(_) => failwith("pp_eval on MultiHole")
   /* Non-hole expressions: recurse through subexpressions */
