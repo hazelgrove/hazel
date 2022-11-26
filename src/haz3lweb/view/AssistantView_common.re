@@ -1,14 +1,10 @@
 open Virtual_dom.Vdom;
-open Core;
-open Node;
-open Haz3lcore;
-
 /* // let article = (tag: TermSort.t): string =>
-//   switch (tag) {
-//   | Exp => "an"
-//   | Pat
-//   | Typ => "a"
-//   }; */
+   //   switch (tag) {
+   //   | Exp => "an"
+   //   | Pat
+   //   | Typ => "a"
+   //   }; */
 
 let text_shortcut_node = text =>
   Node.div(
@@ -16,7 +12,7 @@ let text_shortcut_node = text =>
     [Node.text(text)],
   );
 
-let kc_shortcut_node = (key_combo : KeyCombo.t) =>
+let kc_shortcut_node = (key_combo: KeyCombo.t) =>
   /* let sys = Os.is_mac^ ? Mac : PC; */
   switch (key_combo) {
   | Escape => text_shortcut_node("Esc")
@@ -55,14 +51,14 @@ let kc_shortcut_node = (key_combo : KeyCombo.t) =>
   | Ctrl_Shift_L => text_shortcut_node("Ctrl + Shift + L")
   | CtrlOrCmd_Z => text_shortcut_node("Ctrl/Cmd + Z")
   | CtrlOrCmd_Shift_Z => text_shortcut_node("Ctrl/Cmd + Shift + Z")
-  | Up => text_shortcut_node(Unicode.ArrowUp)
-  | Down => text_shortcut_node(Unicode.ArrowDown)
-  | Left => text_shortcut_node(Unicode.ArrowLeft)
-  | Right => text_shortcut_node(Unicode.ArrowRight)
+  | Up => text_shortcut_node("↑")
+  | Down => text_shortcut_node("↓")
+  | Left => text_shortcut_node("←")
+  | Right => text_shortcut_node("→")
   | Home => text_shortcut_node("Home")
   | End => text_shortcut_node("End")
-  | Alt_Up => text_shortcut_node("Alt + " + Unicode.ArrowUp)
-  | Alt_Down => text_shortcut_node("Alt + " + Unicode.ArrowDown)
-  | Alt_Left => text_shortcut_node("ALt + " + Unicode.ArrowLeft)
-  | Alt_Right => text_shortcut_node("ALt + " + Unicode.ArrowRight)
-  }
+  | Alt_Up => text_shortcut_node("Alt + ↑")
+  | Alt_Down => text_shortcut_node("Alt + ↓")
+  | Alt_Left => text_shortcut_node("ALt + ←")
+  | Alt_Right => text_shortcut_node("ALt + →")
+  };

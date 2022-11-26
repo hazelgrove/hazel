@@ -238,9 +238,9 @@ let type_driven = body =>
 
 let exp_hole_view =
     (
-      ~inject: Update.t => 'a,
-      cursor_inspector: Haz3lcore.Statics.t,
-      cursor_info: CursorInfo.t,
+      ~inject,
+      cursor_inspector: StrategyGuideModel.t,
+      cursor_info: Haz3lcore.Statics.t,
     ) => {
   let lit_open = cursor_inspector.strategy_guide_lit;
   let var_open = cursor_inspector.strategy_guide_var;
@@ -270,14 +270,19 @@ let exp_hole_view =
         Icons.left_arrow(["fill-arrow"]);
       };
     Node.div(
-      ~attr=Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
-      Attr.on_click(_ => {
-        Event.Many([
-          Event.Prevent_default,
-          Event.Stop_propagation,
-          inject(ModelAction.UpdateCursorInspector(toggle)),
-        ])
-      }),
+      ~attr=
+        Attr.many([
+          Attr.classes(["title-bar", "panel-title-bar", "fill-bar"]),
+          Attr.on_click(_ =>
+            Virtual_dom.Vdom.Effect.(
+              Many([
+                Prevent_default,
+                Stop_propagation,
+                inject(UpdateAction.UpdateStrategyGuide(toggle)),
+              ])
+            )
+          ),
+        ]),
       [Node.text(text), subsection_arrow],
     );
   };
@@ -316,7 +321,7 @@ let exp_hole_view =
         [Node.text("No variables of expected type in context")],
       );
     } else {
-      Node.div(~attr=Attr.classes(["options"], list_vars_view(var_ctx)));
+      Node.div(~attr=Attr.classes(["options"]), list_vars_view(var_ctx));
     };
   let var =
     subsection_header(

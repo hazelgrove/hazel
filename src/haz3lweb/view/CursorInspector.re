@@ -53,17 +53,40 @@ let error_view = (err: Haz3lcore.Statics.error) =>
     )
   };
 
-let happy_view = (suc: Haz3lcore.Statics.happy) => {
+let happy_view = (~inject, suc: Haz3lcore.Statics.happy) => {
+  let toggle_cursor_inspector_event = toggle =>
+    Virtual_dom.Vdom.Effect.(
+      Many([
+        Prevent_default,
+        Stop_propagation,
+        inject(UpdateAction.UpdateStrategyGuide(toggle)),
+      ])
+    );
+  let fill_icon =
+    Node.div(
+      ~attr=
+        Attr.many([
+          Attr.classes(["clickable-help"]),
+          Attr.create("title", "Click to toggle strategy guide"),
+          Attr.on_click(_ =>
+            toggle_cursor_inspector_event(
+              StrategyGuideModel.Toggle_strategy_guide,
+            )
+          ),
+        ]),
+      //fix unicode
+      [Node.text("💡")],
+    );
   switch (suc) {
   | SynConsistent(ty_syn) =>
     div(
       ~attr=clss([happyc, "syn-consistent"]),
-      [text("has type"), Type.view(ty_syn)],
+      [text("has type"), Type.view(ty_syn), fill_icon],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) when ty_ana == ty_syn =>
     div(
       ~attr=clss([happyc, "ana-consistent-equal"]),
-      [text("has expected type"), Type.view(ty_ana)],
+      [text("has expected type"), Type.view(ty_ana), fill_icon],
     )
   | AnaConsistent(ty_ana, ty_syn, _ty_join) =>
     div(
@@ -73,12 +96,14 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
       | Haz3lcore.Typ.Unknown(_) => [
           text("has expected type"),
           Type.view(ty_ana),
+          fill_icon,
         ]
       | _ => [
           text("has type"),
           Type.view(ty_syn),
           text("which is consistent with"),
           Type.view(ty_ana),
+          fill_icon,
         ]
       },
     )
@@ -92,15 +117,16 @@ let happy_view = (suc: Haz3lcore.Statics.happy) => {
           [text("⇐"), div(~attr=clss(["typ-mod"]), [text("☆")])],
         ),
         Type.view(ty_ana),
+        fill_icon,
       ],
     )
   };
 };
 
-let status_view = (err: Haz3lcore.Statics.error_status) => {
+let status_view = (~inject, err: Haz3lcore.Statics.error_status) => {
   switch (err) {
   | InHole(error) => error_view(error)
-  | NotInHole(happy) => happy_view(happy)
+  | NotInHole(happy) => happy_view(~inject, happy)
   };
 };
 
@@ -143,7 +169,7 @@ let view_of_info =
       ~attr=clss([infoc, "exp"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "exp"),
-        status_view(error_status),
+        status_view(~inject, error_status),
       ],
     );
   | InfoPat({mode, self, _}) =>
@@ -152,7 +178,7 @@ let view_of_info =
       ~attr=clss([infoc, "pat"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "pat"),
-        status_view(error_status),
+        status_view(~inject, error_status),
       ],
     );
   | InfoTyp({self: Free(free_error), _}) =>
@@ -215,7 +241,28 @@ let inspector_view =
       id: int,
       ci: Haz3lcore.Statics.t,
     )
-    : Node.t =>
+    : Node.t => {
+  let strategymodel: StrategyGuideModel.t = settings.strategy_guide;
+  let (show_strategy_guide_icon, strategy_guide) =
+    switch (ci, cursor_info.parent_info) {
+    | (ExpOperand(_, EmptyHole(_)), _) => (
+        true,
+        Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci)),
+      )
+    | (Rule(_), _)
+    | (ExpOperand(_, Case(_)), _)
+    | (_, AfterBranchClause) =>
+      switch (StrategyGuide.rules_view(cursor_info)) {
+      | None => (false, None)
+      | Some(sg_rules) => (true, Some(sg_rules))
+      }
+    | (Line(_, EmptyLine), _) => (
+        true,
+        Some(StrategyGuide.lines_view(true)),
+      )
+    | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
+    | _ => (false, None)
+    };
   div(
     ~attr=
       Attr.many([
@@ -229,47 +276,25 @@ let inspector_view =
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ~show_lang_doc, ci),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
+      strategymodel.strategy_guide ? strategy_guide : div([Node.text("")]),
     ],
   );
+};
 
 let view =
     (
       ~inject,
-      ~settings,
+      ~settings: Model.settings,
       ~show_lang_doc: bool,
       zipper: Haz3lcore.Zipper.t,
       info_map: Haz3lcore.Statics.map,
     ) => {
   let backpack = zipper.backpack;
-  
-  /* StrategyGuide */
-  let (show_strategy_guide_icon, strategy_guide) =
-      switch (cursor_info.cursor_term, cursor_info.parent_info) {
-      | (ExpOperand(_, EmptyHole(_)), _) => (
-          true,
-          Some(
-            StrategyGuide.exp_hole_view(~inject, cursor_inspector, cursor_info),
-          ),
-        )
-      | (Rule(_), _)
-      | (ExpOperand(_, Case(_)), _)
-      | (_, AfterBranchClause) =>
-        switch (StrategyGuide.rules_view(cursor_info)) {
-        | None => (false, None)
-        | Some(sg_rules) => (true, Some(sg_rules))
-        }
-      | (Line(_, EmptyLine), _) => (
-          true,
-          Some(StrategyGuide.lines_view(true)),
-        )
-      | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
-      | _ => (false, None)
-      };
+
   if (List.length(backpack) > 0) {
     div([]);
   } else {
     let index = Haz3lcore.Indicated.index(zipper);
-
     switch (index) {
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {

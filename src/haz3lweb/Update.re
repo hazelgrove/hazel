@@ -153,6 +153,7 @@ let reevaluate_post_update =
   | InitImportScratchpad(_)
   | FailedInput(_)
   | UpdateLangDocMessages(_) => false
+  | UpdateStrategyGuide(_)
   // may not be necessary on all of these
   // TODO review and prune
   | ResetCurrentEditor
@@ -382,6 +383,15 @@ let apply =
         LangDocMessages.set_update(model.langDocMessages, u);
       LocalStorage.LangDocMessages.save(langDocMessages);
       Ok({...model, langDocMessages});
+    | UpdateStrategyGuide(u) =>
+      Ok({
+        ...model,
+        settings: {
+          ...model.settings,
+          strategy_guide:
+            StrategyGuideModel.apply_update(u, model.settings.strategy_guide),
+        },
+      })
     | UpdateResult(key, res) =>
       /* If error, print a message. */
       switch (res) {

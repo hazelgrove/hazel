@@ -2,6 +2,14 @@ open Virtual_dom.Vdom;
 
 let icon_size = 20.;
 
+let arrow = (classes, string) =>
+  Node.div(~attr=Attr.classes(classes), [Node.text(string)]);
+
+let down_arrow = (classes: list(string)): Node.t => arrow(classes, "▼");
+
+let left_arrow = (classes: list(string)): Node.t => arrow(classes, "◀");
+let right_arrow = (classes: list(string)): Node.t => arrow(classes, "▶");
+
 let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
   /* takes a list of paths as strings, a viewport as a string,
      and an optional (string) transform to apply to each */

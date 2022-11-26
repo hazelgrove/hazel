@@ -14,6 +14,7 @@ type settings = {
   instructor_mode: bool,
   benchmark: bool,
   mode: Editors.mode,
+  strategy_guide: StrategyGuideModel.t,
 };
 
 let settings_init = {
@@ -26,6 +27,7 @@ let settings_init = {
   instructor_mode: SchoolSettings.show_instructor,
   benchmark: false,
   mode: Editors.Scratch,
+  strategy_guide: StrategyGuideModel.init,
 };
 
 let fix_instructor_mode = settings =>
