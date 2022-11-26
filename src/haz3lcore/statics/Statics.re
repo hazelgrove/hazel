@@ -380,9 +380,10 @@ and uexp_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
   | ListLit(_, _) => failwith("uexp_to_info_map ListLit(_, _))")
-  | Test(test) =>
+  | Test(test, None) =>
     let (_, free_test, m1) = go(~mode=Ana(Bool), test);
     add(~self=Just(Prod([])), ~free=free_test, m1);
+  | Test(_, Some(_)) => failwith("uexp_to_info_map Test(_, Some(_))")
   | If(cond, e1, e2) =>
     let (_, free_e0, m1) = go(~mode=Ana(Bool), cond);
     let (ty_e1, free_e1, m2) = go(~mode, e1);
@@ -499,14 +500,15 @@ and upat_to_info_map =
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~ctx, union_m(maps));
   | EmptyHole
+  | Hole(_) => failwith("upat_to_info_map on Hole")
   | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
-  | ListLit([]) => atomic(Just(List(Unknown(Internal))))
-  | ListLit(ps) =>
+  | ListLit([], None) => atomic(Just(List(Unknown(Internal))))
+  | ListLit(ps, None) =>
     let modes = Typ.matched_list_lit_mode(mode, List.length(ps));
     let p_ids = List.map(Term.UPat.rep_id, ps);
     let (ctx, infos) =
@@ -534,6 +536,8 @@ and upat_to_info_map =
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self), ctx, m);
+  | ListLit(_, Some(_)) =>
+    failwith("upat_to_info_map on ListLit(_, Some(_))")
   | Cons(hd, tl) =>
     let mode_elem = Typ.matched_list_mode(mode);
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);

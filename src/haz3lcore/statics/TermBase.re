@@ -142,7 +142,7 @@ and UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(t)
+    | Test(t, option(KeywordID.t))
     | Parens(t) // (
     | Cons(t, t)
     | Prj(t, int)
@@ -274,7 +274,7 @@ and UExp: {
     | Ap(t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(t)
+    | Test(t, option(KeywordID.t))
     | Parens(t) // (
     | Cons(t, t)
     | Prj(t, int)
@@ -304,13 +304,14 @@ and UPat: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
+    | Hole(HoleInstance.t, hole)
     | Wild
     | Int(int)
     | Float(float)
     | Bool(bool)
     | String(string)
     | Triv
-    | ListLit(list(t))
+    | ListLit(list(t), option(Typ.t))
     | Tag(string)
     | Cons(t, t)
     | Inj(InjSide.t, t)
@@ -319,6 +320,9 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+  and hole =
+    | Empty
+    | NonEmpty(ErrStatus.HoleReason.t, t)
   and t = {
     ids: list(Id.t),
     term,
@@ -329,13 +333,14 @@ and UPat: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
+    | Hole(HoleInstance.t, hole)
     | Wild
     | Int(int)
     | Float(float)
     | Bool(bool)
     | String(string)
     | Triv
-    | ListLit(list(t))
+    | ListLit(list(t), option(Typ.t))
     | Tag(string)
     | Cons(t, t)
     | Inj(InjSide.t, t)
@@ -344,6 +349,9 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+  and hole =
+    | Empty
+    | NonEmpty(ErrStatus.HoleReason.t, t)
   and t = {
     ids: list(Id.t),
     term,

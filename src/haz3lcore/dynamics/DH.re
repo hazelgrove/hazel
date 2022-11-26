@@ -21,6 +21,8 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+
+  let mk: (list(int), term) => t;
 } = {
   include Term.UExp;
 
@@ -311,6 +313,8 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let mk = (ids: list(int), term: term): t => {ids, term};
 }
 
 and Environment: {

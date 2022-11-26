@@ -143,8 +143,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
 
   | Hole(hi, InvalidOperation(reason, d')) =>
     let* d'' = pp_eval(d');
-    Hole(hi, InvalidOperation(reason, d''))
-    |> ret_d_ids;
+    Hole(hi, InvalidOperation(reason, d'')) |> ret_d_ids;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | Var(_)
@@ -197,26 +196,13 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     | Hole((u, _), NonEmpty(reason, d)) =>
       let* d = pp_eval(d);
       let* i = hii_add_instance(u, env);
-      Closure(
-        env,
-        {
-          ids: d.ids,
-          term: Hole((u, i), NonEmpty(reason, d)),
-        },
-      )
+      Closure(env, {ids: d.ids, term: Hole((u, i), NonEmpty(reason, d))})
       |> ret_d_ids;
 
-    | Hole(
-        (u, _),
-        InconsistentBranches(scrut, rules, case_i),
-      ) =>
+    | Hole((u, _), InconsistentBranches(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      Hole(
-        (u, i),
-        InconsistentBranches(scrut, rules, case_i),
-      )
-      |> ret_d_ids;
+      Hole((u, i), InconsistentBranches(scrut, rules, case_i)) |> ret_d_ids;
 
     | Hole(_, Empty)
     | Hole(_, ExpandingKeyword(_))
@@ -377,8 +363,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
 
   | Hole(ui, InvalidOperation(reason, d')) =>
     let* d'' = pp_uneval(env, d');
-    Hole(ui, InvalidOperation(reason, d''))
-    |> ret_d_ids;
+    Hole(ui, InvalidOperation(reason, d'')) |> ret_d_ids;
 
   | If(_, _, _) => failwith("pp_uneval If, should be Match")
 
@@ -397,55 +382,30 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
      */
   | Hole((u, _), Empty) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), Empty)})
-    |> ret_d_ids;
+    Closure(env, {ids: d.ids, term: Hole((u, i), Empty)}) |> ret_d_ids;
 
   | Hole((u, _), NonEmpty(reason, d')) =>
     let* d' = pp_uneval(env, d');
     let* i = hii_add_instance(u, env);
-    Closure(
-      env,
-      {
-        ids: d.ids,
-        term: Hole((u, i), NonEmpty(reason, d')),
-      },
-    )
+    Closure(env, {ids: d.ids, term: Hole((u, i), NonEmpty(reason, d'))})
     |> ret_d_ids;
 
   | Hole((u, _), ExpandingKeyword(kw)) =>
     let* i = hii_add_instance(u, env);
-    Closure(
-      env,
-      {
-        ids: d.ids,
-        term: Hole((u, i), ExpandingKeyword(kw)),
-      },
-    )
+    Closure(env, {ids: d.ids, term: Hole((u, i), ExpandingKeyword(kw))})
     |> ret_d_ids;
 
   | Hole((u, _), FreeVar(x)) =>
     let* i = hii_add_instance(u, env);
-    Closure(
-      env,
-      {ids: d.ids, term: Hole((u, i), FreeVar(x))},
-    )
+    Closure(env, {ids: d.ids, term: Hole((u, i), FreeVar(x))})
     |> ret_d_ids;
 
   | Hole((u, _), InvalidText(text)) =>
     let* i = hii_add_instance(u, env);
-    Closure(
-      env,
-      {
-        ids: d.ids,
-        term: Hole((u, i), InvalidText(text)),
-      },
-    )
+    Closure(env, {ids: d.ids, term: Hole((u, i), InvalidText(text))})
     |> ret_d_ids;
 
-  | Hole(
-      (u, _),
-      InconsistentBranches(scrut, rules, case_i),
-    ) =>
+  | Hole((u, _), InconsistentBranches(scrut, rules, case_i)) =>
     let* scrut = pp_uneval(env, scrut);
     let* rules = pp_uneval_rules(env, rules);
     let* i = hii_add_instance(u, env);
@@ -453,11 +413,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
       env,
       {
         ids: d.ids,
-        term:
-          Hole(
-            (u, i),
-            InconsistentBranches(scrut, rules, case_i),
-          ),
+        term: Hole((u, i), InconsistentBranches(scrut, rules, case_i)),
       },
     )
     |> ret_d_ids;
@@ -535,7 +491,7 @@ let rec track_children_of_hole =
     )
 
   | If(_, _, _) =>
-    failwith("track_children_of_hole on If, should be on Match");
+    failwith("track_children_of_hole on If, should be on Match")
   | Match(scrut, rules, _) =>
     let hii = track_children_of_hole(hii, parent, scrut);
     track_children_of_hole_rules(hii, parent, rules);

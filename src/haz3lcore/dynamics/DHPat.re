@@ -37,6 +37,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
+  | Hole(_)
   | Wild
   | Int(_)
   | Float(_)
@@ -49,7 +50,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Inj(_, dp1) => binds_var(x, dp1)
   | Tuple(dps) => dps |> List.exists(binds_var(x))
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
-  | ListLit(d_list) =>
+  | ListLit(d_list, _) =>
     let new_list = List.map(binds_var(x), d_list);
     List.fold_left((||), false, new_list);
   | Ap(_, _) => false

@@ -103,6 +103,7 @@ module UPat = {
     | Invalid
     | EmptyHole
     | MultiHole
+    | Hole
     | Wild
     | Int
     | Float
@@ -137,6 +138,7 @@ module UPat = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | Hole(_) => Hole
     | Wild => Wild
     | Int(_) => Int
     | Float(_) => Float
@@ -158,6 +160,7 @@ module UPat = {
     | Invalid => "Invalid Pattern"
     | EmptyHole => "Empty Pattern Hole"
     | MultiHole => "Multi Pattern Hole"
+    | Hole => "Elaborated Pattern Hole"
     | Wild => "Wildcard Pattern"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -182,6 +185,7 @@ module UPat = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Hole(_)
     | Wild
     | Int(_)
     | Float(_)
@@ -204,6 +208,7 @@ module UPat = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Hole(_)
     | Wild
     | Int(_)
     | Float(_)
@@ -229,6 +234,7 @@ module UPat = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
+      | Hole(_)
       | Wild
       | Int(_)
       | Float(_)
@@ -253,6 +259,7 @@ module UPat = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Hole(_)
     | Wild
     | Int(_)
     | Float(_)
@@ -280,6 +287,7 @@ module UPat = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Hole(_)
     | Wild
     | Int(_)
     | Float(_)
@@ -312,6 +320,7 @@ module UPat = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
+      | Hole(_)
       | Wild
       | Int(_)
       | Float(_)

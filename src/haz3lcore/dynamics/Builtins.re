@@ -37,9 +37,9 @@ module Pervasives = {
     /* int_of_float implementation. */
     let int_of_float = (name, r1) =>
       switch (r1) {
-      | BoxedValue(FloatLit(f)) =>
+      | BoxedValue({ids, term: Float(f)}) =>
         let i = int_of_float(f);
-        BoxedValue(IntLit(i)) |> return;
+        BoxedValue({ids, term: Int(i)}) |> return;
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
@@ -48,9 +48,9 @@ module Pervasives = {
     /* float_of_int implementation. */
     let float_of_int = (name, r1) =>
       switch (r1) {
-      | BoxedValue(IntLit(i)) =>
+      | BoxedValue({ids, term: Int(i)}) =>
         let f = float_of_int(i);
-        BoxedValue(FloatLit(f)) |> return;
+        BoxedValue({ids, term: Float(f)}) |> return;
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
@@ -59,12 +59,17 @@ module Pervasives = {
     /* mod implementation */
     let int_mod = (name, r1) =>
       switch (r1) {
-      | BoxedValue(Tuple([IntLit(n), IntLit(m)]) as d1) =>
+      | BoxedValue(
+          {ids, term: Tuple([{term: Int(n), _}, {term: Int(m), _}])} as d1,
+        ) =>
         switch (m) {
         | 0 =>
-          Indet(InvalidOperation(ApBuiltin(name, [d1]), DivideByZero))
+          Indet({
+            ids,
+            term: InvalidOperation(ApBuiltin(name, [d1]), DivideByZero),
+          })
           |> return
-        | _ => return(BoxedValue(IntLit(n mod m)))
+        | _ => return(BoxedValue(Int(n mod m)))
         }
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
@@ -72,7 +77,7 @@ module Pervasives = {
       };
 
     /* PI implementation. */
-    let pi = DHExp.FloatLit(Float.pi);
+    let pi = DHExp.{ids: [], term: Float(Float.pi)};
   };
 
   let pi = name => Builtin.mk_zero(name, Float, Impls.pi);
