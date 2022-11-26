@@ -355,6 +355,7 @@ module UExp = {
 
   let cls_of_term: term => cls =
     fun
+    | Invalid(_) => Invalid
     | Error(_) => Error
     | Closure(_) => Closure
     | EmptyHole => EmptyHole
@@ -373,6 +374,7 @@ module UExp = {
     | Var(_) => Var
     | Let(_) => Let
     | Ap(_) => Ap
+    | ApBuiltin(_) => ApBuiltin
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -437,6 +439,7 @@ module UExp = {
 
   let show_cls: cls => string =
     fun
+    | Invalid => "Invalid Expression"
     | Error => "Errornous Expression"
     | Closure => "Expression Closure"
     | EmptyHole => "Empty Expression Hole"
@@ -455,6 +458,7 @@ module UExp = {
     | Var => "Variable Reference"
     | Let => "Let Expression"
     | Ap => "Function/Contructor Application"
+    | ApBuiltin => "Builtin Function Application"
     | If => "If Expression"
     | Seq => "Sequence Expression"
     | Test => "Test (Effectful)"
@@ -471,6 +475,7 @@ module UExp = {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
+    | Invalid(_)
     | Error(_)
     | Closure(_)
     | EmptyHole
@@ -487,6 +492,7 @@ module UExp = {
     | Var(_)
     | Let(_)
     | Ap(_)
+    | ApBuiltin(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -507,6 +513,7 @@ module UExp = {
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
+      | Invalid(_)
       | Error(_)
       | Closure(_)
       | EmptyHole
@@ -523,6 +530,7 @@ module UExp = {
       | Let(_)
       | FixF(_)
       | Ap(_)
+      | ApBuiltin(_)
       | If(_)
       | Seq(_)
       | Test(_)

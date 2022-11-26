@@ -196,7 +196,10 @@ let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => [Node.text("No result available.")]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
+    | Some({
+        eval_result: {term: Hole((0, 0), InvalidText("EXCEPTION")), _},
+        _,
+      }) => [
         Node.text("No result available (exception)."),
       ]
     | Some({eval_result, _}) => [

@@ -8,7 +8,7 @@ let elaborate = (map, term): DHExp.t =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release
     //raise(DoesNotElaborate)
-    InvalidText(0, 0, "EXCEPTION");
+    {ids: [], term: Hole((0, 0), InvalidText("EXCEPTION"))};
   | Elaborates(d, _, _) => d
   };
 
@@ -71,14 +71,14 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
     //raise(EvalError(reason))
     print_endline("Interface.evaluate EXCEPTION");
     (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
+      Indet({ids: [], term: Hole((0, 0), InvalidText("EXCEPTION"))}),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
   | exception _ =>
     print_endline("Other evaluation exception raised (stack overflow?)");
     (
-      Indet(InvalidText(0, 0, "EXCEPTION")),
+      Indet({ids: [], term: Hole((0, 0), InvalidText("EXCEPTION"))}),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );

@@ -55,7 +55,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     DHExp.{ids: d.ids, term} |> return;
   };
   switch (d.term) {
-  | Error(Invalid(_)) => failwith("pp_eval on Invalid")
+  | Invalid(_) => failwith("pp_eval on Invalid")
   | EmptyHole => failwith("pp_eval on EmptyHole")
   | MultiHole(_) => failwith("pp_eval on MultiHole")
   /* Non-hole expressions: recurse through subexpressions */
@@ -77,9 +77,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> ret_d_ids;
 
-  // | ApBuiltin(f, args) =>
-  //   let* args' = args |> List.map(pp_eval) |> sequence;
-  //   ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, args) =>
+    let* args' = args |> List.map(pp_eval) |> sequence;
+    ApBuiltin(f, args') |> ret_d_ids;
 
   | Parens(d1) =>
     let* d1' = pp_eval(d1);
@@ -137,13 +137,13 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     let* d'' = pp_eval(d');
     Cast(d'', ty1, ty2) |> ret_d_ids;
 
-  | Hole(hi, FailedCast(d', ty1, ty2)) =>
+  | Error(FailedCast(d', ty1, ty2)) =>
     let* d'' = pp_eval(d');
-    Hole(hi, FailedCast(d'', ty1, ty2)) |> ret_d_ids;
+    Error(FailedCast(d'', ty1, ty2)) |> ret_d_ids;
 
-  | Hole(hi, InvalidOperation(reason, d')) =>
+  | Error(InvalidOperation(reason, d')) =>
     let* d'' = pp_eval(d');
-    Hole(hi, InvalidOperation(reason, d'')) |> ret_d_ids;
+    Error(InvalidOperation(reason, d'')) |> ret_d_ids;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | Var(_)
@@ -297,9 +297,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> ret_d_ids;
 
-  // | ApBuiltin(f, args) =>
-  //   let* args' = args |> List.map(pp_uneval(env)) |> sequence;
-  //   ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, args) =>
+    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
+    ApBuiltin(f, args') |> ret_d_ids;
 
   | Parens(d1) =>
     let* d1' = pp_uneval(env, d1);
@@ -357,13 +357,13 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
     let* d'' = pp_uneval(env, d');
     Cast(d'', ty1, ty2) |> ret_d_ids;
 
-  | Hole(ui, FailedCast(d', ty1, ty2)) =>
+  | Error(FailedCast(d', ty1, ty2)) =>
     let* d'' = pp_uneval(env, d');
-    Hole(ui, FailedCast(d'', ty1, ty2)) |> ret_d_ids;
+    Error(FailedCast(d'', ty1, ty2)) |> ret_d_ids;
 
-  | Hole(ui, InvalidOperation(reason, d')) =>
+  | Error(InvalidOperation(reason, d')) =>
     let* d'' = pp_uneval(env, d');
-    Hole(ui, InvalidOperation(reason, d'')) |> ret_d_ids;
+    Error(InvalidOperation(reason, d'')) |> ret_d_ids;
 
   | If(_, _, _) => failwith("pp_uneval If, should be Match")
 
@@ -464,10 +464,8 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | Parens(d)
   | UnOp(_, d)
-  | Hole(_, FailedCast(d, _, _))
-  // | FailedCast(d, _, _)
-  | Hole(_, InvalidOperation(_, d)) =>
-    track_children_of_hole(hii, parent, d)
+  | Error(FailedCast(d, _, _))
+  | Error(InvalidOperation(_, d)) => track_children_of_hole(hii, parent, d)
   | Seq(d1, d2)
   | Let(_, d1, d2)
   | Ap(d1, d2)
@@ -496,12 +494,12 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole(hii, parent, scrut);
     track_children_of_hole_rules(hii, parent, rules);
 
-  // | ApBuiltin(_, args) =>
-  //   List.fold_right(
-  //     (arg, hii) => track_children_of_hole(hii, parent, arg),
-  //     args,
-  //     hii,
-  //   )
+  | ApBuiltin(_, args) =>
+    List.fold_right(
+      (arg, hii) => track_children_of_hole(hii, parent, arg),
+      args,
+      hii,
+    )
 
   /* Hole types */
   | Hole((u, i), NonEmpty(_, d)) =>

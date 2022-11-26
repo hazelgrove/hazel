@@ -1,7 +1,7 @@
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2.term) {
-  | Error(Invalid(_)) => failwith("subst_var on Invalid")
+  | Invalid(_) => failwith("subst_var on Invalid")
   | EmptyHole => failwith("subst_var on EmptyHole")
   | MultiHole(_) => failwith("subst_var on MultiHole")
   | Var(y) =>
@@ -51,9 +51,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     DHExp.{ids: d2.ids, term: Ap(d3, d4)};
-  // | ApBuiltin(ident, args) =>
-  //   let args = List.map(subst_var(d1, x), args);
-  //   DHExp.{ids: d2.ids, term: ApBuiltin(ident, args)};
+  | ApBuiltin(ident, args) =>
+    let args = List.map(subst_var(d1, x), args);
+    DHExp.{ids: d2.ids, term: ApBuiltin(ident, args)};
   | Triv
   | Test(_)
   | Bool(_)

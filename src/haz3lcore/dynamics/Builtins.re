@@ -42,7 +42,8 @@ module Pervasives = {
         BoxedValue({ids, term: Int(i)}) |> return;
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      | Indet(d1) =>
+        Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}) |> return
       };
 
     /* float_of_int implementation. */
@@ -53,7 +54,8 @@ module Pervasives = {
         BoxedValue({ids, term: Float(f)}) |> return;
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
-      | Indet(d1) => Indet(ApBuiltin(name, [d1])) |> return
+      | Indet(d1) =>
+        Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}) |> return
       };
 
     /* mod implementation */
@@ -66,14 +68,21 @@ module Pervasives = {
         | 0 =>
           Indet({
             ids,
-            term: InvalidOperation(ApBuiltin(name, [d1]), DivideByZero),
+            term:
+              Error(
+                InvalidOperation(
+                  DivideByZero,
+                  {ids, term: ApBuiltin(name, [d1])},
+                ),
+              ),
           })
           |> return
-        | _ => return(BoxedValue(Int(n mod m)))
+        | _ => return(BoxedValue({ids, term: Int(n mod m)}))
         }
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
-      | Indet(d1) => return(Indet(ApBuiltin(name, [d1])))
+      | Indet(d1) =>
+        return(Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}))
       };
 
     /* PI implementation. */

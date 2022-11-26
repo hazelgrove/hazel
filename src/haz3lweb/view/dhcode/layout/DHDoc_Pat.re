@@ -2,19 +2,22 @@ open Pretty;
 open Haz3lcore;
 
 let precedence = (dp: DHPat.t) =>
-  switch (dp) {
-  | EmptyHole(_)
-  | NonEmptyHole(_)
+  switch (dp.term) {
+  | Invalid(_) => failwith("precedence on Invalid")
+  | Parens(_) => failwith("precedence on Parens")
+  | EmptyHole
+  | MultiHole(_)
+  | Hole(_)
   | Wild
-  | ExpandingKeyword(_)
-  | InvalidText(_)
   | Var(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | StringLit(_)
+  | Triv
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
   | Inj(_)
   | ListLit(_)
+  | TypeAnn(_)
   | Tag(_) => DHDoc_common.precedence_const
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Cons(_) => DHDoc_common.precedence_Cons
@@ -33,32 +36,39 @@ let rec mk =
     mk'(~parenthesize=precedence(dp2) > precedence_op, dp2),
   );
   let doc =
-    switch (dp) {
-    | EmptyHole(u, i) => DHDoc_common.mk_EmptyHole((u, i))
-    | NonEmptyHole(reason, u, i, dp) =>
+    switch (dp.term) {
+    | Invalid(_)
+    | EmptyHole
+    | Parens(_)
+    | TypeAnn(_)
+    | MultiHole(_) => failwith("mk on UPat")
+    | Hole((u, i), Empty) => DHDoc_common.mk_EmptyHole((u, i))
+    | Hole((u, i), NonEmpty(reason, dp)) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | ExpandingKeyword(u, i, k) =>
+    | Hole((u, i), ExpandingKeyword(k)) =>
       DHDoc_common.mk_ExpandingKeyword((u, i), k)
-    | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+    | Hole((u, i), InvalidText(t)) =>
+      DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
     | Tag(name) => DHDoc_common.mk_TagLit(name)
-    | IntLit(n) => DHDoc_common.mk_IntLit(n)
-    | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-    | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | StringLit(s) => DHDoc_common.mk_StringLit(s)
+    | Int(n) => DHDoc_common.mk_IntLit(n)
+    | Float(f) => DHDoc_common.mk_FloatLit(f)
+    | Bool(b) => DHDoc_common.mk_BoolLit(b)
+    | String(s) => DHDoc_common.mk_StringLit(s)
     | Inj(inj_side, dp) =>
       DHDoc_common.mk_Inj(
         inj_side,
         mk(dp) |> DHDoc_common.pad_child(~enforce_inline),
       )
-    | ListLit(_, d_list) =>
+    | ListLit(d_list, _) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
     | Cons(dp1, dp2) =>
       let (doc1, doc2) =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
+    | Triv
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     | Ap(dp1, dp2) =>

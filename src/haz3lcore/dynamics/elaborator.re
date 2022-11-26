@@ -70,7 +70,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       };
     let ids = uexp.ids;
     switch (uexp.term) {
-    | Error(Invalid(_)) /* NOTE: treating invalid as a hole for now */
+    | Invalid(_) /* NOTE: treating invalid as a hole for now */
     | EmptyHole => Some({ids, term: Hole((u, 0), Empty)})
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
@@ -198,7 +198,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d = dhexp_of_uexp(m, e);
       let ty = Statics.exp_self_typ(m, e);
       let dc = DHExp.cast(d, ty, Int);
-      wrap({ids, term: UnOp(Int(Minus), dc)});
+      wrap({ids, term: BinOp(Int(Minus), {ids: [], term: Int(0)}, dc)});
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);
@@ -305,6 +305,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap({ids, term: Ap(c_fn, c_arg)});
+    | ApBuiltin(_) => failwith("dhexp_of_uexp on ApBuiltin")
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);

@@ -136,7 +136,7 @@ let view_of_hole_instance =
     ~font_metrics,
     ~width,
     ~pos,
-    DHExp.EmptyHole(u, i),
+    {ids: [], term: DHExp.Hole((u, i), Empty)},
   );
 
 let view_of_var = x => Node.text(x);

@@ -57,7 +57,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp.term, d.term) {
   /* Impossible to touch UExp and UPat */
-  | (_, Error(Invalid(_)))
+  | (_, Invalid(_))
   | (_, EmptyHole)
   | (_, MultiHole(_))
   | (_, Triv)
@@ -234,7 +234,7 @@ and matches_cast_Inj =
     )
     : match_result =>
   switch (d.term) {
-  | Error(Invalid(_))
+  | Invalid(_)
   | EmptyHole
   | MultiHole(_)
   | Triv
@@ -285,7 +285,7 @@ and matches_cast_Inj =
   | Closure(_, {term: Fun(_), _}) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
-  // | ApBuiltin(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinOp(_, _, _)
   | UnOp(_, _)
   | Bool(_) => DoesNotMatch
@@ -314,7 +314,7 @@ and matches_cast_Tuple =
     )
     : match_result =>
   switch (d.term) {
-  | Error(Invalid(_))
+  | Invalid(_)
   | EmptyHole
   | MultiHole(_)
   | Triv
@@ -364,7 +364,7 @@ and matches_cast_Tuple =
   | Closure(_, {term: Fun(_), _}) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
-  // | ApBuiltin(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinOp(_, _, _)
   | UnOp(_, _)
   | Bool(_) => DoesNotMatch
@@ -388,7 +388,7 @@ and matches_cast_Tuple =
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
   switch (d.term) {
-  | Error(Invalid(_))
+  | Invalid(_)
   | EmptyHole
   | MultiHole(_)
   | Triv
@@ -505,7 +505,7 @@ and matches_cast_Cons =
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
-  // | ApBuiltin(_, _) => IndetMatch
+  | ApBuiltin(_, _) => IndetMatch
   | BinOp(_, _, _)
   | UnOp(_, _)
   | Bool(_) => DoesNotMatch
@@ -597,7 +597,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     let ids = d.ids;
 
     switch (d.term) {
-    | Error(Invalid(_))
+    | Invalid(_)
     | EmptyHole
     | MultiHole(_)
     | Triv
@@ -713,7 +713,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         };
       };
 
-    // | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
+    | ApBuiltin(ident, args) => evaluate_ap_builtin(env, ident, args)
 
     | Test(d, Some(id)) => evaluate_test(env, id, d)
     | Test(_, None) => failwith("evaluate on Test(_, None), not elaborated")

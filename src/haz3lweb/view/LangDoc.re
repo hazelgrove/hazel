@@ -562,7 +562,7 @@ let get_doc =
             (term: TermBase.UExp.term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
-      | Error(Invalid(_)) => default
+      | Invalid(_) => default
       | Error(_) => failwith("get_doc UExp.Error other than Invalid")
       | Closure(_) => failwith("get_doc UExp.Closure")
       | EmptyHole =>
@@ -693,6 +693,7 @@ let get_doc =
         };
         let pat = bypass_parens_and_annot_pat(pat);
         switch (pat.term) {
+        | Hole(_) => failwith("get_doc on UPat.Hole(_)")
         | EmptyHole =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -907,7 +908,7 @@ let get_doc =
           } else {
             basic(doc, LangDocMessages.function_triv_group, options);
           };
-        | ListLit(elements) =>
+        | ListLit(elements, _) =>
           if (List.length(elements) == 0) {
             let (doc, options) =
               LangDocMessages.get_form_and_options(
@@ -1302,6 +1303,7 @@ let get_doc =
         };
         let pat = bypass_parens_and_annot_pat(pat);
         switch (pat.term) {
+        | Hole(_) => failwith("get_doc on UPat.Hole(_)")
         | EmptyHole =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1572,7 +1574,7 @@ let get_doc =
               options,
             );
           };
-        | ListLit(elements) =>
+        | ListLit(elements, None) =>
           if (List.length(elements) == 0) {
             let (doc, options) =
               LangDocMessages.get_form_and_options(
@@ -1634,6 +1636,7 @@ let get_doc =
               basic(doc, LangDocMessages.let_listlit_exp_group, options);
             };
           }
+        | ListLit(_, Some(_)) => failwith("get_doc on ListLit(_, Some(_))")
         | Cons(hd, tl) =>
           let (doc, options) =
             LangDocMessages.get_form_and_options(
@@ -1863,6 +1866,7 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | ApBuiltin(_) => failwith("get_doc on ApBuiltin(_)")
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
@@ -1953,7 +1957,7 @@ let get_doc =
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
-      | Test(body) =>
+      | Test(body, None) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.test_group,
@@ -1970,6 +1974,7 @@ let get_doc =
           ),
           LangDocMessages.test_exp_coloring_ids(~body_id),
         );
+      | Test(_, Some(_)) => failwith("get_doc on Test(_, Some(_))")
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let (doc, options) =
@@ -2161,6 +2166,7 @@ let get_doc =
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
     switch (bypass_parens_pat(term).term) {
+    | Hole(_) => failwith("get_doc on UPat.Hole(_)")
     | EmptyHole =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2281,7 +2287,7 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    | ListLit(elements) =>
+    | ListLit(elements, _) =>
       if (List.length(elements) == 0) {
         let (doc, options) =
           LangDocMessages.get_form_and_options(

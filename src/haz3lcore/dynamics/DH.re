@@ -53,9 +53,9 @@ module rec DHExp: {
 
   let constructor_string = (d: t): string =>
     switch (d.term) {
+    | Invalid(_) => "Invalid"
     | Error(e) =>
       switch (e) {
-      | Invalid(_) => "Invalid"
       | InvalidOperation(_) => "InvalidOperation"
       | FailedCast(_) => "FailedCast"
       }
@@ -78,6 +78,7 @@ module rec DHExp: {
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | ApBuiltin(_, _) => "ApBuiltin"
     | If(_, _, _) =>
       failwith("constructor_string If, should elaborated to Match")
     | Parens(_) => "Parens"
@@ -134,7 +135,7 @@ module rec DHExp: {
     ids: dexp.ids,
     term:
       switch (dexp.term) {
-      | Error(Invalid(_)) => failwith("strip_casts on Invalid")
+      | Invalid(_) => failwith("strip_casts on Invalid")
       | EmptyHole => failwith("strip_casts on EmptyHole")
       | MultiHole(_) => failwith("strip_casts on MultiHole")
       | Closure(ei, d) => Closure(ei, strip_casts(d))
@@ -153,7 +154,7 @@ module rec DHExp: {
       | FixF(a, b, c) => FixF(a, b, strip_casts(c))
       | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
       | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
-      // | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
+      | ApBuiltin(fn, args) => ApBuiltin(fn, List.map(strip_casts, args))
       | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c))
       | UnOp(a, b) => UnOp(a, strip_casts(b))
       | If(_, _, _) =>
@@ -188,8 +189,8 @@ module rec DHExp: {
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1.term, d2.term) {
-    | (Error(Invalid(_)), _)
-    | (_, Error(Invalid(_))) => failwith("fast_equal on Invalid")
+    | (Invalid(_), _)
+    | (_, Invalid(_)) => failwith("fast_equal on Invalid")
     | (EmptyHole, _)
     | (_, EmptyHole) => failwith("fast_equal on EmptyHole")
     | (MultiHole(_), _)
@@ -225,8 +226,8 @@ module rec DHExp: {
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
-    // | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-    //   f1 == f2 && List.for_all2(fast_equal, args1, args2)
+    | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
+      f1 == f2 && List.for_all2(fast_equal, args1, args2)
     | (ListLit(ds1, _), ListLit(ds2, _)) =>
       List.for_all2(fast_equal, ds1, ds2)
     | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>
@@ -257,7 +258,7 @@ module rec DHExp: {
     | (FixF(_), _)
     | (Fun(_), _)
     | (Ap(_), _)
-    // | (ApBuiltin(_), _)
+    | (ApBuiltin(_), _)
     | (Parens(_), _)
     | (Cons(_), _)
     | (ListLit(_), _)

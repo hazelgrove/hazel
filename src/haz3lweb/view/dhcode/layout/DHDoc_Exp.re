@@ -22,59 +22,66 @@ let precedence_bin_int_op = (bio: DHExp.BinIntOp.t) =>
   };
 let precedence_bin_float_op = (bfo: DHExp.BinFloatOp.t) =>
   switch (bfo) {
-  | FTimes => DHDoc_common.precedence_Times
-  | FPower => DHDoc_common.precedence_Power
-  | FDivide => DHDoc_common.precedence_Divide
-  | FPlus => DHDoc_common.precedence_Plus
-  | FMinus => DHDoc_common.precedence_Minus
-  | FEquals => DHDoc_common.precedence_Equals
-  | FLessThan => DHDoc_common.precedence_LessThan
-  | FLessThanOrEqual => DHDoc_common.precedence_LessThan
-  | FGreaterThan => DHDoc_common.precedence_GreaterThan
-  | FGreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
+  | Times => DHDoc_common.precedence_Times
+  | Power => DHDoc_common.precedence_Power
+  | Divide => DHDoc_common.precedence_Divide
+  | Plus => DHDoc_common.precedence_Plus
+  | Minus => DHDoc_common.precedence_Minus
+  | Equals => DHDoc_common.precedence_Equals
+  | LessThan => DHDoc_common.precedence_LessThan
+  | LessThanOrEqual => DHDoc_common.precedence_LessThan
+  | GreaterThan => DHDoc_common.precedence_GreaterThan
+  | GreaterThanOrEqual => DHDoc_common.precedence_GreaterThan
   };
 let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
   switch (bso) {
-  | SEquals => DHDoc_common.precedence_Equals
+  | Equals => DHDoc_common.precedence_Equals
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
-  switch (d) {
-  | BoundVar(_)
-  | FreeVar(_)
-  | InvalidText(_)
-  | ExpandingKeyword(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | Sequence(_)
-  | TestLit(_)
-  | FloatLit(_)
-  | StringLit(_)
+  switch (d.term) {
+  | Invalid(_)
+  | EmptyHole
+  | If(_)
+  | Parens(_)
+  | UnOp(_)
+  | MultiHole(_) => failwith("precedence on UExp")
+  | Var(_)
+  | Hole(_, FreeVar(_))
+  | Hole(_, InvalidText(_))
+  | Hole(_, ExpandingKeyword(_))
+  | Bool(_)
+  | Int(_)
+  | Seq(_)
+  | Test(_)
+  | Float(_)
+  | String(_)
   | ListLit(_)
   | Inj(_)
   | Prj(_)
-  | EmptyHole(_)
+  | Hole(_, Empty)
   | Tag(_)
-  | FailedCast(_)
-  | InvalidOperation(_)
+  | Error(FailedCast(_))
+  | Error(InvalidOperation(_))
   | Fun(_)
   | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max
-  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
-  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
-  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
+  | Match(_)
+  | Hole(_, InconsistentBranches(_)) => DHDoc_common.precedence_max
+  | BinOp(Bool(op), _, _) => precedence_bin_bool_op(op)
+  | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
+  | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
+  | BinOp(String(op), _, _) => precedence_bin_string_op(op)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
+  | Triv
   | Tuple(_) => DHDoc_common.precedence_Comma
 
-  | NonEmptyHole(_, _, _, d) => precedence'(d)
+  | Hole(_, NonEmpty(_, d)) => precedence'(d)
   };
 };
 
@@ -105,23 +112,23 @@ let mk_bin_int_op = (op: DHExp.BinIntOp.t): DHDoc.t =>
 let mk_bin_float_op = (op: DHExp.BinFloatOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
-    | FMinus => "-."
-    | FPlus => "+."
-    | FTimes => "*."
-    | FPower => "**."
-    | FDivide => "/."
-    | FLessThan => "<."
-    | FLessThanOrEqual => "<=."
-    | FGreaterThan => ">."
-    | FGreaterThanOrEqual => ">=."
-    | FEquals => "==."
+    | Minus => "-."
+    | Plus => "+."
+    | Times => "*."
+    | Power => "**."
+    | Divide => "/."
+    | LessThan => "<."
+    | LessThanOrEqual => "<=."
+    | GreaterThan => ">."
+    | GreaterThanOrEqual => ">=."
+    | Equals => "==."
     },
   );
 
 let mk_bin_string_op = (op: DHExp.BinStringOp.t): DHDoc.t =>
   Doc.text(
     switch (op) {
-    | SEquals => "$=="
+    | Equals => "$=="
     },
   );
 
@@ -184,30 +191,38 @@ let rec mk =
     );
     let cast =
       switch (d) {
-      | Cast(_, _, ty) => Some(ty)
+      | {term: Cast(_, _, ty), _} => Some(ty)
       | _ => None
       };
     let fdoc = (~enforce_inline) =>
-      switch (d) {
+      switch (d.term) {
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | If(_)
+      | UnOp(_)
+      | Parens(_) => failwith("DHDoc_Exp.mk on UExp")
       /* A closure may only exist around hole expressions in
          the postprocessed result */
       | Closure(_, d') =>
-        switch (d') {
-        | EmptyHole(u, i) =>
+        switch (d'.term) {
+        | Hole((u, i), Empty) =>
           let selected =
             switch (selected_hole_instance) {
             | None => false
             | Some((u', i')) => u == u' && i == i'
             };
           DHDoc_common.mk_EmptyHole(~selected, (u, i));
-        | NonEmptyHole(reason, u, i, d') =>
+        | Hole((u, i), NonEmpty(reason, d')) =>
           go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-        | ExpandingKeyword(u, i, k) =>
+        | Hole((u, i), ExpandingKeyword(k)) =>
           DHDoc_common.mk_ExpandingKeyword((u, i), k)
-        | FreeVar(u, i, x) =>
+        | Hole((u, i), FreeVar(x)) =>
           text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-        | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
-        | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
+        | Hole((u, i), InvalidText(t)) =>
+          DHDoc_common.mk_InvalidText(t, (u, i))
+        | Hole((u, i), InconsistentBranches(dscrut, drs, _)) =>
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
         | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
@@ -215,31 +230,32 @@ let rec mk =
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */
-      | EmptyHole(_)
-      | NonEmptyHole(_)
-      | ExpandingKeyword(_)
-      | FreeVar(_)
-      | InvalidText(_)
-      | InconsistentBranches(_) =>
+      | Hole(_, Empty)
+      | Hole(_, NonEmpty(_))
+      | Hole(_, ExpandingKeyword(_))
+      | Hole(_, FreeVar(_))
+      | Hole(_, InvalidText(_))
+      | Hole(_, InconsistentBranches(_)) =>
         raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
 
-      | BoundVar(x) => text(x)
+      | Var(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
-      | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | IntLit(n) => DHDoc_common.mk_IntLit(n)
-      | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | TestLit(_) => Doc.text(ExpandingKeyword.to_string(Test))
-      | Sequence(d1, d2) =>
+      | Bool(b) => DHDoc_common.mk_BoolLit(b)
+      | Int(n) => DHDoc_common.mk_IntLit(n)
+      | Float(f) => DHDoc_common.mk_FloatLit(f)
+      | String(s) => DHDoc_common.mk_StringLit(s)
+      | Test(_) => Doc.text(ExpandingKeyword.to_string(Test))
+      | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(mk_cast(doc1), mk_cast(doc2));
-      | ListLit(_, _, StandardErrStatus(_), _, d_list) =>
+      | ListLit(d_list, Some((_, _, StandardErrStatus(_), _))) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol);
-      | ListLit(u, i, InconsistentBranches(_, _), _, d_list) =>
+      | ListLit(d_list, Some((u, i, InconsistentBranches(_, _), _))) =>
         let ol = d_list |> List.map(go') |> List.map(mk_cast);
         DHDoc_common.mk_ListLit(ol)
         |> annot(DHAnnot.InconsistentBranches((u, i)));
+      | ListLit(_, None) => failwith("DHDoc_Exp.mk on ListLit(_, None")
       | Inj(_, inj_side, d) =>
         let child = (~enforce_inline) => mk_cast(go(~enforce_inline, d));
         DHDoc_common.mk_Inj(
@@ -253,27 +269,33 @@ let rec mk =
       | ApBuiltin(ident, args) =>
         switch (args) {
         | [hd, ...tl] =>
-          let d' = List.fold_left((d1, d2) => DHExp.Ap(d1, d2), hd, tl);
+          let d' =
+            List.fold_left(
+              (d1: DHExp.t, d2: DHExp.t) =>
+                {ids: d1.ids @ d2.ids, term: DHExp.Ap(d1, d2)},
+              hd,
+              tl,
+            );
           let (doc1, doc2) =
             mk_left_associative_operands(
               DHDoc_common.precedence_Ap,
-              BoundVar(ident),
+              {ids: d'.ids, term: Var(ident)},
               d',
             );
           DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | [] => text(ident)
         }
-      | BinIntOp(op, d1, d2) =>
+      | BinOp(Int(op), d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_int_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
-      | BinFloatOp(op, d1, d2) =>
+      | BinOp(Float(op), d1, d2) =>
         // TODO assumes all bin float ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_float_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
-      | BinStringOp(op, d1, d2) =>
+      | BinOp(String(op), d1, d2) =>
         // TODO assumes all bin string ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_string_op(op), d1, d2);
@@ -282,7 +304,7 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
         DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
-      | BinBoolOp(op, d1, d2) =>
+      | BinOp(Bool(op), d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
@@ -290,7 +312,7 @@ let rec mk =
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+      | Match(dscrut, drs, _) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
         doc;
@@ -315,7 +337,8 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
+      | Error(FailedCast({term: Cast(d, ty1, ty2), _}, ty2', ty3))
+          when Typ.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
           hcats([
@@ -329,9 +352,9 @@ let rec mk =
           ])
           |> annot(DHAnnot.FailedCastDecoration);
         hcats([d_doc, cast_decoration]);
-      | FailedCast(_d, _ty1, _ty2) =>
+      | Error(FailedCast(_d, _ty1, _ty2)) =>
         failwith("unexpected FailedCast without inner cast")
-      | InvalidOperation(d, err) =>
+      | Error(InvalidOperation(err, d)) =>
         let (d_doc, _) = go'(d);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
@@ -366,7 +389,8 @@ let rec mk =
        };
        */
 
-      | Fun(dp, ty, dbody, s) =>
+      | Fun(_, None, _, _) => failwith("DHDoc_Exp.mk on UExp")
+      | Fun(dp, Some(ty), dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>
             mk_cast(go(~enforce_inline, dbody));
@@ -422,8 +446,7 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
 and mk_rule =
-    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
-    : DHDoc.t => {
+    (~settings, ~selected_hole_instance, (dp, dclause): DHExp.rule): DHDoc.t => {
   open Doc;
   let mk' = mk(~settings, ~selected_hole_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));

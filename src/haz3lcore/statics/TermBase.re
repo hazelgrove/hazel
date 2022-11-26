@@ -86,6 +86,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
+    | Invalid
     | Error
     | Closure
     | EmptyHole
@@ -104,6 +105,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | ApBuiltin
     | If
     | Seq
     | Test
@@ -118,6 +120,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Invalid(parse_flag)
     | Error(error)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
@@ -140,6 +143,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
+    | ApBuiltin(string, list(t))
     | If(t, t, t)
     | Seq(t, t)
     | Test(t, option(KeywordID.t))
@@ -152,7 +156,6 @@ and UExp: {
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
   and error =
-    | Invalid(parse_flag)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(InvalidOperationError.t, t)
   and hole =
@@ -220,6 +223,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
+    | Invalid
     | Error
     | Closure
     | EmptyHole
@@ -238,6 +242,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | ApBuiltin
     | If
     | Seq
     | Test
@@ -252,6 +257,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Invalid(parse_flag)
     | Error(error)
     | Closure(ClosureEnvironment.t, t)
     | EmptyHole
@@ -274,6 +280,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     // Let_pat(UPat.t, t)
     | Ap(t, t)
+    | ApBuiltin(string, list(t))
     | If(t, t, t)
     | Seq(t, t)
     | Test(t, option(KeywordID.t))
@@ -286,7 +293,6 @@ and UExp: {
     | Match(t, list((UPat.t, t)), int)
     | Cast(t, Typ.t, Typ.t)
   and error =
-    | Invalid(parse_flag)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(InvalidOperationError.t, t)
   and hole =

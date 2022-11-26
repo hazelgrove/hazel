@@ -296,7 +296,7 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Error(Invalid(msg)) => (
+  | Invalid(msg) => (
       Unknown(Internal),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
@@ -421,6 +421,7 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
     );
+  | ApBuiltin(_) => failwith("uexp_to_info_map ApBuiltin")
   | FixF(_) => failwith("uexp_to_info_map FixF")
   | Fun(pat, None, body, None) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
