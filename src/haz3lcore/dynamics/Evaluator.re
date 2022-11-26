@@ -526,6 +526,11 @@ and matches_cast_Cons =
   | Error(InvalidOperation(_)) => IndetMatch
   };
 
+let eval_un_int_op = (op: DHExp.UnIntOp.t, n: int): DHExp.term =>
+  switch (op) {
+  | Minus => Int(-n);
+  };
+
 /**
   [eval_bin_bool_op op b1 b2] is the result of applying [op] to [b1] and [b2].
  */
@@ -724,7 +729,18 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | String(_)
     | Tag(_) => BoxedValue(d) |> return
 
-    | UnOp(_) => failwith("evaluate on UnOp, not elaborated")
+    | UnOp(Int(op), d1) =>
+      let* r1 = evaluate(env, d1);
+      switch (r1) {
+      | BoxedValue({term: Int(n1), _}) =>
+        BoxedValue({ids, term: eval_un_int_op(op, n1)}) |> return;
+      | BoxedValue(d1') =>
+        print_endline("InvalidBoxedIntLit");
+        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
+      | Indet(d1') =>
+        Indet({ids, term: UnOp(Int(op), d1')}) |> return;
+      }
+
     | BinOp(Bool(op), d1, d2) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {

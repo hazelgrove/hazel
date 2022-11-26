@@ -194,11 +194,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       wrap({ids, term: Cons(dc1, dc2)});
     | Prj(_) => None
     | Inj(_) => None
-    | UnOp(Int(Minus), e) =>
+    | UnOp(op, e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = Statics.exp_self_typ(m, e);
       let dc = DHExp.cast(d, ty, Int);
-      wrap({ids, term: BinOp(Int(Minus), {ids: [], term: Int(0)}, dc)});
+      wrap({ids, term: UnOp(op, dc)});
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
       let* d1 = dhexp_of_uexp(m, e1);

@@ -1,5 +1,10 @@
 module rec DHExp: {
   include (module type of Term.UExp);
+
+  module UnOp: {type t = op_un;};
+
+  module UnIntOp: {type t = op_un_int;};
+
   module BinBoolOp: {type t = op_bin_bool;};
 
   module BinIntOp: {type t = op_bin_int;};
@@ -27,6 +32,14 @@ module rec DHExp: {
   let mk: (list(int), term) => t;
 } = {
   include Term.UExp;
+
+  module UnOp = {
+    type t = op_un;
+  };
+
+  module UnIntOp = {
+    type t = op_un_int;
+  };
 
   module BinBoolOp = {
     type t = op_bin_bool;
