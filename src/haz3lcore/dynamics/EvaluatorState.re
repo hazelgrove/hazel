@@ -24,7 +24,7 @@ let take_step = ({stats, _} as es) => {
 };
 
 let get_step = ({stats, _}) => stats |> EvaluatorStats.get_step;
-let time_out = ({stats, _}) => stats |> EvaluatorStats.get_step > 500;
+let time_out = ({stats, _}) => stats |> EvaluatorStats.get_step > 2000;
 
 let add_test = ({tests, _} as es, id, report) => {
   let tests = tests |> TestMap.extend((id, report));
