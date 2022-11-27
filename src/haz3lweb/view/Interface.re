@@ -66,6 +66,13 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
+  | exception (EvaluatorError.Exception(OutOfFuel)) =>
+    print_endline("Interface.evaluate EXCEPTION");
+    (
+      Indet(InvalidText(0, 0, "OutOfFuel")),
+      EvaluatorState.init,
+      HoleInstanceInfo.empty,
+    );
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))

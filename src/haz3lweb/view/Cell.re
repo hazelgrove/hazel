@@ -196,6 +196,9 @@ let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
   let d_view =
     switch (simple) {
     | None => [Node.text("No result available.")]
+    | Some({eval_result: InvalidText(0, 0, "OutOfFuel"), _}) => [
+        Node.text("No result available (Recursion Limit Exceeded)."),
+      ]
     | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
         Node.text("No result available (exception)."),
       ]
