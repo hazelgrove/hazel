@@ -107,7 +107,7 @@ let expect_opt = (err_msg, opt) => {
   switch (opt) {
   | Some(x) => x
   | None =>
-    Printf.printf("Cannot unwrap option. Message: %s", err_msg);
+    Printf.printf("Cannot unwrap option. Message: %s\n", err_msg);
     raise(Not_found);
   };
 };
@@ -1562,7 +1562,7 @@ let pipeline_exp: form = {
   };
   {
     id: "pipeline_exp",
-    syntactic_form: [_exp_arg, space(), pipeline(), space(), _exp_arg],
+    syntactic_form: [_exp_arg, space(), pipeline(), space(), _exp_fun],
     expandable_id: None,
     explanation,
     examples: [pipeline_exp_ex],
