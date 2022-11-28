@@ -114,8 +114,9 @@ let is_string_delim = str => str == string_delim;
    approach to invalid text.*/
 let is_whitelisted_char = regexp("[!@]");
 
-/* A. Secondary: */
-let secondary = [Secondary.space, Secondary.linebreak];
+/* A. Secondary Notation (Comments, Whitespace, etc.)
+   This list is for non-comments: */
+let secondary_without_comments = [Secondary.space, Secondary.linebreak];
 
 /* B. Operands:
    Order in this list determines relative remolding
@@ -236,9 +237,11 @@ let atomic_molds: Token.t => list(Mold.t) =
 
 let is_atomic = t => atomic_molds(t) != [];
 let is_secondary = t =>
-  List.mem(t, secondary) || Re.Str.string_match(Secondary.comment, t, 0);
+  List.mem(t, secondary_without_comments)
+  || Re.Str.string_match(Secondary.comment, t, 0);
 
-let is_comment = t => Re.Str.string_match(Secondary.comment, t, 0);
+let is_comment = t =>
+  Re.Str.string_match(Secondary.comment, t, 0) || t == "#";
 let is_comment_delim = t => t == "#";
 
 let is_delim = t => List.mem(t, delims);
@@ -246,7 +249,10 @@ let is_delim = t => List.mem(t, delims);
 let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 
 let is_valid_char = t =>
-  is_valid_token(t) || is_string_delim(t) || is_whitelisted_char(t); //TODO(andrew): betterify this
+  is_valid_token(t)
+  || is_string_delim(t)
+  || is_comment_delim(t)
+  || is_whitelisted_char(t); //TODO(andrew): betterify this
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
