@@ -10,7 +10,7 @@ and secondary_content =
 
 let space = " ";
 let linebreak = "⏎"; //alternative: "¶"
-let comment = Re.Str.regexp("^#[^#]*#?$");
+let comment = Re.Str.regexp("^#[^#]*#$");
 
 let mk_space = id => {content: Whitespace(space), id};
 
