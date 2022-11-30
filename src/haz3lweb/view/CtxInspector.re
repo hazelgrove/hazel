@@ -10,7 +10,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
         Attr.on_click(_ =>
           inject(
             UpdateAction.PerformAction(
-              JumpToId(Haz3lcore.Ctx.get_id(entry)),
+              Jump(TileId(Haz3lcore.Ctx.get_id(entry))),
             ),
           )
         ),
