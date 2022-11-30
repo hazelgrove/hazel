@@ -86,7 +86,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         // placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
-    | Undefined => Some(DHExp.EmptyHole(u, 0))
+    | Undefined => Some(DHExp.Undefined)
     | Triv => wrap(Tuple([]))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))
