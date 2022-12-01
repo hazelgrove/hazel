@@ -1559,7 +1559,7 @@ let pipeline_exp_coloring_ids =
 ];
 let pipeline_exp: form = {
   let explanation = {
-    message: "HELLO!!!!!. Apply the [*function*](%i) to the [*argument*](%i).",
+    message: "Pipeline operator. Pass the [*argument*](%i) to the [*function*](%i).",
     feedback: Unselected,
   };
   {
