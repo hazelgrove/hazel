@@ -470,7 +470,7 @@ and uexp_to_info_map =
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (x, ty_body) = Typ.matched_forall(ty_fn);
-    let ty = Term.utyp_to_ty(utyp);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
     add(~self=Just(Typ.subst(ty_body, x, ty)), ~free=free_fn, m_fn);
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);

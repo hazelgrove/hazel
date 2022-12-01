@@ -117,7 +117,6 @@ and Kind: {
     | Rec(x, ty) => Rec(x, normalize(ctx, ty))
     | Sum(t1, t2) => Sum(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(t => normalize(ctx, t), ts))
-    | Rec(_) => typ // TODO (typfun)
     | Forall(_) => typ // TODO (typfun)
     };
   };
