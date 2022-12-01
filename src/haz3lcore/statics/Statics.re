@@ -484,7 +484,7 @@ and uexp_to_info_map =
       union_m([m_pat, m_body]),
     );
   | TypFun(tpat, body) =>
-    let (_x, mode_body) = Typ.matched_forall_mode(mode);
+    let mode_body = Typ.matched_forall_mode(mode);
     let m_pat = utpat_to_info_map(~ctx, tpat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx, ~mode=mode_body, body);

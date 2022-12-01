@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -33,6 +34,7 @@ module rec Ctx: {
   type co = VarMap.t_(co_entry);
 
   let lookup_tvar: (t, Token.t) => option(Kind.t);
+  let lookup_tvar_idx: (t, Token.t) => option(int);
   let is_tvar: (t, Token.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -73,6 +75,18 @@ module rec Ctx: {
       | _ => None,
       ctx,
     );
+
+  let lookup_tvar_idx = (ctx: t, t: Token.t) =>
+    ListUtil.findi_opt(
+      entry => {
+        switch (entry) {
+        | TVarEntry({name, _}) when Token.compare(name, t) == 0 => true
+        | _ => false
+        }
+      },
+      ctx,
+    )
+    |> Option.map(((idx, _)) => idx);
 
   let is_tvar = (ctx: t, name: Token.t) =>
     switch (

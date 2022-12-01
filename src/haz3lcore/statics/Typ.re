@@ -10,6 +10,12 @@ type type_provenance =
   | TypeHole
   | Internal;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type ann('item) = {
+  item: 'item,
+  ann: string,
+};
+
 /* TYP.T: Hazel types */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -18,14 +24,14 @@ type t =
   | Float
   | Bool
   | String
-  | Var(string)
+  | Var(ann(int))
   | List(t)
   | Arrow(t, t)
   | LabelSum(list(tagged))
   | Sum(t, t) // unused
   | Prod(list(t))
-  | Rec(Token.t, t)
-  | Forall(Token.t, t)
+  | Rec(ann(t))
+  | Forall(ann(t))
 and tagged = {
   tag: Token.t,
   typ: t,
@@ -104,11 +110,11 @@ let matched_arrow: t => (t, t) =
   | Unknown(prov) => (Unknown(prov), Unknown(prov))
   | _ => (Unknown(Internal), Unknown(Internal));
 
-let matched_forall: t => (Token.t, t) =
+let matched_forall: t => ann(t) =
   fun
-  | Forall(x, ty) => (x, ty)
-  | Unknown(prov) => ("a", Unknown(prov))
-  | _ => ("a", Unknown(Internal));
+  | Forall(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), ann: "a"}
+  | _ => {item: Unknown(Internal), ann: "a"};
 
 let matched_arrow_mode: mode => (mode, mode) =
   fun
@@ -118,12 +124,12 @@ let matched_arrow_mode: mode => (mode, mode) =
       (Ana(ty_in), Ana(ty_out));
     };
 
-let matched_forall_mode: mode => (Token.t, mode) =
+let matched_forall_mode: mode => mode =
   fun
-  | Syn => ("a", Syn)
+  | Syn => Syn
   | Ana(ty) => {
-      let (x, ty_out) = matched_forall(ty);
-      (x, Ana(ty_out));
+      let ann = matched_forall(ty);
+      Ana(ann.item);
     };
 
 let matched_prod_mode = (mode: mode, length): list(mode) =>
@@ -171,7 +177,7 @@ let precedence = (ty: t): int =>
   | LabelSum(_)
   | List(_) => precedence_const
   | Prod(_)
-  | Forall(_, _) => precedence_Prod
+  | Forall(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
