@@ -18,9 +18,21 @@ type t =
 type equivalence = (t, t)
 and constraints = list(equivalence);
 
+// HACK:
+//    Currently, synswitches can be converted to internals in the
+//    matched arrow inf function to prevent overriding Ana(tau) with
+//    Syn. As a result, to ensure results associated with the same id
+//    still chart to the same eq class, we convert all synswitches to
+//    internals here... not ideal but oh well...
+let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
+  fun
+  | SynSwitch(u) => Internal(u)
+  | Inference(mprov, prov) => Inference(mprov, prov_to_iprov(prov))
+  | _ as prov => prov;
+
 let rec typ_to_ityp: Typ.t => t =
   fun
-  | Unknown(prov) => Unknown(prov)
+  | Unknown(prov) => Unknown(prov_to_iprov(prov))
   | Int => Int
   | Float => Float
   | Bool => Bool

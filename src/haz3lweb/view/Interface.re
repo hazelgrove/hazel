@@ -66,10 +66,18 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
   | (es, Indet(d)) =>
     let ((d, hii), es) = postprocess(es, d);
     (Indet(d), es, hii);
-  | exception (EvaluatorError.Exception(_reason)) =>
+  | exception (EvaluatorError.Exception(reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
-    print_endline("Interface.evaluate EXCEPTION");
+    print_endline(
+      String.concat(
+        " ",
+        [
+          "Interface.evaluate EXCEPTION",
+          reason |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string,
+        ],
+      ),
+    );
     (
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,

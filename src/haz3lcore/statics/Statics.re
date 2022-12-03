@@ -364,23 +364,53 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
   | Var(name) =>
+    print_endline("In var");
+
+    if (name == "x") {
+      print_endline("Var x");
+      print_endline(mode |> Typ.sexp_of_mode |> Sexplib.Sexp.to_string);
+    };
+
     switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
     | Some(typ) =>
+      //DEBUG
+      print_endline(
+        String.concat(
+          " ",
+          [
+            "Constraint from var",
+            subsumption_constraints(mode, typ)
+            |> Typ.sexp_of_constraints
+            |> Sexplib.Sexp.to_string,
+            "where the participants are",
+            name,
+            "with mode",
+            mode |> Typ.sexp_of_mode |> Sexplib.Sexp.to_string,
+          ],
+        ),
+      );
+      //DEBUG
+
       add(
         ~self=Just(typ),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
         subsumption_constraints(mode, typ),
-      )
-    }
+      );
+    };
   | Parens(e) =>
     let (ty, free, m, constraints) = go(~mode, e);
     add(~self=Just(ty), ~free, m, constraints);
   | UnOp(op, e) =>
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (_, free, m, constraints) = go(~mode=Ana(ty_in), e);
-    add(~self=Just(ty_out), ~free, m, constraints);
+    add(
+      ~self=Just(ty_out),
+      ~free,
+      m,
+      subsumption_constraints(mode, ty_out) @ constraints,
+    );
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (_, free1, m1, constraints1) = go(~mode=Ana(ty1), e1);
@@ -392,14 +422,15 @@ and uexp_to_info_map =
       subsumption_constraints(mode, ty_out) @ constraints1 @ constraints2,
     );
   | Tuple(es) =>
-    let modes = Typ.matched_prod_mode(mode, List.length(es));
+    let (modes, constraints1) =
+      Typ.matched_prod_mode(mode, List.length(es));
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let free = Ctx.union(List.map(((_, f, _, _)) => f, infos));
     let final_typ = Typ.Prod(List.map(((ty, _, _, _)) => ty, infos));
     let self = Typ.Just(final_typ);
     let m = union_m(List.map(((_, _, m, _)) => m, infos));
-    let constraints = List.map(((_, _, _, c)) => c, infos) |> List.flatten;
-    add(~self, ~free, m, constraints);
+    let constraints2 = List.map(((_, _, _, c)) => c, infos) |> List.flatten;
+    add(~self, ~free, m, constraints1 @ constraints2);
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
     | None => atomic(Free(Tag))
@@ -473,24 +504,81 @@ and uexp_to_info_map =
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn, constraints1) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    // if something is wrong with the usage of the fun pos uexp in matched arrow,
+    // then we should use the id of that uexp if making a new hole
     let ((ty_in, ty_out), match_constraints) =
-      Typ.matched_arrow_inf(ty_fn, Term.UExp.rep_id(uexp));
+      Typ.matched_arrow_inf(ty_fn, Term.UExp.rep_id(fn));
+
+    print_endline(
+      String.concat(
+        " ",
+        [
+          "CALLING ARG ANA WITH TYPE",
+          ty_in |> Typ.sexp_of_t |> Sexplib.Sexp.to_string,
+          "AND ARG",
+          arg |> Term.UExp.sexp_of_t |> Sexplib.Sexp.to_string,
+        ],
+      ),
+    );
+
     let (_, free_arg, m_arg, constraints2) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+
+    //DEBUG
+    print_endline(
+      String.concat(
+        " ",
+        [
+          "Constraint from ap",
+          match_constraints
+          @ constraints1
+          @ constraints2
+          @ subsumption_constraints(mode, ty_out)
+          |> Typ.sexp_of_constraints
+          |> Sexplib.Sexp.to_string,
+          "where the participants are function",
+          fn |> Term.UExp.sexp_of_t |> Sexplib.Sexp.to_string,
+          "and argument",
+          arg |> Term.UExp.sexp_of_t |> Sexplib.Sexp.to_string,
+        ],
+      ),
+    );
+    //DEBUG
+
     add(
       ~self=Just(ty_out),
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
-      match_constraints @ constraints1 @ constraints2,
+      match_constraints
+      @ constraints1
+      @ constraints2
+      @ subsumption_constraints(mode, ty_out),
     );
   | Fun(pat, body) =>
     let ((mode_pat, mode_body), match_constraints) =
-      Typ.matched_arrow_mode(mode, Term.UExp.rep_id(uexp));
+      Typ.matched_arrow_mode(mode, Term.UPat.rep_id(pat));
     let (ty_pat, ctx_pat, m_pat, constraints1) =
       upat_to_info_map(~mode=mode_pat, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body, constraints2) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
+
+    //DEBUG
+    print_endline(
+      String.concat(
+        " ",
+        [
+          "Constraint from fun",
+          match_constraints
+          @ constraints1
+          @ constraints2
+          |> Typ.sexp_of_constraints
+          |> Sexplib.Sexp.to_string,
+        ],
+      ),
+    );
+    //DEBUG
+
     add(
       ~self=Just(Arrow(ty_pat, ty_body)),
       ~free=Ctx.subtract_typ(ctx_pat, free_body),
@@ -654,7 +742,7 @@ and upat_to_info_map =
       matched_constraints @ ps_constraints,
     );
   | Cons(hd, tl) =>
-    let (mode_elem, _constraints) =
+    let (mode_elem, match_constraints) =
       Typ.matched_list_mode(mode, Term.UPat.rep_id(upat));
     let (ty, ctx, m_hd, constraints1) =
       upat_to_info_map(~ctx, ~mode=mode_elem, hd);
@@ -664,7 +752,7 @@ and upat_to_info_map =
       ~self=Just(List(ty)),
       ~ctx,
       union_m([m_hd, m_tl]),
-      constraints1 @ constraints2,
+      match_constraints @ constraints1 @ constraints2,
     );
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
@@ -682,7 +770,8 @@ and upat_to_info_map =
       subsumption_constraints(mode, typ),
     );
   | Tuple(ps) =>
-    let modes = Typ.matched_prod_mode(mode, List.length(ps));
+    let (modes, constraints_prod) =
+      Typ.matched_prod_mode(mode, List.length(ps));
     let (ctx, infos) =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
@@ -697,7 +786,7 @@ and upat_to_info_map =
     let m = union_m(List.map(((_, _, m, _)) => m, infos));
     let ps_constraints =
       List.map(((_, _, _, c)) => c, infos) |> List.flatten;
-    add(~self, ~ctx, m, ps_constraints);
+    add(~self, ~ctx, m, constraints_prod @ ps_constraints);
   | Parens(p) =>
     let (ty, ctx, m, constraints) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m, constraints);
@@ -707,14 +796,17 @@ and upat_to_info_map =
     let (ty_fn, ctx, m_fn, constraints1) =
       upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let ((ty_in, ty_out), match_constraints) =
-      Typ.matched_arrow_inf(ty_fn, Term.UPat.rep_id(upat));
+      Typ.matched_arrow_inf(ty_fn, Term.UPat.rep_id(fn));
     let (_, ctx, m_arg, constraints2) =
       upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
       ~self=Just(ty_out),
       ~ctx,
       union_m([m_fn, m_arg]),
-      match_constraints @ constraints1 @ constraints2,
+      match_constraints
+      @ constraints1
+      @ constraints2
+      @ subsumption_constraints(mode, ty_out),
     );
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
@@ -773,16 +865,19 @@ let mk_map =
         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
       print_endline("constraints:\n");
       print_endline(
-        Sexplib.Sexp.to_string_hum(
+        Sexplib.Sexp.to_string(
           ITyp.sexp_of_constraints(constraints |> ITyp.to_ityp_constraints),
         ),
       );
       print_endline("\n\nresults:\n");
-      print_endline(
-        InferenceResult.list_of_t_to_string(
-          Inference.unify_and_report_status(constraints),
-        ),
-      );
+      // print_endline(
+      //   InferenceResult.list_of_t_to_string(
+      //     Inference.unify_and_report_status(constraints),
+      //   ),
+      // );
+      constraints
+      |> Inference.unify_and_report_status
+      |> InferenceResult.print_statuses;
       map;
     },
   );

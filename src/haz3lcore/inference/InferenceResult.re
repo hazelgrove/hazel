@@ -8,21 +8,25 @@ let status_to_string: status => string =
   fun
   | Solved(ityp) =>
     String.concat(
-      "Solved: ",
-      [ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum],
+      " ",
+      ["Solved: ", ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum],
     )
   | Unsolved(eqClass) =>
     String.concat(
-      "Unsolved: ",
-      [eqClass |> EqClass.sexp_of_t |> Sexplib.Sexp.to_string_hum],
+      " ",
+      [
+        "Unsolved: ",
+        eqClass |> EqClass.sexp_of_t |> Sexplib.Sexp.to_string_hum,
+      ],
     );
 
 let t_to_string = ((ityp, status)) => {
   String.concat(
-    "{For hole ",
+    " ",
     [
+      "{For hole",
       ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum,
-      ", result is ",
+      "result is",
       status_to_string(status),
       "}\n",
     ],
@@ -31,9 +35,16 @@ let t_to_string = ((ityp, status)) => {
 
 let list_of_t_to_string = (statuses: list(t)): string => {
   let acc_str = (acc: string, elt: t) => {
-    String.concat(acc, ["\n", t_to_string(elt)]);
+    String.concat(" ", [acc, "\n", t_to_string(elt)]);
   };
   List.fold_left(acc_str, "", statuses);
+};
+
+let print_statuses = (statuses: list(t)): unit => {
+  let print_t = (t: t) => {
+    t |> t_to_string |> print_endline;
+  };
+  List.iter(print_t, statuses);
 };
 
 let condense = (eq_class: MutableEqClass.t): status => {

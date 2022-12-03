@@ -32,6 +32,7 @@ type t =
   | Sum(t, t) // unused
   | Prod(list(t));
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type equivalence = (t, t)
 and constraints = list(equivalence);
 
@@ -206,7 +207,21 @@ let matched_arrow_inf = (ty: t, termId: Id.t): ((t, t), constraints) => {
     );
     ((arrow_lhs, arrow_rhs), [(ty, Arrow(arrow_lhs, arrow_rhs))]);
   };
+  // HACK: TODO, fix the weird change synswitch to internal
+  // matched inference types should never contain synswitch so as to properly generate constraints
   switch (ty) {
+  | Arrow(Unknown(SynSwitch(u1)), Unknown(SynSwitch(u2))) => (
+      (Unknown(Internal(u1)), Unknown(Internal(u2))),
+      [],
+    )
+  | Arrow(Unknown(SynSwitch(u)), ty_out) => (
+      (Unknown(Internal(u)), ty_out),
+      [],
+    )
+  | Arrow(ty_in, Unknown(SynSwitch(u))) => (
+      (ty_in, Unknown(Internal(u))),
+      [],
+    )
   | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
   | Unknown(Anonymous) => ((Unknown(Anonymous), Unknown(Anonymous)), [])
   | Unknown(prov) => prov_to_arrow(prov)
@@ -230,12 +245,49 @@ let matched_arrow_mode =
   };
 };
 
-let matched_prod_mode = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | _ => List.init(length, _ => Syn)
+let binary_match_prod_inf = (ty: t): ((t, t), constraints) => {
+  switch (ty) {
+  | Unknown(Anonymous) => ((Unknown(Anonymous), Unknown(Anonymous)), [])
+  | Unknown(prov) =>
+    let (prod_lhs, prod_rhs) = (
+      Unknown(Inference(Matched_Prod_Left, prov)),
+      Unknown(Inference(Matched_Prod_Right, prov)),
+    );
+    ((prod_lhs, prod_rhs), [(ty, Prod([prod_lhs, prod_rhs]))]);
+  | _ => raise(Invalid_argument(ty |> sexp_of_t |> Sexplib.Sexp.to_string))
   };
+};
+
+let rec extend_prod_hole = (base_hole: t, length): (list(t), constraints) =>
+  if (length > 2) {
+    let ((matched_prod_left, matched_prod_right), constraints_hd) =
+      binary_match_prod_inf(base_hole);
+    let (extended_right_hole, constraints_right_hole) =
+      extend_prod_hole(matched_prod_right, length - 1);
+    (
+      [matched_prod_left, ...extended_right_hole],
+      constraints_hd @ constraints_right_hole,
+    );
+  } else if (length == 2) {
+    let ((matched_prod_left, matched_prod_right), constraints) =
+      binary_match_prod_inf(base_hole);
+    ([matched_prod_left, matched_prod_right], constraints);
+  } else {
+    failwith("NO");
+  };
+
+let matched_prod_mode = (mode: mode, length): (list(mode), constraints) => {
+  switch (mode) {
+  | Ana(Unknown(prov)) =>
+    let (types, constraints) = extend_prod_hole(Unknown(prov), length);
+    (List.map(ty => Ana(ty), types), constraints);
+  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length => (
+      List.map(ty => Ana(ty), ana_tys),
+      [],
+    )
+  | _ => (List.init(length, _ => Syn), [])
+  };
+};
 
 let matched_list_inf = (ty: t, termId: Id.t): (t, constraints) => {
   let prov_to_list = prov => {
