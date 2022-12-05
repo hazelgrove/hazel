@@ -147,7 +147,7 @@ let triv_exp: form = {
 let undef_exp_group = "undef_exp_group";
 let undef_exp: form = {
   let explanation = {
-    message: "Undefined expression. The undefined expression denotes the lack of a value. It is similar to an empty hole, but with no intent to define it in the future.",
+    message: "Undefined expression. The undefined expression can be used to define a partial function (a function which is not defined on all inputs). It is similar to an empty hole, but with no intent to define it in the future.",
     feedback: Unselected,
   };
   let head_example = {
