@@ -101,7 +101,7 @@ let view =
   };
   let mousedown_handler = (~inject) => {
     Virtual_dom.Vdom.Effect.Many(
-      List.map(inject, Update.[Mousedown, Update.SwitchTextEditor]),
+      List.map(inject, Update.[Mousedown, Update.SwitchEditor(0)]),
     );
   };
 

@@ -27,7 +27,6 @@ type t =
   | Save
   | ToggleMode
   | SwitchSlide(int)
-  | SwitchTextEditor
   | UpdateTitle(string)
   | UpdatePrompt(string)
   | SwitchEditor(int)

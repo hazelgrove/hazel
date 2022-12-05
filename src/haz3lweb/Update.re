@@ -160,7 +160,6 @@ let reevaluate_post_update =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetSlide
-  | SwitchTextEditor
   | UpdateTitle(_)
   | UpdatePrompt(_)
   | SwitchEditor(_)
@@ -299,14 +298,6 @@ let apply =
             LocalStorage.School.load_exercise(key, spec, ~instructor_mode);
           Ok({...model, editors: School(n, specs, exercise)});
         }
-      }
-
-    | SwitchTextEditor =>
-      switch (model.editors) {
-      | Scratch(_) => assert(false)
-      | School(m, specs, exercise) =>
-        let exercise = SchoolExercise.switch_text_editor(exercise);
-        Ok({...model, editors: School(m, specs, exercise)});
       }
 
     | UpdateTitle(title) =>

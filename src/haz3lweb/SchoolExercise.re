@@ -272,8 +272,6 @@ let switch_editor = (idx: int, {eds, _}) => {
   eds,
 };
 
-let switch_text_editor = ({eds, _}) => {pos: Title, eds};
-
 let update_title = ({eds, pos}, title) => {
   pos,
   eds: {
