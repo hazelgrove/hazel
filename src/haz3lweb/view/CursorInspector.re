@@ -207,6 +207,51 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   inject(Set(ContextInspector));
 };
 
+let binding_uses =
+    (
+      ci: Haz3lcore.Statics.t,
+      zipper: Haz3lcore.Zipper.t,
+      _info_map: Haz3lcore.Statics.map,
+    )
+    : Node.t => {
+  switch (ci) {
+  | InfoPat({term: _pat, _}) =>
+    // extract the parent index
+    let parent_exp_gen =
+      List.find_opt(
+        gen => {
+          let anc: Haz3lcore.Ancestor.t = fst(gen);
+          switch (Haz3lcore.Ancestor.sort(anc)) {
+          | Exp => true
+          | _ => false
+          };
+        },
+        zipper.relatives.ancestors,
+      );
+    switch (parent_exp_gen) {
+    | Some((anc, _)) =>
+      div(
+        List.map(
+          x => text(string_of_int(x)),
+          [
+            anc.id,
+            List.length(fst(anc.children)),
+            List.length(snd(anc.children)),
+          ],
+        ),
+      )
+    | _ => div([])
+    };
+  // iterate over children of the parent exp
+  // get mold.out (sort) of Exp
+  // lookup in info_map to find items of cls Var
+  // for each var, check if the token matches
+  // if it does, determine if the id of this is in the Ctx
+  // then how do we get a id from that??
+  | _ => div([])
+  };
+};
+
 let inspector_view =
     (
       ~inject,
@@ -214,6 +259,8 @@ let inspector_view =
       ~show_lang_doc: bool,
       id: int,
       ci: Haz3lcore.Statics.t,
+      zipper: Haz3lcore.Zipper.t,
+      info_map: Haz3lcore.Statics.map,
     )
     : Node.t =>
   div(
@@ -228,6 +275,7 @@ let inspector_view =
     [
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ~show_lang_doc, ci),
+      binding_uses(ci, zipper, info_map),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
@@ -250,7 +298,15 @@ let view =
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
       | Some(ci) =>
-        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
+        inspector_view(
+          ~inject,
+          ~settings,
+          ~show_lang_doc,
+          index,
+          ci,
+          zipper,
+          info_map,
+        )
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),

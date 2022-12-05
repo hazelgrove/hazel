@@ -319,6 +319,29 @@ module UPat = {
       }
     };
   };
+
+  let rec get_all_bindings = (pat: t) => {
+    switch (pat.term) {
+    | Var(x) => [x]
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_all_bindings(pat)
+    | Cons(pat1, pat2)
+    | Ap(pat1, pat2) =>
+      List.append(get_all_bindings(pat1), get_all_bindings(pat2))
+    | ListLit(pats)
+    | Tuple(pats) => List.flatten(List.map(get_all_bindings, pats))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | Tag(_) => []
+    };
+  };
 };
 
 module UExp = {
