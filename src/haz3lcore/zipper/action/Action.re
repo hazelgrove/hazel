@@ -9,6 +9,11 @@ type move =
   | Goal(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type jump_target =
+  | TileId(Id.t)
+  | BindingSiteOfIndicatedVar;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type term =
   | Current
   | Id(Id.t);
@@ -21,7 +26,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Move(move)
-  | JumpToId(Id.t)
+  | Jump(jump_target)
   | Select(select)
   | Unselect
   | Destruct(Direction.t)
