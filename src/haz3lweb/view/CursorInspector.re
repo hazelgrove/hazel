@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Haz3lcore;
 open Util;
 
 let cls_str = (ci: Haz3lcore.Statics.t): string =>
@@ -243,26 +244,65 @@ let inspector_view =
     )
     : Node.t => {
   let strategymodel: StrategyGuideModel.t = settings.strategy_guide;
-  let (show_strategy_guide_icon, strategy_guide) =
-    switch (ci, cursor_info.parent_info) {
-    | (ExpOperand(_, EmptyHole(_)), _) => (
-        true,
-        Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci)),
-      )
-    | (Rule(_), _)
-    | (ExpOperand(_, Case(_)), _)
-    | (_, AfterBranchClause) =>
-      switch (StrategyGuide.rules_view(cursor_info)) {
-      | None => (false, None)
-      | Some(sg_rules) => (true, Some(sg_rules))
+  // let (strategy_guide) =
+  //   switch (ci, cursor_info.parent_info) {
+  //   | (ExpOperand(_, EmptyHole(_)), _) => Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci))
+  //   | (Rule(_), _)
+  //   | (ExpOperand(_, Case(_)), _)
+  //   | (_, AfterBranchClause) =>
+  //     switch (StrategyGuide.rules_view(cursor_info)) {
+  //     | None => (None)
+  //     | Some(sg_rules) => (Some(sg_rules))
+  //     }
+  //   | (Line(_, EmptyLine), _) => (
+  //       Some(StrategyGuide.lines_view(true)),
+  //     )
+  //   | (Line(_), _) => (Some(StrategyGuide.lines_view(false)))
+  //   | _ => (None)
+  //   };
+
+  let strategy_guide =
+    switch (ci) {
+    | Some(InfoExp({term, _})) =>
+      switch (term) {
+      | EmptyHole =>
+        Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci))
+      | Case =>
+        switch (StrategyGuide.rules_view(cursor_info)) {
+        | None => None
+        | Some(sg_rules) => Some(sg_rules)
+        }
+      | None => None
       }
-    | (Line(_, EmptyLine), _) => (
-        true,
-        Some(StrategyGuide.lines_view(true)),
-      )
-    | (Line(_), _) => (true, Some(StrategyGuide.lines_view(false)))
-    | _ => (false, None)
+    | Some(InfoRul(_)) =>
+      switch (StrategyGuide.rules_view(cursor_info)) {
+      | None => None
+      | Some(sg_rules) => Some(sg_rules)
+      }
     };
+  // switch (ci) {
+  // | Some(InfoExp({term, _})) => {
+  //     switch (term) {
+  //     | EmptyHole
+  //     }
+  //   }
+  // | _ => None
+  // }
+  // let strategy_guide =
+  //   switch (ci, cursor_info.parent_info) {
+  //   | (ExpOperand(_, EmptyHole(_)), _) =>
+  //     Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci))
+  //   | (Rule(_), _)
+  //   | (ExpOperand(_, Case(_)), _)
+  //   | (_, AfterBranchClause) =>
+  // switch (StrategyGuide.rules_view(cursor_info)) {
+  // | None => None
+  // | Some(sg_rules) => Some(sg_rules)
+  // }
+  //   | (Line(_, EmptyLine), _) => Some(StrategyGuide.lines_view(true))
+  //   | (Line(_), _) => Some(StrategyGuide.lines_view(false))
+  //   | _ => None
+  //   };
   div(
     ~attr=
       Attr.many([

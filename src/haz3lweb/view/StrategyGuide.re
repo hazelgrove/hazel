@@ -3,22 +3,18 @@ open Core;
 open Node;
 open Haz3lcore;
 open Util.Web;
-
 let code_node = text =>
   Node.div(~attr=Attr.classes(["code-font"]), [Node.text(text)]);
-
 let example_lit_node = text =>
   Node.div(
     ~attr=Attr.classes(["code-font", "example"]),
     [Node.text(text)],
   );
-
 let keyword_node = text =>
   Node.div(
     ~attr=Attr.classes(["code-font", "keyword"]),
     [Node.text(text)],
   );
-
 let option = nodes => Node.div(~attr=Attr.classes(["option"]), nodes);
 let mini_option = nodes =>
   Node.div(~attr=Attr.classes(["mini-option"]), nodes);
@@ -76,6 +72,14 @@ let lit_msg = (ty: HTyp.t) => {
       fill_space,
       AssistantView_common.kc_shortcut_node(KeyCombo.LeftBracket),
     ]);
+  let str_lit =
+    option([
+      Node.text("Enter a String Literal"),
+      fill_space,
+      Node.text("(e.g. "),
+      example_lit_node("dog"),
+      Node.text(")"),
+    ]);
   switch (ty) {
   | Hole => [
       int_lit,
@@ -83,6 +87,7 @@ let lit_msg = (ty: HTyp.t) => {
       bool_lit,
       fun_lit,
       sum_lit,
+      str_lit,
       prod_lit,
       list_lit,
     ]
@@ -93,9 +98,22 @@ let lit_msg = (ty: HTyp.t) => {
   | Sum(_, _) => [sum_lit]
   | Prod(_) => [prod_lit]
   | List(_) => [list_lit]
+  | String => [str_lit]
   };
 };
-
+let type_view = (ty: Typ.t) => {
+  switch (ty) {
+  | Int => Node.text("Int")
+  | Float => Node.text("Float")
+  | Bool => Node.text("Bool")
+  | String => Node.text("String")
+  | List(_) => Node.text("List")
+  | Arrow(_) => Node.text("Arrow")
+  | Sum(_) => Node.text("Sum")
+  | Prod(_) => Node.text("Prod")
+  | _ => Node.text("Unknown")
+  };
+};
 /**
  * Create a list of divs for the var options that will be shown.
  * Return list of Node.t
@@ -106,14 +124,13 @@ let list_vars_view = (vars: VarCtx.t) => {
       ((var, ty)) => {
         Node.div(
           ~attr=Attr.classes(["option"]),
-          [code_node(var), Node.text(" : "), HTypDoc.view(ty)],
+          [code_node(var), Node.text(" : "), type_view(ty)],
         )
       },
       vars,
     );
   List.map(((_, b)) => {b}, b);
 };
-
 /**
  * Create a div containing divs for all operator options that will be shown.
  * Return a Node.t
@@ -141,17 +158,14 @@ let operator_options = cursor_info => {
     AssistantView_common.text_shortcut_node(">."),
     AssistantView_common.text_shortcut_node("=."),
   ];
-
   let int_operators_wrapper = options =>
     mini_option([Node.text("Integer Operation"), fill_space, ...options]);
-
   let float_operators_wrapper = options =>
     mini_option([
       Node.text("Floating Point Operation"),
       fill_space,
       ...options,
     ]);
-
   let arithmetic_options_wrapper = options =>
     Node.div(
       ~attr=Attr.classes(["option"]),
@@ -162,7 +176,6 @@ let operator_options = cursor_info => {
         ),
       ],
     );
-
   let boolean_options =
     Node.div(
       ~attr=Attr.classes(["option"]),
@@ -173,7 +186,6 @@ let operator_options = cursor_info => {
         AssistantView_common.kc_shortcut_node(KeyCombo.VBar),
       ],
     );
-
   let list_options =
     Node.div(
       ~attr=Attr.classes(["option"]),
@@ -183,7 +195,6 @@ let operator_options = cursor_info => {
         AssistantView_common.kc_shortcut_node(KeyCombo.Semicolon),
       ],
     );
-
   switch (Assistant_common.get_type(cursor_info)) {
   | Some(Hole) => [
       arithmetic_options_wrapper([
@@ -210,7 +221,6 @@ let operator_options = cursor_info => {
   | _ => []
   };
 };
-
 let add_rule_after_option =
   Node.div(
     ~attr=Attr.classes(["option"]),
@@ -220,7 +230,6 @@ let add_rule_after_option =
       AssistantView_common.kc_shortcut_node(KeyCombo.Enter),
     ],
   );
-
 let comment_line_option =
   Node.div(
     ~attr=Attr.classes(["option"]),
@@ -232,10 +241,8 @@ let comment_line_option =
       AssistantView_common.kc_shortcut_node(KeyCombo.Shift_Enter),
     ],
   );
-
 let type_driven = body =>
   Node.div(~attr=Attr.classes(["type-driven"]), body);
-
 let exp_hole_view =
     (
       ~inject,
@@ -248,11 +255,10 @@ let exp_hole_view =
   let branch_open = cursor_inspector.strategy_guide_branch;
   let new_var_open = cursor_inspector.strategy_guide_new_var;
   let other_open = cursor_inspector.strategy_guide_other;
-
   let ctx = cursor_info.ctx;
-
   let typ =
-    switch (Assistant_common.get_type(cursor_info)) {
+    // switch (Assistant_common.get_type(cursor_info)) {
+    switch (Assistant_common.get_type()) {
     | Some(ty) => ty
     | None =>
       raise(
@@ -261,7 +267,6 @@ let exp_hole_view =
         ),
       )
     };
-
   let subsection_header = (toggle, text, open_section) => {
     let subsection_arrow =
       if (open_section) {
@@ -286,9 +291,7 @@ let exp_hole_view =
       [Node.text(text), subsection_arrow],
     );
   };
-
   let var_ctx = Assistant_common.extract_vars(ctx, typ);
-
   let fill_hole_msg =
     Node.div(
       ~attr=Attr.classes(["title-bar", "panel-title-bar", "main-fill"]),
@@ -299,7 +302,6 @@ let exp_hole_view =
         ),
       ],
     );
-
   let lit =
     subsection_header(
       Toggle_strategy_guide_lit,
@@ -313,7 +315,6 @@ let exp_hole_view =
       ~attr=Attr.classes(["panel-title-bar", "body-bar"]),
       [Node.div(~attr=Attr.classes(["options"]), lit_msg(typ))],
     );
-
   let vars_view =
     if (VarMap.is_empty(var_ctx)) {
       Node.div(
@@ -334,7 +335,6 @@ let exp_hole_view =
       ~attr=Attr.classes(["panel-title-bar", "body-bar"]),
       [vars_view],
     );
-
   let fun_h =
     subsection_header(
       Toggle_strategy_guide_fun,
@@ -372,7 +372,6 @@ let exp_hole_view =
         ),
       ],
     );
-
   let branch =
     subsection_header(
       Toggle_strategy_guide_branch,
@@ -396,7 +395,6 @@ let exp_hole_view =
         ),
       ],
     );
-
   let new_var =
     subsection_header(
       Toggle_strategy_guide_new_var,
@@ -419,7 +417,6 @@ let exp_hole_view =
         ),
       ],
     );
-
   let other =
     subsection_header(
       Toggle_strategy_guide_other,
@@ -514,7 +511,6 @@ let exp_hole_view =
     };
   type_driven(body);
 };
-
 let rules_view = (cursor_info: CursorInfo.t) => {
   switch (cursor_info.cursor_term, cursor_info.parent_info) {
   | (Rule(OnDelim(0, After), _), _)
@@ -536,7 +532,7 @@ let rules_view = (cursor_info: CursorInfo.t) => {
         ),
       ]),
     )
-  | (Rule(OnDelim(1, Before), _), _)
+  | (Rule(OnDelim(1, BeforeBefore), _), _)
   | (_, AfterBranchClause) =>
     Some(
       type_driven([
@@ -549,7 +545,6 @@ let rules_view = (cursor_info: CursorInfo.t) => {
   | _ => None
   };
 };
-
 let lines_view = (suggest_comment: bool) => {
   let new_line =
     Node.div(
