@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 /* STATICS
 
@@ -236,13 +237,13 @@ let extend_let_def_ctx =
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Int
+  | (Plus | Minus | Times | Power | Divide) as _op => Int
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
 let typ_exp_binop_bin_float: Term.UExp.op_bin_float => Typ.t =
   fun
-  | (Plus | Minus | Times | Divide) as _op => Float
+  | (Plus | Minus | Times | Power | Divide) as _op => Float
   | (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals) as _op =>
     Bool;
 
@@ -313,9 +314,9 @@ and uexp_to_info_map =
   | Var(name) =>
     switch (Ctx.lookup_var(ctx, name)) {
     | None => atomic(Free(Variable))
-    | Some(typ) =>
+    | Some(var) =>
       add(
-        ~self=Just(typ),
+        ~self=Just(var.typ),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
@@ -624,3 +625,20 @@ let mk_map =
       map;
     },
   );
+
+let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
+  open OptUtil.Syntax;
+  let* opt = Id.Map.find_opt(id, statics_map);
+  let* info_exp =
+    switch (opt) {
+    | InfoExp(info_exp) => Some(info_exp)
+    | _ => None
+    };
+
+  let+ entry =
+    switch (info_exp.term.term) {
+    | TermBase.UExp.Var(name) => Ctx.lookup_var(info_exp.ctx, name)
+    | _ => None
+    };
+  entry.id;
+};
