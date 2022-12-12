@@ -370,8 +370,8 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Typ({term: typ, _})]) =>
-          Ap(tag, {ids: [], term: typ})
+        | (["(", ")"], [Typ({term: typ, ids})]) =>
+          Ap(tag, {ids, term: typ})
         | _ => hole(tm)
         },
       )
