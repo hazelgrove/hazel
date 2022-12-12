@@ -3,12 +3,22 @@ open Node;
 open Util.Web;
 
 // TODO: (poly) Finish the skeleton
-let kind_view = (cls: string, s: string): Node.t =>
-  div(~attr=clss(["kind-view", cls]), [text(s)]);
 
 // TODO: (poly) Finish the skeleton
-let view = (ty: Haz3lcore.Kind.t): Node.t =>
+let view = (ty: Haz3lcore.Kind.t): list(Node.t) =>
   switch (ty) {
-  | Singleton(_ty) =>
-    div(~attr=clss(["kind-view"]), [kind_view("Singleton", "Singleton")])
+  | Singleton(ty) => [
+      text("::"),
+      div(
+        ~attr=clss(["kind-view"]),
+        [div(~attr=clss(["kind-view", "Singleton"]), [Type.view(ty)])],
+      ),
+    ]
   };
+
+let view_entry = (name, kind) => [
+  text("type "),
+  text(name),
+  text(" "),
+  ...view(kind),
+];
