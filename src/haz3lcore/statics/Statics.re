@@ -95,12 +95,6 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | InfoTSum({term, _}) => Some(Term.TSum(term))
      );
 
-/* TODO(andrew): more sum/rec errors
-   incomplete type (holes)?
-   empty / singleton sum?
-   duplicate constructor?
-   */
-
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
@@ -184,6 +178,10 @@ let is_error = (ci: t): bool => {
   | InfoTPat(_) => false //TODO(andrew): TPat errors?
   };
 };
+/* TODO(andrew): more sum/rec errors
+   incomplete type (holes)?
+   empty / singleton sum?
+   duplicate constructor? */
 
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
@@ -664,9 +662,6 @@ and utyp_to_info_map =
   | Float
   | Bool
   | String => just(Id.Map.empty)
-  | Sum({term, ids: _}) =>
-    let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
-    just(m);
   | List(t)
   | Parens(t) =>
     let (_, m) = utyp_to_info_map(~ctx, t);
@@ -680,19 +675,15 @@ and utyp_to_info_map =
       ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
     just(m);
   | Var(name) =>
-    //TODO(andrew): better tvar lookup
-    switch (List.assoc_opt(name, BuiltinADTs.adts)) {
-    | None =>
-      switch (Ctx.lookup_tvar(ctx, name)) {
-      | None => (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
-      | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty)) //TODO(andrew)
-      }
-    | Some(_) => (Var(name), add(Just(Var(name)), Id.Map.empty))
-    }
+    Ctx.is_tvar(ctx, name)
+      ? (Var(name), add(Just(Var(name)), Id.Map.empty))
+      : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+  | Sum({term, ids: _}) =>
+    /* Note: See corresponding TSum case in MakeTerm.typ_term */
+    let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
+    just(m);
   | MultiHole(tms) =>
-    // TODO thread ctx through to multihole terms once ctx is available
-    let (_, maps) =
-      tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
+    let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     just(union_m(maps));
   };
 }

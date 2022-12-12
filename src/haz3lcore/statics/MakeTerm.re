@@ -398,9 +398,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
       | (["sum", "end"], [TSum(x)]) =>
-        //TODO(andrew): modelling after listlit
+        /* Note: See corresponding Sum case in Statics. utyp_to_info_map */
         (Sum(x), x.ids)
-      //(Sum(x), ids)
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
