@@ -698,7 +698,6 @@ and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => 
   add_info(ids, InfoTPat({cls, term: utpat}), Id.Map.empty);
 }
 and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
-  //TODO(andrew): check commented out below bits... triggers disj_union exceptions
   let cls = Term.UTSum.cls_of_term(term);
   let just = m => add_info(ids, InfoTSum({cls, term: utsum}), m);
   switch (term) {
@@ -710,10 +709,10 @@ and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
     just(union_m(maps));
   | Sum(sum) =>
     let ms = List.map(utsum_to_info_map(~ctx), sum);
-    union_m(ms); //just(union_m(ms));
+    just(union_m(ms));
   | Ap(_, typ) =>
     let (_, m) = utyp_to_info_map(~ctx, typ);
-    m; //just(m);
+    just(m);
   };
 };
 

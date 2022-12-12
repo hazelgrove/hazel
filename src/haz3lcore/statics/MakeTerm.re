@@ -351,6 +351,7 @@ and tsum = unsorted => {
 and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   let ret = (term: UTSum.term) => (term, []);
   let hole = unsorted => Term.UTSum.hole(kids_of_unsorted(unsorted));
+  //TODO(andrew): ask david about this... not getting CI for tsum terms, missing ids?
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -358,8 +359,7 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([tag], []) when Form.is_typ_var(tag) =>
-          //TODO(andrew): as david about _id here
-          Ap(tag, {ids: [_id], term: Tuple([])})
+          Ap(tag, {ids: [], term: Tuple([])})
         | _ => hole(tm)
         },
       )
@@ -371,7 +371,7 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["(", ")"], [Typ({term: typ, _})]) =>
-          Ap(tag, {ids: [_id], term: typ})
+          Ap(tag, {ids: [], term: typ})
         | _ => hole(tm)
         },
       )
@@ -381,10 +381,7 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   | Bin(TSum(l), tiles, TSum(r)) as tm =>
     switch (is_typ_sum(tiles)) {
     | Some(between_kids) => ret(Sum([l] @ between_kids @ [r]))
-    | None =>
-      switch (tiles) {
-      | _ => ret(hole(tm))
-      }
+    | None => ret(hole(tm))
     }
   | tm => ret(hole(tm));
 }
