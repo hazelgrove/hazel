@@ -1,3 +1,1 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | Singleton(Typ.t);
+include TypBase.Kind;

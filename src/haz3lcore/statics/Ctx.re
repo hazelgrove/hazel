@@ -1,18 +1,9 @@
-open Sexplib.Std;
 open Util.OptUtil.Syntax;
+include TypBase.Ctx;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type entry =
-  | VarEntry({
-      name: Token.t,
-      id: Id.t,
-      typ: Typ.t,
-    })
-  | TVarEntry({
-      name: Token.t,
-      id: Id.t,
-      kind: Kind.t,
-    });
+let empty: t = VarMap.empty;
+
+let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
 
 let get_id = (entry: entry) =>
   switch (entry) {
@@ -20,37 +11,10 @@ let get_id = (entry: entry) =>
   | TVarEntry({id, _}) => id
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = list(entry);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type co_item = {
-  id: Id.t,
-  mode: Typ.mode,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type co_entry = list(co_item);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type co = VarMap.t_(co_entry);
-
-let empty: t = VarMap.empty;
-
-let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
-
 let lookup_var = (ctx: t, t: Token.t) =>
   List.find_map(
     fun
     | VarEntry({name, typ, _}) when name == t => Some(typ)
-    | _ => None,
-    ctx,
-  );
-
-let lookup_tvar = (ctx: t, t: Token.t) =>
-  List.find_map(
-    fun
-    | TVarEntry({name, kind, _}) when name == t => Some(kind)
     | _ => None,
     ctx,
   );
