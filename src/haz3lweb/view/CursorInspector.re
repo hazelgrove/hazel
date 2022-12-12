@@ -186,7 +186,7 @@ let view_of_info =
       ~attr=clss([infoc, "tpat"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "tpat"),
-        div(~attr=clss([happyc]), [text("new type alias")]),
+        div(~attr=clss([happyc]), [text("New type alias")]),
       ],
     )
   | InfoTSum(_) =>
@@ -194,7 +194,7 @@ let view_of_info =
       ~attr=clss([infoc, "tsum"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
-        div(~attr=clss([happyc]), [text("TODO labelled sum")]),
+        div(~attr=clss([happyc]), [text("Labelled sum type")]),
       ],
     )
   };
