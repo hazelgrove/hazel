@@ -125,14 +125,12 @@ let set_is_before_empty_hole_line = (ci, is_before_empty_hole_line) => {
   ...ci,
   parent_info:
     is_before_empty_hole_line ? BeforeEmptyHoleLine : ci.parent_info,
-};
-
-/*
+} /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
- */
+ */;
 
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)

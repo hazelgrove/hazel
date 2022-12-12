@@ -61,9 +61,8 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
   (InvalidText(u, t), id_gen);
-};
+} /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
   (EmptyHole(u), id_gen);
@@ -108,9 +107,8 @@ and set_err_status_operand = (err, operand) =>
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status(err, p))
   | TypeAnn(_, op, ann) => TypeAnn(err, op, ann)
-  };
+  } /* put p in a new hole, if it is not already in a hole */;
 
-/* put p in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (id_gen: IDGen.t, p: t): (t, IDGen.t) =>
   mk_inconsistent_opseq(id_gen, p)
 and mk_inconsistent_opseq = (id_gen: IDGen.t, opseq: opseq): (opseq, IDGen.t) =>

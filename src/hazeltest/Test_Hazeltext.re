@@ -49,10 +49,8 @@ let () = register_test("let basic", [], "let a = 1 in a");
 let () = register_test("let type annotation", [], "let a : Int = 1 in a");
 let () = register_test("basic lambda", [], "fun f {f}");
 let () = register_test("multiline", [], "let a = 1 in a");
-let () = register_test("comment", [], "#Comment\n 3");
-/* Currently, the final line must be an Exp line */
-let () = register_negative_test("bad comment", [], "#Comment \n 3; #Comment");
-/* The program must end in an expr line of some sort */
+let () = register_test("comment", [], "#Comment\n 3") /* Currently, the final line must be an Exp line */;
+let () = register_negative_test("bad comment", [], "#Comment \n 3; #Comment") /* The program must end in an expr line of some sort */;
 let () = register_negative_test("only comment", [], "# Comment");
 let () = register_negative_test("only empty", [], "\n");
 let () =

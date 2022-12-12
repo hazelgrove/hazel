@@ -402,8 +402,7 @@ let novice_summary =
       ]
     | OnType => [Node.text("Got " ++ article), term_tag]
     | OnNonLetLine => /* TODO */ [
-        Node.text("Got a "),
-        /* Don't show the term tag for empty and comment lines */
+        Node.text("Got a ") /* Don't show the term tag for empty and comment lines */,
         emphasize_text(~only_right=true, "Line"),
       ]
     | OnRule => /* TODO */ [

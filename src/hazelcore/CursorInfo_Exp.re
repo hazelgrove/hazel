@@ -550,11 +550,11 @@ and syn_cursor_info_zoperand =
       switch (Statics_Exp.joined_pattern_type(ctx, rules)) {
       | Some(ty) => ty
       | _ => HTyp.Hole
-      };
-    /* Note that strictly speaking this should just be syn_cursor_info;
+      } /* Note that strictly speaking this should just be syn_cursor_info;
      * This provides a bit of potentially useful type information to
      * the user in the case where some of pattern branches are already
-     * populated with patterns having a consistent type. */
+     * populated with patterns having a consistent type. */;
+
     ana_cursor_info(~steps=steps @ [0], ctx, zscrut, ty_join);
   | CaseZR(_, scrut, (prefix, zrule, suffix)) =>
     switch (Statics_Exp.syn(ctx, scrut)) {
@@ -871,9 +871,8 @@ and ana_cursor_info_zoperand =
             ctx,
             cursor_term,
           ),
-        )
+        ) /* not in hole */
       };
-    /* not in hole */
     | EmptyHole(_)
     | Var(NotInHole, NotInVarHole, _)
     | IntLit(NotInHole, _)
@@ -900,9 +899,8 @@ and ana_cursor_info_zoperand =
       CursorInfo_common.mk(
         AnaAnnotatedFun(ty, Arrow(ty_p, ty_body)),
         ctx,
-        cursor_term,
+        cursor_term /* zipper cases */,
       );
-    /* zipper cases */
     }
   | ParenthesizedZ(zbody) =>
     ana_cursor_info(~steps=steps @ [0], ctx, zbody, ty) /* zipper in hole */
@@ -1003,8 +1001,7 @@ and syn_cursor_info_rule =
     switch (Statics_Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
-      let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause);
-      /* Check if the cursor is on the outermost form of the clause */
+      let cursor_info = syn_cursor_info(~steps=steps @ [1], ctx, zclause) /* Check if the cursor is on the outermost form of the clause */;
       let is_outer = ZExp.is_outer(zclause);
       switch (is_outer, cursor_info) {
       | (_, None) => None

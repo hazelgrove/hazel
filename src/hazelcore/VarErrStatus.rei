@@ -3,10 +3,9 @@ module HoleReason: {
   [@deriving sexp]
   type t =
     | Free
-    | ExpandingKeyword(ExpandingKeyword.t);
+    | ExpandingKeyword(ExpandingKeyword.t) /* Variable: var_err */;
 };
 
-/* Variable: var_err */
 [@deriving sexp]
 type t =
   | NotInVarHole

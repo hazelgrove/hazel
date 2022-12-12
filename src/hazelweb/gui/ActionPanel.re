@@ -447,9 +447,7 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   let body = generate_panel_body(is_action_allowed, cursor_info, inject);
 
   action_panel(body);
-};
-
-/* This function is unused at runtime, its purpose is to catch
+} /* This function is unused at runtime, its purpose is to catch
   * new cases added to the Acion.t type, but forgotten about in this
   * side pane. If you add a new action, please update the code above
   * inside generate_panel_body with a description of the new action.
@@ -457,7 +455,8 @@ let view = (~inject: ModelAction.t => Event.t, model: Model.t) => {
   *
   * Also consider looking at Cell.re to see if a keyboard shortcut
   * should be added for that particular action as well.
- */
+ */;
+
 type ack_checkin =
   | Added;
 
@@ -502,8 +501,7 @@ let _check_actions = (a: Action.t) =>
   | SwapLeft => Added
   | SwapRight => Added
   | MoveLeft => Added
-  | MoveRight => Added
-  /* Not added */
+  | MoveRight => Added /* Not added */
   | MoveTo(_) => Added
   | Init => Added
   };

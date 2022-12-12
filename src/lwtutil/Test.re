@@ -17,11 +17,7 @@ module Lwt_observable = {
 
   let ns_empty = () => ref([]);
   let ns_push = (ns, n) => ns := [n, ...ns^];
-  let ns_equal = (ns, ns') => ns^ == ns';
-  /* let ns_print = ns => { */
-  /* ns^ |> List.iter(n => print_string(string_of_int(n) ++ " ")); */
-  /* print_newline(); */
-  /* }; */
+  let ns_equal = (ns, ns') => ns^ == ns' /* }; */ /* let ns_print = ns => { */ /* ns^ |> List.iter(n => print_string(string_of_int(n) ++ " ")); */ /* print_newline(); */;
 
   let () =
     register_test(

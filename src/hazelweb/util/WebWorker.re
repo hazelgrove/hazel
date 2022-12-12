@@ -78,9 +78,8 @@ module Make = (M: M) => {
 
     let request = ({worker, last: _}: t, req: Request.t) => {
       /* Start up new task, resolved when response is received. */
-      let (lwt, resolver) = Lwt.task();
+      let (lwt, resolver) = Lwt.task() /* Catch exceptions, particularly cancellation. */;
 
-      /* Catch exceptions, particularly cancellation. */
       Lwt.on_failure(
         lwt,
         fun
@@ -93,9 +92,8 @@ module Make = (M: M) => {
           let res = evt##.data |> Response.deserialize;
           Lwt.wakeup_later(resolver, res);
           Js._true;
-        });
+        }) /* Post request to worker. */;
 
-      /* Post request to worker. */
       worker##postMessage(req |> Request.serialize);
 
       (lwt, {worker, last: Some(lwt)});
@@ -119,15 +117,12 @@ module Make = (M: M) => {
 
     let on_request = ({state}: t, req: Request.u) => {
       /* Deserialize request. */
-      let req = req |> Request.deserialize;
+      let req = req |> Request.deserialize /* Pass callback. */;
 
-      /* Pass callback. */
-      let (res, state) = req |> M.Worker.on_request(state);
+      let (res, state) = req |> M.Worker.on_request(state) /* Send response. */;
 
-      /* Send response. */
-      res >|= respond |> ignore;
+      res >|= respond |> ignore /* Return new state. */;
 
-      /* Return new state. */
       {state: state};
     };
 

@@ -34,20 +34,14 @@ let intro_caption =
     ],
   );
 let intro_init_zexp =
-  ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
+  ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0))) /*  let intro_card: CardInfo.t = {    caption: intro_caption,    init_zexp: intro_init_zexp,  };  */;
+
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
-/*
- let intro_card: CardInfo.t = {
-   caption: intro_caption,
-   init_zexp: intro_init_zexp,
- };
- */
 let intro_card: CardInfo.t = {
   name: "intro",
   caption: div([], []),
   init_zexp: intro_init_zexp,
-};
-/*
+} /*
  let backspace_caption =
    div(
      [],
@@ -106,7 +100,7 @@ let intro_card: CardInfo.t = {
    caption: empty_hole_insertion_caption,
    init_zexp: empty_hole_insertion_init_zblock,
  };
- */
+ */;
 
 let cardstack: CardstackInfo.t = {
   title: "Hazel Tutorial",

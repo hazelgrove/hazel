@@ -108,7 +108,7 @@ module WorkerPool: M with type response = option(response) = {
   type t = Pool.t;
 
   let max = 10;
-  let timeout = 2000; /* ms */
+  let timeout = 2000 /* ms */;
 
   let init = () => {
     let pool = Pool.init(~timeout, ~max);
@@ -197,9 +197,8 @@ module Stream =
 
   let map_program = (inner, program) => {
     let (r, inner') = program |> M.get_response(inner^);
-    inner := inner';
+    inner := inner' /* No clue why this is necessary but it doesn't work otherwise? */;
 
-    /* No clue why this is necessary but it doesn't work otherwise? */
     let+ r = r;
     r;
   };
@@ -207,9 +206,8 @@ module Stream =
   let create = inner => {
     let inner = ref(inner);
     let (observable, next, complete) = Lwt_observable.create();
-    let max = ref(0);
+    let max = ref(0) /* Filter out obsolete responses as they come in. */;
 
-    /* Filter out obsolete responses as they come in. */
     let observable =
       observable
       |> Lwt_observable.pipe(

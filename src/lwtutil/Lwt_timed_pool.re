@@ -157,12 +157,9 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   let validate_return = (pool, (id, c)) =>
     Lwt.try_bind(
       () => pool.validate(c),
-      fun
-      /* Validation ok; return. */
-      | true => (id, c) |> Lwt.return
-      /* Validation failed; create a new one. */
-      | false => dispose(pool, (id, c)) >>= (() => create(pool)),
-      /* Validation failed; create a new one if there is a waiter. */
+      fun /* Validation ok; return. */
+      | true => (id, c) |> Lwt.return /* Validation failed; create a new one. */
+      | false => dispose(pool, (id, c)) >>= (() => create(pool)) /* Validation failed; create a new one if there is a waiter. */,
       exn => {
         let* () = dispose(pool, (id, c));
         replace_disposed(pool);
@@ -195,14 +192,12 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
   let use = (pool, timeout, f) => {
     /* Acquire a member. */
     let* (id, c) = acquire(pool);
-    let cleared = pool.cleared^;
+    let cleared = pool.cleared^ /* Run [f] with the member and wrap a timeout. */;
 
-    /* Run [f] with the member and wrap a timeout. */
     let (q, c) = f(c);
     let q =
       Lwt.catch(
-        () => q |> Lwt_timed.wrap(timeout),
-        /* If failure, check for validaty and release. */
+        () => q |> Lwt_timed.wrap(timeout) /* If failure, check for validaty and release. */,
         exn =>
           check_release(pool, (id, c), cleared^) >>= (() => Lwt.fail(exn)),
       );
@@ -217,8 +212,7 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
       /* Succeeded, release the member and return. */
       | Some(x) =>
         release(pool, (id, c));
-        x |> Lwt.return_some;
-      /* Timed out; dispose of the member. */
+        x |> Lwt.return_some /* Timed out; dispose of the member. */;
       | None => dispose(pool, (id, c)) >>= (_ => Lwt.return_none)
       };
     };
@@ -250,9 +244,8 @@ module Make = (Lwt_timed: Lwt_timed.S) => {
 
   let clear = pool => {
     let members = Queue.fold((ms, m) => [m, ...ms], [], pool.queue);
-    Queue.clear(pool.queue);
+    Queue.clear(pool.queue) /* Honestly I don't really get this code ¯\_(ツ)_/¯. */;
 
-    /* Honestly I don't really get this code ¯\_(ツ)_/¯. */
     let old_cleared = pool.cleared^;
     old_cleared := true;
     pool.cleared := ref(false);

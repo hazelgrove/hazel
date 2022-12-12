@@ -78,11 +78,8 @@ let log_action = (action: ModelAction.t, _: State.t): unit => {
 let evaluate_and_schedule =
     (state: State.t, ~schedule_action, model: Model.t): Model.t => {
   /* Send evaluation request. */
-  let pushed = model |> State.evaluator_next(state);
+  let pushed = model |> State.evaluator_next(state) /* FIXME: This is problematic if evaluation finished in time, but UI hasn't * updated before below action is scheduled. */ /* Set evaluation to pending after short timeout. */;
 
-  /* Set evaluation to pending after short timeout. */
-  /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-   * updated before below action is scheduled. */
   Delay.delay(
     () =>
       if (pushed |> Lwt.is_sleeping) {
@@ -111,8 +108,7 @@ let apply_action =
       | ResultFail(Program_DoesNotElaborate) =>
         JSUtil.log("[Program.DoesNotElaborate]")
       | _ => ()
-      };
-      /* Update result in model. */
+      } /* Update result in model. */;
       model |> Model.update_result(current);
 
     | EditAction(a) =>
@@ -203,14 +199,12 @@ let apply_action =
 
     | ToggleHistoryGroup(toggle_group_id) =>
       let (suc_groups, _, _) = model.undo_history.groups;
-      let cur_group_id = List.length(suc_groups);
-      /* shift to the toggle-target group and change its expanded state */
+      let cur_group_id = List.length(suc_groups) /* shift to the toggle-target group and change its expanded state */;
       switch (ZList.shift_to(toggle_group_id, model.undo_history.groups)) {
       | None =>
         failwith("Impossible match, because undo_history is non-empty")
       | Some(groups) =>
-        let toggle_target_group = ZList.prj_z(groups);
-        /* change expanded state of the toggle target group after toggling */
+        let toggle_target_group = ZList.prj_z(groups) /* change expanded state of the toggle target group after toggling */;
         let after_toggle =
           ZList.replace_z(
             {
@@ -218,9 +212,8 @@ let apply_action =
               is_expanded: !toggle_target_group.is_expanded,
             },
             groups,
-          );
+          ) /*shift back to the current group*/;
 
-        /*shift back to the current group*/
         switch (ZList.shift_to(cur_group_id, after_toggle)) {
         | None =>
           failwith("Impossible match, because undo_history is non-empty")
@@ -306,9 +299,8 @@ let apply_action =
       | None => JSUtil.log("[Permalink.EmptyCurrent]")
       };
       model |> evaluate_and_schedule(state, ~schedule_action);
-    };
+    } /* Return new model. */;
 
-  /* Return new model. */
   new_model;
 };
 

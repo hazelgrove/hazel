@@ -1,9 +1,7 @@
 [@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
-  cardstacks_after_action: ZCardstacks.t,
-  /* cardstacks_after_move is initially the same as cardstacks_after_action.
-     if there is a movement action, update it. */
+  cardstacks_after_action: ZCardstacks.t /* cardstacks_after_move is initially the same as cardstacks_after_action.   if there is a movement action, update it. */,
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
   previous_action: ModelAction.t,
@@ -19,16 +17,11 @@ type undo_history_group = {
 
 [@deriving sexp]
 type t = {
-  groups: ZList.t(undo_history_group, undo_history_group),
-  /* expand all groups */
-  all_hidden_history_expand: bool,
-  /* history panel automatically scrolls current entry into view,
-     but this behavior should be disabled when user is hovering over panel */
+  groups: ZList.t(undo_history_group, undo_history_group) /* expand all groups */,
+  all_hidden_history_expand: bool /* history panel automatically scrolls current entry into view,   but this behavior should be disabled when user is hovering over panel */,
   disable_auto_scrolling: bool,
-  preview_on_hover: bool,
-  /* group id to restore upon stopping hover (undefined when not hovering) */
-  hover_recover_group_id: int,
-  /* element id to restore upon stopping hover (undefined when not hovering) */
+  preview_on_hover: bool /* group id to restore upon stopping hover (undefined when not hovering) */,
+  hover_recover_group_id: int /* element id to restore upon stopping hover (undefined when not hovering) */,
   hover_recover_elt_id: int,
   cur_group_id: int,
   cur_elt_id: int,

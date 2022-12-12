@@ -6,9 +6,8 @@ module HoleReason = {
     | WrongLength;
 
   let eq = (x, y) => x == y;
-};
+} /* Variable: `err` */;
 
-/* Variable: `err` */
 [@deriving sexp]
 type t =
   | NotInHole

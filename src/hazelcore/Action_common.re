@@ -248,20 +248,19 @@ let delete_operator_ =
     | None =>
       let S(suffix_hd, new_suffix) = suffix;
       let zoperand = suffix_hd |> place_before_operand;
-      ZOperand(zoperand, (prefix, new_suffix));
-    /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
+      ZOperand
+        (zoperand, (prefix, new_suffix)) /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */;
     | Some(zoperator) =>
       let new_prefix = prefix_tl;
       ZOperator(zoperator, (new_prefix, suffix));
-    }
+    } /* ... + [k-1] +<|  _ + ...   ==>   ... + [k-1]| + ... */
 
-  /* ... + [k-1] +<|  _ + ...   ==>   ... + [k-1]| + ... */
   | (S(prefix_hd, new_prefix), S(operand, new_suffix))
       when operand |> is_EmptyHole =>
     let zoperand = prefix_hd |> place_after_operand;
-    ZOperand(zoperand, (new_prefix, new_suffix));
+    ZOperand
+      (zoperand, (new_prefix, new_suffix)) /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */;
 
-  /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
   | (S(prefix_hd, new_prefix), _) =>
     let zoperand = prefix_hd |> place_after_operand;
     let new_suffix = Seq.A(space, suffix);

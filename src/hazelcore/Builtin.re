@@ -1,6 +1,5 @@
-open Sexplib.Std;
+open Sexplib.Std /* Evaluator alias. */;
 
-/* Evaluator alias. */
 [@deriving sexp]
 type evaluate = DHExp.t => EvaluatorResult.t;
 
@@ -19,9 +18,7 @@ type t = {
   ty: HTyp.t,
   eval,
   elab,
-};
-
-/*
+} /*
    Build the elaborated DHExp for a built-in function.
 
    For example:
@@ -32,7 +29,8 @@ type t = {
    Apbuilt-in("mod", [BoundVar("x0"), BoundVar("x1")])
    )
    )
- */
+ */;
+
 let mk_elab = (ident: Var.t, ty: HTyp.t): DHExp.t => {
   let rec mk_elab_inner =
           (ty': HTyp.t, n: int, bindings: list(Var.t)): DHExp.t => {

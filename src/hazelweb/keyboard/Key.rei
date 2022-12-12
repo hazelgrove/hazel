@@ -1,7 +1,6 @@
 module Js = Js_of_ocaml.Js;
-module Dom_html = Js_of_ocaml.Dom_html;
+module Dom_html = Js_of_ocaml.Dom_html /* helpful tool: https://keycode.info/ */;
 
-/* helpful tool: https://keycode.info/ */
 let get_key: Js.t(Dom_html.keyboardEvent) => string;
 
 /**

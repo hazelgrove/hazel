@@ -143,8 +143,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) => None
   | Case(InconsistentBranches(rule_types, _), scrut, rules) =>
-    let* pat_ty = syn(ctx, scrut);
-    /* Make sure the rule synthesizes the type the rule_types says it does */
+    let* pat_ty = syn(ctx, scrut) /* Make sure the rule synthesizes the type the rule_types says it does */;
     let correct_rule_types =
       List.for_all2(
         (rule_ty, rule) => {
@@ -156,8 +155,7 @@ and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
         rule_types,
         rules,
       );
-    correct_rule_types ? Some(HTyp.Hole) : None;
-  /* not in hole */
+    correct_rule_types ? Some(HTyp.Hole) : None /* not in hole */;
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_), _) => Some(Hole)
   | IntLit(NotInHole, _) => Some(Int)
@@ -275,7 +273,7 @@ and ana_operand =
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) =>
     let operand' = UHExp.set_err_status_operand(NotInHole, operand);
     let+ _ = syn_operand(ctx, operand');
-    (); /* this is a consequence of subsumption and hole universality */
+    () /* this is a consequence of subsumption and hole universality */;
   | Var(InHole(WrongLength, _), _, _)
   | IntLit(InHole(WrongLength, _), _)
   | FloatLit(InHole(WrongLength, _), _)
@@ -285,8 +283,7 @@ and ana_operand =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(StandardErrStatus(InHole(WrongLength, _)), _, _) =>
     ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
-  | Case(InconsistentBranches(_, _), _, _) => None
-  /* not in hole */
+  | Case(InconsistentBranches(_, _), _, _) => None /* not in hole */
   | ListNil(NotInHole) =>
     let+ _ = HTyp.matched_list(ty);
     ();
@@ -467,12 +464,11 @@ and ana_nth_type_mode' =
       syn_go(skel)
     };
   go(skel, ty);
-};
-
-/* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
+} /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
- */
+ */;
+
 let rec syn_fix_holes =
         (
           ctx: Contexts.t,
@@ -1289,9 +1285,8 @@ let ana_fix_holes_z =
          )
        );
   (ze, id_gen);
-};
+} /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */;
 
-/* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
     (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, IDGen.t) =>
   syn_fix_holes(ctx, IDGen.init, ~renumber_empty_holes=true, e);

@@ -1,16 +1,15 @@
 /*
-   Built-in functions for Hazel.
+                                                                   Built-in functions for Hazel.
 
-   To add a built-in function or constant, write the implementation in the
-   `Impls` module below and add it to the `builtins` list.
+                                                                   To add a built-in function or constant, write the implementation in the
+                                                                   `Impls` module below and add it to the `builtins` list.
 
-   See the existing ones for reference.
- */
+                                                                   See the existing ones for reference.
+                                                                 */
 
 module Impls = {
-  open EvaluatorResult;
+  open EvaluatorResult /* int_of_float implementation. */;
 
-  /* int_of_float implementation. */
   let int_of_float = (ident, r1) =>
     switch (r1) {
     | BoxedValue(FloatLit(f)) =>
@@ -19,9 +18,8 @@ module Impls = {
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
-    };
+    } /* float_of_int implementation. */;
 
-  /* float_of_int implementation. */
   let float_of_int = (ident, r1) =>
     switch (r1) {
     | BoxedValue(IntLit(i)) =>
@@ -30,9 +28,8 @@ module Impls = {
     | BoxedValue(d1) =>
       raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
     | Indet(d1) => Indet(ApBuiltin(ident, [d1]))
-    };
+    } /* mod implementation */;
 
-  /* mod implementation */
   let int_mod = (ident, r1, r2) =>
     switch (r1) {
     | BoxedValue(IntLit(n) as d1) =>
@@ -54,9 +51,8 @@ module Impls = {
       | BoxedValue(d2)
       | Indet(d2) => Indet(ApBuiltin(ident, [d1, d2]))
       }
-    };
+    } /* PI implementation. */;
 
-  /* PI implementation. */
   let pi = DHExp.FloatLit(Float.pi);
 };
 

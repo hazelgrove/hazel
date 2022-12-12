@@ -8,18 +8,15 @@ type t =
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
   | Var(Var.t)
-  | InvalidTextShape(string);
+  | InvalidTextShape(string) /* Ocaml accepts _1 as a float */ /* Eventually replace Ocaml's ___of_string_opt with our own rules */;
 
-/* Eventually replace Ocaml's ___of_string_opt with our own rules */
-/* Ocaml accepts _1 as a float */
 let hazel_float_of_string_opt = (s: string): option(float) =>
   if (String.length(s) > 0 && s.[0] == '_') {
     None;
   } else {
     switch (s, String.lowercase_ascii(s)) {
     | ("NaN", _) => Some(nan)
-    | ("Inf", _) => Some(infinity)
-    /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
+    | ("Inf", _) => Some(infinity) /* TODO: NegInf is temporarily introduced until unary minus is introduced to Hazel */
     | ("NegInf", _) => Some(neg_infinity)
     | (_, "nan")
     | (_, "inf")

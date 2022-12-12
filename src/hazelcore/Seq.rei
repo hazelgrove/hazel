@@ -22,8 +22,7 @@ type t('operand, 'operator) =
  */
 and affix('operand, 'operator) =
   /* Empty */
-  | E
-  /* Affix */
+  | E /* Affix */
   | A('operator, t('operand, 'operator));
 
 let mk: ('operand, list(('operator, 'operand))) => t('operand, 'operator);

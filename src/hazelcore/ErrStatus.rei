@@ -5,14 +5,12 @@ module HoleReason: {
     | TypeInconsistent
     | WrongLength;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t) => bool /* Variable: `err` */;
 };
 
-/* Variable: `err` */
 [@deriving sexp]
 type t =
   | NotInHole
-  | InHole(HoleReason.t, MetaVar.t);
+  | InHole(HoleReason.t, MetaVar.t) /* creates an InHole error status, recycling the metavar from the given err status if available */;
 
-/* creates an InHole error status, recycling the metavar from the given err status if available */
 let make_recycled_InHole: (t, HoleReason.t, IDGen.t) => (t, IDGen.t);

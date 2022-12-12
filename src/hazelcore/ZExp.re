@@ -61,17 +61,14 @@ let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
   fun
   | _ => [OnOp(Before), OnOp(After)];
 let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
-  fun
-  /* outer nodes - delimiter */
+  fun /* outer nodes - delimiter */
   | EmptyHole(_)
-  | ListNil(_) => CursorPosition.delim_cursors(1)
-  /* outer nodes - text */
+  | ListNil(_) => CursorPosition.delim_cursors(1) /* outer nodes - text */
   | InvalidText(_, t) => CursorPosition.text_cursors(String.length(t))
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | IntLit(_, n) => CursorPosition.text_cursors(String.length(n))
   | FloatLit(_, f) => CursorPosition.text_cursors(String.length(f))
-  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  /* inner nodes */
+  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5) /* inner nodes */
   | Fun(_, _, _) => {
       CursorPosition.delim_cursors_k(0)
       @ CursorPosition.delim_cursors_k(1)
@@ -144,15 +141,12 @@ and is_before_zoperand =
   | FunZE(_)
   | InjZ(_)
   | CaseZE(_)
-  | CaseZR(_) => false;
+  | CaseZR(_) =>
+    false /* For example:              # Comment1              #| Comment2         */;
 
 // The following 2 functions are specifically for CommentLines!!
 // Check if the cursor at "OnDelim(After)" in a "CommentLine"
-/* For example:
-           # Comment1
-           #| Comment2
 
-   */
 let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
   switch (zline) {
   | CursorL(cursor, CommentLine(_)) =>
@@ -161,13 +155,13 @@ let is_begin_of_comment = ((prefix, zline, _): zblock): bool =>
     | _ => false
     }
   | _ => false
-  };
-// Check if the cursor at the end of a "CommentLine"
-/* For example:
+  } /* For example:
            # Comment1|
            # Comment2
 
-   */
+   */;
+
+// Check if the cursor at the end of a "CommentLine"
 let is_end_of_comment = ((_, zline, suffix): zblock): bool =>
   switch (zline) {
   | CursorL(cursor, CommentLine(comment)) =>
@@ -507,8 +501,7 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
     (CursorE(cursor, operand), id_gen);
   | ParenthesizedZ(zbody) =>
     let (zbody, id_gen) = mk_inconsistent(id_gen, zbody);
-    (ParenthesizedZ(zbody), id_gen);
-  /* already in hole */
+    (ParenthesizedZ(zbody), id_gen /* already in hole */);
   | FunZP(InHole(TypeInconsistent, _), _, _)
   | FunZE(InHole(TypeInconsistent, _), _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
@@ -516,8 +509,7 @@ and mk_inconsistent_zoperand = (id_gen, zoperand) =>
   | CaseZR(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       zoperand,
       id_gen,
-    )
-  /* not in hole */
+    ) /* not in hole */
   | FunZP(NotInHole | InHole(WrongLength, _), _, _)
   | FunZE(NotInHole | InHole(WrongLength, _), _, _)
   | InjZ(NotInHole | InHole(WrongLength, _), _, _)

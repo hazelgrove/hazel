@@ -36,9 +36,8 @@ let cell_status_panel = (~settings: Settings.t, ~model: Model.t, ~inject) => {
   let program = Model.get_program(model);
   let res = model |> Model.get_result;
   let selected_instance = Model.get_selected_hole_instance(model);
-  let (_, ty, _) = program.edit_state;
+  let (_, ty, _) = program.edit_state /* TODO: UI indicators for each non-Ok case. */;
 
-  /* TODO: UI indicators for each non-Ok case. */
   let d =
     if (!settings.evaluation.evaluate) {
       program |> Program.get_elaboration;

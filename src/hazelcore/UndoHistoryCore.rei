@@ -5,9 +5,7 @@ type cursor_term = CursorInfo.cursor_term;
 type start_from_insertion = bool;
 [@deriving sexp]
 type delete_group =
-  | Term(cursor_term, start_from_insertion)
-  /* cursor_term is insufficient for space, empty line and type annotation deletion,
-     so we add the following three constructors */
+  | Term(cursor_term, start_from_insertion) /* cursor_term is insufficient for space, empty line and type annotation deletion,   so we add the following three constructors */
   | Space
   | EmptyLine
   | TypeAnn;
@@ -31,9 +29,7 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action.shape)
-  /* SLine in Action_common.shape stands for both empty line and case rule,
-     so an extra type CaseRule is added for construction */
+  | ConstructEdit(Action.shape) /* SLine in Action_common.shape stands for both empty line and case rule,   so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
   | Import
@@ -56,9 +52,8 @@ let get_cursor_pos: cursor_term => CursorPosition.t;
 
 let is_var_insert: action_group => bool;
 
-let is_var_group: action_group => bool;
+let is_var_group: action_group => bool /* return true if new action_group can be grouped with the previous action_group */;
 
-/* return true if new action_group can be grouped with the previous action_group */
 let group_action_group: (action_group, action_group) => bool;
 
 let cursor_term_len_larger: (cursor_term, cursor_term) => cursor_term;

@@ -116,15 +116,15 @@ let layout_of_doc =
     minimum(
       (max_int, (Cost.inf, None)),
       Obj.magic(layout_of_doc'(Obj.magic(doc), ~width, ~pos)),
-    );
-  // let end_time = Sys.time();
-  /*
+    ) /*
    Printf.printf(
      "layout_of_doc: %d \t%f\n",
      -1, //fst(Lazy.force(memo_table))##.size,
      //Memoize.WeakPoly.Table.length(fst(Lazy.force(memo_table))),
      1000.0 *. (end_time -. start_time),
    );
-   */
+   */;
+
+  // let end_time = Sys.time();
   l;
 };

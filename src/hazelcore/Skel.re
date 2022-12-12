@@ -31,9 +31,9 @@ let mk =
    */
   let rec go_seq =
           (
-            skel_stack: list(t('op)), /* List of skels to be combined into single output skel. */
-            op_stack: list('op), /* Stack of operators. */
-            seq: Seq.t('operand, 'op), /* Convert this seq to output skel. */
+            skel_stack: list(t('op)) /* List of skels to be combined into single output skel. */,
+            op_stack: list('op) /* Stack of operators. */,
+            seq: Seq.t('operand, 'op) /* Convert this seq to output skel. */,
             lex_addr: int,
           ) /* Lexical address of the current operand. */
           : t('op) => {
@@ -45,8 +45,8 @@ let mk =
       go_affix(
         [Placeholder(lex_addr), ...skel_stack],
         op_stack,
-        affix, /* Tail of seq without first operand. */
-        lex_addr + 1 /* Increment lexical address of operand in seq. */
+        affix /* Tail of seq without first operand. */,
+        lex_addr + 1 /* Increment lexical address of operand in seq. */,
       )
     };
   }
@@ -82,9 +82,8 @@ let mk =
         };
 
       let (skel_stack', op_stack') =
-        build_ast_while(skel_stack, op_stack, should_mv);
+        build_ast_while(skel_stack, op_stack, should_mv) /* Push this operator to the operator stack. */;
 
-      /* Push this operator to the operator stack. */
       go_seq(skel_stack', [op, ...op_stack'], seq, lex_addr);
     | E =>
       /**

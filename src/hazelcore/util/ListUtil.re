@@ -68,9 +68,8 @@ let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
   | [(x, y), ...xys] =>
     let (xs, ys) = xys |> unzip;
     ([x, ...xs], [y, ...ys]);
-  };
+  } /* repeat an element n times */;
 
-/* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */
   let rec f = (c, xs) =>
@@ -86,9 +85,8 @@ let map_zip = (f: 'x => 'y, xs: list('x)): list(('x, 'y)) =>
   zip(xs, xs |> List.map(f));
 
 let mapi_zip = (f: (int, 'x) => 'y, xs: list('x)): list(('x, 'y)) =>
-  zip(xs, xs |> List.mapi(f));
+  zip(xs, xs |> List.mapi(f)) /* remove the first n elements from the given list */;
 
-/* remove the first n elements from the given list */
 let rec drop = (n: int, xs: list('a)) =>
   if (n > 0) {
     switch (xs) {

@@ -46,8 +46,7 @@ let next_and_forward = ({stream, _} as o: t('a)) => {
     q,
     fun
     | Some(v) => o |> forward_next(v) |> ignore
-    | None => o |> forward_complete() |> ignore,
-    /* Failures from [q] should not be possible (according to Lwt_stream docs). */
+    | None => o |> forward_complete() |> ignore /* Failures from [q] should not be possible (according to Lwt_stream docs). */,
     ignore,
   );
 
@@ -85,9 +84,8 @@ let of_stream = (stream: Lwt_stream.t('a)) => {
     observers: ref(Subscriptions.empty),
     count: ref(0),
     is_complete: ref(false),
-  };
+  } /* Initialize listener. */;
 
-  /* Initialize listener. */
   let _ = loop(o);
 
   o;

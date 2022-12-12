@@ -3,9 +3,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type undo_history_entry = {
   /* cardstacks after non-movement action applied */
-  cardstacks_after_action: ZCardstacks.t,
-  /* cardstacks_after_move is initially the same as cardstacks_after_action.
-     if there is a movement action, update it. */
+  cardstacks_after_action: ZCardstacks.t /* cardstacks_after_move is initially the same as cardstacks_after_action.   if there is a movement action, update it. */,
   cardstacks_after_move: ZCardstacks.t,
   cursor_term_info: UndoHistoryCore.cursor_term_info,
   previous_action: ModelAction.t,
@@ -22,9 +20,7 @@ type undo_history_group = {
 [@deriving sexp]
 type t = {
   groups: ZList.t(undo_history_group, undo_history_group),
-  all_hidden_history_expand: bool,
-  /* history panel automatically scrolls current entry into view,
-     but this behavior should be disabled when user is hovering over panel */
+  all_hidden_history_expand: bool /* history panel automatically scrolls current entry into view,   but this behavior should be disabled when user is hovering over panel */,
   disable_auto_scrolling: bool,
   preview_on_hover: bool,
   hover_recover_group_id: int,
@@ -81,11 +77,10 @@ let push_history_entry =
         ...ZList.prj_suffix(prev_group.group_entries),
       ],
     ),
-    is_expanded,
+    is_expanded /* return true if caret jump to another term when new action applied */,
   };
 };
 
-/* return true if caret jump to another term when new action applied */
 let caret_jump =
     (prev_group: undo_history_group, new_cardstacks_before: ZCardstacks.t)
     : bool => {
@@ -97,9 +92,8 @@ let caret_jump =
   let new_step =
     new_cardstacks_before |> ZCardstacks.get_program |> Program.get_steps;
   prev_step != new_step;
-};
+} /* return true if new entry can be grouped into the previous group */;
 
-/* return true if new entry can be grouped into the previous group */
 let group_entry =
     (
       ~prev_group: undo_history_group,
@@ -148,8 +142,7 @@ let get_delete_action_group =
         )
       };
     } else if (UndoHistoryCore.is_var_insert(prev_entry.action_group)) {
-      let cursor_term_len_larger = UndoHistoryCore.cursor_term_len_larger;
-      /* if delete group start from var insertion, the deleted term is the longest term in this group */
+      let cursor_term_len_larger = UndoHistoryCore.cursor_term_len_larger /* if delete group start from var insertion, the deleted term is the longest term in this group */;
       let rec max_len_term =
               (
                 ls: list(undo_history_entry),
@@ -310,8 +303,7 @@ let delim_edge_handle =
     /* delete space */
     Some(DeleteEdit(Space));
   } else {
-    None;
-        /* jump to next term */
+    None /* jump to next term */;
   };
 let delete =
     (
@@ -492,12 +484,7 @@ let get_new_action_group =
           }
         }
       | SCommentLine
-      | SParenthesized
-      /***
-       * SCloseParens, SCloseBraces and SCloseSquareBrackets are edit actions
-       * (with no structural change) which result in movement of the cursor,
-       * therefore undoing them should be supported
-       */
+      | SParenthesized /*** * SCloseParens, SCloseBraces and SCloseSquareBrackets are edit actions * (with no structural change) which result in movement of the cursor, * therefore undoing them should be supported */
       | SCloseParens
       | SCloseBraces
       | SCloseSquareBracket
@@ -778,8 +765,7 @@ let push_edit_state =
       let new_group = {
         group_entries: ([], new_entry, []),
         is_expanded: undo_history.all_hidden_history_expand,
-      };
-      /* the successor entries should be cleared in previous group */
+      } /* the successor entries should be cleared in previous group */;
       let prev_group' = {
         ...prev_group,
         group_entries: (
@@ -823,8 +809,7 @@ let update_groups =
   };
 };
 let shift_to_prev = (history: t): t => {
-  let cur_group = ZList.prj_z(history.groups);
-  /* shift to the previous state in the same group */
+  let cur_group = ZList.prj_z(history.groups) /* shift to the previous state in the same group */;
   switch (ZList.shift_next(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
@@ -854,8 +839,7 @@ let shift_to_prev = (history: t): t => {
 };
 
 let shift_to_next = (history: t): t => {
-  let cur_group = ZList.prj_z(history.groups);
-  /* shift to the previous state in the same group */
+  let cur_group = ZList.prj_z(history.groups) /* shift to the previous state in the same group */;
   switch (ZList.shift_prev(cur_group.group_entries)) {
   | None =>
     /* if current group doesn't have previous state, shfit to the previous group */
@@ -888,8 +872,7 @@ let shift_history =
   switch (ZList.shift_to(group_id, undo_history.groups)) {
   | None => failwith("Impossible match, because undo_history is non-empty")
   | Some(new_groups) =>
-    let cur_group = ZList.prj_z(new_groups);
-    /* shift to the element with elt_id */
+    let cur_group = ZList.prj_z(new_groups) /* shift to the element with elt_id */;
     switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
     | None => failwith("Impossible because group_entries is non-empty")
     | Some(new_group_entries) =>

@@ -11,9 +11,8 @@ let view =
       res: ModelResult.t,
     )
     : Vdom.Node.t => {
-  open Vdom;
+  open Vdom /* TODO: Fade out when not current? */;
 
-  /* TODO: Fade out when not current? */
   let hii =
     switch (res.current) {
     | ResultOk(r) => r |> ProgramResult.get_hii

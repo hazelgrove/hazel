@@ -224,9 +224,9 @@ let place_cursor_operand =
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
   is_valid_cursor_operator(cursor, operator)
-    ? Some((cursor, operator)) : None;
+    ? Some((cursor, operator))
+    : None /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (zoperand, IDGen.t) => {
   let (hole, id_gen) = UHPat.new_EmptyHole(id_gen);
   (place_before_operand(hole), id_gen);

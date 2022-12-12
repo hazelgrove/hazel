@@ -1,10 +1,6 @@
-open Tezt;
+open Tezt /* include TeztExamples; */;
 
-/* include TeztExamples; */
-
-include Test_Hazeltext;
-
-/* hazelcore */
+include Test_Hazeltext /* hazelcore */;
 
 include Test_SkelParser;
 

@@ -110,49 +110,39 @@ and perform_opseq =
       SwapUp |
       SwapDown,
       _,
-    )
-  /* Invalid cursor positions */
-  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+    ) /* Invalid cursor positions */
+  | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) =>
+    Failed /* Movement handled at top level */
 
-  /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-    move(a, zopseq)
-
-  /* Deletion */
+    move(a, zopseq) /* Deletion */
 
   | (Delete, ZOperator((OnOp(After as side), _), _))
   | (Backspace, ZOperator((OnOp(Before as side), _), _)) =>
-    perform_opseq(Action_common.escape(side), zopseq)
+    perform_opseq(Action_common.escape(side), zopseq) /* Delete before operator == Backspace after operator */
 
-  /* Delete before operator == Backspace after operator */
   | (Delete, ZOperator((OnOp(Before), op), surround)) =>
     perform_opseq(
       Backspace,
       ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
-    )
-  /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ...
+    ) /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ...
    * (for now until we have proper type constructors) */
+
   | (Backspace, ZOperator((OnOp(After), _), (prefix, suffix))) =>
     let S(prefix_hd, new_prefix) = prefix;
     let zoperand = prefix_hd |> ZTyp.place_after_operand;
     let S(_, new_suffix) = suffix;
-    Succeeded(
-      ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix))),
-    );
+    Succeeded(ZTyp.mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix)))) /* construction on operators becomes movement... */ /* Construction */;
 
-  /* Construction */
-  /* construction on operators becomes movement... */
   | (Construct(SOp(SSpace)), ZOperator((OnOp(After), _), _)) =>
-    perform_opseq(MoveRight, zopseq)
-  /* ...or construction after movement */
+    perform_opseq(MoveRight, zopseq) /* ...or construction after movement */
   | (Construct(_) as a, ZOperator((OnOp(side), _), _)) =>
     switch (perform_opseq(Action_common.escape(side), zopseq)) {
     | Failed
     | CursorEscaped(_) => Failed
     | Succeeded(zty) => perform(a, zty)
-    }
+    } /* Space becomes movement until we have proper type constructors */
 
-  /* Space becomes movement until we have proper type constructors */
   | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
       when ZTyp.is_after_zoperand(zoperand) =>
     perform_opseq(MoveRight, zopseq)
@@ -161,9 +151,7 @@ and perform_opseq =
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(op) => Succeeded(construct_operator(op, zoperand, surround))
-    }
-
-  /* SwapLeft and SwapRight is handled at block level */
+    } /* SwapLeft and SwapRight is handled at block level */
 
   | (SwapLeft, ZOperator(_))
   | (SwapRight, ZOperator(_)) => Failed
@@ -189,9 +177,8 @@ and perform_opseq =
     ) =>
     let new_prefix = Seq.A(operator, S(operand, prefix));
     let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, new_suffix));
-    Succeeded(ZTyp.mk_ZOpSeq(new_zseq));
+    Succeeded(ZTyp.mk_ZOpSeq(new_zseq)) /* Zipper */;
 
-  /* Zipper */
   | (_, ZOperand(zoperand, (prefix, suffix))) =>
     switch (perform_operand(a, zoperand)) {
     | Failed => Failed
@@ -227,30 +214,25 @@ and perform_operand =
       SwapDown,
       _,
     ) =>
-    Failed
+    Failed /* Invalid cursor positions */
 
-  /* Invalid cursor positions */
   | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
   | (_, CursorT(cursor, operand))
       when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
-    Failed
+    Failed /* Movement handled at top level */
 
-  /* Movement handled at top level */
   | (MoveTo(_) | MoveToPrevHole | MoveToNextHole | MoveLeft | MoveRight, _) =>
-    move(a, ZOpSeq.wrap(zoperand))
+    move(a, ZOpSeq.wrap(zoperand)) /* ( _ <|)   ==>   ( _| ) */ /* Backspace and Delete */
 
-  /* Backspace and Delete */
-
-  /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorT(OnDelim(_, Before), _)) =>
     zoperand |> ZTyp.is_before_zoperand
-      ? CursorEscaped(Before) : perform_operand(MoveLeft, zoperand)
-  /* (|> _ )   ==>   ( |_ ) */
+      ? CursorEscaped(Before)
+      : perform_operand(MoveLeft, zoperand) /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorT(OnDelim(_, After), _)) =>
     zoperand |> ZTyp.is_after_zoperand
-      ? CursorEscaped(After) : perform_operand(MoveRight, zoperand)
+      ? CursorEscaped(After)
+      : perform_operand(MoveRight, zoperand) /* Delete before delimiter == Backspace after delimiter */
 
-  /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorT(OnDelim(k, Before), operand)) =>
     perform_operand(Backspace, CursorT(OnDelim(k, After), operand))
 
@@ -258,18 +240,14 @@ and perform_operand =
     Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
 
   | (Backspace, CursorT(OnDelim(_, After), Unit | Int | Float | Bool)) =>
-    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole)))
+    Succeeded(ZOpSeq.wrap(ZTyp.place_before_operand(Hole))) /* (<| _ )  ==>  |_ */ /* ( _ )<|  ==>  _| */
 
-  /* ( _ )<|  ==>  _| */
-  /* (<| _ )  ==>  |_ */
   | (
       Backspace,
       CursorT(OnDelim(k, After), Parenthesized(body) | List(body)),
     ) =>
     let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
-    Succeeded(body |> place_cursor);
-
-  /* Construction */
+    Succeeded(body |> place_cursor) /* Construction */;
 
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
     perform_operand(MoveRight, zoperand)
@@ -326,12 +304,10 @@ and perform_operand =
     switch (operator_of_shape(os)) {
     | None => Failed
     | Some(op) => Succeeded(construct_operator(op, zoperand, (E, E)))
-    }
+    } /* Invalid SwapLeft and SwapRight actions */
 
-  /* Invalid SwapLeft and SwapRight actions */
-  | (SwapLeft | SwapRight, CursorT(_)) => Failed
+  | (SwapLeft | SwapRight, CursorT(_)) => Failed /* Zipper Cases */
 
-  /* Zipper Cases */
   | (_, ParenthesizedZ(zbody)) =>
     switch (perform(a, zbody)) {
     | Failed => Failed

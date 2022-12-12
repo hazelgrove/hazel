@@ -7,9 +7,7 @@ type cursor_term = CursorInfo.cursor_term;
 type start_from_insertion = bool;
 [@deriving sexp]
 type delete_group =
-  | Term(cursor_term, start_from_insertion)
-  /* cursor_term is insufficient for space, empty line and type annotation deletion,
-     so we add the following three constructors */
+  | Term(cursor_term, start_from_insertion) /* cursor_term is insufficient for space, empty line and type annotation deletion,   so we add the following three constructors */
   | Space
   | EmptyLine
   | TypeAnn;
@@ -33,9 +31,7 @@ type swap_group =
 type action_group =
   | VarGroup(var_group)
   | DeleteEdit(delete_group)
-  | ConstructEdit(Action.shape)
-  /* SLine in Action.shape stands for both empty line and case rule,
-     so an extra type CaseRule is added for construction */
+  | ConstructEdit(Action.shape) /* SLine in Action.shape stands for both empty line and case rule,   so an extra type CaseRule is added for construction */
   | CaseRule
   | SwapEdit(swap_group)
   | Import
@@ -85,11 +81,10 @@ let is_var_group = (action_group): bool => {
     | Insert(_) => false
     | Edit(_) => true
     }
-  | _ => false
+  | _ => false /* return true if new action_group can be grouped with the previous action_group */
   };
 };
 
-/* return true if new action_group can be grouped with the previous action_group */
 let group_action_group =
     (action_group_prev: action_group, action_group_next: action_group): bool =>
   switch (action_group_prev, action_group_next) {
@@ -110,8 +105,7 @@ let group_action_group =
     | SFun => true
     | _ => false
     }
-  | (VarGroup(_), _) => false
-  /* "insert" and "insert and delete" should be grouped together */
+  | (VarGroup(_), _) => false /* "insert" and "insert and delete" should be grouped together */
   | (DeleteEdit(Term(_, true)), VarGroup(Insert(_))) => true
   | (DeleteEdit(_), _)
   | (ConstructEdit(_), _)

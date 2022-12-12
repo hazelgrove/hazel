@@ -1,6 +1,5 @@
-open Sexplib.Std;
+open Sexplib.Std /* types with holes */;
 
-/* types with holes */
 [@deriving sexp]
 type t =
   | Hole
@@ -32,14 +31,12 @@ let precedence = (ty: t): int =>
   | Prod(_) => precedence_Prod
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
-  };
-
-/* equality
+  } /* equality
    At the moment, this coincides with default equality,
-   but this will change when polymorphic types are implemented */
-let eq = (==);
+   but this will change when polymorphic types are implemented */;
 
-/* type consistency */
+let eq = (==) /* type consistency */;
+
 let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
@@ -74,9 +71,8 @@ let rec consistent_all = (types: list(t)): bool =>
     } else {
       consistent_all(tl);
     }
-  };
+  } /* matched arrow types */;
 
-/* matched arrow types */
 let matched_arrow =
   fun
   | Hole => Some((Hole, Hole))
@@ -88,23 +84,20 @@ let get_prod_elements: t => list(t) =
   | Prod(tys) => tys
   | _ as ty => [ty];
 
-let get_prod_arity = ty => ty |> get_prod_elements |> List.length;
+let get_prod_arity = ty => ty |> get_prod_elements |> List.length /* matched sum types */;
 
-/* matched sum types */
 let matched_sum =
   fun
   | Hole => Some((Hole, Hole))
   | Sum(tyL, tyR) => Some((tyL, tyR))
-  | _ => None;
+  | _ => None /* matched list types */;
 
-/* matched list types */
 let matched_list =
   fun
   | Hole => Some(Hole)
   | List(ty) => Some(ty)
-  | _ => None;
+  | _ => None /* complete (i.e. does not have any holes) */;
 
-/* complete (i.e. does not have any holes) */
 let rec complete =
   fun
   | Hole => false

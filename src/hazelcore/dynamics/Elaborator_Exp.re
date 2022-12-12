@@ -803,9 +803,8 @@ and ana_elab_rule =
       Some((Rule(dp, DHExp.cast(d1, ty1, clause_ty)), delta))
     }
   };
-};
+} /* Bind built-ins before an elaborated expression. */;
 
-/* Bind built-ins before an elaborated expression. */
 let elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   List.fold_left(
     (d', (ident, (_, elab))) => DHExp.Let(Var(ident), elab, d'),

@@ -274,8 +274,7 @@ let rec mk =
             Doc.text(InvalidOperationError.err_msg(err))
             |> annot(DHAnnot.DivideByZero);
           hcats([d_doc, decoration]);
-        }
-      /*
+        } /*
        let (d_doc, d_cast) as dcast_doc = go'(d);
        let cast_decoration =
          hcats([
@@ -294,6 +293,7 @@ let rec mk =
        | _ => hcats([mk_cast(dcast_doc), cast_decoration])
        };
        */
+
       | Fun(dp, ty, dbody) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

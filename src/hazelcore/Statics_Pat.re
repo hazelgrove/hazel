@@ -63,8 +63,7 @@ and syn_operand =
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _)
-  | TypeAnn(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | TypeAnn(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(ExpandingKeyword(_), _), _) =>
@@ -164,8 +163,7 @@ and ana_operand =
   | ListNil(InHole(WrongLength, _))
   | TypeAnn(InHole(WrongLength, _), _, _)
   | Inj(InHole(WrongLength, _), _, _) =>
-    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
-  /* not in hole */
+    ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(ExpandingKeyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>

@@ -25,16 +25,14 @@ let map2_opt: (('a, 'b) => 'c, list('a), list('b)) => option(list('c));
  */
 let zip: (list('a), list('b)) => list(('a, 'b));
 
-let unzip: list(('a, 'b)) => (list('a), list('b));
+let unzip: list(('a, 'b)) => (list('a), list('b)) /* repeat an element n times */;
 
-/* repeat an element n times */
 let replicate: (int, 'a) => list('a);
 
 let map_zip: ('x => 'y, list('x)) => list(('x, 'y));
 
-let mapi_zip: ((int, 'x) => 'y, list('x)) => list(('x, 'y));
+let mapi_zip: ((int, 'x) => 'y, list('x)) => list(('x, 'y)) /* remove the first n elements from the given list */;
 
-/* remove the first n elements from the given list */
 let drop: (int, list('a)) => list('a);
 
 let update_nth: (int, list('a), 'a => 'a) => list('a);

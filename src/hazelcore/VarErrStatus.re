@@ -4,9 +4,8 @@ module HoleReason = {
   type t =
     | Free
     | ExpandingKeyword(ExpandingKeyword.t);
-};
+} /* Variable: var_err */;
 
-/* Variable: var_err */
 [@deriving sexp]
 type t =
   | NotInVarHole

@@ -74,9 +74,8 @@ let get_tuple_elements: skel => list(skel);
 
 let mk_tuple: (~err: ErrStatus.t=?, list(skel)) => skel;
 
-let new_InvalidText: (IDGen.t, string) => (operand, IDGen.t);
+let new_InvalidText: (IDGen.t, string) => (operand, IDGen.t) /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole: IDGen.t => (operand, IDGen.t);
 
 let is_EmptyHole: operand => bool;

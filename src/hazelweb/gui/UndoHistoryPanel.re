@@ -519,8 +519,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   let timestamp_view = (undo_history_entry: undo_history_entry) => {
-    let hour = Unix.localtime(undo_history_entry.timestamp).tm_hour;
-    /* if there is only 1 digit in sec/min/hour, it should be expanded into two digits */
+    let hour = Unix.localtime(undo_history_entry.timestamp).tm_hour /* if there is only 1 digit in sec/min/hour, it should be expanded into two digits */;
     let str_hour =
       if (hour < 10) {
         "0" ++ string_of_int(hour);
@@ -604,11 +603,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ~cur_elt_id=undo_history.cur_elt_id,
         ~group_id,
         ~elt_id,
-      );
-    /* making the entry show preview effect when scrolling
+      ) /* making the entry show preview effect when scrolling
        is realized by getting topmost element under the mouse.
        Due to css padding setting, this element can be at any level,
-       so we have to add attribute "group_id" and "elt_id" for all div levels */
+       so we have to add attribute "group_id" and "elt_id" for all div levels */;
+
     Vdom.(
       Node.div(
         [Attr.classes(status_class)],
@@ -767,11 +766,11 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
         ~cur_elt_id=undo_history.cur_elt_id,
         ~group_id,
         ~elt_id,
-      );
-    /* making the entry show preview effect when scrolling
+      ) /* making the entry show preview effect when scrolling
        is realized by getting topmost element under the mouse.
        Due to css padding setting, this element can be at any level,
-       so we have to add attribute "group_id" and "elt_id" for all div levels */
+       so we have to add attribute "group_id" and "elt_id" for all div levels */;
+
     Vdom.(
       Node.div(
         [Attr.classes(status_class)],
@@ -926,8 +925,7 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
                 group_id,
                 0 /*elt_id*/,
                 title_entry,
-              ),
-              /* hidden entries */
+              ) /* hidden entries */,
               ...list_map_helper_func(
                    history_hidden_entry_view(~undo_history, group_id),
                    1 /* base elt_id is 1, because there is a title entry with elt_id=0 before */,
@@ -1065,11 +1063,10 @@ let view = (~inject: ModelAction.t => Vdom.Event.t, model: Model.t) => {
           expand_button(undo_history.all_hidden_history_expand),
           redo_button(UndoHistory.disable_redo(undo_history)),
           undo_button(UndoHistory.disable_undo(undo_history)),
-        ],
+        ] /* return option((group_id, elt_id)) */,
       )
     );
 
-  /* return option((group_id, elt_id)) */
   let get_elt_id_under_mouse = (model: Model.t): option((int, int)) => {
     let elt: Js.t(Dom_html.divElement) =
       JSUtil.element_from_point(model.mouse_position^);

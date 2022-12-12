@@ -355,9 +355,8 @@ and matches_cast_Cons =
   | NonEmptyHole(_, _, _, _, _) => Indet
   | FailedCast(_, _, _) => Indet
   | InvalidOperation(_) => Indet
-  };
+  } /* closed substitution [d1/x]d2*/;
 
-/* closed substitution [d1/x]d2*/
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
   | BoundVar(y) =>
@@ -799,8 +798,7 @@ and evaluate_case =
         evaluate_case(inconsistent_info, scrut, rules, current_rule_index + 1)
       }
     }
-  }
-/* Evaluate the application of a built-in function. */
+  } /* Evaluate the application of a built-in function. */
 and evaluate_ap_builtin =
     (ident: string, args: list(DHExp.t)): EvaluatorResult.t => {
   switch (Builtins.lookup_form(ident)) {

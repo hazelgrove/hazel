@@ -143,9 +143,8 @@ let rec mk_tuple = (~err: ErrStatus.t=NotInHole, elements: list(skel)): skel =>
 let new_InvalidText = (id_gen: IDGen.t, t: string): (operand, IDGen.t) => {
   let (u, id_gen) = IDGen.next_hole(id_gen);
   (InvalidText(u, t), id_gen);
-};
+} /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (id_gen: IDGen.t): (operand, IDGen.t) => {
   let (u, id_gen) = id_gen |> IDGen.next_hole;
   (EmptyHole(u), id_gen);
@@ -183,9 +182,8 @@ and get_err_status_operand =
   | Inj(err, _, _)
   | Case(StandardErrStatus(err), _, _) => err
   | Case(InconsistentBranches(_), _, _) => NotInHole
-  | Parenthesized(e) => get_err_status(e);
+  | Parenthesized(e) => get_err_status(e) /* put e in the specified hole */;
 
-/* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
   e |> set_err_status_block(err)
 and set_err_status_block = (err: ErrStatus.t, block: block): block => {
@@ -207,9 +205,8 @@ and set_err_status_operand = (err, operand) =>
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules) => Case(StandardErrStatus(err), scrut, rules)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
-  };
+  } /* put e in a new hole, if it is not already in a hole */;
 
-/* put e in a new hole, if it is not already in a hole */
 let rec mk_inconsistent = (id_gen: IDGen.t, e: t): (t, IDGen.t) =>
   mk_inconsistent_block(id_gen, e)
 and mk_inconsistent_block = (id_gen: IDGen.t, block: block): (block, IDGen.t) => {
@@ -234,8 +231,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
   | Case(StandardErrStatus(InHole(TypeInconsistent, _)), _, _) => (
       operand,
       id_gen,
-    )
-  /* not in hole */
+    ) /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | IntLit(NotInHole | InHole(WrongLength, _), _)
   | FloatLit(NotInHole | InHole(WrongLength, _), _)
@@ -252,8 +248,7 @@ and mk_inconsistent_operand = (id_gen, operand) =>
     let (u, id_gen) = id_gen |> IDGen.next_hole;
     let operand =
       operand |> set_err_status_operand(InHole(TypeInconsistent, u));
-    (operand, id_gen);
-  /* err in constructor args */
+    (operand, id_gen /* err in constructor args */);
   | Parenthesized(body) =>
     let (body, id_gen) = body |> mk_inconsistent(id_gen);
     (Parenthesized(body), id_gen);

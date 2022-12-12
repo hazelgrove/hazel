@@ -17,12 +17,10 @@ type join =
 let precedence_Prod: int;
 let precedence_Arrow: int;
 let precedence_Sum: int;
-let precedence: t => int;
+let precedence: t => int /* type equality */;
 
-/* type equality */
-let eq: (t, t) => bool;
+let eq: (t, t) => bool /* type consistency */;
 
-/* type consistency */
 let consistent: (t, t) => bool;
 
 let get_prod_elements: t => list(t);
