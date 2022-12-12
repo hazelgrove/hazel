@@ -65,6 +65,7 @@ type info_tpat = {
 type info_tsum = {
   cls: Term.UTSum.cls,
   term: Term.UTSum.t,
+  self: Typ.self,
 };
 
 /* The Info aka Cursorinfo assigned to each subterm. */
@@ -316,7 +317,9 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
   | Pat(p) =>
     let (_, _, map) = upat_to_info_map(~ctx, p);
     (VarMap.empty, map);
-  | TSum(_) => (VarMap.empty, Ptmap.empty) //TODO(andrew)
+  | TSum(ts) =>
+    let map = utsum_to_info_map(~ctx, ts);
+    (VarMap.empty, map);
   | TPat(tp) =>
     let map = utpat_to_info_map(~ctx, tp);
     (VarMap.empty, map);
@@ -699,7 +702,12 @@ and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => 
 }
 and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
   let cls = Term.UTSum.cls_of_term(term);
-  let just = m => add_info(ids, InfoTSum({cls, term: utsum}), m);
+  let just = m =>
+    add_info(
+      ids,
+      InfoTSum({cls, term: utsum, self: Just(Unknown(Internal))}),
+      m,
+    );
   switch (term) {
   | Invalid(msg) => add_info(ids, Invalid(msg), Id.Map.empty)
   | EmptyHole => just(Id.Map.empty)
@@ -710,9 +718,14 @@ and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
   | Sum(sum) =>
     let ms = List.map(utsum_to_info_map(~ctx), sum);
     just(union_m(ms));
-  | Ap(_, typ) =>
-    let (_, m) = utyp_to_info_map(~ctx, typ);
-    just(m);
+  | Ap(_, utyp) =>
+    let self: Typ.self =
+      switch (Term.UTyp.to_typ(ctx, utyp)) {
+      | Prod([]) => Just(Var("*self"))
+      | t => Just(Arrow(t, Var("*self")))
+      };
+    let (_, m) = utyp_to_info_map(~ctx, utyp);
+    add_info(ids, InfoTSum({cls, term: utsum, self}), m);
   };
 };
 

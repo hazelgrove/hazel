@@ -189,6 +189,15 @@ let view_of_info =
         div(~attr=clss([happyc]), [text("New type alias")]),
       ],
     )
+  | InfoTSum({self: Just(ty), _}) =>
+    div(
+      ~attr=clss([infoc, "tsum"]),
+      [
+        term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
+        text("is"),
+        Type.view(ty),
+      ],
+    )
   | InfoTSum(_) =>
     div(
       ~attr=clss([infoc, "tsum"]),

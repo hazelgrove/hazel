@@ -1109,7 +1109,7 @@ svg.tile-selected {
   left: 0.2em;
   bottom: 2.1em;
   min-width: 10em;
-  max-width: 14em;
+  max-width: 24em;
   max-height: 12em;
   overflow: auto;
   padding: 0.2em;
