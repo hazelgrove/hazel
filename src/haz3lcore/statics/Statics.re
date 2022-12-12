@@ -509,7 +509,6 @@ and uexp_to_info_map =
     let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias(typat, _, e) =>
-    //TODO(andrew): cleanup
     let m_typat = utpat_to_info_map(~ctx, typat);
     let (ty, free, m_body) = go(~mode, e);
     add(~self=Just(ty), ~free, union_m([m_typat, m_body]));

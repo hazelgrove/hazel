@@ -847,7 +847,7 @@ let tag_exp: form = {
   let explanation = {message: "`%s` constructor.", feedback: Unselected};
   {
     id: "tag_exp",
-    syntactic_form: [exp("C")],
+    syntactic_form: [exp("Constructor")],
     expandable_id: None,
     explanation,
     examples: [],
@@ -2845,7 +2845,7 @@ let tag_pat: form = {
   };
   {
     id: "tag_pat",
-    syntactic_form: [pat("C")],
+    syntactic_form: [pat("Constructor")],
     expandable_id: None,
     explanation,
     examples: [],

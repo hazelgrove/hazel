@@ -161,7 +161,7 @@ let precedence = (ty: t): int =>
   };
 
 let type_var_eq = (d, n1, n2) =>
-//TODO(andrew): handle shadowing
+  //TODO(andrew): handle shadowing
   switch (List.assoc_opt(n1, d), List.assoc_opt(n2, d)) {
   | _ when n1 == n2 => true //get rid of this
   | (Some(n), _) when n == n2 => true
