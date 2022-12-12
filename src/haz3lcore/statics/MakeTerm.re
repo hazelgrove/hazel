@@ -351,30 +351,19 @@ and tsum = unsorted => {
 and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   let ret = (term: UTSum.term) => (term, []);
   let hole = unsorted => Term.UTSum.hole(kids_of_unsorted(unsorted));
-  //TODO(andrew): ask david about this... not getting CI for tsum terms, missing ids?
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([tag], []) when Form.is_typ_var(tag) =>
-          Ap(tag, {ids: [], term: Tuple([])})
-        | _ => hole(tm)
-        },
-      )
+    | ([(_, ([tag], []))], []) when Form.is_typ_var(tag) =>
+      ret(Ap(tag, {ids: [], term: Tuple([])}))
     | _ => ret(hole(tm))
     }
   | Post(TSum({term: Ap(tag, _), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
-    | ([(_, t)], []) =>
-      switch (t) {
-      | (["(", ")"], [Typ({term: typ, ids})]) => (
-          Ap(tag, {ids, term: typ}),
-          ctr_ids,
-        )
-      | _ => ret(hole(tm))
-      }
+    | ([(_, (["(", ")"], [Typ({term: typ, ids})]))], []) => (
+        Ap(tag, {ids, term: typ}),
+        ctr_ids,
+      )
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
