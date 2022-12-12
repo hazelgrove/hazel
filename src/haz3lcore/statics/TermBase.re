@@ -25,6 +25,11 @@ module rec Any: {
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
+
+  let is_exp: t => option(UExp.t);
+  let is_pat: t => option(UPat.t);
+  let is_typ: t => option(UTyp.t);
+  let is_tsum: t => option(UTSum.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -36,6 +41,23 @@ module rec Any: {
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
+
+  let is_exp: t => option(UExp.t) =
+    fun
+    | Exp(e) => Some(e)
+    | _ => None;
+  let is_pat: t => option(UPat.t) =
+    fun
+    | Pat(p) => Some(p)
+    | _ => None;
+  let is_typ: t => option(UTyp.t) =
+    fun
+    | Typ(t) => Some(t)
+    | _ => None;
+  let is_tsum: t => option(UTSum.t) =
+    fun
+    | TSum(ts) => Some(ts)
+    | _ => None;
 }
 and UExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]

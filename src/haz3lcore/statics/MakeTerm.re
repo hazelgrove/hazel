@@ -73,80 +73,19 @@ let _complete_root =
     }
   | root => root;
 
-let is_tuple_exp = ((commas, kids): tiles): option(list(UExp.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Exp(e) => Some(e)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
-let is_tuple_pat = ((commas, kids): tiles): option(list(UPat.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Pat(p) => Some(p)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
-let is_tuple_typ = ((commas, kids): tiles): option(list(UTyp.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)(([","], [])))) {
-    kids
-    |> List.map(
-         fun
-         | Typ(ty) => Some(ty)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
+let is_nary =
+    (is_sort: any => option('sort), delim: Token.t, (delims, kids): tiles)
+    : option(list('sort)) =>
+  if (delims |> List.map(snd) |> List.for_all((==)(([delim], [])))) {
+    kids |> List.map(is_sort) |> OptUtil.sequence;
   } else {
     None;
   };
 
-//TODO(andrew): cleanup
-let is_sum_typ = ((commas, kids): tiles): option(list(UTSum.t)) =>
-  if (commas |> List.map(snd) |> List.for_all((==)((["+"], [])))) {
-    kids
-    |> List.map(
-         fun
-         | TSum(ty) => Some(ty)
-         | _ => None,
-       )
-    |> OptUtil.sequence;
-  } else {
-    None;
-  };
-/*
- let is_sum_sumtyp = ((commas, kids): tiles): option(UTyp.t) =>
-   if (commas |> List.map(snd) |> List.for_all((==)((["+"], [])))) {
-     kids
-     |> List.map(
-          fun
-          | Typ({term: Sum([a]), ids: new_ids}) => Some(([a], new_ids))
-          | _ => None,
-        )
-     |> OptUtil.sequence
-     |> Option.map(xs => {
-          let (ts, ids) =
-            List.fold_left(
-              ((acc_g, acc_ids), (guys, ids)) =>
-                (acc_g @ guys, acc_ids @ ids),
-              ([], []),
-              xs,
-            );
-          UTyp.{term: Sum(ts), ids};
-        });
-   } else {
-     None;
-   };
-   */
+let is_tuple_exp = is_nary(TermBase.Any.is_exp, ",");
+let is_tuple_pat = is_nary(TermBase.Any.is_pat, ",");
+let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
+let is_typ_sum = is_nary(TermBase.Any.is_tsum, "+");
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -171,12 +110,6 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
 };
-
-// let have_sort = (tms: list(any)) =>
-//   tms
-//   |> List.map(
-
-//   )
 
 let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
 let ids =
@@ -446,7 +379,7 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
     }
   | Pre(_) as tm => ret(hole(tm))
   | Bin(TSum(l), tiles, TSum(r)) as tm =>
-    switch (is_sum_typ(tiles)) {
+    switch (is_typ_sum(tiles)) {
     | Some(between_kids) => ret(Sum([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {

@@ -41,7 +41,7 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("Unit")])
   | Prod([_]) =>
-    div(~attr=clss(["typ-view", "Prod"]), [text("BadProduct")])
+    div(~attr=clss(["typ-view", "Prod"]), [text("Singleton Product")])
   | Prod([t0, ...ts]) =>
     div(
       ~attr=clss(["typ-view", "atom", "Prod"]),
@@ -55,22 +55,18 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
-  | LabelSum([]) =>
-    div(~attr=clss(["typ-view", "Prod"]), [text("Nullary Sum")])
-  //TODO(andrew): cleanup
-  | LabelSum([t0]) =>
+  | LabelSum(ts) =>
     div(
       ~attr=clss(["typ-view", "LabelSum"]),
-      [text("sum ")] @ tagged_view(t0) @ [text(" end")],
+      switch (ts) {
+      | [] => [text("Nullary Sum")]
+      | [t0] => [text("sum ")] @ tagged_view(t0) @ [text(" end")]
+      | [t0, ...ts] =>
+        let ts_views =
+          List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
+        [text("sum ")] @ tagged_view(t0) @ ts_views @ [text(" end")];
+      },
     )
-  | LabelSum([t0, ...ts]) =>
-    let tys_views =
-      tagged_view(t0)
-      @ (List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten);
-    div(
-      ~attr=clss(["typ-view", "LabelSum"]),
-      [text("sum ")] @ tys_views @ [text(" end")],
-    );
   | Sum(t1, t2) =>
     div(
       ~attr=clss(["typ-view", "Sum"]),
