@@ -157,6 +157,7 @@
   --caret-position-z: 13;
   --current-caret-pos-z: 15;
   --caret-z: 14;
+  --docs-highlight-z:8;
 
   --type-inspector-z: 14;
   --top-bar-z: 15;
@@ -1275,7 +1276,10 @@ svg.tile-selected {
   background-color: rgb(180, 203, 240);
 }
 .highlight-code-blue {
-  fill: rgb(180, 203, 240);
+  fill: rgb(185 217 255);
+  /*mix-blend-mode: multiply;
+  z-index: var(--docs-highlight-z);
+  filter: url(#goo);*/
 }
 
 .highlight-pink {

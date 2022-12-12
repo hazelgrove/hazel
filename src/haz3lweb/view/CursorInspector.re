@@ -199,13 +199,7 @@ let view_of_info =
       ],
     )
   | InfoTSum(_) =>
-    div(
-      ~attr=clss([infoc, "tsum"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
-        div(~attr=clss([happyc]), [text("Labelled sum type constructor")]),
-      ],
-    )
+    failwith("CursorInspector: TSum Error cases not implemented")
   };
 };
 
