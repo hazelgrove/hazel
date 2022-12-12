@@ -44,7 +44,7 @@ let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
   };
 };
 
-//TODO(andrew): is this correct in the case of duplicates?
+/* Note: this currently shadows in the case of duplicates */
 let union: list(co) => co =
   List.fold_left((free1, free2) => free1 @ free2, []);
 

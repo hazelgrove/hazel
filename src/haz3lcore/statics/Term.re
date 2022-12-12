@@ -648,7 +648,7 @@ let rec ids =
   | Pat(tm) => tm.ids
   | Typ(tm) => tm.ids
   | TPat(tm) => tm.ids
-  | TSum(tm) => tm.ids //TODO(andrew): ask david about this vs below?
+  | TSum(tm) => tm.ids
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];

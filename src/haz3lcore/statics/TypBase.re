@@ -30,6 +30,7 @@ module rec Ctx: {
   type co = VarMap.t_(co_entry);
 
   let lookup_tvar: (t, Token.t) => option(Kind.t);
+  let is_tvar: (t, Token.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
@@ -66,6 +67,16 @@ module rec Ctx: {
       | _ => None,
       ctx,
     );
+
+  let is_tvar = (ctx: t, name: Token.t) =>
+    switch (
+      List.assoc_opt(name, BuiltinADTs.adts),
+      Ctx.lookup_tvar(ctx, name),
+    ) {
+    | (Some(_), _)
+    | (_, Some(_)) => true
+    | _ => false
+    };
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
