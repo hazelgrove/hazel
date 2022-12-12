@@ -248,20 +248,11 @@ let deco =
 
             let get_clss = segment =>
               switch (List.nth(segment, 0)) {
-              | Base.Tile({mold, _}) =>
-                switch (mold.out) {
-                | Pat => ["term-tag-pat"]
-                | Exp => ["term-tag-exp"] // TODO the brown on brown isn't the greatest... but okay
-                | Typ => ["term-tag-typ"]
-                | TPat //TODO(andrew)
-                | TSum //TODO(andrew)
-                | Any
-                | Nul
-                | Rul => []
-                }
+              | Base.Tile({mold, _}) => [
+                  "term-tag-" ++ Sort.to_string(mold.out),
+                ]
               | _ => []
               };
-
             let specificity_menu =
               Node.div(
                 ~attr=

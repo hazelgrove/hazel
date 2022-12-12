@@ -844,7 +844,10 @@ let var_exp: form = {
 
 let tag_exp_group = "tag_exp_group";
 let tag_exp: form = {
-  let explanation = {message: "`%s` constructor.", feedback: Unselected};
+  let explanation = {
+    message: "`%s` is a constructor for an algebraic data type.",
+    feedback: Unselected,
+  };
   {
     id: "tag_exp",
     syntactic_form: [exp("Constructor")],
