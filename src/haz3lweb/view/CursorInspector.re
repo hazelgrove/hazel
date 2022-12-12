@@ -194,7 +194,7 @@ let view_of_info =
       ~attr=clss([infoc, "tsum"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
-        div(~attr=clss([happyc]), [text("Labelled sum type")]),
+        div(~attr=clss([happyc]), [text("Labelled sum type constructor")]),
       ],
     )
   };

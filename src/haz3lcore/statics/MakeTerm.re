@@ -355,7 +355,7 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(_, tile)], []) =>
       ret(
         switch (tile) {
         | ([tag], []) when Form.is_typ_var(tag) =>
@@ -365,16 +365,16 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(TSum({term: Ap(tag, _), _}), tiles) as tm =>
+  | Post(TSum({term: Ap(tag, _), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
-    | ([(_id, t)], []) =>
-      ret(
-        switch (t) {
-        | (["(", ")"], [Typ({term: typ, ids})]) =>
-          Ap(tag, {ids, term: typ})
-        | _ => hole(tm)
-        },
-      )
+    | ([(_, t)], []) =>
+      switch (t) {
+      | (["(", ")"], [Typ({term: typ, ids})]) => (
+          Ap(tag, {ids, term: typ}),
+          ctr_ids,
+        )
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
