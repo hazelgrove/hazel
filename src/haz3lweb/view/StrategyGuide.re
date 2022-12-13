@@ -19,7 +19,7 @@ let option = nodes => Node.div(~attr=Attr.classes(["option"]), nodes);
 let mini_option = nodes =>
   Node.div(~attr=Attr.classes(["mini-option"]), nodes);
 let fill_space = Node.span(~attr=Attr.classes(["filler"]), []);
-let lit_msg = (ty: HTyp.t) => {
+let lit_msg = (ty: Typ.t) => {
   let int_lit =
     option([
       Node.text("Enter an Integer Literal"),
@@ -135,6 +135,20 @@ let list_vars_view = (vars: VarCtx.t) => {
  * Create a div containing divs for all operator options that will be shown.
  * Return a Node.t
  */
+let type_to_str = (ty: Typ.t) => {
+  switch (ty) {
+  | Unknown(_) => "a"
+  | Int => "an Integer"
+  | Float => "a Float"
+  | Bool => "a Boolean"
+  | Arrow(_, _) => "a Function"
+  | Sum(_, _) => "a Sum"
+  | Prod(_) => "a Product"
+  | List(_) => "a List"
+  | String => "a String"
+  | Var(_) => "a Variable"
+  };
+};
 let operator_options = cursor_info => {
   let int_options = [
     AssistantView_common.kc_shortcut_node(KeyCombo.Plus),
@@ -248,6 +262,7 @@ let exp_hole_view =
       ~inject,
       cursor_inspector: StrategyGuideModel.t,
       cursor_info: Haz3lcore.Statics.t,
+      info_map: Haz3lcore.Statics.map,
     ) => {
   let lit_open = cursor_inspector.strategy_guide_lit;
   let var_open = cursor_inspector.strategy_guide_var;
@@ -255,18 +270,33 @@ let exp_hole_view =
   let branch_open = cursor_inspector.strategy_guide_branch;
   let new_var_open = cursor_inspector.strategy_guide_new_var;
   let other_open = cursor_inspector.strategy_guide_other;
-  let ctx = cursor_info.ctx;
-  let typ =
-    // switch (Assistant_common.get_type(cursor_info)) {
-    switch (Assistant_common.get_type()) {
-    | Some(ty) => ty
-    | None =>
-      raise(
-        Invalid_argument(
-          "Strategy Guide should have type information at the cursor",
-        ),
+  // let ctx = cursor_info.ctx;
+
+  let (ctx, typ) =
+    switch (cursor_info) {
+    | InfoExp({ctx, term, _}) => (
+        Some(ctx),
+        Some(Haz3lcore.Statics.exp_typ(info_map, term)),
       )
+    | _ => (None, None)
     };
+
+  // let typ =
+  // switch(cursor_info) {
+  //   | InfoExp({term, _}) => Some()
+  //   | _ => None
+  // }
+  // let typ =
+  //   // switch (Assistant_common.get_type(cursor_info)) {
+  //   switch (Assistant_common.get_type()) {
+  //   | Some(ty) => ty
+  //   | None =>
+  //     raise(
+  //       Invalid_argument(
+  //         "Strategy Guide should have type information at the cursor",
+  //       ),
+  //     )
+  //   };
   let subsection_header = (toggle, text, open_section) => {
     let subsection_arrow =
       if (open_section) {
@@ -305,9 +335,7 @@ let exp_hole_view =
   let lit =
     subsection_header(
       Toggle_strategy_guide_lit,
-      "Will "
-      ++ Assistant_common.type_to_str(typ)
-      ++ " literal give what you need?",
+      "Will " ++ type_to_str(typ) ++ " literal give what you need?",
       lit_open,
     );
   let lit_body =
@@ -511,7 +539,7 @@ let exp_hole_view =
     };
   type_driven(body);
 };
-let rules_view = (cursor_info: CursorInfo.t) => {
+let rules_view = (cursor_info: Haz3lcore.Statics.t) => {
   switch (cursor_info.cursor_term, cursor_info.parent_info) {
   | (Rule(OnDelim(0, After), _), _)
   | (ExpOperand(OnDelim(1, Before), Case(_)), _) =>

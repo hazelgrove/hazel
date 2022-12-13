@@ -138,9 +138,9 @@ let term_tag = (~inject, ~show_lang_doc, is_err, sort) => {
       [
         Widgets.toggle(
           ~tooltip="Toggle language documentation", "i", show_lang_doc, _ =>
-          Effect.Many([
+          Virtual_dom.Vdom.Effect.Many([
             inject(Update.UpdateLangDocMessages(LangDocMessages.ToggleShow)),
-            Effect.Stop_propagation,
+            Virtual_dom.Vdom.Effect.Stop_propagation,
           ])
         ),
       ],
@@ -241,6 +241,7 @@ let inspector_view =
       ~show_lang_doc: bool,
       id: int,
       ci: Haz3lcore.Statics.t,
+      info_map: Haz3lcore.Statics.map,
     )
     : Node.t => {
   let strategymodel: StrategyGuideModel.t = settings.strategy_guide;
@@ -263,22 +264,25 @@ let inspector_view =
 
   let strategy_guide =
     switch (ci) {
-    | Some(InfoExp({term, _})) =>
-      switch (term) {
+    | InfoExp({term, _}) =>
+      switch (term.term) {
       | EmptyHole =>
-        Some(StrategyGuide.exp_hole_view(~inject, strategymodel, ci))
-      | Case =>
-        switch (StrategyGuide.rules_view(cursor_info)) {
+        Some(
+          StrategyGuide.exp_hole_view(~inject, strategymodel, ci, info_map),
+        )
+      | Match(_) =>
+        switch (StrategyGuide.rules_view(ci)) {
         | None => None
         | Some(sg_rules) => Some(sg_rules)
         }
-      | None => None
+      | _ => None
       }
-    | Some(InfoRul(_)) =>
+    | InfoRul(_) =>
       switch (StrategyGuide.rules_view(cursor_info)) {
       | None => None
       | Some(sg_rules) => Some(sg_rules)
       }
+    | _ => None
     };
   // switch (ci) {
   // | Some(InfoExp({term, _})) => {
@@ -339,7 +343,14 @@ let view =
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
       | Some(ci) =>
-        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
+        inspector_view(
+          ~inject,
+          ~settings,
+          ~show_lang_doc,
+          index,
+          ci,
+          info_map,
+        )
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
