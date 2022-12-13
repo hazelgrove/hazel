@@ -2747,19 +2747,19 @@ let get_doc =
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     | Sum(_) =>
-      //TODO(andrew): this is just copy-pasted from Int case
       let (doc, options) =
         LangDocMessages.get_form_and_options(
-          LangDocMessages.int_typ_group,
+          LangDocMessages.labelled_sum_typ_group,
           docs,
         );
       get_message(
         doc,
         options,
-        LangDocMessages.int_typ_group,
+        LangDocMessages.labelled_sum_typ_group,
         doc.explanation.message,
         [],
       );
+    //basic(doc, LangDocMessages.labelled_sum_typ_group, options);
     }
   | Some(InfoTPat(_)) //TODO(andrew)
   | Some(InfoTSum(_)) //TODO(andrew)
