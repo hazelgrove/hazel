@@ -91,6 +91,7 @@ let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
+let mk_sum_typ = Example.mk_tile(Form.get("typ-sum"));
 
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
@@ -3064,6 +3065,34 @@ let arrow3_typ: form = {
   };
 };
 
+let labelled_sum_typ_group = "labelled_sum_typ_group";
+let labelled_sum_typ: form = {
+  let explanation = {
+    message: "Labelled Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
+    feedback: Unselected,
+  };
+  let divider = Example.mk_monotile(Form.get("typ_sum"));
+  {
+    id: "labelled_sum_typ",
+    syntactic_form: [
+      mk_sum_typ([
+        [
+          space(),
+          typ("Cons(ty1)"),
+          space(),
+          divider,
+          space(),
+          typ("..."),
+          space(),
+        ],
+      ]),
+    ],
+    expandable_id: Some(Piece.id(divider)),
+    explanation,
+    examples: [],
+  };
+};
+
 let tuple_typ_group = "tuple_typ_group";
 let tuple2_typ_group = "tuple2_typ_group";
 let tuple3_typ_group = "tuple3_typ_group";
@@ -3336,6 +3365,7 @@ let init = {
     list_typ,
     arrow_typ,
     arrow3_typ,
+    labelled_sum_typ,
     tuple_typ,
     tuple2_typ,
     tuple3_typ,
@@ -3715,6 +3745,7 @@ let init = {
         (arrow3_typ.id, [typ("ty_arg2"), arrow(), typ("ty_out")]),
       ]),
     ),
+    (labelled_sum_typ_group, init_options([(labelled_sum_typ.id, [])])),
     (tuple_typ_group, init_options([(tuple_typ.id, [])])),
     (
       tuple2_typ_group,
