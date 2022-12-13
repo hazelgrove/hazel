@@ -568,23 +568,39 @@ type stitched('a) = {
 type stitched_statics = stitched(StaticsItem.t);
 
 let stitch_static = ({eds, _}: state): stitched_statics => {
-  let (test_validation_term, _) =
-    EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests.tests]);
-  let test_validation_map = Statics.mk_map(test_validation_term);
+  let test_validation_term =
+    Util.TimeUtil.measure_time("test_validation_term", true, () =>
+      EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests.tests])
+    );
+  let test_validation_map =
+    Util.TimeUtil.measure_time("test_validation_map", true, () =>
+      Statics.mk_map(test_validation_term)
+    );
   let test_validation =
     StaticsItem.{term: test_validation_term, info_map: test_validation_map};
 
-  let (user_impl_term, _) = EditorUtil.stitch([eds.prelude, eds.your_impl]);
-  let user_impl_map = Statics.mk_map(user_impl_term);
+  let user_impl_term =
+    Util.TimeUtil.measure_time("user_impl_term", true, () =>
+      EditorUtil.stitch([eds.prelude, eds.your_impl])
+    );
+  let user_impl_map =
+    Util.TimeUtil.measure_time("user_impl_map", true, () =>
+      Statics.mk_map(user_impl_term)
+    );
   let user_impl = StaticsItem.{term: user_impl_term, info_map: user_impl_map};
 
-  let (user_tests_term, _) =
-    EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests]);
-  let user_tests_map = Statics.mk_map(user_tests_term);
+  let user_tests_term =
+    Util.TimeUtil.measure_time("user_tests_term", true, () =>
+      EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests])
+    );
+  let user_tests_map =
+    Util.TimeUtil.measure_time("user_tests_map", true, () =>
+      Statics.mk_map(user_tests_term)
+    );
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
-  let (instructor_term, _) =
+  let instructor_term =
     EditorUtil.stitch([
       eds.prelude,
       eds.correct_impl,
@@ -597,7 +613,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let hidden_bugs =
     List.map(
       ({impl, _}) => {
-        let (term, _) =
+        let term =
           EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests]);
         let info_map = Statics.mk_map(term);
         StaticsItem.{term, info_map};
@@ -605,7 +621,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
       eds.hidden_bugs,
     );
 
-  let (hidden_tests_term, _) =
+  let hidden_tests_term =
     EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
   let hidden_tests_map = Statics.mk_map(hidden_tests_term);
   let hidden_tests =
@@ -638,7 +654,9 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
       hidden_bugs,
       hidden_tests,
     } =
-      stitch_static(state);
+      Util.TimeUtil.measure_time("stitch_static2", true, () =>
+        stitch_static(state)
+      );
     [
       (
         test_validation_key,
@@ -688,7 +706,9 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     hidden_bugs,
     hidden_tests,
   } =
-    stitch_static(state);
+    Util.TimeUtil.measure_time("stitch_static1", true, () =>
+      stitch_static(state)
+    );
   let simple_result_of = key =>
     switch (results) {
     | None => None

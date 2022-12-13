@@ -41,7 +41,10 @@ let go_z =
     open OptUtil.Syntax;
 
     let idx = Indicated.index(z);
-    let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+    let (term, _) =
+      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
+        MakeTerm.go(Zipper.unselect_and_zip(z))
+      );
     let statics = Statics.mk_map(term);
 
     (
