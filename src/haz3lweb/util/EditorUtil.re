@@ -47,28 +47,82 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
 let info_map = (editor: Editor.t) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) = MakeTerm.go(unselected);
+  let (term, _) =
+    Util.TimeUtil.measure_time("EditorUtil.info_map => MakeTerm.go", true, () =>
+      MakeTerm.go(unselected)
+    );
   let info_map = Statics.mk_map(term);
   info_map;
 };
 
-let stitch = (editors: list(Editor.t)) => {
-  let join_tile = (id): Tile.t => {
-    id: id + 10_000_000, // TODO fresh id generation hack
-    label: [";"],
-    mold: Mold.mk_bin(10, Exp, []),
-    shards: [0],
-    children: [],
+let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
+  switch (e1.term) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Triv
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | ListLit(_)
+  | Tag(_)
+  | Fun(_)
+  | Tuple(_)
+  | Var(_)
+  | Ap(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | Parens(_)
+  | Cons(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Match(_) => (
+      id + 1,
+      TermBase.UExp.{
+        ids: [id + 10_000_000 /* hack to get unique ID */],
+        term: Seq(e1, e2),
+      },
+    )
+  | Let(p, edef, ebody) =>
+    let (id, ebody') = append_exp(id, ebody, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});
   };
-  let segments =
+};
+
+let stitch = (editors: list(Editor.t)) => {
+  print_endline("new stitchin'");
+  let exps =
     List.map(
-      (ed: Editor.t) => Zipper.unselect_and_zip(ed.state.zipper),
+      (ed: Editor.t) =>
+        Util.TimeUtil.measure_time(
+          "terms",
+          true,
+          () => {
+            let seg =
+              Util.TimeUtil.measure_time("unselectin", true, () =>
+                Zipper.unselect_and_zip(ed.state.zipper)
+              );
+            let (term, _) =
+              Util.TimeUtil.measure_time("makin terms", true, () =>
+                MakeTerm.go(seg)
+              );
+            term;
+          },
+        ),
       editors,
     );
-  let semicolons =
-    List.init(List.length(segments) - 1, i => [Piece.Tile(join_tile(i))]);
-  let stitched_segment =
-    List.flatten(Util.ListUtil.interleave(segments, semicolons));
-  let term = MakeTerm.go(stitched_segment);
-  term;
+  switch (exps) {
+  | [] => failwith("cannot stitch zero expressions")
+  | [e] => e
+  | [e1, ...tl] =>
+    let (_, e) =
+      List.fold_left(
+        ((id, e1), e2) => append_exp(id, e1, e2),
+        (0, e1),
+        tl,
+      );
+    e;
+  };
 };
