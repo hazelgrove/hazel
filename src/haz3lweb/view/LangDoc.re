@@ -2759,10 +2759,51 @@ let get_doc =
         doc.explanation.message,
         [],
       );
-    //basic(doc, LangDocMessages.labelled_sum_typ_group, options);
     }
-  | Some(InfoTPat(_)) //TODO(andrew)
-  | Some(InfoTSum(_)) //TODO(andrew)
+  | Some(InfoTPat(info)) =>
+    switch (info.term.term) {
+    | MultiHole(_)
+    | EmptyHole
+    | Invalid(_) => default
+    | Var(v) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.var_typ_pat_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.var_typ_pat_group,
+        Printf.sprintf(
+          Scanf.format_from_string(doc.explanation.message, "%s"),
+          v,
+        ),
+        [],
+      );
+    }
+  | Some(InfoTSum(info)) =>
+    switch (info.term.term) {
+    | Sum(_) =>
+      /* Ids for this redirects to parent sum form atm */
+      default
+    | MultiHole(_)
+    | EmptyHole
+    | Invalid(_) => default
+    | Ap(_) =>
+      let (doc, options) =
+        LangDocMessages.get_form_and_options(
+          LangDocMessages.labelled_typ_group,
+          docs,
+        );
+      get_message(
+        doc,
+        options,
+        LangDocMessages.labelled_typ_group,
+        doc.explanation.message,
+        [],
+      );
+    }
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
   | Some(Invalid(_)) => default
