@@ -103,7 +103,7 @@ let is_string = t =>
 let string_delim = "\"";
 let list_delim_start = "[";
 let list_delim_end = "]";
-let empty_list_lbl = [list_delim_start, list_delim_end];
+let listlit_lbl = [list_delim_start, list_delim_end];
 let empty_list = list_delim_start ++ list_delim_end;
 let is_list_delim = s => s == list_delim_start || s == list_delim_end;
 let is_empty_list = s => s == empty_list;
