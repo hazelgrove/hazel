@@ -2,6 +2,9 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
+let polysplits = (t: Token.t): Label.t =>
+  Form.is_empty_list(t) ? Form.listlit_lbl : [];
+
 let destruct =
     (
       d: Direction.t,
@@ -27,17 +30,17 @@ let destruct =
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
-  /* Special cases for list literals. When deletion would
+  /* Special cases for e.g. list literals. When deletion would
      effect an empty list, we convert it to non-empty  */
-  | (Left, Outer, (Some(t), _)) when Form.is_empty_list(t) =>
-    z |> delete_left |> construct_left(Form.listlit_lbl)
-  | (Right, Outer, (_, Some(t))) when Form.is_empty_list(t) =>
-    z |> delete_right |> construct_right(Form.listlit_lbl)
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_empty_list(t) =>
-    z |> delete_right |> construct_right(Form.listlit_lbl)
+  | (Left, Outer, (Some(t), _)) when polysplits(t) != [] =>
+    z |> delete_left |> construct_left(polysplits(t))
+  | (Right, Outer, (_, Some(t))) when polysplits(t) != [] =>
+    z |> delete_right |> construct_right(polysplits(t))
+  | (Left, Inner(_, 0), (_, Some(t))) when polysplits(t) != [] =>
+    z |> delete_right |> construct_right(polysplits(t))
   | (Right, Inner(_, n), (_, Some(t)))
-      when Form.is_empty_list(t) && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(Form.listlit_lbl)
+      when polysplits(t) != [] && n == last_inner_pos(t) =>
+    z |> delete_right |> construct_left(polysplits(t))
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
