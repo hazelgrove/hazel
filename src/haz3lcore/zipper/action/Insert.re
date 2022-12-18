@@ -1,5 +1,6 @@
 open Zipper;
 open Util;
+open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability =
@@ -30,29 +31,22 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
 
 let get_duo_shard = ({label, shards, _}: Tile.t) =>
   if (List.length(label) == 2 && List.length(shards) == 1) {
-    Some(List.nth(label, List.hd(shards)));
+    List.nth_opt(label, List.hd(shards));
   } else {
     None;
   };
 
-let neighbor_is_mergable =
+let neighbor_can_duomerge =
     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
-  //TODO(andrew): ask david if better way of doing this
   switch (Siblings.neighbors(s)) {
   | (Some(Tile(tile)), _) =>
-    switch (get_duo_shard(tile)) {
-    | None => None
-    | Some(start) =>
-      Form.listlit_lbl == [start, t]
-        ? Some(([Form.empty_list], Left)) : None
-    }
+    let* start = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([start, t]);
+    (mono_lbl, Direction.Left);
   | (_, Some(Tile(tile))) =>
-    switch (get_duo_shard(tile)) {
-    | None => None
-    | Some(last) =>
-      Form.listlit_lbl == [t, last]
-        ? Some(([Form.empty_list], Right)) : None
-    }
+    let* last = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([t, last]);
+    (mono_lbl, Direction.Right);
   | _ => None
   };
 
@@ -62,14 +56,14 @@ let replace_neighbor = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
   |> Zipper.select(d)
   |> OptUtil.and_then(Zipper.select(d))
   |> Option.map(Zipper.destruct)
-  |> Option.get
+  |> Option.get  //TODO(andrew): error handling
   |> (z => Zipper.construct(d, lbl, z, id_gen));
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
   let barfed =
     Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
-  switch (barfed, neighbor_is_mergable(t, z.relatives.siblings)) {
+  switch (barfed, neighbor_can_duomerge(t, z.relatives.siblings)) {
   | (Some(z), Some((lbl, d))) => replace_neighbor(lbl, d, z)
   | (Some(z), _) => IdGen.return(z)
   | (None, _) =>
@@ -96,14 +90,7 @@ let insert_outer = (char: string, (z, id_gen): state): option(state) =>
     |> Option.map(z => barf_or_construct(new_t, Right, z, id_gen))
   };
 
-let mono_splits_to_poly = (l: Token.t, r: Token.t): option(Label.t) =>
-  if ([l, r] == Form.listlit_lbl) {
-    Some(Form.listlit_lbl);
-  } else {
-    None;
-  };
-
-let insert_poly = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
+let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
   z
   |> Option.map(z => Zipper.construct(Left, lbl, z, id_gen))
   |> OptUtil.and_then(((z, id_gen)) =>
@@ -126,8 +113,8 @@ let split =
   |> Zipper.select(Right)
   |> (
     // overwrite
-    switch (mono_splits_to_poly(l, r)) {
-    | Some(lbl) => insert_poly(id_gen, lbl)
+    switch (Form.duomerges([l, r])) {
+    | Some(_) => insert_duo(id_gen, [l, r])
     | None => insert_monos(id_gen, l, r)
     }
   )

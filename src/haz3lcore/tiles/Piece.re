@@ -99,6 +99,11 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
+let label: t => option(Label.t) =
+  fun
+  | Tile({label, _}) => Some(label)
+  | _ => None;
+
 let monotile: t => option(Token.t) =
   fun
   | Tile({label: [t], _}) => Some(t)

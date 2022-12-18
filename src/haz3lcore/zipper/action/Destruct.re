@@ -2,9 +2,6 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let polysplits = (t: Token.t): Label.t =>
-  Form.is_empty_list(t) ? Form.listlit_lbl : [];
-
 let destruct =
     (
       d: Direction.t,
@@ -30,17 +27,18 @@ let destruct =
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
-  /* Special cases for e.g. list literals. When deletion would
-     effect an empty list, we convert it to non-empty  */
-  | (Left, Outer, (Some(t), _)) when polysplits(t) != [] =>
-    z |> delete_left |> construct_left(polysplits(t))
-  | (Right, Outer, (_, Some(t))) when polysplits(t) != [] =>
-    z |> delete_right |> construct_right(polysplits(t))
-  | (Left, Inner(_, 0), (_, Some(t))) when polysplits(t) != [] =>
-    z |> delete_right |> construct_right(polysplits(t))
+  /* Special cases for mono forms which can split into duo forms,
+     e.g. list literals. When deletion would alter the mono form,
+     we replace it to the corresponding duo form.  */
+  | (Left, Outer, (Some(t), _)) when Form.duosplits(t) != [] =>
+    z |> delete_left |> construct_left(Form.duosplits(t))
+  | (Right, Outer, (_, Some(t))) when Form.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Form.duosplits(t))
+  | (Left, Inner(_, 0), (_, Some(t))) when Form.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Form.duosplits(t))
   | (Right, Inner(_, n), (_, Some(t)))
-      when polysplits(t) != [] && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(polysplits(t))
+      when Form.duosplits(t) != [] && n == last_inner_pos(t) =>
+    z |> delete_right |> construct_left(Form.duosplits(t))
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
@@ -94,12 +92,11 @@ let merge =
   |> Option.map(z => Zipper.construct(Right, [l ++ r], z, id_gen));
 
 /* Check if containing form has an empty form e.g. empty list literals */
-let parent_is_mergable = (z: Zipper.t) =>
-  switch (Relatives.parent(z.relatives)) {
-  | Some(Tile({label, _})) when label == Form.listlit_lbl =>
-    Some([Form.empty_list])
-  | _ => None
-  };
+let parent_duomerges = (z: Zipper.t) => {
+  let* parent = Relatives.parent(z.relatives);
+  let* lbl = Piece.label(parent);
+  Form.duomerges(lbl);
+};
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
@@ -107,7 +104,7 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   switch (
     z.caret,
     neighbor_monotiles(z_trimmed.relatives.siblings),
-    parent_is_mergable(z),
+    parent_duomerges(z),
   ) {
   | (Outer, (None, None), Some(lbl)) =>
     z
