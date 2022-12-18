@@ -94,8 +94,3 @@ let parent_matches = (t: Tile.t, ancs: t) =>
   | [] => false
   | [(a, _), ..._] => a.id == t.id
   };
-
-let delete_parent: t => t =
-  fun
-  | [] => []
-  | [_, ...ps] => ps;
