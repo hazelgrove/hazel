@@ -94,8 +94,13 @@ let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
 
 let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
 
+let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
+
+let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
+
 let neighbors: t => (option(Piece.t), option(Piece.t)) =
   n => (left_neighbor(n), right_neighbor(n));
+n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Right, l_sibs),
