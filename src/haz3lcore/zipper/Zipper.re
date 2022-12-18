@@ -30,7 +30,7 @@ type t = {
   // col_target: int,
 };
 
-let init: int => t =
+let init: Id.t => t =
   id => {
     selection: {
       focus: Left,
@@ -45,8 +45,8 @@ let init: int => t =
     // col_target: 0,
   };
 
-let next_blank = id => {
-  (id + 1, init(id));
+let next_blank = (id: Id.t) => {
+  (Id.next(id), init(id));
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

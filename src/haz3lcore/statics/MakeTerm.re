@@ -45,7 +45,7 @@ let dark_hole = (~ids=[], s: Sort.t): t => {
   let id = dark_id();
   switch (s) {
   // put dark id last to avoid messing with rep id
-  | Exp => Exp({ids: ids @ [id], term: EmptyHole})
+  | Exp => Exp({ids: ids @ [Id.{base: id, derived: 0}], term: EmptyHole})
   | _ => failwith("dark_hole todo")
   };
 };

@@ -185,10 +185,14 @@ let view_of_info =
 let cls_view = (ci: Haz3lcore.Statics.t): Node.t =>
   div(~attr=clss(["syntax-class"]), [text(cls_str(ci))]);
 
-let id_view = (id): Node.t =>
-  div(~attr=clss(["id"]), [text(string_of_int(id + 1))]);
+let id_view = (id: Haz3lcore.Id.t): Node.t =>
+  div(
+    ~attr=clss(["id"]),
+    [text(Haz3lcore.Id.string_of_t(Haz3lcore.Id.next(id)))],
+  );
 
-let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
+let extra_view =
+    (visible: bool, id: Haz3lcore.Id.t, ci: Haz3lcore.Statics.t): Node.t =>
   div(
     ~attr=Attr.many([clss(["extra"] @ (visible ? ["visible"] : []))]),
     [id_view(id), cls_view(ci)],
@@ -212,7 +216,7 @@ let inspector_view =
       ~inject,
       ~settings: Model.settings,
       ~show_lang_doc: bool,
-      id: int,
+      id: Haz3lcore.Id.t,
       ci: Haz3lcore.Statics.t,
     )
     : Node.t =>

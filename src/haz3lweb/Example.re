@@ -1,10 +1,10 @@
 open Haz3lcore;
 
-let id_gen: ref(int) = ref(0);
+let id_gen: ref(Id.t) = ref(Id.init);
 
-let mk_id = (): int => {
+let mk_id = (): Id.t => {
   let uid = id_gen^;
-  id_gen := id_gen^ + 1;
+  id_gen := Id.next(id_gen^);
   uid;
 };
 

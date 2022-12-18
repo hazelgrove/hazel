@@ -210,7 +210,11 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
         let last = List.assoc(ListUtil.last(shards) |> fst, shards);
         Some({origin: first.origin, last: last.last});
       | None =>
-        Printf.printf("Measured.WARNING: id %d not found", id);
+        Printf.printf(
+          "Measured.WARNING: id (%d, %d not found",
+          id.base,
+          id.derived,
+        );
         None;
       }
     }

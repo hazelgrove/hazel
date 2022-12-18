@@ -528,7 +528,7 @@ and matches_cast_Cons =
 
 let eval_un_int_op = (op: DHExp.UnIntOp.t, n: int): DHExp.term =>
   switch (op) {
-  | Minus => Int(-n);
+  | Minus => Int(- n)
   };
 
 /**
@@ -733,13 +733,12 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue({term: Int(n1), _}) =>
-        BoxedValue({ids, term: eval_un_int_op(op, n1)}) |> return;
+        BoxedValue({ids, term: eval_un_int_op(op, n1)}) |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
-      | Indet(d1') =>
-        Indet({ids, term: UnOp(Int(op), d1')}) |> return;
-      }
+      | Indet(d1') => Indet({ids, term: UnOp(Int(op), d1')}) |> return
+      };
 
     | BinOp(Bool(op), d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -1180,7 +1179,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
  */
 and evaluate_case =
     (
-      ids: list(int),
+      ids: list(Id.t),
       env: ClosureEnvironment.t,
       inconsistent_info: option(HoleInstance.t),
       scrut: DHExp.t,

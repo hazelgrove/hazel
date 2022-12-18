@@ -286,7 +286,7 @@ let transition: transitionary_spec => spec =
       hidden_tests,
     },
   ) => {
-    let id = 0;
+    let id = Id.init;
     let (id, prelude) = zipper_of_code(id, prelude);
     let (id, correct_impl) = zipper_of_code(id, correct_impl);
     let (id, your_tests) = {
@@ -828,7 +828,7 @@ let blank_spec =
       ~provided_tests,
       ~num_wrong_impls,
     ) => {
-  let id = 0;
+  let id = Id.init;
   let (id, prelude) = Zipper.next_blank(id);
   let (id, correct_impl) = Zipper.next_blank(id);
   let (id, your_tests_tests) = Zipper.next_blank(id);

@@ -14,7 +14,7 @@ let persist = (zipper: Zipper.t) => {
   };
 };
 
-let unpersist = (persisted: t, init_id: int) =>
+let unpersist = (persisted: t, init_id: Id.t) =>
   try((
     init_id,
     Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp,
@@ -24,7 +24,7 @@ let unpersist = (persisted: t, init_id: int) =>
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
     switch (Printer.zipper_of_string(init_id, persisted.backup_text)) {
-    | None => (init_id + 1, Haz3lcore.Zipper.init(init_id))
+    | None => (Id.next(init_id), Haz3lcore.Zipper.init(init_id))
     | Some((z, new_id)) => (new_id, z)
     };
   };

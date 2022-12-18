@@ -61,7 +61,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    let u = Term.UExp.rep_id(uexp).base; /* NOTE: using term uids for hole ids */
     let wrap = (d: DHExp.t): option(DHExp.t) =>
       switch (maybe_reason) {
       | None => Some(d)
@@ -82,7 +82,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
              | _ =>
                Some({
                  ids: Term.ids(t),
-                 term: Hole((Term.rep_id(t), 0), Empty),
+                 term: Hole((Term.rep_id(t).base, 0), Empty),
                })
              }
            )
@@ -280,7 +280,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         let uniq_id = List.nth(def.ids, 0);
-        let self_id = "__mutual__" ++ string_of_int(uniq_id);
+        let self_id =
+          "__mutual__"
+          ++ string_of_int(uniq_id.base)
+          ++ "_"
+          ++ string_of_int(uniq_id.derived);
         let self_var = DHExp.{ids: [], term: DHExp.Var(self_id)};
         let (_, substituted_def) =
           fs
@@ -361,7 +365,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
+    let u = Term.UPat.rep_id(upat).base; /* NOTE: using term uids for hole ids */
     let wrap = (d: DHPat.t): option(DHPat.t) =>
       switch (maybe_reason) {
       | None => Some(d)

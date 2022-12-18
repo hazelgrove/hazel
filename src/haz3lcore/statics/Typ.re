@@ -30,7 +30,7 @@ type t =
    for type debugging UI. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type source = {
-  id: int,
+  id: Id.t,
   ty: t,
 };
 

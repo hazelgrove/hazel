@@ -55,7 +55,12 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
 };
 
 let inspector_view =
-    (~inject, ~settings: Model.settings, _id: int, ci: Haz3lcore.Statics.t)
+    (
+      ~inject,
+      ~settings: Model.settings,
+      _id: Haz3lcore.Id.t,
+      ci: Haz3lcore.Statics.t,
+    )
     : Node.t => {
   let clss =
     clss(
@@ -68,13 +73,13 @@ let view =
     (
       ~inject,
       ~settings: Model.settings,
-      index': option(int),
+      index': option(Haz3lcore.Id.t),
       info_map: Haz3lcore.Statics.map,
     ) => {
   let (index, ci) =
     switch (index') {
     | Some(index) => (index, Haz3lcore.Id.Map.find_opt(index, info_map))
-    | None => ((-1), None)
+    | None => (Haz3lcore.Id.invalid, None)
     };
   switch (ci) {
   | None =>

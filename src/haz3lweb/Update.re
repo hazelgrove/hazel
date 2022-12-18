@@ -346,7 +346,7 @@ let apply =
       let (id, ed) = Editors.get_editor_and_id(model.editors);
       let zipper_init = Zipper.init(id);
       let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, id + 1, ed_str)) {
+      switch (Printer.zipper_of_string(~zipper_init, Id.next(id), ed_str)) {
       | None => Error(CantReset)
       | Some((z, id)) =>
         //TODO: add correct action to history (Pick_up is wrong)

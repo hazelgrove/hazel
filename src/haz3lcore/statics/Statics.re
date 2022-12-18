@@ -221,7 +221,7 @@ let union_m =
     Id.Map.empty,
   );
 
-let add_info = (ids, info: 'a, m: Ptmap.t('a)) =>
+let add_info = (ids, info: 'a, m: Id.Map.t('a)) =>
   ids
   |> List.map(id => Id.Map.singleton(id, info))
   |> List.fold_left(Id.Map.disj_union, m);

@@ -146,8 +146,8 @@ let test_result_layer =
     : list(Node.t) => {
   //print_endline(Interface.show_test_results(test_results));
   List.filter_map(
-    ((id, insts)) =>
-      switch (Id.Map.find_opt(id, measured.tiles)) {
+    ((id: int, insts)) =>
+      switch (Id.Map.find_opt(Id.init_base(id), measured.tiles)) {
       | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
       | _ => None
       },
