@@ -28,36 +28,34 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
   | _ => Some(state)
   };
 
-let can_merge_listlit = (t: Token.t, s: Siblings.t) =>
+let neighbor_is_mergable =
+    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+  //TODO(andrew): ask david if better way of doing this
   switch (Siblings.neighbors(s)) {
   | (Some(Tile({label, shards, _})), _)
-      when
-        label == Form.listlit_lbl && shards == [0] && t == Form.list_delim_end =>
-    Some(Direction.Left)
+      when label == Form.listlit_lbl && shards == [0] && t == Form.list_end =>
+    Some(([Form.empty_list], Direction.Left))
   | (_, Some(Tile({label, shards, _})))
-      when
-        label == Form.listlit_lbl
-        && shards == [1]
-        && t == Form.list_delim_start =>
-    Some(Direction.Right)
+      when label == Form.listlit_lbl && shards == [1] && t == Form.list_start =>
+    Some(([Form.empty_list], Direction.Right))
   | _ => None
   };
 
-let barf_or_construct_emptylist = (d: Direction.t, z: t, id_gen) =>
+let replace_neighbor = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
   //TODO(andrew): not sure why i have to select twice here...
   z
   |> Zipper.select(d)
   |> OptUtil.and_then(Zipper.select(d))
   |> Option.map(Zipper.destruct)
   |> Option.get
-  |> (z => Zipper.construct(d, [Form.empty_list], z, id_gen));
+  |> (z => Zipper.construct(d, lbl, z, id_gen));
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
   let barfed =
     Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
-  switch (barfed, can_merge_listlit(t, z.relatives.siblings)) {
-  | (Some(z), Some(d)) => barf_or_construct_emptylist(d, z)
+  switch (barfed, neighbor_is_mergable(t, z.relatives.siblings)) {
+  | (Some(z), Some((lbl, d))) => replace_neighbor(lbl, d, z)
   | (Some(z), _) => IdGen.return(z)
   | (None, _) =>
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
@@ -83,33 +81,42 @@ let insert_outer = (char: string, (z, id_gen): state): option(state) =>
     |> Option.map(z => barf_or_construct(new_t, Right, z, id_gen))
   };
 
+let mono_splits_to_poly = (l: Token.t, r: Token.t): option(Label.t) =>
+  if ([l, r] == Form.listlit_lbl) {
+    Some(Form.listlit_lbl);
+  } else {
+    None;
+  };
+
+let insert_poly = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
+  z
+  |> Option.map(z => Zipper.construct(Left, lbl, z, id_gen))
+  |> OptUtil.and_then(((z, id_gen)) =>
+       Zipper.put_down(z)
+       |> OptUtil.and_then(Zipper.move(Left))
+       |> Option.map(z => (z, id_gen))
+     );
+
+let insert_monos =
+    (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
+  z
+  |> Option.map(z => Zipper.construct(Left, [l], z, id_gen))
+  |> Option.map(((z, id_gen)) => Zipper.construct(Right, [r], z, id_gen));
+
 let split =
     ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
   let (l, r) = Token.split_nth(idx, t);
-  if (l == Form.list_delim_start && r == Form.list_delim_end) {
-    /* HACK: If we're splitting an empty list, we need to expand it,
-       and also make sure we end up in the right place. */
-    let lbl = Form.listlit_lbl;
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.select(Right)
-    |> Option.map(z => Zipper.construct(Left, lbl, z, id_gen))
-    |> OptUtil.and_then(((z, id_gen)) =>
-         Zipper.put_down(z)
-         |> OptUtil.and_then(Zipper.move(Left))
-         |> Option.map(z => (z, id_gen))
-       )
-    |> OptUtil.and_then(expand_and_barf_or_construct(char));
-  } else {
-    z
-    |> Zipper.set_caret(Outer)
-    |> Zipper.select(Right)
-    |> Option.map(z => Zipper.construct(Left, [l], z, id_gen))  // overwrite
-    |> Option.map(((z, id_gen)) =>
-         Zipper.construct(Right, [r], z, id_gen)
-       )
-    |> OptUtil.and_then(expand_and_barf_or_construct(char));
-  };
+  z
+  |> Zipper.set_caret(Outer)
+  |> Zipper.select(Right)
+  |> (
+    // overwrite
+    switch (mono_splits_to_poly(l, r)) {
+    | Some(lbl) => insert_poly(id_gen, lbl)
+    | None => insert_monos(id_gen, l, r)
+    }
+  )
+  |> OptUtil.and_then(expand_and_barf_or_construct(char));
 };
 
 let opt_regrold = d =>
