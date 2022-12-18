@@ -101,11 +101,11 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
-let list_delim_start = "[";
-let list_delim_end = "]";
-let listlit_lbl = [list_delim_start, list_delim_end];
-let empty_list = list_delim_start ++ list_delim_end;
-let is_list_delim = s => s == list_delim_start || s == list_delim_end;
+let list_start = "[";
+let list_end = "]";
+let listlit_lbl = [list_start, list_end];
+let empty_list = list_start ++ list_end;
+let is_list_delim = s => s == list_start || s == list_end;
 let is_empty_list = s => s == empty_list;
 
 let is_string_delim = str => str == string_delim;
