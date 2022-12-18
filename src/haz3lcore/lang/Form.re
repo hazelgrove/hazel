@@ -81,8 +81,7 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_triv = str => str == "triv";
 let is_bool = str => str == "true" || str == "false";
-let is_listnil = str => str == "nil";
-let is_reserved = str => is_listnil(str) || is_bool(str) || is_triv(str);
+let is_reserved = str => is_bool(str) || is_triv(str);
 let is_var = str => !is_reserved(str) && regexp("^[a-z][A-Za-z0-9_]*$", str);
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_tag = is_capitalized_name;
@@ -139,7 +138,7 @@ let is_secondary = t =>
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("listnil", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
@@ -150,7 +149,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("wild", (is_wild, [mk_op(Pat, [])])),
-  ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
 ];
 
