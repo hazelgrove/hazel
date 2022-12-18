@@ -215,9 +215,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["triv"], []) => ret(Triv)
       | (["true"], []) => ret(Bool(true))
       | (["false"], []) => ret(Bool(false))
+      | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
@@ -322,22 +322,22 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | (["triv"], []) => Triv
         | (["true"], []) => Bool(true)
         | (["false"], []) => Bool(false)
+        | ([t], []) when Form.is_empty_tuple(t) => Triv
+        | ([t], []) when Form.is_empty_list(t) => ListLit([])
+        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
+        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
+        | ([t], []) when Form.is_tag(t) => Tag(t)
+        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_wild(t) => Wild
+        | ([t], []) when Form.is_string(t) => String(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
           | term => ListLit([term])
           }
-        | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
-        | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_tag(t) => Tag(t)
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_string(t) => String(t)
         | _ => hole(tm)
         },
       )
@@ -385,7 +385,7 @@ and typ_term: unsorted => UTyp.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | (["Unit"], []) => Tuple([])
+      | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
       | (["Bool"], []) => Bool
       | (["Int"], []) => Int
       | (["Float"], []) => Float
