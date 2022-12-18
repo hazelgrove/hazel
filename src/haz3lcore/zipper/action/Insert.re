@@ -28,16 +28,31 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
   | _ => Some(state)
   };
 
+let get_duo_shard = ({label, shards, _}: Tile.t) =>
+  if (List.length(label) == 2 && List.length(shards) == 1) {
+    Some(List.nth(label, List.hd(shards)));
+  } else {
+    None;
+  };
+
 let neighbor_is_mergable =
     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
   //TODO(andrew): ask david if better way of doing this
   switch (Siblings.neighbors(s)) {
-  | (Some(Tile({label, shards, _})), _)
-      when label == Form.listlit_lbl && shards == [0] && t == Form.list_end =>
-    Some(([Form.empty_list], Direction.Left))
-  | (_, Some(Tile({label, shards, _})))
-      when label == Form.listlit_lbl && shards == [1] && t == Form.list_start =>
-    Some(([Form.empty_list], Direction.Right))
+  | (Some(Tile(tile)), _) =>
+    switch (get_duo_shard(tile)) {
+    | None => None
+    | Some(start) =>
+      Form.listlit_lbl == [start, t]
+        ? Some(([Form.empty_list], Left)) : None
+    }
+  | (_, Some(Tile(tile))) =>
+    switch (get_duo_shard(tile)) {
+    | None => None
+    | Some(last) =>
+      Form.listlit_lbl == [t, last]
+        ? Some(([Form.empty_list], Right)) : None
+    }
   | _ => None
   };
 
