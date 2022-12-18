@@ -17,10 +17,27 @@ let destruct =
     |> Option.map(IdGen.id(id_gen));
   let delete_left = z =>
     z |> Zipper.directional_destruct(Left) |> Option.map(IdGen.id(id_gen));
+  let construct_right = (lbl, state) =>
+    state
+    |> Option.map(((z, id_gen)) => Zipper.construct(Right, lbl, z, id_gen));
+  let construct_left = (lbl, state) =>
+    state
+    |> Option.map(((z, id_gen)) => Zipper.construct(Left, lbl, z, id_gen));
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
+  /* Special cases for list literals. When deletion would
+     effect an empty list, we convert it to non-empty  */
+  | (Left, Outer, (Some(t), _)) when Form.is_empty_list(t) =>
+    z |> delete_left |> construct_left(Form.empty_list_lbl)
+  | (Right, Outer, (_, Some(t))) when Form.is_empty_list(t) =>
+    z |> delete_right |> construct_right(Form.empty_list_lbl)
+  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_empty_list(t) =>
+    z |> delete_right |> construct_right(Form.empty_list_lbl)
+  | (Right, Inner(_, n), (_, Some(t)))
+      when Form.is_empty_list(t) && n == last_inner_pos(t) =>
+    z |> delete_right |> construct_left(Form.empty_list_lbl)
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
@@ -73,11 +90,29 @@ let merge =
   |> OptUtil.and_then(Zipper.directional_destruct(Right))
   |> Option.map(z => Zipper.construct(Right, [l ++ r], z, id_gen));
 
+/* Check if containing form has an empty form e.g. empty list literals */
+let parent_is_mergable = (z: Zipper.t) =>
+  switch (Relatives.parent(z.relatives)) {
+  | Some(Tile({label, _})) when label == Form.empty_list_lbl =>
+    Some([Form.empty_list])
+  | _ => None
+  };
+
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
   let z_trimmed = update_siblings(Siblings.trim_whitespace_and_grout, z);
-  switch (z.caret, neighbor_monotiles(z_trimmed.relatives.siblings)) {
-  | (Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
+  switch (
+    z.caret,
+    neighbor_monotiles(z_trimmed.relatives.siblings),
+    parent_is_mergable(z),
+  ) {
+  | (Outer, (None, None), Some(lbl)) =>
+    z
+    |> Zipper.delete_parent
+    |> Zipper.set_caret(Inner(List.length(lbl), 0))
+    |> (z => Zipper.construct(Right, lbl, z, id_gen))
+    |> Option.some
+  | (Outer, (Some(l), Some(r)), _) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))
   };

@@ -102,6 +102,13 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
+let list_delim_start = "[";
+let list_delim_end = "]";
+let empty_list_lbl = [list_delim_start, list_delim_end];
+let empty_list = list_delim_start ++ list_delim_end;
+let is_list_delim = s => s == list_delim_start || s == list_delim_end;
+let is_empty_list = s => s == empty_list;
+
 let is_string_delim = str => str == string_delim;
 
 /* Whitelist: A regexp determining any other chars, not occuring in specific forms,
@@ -119,6 +126,7 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
