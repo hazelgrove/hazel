@@ -2,84 +2,6 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
-  /* Removes the d-neighboring tile and drops from backpack;
-     precondition: the d-neighbor should be a monotile
-     string-matching the dropping shard */
-  let* z = delete(d, z);
-  let+ z = put_down(d, z);
-  (z, id_gen);
-};
-
-let delayed_expand =
-    (t: Token.t, caret: Direction.t, (z, id_gen): state): option(state) => {
-  /* Removes the d-neighboring tile and reconstructs it, triggering
-     keyword-expansion; precondition: the d-neighbor should be a monotile
-     string-matching a keyword of an expanding form */
-  let (new_label, backpack) = Molds.delayed_expansion(t);
-  let+ z = delete(caret, z);
-  construct(~backpack, ~caret, new_label, z, id_gen);
-};
-
-let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
-  /* If left neighbor is a monotile (a) string-matching the shard at the
-     top of the backpack, barf it, or (b) an expansing keyword, expand it. */
-  switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Left, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
-  | _ => Some(s)
-  };
-
-let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
-  /* If right neighbor is a monotile (a) string-matching the shard at the
-     top of the backpack, barf it, or (b) an expansing keyword, expand it. */
-  switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Right, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
-  | _ => Some(s)
-  };
-
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
-  /* Adds a new tile at the caret. If the new token matches the top
-     of the backpack, the backpack shard is dropped. Otherwise, we
-     construct a new tile, which may immediately expand. */
-  switch (put_down(Left, z)) {
-  | Some(z') when Molds.is_instant(t) && Backpack.will_barf(t, z.backpack) =>
-    IdGen.return(z')
-  | _ =>
-    let (lbl, backpack) = Molds.instant_expansion(t);
-    construct(~caret, ~backpack, lbl, z);
-  };
-
-let expand_neighbors_and_make_new_tile =
-    (char: Token.t, state: state): option(state) => {
-  /* Trigger a token boundary event and create a new tile.
-     This process potentially involves both neighboring tiles,
-     potentially triggering up to 3 expansions or backpack barfs.
-     In particular, both left and right neighboring monotiles may
-     undergo delayed (aka keyword) expansion, and the newly-created
-     single-character token may undergo instant expansion. Currently
-     made the decision to expand or barf the neighbors before making
-     the new tile because barfing is limited to the top of the backpack,
-     and I wanted things like "if|then", when you enter a "(", to
-     barf the "then", before it is buried by the ")" added to the BP.
-     The order here could be revisited if barfing was more sophisticated.
-     */
-  let* (z, id_gen) = expand_or_barf_left_neighbor(state);
-  //let (z, id_gen) = regrout(Left, z, id_gen);
-  /* Note to david: I'm not sure why the above regrout is necessary.
-     Without it, there is a Nonconvex segment error thrown in exactly
-     one case, the double barf case: insert space on "if then|else" */
-  let+ (z, id_gen) = expand_or_barf_right_neighbor((z, id_gen));
-  make_new_tile(char, Left, z, id_gen);
-};
-
-let replace_tile =
-    (t: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
-  let+ z = delete(d, z);
-  make_new_tile(t, d, z, id_gen);
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability =
   | AppendLeft(Token.t)
@@ -110,29 +32,22 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
 
 let get_duo_shard = ({label, shards, _}: Tile.t) =>
   if (List.length(label) == 2 && List.length(shards) == 1) {
-    Some(List.nth(label, List.hd(shards)));
+    List.nth_opt(label, List.hd(shards));
   } else {
     None;
   };
 
-let neighbor_is_mergable =
+let neighbor_can_duomerge =
     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
-  //TODO(andrew): ask david if better way of doing this
   switch (Siblings.neighbors(s)) {
   | (Some(Tile(tile)), _) =>
-    switch (get_duo_shard(tile)) {
-    | None => None
-    | Some(start) =>
-      Form.listlit_lbl == [start, t]
-        ? Some(([Form.empty_list], Left)) : None
-    }
+    let* start = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([start, t]);
+    (mono_lbl, Direction.Left);
   | (_, Some(Tile(tile))) =>
-    switch (get_duo_shard(tile)) {
-    | None => None
-    | Some(last) =>
-      Form.listlit_lbl == [t, last]
-        ? Some(([Form.empty_list], Right)) : None
-    }
+    let* last = get_duo_shard(tile);
+    let+ mono_lbl = Form.duomerges([t, last]);
+    (mono_lbl, Direction.Right);
   | _ => None
   };
 
@@ -142,14 +57,14 @@ let replace_neighbor = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
   |> Zipper.select(d)
   |> OptUtil.and_then(Zipper.select(d))
   |> Option.map(Zipper.destruct)
-  |> Option.get
+  |> Option.get  //TODO(andrew): error handling
   |> (z => Zipper.construct(d, lbl, z, id_gen));
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
   let barfed =
     Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
-  switch (barfed, neighbor_is_mergable(t, z.relatives.siblings)) {
+  switch (barfed, neighbor_can_duomerge(t, z.relatives.siblings)) {
   | (Some(z), Some((lbl, d))) => replace_neighbor(lbl, d, z)
   | (Some(z), _) => IdGen.return(z)
   | (None, _) =>
@@ -170,14 +85,7 @@ let insert_outer = (char: string, (z, id_gen): state): option(state) =>
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let mono_splits_to_poly = (l: Token.t, r: Token.t): option(Label.t) =>
-  if ([l, r] == Form.listlit_lbl) {
-    Some(Form.listlit_lbl);
-  } else {
-    None;
-  };
-
-let insert_poly = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
+let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
   z
   |> Option.map(z => Zipper.construct(Left, lbl, z, id_gen))
   |> OptUtil.and_then(((z, id_gen)) =>
@@ -200,8 +108,8 @@ let split =
   |> Zipper.select(Right)
   |> (
     // overwrite
-    switch (mono_splits_to_poly(l, r)) {
-    | Some(lbl) => insert_poly(id_gen, lbl)
+    switch (Form.duomerges([l, r])) {
+    | Some(_) => insert_duo(id_gen, [l, r])
     | None => insert_monos(id_gen, l, r)
     }
   )
