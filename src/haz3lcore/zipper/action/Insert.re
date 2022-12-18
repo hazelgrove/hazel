@@ -17,14 +17,33 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => AppendNeither
     };
 
+let replace_from_backpack =
+    (d: Direction.t, (z, id_gen): state): option(state) =>
+  select(d, z)
+  |> Option.map(Zipper.destruct)
+  |> OptUtil.and_then(Zipper.put_down)
+  |> Option.map(z => (z, id_gen));
+
+let will_expand = kw =>
+  List.length(Molds.delayed_completion(kw, Left) |> fst) > 1;
+
+let expand =
+    (kw: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
+  let (new_label, new_dir) = Molds.delayed_completion(kw, d);
+  select(d, z) |> Option.map(z => construct(new_dir, new_label, z, id_gen));
+};
+
 let expand_keyword = ((z, _) as state: state): option(state) =>
   /* NOTE(andrew): We may want to allow editing of shards when only 1 of set
      is down (removing the rest of the set from backpack on edit) as something
      like this is necessary for backspace to act as undo after kw-expansion */
   switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) =>
-    let (new_label, direction) = Molds.delayed_completion(kw, Left);
-    Zipper.replace(direction, new_label, state);
+  | (Some(kw), _) when Backpack.is_first_matching(kw, z.backpack) =>
+    replace_from_backpack(Left, state)
+  | (_, Some(kw)) when Backpack.is_first_matching(kw, z.backpack) =>
+    replace_from_backpack(Right, state)
+  | (Some(kw), _) when will_expand(kw) => expand(kw, Left, state)
+  | (_, Some(kw)) when will_expand(kw) => expand(kw, Right, state)
   | _ => Some(state)
   };
 
