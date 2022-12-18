@@ -684,9 +684,9 @@ let get_doc =
             options,
             group_id,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s"),
-              Haz3lcore.Id.string_of_t(pat_id),
-              Haz3lcore.Id.string_of_t(body_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              pat_id.base,
+              body_id.base,
             ),
             LangDocMessages.function_exp_coloring_ids(~pat_id, ~body_id),
           );
@@ -708,10 +708,10 @@ let get_doc =
               options,
               LangDocMessages.function_empty_hole_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id.base,
+                body_id.base,
+                pat_id.base,
               ), // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
               LangDocMessages.function_empty_hole_exp_coloring_ids(
                 ~pat_id,
@@ -735,10 +735,10 @@ let get_doc =
               options,
               LangDocMessages.function_multi_hole_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id.base,
+                body_id.base,
+                pat_id.base,
               ),
               LangDocMessages.function_multi_hole_exp_coloring_ids(
                 ~pat_id,
@@ -761,8 +761,8 @@ let get_doc =
               options,
               LangDocMessages.function_wild_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s"),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i"),
+                body_id.base,
               ),
               LangDocMessages.function_wild_exp_coloring_ids(~body_id),
             );
@@ -783,11 +783,11 @@ let get_doc =
               options,
               LangDocMessages.function_int_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%i%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id.base,
                 i,
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_intlit_exp_coloring_ids(
                 ~pat_id,
@@ -811,11 +811,11 @@ let get_doc =
               options,
               LangDocMessages.function_float_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%f%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%f%i%i"),
+                pat_id.base,
                 f,
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_floatlit_exp_coloring_ids(
                 ~pat_id,
@@ -839,11 +839,11 @@ let get_doc =
               options,
               LangDocMessages.function_bool_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%b%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%b%i%i"),
+                pat_id.base,
                 b,
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_boollit_exp_coloring_ids(
                 ~pat_id,
@@ -867,11 +867,11 @@ let get_doc =
               options,
               LangDocMessages.function_str_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
+                pat_id.base,
                 s,
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_strlit_exp_coloring_ids(
                 ~pat_id,
@@ -895,10 +895,10 @@ let get_doc =
               options,
               LangDocMessages.function_triv_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id.base,
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_triv_exp_coloring_ids(
                 ~pat_id,
@@ -923,10 +923,10 @@ let get_doc =
                 options,
                 LangDocMessages.function_listnil_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                  Haz3lcore.Id.string_of_t(pat_id),
-                  Haz3lcore.Id.string_of_t(pat_id),
-                  Haz3lcore.Id.string_of_t(body_id),
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  pat_id.base,
+                  pat_id.base,
+                  body_id.base,
                 ),
                 LangDocMessages.function_listnil_exp_coloring_ids(
                   ~pat_id,
@@ -952,12 +952,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%s%i%s%s",
+                    "%i%i%i%i",
                   ),
-                  Haz3lcore.Id.string_of_t(pat_id),
+                  pat_id.base,
                   List.length(elements),
-                  Haz3lcore.Id.string_of_t(pat_id),
-                  Haz3lcore.Id.string_of_t(body_id),
+                  pat_id.base,
+                  body_id.base,
                 ),
                 LangDocMessages.function_listlit_exp_coloring_ids(
                   ~pat_id,
@@ -983,10 +983,10 @@ let get_doc =
               options,
               LangDocMessages.function_cons_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(hd_id),
-                Haz3lcore.Id.string_of_t(tl_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                hd_id.base,
+                tl_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_cons_exp_coloring_ids(
                 ~hd_id,
@@ -1012,10 +1012,10 @@ let get_doc =
               options,
               LangDocMessages.function_var_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%s%i"),
+                pat_id.base,
                 var,
-                Haz3lcore.Id.string_of_t(body_id),
+                body_id.base,
               ),
               LangDocMessages.function_var_exp_coloring_ids(
                 ~pat_id,
@@ -1034,11 +1034,11 @@ let get_doc =
               options,
               group_id,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%i%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                pat_id.base,
                 List.length(elements),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_tuple_exp_coloring_ids(
                 ~pat_id,
@@ -1062,10 +1062,10 @@ let get_doc =
                 options,
                 LangDocMessages.function_tuple_2_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                  Haz3lcore.Id.string_of_t(pat1_id),
-                  Haz3lcore.Id.string_of_t(pat2_id),
-                  Haz3lcore.Id.string_of_t(body_id),
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  pat1_id.base,
+                  pat2_id.base,
+                  body_id.base,
                 ),
                 LangDocMessages.function_tuple2_exp_coloring_ids(
                   ~pat1_id,
@@ -1099,12 +1099,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%s%s%s%s",
+                    "%i%i%i%i",
                   ),
-                  Haz3lcore.Id.string_of_t(pat1_id),
-                  Haz3lcore.Id.string_of_t(pat2_id),
-                  Haz3lcore.Id.string_of_t(pat3_id),
-                  Haz3lcore.Id.string_of_t(body_id),
+                  pat1_id.base,
+                  pat2_id.base,
+                  pat3_id.base,
+                  body_id.base,
                 ),
                 LangDocMessages.function_tuple3_exp_coloring_ids(
                   ~pat1_id,
@@ -1149,10 +1149,10 @@ let get_doc =
               options,
               LangDocMessages.function_ap_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(con_id),
-                Haz3lcore.Id.string_of_t(arg_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                con_id.base,
+                arg_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_ap_exp_coloring_ids(
                 ~con_id,
@@ -1177,11 +1177,11 @@ let get_doc =
               options,
               LangDocMessages.function_tag_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%s%i%i"),
+                pat_id.base,
                 v,
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                pat_id.base,
+                body_id.base,
               ),
               LangDocMessages.function_tag_exp_coloring_ids(
                 ~pat_id,
@@ -1223,9 +1223,9 @@ let get_doc =
               options,
               LangDocMessages.tuple_exp_2_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s"),
-                Haz3lcore.Id.string_of_t(exp1_id),
-                Haz3lcore.Id.string_of_t(exp2_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i"),
+                exp1_id.base,
+                exp2_id.base,
               ),
               LangDocMessages.tuple_exp_size2_coloring_ids(
                 ~exp1_id,
@@ -1250,10 +1250,10 @@ let get_doc =
               options,
               LangDocMessages.tuple_exp_3_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(exp1_id),
-                Haz3lcore.Id.string_of_t(exp2_id),
-                Haz3lcore.Id.string_of_t(exp3_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                exp1_id.base,
+                exp2_id.base,
+                exp3_id.base,
               ),
               LangDocMessages.tuple_exp_size3_coloring_ids(
                 ~exp1_id,
@@ -1294,9 +1294,9 @@ let get_doc =
             options,
             group_id,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s"),
-              Haz3lcore.Id.string_of_t(def_id),
-              Haz3lcore.Id.string_of_t(pat_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              def_id.base,
+              pat_id.base,
             ),
             LangDocMessages.let_base_exp_coloring_ids(~pat_id, ~def_id),
           );
@@ -1318,10 +1318,10 @@ let get_doc =
               options,
               LangDocMessages.let_empty_hole_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id.base,
+                def_id.base,
+                pat_id.base,
               ),
               LangDocMessages.let_empty_hole_exp_coloring_ids(
                 ~pat_id,
@@ -1345,10 +1345,10 @@ let get_doc =
               options,
               LangDocMessages.let_multi_hole_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                pat_id.base,
+                def_id.base,
+                pat_id.base,
               ),
               LangDocMessages.let_multi_hole_exp_coloring_ids(
                 ~pat_id,
@@ -1372,10 +1372,10 @@ let get_doc =
               options,
               LangDocMessages.let_wild_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                def_id.base,
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_wild_exp_coloring_ids(~def_id, ~body_id),
             );
@@ -1399,13 +1399,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%s%s%i%s%s",
+                  "%i%i%i%i%i",
                 ),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                def_id.base,
+                pat_id.base,
                 i,
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_int_exp_coloring_ids(
                 ~pat_id,
@@ -1439,13 +1439,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%s%s%f%s%s",
+                  "%i%i%f%i%i",
                 ),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                def_id.base,
+                pat_id.base,
                 f,
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_float_exp_coloring_ids(
                 ~pat_id,
@@ -1478,13 +1478,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%s%s%b%s%s",
+                  "%i%i%b%i%i",
                 ),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                def_id.base,
+                pat_id.base,
                 b,
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_bool_exp_coloring_ids(
                 ~pat_id,
@@ -1517,13 +1517,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%s%s%s%s%s",
+                  "%i%i%s%i%i",
                 ),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                def_id.base,
+                pat_id.base,
                 s,
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_str_exp_coloring_ids(
                 ~pat_id,
@@ -1554,11 +1554,11 @@ let get_doc =
               options,
               LangDocMessages.let_triv_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i%i"),
+                def_id.base,
+                pat_id.base,
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_triv_exp_coloring_ids(
                 ~pat_id,
@@ -1592,12 +1592,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%s%s%s%s",
+                    "%i%i%i%i",
                   ),
-                  Haz3lcore.Id.string_of_t(def_id),
-                  Haz3lcore.Id.string_of_t(pat_id),
-                  Haz3lcore.Id.string_of_t(def_id),
-                  Haz3lcore.Id.string_of_t(body_id),
+                  def_id.base,
+                  pat_id.base,
+                  def_id.base,
+                  body_id.base,
                 ),
                 LangDocMessages.let_listnil_exp_coloring_ids(
                   ~pat_id,
@@ -1622,9 +1622,9 @@ let get_doc =
                 options,
                 LangDocMessages.let_listlit_exp_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%s%s%i"),
-                  Haz3lcore.Id.string_of_t(def_id),
-                  Haz3lcore.Id.string_of_t(pat_id),
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  def_id.base,
+                  pat_id.base,
                   List.length(elements),
                 ),
                 LangDocMessages.let_listlit_exp_coloring_ids(
@@ -1652,10 +1652,10 @@ let get_doc =
               options,
               LangDocMessages.let_cons_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(hd_id),
-                Haz3lcore.Id.string_of_t(tl_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                def_id.base,
+                hd_id.base,
+                tl_id.base,
               ),
               LangDocMessages.let_cons_exp_coloring_ids(
                 ~hd_id,
@@ -1682,11 +1682,11 @@ let get_doc =
               options,
               LangDocMessages.let_var_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%s%i"),
+                def_id.base,
+                pat_id.base,
                 var,
-                Haz3lcore.Id.string_of_t(body_id),
+                body_id.base,
               ),
               LangDocMessages.let_var_exp_coloring_ids(
                 ~pat_id,
@@ -1706,9 +1706,9 @@ let get_doc =
               options,
               group_id,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%i"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                def_id.base,
+                pat_id.base,
                 List.length(elements),
               ),
               LangDocMessages.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
@@ -1730,10 +1730,10 @@ let get_doc =
                 options,
                 LangDocMessages.let_tuple2_exp_group,
                 Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                  Haz3lcore.Id.string_of_t(def_id),
-                  Haz3lcore.Id.string_of_t(pat1_id),
-                  Haz3lcore.Id.string_of_t(pat2_id),
+                  Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                  def_id.base,
+                  pat1_id.base,
+                  pat2_id.base,
                 ),
                 LangDocMessages.let_tuple2_exp_coloring_ids(
                   ~pat1_id,
@@ -1764,12 +1764,12 @@ let get_doc =
                 Printf.sprintf(
                   Scanf.format_from_string(
                     doc.explanation.message,
-                    "%s%s%s%s",
+                    "%i%i%i%i",
                   ),
-                  Haz3lcore.Id.string_of_t(def_id),
-                  Haz3lcore.Id.string_of_t(pat1_id),
-                  Haz3lcore.Id.string_of_t(pat2_id),
-                  Haz3lcore.Id.string_of_t(pat3_id),
+                  def_id.base,
+                  pat1_id.base,
+                  pat2_id.base,
+                  pat3_id.base,
                 ),
                 LangDocMessages.let_tuple3_exp_coloring_ids(
                   ~pat1_id,
@@ -1814,10 +1814,10 @@ let get_doc =
               options,
               LangDocMessages.let_ap_exp_group,
               Printf.sprintf(
-                Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(con_id),
-                Haz3lcore.Id.string_of_t(arg_id),
+                Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+                def_id.base,
+                con_id.base,
+                arg_id.base,
               ),
               LangDocMessages.let_ap_exp_coloring_ids(
                 ~con_id,
@@ -1845,13 +1845,13 @@ let get_doc =
               Printf.sprintf(
                 Scanf.format_from_string(
                   doc.explanation.message,
-                  "%s%s%s%s%s",
+                  "%i%i%s%i%i",
                 ),
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(pat_id),
+                def_id.base,
+                pat_id.base,
                 v,
-                Haz3lcore.Id.string_of_t(def_id),
-                Haz3lcore.Id.string_of_t(body_id),
+                def_id.base,
+                body_id.base,
               ),
               LangDocMessages.let_tag_exp_coloring_ids(
                 ~pat_id,
@@ -1892,10 +1892,10 @@ let get_doc =
             LangDocMessages.conapp_exp_group,
             options,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
+              Scanf.format_from_string(doc.explanation.message, "%s%i%i"),
               v,
-              Haz3lcore.Id.string_of_t(x_id),
-              Haz3lcore.Id.string_of_t(arg_id),
+              x_id.base,
+              arg_id.base,
             ),
             LangDocMessages.conapp_exp_coloring_ids,
           );
@@ -1910,9 +1910,9 @@ let get_doc =
             LangDocMessages.funapp_exp_group,
             options,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s"),
-              Haz3lcore.Id.string_of_t(x_id),
-              Haz3lcore.Id.string_of_t(arg_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              x_id.base,
+              arg_id.base,
             ),
             LangDocMessages.funapp_exp_coloring_ids,
           );
@@ -1931,10 +1931,10 @@ let get_doc =
           options,
           LangDocMessages.if_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-            Haz3lcore.Id.string_of_t(cond_id),
-            Haz3lcore.Id.string_of_t(then_id),
-            Haz3lcore.Id.string_of_t(else_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+            cond_id.base,
+            then_id.base,
+            else_id.base,
           ),
           LangDocMessages.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
         );
@@ -1951,9 +1951,9 @@ let get_doc =
           options,
           LangDocMessages.seq_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s"),
-            Haz3lcore.Id.string_of_t(exp1_id),
-            Haz3lcore.Id.string_of_t(exp2_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            exp1_id.base,
+            exp2_id.base,
           ),
           LangDocMessages.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
         );
@@ -1969,8 +1969,8 @@ let get_doc =
           options,
           LangDocMessages.test_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s"),
-            Haz3lcore.Id.string_of_t(body_id),
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            body_id.base,
           ),
           LangDocMessages.test_exp_coloring_ids(~body_id),
         );
@@ -1989,9 +1989,9 @@ let get_doc =
           options,
           LangDocMessages.cons_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s"),
-            Haz3lcore.Id.string_of_t(hd_id),
-            Haz3lcore.Id.string_of_t(tl_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id.base,
+            tl_id.base,
           ),
           LangDocMessages.cons_exp_coloring_ids(~hd_id, ~tl_id),
         );
@@ -2011,8 +2011,8 @@ let get_doc =
             options,
             LangDocMessages.int_unary_minus_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s"),
-              Haz3lcore.Id.string_of_t(exp_id),
+              Scanf.format_from_string(doc.explanation.message, "%i"),
+              exp_id.base,
             ),
             LangDocMessages.int_unary_minus_exp_coloring_ids(~exp_id),
           );
@@ -2122,9 +2122,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s"),
-            Haz3lcore.Id.string_of_t(left_id),
-            Haz3lcore.Id.string_of_t(right_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            left_id.base,
+            right_id.base,
           ),
           coloring_ids(~left_id, ~right_id),
         );
@@ -2140,8 +2140,8 @@ let get_doc =
           options,
           LangDocMessages.case_exp_group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s"),
-            Haz3lcore.Id.string_of_t(scrut_id),
+            Scanf.format_from_string(doc.explanation.message, "%i"),
+            scrut_id.base,
           ),
           LangDocMessages.case_exp_coloring_ids(~scrut_id),
         );
@@ -2327,9 +2327,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s"),
-            Haz3lcore.Id.string_of_t(hd_id),
-            Haz3lcore.Id.string_of_t(tl_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            hd_id.base,
+            tl_id.base,
           ),
           LangDocMessages.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
         );
@@ -2348,10 +2348,10 @@ let get_doc =
             options,
             LangDocMessages.cons2_pat_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-              Haz3lcore.Id.string_of_t(hd_id),
-              Haz3lcore.Id.string_of_t(hd2_id),
-              Haz3lcore.Id.string_of_t(tl2_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              hd_id.base,
+              hd2_id.base,
+              tl2_id.base,
             ),
             LangDocMessages.cons2_pat_coloring_ids(
               ~fst_id=hd_id,
@@ -2414,9 +2414,9 @@ let get_doc =
             options,
             LangDocMessages.tuple_pat_2_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s"),
-              Haz3lcore.Id.string_of_t(elem1_id),
-              Haz3lcore.Id.string_of_t(elem2_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              elem1_id.base,
+              elem2_id.base,
             ),
             LangDocMessages.tuple_pat_size2_coloring_ids(
               ~elem1_id,
@@ -2441,10 +2441,10 @@ let get_doc =
             options,
             LangDocMessages.tuple_pat_3_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-              Haz3lcore.Id.string_of_t(elem1_id),
-              Haz3lcore.Id.string_of_t(elem2_id),
-              Haz3lcore.Id.string_of_t(elem3_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              elem1_id.base,
+              elem2_id.base,
+              elem3_id.base,
             ),
             LangDocMessages.tuple_pat_size3_coloring_ids(
               ~elem1_id,
@@ -2476,9 +2476,9 @@ let get_doc =
         options,
         LangDocMessages.ap_pat_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%s%s"),
-          Haz3lcore.Id.string_of_t(con_id),
-          Haz3lcore.Id.string_of_t(arg_id),
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          con_id.base,
+          arg_id.base,
         ),
         LangDocMessages.ap_pat_coloring_ids(~con_id, ~arg_id),
       );
@@ -2511,9 +2511,9 @@ let get_doc =
         options,
         LangDocMessages.typann_pat_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%s%s"),
-          Haz3lcore.Id.string_of_t(pat_id),
-          Haz3lcore.Id.string_of_t(typ_id),
+          Scanf.format_from_string(doc.explanation.message, "%i%i"),
+          pat_id.base,
+          typ_id.base,
         ),
         LangDocMessages.typann_pat_coloring_ids(~pat_id, ~typ_id),
       );
@@ -2614,8 +2614,8 @@ let get_doc =
         options,
         LangDocMessages.list_typ_group,
         Printf.sprintf(
-          Scanf.format_from_string(doc.explanation.message, "%s"),
-          Haz3lcore.Id.string_of_t(elem_id),
+          Scanf.format_from_string(doc.explanation.message, "%i"),
+          elem_id.base,
         ),
         LangDocMessages.list_typ_coloring_ids(~elem_id),
       );
@@ -2628,9 +2628,9 @@ let get_doc =
           options,
           group,
           Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s"),
-            Haz3lcore.Id.string_of_t(arg_id),
-            Haz3lcore.Id.string_of_t(result_id),
+            Scanf.format_from_string(doc.explanation.message, "%i%i"),
+            arg_id.base,
+            result_id.base,
           ),
           LangDocMessages.arrow_typ_coloring_ids(~arg_id, ~result_id),
         );
@@ -2649,10 +2649,10 @@ let get_doc =
             options,
             LangDocMessages.arrow3_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-              Haz3lcore.Id.string_of_t(arg_id),
-              Haz3lcore.Id.string_of_t(arg2_id),
-              Haz3lcore.Id.string_of_t(result2_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              arg_id.base,
+              arg2_id.base,
+              result2_id.base,
             ),
             LangDocMessages.arrow3_typ_coloring_ids(
               ~arg1_id=arg_id,
@@ -2698,9 +2698,9 @@ let get_doc =
             options,
             LangDocMessages.tuple2_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s"),
-              Haz3lcore.Id.string_of_t(elem1_id),
-              Haz3lcore.Id.string_of_t(elem2_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i"),
+              elem1_id.base,
+              elem2_id.base,
             ),
             LangDocMessages.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
           );
@@ -2722,10 +2722,10 @@ let get_doc =
             options,
             LangDocMessages.tuple3_typ_group,
             Printf.sprintf(
-              Scanf.format_from_string(doc.explanation.message, "%s%s%s"),
-              Haz3lcore.Id.string_of_t(elem1_id),
-              Haz3lcore.Id.string_of_t(elem2_id),
-              Haz3lcore.Id.string_of_t(elem3_id),
+              Scanf.format_from_string(doc.explanation.message, "%i%i%i"),
+              elem1_id.base,
+              elem2_id.base,
+              elem3_id.base,
             ),
             LangDocMessages.tuple3_typ_coloring_ids(
               ~elem1_id,
