@@ -28,17 +28,38 @@ let expand_keyword = ((z, _) as state: state): option(state) =>
   | _ => Some(state)
   };
 
+let can_merge_listlit = (t: Token.t, s: Siblings.t) =>
+  switch (Siblings.neighbors(s)) {
+  | (Some(Tile({label, shards, _})), _)
+      when
+        label == Form.listlit_lbl && shards == [0] && t == Form.list_delim_end =>
+    Some(Direction.Left)
+  | (_, Some(Tile({label, shards, _})))
+      when
+        label == Form.listlit_lbl
+        && shards == [1]
+        && t == Form.list_delim_start =>
+    Some(Direction.Right)
+  | _ => None
+  };
+
+let barf_or_construct_emptylist = (d: Direction.t, z: t, id_gen) =>
+  //TODO(andrew): not sure why i have to select twice here...
+  z
+  |> Zipper.select(d)
+  |> OptUtil.and_then(Zipper.select(d))
+  |> Option.map(Zipper.destruct)
+  |> Option.get
+  |> (z => Zipper.construct(d, [Form.empty_list], z, id_gen));
+
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
-  /* TODO(andrew): listlit case here */
   let barfed =
     Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
-  switch (barfed) {
-  | Some(z) => IdGen.return(z)
-  /*| _ when Form.is_list_delim(t) =>
-    //HACK(andrew): make insertion of "[" skip expansion
-    Zipper.construct(Left, [Form.empty_list], z)*/
-  | None =>
+  switch (barfed, can_merge_listlit(t, z.relatives.siblings)) {
+  | (Some(z), Some(d)) => barf_or_construct_emptylist(d, z)
+  | (Some(z), _) => IdGen.return(z)
+  | (None, _) =>
     let (lbl, direction) = Molds.instant_completion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
   };
@@ -68,7 +89,7 @@ let split =
   if (l == Form.list_delim_start && r == Form.list_delim_end) {
     /* HACK: If we're splitting an empty list, we need to expand it,
        and also make sure we end up in the right place. */
-    let lbl = Form.empty_list_lbl;
+    let lbl = Form.listlit_lbl;
     z
     |> Zipper.set_caret(Outer)
     |> Zipper.select(Right)

@@ -30,14 +30,14 @@ let destruct =
   /* Special cases for list literals. When deletion would
      effect an empty list, we convert it to non-empty  */
   | (Left, Outer, (Some(t), _)) when Form.is_empty_list(t) =>
-    z |> delete_left |> construct_left(Form.empty_list_lbl)
+    z |> delete_left |> construct_left(Form.listlit_lbl)
   | (Right, Outer, (_, Some(t))) when Form.is_empty_list(t) =>
-    z |> delete_right |> construct_right(Form.empty_list_lbl)
+    z |> delete_right |> construct_right(Form.listlit_lbl)
   | (Left, Inner(_, 0), (_, Some(t))) when Form.is_empty_list(t) =>
-    z |> delete_right |> construct_right(Form.empty_list_lbl)
+    z |> delete_right |> construct_right(Form.listlit_lbl)
   | (Right, Inner(_, n), (_, Some(t)))
       when Form.is_empty_list(t) && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(Form.empty_list_lbl)
+    z |> delete_right |> construct_left(Form.listlit_lbl)
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
@@ -93,7 +93,7 @@ let merge =
 /* Check if containing form has an empty form e.g. empty list literals */
 let parent_is_mergable = (z: Zipper.t) =>
   switch (Relatives.parent(z.relatives)) {
-  | Some(Tile({label, _})) when label == Form.empty_list_lbl =>
+  | Some(Tile({label, _})) when label == Form.listlit_lbl =>
     Some([Form.empty_list])
   | _ => None
   };
