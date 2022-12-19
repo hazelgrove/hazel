@@ -46,10 +46,12 @@ let exp = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
 let pat = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
-let tpat = v =>
-  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
 let typ = t =>
   Example.mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
+let tpat = v =>
+  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TSum, []))));
+let tsum = v =>
+  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
 let typ_pat_var = t => Example.mk_monotile(Form.mk_atomic(TPat, t));
 let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
 let bool = b => Example.mk_monotile(Form.mk_atomic(Exp, b));
@@ -109,34 +111,52 @@ let mk_example = str => {
 };
 
 let empty_hole_exp_group = "empty_hole_exp_group";
-let empty_hole_exp: form = {
+let empty_hole_tpat_group = "empty_hole_tpat_group";
+let empty_hole_tsum_group = "empty_hole_tsum_group";
+let empty_hole_template = (sort, str, id): form => {
   let explanation = {
-    message: "Empty hole. This marks an expression that needs to be filled in.",
+    message:
+      Printf.sprintf(
+        "Empty hole. This marks %s that needs to be filled in.",
+        str,
+      ),
     feedback: Unselected,
   };
   {
-    id: "empty_hole_exp",
-    syntactic_form: [exp("EmptyHole")],
+    id,
+    syntactic_form: [sort("EmptyHole")],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
+let empty_hole_exp: form =
+  empty_hole_template(exp, "an expression", "empty_hole_exp");
+let empty_hole_tpat: form =
+  empty_hole_template(tpat, "a type pattern", "empty_hole_tpat");
+let empty_hole_tsum: form =
+  empty_hole_template(tsum, "a type sum", "empty_hole_tsum");
 
 let multi_hole_exp_group = "multi_hole_exp_group";
-let multi_hole_exp: form = {
+let multi_hole_tpat_group = "multi_hole_tpat_group";
+let multi_hole_tsum_group = "multi_hole_tsum_group";
+
+let multi_hole_template = (sort, id: string): form => {
   let explanation = {
     message: "Not recognized. This is an invalid term.",
     feedback: Unselected,
   };
   {
-    id: "multi_hole_exp",
-    syntactic_form: [exp("INVALID")],
+    id,
+    syntactic_form: [sort("INVALID")],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
+let multi_hole_exp: form = multi_hole_template(exp, "multi_hole_exp");
+let multi_hole_tpat: form = multi_hole_template(tpat, "multi_hole_tpat");
+let multi_hole_tsum: form = multi_hole_template(tsum, "multi_hole_tsum");
 
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
@@ -861,7 +881,11 @@ let tag_exp: form = {
 
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
+let let_empty_hole_tpat_group = "let_empty_hole_tpat_group";
+let let_empty_hole_tsum_group = "let_empty_hole_tsum_group";
 let let_multi_hole_exp_group = "let_multi_hole_exp_group";
+let let_multi_hole_tpat_group = "let_multi_hole_tpat_group";
+let let_multi_hole_tsum_group = "let_multi_hole_tsum_group";
 let let_wild_exp_group = "let_wild_hole_exp_group";
 let let_int_exp_group = "let_int_exp_group";
 let let_float_exp_group = "let_float_exp_group";
@@ -3219,24 +3243,39 @@ type t = {
   groups: list((string, form_group)),
 };
 
+let find = (p: 'a => bool, xs: list('a), err: string): 'a =>
+  switch (List.find_opt(p, xs)) {
+  | Some(x) => x
+  | None => failwith(err)
+  };
+
 let get_group = (group_id, doc: t) => {
-  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
+  let (_, form_group) =
+    find(
+      ((id, _)) => id == group_id,
+      doc.groups,
+      "group not found: " ++ group_id,
+    );
   form_group;
 };
+
+let get_form = (form_id, docs) =>
+  find(({id, _}) => id == form_id, docs, "form not found: " ++ form_id);
+
+let get_example = (example_sub_id, examples) =>
+  find(
+    ({sub_id, _}) => sub_id == example_sub_id,
+    examples,
+    "example not found: " ++ example_sub_id,
+  );
 
 let get_form_and_options = (group_id, doc: t) => {
   let form_group = get_group(group_id, doc);
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
-  let form = List.find(({id, _}) => id == selected_id, doc.forms);
+  let form = get_form(selected_id, doc.forms);
   (form, form_group.options);
 };
-
-let get_example = (example_sub_id, examples) =>
-  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
-
-let get_form = (form_id, docs) =>
-  List.find(({id, _}) => id == form_id, docs);
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
@@ -3289,7 +3328,11 @@ let init = {
   forms: [
     // Expressions
     empty_hole_exp,
+    empty_hole_tpat,
+    empty_hole_tsum,
     multi_hole_exp,
+    multi_hole_tpat,
+    multi_hole_tsum,
     triv_exp,
     bool_exp,
     int_exp,
@@ -3409,7 +3452,11 @@ let init = {
   groups: [
     // Expressions
     (empty_hole_exp_group, init_options([(empty_hole_exp.id, [])])),
+    (empty_hole_tpat_group, init_options([(empty_hole_tpat.id, [])])),
+    (empty_hole_tsum_group, init_options([(empty_hole_tsum.id, [])])),
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
+    (multi_hole_tpat_group, init_options([(multi_hole_tpat.id, [])])),
+    (multi_hole_tsum_group, init_options([(multi_hole_tsum.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),

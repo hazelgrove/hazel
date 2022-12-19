@@ -494,7 +494,8 @@ let unpersist_state =
     : state => {
   let lookup = (id, pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      let persisted_zipper = List.assoc(pos, positioned_zippers);
+      let persisted_zipper =
+        Util.ListUtil.assoc_err(pos, positioned_zippers, "unpersist_state");
       let (id, zipper) = PersistentZipper.unpersist(persisted_zipper, id);
       (id, Editor.init(zipper));
     } else {

@@ -547,39 +547,20 @@ let get_doc =
     };
   };
 
+  let basic_info = group => {
+    let (doc, options) = LangDocMessages.get_form_and_options(group, docs);
+    get_message(doc, options, group, doc.explanation.message, []);
+  };
+
   switch (info) {
   | Some(InfoExp({term, _})) =>
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => default
-      | EmptyHole =>
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.empty_hole_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.empty_hole_exp_group,
-          doc.explanation.message,
-          [],
-        );
-      | MultiHole(_children) =>
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.multi_hole_exp_group,
-            docs,
-          );
-        get_message(
-          doc,
-          options,
-          LangDocMessages.multi_hole_exp_group,
-          doc.explanation.message,
-          [],
-        );
+      switch ((term: TermBase.UExp.term)) {
+      | Invalid(_) => default
+      | EmptyHole => basic_info(LangDocMessages.empty_hole_exp_group)
+      | MultiHole(_) => basic_info(LangDocMessages.multi_hole_exp_group)
       | TyAlias(ty_pat, ty_def, _body) =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(
@@ -2744,27 +2725,15 @@ let get_doc =
         ),
         [],
       );
+    | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
-    | Sum(_) =>
-      let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.labelled_sum_typ_group,
-          docs,
-        );
-      get_message(
-        doc,
-        options,
-        LangDocMessages.labelled_sum_typ_group,
-        doc.explanation.message,
-        [],
-      );
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
-    | MultiHole(_)
-    | EmptyHole
     | Invalid(_) => default
+    | EmptyHole => basic_info(LangDocMessages.empty_hole_tpat_group)
+    | MultiHole(_) => basic_info(LangDocMessages.multi_hole_tpat_group)
     | Var(v) =>
       let (doc, options) =
         LangDocMessages.get_form_and_options(
@@ -2784,25 +2753,13 @@ let get_doc =
     }
   | Some(InfoTSum(info)) =>
     switch (info.term.term) {
+    | Invalid(_) => default
+    | EmptyHole => basic_info(LangDocMessages.empty_hole_tsum_group)
+    | MultiHole(_) => basic_info(LangDocMessages.multi_hole_tsum_group)
     | Sum(_) =>
       /* Ids for this redirects to parent sum form atm */
       default
-    | MultiHole(_)
-    | EmptyHole
-    | Invalid(_) => default
-    | Ap(_) =>
-      let (doc, options) =
-        LangDocMessages.get_form_and_options(
-          LangDocMessages.labelled_typ_group,
-          docs,
-        );
-      get_message(
-        doc,
-        options,
-        LangDocMessages.labelled_typ_group,
-        doc.explanation.message,
-        [],
-      );
+    | Ap(_) => basic_info(LangDocMessages.labelled_typ_group)
     }
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None
