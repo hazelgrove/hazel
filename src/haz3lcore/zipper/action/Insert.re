@@ -1,22 +1,6 @@
 open Zipper;
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type appendability =
-  | AppendLeft(Token.t)
-  | AppendRight(Token.t)
-  | AppendNeither;
-
-let sibling_appendability: (string, Siblings.t) => appendability =
-  (char, siblings) =>
-    switch (neighbor_monotiles(siblings)) {
-    | (Some(t), _) when Form.is_valid_token(t ++ char) =>
-      AppendLeft(t ++ char)
-    | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
-      AppendRight(char ++ t)
-    | _ => AppendNeither
-    };
-
 let barf = (d: Direction.t, (z, id_gen): state): option(state) =>
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
@@ -35,57 +19,74 @@ let expand =
   select(d, z) |> Option.map(z => construct(new_dir, new_label, z, id_gen));
 };
 
-let expand_or_barf_neighbors = ((z, _) as s: state): option(state) =>
-  /* If either neighbor is a monotile (a) string-matching the shard at the top
-     of the backpack, barf it, or (b) an expansing keyword, expand it. Only one
-     neighbor is affected; this can probably be relaxed. TODO(andrew) */
-  switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
-  | (_, Some(kw)) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
-  | (Some(kw), _) when Molds.will_expand(kw) => expand(kw, Left, s)
-  | (_, Some(kw)) when Molds.will_expand(kw) => expand(kw, Right, s)
+let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
+  /* If left neighbor is a monotile (a) string-matching the shard at the
+     top of the backpack, barf it, or (b) an expansing keyword, expand it. */
+  switch (left_neighbor_monotile(z.relatives.siblings)) {
+  | Some(kw) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
+  | Some(kw) when Molds.will_expand(kw) => expand(kw, Left, s)
   | _ => Some(s)
   };
 
-let expand_or_barf_neighbors2 = ((z, _) as s: state): option(state) =>
-  /* If either neighbor is a monotile (a) string-matching the shard at the top
-     of the backpack, barf it, or (b) an expansing keyword, expand it. Only one
-     neighbor is affected; this can probably be relaxed. TODO(andrew) */
-  switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
-  | (_, Some(kw)) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
-  | (Some(kw), _) when Molds.will_expand(kw) => expand(kw, Left, s)
-  | (_, Some(kw)) when Molds.will_expand(kw) => expand(kw, Right, s)
+let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
+  /* If right neighbor is a monotile (a) string-matching the shard at the
+     top of the backpack, barf it, or (b) an expansing keyword, expand it. */
+  switch (right_neighbor_monotile(z.relatives.siblings)) {
+  | Some(kw) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
+  | Some(kw) when Molds.will_expand(kw) => expand(kw, Right, s)
   | _ => Some(s)
   };
 
-let barf_or_construct =
-    (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
-  let barfed = Backpack.will_barf(t, z.backpack) ? Zipper.put_down(z) : None;
-  switch (barfed) {
-  | Some(z) => IdGen.return(z)
-  | None =>
+let make_new_tile =
+    (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) =>
+  switch (Zipper.put_down(z)) {
+  | Some(z) when Backpack.will_barf(t, z.backpack) => IdGen.return(z)
+  | _ =>
     let (lbl, direction) = Molds.instant_expansion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
   };
-};
 
-let expand_and_barf_or_construct = (char: string, state: state) =>
+let replace_tile = (t: Token.t, d: Direction.t, (z, id_gen): state) =>
+  z
+  |> Zipper.directional_destruct(d)
+  |> Option.map(z => make_new_tile(t, d, z, id_gen));
+
+let expand_neighbors_and_make_new_tile = (char: string, state: state) =>
+  /* Trigger a token boundary event and create a new tile.
+     This process proceeds left-to-right, potentially involving both
+     neighboring tiles, and potentially triggering up to 3 expansion
+     or backpack barf events. In particular, both left and right
+     neighboring monotiles may undergo delayed (aka keyword) expansion,
+     and the newly-created single-character token may undergo instant
+     expansion. Note that this left-to-right order is load-bearing;
+     consider for example what will happen given "(if|then" if the ")"
+     in then backpack is dropped at the caret. */
   state
-  |> expand_or_barf_neighbors
-  |> Option.map(((z, id_gen)) => barf_or_construct(char, Left, z, id_gen));
+  |> expand_or_barf_left_neighbor
+  |> Option.map(((z, id_gen)) => make_new_tile(char, Left, z, id_gen))
+  |> OptUtil.and_then(expand_or_barf_right_neighbor);
 
-let insert_outer = (char: string, (z, id_gen): state): option(state) =>
+[@deriving (show({with_path: false}), sexp, yojson)]
+type appendability =
+  | AppendLeft(Token.t)
+  | AppendRight(Token.t)
+  | AppendNeither;
+
+let sibling_appendability: (string, Siblings.t) => appendability =
+  (char, siblings) =>
+    switch (neighbor_monotiles(siblings)) {
+    | (Some(t), _) when Form.is_valid_token(t ++ char) =>
+      AppendLeft(t ++ char)
+    | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
+      AppendRight(char ++ t)
+    | _ => AppendNeither
+    };
+
+let insert_outer = (char: string, (z, _) as state: state): option(state) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
-  | AppendNeither => expand_and_barf_or_construct(char, (z, id_gen))
-  | AppendLeft(new_t) =>
-    z
-    |> Zipper.directional_destruct(Left)
-    |> Option.map(z => barf_or_construct(new_t, Left, z, id_gen))
-  | AppendRight(new_t) =>
-    z
-    |> Zipper.directional_destruct(Right)
-    |> Option.map(z => barf_or_construct(new_t, Right, z, id_gen))
+  | AppendNeither => expand_neighbors_and_make_new_tile(char, state)
+  | AppendLeft(t) => replace_tile(t, Left, state)
+  | AppendRight(t) => replace_tile(t, Right, state)
   };
 
 let split =
@@ -96,7 +97,7 @@ let split =
   |> Zipper.select(Right)
   |> Option.map(z => Zipper.construct(Right, [r], z, id_gen))  //overwrite right
   |> Option.map(((z, id_gen)) => Zipper.construct(Left, [l], z, id_gen))
-  |> OptUtil.and_then(expand_and_barf_or_construct(char));
+  |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 
 let opt_regrold = d =>

@@ -109,14 +109,14 @@ let sibs_with_sel =
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
+let left_neighbor_monotile: Siblings.t => option(Token.t) =
+  s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
+
+let right_neighbor_monotile: Siblings.t => option(Token.t) =
+  s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
+
 let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
-  siblings =>
-    switch (Siblings.neighbors(siblings)) {
-    | (Some(l), Some(r)) => (Piece.monotile(l), Piece.monotile(r))
-    | (Some(l), None) => (Piece.monotile(l), None)
-    | (None, Some(r)) => (None, Piece.monotile(r))
-    | (None, None) => (None, None)
-    };
+  s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
 let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) => {
   assert(Selection.is_empty(z.selection));
