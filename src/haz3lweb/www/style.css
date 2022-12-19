@@ -1172,7 +1172,8 @@ svg.tile-selected {
   padding-bottom: 1.5em;
   white-space: nowrap;
   color: var(--light-text-color);
-  background-color: #f7ebc5; /*#fbebaa;*/
+  background-color: #f7ebc5;
+  /*#fbebaa;*/
 }
 
 /* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
@@ -1239,7 +1240,7 @@ svg.tile-selected {
   filter: brightness(0.9);
 }
 
-.lang-doc-button  {
+.lang-doc-button {
   text-transform: none;
 }
 
@@ -1275,6 +1276,7 @@ svg.tile-selected {
 .highlight-blue {
   background-color: rgb(180, 203, 240);
 }
+
 .highlight-code-blue {
   fill: rgb(185 217 255);
   /*mix-blend-mode: multiply;
@@ -1283,15 +1285,17 @@ svg.tile-selected {
 }
 
 .highlight-pink {
-  background-color:rgb(242, 177, 182);
+  background-color: rgb(242, 177, 182);
 }
+
 .highlight-code-pink {
-  fill:rgb(242, 177, 182);
+  fill: rgb(242, 177, 182);
 }
 
 .highlight-teal {
   background-color: rgb(127, 243, 245);
 }
+
 .highlight-code-teal {
   fill: rgb(127, 243, 245);
 }
@@ -1299,6 +1303,7 @@ svg.tile-selected {
 .highlight-orange {
   background-color: rgb(252, 186, 111);
 }
+
 .highlight-code-orange {
   fill: rgb(252, 186, 111);
 }
@@ -1306,6 +1311,7 @@ svg.tile-selected {
 .highlight-purple {
   background-color: rgb(212, 162, 252);
 }
+
 .highlight-code-purple {
   fill: rgb(212, 162, 252);
 }
@@ -1313,9 +1319,11 @@ svg.tile-selected {
 .highlight-yellow {
   background-color: rgb(247, 221, 134);
 }
+
 .highlight-code-yellow {
   fill: rgb(247, 221, 134);
 }
+
 div.expandable-target {
   cursor: pointer;
   z-index: 40;
@@ -1337,12 +1345,13 @@ div.expandable-target {
 
 svg.expandable {
   fill: rgba(19, 17, 17, 0.067);
-  stroke-dasharray: 4,4;
+  stroke-dasharray: 4, 4;
   stroke: var(--light-text-color);
   stroke-width: 2px;
   /* mix-blend-mode: color; */
   z-index: var(--err-hole-z);
 }
+
 svg.expandable path {
   vector-effect: non-scaling-stroke;
 }
@@ -1457,6 +1466,13 @@ svg.expandable path {
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
 .DHCode .DivideByZero {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+
+.DHCode .NegativeExponent {
   display: inline-block;
   position: relative;
   font-size: 75%;

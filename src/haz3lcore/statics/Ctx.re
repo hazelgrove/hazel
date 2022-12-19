@@ -1,21 +1,27 @@
 open Util.OptUtil.Syntax;
 include TypBase.Ctx;
 
-let empty: t = VarMap.empty;
-
-let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
-
 let get_id = (entry: entry) =>
   switch (entry) {
   | VarEntry({id, _}) => id
   | TVarEntry({id, _}) => id
   };
+let empty: t = VarMap.empty;
 
-let lookup_var = (ctx: t, t: Token.t) =>
+let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
+
+let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    fun
-    | VarEntry({name, typ, _}) when name == t => Some(typ)
-    | _ => None,
+    entry =>
+      switch (entry) {
+      | VarEntry(var) =>
+        if (var.name == name) {
+          Some(var);
+        } else {
+          None;
+        }
+      | TVarEntry(_) => None
+      },
     ctx,
   );
 
@@ -205,7 +211,7 @@ let rec join =
   };
 };
 
-let join_all = (ctx, ts: list(Typ.t)): option(Typ.t) =>
+let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
     (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
     Some(Unknown(Internal)),
