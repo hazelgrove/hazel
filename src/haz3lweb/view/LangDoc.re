@@ -95,7 +95,7 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(JumpToId(id)))
+          inject(UpdateAction.PerformAction(Jump(TileId(id))))
         ),
       ])
     | None => classes
@@ -149,7 +149,9 @@ let mk_translation =
                       Attr.many([
                         clss(["clickable"]),
                         Attr.on_click(_ =>
-                          inject(UpdateAction.PerformAction(JumpToId(id)))
+                          inject(
+                            UpdateAction.PerformAction(Jump(TileId(id))),
+                          )
                         ),
                       ]),
                     d,
@@ -2008,6 +2010,10 @@ let get_doc =
               LangDocMessages.int_times_group,
               LangDocMessages.int_times_exp_coloring_ids,
             )
+          | Int(Power) => (
+              LangDocMessages.int_power_group,
+              LangDocMessages.int_power_exp_coloring_ids,
+            )
           | Int(Divide) => (
               LangDocMessages.int_divide_group,
               LangDocMessages.int_divide_exp_coloring_ids,
@@ -2043,6 +2049,10 @@ let get_doc =
           | Float(Times) => (
               LangDocMessages.float_times_group,
               LangDocMessages.float_times_exp_coloring_ids,
+            )
+          | Float(Power) => (
+              LangDocMessages.float_power_group,
+              LangDocMessages.float_power_exp_coloring_ids,
             )
           | Float(Divide) => (
               LangDocMessages.float_divide_group,

@@ -2,12 +2,15 @@ open Sexplib.Std;
 
 module rec Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
+    name: Token.t,
+    id: Id.t,
+    typ: Typ.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
-    | VarEntry({
-        name: Token.t,
-        id: Id.t,
-        typ: Typ.t,
-      })
+    | VarEntry(var_entry)
     | TVarEntry({
         name: Token.t,
         id: Id.t,
@@ -33,12 +36,15 @@ module rec Ctx: {
   let is_tvar: (t, Token.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type var_entry = {
+    name: Token.t,
+    id: Id.t,
+    typ: Typ.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
-    | VarEntry({
-        name: Token.t,
-        id: Id.t,
-        typ: Typ.t,
-      })
+    | VarEntry(var_entry)
     | TVarEntry({
         name: Token.t,
         id: Id.t,

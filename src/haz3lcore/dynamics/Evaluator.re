@@ -282,7 +282,7 @@ and matches_cast_Inj =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
@@ -357,7 +357,7 @@ and matches_cast_Tuple =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
@@ -494,7 +494,7 @@ and matches_cast_Cons =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -549,6 +549,7 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
   | Times => IntLit(n1 * n2)
+  | Power => IntLit(IntUtil.ipow(n1, n2))
   | Divide => IntLit(n1 / n2)
   | LessThan => BoolLit(n1 < n2)
   | LessThanOrEqual => BoolLit(n1 <= n2)
@@ -567,6 +568,7 @@ let eval_bin_float_op =
   | FPlus => FloatLit(f1 +. f2)
   | FMinus => FloatLit(f1 -. f2)
   | FTimes => FloatLit(f1 *. f2)
+  | FPower => FloatLit(f1 ** f2)
   | FDivide => FloatLit(f1 /. f2)
   | FLessThan => BoolLit(f1 < f2)
   | FLessThanOrEqual => BoolLit(f1 <= f2)
@@ -645,7 +647,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
         };
-      | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
+      | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2)
@@ -730,6 +732,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               InvalidOperation(
                 BinIntOp(op, IntLit(n1), IntLit(n2)),
                 DivideByZero,
+              ),
+            )
+            |> return
+          | (Power, _, _) when n2 < 0 =>
+            Indet(
+              InvalidOperation(
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                NegativeExponent,
               ),
             )
             |> return

@@ -168,9 +168,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* env = pp_eval_env(env);
     switch (d) {
     /* Non-hole constructs inside closures. */
-    | Fun(dp, ty, d) =>
+    | Fun(dp, ty, d, s) =>
       let* d = pp_uneval(env, d);
-      Fun(dp, ty, d) |> return;
+      Fun(dp, ty, d, s) |> return;
 
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
@@ -277,9 +277,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     FixF(f, ty, d1') |> return;
 
-  | Fun(dp, ty, d') =>
+  | Fun(dp, ty, d', s) =>
     let* d'' = pp_uneval(env, d');
-    Fun(dp, ty, d'') |> return;
+    Fun(dp, ty, d'', s) |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -436,7 +436,7 @@ let rec track_children_of_hole =
   | StringLit(_)
   | BoundVar(_) => hii
   | FixF(_, _, d)
-  | Fun(_, _, d)
+  | Fun(_, _, d, _)
   | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
