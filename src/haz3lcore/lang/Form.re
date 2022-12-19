@@ -226,7 +226,8 @@ let forms: list((string, t)) = [
   //("block", mk(ii, ["{", "}"], mk_op(Exp, [Exp]))),
 ];
 
-let get: String.t => t = name => List.assoc(name, forms);
+let get: String.t => t =
+  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
 
 let delims: list(Token.t) =
   forms

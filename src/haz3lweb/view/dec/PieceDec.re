@@ -134,13 +134,27 @@ let chunky_shard =
     ) => {
   let (nib_l, origin) = {
     let (id, index) = i;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (fst(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).origin);
+    let (_, mold, shards) =
+      switch (List.find_opt(((id', _, _)) => id' == id, tiles)) {
+      | Some(x) => x
+      | None => failwith("chunky_shard 1")
+      };
+    (
+      fst(Mold.nib_shapes(~index, mold)),
+      ListUtil.assoc_err(index, shards, "chunky_shard").origin,
+    );
   };
   let (nib_r, last) = {
     let (id, index) = j;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (snd(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).last);
+    let (_, mold, shards) =
+      switch (List.find_opt(((id', _, _)) => id' == id, tiles)) {
+      | Some(x) => x
+      | None => failwith("chunky_shard 2")
+      };
+    (
+      snd(Mold.nib_shapes(~index, mold)),
+      ListUtil.assoc_err(index, shards, "chunky_shard").last,
+    );
   };
   let indent_col = Measured.Rows.find(origin.row, rows).indent;
   let max_col =

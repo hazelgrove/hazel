@@ -509,10 +509,11 @@ and uexp_to_info_map =
     let ty_body = Typ.subst(ty, name, ty_body);
     let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
-  | TyAlias(typat, _, e) =>
+  | TyAlias(typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    let (ty, free, m_body) = go(~mode, e);
-    add(~self=Just(ty), ~free, union_m([m_typat, m_body]));
+    let (_, m_typ) = utyp_to_info_map(~ctx, utyp);
+    let (ty, free, m_body) = go(~mode, body);
+    add(~self=Just(ty), ~free, union_m([m_typat, m_body, m_typ]));
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
