@@ -101,21 +101,21 @@ let is_bad_lit = str =>
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
-let is_string_delim = str => str == string_delim;
+let is_string_delim = (==)(string_delim);
 
 /* List literals */
 let list_start = "[";
 let list_end = "]";
 let listlit_lbl = [list_start, list_end];
 let empty_list = list_start ++ list_end;
-let is_empty_list = s => s == empty_list;
+let is_empty_list = (==)(empty_list);
 
 /* Tuples */
 let tuple_start = "(";
 let tuple_end = ")";
 let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
-let is_empty_tuple = s => s == empty_tuple;
+let is_empty_tuple = (==)(empty_tuple);
 
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from

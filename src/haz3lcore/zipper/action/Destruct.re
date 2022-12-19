@@ -17,12 +17,10 @@ let destruct =
     |> Option.map(IdGen.id(id_gen));
   let delete_left = z =>
     z |> Zipper.directional_destruct(Left) |> Option.map(IdGen.id(id_gen));
-  let construct_right = (lbl, state) =>
-    state
-    |> Option.map(((z, id_gen)) => Zipper.construct(Right, lbl, z, id_gen));
-  let construct_left = (lbl, state) =>
-    state
-    |> Option.map(((z, id_gen)) => Zipper.construct(Left, lbl, z, id_gen));
+  let construct_right = (l, s) =>
+    Option.map(((z, id_gen)) => Zipper.construct(Right, l, z, id_gen), s);
+  let construct_left = (l, s) =>
+    Option.map(((z, id_gen)) => Zipper.construct(Left, l, z, id_gen), s);
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
@@ -73,7 +71,6 @@ let destruct =
     |> Option.map(IdGen.id(id_gen))
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    //Option.map(IdGen.id(id_gen)
     Zipper.replace(Left, [Token.rm_last(t)], (z, id_gen))
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Zipper.replace(Right, [Token.rm_first(t)], (z, id_gen))
@@ -91,7 +88,7 @@ let merge =
   |> OptUtil.and_then(Zipper.directional_destruct(Right))
   |> Option.map(z => Zipper.construct(Right, [l ++ r], z, id_gen));
 
-/* Check if containing form has an empty form e.g. empty list literals */
+/* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
@@ -102,17 +99,17 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
   let z_trimmed = update_siblings(Siblings.trim_whitespace_and_grout, z);
   switch (
+    parent_duomerges(z),
     z.caret,
     neighbor_monotiles(z_trimmed.relatives.siblings),
-    parent_duomerges(z),
   ) {
-  | (Outer, (None, None), Some(lbl)) =>
+  | (Some(lbl), Outer, (None, None)) =>
     z
     |> Zipper.delete_parent
     |> Zipper.set_caret(Inner(List.length(lbl), 0))
     |> (z => Zipper.construct(Right, lbl, z, id_gen))
     |> Option.some
-  | (Outer, (Some(l), Some(r)), _) when Form.is_valid_token(l ++ r) =>
+  | (_, Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z_trimmed, id_gen))
   | _ => Some((z, id_gen))
   };
