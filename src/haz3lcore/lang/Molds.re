@@ -2,7 +2,7 @@ open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type completions = list((Token.t, (list(Token.t), Direction.t)));
+type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
 let forms_assoc: list((Label.t, list(Mold.t))) =
   List.fold_left(
@@ -30,7 +30,7 @@ let get = (label: Label.t): list(Mold.t) =>
     [];
   };
 
-let delayed_completes: completions =
+let delayed_expansions: expansions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
       switch (expansion, label) {
@@ -49,7 +49,7 @@ let delayed_completes: completions =
   |> List.flatten
   |> List.sort_uniq(compare);
 
-let instant_completes: completions =
+let instant_expansions: expansions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
       switch (expansion, label) {
@@ -68,20 +68,20 @@ let instant_completes: completions =
   |> List.flatten
   |> List.sort_uniq(compare);
 
-let delayed_completion:
-  (Token.t, Direction.t) => (list(Token.t), Direction.t) =
+let delayed_expansion: (Token.t, Direction.t) => (list(Token.t), Direction.t) =
   (s, direction_preference) =>
     /* Completions which must be defered as they are ambiguous prefixes */
-    switch (List.assoc_opt(s, delayed_completes)) {
-    | Some(completion) => completion
+    switch (List.assoc_opt(s, delayed_expansions)) {
+    | Some(expansion) => expansion
     | None => ([s], direction_preference)
     };
 
-let instant_completion:
-  (Token.t, Direction.t) => (list(Token.t), Direction.t) =
+let will_expand = kw => List.length(delayed_expansion(kw, Left) |> fst) > 1;
+
+let instant_expansion: (Token.t, Direction.t) => (list(Token.t), Direction.t) =
   (s, direction_preference) =>
     /* Completions which can or must be executed immediately */
-    switch (List.assoc_opt(s, instant_completes)) {
-    | Some(completion) => completion
+    switch (List.assoc_opt(s, instant_expansions)) {
+    | Some(expansion) => expansion
     | None => ([s], direction_preference)
     };

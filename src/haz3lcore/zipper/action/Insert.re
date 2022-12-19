@@ -17,51 +17,62 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => AppendNeither
     };
 
-let replace_from_backpack =
-    (d: Direction.t, (z, id_gen): state): option(state) =>
+let barf = (d: Direction.t, (z, id_gen): state): option(state) =>
+  /* Removes the d-neighboring tile and drops from backpack;
+     precondition: the d-neighbor should be a monotile
+     string-matching to the dropping shard */
   select(d, z)
   |> Option.map(Zipper.destruct)
   |> OptUtil.and_then(Zipper.put_down)
   |> Option.map(z => (z, id_gen));
 
-let will_expand = kw =>
-  List.length(Molds.delayed_completion(kw, Left) |> fst) > 1;
-
 let expand =
     (kw: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
-  let (new_label, new_dir) = Molds.delayed_completion(kw, d);
+  /* Removes the d-neighboring tile and reconstructs it, triggering
+     keyword-expansion; precondition: the d-neighbor should be a monotile
+     string-matching a keyword of an expanding form */
+  let (new_label, new_dir) = Molds.delayed_expansion(kw, d);
   select(d, z) |> Option.map(z => construct(new_dir, new_label, z, id_gen));
 };
 
-let expand_keyword = ((z, _) as state: state): option(state) =>
-  /* NOTE(andrew): We may want to allow editing of shards when only 1 of set
-     is down (removing the rest of the set from backpack on edit) as something
-     like this is necessary for backspace to act as undo after kw-expansion */
+let expand_or_barf_neighbors = ((z, _) as s: state): option(state) =>
+  /* If either neighbor is a monotile (a) string-matching the shard at the top
+     of the backpack, barf it, or (b) an expansing keyword, expand it. Only one
+     neighbor is affected; this can probably be relaxed. TODO(andrew) */
   switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) when Backpack.is_first_matching(kw, z.backpack) =>
-    replace_from_backpack(Left, state)
-  | (_, Some(kw)) when Backpack.is_first_matching(kw, z.backpack) =>
-    replace_from_backpack(Right, state)
-  | (Some(kw), _) when will_expand(kw) => expand(kw, Left, state)
-  | (_, Some(kw)) when will_expand(kw) => expand(kw, Right, state)
-  | _ => Some(state)
+  | (Some(kw), _) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
+  | (_, Some(kw)) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
+  | (Some(kw), _) when Molds.will_expand(kw) => expand(kw, Left, s)
+  | (_, Some(kw)) when Molds.will_expand(kw) => expand(kw, Right, s)
+  | _ => Some(s)
+  };
+
+let expand_or_barf_neighbors2 = ((z, _) as s: state): option(state) =>
+  /* If either neighbor is a monotile (a) string-matching the shard at the top
+     of the backpack, barf it, or (b) an expansing keyword, expand it. Only one
+     neighbor is affected; this can probably be relaxed. TODO(andrew) */
+  switch (neighbor_monotiles(z.relatives.siblings)) {
+  | (Some(kw), _) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
+  | (_, Some(kw)) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
+  | (Some(kw), _) when Molds.will_expand(kw) => expand(kw, Left, s)
+  | (_, Some(kw)) when Molds.will_expand(kw) => expand(kw, Right, s)
+  | _ => Some(s)
   };
 
 let barf_or_construct =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
-  let barfed =
-    Backpack.is_first_matching(t, z.backpack) ? Zipper.put_down(z) : None;
+  let barfed = Backpack.will_barf(t, z.backpack) ? Zipper.put_down(z) : None;
   switch (barfed) {
   | Some(z) => IdGen.return(z)
   | None =>
-    let (lbl, direction) = Molds.instant_completion(t, direction_pref);
+    let (lbl, direction) = Molds.instant_expansion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
   };
 };
 
 let expand_and_barf_or_construct = (char: string, state: state) =>
   state
-  |> expand_keyword
+  |> expand_or_barf_neighbors
   |> Option.map(((z, id_gen)) => barf_or_construct(char, Left, z, id_gen));
 
 let insert_outer = (char: string, (z, id_gen): state): option(state) =>
