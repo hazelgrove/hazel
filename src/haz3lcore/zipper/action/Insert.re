@@ -91,7 +91,7 @@ let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
        Zipper.put_down(z)
        |> OptUtil.and_then(Zipper.move(Left))
        |> Option.map(z => (z, id_gen))
-     ); 
+     );
 
 let insert_monos =
     (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
