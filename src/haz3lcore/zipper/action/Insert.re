@@ -51,12 +51,11 @@ let neighbor_can_duomerge =
   };
 
 let replace_neighbor = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
-  //TODO(andrew): not sure why i have to select twice here...
   z
   |> Zipper.select(d)
   |> OptUtil.and_then(Zipper.select(d))
   |> Option.map(Zipper.destruct)
-  |> Option.get  //TODO(andrew): error handling
+  |> Option.get
   |> (z => Zipper.construct(d, lbl, z, id_gen));
 
 let barf_or_construct =
@@ -97,7 +96,7 @@ let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
        Zipper.put_down(z)
        |> OptUtil.and_then(Zipper.move(Left))
        |> Option.map(z => (z, id_gen))
-     );
+     ); 
 
 let insert_monos =
     (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
@@ -112,7 +111,7 @@ let split =
   |> Zipper.set_caret(Outer)
   |> Zipper.select(Right)
   |> (
-    // overwrite
+    /* overwrite selection */
     switch (Form.duomerges([l, r])) {
     | Some(_) => insert_duo(id_gen, [l, r])
     | None => insert_monos(id_gen, l, r)
