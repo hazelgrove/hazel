@@ -6,8 +6,8 @@ let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
-  let* z = select(d, z);
-  let+ z = z |> Zipper.destruct |> Zipper.put_down(d);
+  let* z = delete(d, z);
+  let+ z = Zipper.put_down(d, z);
   (z, id_gen);
 };
 
@@ -67,7 +67,7 @@ let expand_neighbors_and_make_new_tile =
 
 let replace_tile =
     (t: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
-  let+ z = Zipper.directional_destruct(d, z);
+  let+ z = Zipper.delete(d, z);
   make_new_tile(t, d, z, id_gen);
 };
 

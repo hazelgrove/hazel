@@ -13,10 +13,10 @@ let destruct =
   let delete_right = z =>
     z
     |> Zipper.set_caret(Outer)
-    |> Zipper.directional_destruct(Right)
+    |> Zipper.delete(Right)
     |> Option.map(IdGen.id(id_gen));
   let delete_left = z =>
-    z |> Zipper.directional_destruct(Left) |> Option.map(IdGen.id(id_gen));
+    z |> Zipper.delete(Left) |> Option.map(IdGen.id(id_gen));
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
@@ -51,7 +51,7 @@ let destruct =
     /* Note: Counterintuitve, but yes, these cases are identically handled */
     z
     |> Zipper.set_caret(Outer)
-    |> Zipper.directional_destruct(Right)
+    |> Zipper.delete(Right)
     |> Option.map(IdGen.id(id_gen))
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
@@ -61,7 +61,7 @@ let destruct =
     Zipper.replace_mono(Right, Token.rm_first(t), (z, id_gen))
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) =>
-    z |> Zipper.directional_destruct(d) |> Option.map(IdGen.id(id_gen))
+    z |> Zipper.delete(d) |> Option.map(IdGen.id(id_gen))
   };
 };
 
@@ -69,8 +69,8 @@ let merge =
     ((l, r): (Token.t, Token.t), (z, id_gen): state): option(state) =>
   z
   |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
-  |> Zipper.directional_destruct(Left)
-  |> OptUtil.and_then(Zipper.directional_destruct(Right))
+  |> Zipper.delete(Left)
+  |> OptUtil.and_then(Zipper.delete(Right))
   |> Option.map(z => Zipper.construct_mono(Right, l ++ r, z, id_gen));
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
