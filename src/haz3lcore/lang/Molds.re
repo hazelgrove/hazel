@@ -68,20 +68,22 @@ let instant_expansions: expansions =
   |> List.flatten
   |> List.sort_uniq(compare);
 
-let delayed_expansion: (Token.t, Direction.t) => (list(Token.t), Direction.t) =
-  (s, direction_preference) =>
+let delayed_expansion: Token.t => (list(Token.t), Direction.t) =
+  s =>
     /* Completions which must be defered as they are ambiguous prefixes */
     switch (List.assoc_opt(s, delayed_expansions)) {
     | Some(expansion) => expansion
-    | None => ([s], direction_preference)
+    | None => ([s], Right)
     };
 
-let will_expand = kw => List.length(delayed_expansion(kw, Left) |> fst) > 1;
-
-let instant_expansion: (Token.t, Direction.t) => (list(Token.t), Direction.t) =
-  (s, direction_preference) =>
+let instant_expansion: Token.t => (list(Token.t), Direction.t) =
+  s =>
     /* Completions which can or must be executed immediately */
     switch (List.assoc_opt(s, instant_expansions)) {
     | Some(expansion) => expansion
-    | None => ([s], direction_preference)
+    | None => ([s], Right)
     };
+
+let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
+
+let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;

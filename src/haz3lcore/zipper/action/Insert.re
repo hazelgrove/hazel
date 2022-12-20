@@ -7,26 +7,26 @@ let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
   let* z = delete(d, z);
-  let+ z = Zipper.put_down(d, z);
+  let+ z = put_down(d, z);
   (z, id_gen);
 };
 
-let expand =
-    (kw: Token.t, caret: Direction.t, (z, id_gen): state): option(state) => {
+let delayed_expand =
+    (t: Token.t, caret: Direction.t, (z, id_gen): state): option(state) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
-  let (new_label, backpack) = Molds.delayed_expansion(kw, Right); //TODO(andrew): deprec
-  let* z = select(caret, z);
-  Some(construct(~backpack, ~caret, new_label, z, id_gen));
+  let (new_label, backpack) = Molds.delayed_expansion(t);
+  let+ z = delete(caret, z);
+  construct(~backpack, ~caret, new_label, z, id_gen);
 };
 
 let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(kw) when Backpack.will_barf(kw, z.backpack) => barf(Left, s)
-  | Some(kw) when Molds.will_expand(kw) => expand(kw, Left, s)
+  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Left, s)
+  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
   | _ => Some(s)
   };
 
@@ -34,8 +34,8 @@ let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(kw) when Backpack.will_barf(kw, z.backpack) => barf(Right, s)
-  | Some(kw) when Molds.will_expand(kw) => expand(kw, Right, s)
+  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Right, s)
+  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
   | _ => Some(s)
   };
 
@@ -43,11 +43,12 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  switch (Backpack.will_barf(t, z.backpack), Zipper.put_down(Left, z)) {
-  | (true, Some(z')) => IdGen.return(z')
+  switch (put_down(Left, z)) {
+  | Some(z') when Molds.is_instant(t) && Backpack.will_barf(t, z.backpack) =>
+    IdGen.return(z')
   | _ =>
-    let (lbl, backpack) = Molds.instant_expansion(t, Right); //TODO(andrew): deprec Right
-    Zipper.construct(~caret, ~backpack, lbl, z);
+    let (lbl, backpack) = Molds.instant_expansion(t);
+    construct(~caret, ~backpack, lbl, z);
   };
 
 let expand_neighbors_and_make_new_tile =
@@ -58,16 +59,14 @@ let expand_neighbors_and_make_new_tile =
      or backpack barf events. In particular, both left and right
      neighboring monotiles may undergo delayed (aka keyword) expansion,
      and the newly-created single-character token may undergo instant
-     expansion. Note that this left-to-right order is load-bearing;
-     consider for example what will happen given "(if|then" if the ")"
-     in then backpack is dropped at the caret. */
+     expansion.*/
   let* (z, id_gen) = expand_or_barf_left_neighbor(state);
   make_new_tile(char, Left, z, id_gen) |> expand_or_barf_right_neighbor;
 };
 
 let replace_tile =
     (t: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
-  let+ z = Zipper.delete(d, z);
+  let+ z = delete(d, z);
   make_new_tile(t, d, z, id_gen);
 };
 
