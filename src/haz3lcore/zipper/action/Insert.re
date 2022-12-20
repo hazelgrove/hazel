@@ -61,7 +61,8 @@ let expand_neighbors_and_make_new_tile =
      and the newly-created single-character token may undergo instant
      expansion.*/
   let* (z, id_gen) = expand_or_barf_left_neighbor(state);
-  make_new_tile(char, Left, z, id_gen) |> expand_or_barf_right_neighbor;
+  let state = make_new_tile(char, Left, z, id_gen);
+  expand_or_barf_right_neighbor(state);
 };
 
 let replace_tile =
@@ -74,7 +75,7 @@ let replace_tile =
 type appendability =
   | AppendLeft(Token.t)
   | AppendRight(Token.t)
-  | AppendNeither;
+  | MakeNew;
 
 let sibling_appendability: (string, Siblings.t) => appendability =
   (char, siblings) =>
@@ -83,12 +84,12 @@ let sibling_appendability: (string, Siblings.t) => appendability =
       AppendLeft(t ++ char)
     | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
       AppendRight(char ++ t)
-    | _ => AppendNeither
+    | _ => MakeNew
     };
 
 let insert_outer = (char: string, (z, _) as state: state): option(state) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
-  | AppendNeither => expand_neighbors_and_make_new_tile(char, state)
+  | MakeNew => expand_neighbors_and_make_new_tile(char, state)
   | AppendLeft(t) => replace_tile(t, Left, state)
   | AppendRight(t) => replace_tile(t, Right, state)
   };
@@ -157,7 +158,7 @@ let go =
       /* If we're adding to the right, move caret inside right nhbr */
       switch (sibling_appendability(char, siblings)) {
       | AppendRight(_) => Inner(0, 0) //Note: assumption of monotile
-      | AppendNeither
+      | MakeNew
       | AppendLeft(_) => Outer
       };
     (z, id_gen)
