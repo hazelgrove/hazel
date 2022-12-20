@@ -2,13 +2,13 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  focus: Direction.t,
+  focus: Direction.t, //TODO: deprecate
   content: Segment.t,
 };
 
-let mk = (focus, content) => {focus, content};
+let mk = content => {focus: Left, content};
 
-let empty = mk(Left, Segment.empty);
+let empty = mk(Segment.empty);
 
 let map = (f, sel) => {...sel, content: f(sel.content)};
 
