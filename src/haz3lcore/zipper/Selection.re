@@ -2,10 +2,11 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  focus: Direction.t, //TODO: deprecate
+  focus: Direction.t,
   content: Segment.t,
 };
 
+/* NOTE: backpack no longer uses selection focus */
 let mk = content => {focus: Left, content};
 
 let empty = mk(Segment.empty);

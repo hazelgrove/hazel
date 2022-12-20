@@ -225,7 +225,7 @@ let destruct = (~destroy_kids=true, z: t): t => {
   {...z, backpack};
 };
 
-let directional_destruct = (d: Direction.t, z: t): option(t) =>
+let delete = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destruct);
 
 let put_down = (d: Direction.t, z: t): option(t) => {
@@ -292,7 +292,7 @@ let replace =
     : option(state) =>
   /* i.e. select and construct, overwriting the selection */
   z
-  |> select(caret)
+  |> delete(caret)
   |> Option.map(z => construct(~caret, ~backpack, l, z, id_gen));
 
 let replace_mono = (d: Direction.t, t: Token.t, state: state): option(state) =>
