@@ -1,14 +1,15 @@
 open Zipper;
 open Util;
+open OptUtil.Syntax;
 
-let barf = (d: Direction.t, (z, id_gen): state): option(state) =>
+let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
-     string-matching to the dropping shard */
-  select(d, z)
-  |> Option.map(Zipper.destruct)
-  |> OptUtil.and_then(Zipper.put_down)
-  |> Option.map(z => (z, id_gen));
+     string-matching the dropping shard */
+  let* z = select(d, z);
+  let+ z = z |> Zipper.destruct |> Zipper.put_down(d);
+  (z, id_gen);
+};
 
 let expand =
     (kw: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
@@ -16,7 +17,18 @@ let expand =
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, new_dir) = Molds.delayed_expansion(kw, d);
-  select(d, z) |> Option.map(z => construct(new_dir, new_label, z, id_gen));
+  let* z = select(d, z);
+  switch (d) {
+  | Left => Some(construct(new_dir, new_label, z, id_gen))
+  | Right =>
+    let (z, id_gen) = construct(new_dir, new_label, z, id_gen);
+    let* z = Zipper.move(Left, z);
+    /* NOTE(andrew): This movement could likely be internalized into
+       construct; however the notion of direction in these functions is
+       currently overloaded, possibly with compensating errors, and
+       I'm not currently confident making this change. */
+    Some((z, id_gen));
+  };
 };
 
 let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
@@ -39,19 +51,18 @@ let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
 
 let make_new_tile =
     (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) =>
-  switch (Zipper.put_down(z)) {
-  | Some(z) when Backpack.will_barf(t, z.backpack) => IdGen.return(z)
+  /* Adds a new tile at the caret. If the new token matches the top
+     of the backpack, the backpack shard is dropped. Otherwise, we
+     construct a new tile, which may immediately expand. */
+  switch (Backpack.will_barf(t, z.backpack), Zipper.put_down(Left, z)) {
+  | (true, Some(z')) => IdGen.return(z')
   | _ =>
     let (lbl, direction) = Molds.instant_expansion(t, direction_pref);
     Zipper.construct(direction, lbl, z);
   };
 
-let replace_tile = (t: Token.t, d: Direction.t, (z, id_gen): state) =>
-  z
-  |> Zipper.directional_destruct(d)
-  |> Option.map(z => make_new_tile(t, d, z, id_gen));
-
-let expand_neighbors_and_make_new_tile = (char: string, state: state) =>
+let expand_neighbors_and_make_new_tile =
+    (char: Token.t, state: state): option(state) => {
   /* Trigger a token boundary event and create a new tile.
      This process proceeds left-to-right, potentially involving both
      neighboring tiles, and potentially triggering up to 3 expansion
@@ -61,10 +72,15 @@ let expand_neighbors_and_make_new_tile = (char: string, state: state) =>
      expansion. Note that this left-to-right order is load-bearing;
      consider for example what will happen given "(if|then" if the ")"
      in then backpack is dropped at the caret. */
-  state
-  |> expand_or_barf_left_neighbor
-  |> Option.map(((z, id_gen)) => make_new_tile(char, Left, z, id_gen))
-  |> OptUtil.and_then(expand_or_barf_right_neighbor);
+  let* (z, id_gen) = expand_or_barf_left_neighbor(state);
+  make_new_tile(char, Left, z, id_gen) |> expand_or_barf_right_neighbor;
+};
+
+let replace_tile =
+    (t: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
+  let+ z = Zipper.directional_destruct(d, z);
+  make_new_tile(t, d, z, id_gen);
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability =
