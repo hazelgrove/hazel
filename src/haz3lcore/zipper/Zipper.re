@@ -195,7 +195,7 @@ let pick_up = (z: t): t => {
     selected.content
     |> Segment.trim_grout_around_whitespace(Left)
     |> Segment.trim_grout_around_whitespace(Right)
-    |> Selection.mk(selected.focus);
+    |> Selection.mk;
   Segment.tiles(selection.content)
   |> List.map((t: Tile.t) => t.id)
   |> Effect.s_touch;
@@ -220,9 +220,7 @@ let destruct = (~destroy_kids=true, z: t): t => {
     z.backpack
     |> Backpack.remove_matching(to_remove)
     |> Backpack.push_s(
-         to_pick_up
-         |> List.map(Segment.of_tile)
-         |> List.map(Selection.mk(z.selection.focus)),
+         to_pick_up |> List.map(Segment.of_tile) |> List.map(Selection.mk),
        );
   {...z, backpack};
 };
@@ -243,13 +241,20 @@ let put_down = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
+let rec construct =
+        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t)
+        : IdGen.t(t) => {
   IdGen.Syntax.(
     switch (label) {
     | [t] when Form.is_string_delim(t) =>
       /* Special case for constructing string literals.
          See Insert.move_into_if_stringlit for more special-casing. */
-      construct(Left, [Form.string_delim ++ Form.string_delim], z)
+      construct(
+        ~caret,
+        ~backpack,
+        [Form.string_delim ++ Form.string_delim],
+        z,
+      )
     | [content] when Form.is_whitespace(content) =>
       let+ id = IdGen.fresh;
       Effect.s_touch([id]);
@@ -266,18 +271,32 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
       let selections =
         Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
         |> List.map(Segment.of_tile)
-        |> List.map(Selection.mk(from))
-        |> ListUtil.rev_if(from == Right);
+        |> List.map(Selection.mk)
+        |> ListUtil.rev_if(backpack == Right);
       let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down(Left, {...z, backpack}));
+      Option.get(put_down(caret, {...z, backpack}));
     }
   );
 };
 
+let construct_mono = (d: Direction.t, t: Token.t, z: t): IdGen.t(t) =>
+  construct(~caret=d, ~backpack=Left, [t], z);
+
 let replace =
-    (d: Direction.t, l: Label.t, (z, id_gen): state): option(state) =>
+    (
+      ~caret: Direction.t,
+      ~backpack: Direction.t,
+      l: Label.t,
+      (z, id_gen): state,
+    )
+    : option(state) =>
   /* i.e. select and construct, overwriting the selection */
-  z |> select(d) |> Option.map(z => construct(d, l, z, id_gen));
+  z
+  |> select(caret)
+  |> Option.map(z => construct(~caret, ~backpack, l, z, id_gen));
+
+let replace_mono = (d: Direction.t, t: Token.t, state: state): option(state) =>
+  replace(~caret=d, ~backpack=Left, [t], state);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */

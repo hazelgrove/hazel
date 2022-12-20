@@ -12,23 +12,13 @@ let barf = (d: Direction.t, (z, id_gen): state): option(state) => {
 };
 
 let expand =
-    (kw: Token.t, d: Direction.t, (z, id_gen): state): option(state) => {
+    (kw: Token.t, caret: Direction.t, (z, id_gen): state): option(state) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
-  let (new_label, new_dir) = Molds.delayed_expansion(kw, d);
-  let* z = select(d, z);
-  switch (d) {
-  | Left => Some(construct(new_dir, new_label, z, id_gen))
-  | Right =>
-    let (z, id_gen) = construct(new_dir, new_label, z, id_gen);
-    let* z = Zipper.move(Left, z);
-    /* NOTE(andrew): This movement could likely be internalized into
-       construct; however the notion of direction in these functions is
-       currently overloaded, possibly with compensating errors, and
-       I'm not currently confident making this change. */
-    Some((z, id_gen));
-  };
+  let (new_label, backpack) = Molds.delayed_expansion(kw, Right); //TODO(andrew): deprec
+  let* z = select(caret, z);
+  Some(construct(~backpack, ~caret, new_label, z, id_gen));
 };
 
 let expand_or_barf_left_neighbor = ((z, _) as s: state): option(state) =>
@@ -49,16 +39,15 @@ let expand_or_barf_right_neighbor = ((z, _) as s: state): option(state) =>
   | _ => Some(s)
   };
 
-let make_new_tile =
-    (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) =>
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
   switch (Backpack.will_barf(t, z.backpack), Zipper.put_down(Left, z)) {
   | (true, Some(z')) => IdGen.return(z')
   | _ =>
-    let (lbl, direction) = Molds.instant_expansion(t, direction_pref);
-    Zipper.construct(direction, lbl, z);
+    let (lbl, backpack) = Molds.instant_expansion(t, Right); //TODO(andrew): deprec Right
+    Zipper.construct(~caret, ~backpack, lbl, z);
   };
 
 let expand_neighbors_and_make_new_tile =
@@ -111,8 +100,8 @@ let split =
   z
   |> Zipper.set_caret(Outer)
   |> Zipper.select(Right)
-  |> Option.map(z => Zipper.construct(Right, [r], z, id_gen))  //overwrite right
-  |> Option.map(((z, id_gen)) => Zipper.construct(Left, [l], z, id_gen))
+  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))  //overwrite right
+  |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen))
   |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
 };
 
@@ -159,7 +148,7 @@ let go =
     Form.is_valid_token(new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
-        |> (z => Zipper.replace(Right, [new_t], (z, id_gen)))
+        |> (z => Zipper.replace_mono(Right, new_t, (z, id_gen)))
         |> opt_regrold(Left)
       : split((z, id_gen), char, idx, t) |> opt_regrold(Right);
   /* Can't insert inside delimiter */
