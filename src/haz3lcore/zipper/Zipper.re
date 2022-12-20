@@ -230,13 +230,17 @@ let destruct = (~destroy_kids=true, z: t): t => {
 let directional_destruct = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destruct);
 
-let put_down = (z: t): option(t) => {
+let put_down = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
-  let+ (_, popped, backpack) = pop_backpack(z);
+  let* (_, popped, backpack) = pop_backpack(z);
   Segment.tiles(popped.content)
   |> List.map((t: Tile.t) => t.id)
   |> Effect.s_touch;
-  {...z, backpack} |> put_selection(popped) |> unselect;
+  let z = {...z, backpack} |> put_selection(popped) |> unselect;
+  switch (d) {
+  | Left => Some(z)
+  | Right => move(Left, z)
+  };
 };
 
 let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
@@ -265,7 +269,7 @@ let rec construct = (from: Direction.t, label: Label.t, z: t): IdGen.t(t) => {
         |> List.map(Selection.mk(from))
         |> ListUtil.rev_if(from == Right);
       let backpack = Backpack.push_s(selections, z.backpack);
-      Option.get(put_down({...z, backpack}));
+      Option.get(put_down(Left, {...z, backpack}));
     }
   );
 };
