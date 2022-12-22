@@ -65,8 +65,12 @@ let expand_neighbors_and_make_new_tile =
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* state = expand_or_barf_left_neighbor(state);
-  let+ (z, id_gen) = expand_or_barf_right_neighbor(state);
+  let* (z, id_gen) = expand_or_barf_left_neighbor(state);
+  let (z, id_gen) = remold_regrout(Left, z, id_gen);
+  /* Note to david: I'm not sure why the above regrout is necessary.
+     Without it, there is a Nonconvex segment error thrown in exactly
+     one case, the double barf case: insert space on "if then|else" */
+  let+ (z, id_gen) = expand_or_barf_right_neighbor((z, id_gen));
   make_new_tile(char, Left, z, id_gen);
 };
 
