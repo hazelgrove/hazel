@@ -54,15 +54,20 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
 let expand_neighbors_and_make_new_tile =
     (char: Token.t, state: state): option(state) => {
   /* Trigger a token boundary event and create a new tile.
-     This process proceeds left-to-right, potentially involving both
-     neighboring tiles, and potentially triggering up to 3 expansion
-     or backpack barf events. In particular, both left and right
-     neighboring monotiles may undergo delayed (aka keyword) expansion,
-     and the newly-created single-character token may undergo instant
-     expansion.*/
-  let* (z, id_gen) = expand_or_barf_left_neighbor(state);
-  let state = make_new_tile(char, Left, z, id_gen);
-  expand_or_barf_right_neighbor(state);
+     This process potentially involves both neighboring tiles,
+     potentially triggering up to 3 expansions or backpack barfs.
+     In particular, both left and right neighboring monotiles may
+     undergo delayed (aka keyword) expansion, and the newly-created
+     single-character token may undergo instant expansion. Currently
+     made the decision to expand or barf the neighbors before making
+     the new tile because barfing is limited to the top of the backpack,
+     and I wanted things like "if|then", when you enter a "(", to
+     barf the "then", before it is buried by the ")" added to the BP.
+     The order here could be revisited if barfing was more sophisticated.
+     */
+  let* state = expand_or_barf_left_neighbor(state);
+  let+ (z, id_gen) = expand_or_barf_right_neighbor(state);
+  make_new_tile(char, Left, z, id_gen);
 };
 
 let replace_tile =
