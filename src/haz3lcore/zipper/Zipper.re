@@ -118,12 +118,20 @@ let right_neighbor_monotile: Siblings.t => option(Token.t) =
 let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
-let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) => {
+let regrout = (d: Direction.t, z: t): IdGen.t(t) => {
   assert(Selection.is_empty(z.selection));
   open IdGen.Syntax;
-  let+ relatives = Relatives.regrout(d, Relatives.remold(z.relatives));
+  let+ relatives = Relatives.regrout(d, z.relatives);
   {...z, relatives};
 };
+
+let remold = (z: t): t => {
+  assert(Selection.is_empty(z.selection));
+  {...z, relatives: Relatives.remold(z.relatives)};
+};
+
+let remold_regrout = (d: Direction.t, z: t): IdGen.t(t) =>
+  z |> remold |> regrout(d);
 
 let unselect = (z: t): t => {
   let relatives =
