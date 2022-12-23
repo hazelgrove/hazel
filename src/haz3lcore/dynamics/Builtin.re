@@ -52,6 +52,17 @@ let mk_elab = (name: Var.t, typ: Typ.t): DHExp.t => {
         let bindings =
           List.rev_map(x => DHExp.{ids: [], term: DHExp.Var(x)}, bindings);
         ApBuiltin(name, bindings);
+        /*
+        I don't really get the definition of ListLit, so I am not sure if it works
+        let bindings = List.rev(bindings);
+        Ap(
+          name, // What is Token.t? I cannot find its implementation through my IDE
+          ListLit(
+            bindings,
+            Some(0, 0, StandardErrStatus(NotInHole), typ') // Again I am not sure what does this mean
+          )
+        );
+        */
       },
   };
 
