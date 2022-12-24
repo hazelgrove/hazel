@@ -595,6 +595,8 @@ let eval_bin_string_op =
   | Equals => Bool(s1 == s2)
   };
 
+let ids_derive = DHExp.ids_derive;
+
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
     /* Increment number of evaluation steps (calls to `evaluate`). */
@@ -643,7 +645,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (matches(dp, d1)) {
         | IndetMatch
         | DoesNotMatch =>
-          Indet({ids, term: Closure(env, {ids, term: Let(dp, d1, d2)})})
+          Indet({
+            ids: ids_derive(ids),
+            term: Closure(env, {ids, term: Let(dp, d1, d2)}),
+          })
           |> return
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
@@ -655,7 +660,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* env' = evaluate_extend_env(Environment.singleton((f, d)), env);
       evaluate(env', d');
 
-    | Fun(_) => BoxedValue({ids, term: Closure(env, d)}) |> return
+    | Fun(_) =>
+      BoxedValue({ids: ids_derive(ids), term: Closure(env, d)}) |> return
 
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -697,7 +703,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           evaluate(
             env,
             {
-              ids,
+              ids: ids_derive(ids),
               term:
                 Cast(
                   {ids, term: Ap(d1', {ids, term: Cast(d2', ty1', ty1)})},
@@ -733,7 +739,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue({term: Int(n1), _}) =>
-        BoxedValue({ids, term: eval_un_int_op(op, n1)}) |> return
+        BoxedValue({ids: ids_derive(ids), term: eval_un_int_op(op, n1)})
+        |> return
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
@@ -750,7 +757,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           let* r2 = evaluate(env, d2);
           switch (r2) {
           | BoxedValue({term: Bool(b2), _}) =>
-            BoxedValue({ids, term: eval_bin_bool_op(op, b1, b2)}) |> return
+            BoxedValue({
+              ids: ids_derive(ids),
+              term: eval_bin_bool_op(op, b1, b2),
+            })
+            |> return
           | BoxedValue(d2') =>
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
@@ -779,13 +790,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue({term: Int(n2), _}) =>
           switch (op, n1, n2) {
           | (Divide, _, 0) =>
-            Indet({ids, term: Error(InvalidOperation(DivideByZero, d))})
+            Indet({
+              ids: ids_derive(ids),
+              term: Error(InvalidOperation(DivideByZero, d)),
+            })
             |> return
           | (Power, _, _) when n2 < 0 =>
-            Indet({ids, term: Error(InvalidOperation(NegativeExponent, d))})
+            Indet({
+              ids: ids_derive(ids),
+              term: Error(InvalidOperation(NegativeExponent, d)),
+            })
             |> return
           | _ =>
-            BoxedValue({ids, term: eval_bin_int_op(op, n1, n2)}) |> return
+            BoxedValue({
+              ids: ids_derive(ids),
+              term: eval_bin_int_op(op, n1, n2),
+            })
+            |> return
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
@@ -814,7 +835,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue({term: Float(f2), _}) =>
-          BoxedValue({ids, term: eval_bin_float_op(op, f1, f2)}) |> return
+          BoxedValue({
+            ids: ids_derive(ids),
+            term: eval_bin_float_op(op, f1, f2),
+          })
+          |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
@@ -840,7 +865,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue({term: String(f2), _}) =>
-          BoxedValue({ids, term: eval_bin_string_op(op, f1, f2)}) |> return
+          BoxedValue({
+            ids: ids_derive(ids),
+            term: eval_bin_string_op(op, f1, f2),
+          })
+          |> return
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
@@ -889,7 +918,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     | Prj(targ, n) =>
       if (n < 0) {
-        Indet({ids, term: Error(InvalidOperation(InvalidProjection, d))})
+        Indet({
+          ids: ids_derive(ids),
+          term: Error(InvalidOperation(InvalidProjection, d)),
+        })
         |> return;
       } else {
         let* r = evaluate(env, targ);
@@ -897,7 +929,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue({term: Tuple(ds), _} as rv) =>
           if (n >= List.length(ds)) {
             Indet({
-              ids: rv.ids,
+              ids: ids_derive(rv.ids),
               term: Error(InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
@@ -907,7 +939,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Indet({term: Tuple(ds), _} as rv) =>
           if (n >= List.length(ds)) {
             Indet({
-              ids: rv.ids,
+              ids: ids_derive(rv.ids),
               term: Error(InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
@@ -918,7 +950,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | Indet({term: Cast(targ', Prod(tys), Prod(tys')), _} as rv) =>
           if (n >= List.length(tys)) {
             Indet({
-              ids: rv.ids,
+              ids: ids_derive(rv.ids),
               term: Error(InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
@@ -928,8 +960,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             evaluate(
               env,
               {
-                ids,
-                term: Cast({ids: rv.ids, term: Prj(targ', n)}, ty, ty'),
+                ids: ids_derive(ids),
+                term:
+                  Cast(
+                    {ids: ids_derive(rv.ids), term: Prj(targ', n)},
+                    ty,
+                    ty',
+                  ),
               },
             );
           }
@@ -947,7 +984,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
         | {term: ListLit(lst, info), ids} =>
-          BoxedValue({ids, term: ListLit([d1, ...lst], info)}) |> return
+          BoxedValue({
+            ids: ids_derive(ids),
+            term: ListLit([d1, ...lst], info),
+          })
+          |> return
         | {
             term:
               Cast(
@@ -958,10 +999,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             ids: d2ids,
           } =>
           BoxedValue({
-            ids: d2ids,
+            ids: ids_derive(d2ids),
             term:
               Cast(
-                {ids: lids, term: ListLit([d1, ...lst], info)},
+                // TODO derive?
+                {ids: ids_derive(lids), term: ListLit([d1, ...lst], info)},
                 List(ty),
                 List(ty'),
               ),
@@ -1015,7 +1057,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | BoxedValue(d1')
       | Indet(d1') =>
         Indet({
-          ids,
+          ids: ids_derive(ids),
           term:
             Closure(
               env,
@@ -1025,13 +1067,14 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         |> return
       };
 
-    | Hole(_, FreeVar(_)) => Indet({ids, term: Closure(env, d)}) |> return
+    | Hole(_, FreeVar(_)) =>
+      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
 
     | Hole(_, ExpandingKeyword(_)) =>
-      Indet({ids, term: Closure(env, d)}) |> return
+      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
 
     | Hole(_, InvalidText(_)) =>
-      Indet({ids, term: Closure(env, d)}) |> return
+      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
 
     /* Cast calculus */
     | Cast(d1, ty, ty') =>
@@ -1069,7 +1112,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ids,
               term:
                 DHExp.Cast(
-                  {ids: d1'.ids, term: Cast(d1', ty, ty'_grounded)},
+                  {
+                    ids: ids_derive(d1'.ids),
+                    term: Cast(d1', ty, ty'_grounded),
+                  },
                   ty'_grounded,
                   ty',
                 ),
@@ -1082,7 +1128,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ids,
               term:
                 DHExp.Cast(
-                  {ids: d1'.ids, term: Cast(d1', ty, ty_grounded)},
+                  {
+                    ids: ids_derive(d1'.ids),
+                    term: Cast(d1', ty, ty_grounded),
+                  },
                   ty_grounded,
                   ty',
                 ),
@@ -1091,13 +1140,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
-          BoxedValue({ids: d1'.ids, term: Cast(d1', ty, ty')}) |> return
+          BoxedValue({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
+          |> return
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
           if (Typ.eq(ty, ty')) {
             result |> return;
           } else {
-            BoxedValue({ids: d1'.ids, term: Cast(d1', ty, ty')}) |> return;
+            BoxedValue({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
+            |> return;
           }
         }
       | Indet(d1') as result =>
@@ -1115,10 +1166,15 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             if (Typ.eq(ty'', ty')) {
               Indet(d1'') |> return;
             } else {
-              Indet({ids: d1'ids, term: Error(FailedCast(d1', ty, ty'))})
+              Indet({
+                ids: ids_derive(d1'ids),
+                term: Error(FailedCast(d1', ty, ty')),
+              })
               |> return;
             }
-          | _ => Indet({ids: d1'.ids, term: Cast(d1', ty, ty')}) |> return
+          | _ =>
+            Indet({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
+            |> return
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
@@ -1127,7 +1183,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ids,
               term:
                 DHExp.Cast(
-                  {ids: d1'.ids, term: Cast(d1', ty, ty'_grounded)},
+                  {
+                    ids: ids_derive(d1'.ids),
+                    term: Cast(d1', ty, ty'_grounded),
+                  },
                   ty'_grounded,
                   ty',
                 ),
@@ -1140,7 +1199,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ids,
               term:
                 DHExp.Cast(
-                  {ids: d1'.ids, term: Cast(d1', ty, ty_grounded)},
+                  {
+                    ids: ids_derive(d1'.ids),
+                    term: Cast(d1', ty, ty_grounded),
+                  },
                   ty_grounded,
                   ty',
                 ),
@@ -1197,21 +1259,24 @@ and evaluate_case =
         switch (inconsistent_info) {
         | None =>
           Indet({
-            ids,
-            term:
-              Closure(
-                env,
-                {ids, term: Match(scrut, rules, current_rule_index)},
-              ),
-          })
-        | Some((u, i)) =>
-          Indet({
-            ids,
+            ids: ids_derive(ids),
             term:
               Closure(
                 env,
                 {
-                  ids,
+                  ids: ids_derive(ids),
+                  term: Match(scrut, rules, current_rule_index),
+                },
+              ),
+          })
+        | Some((u, i)) =>
+          Indet({
+            ids: ids_derive(ids),
+            term:
+              Closure(
+                env,
+                {
+                  ids: ids_derive(ids),
                   term:
                     Hole(
                       (u, i),
@@ -1230,21 +1295,24 @@ and evaluate_case =
           switch (inconsistent_info) {
           | None =>
             Indet({
-              ids,
-              term:
-                Closure(
-                  env,
-                  {ids, term: Match(scrut, rules, current_rule_index)},
-                ),
-            })
-          | Some((u, i)) =>
-            Indet({
-              ids,
+              ids: ids_derive(ids),
               term:
                 Closure(
                   env,
                   {
-                    ids,
+                    ids: ids_derive(ids),
+                    term: Match(scrut, rules, current_rule_index),
+                  },
+                ),
+            })
+          | Some((u, i)) =>
+            Indet({
+              ids: ids_derive(ids),
+              term:
+                Closure(
+                  env,
+                  {
+                    ids: ids_derive(ids),
                     term:
                       Hole(
                         (u, i),
@@ -1313,10 +1381,10 @@ and evaluate_test =
     switch (scarg.term) {
     | BinOp(Bool(op), arg_d1, arg_d2) =>
       let mk_op = (arg_d1, arg_d2) => DHExp.BinOp(Bool(op), arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+      evaluate_test_eq(scarg.ids, env, mk_op, arg_d1, arg_d2);
     | BinOp(Int(op), arg_d1, arg_d2) =>
       let mk_op = (arg_d1, arg_d2) => DHExp.BinOp(Int(op), arg_d1, arg_d2);
-      evaluate_test_eq(env, mk_op, arg_d1, arg_d2);
+      evaluate_test_eq(scarg.ids, env, mk_op, arg_d1, arg_d2);
 
     | Ap({term: Ap(arg_d1, arg_d2), ids}, arg_d3) =>
       let* arg_d1 = evaluate(env, arg_d1);
@@ -1343,7 +1411,7 @@ and evaluate_test =
 
     | Ap(arg_d1, arg_d2) =>
       let mk = (arg_d1, arg_d2) => DHExp.Ap(arg_d1, arg_d2);
-      evaluate_test_eq(env, mk, arg_d1, arg_d2);
+      evaluate_test_eq(scarg.ids, env, mk, arg_d1, arg_d2);
 
     | _ =>
       let* arg = evaluate(env, arg);
@@ -1361,15 +1429,18 @@ and evaluate_test =
   let* _ = add_test(n, (arg_show, test_status));
   let r: EvaluatorResult.t =
     switch (arg_result) {
-    | BoxedValue({term: Bool(_), ids}) => BoxedValue({ids, term: Tuple([])})
+    | BoxedValue({term: Bool(_), ids}) =>
+      BoxedValue({ids: ids_derive(ids), term: Tuple([])})
     | BoxedValue(arg)
-    | Indet(arg) => Indet({ids: arg.ids, term: Test(arg, Some(n))})
+    | Indet(arg) =>
+      Indet({ids: ids_derive(arg.ids), term: Test(arg, Some(n))})
     };
   r |> return;
 }
 
 and evaluate_test_eq =
     (
+      ids: list(Id.t),
       env: ClosureEnvironment.t,
       mk_arg_op: (DHExp.t, DHExp.t) => DHExp.term,
       arg_d1: DHExp.t,
@@ -1381,7 +1452,7 @@ and evaluate_test_eq =
 
   let arg_show =
     DHExp.{
-      ids: [],
+      ids,
       term:
         mk_arg_op(
           EvaluatorResult.unbox(arg_d1),

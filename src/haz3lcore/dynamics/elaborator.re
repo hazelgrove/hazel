@@ -51,6 +51,8 @@ let exp_binop_of = (op: Term.UExp.op_bin): (Typ.t, (_, _) => DHExp.term) =>
   | String(_) => (String, ((e1, e2) => BinOp(op, e1, e2)))
   };
 
+let ids_derive = DHExp.ids_derive;
+
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
@@ -66,6 +68,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       switch (maybe_reason) {
       | None => Some(d)
       | Some(reason) =>
+        // We don't assign derived ids here since they should be done
+        // outside of wrap.
         Some({ids: d.ids, term: Hole((u, 0), NonEmpty(reason, d))})
       };
     let ids = uexp.ids;
@@ -91,14 +95,21 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | [] => Some(DHExp.{ids, term: Hole((u, 0), Empty)})
       | [hd, ...tl] =>
         // placeholder logic: sequence
-        tl
-        |> List.fold_left(
-             // (acc, d) => DHExp.{ids: d.ids, term: DHExp.Seq(d, acc)},
-             // (acc, d) => DHExp.{ids: d.ids @ acc.ids, term: DHExp.Seq(d, acc)},
-             (acc, d) => DHExp.{ids: [], term: DHExp.Seq(d, acc)},
-             hd,
-           )
-        |> wrap
+        // About ids assignment: here ids can either be created from
+        // each term, or altogether created from `uexp.ids`.
+        let (ds', _) =
+          tl
+          |> List.fold_left(
+               // (acc, d) => DHExp.{ids: d.ids, term: DHExp.Seq(d, acc)},
+               // (acc, d) => DHExp.{ids: d.ids @ acc.ids, term: DHExp.Seq(d, acc)},
+               ((acc, ids), d) =>
+                 (
+                   DHExp.{ids: ids_derive(ids), term: DHExp.Seq(d, acc)},
+                   ids_derive(ids),
+                 ),
+               (hd, uexp.ids),
+             );
+        wrap(ds');
       };
     | Closure(_) => None
     | Hole(_) => None
@@ -233,7 +244,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           switch (ddef.term) {
           | Fun(a, b, c, _) =>
             DHExp.{
-              ids: ddef.ids,
+              ids: ids_derive(ddef.ids),
               term: DHExp.Fun(a, b, c, Term.UPat.get_var(p)),
             }
           | _ => ddef
@@ -247,12 +258,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let ddef =
           switch (ddef) {
           | {term: Fun(a, b, c, _), ids} =>
-            DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids}
+            DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids: ids_derive(ids)}
           | _ => ddef
           };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
-        let fixpoint = DHExp.{ids: [], term: FixF(f, ty, ddef)};
+        // FixF here is understand as created from the function
+        // definition, not the let expression.
+        let fixpoint =
+          DHExp.{ids: ids_derive(ddef.ids), term: FixF(f, ty, ddef)};
         wrap({ids, term: Let(dp, fixpoint, dbody)});
       | Some(fs) =>
         /* mutual recursion */
@@ -266,6 +280,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                 (s, d) => {
                   switch (d) {
                   | DHExp.{ids, term: DHExp.Fun(a, b, c, _)} =>
+                    // This step only assign names to function
+                    // definitions, so ids is not changed.
                     DHExp.{ids, term: DHExp.Fun(a, b, c, Some(s))}
                   | _ => d
                   }
@@ -273,8 +289,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
                 fs,
                 a,
               );
+            // Same as above.
             DHExp.{ids, term: DHExp.Tuple(b)};
           | _ => ddef
+          // ddef here is returned without change, so we don't assign
+          // new ids to it
           };
 
         let* dbody = dhexp_of_uexp(m, body);
@@ -285,19 +304,27 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           ++ string_of_int(uniq_id.base)
           ++ "_"
           ++ string_of_int(uniq_id.derived);
-        let self_var = DHExp.{ids: [], term: DHExp.Var(self_id)};
+        let self_var =
+          DHExp.{ids: ids_derive(def.ids), term: DHExp.Var(self_id)};
         let (_, substituted_def) =
           fs
           |> List.fold_left(
                ((i, ddef), f) => {
-                 let prj = DHExp.{ids: [], term: DHExp.Prj(self_var, i)};
+                 let prj =
+                   DHExp.{
+                     ids: ids_derive(~step=i + 1, self_var.ids),
+                     term: DHExp.Prj(self_var, i),
+                   };
                  let ddef = Substitution.subst_var(prj, f, ddef);
                  (i + 1, ddef);
                },
                (0, ddef),
              );
         let fixpoint =
-          DHExp.{ids: [], term: DHExp.FixF(self_id, ty, substituted_def)};
+          DHExp.{
+            ids: ids_derive(substituted_def.ids),
+            term: DHExp.FixF(self_id, ty, substituted_def),
+          };
         wrap({ids, term: Let(dp, fixpoint, dbody)});
       }
     | Ap(fn, arg) =>
@@ -314,9 +341,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
+      // The two branches introduced by If -> Match transformation are
+      // assigned with ids derived from if-expression.
       let d_rules = [
-        (DHPat.{ids: [], term: Bool(true)}, d1),
-        (DHPat.{ids: [], term: Bool(false)}, d2),
+        (DHPat.{ids: ids_derive(ids, ~step=1), term: Bool(true)}, d1),
+        (DHPat.{ids: ids_derive(ids, ~step=2), term: Bool(false)}, d2),
       ];
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
@@ -441,7 +470,15 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
 let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   List.fold_left(
     (d', (ident, (elab, _))) =>
-      DHExp.{ids: [], term: Let({ids: [], term: Var(ident)}, elab, d')},
+      DHExp.{
+        ids: ids_derive(d.ids, ~step=2),
+        term:
+          Let(
+            {ids: ids_derive(d.ids, ~step=1), term: Var(ident)},
+            elab,
+            d',
+          ),
+      },
     d,
     Builtins.forms(Builtins.Pervasives.builtins),
   );

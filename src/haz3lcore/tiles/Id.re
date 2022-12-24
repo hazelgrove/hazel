@@ -18,6 +18,11 @@ module Id = {
 
   let next = (id: t): t => {base: id.base + 1, derived: 0};
 
+  let derive = (~step=1, id: t): t => {
+    base: id.base,
+    derived: id.derived + step,
+  };
+
   let init_base = (base: int): t => {base, derived: 0};
 
   let init = {base: 0, derived: 0};

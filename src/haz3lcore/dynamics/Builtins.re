@@ -29,6 +29,8 @@ let forms = (builtins: t): forms =>
 let using = (name: Var.t, impl: Var.t => Builtin.t, builtins: t): t =>
   VarMap.extend(builtins, (name, impl(name)));
 
+let ids_derive = DHExp.ids_derive;
+
 module Pervasives = {
   module Impls = {
     open EvaluatorMonad;
@@ -43,7 +45,8 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) =>
-        Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}) |> return
+        Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])})
+        |> return
       };
 
     /* float_of_int implementation. */
@@ -55,7 +58,8 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) =>
-        Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}) |> return
+        Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])})
+        |> return
       };
 
     /* mod implementation */
@@ -67,25 +71,32 @@ module Pervasives = {
         switch (m) {
         | 0 =>
           Indet({
-            ids,
+            ids: ids_derive(ids, ~step=2),
             term:
               Error(
                 InvalidOperation(
                   DivideByZero,
-                  {ids, term: ApBuiltin(name, [d1])},
+                  {
+                    ids: ids_derive(ids, ~step=1),
+                    term: ApBuiltin(name, [d1]),
+                  },
                 ),
               ),
           })
           |> return
-        | _ => return(BoxedValue({ids, term: Int(n mod m)}))
+        | _ =>
+          return(BoxedValue({ids: ids_derive(ids), term: Int(n mod m)}))
         }
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
       | Indet(d1) =>
-        return(Indet({ids: d1.ids, term: ApBuiltin(name, [d1])}))
+        return(
+          Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])}),
+        )
       };
 
     /* PI implementation. */
+    // TODO handle pi id assignment
     let pi = DHExp.{ids: [], term: Float(Float.pi)};
   };
 
