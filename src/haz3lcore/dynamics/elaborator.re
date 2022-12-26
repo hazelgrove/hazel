@@ -95,7 +95,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
       | Syn =>
-        let ty = Typ.matched_list(Statics.exp_self_typ(m, uexp));
+        let ty =
+          Typ.matched_list(
+            Statics.exp_self_typ(m, uexp),
+            Term.UExp.rep_id(uexp),
+          );
         let* ds =
           List.fold_left(
             (acc, e) => {
@@ -110,7 +114,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
           );
         wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
       | Ana(ana_ty) =>
-        let ty = Typ.matched_list(ana_ty);
+        let ty = Typ.matched_list(ana_ty, Term.UExp.rep_id(uexp));
         let* ds =
           List.fold_left(
             (acc, e) => {
@@ -157,10 +161,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         switch (Statics.exp_mode(m, uexp)) {
         | Syn => d1
         | Ana(ty_ana) =>
-          let ty = Typ.matched_list(ty_ana);
+          let ty = Typ.matched_list(ty_ana, Term.UExp.rep_id(uexp));
           DHExp.cast(d1, ty1, ty);
         };
-      let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
+      let ty_hd =
+        Typ.matched_list(
+          Statics.exp_self_typ(m, uexp),
+          Term.UExp.rep_id(uexp),
+        );
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
       wrap(Cons(dc1, dc2));
     | UnOp(Int(Minus), e) =>
@@ -232,7 +240,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       let* d_arg = dhexp_of_uexp(m, arg);
       let ty_fn = Statics.exp_self_typ(m, fn);
       let ty_arg = Statics.exp_self_typ(m, arg);
-      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+      let (ty_in, ty_out) =
+        Typ.matched_arrow(ty_fn, Term.UExp.rep_id(uexp));
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
       wrap(Ap(c_fn, c_arg));
@@ -299,7 +308,11 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | String(s) => wrap(StringLit(s))
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
-      let ty = Typ.matched_list(Statics.pat_self_typ(m, upat));
+      let ty =
+        Typ.matched_list(
+          Statics.pat_self_typ(m, upat),
+          Term.UPat.rep_id(upat),
+        );
       let* ds =
         List.fold_left(
           (acc, p) => {

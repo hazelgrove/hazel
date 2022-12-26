@@ -350,8 +350,7 @@ and uexp_to_info_map =
     | Some(typ) => atomic(Just(typ))
     }
   | Cons(e1, e2) =>
-    let (mode_ele, _constraints) =
-      Typ.matched_list_mode(mode, Term.UExp.rep_id(uexp));
+    let mode_ele = Typ.matched_list_mode(mode, Term.UExp.rep_id(uexp));
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
     let (_, free2, m2) = go(~mode=Ana(List(ty1)), e2);
     add(
@@ -361,7 +360,7 @@ and uexp_to_info_map =
     );
   | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(es) =>
-    let (modes, _constraints) =
+    let modes =
       Typ.matched_list_lit_mode(
         mode,
         List.length(es),
@@ -413,8 +412,7 @@ and uexp_to_info_map =
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let ((ty_in, ty_out), _constraints) =
-      Typ.matched_arrow_inf(ty_fn, Term.UExp.rep_id(uexp));
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn, Term.UExp.rep_id(uexp));
     let (_, free_arg, m_arg) =
       uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(
@@ -423,7 +421,7 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | Fun(pat, body) =>
-    let ((mode_pat, mode_body), _constraints) =
+    let (mode_pat, mode_body) =
       Typ.matched_arrow_mode(mode, Term.UExp.rep_id(uexp));
     let (ty_pat, ctx_pat, m_pat) = upat_to_info_map(~mode=mode_pat, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
@@ -437,6 +435,12 @@ and uexp_to_info_map =
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~mode=Syn, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    // this is the key part that depends on the assumption that
+    // Ana(Unknown(SynSwtich)) == Syn
+    // This is ok even with our code though, as we are simply forcing
+    // the body to synthesize some type without immediately constraining
+    // it to the unannot let, which is the behavior the prototype would've
+    // taken anyway.
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
@@ -508,7 +512,7 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(ps) =>
-    let (modes, _constraints) =
+    let modes =
       Typ.matched_list_lit_mode(
         mode,
         List.length(ps),
@@ -541,8 +545,7 @@ and upat_to_info_map =
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
     (typ_after_fix(mode, self, Term.UPat.rep_id(upat)), ctx, m);
   | Cons(hd, tl) =>
-    let (mode_elem, _constraints) =
-      Typ.matched_list_mode(mode, Term.UPat.rep_id(upat));
+    let mode_elem = Typ.matched_list_mode(mode, Term.UPat.rep_id(upat));
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
@@ -582,8 +585,7 @@ and upat_to_info_map =
     /* Contructor application */
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let ((ty_in, ty_out), _constraints) =
-      Typ.matched_arrow_inf(ty_fn, Term.UPat.rep_id(upat));
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn, Term.UPat.rep_id(upat));
     let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
     add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>

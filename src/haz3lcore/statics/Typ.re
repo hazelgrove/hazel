@@ -32,9 +32,6 @@ type t =
   | Sum(t, t) // unused
   | Prod(list(t));
 
-type equivalence = (t, t)
-and constraints = list(equivalence);
-
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
    branches errors, but could perhaps be used more broadly
@@ -77,7 +74,11 @@ type mode =
 /* Strip location information from a list of sources */
 let source_tys = List.map((source: source) => source.ty);
 
-/* How type provenance information should be collated when
+/* 
+  I THINK THIS MIGHT BE THE PROBLEM: WHY IS INFERENCE < SYNSWITCH?
+  NVM LOL
+  
+  How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch, which
@@ -188,90 +189,80 @@ let t_of_self =
 /* MATCHED JUDGEMENTS: Note that matched judgements work
    a bit different than hazel2 here since hole fixing is
    implicit. Somebody should check that what I'm doing
-   here actually makes sense -Andrew
+   here actually makes sense -Andrew*/
 
-   Matched judgements come in three forms: non inference, inference, and mode
-   Inference and mode judgements are constraint generating and require the id of the term matched on
-   Mode judgements additionally require a mode as input
-   Non inference judgements simply require a type as input and do not generate constraint information
-
-   TLDR: Statics should never use non inference and all other modules should ONLY use non inference.
-   */
-
-let matched_arrow_inf = (ty: t, termId: Id.t): ((t, t), constraints) => {
+let matched_arrow = (ty: t, termId: Id.t): (t, t) => {
   let prov_to_arrow = prov => {
     let (arrow_lhs, arrow_rhs) = (
       Unknown(Inference(Matched_Arrow_Left, prov)),
       Unknown(Inference(Matched_Arrow_Right, prov)),
     );
-    ((arrow_lhs, arrow_rhs), [(ty, Arrow(arrow_lhs, arrow_rhs))]);
+    (arrow_lhs, arrow_rhs);
   };
   switch (ty) {
-  | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
-  | Unknown(Anonymous) => ((Unknown(Anonymous), Unknown(Anonymous)), [])
+  | Arrow(ty_in, ty_out) => (ty_in, ty_out)
   | Unknown(prov) => prov_to_arrow(prov)
   | _ => prov_to_arrow(Internal(termId))
   };
 };
 
-let matched_arrow = (ty: t): (t, t) => {
-  let dummy_id: Id.t = (-1);
-  let (res, _) = matched_arrow_inf(ty, dummy_id);
-  res;
-};
-
-let matched_arrow_mode =
-    (mode: mode, termId: Id.t): ((mode, mode), constraints) => {
+let matched_arrow_mode = (mode: mode, termId: Id.t): (mode, mode) => {
   switch (mode) {
-  | Syn => ((Syn, Syn), [])
+  | Syn => (Syn, Syn)
   | Ana(ty) =>
-    let ((ty_in, ty_out), constraints) = matched_arrow_inf(ty, termId);
-    ((Ana(ty_in), Ana(ty_out)), constraints);
+    let (ty_in, ty_out) = matched_arrow(ty, termId);
+    (Ana(ty_in), Ana(ty_out));
   };
 };
 
-let matched_prod_mode = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | _ => List.init(length, _ => Syn)
-  };
-
-let matched_list_inf = (ty: t, termId: Id.t): (t, constraints) => {
+let matched_list = (ty: t, termId: Id.t): t => {
   let prov_to_list = prov => {
     let list_elt_typ = Unknown(Inference(Matched_List, prov));
-    (list_elt_typ, [(ty, List(list_elt_typ))]);
+    list_elt_typ;
   };
   switch (ty) {
-  | List(ty) => (ty, [])
+  | List(ty) => ty
   | Unknown(prov) => prov_to_list(prov)
   | _ => prov_to_list(Internal(termId))
   };
 };
 
-let matched_list = (ty: t): t => {
-  let dummy_id: Id.t = (-1);
-  let (res, _) = matched_list_inf(ty, dummy_id);
-  res;
-};
-
-let matched_list_mode = (mode: mode, termId: Id.t): (mode, constraints) => {
+let matched_list_mode = (mode: mode, termId: Id.t): mode => {
   switch (mode) {
-  | Syn => (Syn, [])
+  | Syn => Syn
   | Ana(ty) =>
-    let (ty_elts, constraints) = matched_list_inf(ty, termId);
-    (Ana(ty_elts), constraints);
+    let ty_elts = matched_list(ty, termId);
+    Ana(ty_elts);
   };
 };
 
-let matched_list_lit_mode =
-    (mode: mode, length, termId: Id.t): (list(mode), constraints) =>
+let matched_list_lit_mode = (mode: mode, length, termId: Id.t): list(mode) =>
   switch (mode) {
-  | Syn => (List.init(length, _ => Syn), [])
+  | Syn => List.init(length, _ => Syn)
   | Ana(ty) =>
-    let (ty_elts, constraints) = matched_list_inf(ty, termId);
-    (List.init(length, _ => Ana(ty_elts)), constraints);
+    let ty_elts = matched_list(ty, termId);
+    List.init(length, _ => Ana(ty_elts));
   };
+
+let rec matched_prod_mode = (mode: mode, length): list(mode) => {
+  switch (mode, length) {
+  | (Ana(Unknown(prov)), 2) =>
+    let left = Ana(Unknown(Inference(Matched_Prod_Left, prov)));
+    let right = Ana(Unknown(Inference(Matched_Prod_Right, prov)));
+    [left, right];
+  | (Ana(Unknown(prov)), _) when length > 2 =>
+    let first = Ana(Unknown(Inference(Matched_Prod_Left, prov)));
+    let rest =
+      matched_prod_mode(
+        Ana(Unknown(Inference(Matched_Prod_Right, prov))),
+        length - 1,
+      );
+    [first, ...rest];
+  | (Ana(Prod(ana_tys)), _) when List.length(ana_tys) == length =>
+    List.map(ty => Ana(ty), ana_tys)
+  | _ => List.init(length, _ => Syn)
+  };
+};
 
 let ap_mode: mode = Syn;
 
