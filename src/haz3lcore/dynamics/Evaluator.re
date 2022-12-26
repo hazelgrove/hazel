@@ -36,7 +36,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | Int
   | Float
   | String
-  | Var(_) // TODO(andrew): ?
+  | Var(_)
   | Arrow(Unknown(_), Unknown(_))
   | Sum(Unknown(_), Unknown(_))
   | List(Unknown(_)) => Ground
@@ -175,28 +175,35 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
-    matches_cast_Tuple(dps, d, [List.combine(tys, tys')])
+    assert(List.length(tys) == List.length(tys'));
+    matches_cast_Tuple(
+      dps,
+      d,
+      List.map(p => [p], List.combine(tys, tys')),
+    );
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           tys,
           List.init(List.length(tys), _ => Typ.Unknown(Anonymous)),
         ),
-      ],
+      ),
     )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           List.init(List.length(tys'), _ => Typ.Unknown(Anonymous)),
           tys',
         ),
-      ],
+      ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
   | (Tuple(_), _) => DoesNotMatch
@@ -263,7 +270,7 @@ and matches_cast_Inj =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
@@ -302,6 +309,7 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
+      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
         (((dp, d), casts), result) => {
           switch (result) {
@@ -323,14 +331,27 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
     } else {
-      matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+      assert(List.length(tys) == List.length(tys'));
+      matches_cast_Tuple(
+        dps,
+        d',
+        List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+      );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
     let tys' = List.init(List.length(tys), _ => Typ.Unknown(Anonymous));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(d', Unknown(_), Prod(tys')) =>
     let tys = List.init(List.length(tys'), _ => Typ.Unknown(Anonymous));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -338,7 +359,7 @@ and matches_cast_Tuple =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
@@ -475,7 +496,7 @@ and matches_cast_Cons =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _) => DoesNotMatch
+  | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -530,6 +551,7 @@ let eval_bin_int_op = (op: DHExp.BinIntOp.t, n1: int, n2: int): DHExp.t => {
   | Minus => IntLit(n1 - n2)
   | Plus => IntLit(n1 + n2)
   | Times => IntLit(n1 * n2)
+  | Power => IntLit(IntUtil.ipow(n1, n2))
   | Divide => IntLit(n1 / n2)
   | LessThan => BoolLit(n1 < n2)
   | LessThanOrEqual => BoolLit(n1 <= n2)
@@ -548,6 +570,7 @@ let eval_bin_float_op =
   | FPlus => FloatLit(f1 +. f2)
   | FMinus => FloatLit(f1 -. f2)
   | FTimes => FloatLit(f1 *. f2)
+  | FPower => FloatLit(f1 ** f2)
   | FDivide => FloatLit(f1 /. f2)
   | FLessThan => BoolLit(f1 < f2)
   | FLessThanOrEqual => BoolLit(f1 <= f2)
@@ -626,7 +649,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
         | Indet(d2) => Indet(Ap(d1, d2)) |> return
         };
-      | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
+      | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue(d2)
@@ -714,17 +737,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             )
             |> return
+          | (Power, _, _) when n2 < 0 =>
+            Indet(
+              InvalidOperation(
+                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                NegativeExponent,
+              ),
+            )
+            |> return
           | _ => BoxedValue(eval_bin_int_op(op, n1, n2)) |> return
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
-        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -855,6 +884,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | _ => return(Indet(d))
         };
       }
+
     | Cons(d1, d2) =>
       let* d1 = evaluate(env, d1);
       let* d2 = evaluate(env, d2);
@@ -864,17 +894,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
-        | ListLit(x1, x2, x3, x4, lst) =>
-          BoxedValue(ListLit(x1, x2, x3, x4, [d1, ...lst])) |> return
-        | Cast(ListLit(x1, x2, x3, x4, lst), List(ty), List(ty')) =>
-          BoxedValue(
-            Cast(
-              ListLit(x1, x2, x3, x4, [d1, ...lst]),
-              List(ty),
-              List(ty'),
-            ),
-          )
-          |> return
+        | ListLit(u, i, err, ty, ds) =>
+          BoxedValue(ListLit(u, i, err, ty, [d1, ...ds])) |> return
+        | Cons(_)
+        | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
@@ -893,7 +916,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           lst,
           ([], false),
         );
-
       let d = DHExp.ListLit(u, i, err, ty, lst);
       if (indet) {
         Indet(d);
@@ -914,7 +936,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      evaluate_case(env, Some((u, i)), d1, rules, n)
+      //TODO: revisit this, consider some kind of dynamic casting
+      Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
+      |> return
 
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 
@@ -957,9 +981,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
           | _ =>
-            print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty')));
             print_endline("CastBVHoleGround");
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
