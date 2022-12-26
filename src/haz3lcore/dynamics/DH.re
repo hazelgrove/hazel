@@ -230,7 +230,7 @@ module rec DHExp: {
     | _ => false;
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+    if (Typ.eq(t1, t2) || is_any_synswitch(t2)) {
       d;
     } else {
       Cast(d, t1, t2);

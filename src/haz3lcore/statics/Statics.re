@@ -109,7 +109,7 @@ type error_status =
 let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (SynFun, Just(ty)) =>
-    switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    switch (Typ.join(Arrow(Unknown(Anonymous), Unknown(Anonymous)), ty)) {
     | None => InHole(NoFun(ty))
     | Some(_) => NotInHole(SynConsistent(ty))
     }
@@ -119,7 +119,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) =>
       switch (
-        Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty_joined)
+        Typ.join(Arrow(Unknown(Anonymous), Unknown(Anonymous)), ty_joined)
       ) {
       | None => InHole(NoFun(ty_joined))
       | Some(_) => NotInHole(SynConsistent(ty_joined))
@@ -330,7 +330,10 @@ and uexp_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(es) =>
-    let modes = List.init(List.length(es), _ => Typ.matched_list_mode(mode, Term.UExp.rep_id(uexp)));
+    let modes =
+      List.init(List.length(es), _ =>
+        Typ.matched_list_mode(mode, Term.UExp.rep_id(uexp))
+      );
     let e_ids = List.map(Term.UExp.rep_id, es);
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
@@ -433,7 +436,8 @@ and uexp_to_info_map =
       union_m([m_fn, m_arg]),
     );
   | Fun(pat, body) =>
-    let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode, Term.UExp.rep_id(uexp));
+    let (mode_pat, mode_body) =
+      Typ.matched_arrow_mode(mode, Term.UExp.rep_id(uexp));
     let (ty_pat, ctx_pat, m_pat) =
       upat_to_info_map(~is_synswitch=false, ~mode=mode_pat, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
@@ -499,7 +503,12 @@ and upat_to_info_map =
     )
     : (Typ.t, Ctx.t, map) => {
   let upat_to_info_map = upat_to_info_map(~is_synswitch);
-  let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
+  let unknown =
+    Typ.Unknown(
+      is_synswitch
+        ? SynSwitch(Term.UPat.rep_id(upat))
+        : Internal(Term.UPat.rep_id(upat)),
+    );
   let cls = Term.UPat.cls_of_term(term);
   let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self, Term.UPat.rep_id(upat)),
@@ -524,7 +533,10 @@ and upat_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit([]) => atomic(Just(List(Unknown(Anonymous))))
   | ListLit(ps) =>
-    let modes = List.init(List.length(ps), _ => Typ.matched_list_mode(mode, Term.UPat.rep_id(upat)));
+    let modes =
+      List.init(List.length(ps), _ =>
+        Typ.matched_list_mode(mode, Term.UPat.rep_id(upat))
+      );
     let p_ids = List.map(Term.UPat.rep_id, ps);
     let (ctx, infos) =
       List.fold_left2(
@@ -563,8 +575,14 @@ and upat_to_info_map =
     }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
-    let typ = typ_after_fix(mode, Just(Unknown(Internal)), Term.UPat.rep_id(upat));
-    let entry = Ctx.VarEntry({name, id: Term.UPat.rep_id(upat), typ});
+    let upat_rep_id = Term.UPat.rep_id(upat);
+    let typ =
+      typ_after_fix(
+        mode,
+        Just(Unknown(Internal(upat_rep_id))),
+        upat_rep_id,
+      );
+    let entry = Ctx.VarEntry({name, id: upat_rep_id, typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(entry, ctx), Id.Map.empty);
   | Tuple(ps) =>
     let modes = Typ.matched_prod_mode(mode, List.length(ps));

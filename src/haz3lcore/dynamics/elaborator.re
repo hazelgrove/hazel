@@ -168,7 +168,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let ty = Typ.matched_list(Statics.exp_typ(m, uexp), Term.UExp.rep_id(uexp));
+        let ty =
+          Typ.matched_list(
+            Statics.exp_typ(m, uexp),
+            Term.UExp.rep_id(uexp),
+          );
         //TODO: why is there an err status on below?
         DHExp.ListLit(id, 0, StandardErrStatus(NotInHole), ty, ds);
       | Fun(p, body) =>
@@ -323,7 +327,8 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let ty =  Typ.matched_list(Statics.pat_typ(m, upat), Term.UPat.rep_id(upat));
+      let ty =
+        Typ.matched_list(Statics.pat_typ(m, upat), Term.UPat.rep_id(upat));
       wrap(ListLit(ty, ds));
     | Tag(name) => wrap(Tag(name))
     | Cons(hd, tl) =>
