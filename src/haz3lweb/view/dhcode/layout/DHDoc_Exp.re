@@ -789,12 +789,7 @@ let rec mk =
     (doc, cast);
   };
   // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
-  let (_, objs) =
-    EvaluatorStep.decompose(
-      Environment.empty,
-      d,
-      EvaluatorStep.EvalType.Pause,
-    );
+  let (_, objs) = EvaluatorStep.decompose(Environment.empty, d);
   print_endline(
     "objs: "
     ++ Sexplib.Sexp.to_string_hum(

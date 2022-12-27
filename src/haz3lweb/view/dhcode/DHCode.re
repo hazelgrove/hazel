@@ -121,12 +121,17 @@ let view =
     )
     : Node.t => {
   let c =
-    settings.step ?
-      DHDoc_Step.mk(
-        ~settings,
-        ~enforce_inline=false,
-        ~selected_hole_instance,
-      ) : DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance);
+    settings.step
+      ? DHDoc_Step.mk(
+          ~settings,
+          ~enforce_inline=false,
+          ~selected_hole_instance,
+        )
+      : DHDoc_Exp.mk(
+          ~settings,
+          ~enforce_inline=false,
+          ~selected_hole_instance,
+        );
   d
   |> c
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
