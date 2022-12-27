@@ -26,7 +26,7 @@ let step =
     EvaluatorStep.step(Environment.empty),
   );
 
-let decompose = 
+let decompose =
   Core.Memo.general(
     ~cache_size_bound=1000,
     EvaluatorStep.decompose(Environment.empty),
@@ -126,7 +126,7 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
 let decompose = (d: DHExp.t): list(EvaluatorStep.EvalObj.t) => {
   let (_, objs) = decompose(d);
   objs;
-}
+};
 
 let get_result = (map, term): ProgramResult.t =>
   term |> elaborate(map) |> evaluate;
