@@ -4,7 +4,7 @@ let hazel: t =
   [
     (Typ, failwith("todo typ")),
     (Pat, failwith("todo pat")),
-    (Exp, failwith("todo exp")),
+    (Exp, [(Seq([Kid(Exp), Tok("+"), Kid(Exp)]), Some(L))]),
   ]
   |> List.to_seq
   |> Sort.Map.of_seq;

@@ -4,6 +4,13 @@ type t = {
   frames: Gram.Frame.s,
 };
 
+// derived
+let plus: t = {
+  sort: Exp,
+  prec: 0,
+  frames: [Seq_([Kid(Exp)], [Kid(Exp)])],
+};
+
 let init = (sort, prec) => {sort, prec, frames: []};
 
 let push = (f, m) => {...m, frames: [f, ...m.frames]};
