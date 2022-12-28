@@ -1015,7 +1015,11 @@ module EvalObj = {
       | Inj(_, _, c) => Some(mk(c, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | ConsistentCase(_)
+    | ConsistentCase(_) =>
+      switch (obj.ctx) {
+      | ConsistentCase(Case(exp, rules, index)) // => Substitute exp into rules[index?] I don't know if it should be one step
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
     | Cast(_)
     | FailedCast(_)
     | InvalidOperation(_) =>
