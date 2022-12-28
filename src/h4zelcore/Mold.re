@@ -17,5 +17,5 @@ let tips = (d: Dir.t, m: t): list(Tip.t) =>
        | Some(Tok(_)) => raise(Gram.No_consecutive_tokens),
      );
 
-let must_match = (d: Dir.t, m: t): bool => Gram.Frame.must_match(d, m.frames);
-
+let must_match = (d: Dir.t, m: t): bool =>
+  Gram.Frame.must_match(d, m.frames);
