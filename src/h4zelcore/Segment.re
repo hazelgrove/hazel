@@ -20,7 +20,7 @@ let rec push = (c0: Chain.t, cs: t): t =>
       | [c2, ...tl] =>
         switch (Chain.comp(c0, c2)) {
         | None => failwith("breaks connected invariant")
-        | Some(Lt) => push(Chain.merge(c0, c1), tl)
+        | Some(Lt) => push(Chain.merge(c0, c1), [c2, ...tl])
         | Some(Gt) => push(c0, [Chain.merge(c1, c2), ...tl])
         | Some(Eq) => [Chain.(merge(merge(c0, c1), c2)), ...tl]
         }
@@ -32,7 +32,7 @@ let rec push = (c0: Chain.t, cs: t): t =>
         let c01 = Chain.merge(c0, c1);
         switch (Chain.comp(c01, c2)) {
         | None => failwith("breaks connected invariant")
-        | Some(Gt) => push(c01, tl)
+        | Some(Gt) => push(c01, [c2, ...tl])
         | Some(Lt) => push(c0, [Chain.merge(c1, c2), ...tl])
         | Some(Eq) => [Chain.merge(c01, c2), ...tl]
         };

@@ -14,8 +14,8 @@ module Extremity = {
 type t =
   | Atom(Atom.t)
   | Star(t)
-  | Alt(list(t))
-  | Seq(list(t));
+  | Seq(list(t))
+  | Alt(list(t));
 
 // simplifying assumption, not fundamentally necessary
 exception No_consecutive_tokens;

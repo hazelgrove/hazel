@@ -3,6 +3,7 @@ type t =
   | Pat
   | Exp;
 
+// TODO specify as list, use indices
 let prec =
   fun
   | Typ => 2
