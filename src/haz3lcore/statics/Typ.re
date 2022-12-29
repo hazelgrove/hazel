@@ -48,6 +48,10 @@ type t =
   | Sum(t, t) // unused
   | Prod(list(t));
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type equivalence = (t, t)
+and constraints = list(equivalence);
+
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
    branches errors, but could perhaps be used more broadly
@@ -209,65 +213,74 @@ let t_of_self =
    implicit. Somebody should check that what I'm doing
    here actually makes sense -Andrew*/
 
-let matched_arrow = (ty: t, termId: Id.t): (t, t) => {
-  let prov_to_arrow = prov => {
+let matched_arrow = (ty: t, termId: Id.t): ((t, t), constraints) => {
+  let matched_arrow_of_prov = prov => {
     let (arrow_lhs, arrow_rhs) = (
       Unknown(Inference(Matched_Arrow_Left, prov)),
       Unknown(Inference(Matched_Arrow_Right, prov)),
     );
-    (arrow_lhs, arrow_rhs);
+    ((arrow_lhs, arrow_rhs), [(Unknown(prov), Arrow(arrow_lhs, arrow_rhs))]);
   };
   switch (ty) {
-  | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(prov) => prov_to_arrow(prov)
-  | _ => prov_to_arrow(Internal(termId))
+  | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
+  | Unknown(prov) => matched_arrow_of_prov(prov)
+  | _ => matched_arrow_of_prov(Internal(termId))
   };
 };
 
-let matched_arrow_mode = (mode: mode, termId: Id.t): (mode, mode) => {
+let matched_arrow_mode = (mode: mode, termId: Id.t): ((mode, mode), constraints) => {
   switch (mode) {
   | SynFun
-  | Syn => (Syn, Syn)
+  | Syn => ((Syn, Syn), [])
   | Ana(ty) =>
-    let (ty_in, ty_out) = matched_arrow(ty, termId);
-    (Ana(ty_in), Ana(ty_out));
+    let ((ty_in, ty_out), constraints) = matched_arrow(ty, termId);
+    ((Ana(ty_in), Ana(ty_out)), constraints);
   };
 };
 
-let matched_list = (ty: t, termId: Id.t): t => {
-  let prov_to_list = prov => Unknown(Inference(Matched_List, prov));
+let matched_list = (ty: t, termId: Id.t): (t, constraints) => {
+  let matched_list_of_prov = prov => {
+    let list_elts_typ = Unknown(Inference(Matched_List, prov));
+    (list_elts_typ, [(Unknown(prov), List(list_elts_typ))])
+  };
+  
   switch (ty) {
-  | List(ty) => ty
-  | Unknown(prov) => prov_to_list(prov)
-  | _ => prov_to_list(Internal(termId))
+  | List(ty) => (ty, [])
+  | Unknown(prov) => matched_list_of_prov(prov)
+  | _ => matched_list_of_prov(Internal(termId))
   };
 };
 
-let matched_list_mode = (mode: mode, termId: Id.t): mode => {
+let matched_list_mode = (mode: mode, termId: Id.t): (mode, constraints) => {
   switch (mode) {
   | SynFun
-  | Syn => Syn
-  | Ana(ty) => Ana(matched_list(ty, termId))
+  | Syn => (Syn, [])
+  | Ana(ty) => 
+    let (ty_elts, constraints) = matched_list(ty, termId);
+    (Ana(ty_elts), constraints)
   };
 };
 
-let rec matched_prod_mode = (mode: mode, length): list(mode) => {
+let rec matched_prod_mode = (mode: mode, length): (list(mode), constraints) => {
+  let binary_matched_prod_of_prov = (prov: type_provenance): ((t, t), equivalence) => {
+    let (left_ty, right_ty) = (
+      Unknown(Inference(Matched_Prod_Left, prov)), 
+      Unknown(Inference(Matched_Prod_Right, prov))
+    );
+    ((left_ty, right_ty), (Unknown(prov), Prod([left_ty, right_ty])));
+  };
+
   switch (mode, length) {
   | (Ana(Unknown(prov)), 2) =>
-    let left = Ana(Unknown(Inference(Matched_Prod_Left, prov)));
-    let right = Ana(Unknown(Inference(Matched_Prod_Right, prov)));
-    [left, right];
+    let ((left_ty, right_ty), equivalence) = binary_matched_prod_of_prov(prov);
+    ([Ana(left_ty), Ana(right_ty)], [equivalence])
   | (Ana(Unknown(prov)), _) when length > 2 =>
-    let first = Ana(Unknown(Inference(Matched_Prod_Left, prov)));
-    let rest =
-      matched_prod_mode(
-        Ana(Unknown(Inference(Matched_Prod_Right, prov))),
-        length - 1,
-      );
-    [first, ...rest];
+    let ((left_ty, right_ty), equivalence) = binary_matched_prod_of_prov(prov);
+    let (modes_of_rest, constraints_of_rest) = matched_prod_mode(Ana(right_ty), length - 1);
+    ([Ana(left_ty), ...modes_of_rest], [equivalence, ...constraints_of_rest])
   | (Ana(Prod(ana_tys)), _) when List.length(ana_tys) == length =>
-    List.map(ty => Ana(ty), ana_tys)
-  | _ => List.init(length, _ => Syn)
+    (List.map(ty => Ana(ty), ana_tys), [])
+  | _ => (List.init(length, _ => Syn), [])
   };
 };
 
