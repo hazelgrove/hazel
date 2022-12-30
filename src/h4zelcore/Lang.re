@@ -1,16 +1,20 @@
 type t = Sort.Map.t(PGram.t);
 
-let hazel: t =
-  [
-    (Typ, failwith("todo typ")),
-    (Pat, failwith("todo pat")),
-    (Exp, [(Seq([Kid(Exp), Tok("+"), Kid(Exp)]), Some(L))]),
-  ]
-  |> List.to_seq
-  |> Sort.Map.of_seq;
+module Assoc = {
+  type lang = t;
+  type t = Sort.Map.t(Prec.Map.t(Assoc.t));
+
+  let mk = (l: lang): t =>
+    l
+    |> Sort.Map.map(pg =>
+         PGram.to_seq(pg)
+         |> Seq.map(((i, (_, a))) => (i, a))
+         |> Prec.Map.of_seq
+       );
+};
 
 module Molds = {
-  type l = t;
+  type lang = t;
   type t = Token.Map.t(list(Mold.t));
 
   let add = (t: Token.t, m: Mold.t, ms: t) =>
@@ -21,32 +25,45 @@ module Molds = {
       | Some(ms) => Some([m, ...ms]),
     );
 
-  let union = Token.Map.union((t, ms_l, ms_r) => Some(ms_l @ ms_r));
+  let union2 = Token.Map.union((t, ms_l, ms_r) => Some(ms_l @ ms_r));
+  let union = List.fold_left(union2, Token.Map.empty);
 
-  let mk_sort = (s: Sort.t, g: Gram.t): t => {
+  let mk_g = (s: Sort.t, p: Prec.t, g: Gram.t): t => {
     let rec go = (m: Mold.t, g: Gram.t) =>
       switch (g) {
-      | Bot
-      | Eps
-      | Kid(_) => Token.Map.empty
-      | Tok(t) => Token.Map.singleton(t, m)
-      | Prec(p, g) => go(Mold.push(Prec(p), m), g)
-      | Alt(l, r) =>
-        union(
-          go(Mold.push(AltL(r), m), l),
-          go(Mold.push(AltR(l), m), r),
-        )
-      | Seq(l, r) =>
-        union(
-          go(Mold.push(SeqL(r), m), l),
-          go(Mold.push(SeqR(l), m), r),
-        )
+      | Atom(Kid(_)) => Token.Map.empty
+      | Atom(Tok(t)) => Token.Map.singleton(t, m)
+      | Star(g) => go(Mold.push(Star_, m), g)
+      | Alt(gs) =>
+        ListUtil.elem_splits(gs)
+        |> List.map(((pre, g, suf)) =>
+             go(Mold.push(Alt_(pre, suf), m), g)
+           )
+        |> union
+      | Seq(gs) =>
+        ListUtil.elem_splits(gs)
+        |> List.map(((pre, g, suf)) =>
+             go(Mold.push(Seq_(pre, suf), m), g)
+           )
+        |> union
       };
-    go(Mold.init(s), g);
+    go(Mold.init(s, p), g);
   };
 
-  let mk = (lang: l): t =>
-    Sort.Map.bindings(lang)
-    |> List.map(((s, g)) => mk_sort(s, g))
-    |> List.fold_left(union, Token.Map.empty);
+  let mk = (l: lang): t =>
+    Sort.Map.to_seq(l)
+    |> Seq.concat_map(((s, pg)) =>
+         PGram.to_seq(pg)
+         |> Seq.concat_map((p, (g, _)) => Token.Map.to_seq(mk_g(s, p, g)))
+       )
+    |> Token.Map.of_seq;
 };
+
+let hazel: t =
+  [
+    (Typ, failwith("todo typ")),
+    (Pat, failwith("todo pat")),
+    (Exp, [(Seq([Kid(Exp), Tok("+"), Kid(Exp)]), Some(L))]),
+  ]
+  |> List.to_seq
+  |> Sort.Map.of_seq;
