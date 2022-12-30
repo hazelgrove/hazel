@@ -96,8 +96,7 @@ module Pervasives = {
       };
 
     /* PI implementation. */
-    // TODO handle pi id assignment
-    let pi = DHExp.{ids: [], term: Float(Float.pi)};
+    let pi = DHExp.{ids: [Id.invalid], term: Float(Float.pi)};
   };
 
   let pi = name => Builtin.mk_zero(name, Float, Impls.pi);

@@ -415,7 +415,11 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.{ids: [], term: ListLit(dtl, Some((u, i, err, ty)))};
+        let d2 =
+          DHExp.{
+            ids: ids_derive(d.ids),
+            term: ListLit(dtl, Some((u, i, err, ty))),
+          };
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
@@ -480,7 +484,11 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = DHPat.{ids: [], term: DHPat.ListLit(dptl, Some(ty))};
+        let dp2 =
+          DHPat.{
+            ids: ids_derive(dp.ids),
+            term: DHPat.ListLit(dptl, Some(ty)),
+          };
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
@@ -611,7 +619,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | If(_, _, _)
     | Parens(_) => failwith("evaluate on UExp")
     | Var(x) =>
-      let d =
+      let d' =
         x
         |> ClosureEnvironment.lookup(env)
         |> OptUtil.get(() => {
@@ -620,7 +628,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
            });
       /* We need to call [evaluate] on [d] again since [env] does not store
        * final expressions. */
-      evaluate(env, d);
+      evaluate(env, DHExp.{ids: d.ids, term: d'.term});
 
     | Seq(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -1049,7 +1057,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
     | Hole((u, i), InconsistentBranches(d1, rules, n)) =>
       evaluate_case(ids, env, Some((u, i)), d1, rules, n)
 
-    | Hole(_, Empty) => Indet({ids, term: Closure(env, d)}) |> return
+    | Hole(_, Empty) =>
+      Indet({ids, term: Closure(env, DHExp.derive(d))}) |> return
 
     | Hole((u, i), NonEmpty(reason, d1)) =>
       let* r1 = evaluate(env, d1);
@@ -1295,24 +1304,24 @@ and evaluate_case =
           switch (inconsistent_info) {
           | None =>
             Indet({
-              ids: ids_derive(ids),
+              ids: ids_derive(d.ids),
               term:
                 Closure(
                   env,
                   {
-                    ids: ids_derive(ids),
+                    ids: ids_derive(d.ids),
                     term: Match(scrut, rules, current_rule_index),
                   },
                 ),
             })
           | Some((u, i)) =>
             Indet({
-              ids: ids_derive(ids),
+              ids: ids_derive(d.ids),
               term:
                 Closure(
                   env,
                   {
-                    ids: ids_derive(ids),
+                    ids: ids_derive(d.ids),
                     term:
                       Hole(
                         (u, i),

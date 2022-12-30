@@ -172,6 +172,8 @@ and UExp: {
   };
 
   let ids_derive: (~step: int=?, list(Id.t)) => list(Id.t);
+
+  let derive: (~step: int=?, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -312,6 +314,11 @@ and UExp: {
 
   let ids_derive = (~step=1, ids: list(Id.t)): list(Id.t) =>
     List.map((id: Id.t) => Id.derive(id, ~step), ids);
+
+  let derive = (~step=1, d: t): t => {
+    ids: ids_derive(~step, d.ids),
+    term: d.term,
+  };
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -344,6 +351,8 @@ and UPat: {
     ids: list(Id.t),
     term,
   };
+
+  let ids_derive: (~step: int=?, list(Id.t)) => list(Id.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -375,6 +384,9 @@ and UPat: {
     ids: list(Id.t),
     term,
   };
+
+  let ids_derive = (~step=1, ids: list(Id.t)): list(Id.t) =>
+    List.map((id: Id.t) => Id.derive(id, ~step), ids);
 }
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]

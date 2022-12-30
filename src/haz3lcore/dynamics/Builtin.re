@@ -37,20 +37,23 @@ type t = {
 let mk_elab = (name: Var.t, typ: Typ.t): DHExp.t => {
   let rec mk_elab_inner =
           (typ': Typ.t, n: int, bindings: list(Var.t)): DHExp.t => {
-    ids: [],
+    ids: [Id.invalid],
     term:
       switch (typ') {
       | Arrow(_, typ'') =>
         let var = "x" ++ string_of_int(n);
         Fun(
-          {ids: [], term: Var(var)},
+          {ids: [Id.invalid], term: Var(var)},
           Some(typ'),
           mk_elab_inner(typ'', n + 1, [var, ...bindings]),
           Some(name),
         );
       | _ =>
         let bindings =
-          List.rev_map(x => DHExp.{ids: [], term: DHExp.Var(x)}, bindings);
+          List.rev_map(
+            x => DHExp.{ids: [Id.invalid], term: DHExp.Var(x)},
+            bindings,
+          );
         ApBuiltin(name, bindings);
       /*
        I don't really get the definition of ListLit, so I am not sure if it works

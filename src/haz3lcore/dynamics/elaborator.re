@@ -75,7 +75,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
     let ids = uexp.ids;
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some({ids, term: Hole((u, 0), Empty)})
+    | EmptyHole => Some(DHExp.{ids, term: Hole((u, 0), Empty)})
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
       let* ds =
@@ -471,13 +471,8 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
   List.fold_left(
     (d', (ident, (elab, _))) =>
       DHExp.{
-        ids: ids_derive(d.ids, ~step=2),
-        term:
-          Let(
-            {ids: ids_derive(d.ids, ~step=1), term: Var(ident)},
-            elab,
-            d',
-          ),
+        ids: [Id.invalid],
+        term: Let({ids: [Id.invalid], term: Var(ident)}, elab, d'),
       },
     d,
     Builtins.forms(Builtins.Pervasives.builtins),
