@@ -6,12 +6,17 @@ exception Nonmonotonic;
 
 // assume push onto head for now
 let rec push = (c0: Chain.t, cs: t): t =>
-  switch (seg) {
+  switch (cs) {
   | [] => [c0]
+  // | [c1] =>
+  //   switch (Chain.comp(c0, c1)) {
+  //   | None => []
+  //   | Some(Lt) => [Chain.merge(c0, c1)]
+  //   }
   | [c1, ...tl] =>
     switch (Chain.comp(c0, c1)) {
     | Some(Gt) =>
-      // may need to complete right edge of c first
+      // may need to complete right edge of c0 first
       [c0, ...cs]
     | Some(Eq) => [Chain.merge(c0, c1), ...tl]
     | Some(Lt) =>
@@ -20,8 +25,8 @@ let rec push = (c0: Chain.t, cs: t): t =>
       | [c2, ...tl] =>
         switch (Chain.comp(c0, c2)) {
         | None => failwith("breaks connected invariant")
-        | Some(Lt) => push(Chain.merge(c0, c1), [c2, ...tl])
-        | Some(Gt) => push(c0, [Chain.merge(c1, c2), ...tl])
+        | Some(Gt) => push(Chain.merge(c0, c1), [c2, ...tl])
+        | Some(Lt) => push(c0, [Chain.merge(c1, c2), ...tl])
         | Some(Eq) => [Chain.(merge(merge(c0, c1), c2)), ...tl]
         }
       }
