@@ -1,3 +1,1 @@
-type t =
-  | Convex(Sort.t)
-  | Concave;
+type t = {mold: Mold.t};
