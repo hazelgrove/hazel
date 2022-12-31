@@ -219,7 +219,10 @@ let matched_arrow = (ty: t, termId: Id.t): ((t, t), constraints) => {
       Unknown(Inference(Matched_Arrow_Left, prov)),
       Unknown(Inference(Matched_Arrow_Right, prov)),
     );
-    ((arrow_lhs, arrow_rhs), [(Unknown(prov), Arrow(arrow_lhs, arrow_rhs))]);
+    (
+      (arrow_lhs, arrow_rhs),
+      [(Unknown(prov), Arrow(arrow_lhs, arrow_rhs))],
+    );
   };
   switch (ty) {
   | Arrow(ty_in, ty_out) => ((ty_in, ty_out), [])
@@ -228,7 +231,8 @@ let matched_arrow = (ty: t, termId: Id.t): ((t, t), constraints) => {
   };
 };
 
-let matched_arrow_mode = (mode: mode, termId: Id.t): ((mode, mode), constraints) => {
+let matched_arrow_mode =
+    (mode: mode, termId: Id.t): ((mode, mode), constraints) => {
   switch (mode) {
   | SynFun
   | Syn => ((Syn, Syn), [])
@@ -241,9 +245,9 @@ let matched_arrow_mode = (mode: mode, termId: Id.t): ((mode, mode), constraints)
 let matched_list = (ty: t, termId: Id.t): (t, constraints) => {
   let matched_list_of_prov = prov => {
     let list_elts_typ = Unknown(Inference(Matched_List, prov));
-    (list_elts_typ, [(Unknown(prov), List(list_elts_typ))])
+    (list_elts_typ, [(Unknown(prov), List(list_elts_typ))]);
   };
-  
+
   switch (ty) {
   | List(ty) => (ty, [])
   | Unknown(prov) => matched_list_of_prov(prov)
@@ -255,31 +259,40 @@ let matched_list_mode = (mode: mode, termId: Id.t): (mode, constraints) => {
   switch (mode) {
   | SynFun
   | Syn => (Syn, [])
-  | Ana(ty) => 
+  | Ana(ty) =>
     let (ty_elts, constraints) = matched_list(ty, termId);
-    (Ana(ty_elts), constraints)
+    (Ana(ty_elts), constraints);
   };
 };
 
 let rec matched_prod_mode = (mode: mode, length): (list(mode), constraints) => {
-  let binary_matched_prod_of_prov = (prov: type_provenance): ((t, t), equivalence) => {
+  let binary_matched_prod_of_prov =
+      (prov: type_provenance): ((t, t), equivalence) => {
     let (left_ty, right_ty) = (
-      Unknown(Inference(Matched_Prod_Left, prov)), 
-      Unknown(Inference(Matched_Prod_Right, prov))
+      Unknown(Inference(Matched_Prod_Left, prov)),
+      Unknown(Inference(Matched_Prod_Right, prov)),
     );
     ((left_ty, right_ty), (Unknown(prov), Prod([left_ty, right_ty])));
   };
 
   switch (mode, length) {
   | (Ana(Unknown(prov)), 2) =>
-    let ((left_ty, right_ty), equivalence) = binary_matched_prod_of_prov(prov);
-    ([Ana(left_ty), Ana(right_ty)], [equivalence])
+    let ((left_ty, right_ty), equivalence) =
+      binary_matched_prod_of_prov(prov);
+    ([Ana(left_ty), Ana(right_ty)], [equivalence]);
   | (Ana(Unknown(prov)), _) when length > 2 =>
-    let ((left_ty, right_ty), equivalence) = binary_matched_prod_of_prov(prov);
-    let (modes_of_rest, constraints_of_rest) = matched_prod_mode(Ana(right_ty), length - 1);
-    ([Ana(left_ty), ...modes_of_rest], [equivalence, ...constraints_of_rest])
-  | (Ana(Prod(ana_tys)), _) when List.length(ana_tys) == length =>
-    (List.map(ty => Ana(ty), ana_tys), [])
+    let ((left_ty, right_ty), equivalence) =
+      binary_matched_prod_of_prov(prov);
+    let (modes_of_rest, constraints_of_rest) =
+      matched_prod_mode(Ana(right_ty), length - 1);
+    (
+      [Ana(left_ty), ...modes_of_rest],
+      [equivalence, ...constraints_of_rest],
+    );
+  | (Ana(Prod(ana_tys)), _) when List.length(ana_tys) == length => (
+      List.map(ty => Ana(ty), ana_tys),
+      [],
+    )
   | _ => (List.init(length, _ => Syn), [])
   };
 };

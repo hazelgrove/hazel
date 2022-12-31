@@ -168,7 +168,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | String(s) => Some(StringLit(s))
       | ListLit(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let ty =
+        let (ty, _constraints) =
           Typ.matched_list(
             Statics.exp_typ(m, uexp),
             Term.UExp.rep_id(uexp),
@@ -327,7 +327,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let ty =
+      let (ty, _constraints) =
         Typ.matched_list(Statics.pat_typ(m, upat), Term.UPat.rep_id(upat));
       wrap(ListLit(ty, ds));
     | Tag(name) => wrap(Tag(name))
