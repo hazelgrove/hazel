@@ -1,7 +1,7 @@
-type t =
+type t('sort) =
   // Flat?
   | Convex
-  | Concave(Sort.t);
+  | Concave('sort);
 
 // let compare = (t1, t2) =>
 //   switch (t1, t2) {
