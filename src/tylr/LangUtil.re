@@ -1,11 +1,11 @@
 module Molds = {
-  type t = Token.Map.t(list(mold));
+  type t = Token.Map.t(list(Mold.t));
 
   let union2 = Token.Map.union((t, ms_l, ms_r) => Some(ms_l @ ms_r));
   let union = List.fold_left(union2, Token.Map.empty);
 
-  let molds_of_grex = (s: Sort.t, p: Prec.t, g: Grex.t(_)): t => {
-    let rec go = (m: Mold.t(_), g: Grex.t(_)) =>
+  let molds_of_grex = (s: Sort.t, p: Prec.t, g: Gram.t): t => {
+    let rec go = (m: Mold.t, g: Gram.t) =>
       switch (g) {
       | Atom(Kid(_)) => Token.Map.empty
       | Atom(Tok(t)) => Token.Map.singleton(t, m)
@@ -26,9 +26,10 @@ module Molds = {
     go(Mold.init(s, p), g);
   };
   let molds: t =
-    SMap.to_seq(g)
+    List.to_seq(Lang.t)
     |> Seq.concat_map(((s, prec_lvls)) =>
-         Prec.Map.to_seq(prec_lvls)
+         List.to_seq(prec_lvls)
+         |> Seq.mapi((p, lvl) => (p, lvl))
          |> Seq.concat_map((p, (g, _)) =>
               Token.Map.to_seq(molds_of_grex(s, p, g))
             )
@@ -36,7 +37,7 @@ module Molds = {
     |> Token.Map.of_seq;
 
   let find = token =>
-    switch (Token.Map.find_opt(token, Molds.molds)) {
+    switch (Token.Map.find_opt(token, molds)) {
     | None => []
     | Some(ms) => ms
     };
@@ -44,4 +45,4 @@ module Molds = {
 
 let molds = Molds.find;
 
-let assoc = (s, p) => snd(List.nth(List.assoc(s, Gram.g), p));
+let assoc = (s, p) => snd(List.nth(List.assoc(s, Lang.t), p));
