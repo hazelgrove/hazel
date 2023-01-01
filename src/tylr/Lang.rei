@@ -1,5 +1,1 @@
-/**
- * Virtual module (https://dune.readthedocs.io/en/stable/variants.html)
- * for language defined by client
- */
-include Language.S;
+let t: list((Sort.t, list((Gram.t, Assoc.t))));

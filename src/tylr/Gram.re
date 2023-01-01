@@ -1,22 +1,22 @@
 open Util;
 
 module Atom = {
-  type t('sort) =
+  type t =
     | Tok(Token.t)
-    | Kid('sort);
+    | Kid(Sort.t);
 };
 
 module Extremity = {
-  type t('sort) = option(Atom.t('sort));
-  type s('sort) = list(t('sort));
+  type t = option(Atom.t);
+  type s = list(t);
 };
 
 // maybe want to generalize over atoms
-type t('sort) =
-  | Atom(Atom.t('sort))
-  | Star(t('sort))
-  | Seq(list(t('sort)))
-  | Alt(list(t('sort)));
+type t =
+  | Atom(Atom.t)
+  | Star(t)
+  | Seq(list(t))
+  | Alt(list(t));
 
 // simplifying assumption, not fundamentally necessary
 exception No_consecutive_tokens;
@@ -38,8 +38,7 @@ let rec root_token =
   | Seq(gs) => List.exists(root_token, gs)
   | Alt(gs) => List.for_all(root_token, gs);
 
-let exterior_seq =
-    (exterior: t => Extremity.s(_), gs: list(t(_))): Extremity.s(_) => {
+let exterior_seq = (exterior: t => Extremity.s, gs: list(t)): Extremity.s => {
   let (nullable, rest) = ListUtil.take_while(nullable, gs);
   let nullable = List.concat_map(exterior, nullable);
   let rest =
@@ -50,7 +49,7 @@ let exterior_seq =
   nullable @ rest;
 };
 
-let rec exterior = (d: Dir.t, g: t(_)): Extremity.s(_) =>
+let rec exterior = (d: Dir.t, g: t): Extremity.s =>
   fun
   | Atom(a) => [Some(a)]
   | Star(g) => exterior(d, g)
@@ -65,7 +64,7 @@ module Frame = {
     | Alt_(list(g('s)), list(g('s)));
   type s('s) = list(t('s));
 
-  let rec interior = (d: Dir.t, fs: s(_)): Extremity.s(_) =>
+  let rec interior = (d: Dir.t, fs: s): Extremity.s =>
     fun
     | [] => [None]
     | [f, ...fs] =>
@@ -81,7 +80,7 @@ module Frame = {
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
 
-  let must_match = (d: Dir.t, fs: s(_)): bool =>
+  let must_match = (d: Dir.t, fs: s): bool =>
     fun
     | [] => false
     | [f, ...fs] =>

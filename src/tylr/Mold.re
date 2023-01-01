@@ -1,7 +1,7 @@
-type t('sort) = {
-  sort: 'sort,
+type t = {
+  sort: Sort.t,
   prec: Prec.t,
-  frames: Grex.Frame.s('sort),
+  frames: Gram.Frame.s,
 };
 
 // derived
@@ -15,7 +15,7 @@ let init = (sort, prec) => {sort, prec, frames: []};
 
 let push = (f, m) => {...m, frames: [f, ...m.frames]};
 
-let tips = (d: Dir.t, m: t(_)): list(Tip.t(_)) =>
+let tips = (d: Dir.t, m: t): list(Tip.t) =>
   Grex.Frame.interior(d, m.frames)
   |> List.filter_map(
        fun
@@ -24,5 +24,5 @@ let tips = (d: Dir.t, m: t(_)): list(Tip.t(_)) =>
        | Some(Tok(_)) => raise(Grex.No_consecutive_tokens),
      );
 
-let must_match = (d: Dir.t, m: t(_)): bool =>
+let must_match = (d: Dir.t, m: t): bool =>
   Grex.Frame.must_match(d, m.frames);
