@@ -3,6 +3,8 @@ type t = {
   anc: Ancestors.t,
 };
 
+let choose_cur = (_: t): Dir.t => failwith("todo");
+
 let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
   let out_consistent =
     Lang.molds(t) |> List.filter(m => Sort.compare(m.sort, out) <= 0);
