@@ -6,6 +6,8 @@ and kid =
 
 exception Missing_root_pieces;
 
+let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
+
 let tip_l = (c: t) => {
   let (kid, p) =
     Aba.first_ab(c) |> OptUtil.get_or_raise(Missing_root_pieces);
