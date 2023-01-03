@@ -4,6 +4,27 @@ open EvaluatorMonad;
 open EvaluatorMonad.Syntax;
 
 module EvalCtx = {
+  type cls =
+    | Mark
+    | Ap1
+    | Ap2
+    | BinBoolOp1
+    | BinBoolOp2
+    | BinIntOp1
+    | BinIntOp2
+    | BinFloatOp1
+    | BinFloatOp2
+    | Cons1
+    | Cons2
+    | Let
+    | Inj
+    | NonEmptyHole
+    | Cast
+    | FailedCast
+    | InvalidOperation
+    | ConsistentCase
+    | InconsistentBranches;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
@@ -939,96 +960,95 @@ module EvalObj = {
   let get_ctx = (obj: t): EvalCtx.t => obj.ctx;
   let get_exp = (obj: t): DHExp.t => obj.exp;
 
-  let unwrap = (obj: t, sel: EvalCtx.t): option(t) =>
+  let unwrap = (obj: t, sel: EvalCtx.cls): option(t) =>
     switch (sel) {
     | Mark => raise(EvaluatorError.Exception(StepDoesNotMatch))
-    | NonEmptyHole(_)
-    | InconsistentBranches(_) =>
+    | NonEmptyHole
+    | InconsistentBranches =>
       raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
-    | Let(_) =>
+    | Let =>
       switch (obj.ctx) {
       | Let(_, c, _) => Some(mk(c, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Ap1(_) =>
+    | Ap1 =>
       switch (obj.ctx) {
       | Ap1(c1, _) => Some(mk(c1, obj.exp))
       | Ap2(_, _) => None
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Ap2(_) =>
+    | Ap2 =>
       switch (obj.ctx) {
       | Ap1(_) => None
       | Ap2(_, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinBoolOp1(_) =>
+    | BinBoolOp1 =>
       switch (obj.ctx) {
       | BinBoolOp1(_, c1, _) => Some(mk(c1, obj.exp))
       | BinBoolOp2(_) => None
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinBoolOp2(_) =>
+    | BinBoolOp2 =>
       switch (obj.ctx) {
       | BinBoolOp1(_) => None
       | BinBoolOp2(_, _, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinIntOp1(_) =>
+    | BinIntOp1 =>
       switch (obj.ctx) {
       | BinIntOp1(_, c1, _) => Some(mk(c1, obj.exp))
       | BinIntOp2(_) => None
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinIntOp2(_) =>
+    | BinIntOp2 =>
       switch (obj.ctx) {
       | BinIntOp1(_) => None
       | BinIntOp2(_, _, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinFloatOp1(_) =>
+    | BinFloatOp1 =>
       switch (obj.ctx) {
       | BinFloatOp1(_, c1, _) => Some(mk(c1, obj.exp))
       | BinFloatOp2(_) => None
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | BinFloatOp2(_) =>
+    | BinFloatOp2 =>
       switch (obj.ctx) {
       | BinFloatOp1(_) => None
       | BinFloatOp2(_, _, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Cons1(_) =>
+    | Cons1 =>
       switch (obj.ctx) {
       | Cons1(c1, _) => Some(mk(c1, obj.exp))
       | Cons2(_) => None
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Cons2(_) =>
+    | Cons2 =>
       switch (obj.ctx) {
       | Cons1(_) => None
       | Cons2(_, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Inj(_) =>
+    | Inj =>
       switch (obj.ctx) {
       | Inj(_, _, c) => Some(mk(c, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | ConsistentCase(_) =>
+    | ConsistentCase =>
       switch (obj.ctx) {
-      | ConsistentCase(Case(exp, rules, index)) // => Substitute exp into rules[index?] I don't know if it should be one step
+      | ConsistentCase(Case(_, _, _)) // => Substitute exp into rules[index?] I don't know if it should be one step
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
-    | Cast(_)
-    | FailedCast(_)
-    | InvalidOperation(_) =>
-      raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | Cast
+    | FailedCast
+    | InvalidOperation => raise(EvaluatorError.Exception(StepDoesNotMatch))
     };
 
   type slice = (t, t);
 
-  let unwrap_list = (l: list((t, t)), sel: EvalCtx.t): list('a) => {
+  let unwrap_list = (l: list((t, t)), sel: EvalCtx.cls): list('a) => {
     List.fold_right(
       ((step, full), lst) =>
         switch (unwrap(step, sel)) {

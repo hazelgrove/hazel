@@ -572,9 +572,9 @@ let rec mk =
           mk_left_associative_operands(
             DHDoc_common.precedence_Ap,
             d1,
-            unwrap_list(objs, Ap1(Mark, Tuple([]))),
+            unwrap_list(objs, Ap1),
             d2,
-            unwrap_list(objs, Ap2(Tuple([]), Mark)),
+            unwrap_list(objs, Ap2),
           );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(ident, args) =>
@@ -598,9 +598,9 @@ let rec mk =
           mk_left_associative_operands(
             precedence_bin_int_op(op),
             d1,
-            unwrap_list(objs, BinIntOp1(op, Mark, Tuple([]))),
+            unwrap_list(objs, BinIntOp1),
             d2,
-            unwrap_list(objs, BinIntOp2(op, Tuple([]), Mark)),
+            unwrap_list(objs, BinIntOp2),
           );
         hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
       | BinFloatOp(op, d1, d2) =>
@@ -609,9 +609,9 @@ let rec mk =
           mk_left_associative_operands(
             precedence_bin_float_op(op),
             d1,
-            unwrap_list(objs, BinFloatOp1(op, Mark, Tuple([]))),
+            unwrap_list(objs, BinFloatOp1),
             d2,
-            unwrap_list(objs, BinFloatOp2(op, Tuple([]), Mark)),
+            unwrap_list(objs, BinFloatOp2),
           );
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
       | BinStringOp(op, d1, d2) =>
@@ -630,9 +630,9 @@ let rec mk =
           mk_right_associative_operands(
             DHDoc_common.precedence_Cons,
             d1,
-            unwrap_list(objs, Cons1(Mark, Tuple([]))),
+            unwrap_list(objs, Cons1),
             d2,
-            unwrap_list(objs, Cons2(Tuple([]), Mark)),
+            unwrap_list(objs, Cons2),
           );
         DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
       | BinBoolOp(op, d1, d2) =>
@@ -640,9 +640,9 @@ let rec mk =
           mk_right_associative_operands(
             precedence_bin_bool_op(op),
             d1,
-            unwrap_list(objs, BinBoolOp1(op, Mark, Tuple([]))),
+            unwrap_list(objs, BinBoolOp1),
             d2,
-            unwrap_list(objs, BinBoolOp2(op, Tuple([]), Mark)),
+            unwrap_list(objs, BinBoolOp2),
           );
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Tuple([]) => DHDoc_common.Delim.triv
@@ -655,13 +655,7 @@ let rec mk =
         doc;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
-          mk_cast(
-            go(
-              ~enforce_inline,
-              ddef,
-              unwrap_list(objs, Let(DHPat.Wild, Mark, Tuple([]))),
-            ),
-          );
+          mk_cast(go(~enforce_inline, ddef, unwrap_list(objs, Let)));
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
