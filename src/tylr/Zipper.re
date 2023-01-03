@@ -1,22 +1,33 @@
+// module Cursor = {
+//   module Pointing = {
+//     type t =
+//       | Space(ZSpace.t)
+//       | Chain(ZChain.t);
+//   };
+
+//   module Selecting = {
+//     type t =
+//       | Space(ZZSpace.t)
+//       | Segment(ZZSegment.t);
+//   };
+
+//   type t =
+//     | Pointing(Pointing.t)
+//     | Selecting(Selecting.t);
+// };
+
+module Selection = {
+  type t = {
+    focus: Dir.t,
+    space: (Space.Z.t, Space.Z.t),
+    segment: Segment.t,
+  };
+};
+
 module Cursor = {
-  module Pointing = {
-    type t =
-      | Space(ZSpace.t)
-      | Chain(ZChain.t);
-  };
-
-  module Selecting = {
-    // when seg empty, ignore Dir.choose(foc, pad)
-    type t = {
-      foc: Dir.t,
-      seg: Segment.t,
-      pad: (ZSpace.t, ZSpace.t),
-    };
-  };
-
   type t =
-    | Pointing(Pointing.t)
-    | Selecting(Selecting.t);
+    | Pointing(ZChain.t)
+    | Selecting(Selection.t);
 };
 
 type t = {
@@ -32,58 +43,55 @@ module Action = {
     | Insert(string);
 };
 
-let normalize_d = (z: t): option((Dir.t, Space.t)) =>
-  switch (z.cur) {
-  | Pointing(Space(zs)) when ZSpace.is_empty(zs) =>
-    Some(Relatives.choose_cur(z.rel))
-  | Pointing(Space(zs)) when ZSpace.is_extreme(L, zs) => Some(L)
-  | Pointing(Space(zs)) when ZSpace.is_extreme(R, zs) => Some(R)
-  | _ => None
-  };
-let normalize = (z: t): t =>
-  switch (normalize_d(z)) {
-  | None => z
-  | Some((d, s)) =>
-    switch (Relatives.(split_zchain(d, push_space(s, z.rel)))) {
-    | None => z
-    | Some((zc, rel)) => {rel, cur: Pointing(Chain(zc))}
-    }
-  };
-exception Abnormal;
+// let normalize_d = (z: t): option((Dir.t, Space.t)) =>
+//   switch (z.cur) {
+//   | Pointing(Space(zs)) when ZSpace.is_empty(zs) =>
+//     Some(Relatives.choose_cur(z.rel))
+//   | Pointing(Space(zs)) when ZSpace.is_extreme(L, zs) => Some(L)
+//   | Pointing(Space(zs)) when ZSpace.is_extreme(R, zs) => Some(R)
+//   | _ => None
+//   };
+// let normalize = (z: t): t =>
+//   switch (normalize_d(z)) {
+//   | None => z
+//   | Some((d, s)) =>
+//     switch (Relatives.(split_zchain(d, push_space(s, z.rel)))) {
+//     | None => z
+//     | Some((zc, rel)) => {rel, cur: Pointing(Chain(zc))}
+//     }
+//   };
+// exception Abnormal;
 
-let rec move = (d: Dir.t, z: t): option(t) => {
+// promote empty Selecting to Pointing
+// disambiguate Pointing term as needed
+let normalize = (_: t): t => failwith("todo normalize");
+
+// result is not necessarily normalized
+let move = (d: Dir.t, zipper: t): option(t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
-  switch (z.cur) {
-  | Selecting({foc: _, seg, pad}) =>
-    // switch to Pointing with cursor at directed end of selection
-    let (zs_d, zs_b) = Dir.choose(d, pad);
-    let rel = Relatives.push_seg(b, seg, ~space=ZSpace.zip(space_b), z.rel);
-    Some({rel, cur: Pointing(Space(space_d))});
-  | Pointing(Space(zs)) =>
-    switch (ZSpace.move(d, zs)) {
-    | Some(zs) => Some({...z, cur: Pointing(Space(zs))})
+  switch (zipper.cur) {
+  | Selecting(sel) =>
+    // unselect
+    let (z, _) = Dir.choose(d, sel.space);
+    let cur =
+      Cursor.Selecting({...sel, space: (z, z), segment: Segment.empty});
+    let rel = Relatives.push_seg(b, selected, z.rel);
+    return({cur, rel});
+  | Pointing(zc) =>
+    switch (ZChain.move(d, zc)) {
+    | Some(zc) => return({...zipper, cur: Pointing(zc)})
     | None =>
-      let* (zc, rel) =
+      let (pre, (_, p), suf) = ZChain.split(zc);
+      let (affix_d, affix_b) = Dir.choose(d, (pre, suf));
+      let ((z, c), rest) = ZChain.enter(b, affix_d);
+      let (c, rel) =
         z.rel
-        |> Relatives.push_space(ZSpace.zip(zs))
-        |> Relatives.split_zchain(d);
-      move(d, {rel, cur: Pointing(Chain(zc))});
-    }
-  | Pointing(Chain((c_l, zp, c_r))) =>
-    switch (ZPiece.move(d, zp)) {
-    | Some(zp) => Some({...z, cur: Pointing(Chain((pre, zp, suf)))})
-    | None =>
-      let p = ZPiece.erase(zp);
-      let (c_d, c_b) = Dir.choose(d, (c_l, c_r));
-      let (s, rel) =
-        z.rel
-        |> Relatives.push(d, c_d)
-        |> Relatives.push(b, c_b)
-        |> Relatives.push_piece(b, p)
-        |> Relatives.pop_space;
-      let zs = ZSpace.enter(b, s);
-      move(d, {rel, cur: Pointing(Space(zs))});
+        |> Relatives.push_seg(d, rest)
+        |> Relatives.push(b, affix_b)
+        |> Relatives.push(b, Chain.of_piece(p))
+        |> Relatives.pop_kid(b, c);
+      return({rel, cur: Pointing((z, c))});
     }
   };
 };

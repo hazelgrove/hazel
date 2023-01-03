@@ -36,4 +36,5 @@ module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);
   let (and+) = zip;
+  let return = Option.some;
 };

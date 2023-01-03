@@ -9,12 +9,14 @@ let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
   (as_, bs);
 };
 
-let first_a = ((as_, _): t('a, _)): 'a => {
-  assert(List.length(as_) > 0);
-  List.hd(as_);
+let split_first_a = ((as_, bs): t('a, 'b)): ('a, (list('b), list('a))) => {
+  assert(as_ != []);
+  (List.hd(as_), (bs, List.tl(as_)));
 };
+let first_a = (aba: t('a, _)): 'a => fst(split_first_a(aba));
+
 let last_a = ((as_, _): t('a, _)): 'a => {
-  assert(List.length(as_) > 0);
+  assert(as_ != []);
   ListUtil.last(as_);
 };
 

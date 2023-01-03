@@ -1,4 +1,4 @@
-type t = (int, Piece.t);
+type t = (Piece.Z.t, Piece.t);
 
 let zip: t => Piece.t = snd;
 
