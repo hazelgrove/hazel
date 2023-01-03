@@ -4,47 +4,42 @@ type status =
 
 type t = (ITyp.t, status);
 
-let status_to_string: status => string =
-  fun
-  | Solved(ityp) =>
-    String.concat(
-      " ",
-      ["Solved: ", ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum],
-    )
-  | Unsolved(eqClass) =>
-    String.concat(
-      " ",
-      [
-        "Unsolved: ",
-        eqClass |> EqClass.sexp_of_t |> Sexplib.Sexp.to_string_hum,
-      ],
-    );
+type annotation_map = list((Id.t, string));
 
-let t_to_string = ((ityp, status)) => {
-  String.concat(
-    " ",
-    [
-      "{For hole",
-      ityp |> ITyp.sexp_of_t |> Sexplib.Sexp.to_string_hum,
-      "result is",
-      status_to_string(status),
-      "}\n",
-    ],
-  );
+let get_annotations = (inference_results: list(t)): annotation_map => {
+  let status_to_string = (status: status): string => {
+    switch (status) {
+    | Solved(ityp) => ITyp.string_of_ityp(ityp)
+    | Unsolved(eq_class) => EqClass.string_of_eq_class(eq_class)
+    };
+  };
+
+  let id_and_annotation_if_type_hole = (result: t): option((Id.t, string)) => {
+    switch (result) {
+    | (Unknown(TypeHole(id)), status) =>
+      Some((id, status_to_string(status)))
+    | _ => None
+    };
+  };
+
+  List.filter_map(id_and_annotation_if_type_hole, inference_results);
 };
 
-let list_of_t_to_string = (statuses: list(t)): string => {
-  let acc_str = (acc: string, elt: t) => {
-    String.concat(" ", [acc, "\n", t_to_string(elt)]);
-  };
-  List.fold_left(acc_str, "", statuses);
-};
+let get_annotation_of_id =
+    (annotation_map: annotation_map, id: Id.t): option(string) => {
+  let get_annotation_if_for_id = ((k, v)) => k == id ? Some(v) : None;
 
-let print_statuses = (statuses: list(t)): unit => {
-  let print_t = (t: t) => {
-    t |> t_to_string |> print_endline;
+  let get_annotation_text =
+      (possible_annotations: list(string)): option(string) => {
+    switch (possible_annotations) {
+    | [] => None
+    | [hd, ..._tl] => Some(hd)
+    };
   };
-  List.iter(print_t, statuses);
+
+  annotation_map
+  |> List.filter_map(get_annotation_if_for_id)
+  |> get_annotation_text;
 };
 
 let condense = (eq_class: MutableEqClass.t): status => {

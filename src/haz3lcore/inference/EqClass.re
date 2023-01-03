@@ -366,3 +366,44 @@ and sort_eq_class_explore = (eq_class: t): t => {
     }
   };
 };
+
+let string_of_btyp = (btyp: base_typ): string => {
+  btyp |> base_typ_to_ityp |> ITyp.string_of_ityp;
+};
+
+let rec string_of_eq_class = (eq_class: t): string =>
+  switch (eq_class) {
+  | [] => ""
+  | [hd, ...tl] =>
+    let hd_str = string_of_eq_typ(hd);
+    String.concat("//", [hd_str, string_of_eq_class(tl)]);
+  }
+and string_of_eq_typ = (eq_typ: eq_typ) =>
+  switch (eq_typ) {
+  | Base(btyp) => string_of_btyp(btyp)
+  | Compound(ctor, eq_class_lt, eq_class_rt) =>
+    let ctor_string =
+      switch (ctor) {
+      | CArrow => " -> "
+      | CProd => " * "
+      | CSum => " + "
+      };
+
+    String.concat(
+      "",
+      [
+        string_of_eq_class(eq_class_lt),
+        ctor_string,
+        "(",
+        string_of_eq_class(eq_class_rt),
+        ")",
+      ],
+    );
+  | Mapped(ctor, eq_class) =>
+    let (end_text, start_text) =
+      switch (ctor) {
+      | CList => ("[", "]")
+      };
+
+    String.concat("", [start_text, string_of_eq_class(eq_class), end_text]);
+  };

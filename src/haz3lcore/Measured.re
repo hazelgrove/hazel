@@ -284,6 +284,8 @@ let is_indented_map = (seg: Segment.t) => {
 
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
+  let (term, _) = MakeTerm.go(seg);
+  let annotation_map = Statics.mk_annotations(term);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
@@ -369,7 +371,13 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>
-            let last = {...origin, col: origin.col + 1};
+            let annotation_offset =
+              g.id
+              |> InferenceResult.get_annotation_of_id(annotation_map)
+              |> OptUtil.get(() => " ")
+              |> String.length;
+
+            let last = {...origin, col: origin.col + annotation_offset};
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>

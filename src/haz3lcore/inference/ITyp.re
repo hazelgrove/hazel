@@ -42,7 +42,7 @@ let rec typ_to_ityp: Typ.t => t =
   | Prod([hd_ty, ...tl_tys]) =>
     Prod(typ_to_ityp(hd_ty), typ_to_ityp(Prod(tl_tys)))
   | Prod([]) => Unit
-  | Var(_) => raise(TypeVarUnsupported);
+  | Var(_) => Unknown(Anonymous);
 
 let rec ityp_to_typ: t => Typ.t =
   fun
@@ -73,3 +73,18 @@ let rec contains_hole = (ty: t): bool =>
   | Prod(ty1, ty2) => contains_hole(ty1) || contains_hole(ty2)
   | _ => false
   };
+
+let rec string_of_ityp = (ityp: t): string => {
+  switch (ityp) {
+  | Unknown(_) => "?"
+  | Unit => "Unit"
+  | Int => "Int"
+  | Float => "Float"
+  | Bool => "Bool"
+  | String => "String"
+  | List(t) => "[" ++ string_of_ityp(t) ++ "]"
+  | Arrow(t1, t2) => string_of_ityp(t1) ++ " -> " ++ string_of_ityp(t2)
+  | Sum(t1, t2) => string_of_ityp(t1) ++ " + " ++ string_of_ityp(t2)
+  | Prod(t1, t2) => string_of_ityp(t1) ++ " x " ++ string_of_ityp(t2)
+  };
+};

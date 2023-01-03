@@ -30,7 +30,9 @@ let of_delim =
     (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
-let of_grout = [Node.text(Unicode.nbsp)];
+let of_grout = (annotation: option(string)) => [
+  annotation |> OptUtil.get(() => Unicode.nbsp) |> Node.text,
+];
 
 let of_whitespace =
   Core.Memo.general(
@@ -56,7 +58,13 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (~no_sorts=false, ~sort=Sort.root, seg: Segment.t): list(Node.t) => {
+          (
+            ~no_sorts=false,
+            ~sort=Sort.root,
+            seg: Segment.t,
+            annotation_map: InferenceResult.annotation_map,
+          )
+          : list(Node.t) => {
     //note: no_sorts flag is used for backback
     let expected_sorts =
       no_sorts
@@ -69,17 +77,32 @@ module Text = (M: {
       };
     seg
     |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
+    |> List.concat_map(((i, p)) =>
+         of_piece(sort_of_p_idx(i), p, annotation_map)
+       );
   }
-  and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+  and of_piece =
+      (
+        expected_sort: Sort.t,
+        p: Piece.t,
+        annotation_map: InferenceResult.annotation_map,
+      )
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t)
-    | Grout(_) => of_grout
+    | Tile(t) => of_tile(expected_sort, t, annotation_map)
+    | Grout(g) =>
+      g.id |> InferenceResult.get_annotation_of_id(annotation_map) |> of_grout
     | Whitespace({content, _}) =>
       of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
   }
-  and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (
+        expected_sort: Sort.t,
+        t: Tile.t,
+        annotation_map: InferenceResult.annotation_map,
+      )
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -90,7 +113,7 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg)
+         of_segment(~sort, seg, annotation_map)
        )
     |> List.concat;
   };
@@ -120,9 +143,11 @@ let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
       let map = map;
       let settings = settings;
     });
+  let (term, _) = MakeTerm.go(unselected);
+  let annotation_map = Statics.mk_annotations(term);
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(unselected))],
+    [span_c("code-text", Text.of_segment(unselected, annotation_map))],
   );
 };
 
@@ -140,9 +165,11 @@ let view =
       let map = measured;
       let settings = settings;
     });
+  let (term, _) = MakeTerm.go(unselected);
+  let annotation_map = Statics.mk_annotations(term);
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected)
+      Text.of_segment(unselected, annotation_map)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>
