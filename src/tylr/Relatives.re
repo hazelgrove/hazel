@@ -30,6 +30,12 @@ let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
   };
 };
 
+let shift_char = (from: Dir.t, rel) => {
+  open OptUtil.Syntax;
+  let+ (c, rel) = pop_char(rel);
+  push_char(Dir.toggle(from), c, rel);
+};
+
 // let ( x|)
 // insert =
 
@@ -37,16 +43,28 @@ let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
 // viable means leq expected sort from some chain on left.
 // left only because we want parse always to be consistent
 // with a fresh left-to-right transcription.
+// precond: inputs already lexed such that t is not part
+// of a token in rel.
+// returns, in addition to the assigned mold, the
+// relatives produced by pushing the molded token onto rel,
+// which is useful accumulator state to expose when molding
+// a sequence of tokens to avoid redoing work.
 let mold = (t: Token.t, rel: t): option(Mold.t) => {
-  // TODO rename kid_l, only potentially kid of token
-  let rec go = (kid_l: option(Sort.t), rel: t) =>
-    switch (rel.sib) {
-    | ([c, ...pre], suf) =>
+  let rec go = (~in_l: option(Sort.t)=?, rel: t) => {
+    let (pre, _) = rel.sib;
+    switch (Aba.unsnoc(pre)) {
+    | Some((pre, c, _)) =>
+      let go_next = () =>
+        go(~in_l=Chain.sort(c), {...rel, sib: (pre, suf)});
       switch (Chain.expected_sort(R, c)) {
-      | Some(s) => choose(kid_l, s, t)
-      | None => go(Some(Chain.sort(c)), {...rel, sib: (pre, suf)})
-      }
-    | ([], _) =>
+      | None => go_next()
+      | Some(out) =>
+        switch (choose(in_l, out, t)) {
+        | None => go_next()
+        | Some(m) => Some(m)
+        }
+      };
+    | None =>
       switch (Ancestors.pop(rel.anc)) {
       | Some((g, anc)) =>
         let sib = Generation.disassemble(g);
@@ -54,5 +72,16 @@ let mold = (t: Token.t, rel: t): option(Mold.t) => {
       | None => choose(kid_l, Sort.root, t)
       }
     };
-  go(None, rel);
+  };
+  go(rel);
+};
+
+// postcond: returned token empty if nothing to pop
+let pop_adj_token = (d: Dir.t, rel: t): (Token.t, t) => failwith("todo");
+
+let lex = (s: string, rel: t): (Aba.t(Space.t, Token.t), (int, int), t) => {
+  let (l, rel) = pop_adj_token(L, rel);
+  let (r, rel) = pop_adj_token(R, rel);
+  let popped_len = Token.(length(l), length(r));
+  (LangUtil.lex(l ++ s ++ r), popped_len, rel);
 };

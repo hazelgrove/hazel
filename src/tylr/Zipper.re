@@ -84,8 +84,8 @@ let move = (d: Dir.t, z: Zipper.t): option(t) => {
     let rel = Relatives.push_seg(b, z.sel.seg, z.rel);
     return({rel, sel: Selection.empty});
   } else {
-    let+ (c, rel) = Relatives.pop_char(d, z.rel);
-    {...z, rel: Relatives.push_char(b, c, rel)};
+    let+ rel = Relatives.shift_char(d, z.rel);
+    {...z, rel};
   };
 };
 
@@ -107,7 +107,7 @@ let select = (d: Dir.t, z: Zipper.t): option(t) => {
 let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
-  let rel = Relatives.remold(z.rel);
+  let (_, rel) = Relatives.remold(z.rel);
   {rel, sel: Selection.empty};
 };
 
@@ -117,10 +117,15 @@ let perform = (a: Action.t, z: t): option(t) =>
   | Select(d) => select(d, z)
   | Delete(d) => delete(d, z)
   | Insert(s) =>
+    let (lexed, (_, n), rel) = Relatives.lex(s, rel);
     let unmolded =
       LangUtil.lex(s)
       |> Aba.map_b(t => Chain.of_piece(T(Tile.unmolded(t))));
-    let (molded, rel) = Relatives.remold(~sel=unmolded, z.rel);
-    let rel = Relatives.push_seg(L, molded, rel);
+    let (molded, rel) = Relatives.remold(~sel=unmolded, rel);
+    let rel =
+      rel
+      |> Relatives.push_seg(L, molded)
+      // restore chars popped off of R-side of relatives when lexing
+      |> FunUtil.(repeat(n, force_opt(Relatives.shift_char(R))));
     Some({rel, sel: Selection.empty});
   };
