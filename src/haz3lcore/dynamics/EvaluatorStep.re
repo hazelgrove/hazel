@@ -209,7 +209,7 @@ let rec transition =
       | BoxedValue(d2) => BoxedValue(Ap(d1, d2)) |> return
       | Indet(d2) => Indet(Ap(d1, d2)) |> return
       };
-    | BoxedValue(Closure(closure_env, Fun(dp, _, d3)) as d1) =>
+    | BoxedValue(Closure(closure_env, Fun(dp, _, d3, _)) as d1) =>
       let* r2 = transition(env, d2, opt);
       switch (r2) {
       | Step(d2') => Step(Ap(d1, d2')) |> return
