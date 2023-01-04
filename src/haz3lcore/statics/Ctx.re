@@ -1,12 +1,15 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type var_entry = {
+  name: Token.t,
+  id: Id.t,
+  typ: Typ.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
-  | VarEntry({
-      name: Token.t,
-      id: Id.t,
-      typ: Typ.t,
-    })
+  | VarEntry(var_entry)
   | TVarEntry({
       name: Token.t,
       id: Id.t,
@@ -38,13 +41,13 @@ let empty = VarMap.empty;
 
 let extend = (entry: entry, ctx: t) => [entry, ...ctx];
 
-let lookup_var = (ctx: t, x) =>
+let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     entry =>
       switch (entry) {
-      | VarEntry({name, typ, _}) =>
-        if (name == x) {
-          Some(typ);
+      | VarEntry(var) =>
+        if (var.name == name) {
+          Some(var);
         } else {
           None;
         }
