@@ -2,7 +2,7 @@ open Util;
 
 module Atom = {
   type t =
-    | Tok(Token.t)
+    | Tok(Regex.t)
     | Kid(Sort.t);
 };
 
@@ -63,6 +63,8 @@ module Frame = {
     | Seq_(list(g('s)), list(g('s)))
     | Alt_(list(g('s)), list(g('s)));
   type s('s) = list(t('s));
+
+  let empty = [];
 
   let rec interior = (d: Dir.t, fs: s): Extremity.s =>
     fun

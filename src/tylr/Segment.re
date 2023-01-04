@@ -1,8 +1,11 @@
-type t = list(Chain.t);
+type t = Aba.t(Space.t, Chain.t);
 
 // when input chain structure (specifically parent-kid relations)
 // must be broken to give proper assembly
 exception Nonmonotonic;
+
+let empty = ([Space.empty], []);
+let is_empty = (==)(empty);
 
 // assume push onto head of chains in left-to-right order
 let push = (c: Chain.t, cs: t): t => {

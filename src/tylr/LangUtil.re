@@ -46,3 +46,5 @@ module Molds = {
 let molds = Molds.find;
 
 let assoc = (s, p) => snd(List.nth(List.assoc(s, Lang.t), p));
+
+let lex = (_: string): Aba.t(Space.t, Token.t) => failwith("todo lex");
