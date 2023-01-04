@@ -5,7 +5,8 @@ module Frames = {
 type t = {
   sort: Sort.t,
   prec: Prec.t,
-  frames: Frames.t,
+  frames: Gram.Frame.s,
+  range: (int, int),
 };
 
 // derived
