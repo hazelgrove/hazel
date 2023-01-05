@@ -107,7 +107,7 @@ let step = (obj: EvaluatorStep.EvalObj.t): ProgramResult.t => {
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
     //raise(EvalError(reason))
-    print_endline("Interface.evaluate EXCEPTION");
+    print_endline("Interface.step EXCEPTION");
     (
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,

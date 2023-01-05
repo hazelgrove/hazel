@@ -119,6 +119,9 @@ let top_bar_view =
               _ =>
               inject(Set(Benchmark))
             ),
+            toggle("s", ~tooltip="Toggle Stepping", model.settings.stepping, _ =>
+              inject(Set(Stepping))
+            ),
             button(
               Icons.export,
               _ => {

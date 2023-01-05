@@ -8,6 +8,7 @@ type settings_action =
   | WhitespaceIcons
   | Statics
   | Dynamics
+  | Stepping
   | Benchmark
   | ContextInspector
   | InstructorMode

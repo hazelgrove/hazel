@@ -34,6 +34,13 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
           dynamics: !settings.dynamics,
         },
       }
+    | Stepping => {
+        ...model,
+        settings: {
+          ...settings,
+          stepping: !settings.stepping,
+        },
+      }
     | Benchmark => {
         ...model,
         settings: {
@@ -107,6 +114,7 @@ let load_model = (model: Model.t): Model.t => {
       ModelResults.init(
         model.settings.dynamics
           ? Editors.get_spliced_elabs(model.editors) : [],
+        model.settings.stepping,
       ),
   };
 };
@@ -131,6 +139,7 @@ let reevaluate_post_update =
     | Statics
     | Benchmark => false
     | Dynamics
+    | Stepping
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
@@ -178,6 +187,7 @@ let evaluate_and_schedule =
       ModelResults.init(
         model.settings.dynamics
           ? Editors.get_spliced_elabs(model.editors) : [],
+        model.settings.stepping,
       ),
   };
 
@@ -404,16 +414,6 @@ let apply =
       let results = model.results |> ModelResults.add(key, r);
       Ok({...model, results});
     | StepForward(obj) =>
-      print_endline(
-        "stepping obj: "
-        ++ Sexplib.Sexp.to_string_hum(EvaluatorStep.EvalObj.sexp_of_t(obj)),
-      );
-      print_endline(
-        "stepped obj: "
-        ++ Sexplib.Sexp.to_string_hum(
-             ProgramResult.sexp_of_t(Interface.step(obj)),
-           ),
-      );
       let pr =
         switch (Interface.step(obj)) {
         | pr => ModelResult.ResultOk(pr)

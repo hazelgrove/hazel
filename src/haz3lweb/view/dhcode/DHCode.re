@@ -286,7 +286,21 @@ let view_tylr =
     )
     : Node.t => {
   d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance)
+  |> (
+    settings.step
+      ? DHDoc_Step.mk(
+          ~settings,
+          ~enforce_inline=false,
+          ~selected_hole_instance,
+          _,
+        )
+      : DHDoc_Exp.mk(
+          ~settings,
+          ~enforce_inline=false,
+          ~selected_hole_instance,
+          _,
+        )
+  )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
