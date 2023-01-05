@@ -7,13 +7,6 @@ open Haz3lcore;
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
-// type t = {
-//   result: EvaluatorResult.t,
-//   record: list(EvaluatorResult.t),
-//   context: list(EvaluatorStep.EvalObj.t),
-//   state: EvaluatorState.t,
-//   hii: HoleInstanceInfo.t,
-// };
 
 /**
   [get_dhexp r] is the {!type:DHExp.t} in [r].

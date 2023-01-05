@@ -950,8 +950,8 @@ module EvalObj = {
     typ: Step,
   };
 
-  let init = (ctx: EvalCtx.t, exp: DHExp.t): t => {
-    ctx,
+  let init = (exp: DHExp.t): t => {
+    ctx: Mark,
     exp,
     /* typ: is_pause(exp) ? Pause : Step, */
     typ: Pause,
