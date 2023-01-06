@@ -268,6 +268,7 @@ let view =
             Cell.eval_result_footer_view(
               ~inject,
               ~font_metrics,
+              ~settings,
               user_impl.simple_result,
             ),
           ),
