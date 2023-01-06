@@ -22,7 +22,10 @@ type match_result =
 let grounded_Arrow =
   NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
 // TODO (typfun): Maybe the Forall should allow a hole in the variable position?
-let grounded_Forall = NotGroundOrHole(Forall("a", Unknown(Internal)));
+let grounded_Forall =
+  NotGroundOrHole(
+    Forall({item: Unknown(Internal), ann: "grounded_forall"}),
+  );
 let grounded_Sum =
   NotGroundOrHole(Sum(Unknown(Internal), Unknown(Internal)));
 let grounded_Prod = length =>
@@ -73,7 +76,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
       tys |> grounded_LabelSum;
     }
   | Arrow(_, _) => grounded_Arrow
-  | Forall(_, _) => grounded_Forall
+  | Forall(_) => grounded_Forall
   | Sum(_, _) => grounded_Sum
   | List(_) => grounded_List
   };
