@@ -1,4 +1,3 @@
-open Util.OptUtil.Syntax;
 include TypBase.Ctx;
 
 let get_id = (entry: entry) =>
@@ -82,76 +81,70 @@ let adts: t => list((string, list(Typ.tagged))) =
     | VarEntry(_) => None
     | TVarEntry({name, kind, _}) =>
       switch (kind) {
-      | Singleton(Rec(_, LabelSum(ts))) => Some((name, ts))
+      | Singleton(Rec({item: LabelSum(ts), _})) => Some((name, ts))
       | Singleton(LabelSum(ts)) => Some((name, ts))
       | _ => None
       },
   );
 
-let adt_tag_and_typ =
-    (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
-  tag,
-  switch (typ) {
-  | Prod([]) => Var(name)
-  | _ => Arrow(typ, Var(name))
-  },
-);
+// let adt_tag_and_typ =
+//     (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
+//   tag,
+//   switch (typ) {
+//   | Prod([]) => Var(name)
+//   | _ => Arrow(typ, Var(name))
+//   },
+// );
 
-let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
-  adts
-  |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
-  |> List.flatten;
+// let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
+//   adts
+//   |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
+//   |> List.flatten;
 
-let builtin_adt_tags = get_tags(BuiltinADTs.adts);
+// let builtin_adt_tags = get_tags(BuiltinADTs.adts);
 
-// Check builtin type names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
-// Check builtin tag names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
+// // Check builtin type names are unique
+// assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
+// // Check builtin tag names are unique
+// assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
 
-let lookup_tag = (ctx, name) =>
-  switch (List.assoc_opt(name, builtin_adt_tags)) {
-  | Some(typ) => Some(typ)
-  | None => List.assoc_opt(name, ctx |> adts |> get_tags)
-  };
+let lookup_tag = (_ctx, _name) => failwith("TODO");
+// let lookup_tag = (ctx, name) =>
+// switch (List.assoc_opt(name, builtin_adt_tags)) {
+// | Some(typ) => Some(typ)
+// | None => List.assoc_opt(name, ctx |> adts |> get_tags)
+// };
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join =
-        (~d=[], ~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
-  let join' = join(~d, ctx);
+let rec join = (ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
   switch (ty1, ty2) {
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(Typ.join_type_provenance(p1, p2)))
   | (Unknown(_), ty)
   | (ty, Unknown(_)) => Some(ty)
-  // TODO (typfun): Need to wrap joined type in a Rec
-  | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
+  | (Rec({item: t1, ann}), Rec({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Rec({item: t, ann}))
+    | None => None
+    }
   | (Rec(_), _) => None
-  | (Forall(x1, t1), Forall(x2, t2)) =>
-    // TODO (typfun): What type variable to use in joined Forall
-    switch (join(~d=[(x1, x2), ...d], ctx, t1, t2)) {
-    | Some(t) => Some(Forall(x1, t))
+  | (Forall({item: t1, ann}), Forall({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Forall({item: t, ann}))
     | None => None
     }
   | (Forall(_), _) => None
-  | (Var(n1), Var(n2)) =>
-    if (Typ.type_var_eq(d, n1, n2)) {
-      Some(Var(n1));
+  | (Var({item: n1, ann}), Var({item: n2, _})) =>
+    if (n1 == n2) {
+      Some(Var({item: n1, ann}));
     } else {
-      let* Singleton(ty1) = lookup_tvar(ctx, n1);
-      let* Singleton(ty2) = lookup_tvar(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
+      None;
     }
-  | (Var(name), ty)
-  | (ty, Var(name)) =>
-    let* Singleton(ty_name) = lookup_tvar(ctx, name);
-    let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
+  | (Var(_), _) => None
   | (Int, Int) => Some(Int)
   | (Int, _) => None
   | (Float, Float) => Some(Float)
@@ -161,7 +154,7 @@ let rec join =
   | (String, String) => Some(String)
   | (String, _) => None
   | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
@@ -170,7 +163,7 @@ let rec join =
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      switch (List.map2(join', tys1, tys2) |> Util.OptUtil.sequence) {
+      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
       | None => None
       | Some(tys) => Some(Prod(tys))
       };
@@ -184,7 +177,7 @@ let rec join =
       switch (
         List.map2(
           (t1: Typ.tagged, t2: Typ.tagged) =>
-            t1.tag == t2.tag ? join'(t1.typ, t2.typ) : None,
+            t1.tag == t2.tag ? join(t1.typ, t2.typ) : None,
           tys1,
           tys2,
         )
@@ -205,13 +198,13 @@ let rec join =
     }
   | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
   | (Sum(_), _) => None
   | (List(ty_1), List(ty_2)) =>
-    switch (join'(ty_1, ty_2)) {
+    switch (join(ty_1, ty_2)) {
     | Some(ty) => Some(List(ty))
     | None => None
     }
@@ -219,9 +212,9 @@ let rec join =
   };
 };
 
-let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
+let join_all = (ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
-    (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
     Some(Unknown(Internal)),
     ts,
   );

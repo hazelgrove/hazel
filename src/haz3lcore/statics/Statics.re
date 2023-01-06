@@ -122,7 +122,7 @@ type error_status =
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
+let error_status = (_ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (Syn | Ana(_), Free(free_error)) => InHole(Free(free_error))
   | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Internal)))
@@ -131,22 +131,22 @@ let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
     // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
-    switch (Ctx.join_all(ctx, tys_syn)) {
+    switch (Ctx.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
     };
 
   | (Ana(ty_ana), Just(ty_syn)) =>
-    switch (Ctx.join(ctx, ty_ana, ty_syn)) {
+    switch (Ctx.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
   | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
     // TODO: review logic of these cases
-    switch (Ctx.join_all(ctx, Typ.source_tys(tys_syn))) {
+    switch (Ctx.join_all(Typ.source_tys(tys_syn))) {
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
-      switch (Ctx.join(ctx, ty_syn, ty_ana)) {
+      switch (Ctx.join(ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
       };
@@ -207,11 +207,11 @@ let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
-let t_of_self = (ctx): (Typ.self => Typ.t) =>
+let t_of_self = (_ctx): (Typ.self => Typ.t) =>
   fun
   | Just(t) => t
   | Joined(wrap, ss) =>
-    switch (ss |> List.map((s: Typ.source) => s.ty) |> Ctx.join_all(ctx)) {
+    switch (ss |> List.map((s: Typ.source) => s.ty) |> Ctx.join_all) {
     | None => Unknown(Internal)
     | Some(t) => wrap(t)
     }
@@ -416,7 +416,7 @@ and uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Ctx.join_all(ctx, tys)) {
+      switch (Ctx.join_all(tys)) {
       | None =>
         Joined(
           ty => List(ty),
@@ -469,9 +469,9 @@ and uexp_to_info_map =
   | TypAp(fn, utyp) =>
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let (x, ty_body) = Typ.matched_forall(ty_fn);
+    let Typ.{item: ty_body, _} = Typ.matched_forall(ty_fn);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    add(~self=Just(Typ.subst(ty_body, x, ty)), ~free=free_fn, m_fn);
+    add(~self=Just(Typ.subst(ty_body, ty)), ~free=free_fn, m_fn);
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
@@ -490,7 +490,17 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx, ~mode=mode_body, body);
     // TODO (typfun): Extract variable name from tpat
     add(
-      ~self=Just(Forall("a", ty_body)),
+      ~self=
+        Just(
+          Forall({
+            item: ty_body,
+            ann:
+              switch (tpat.term) {
+              | Term.UTPat.Var(x) => x
+              | _ => "expected_type_variable"
+              },
+          }),
+        ),
       ~free=Ctx.subtract_typ(ctx, free_body), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_body]),
     );
@@ -511,20 +521,22 @@ and uexp_to_info_map =
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    let ty = Term.UTyp.to_typ(ctx, utyp);
-    let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+    // !!!!!!!!!!!!!!!!!!!!
+    // let ty = Term.UTyp.to_typ(ctx, utyp);
+    // let ty_def = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+    let ty_def = failwith("TODO: TyAlias");
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
           name,
           id: Term.UTPat.rep_id(typat),
-          kind: Singleton(ty),
+          kind: Singleton(ty_def),
         }),
         ctx,
       );
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
-    let ty_body = Typ.subst(ty, name, ty_body);
+    let ty_body = Typ.subst(ty_def, ty_body);
     let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias(typat, utyp, body) =>
@@ -601,7 +613,7 @@ and upat_to_info_map =
       );
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Ctx.join_all(ctx, tys)) {
+      switch (Ctx.join_all(tys)) {
       | None =>
         Joined(
           ty => List(ty),
@@ -693,10 +705,10 @@ and utyp_to_info_map =
     let m =
       ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
     just(m);
-  | Var(name) =>
-    Ctx.is_tvar(ctx, name)
-      ? (Var(name), add(Just(Var(name)), Id.Map.empty))
-      : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+  | Var(_) => just(Id.Map.empty) // TODO(typfun): ask andrew about map
+  // Ctx.is_tvar(ctx, name)
+  //   ? (Var(name), add(Just(Var(name)), Id.Map.empty))
+  //   : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
   | Sum({term, ids: _}) =>
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
@@ -730,9 +742,10 @@ and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
     just(union_m(ms));
   | Ap(_, utyp) =>
     let self: Typ.self =
+      // TODO(typfun): ask andrew about what is Sum.Ap
       switch (Term.UTyp.to_typ(ctx, utyp)) {
-      | Prod([]) => Just(Var("*self"))
-      | t => Just(Arrow(t, Var("*self")))
+      | Prod([]) => Just(Var({item: None, ann: "*self"}))
+      | t => Just(Arrow(t, Var({item: None, ann: "*self"})))
       };
     let (_, m) = utyp_to_info_map(~ctx, utyp);
     add_info(ids, InfoTSum({cls, term: utsum, self}), m);

@@ -150,9 +150,7 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
-      | Var(name) =>
-        let idx = Ctx.lookup_tvar_idx(name, ctx);
-        Var({item: idx, ann: name});
+      | Var(name) => Var({item: Ctx.lookup_tvar_idx(ctx, name), ann: name})
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(ts) => utsum_to_ty(ctx, ts)
