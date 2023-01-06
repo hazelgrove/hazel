@@ -431,7 +431,16 @@ let apply =
         results:
           model.results |> ModelResults.add(ScratchSlide.scratch_key, r),
       });
-    | StepBackward => Ok(model)
+    | StepBackward =>
+      let r =
+        model.results
+        |> ModelResults.find(ScratchSlide.scratch_key)
+        |> ModelResult.step_backward;
+      Ok({
+        ...model,
+        results:
+          model.results |> ModelResults.add(ScratchSlide.scratch_key, r),
+      });
     };
   reevaluate_post_update(update)
     ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;

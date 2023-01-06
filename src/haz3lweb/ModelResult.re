@@ -1,5 +1,7 @@
+open Sexplib.Std;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type previous = ProgramResult.t;
+type previous = list(ProgramResult.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
@@ -14,10 +16,13 @@ type t = {
   current,
 };
 
-let init = previous => {previous, current: ResultPending};
+let init = previous => {previous: [previous], current: ResultPending};
 
-let get_previous = ({previous, _}) => previous;
-let put_previous = (previous, cr) => {...cr, previous};
+let get_previous = ({previous, _}) => List.hd(previous);
+let put_previous = (previous: ProgramResult.t, cr: t) => {
+  ...cr,
+  previous: [previous, ...cr.previous],
+};
 let get_previous_dhexp = cr => cr |> get_previous |> ProgramResult.get_dhexp;
 
 let get_current = ({current, _}) => current;
@@ -43,6 +48,14 @@ let update_current = (current, res) => {
 
   let res = {...res, current};
   res;
+};
+
+let step_backward = res => {
+  switch (res.previous) {
+  | [] => failwith("empty ModelResult.t.previous")
+  | [_] => res
+  | [hd, ...tl] => {previous: tl, current: ResultOk(hd)}
+  };
 };
 
 type optional_simple_data = {

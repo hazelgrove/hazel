@@ -193,7 +193,12 @@ let deco =
 };
 
 let eval_result_footer_view =
-    (~inject, ~font_metrics, simple: ModelResult.simple) => {
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Model.settings,
+      simple: ModelResult.simple,
+    ) => {
   let d_view =
     switch (simple) {
     | None => [Node.text("No result available.")]
@@ -203,7 +208,7 @@ let eval_result_footer_view =
     | Some({eval_result, _}) => [
         DHCode.view_tylr(
           ~inject,
-          ~settings=Settings.Evaluation.init,
+          ~settings={...Settings.Evaluation.init, step: settings.stepping},
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -215,7 +220,16 @@ let eval_result_footer_view =
     div(
       ~attr=Attr.classes(["cell-item", "cell-result"]),
       [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+        div(
+          ~attr=
+            settings.stepping
+              ? Attr.many([
+                  Attr.class_("equiv"),
+                  Attr.on_click(_ => inject(UpdateAction.StepBackward)),
+                ])
+              : Attr.class_("equiv"),
+          [settings.stepping ? Node.text("←") : Node.text("≡")],
+        ),
         div(~attr=Attr.classes(["result"]), d_view),
       ],
     )
@@ -298,7 +312,7 @@ let editor_with_result_view =
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
   let eval_result_footer =
-    eval_result_footer_view(~inject, ~font_metrics, result);
+    eval_result_footer_view(~inject, ~font_metrics, ~settings, result);
   editor_view(
     ~inject,
     ~font_metrics,
