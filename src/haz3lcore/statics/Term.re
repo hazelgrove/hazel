@@ -437,7 +437,7 @@ module UExp = {
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Match Expression"
-    | LivelitDef => "Livelit Expression";
+    | LivelitDef => "Livelit Definition";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
