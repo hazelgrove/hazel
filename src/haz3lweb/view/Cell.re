@@ -201,39 +201,81 @@ let eval_result_footer_view =
     ) => {
   let d_view =
     switch (simple) {
-    | None => [Node.text("No result available.")]
-    | Some({eval_result: InvalidText(0, 0, "EXCEPTION"), _}) => [
+    | None
+    | Some({eval_results: [], _}) => [Node.text("No result available.")]
+    | Some({eval_results: [InvalidText(0, 0, "EXCEPTION")], _}) => [
         Node.text("No result available (exception)."),
       ]
-    | Some({eval_result, _}) => [
+    | Some({eval_results: [hd, ...tl], _}) =>
+      [
         DHCode.view_tylr(
           ~inject,
           ~settings={...Settings.Evaluation.init, step: settings.stepping},
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
-          eval_result,
+          hd,
         ),
       ]
+      @ List.map(
+          DHCode.view_tylr(
+            ~inject,
+            ~settings={...Settings.Evaluation.init, step: false},
+            ~selected_hole_instance=None,
+            ~font_metrics,
+            ~width=80,
+          ),
+          tl,
+        )
     };
-  Node.(
-    div(
-      ~attr=Attr.classes(["cell-item", "cell-result"]),
-      [
-        div(
-          ~attr=
-            settings.stepping
-              ? Attr.many([
-                  Attr.class_("equiv"),
-                  Attr.on_click(_ => inject(UpdateAction.StepBackward)),
-                ])
-              : Attr.class_("equiv"),
-          [settings.stepping ? Node.text("←") : Node.text("≡")],
-        ),
-        div(~attr=Attr.classes(["result"]), d_view),
-      ],
+  switch (d_view) {
+  | [] => failwith("empty d_view")
+  | [hd] =>
+    Node.(
+      div(
+        ~attr=Attr.classes(["cell-item", "cell-result"]),
+        [
+          div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+          div(~attr=Attr.classes(["result"]), [hd]),
+        ],
+      )
     )
-  );
+  | [hd, ...tl] =>
+    let current =
+      Node.(
+        div(
+          ~attr=Attr.classes(["cell-item", "cell-result"]),
+          [
+            div(
+              ~attr=
+                settings.stepping
+                  ? Attr.many([
+                      Attr.class_("equiv"),
+                      Attr.on_click(_ => inject(UpdateAction.StepBackward)),
+                    ])
+                  : Attr.class_("equiv"),
+              [settings.stepping ? Node.text("←") : Node.text("≡")],
+            ),
+            div(~attr=Attr.classes(["result"]), [hd]),
+          ],
+        )
+      );
+    let previous =
+      List.rev_map(
+        d =>
+          Node.(
+            div(
+              ~attr=Attr.classes(["cell-item", "cell-result"]),
+              [
+                Node.div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+                Node.div(~attr=Attr.classes(["result"]), [d]),
+              ],
+            )
+          ),
+        tl,
+      );
+    Node.(div(previous @ [current]));
+  };
 };
 
 let editor_view =
