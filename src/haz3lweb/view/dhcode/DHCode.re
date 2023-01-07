@@ -124,18 +124,8 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
-  let c =
-    settings.step
-      ? DHDoc_Step.mk(
-          ~settings,
-          ~enforce_inline=false,
-          ~selected_hole_instance,
-        )
-      : DHDoc_Exp.mk(
-          ~settings,
-          ~enforce_inline=false,
-          ~selected_hole_instance,
-        );
+  let maker = settings.step ? DHDoc_Step.mk : DHDoc_Exp.mk;
+  let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
@@ -285,22 +275,9 @@ let view_tylr =
       d: DHExp.t,
     )
     : Node.t => {
+  let maker = settings.step ? DHDoc_Step.mk : DHDoc_Exp.mk;
   d
-  |> (
-    settings.step
-      ? DHDoc_Step.mk(
-          ~settings,
-          ~enforce_inline=false,
-          ~selected_hole_instance,
-          _,
-        )
-      : DHDoc_Exp.mk(
-          ~settings,
-          ~enforce_inline=false,
-          ~selected_hole_instance,
-          _,
-        )
-  )
+  |> maker(~settings, ~enforce_inline=false, ~selected_hole_instance, _)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")

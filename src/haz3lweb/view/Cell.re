@@ -250,11 +250,11 @@ let eval_result_footer_view =
               ~attr=
                 settings.stepping
                   ? Attr.many([
-                      Attr.class_("equiv"),
+                      Attr.classes(["equiv", "step-back"]),
                       Attr.on_click(_ => inject(UpdateAction.StepBackward)),
                     ])
                   : Attr.class_("equiv"),
-              [settings.stepping ? Node.text("←") : Node.text("≡")],
+              [span([Node.text("≡")])],
             ),
             div(~attr=Attr.classes(["result"]), [hd]),
           ],
