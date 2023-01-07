@@ -1863,9 +1863,28 @@ svg.expandable path {
   font-family: "Source Code Pro", monospace;
 }
 
-.equiv {
+.equiv,
+.equiv span {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
+}
+
+.step-expand,
+.step-back {
+  cursor: pointer;
+}
+
+.step-expand:hover span,
+.step-back:hover span {
+  display: none;
+}
+
+.step-expand:hover:before {
+  content: "↕";
+}
+
+.step-back:hover:before {
+  content: "←";
 }
 
 /* File Select */
@@ -1890,3 +1909,47 @@ svg.expandable path {
   margin: -1px;
   cursor: pointer;
 }
+
+/*
+.step-back {
+  transition-duration: 0.25s;
+}
+.step-back .icon {
+  transition-duration: 0.25s;
+  position: relative;
+  height: 1px;
+  width: 9px;
+  top: 12.5px;
+  background-color: #7a6219;
+}
+.step-back .icon:before {
+  transition-duration: 0.25s;
+  position: absolute;
+  width: 9px;
+  height: 1px;
+  background-color: #7a6219;
+  content: "";
+  top: -4.5px;
+}
+.step-back .icon:after {
+  transition-duration: 0.25s;
+  position: absolute;
+  width: 9px;
+  height: 1px;
+  background-color: #7a6219;
+  content: "";
+  top: 4.5px;
+}
+.step-back:hover .icon {
+  transition: 0.25s;
+}
+.step-back:hover .icon:before {
+  transform: rotateZ(-45deg) scaleX(0.75) translate(-3.2px, 0px);
+}
+.step-back:hover .icon:after {
+  transform: rotateZ(45deg) scaleX(0.75) translate(-3.3px, -0.2px);
+}
+.step-back:hover {
+  cursor: pointer;
+}
+*/
