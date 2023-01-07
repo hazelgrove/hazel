@@ -244,7 +244,7 @@ let eval_result_footer_view =
     let current =
       Node.(
         div(
-          ~attr=Attr.classes(["cell-item", "cell-result"]),
+          ~attr=Attr.classes(["cell-result"]),
           [
             div(
               ~attr=
@@ -265,7 +265,7 @@ let eval_result_footer_view =
         d =>
           Node.(
             div(
-              ~attr=Attr.classes(["cell-item", "cell-result"]),
+              ~attr=Attr.classes(["cell-result"]),
               [
                 Node.div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
                 Node.div(~attr=Attr.classes(["result"]), [d]),
@@ -274,7 +274,7 @@ let eval_result_footer_view =
           ),
         tl,
       );
-    Node.(div(previous @ [current]));
+    Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
   };
 };
 
