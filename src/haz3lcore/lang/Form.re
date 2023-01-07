@@ -183,6 +183,10 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "livelit_def",
+    mk(ds, ["livelit", "at", "in"], mk_pre(P.let_, Exp, [Pat, Typ])), // TODO: How do we syntactically want to handle the rest of the information in haz3l
+  ),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

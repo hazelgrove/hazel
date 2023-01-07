@@ -2495,6 +2495,8 @@ let str_eq_exp: form = {
   };
 };
 
+let livelit_def_exp_group = "livelit_def_exp_group";
+
 let case_exp_group = "case_exp_group";
 let case_rules_group = "case_rules_group";
 let case_example_wild_simple = {

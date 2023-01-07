@@ -85,6 +85,13 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type livelit_record = {
+    name: string,
+    expansion_type: UTyp.t,
+    init: UExp.t,
+    // TODO: The rest of the stuff
+  };
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -108,7 +115,8 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | LivelitDef;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -136,6 +144,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
+    | LivelitDef(livelit_record)
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -193,6 +202,13 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type livelit_record = {
+    name: string,
+    expansion_type: UTyp.t,
+    init: UExp.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -216,7 +232,8 @@ and UExp: {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | Match;
+    | Match
+    | LivelitDef;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -244,6 +261,7 @@ and UExp: {
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
+    | LivelitDef(livelit_record)
   and t = {
     // invariant: nonempty
     ids: list(Id.t),

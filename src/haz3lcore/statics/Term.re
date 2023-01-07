@@ -359,7 +359,8 @@ module UExp = {
     | Cons(_) => Cons
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
-    | Match(_) => Match;
+    | Match(_) => Match
+    | LivelitDef(_) => LivelitDef;
 
   let show_op_un_int: op_un_int => string =
     fun
@@ -435,7 +436,8 @@ module UExp = {
     | Cons => "Cons"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | Match => "Match Expression";
+    | Match => "Match Expression"
+    | LivelitDef => "Livelit Expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
@@ -461,6 +463,7 @@ module UExp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | LivelitDef(_)
     | Tag(_) => false
     };
   };
@@ -491,6 +494,7 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitDef(_)
       | Tag(_) => false
       }
     );

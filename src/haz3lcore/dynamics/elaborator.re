@@ -296,6 +296,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
+    | LivelitDef(livelit_record) => dhexp_of_uexp(m, livelit_record.init) // TODO abandukwala
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
