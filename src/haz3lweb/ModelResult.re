@@ -59,7 +59,7 @@ let update_current = (current, res) => {
 let step_backward = res => {
   switch (res.previous) {
   | [] => failwith("empty ModelResult.t.previous")
-  | [_] => res
+  | [_] => {...res, current: ResultPending}
   | [hd, ...tl] => {previous: tl, current: ResultOk(hd)}
   };
 };
