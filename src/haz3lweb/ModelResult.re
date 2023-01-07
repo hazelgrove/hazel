@@ -37,6 +37,12 @@ let get_current_ok = res =>
     | ResultPending => None
   );
 
+let get_record = res =>
+  switch (get_current_ok(res)) {
+  | Some(r) => [r] @ res.previous
+  | None => res.previous
+  };
+
 let update_current = (current, res) => {
   let res =
     switch (res.current) {
@@ -59,12 +65,12 @@ let step_backward = res => {
 };
 
 type optional_simple_data = {
-  opt_eval_result: option(Haz3lcore.DHExp.t),
+  opt_eval_results: list(Haz3lcore.DHExp.t),
   opt_test_results: option(Interface.test_results),
 };
 
 type simple_data = {
-  eval_result: Haz3lcore.DHExp.t,
+  eval_results: list(Haz3lcore.DHExp.t),
   test_results: Interface.test_results,
 };
 
@@ -72,32 +78,33 @@ type simple = option(simple_data);
 
 let get_simple = (res: option(t)): simple =>
   res
-  |> Option.map(res =>
-       res |> get_current_ok |> Option.value(~default=get_previous(res))
-     )
-  |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
+  |> Option.map(res => res |> get_record)
+  |> Option.map((r: list(ProgramResult.t)) => {
+       let eval_results = r |> List.map(ProgramResult.get_dhexp);
        let test_results =
-         r
+         List.hd(r)
          |> ProgramResult.get_state
          |> Haz3lcore.EvaluatorState.get_tests
          |> Interface.mk_results;
-       {eval_result, test_results};
+       {eval_results, test_results};
      });
 
 let unwrap_test_results = (simple: simple): option(Interface.test_results) => {
   Option.map(simple_data => simple_data.test_results, simple);
 };
 
-let unwrap_eval_result = (simple: simple): option(Haz3lcore.DHExp.t) => {
-  Option.map(simple_data => simple_data.eval_result, simple);
+let unwrap_eval_result = (simple: simple): list(Haz3lcore.DHExp.t) => {
+  switch (simple) {
+  | Some(simple_data) => simple_data.eval_results
+  | None => []
+  };
 };
 
 let unwrap_simple = (simple: simple): optional_simple_data =>
   switch (simple) {
-  | None => {opt_eval_result: None, opt_test_results: None}
-  | Some({eval_result, test_results}) => {
-      opt_eval_result: Some(eval_result),
+  | None => {opt_eval_results: [], opt_test_results: None}
+  | Some({eval_results, test_results}) => {
+      opt_eval_results: eval_results,
       opt_test_results: Some(test_results),
     }
   };
