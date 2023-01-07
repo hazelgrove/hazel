@@ -187,7 +187,7 @@ let float_exp: form = {
 
 let string_exp_group = "string_exp_group";
 let string_exp: form = {
-  let explanation = {message: "Stromg literal.", feedback: Unselected};
+  let explanation = {message: "String literal.", feedback: Unselected};
   {
     id: "string_exp",
     syntactic_form: [exp("StringLit")],
