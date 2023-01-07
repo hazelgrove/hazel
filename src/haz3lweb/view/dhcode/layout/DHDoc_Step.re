@@ -341,7 +341,12 @@ let rec mk =
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
-        DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d, objs))))
+        DHDoc_common.mk_Tuple(
+          ds
+          |> List.mapi((i, d) =>
+               mk_cast(go'(d, unwrap_list(objs, Tuple(i))))
+             ),
+        )
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d, objs)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
       | Cast(d, _, _) =>

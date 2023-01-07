@@ -14,6 +14,7 @@ module EvalCtx = {
     | BinIntOp2
     | BinFloatOp1
     | BinFloatOp2
+    | Tuple(int)
     | Cons1
     | Cons2
     | Let
@@ -36,6 +37,7 @@ module EvalCtx = {
     | BinIntOp2(DHExp.BinIntOp.t, DHExp.t, t)
     | BinFloatOp1(DHExp.BinFloatOp.t, t, DHExp.t)
     | BinFloatOp2(DHExp.BinFloatOp.t, DHExp.t, t)
+    | Tuple(t, (list(DHExp.t), list(DHExp.t)))
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
     | Let(DHPat.t, t, DHExp.t)
@@ -1019,6 +1021,16 @@ module EvalObj = {
       | BinFloatOp2(_, _, c2) => Some(mk(c2, obj.exp))
       | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
       }
+    | Tuple(n) =>
+      switch (obj.ctx) {
+      | Tuple(c, (ld, _)) =>
+        if (List.length(ld) == n) {
+          Some(mk(c, obj.exp));
+        } else {
+          None;
+        }
+      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+      }
     | Cons1 =>
       switch (obj.ctx) {
       | Cons1(c1, _) => Some(mk(c1, obj.exp))
@@ -1076,7 +1088,6 @@ let rec decompose =
     | TestLit(_)
     | StringLit(_)
     | BinStringOp(_)
-    | Tuple(_)
     | Prj(_)
     | Tag(_)
     | FreeVar(_)
@@ -1231,6 +1242,43 @@ let rec decompose =
         )
         |> return;
       };
+    | Tuple(ld) =>
+      let* is_final =
+        List.fold_left(
+          (pr, d) => {
+            let* r = transition(env, d, opt);
+            let* pr = pr;
+            return(pr && is_final(r));
+          },
+          return(false),
+          ld,
+        );
+      if (is_final) {
+        [EvalObj.mk(Mark, d)] |> return;
+      } else {
+        let rec walk = (ld, rd, rc) =>
+          switch (rd) {
+          | [] => rc |> return
+          | [hd, ...tl] =>
+            let* c = decompose(env, hd, opt);
+            walk(
+              ld @ [hd],
+              tl,
+              rc
+              @ List.map(
+                  (obj: EvalObj.t) =>
+                    EvalObj.mk(Tuple(obj.ctx, (ld, tl)), obj.exp),
+                  c,
+                ),
+            );
+          };
+        let* ret = walk([], ld, []);
+        print_endline(
+          "decompose: Tuple: "
+          ++ Sexplib.Sexp.to_string_hum(sexp_of_list(EvalObj.sexp_of_t, ret)),
+        );
+        ret |> return;
+      };
     // | Pair(d1, d2) =>
     //   if (is_final(d1, opt) && is_final(d2, opt)) {
     //     [EvalObj.mk(Mark, d)];
@@ -1339,9 +1387,7 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
   | BinFloatOp2(op, d1, ctx1) => BinFloatOp(op, d1, compose(ctx1, d))
   | Cons1(ctx1, d1) => Cons(compose(ctx1, d), d1)
   | Cons2(d1, ctx1) => Cons(d1, compose(ctx1, d))
-  // TODO: Pair -> Tuple
-  // | Pair1(ctx1, d1) => Tuple([compose((ctx1, d)), d1])
-  // | Pair2(d1, ctx1) => Tuple([d1, compose((ctx1, d))])
+  | Tuple(ctx, (ld, rd)) => Tuple(ld @ [compose(ctx, d), ...rd])
   | Let(dp, ctx1, d1) => Let(dp, compose(ctx1, d), d1)
   | Inj(ty, side, ctx1) => Inj(ty, side, compose(ctx1, d))
   | Cast(ctx1, ty1, ty2) => Cast(compose(ctx1, d), ty1, ty2)
