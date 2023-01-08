@@ -6,6 +6,7 @@ module Evaluation = {
   type t = {
     evaluate: bool,
     step: bool,
+    decompose: bool,
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_casts: bool,
@@ -14,7 +15,8 @@ module Evaluation = {
 
   let init = {
     evaluate: true,
-    step: true,
+    step: false,
+    decompose: false,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,

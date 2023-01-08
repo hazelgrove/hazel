@@ -210,7 +210,11 @@ let eval_result_footer_view =
       [
         DHCode.view_tylr(
           ~inject,
-          ~settings={...Settings.Evaluation.init, step: settings.stepping},
+          ~settings={
+            ...Settings.Evaluation.init,
+            step: settings.stepping,
+            decompose: true,
+          },
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -220,7 +224,11 @@ let eval_result_footer_view =
       @ List.map(
           DHCode.view_tylr(
             ~inject,
-            ~settings={...Settings.Evaluation.init, step: false},
+            ~settings={
+              ...Settings.Evaluation.init,
+              step: settings.stepping,
+              decompose: false,
+            },
             ~selected_hole_instance=None,
             ~font_metrics,
             ~width=80,
