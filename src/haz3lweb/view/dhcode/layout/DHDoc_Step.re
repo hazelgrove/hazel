@@ -206,7 +206,12 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let unwrap_list = EvaluatorStep.EvalObj.unwrap_list;
+    let unwrap_list =
+      if (settings.decompose) {
+        EvaluatorStep.EvalObj.unwrap_list;
+      } else {
+        (l, _) => l;
+      };
     let fdoc =
         (
           ~enforce_inline,
@@ -485,13 +490,12 @@ let rec mk =
     (doc, cast);
   };
   // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
-  let objs = Interface.decompose(d);
-  print_endline(
-    "objs: "
-    ++ Sexplib.Sexp.to_string_hum(
-         Sexplib.Std.sexp_of_list(EvaluatorStep.EvalObj.sexp_of_t, objs),
-       ),
-  );
+  let objs =
+    if (settings.decompose) {
+      Interface.decompose(d);
+    } else {
+      [];
+    };
   mk_cast(go(~parenthesize, ~enforce_inline, d, List.combine(objs, objs)));
 }
 and mk_rule =

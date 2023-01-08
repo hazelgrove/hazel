@@ -6,6 +6,7 @@ open EvaluatorMonad.Syntax;
 module EvalCtx = {
   type cls =
     | Mark
+    | Let
     | Ap1
     | Ap2
     | BinBoolOp1
@@ -17,7 +18,6 @@ module EvalCtx = {
     | Tuple(int)
     | Cons1
     | Cons2
-    | Let
     | Inj
     | NonEmptyHole
     | Cast
@@ -29,6 +29,7 @@ module EvalCtx = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Mark
+    | Let(DHPat.t, t, DHExp.t)
     | Ap1(t, DHExp.t)
     | Ap2(DHExp.t, t)
     | BinBoolOp1(DHExp.BinBoolOp.t, t, DHExp.t)
@@ -40,7 +41,6 @@ module EvalCtx = {
     | Tuple(t, (list(DHExp.t), list(DHExp.t)))
     | Cons1(t, DHExp.t)
     | Cons2(DHExp.t, t)
-    | Let(DHPat.t, t, DHExp.t)
     | Inj(Typ.t, InjSide.t, t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | Cast(t, Typ.t, Typ.t)
