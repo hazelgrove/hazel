@@ -131,6 +131,7 @@ let rec mk =
           ~parenthesize=false,
           ~enforce_inline: bool,
           ~selected_hole_instance: option(HoleInstance.t),
+          ~decompose: bool,
           d: DHExp.t,
         )
         : DHDoc.t => {
@@ -179,7 +180,10 @@ let rec mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.map(mk_rule(~settings, ~selected_hole_instance)),
+            drs
+            |> List.map(
+                 mk_rule(~settings, ~selected_hole_instance, ~decompose),
+               ),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -207,7 +211,7 @@ let rec mk =
       | _ => None
       };
     let unwrap_list =
-      if (settings.decompose) {
+      if (decompose) {
         EvaluatorStep.EvalObj.unwrap_list;
       } else {
         (l, _) => l;
@@ -491,7 +495,7 @@ let rec mk =
   };
   // annot(DHAnnot.Steppable(List.hd(objs)), fdoc(~enforce_inline));
   let objs =
-    if (settings.decompose) {
+    if (decompose) {
       Interface.decompose(d);
     } else {
       [];
@@ -499,7 +503,12 @@ let rec mk =
   mk_cast(go(~parenthesize, ~enforce_inline, d, List.combine(objs, objs)));
 }
 and mk_rule =
-    (~settings, ~selected_hole_instance, Rule(dp, dclause): DHExp.rule)
+    (
+      ~settings,
+      ~selected_hole_instance,
+      ~decompose,
+      Rule(dp, dclause): DHExp.rule,
+    )
     : DHDoc.t => {
   open Doc;
   let mk' = mk(~settings, ~selected_hole_instance);
@@ -507,10 +516,12 @@ and mk_rule =
   let clause_doc =
     settings.show_case_clauses
       ? choices([
-          hcats([space(), mk'(~enforce_inline=true, dclause)]),
+          hcats([space(), mk'(~enforce_inline=true, ~decompose, dclause)]),
           hcats([
             linebreak(),
-            indent_and_align(mk'(~enforce_inline=false, dclause)),
+            indent_and_align(
+              mk'(~enforce_inline=false, ~decompose, dclause),
+            ),
           ]),
         ])
       : hcat(space(), hidden_clause);

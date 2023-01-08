@@ -7,8 +7,7 @@ type settings_action =
   | Captions
   | WhitespaceIcons
   | Statics
-  | Dynamics
-  | Stepping
+  | Dynamics(Settings.Evaluation.update)
   | Benchmark
   | ContextInspector
   | InstructorMode

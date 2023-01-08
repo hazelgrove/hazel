@@ -146,7 +146,13 @@ let initial_model = {
   switch (fragment) {
   | "dynamics-off" =>
     print_endline("Turning off dynamics...");
-    let settings = {...model.settings, dynamics: false};
+    let settings = {
+      ...model.settings,
+      dynamics: {
+        ...Settings.Evaluation.init,
+        evaluate: false,
+      },
+    };
     LocalStorage.Settings.save(settings);
     let model = {...model, settings};
     model;
