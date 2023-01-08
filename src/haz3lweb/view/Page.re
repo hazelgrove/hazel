@@ -109,8 +109,11 @@ let top_bar_view =
               inject(Set(Statics))
             ),
             toggle(
-              "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
-              inject(Set(Dynamics))
+              "𝛿",
+              ~tooltip="Toggle Dynamics",
+              model.settings.dynamics.evaluate,
+              _ =>
+              inject(Set(Dynamics(Toggle_evaluate)))
             ),
             toggle(
               "b",
@@ -119,8 +122,12 @@ let top_bar_view =
               _ =>
               inject(Set(Benchmark))
             ),
-            toggle("s", ~tooltip="Toggle Stepping", model.settings.stepping, _ =>
-              inject(Set(Stepping))
+            toggle(
+              "s",
+              ~tooltip="Toggle Stepping",
+              model.settings.dynamics.stepping,
+              _ =>
+              inject(Set(Dynamics(Toggle_stepping)))
             ),
             button(
               Icons.export,
@@ -201,7 +208,7 @@ let main_ui_view =
     let result_key = ScratchSlide.scratch_key;
     let editor = Editors.get_editor(editors);
     let result =
-      settings.dynamics
+      settings.dynamics.evaluate
         ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
         : None;
     [
@@ -220,7 +227,7 @@ let main_ui_view =
   | School(_, _, exercise) =>
     let toolbar_buttons =
       SchoolMode.toolbar_buttons(~inject, ~settings, editors);
-    let results = settings.dynamics ? Some(results) : None;
+    let results = settings.dynamics.evaluate ? Some(results) : None;
     let school_mode =
       SchoolMode.mk(~settings, ~exercise, ~results, ~langDocMessages);
     let grading_report = school_mode.grading_report;

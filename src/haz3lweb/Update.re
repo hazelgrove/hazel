@@ -24,21 +24,17 @@ let update_settings = (a: settings_action, model: Model.t): Model.t => {
         settings: {
           ...settings,
           statics: !settings.statics,
-          dynamics: !settings.statics && settings.dynamics,
+          dynamics: {
+            ...settings.dynamics,
+            evaluate: !settings.statics && settings.dynamics.evaluate,
+          },
         },
       }
-    | Dynamics => {
+    | Dynamics(u) => {
         ...model,
         settings: {
           ...settings,
-          dynamics: !settings.dynamics,
-        },
-      }
-    | Stepping => {
-        ...model,
-        settings: {
-          ...settings,
-          stepping: !settings.stepping,
+          dynamics: Settings.Evaluation.apply_update(u, settings.dynamics),
         },
       }
     | Benchmark => {
@@ -112,9 +108,9 @@ let load_model = (model: Model.t): Model.t => {
     ...model,
     results:
       ModelResults.init(
-        model.settings.dynamics
+        model.settings.dynamics.evaluate
           ? Editors.get_spliced_elabs(model.editors) : [],
-        model.settings.stepping,
+        model.settings.dynamics.stepping,
       ),
   };
 };
@@ -137,9 +133,14 @@ let reevaluate_post_update =
     | Captions
     | WhitespaceIcons
     | Statics
+    | Dynamics(Toggle_show_record)
+    | Dynamics(Toggle_show_casts)
+    | Dynamics(Toggle_show_fn_bodies)
+    | Dynamics(Toggle_show_case_clauses)
+    | Dynamics(Toggle_show_unevaluated_elaboration)
     | Benchmark => false
-    | Dynamics
-    | Stepping
+    | Dynamics(Toggle_evaluate)
+    | Dynamics(Toggle_stepping)
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
@@ -185,9 +186,9 @@ let evaluate_and_schedule =
     ...model,
     results:
       ModelResults.init(
-        model.settings.dynamics
+        model.settings.dynamics.evaluate
           ? Editors.get_spliced_elabs(model.editors) : [],
-        model.settings.stepping,
+        model.settings.dynamics.stepping,
       ),
   };
 

@@ -1,32 +1,39 @@
+open Sexplib.Std;
+
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
  */
 module Evaluation = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     evaluate: bool,
-    step: bool,
-    decompose: bool,
+    stepping: bool,
+    postprocess: bool,
+    show_record: bool,
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_casts: bool,
     show_unevaluated_elaboration: bool,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let init = {
     evaluate: true,
-    step: false,
-    decompose: false,
+    stepping: false,
+    postprocess: true,
+    show_record: false,
     show_case_clauses: false,
     show_fn_bodies: false,
     show_casts: false,
     show_unevaluated_elaboration: false,
   };
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type update =
     | Toggle_evaluate
-    | Toggle_step
+    | Toggle_stepping
+    | Toggle_show_record
     | Toggle_show_case_clauses
     | Toggle_show_fn_bodies
     | Toggle_show_casts
@@ -35,7 +42,8 @@ module Evaluation = {
   let apply_update = (u: update, settings: t) =>
     switch (u) {
     | Toggle_evaluate => {...settings, evaluate: !settings.evaluate}
-    | Toggle_step => {...settings, step: !settings.step}
+    | Toggle_stepping => {...settings, stepping: !settings.stepping}
+    | Toggle_show_record => {...settings, show_record: !settings.show_record}
     | Toggle_show_case_clauses => {
         ...settings,
         show_case_clauses: !settings.show_case_clauses,

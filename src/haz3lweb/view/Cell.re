@@ -210,11 +210,7 @@ let eval_result_footer_view =
       [
         DHCode.view_tylr(
           ~inject,
-          ~settings={
-            ...Settings.Evaluation.init,
-            step: settings.stepping,
-            decompose: true,
-          },
+          ~settings={...settings.dynamics, postprocess: false},
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
@@ -225,9 +221,9 @@ let eval_result_footer_view =
           DHCode.view_tylr(
             ~inject,
             ~settings={
-              ...Settings.Evaluation.init,
-              step: settings.stepping,
-              decompose: false,
+              ...settings.dynamics,
+              stepping: false,
+              postprocess: false,
             },
             ~selected_hole_instance=None,
             ~font_metrics,
@@ -256,8 +252,9 @@ let eval_result_footer_view =
           [
             div(
               ~attr=
-                settings.stepping
+                settings.dynamics.stepping
                   ? Attr.many([
+                      Attr.title("Go back to previous step"),
                       Attr.classes(["equiv", "step-back"]),
                       Attr.on_click(_ => inject(UpdateAction.StepBackward)),
                     ])
@@ -273,7 +270,14 @@ let eval_result_footer_view =
         d =>
           Node.(
             div(
-              ~attr=Attr.classes(["cell-result"]),
+              ~attr=
+                Attr.many([
+                  Attr.title("Show evaluation history"),
+                  Attr.classes(["cell-result"]),
+                  Attr.on_double_click(_ =>
+                    inject(Set(Dynamics(Toggle_show_record)))
+                  ),
+                ]),
               [
                 Node.div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
                 Node.div(~attr=Attr.classes(["result"]), [d]),
@@ -282,7 +286,22 @@ let eval_result_footer_view =
           ),
         tl,
       );
-    Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
+    let ellipsis =
+      Node.div(
+        ~attr=
+          Attr.many([
+            Attr.class_("cell-result"),
+            Attr.on_double_click(_ =>
+              inject(Set(Dynamics(Toggle_show_record)))
+            ),
+          ]),
+        [Node.text("...")],
+      );
+    if (settings.dynamics.show_record) {
+      Node.(div(~attr=Attr.class_("cell-item"), previous @ [current]));
+    } else {
+      Node.(div(~attr=Attr.class_("cell-item"), [ellipsis, current]));
+    };
   };
 };
 

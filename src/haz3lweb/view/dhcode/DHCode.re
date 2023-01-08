@@ -124,7 +124,9 @@ let view =
       d: DHExp.t,
     )
     : Node.t => {
-  let maker = settings.step ? DHDoc_Step.mk : DHDoc_Exp.mk;
+  let maker =
+    settings.postprocess
+      ? DHDoc_Exp.mk : DHDoc_Step.mk(~decompose=settings.stepping);
   let c = maker(~settings, ~enforce_inline=false, ~selected_hole_instance);
   d
   |> c
@@ -275,7 +277,9 @@ let view_tylr =
       d: DHExp.t,
     )
     : Node.t => {
-  let maker = settings.step ? DHDoc_Step.mk : DHDoc_Exp.mk;
+  let maker =
+    settings.postprocess
+      ? DHDoc_Exp.mk : DHDoc_Step.mk(~decompose=settings.stepping);
   d
   |> maker(~settings, ~enforce_inline=false, ~selected_hole_instance, _)
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
