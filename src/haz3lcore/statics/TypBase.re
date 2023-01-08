@@ -102,12 +102,14 @@ module rec Ctx: {
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Singleton(Typ.t);
+    | Singleton(Typ.t)
+    | Abstract;
   // let normalize: (Ctx.t, Typ.t) => Typ.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Singleton(Typ.t);
+    | Singleton(Typ.t)
+    | Abstract;
   // let rec normalize = (ctx, typ) => {
   //   switch (typ) {
   //   | Typ.Var(x) =>

@@ -521,10 +521,12 @@ and uexp_to_info_map =
     );
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
-    // !!!!!!!!!!!!!!!!!!!!
-    // let ty = Term.UTyp.to_typ(ctx, utyp);
-    // let ty_def = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
-    let ty_def = failwith("TODO: TyAlias");
+    // Wrapped Rec around aliased type and conditionally remove Rec depending on if
+    // utyp uses itself
+    let ty_def =
+      Term.UTyp.to_typ(ctx, {term: Term.UTyp.Rec(typat, utyp), ids: []});
+    let Typ.{item: tbody, _} = Typ.matched_rec(ty_def);
+    let ty_def = Typ.lookup_surface(tbody) ? ty_def : tbody;
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
@@ -709,6 +711,9 @@ and utyp_to_info_map =
   // Ctx.is_tvar(ctx, name)
   //   ? (Var(name), add(Just(Var(name)), Id.Map.empty))
   //   : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+  // TODO(typfun): Extend ctx
+  | Forall(_utpat, tbody) => utyp_to_info_map(~ctx, tbody)
+  | Rec(_utpat, tbody) => utyp_to_info_map(~ctx, tbody)
   | Sum({term, ids: _}) =>
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});

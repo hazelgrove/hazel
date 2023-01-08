@@ -20,6 +20,42 @@ include TermBase.Any;
 
 type any = t;
 
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid Type Variable"
+    | EmptyHole => "Empty Type Variable Hole"
+    | MultiHole => "Multi Type Variable Hole"
+    | Var => "Type Variable";
+};
+
 module UTSum = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -74,7 +110,9 @@ module UTyp = {
     | Sum
     | List
     | Var
-    | Parens;
+    | Parens
+    | Forall
+    | Rec;
 
   include TermBase.UTyp;
 
@@ -103,7 +141,9 @@ module UTyp = {
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Sum(_) => Sum
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
 
   let show_cls: cls => string =
     fun
@@ -119,7 +159,9 @@ module UTyp = {
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Sum => "Labelled Sum Type"
-    | Parens => "Parenthesized Type Term";
+    | Parens => "Parenthesized Type"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -135,7 +177,9 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Sum(_)
-    | Var(_) => false
+    | Var(_)
+    | Forall(_)
+    | Rec(_) => false
     };
   };
 
@@ -156,6 +200,41 @@ module UTyp = {
       | Sum(ts) => utsum_to_ty(ctx, ts)
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      | Forall(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Forall({item: to_typ(ctx, tbody), ann: name});
+      // Forall is same as Rec
+      | Rec(utpat, tbody) =>
+        let (ctx, name) =
+          switch (utpat.term) {
+          | TermBase.UTPat.Var(name) => (
+              Ctx.extend(
+                Ctx.TVarEntry({
+                  name,
+                  id: UTPat.rep_id(utpat),
+                  kind: Kind.Abstract,
+                }),
+                ctx,
+              ),
+              name,
+            )
+          | _ => (ctx, "tvar_hole")
+          };
+        Rec({item: to_typ(ctx, tbody), ann: name});
       }
   and utsum_to_ty: (Ctx.t, UTSum.t) => Typ.t =
     (ctx, utsum) =>
@@ -174,42 +253,6 @@ module UTyp = {
         |> List.flatten
         |> (xs => Typ.LabelSum(xs))
       };
-};
-
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.UTPat;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid Type Variable"
-    | EmptyHole => "Empty Type Variable Hole"
-    | MultiHole => "Multi Type Variable Hole"
-    | Var => "Type Variable";
 };
 
 module UPat = {

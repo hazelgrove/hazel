@@ -116,6 +116,12 @@ let matched_forall: t => ann(t) =
   | Unknown(prov) => {item: Unknown(prov), ann: "expected_forall"}
   | _ => {item: Unknown(Internal), ann: "expected_forall"};
 
+let matched_rec: t => ann(t) =
+  fun
+  | Rec(ann) => ann
+  | Unknown(prov) => {item: Unknown(prov), ann: "expected_rec"}
+  | _ => {item: Unknown(Internal), ann: "expected_rec"};
+
 let matched_arrow_mode: mode => (mode, mode) =
   fun
   | Syn => (Syn, Syn)
@@ -129,6 +135,14 @@ let matched_forall_mode: mode => mode =
   | Syn => Syn
   | Ana(ty) => {
       let ann = matched_forall(ty);
+      Ana(ann.item);
+    };
+
+let matched_rec_mode: mode => mode =
+  fun
+  | Syn => Syn
+  | Ana(ty) => {
+      let ann = matched_rec(ty);
       Ana(ann.item);
     };
 
@@ -264,5 +278,24 @@ let rec subst = (s: t, ~x: int=0, ty: t) => {
   | Rec({item, ann}) => Rec({item: subst'(item), ann})
   | Forall({item, ann}) => Forall({item: subst'(item), ann})
   | Var({item: y, _}) => Some(x) == y ? s : ty
+  };
+};
+
+// Lookup the type variable with de bruijn index 0
+let rec lookup_surface = (~x: int=0, ty: t) => {
+  switch (ty) {
+  | Int
+  | Float
+  | Bool
+  | String
+  | Unknown(_) => false
+  | Arrow(ty1, ty2) => lookup_surface(ty1) || lookup_surface(ty2)
+  | Prod(tys) => List.exists(lookup_surface, tys)
+  | LabelSum(tys) => List.exists(ty => lookup_surface(ty.typ), tys)
+  | Sum(ty1, ty2) => lookup_surface(ty1) || lookup_surface(ty2)
+  | List(ty) => lookup_surface(ty)
+  | Rec({item, _}) => lookup_surface(~x=x + 1, item)
+  | Forall({item, _}) => lookup_surface(~x=x + 1, item)
+  | Var({item: y, _}) => Some(x) == y
   };
 };

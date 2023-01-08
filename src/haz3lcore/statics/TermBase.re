@@ -351,6 +351,8 @@ and UTyp: {
     | Tuple(list(t))
     | Sum(UTSum.t)
     | Parens(t)
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and tagged = {
     tag: Token.t,
     typ: term,
@@ -375,6 +377,8 @@ and UTyp: {
     | Tuple(list(t))
     | Sum(UTSum.t)
     | Parens(t)
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and tagged = {
     tag: Token.t,
     typ: term,

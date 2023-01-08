@@ -2766,6 +2766,9 @@ let get_doc =
     | Sum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
+    // TODO(typfun): Add langdoc
+    | Forall(_) => default
+    | Rec(_) => default
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
