@@ -442,6 +442,7 @@ and uexp_to_info_map =
     );
   | LivelitDef(livelit_record) =>
     atomic(Just(Term.utyp_to_ty(livelit_record.expansion_type))) // TODO: I don't actually know what I'm doing here. I just did something close to list literals.
+  | LivelitAp({livelit_name: _livelit_name}) => assert(false) // TODO
   | Match(scrut, rules) =>
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);

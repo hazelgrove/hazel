@@ -185,8 +185,9 @@ let forms: list((string, t)) = [
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
     "livelit_def",
-    mk(ds, ["livelit", "at", "in"], mk_pre(P.let_, Exp, [Pat, Typ])), // TODO: How do we syntactically want to handle the rest of the information in haz3l
+    mk(ds, ["livelit", "at", "in"], mk_pre(P.let_, Exp, [Pat, Typ])) // TODO: How do we syntactically want to handle the rest of the information in haz3l
   ),
+  ("livelit_ap", mk(ss, ["$"], mk_pre(P.ap, Exp, [Pat]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

@@ -88,8 +88,9 @@ and UExp: {
   type livelit_record = {
     name: string,
     expansion_type: UTyp.t,
-    init: UExp.t,
+    // init: UExp.t,
     // TODO: The rest of the stuff
+    body: UExp.t,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -116,7 +117,8 @@ and UExp: {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    | LivelitDef;
+    | LivelitDef
+    | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -145,6 +147,7 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
     | LivelitDef(livelit_record)
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -205,7 +208,8 @@ and UExp: {
   type livelit_record = {
     name: string,
     expansion_type: UTyp.t,
-    init: UExp.t,
+    // init: UExp.t
+    body: UExp.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -233,7 +237,8 @@ and UExp: {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    | LivelitDef;
+    | LivelitDef
+    | LivelitAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -262,6 +267,7 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
     | LivelitDef(livelit_record)
+    | LivelitAp({livelit_name: string})
   and t = {
     // invariant: nonempty
     ids: list(Id.t),

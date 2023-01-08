@@ -2497,6 +2497,32 @@ let str_eq_exp: form = {
 
 let livelit_def_exp_group = "livelit_def_exp_group";
 
+let livelit_def_exp: form = {
+  let explanation = {message: "Livelit Definition", feedback: Unselected};
+  let form = [];
+  {
+    id: "livelit_def_exp",
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let livelit_ap_exp_group = "livelit_ap_exp_group";
+
+let livelit_ap_exp: form = {
+  let explanation = {message: "Livelit Application", feedback: Unselected};
+  let form = [];
+  {
+    id: "livelit_ap_exp",
+    syntactic_form: form,
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let case_exp_group = "case_exp_group";
 let case_rules_group = "case_rules_group";
 let case_example_wild_simple = {
@@ -3190,6 +3216,7 @@ let get_group = (group_id, doc: t) => {
 };
 
 let get_form_and_options = (group_id, doc: t) => {
+  print_endline(group_id);
   let form_group = get_group(group_id, doc);
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
@@ -3279,6 +3306,8 @@ let init = {
     function_tuple3_exp,
     function_tag_exp,
     function_ap_exp,
+    livelit_ap_exp,
+    livelit_def_exp,
     tuple_exp,
     tuple_exp_size2,
     tuple_exp_size3,
@@ -3509,6 +3538,14 @@ let init = {
           [pat("p_con"), mk_ap_pat([[pat("p_arg")]])],
         ),
       ]),
+    ),
+    (
+      livelit_ap_exp_group,
+      init_options([(livelit_ap_exp.id, [pat("p")])]),
+    ),
+    (
+      livelit_def_exp_group,
+      init_options([(livelit_def_exp.id, [pat("p")])]),
     ),
     (tuple_exp_group, init_options([(tuple_exp.id, [])])),
     (

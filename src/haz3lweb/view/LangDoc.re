@@ -2159,6 +2159,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | LivelitAp(_) =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.livelit_ap_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.livelit_ap_exp_group,
+          doc.explanation.message,
+          [],
+        );
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>

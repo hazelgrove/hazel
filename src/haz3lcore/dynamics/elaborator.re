@@ -54,6 +54,7 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
     );
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+  print_endline(Term.UExp.show(uexp));
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
@@ -296,7 +297,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
-    | LivelitDef(livelit_record) => dhexp_of_uexp(m, livelit_record.init) // TODO abandukwala
+    | LivelitDef(livelit_record) =>
+      print_endline(TermBase.UExp.show_livelit_record(livelit_record));
+      let foo = dhexp_of_uexp(m, livelit_record.body); // TODO abandukwala
+      switch (foo) {
+      | Some(t) => print_endline(DHExp.show(t))
+      | None => print_endline("No value")
+      };
+      foo;
+    | LivelitAp({livelit_name: _}) => assert(false) // TODO
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
