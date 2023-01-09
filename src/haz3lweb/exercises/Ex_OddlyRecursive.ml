@@ -6,7 +6,8 @@ let exercise : SchoolExercise.spec =
     module_name = "Ex_OddlyRecursive";
     prompt =
       "Write a recursive function that determines whether the given integer is \
-       odd. ";
+       odd.\n\n\
+       odd(n) ≡ true iff n is odd.\n";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =

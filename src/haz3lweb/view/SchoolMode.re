@@ -134,8 +134,14 @@ let view =
       : [Cell.title_cell(eds.title)];
 
   let mdstring_to_node = s => {
-    let (node, _) = LangDoc.mk_translation(~inject=None, s, false);
-    node;
+    [
+      inner_html(
+        ~tag="div",
+        ~attr=Attr.many([]),
+        ~this_html_is_sanitized_and_is_totally_safe_trust_me=
+          Omd.to_html(Omd.of_string(s)),
+      ),
+    ];
   };
 
   let prompt_view =

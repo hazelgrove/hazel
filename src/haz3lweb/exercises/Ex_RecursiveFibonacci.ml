@@ -6,7 +6,8 @@ let exercise : SchoolExercise.spec =
     module_name = "Ex_RecursiveFibonacci";
     prompt =
       "Write tests cases for, and then implement, a function, that recursively \
-       determines the nth fibonacci number.";
+       determines the nth fibonacci number.\n\n\
+       fib(n) ≡ the nth fibonacci number, assuming n >= 0";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
