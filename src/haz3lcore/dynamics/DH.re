@@ -84,6 +84,8 @@ module rec DHExp: {
   and rule =
     | Rule(DHPat.t, t);
 
+  let descriptive_string: t => string;
+
   let constructor_string: t => string;
 
   let mk_tuple: list(t) => t;
@@ -180,6 +182,43 @@ module rec DHExp: {
     | Case(t, list(rule), int)
   and rule =
     | Rule(DHPat.t, t);
+
+  let descriptive_string = (d: t): string =>
+    switch (d) {
+    | EmptyHole(_, _) => "EmptyHole"
+    | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
+    | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
+    | FreeVar(_, _, _) => "FreeVar"
+    | InvalidText(_) => "InvalidText"
+    | BoundVar(_) => "BoundVar"
+    | Sequence(_, _) => "Sequence"
+    | Let(_, _, _) => "Let"
+    | FixF(_, _, _) => "FixF"
+    | Fun(_, _, _, _) => "Fun"
+    | Closure(_, _) => "Closure"
+    | Ap(_, _) => "Ap"
+    | ApBuiltin(_, _) => "ApBuiltin"
+    | TestLit(_) => "TestLit"
+    | BoolLit(_) => "BoolLit"
+    | IntLit(_) => "IntLit"
+    | FloatLit(_) => "FloatLit"
+    | StringLit(_) => "StringLit"
+    | BinBoolOp(_, _, _) => "BinBoolOp"
+    | BinIntOp(_, _, _) => "BinIntOp"
+    | BinFloatOp(_, _, _) => "BinFloatOp"
+    | BinStringOp(_, _, _) => "BinStringOp"
+    | ListLit(_) => "ListLit"
+    | Cons(_, _) => "Cons"
+    | Tuple(_) => "Tuple"
+    | Prj(_) => "Prj"
+    | Inj(_, _, _) => "Inj"
+    | Tag(_) => "Tag"
+    | ConsistentCase(_) => "ConsistentCase"
+    | InconsistentBranches(_, _, _) => "InconsistentBranches"
+    | Cast(_, _, _) => "Cast"
+    | FailedCast(_, _, _) => "FailedCast"
+    | InvalidOperation(_) => "InvalidOperation"
+    };
 
   let constructor_string = (d: t): string =>
     switch (d) {
