@@ -27,7 +27,8 @@ let view_of_layout =
                    Node.span(
                      ~attr=
                        Attr.many([
-                         Attr.classes(["Steppable"]),
+                         Attr.title(DHExp.descriptive_string(obj.exp)),
+                         Attr.class_("Steppable"),
                          Attr.on_click(_ =>
                            inject(UpdateAction.StepForward(obj))
                          ),
@@ -181,7 +182,8 @@ let view_of_layout_tylr =
                    Node.span(
                      ~attr=
                        Attr.many([
-                         Attr.classes(["Steppable"]),
+                         Attr.title(DHExp.descriptive_string(obj.exp)),
+                         Attr.class_("Steppable"),
                          Attr.on_click(_ =>
                            inject(UpdateAction.StepForward(obj))
                          ),
