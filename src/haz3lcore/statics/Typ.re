@@ -289,11 +289,11 @@ let rec lookup_surface = (~x: int=0, ty: t) => {
   | Bool
   | String
   | Unknown(_) => false
-  | Arrow(ty1, ty2) => lookup_surface(ty1) || lookup_surface(ty2)
-  | Prod(tys) => List.exists(lookup_surface, tys)
-  | LabelSum(tys) => List.exists(ty => lookup_surface(ty.typ), tys)
-  | Sum(ty1, ty2) => lookup_surface(ty1) || lookup_surface(ty2)
-  | List(ty) => lookup_surface(ty)
+  | Arrow(ty1, ty2) => lookup_surface(~x, ty1) || lookup_surface(~x, ty2)
+  | Prod(tys) => List.exists(lookup_surface(~x), tys)
+  | LabelSum(tys) => List.exists(ty => lookup_surface(~x, ty.typ), tys)
+  | Sum(ty1, ty2) => lookup_surface(~x, ty1) || lookup_surface(~x, ty2)
+  | List(ty) => lookup_surface(~x, ty)
   | Rec({item, _}) => lookup_surface(~x=x + 1, item)
   | Forall({item, _}) => lookup_surface(~x=x + 1, item)
   | Var({item: y, _}) => Some(x) == y
