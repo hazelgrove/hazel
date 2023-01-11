@@ -219,7 +219,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
-        | (["typfun", "->"], [TPat(tpat), Exp(def)]) => TypFun(tpat, def)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
@@ -408,7 +408,18 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
-  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | Pre(tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["forall", "->"], [TPat(tpat)]) => Forall(tpat, r)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(_) as tm => ret(hole(tm))
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))

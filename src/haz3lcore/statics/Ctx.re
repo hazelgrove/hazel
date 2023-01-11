@@ -75,17 +75,17 @@ let filter_duplicates = (ctx: t): t =>
      )
   |> (((ctx, _, _)) => List.rev(ctx));
 
-let adts: t => list((string, list(Typ.tagged))) =
-  List.filter_map(
-    fun
-    | VarEntry(_) => None
-    | TVarEntry({name, kind, _}) =>
-      switch (kind) {
-      | Singleton(Rec({item: LabelSum(ts), _})) => Some((name, ts))
-      | Singleton(LabelSum(ts)) => Some((name, ts))
-      | _ => None
-      },
-  );
+// let adts: t => list((string, list(Typ.tagged))) =
+//   List.filter_map(
+//     fun
+//     | VarEntry(_) => None
+//     | TVarEntry({name, kind, _}) =>
+//       switch (kind) {
+//       | Singleton(Rec({item: LabelSum(ts), _})) => Some((name, ts))
+//       | Singleton(LabelSum(ts)) => Some((name, ts))
+//       | _ => None
+//       },
+//   );
 
 // let adt_tag_and_typ =
 //     (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
@@ -108,7 +108,7 @@ let adts: t => list((string, list(Typ.tagged))) =
 // // Check builtin tag names are unique
 // assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
 
-let lookup_tag = (_ctx, _name) => failwith("TODO");
+let lookup_tag = (_ctx, _name) => None;
 // let lookup_tag = (ctx, name) =>
 // switch (List.assoc_opt(name, builtin_adt_tags)) {
 // | Some(typ) => Some(typ)
