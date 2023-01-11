@@ -263,40 +263,43 @@ let rec eq = (t1, t2) => {
 
 // Substitute the type variable with de bruijn index 0
 let rec subst = (s: t, ~x: int=0, ty: t) => {
-  let subst' = subst(~x=x + 1, s);
+  let subst_keep = subst(~x, s);
+  let subst_incr = subst(~x=x + 1, s);
   switch (ty) {
   | Int => Int
   | Float => Float
   | Bool => Bool
   | String => String
   | Unknown(prov) => Unknown(prov)
-  | Arrow(ty1, ty2) => Arrow(subst'(ty1), subst'(ty2))
-  | Prod(tys) => Prod(List.map(ty => subst'(ty), tys))
+  | Arrow(ty1, ty2) => Arrow(subst_keep(ty1), subst_keep(ty2))
+  | Prod(tys) => Prod(List.map(ty => subst_keep(ty), tys))
   | LabelSum(tys) =>
-    LabelSum(List.map(ty => {tag: ty.tag, typ: subst'(ty.typ)}, tys))
-  | Sum(ty1, ty2) => Sum(subst'(ty1), subst'(ty2))
-  | List(ty) => List(subst'(ty))
-  | Rec({item, ann}) => Rec({item: subst'(item), ann})
-  | Forall({item, ann}) => Forall({item: subst'(item), ann})
+    LabelSum(List.map(ty => {tag: ty.tag, typ: subst_keep(ty.typ)}, tys))
+  | Sum(ty1, ty2) => Sum(subst_keep(ty1), subst_keep(ty2))
+  | List(ty) => List(subst_keep(ty))
+  | Rec({item, ann}) => Rec({item: subst_incr(item), ann})
+  | Forall({item, ann}) => Forall({item: subst_incr(item), ann})
   | Var({item: y, _}) => Some(x) == y ? s : ty
   };
 };
 
 // Lookup the type variable with de bruijn index 0
 let rec lookup_surface = (~x: int=0, ty: t) => {
+  let lookup_keep = lookup_surface(~x);
+  let lookup_incr = lookup_surface(~x=x + 1);
   switch (ty) {
   | Int
   | Float
   | Bool
   | String
   | Unknown(_) => false
-  | Arrow(ty1, ty2) => lookup_surface(~x, ty1) || lookup_surface(~x, ty2)
-  | Prod(tys) => List.exists(lookup_surface(~x), tys)
-  | LabelSum(tys) => List.exists(ty => lookup_surface(~x, ty.typ), tys)
-  | Sum(ty1, ty2) => lookup_surface(~x, ty1) || lookup_surface(~x, ty2)
-  | List(ty) => lookup_surface(~x, ty)
-  | Rec({item, _}) => lookup_surface(~x=x + 1, item)
-  | Forall({item, _}) => lookup_surface(~x=x + 1, item)
+  | Arrow(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
+  | Prod(tys) => List.exists(lookup_keep, tys)
+  | LabelSum(tys) => List.exists(ty => lookup_keep(ty.typ), tys)
+  | Sum(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
+  | List(ty) => lookup_keep(ty)
+  | Rec({item, _}) => lookup_incr(item)
+  | Forall({item, _}) => lookup_incr(item)
   | Var({item: y, _}) => Some(x) == y
   };
 };

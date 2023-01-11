@@ -471,7 +471,7 @@ and uexp_to_info_map =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let Typ.{item: ty_body, _} = Typ.matched_forall(ty_fn);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    add(~self=Just(Typ.subst(ty_body, ty)), ~free=free_fn, m_fn);
+    add(~self=Just(Typ.subst(ty, ty_body)), ~free=free_fn, m_fn);
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
@@ -510,6 +510,7 @@ and uexp_to_info_map =
     );
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~ctx, ~mode=Syn, pat);
+    // let def_ctx = ctx_pat;
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
