@@ -414,6 +414,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["forall", "->"], [TPat(tpat)]) => Forall(tpat, r)
+        | (["rec", "->"], [TPat(tpat)]) => Rec(tpat, r)
         | _ => hole(tm)
         },
       )
