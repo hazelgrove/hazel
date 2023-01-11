@@ -483,24 +483,28 @@ and uexp_to_info_map =
       ~free=Ctx.subtract_typ(ctx_pat, free_body), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_body]),
     );
-  | TypFun(tpat, body) =>
+  | TypFun({term: Var(name), _} as utpat, body) =>
     let mode_body = Typ.matched_forall_mode(mode);
-    let m_pat = utpat_to_info_map(~ctx, tpat);
+    let m_pat = utpat_to_info_map(~ctx, utpat);
+    let ctx_body =
+      Ctx.extend(
+        TVarEntry({name, id: Term.UTPat.rep_id(utpat), kind: Abstract}),
+        ctx,
+      );
+    let (ty_body, free_body, m_body) =
+      uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
+    add(
+      ~self=Just(Forall({item: ty_body, ann: name})),
+      ~free=Ctx.subtract_typ(ctx, free_body), // TODO: free may not be accurate since ctx now threaded through pat
+      union_m([m_pat, m_body]),
+    );
+  | TypFun(utpat, body) =>
+    let mode_body = Typ.matched_forall_mode(mode);
+    let m_pat = utpat_to_info_map(~ctx, utpat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx, ~mode=mode_body, body);
-    // TODO (typfun): Extract variable name from tpat
     add(
-      ~self=
-        Just(
-          Forall({
-            item: ty_body,
-            ann:
-              switch (tpat.term) {
-              | Term.UTPat.Var(x) => x
-              | _ => "expected_type_variable"
-              },
-          }),
-        ),
+      ~self=Just(Forall({item: ty_body, ann: "expected_type_variable"})),
       ~free=Ctx.subtract_typ(ctx, free_body), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_body]),
     );
@@ -519,19 +523,19 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_def, m_body]),
     );
-  | TyAlias({term: Var(name), _} as typat, utyp, body) =>
-    let m_typat = utpat_to_info_map(~ctx, typat);
+  | TyAlias({term: Var(name), _} as utpat, utyp, body) =>
+    let m_typat = utpat_to_info_map(~ctx, utpat);
     // Wrapped Rec around aliased type and conditionally remove Rec depending on if
     // utyp uses itself
     let ty_def =
-      Term.UTyp.to_typ(ctx, {term: Term.UTyp.Rec(typat, utyp), ids: []});
+      Term.UTyp.to_typ(ctx, {term: Term.UTyp.Rec(utpat, utyp), ids: []});
     let Typ.{item: tbody, _} = Typ.matched_rec(ty_def);
     let ty_def = Typ.lookup_surface(tbody) ? ty_def : tbody;
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
           name,
-          id: Term.UTPat.rep_id(typat),
+          id: Term.UTPat.rep_id(utpat),
           kind: Singleton(ty_def),
         }),
         ctx,
@@ -711,9 +715,12 @@ and utyp_to_info_map =
   // Ctx.is_tvar(ctx, name)
   //   ? (Var(name), add(Just(Var(name)), Id.Map.empty))
   //   : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
-  // TODO(typfun): Extend ctx
-  | Forall(_utpat, tbody) => utyp_to_info_map(~ctx, tbody)
-  | Rec(_utpat, tbody) => utyp_to_info_map(~ctx, tbody)
+  | Forall(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    just(m);
+  | Rec(_utpat, tbody) =>
+    let (_, m) = utyp_to_info_map(~ctx, tbody);
+    just(m);
   | Sum({term, ids: _}) =>
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});

@@ -603,9 +603,9 @@ module UExp = {
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | TypFun(_, e) => is_fun(e)
     | Fun(_) => true
-    | TypFun(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)

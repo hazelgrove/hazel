@@ -261,6 +261,7 @@ let rec eq = (t1, t2) => {
 //   // | Forall(x, ty) => free_vars(~bound=[x] @ bound, ty)
 //   };
 
+// Substitute the type variable with de bruijn index 0
 let rec subst = (s: t, ~x: int=0, ty: t) => {
   let subst' = subst(~x=x + 1, s);
   switch (ty) {
