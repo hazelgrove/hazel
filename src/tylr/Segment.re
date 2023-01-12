@@ -7,6 +7,27 @@ exception Nonmonotonic;
 let empty = ([Space.empty], []);
 let is_empty = (==)(empty);
 
+
+let of_space = (s: Space.t): t => ([s], []);
+
+let join = (segs: Aba.t(Space.t, t)): t =>
+  segs
+  |> Aba.fold_right(
+    (s, seg, acc) => concat([of_space(s), seg, acc]),
+    s => of_space(s),
+  );
+
+let rec mold =
+    (~match: bool, pre: Segment.t, ~kid: option(Sort.t)=?, t: Token.t)
+    : Mold.Result.t =>
+  switch (Aba.unsnoc(pre)) {
+  | None => Error(kid)
+  | Some((pre, c, _)) =>
+    open Result.Syntax;
+    let/ kid = Chain.mold(c, ~kid?, t);
+    mold(~match, pre, ~kid?, t);
+  };
+
 // assume push onto head of chains in left-to-right order
 let push = (c: Chain.t, cs: t): t => {
   let rec go = (c0: Chain.t, ~mid=?, cs: t): t =>

@@ -10,6 +10,20 @@ module Z = {
   type t = (int, Piece.Z.t);
 };
 
+let cmp = (l: t, r: t): option(Cmp.t) => failwith("todo");
+
+let cmp_merge = (l: t, ~kid=?, r: t): option((Cmp.t, t)) => {
+  open OptUtil.Syntax;
+  let+ cmp = cmp(l, r);
+  let merged =
+    switch (cmp) {
+    | Lt => finish_l(~kid?, r)
+    | Gt => finish_r(l, ~kid?, ())
+    | Eq => match(l, ~kid?, r)
+    };
+  (cmp, merged);
+};
+
 let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
 
 let split_uni_kid = (d: Dir.t, c: t): (option(kid), t) =>

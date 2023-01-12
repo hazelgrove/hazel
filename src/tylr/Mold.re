@@ -35,3 +35,9 @@ let push = (f, m) => {...m, frames: [f, ...m.frames]};
 
 let must_match = (d: Dir.t, m: t): bool =>
   Grex.Frame.must_match(d, m.frames);
+
+module Result = {
+  type m = t;
+  type kid = option(Sort.t);
+  type t = Result.t(m, kid);
+};

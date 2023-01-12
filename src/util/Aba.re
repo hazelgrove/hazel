@@ -73,6 +73,7 @@ let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
     Some((l, mk(bs, as_), r));
   };
 
+// todo: rename as of_list
 let split = (f: 'c => Either.t('a, 'b), cs: list('c)): t(list('a), 'b) =>
   List.fold_right(
     (c, (as_, bs)) =>
@@ -86,6 +87,7 @@ let split = (f: 'c => Either.t('a, 'b), cs: list('c)): t(list('a), 'b) =>
     mk([[]], []),
   );
 
+// todo: rename as to_list
 let join = (f_a: 'a => 'c, f_b: 'b => 'c, aba: t('a, 'b)): list('c) => {
   let (as_, a) = ListUtil.split_last(get_as(aba));
   let bs = get_bs(aba);

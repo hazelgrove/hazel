@@ -37,4 +37,9 @@ module Syntax = {
   let (let+) = (o, f) => Option.map(f, o);
   let (and+) = zip;
   let return = Option.some;
+  let (let/) = (o, f) =>
+    switch (o) {
+    | Some(_) => o
+    | None => f()
+    };
 };

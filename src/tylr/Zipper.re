@@ -11,7 +11,7 @@ module Action = {
     | Insert(string);
 };
 
-let move = (d: Dir.t, z: Zipper.t): option(t) => {
+let move = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
   if (!Selection.is_empty(z.sel)) {
@@ -23,7 +23,7 @@ let move = (d: Dir.t, z: Zipper.t): option(t) => {
   };
 };
 
-let select = (d: Dir.t, z: Zipper.t): option(t) => {
+let select = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
   if (d == z.sel.foc || Selection.is_empty(z.sel)) {
@@ -48,11 +48,10 @@ let delete = (d: Dir.t, z: t): option(t) => {
 let insert = (s: string, z: t): t => {
   let (lexed, (_, n), rel) = Relatives.lex(s, rel);
   let unmolded =
-    LangUtil.lex(s) |> Aba.map_b(t => Chain.of_piece(T(Tile.unmolded(t))));
-  let (molded, rel) = Relatives.remold(~sel=unmolded, rel);
+    lexed |> Aba.map_b(t => Chain.of_tile(Tile.unmolded(t)));
   let rel =
     rel
-    |> Relatives.push_seg(L, molded)
+    |> Relatives.insert(unmolded)
     // restore chars popped off of R-side of relatives when lexing
     |> FunUtil.(repeat(n, force_opt(Relatives.shift_char(R))));
   {rel, sel: Selection.empty};

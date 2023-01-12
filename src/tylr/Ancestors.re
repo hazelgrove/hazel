@@ -1,3 +1,3 @@
-type t = list(Generation.t);
+type t = Lineage.t;
 
 let pop = _ => failwith("todo");
