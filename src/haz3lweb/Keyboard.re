@@ -43,7 +43,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     | "F3" => toggle(Log.debug_update)
     | "F4" => toggle(Log.debug_keystroke)
     | "F5" => toggle(Log.debug_zipper)
-    | "F6" => []
+    | "F6" =>
+      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(zipper));
+      print(TermBase.UExp.show(term));
     | "F7" => []
     | "F8" => []
     | "F10" =>
