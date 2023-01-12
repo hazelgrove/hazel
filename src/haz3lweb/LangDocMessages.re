@@ -3183,23 +3183,65 @@ type t = {
 };
 
 let get_group = (group_id, doc: t) => {
-  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
+  let form_group =
+    switch (List.find_opt(((id, _)) => id == group_id, doc.groups)) {
+    | Some((_, form_group)) => form_group
+    | None =>
+      raise(
+        Invalid_argument(group_id ++ " is not present in the list of groups"),
+      )
+    };
   form_group;
 };
 
 let get_form_and_options = (group_id, doc: t) => {
   let form_group = get_group(group_id, doc);
-  let (selected_id, _) =
-    List.nth(form_group.options, form_group.current_selection);
-  let form = List.find(({id, _}) => id == selected_id, doc.forms);
+  let selected_id =
+    switch (List.nth_opt(form_group.options, form_group.current_selection)) {
+    | Some((selected_id, _)) => selected_id
+    | None =>
+      raise(
+        Invalid_argument(
+          "The options and current_selection for "
+          ++ group_id
+          ++ " are misconfigured",
+        ),
+      )
+    };
+  let form =
+    switch (List.find_opt(({id, _}) => id == selected_id, doc.forms)) {
+    | Some(form) => form
+    | None =>
+      raise(
+        Invalid_argument(
+          selected_id ++ " is not present in the list of forms",
+        ),
+      )
+    };
   (form, form_group.options);
 };
 
 let get_example = (example_sub_id, examples) =>
-  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
+  switch (
+    List.find_opt(({sub_id, _}) => sub_id == example_sub_id, examples)
+  ) {
+  | Some(example) => example
+  | None =>
+    raise(
+      Invalid_argument(
+        example_sub_id ++ " is not present in the list of examples",
+      ),
+    )
+  };
 
 let get_form = (form_id, docs) =>
-  List.find(({id, _}) => id == form_id, docs);
+  switch (List.find_opt(({id, _}) => id == form_id, docs)) {
+  | Some(form) => form
+  | None =>
+    raise(
+      Invalid_argument(form_id ++ " is not present in the list of forms"),
+    )
+  };
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
