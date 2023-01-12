@@ -107,7 +107,11 @@ let go = (d: Direction.t, (z, id_gen): state): option(state) => {
     z.caret,
     neighbor_monotiles(z_trimmed.relatives.siblings),
   ) {
-  | (Some(lbl), Outer, (None, None)) =>
+  | (Some(lbl), Outer, (None, None))
+      when Siblings.no_siblings(z_trimmed.relatives.siblings) =>
+    /* Note: we must do the no_siblings check, it does not suffice
+       to check no monotile neighbors as there could be other neighbors
+       for example edge case: "((|))" */
     z
     |> Zipper.delete_parent
     |> Zipper.set_caret(Inner(List.length(lbl), 0))
