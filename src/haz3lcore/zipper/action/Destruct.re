@@ -18,7 +18,11 @@ let destruct =
   let delete_left = z =>
     z |> Zipper.directional_destruct(Left) |> Option.map(IdGen.id(id_gen));
   let construct_right = (l, s) =>
-    Option.map(((z, id_gen)) => Zipper.construct(Right, l, z, id_gen), s);
+    Option.map(
+      ((z, id_gen)) =>
+        Zipper.construct(~caret=Right, ~backpack=Right, l, z, id_gen),
+      s,
+    );
   let construct_left = (l, s) =>
     Option.map(((z, id_gen)) => Zipper.construct(Left, l, z, id_gen), s);
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
