@@ -47,8 +47,7 @@ let delete = (d: Dir.t, z: t): option(t) => {
 
 let insert = (s: string, z: t): t => {
   let (lexed, (_, n), rel) = Relatives.lex(s, rel);
-  let unmolded =
-    lexed |> Aba.map_b(t => Chain.of_tile(Tile.unmolded(t)));
+  let unmolded = lexed |> Aba.map_b(t => Chain.of_tile(Tile.unmolded(t)));
   let rel =
     rel
     |> Relatives.insert(unmolded)

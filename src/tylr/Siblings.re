@@ -1,6 +1,7 @@
 type t = (Segment.t, Segment.t);
 
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
+  failwith("todo");
 
 let choose_matching = (c: Chain.t, t: Token.t) =>
   LangUtil.molds(t)

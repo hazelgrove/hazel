@@ -1,1 +1,1 @@
-type t = (Ancestor.t, Siblings.t);
+type t = (Parent.t, Siblings.t);
