@@ -8,6 +8,8 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
+let no_siblings: t => bool = s => s == empty;
+
 let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
