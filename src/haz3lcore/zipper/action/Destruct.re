@@ -20,7 +20,7 @@ let destruct =
   let construct_right = (l, s) =>
     Option.map(
       ((z, id_gen)) =>
-        Zipper.construct(~caret=Right, ~backpack=Left, l, z, id_gen),
+        Zipper.construct(~caret=Right, ~backpack=Right, l, z, id_gen),
       s,
     );
   let construct_left = (l, s) =>

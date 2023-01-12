@@ -60,36 +60,26 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let replace_neighbor = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
+let replace_duo = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
   z
   |> Zipper.select(d)
   |> OptUtil.and_then(Zipper.select(d))
   |> Option.map(Zipper.destruct)
   |> Option.get
-  |> (z => Zipper.construct(~caret=d, ~backpack=Left, lbl, z, id_gen));
-
-let _barf_or_construct =
-    (t: Token.t, direction_pref: Direction.t, z: t): IdGen.t(t) => {
-  let barfed =
-    Backpack.will_barf(t, z.backpack)
-      ? Zipper.put_down(direction_pref, z) : None;
-  switch (barfed, neighbor_can_duomerge(t, z.relatives.siblings)) {
-  | (Some(z), Some((lbl, d))) => replace_neighbor(lbl, d, z)
-  | (Some(z), _) => IdGen.return(z)
-  | (None, _) =>
-    let (lbl, direction) = Molds.instant_expansion(t);
-    Zipper.construct(~caret=direction_pref, ~backpack=direction, lbl, z);
-  };
-};
+  |> (z => Zipper.construct(~caret=d, ~backpack=d, lbl, z, id_gen));
 
 let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  switch (put_down(Left, z)) {
-  | Some(z') when Molds.is_instant(t) && Backpack.will_barf(t, z.backpack) =>
+  switch (put_down(caret, z)) {
+  | Some(z') when Backpack.will_barf(t, z.backpack) =>
     switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-    | Some((lbl, d)) => replace_neighbor(lbl, d, z')
+    | Some((lbl, d)) =>
+      switch (put_down(d, z)) {
+      | None => IdGen.return(z')
+      | Some(z'') => replace_duo(lbl, d, z'')
+      }
     | None => IdGen.return(z')
     }
   | _ =>
@@ -142,18 +132,6 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let expand_keyword = ((z, _) as state: state): option(state) =>
-  /* NOTE(andrew): We may want to allow editing of shards when only 1 of set
-     is down (removing the rest of the set from backpack on edit) as something
-     like this is necessary for backspace to act as undo after kw-expansion */
-  switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(kw), _) =>
-    let (new_label, direction) = Molds.delayed_expansion(kw);
-    //TODO(andrew): direction
-    Zipper.replace(~caret=Left, ~backpack=direction, new_label, state);
-  | _ => Some(state)
-  };
-
 let insert_outer = (char: string, (z, _) as state: state): option(state) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
   | MakeNew => expand_neighbors_and_make_new_tile(char, state)
@@ -175,10 +153,8 @@ let insert_duo = (id_gen, lbl: Label.t, z: option(t)): option(state) =>
 let insert_monos =
     (id_gen, l: Token.t, r: Token.t, z: option(t)): option(state) =>
   z
-  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))  //overwrite right
+  |> Option.map(z => Zipper.construct_mono(Right, r, z, id_gen))
   |> Option.map(((z, id_gen)) => Zipper.construct_mono(Left, l, z, id_gen));
-//  |> Option.map(z => Zipper.construct(Left, [l], z, id_gen))
-//  |> Option.map(((z, id_gen)) => Zipper.construct(Right, [r], z, id_gen));
 
 let split =
     ((z, id_gen): state, char: string, idx: int, t: Token.t): option(state) => {
