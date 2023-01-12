@@ -48,6 +48,10 @@ let get_duo_shard = ({label, shards, _}: Tile.t) =>
 
 let neighbor_can_duomerge =
     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+  /* Checks if a neighbor, preferentially the left neighbor, is
+     a shard of a duotile which can be merged to form a monotile.
+     It returns the resulting (mono)label, and the direction of
+     the relevant neighbor. */
   switch (Siblings.neighbors(s)) {
   | (Some(Tile(tile)), _) =>
     let* start = get_duo_shard(tile);
@@ -60,23 +64,20 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let replace_get = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
-  Zipper.replace(~caret=d, ~backpack=d, lbl, (z, id_gen)) |> Option.get;
-
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t, id_gen): state =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  switch (put_down(caret, z)) {
-  | Some(z') when Backpack.will_barf(t, z.backpack) =>
-    switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-    | Some((lbl, d)) => replace_get(lbl, d, z)
-    | None => IdGen.return(z')
-    }
-  | _ =>
-    let (lbl, backpack) = Molds.instant_expansion(t);
-    construct(~caret, ~backpack, lbl, z);
-  };
+  Backpack.will_barf(t, z.backpack)
+    ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+      | Some((lbl, d)) =>
+        Zipper.replace(~caret=d, ~backpack=d, lbl, (z, id_gen)) |> Option.get
+      | None => (put_down(caret, z) |> Option.get, id_gen)
+      }
+    : {
+      let (lbl, backpack) = Molds.instant_expansion(t);
+      construct(~caret, ~backpack, lbl, z, id_gen);
+    };
 
 let expand_neighbors_and_make_new_tile =
     (char: Token.t, state: state): option(state) => {
