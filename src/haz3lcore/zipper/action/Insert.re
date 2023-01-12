@@ -66,7 +66,7 @@ let expand_neighbors_and_make_new_tile =
      The order here could be revisited if barfing was more sophisticated.
      */
   let* (z, id_gen) = expand_or_barf_left_neighbor(state);
-  let (z, id_gen) = regrout(Left, z, id_gen);
+  //let (z, id_gen) = regrout(Left, z, id_gen);
   /* Note to david: I'm not sure why the above regrout is necessary.
      Without it, there is a Nonconvex segment error thrown in exactly
      one case, the double barf case: insert space on "if then|else" */
