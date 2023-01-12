@@ -268,7 +268,7 @@ let remove_matching = (ts: list(Tile.t), bp: t) =>
     ts,
   );
 
-let is_first_matching = (t: Token.t, bp: t): bool =>
+let will_barf = (t: Token.t, bp: t): bool =>
   /* Does the first selection in the backpack consist
      of a single token which matches the one provided? */
   switch (bp) {
