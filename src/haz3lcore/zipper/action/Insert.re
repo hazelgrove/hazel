@@ -60,13 +60,8 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let replace_duo = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
-  z
-  |> Zipper.select(d)
-  |> OptUtil.and_then(Zipper.select(d))
-  |> Option.map(Zipper.destruct)
-  |> Option.get
-  |> (z => Zipper.construct(~caret=d, ~backpack=d, lbl, z, id_gen));
+let replace_get = (lbl: Label.t, d: Direction.t, z: t, id_gen) =>
+  Zipper.replace(~caret=d, ~backpack=d, lbl, (z, id_gen)) |> Option.get;
 
 let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
   /* Adds a new tile at the caret. If the new token matches the top
@@ -75,11 +70,7 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
   switch (put_down(caret, z)) {
   | Some(z') when Backpack.will_barf(t, z.backpack) =>
     switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-    | Some((lbl, d)) =>
-      switch (put_down(d, z)) {
-      | None => IdGen.return(z')
-      | Some(z'') => replace_duo(lbl, d, z'')
-      }
+    | Some((lbl, d)) => replace_get(lbl, d, z)
     | None => IdGen.return(z')
     }
   | _ =>
