@@ -6,6 +6,70 @@ type t = {
 
 let empty: t = failwith("todo");
 
+let shift_char = (~from: Dir.t, rel) => {
+  open OptUtil.Syntax;
+  let+ (c, rel) = pop_char(~from, rel);
+  push_char(~onto=Dir.toggle(from), c, rel);
+};
+
+let pop_spiece = (~from as d: Dir.t, rel: t): option((Spiece.t, t)) => {
+  let b = Dir.toggle(d);
+  let (sib_d, sib_b) = Dir.order(d, rel.sib);
+  switch (Segment.pop_spiece(~from=b, sib_d)) {
+  | Some((sp, sib_d)) =>
+    let sib = Dir.unorder(d, (sib_d, sib_b));
+    Some((sp, {...rel, sib}));
+  | None =>
+    open OptUtil.Syntax;
+    let* ((par, sib), anc) = Ancestors.pop(rel.anc);
+    let (par_d, par_b) = Dir.order(d, par);
+    let+ (p, par_d_rest) = Chain.pop_piece(~from=b, par_d);
+    let sib = Siblings.concat([rel.sib, (par_d_rest, Segment.of_chain(par_d)), sib]);
+    (P(p), {anc, sib});
+  };
+};
+
+// if until is None, attempt to shift a single spiece.
+// if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
+// note the latter case always returns Some.
+let rec shift_spiece = (
+  ~until: option((Spiece.t, t) => option(t))=?,
+  ~from: Dir.t,
+  rel: t,
+): option(t) => {
+  let onto = Dir.toggle(from);
+  switch (until, pop_spiece(rel)) {
+  | (None, None) => None
+  | (Some(_), None) => Some(rel)
+  | (None, Some((sp, rel))) =>
+    push_spiece(~onto, sp, rel)
+  | (Some(f), Some((sp, rel)) as r) =>
+    switch (f(sp, rel)) {
+    | Some(rel) => Some(rel)
+    | None =>
+      rel
+      |> push_spiece(~onto, sp)
+      |> shift_spiece(~from, ~until?);
+    }
+  }
+};
+
+let unzip = (rel: t): t =>
+  rel
+  |> shift_spiece(
+    ~from=L,
+    ~until=(sp, rel) =>
+      switch (sp) {
+      | P(_) => None
+      | S(s) =>
+        open OptUtil.Syntax;
+        let+ (l, r) = Space.split_cursor(s);
+        rel
+        |> push_space(~onto=L, l)
+        |> push_space(~onto=R, r);
+      },
+  );
+
 // todo: add wrapper that checks for matching and unmatching molds
 let mold =
     (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
@@ -100,12 +164,6 @@ let rec remold_suffix = (rel: t): t => {
 
 let insert = (seg: Segment.t, rel: t): t =>
   rel |> insert_seg(seg) |> remold_suffix;
-
-let shift_char = (from: Dir.t, rel) => {
-  open OptUtil.Syntax;
-  let+ (c, rel) = pop_char(rel);
-  push_char(Dir.toggle(from), c, rel);
-};
 
 // postcond: returned token empty if nothing to pop
 let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
