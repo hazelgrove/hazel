@@ -3182,9 +3182,11 @@ type t = {
   groups: list((string, form_group)),
 };
 
+let get_group_opt = (group_id, doc: t) =>
+  List.find_opt(((id, _)) => id == group_id, doc.groups);
 let get_group = (group_id, doc: t) => {
   let form_group =
-    switch (List.find_opt(((id, _)) => id == group_id, doc.groups)) {
+    switch (get_group_opt(group_id, doc)) {
     | Some((_, form_group)) => form_group
     | None =>
       raise(
@@ -3221,10 +3223,10 @@ let get_form_and_options = (group_id, doc: t) => {
   (form, form_group.options);
 };
 
+let get_example_opt = (example_sub_id, examples) =>
+  List.find_opt(({sub_id, _}) => sub_id == example_sub_id, examples);
 let get_example = (example_sub_id, examples) =>
-  switch (
-    List.find_opt(({sub_id, _}) => sub_id == example_sub_id, examples)
-  ) {
+  switch (get_example_opt(example_sub_id, examples)) {
   | Some(example) => example
   | None =>
     raise(
@@ -3234,8 +3236,10 @@ let get_example = (example_sub_id, examples) =>
     )
   };
 
+let get_form_opt = (form_id, docs) =>
+  List.find_opt(({id, _}) => id == form_id, docs);
 let get_form = (form_id, docs) =>
-  switch (List.find_opt(({id, _}) => id == form_id, docs)) {
+  switch (get_form_opt(form_id, docs)) {
   | Some(form) => form
   | None =>
     raise(
@@ -3930,44 +3934,91 @@ let persist =
 let unpersist =
     ({show, highlight, specificity_open, forms, groups}: persistent_state): t => {
   let unpersist_examples = (persistent_examples, examples) => {
-    List.map(
+    let new_examples =
+      List.filter(
+        (example: example): bool =>
+          Option.is_none(
+            List.find_opt(
+              ({sub_id, _}: persistent_example) => sub_id == example.sub_id,
+              persistent_examples,
+            ),
+          ),
+        examples,
+      );
+    List.filter_map(
       ({sub_id, feedback}: persistent_example) => {
-        let init_example = get_example(sub_id, examples);
-        {
-          sub_id,
-          term: init_example.term,
-          message: init_example.message,
-          feedback,
+        let init_example_opt = get_example_opt(sub_id, examples);
+        switch (init_example_opt) {
+        | Some(init_example) =>
+          Some({
+            sub_id,
+            term: init_example.term,
+            message: init_example.message,
+            feedback,
+          })
+        | None => None
         };
       },
       persistent_examples,
-    );
+    )
+    @ new_examples;
   };
+
+  let new_forms =
+    List.filter(
+      (form: form): bool =>
+        Option.is_none(
+          List.find_opt(({id, _}: persistent_form) => id == form.id, forms),
+        ),
+      init.forms,
+    );
   let forms_unpersist =
-    List.map(
+    List.filter_map(
       ({id, explanation_feedback, examples}: persistent_form) => {
-        let init_form = get_form(id, init.forms);
-        {
-          id,
-          syntactic_form: init_form.syntactic_form,
-          expandable_id: init_form.expandable_id,
-          explanation: {
-            message: init_form.explanation.message,
-            feedback: explanation_feedback,
-          },
-          examples: unpersist_examples(examples, init_form.examples),
+        let init_form_opt = get_form_opt(id, init.forms);
+        switch (init_form_opt) {
+        | Some(init_form) =>
+          Some({
+            id,
+            syntactic_form: init_form.syntactic_form,
+            expandable_id: init_form.expandable_id,
+            explanation: {
+              message: init_form.explanation.message,
+              feedback: explanation_feedback,
+            },
+            examples: unpersist_examples(examples, init_form.examples),
+          })
+        | None => None
         };
       },
       forms,
+    )
+    @ new_forms;
+
+  let new_groups =
+    List.filter(
+      ((group_id, _)): bool =>
+        Option.is_none(
+          List.find_opt(
+            ({id, _}: persistent_form_group) => id == group_id,
+            groups,
+          ),
+        ),
+      init.groups,
     );
   let groups_unpersist =
-    List.map(
+    List.filter_map(
       ({id, current_selection}: persistent_form_group) => {
-        let init_group = get_group(id, init);
-        (id, {options: init_group.options, current_selection});
+        let init_group_opt = get_group_opt(id, init);
+        switch (init_group_opt) {
+        | Some((_, init_group)) =>
+          Some((id, {options: init_group.options, current_selection}))
+        | None => None
+        };
       },
       groups,
-    );
+    )
+    @ new_groups;
   {
     show,
     highlight,
