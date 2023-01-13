@@ -24,7 +24,12 @@ let pop_spiece = (~from as d: Dir.t, rel: t): option((Spiece.t, t)) => {
     let* ((par, sib), anc) = Ancestors.pop(rel.anc);
     let (par_d, par_b) = Dir.order(d, par);
     let+ (p, par_d_rest) = Chain.pop_piece(~from=b, par_d);
-    let sib = Siblings.concat([rel.sib, (par_d_rest, Segment.of_chain(par_d)), sib]);
+    let sib =
+      Siblings.concat([
+        rel.sib,
+        (par_d_rest, Segment.of_chain(par_d)),
+        sib,
+      ]);
     (P(p), {anc, sib});
   };
 };
@@ -32,43 +37,33 @@ let pop_spiece = (~from as d: Dir.t, rel: t): option((Spiece.t, t)) => {
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
 // note the latter case always returns Some.
-let rec shift_spiece = (
-  ~until: option((Spiece.t, t) => option(t))=?,
-  ~from: Dir.t,
-  rel: t,
-): option(t) => {
+let rec shift_spiece =
+        (~until: option((Spiece.t, t) => option(t))=?, ~from: Dir.t, rel: t)
+        : option(t) => {
   let onto = Dir.toggle(from);
   switch (until, pop_spiece(rel)) {
   | (None, None) => None
   | (Some(_), None) => Some(rel)
-  | (None, Some((sp, rel))) =>
-    push_spiece(~onto, sp, rel)
+  | (None, Some((sp, rel))) => push_spiece(~onto, sp, rel)
   | (Some(f), Some((sp, rel)) as r) =>
     switch (f(sp, rel)) {
     | Some(rel) => Some(rel)
-    | None =>
-      rel
-      |> push_spiece(~onto, sp)
-      |> shift_spiece(~from, ~until?);
+    | None => rel |> push_spiece(~onto, sp) |> shift_spiece(~from, ~until?)
     }
-  }
+  };
 };
 
 let unzip = (rel: t): t =>
   rel
-  |> shift_spiece(
-    ~from=L,
-    ~until=(sp, rel) =>
-      switch (sp) {
-      | P(_) => None
-      | S(s) =>
-        open OptUtil.Syntax;
-        let+ (l, r) = Space.split_cursor(s);
-        rel
-        |> push_space(~onto=L, l)
-        |> push_space(~onto=R, r);
-      },
-  );
+  |> shift_spiece(~from=L, ~until=(sp, rel) =>
+       switch (sp) {
+       | P(_) => None
+       | S(s) =>
+         open OptUtil.Syntax;
+         let+ (l, r) = Space.split_cursor(s);
+         rel |> push_space(~onto=L, l) |> push_space(~onto=R, r);
+       }
+     );
 
 // todo: add wrapper that checks for matching and unmatching molds
 let mold =
@@ -199,9 +194,18 @@ let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   );
 };
 
-let lex = (s: string, rel: t): (Aba.t(Space.t, Token.t), (int, int), t) => {
+let lex = (s: string, rel: t): (Segment.t, t) => {
   let (l, rel) = pop_adj_token(L, rel) |> OptUtil.get(("", rel));
   let (r, rel) = pop_adj_token(R, rel) |> OptUtil.get(("", rel));
-  let popped_len = Token.(length(l), length(r));
-  (LangUtil.lex(l ++ s ++ r), popped_len, rel);
+
+  let buf = Lexing.from_string(s);
+  let rev_seg = ref(Segment.empty);
+  while (!buf.lex_eof_reached) {
+    let sp = Lexer.next_spiece(buf);
+    rev_seg := Segment.cons_spiece(sp, rev_seg);
+  };
+
+  let seg = Aba.rev(Fun.id, Fun.id, rev_seg);
+  // todo: insert cursor sentinel
+  (seg, rel);
 };
