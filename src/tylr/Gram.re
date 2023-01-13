@@ -2,7 +2,7 @@ open Util;
 
 module Atom = {
   type t =
-    | Tok(Regex.t)
+    | Tok(Token.shape)
     | Kid(Sort.t);
 };
 
@@ -20,6 +20,16 @@ type t =
 
 // simplifying assumption, not fundamentally necessary
 exception No_consecutive_tokens;
+
+let seq = gs => Seq(gs);
+let alt = gs => Alt(gs);
+
+let eps = Seq([]);
+
+let tok = (t: Token.shape) => Atom(Tok(t));
+let kid = s => Atom(Kid(s));
+
+let opt = g => Alt([eps, g]);
 
 let rec nullable =
   fun
@@ -49,50 +59,54 @@ let exterior_seq = (exterior: t => Extremity.s, gs: list(t)): Extremity.s => {
   nullable @ rest;
 };
 
+let edge = _ => failwith("todo edge");
+
 let rec exterior = (d: Dir.t, g: t): Extremity.s =>
-  fun
+  switch (g) {
   | Atom(a) => [Some(a)]
   | Star(g) => exterior(d, g)
   | Alt(gs) => List.concat_map(exterior(d), gs)
-  | Seq(gs) => exterior_seq(edge(d), ListUtil.rev_if(d == R, gs));
+  | Seq(gs) => exterior_seq(edge(d), ListUtil.rev_if(d == R, gs))
+  };
 
 module Frame = {
-  type g('s) = t('s);
-  type t('s) =
+  type g = t;
+  type t =
     | Star_
-    | Seq_(list(g('s)), list(g('s)))
-    | Alt_(list(g('s)), list(g('s)));
-  type s('s) = list(t('s));
+    | Seq_(list(g), list(g))
+    | Alt_(list(g), list(g));
+  type s = list(t);
 
   let empty = [];
 
-  let rec interior = (d: Dir.t, fs: s): Extremity.s =>
+  let rec interior = (d: Dir.t): (s => Extremity.s) =>
     fun
     | [] => [None]
     | [f, ...fs] =>
       switch (d, f) {
       | (_, Star_ | Alt_(_))
-      | (L, Seq([], _))
-      | (R, Seq(_, [])) => interior(d, fs)
-      | (L, Seq([_, ..._] as gs_l, _)) =>
+      | (L, Seq_([], _))
+      | (R, Seq_(_, [])) => interior(d, fs)
+      | (L, Seq_([_, ..._] as gs_l, _)) =>
         exterior_seq(exterior(R), gs_l)
         @ (List.for_all(nullable, gs_l) ? interior(d, fs) : [])
-      | (R, Seq(_, [_, ..._] as gs_r)) =>
+      | (R, Seq_(_, [_, ..._] as gs_r)) =>
         exterior_seq(exterior(L), gs_r)
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
 
-  let must_match = (d: Dir.t, fs: s): bool =>
-    fun
+  let rec must_match = (d: Dir.t, fs: s): bool =>
+    switch (fs) {
     | [] => false
     | [f, ...fs] =>
       switch (d, f) {
       | (_, Star_ | Alt_(_))
-      | (L, Seq([], _))
-      | (R, Seq(_, [])) => must_match(d, fs)
-      | (L, Seq([_, ..._] as gs_l, _)) =>
+      | (L, Seq_([], _))
+      | (R, Seq_(_, [])) => must_match(d, fs)
+      | (L, Seq_([_, ..._] as gs_l, _)) =>
         List.exists(root_token, gs_l) || must_match(d, fs)
-      | (R, Seq(_, [_, ..._] as gs_r)) =>
+      | (R, Seq_(_, [_, ..._] as gs_r)) =>
         List.exists(root_token, gs_r) || must_match(d, fs)
-      };
+      }
+    };
 };
