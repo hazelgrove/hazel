@@ -54,9 +54,10 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
     );
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
-  print_endline(Term.UExp.show(uexp));
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  // print_endline(Term.UExp.show(uexp));
+
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
@@ -298,14 +299,19 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | _ => wrap(ConsistentCase(d))
       };
     | LivelitDef(livelit_record) =>
-      print_endline(TermBase.UExp.show_livelit_record(livelit_record));
+      // print_endline(TermBase.UExp.show_livelit_record(livelit_record));
       let foo = dhexp_of_uexp(m, livelit_record.body); // TODO abandukwala
-      switch (foo) {
-      | Some(t) => print_endline(DHExp.show(t))
-      | None => print_endline("No value")
-      };
+      // switch (foo) {
+      // | Some(t) => print_endline(DHExp.show(t))
+      // | None => print_endline("No value")
+      // };
       foo;
-    | LivelitAp({livelit_name: _}) => assert(false) // TODO
+    | LivelitAp({livelit_name}) =>
+      switch (livelit_name) {
+      | "int" => Some(IntLit(1))
+      | "str" => Some(StringLit("livelit string"))
+      | _ => None
+      }
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
   | None => None
