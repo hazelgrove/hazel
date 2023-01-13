@@ -210,39 +210,55 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
 let binding_uses =
     (
       ci: Haz3lcore.Statics.t,
-      zipper: Haz3lcore.Zipper.t,
+      _zipper: Haz3lcore.Zipper.t,
       _info_map: Haz3lcore.Statics.map,
     )
     : Node.t => {
   switch (ci) {
-  | InfoPat({term: _pat, _}) =>
-    // extract the parent index
-    let parent_exp_gen =
-      List.find_opt(
-        gen => {
-          let anc: Haz3lcore.Ancestor.t = fst(gen);
-          switch (Haz3lcore.Ancestor.sort(anc)) {
-          | Exp => true
-          | _ => false
-          };
+  | InfoPat({term: _pat, binding_exp, _}) =>
+    let _ =
+      List.map(
+        id => {
+          print_int(id);
+          print_string(", ");
         },
-        zipper.relatives.ancestors,
+        binding_exp,
       );
-    switch (parent_exp_gen) {
-    | Some((anc, _)) =>
-      div(
-        List.map(
-          x => text(string_of_int(x)),
-          [
-            anc.id,
-            List.length(fst(anc.children)),
-            List.length(snd(anc.children)),
-          ],
-        ),
-      )
-    | _ => div([])
-    };
+    print_newline();
+    div([]);
+  // extract the parent index
+  /* let parent_exp_gen = */
+  /*   List.find_opt( */
+  /*     gen => { */
+  /*       let anc: Haz3lcore.Ancestor.t = fst(gen); */
+  /*       switch (Haz3lcore.Ancestor.sort(anc)) { */
+  /*       | Exp => true */
+  /*       | Any => true */
+  /*       | _ => false */
+  /*       }; */
+  /*     }, */
+  /*     zipper.relatives.ancestors, */
+  /*   ); */
+  /* switch (parent_exp_gen) { */
+  /* | Some((anc, _)) => */
+  /*   switch (Haz3lcore.Id.Map.find_opt(anc.id, info_map)) { */
+  /*   | Some(InfoExp(info)) => */
+  /*     print_int(anc.id); */
+  /*     let _ = */
+  /*       List.map((_, co_entry) => print_endline(co_entry), info.free); */
+  /*     (); */
+  /*   | None => print_string("nothing in info_map") */
+  /*   | _ => () */
+  /*   }; */
+  /*   print_newline(); */
+  /*   div(List.map(x => text(string_of_int(x)), [anc.id])); */
+  /* | _ => div([]) */
+  /* }; */
   // iterate over children of the parent exp
+  // co-context of binding expression will have the uids of variable uses
+  // in the info_map, store the binding uses
+  // make it a list of co-contexts for mutual recursion to work
+  // test recursive and mutually recursive bindings
   // get mold.out (sort) of Exp
   // lookup in info_map to find items of cls Var
   // for each var, check if the token matches
