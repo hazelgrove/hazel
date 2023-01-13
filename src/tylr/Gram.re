@@ -2,7 +2,7 @@ open Util;
 
 module Atom = {
   type t =
-    | Tok(Token.shape)
+    | Tok(Token.Shape.t)
     | Kid(Sort.t);
 };
 
@@ -21,13 +21,15 @@ type t =
 // simplifying assumption, not fundamentally necessary
 exception No_consecutive_tokens;
 
+let tok_shape = (t: Token.Shape.t) => Atom(Tok(t));
+let tok = (s: string) => tok_shape(Const(s));
+
+let kid = s => Atom(Kid(s));
+
 let seq = gs => Seq(gs);
 let alt = gs => Alt(gs);
 
 let eps = Seq([]);
-
-let tok = (t: Token.shape) => Atom(Tok(t));
-let kid = s => Atom(Kid(s));
 
 let opt = g => Alt([eps, g]);
 
