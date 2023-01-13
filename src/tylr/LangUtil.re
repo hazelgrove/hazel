@@ -1,14 +1,16 @@
+open Util;
+
 module Molds = {
   type t = Token.Map.t(list(Mold.t));
 
-  let union2 = Token.Map.union((t, ms_l, ms_r) => Some(ms_l @ ms_r));
+  let union2 = Token.Map.union((_, ms_l, ms_r) => Some(ms_l @ ms_r));
   let union = List.fold_left(union2, Token.Map.empty);
 
   let molds_of_grex = (s: Sort.t, p: Prec.t, g: Gram.t): t => {
     let rec go = (m: Mold.t, g: Gram.t) =>
       switch (g) {
       | Atom(Kid(_)) => Token.Map.empty
-      | Atom(Tok(t)) => Token.Map.singleton(t, m)
+      | Atom(Tok(t)) => Token.Map.singleton(t, [m])
       | Star(g) => go(Mold.push(Star_, m), g)
       | Alt(gs) =>
         ListUtil.elem_splits(gs)
@@ -30,7 +32,7 @@ module Molds = {
     |> Seq.concat_map(((s, prec_lvls)) =>
          List.to_seq(prec_lvls)
          |> Seq.mapi((p, lvl) => (p, lvl))
-         |> Seq.concat_map((p, (g, _)) =>
+         |> Seq.concat_map(((p, (g, _))) =>
               Token.Map.to_seq(molds_of_grex(s, p, g))
             )
        )
