@@ -28,6 +28,11 @@ let push = (f, m) => {...m, frames: [f, ...m.frames]};
 let must_match = (d: Dir.t, m: t): bool =>
   Gram.Frame.must_match(d, m.frames);
 
+// todo: see if use of this is just must_match
+let matching = (_: Dir.t, _) => failwith("todo matching");
+
+let expected_sort = (_: Dir.t, _) => failwith("todo expected_sort");
+
 module Result = {
   type m = t;
   type kid = option(Sort.t);

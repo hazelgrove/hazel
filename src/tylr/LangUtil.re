@@ -45,6 +45,6 @@ module Molds = {
     };
 };
 
-let molds = Molds.find;
+let molds = t => Molds.find(Token.shape(t));
 
 let assoc = (s, p) => snd(List.nth(List.assoc(s, Lang.t), p));

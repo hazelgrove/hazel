@@ -2,22 +2,22 @@ open Util;
 
 type t = (Segment.t, Segment.t);
 
+[@warning "-27"]
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
   failwith("todo");
 
 let choose_matching = (c: Chain.t, t: Token.t) =>
   LangUtil.molds(t)
-  |> List.filter(m => {
-       let t = Tile.{token: t, mold: m};
-       Mold.matching(L, m)
-       && Chain.comp(c, Chain.of_piece(T(t))) == Some(Eq);
-     })
+  |> List.filter(m =>
+       Mold.matching(L, m) && Chain.cmp_mold(c, m) == Some(Eq)
+     )
   |> ListUtil.hd_opt;
 
 // todo: reimplement in terms of precedence bounds
 let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
   let out_consistent =
-    Lang.molds(t) |> List.filter(m => Sort.compare(m.sort, out) <= 0);
+    LangUtil.molds(t)
+    |> List.filter((m: Mold.t) => Sort.compare(m.sort, out) <= 0);
   switch (out_consistent) {
   | [] => None
   | [m] => Some(m)
@@ -35,16 +35,16 @@ let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
          );
     switch (in_l_consistent) {
     | [] => None
-    | [m, ..._] => m // unspecified choice
+    | [m, ..._] => Some(m) // unspecified choice
     };
   };
 };
 
-let rec mold_matching = (t: Token.t, (pre, _): t): option(Mold.t) =>
+let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
   Aba.unsnoc(pre)
   |> OptUtil.and_then(((pre, c, _)) =>
        switch (choose_matching(c, t)) {
-       | None => mold_matching({...rel, sib: (pre, suf)})
+       | None => mold_matching(t, (pre, suf))
        | Some(m) => Some(m)
        }
      );
@@ -53,8 +53,7 @@ let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
   let rec go = (~in_l: option(Sort.t)=?, pre: Segment.t) =>
     Aba.unsnoc(pre)
     |> OptUtil.and_then(((pre, c, _)) => {
-         let go_next = () =>
-           go(~in_l=Chain.sort(c), {...rel, sib: (pre, suf)});
+         let go_next = () => go(~in_l=Chain.sort(c), pre);
          switch (Chain.expected_sort(R, c)) {
          | None => go_next()
          | Some(out) =>
@@ -66,3 +65,5 @@ let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
        });
   go(pre);
 };
+
+let concat = _ => failwith("todo concat");

@@ -11,7 +11,8 @@ let is_empty: t => bool = (==)(empty);
 
 let concat = _ => failwith("todo concat");
 
-let of_space = (s: Space.t): t => ([s], []);
+let of_space = (s: Space.t): t => Aba.singleton(s);
+let of_chain = (c: Chain.t): t => Aba.mk(Space.[empty, empty], [c]);
 
 let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   switch (l) {
@@ -30,6 +31,9 @@ let join = (segs: Aba.t(Space.t, t)): t =>
        s => of_space(s),
      );
 
+[@warning "-27"]
+let pop_lexeme = (~from: Dir.t, seg: t) => failwith("todo pop_lexeme");
+
 let rec mold =
         (~match: bool, pre: t, ~kid: option(Sort.t)=?, t: Token.t)
         : Mold.Result.t =>
@@ -40,6 +44,10 @@ let rec mold =
     let/ kid = Chain.mold(c, ~kid?, t);
     mold(~match, pre, ~kid?, t);
   };
+
+[@warning "-27"]
+let push_chain = (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, Chain.t) =>
+  failwith("todo push_chain");
 
 // assume push onto head of chains in left-to-right order
 // let push = (c: Chain.t, cs: t): t => {

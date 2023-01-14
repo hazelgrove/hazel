@@ -11,3 +11,6 @@ let cmp_merge_l =
 let cmp_merge_r =
     (c: Chain.t, ~kid=?, par: t): option(Cmp.Result.t(t, t, Chain.t)) =>
   failwith("todo");
+
+[@warning "-27"]
+let mold = (~match, ~kid=?, t, par) => failwith("todo mold");

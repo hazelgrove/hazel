@@ -13,3 +13,5 @@ let mk_elem = shape => {
   let id = Id.Gen.next();
   {id, shape};
 };
+
+let split_cursor = (_: t) => failwith("todo split_cursor");

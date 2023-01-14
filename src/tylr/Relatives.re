@@ -1,3 +1,5 @@
+open Util;
+
 // todo: change this to Aba.t(Siblings.t, Parent.t)
 type t = {
   sib: Siblings.t,
@@ -6,64 +8,78 @@ type t = {
 
 let empty: t = failwith("todo");
 
+[@warning "-27"]
+let pop_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");
+[@warning "-27"]
+let push_char = (~onto: Dir.t, c, rel: t) => failwith("todo push_char");
+
 let shift_char = (~from: Dir.t, rel) => {
   open OptUtil.Syntax;
   let+ (c, rel) = pop_char(~from, rel);
   push_char(~onto=Dir.toggle(from), c, rel);
 };
 
-let pop_spiece = (~from as d: Dir.t, rel: t): option((Spiece.t, t)) => {
+let pop_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
   let b = Dir.toggle(d);
   let (sib_d, sib_b) = Dir.order(d, rel.sib);
-  switch (Segment.pop_spiece(~from=b, sib_d)) {
-  | Some((sp, sib_d)) =>
+  switch (Segment.pop_lexeme(~from=b, sib_d)) {
+  | Some((l, sib_d)) =>
     let sib = Dir.unorder(d, (sib_d, sib_b));
-    Some((sp, {...rel, sib}));
+    Some((l, {...rel, sib}));
   | None =>
     open OptUtil.Syntax;
     let* ((par, sib), anc) = Ancestors.pop(rel.anc);
     let (par_d, par_b) = Dir.order(d, par);
-    let+ (p, par_d_rest) = Chain.pop_piece(~from=b, par_d);
+    let+ (l, par_d_rest) = Chain.pop_lexeme(~from=b, par_d);
     let sib =
       Siblings.concat([
         rel.sib,
         (par_d_rest, Segment.of_chain(par_d)),
         sib,
       ]);
-    (P(p), {anc, sib});
+    (l, {anc, sib});
   };
 };
+
+[@warning "-27"]
+let push_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
+  failwith("todo push_lexeme");
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
 // note the latter case always returns Some.
-let rec shift_spiece =
-        (~until: option((Spiece.t, t) => option(t))=?, ~from: Dir.t, rel: t)
+let rec shift_lexeme =
+        (~until: option((Lexeme.t, t) => option(t))=?, ~from: Dir.t, rel: t)
         : option(t) => {
   let onto = Dir.toggle(from);
-  switch (until, pop_spiece(rel)) {
+  switch (until, pop_lexeme(~from, rel)) {
   | (None, None) => None
   | (Some(_), None) => Some(rel)
-  | (None, Some((sp, rel))) => push_spiece(~onto, sp, rel)
-  | (Some(f), Some((sp, rel)) as r) =>
-    switch (f(sp, rel)) {
+  | (None, Some((l, rel))) => push_lexeme(~onto, l, rel)
+  | (Some(f), Some((l, rel))) =>
+    switch (f(l, rel)) {
     | Some(rel) => Some(rel)
-    | None => rel |> push_spiece(~onto, sp) |> shift_spiece(~from, ~until?)
+    | None => rel |> push_lexeme(~onto, l) |> shift_lexeme(~from, ~until?)
     }
   };
 };
 
 let unzip = (rel: t): t =>
   rel
-  |> shift_spiece(~from=L, ~until=(sp, rel) =>
-       switch (sp) {
-       | P(_) => None
-       | S(s) =>
-         open OptUtil.Syntax;
-         let+ (l, r) = Space.split_cursor(s);
-         rel |> push_space(~onto=L, l) |> push_space(~onto=R, r);
-       }
-     );
+  |> shift_lexeme(~from=L, ~until=(l, rel) =>
+       OptUtil.Syntax.(
+         switch (l) {
+         | G(_) => None
+         | T(t) =>
+           let+ (l, r) = Tile.split_cursor(t);
+           rel |> push_lexeme(~onto=L, T(l)) |> push_lexeme(~onto=R, T(r));
+         | S(s) =>
+           let+ (l, r) = Space.split_cursor(s);
+           rel |> push_lexeme(~onto=L, S(l)) |> push_lexeme(~onto=R, S(r));
+         }
+       )
+     )
+  |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
 
 // todo: add wrapper that checks for matching and unmatching molds
 let mold =
@@ -76,7 +92,7 @@ let mold =
     | None => Error(kid)
     | Some((par, sib, anc)) =>
       let/ kid = Parent.mold(~match, ~kid?, t, par);
-      match ? go(~match, ~kid?, t, {sib, anc}) : Error(kid);
+      match ? go(~kid?, {sib, anc}) : Error(kid);
     };
   };
   go(~kid?, unzip(rel));
@@ -86,10 +102,10 @@ type kid = [ | `None(Space.t) | `Some(Space.t, Chain.t, Space.t)];
 
 let segment_of_kid = _ => failwith("todo");
 
-let push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
+let rec push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
   let (pre, suf) = rel.sib;
   // todo: review use of Cmp.Result here wrt desired grout behavior
-  switch (Segment.push(pre, ~kid, c)) {
+  switch (Segment.push_chain(pre, ~kid, c)) {
   | Lt(pre)
   | Eq(pre) => {...rel, sib: (pre, suf)}
   | Gt(kid) =>
@@ -98,7 +114,10 @@ let push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
       let pre = Segment.of_chain(Chain.finish_l(~kid, c));
       {...rel, sib: (pre, suf)};
     | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
-      switch (Chain.cmp_merge(par_l, ~kid, c)) {
+      switch (
+        Chain.cmp_merge(par_l, ~kid, c)
+        |> OptUtil.get_or_fail("parent inner should always be comparable")
+      ) {
       | Lt(kid_r) =>
         let pre = segment_of_kid(kid_r);
         {...rel, sib: (pre, suf)};
@@ -201,7 +220,7 @@ let lex = (s: string, rel: t): (list(Lexeme.t), t) => {
   let buf = Lexing.from_string(l ++ s ++ r);
   let rev = ref([]);
   while (!buf.lex_eof_reached) {
-    let lx = Lexer.next_spiece(buf);
+    let lx = Lexer.next_lexeme(buf);
     rev := [lx, ...rev^];
   };
 

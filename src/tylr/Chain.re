@@ -6,30 +6,36 @@ and kid =
 
 // exception Missing_root_pieces;
 
-let cmp = (_: t, _: t): option(Cmp.t) => failwith("todo");
+let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
+  failwith("todo cmp_mold");
+let cmp = (_: t, _: t): option(Cmp.t) => failwith("todo cmp");
 
 let finish_l = (~kid as _=?, _) => failwith("todo finish_l");
 let finish_r = (_, ~kid as _=?, ()) => failwith("todo finish_r");
 let match_ = (_, ~kid as _=?, _) => failwith("todo match_");
 
-let cmp_merge = (l: t, ~kid=?, r: t): option((Cmp.t, t)) => {
+let cmp_merge = (l: t, ~kid=?, r: t): option(Cmp.Result.t(t, t, t)) => {
   open OptUtil.Syntax;
   let+ cmp = cmp(l, r);
-  let merged =
-    switch (cmp) {
-    | Lt => finish_l(~kid?, r)
-    | Gt => finish_r(l, ~kid?, ())
-    | Eq => match_(l, ~kid?, r)
-    };
-  (cmp, merged);
+  switch (cmp) {
+  | Lt => Cmp.Result.Lt(finish_l(~kid?, r))
+  | Gt => Gt(finish_r(l, ~kid?, ()))
+  | Eq => Eq(match_(l, ~kid?, r))
+  };
 };
 
 [@warning "-27"]
 let mold = (c: t, ~kid=?, t: Token.t) => failwith("todo Chain.mold");
 
+let sort = _ => failwith("todo Chain.sort");
+let expected_sort = (_: Dir.t, _) => failwith("todo Chain.expected_sort");
+
 let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
 let of_grout = (g: Grout.t) => of_piece(G(g));
 let of_tile = (t: Tile.t) => of_piece(T(t));
+
+[@warning "-27"]
+let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
 
 let split_uni_kid = (d: Dir.t, c: t): (option(kid), t) =>
   switch (d) {
