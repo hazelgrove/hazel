@@ -1,3 +1,5 @@
+open Util;
+
 type t = {
   id: Id.t,
   mold: option(Mold.t),
@@ -5,11 +7,7 @@ type t = {
 };
 
 let mk = (~id=?, ~mold=?, token: Token.t) => {
-  let id =
-    switch (id) {
-    | None => Id.Gen.next()
-    | Some(id) => id
-    };
+  let id = id |> OptUtil.get(() => Id.Gen.next());
   {id, mold, token};
 };
 

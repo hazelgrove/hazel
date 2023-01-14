@@ -14,6 +14,11 @@ let cmp = (_: t, _: t): option(Cmp.t) => failwith("todo cmp");
 
 let finish_l = (~kid as _=?, _) => failwith("todo finish_l");
 let finish_r = (_, ~kid as _=?, ()) => failwith("todo finish_r");
+
+// accepts empty chains
+[@warning "-27"]
+let finish = (~expected: Sort.t, _) => failwith("todo finish");
+
 let match_ = (_, ~kid as _=?, _) => failwith("todo match_");
 
 let cmp_merge = (l: t, ~kid=?, r: t): option(Cmp.Result.t(t, t, t)) => {
@@ -38,6 +43,10 @@ let of_tile = (t: Tile.t) => of_piece(T(t));
 
 [@warning "-27"]
 let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
+
+// todo: probably want to replace with lexeme
+[@warning "-27"]
+let pop_token = (~from: Dir.t, _) => failwith("todo pop_token");
 
 let split_uni_kid = (d: Dir.t, c: t): (option(kid), t) =>
   switch (d) {

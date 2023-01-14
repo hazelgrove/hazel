@@ -46,10 +46,21 @@ let rec mold =
   };
 
 [@warning "-27"]
-let push_chain = (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, Chain.t) =>
+let push_chain = (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, t) =>
   failwith("todo push_chain");
 
+let to_prefix = _ => failwith("todo to_prefix");
 let to_suffix = _ => failwith("todo to_suffix");
+
+[@warning "-27"]
+let finish_l = (~kid=empty, c: Chain.t): t => failwith("todo finish_l");
+
+let finish = (~expected: Sort.t, seg: t): (Space.t, Chain.t, Space.t) =>
+  switch (seg) {
+  | ([s], []) => (s, Chain.(finish(~expected, empty)), Space.empty)
+  | ([s_l, s_r], [c]) => (s_l, Chain.finish(~expected, c), s_r)
+  | _ => failwith("unexpected call to finish with more than one chain")
+  };
 
 // assume push onto head of chains in left-to-right order
 // let push = (c: Chain.t, cs: t): t => {
