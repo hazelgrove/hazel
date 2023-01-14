@@ -2,7 +2,7 @@
 
 (library
  (name tylr)
- (virtual_modules sort lang)
+ (virtual_modules lang)
  (wrapped false)
  (libraries util re sexplib)
  (js_of_ocaml

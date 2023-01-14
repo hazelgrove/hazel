@@ -1,7 +1,7 @@
 type t = {
   sort: Sort.t,
   prec: Prec.t,
-  frames: Gram.Frame.s,
+  frames: Gram.Frame.s(Sort.t),
   // range: (int, int),
 };
 

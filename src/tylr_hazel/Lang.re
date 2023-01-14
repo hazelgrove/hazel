@@ -1,6 +1,23 @@
 open Gram;
 
-let p = (~a: option(Dir.t)=?, g: t) => (g, None);
+module Sort = {
+  type t =
+    | Exp
+    | Pat
+    | Typ;
+
+  let to_int =
+    fun
+    | Exp => 0
+    | Pat => 1
+    | Typ => 2;
+
+  let compare = (s1, s2) => Int.compare(to_int(s1), to_int(s2));
+
+  let root = Exp;
+};
+
+let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);
 
 module Typ = {
   let t = failwith("todo");
@@ -11,7 +28,7 @@ module Pat = {
 };
 
 module Exp = {
-  let e = kid(Exp);
+  let e = kid(Sort.Exp);
 
   let operand =
     alt([
@@ -28,7 +45,7 @@ module Exp = {
 
   let mult_op = tok_alt(["*", "*.", "/", "/."]);
 
-  let neg_op = tok_alt("-", "-.");
+  let neg_op = tok_alt(["-", "-."]);
 
   let t = [
     p(seq([e, add_op, e])),

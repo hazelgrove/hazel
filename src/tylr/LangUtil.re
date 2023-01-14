@@ -6,8 +6,8 @@ module Molds = {
   let union2 = Token.Map.union((_, ms_l, ms_r) => Some(ms_l @ ms_r));
   let union = List.fold_left(union2, Token.Map.empty);
 
-  let molds_of_grex = (s: Sort.t, p: Prec.t, g: Gram.t): t => {
-    let rec go = (m: Mold.t, g: Gram.t) =>
+  let molds_of_grex = (s: Sort.t, p: Prec.t, g: Gram.t(Sort.t)): t => {
+    let rec go = (m: Mold.t, g: Gram.t(Sort.t)) =>
       switch (g) {
       | Atom(Kid(_)) => Token.Map.empty
       | Atom(Tok(t)) => Token.Map.singleton(t, [m])

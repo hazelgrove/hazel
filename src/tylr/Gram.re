@@ -1,22 +1,22 @@
 open Util;
 
 module Atom = {
-  type t =
+  type t('sort) =
     | Tok(Token.Shape.t)
-    | Kid(Sort.t);
+    | Kid('sort);
 };
 
 module Extremity = {
-  type t = option(Atom.t);
-  type s = list(t);
+  type t('sort) = option(Atom.t('sort));
+  type s('sort) = list(t('sort));
 };
 
 // maybe want to generalize over atoms
-type t =
-  | Atom(Atom.t)
-  | Star(t)
-  | Seq(list(t))
-  | Alt(list(t));
+type t('sort) =
+  | Atom(Atom.t('sort))
+  | Star(t('sort))
+  | Seq(list(t('sort)))
+  | Alt(list(t('sort)));
 
 // simplifying assumption, not fundamentally necessary
 exception No_consecutive_tokens;
@@ -50,7 +50,8 @@ let rec root_token =
   | Seq(gs) => List.exists(root_token, gs)
   | Alt(gs) => List.for_all(root_token, gs);
 
-let exterior_seq = (exterior: t => Extremity.s, gs: list(t)): Extremity.s => {
+let exterior_seq =
+    (exterior: t(_) => Extremity.s(_), gs: list(t(_))): Extremity.s(_) => {
   let (nullable, rest) = ListUtil.take_while(nullable, gs);
   let nullable = List.concat_map(exterior, nullable);
   let rest =
@@ -63,7 +64,7 @@ let exterior_seq = (exterior: t => Extremity.s, gs: list(t)): Extremity.s => {
 
 let edge = _ => failwith("todo edge");
 
-let rec exterior = (d: Dir.t, g: t): Extremity.s =>
+let rec exterior = (d: Dir.t, g: t(_)): Extremity.s(_) =>
   switch (g) {
   | Atom(a) => [Some(a)]
   | Star(g) => exterior(d, g)
@@ -72,16 +73,16 @@ let rec exterior = (d: Dir.t, g: t): Extremity.s =>
   };
 
 module Frame = {
-  type g = t;
-  type t =
+  type g('sort) = t('sort);
+  type t('sort) =
     | Star_
-    | Seq_(list(g), list(g))
-    | Alt_(list(g), list(g));
-  type s = list(t);
+    | Seq_(list(g('sort)), list(g('sort)))
+    | Alt_(list(g('sort)), list(g('sort)));
+  type s('sort) = list(t('sort));
 
   let empty = [];
 
-  let rec interior = (d: Dir.t): (s => Extremity.s) =>
+  let rec interior = (d: Dir.t): (s(_) => Extremity.s(_)) =>
     fun
     | [] => [None]
     | [f, ...fs] =>
@@ -97,7 +98,7 @@ module Frame = {
         @ (List.for_all(nullable, gs_r) ? interior(d, fs) : [])
       };
 
-  let rec must_match = (d: Dir.t, fs: s): bool =>
+  let rec must_match = (d: Dir.t, fs: s(_)): bool =>
     switch (fs) {
     | [] => false
     | [f, ...fs] =>
