@@ -1,7 +1,3 @@
-{
-  let mk_tile = fun s -> Spiece.P (T (Tile.mk ","))
-}
-
 let digit = ['0'-'9']
 
 let int_lit = (digit | '_')+
@@ -15,7 +11,7 @@ let id_lower = alpha_lower (alpha | digit | '_')*
 let id_upper = alpha_upper (alpha | digit | '_')*
 
 let newline = '\r' | '\n' | "\r\n"
-let whitespace = (' ' | '\t' | newline)+
+let space = ' ' | '\t'
 
 let op_int =
   '+' | '-' | '*' | '/' | "**" | '>' | ">=" | '<' | "<=" | "=="
@@ -30,6 +26,7 @@ let op =
 
 let token = op | id_lower | id_upper | int_lit | float_lit
 
-rule next_spiece = parse
-| whitespace { Spiece.S (Space.mk (Lexing.lexeme lexbuf)) }
-| token { Spiece.P (T (Tile.mk (Lexing.lexeme lexbuf))) }
+rule next_lexeme = parse
+| newline { Lexeme.S (Space.[mk_elem(Newline)]) }
+| space   { Lexeme.S (Space.[mk_elem(Space)]) }
+| token   { Lexeme.T (Tile.mk (Lexing.lexeme lexbuf)) }
