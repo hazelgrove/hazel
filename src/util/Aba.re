@@ -15,6 +15,11 @@ let split_first_a = ((as_, bs): t('a, 'b)): ('a, (list('b), list('a))) => {
 };
 let first_a = (aba: t('a, _)): 'a => fst(split_first_a(aba));
 
+let map_first = (f: 'a => 'a, aba: t('a, 'b)): t('a, 'b) => {
+  let (a, (bs, as_)) = split_first_a(aba);
+  ([f(a), ...as_], bs);
+};
+
 let split_last_a = _ => failwith("todo split_last_a");
 let last_a = ((as_, _): t('a, _)): 'a => {
   assert(as_ != []);

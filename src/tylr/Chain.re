@@ -6,10 +6,6 @@ and kid =
 
 // exception Missing_root_pieces;
 
-module Z = {
-  type t = (int, Piece.Z.t);
-};
-
 let cmp = (_: t, _: t): option(Cmp.t) => failwith("todo");
 
 let finish_l = (~kid as _=?, _) => failwith("todo finish_l");
@@ -32,6 +28,8 @@ let cmp_merge = (l: t, ~kid=?, r: t): option((Cmp.t, t)) => {
 let mold = (c: t, ~kid=?, t: Token.t) => failwith("todo Chain.mold");
 
 let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
+let of_grout = (g: Grout.t) => of_piece(G(g));
+let of_tile = (t: Tile.t) => of_piece(T(t));
 
 let split_uni_kid = (d: Dir.t, c: t): (option(kid), t) =>
   switch (d) {

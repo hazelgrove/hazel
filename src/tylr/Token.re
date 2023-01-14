@@ -25,4 +25,14 @@ module Shape = {
 };
 
 // NOTE: keys are shapes, not the token strings
-module Map = Map.Make(Shape);
+module Map = Map.Make(Shape) /* }*/;
+
+// type t = {
+//   id: Id.t,
+//   text: string,
+// };
+
+// // effectful
+// let mk = text => {
+//   let id = Id.Gen.next();
+//   {id, text};

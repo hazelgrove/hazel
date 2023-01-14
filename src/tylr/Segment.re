@@ -13,6 +13,16 @@ let concat = _ => failwith("todo concat");
 
 let of_space = (s: Space.t): t => ([s], []);
 
+let cons_lexeme = (l: Lexeme.t, seg: t): t =>
+  switch (l) {
+  | S(s) => Aba.map_first((@)(s), seg)
+  | T(t) => Aba.cons(Space.empty, Chain.of_tile(t), seg)
+  | G(g) => Aba.cons(Space.empty, Chain.of_grout(g), seg)
+  };
+
+let of_lexemes = (ls: list(Lexeme.t)): t =>
+  List.fold_right(cons_lexeme, ls, empty);
+
 let join = (segs: Aba.t(Space.t, t)): t =>
   segs
   |> Aba.fold_right(

@@ -194,18 +194,17 @@ let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   );
 };
 
-let lex = (s: string, rel: t): (Segment.t, t) => {
+let lex = (s: string, rel: t): (list(Lexeme.t), t) => {
   let (l, rel) = pop_adj_token(L, rel) |> OptUtil.get(("", rel));
   let (r, rel) = pop_adj_token(R, rel) |> OptUtil.get(("", rel));
 
-  let buf = Lexing.from_string(s);
-  let rev_seg = ref(Segment.empty);
+  let buf = Lexing.from_string(l ++ s ++ r);
+  let rev = ref([]);
   while (!buf.lex_eof_reached) {
-    let sp = Lexer.next_spiece(buf);
-    rev_seg := Segment.cons_spiece(sp, rev_seg);
+    let lx = Lexer.next_spiece(buf);
+    rev := [lx, ...rev^];
   };
 
-  let seg = Aba.rev(Fun.id, Fun.id, rev_seg);
   // todo: insert cursor sentinel
-  (seg, rel);
+  (List.rev(rev), rel);
 };

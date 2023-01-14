@@ -4,7 +4,11 @@ type t = {
   token: Token.t,
 };
 
-let mk = (~mold=?, token: Token.t): t => {
-  let id = Id.Gen.next();
+let mk = (~id=?, ~mold=?, token: Token.t) => {
+  let id =
+    switch (id) {
+    | None => Id.Gen.next()
+    | Some(id) => id
+    };
   {id, mold, token};
 };
