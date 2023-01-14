@@ -1,9 +1,9 @@
 (include_subdirs unqualified)
 
 (library
- (name hazellang)
- (implements tylr)
+ (name tylr_hazel)
  (libraries util re sexplib)
+ (implements tylr)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

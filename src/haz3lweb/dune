@@ -21,7 +21,8 @@
   pretty
   lwt
   lwtutil
-  omd)
+  omd
+  tylr)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
@@ -36,7 +37,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries ppx_yojson_conv.expander haz3lweb)
+ (libraries ppx_yojson_conv.expander haz3lweb tylr_hazel)
  (modes js)
  (js_of_ocaml
   (flags
@@ -52,7 +53,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries haz3lweb)
+ (libraries haz3lweb tylr_hazel)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
