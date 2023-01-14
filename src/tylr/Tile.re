@@ -5,6 +5,6 @@ type t = {
 };
 
 let mk = (~mold=?, token: Token.t): t => {
-  let id = IdGen.next();
+  let id = Id.Gen.next();
   {id, mold, token};
 };

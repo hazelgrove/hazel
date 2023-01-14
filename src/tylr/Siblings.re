@@ -1,3 +1,5 @@
+open Util;
+
 type t = (Segment.t, Segment.t);
 
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>

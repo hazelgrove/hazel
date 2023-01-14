@@ -1,12 +1,8 @@
-module Frames = {
-  type t = (Regex.Frame.s, Gram.Frame.s);
-};
-
 type t = {
   sort: Sort.t,
   prec: Prec.t,
   frames: Gram.Frame.s,
-  range: (int, int),
+  // range: (int, int),
 };
 
 // derived
@@ -16,11 +12,7 @@ type t = {
 //   frames: [Seq_([Kid(Exp)], [Kid(Exp)])],
 // };
 
-let init = (sort, prec) => {
-  sort,
-  prec,
-  frames: (Token.Frame.empty, Gram.Frame.empty),
-};
+let init = (sort, prec) => {sort, prec, frames: Gram.Frame.empty};
 
 let push = (f, m) => {...m, frames: [f, ...m.frames]};
 
@@ -34,7 +26,7 @@ let push = (f, m) => {...m, frames: [f, ...m.frames]};
 //      );
 
 let must_match = (d: Dir.t, m: t): bool =>
-  Grex.Frame.must_match(d, m.frames);
+  Gram.Frame.must_match(d, m.frames);
 
 module Result = {
   type m = t;

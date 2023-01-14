@@ -15,10 +15,13 @@ let split_first_a = ((as_, bs): t('a, 'b)): ('a, (list('b), list('a))) => {
 };
 let first_a = (aba: t('a, _)): 'a => fst(split_first_a(aba));
 
+let split_last_a = _ => failwith("todo split_last_a");
 let last_a = ((as_, _): t('a, _)): 'a => {
   assert(as_ != []);
   ListUtil.last(as_);
 };
+
+let unsnoc = _ => failwith("todo unsnoc");
 
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   List.rev_map(rev_a, as_),
