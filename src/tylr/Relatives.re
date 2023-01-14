@@ -82,7 +82,7 @@ let unzip = (rel: t): t =>
   |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
 
 // todo: add wrapper that checks for matching and unmatching molds
-let mold =
+let mold_ =
     (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
   let rec go = (~kid: option(Sort.t)=?, rel: t): Mold.Result.t => {
     open Result.Syntax;
@@ -97,12 +97,19 @@ let mold =
   };
   go(~kid?, unzip(rel));
 };
+let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
+  open Result.Syntax;
+  let/ _ = mold_(~match=true, ~kid?, t, rel);
+  mold_(~match=false, ~kid?, t, rel);
+};
 
-type kid = [ | `None(Space.t) | `Some(Space.t, Chain.t, Space.t)];
+// type kid = [ | `None(Space.t) | `Some(Space.t, Chain.t, Space.t)];
+// let segment_of_kid = _ => failwith("todo");
 
-let segment_of_kid = _ => failwith("todo");
-
-let rec push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
+// todo: make sure space isn't getting lost given kid type
+[@warning "-27"]
+let rec push_chain =
+        (~kid: option(Chain.t)=?, ~space=Space.empty, c: Chain.t, rel: t): t => {
   let (pre, suf) = rel.sib;
   // todo: review use of Cmp.Result here wrt desired grout behavior
   switch (Segment.push_chain(pre, ~kid, c)) {
@@ -119,12 +126,12 @@ let rec push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
         |> OptUtil.get_or_fail("parent inner should always be comparable")
       ) {
       | Lt(kid_r) =>
-        let pre = segment_of_kid(kid_r);
+        let pre = Segment.of_chain(kid_r);
         {...rel, sib: (pre, suf)};
       | Gt(kid_l) =>
         let pre = sib_l;
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-        push_chain(~kid, c, {anc, sib: (pre, suf)});
+        push_chain(~kid=kid_l, c, {anc, sib: (pre, suf)});
       | Eq(c') =>
         let pre = Segment.(concat([sib_l, of_chain(c')]));
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
@@ -134,34 +141,33 @@ let rec push_chain = (~kid: kid=`None(Space.empty), c: Chain.t, rel: t): t => {
   };
 };
 
+let insert_space = (_, _) => failwith("todo insert_space");
+
 // precond: c is closed left
 let rec insert_chain = (~space=Space.empty, c: Chain.t, rel: t): t => {
   let (kid, p, rest) =
-    Chain.pop_piece(c) |> OptUtil.get_or_raise(Chain.Missing_root);
+    Chain.uncons(c) |> OptUtil.get_or_raise(Chain.Missing_root);
   assert(kid == None);
   switch (p) {
-  | G(_) => failwith("todo grout")
-  | T(t) =>
-    let mold = mold(t.token, rel);
-    if (mold == t.mold) {
+  | Piece.G(_) => failwith("todo grout")
+  | Piece.T(t) =>
+    switch (mold(t.token, rel)) {
+    | Ok(m) when Some(m) == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
-      push_chain(
-        ~space,
-        c,
-        rel,
-      );
-    } else {
+      push_chain(~space, c, rel)
+    | m =>
+      let mold = Result.to_option(m);
       rel
       |> push_chain(~space, Chain.of_tile({...t, mold}))
       |> insert_seg(rest);
-    };
+    }
   };
 }
 and insert_seg = (seg: Segment.t, rel: t): t =>
   Segment.to_suffix(seg)
   |> Aba.fold_left(
        s => insert_space(s, rel),
-       (rel, s, c) => insert_chain(~space=s, c),
+       (rel, s, c) => insert_chain(~space=s, c, rel),
      );
 
 // precond: rel contains Cursor token in prefix

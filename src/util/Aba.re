@@ -26,8 +26,6 @@ let last_a = ((as_, _): t('a, _)): 'a => {
   ListUtil.last(as_);
 };
 
-let unsnoc = _ => failwith("todo unsnoc");
-
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   List.rev_map(rev_a, as_),
   List.rev_map(rev_b, bs),
@@ -37,10 +35,13 @@ let cons = (a: 'a, b: 'b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   [a, ...as_],
   [b, ...bs],
 );
+let uncons = _ => failwith("todo uncons");
+
 let snoc = ((as_, bs): t('a, 'b), b: 'b, a: 'a): t('a, 'b) => (
   as_ @ [a],
   bs @ [b],
 );
+let unsnoc = _ => failwith("todo unsnoc");
 
 let singleton = (a: 'a): t('a, _) => ([a], []);
 

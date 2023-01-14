@@ -49,6 +49,8 @@ let rec mold =
 let push_chain = (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, Chain.t) =>
   failwith("todo push_chain");
 
+let to_suffix = _ => failwith("todo to_suffix");
+
 // assume push onto head of chains in left-to-right order
 // let push = (c: Chain.t, cs: t): t => {
 //   let rec go = (c0: Chain.t, ~mid=?, cs: t): t =>

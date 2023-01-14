@@ -4,7 +4,9 @@ type t = Aba.t(option(kid), Piece.t)
 and kid =
   | K(t);
 
-// exception Missing_root_pieces;
+exception Missing_root;
+
+let uncons = (_: t) => failwith("todo uncons");
 
 let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
   failwith("todo cmp_mold");
