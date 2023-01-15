@@ -38,8 +38,8 @@ let sort = _ => failwith("todo Chain.sort");
 let expected_sort = (_: Dir.t, _) => failwith("todo Chain.expected_sort");
 
 let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
-let of_grout = (g: Grout.t) => of_piece(G(g));
-let of_tile = (t: Tile.t) => of_piece(T(t));
+let of_grout = (g: Grout.t) => of_piece(Piece.mk(G(g)));
+let of_tile = (t: Tile.t) => of_piece(Piece.mk(T(t)));
 
 [@warning "-27"]
 let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");

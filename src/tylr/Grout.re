@@ -11,3 +11,6 @@ let mk = (~id=?, mold) => {
     };
   {id, mold};
 };
+
+// todo: incorporate unique filling
+let length = _ => 1;

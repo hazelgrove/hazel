@@ -11,4 +11,6 @@ let mk = (~id=?, ~mold=?, token: Token.t) => {
   {id, mold, token};
 };
 
+let length = t => Token.length(t.token);
+
 let split_cursor = (_: t) => failwith("todo split_cursor");
