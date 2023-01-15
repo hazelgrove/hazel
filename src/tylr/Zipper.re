@@ -7,6 +7,20 @@ type t = {
   rel: Relatives.t,
 };
 
+let init = {
+  sel: Selection.empty,
+  rel: {
+    sib:
+      Segment.(
+        empty,
+        of_chain(
+          Chain.of_grout(Grout.mk({sort: Sort.root, prec: 0, frames: []})),
+        ),
+      ),
+    anc: [],
+  },
+};
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =

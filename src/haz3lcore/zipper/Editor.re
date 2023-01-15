@@ -61,14 +61,27 @@ module State = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     zipper: Zipper.t,
+    tylr: Tylr.Zipper.t,
     [@opaque]
     meta: Meta.t,
   };
 
-  let init = zipper => {zipper, meta: Meta.init(zipper)};
+  let init = zipper => {
+    zipper,
+    tylr: Tylr.Zipper.init,
+    meta: Meta.init(zipper),
+  };
 
-  let next = (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, state) => {
+  let next =
+      (
+        ~effects: list(Effect.t)=[],
+        ~tylr: Tylr.Zipper.t,
+        a: Action.t,
+        z: Zipper.t,
+        state,
+      ) => {
     zipper: z,
+    tylr,
     meta: Meta.next(~effects, a, z, state.meta),
   };
 };
@@ -119,14 +132,21 @@ let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
 };
 
 let new_state =
-    (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
-  let state = State.next(~effects, a, z, ed.state);
+    (
+      ~effects: list(Effect.t)=[],
+      ~tylr=Tylr.Zipper.init,
+      a: Action.t,
+      z: Zipper.t,
+      ed: t,
+    )
+    : t => {
+  let state = State.next(~effects, ~tylr, a, z, ed.state);
   let history = History.add(a, ed.state, ed.history);
   {state, history, read_only: ed.read_only};
 };
 
 let caret_point = (ed: t): Measured.Point.t => {
-  let State.{zipper, meta} = ed.state;
+  let State.{zipper, meta, _} = ed.state;
   Zipper.caret_point(meta.measured, zipper);
 };
 

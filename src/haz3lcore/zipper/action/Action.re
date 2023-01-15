@@ -36,6 +36,15 @@ type t =
   | Pick_up
   | Put_down;
 
+let to_tylr: t => option(Tylr.Zipper.Action.t) =
+  fun
+  | Move(Local(Left(ByChar))) => Some(Move(L))
+  | Move(Local(Right(ByChar))) => Some(Move(R))
+  | Insert(s) => Some(Insert(s))
+  | Destruct(Left) => Some(Delete(L))
+  | Destruct(Right) => Some(Delete(R))
+  | _ => None;
+
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =

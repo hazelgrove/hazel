@@ -115,9 +115,18 @@ let go =
     Result.Ok((ed, id_gen));
   } else {
     open Result.Syntax;
-    let Editor.State.{zipper, meta} = ed.state;
+    let Editor.State.{zipper, meta, tylr} = ed.state;
     Effect.s_clear();
     let+ (z, id_gen) = go_z(~meta, a, zipper, id_gen);
-    let ed = Editor.new_state(~effects=Effect.s^, a, z, ed);
+    let tylr =
+      switch (Action.to_tylr(a)) {
+      | None => tylr
+      | Some(a) =>
+        switch (Tylr.Zipper.perform(a, tylr)) {
+        | None => tylr
+        | Some(t) => t
+        }
+      };
+    let ed = Editor.new_state(~effects=Effect.s^, ~tylr, a, z, ed);
     (ed, id_gen);
   };
