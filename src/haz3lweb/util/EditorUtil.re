@@ -48,7 +48,7 @@ let info_map = (editor: Editor.t) => {
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let (info_map, _) = Statics.mk_map(term);
+  let info_map = Statics.mk_map(term);
   info_map;
 };
 

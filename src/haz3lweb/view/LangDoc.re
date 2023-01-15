@@ -222,7 +222,7 @@ let deco =
       let map = map;
       let show_backpack_targets = false;
       let (term, terms) = MakeTerm.go(unselected);
-      let (info_map, _) = Statics.mk_map(term);
+      let info_map = Statics.mk_map(term);
       let term_ranges = TermRanges.mk(unselected);
       let tiles = TileMap.mk(unselected);
     });
@@ -417,7 +417,7 @@ let example_view =
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
-            let (info_map, _) = Statics.mk_map(uhexp);
+            let info_map = Statics.mk_map(uhexp);
             let result_view =
               switch (Interface.evaluation_result(info_map, uhexp)) {
               | None => []

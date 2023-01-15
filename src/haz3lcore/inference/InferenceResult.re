@@ -10,13 +10,14 @@ type annotation_map = Hashtbl.t(Id.t, string);
 
 let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
+let accumulated_annotations = empty_annotations();
+
 let get_annotations = (inference_results: list(t)): annotation_map => {
   let status_to_string = (status: status): option(string) => {
     switch (status) {
     | Solved(Unknown(_)) => None // it isn't useful to say something is unknown
     | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
     | Unsolved(_eq_class) => None
-    // Some(EqClass.string_of_eq_class(eq_class)) // use if known eq_class desired
     };
   };
 
@@ -38,14 +39,13 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
   new_map;
 };
 
-let get_annotation_of_id =
-    (annotation_map: annotation_map, id: Id.t): option(string) => {
-  Hashtbl.find_opt(annotation_map, id);
+let get_annotation_of_id = (id: Id.t): option(string) => {
+  Hashtbl.find_opt(accumulated_annotations, id);
 };
 
-let merge_annotation_maps = (old_map, new_map): unit => {
+let add_on_new_annotations = (new_map): unit => {
   let add_new_elt = (new_k, new_v) => {
-    Hashtbl.replace(old_map, new_k, new_v);
+    Hashtbl.replace(accumulated_annotations, new_k, new_v);
   };
   Hashtbl.iter(add_new_elt, new_map);
 };

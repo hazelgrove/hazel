@@ -820,23 +820,11 @@ let mk_map =
       let inference_results = Inference.unify_and_report_status(constraints);
       let annotation_map = InferenceResult.get_annotations(inference_results);
 
-      (info_map, annotation_map);
+      InferenceResult.add_on_new_annotations(annotation_map);
+
+      info_map;
     },
   );
-
-// let mk_annotations =
-//   Core.Memo.general(
-//     ~cache_size_bound=1000,
-//     e => {
-//       let (_, _, _info_map, constraints) =
-//         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
-
-//       let inference_results = Inference.unify_and_report_status(constraints);
-//       let annotation_map = InferenceResult.get_annotations(inference_results);
-
-//       annotation_map;
-//     },
-//   );
 
 let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
   open OptUtil.Syntax;
