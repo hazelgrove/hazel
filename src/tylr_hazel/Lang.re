@@ -23,6 +23,13 @@ module Sort = {
     | Pat => "Pat"
     // | Rul => "Rul"
     | Exp => "Exp";
+
+  let of_string =
+    fun
+    | "Typ" => Typ
+    | "Pat" => Pat
+    | "Exp" => Exp
+    | _ => raise(Invalid_argument("Sort.of_string: unrecognized sort"));
 };
 
 let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);

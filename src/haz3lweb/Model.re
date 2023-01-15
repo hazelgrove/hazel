@@ -36,6 +36,7 @@ let fix_instructor_mode = settings =>
   };
 
 type t = {
+  tylr: Tylr.Segment.t,
   editors: Editors.t,
   results: ModelResults.t,
   settings,
@@ -49,7 +50,16 @@ type t = {
 
 let cutoff = (===);
 
+let s = Tylr.Sort.of_string;
+
 let mk = editors => {
+  // tylr: Tylr.Segment.empty,
+  tylr:
+    Tylr.(
+      Segment.of_chain(
+        Chain.of_grout(Grout.mk({sort: s("Exp"), prec: 0, frames: []})),
+      )
+    ),
   editors,
   results: ModelResults.empty,
   settings: settings_init,
