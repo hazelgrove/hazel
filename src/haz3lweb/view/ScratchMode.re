@@ -19,7 +19,8 @@ let view =
   let zipper = editor.state.zipper;
   let unselected = Zipper.unselect_and_zip(zipper);
   let (term, _) = MakeTerm.go(unselected);
-  let info_map = Statics.mk_map(term);
+  let (info_map, inference_annotations) =
+    Statics.mk_map_and_annotations(term);
 
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
@@ -48,6 +49,7 @@ let view =
       ~color_highlighting,
       ~info_map,
       ~result,
+      ~inference_annotations,
       editor,
     );
   let ci_view =
@@ -73,6 +75,7 @@ let view =
           ~doc=langDocMessages,
           Indicated.index(zipper),
           info_map,
+          inference_annotations,
         ),
       ]
       : [];

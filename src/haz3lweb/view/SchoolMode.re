@@ -97,6 +97,7 @@ let view =
       ],
       ~settings,
       ~color_highlighting,
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
     );
   };
 
@@ -373,6 +374,7 @@ let view =
             ~doc=langDocMessages,
             Indicated.index(focal_zipper),
             focal_info_map,
+            InferenceResult.empty_annotation_map(),
           ),
         ]
         : []

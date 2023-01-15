@@ -6,6 +6,8 @@ type t = (ITyp.t, status);
 
 type annotation_map = list((Id.t, string));
 
+let empty_annotation_map = (): annotation_map => [];
+
 let get_annotations = (inference_results: list(t)): annotation_map => {
   let status_to_string = (status: status): string => {
     switch (status) {

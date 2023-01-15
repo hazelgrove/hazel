@@ -61,8 +61,8 @@ module Text = (M: {
           (
             ~no_sorts=false,
             ~sort=Sort.root,
+            ~inference_annotations=InferenceResult.empty_annotation_map(),
             seg: Segment.t,
-            annotation_map: InferenceResult.annotation_map,
           )
           : list(Node.t) => {
     //note: no_sorts flag is used for backback
@@ -78,29 +78,31 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(sort_of_p_idx(i), p, annotation_map)
+         of_piece(sort_of_p_idx(i), p, ~inference_annotations)
        );
   }
   and of_piece =
       (
+        ~inference_annotations=InferenceResult.empty_annotation_map(),
         expected_sort: Sort.t,
         p: Piece.t,
-        annotation_map: InferenceResult.annotation_map,
       )
       : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(expected_sort, t, annotation_map)
+    | Tile(t) => of_tile(expected_sort, t, ~inference_annotations)
     | Grout(g) =>
-      g.id |> InferenceResult.get_annotation_of_id(annotation_map) |> of_grout
+      g.id
+      |> InferenceResult.get_annotation_of_id(inference_annotations)
+      |> of_grout
     | Whitespace({content, _}) =>
       of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
   }
   and of_tile =
       (
+        ~inference_annotations=InferenceResult.empty_annotation_map(),
         expected_sort: Sort.t,
         t: Tile.t,
-        annotation_map: InferenceResult.annotation_map,
       )
       : list(Node.t) => {
     let children_and_sorts =
@@ -113,7 +115,7 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(t.mold.out, is_consistent, t), ((seg, sort)) =>
-         of_segment(~sort, seg, annotation_map)
+         of_segment(~sort, seg, ~inference_annotations)
        )
     |> List.concat;
   };
@@ -138,16 +140,15 @@ let rec holes =
      );
 
 let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
+  print_endline("simple_view");
   module Text =
     Text({
       let map = map;
       let settings = settings;
     });
-  let (term, _) = MakeTerm.go(unselected);
-  let annotation_map = Statics.mk_annotations(term);
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment(unselected, annotation_map))],
+    [span_c("code-text", Text.of_segment(unselected))],
   );
 };
 
@@ -158,18 +159,18 @@ let view =
       ~unselected,
       ~measured,
       ~settings: Model.settings,
+      ~inference_annotations: InferenceResult.annotation_map,
     )
     : Node.t => {
+  print_endline("view");
   module Text =
     Text({
       let map = measured;
       let settings = settings;
     });
-  let (term, _) = MakeTerm.go(unselected);
-  let annotation_map = Statics.mk_annotations(term);
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
-      Text.of_segment(unselected, annotation_map)
+      Text.of_segment(~inference_annotations, unselected)
     );
   let holes =
     TimeUtil.measure_time("Code.view/holes", settings.benchmark, () =>

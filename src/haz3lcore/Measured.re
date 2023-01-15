@@ -282,10 +282,15 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let of_segment =
+    (
+      ~old: t=empty,
+      ~touched=Touched.empty,
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      seg: Segment.t,
+    )
+    : t => {
   let is_indented = is_indented_map(seg);
-  let (term, _) = MakeTerm.go(seg);
-  let annotation_map = Statics.mk_annotations(term);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
@@ -373,7 +378,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Grout(g) =>
             let annotation_offset =
               g.id
-              |> InferenceResult.get_annotation_of_id(annotation_map)
+              |> InferenceResult.get_annotation_of_id(inference_annotations)
               |> OptUtil.get(() => " ")
               |> String.length;
 
@@ -428,27 +433,49 @@ let length = (seg: Segment.t, map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let segment_origin = (seg: Segment.t): option(Point.t) =>
+let segment_origin =
+    (
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      seg: Segment.t,
+    )
+    : option(Point.t) =>
   Option.map(
-    first => find_p(first, of_segment(seg)).origin,
+    first => find_p(first, of_segment(~inference_annotations, seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(Point.t) =>
+let segment_last =
+    (
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      seg: Segment.t,
+    )
+    : option(Point.t) =>
   Option.map(
-    last => find_p(last, of_segment(seg)).last,
+    last => find_p(last, of_segment(~inference_annotations, seg)).last,
     ListUtil.last_opt(seg),
   );
 
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
+let segment_height =
+    (
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      seg: Segment.t,
+    ) =>
+  switch (
+    segment_last(~inference_annotations, seg),
+    segment_origin(~inference_annotations, seg),
+  ) {
   | (Some(last), Some(first)) => 1 + last.row - first.row
   | _ => 0
   };
 
-let segment_width = (seg: Segment.t): int =>
+let segment_width =
+    (
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      seg: Segment.t,
+    )
+    : int =>
   IntMap.fold(
     (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
-    of_segment(seg).rows,
+    of_segment(~inference_annotations, seg).rows,
     0,
   );

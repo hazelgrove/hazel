@@ -262,6 +262,7 @@ let editor_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.map,
+      ~inference_annotations: InferenceResult.annotation_map,
       ~test_results: option(Interface.test_results),
       ~footer: option(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
@@ -274,7 +275,14 @@ let editor_view =
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+      ~inference_annotations,
+    );
   let deco_view =
     deco(
       ~zipper,

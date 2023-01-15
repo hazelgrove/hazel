@@ -809,31 +809,24 @@ and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
     just(union_m(maps));
   };
 };
-
-let mk_map =
+let mk_map_and_annotations =
   Core.Memo.general(
     ~cache_size_bound=1000,
     e => {
-      let (_, _, map, _constraints) =
-        uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
-
-      map;
-    },
-  );
-
-let mk_annotations =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    e => {
-      let (_, _, _info_map, constraints) =
+      let (_, _, info_map, constraints) =
         uexp_to_info_map(~ctx=Builtins.ctx(Builtins.Pervasives.builtins), e);
 
       let inference_results = Inference.unify_and_report_status(constraints);
       let annotation_map = InferenceResult.get_annotations(inference_results);
 
-      annotation_map;
+      (info_map, annotation_map);
     },
   );
+
+let mk_map = e => {
+  let (map, _annotations) = mk_map_and_annotations(e);
+  map;
+};
 
 let get_binding_site = (id: Id.t, statics_map: map): option(Id.t) => {
   open OptUtil.Syntax;

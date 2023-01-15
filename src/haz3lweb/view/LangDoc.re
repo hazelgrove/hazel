@@ -375,9 +375,10 @@ let syntactic_form_view =
       ~id,
       ~options,
       ~group_id,
+      ~inference_annotations: InferenceResult.annotation_map,
       ~form_id,
     ) => {
-  let map = Measured.of_segment(unselected);
+  let map = Measured.of_segment(~inference_annotations, unselected);
   let code_view = Code.simple_view(~unselected, ~map, ~settings);
   let deco_view =
     deco(
@@ -405,6 +406,7 @@ let example_view =
       ~font_metrics,
       ~settings,
       ~id,
+      ~inference_annotations: InferenceResult.annotation_map,
       ~examples: list(LangDocMessages.example),
     ) => {
   div(
@@ -413,7 +415,7 @@ let example_view =
       ? [text("No examples available")]
       : List.map(
           ({term, message, _} as example: LangDocMessages.example) => {
-            let map_code = Measured.of_segment(term);
+            let map_code = Measured.of_segment(~inference_annotations, term);
             let code_view =
               Code.simple_view(~unselected=term, ~map=map_code, ~settings);
             let (uhexp, _) = MakeTerm.go(term);
@@ -493,7 +495,12 @@ type message_mode =
   | Colorings;
 
 let get_doc =
-    (~docs: LangDocMessages.t, info: option(Statics.t), mode: message_mode)
+    (
+      ~docs: LangDocMessages.t,
+      ~inference_annotations: InferenceResult.annotation_map,
+      info: option(Statics.t),
+      mode: message_mode,
+    )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
   let default = (
     [text("No syntactic form available")],
@@ -538,6 +545,7 @@ let get_doc =
           ~id="syntactic-form-code",
           ~options,
           ~group_id,
+          ~inference_annotations,
           ~form_id=doc.id,
         );
       let example_view =
@@ -546,6 +554,7 @@ let get_doc =
           ~font_metrics,
           ~settings,
           ~id=doc.id,
+          ~inference_annotations,
           ~examples=doc.examples,
         );
       ([syntactic_form_view], ([explanation], color_map), [example_view]);
@@ -2768,7 +2777,13 @@ let get_color_map =
       }
     | None => None
     };
-  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
+  let (_, (_, (color_map, _)), _) =
+    get_doc(
+      ~docs=doc,
+      ~inference_annotations=InferenceResult.empty_annotation_map(),
+      info,
+      Colorings,
+    );
   color_map;
 };
 
@@ -2780,6 +2795,7 @@ let view =
       ~doc: LangDocMessages.t,
       index': option(int),
       info_map: Statics.map,
+      inference_annotations: InferenceResult.annotation_map,
     ) => {
   let info: option(Statics.t) =
     switch (index') {
@@ -2791,7 +2807,12 @@ let view =
     | None => None
     };
   let (syn_form, (explanation, _), example) =
-    get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
+    get_doc(
+      ~docs=doc,
+      ~inference_annotations,
+      info,
+      MessageContent(inject, font_metrics, settings),
+    );
   div(
     ~attr=clss(["lang-doc"]),
     [

@@ -15,8 +15,6 @@ let backpack_sel_view =
       let map = Measured.of_segment(content);
       let settings = Model.settings_init;
     });
-  let (term, _) = MakeTerm.go(content);
-  let annotation_map = Statics.mk_annotations(term);
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
     ~attr=
@@ -34,8 +32,7 @@ let backpack_sel_view =
         ),
       ]),
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, content, annotation_map)
-    @ [text(Unicode.zwsp)],
+    Text.of_segment(~no_sorts=true, content) @ [text(Unicode.zwsp)],
   );
 };
 
