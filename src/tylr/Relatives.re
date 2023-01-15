@@ -1,6 +1,7 @@
 open Util;
 
 // todo: change this to Aba.t(Siblings.t, Parent.t)
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   sib: Siblings.t,
   anc: Ancestors.t,

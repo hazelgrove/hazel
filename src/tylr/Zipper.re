@@ -1,11 +1,14 @@
+open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   sel: Selection.t,
   rel: Relatives.t,
 };
 
 module Action = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Move(Dir.t)
     | Select(Dir.t)

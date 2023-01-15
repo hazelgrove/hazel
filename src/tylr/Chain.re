@@ -1,6 +1,9 @@
+open Sexplib.Std;
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = Aba.t(option(kid), Piece.t)
+[@deriving (show({with_path: false}), sexp, yojson)]
 and kid =
   | K(t);
 

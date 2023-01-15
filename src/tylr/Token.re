@@ -1,6 +1,11 @@
+open Sexplib.Std;
 include String;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = string;
+
 module Shape = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Const(string)
     | Int_lit

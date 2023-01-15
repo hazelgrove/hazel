@@ -1,7 +1,9 @@
+[@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | T(Tile.t)
   | G(Grout.t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   shape,
   space: (Space.t, Space.t),

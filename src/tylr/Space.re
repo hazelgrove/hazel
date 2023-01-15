@@ -1,10 +1,15 @@
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Space
   | Newline;
+[@deriving (show({with_path: false}), sexp, yojson)]
 type elem = {
   id: Id.t,
   shape,
 };
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(elem);
 
 let empty = [];

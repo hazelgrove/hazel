@@ -1,4 +1,5 @@
 module Sort: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
   let compare: (t, t) => int;
   let root: t;
