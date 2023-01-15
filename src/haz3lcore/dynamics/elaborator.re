@@ -53,10 +53,10 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => {
+let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, Delta.t)) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, _})) =>
+  | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Statics.error_status(mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
@@ -64,14 +64,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let wrap = (d: DHExp.t): option(DHExp.t) =>
+    let wrap = (d: DHExp.t, delta: Delta.t): option(DHExp.t, Delta.t) =>
       switch (maybe_reason) {
-      | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
+      | None => Some((d, delta))
+      | Some(reason) => Some((NonEmptyHole(reason, u, 0, d), delta))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some(EmptyHole(u, 0))
+    | EmptyHole => Some((EmptyHole(u, 0), Delta.add(u, (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
       let* ds =
@@ -212,7 +212,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         let ddef =
           switch (ddef) {
           | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
-          | _ => ddef
+          | _ => ddemeubletf
           };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
@@ -388,7 +388,7 @@ let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
 let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp)) {
   | None => DoesNotElaborate
-  | Some(d) =>
+  | Some((d, delta)) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
+    Elaborates(d, Typ.Unknown(Internal), delta); //TODO: get type from ci
   };
