@@ -16,7 +16,7 @@ let backpack_sel_view =
       let settings = Model.settings_init;
     });
   let (term, _) = MakeTerm.go(content);
-  let annotation_map = Statics.mk_annotations(term);
+  let (_, annotation_map) = Statics.mk_map(term);
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
     ~attr=

@@ -144,7 +144,7 @@ let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {
       let settings = settings;
     });
   let (term, _) = MakeTerm.go(unselected);
-  let annotation_map = Statics.mk_annotations(term);
+  let (_, annotation_map) = Statics.mk_map(term);
   div(
     ~attr=Attr.class_("code"),
     [span_c("code-text", Text.of_segment(unselected, annotation_map))],
@@ -166,7 +166,7 @@ let view =
       let settings = settings;
     });
   let (term, _) = MakeTerm.go(unselected);
-  let annotation_map = Statics.mk_annotations(term);
+  let (_, annotation_map) = Statics.mk_map(term);
   let unselected =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
       Text.of_segment(unselected, annotation_map)

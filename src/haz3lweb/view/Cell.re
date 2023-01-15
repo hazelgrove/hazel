@@ -309,7 +309,7 @@ let editor_view =
 let get_elab = (editor: Editor.t): DHExp.t => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
+  let (info_map, _) = Statics.mk_map(term);
   Interface.elaborate(info_map, term);
 };
 

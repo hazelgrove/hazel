@@ -1,45 +1,63 @@
+open Util.OptUtil.Syntax;
+
 type status =
   | Solved(ITyp.t)
   | Unsolved(EqClass.t);
 
 type t = (ITyp.t, status);
 
-type annotation_map = list((Id.t, string));
+type annotation_map = Hashtbl.t(Id.t, string);
+
+let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
 let get_annotations = (inference_results: list(t)): annotation_map => {
-  let status_to_string = (status: status): string => {
+  let status_to_string = (status: status): option(string) => {
     switch (status) {
-    | Solved(ityp) => ITyp.string_of_ityp(ityp)
-    | Unsolved(eq_class) => EqClass.string_of_eq_class(eq_class)
+    | Solved(Unknown(_)) => None // it isn't useful to say something is unknown
+    | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
+    | Unsolved(_eq_class) => None
+    // Some(EqClass.string_of_eq_class(eq_class)) // use if known eq_class desired
     };
   };
 
   let id_and_annotation_if_type_hole = (result: t): option((Id.t, string)) => {
     switch (result) {
     | (Unknown(TypeHole(id)), status) =>
-      Some((id, status_to_string(status)))
+      let* annotation = status_to_string(status);
+      Some((id, annotation));
     | _ => None
     };
   };
 
-  List.filter_map(id_and_annotation_if_type_hole, inference_results);
+  let elts =
+    List.filter_map(id_and_annotation_if_type_hole, inference_results);
+  let new_map = Hashtbl.create(List.length(elts));
+
+  List.iter(((id, annot)) => Hashtbl.add(new_map, id, annot), elts);
+
+  new_map;
 };
 
 let get_annotation_of_id =
     (annotation_map: annotation_map, id: Id.t): option(string) => {
-  let get_annotation_if_for_id = ((k, v)) => k == id ? Some(v) : None;
+  Hashtbl.find_opt(annotation_map, id);
+};
 
-  let get_annotation_text =
-      (possible_annotations: list(string)): option(string) => {
-    switch (possible_annotations) {
-    | [] => None
-    | [hd, ..._tl] => Some(hd)
-    };
+let merge_annotation_maps = (old_map, new_map): unit => {
+  let add_new_elt = (new_k, new_v) => {
+    Hashtbl.replace(old_map, new_k, new_v);
   };
+  Hashtbl.iter(add_new_elt, new_map);
+};
 
-  annotation_map
-  |> List.filter_map(get_annotation_if_for_id)
-  |> get_annotation_text;
+let log_attempt_at_mk_map = (loc, result) => {
+  switch (result) {
+  | exception exc =>
+    print_endline("From " ++ loc);
+    print_endline(Printexc.to_string(exc));
+    raise(exc);
+  | _ => result
+  };
 };
 
 let condense = (eq_class: MutableEqClass.t): status => {

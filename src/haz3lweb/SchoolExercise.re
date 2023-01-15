@@ -570,17 +570,17 @@ type stitched_statics = stitched(StaticsItem.t);
 let stitch_static = ({eds, _}: state): stitched_statics => {
   let (test_validation_term, _) =
     EditorUtil.stitch([eds.prelude, eds.correct_impl, eds.your_tests.tests]);
-  let test_validation_map = Statics.mk_map(test_validation_term);
+  let (test_validation_map, _) = Statics.mk_map(test_validation_term);
   let test_validation =
     StaticsItem.{term: test_validation_term, info_map: test_validation_map};
 
   let (user_impl_term, _) = EditorUtil.stitch([eds.prelude, eds.your_impl]);
-  let user_impl_map = Statics.mk_map(user_impl_term);
+  let (user_impl_map, _) = Statics.mk_map(user_impl_term);
   let user_impl = StaticsItem.{term: user_impl_term, info_map: user_impl_map};
 
   let (user_tests_term, _) =
     EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests]);
-  let user_tests_map = Statics.mk_map(user_tests_term);
+  let (user_tests_map, _) = Statics.mk_map(user_tests_term);
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
@@ -590,7 +590,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
       eds.correct_impl,
       eds.hidden_tests.tests,
     ]);
-  let instructor_info_map = Statics.mk_map(instructor_term);
+  let (instructor_info_map, _) = Statics.mk_map(instructor_term);
   let instructor =
     StaticsItem.{term: instructor_term, info_map: instructor_info_map};
 
@@ -599,7 +599,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
       ({impl, _}) => {
         let (term, _) =
           EditorUtil.stitch([eds.prelude, impl, eds.your_tests.tests]);
-        let info_map = Statics.mk_map(term);
+        let (info_map, _) = Statics.mk_map(term);
         StaticsItem.{term, info_map};
       },
       eds.hidden_bugs,
@@ -607,7 +607,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
 
   let (hidden_tests_term, _) =
     EditorUtil.stitch([eds.prelude, eds.your_impl, eds.hidden_tests.tests]);
-  let hidden_tests_map = Statics.mk_map(hidden_tests_term);
+  let (hidden_tests_map, _) = Statics.mk_map(hidden_tests_term);
   let hidden_tests =
     StaticsItem.{term: hidden_tests_term, info_map: hidden_tests_map};
 

@@ -42,7 +42,7 @@ let go_z =
 
     let idx = Indicated.index(z);
     let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
-    let statics = Statics.mk_map(term);
+    let (statics, _) = Statics.mk_map(term);
 
     (
       switch (jump_target) {

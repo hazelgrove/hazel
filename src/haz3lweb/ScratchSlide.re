@@ -16,7 +16,7 @@ let scratch_key = "scratch";
 let spliced_elabs = ((_, editor)) => {
   let seg = Editor.get_seg(editor);
   let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
+  let (info_map, _) = Statics.mk_map(term);
   [(scratch_key, Interface.elaborate(info_map, term))];
 };
 

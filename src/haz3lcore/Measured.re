@@ -285,7 +285,7 @@ let is_indented_map = (seg: Segment.t) => {
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
   let (term, _) = MakeTerm.go(seg);
-  let annotation_map = Statics.mk_annotations(term);
+  let (_, annotation_map) = Statics.mk_map(term);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
