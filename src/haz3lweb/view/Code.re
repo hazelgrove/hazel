@@ -4,6 +4,58 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+module Txt =
+       (
+         M: {
+           [@warning "-32"]
+           let map: Measured.t;
+           [@warning "-32"]
+           let settings: Model.settings;
+         },
+       ) => {
+  open Tylr;
+  let of_space = _ => failwith("todo");
+
+  let of_tile = (t: Tile.t) => {
+    let s_cls =
+      switch (t.mold) {
+      | None => "unmolded"
+      | Some(m) => Sort.to_string(m.sort)
+      };
+    span(
+      // todo: add back delim vs mono distinction
+      ~attr=Attr.classes(["token", "mono", "text-" ++ s_cls]),
+      [text(t.token)],
+    );
+  };
+
+  // todo
+  let of_grout = (_: Grout.t) => span([text("•")]);
+
+  let rec of_chain = (c: Chain.t) =>
+    c
+    |> Aba.join(of_kid, of_piece)
+    |> List.concat
+    // todo: consider setting id-based key
+    |> span
+  and of_kid = (k: option(Chain.kid)) =>
+    switch (k) {
+    | None => []
+    | Some(K(kid)) => [of_chain(kid)]
+    }
+  and of_piece = (p: Piece.t) => {
+    let (l, r) = p.space;
+    let of_p =
+      switch (p.shape) {
+      | T(t) => of_tile(t)
+      | G(g) => of_grout(g)
+      };
+    [of_space(l), of_p, of_space(r)];
+  };
+
+  let of_segment = (seg: Segment.t) => seg |> Aba.join(of_space, of_chain);
+};
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=100000,

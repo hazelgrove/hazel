@@ -67,6 +67,8 @@ let map_b = (f_b: 'b => 'c, (as_, bs): t('a, 'b)): t('a, 'c) => (
   as_,
   List.map(f_b, bs),
 );
+let map = (f_a, f_b, aba) => aba |> List.map(f_a) |> List.map(f_b);
+
 let map_abas =
     (f_aba: (('a, 'b, 'a)) => 'c, (as_, _) as aba: t('a, 'b)): t('a, 'c) => (
   as_,
