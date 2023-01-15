@@ -4,17 +4,24 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
-module Txt =
-       (
-         M: {
-           [@warning "-32"]
-           let map: Measured.t;
-           [@warning "-32"]
-           let settings: Model.settings;
-         },
-       ) => {
+//  (
+//    M: {
+//      [@warning "-32"]
+//      let map: Measured.t;
+//      [@warning "-32"]
+//      let settings: Model.settings;
+//    },
+module Txt = {
   open Tylr;
-  let of_space = _ => failwith("todo");
+  let of_space = (s: Space.t) =>
+    s
+    |> List.map((elem: Space.elem) =>
+         switch (elem.shape) {
+         | Space => text(Unicode.nbsp)
+         | Newline => br()
+         }
+       )
+    |> span;
 
   let of_tile = (t: Tile.t) => {
     let s_cls =
@@ -55,6 +62,7 @@ module Txt =
 
   let of_segment = (seg: Segment.t) => seg |> Aba.join(of_space, of_chain);
 };
+//  ) =>
 
 let of_delim' =
   Core.Memo.general(

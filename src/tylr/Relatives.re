@@ -6,7 +6,7 @@ type t = {
   anc: Ancestors.t,
 };
 
-let empty: t = failwith("todo");
+let empty = {sib: Siblings.empty, anc: Ancestors.empty};
 
 [@warning "-27"]
 let pop_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");

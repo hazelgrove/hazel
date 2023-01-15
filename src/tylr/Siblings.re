@@ -2,6 +2,8 @@ open Util;
 
 type t = (Segment.t, Segment.t);
 
+let empty = Segment.(empty, empty);
+
 [@warning "-27"]
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
   failwith("todo");

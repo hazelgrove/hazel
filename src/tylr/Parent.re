@@ -1,6 +1,6 @@
 type t = (Chain.t, Chain.t);
 
-let root = failwith("todo parent root");
+// let root = failwith("todo parent root");
 
 [@warning "-27"]
 let cmp_merge_l =

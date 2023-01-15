@@ -35,11 +35,11 @@ module Sort = {
 let p = (~a: option(Dir.t)=?, g: t(Sort.t)) => (g, a);
 
 module Typ = {
-  let t = failwith("todo");
+  let t = [];
 };
 
 module Pat = {
-  let t = failwith("todo");
+  let t = [];
 };
 
 module Exp = {

@@ -213,6 +213,10 @@ let main_ui_view =
         ~editor,
         ~result,
       ),
+      div(
+        ~attr=Attr.classes(["tylr-scratch"]),
+        Code.Txt.of_segment(model.tylr),
+      ),
     ];
   | School(_, _, exercise) =>
     let toolbar_buttons =
