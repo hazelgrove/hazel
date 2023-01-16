@@ -244,8 +244,16 @@ let editor_view =
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
   let measured = editor.state.meta.measured;
+  let tylr = editor.state.tylr;
   let code_base_view =
-    Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
+    Code.view(
+      ~font_metrics,
+      ~segment,
+      ~unselected,
+      ~measured,
+      ~settings,
+      ~tylr,
+    );
   let deco_view =
     deco(
       ~zipper,

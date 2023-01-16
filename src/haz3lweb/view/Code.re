@@ -193,6 +193,7 @@ let view =
       ~unselected,
       ~measured,
       ~settings: Model.settings,
+      ~tylr,
     )
     : Node.t => {
   module Text =
@@ -215,6 +216,12 @@ let view =
       // TODO restore (already regressed so no loss in commenting atm)
       // span_c("code-text-shards", Text.of_segment(segment)),
       ...holes,
+    ]
+    @ [
+      div(
+        ~attr=Attr.class_("tylr"),
+        Tylr.Zipper.zip(tylr) |> Tylr.Segment.of_padded |> Txt.of_segment,
+      ),
     ],
   );
 };
