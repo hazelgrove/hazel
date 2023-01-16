@@ -21,6 +21,17 @@ let init = {
   },
 };
 
+let unselect = (d: Dir.t, {sel, rel}: t) => {
+  sel: Selection.empty,
+  rel: Relatives.push_seg(~onto=Dir.toggle(d), sel.seg, rel),
+};
+
+// todo: change this to return Chain if we include root parent
+let zip = (z: t): Chain.Padded.t => {
+  let z = unselect(L, z);
+  Relatives.zip(z.rel);
+};
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -31,15 +42,14 @@ module Action = {
 };
 
 let move = (d: Dir.t, z: t): option(t) => {
-  open OptUtil.Syntax;
-  let b = Dir.toggle(d);
-  if (!Selection.is_empty(z.sel)) {
-    let rel = Relatives.push_seg(~onto=b, z.sel.seg, z.rel);
-    return({rel, sel: Selection.empty});
-  } else {
-    let+ rel = Relatives.shift_char(~from=d, z.rel);
-    {...z, rel};
-  };
+  OptUtil.Syntax.(
+    if (!Selection.is_empty(z.sel)) {
+      return(unselect(d, z));
+    } else {
+      let+ rel = Relatives.shift_char(~from=d, z.rel);
+      {...z, rel};
+    }
+  );
 };
 
 let select = (d: Dir.t, z: t): option(t) => {

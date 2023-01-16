@@ -65,6 +65,11 @@ let rec shift_lexeme =
   };
 };
 
+let zip = (~sel=Segment.empty, rel: t): Chain.Padded.t => {
+  let kid = Siblings.zip(~sel, rel.sib);
+  Ancestors.zip(kid, rel.anc);
+};
+
 let unzip = (rel: t): t =>
   rel
   |> shift_lexeme(~from=L, ~until=(l, rel) =>
@@ -107,30 +112,30 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
 // type kid = [ | `None(Space.t) | `Some(Space.t, Chain.t, Space.t)];
 // let segment_of_kid = _ => failwith("todo");
 
-// todo: make sure space isn't getting lost given kid type
-let rec push_chain = (~kid=Segment.empty, c: Chain.t, rel: t): t => {
+// todo: not remolded case
+let rec push_chain =
+        (~remolded as _=true, ~kid=Segment.empty, c: Chain.t, rel: t): t => {
   let (pre, suf) = rel.sib;
   // todo: review use of Cmp.Result here wrt desired grout behavior
-  switch (Segment.push_chain(pre, ~kid, c)) {
+  switch (Segment.push_remolded_chain(pre, ~kid, c)) {
+  | In(_) => failwith("todo")
   | Lt(pre)
   | Eq(pre) => {...rel, sib: (pre, suf)}
   | Gt(kid) =>
     switch (Ancestors.pop(rel.anc)) {
     | None =>
-      let pre = Segment.finish_l(~kid, c);
+      let pre = Segment.of_padded(Chain.finish_l(~kid, c));
       {...rel, sib: (pre, suf)};
     | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
-      switch (
-        Chain.cmp_merge(par_l, ~kid, c)
-        |> OptUtil.get_or_fail("parent inner should always be comparable")
-      ) {
+      switch (Chain.cmp_merge(par_l, ~kid, c)) {
+      | In(_) => failwith("todo")
       | Lt(kid_r) =>
-        let pre = Segment.of_chain(kid_r);
+        let pre = Segment.of_padded(kid_r);
         {...rel, sib: (pre, suf)};
       | Gt(kid_l) =>
         let pre = sib_l;
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-        let kid = Segment.of_chain(kid_l);
+        let kid = Segment.of_padded(kid_l);
         push_chain(~kid, c, {anc, sib: (pre, suf)});
       | Eq(par_l__c) =>
         let pre = Segment.(concat([sib_l, of_chain(par_l__c)]));

@@ -9,30 +9,58 @@ and kid =
 
 exception Missing_root;
 
+let empty = Aba.singleton(None);
+
+module Padded = {
+  type c = t;
+  // chain with padding (ie single-chain segment)
+  type t = (c, (Space.t, Space.t));
+
+  let mk = (~l=Space.empty, ~r=Space.empty, c) => (c, (l, r));
+
+  let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
+    c,
+    (l @ l', r' @ r),
+  );
+};
+
+let sort = _ => failwith("todo sort");
+let prec = _ => failwith("todo prec");
+
 let uncons = (_: t) => failwith("todo uncons");
 
 let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
   failwith("todo cmp_mold");
-let cmp = (_: t, _: t): option(Cmp.t) => failwith("todo cmp");
+let cmp = (_: t, _: t): Cmp.t => failwith("todo cmp");
 
 let finish_l = (~kid as _=?, _) => failwith("todo finish_l");
 let finish_r = (_, ~kid as _=?, ()) => failwith("todo finish_r");
 
-// accepts empty chains
+// accepts empty chains if expected arg provided
 [@warning "-27"]
-let finish = (~expected: Sort.t, _) => failwith("todo finish");
+let finish = (~expected: option(Sort.t)=?, _) => failwith("todo finish");
+
+let mk_kid = c => K(finish(c));
 
 let match_ = (_, ~kid as _=?, _) => failwith("todo match_");
 
-let cmp_merge = (l: t, ~kid=?, r: t): option(Cmp.Result.t(t, t, t)) => {
-  open OptUtil.Syntax;
-  let+ cmp = cmp(l, r);
-  switch (cmp) {
-  | Lt => Cmp.Result.Lt(finish_l(~kid?, r))
-  | Gt => Gt(finish_r(l, ~kid?, ()))
+let cmp_merge = (l: t, ~kid=?, r: t): Cmp.Result.t(t, Padded.t, t, Padded.t) =>
+  switch (cmp(l, r)) {
+  | In =>
+    assert(kid == None);
+    let m = Mold.mk_infix((sort(l), prec(l)), (sort(r), prec(r)));
+    let g = Grout.mk(m);
+    Cmp.Result.In(
+      Aba.mk(
+        [Some(mk_kid(l)), Some(mk_kid(r))],
+        // todo: add padding
+        [Piece.mk(G(g))],
+      ),
+    );
+  | Lt => Lt(finish_l(~kid?, r))
   | Eq => Eq(match_(l, ~kid?, r))
+  | Gt => Gt(finish_r(l, ~kid?, ()))
   };
-};
 
 [@warning "-27"]
 let mold = (c: t, ~kid=?, t: Token.t) => failwith("todo Chain.mold");

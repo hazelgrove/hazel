@@ -5,6 +5,12 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
+let zip = (~sel=Segment.empty, (pre, suf): t): Chain.Padded.t => {
+  let pre = Segment.push_seg(pre, sel);
+  let pre = Segment.push_seg(pre, suf);
+  Segment.finish_prefix(pre);
+};
+
 [@warning "-27"]
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
   failwith("todo");

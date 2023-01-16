@@ -14,6 +14,7 @@ let concat = _ => failwith("todo concat");
 
 let of_space = (s: Space.t): t => Aba.singleton(s);
 let of_chain = (c: Chain.t): t => Aba.mk(Space.[empty, empty], [c]);
+let of_padded = ((c, (l, r)): Chain.Padded.t): t => Aba.mk([l, r], [c]);
 
 let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   switch (l) {
@@ -47,8 +48,33 @@ let rec mold =
   };
 
 [@warning "-27"]
-let push_chain = (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, t) =>
+let push_remolded_chain =
+    (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, t, Chain.Padded.t) =>
   failwith("todo push_chain");
+
+let push_chain = (onto, ~kid=?, c) =>
+  switch (push_remolded_chain(onto, ~kid?, c)) {
+  | In(seg)
+  | Lt(seg)
+  | Eq(seg) => seg
+  | Gt(kid) => of_padded(Chain.finish_l(~kid, c))
+  };
+let push_seg = (onto: t, seg: t) =>
+  seg
+  |> Aba.fold_left(
+       s => concat([onto, of_space(s)]),
+       (onto, c, s) => concat([push_chain(onto, c), of_space(s)]),
+     );
+
+// precond: in prefix form
+// todo: rework using aba interface or possibly reformulate
+// overall using parent merging
+let finish_prefix = (pre: t): Chain.Padded.t =>
+  pre
+  |> Aba.fold_right(
+       (s, c, kid) => Chain.finish_r(c, ~kid, ()) |> Chain.Padded.pad(~l=s),
+       s => (Chain.empty, (s, [])),
+     );
 
 let to_prefix = _ => failwith("todo to_prefix");
 let to_suffix = _ => failwith("todo to_suffix");
