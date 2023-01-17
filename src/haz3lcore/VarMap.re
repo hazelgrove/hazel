@@ -19,6 +19,9 @@ let concat = (ctx, new_ctx) => new_ctx @ ctx;
 
 let lookup = (ctx, x) => List.assoc_opt(x, ctx);
 
+let lookup_all = (ctx, x) =>
+  List.fold_left((vs, (tok, v)) => {tok == x ? [v, ...vs] : vs}, [], ctx);
+
 let contains = (ctx, x) => List.mem_assoc(x, ctx);
 
 let map = (f, xs) => List.map(((x, _) as xa) => (x, f(xa)), xs);
