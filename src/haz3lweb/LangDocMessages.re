@@ -104,6 +104,15 @@ let mk_example = str => {
   };
 };
 
+let expect_opt = (err_msg, opt) => {
+  switch (opt) {
+  | Some(x) => x
+  | None =>
+    Printf.printf("Cannot unwrap option. Message: %s\n", err_msg);
+    raise(Not_found);
+  };
+};
+
 let empty_hole_exp_group = "empty_hole_exp_group";
 let empty_hole_exp: form = {
   let explanation = {
@@ -3205,7 +3214,11 @@ type t = {
 };
 
 let get_group = (group_id, doc: t) => {
-  let (_, form_group) = List.find(((id, _)) => id == group_id, doc.groups);
+  let (_, form_group) =
+    List.find_opt(((id, _)) => id == group_id, doc.groups)
+    |> expect_opt(
+         Printf.sprintf("get_group Not_found. group_id=%s", group_id),
+       );
   form_group;
 };
 
@@ -3213,15 +3226,19 @@ let get_form_and_options = (group_id, doc: t) => {
   let form_group = get_group(group_id, doc);
   let (selected_id, _) =
     List.nth(form_group.options, form_group.current_selection);
-  let form = List.find(({id, _}) => id == selected_id, doc.forms);
+  let form =
+    List.find_opt(({id, _}) => id == selected_id, doc.forms)
+    |> expect_opt("get_form_and_options Not_found");
   (form, form_group.options);
 };
 
 let get_example = (example_sub_id, examples) =>
-  List.find(({sub_id, _}) => sub_id == example_sub_id, examples);
+  List.find_opt(({sub_id, _}) => sub_id == example_sub_id, examples)
+  |> expect_opt("get_example Not_found");
 
 let get_form = (form_id, docs) =>
-  List.find(({id, _}) => id == form_id, docs);
+  List.find_opt(({id, _}) => id == form_id, docs)
+  |> expect_opt("get_form Not_found");
 
 let rec update_form = (new_form, docs) => {
   switch (docs) {
