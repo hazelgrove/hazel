@@ -5,6 +5,14 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
+let push_space = (~onto: Dir.t, s, (l, r): t) => {
+  let s = Segment.of_space(s);
+  switch (onto) {
+  | L => (Segment.concat([l, s]), r)
+  | R => (l, Segment.concat([s, r]))
+  };
+};
+
 let zip = (~sel=Segment.empty, (pre, suf): t): Chain.Padded.t => {
   let pre = Segment.push_seg(pre, sel);
   let pre = Segment.push_seg(pre, suf);

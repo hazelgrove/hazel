@@ -35,13 +35,22 @@ let cons = (a: 'a, b: 'b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   [a, ...as_],
   [b, ...bs],
 );
-let uncons = _ => failwith("todo uncons");
+let uncons = ((as_, bs): t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
+  switch (bs) {
+  | [] => None
+  | [b, ...bs] => Some((List.hd(as_), b, (List.tl(as_), bs)))
+  };
 
 let snoc = ((as_, bs): t('a, 'b), b: 'b, a: 'a): t('a, 'b) => (
   as_ @ [a],
   bs @ [b],
 );
-let unsnoc = _ => failwith("todo unsnoc");
+let unsnoc = ((as_, bs): t('a, 'b)): option((t('a, 'b), 'b, 'a)) =>
+  ListUtil.split_last_opt(bs)
+  |> Option.map(((bs, b)) => {
+       let (as_, a) = ListUtil.split_last(as_);
+       ((as_, bs), b, a);
+     });
 
 let singleton = (a: 'a): t('a, _) => ([a], []);
 
@@ -140,3 +149,6 @@ let fold_right =
   let (as_, a) = ListUtil.split_last(as_);
   List.fold_right2(f_ab, as_, bs, f_a(a));
 };
+
+let append = (l: t('a, 'b), b: 'b, r: t('a, 'b)): t('a, 'b) =>
+  l |> fold_right(cons, a => cons(a, b, r));

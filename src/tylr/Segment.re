@@ -10,18 +10,24 @@ exception Nonmonotonic;
 let empty = ([Space.empty], []);
 let is_empty: t => bool = (==)(empty);
 
-let concat = _ => failwith("todo concat");
+let cons_space = (s, seg) => Aba.map_first((@)(s), seg);
+let cons_lexeme = (l: Lexeme.t, seg: t): t =>
+  switch (l) {
+  | S(s) => cons_space(s, seg)
+  | T(t) => Aba.cons(Space.empty, Chain.of_tile(t), seg)
+  | G(g) => Aba.cons(Space.empty, Chain.of_grout(g), seg)
+  };
+
+let concat = (segs: list(t)): t =>
+  List.fold_right(
+    (seg, acc) => seg |> Aba.fold_right(Aba.cons, s => cons_space(s, acc)),
+    segs,
+    empty,
+  );
 
 let of_space = (s: Space.t): t => Aba.singleton(s);
 let of_chain = (c: Chain.t): t => Aba.mk(Space.[empty, empty], [c]);
 let of_padded = ((c, (l, r)): Chain.Padded.t): t => Aba.mk([l, r], [c]);
-
-let cons_lexeme = (l: Lexeme.t, seg: t): t =>
-  switch (l) {
-  | S(s) => Aba.map_first((@)(s), seg)
-  | T(t) => Aba.cons(Space.empty, Chain.of_tile(t), seg)
-  | G(g) => Aba.cons(Space.empty, Chain.of_grout(g), seg)
-  };
 
 let of_lexemes = (ls: list(Lexeme.t)): t =>
   List.fold_right(cons_lexeme, ls, empty);
@@ -47,13 +53,29 @@ let rec mold =
     mold(~match, pre, ~kid?, t);
   };
 
-[@warning "-27"]
 let push_remolded_chain =
-    (seg: t, ~kid=?, c: Chain.t): Cmp.Result.t(t, t, t, Chain.Padded.t) =>
-  failwith("todo push_chain");
+    (seg: t, ~kid=Chain.Padded.empty, c: Chain.t)
+    : (Cmp.Result.t(t, t, t, Chain.Padded.t) as 'r) =>
+  seg
+  |> Aba.fold_right(
+       (s, c', r: 'r) =>
+         switch (r) {
+         | In(seg) => In(Aba.cons(s, c', seg))
+         | Lt(seg) => Lt(Aba.cons(s, c', seg))
+         | Eq(seg) => Eq(Aba.cons(s, c', seg))
+         | Gt(kid) =>
+           switch (Chain.cmp_merge(c', ~kid, c)) {
+           | In(c) => In(of_padded(Chain.Padded.mk(~l=s, c)))
+           | Lt(kid) => Lt(Aba.cons(s, c', of_padded(kid)))
+           | Eq(c) => Eq(of_padded(Chain.Padded.mk(~l=s, c)))
+           | Gt(kid) => Gt(kid)
+           }
+         },
+       s => Cmp.Result.Gt(Chain.Padded.pad(~l=s, kid)),
+     );
 
-let push_chain = (onto, ~kid=?, c) =>
-  switch (push_remolded_chain(onto, ~kid?, c)) {
+let push_chain = (onto, ~kid=Chain.Padded.empty, c) =>
+  switch (push_remolded_chain(onto, ~kid, c)) {
   | In(seg)
   | Lt(seg)
   | Eq(seg) => seg
@@ -76,11 +98,13 @@ let finish_prefix = (pre: t): Chain.Padded.t =>
        s => (Chain.empty, (s, [])),
      );
 
-let to_prefix = _ => failwith("todo to_prefix");
+let to_prefix = (seg: t) =>
+  seg
+  |> Aba.fold_right(
+       (s, c, pre) => concat([of_space(s), Chain.to_prefix(c), pre]),
+       of_space,
+     );
 let to_suffix = _ => failwith("todo to_suffix");
-
-[@warning "-27"]
-let finish_l = (~kid=empty, c: Chain.t): t => failwith("todo finish_l");
 
 let finish = (~expected: Sort.t, seg: t): (Space.t, Chain.t, Space.t) =>
   switch (seg) {

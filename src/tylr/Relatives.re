@@ -113,8 +113,8 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
 // let segment_of_kid = _ => failwith("todo");
 
 // todo: not remolded case
-let rec push_chain =
-        (~remolded as _=true, ~kid=Segment.empty, c: Chain.t, rel: t): t => {
+let rec push_chain_l =
+        (~remolded as _=true, ~kid=Chain.Padded.empty, c: Chain.t, rel: t): t => {
   let (pre, suf) = rel.sib;
   // todo: review use of Cmp.Result here wrt desired grout behavior
   switch (Segment.push_remolded_chain(pre, ~kid, c)) {
@@ -135,8 +135,7 @@ let rec push_chain =
       | Gt(kid_l) =>
         let pre = sib_l;
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-        let kid = Segment.of_padded(kid_l);
-        push_chain(~kid, c, {anc, sib: (pre, suf)});
+        push_chain_l(~kid=kid_l, c, {anc, sib: (pre, suf)});
       | Eq(par_l__c) =>
         let pre = Segment.(concat([sib_l, of_chain(par_l__c)]));
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
@@ -151,7 +150,10 @@ let push_chain_r = (~kid=Segment.empty, c: Chain.t, rel: t) =>
   failwith("todo push_chain_r");
 
 [@warning "-27"]
-let push_space = (~onto: Dir.t, _, _) => failwith("todo push_space");
+let push_space = (~onto: Dir.t, s, rel) => {
+  ...rel,
+  sib: Siblings.push_space(~onto, s, rel.sib),
+};
 
 let push_seg = (~onto: Dir.t, seg: Segment.t, rel: t): t =>
   switch (onto) {
@@ -159,42 +161,41 @@ let push_seg = (~onto: Dir.t, seg: Segment.t, rel: t): t =>
     Segment.to_suffix(seg)
     |> Aba.fold_left(
          s => push_space(~onto, s, rel),
-         (rel, s, c) => push_chain(~kid=Segment.of_space(s), c, rel),
+         (rel, c, s) => rel |> push_chain_l(c) |> push_space(~onto=L, s),
        )
   | R =>
     Segment.to_prefix(seg)
     |> Aba.fold_right(
-         (c, s, rel) => push_chain_r(~kid=Segment.of_space(s), c, rel),
+         (s, c, rel) => rel |> push_chain_r(c) |> push_space(~onto=R, s),
          s => push_space(~onto, s, rel),
        )
   };
 
 // precond: c is closed left
-let rec insert_chain = (~space=Space.empty, c: Chain.t, rel: t): t => {
+let rec insert_chain = (c: Chain.t, rel: t): t => {
   let (kid, p, rest) =
-    Chain.uncons(c) |> OptUtil.get_or_raise(Chain.Missing_root);
+    Aba.uncons(c) |> OptUtil.get_or_raise(Chain.Missing_root);
   assert(kid == None);
-  switch (p) {
-  | Piece.G(_) => failwith("todo grout")
-  | Piece.T(t) =>
-    let kid = Segment.of_space(space);
+  switch (p.shape) {
+  | G(_) => failwith("todo grout")
+  | T(t) =>
     switch (mold(t.token, rel)) {
     | Ok(m) when Some(m) == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
-      push_chain(~kid, c, rel)
+      push_chain_l(c, rel)
     | m =>
       let mold = Result.to_option(m);
       rel
-      |> push_chain(~kid, Chain.of_tile({...t, mold}))
-      |> insert_seg(rest);
-    };
+      |> push_chain_l(Chain.of_tile({...t, mold}))
+      |> insert_seg(Segment.(to_suffix(of_chain(rest))));
+    }
   };
 }
 and insert_seg = (seg: Segment.t, rel: t): t =>
   Segment.to_suffix(seg)
   |> Aba.fold_left(
        s => push_space(~onto=L, s, rel),
-       (rel, s, c) => insert_chain(~space=s, c, rel),
+       (rel, c, s) => rel |> insert_chain(c) |> push_space(~onto=L, s),
      );
 
 // precond: rel contains Cursor token in prefix
@@ -204,9 +205,10 @@ let rec remold_suffix = (rel: t): t => {
   | None => rel
   | Some((s, c, suf)) =>
     {...rel, sib: (pre, suf)}
-    // note: insertion may flatten ancestors into siblings,
-    // in which case additional elements may be added to suffix
-    |> insert_chain(~space=s, c)
+    |> push_space(~onto=L, s)
+    // note: insertion may flatten ancestors into siblings, in which
+    // case additional elements may be added to suffix to be remolded
+    |> insert_chain(c)
     |> remold_suffix
   };
 };

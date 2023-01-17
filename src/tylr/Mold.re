@@ -15,19 +15,6 @@ type t = {
 
 let mk = (~frames=Gram.Frame.empty, sort, prec) => {sort, prec, frames};
 
-let mk_infix = ((s_l: Sort.t, p_l: Prec.t), (s_r, p_r)) => {
-  let s = Sort.lca(s_l, s_r);
-  let p =
-    if (s == s_l) {
-      p_l;
-    } else if (s == s_r) {
-      p_r;
-    } else {
-      Prec.max_op;
-    };
-  mk(s, p);
-};
-
 let init = (sort, prec) => mk(sort, prec);
 
 let push = (f, m) => {...m, frames: [f, ...m.frames]};
