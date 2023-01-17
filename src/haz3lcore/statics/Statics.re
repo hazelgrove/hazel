@@ -510,8 +510,9 @@ and uexp_to_info_map =
     );
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) = upat_to_info_map(~ctx, ~mode=Syn, pat);
-    // let def_ctx = ctx_pat;
-    let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
+    // TODO (typfun): ask Cyrus whether it's fine to always inject self into def ctx
+    let def_ctx = ctx_pat;
+    // let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
