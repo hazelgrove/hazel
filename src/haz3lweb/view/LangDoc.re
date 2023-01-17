@@ -589,6 +589,19 @@ let get_doc =
           doc.explanation.message,
           [],
         );
+      | Deferral =>
+        let (doc, options) =
+          LangDocMessages.get_form_and_options(
+            LangDocMessages.deferral_exp_group,
+            docs,
+          );
+        get_message(
+          doc,
+          options,
+          LangDocMessages.deferral_exp_group,
+          doc.explanation.message,
+          [],
+        );
       | Triv =>
         let (doc, options) =
           LangDocMessages.get_form_and_options(

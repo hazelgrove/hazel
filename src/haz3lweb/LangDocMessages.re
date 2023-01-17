@@ -134,6 +134,28 @@ let multi_hole_exp: form = {
   };
 };
 
+let deferral_exp_group = "deferral_exp_group";
+let deferral_exp: form = {
+  let explanation = {message: "Deferral expression.", feedback: Unselected};
+  {
+    id: "deferral_exp",
+    syntactic_form: [exp("Deferral")],
+    expandable_id: None,
+    explanation,
+    examples: [
+      {
+        sub_id: "deferred_fun_ap",
+        term:
+          mk_example(
+            "let div = fun t -> let (n, d) = t in n / d in let halve = div(~, 2) in halve(7)",
+          ),
+        message: "A function application where `halve` is applied to `7` in order to ",
+        feedback: Unselected,
+      },
+    ],
+  };
+};
+
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
   let explanation = {message: "Trivial expression.", feedback: Unselected};
@@ -3253,6 +3275,7 @@ let init = {
     // Expressions
     empty_hole_exp,
     multi_hole_exp,
+    deferral_exp,
     triv_exp,
     bool_exp,
     int_exp,
@@ -3371,6 +3394,7 @@ let init = {
     // Expressions
     (empty_hole_exp_group, init_options([(empty_hole_exp.id, [])])),
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
+    (deferral_exp_group, init_options([(deferral_exp.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),

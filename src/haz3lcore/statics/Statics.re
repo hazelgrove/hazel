@@ -305,6 +305,7 @@ and uexp_to_info_map =
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
+  | Deferral => atomic(Just(Unknown(Internal))) // Deferral does not define a type
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))

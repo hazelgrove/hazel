@@ -340,6 +340,7 @@ module UExp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | Deferral => Deferral
     | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
@@ -416,6 +417,7 @@ module UExp = {
     | Invalid => "Invalid Expression"
     | EmptyHole => "Empty Expression Hole"
     | MultiHole => "Multi Expression Hole"
+    | Deferral => "Deferral"
     | Triv => "Trivial Literal. Pathetic, really."
     | Bool => "Boolean Literal"
     | Int => "Integer Literal"
@@ -444,6 +446,7 @@ module UExp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | Deferral
     | Triv
     | Bool(_)
     | Int(_)
@@ -474,6 +477,7 @@ module UExp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
+      | Deferral
       | Triv
       | Bool(_)
       | Int(_)

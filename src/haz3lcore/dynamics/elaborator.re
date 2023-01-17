@@ -88,6 +88,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         // placeholder logic: sequence
         tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
       };
+    | Deferral => wrap(InvalidText(0, 0, "Unbound deferral"))
     | Triv => wrap(Tuple([]))
     | Bool(b) => wrap(BoolLit(b))
     | Int(n) => wrap(IntLit(n))

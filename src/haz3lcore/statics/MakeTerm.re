@@ -215,6 +215,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
+      | (["~"], []) => ret(Deferral)
       | (["triv"], []) => ret(Triv)
       | (["true"], []) => ret(Bool(true))
       | (["false"], []) => ret(Bool(false))

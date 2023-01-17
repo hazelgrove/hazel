@@ -89,6 +89,7 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
+    | Deferral
     | Triv
     | Bool
     | Int
@@ -115,6 +116,7 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
+    | Deferral
     | Triv
     | Bool(bool)
     | Int(int)
@@ -197,6 +199,7 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
+    | Deferral
     | Triv
     | Bool
     | Int
@@ -223,6 +226,7 @@ and UExp: {
     | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
+    | Deferral
     | Triv
     | Bool(bool)
     | Int(int)

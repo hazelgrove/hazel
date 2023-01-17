@@ -76,6 +76,7 @@ let is_float = str =>
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
+let is_deferral = str => str == "~";
 let is_triv = str => str == "triv";
 let is_bool = str => str == "true" || str == "false";
 let is_listnil = str => str == "nil";
@@ -124,6 +125,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
+  ("deferral", (is_deferral, [mk_op(Exp, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
