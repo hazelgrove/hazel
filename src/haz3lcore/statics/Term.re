@@ -183,6 +183,26 @@ module UTyp = {
     };
   };
 
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Sum(_)
+    | Var(_)
+    | Arrow(_)
+    | Rec(_) => false
+    };
+  };
+
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
     (ctx, utyp) =>
@@ -423,7 +443,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
