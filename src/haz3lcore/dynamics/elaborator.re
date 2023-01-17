@@ -53,7 +53,7 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, Delta.t)) => {
+let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): option((DHExp.t, Delta.t)) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
@@ -64,10 +64,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, De
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let wrap = (d: DHExp.t, delta: Delta.t): option(DHExp.t, Delta.t) =>
+    let wrap = (d: DHExp.t, dl: Delta.t): option(DHExp.t, Delta.t) =>
       switch (maybe_reason) {
-      | None => Some((d, delta))
-      | Some(reason) => Some((NonEmptyHole(reason, u, 0, d), delta))
+      | None => Some((d, dl))
+      | Some(reason) => Some((NonEmptyHole(reason, u, 0, d), dl))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
@@ -78,21 +78,21 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, De
         tms
         |> List.map(
              fun
-             | Term.Exp(e) => dhexp_of_uexp(m, e)
-             | tm => Some(EmptyHole(Term.rep_id(tm), 0)),
+             | Term.Exp(e) => dhexp_of_uexp(m, e, delta) /*Remove u::()\gamma*/
+             | tm => Some((EmptyHole(Term.rep_id(tm), 0), Delta.add(Term.rep_id(tm), (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))),
            )
         |> OptUtil.sequence;
       switch (ds) {
-      | [] => Some(DHExp.EmptyHole(u, 0))
+      | [] => Some((DHExp.EmptyHole(u, 0), Delta.add(u, (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))
       | [hd, ...tl] =>
         // placeholder logic: sequence
-        tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap
+        delta |> (tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap)
       };
-    | Triv => wrap(Tuple([]))
-    | Bool(b) => wrap(BoolLit(b))
-    | Int(n) => wrap(IntLit(n))
-    | Float(n) => wrap(FloatLit(n))
-    | String(s) => wrap(StringLit(s))
+    | Triv => wrap((Tuple([]), Delta.empty))
+    | Bool(b) => wrap((BoolLit(b), Delta.empty))
+    | Int(n) => wrap((IntLit(n), Delta.empty))
+    | Float(n) => wrap((FloatLit(n), Delta.empty))
+    | String(s) => wrap((StringLit(s), Delta.empty))
     | ListLit(es) =>
       //TODO: rewrite this whole case
       switch (Statics.exp_mode(m, uexp)) {
@@ -103,14 +103,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, De
             (acc, e) => {
               let* acc = acc;
               let e_ty = Statics.exp_self_typ(m, e);
-              let+ d = dhexp_of_uexp(m, e);
+              let+ (d,dl) = dhexp_of_uexp(m, e, delta);
+		//Is this correct?
               let dc = DHExp.cast(d, e_ty, ty);
               acc @ [dc];
             },
             Some([]),
             es,
           );
-        wrap(DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
+        wrap((DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds), Delta.empty));
       | Ana(ana_ty) =>
         let ty = Typ.matched_list(ana_ty);
         let* ds =
@@ -125,13 +126,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, De
             Some([]),
             es,
           );
-        wrap(ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds));
+        wrap((ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds), Delta.empty));
       }
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
-      let* d1 = dhexp_of_uexp(m, body);
+      let* (d1, dl) = dhexp_of_uexp(m, body, delta);
       let ty1 = Statics.pat_typ(m, p);
-      wrap(DHExp.Fun(dp, ty1, d1, None));
+      wrap(DHExp.Fun(dp, ty1, d1, None), dl);
     | Tuple(es) =>
       let ds =
         List.fold_right(
@@ -212,7 +213,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, De
         let ddef =
           switch (ddef) {
           | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
-          | _ => ddemeubletf
+          | _ => ddef
           };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
