@@ -70,6 +70,14 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
+  | TypAp(d1, ty) =>
+    let* d1' = pp_eval(d1);
+    TypAp(d1', ty) |> return;
+
+  | TypFun(tpat, d1) =>
+    let* d1' = pp_eval(d1);
+    TypFun(tpat, d1') |> return;
+
   | ApBuiltin(f, args) =>
     let* args' = args |> List.map(pp_eval) |> sequence;
     ApBuiltin(f, args') |> return;
@@ -281,10 +289,18 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     Fun(dp, ty, d'', s) |> return;
 
+  | TypFun(tpat, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    TypFun(tpat, d1') |> return;
+
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
+
+  | TypAp(d1, ty) =>
+    let* d1' = pp_uneval(env, d1);
+    TypAp(d1', ty) |> return;
 
   | ApBuiltin(f, args) =>
     let* args' = args |> List.map(pp_uneval(env)) |> sequence;
@@ -437,6 +453,8 @@ let rec track_children_of_hole =
   | BoundVar(_) => hii
   | FixF(_, _, d)
   | Fun(_, _, d, _)
+  | TypFun(_, d)
+  | TypAp(d, _)
   | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)
