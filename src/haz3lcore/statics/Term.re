@@ -374,7 +374,8 @@ module UPat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
