@@ -291,7 +291,7 @@ and matches_cast_Inj =
   | Fun(_, _, _, _) => DoesNotMatch
   | TypFun(_) => DoesNotMatch
   | TypAp(_) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -368,7 +368,7 @@ and matches_cast_Tuple =
   | Fun(_, _, _, _) => DoesNotMatch
   | TypFun(_) => DoesNotMatch
   | TypAp(_) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | Closure(_, Fun(_) | TypFun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -648,12 +648,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       evaluate(env', d');
 
     | Fun(_) => BoxedValue(Closure(env, d)) |> return
-    | TypFun(_) => BoxedValue(d) |> return
+    | TypFun(_) => BoxedValue(Closure(env, d)) |> return
 
     | TypAp(d1, _ty) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
-      | BoxedValue(TypFun(_, d3)) => evaluate(env, d3)
+      | BoxedValue(Closure(closure_env, TypFun(_, d3))) =>
+        evaluate(closure_env, d3)
       | _ => failwith("InvalidBoxedTypFun")
       };
     | Ap(d1, d2) =>
@@ -956,7 +957,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
        lambda closures are BoxedValues; other closures are all Indet. */
     | Closure(_, d') =>
       switch (d') {
-      | Fun(_) => BoxedValue(d) |> return
+      | Fun(_)
+      | TypFun(_) => BoxedValue(d) |> return
       | _ => Indet(d) |> return
       }
 
