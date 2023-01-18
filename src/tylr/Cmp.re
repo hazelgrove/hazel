@@ -10,8 +10,9 @@ module Result = {
     | Lt('lt)
     | Eq('eq)
     | Gt('gt);
+  type s('a) = t('a, 'a, 'a, 'a);
 
-  let get = (r: t('a, 'a, 'a, 'a)): 'a =>
+  let get = (r: s('a)): 'a =>
     switch (r) {
     | In(a)
     | Lt(a)

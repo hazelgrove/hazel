@@ -54,7 +54,7 @@ let rec mold =
   };
 
 let push_remolded_chain =
-    (seg: t, ~kid=Chain.Padded.empty, c: Chain.t)
+    (seg: t, ~kid=Chain.Padded.empty(), c: Chain.t)
     : (Cmp.Result.t(t, t, t, Chain.Padded.t) as 'r) =>
   seg
   |> Aba.fold_right(
@@ -65,16 +65,16 @@ let push_remolded_chain =
          | Eq(seg) => Eq(Aba.cons(s, c', seg))
          | Gt(kid) =>
            switch (Chain.cmp_merge(c', ~kid, c)) {
-           | In(c) => In(of_padded(Chain.Padded.mk(~l=s, c)))
+           | In(c) => In(of_padded(Chain.Padded.pad(~l=s, c)))
            | Lt(kid) => Lt(Aba.cons(s, c', of_padded(kid)))
-           | Eq(c) => Eq(of_padded(Chain.Padded.mk(~l=s, c)))
+           | Eq(c) => Eq(of_padded(Chain.Padded.pad(~l=s, c)))
            | Gt(kid) => Gt(kid)
            }
          },
        s => Cmp.Result.Gt(Chain.Padded.pad(~l=s, kid)),
      );
 
-let push_chain = (onto, ~kid=Chain.Padded.empty, c) =>
+let push_chain = (onto, ~kid=Chain.Padded.empty(), c) =>
   switch (push_remolded_chain(onto, ~kid, c)) {
   | In(seg)
   | Lt(seg)
@@ -98,10 +98,22 @@ let finish_prefix = (pre: t): Chain.Padded.t =>
        s => Chain.Padded.mk(~l=s, Chain.empty),
      );
 
+let rec chain_to_prefix = (c: Chain.t): t =>
+  switch (Aba.unsnoc(c)) {
+  | None => empty
+  | Some((tl, p, kid)) =>
+    let (p, s) = Piece.pop_space_r(p);
+    let kid_pre =
+      switch (kid) {
+      | None => empty
+      | Some(K(kid)) => chain_to_prefix(kid)
+      };
+    kid_pre |> cons_space(s) |> Aba.cons(Space.empty, Aba.snoc(tl, p, None));
+  };
 let to_prefix = (seg: t) =>
   seg
   |> Aba.fold_right(
-       (s, c, pre) => concat([of_space(s), Chain.to_prefix(c), pre]),
+       (s, c, pre) => concat([of_space(s), chain_to_prefix(c), pre]),
        of_space,
      );
 let to_suffix = _ => failwith("todo to_suffix");

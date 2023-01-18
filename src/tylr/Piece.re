@@ -41,7 +41,7 @@ let fills_or_passes = (_, _): option(fp) =>
 let mold = p =>
   switch (p.shape) {
   | T(t) => t.mold
-  | G(g) => Some(g.mold)
+  | G(g) => g.mold
   };
 let sort = p => Option.map(Mold.sort_, mold(p));
 let prec = p => Option.map(Mold.prec_, mold(p));

@@ -54,7 +54,7 @@ module Padded = {
   type c = t;
   // chain with padding (ie single-chain segment)
   type t = (c, (Space.t, Space.t));
-  let mk = (~l=Space.empty, ~r=Space.empty, c) => (c, (l, r));
+  let mk = (~l=Space.empty, ~r=Space.empty, c: c): t => (c, (l, r));
   let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
   let is_empty = ((c, (l, r))) => is_empty(c) ? None : Some(l @ r);
   let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
@@ -129,11 +129,6 @@ let convexify_r = (~expected, c) =>
 let convexify = (~expected: Sort.t, c) =>
   c |> convexify_r(~expected) |> convexify_l(~expected);
 
-let is_porous =
-  fun
-  | None => true
-  | Some(K(kid)) => to_lexemes(kid) |> List.for_all(Lexeme.is_porous);
-
 let rec is_porous = c =>
   c
   |> Aba.join(kid_is_porous, Piece.is_porous)
@@ -178,14 +173,14 @@ let rec fills = (l: Padded.t, r: Padded.t): option(Padded.t) => {
   };
 };
 
-let rec merge = (~expected: Sort.t, l: Padded.t, r: Padded.t): Padded.t =>
+let rec merge = (l: Padded.t, r: Padded.t): Padded.t =>
   switch (Padded.is_empty(l), Padded.is_empty(r)) {
   | (Some(l), Some(r)) => Padded.empty(~l, ~r, ())
   | (Some(l), None) => Padded.pad(~l, r)
   | (None, Some(r)) => Padded.pad(~r, l)
-  | (None, None) => merge_nonempty(~expected, l, r)
+  | (None, None) => merge_nonempty(l, r)
   }
-and merge_nonempty = (~expected: Sort.t, l, r) =>
+and merge_nonempty = (l, r) =>
   switch (fills(l, r)) {
   | Some(pc) => pc
   | None =>
@@ -198,24 +193,9 @@ and merge_nonempty = (~expected: Sort.t, l, r) =>
     switch (Piece.cmp(p_l, p_r)) {
     | In () =>
       assert(kid_l == None && kid_r == None);
-      let prec =
-        min(
-          Option.value(Piece.prec(p_l), ~default=Prec.max_op),
-          Option.value(Piece.prec(p_r), ~default=Prec.max_op),
-        );
-      let kid_l =
-        mk_kid(
-          ~expected=Option.value(Piece.sort(p_l), ~default=expected),
-          c_l,
-        );
-      let kid_r =
-        mk_kid(
-          ~expected=Option.value(Piece.sort(p_r), ~default=expected),
-          c_r,
-        );
-      Piece.mk(G(Grout.mk_concave(expected, prec)))
+      Piece.(mk(G(Grout.mk_concave(mold(p_l), mold(p_r)))))
       |> Piece.pad(~l=s_lr, ~r=s_rl)
-      |> of_piece(~l=kid_l, ~r=kid_r)
+      |> of_piece(~l=?kid_l, ~r=?kid_r)
       |> Padded.mk(~l=s_ll, ~r=s_rr);
     | Lt(expected) =>
       assert(kid_l == None);
@@ -252,83 +232,25 @@ and merge_kids =
   | (Some(K(l)), Some(K(r))) =>
     let l = Padded.mk(~r=s_l, l);
     let r = Padded.mk(~l=s_r, r);
-    merge(~expected, l, r);
+    merge(l, r);
   }
 and mk_kid = (~expected: Sort.t, c: t): kid => K(convexify(~expected, c));
 
-let merge_all = (~expected, pcs) =>
-  List.fold_right(merge(~expected), pcs, Padded.empty());
-
-let pop_kid_l = (c: t): (option(kid), Space.t, t) =>
-  switch (Aba.uncons(c)) {
-  | None => (Aba.last_a(c), Space.empty, empty)
-  | Some((k, p, c)) =>
-    let (s, p) = Piece.pop_space_l(p);
-    (k, s, Aba.cons(None, p, c));
-  };
-let pop_kid_r = (c: t): (t, Space.t, option(kid)) =>
-  switch (Aba.unsnoc(c)) {
-  | None => (empty, Space.empty, Aba.last_a(c))
-  | Some((c, p, k)) =>
-    let (p, s) = Piece.pop_space_r(p);
-    (Aba.snoc(c, p, None), s, k);
-  };
-
-// raises if parent is missing root
-let push_kid_l = (kid: t, s: Space.t, par: t): t =>
-  switch (Aba.uncons(par)) {
-  | None =>
-    raise(Invalid_argument("Chain.push_kid_l: input parent missing root"))
-  | Some((k, p, c)) =>
-    assert(k == None);
-    let p = Piece.pad(~l=s, p);
-    let kid = mk_kid(~expected=?Piece.expected_sort(L, p), kid);
-    Aba.cons(Some(kid), p, c);
-  };
-
-let finish_l = (~kid=Padded.empty, c: t) => {
-  let (kid, (l, r)) = kid;
-  let c = push_kid_l(kid, r, c);
-  Padded.mk(~l, c);
-};
-
-let finish_r = (_, ~kid as _=?, ()) => failwith("todo finish_r");
+let merge_all = pcs => List.fold_right(merge, pcs, Padded.empty());
 
 let cmp_mold = (_: t, _: Mold.t): option(Cmp.t) =>
   failwith("todo cmp_mold");
-// accepts empty chains if expected arg provided
-[@warning "-27"]
-let finish = (~expected: option(Sort.t)=?, _) => failwith("todo finish");
 
-let cmp_merge = (l: t, ~kid=?, r: t): Cmp.Result.t(t, Padded.t, t, Padded.t) =>
+let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.Result.s(Padded.t) =>
   switch (cmp(l, r)) {
   | In =>
-    assert(kid == None);
-    assert(root(l) != []);
-    assert(root(r) != []);
-    let (s_l, s_r) = (sort(l), sort(r));
-    let g = Grout.mk_concave((s_l, prec(l)), (s_r, prec(r)));
-    Cmp.Result.In(
-      Aba.mk(
-        [Some(mk_kid(~expected=s_l, l)), Some(mk_kid(~expected=s_r, r))],
-        // todo: add padding
-        [Piece.mk(G(g))],
-      ),
-    );
-  | Lt => Lt(finish_l(~kid?, r))
-  | Eq => Eq(match_(l, ~kid?, r))
-  | Gt => Gt(finish_r(l, ~kid?, ()))
+    let (c, (s_l, s_r)) = kid;
+    assert(is_empty(c));
+    In(merge(Padded.mk(~r=s_l, l), Padded.mk(~l=s_r, r)));
+  | Lt => Lt(merge(kid, Padded.mk(r)))
+  | Eq => Eq(merge_all([Padded.mk(l), kid, Padded.mk(r)]))
+  | Gt => Gt(merge(Padded.mk(l), kid))
   };
-
-let to_prefix = (c: t): Aba.t(Space.t, t) => {
-  let (c, s, k) = pop_kid_r(c);
-  let pre =
-    switch (k) {
-    | None => Aba.singleton(s)
-    | Some(K(kid)) => Aba.mk([s, Space.empty], [kid])
-    };
-  Aba.cons(Space.empty, c, pre);
-};
 
 [@warning "-27"]
 let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
