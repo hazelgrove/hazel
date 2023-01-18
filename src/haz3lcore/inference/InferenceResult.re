@@ -12,12 +12,18 @@ let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
 let accumulated_annotations = empty_annotations();
 
+let annotations_enabled = ref(true);
+
+let update_annoation_mode = annot_mode => {
+  annotations_enabled := annot_mode;
+};
+
 let get_annotations = (inference_results: list(t)): annotation_map => {
   let status_to_string = (status: status): option(string) => {
     switch (status) {
     | Solved(Unknown(_)) => None // it isn't useful to say something is unknown
     | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
-    | Unsolved(_eq_class) => None
+    | Unsolved(eq_class) => Some(EqClass.string_of_eq_class(eq_class))
     };
   };
 
@@ -40,7 +46,7 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
 };
 
 let get_annotation_of_id = (id: Id.t): option(string) => {
-  Hashtbl.find_opt(accumulated_annotations, id);
+  annotations_enabled^ ? Hashtbl.find_opt(accumulated_annotations, id) : None;
 };
 
 let add_on_new_annotations = (new_map): unit => {

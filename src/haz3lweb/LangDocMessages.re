@@ -3177,6 +3177,7 @@ let var_typ: form = {
 type t = {
   show: bool,
   highlight: bool,
+  annotations: bool,
   specificity_open: bool,
   forms: list(form),
   groups: list((string, form_group)),
@@ -3248,6 +3249,7 @@ let init_options = options => {
 let init = {
   show: true,
   highlight: true,
+  annotations: true,
   specificity_open: false,
   forms: [
     // Expressions
@@ -3768,6 +3770,7 @@ let init = {
 type update =
   | ToggleShow
   | ToggleHighlight
+  | ToggleAnnotations
   | SpecificityOpen(bool)
   | ToggleExplanationFeedback(string, feedback_option)
   | ToggleExampleFeedback(string, string, feedback_option)
@@ -3779,6 +3782,10 @@ let set_update = (docLangMessages: t, u: update): t => {
   | ToggleHighlight => {
       ...docLangMessages,
       highlight: !docLangMessages.highlight,
+    }
+  | ToggleAnnotations => {
+      ...docLangMessages,
+      annotations: !docLangMessages.annotations,
     }
   | SpecificityOpen(b) => {...docLangMessages, specificity_open: b}
   | ToggleExplanationFeedback(id, feedback_option) =>
@@ -3850,13 +3857,14 @@ type persistent_form_group = {
 type persistent_state = {
   show: bool,
   highlight: bool,
+  annotations: bool,
   specificity_open: bool,
   forms: list(persistent_form),
   groups: list(persistent_form_group),
 };
 
 let persist =
-    ({show, highlight, specificity_open, forms, groups, _}: t)
+    ({show, highlight, annotations, specificity_open, forms, groups, _}: t)
     : persistent_state => {
   let persist_example = ({sub_id, feedback, _}: example): persistent_example => {
     {sub_id, feedback};
@@ -3873,6 +3881,7 @@ let persist =
   {
     show,
     highlight,
+    annotations,
     specificity_open,
     forms: List.map(persist_form, forms),
     groups:
@@ -3886,7 +3895,10 @@ let persist =
 
 // TODO Make more robust to added messages
 let unpersist =
-    ({show, highlight, specificity_open, forms, groups}: persistent_state): t => {
+    (
+      {show, highlight, annotations, specificity_open, forms, groups}: persistent_state,
+    )
+    : t => {
   let unpersist_examples = (persistent_examples, examples) => {
     List.map(
       ({sub_id, feedback}: persistent_example) => {
@@ -3929,6 +3941,7 @@ let unpersist =
   {
     show,
     highlight,
+    annotations,
     specificity_open,
     forms: forms_unpersist,
     groups: groups_unpersist,

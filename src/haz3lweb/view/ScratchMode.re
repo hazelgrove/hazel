@@ -21,6 +21,8 @@ let view =
   let (term, _) = MakeTerm.go(unselected);
   let info_map = Statics.mk_map(term);
 
+  InferenceResult.update_annoation_mode(langDocMessages.annotations);
+
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       Some(

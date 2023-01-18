@@ -70,6 +70,8 @@ let view =
   let (focal_zipper, focal_info_map) =
     SchoolExercise.focus(exercise, stitched_dynamics);
 
+  InferenceResult.update_annoation_mode(langDocMessages.annotations);
+
   let color_highlighting: option(ColorSteps.colorMap) =
     if (langDocMessages.highlight && langDocMessages.show) {
       let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(focal_zipper));

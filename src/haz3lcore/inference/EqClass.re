@@ -374,6 +374,7 @@ let string_of_btyp = (btyp: base_typ): string => {
 let rec string_of_eq_class = (eq_class: t): string =>
   switch (eq_class) {
   | [] => ""
+  | [hd] => string_of_eq_typ(hd)
   | [hd, ...tl] =>
     let hd_str = string_of_eq_typ(hd);
     String.concat("//", [hd_str, string_of_eq_class(tl)]);
