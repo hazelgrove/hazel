@@ -291,16 +291,41 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
             es,
           );
         let* pats_and_args = pats_and_args_opt;
+        let nary_tuple = (tuple, xs) => {
+          assert(List.length(xs) > 0);
+          if (List.length(xs) == 1) {
+            List.hd(xs);
+          } else {
+            tuple(xs);
+          };
+        };
+        let (pats, args) = pats_and_args;
         let (ppat, parg) =
-          pats_and_args
-          |> (((pats, args)) => (DHPat.Tuple(pats), DHExp.Tuple(args))); // pseudo-pattern; pseudo-arg
+          // pseudo-pattern; pseudo-arg
+          (
+            nary_tuple(x => DHPat.Tuple(x), pats),
+            nary_tuple(x => DHExp.Tuple(x), args),
+          );
+        let* d_fn = dhexp_of_uexp(m, fn);
         let ty_fn = Statics.exp_self_typ(m, fn);
         let* ty_ret =
           switch (ty_fn) {
           | Arrow(_, t) => Some(t)
           | _ => None
           };
-        wrap(Fun(ppat, Arrow(Unknown(Internal), ty_ret), parg, None));
+        let ty_parg: Typ.t =
+          Arrow(
+            nary_tuple(
+              x => Typ.Prod(x),
+              List.init(List.length(pats), _ => Typ.Unknown(Internal)) // TODO: don't discard type information
+            ),
+            ty_ret,
+          );
+        Fun(ppat, ty_parg, Ap(d_fn, parg), None)
+        |> DHExp.sexp_of_t
+        |> Sexplib.Sexp.to_string_hum
+        |> print_endline;
+        wrap(Fun(ppat, ty_parg, Ap(d_fn, parg), None));
       | _ =>
         let* d_fn = dhexp_of_uexp(m, fn);
         let* d_arg = dhexp_of_uexp(m, arg);
