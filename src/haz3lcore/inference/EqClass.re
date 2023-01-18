@@ -36,6 +36,12 @@ let mk_as_binary_ctor = (ctor: binary_ctor, ty1: ITyp.t, ty2: ITyp.t): ITyp.t =>
   };
 };
 
+let mk_as_unary_ctor = (ctor: unary_ctor, ty: ITyp.t): ITyp.t => {
+  switch (ctor) {
+  | CList => List(ty)
+  };
+};
+
 let rec ityp_to_eq_typ: ITyp.t => eq_typ =
   fun
   | Unknown(prov) => Base(BUnknown(prov))
@@ -318,6 +324,10 @@ let rec filtered_eq_class_to_typ: t => option(ITyp.t) =
       let+ typ2 = filtered_eq_class_to_typ(eq_class_rt);
       mk_as_binary_ctor(ctor, typ1, typ2);
     }
+  | [Mapped(ctor, eq_class)] => {
+      let+ elt_typ = filtered_eq_class_to_typ(eq_class);
+      mk_as_unary_ctor(ctor, elt_typ);
+    }
   | _ => None;
 
 let comp_eq_typ = (eq_typ1: eq_typ, eq_typ2: eq_typ): int => {
@@ -401,7 +411,7 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
       ],
     );
   | Mapped(ctor, eq_class) =>
-    let (end_text, start_text) =
+    let (start_text, end_text) =
       switch (ctor) {
       | CList => ("[", "]")
       };

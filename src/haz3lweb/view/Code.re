@@ -30,9 +30,19 @@ let of_delim =
     (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
-let of_grout = (annotation: option(string)) => [
-  annotation |> OptUtil.get(() => Unicode.nbsp) |> Node.text,
-];
+let of_grout = (id: Id.t) => {
+  let annot_style = InferenceResult.get_style_of_id(id);
+  let nodes = [
+    id
+    |> InferenceResult.get_annotation_of_id
+    |> OptUtil.get(() => Unicode.nbsp)
+    |> Node.text,
+  ];
+  switch (annot_style) {
+  | Some(cname) => [span_c(cname, nodes)]
+  | None => nodes
+  };
+};
 
 let of_whitespace =
   Core.Memo.general(
@@ -76,7 +86,7 @@ module Text = (M: {
   and of_piece = (expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(expected_sort, t)
-    | Grout(g) => g.id |> InferenceResult.get_annotation_of_id |> of_grout
+    | Grout(g) => of_grout(g.id)
     | Whitespace({content, _}) =>
       of_whitespace((M.settings.whitespace_icons, m(p).last.col, content))
     };
@@ -105,15 +115,18 @@ let rec holes =
        fun
        | Piece.Whitespace(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
-       | Grout(g) => [
-           EmptyHoleDec.view(
-             ~font_metrics, // TODO(d) fix sort
-             {
-               measurement: Measured.find_g(g, map),
-               mold: Mold.of_grout(g, Any),
-             },
-           ),
-         ],
+       | Grout(g) =>
+         InferenceResult.get_annotation_of_id(g.id) == None
+           ? [
+             EmptyHoleDec.view(
+               ~font_metrics, // TODO(d) fix sort
+               {
+                 measurement: Measured.find_g(g, map),
+                 mold: Mold.of_grout(g, Any),
+               },
+             ),
+           ]
+           : [],
      );
 
 let simple_view = (~unselected, ~map, ~settings: Model.settings): Node.t => {

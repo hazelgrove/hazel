@@ -18,10 +18,6 @@ type t =
 type equivalence = (t, t)
 and constraints = list(equivalence);
 
-// HACK:
-//    In order to ensure difference hole provenenances with the same
-//    id chart to the same set of results, convert synswitch provs to internal
-//    Do not change TypeHole, as we will filter on that condition later.
 let rec prov_to_iprov: Typ.type_provenance => Typ.type_provenance =
   fun
   | SynSwitch(u) => Internal(u)
@@ -71,6 +67,7 @@ let rec contains_hole = (ty: t): bool =>
   | Arrow(ty1, ty2)
   | Sum(ty1, ty2)
   | Prod(ty1, ty2) => contains_hole(ty1) || contains_hole(ty2)
+  | List(l_ty) => contains_hole(l_ty)
   | _ => false
   };
 

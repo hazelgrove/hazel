@@ -6,7 +6,7 @@ type status =
 
 type t = (ITyp.t, status);
 
-type annotation_map = Hashtbl.t(Id.t, string);
+type annotation_map = Hashtbl.t(Id.t, (status, string));
 
 let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
@@ -27,11 +27,12 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
     };
   };
 
-  let id_and_annotation_if_type_hole = (result: t): option((Id.t, string)) => {
+  let id_and_annotation_if_type_hole =
+      (result: t): option((Id.t, (status, string))) => {
     switch (result) {
     | (Unknown(TypeHole(id)), status) =>
       let* annotation = status_to_string(status);
-      Some((id, annotation));
+      Some((id, (status, annotation)));
     | _ => None
     };
   };
@@ -45,9 +46,24 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
   new_map;
 };
 
-let get_annotation_of_id = (id: Id.t): option(string) => {
-  annotations_enabled^ ? Hashtbl.find_opt(accumulated_annotations, id) : None;
-};
+let get_annotation_of_id = (id: Id.t): option(string) =>
+  if (annotations_enabled^) {
+    let+ (_, annotation) = Hashtbl.find_opt(accumulated_annotations, id);
+    annotation;
+  } else {
+    None;
+  };
+
+let get_style_of_id = (id: Id.t): option(string) =>
+  if (annotations_enabled^) {
+    let+ (status, _) = Hashtbl.find_opt(accumulated_annotations, id);
+    switch (status) {
+    | Solved(_) => "solved-annotation"
+    | Unsolved(_) => "unsolved-annotation"
+    };
+  } else {
+    None;
+  };
 
 let add_on_new_annotations = (new_map): unit => {
   let add_new_elt = (new_k, new_v) => {
@@ -56,19 +72,10 @@ let add_on_new_annotations = (new_map): unit => {
   Hashtbl.iter(add_new_elt, new_map);
 };
 
-let log_attempt_at_mk_map = (loc, result) => {
-  switch (result) {
-  | exception exc =>
-    print_endline("From " ++ loc);
-    print_endline(Printexc.to_string(exc));
-    raise(exc);
-  | _ => result
-  };
-};
-
 let condense = (eq_class: MutableEqClass.t): status => {
   let (eq_class, err) = MutableEqClass.snapshot_class(eq_class);
   let sorted_eq_class = EqClass.sort_eq_class(eq_class);
+
   let filtered_eq_class =
     EqClass.filter_unneeded_holes(EqClass.is_known, sorted_eq_class);
 

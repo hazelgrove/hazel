@@ -693,6 +693,17 @@ body {
   font-weight: bold;
 }
 
+/* INFERENCE ANNOTATIONS */
+
+.solved-annotation {
+  color: grey;
+}
+
+.unsolved-annotation {
+  color: grey;
+  background-color:rgb(233, 172, 164);
+}
+
 /* TOKEN COLORS */
 
 .code .token.mono {}

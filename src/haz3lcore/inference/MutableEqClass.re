@@ -119,7 +119,7 @@ let rec preorder_key_traversal_typ = (ty: ITyp.t): list(ITyp.t) => {
       ...preorder_key_traversal_typ(ty_lhs)
          @ preorder_key_traversal_typ(ty_rhs),
     ]
-  | List(ty) => [ty, ...preorder_key_traversal_typ(ty)]
+  | List(list_ty) => [ty, ...preorder_key_traversal_typ(list_ty)]
   };
 };
 

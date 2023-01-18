@@ -820,14 +820,6 @@ let mk_map =
       let inference_results = Inference.unify_and_report_status(constraints);
       let annotation_map = InferenceResult.get_annotations(inference_results);
 
-      print_endline("\nCONSTRAINTS\n--------");
-      print_endline(
-        Typ.sexp_of_constraints(constraints) |> Sexplib.Sexp.to_string_hum,
-      );
-
-      print_endline("\nANNOTS\n-------");
-      Hashtbl.iter((_, annot) => print_endline(annot), annotation_map);
-
       InferenceResult.add_on_new_annotations(annotation_map);
 
       info_map;
