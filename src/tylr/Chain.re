@@ -1,19 +1,32 @@
 open Sexplib.Std;
 open Util;
 
+// todo: rename as Meld
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Aba.t(option(kid), Piece.t)
 [@deriving (show({with_path: false}), sexp, yojson)]
 and kid =
   | K(t);
 
+// we expect a kid to be constructed only when there is
+// a concrete parent piece inducing kidhood, hence we should
+// never encounter a chain consisting solely of Some(kid).
+exception Orphaned_kid;
+
+// we expect kids to have higher precedence than their
+// parent tips (which may be min prec in bidelim containers)
+exception Invalid_prec;
+
 exception Missing_root;
 
 let empty = Aba.singleton(None);
 let is_empty: t => bool = (==)(empty);
 
-let of_piece = (~l=?, ~r=?, p) => Aba.mk([l, r], [p]);
-let of_grout = _ => failwith("todo of_grout");
+let of_piece = (~l=?, ~r=?, p: Piece.t) => Aba.mk([l, r], [p]);
+let of_grout = (~l=?, ~r=?, g: Grout.t) =>
+  of_piece(~l?, ~r?, Piece.mk(G(g)));
+let of_tile = (~l=?, ~r=?, t: Tile.t) =>
+  of_piece(~l?, ~r?, Piece.mk(T(t)));
 
 let root: t => list(Piece.t) = Aba.get_bs;
 let kids: t => list(option(kid)) = Aba.get_as;
@@ -42,8 +55,8 @@ module Padded = {
   // chain with padding (ie single-chain segment)
   type t = (c, (Space.t, Space.t));
   let mk = (~l=Space.empty, ~r=Space.empty, c) => (c, (l, r));
-  let empty = mk(empty);
-  let is_empty: t => bool = (==)(empty);
+  let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
+  let is_empty = ((c, (l, r))) => is_empty(c) ? None : Some(l @ r);
   let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
     c,
     (l @ l', r' @ r),
@@ -77,166 +90,174 @@ let cmp = (_: t, _: t): Cmp.t => failwith("todo cmp");
 //   Padded.mk(~l=l_par, ~r=r_kid, c);
 // };
 
+let convexify_l = (~expected, c) =>
+  if (is_empty(c)) {
+    of_grout(Grout.mk_convex(expected));
+  } else {
+    let (kid, p, tl) = Aba.uncons(c) |> OptUtil.get_or_raise(Orphaned_kid);
+    switch (Piece.expected_sort(L, p)) {
+    | None =>
+      assert(kid == None);
+      c;
+    | Some(s) =>
+      switch (kid) {
+      | Some(_) => c
+      | None =>
+        let kid = of_grout(Grout.mk_convex(s));
+        Aba.cons(Some(K(kid)), p, tl);
+      }
+    };
+  };
+let convexify_r = (~expected, c) =>
+  if (is_empty(c)) {
+    of_grout(Grout.mk_convex(expected));
+  } else {
+    let (tl, p, kid) = Aba.unsnoc(c) |> OptUtil.get_or_raise(Orphaned_kid);
+    switch (Piece.expected_sort(R, p)) {
+    | None =>
+      assert(kid == None);
+      c;
+    | Some(s) =>
+      switch (kid) {
+      | Some(_) => c
+      | None =>
+        let kid = of_grout(Grout.mk_convex(s));
+        Aba.snoc(tl, p, Some(K(kid)));
+      }
+    };
+  };
+let convexify = (~expected: Sort.t, c) =>
+  c |> convexify_r(~expected) |> convexify_l(~expected);
+
 let is_porous =
   fun
   | None => true
   | Some(K(kid)) => to_lexemes(kid) |> List.for_all(Lexeme.is_porous);
 
-let rec merge = (~expected: Sort.t, l: t, r: t): t => {
-  // possibly shadowed below
-  let (kid_l, kid_r) = Aba.(first_a(l), first_a(r));
-  switch (Aba.unsnoc(l), Aba.uncons(r)) {
-  | (None, None) =>
-    switch (merge_kids(~expected, kid_l, kid_r)) {
-    | None => of_grout(Grout.mk_convex(expected))
-    | Some(K(c)) => c // todo: double-check that unwrapping is ok here
-    }
-  | (None, Some((kid_r, p, r))) =>
-    let kid = merge_kids(~expected=?Piece.expected_sort(L, p), kid_l, kid_r);
-    Aba.cons(kid, p, r);
-  | (Some((l, p, kid_l)), None) =>
-    let kid = merge_kids(~expected=?Piece.expected_sort(R, p), kid_l, kid_r);
-    Aba.snoc(l, p, kid);
-  | (Some((l', p_l, kid_l)), Some((kid_r, p_r, r'))) =>
-    // todo: preserve space
-    switch (Piece.rel(p_l, p_r)) {
-    | Fills(p) when is_porous(kid_l) && is_porous(kid_r) =>
-      Aba.append(l', p, r')
-    | Passes(L) when is_porous(kid_l) => failwith("todo")
-    | Passes(R) when is_porous(kid_r) => failwith("todo")
-    | _ =>
-      switch (Piece.cmp(p_l, p_r)) {
-      | In =>
-        assert(kid_l == None);
-        assert(kid_r == None);
-        let (s_l, pr_l) = failwith("todo piece sort"); // Piece.(sort(p_l), prec(p_l));
-        let (s_r, pr_r) = failwith("todo piece sort"); // Piece.(sort(p_r), prec(p_r));
-        let g = Grout.mk_concave((s_l, pr_l), (s_r, pr_r));
-        of_piece(
-          ~l=mk_kid(~expected=s_l, l),
-          ~r=mk_kid(~expected=s_r, r),
-          Piece.mk(G(g)),
-        );
-      | Lt =>
-        assert(kid_l == None);
-        let r = mk_kid(~expected=Piece.expected_sort(R, p_l), r);
-        Aba.snoc(l', p_l, Some(r));
-      | Gt =>
-        assert(kid_r == None);
-        let l = mk_kid(~expected=Piece.expected_sort(L, p_r), l);
-        Aba.cons(Some(l), p_r, r');
-      | Eq =>
-        let expected = Piece.expected_sort(R, p_l);
-        let kid = merge_kids(~expected?, kid_l, kid_r);
-        Aba.append(l', p_l, Aba.cons(kid, p_r, r'));
-      }
-    }
+let rec is_porous = c =>
+  c
+  |> Aba.join(kid_is_porous, Piece.is_porous)
+  |> OptUtil.sequence
+  |> Option.map(List.concat)
+and kid_is_porous =
+  fun
+  | None => Some(Space.empty)
+  | Some(K(kid)) => is_porous(kid);
+
+// precond: l and r are nonempty
+let rec fills = (l: Padded.t, r: Padded.t): option(Padded.t) => {
+  let (c_l, (s_ll, s_lr)) = l;
+  let (c_r, (s_rl, s_rr)) = r;
+  let (c_l', p_l, kid_l) =
+    Aba.unsnoc(c_l) |> OptUtil.get_or_raise(Orphaned_kid);
+  let (kid_r, p_r, c_r') =
+    Aba.uncons(c_r) |> OptUtil.get_or_raise(Orphaned_kid);
+  open OptUtil.Syntax;
+  let* fp = Piece.fills_or_passes(p_l, p_r);
+  switch (fp) {
+  | Fill(d) =>
+    let+ s_l = kid_is_porous(kid_l)
+    and+ s_r = kid_is_porous(kid_r);
+    let s_mid = List.concat([s_l, s_lr, s_rl, s_r]);
+    let p =
+      switch (d) {
+      | L => Piece.pad(~l=Piece.space(p_l) @ s_mid, p_r)
+      | R => Piece.pad(~r=s_mid @ Piece.space(p_r), p_l)
+      };
+    Padded.mk(~l=s_ll, ~r=s_rr, Aba.append(c_l', p, c_r'));
+  | Pass(L) =>
+    let* s_l = kid_is_porous(kid_l);
+    let s_mid = List.concat([Piece.space(p_l), s_l, s_lr]);
+    let l = Padded.mk(~l=s_ll, ~r=s_mid, c_l');
+    fills(l, r);
+  | Pass(R) =>
+    let* s_r = kid_is_porous(kid_r);
+    let s_mid = List.concat([s_rl, s_r, Piece.space(p_l)]);
+    let r = Padded.mk(~l=s_mid, ~r=s_rr, c_r');
+    fills(l, r);
   };
-}
-[@warning "-27"]
-and merge_kids = (~expected=?, l: option(kid), r: option(kid)): option(kid) =>
-  failwith("todo merge_kids")
-[@warning "-27"]
-and mk_kid = (~expected=?, c: t): kid => failwith("todo mk_kid");
-
-// let merge = (l: Padded.t, r: Padded.t): Padded.t => {
-//   let (c_l, (s_ll, s_lr)) = l;
-//   let (c_r, (s_rl, s_rr)) = r;
-//   switch (cmp(c_l, c_r)) {
-//   | In =>
-//     assert(root(c_l) != []);
-//     assert(root(c_r) != []);
-//     let (s_l, s_r) = (sort(c_l), sort(c_r));
-//     let g = Grout.mk_concave((s_l, prec(l)), (s_r, prec(r)));
-//     Aba.mk(
-//       [Some(Kid.mk(~expected=s_l, c_l)), Some(Kid.mk(~expected=s_r, c_r))],
-//       // todo: add padding
-//       [Piece.mk(~l=s_lr, ~r=s_rl, G(g))],
-//     )
-//     |> Padded.mk(~l=s_ll, ~r=s_rr);
-//   | Lt =>
-//     let r = convexify(r);
-//     push_kid_r(l, r);
-//   | Eq => failwith("todo eq")
-//   | Gt =>
-//     let l = convexify(l);
-//     push_kid_l(l, r);
-//   };
-// }
-// and merge_eq = (l: t, r: t): t =>
-//   if (is_empty(r)) {
-//     l
-//   } else {
-//     switch (Aba.uncons(l)) {
-//     | None => failwith("todo")
-//     | Some((kid_l, p_l, l)) =>
-//       // todo: consider singleton kid case if needed
-//       assert(root(r) != []);
-//       let (kid_r, p_r, r) = Option.get(Aba.uncons(r));
-//       switch (Piece.fill(p_l, p_r)) {
-//       | None =>
-//         Aba.cons(kid, p_l, merge_eq(l, r))
-//       | Some(p) =>
-
-//       }
-//     };
-//   };
-
-module Kid = {
-  type c = t;
-  type t = kid;
-
-  let to_chain: option(t) => c =
-    fun
-    | None => empty
-    | Some(K(c)) => c;
-  // let rec mk = (~expected: Sort.t, c: c): t =>
-  //   K(c |> convexify_l(~expected) |> fst |> convexify_r(~expected) |> fst)
-  // and convexify_l = (~expected: Sort.t, c: c): Padded.t =>
-  //   switch (Aba.uncons(c)) {
-  //   | None =>
-  //     assert(Aba.first_a(c) == None);
-  //     Padded.mk(of_grout(Grout.mk_convex(expected)));
-  //   | Some((kid, p, c')) =>
-  //     let c =
-  //       switch (Piece.expected_sort(L, p)) {
-  //       | None =>
-  //         assert(kid == None);
-  //         c;
-  //       | Some(s) =>
-  //         let kid = mk(~expected=s, to_chain(kid));
-  //         Aba.cons(Some(kid), p, c');
-  //       };
-  //     switch (Piece.mk_match(L, p)) {
-  //     | None => c
-  //     | Some(p) =>
-  //       // recurse to generate any additional matching pieces
-  //       convexify_l(~expected, Aba.cons(None, p, c))
-  //     };
-  //   }
-  // and convexify_r = (~expected: Sort.t, c: c): c =>
-  //   switch (Aba.unsnoc(c)) {
-  //   | None =>
-  //     assert(Aba.first_a(c) == None);
-  //     of_grout(Grout.mk_convex(expected));
-  //   | Some((c', p, kid)) =>
-  //     let c =
-  //       switch (Piece.expected_sort(R, p)) {
-  //       | None =>
-  //         assert(kid == None);
-  //         c;
-  //       | Some(s) =>
-  //         let kid = mk(~expected=s, to_chain(kid));
-  //         Aba.snoc(c', p, Some(kid));
-  //       };
-  //     switch (Piece.mk_match(R, p)) {
-  //     | None => c
-  //     | Some(p) =>
-  //       // recurse to generate any additional matching pieces
-  //       convexify_r(~expected, Aba.snoc(c, p, None))
-  //     };
-  //   };
 };
+
+let rec merge = (~expected: Sort.t, l: Padded.t, r: Padded.t): Padded.t =>
+  switch (Padded.is_empty(l), Padded.is_empty(r)) {
+  | (Some(l), Some(r)) => Padded.empty(~l, ~r, ())
+  | (Some(l), None) => Padded.pad(~l, r)
+  | (None, Some(r)) => Padded.pad(~r, l)
+  | (None, None) => merge_nonempty(~expected, l, r)
+  }
+and merge_nonempty = (~expected: Sort.t, l, r) =>
+  switch (fills(l, r)) {
+  | Some(pc) => pc
+  | None =>
+    let (c_l, (s_ll, s_lr)) = l;
+    let (c_r, (s_rl, s_rr)) = r;
+    let (tl_l, p_l, kid_l) =
+      Aba.unsnoc(c_l) |> OptUtil.get_or_raise(Orphaned_kid);
+    let (kid_r, p_r, tl_r) =
+      Aba.uncons(c_r) |> OptUtil.get_or_raise(Orphaned_kid);
+    switch (Piece.cmp(p_l, p_r)) {
+    | In () =>
+      assert(kid_l == None && kid_r == None);
+      let prec =
+        min(
+          Option.value(Piece.prec(p_l), ~default=Prec.max_op),
+          Option.value(Piece.prec(p_r), ~default=Prec.max_op),
+        );
+      let kid_l =
+        mk_kid(
+          ~expected=Option.value(Piece.sort(p_l), ~default=expected),
+          c_l,
+        );
+      let kid_r =
+        mk_kid(
+          ~expected=Option.value(Piece.sort(p_r), ~default=expected),
+          c_r,
+        );
+      Piece.mk(G(Grout.mk_concave(expected, prec)))
+      |> Piece.pad(~l=s_lr, ~r=s_rl)
+      |> of_piece(~l=kid_l, ~r=kid_r)
+      |> Padded.mk(~l=s_ll, ~r=s_rr);
+    | Lt(expected) =>
+      assert(kid_l == None);
+      let p_l = Piece.pad(~r=s_lr @ s_rl, p_l);
+      let r = mk_kid(~expected, c_r);
+      Aba.snoc(tl_l, p_l, Some(r)) |> Padded.mk(~l=s_ll, ~r=s_rr);
+    | Eq(expected) =>
+      let (kid, (l, r)) = merge_kids(~expected, kid_l, s_lr, s_rl, kid_r);
+      let p_l = Piece.pad(~r=l, p_l);
+      let p_r = Piece.pad(~l=r, p_r);
+      Aba.append(tl_l, p_l, Aba.cons(Some(K(kid)), p_r, tl_r))
+      |> Padded.mk(~l=s_ll, ~r=s_rr);
+    | Gt(expected) =>
+      assert(kid_l == None);
+      let p_r = Piece.pad(~l=s_lr @ s_rl, p_r);
+      let l = mk_kid(~expected, c_l);
+      Aba.cons(Some(l), p_r, tl_r) |> Padded.mk(~l=s_ll, ~r=s_rr);
+    };
+  }
+and merge_kids =
+    (
+      ~expected: Sort.t,
+      l: option(kid),
+      s_l: Space.t,
+      s_r: Space.t,
+      r: option(kid),
+    )
+    : Padded.t =>
+  switch (l, r) {
+  | (None, None) =>
+    of_grout(Grout.mk_convex(expected)) |> Padded.mk(~l=s_l, ~r=s_r)
+  | (None, Some(K(r))) => Padded.mk(~l=s_l @ s_r, r)
+  | (Some(K(l)), None) => Padded.mk(~r=s_l @ s_r, l)
+  | (Some(K(l)), Some(K(r))) =>
+    let l = Padded.mk(~r=s_l, l);
+    let r = Padded.mk(~l=s_r, r);
+    merge(~expected, l, r);
+  }
+and mk_kid = (~expected: Sort.t, c: t): kid => K(convexify(~expected, c));
+
+let merge_all = (~expected, pcs) =>
+  List.fold_right(merge(~expected), pcs, Padded.empty());
 
 let pop_kid_l = (c: t): (option(kid), Space.t, t) =>
   switch (Aba.uncons(c)) {
@@ -309,26 +330,12 @@ let to_prefix = (c: t): Aba.t(Space.t, t) => {
   Aba.cons(Space.empty, c, pre);
 };
 
-let of_piece = (p: Piece.t) => Aba.mk([None, None], [p]);
-let of_grout = (g: Grout.t) => of_piece(Piece.mk(G(g)));
-let of_tile = (t: Tile.t) => of_piece(Piece.mk(T(t)));
-
 [@warning "-27"]
 let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
 
 // todo: probably want to replace with lexeme
 [@warning "-27"]
 let pop_token = (~from: Dir.t, _) => failwith("todo pop_token");
-
-let split_uni_kid = (d: Dir.t, c: t): (option(kid), t) =>
-  switch (d) {
-  | L =>
-    let (k, (ps, ks)) = Aba.split_first_a(c);
-    (k, ([None, ...ks], ps));
-  | R =>
-    let ((ks, ps), k) = Aba.split_last_a(c);
-    (k, (ks @ [None], ps));
-  };
 
 // let tip_l = (c: t) => {
 //   let (kid, p) =

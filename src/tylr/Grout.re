@@ -16,17 +16,13 @@ let mk = (~id=?, mold: Mold.t) => {
 let mk_convex = (~id=?, sort: Sort.t) => mk(~id?, Mold.mk(sort, Prec.max));
 
 // inputs are sort and prec of kids-to-be
-let mk_concave = (~id=?, (s_l: Sort.t, p_l: Prec.t), (s_r, p_r)) => {
-  let sort = Sort.lca(s_l, s_r);
-  let prec =
-    if (sort == s_l) {
-      p_l;
-    } else if (sort == s_r) {
-      p_r;
-    } else {
-      Prec.max_op;
-    };
-  mk(~id?, Mold.mk(sort, prec));
+let mk_concave = (~id=?, sort, prec) => {
+  // todo: somehow need to fix this to enable any greater-prec sort as kid
+  // probably need grout-specific mold datatype
+  mk(
+    ~id?,
+    Mold.mk_infix(~l=sort, ~r=sort, sort, prec),
+  );
 };
 
 // todo: incorporate unique filling

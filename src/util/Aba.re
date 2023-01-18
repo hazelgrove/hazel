@@ -1,5 +1,6 @@
 open Sexplib.Std;
 
+// todo: rename as Chain
 // invariant: List.length(as) == List.length(bs) + 1
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a, 'b) = (list('a), list('b));

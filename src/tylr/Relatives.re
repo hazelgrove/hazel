@@ -87,7 +87,6 @@ let unzip = (rel: t): t =>
      )
   |> OptUtil.get_or_fail("unexpected shift_lexeme postcond");
 
-// todo: add wrapper that checks for matching and unmatching molds
 let mold_ =
     (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
   let rec go = (~kid: option(Sort.t)=?, rel: t): Mold.Result.t => {
@@ -108,9 +107,6 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
   let/ _ = mold_(~match=true, ~kid?, t, rel);
   mold_(~match=false, ~kid?, t, rel);
 };
-
-// type kid = [ | `None(Space.t) | `Some(Space.t, Chain.t, Space.t)];
-// let segment_of_kid = _ => failwith("todo");
 
 // todo: not remolded case
 let rec push_chain_l =

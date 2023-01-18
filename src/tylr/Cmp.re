@@ -1,5 +1,5 @@
 type t =
-  | In
+  | In // incomparable
   | Lt
   | Eq
   | Gt;

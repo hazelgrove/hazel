@@ -6,7 +6,7 @@ module Molds = {
   let union2 = Token.Map.union((_, ms_l, ms_r) => Some(ms_l @ ms_r));
   let union = List.fold_left(union2, Token.Map.empty);
 
-  let molds_of_grex = (s: Sort.t, p: Prec.t, g: Gram.t(Sort.t)): t => {
+  let molds_of_gram = (s: Sort.t, p: Prec.t, g: Gram.t(Sort.t)): t => {
     let rec go = (m: Mold.t, g: Gram.t(Sort.t)) =>
       switch (g) {
       | Atom(Kid(_)) => Token.Map.empty
@@ -33,7 +33,7 @@ module Molds = {
          List.to_seq(prec_lvls)
          |> Seq.mapi((p, lvl) => (p, lvl))
          |> Seq.concat_map(((p, (g, _))) =>
-              Token.Map.to_seq(molds_of_grex(s, p, g))
+              Token.Map.to_seq(molds_of_gram(s, p, g))
             )
        )
     |> Token.Map.of_seq;

@@ -11,6 +11,7 @@ module Atom = {
 module Extremity = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('sort) = option(Atom.t('sort));
+  // across alternatives
   [@deriving (show({with_path: false}), sexp, yojson)]
   type s('sort) = list(t('sort));
 };
@@ -55,6 +56,7 @@ let rec root_token =
   | Seq(gs) => List.exists(root_token, gs)
   | Alt(gs) => List.for_all(root_token, gs);
 
+// get exterior of head
 let exterior_seq =
     (exterior: t(_) => Extremity.s(_), gs: list(t(_))): Extremity.s(_) => {
   let (nullable, rest) = ListUtil.take_while(nullable, gs);

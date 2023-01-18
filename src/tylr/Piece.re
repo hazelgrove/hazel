@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | T(Tile.t)
@@ -16,6 +18,10 @@ let pad = (~l=Space.empty, ~r=Space.empty, {shape, space: (l', r')}) => {
   space: (l @ l', r' @ r),
 };
 
+let is_porous = _ => failwith("todo");
+
+let space = ({space: (l, r), _}) => l @ r;
+
 let pop_space_l = ({shape, space: (l, r)}: t) => (
   l,
   {shape, space: (Space.empty, r)},
@@ -25,15 +31,23 @@ let pop_space_r = ({shape, space: (l, r)}: t) => (
   r,
 );
 
+type fp =
+  | Fill(Dir.t)
+  | Pass(Dir.t);
+
+let fills_or_passes = (_, _): option(fp) =>
+  failwith("todo fills_or_passes");
+
 let mold = p =>
   switch (p.shape) {
   | T(t) => t.mold
   | G(g) => Some(g.mold)
   };
-// let sort = p => mold(p).sort;
-// let prec = p => mold(p).prec;
+let sort = p => Option.map(Mold.sort_, mold(p));
+let prec = p => Option.map(Mold.prec_, mold(p));
 
-let expected_sort = (d, p) => mold(p) |> Option.map(Mold.expected_sort(d));
+let expected_sort = (d, p) =>
+  mold(p) |> OptUtil.and_then(Mold.expected_sort(d));
 
 let length = (~with_space as _=false, p: t) => {
   switch (p.shape) {
@@ -55,5 +69,6 @@ type rel =
   | Passes(Dir.t)
   | Prec(Cmp.t);
 
-let cmp = (_, _): Cmp.t => failwith("todo Piece.cmp");
+let cmp = (_, _): Cmp.Result.t(unit, Sort.t, Sort.t, Sort.t) =>
+  failwith("todo Piece.cmp");
 let rel = (_, _): rel => failwith("todo Piece.rel");

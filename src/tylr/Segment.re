@@ -95,7 +95,7 @@ let finish_prefix = (pre: t): Chain.Padded.t =>
   pre
   |> Aba.fold_right(
        (s, c, kid) => Chain.finish_r(c, ~kid, ()) |> Chain.Padded.pad(~l=s),
-       s => (Chain.empty, (s, [])),
+       s => Chain.Padded.mk(~l=s, Chain.empty),
      );
 
 let to_prefix = (seg: t) =>

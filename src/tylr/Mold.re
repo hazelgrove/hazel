@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   sort: Sort.t,
@@ -13,7 +15,16 @@ type t = {
 //   frames: [Seq_([Kid(Exp)], [Kid(Exp)])],
 // };
 
+let sort_ = m => m.sort;
+let prec_ = m => m.prec;
+
 let mk = (~frames=Gram.Frame.empty, sort, prec) => {sort, prec, frames};
+
+let mk_infix = (~l=?, ~r=?, sort, prec) => {
+  let l = Option.value(l, ~default=sort);
+  let r = Option.value(r, ~default=sort);
+  mk(~frames=[Seq_([Atom(Kid(l))], [Atom(Kid(r))])], sort, prec);
+};
 
 let init = (sort, prec) => mk(sort, prec);
 
@@ -34,7 +45,14 @@ let must_match = (d: Dir.t, m: t): bool =>
 // todo: see if use of this is just must_match
 let matching = (_: Dir.t, _) => failwith("todo matching");
 
-let expected_sort = (_: Dir.t, _) => failwith("todo expected_sort");
+let expected_sort = (side: Dir.t, m: t) =>
+  Gram.Frame.interior(side, m.frames)
+  |> List.filter_map(
+       fun
+       | Some(Gram.Atom.Kid(s)) => Some(s)
+       | _ => None,
+     )
+  |> ListUtil.hd_opt;
 
 module Result = {
   type m = t;
