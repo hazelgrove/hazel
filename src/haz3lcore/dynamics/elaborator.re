@@ -259,14 +259,58 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         wrap(Let(dp, fixpoint, dbody));
       }
     | Ap(fn, arg) =>
-      let* d_fn = dhexp_of_uexp(m, fn);
-      let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = Statics.exp_self_typ(m, fn);
-      let ty_arg = Statics.exp_self_typ(m, arg);
-      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-      let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
-      let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
-      wrap(Ap(c_fn, c_arg));
+      let is_deferral = (e: Term.UExp.t) =>
+        switch (e.term) {
+        | Deferral => true
+        | _ => false
+        };
+      switch (arg.term) {
+      | Tuple(es) when List.exists(is_deferral, es) =>
+        // substitute all deferrals for new variables
+        let pats_and_args_opt =
+          List.fold_left(
+            (acc, e: Term.UExp.t) => {
+              switch (acc) {
+              | None => None
+              | Some((pats, args)) =>
+                let name = "arg" ++ string_of_int(List.length(pats));
+                if (is_deferral(e)) {
+                  Some((
+                    pats @ [DHPat.Var(name)],
+                    args @ [DHExp.BoundVar(name)],
+                  ));
+                } else {
+                  switch (dhexp_of_uexp(m, e)) {
+                  | Some(de) => Some((pats, args @ [de]))
+                  | None => None
+                  };
+                };
+              }
+            },
+            Some(([], [])),
+            es,
+          );
+        let* pats_and_args = pats_and_args_opt;
+        let (ppat, parg) =
+          pats_and_args
+          |> (((pats, args)) => (DHPat.Tuple(pats), DHExp.Tuple(args))); // pseudo-pattern; pseudo-arg
+        let ty_fn = Statics.exp_self_typ(m, fn);
+        let* ty_ret =
+          switch (ty_fn) {
+          | Arrow(_, t) => Some(t)
+          | _ => None
+          };
+        wrap(Fun(ppat, Arrow(Unknown(Internal), ty_ret), parg, None));
+      | _ =>
+        let* d_fn = dhexp_of_uexp(m, fn);
+        let* d_arg = dhexp_of_uexp(m, arg);
+        let ty_fn = Statics.exp_self_typ(m, fn);
+        let ty_arg = Statics.exp_self_typ(m, arg);
+        let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+        let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
+        let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
+        wrap(Ap(c_fn, c_arg));
+      };
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
       let* d1 = dhexp_of_uexp(m, e1);

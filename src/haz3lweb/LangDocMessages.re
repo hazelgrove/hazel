@@ -151,17 +151,7 @@ let deferral_exp: form = {
     syntactic_form: [exp("Deferral")],
     expandable_id: None,
     explanation,
-    examples: [
-      {
-        sub_id: "deferred_fun_ap",
-        term:
-          mk_example(
-            "let div = fun t -> let (n, d) = t in n / d in let halve = div(~, 2) in halve(7)",
-          ),
-        message: "A function application where `halve` is applied to `7` in order to ",
-        feedback: Unselected,
-      },
-    ],
+    examples: [],
   };
 };
 
