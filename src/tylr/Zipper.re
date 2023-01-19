@@ -33,12 +33,6 @@ let unselect = (d: Dir.t, {sel, rel}: t) => {
   mk(Relatives.assemble({...rel, sib}));
 };
 
-// let unselect = (d: Dir.t, {sel, rel}: t) => {
-//   sel: Selection.empty,
-//   rel: Relatives.push_seg(~onto=Dir.toggle(d), sel.seg, rel),
-// };
-
-// todo: change this to return Chain if we include root parent
 let zip = (z: t): Chain.Padded.t => {
   let z = unselect(L, z);
   Relatives.zip(z.rel);
