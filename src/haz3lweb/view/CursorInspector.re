@@ -216,36 +216,19 @@ let binding_uses =
     )
     : Node.t => {
   switch (ci) {
-  | InfoPat({term, binding_exp, _}) =>
+  | InfoPat({term, body_ids, _}) =>
     let bindings =
       List.sort_uniq(compare, Haz3lcore.Term.UPat.get_all_bindings(term));
-    let exps_to_search: list(list(Haz3lcore.Statics.info_exp)) =
-      List.map(
-        id => {
+    let exps_to_search: list(Haz3lcore.Statics.info_exp) =
+      List.fold_left(
+        (exps, id) => {
           switch (Haz3lcore.Id.Map.find_opt(id, info_map)) {
-          | Some(InfoExp(info_ancestor)) =>
-            let body_infos: list(Haz3lcore.Statics.info_exp) =
-              switch (info_ancestor.term.term) {
-              | Let(_, _, body)
-              | Fun(_, body) =>
-                List.fold_left(
-                  (exps, id) => {
-                    switch (Haz3lcore.Id.Map.find_opt(id, info_map)) {
-                    | Some(InfoExp(info_body)) => [info_body, ...exps]
-                    | _ => exps
-                    }
-                  },
-                  [],
-                  body.ids,
-                )
-              // | Match(_, rules) => { TODO: this is more complicated }
-              | _ => []
-              };
-            body_infos;
-          | _ => []
+          | Some(InfoExp(info_body)) => [info_body, ...exps]
+          | _ => exps
           }
         },
-        binding_exp,
+        [],
+        body_ids,
       );
     let empty_bindings_map: list(usage_info) =
       List.map(var => (var, []), bindings);
@@ -295,7 +278,7 @@ let binding_uses =
           updated_map;
         },
         empty_bindings_map,
-        List.flatten(exps_to_search),
+        exps_to_search,
       );
     let _ =
       List.map(

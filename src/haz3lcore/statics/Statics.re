@@ -39,7 +39,7 @@ type info_pat = {
   mode: Typ.mode,
   self: Typ.self,
   ctx: Ctx.t, // TODO: detect in-pattern shadowing
-  binding_exp: list(Id.t),
+  body_ids: list(Id.t),
 };
 
 /* (Syntactic) Types are assigned their corresponding semantic type. */
@@ -417,7 +417,7 @@ and uexp_to_info_map =
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
-      upat_to_info_map(~mode=mode_pat, ~binding_exp=ids, pat);
+      upat_to_info_map(~mode=mode_pat, ~body_ids=body.ids, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode=mode_body, body);
@@ -428,13 +428,13 @@ and uexp_to_info_map =
     );
   | Let(pat, def, body) =>
     let (ty_pat, ctx_pat, _m_pat) =
-      upat_to_info_map(~mode=Syn, ~binding_exp=ids, pat);
+      upat_to_info_map(~mode=Syn, ~body_ids=body.ids @ def.ids, pat);
     let def_ctx = extend_let_def_ctx(ctx, pat, ctx_pat, def);
     let (ty_def, free_def, m_def) =
       uexp_to_info_map(~ctx=def_ctx, ~mode=Ana(ty_pat), def);
     /* Analyze pattern to incorporate def type into ctx */
     let (_, ctx_pat_ana, m_pat) =
-      upat_to_info_map(~mode=Ana(ty_def), ~binding_exp=ids, pat);
+      upat_to_info_map(~mode=Ana(ty_def), ~body_ids=body.ids @ def.ids, pat);
     let ctx_body = VarMap.concat(ctx, ctx_pat_ana);
     let (ty_body, free_body, m_body) =
       uexp_to_info_map(~ctx=ctx_body, ~mode, body);
@@ -447,8 +447,13 @@ and uexp_to_info_map =
     let (ty_scrut, free_scrut, m_scrut) = go(~mode=Syn, scrut);
     let (pats, branches) = List.split(rules);
     let pat_infos =
-      List.map(
-        upat_to_info_map(~mode=Typ.Ana(ty_scrut), ~binding_exp=ids),
+      List.mapi(
+        (i, p) =>
+          upat_to_info_map(
+            ~mode=Typ.Ana(ty_scrut),
+            ~body_ids=List.nth(branches, i).ids,
+            p,
+          ),
         pats,
       );
     let branch_infos =
@@ -476,7 +481,7 @@ and upat_to_info_map =
     (
       ~ctx=Ctx.empty,
       ~mode: Typ.mode=Typ.Syn,
-      ~binding_exp: list(Id.t)=[Id.invalid],
+      ~body_ids: list(Id.t)=[Id.invalid],
       {ids, term} as upat: Term.UPat.t,
     )
     : (Typ.t, Ctx.t, map) => {
@@ -484,11 +489,7 @@ and upat_to_info_map =
   let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self),
     ctx,
-    add_info(
-      ids,
-      InfoPat({cls, self, mode, ctx, binding_exp, term: upat}),
-      m,
-    ),
+    add_info(ids, InfoPat({cls, self, mode, ctx, body_ids, term: upat}), m),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let unknown = Typ.Just(Unknown(SynSwitch));
@@ -516,7 +517,7 @@ and upat_to_info_map =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
           let (_, ctx, _) as info =
-            upat_to_info_map(~mode, ~ctx, ~binding_exp, e);
+            upat_to_info_map(~mode, ~ctx, ~body_ids, e);
           (ctx, infos @ [info]);
         },
         (ctx, []),
@@ -533,7 +534,7 @@ and upat_to_info_map =
         )
       | Some(ty) => Just(List(ty))
       };
-    let info: t = InfoPat({cls, self, mode, binding_exp, ctx, term: upat});
+    let info: t = InfoPat({cls, self, mode, body_ids, ctx, term: upat});
     let m = union_m(List.map(((_, _, m)) => m, infos));
     /* Add an entry for the id of each comma tile */
     let m = List.fold_left((m, id) => Id.Map.add(id, info, m), m, ids);
@@ -541,9 +542,9 @@ and upat_to_info_map =
   | Cons(hd, tl) =>
     let mode_elem = Typ.matched_list_mode(mode);
     let (ty, ctx, m_hd) =
-      upat_to_info_map(~ctx, ~mode=mode_elem, ~binding_exp, hd);
+      upat_to_info_map(~ctx, ~mode=mode_elem, ~body_ids, hd);
     let (_, ctx, m_tl) =
-      upat_to_info_map(~ctx, ~mode=Ana(List(ty)), ~binding_exp, tl);
+      upat_to_info_map(~ctx, ~mode=Ana(List(ty)), ~body_ids, tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(name) =>
     switch (BuiltinADTs.get_tag_typ(name)) {
@@ -565,7 +566,7 @@ and upat_to_info_map =
       List.fold_left2(
         ((ctx, infos), e, mode) => {
           let (_, ctx, _) as info =
-            upat_to_info_map(~mode, ~ctx, ~binding_exp, e);
+            upat_to_info_map(~mode, ~ctx, ~body_ids, e);
           (ctx, infos @ [info]);
         },
         (ctx, []),
@@ -576,21 +577,21 @@ and upat_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~ctx, m);
   | Parens(p) =>
-    let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, ~binding_exp, p);
+    let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, ~body_ids, p);
     add(~self=Just(ty), ~ctx, m);
   | Ap(fn, arg) =>
     /* Contructor application */
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, ctx, m_fn) =
-      upat_to_info_map(~ctx, ~mode=Typ.ap_mode, ~binding_exp, fn);
+      upat_to_info_map(~ctx, ~mode=Typ.ap_mode, ~body_ids, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
     let (_, ctx, m_arg) =
-      upat_to_info_map(~ctx, ~mode=Ana(ty_in), ~binding_exp, arg);
+      upat_to_info_map(~ctx, ~mode=Ana(ty_in), ~body_ids, arg);
     add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(ty);
     let (_ty, ctx, m) =
-      upat_to_info_map(~ctx, ~mode=Ana(ty_ann), ~binding_exp, p);
+      upat_to_info_map(~ctx, ~mode=Ana(ty_ann), ~body_ids, p);
     add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
