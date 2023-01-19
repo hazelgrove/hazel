@@ -401,9 +401,13 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum(x)]) =>
+      | (["sum", "end"], [TSum({ids, term: Sum(_)} as ts)]) =>
+        /* Only want to pass ids up to be part of the sum-end
+           form if there are actually +s inside the sum */
+        (Sum(ts), ids)
+      | (["sum", "end"], [TSum(ts)]) =>
         /* Note: See corresponding Sum case in Statics. utyp_to_info_map */
-        (Sum(x), x.ids)
+        (Sum(ts), [])
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
