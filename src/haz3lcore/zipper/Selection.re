@@ -6,9 +6,10 @@ type t = {
   content: Segment.t,
 };
 
-let mk = (focus, content) => {focus, content};
+/* NOTE: backpack no longer uses selection focus */
+let mk = content => {focus: Left, content};
 
-let empty = mk(Left, Segment.empty);
+let empty = mk(Segment.empty);
 
 let map = (f, sel) => {...sel, content: f(sel.content)};
 
