@@ -21,10 +21,19 @@ let map_first = (f: 'a => 'a, aba: t('a, 'b)): t('a, 'b) => {
   ([f(a), ...as_], bs);
 };
 
-let split_last_a = _ => failwith("todo split_last_a");
+let split_last_a = ((as_, bs)) => {
+  assert(as_ != []);
+  let (as_, a) = ListUtil.split_last(as_);
+  ((as_, bs), a);
+};
 let last_a = ((as_, _): t('a, _)): 'a => {
   assert(as_ != []);
   ListUtil.last(as_);
+};
+
+let map_last = (f: 'a => 'a, aba: t('a, 'b)): t('a, 'b) => {
+  let ((as_, bs), a) = split_last_a(aba);
+  (as_ @ [f(a)], bs);
 };
 
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (

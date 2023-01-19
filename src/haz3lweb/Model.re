@@ -57,7 +57,9 @@ let mk = editors => {
   tylr:
     Tylr.(
       Segment.of_chain(
-        Chain.of_grout(Grout.mk({sort: s("Exp"), prec: 0, frames: []})),
+        Chain.of_grout(
+          Grout.mk(~mold={sort: s("Exp"), prec: 0, frames: []}, ()),
+        ),
       )
     ),
   editors,

@@ -5,18 +5,29 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
-let push_space = (~onto: Dir.t, s, (l, r): t) => {
+let cons_space = (~onto: Dir.t, s, (l, r): t) => {
   let s = Segment.of_space(s);
   switch (onto) {
   | L => (Segment.concat([l, s]), r)
   | R => (l, Segment.concat([s, r]))
   };
 };
+let cons_chain = (~onto: Dir.t, c, (l, r)) =>
+  switch (onto) {
+  | L => (Segment.snoc_chain(l, c), r)
+  | R => (l, Segment.cons_chain(c, r))
+  };
 
-let zip = (~sel=Segment.empty, (pre, suf): t): Chain.Padded.t => {
-  let pre = Segment.push_seg(pre, sel);
-  let pre = Segment.push_seg(pre, suf);
-  Segment.finish_prefix(pre);
+let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Chain.Padded.t =>
+  Segment.concat([pre, sel, suf])
+  |> Segment.assemble(~l?, ~r?)
+  |> Segment.to_padded
+  |> OptUtil.get_or_raise(Chain.Invalid_prec);
+
+let assemble = ((pre, suf): t) => {
+  let l = Aba.uncons(suf) |> Option.map(((_, c, _)) => c);
+  let r = Aba.unsnoc(pre) |> Option.map(((_, c, _)) => c);
+  Segment.(assemble_r(~r?, pre), assemble_l(~l?, suf));
 };
 
 [@warning "-27"]

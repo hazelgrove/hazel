@@ -7,7 +7,35 @@ type t = {
   anc: Ancestors.t,
 };
 
-let empty = {sib: Siblings.empty, anc: Ancestors.empty};
+let mk = (~sib=Siblings.empty, ~anc=Ancestors.empty, ()) => {sib, anc};
+
+let empty = mk();
+
+// let cons = (~onto: Dir.t, s, c, rel) => {
+//   ...rel,
+//   sib: Siblings.cons(~onto, s, c, rel.sib),
+// };
+let cons_space = (~onto: Dir.t, s, rel) => {
+  ...rel,
+  sib: Siblings.cons_space(~onto, s, rel.sib),
+};
+let cons_chain = (~onto: Dir.t, c, rel) => {
+  ...rel,
+  sib: Siblings.cons_chain(~onto, c, rel.sib),
+};
+let cons_parent = (par, rel) => mk(~anc=[(par, rel.sib), ...rel.anc], ());
+
+let append = (rel: t, rel': t) =>
+  List.fold_right(
+    ((par, sib), rel') => {
+      let sib = Siblings.concat([sib, rel'.sib]);
+      let anc = [(par, sib), ...rel'.anc];
+      mk(~anc, ());
+    },
+    rel.anc,
+    rel',
+  );
+let concat = (rels: list(t)) => List.fold_right(append, rels, empty);
 
 [@warning "-27"]
 let pop_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");
@@ -29,7 +57,7 @@ let pop_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
     Some((l, {...rel, sib}));
   | None =>
     open OptUtil.Syntax;
-    let* ((par, sib), anc) = Ancestors.pop(rel.anc);
+    let* (par, sib, anc) = Ancestors.pop(rel.anc);
     let (par_d, par_b) = Dir.order(d, par);
     let+ (l, par_d_rest) = Chain.pop_lexeme(~from=b, par_d);
     let sib =
@@ -65,10 +93,17 @@ let rec shift_lexeme =
   };
 };
 
-let zip = (~sel=Segment.empty, rel: t): Chain.Padded.t => {
-  let kid = Siblings.zip(~sel, rel.sib);
-  Ancestors.zip(kid, rel.anc);
-};
+let parent = (rel: t): option(Parent.t) =>
+  Ancestors.pop(rel.anc) |> Option.map(((par, _, _)) => par);
+
+let rec zip = (~sel=Segment.empty, rel: t): Chain.Padded.t =>
+  switch (Ancestors.pop(rel.anc)) {
+  | None => Siblings.zip(~sel, rel.sib)
+  | Some(((l, r) as par, sib, anc)) =>
+    let kid = Siblings.zip(~l, ~r, ~sel, rel.sib);
+    let par = Parent.zip(kid, par);
+    zip(~sel=Segment.of_padded(par), {sib, anc});
+  };
 
 let unzip = (rel: t): t =>
   rel
@@ -108,32 +143,64 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
   mold_(~match=false, ~kid?, t, rel);
 };
 
+let assemble = (~sel=Segment.empty, rel: t): t => {
+  let (pre, suf) = Siblings.assemble(rel.sib);
+  let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
+  let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
+
+  let rec go = ((l, r) as sib, rel) =>
+    switch (Aba.uncons(l), Aba.unsnoc(r)) {
+    | (None, _)
+    | (_, None) => concat([mk(~sib, ()), rel])
+    | (Some((s_l, c_l, tl_l)), Some((tl_r, c_r, s_r))) =>
+      switch (Chain.cmp(c_l, c_r)) {
+      | In => raise(Segment.Disconnected)
+      | Lt =>
+        rel
+        |> cons_space(~onto=L, s_l)
+        |> cons_chain(~onto=L, c_l)
+        |> go((tl_l, r))
+      | Eq =>
+        rel
+        |> cons_space(~onto=L, s_l)
+        |> cons_space(~onto=R, s_r)
+        |> cons_parent((c_l, c_r))
+        |> go((tl_l, tl_r))
+      | Gt =>
+        rel
+        |> cons_space(~onto=R, s_r)
+        |> cons_chain(~onto=R, c_r)
+        |> go((r, tl_r))
+      }
+    };
+
+  let rel = go((pre_lt_sel, sel_gt_suf), mk(~anc=rel.anc, ()));
+  concat([mk(~sib=(pre_geq_sel, sel_leq_suf), ()), rel]);
+};
+
 // todo: not remolded case
 let rec push_chain_l =
-        (~remolded as _=true, ~kid=Chain.Padded.empty, c: Chain.t, rel: t): t => {
+        (~remolded as _=true, ~kid=Chain.Padded.empty(), c: Chain.t, rel: t)
+        : t => {
   let (pre, suf) = rel.sib;
-  // todo: review use of Cmp.Result here wrt desired grout behavior
-  switch (Segment.push_remolded_chain(pre, ~kid, c)) {
-  | In(_) => failwith("todo")
+  switch (Segment.hsup_chain(pre, ~kid, c)) {
+  | In(pre)
   | Lt(pre)
   | Eq(pre) => {...rel, sib: (pre, suf)}
   | Gt(kid) =>
     switch (Ancestors.pop(rel.anc)) {
     | None =>
-      let pre = Segment.of_padded(Chain.finish_l(~kid, c));
+      let pre = Segment.of_padded(Chain.(merge(kid, Padded.mk(c))));
       {...rel, sib: (pre, suf)};
     | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
       switch (Chain.cmp_merge(par_l, ~kid, c)) {
-      | In(_) => failwith("todo")
-      | Lt(kid_r) =>
-        let pre = Segment.of_padded(kid_r);
-        {...rel, sib: (pre, suf)};
+      | In(_) => raise(Parent.Convex_inner_tips)
+      | Lt(kid_r) => {...rel, sib: (Segment.of_padded(kid_r), suf)}
       | Gt(kid_l) =>
-        let pre = sib_l;
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-        push_chain_l(~kid=kid_l, c, {anc, sib: (pre, suf)});
+        push_chain_l(~kid=kid_l, c, {anc, sib: (sib_l, suf)});
       | Eq(par_l__c) =>
-        let pre = Segment.(concat([sib_l, of_chain(par_l__c)]));
+        let pre = Segment.(concat([sib_l, of_padded(par_l__c)]));
         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
         {anc, sib: (pre, suf)};
       }
@@ -141,31 +208,50 @@ let rec push_chain_l =
   };
 };
 
-[@warning "-27"]
-let push_chain_r = (~kid=Segment.empty, c: Chain.t, rel: t) =>
-  failwith("todo push_chain_r");
+// [@warning "-27"]
+// let push_chain_r = (~kid=Chain.Padded.empty(), c: Chain.t, rel: t) =>{
+//   let (pre, suf) = rel.sib;
+//   switch (Segment.push_chain(c, ~kid, suf)) {
+//   | In(pre) => {...rel, sib: (pre, suf)}
+//   | Lt(kid) =>
+//     switch (Ancestors.pop(rel.anc)) {
+//     | None =>
+//       let suf = Segment.of_padded(Chain.(merge(Padded.mk(c), kid)));
+//       {...rel, sib: (pre, suf)};
+//     | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
+//       switch (Chain.cmp_merge(c, ~kid, par_r)) {
+//       | In(_) => raise(Parent.Convex_inner_tips)
+//       | Lt(kid_r) =>
+//         {...rel, sib: (Segment.of_padded(kid_r), suf)};
+//       | Gt(kid_l) =>
+//         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
+//         push_chain_l(~kid=kid_l, c, {anc, sib: (sib_l, suf)});
+//       | Eq(par_l__c) =>
+//         let pre = Segment.(concat([sib_l, of_padded(par_l__c)]));
+//         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
+//         {anc, sib: (pre, suf)};
+//       }
+//     }
+//   | Eq(suf)
+//   | Gt(suf) => {...rel, sib: (pre, suf)}
+//   };
+// };
 
-[@warning "-27"]
-let push_space = (~onto: Dir.t, s, rel) => {
-  ...rel,
-  sib: Siblings.push_space(~onto, s, rel.sib),
-};
-
-let push_seg = (~onto: Dir.t, seg: Segment.t, rel: t): t =>
-  switch (onto) {
-  | L =>
-    Segment.to_suffix(seg)
-    |> Aba.fold_left(
-         s => push_space(~onto, s, rel),
-         (rel, c, s) => rel |> push_chain_l(c) |> push_space(~onto=L, s),
-       )
-  | R =>
-    Segment.to_prefix(seg)
-    |> Aba.fold_right(
-         (s, c, rel) => rel |> push_chain_r(c) |> push_space(~onto=R, s),
-         s => push_space(~onto, s, rel),
-       )
-  };
+// let push_seg = (~onto: Dir.t, seg: Segment.t, rel: t): t =>
+//   switch (onto) {
+//   | L =>
+//     Segment.to_suffix(seg)
+//     |> Aba.fold_left(
+//          s => push_space(~onto, s, rel),
+//          (rel, c, s) => rel |> push_chain_l(c) |> push_space(~onto=L, s),
+//        )
+//   | R =>
+//     Segment.to_prefix(seg)
+//     |> Aba.fold_right(
+//          (s, c, rel) => rel |> push_chain_r(c) |> push_space(~onto=R, s),
+//          s => push_space(~onto, s, rel),
+//        )
+//   };
 
 // precond: c is closed left
 let rec insert_chain = (c: Chain.t, rel: t): t => {
@@ -173,7 +259,7 @@ let rec insert_chain = (c: Chain.t, rel: t): t => {
     Aba.uncons(c) |> OptUtil.get_or_raise(Chain.Missing_root);
   assert(kid == None);
   switch (p.shape) {
-  | G(_) => failwith("todo grout")
+  | G(_) => rel |> insert_seg(Segment.(to_suffix(of_chain(rest))))
   | T(t) =>
     switch (mold(t.token, rel)) {
     | Ok(m) when Some(m) == t.mold =>
@@ -190,8 +276,8 @@ let rec insert_chain = (c: Chain.t, rel: t): t => {
 and insert_seg = (seg: Segment.t, rel: t): t =>
   Segment.to_suffix(seg)
   |> Aba.fold_left(
-       s => push_space(~onto=L, s, rel),
-       (rel, c, s) => rel |> insert_chain(c) |> push_space(~onto=L, s),
+       s => cons_space(~onto=L, s, rel),
+       (rel, c, s) => rel |> insert_chain(c) |> cons_space(~onto=L, s),
      );
 
 // precond: rel contains Cursor token in prefix
@@ -201,7 +287,7 @@ let rec remold_suffix = (rel: t): t => {
   | None => rel
   | Some((s, c, suf)) =>
     {...rel, sib: (pre, suf)}
-    |> push_space(~onto=L, s)
+    |> cons_space(~onto=L, s)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
     |> insert_chain(c)
@@ -246,6 +332,7 @@ let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   );
 };
 
+// postcond: output lexemes
 let lex = (s: string, rel: t): (list(Lexeme.t), t) => {
   let (l, rel) = pop_adj_token(L, rel) |> OptUtil.get(() => ("", rel));
   let (r, rel) = pop_adj_token(R, rel) |> OptUtil.get(() => ("", rel));

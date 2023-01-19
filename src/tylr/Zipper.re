@@ -7,24 +7,36 @@ type t = {
   rel: Relatives.t,
 };
 
-let init = {
-  sel: Selection.empty,
-  rel: {
+let mk = (~sel=Selection.empty, rel) => {sel, rel};
+
+let init =
+  mk({
     sib:
       Segment.(
         empty,
         of_chain(
-          Chain.of_grout(Grout.mk({sort: Sort.root, prec: 0, frames: []})),
+          Chain.of_grout(
+            Grout.mk(~mold={sort: Sort.root, prec: 0, frames: []}, ()),
+          ),
         ),
       ),
     anc: [],
-  },
-};
+  });
 
 let unselect = (d: Dir.t, {sel, rel}: t) => {
-  sel: Selection.empty,
-  rel: Relatives.push_seg(~onto=Dir.toggle(d), sel.seg, rel),
+  let (pre, suf) = rel.sib;
+  let sib =
+    switch (d) {
+    | L => (pre, Segment.(concat([to_suffix(sel.seg), suf])))
+    | R => (Segment.(concat([pre, to_prefix(sel.seg)])), suf)
+    };
+  mk(Relatives.assemble({...rel, sib}));
 };
+
+// let unselect = (d: Dir.t, {sel, rel}: t) => {
+//   sel: Selection.empty,
+//   rel: Relatives.push_seg(~onto=Dir.toggle(d), sel.seg, rel),
+// };
 
 // todo: change this to return Chain if we include root parent
 let zip = (z: t): Chain.Padded.t => {

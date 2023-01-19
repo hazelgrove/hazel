@@ -7,16 +7,28 @@ type t = Aba.t(Space.t, Chain.t);
 // must be broken to give proper assembly
 exception Nonmonotonic;
 
+// ill-fitting tips
+exception Disconnected;
+
 let empty = ([Space.empty], []);
 let is_empty: t => bool = (==)(empty);
 
+let has_chain = seg => Option.is_some(Aba.uncons(seg));
+
+let cons = Aba.cons;
+let snoc = Aba.snoc;
+
 let cons_space = (s, seg) => Aba.map_first((@)(s), seg);
+let cons_chain = (c, seg) => Aba.cons(Space.empty, c, seg);
 let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   switch (l) {
   | S(s) => cons_space(s, seg)
   | T(t) => Aba.cons(Space.empty, Chain.of_tile(t), seg)
   | G(g) => Aba.cons(Space.empty, Chain.of_grout(g), seg)
   };
+
+let snoc_space = (seg, s) => Aba.map_last(s' => s' @ s, seg);
+let snoc_chain = (seg, c) => Aba.snoc(seg, c, Space.empty);
 
 let concat = (segs: list(t)): t =>
   List.fold_right(
@@ -53,7 +65,31 @@ let rec mold =
     mold(~match, pre, ~kid?, t);
   };
 
-let push_remolded_chain =
+let push_chain =
+    (c: Chain.t, ~kid=Chain.Padded.empty(), seg: t)
+    : (Cmp.Result.t(t, Chain.Padded.t, t, t) as 'r) =>
+  seg
+  |> Aba.fold_left(
+       s => Cmp.Result.Lt(Chain.Padded.pad(~r=s, kid)),
+       (r: 'r, c', s) =>
+         switch (r) {
+         | In(seg) => In(Aba.snoc(seg, c', s))
+         | Lt(kid) =>
+           switch (Chain.cmp_merge(c, ~kid, c')) {
+           | In(c) => In(of_padded(Chain.Padded.pad(~r=s, c)))
+           | Lt(kid) => Lt(kid)
+           | Eq(c) => Eq(of_padded(Chain.Padded.pad(~r=s, c)))
+           | Gt(kid) => Gt(Aba.snoc(of_padded(kid), c', s))
+           }
+         | Eq(seg) => Eq(Aba.snoc(seg, c', s))
+         | Gt(seg) => Gt(Aba.snoc(seg, c', s))
+         },
+     );
+// let push_seg =
+//     (seg: t, ~kid=Chain.Padded.empty(), onto: t)
+//     :
+
+let hsup_chain =
     (seg: t, ~kid=Chain.Padded.empty(), c: Chain.t)
     : (Cmp.Result.t(t, t, t, Chain.Padded.t) as 'r) =>
   seg
@@ -74,19 +110,97 @@ let push_remolded_chain =
        s => Cmp.Result.Gt(Chain.Padded.pad(~l=s, kid)),
      );
 
-let push_chain = (onto, ~kid=Chain.Padded.empty(), c) =>
-  switch (push_remolded_chain(onto, ~kid, c)) {
-  | In(seg)
-  | Lt(seg)
-  | Eq(seg) => seg
-  | Gt(kid) => of_padded(Chain.finish_l(~kid, c))
-  };
-let push_seg = (onto: t, seg: t) =>
+let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
+  pre
+  |> Aba.fold_right(
+       (s, c, ((lt, geq), sel)) =>
+         if (has_chain(lt)) {
+           ((Aba.cons(s, c, lt), geq), sel);
+         } else {
+           switch (push_chain(c, sel)) {
+           | In(_) => raise(Disconnected)
+           | Lt(_) => ((cons(s, c, lt), geq), sel)
+           | Eq(sel)
+           | Gt(sel) => ((lt, cons(s, c, geq)), sel)
+           };
+         },
+       s => ((empty, of_space(s)), cons_space(s, sel)),
+     )
+  |> fst;
+let split_gt = (sel: t, suf: t): (t as '_leq, t as '_gt) =>
+  suf
+  |> Aba.fold_left(
+       s => ((of_space(s), empty), snoc_space(sel, s)),
+       (((leq, gt), sel), c, s) =>
+         if (has_chain(gt)) {
+           ((leq, Aba.snoc(gt, c, s)), sel);
+         } else {
+           switch (hsup_chain(sel, c)) {
+           | In(_) => raise(Disconnected)
+           | Lt(sel)
+           | Eq(sel) => ((snoc(leq, c, s), gt), sel)
+           | Gt(_) => ((leq, snoc(gt, c, s)), sel)
+           };
+         },
+     )
+  |> fst;
+
+let assemble_l = (~l: option(Chain.t)=?, seg: t): t =>
   seg
   |> Aba.fold_left(
-       s => concat([onto, of_space(s)]),
-       (onto, c, s) => concat([push_chain(onto, c), of_space(s)]),
+       s => of_space(s),
+       (seg, c, s) =>
+         switch (hsup_chain(seg, c)) {
+         | In(seg)
+         | Lt(seg)
+         | Eq(seg) => snoc_space(seg, s)
+         | Gt(kid) =>
+           let l_cmp_c =
+             switch (l) {
+             | None => Cmp.Lt
+             | Some(l) => Chain.cmp(l, c)
+             };
+           switch (l_cmp_c) {
+           | In => raise(Disconnected)
+           | Lt
+           | Eq => of_padded(Chain.(merge(kid, Padded.mk(~r=s, c))))
+           | Gt =>
+             concat([of_padded(kid), of_padded(Chain.Padded.mk(~r=s, c))])
+           };
+         },
      );
+let assemble_r = (~r: option(Chain.t)=?, seg: t): t =>
+  seg
+  |> Aba.fold_right(
+       (s, c, seg) =>
+         switch (push_chain(c, seg)) {
+         | In(seg) => cons_space(s, seg)
+         | Lt(kid) =>
+           let c_cmp_r =
+             switch (r) {
+             | None => Cmp.Gt
+             | Some(r) => Chain.cmp(c, r)
+             };
+           switch (c_cmp_r) {
+           | In => raise(Disconnected)
+           | Lt =>
+             concat([of_padded(Chain.Padded.mk(~l=s, c)), of_padded(kid)])
+           | Eq
+           | Gt => of_padded(Chain.(merge(Padded.mk(~l=s, c), kid)))
+           };
+         | Eq(seg)
+         | Gt(seg) => cons_space(s, seg)
+         },
+       s => of_space(s),
+     );
+let assemble = (~l: option(Chain.t)=?, ~r: option(Chain.t)=?, seg: t): t =>
+  seg |> assemble_r(~r?) |> assemble_l(~l?);
+
+let to_padded =
+  fun
+  | ([s], []) => Some(Chain.Padded.empty(~r=s, ()))
+  | ([l, r], [c]) => Some(Chain.Padded.mk(~l, ~r, c))
+  | _ => None;
 
 // precond: in prefix form
 // todo: rework using aba interface or possibly reformulate
@@ -94,8 +208,8 @@ let push_seg = (onto: t, seg: t) =>
 let finish_prefix = (pre: t): Chain.Padded.t =>
   pre
   |> Aba.fold_right(
-       (s, c, kid) => Chain.finish_r(c, ~kid, ()) |> Chain.Padded.pad(~l=s),
-       s => Chain.Padded.mk(~l=s, Chain.empty),
+       (s, c, kid) => Chain.(merge(Padded.mk(~l=s, c), kid)),
+       s => Chain.(Padded.mk(~l=s, Chain.empty)),
      );
 
 let rec chain_to_prefix = (c: Chain.t): t =>
@@ -108,59 +222,27 @@ let rec chain_to_prefix = (c: Chain.t): t =>
       | None => empty
       | Some(K(kid)) => chain_to_prefix(kid)
       };
-    kid_pre |> cons_space(s) |> Aba.cons(Space.empty, Aba.snoc(tl, p, None));
+    kid_pre |> cons_space(s) |> cons_chain(Aba.snoc(tl, p, None));
   };
-let to_prefix = (seg: t) =>
-  seg
-  |> Aba.fold_right(
-       (s, c, pre) => concat([of_space(s), chain_to_prefix(c), pre]),
-       of_space,
-     );
-let to_suffix = _ => failwith("todo to_suffix");
+let to_prefix: t => t =
+  Aba.fold_right(
+    (s, c, pre) => concat([of_space(s), chain_to_prefix(c), pre]),
+    of_space,
+  );
 
-let finish = (~expected: Sort.t, seg: t): (Space.t, Chain.t, Space.t) =>
-  switch (seg) {
-  | ([s], []) => (s, Chain.(finish(~expected, empty)), Space.empty)
-  | ([s_l, s_r], [c]) => (s_l, Chain.finish(~expected, c), s_r)
-  | _ => failwith("unexpected call to finish with more than one chain")
+let rec chain_to_suffix = (c: Chain.t): t =>
+  switch (Aba.uncons(c)) {
+  | None => empty
+  | Some((kid, p, tl)) =>
+    let (s, p) = Piece.pop_space_l(p);
+    let kid_suf =
+      switch (kid) {
+      | None => empty
+      | Some(K(kid)) => chain_to_suffix(kid)
+      };
+    snoc_chain(snoc_space(kid_suf, s), Aba.cons(None, p, tl));
   };
-
-// assume push onto head of chains in left-to-right order
-// let push = (c: Chain.t, cs: t): t => {
-//   let rec go = (c0: Chain.t, ~mid=?, cs: t): t =>
-//     switch (cs) {
-//     | [] => [c0, ...Option.to_list(mid)]
-//     | [c1, ...tl] =>
-//       switch (Chain.comp(c0, c1)) {
-//       | Some(Eq) =>
-//         let c =
-//           switch (mid) {
-//           | None => Chain.merge(c0, c1)
-//           | Some(c_mid) => Chain.(merge(c0, merge(c_mid, c1)))
-//           };
-//         [c, ...tl];
-//       | Some(Lt) =>
-//         let mid =
-//           switch (mid) {
-//           | None => c1
-//           | Some(c_mid) => Chain.merge(c_mid, c1)
-//           };
-//         go(c0, ~mid, tl);
-//       | Some(Gt) =>
-//         switch (mid) {
-//         | None =>
-//           // hull_r on c0?
-//           [c0, ...cs]
-//         | Some(c_mid) => [Chain.merge(c0, c_mid), ...tl]
-//         }
-//       | None =>
-//         assert(mid == None);
-
-//         // ignore matching molds atm
-
-//         let g = failwith("todo grout");
-//         [c0, ...go(g, tl)];
-//       }
-//     };
-//   go(c, cs);
-// };
+let to_suffix: t => t =
+  Aba.fold_left(of_space, (suf, c, s) =>
+    concat([suf, chain_to_suffix(c), of_space(s)])
+  );
