@@ -116,7 +116,8 @@ let rec holes =
        | Piece.Whitespace(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) =>
-         InferenceResult.get_annotation_of_id(g.id) == None
+         ! InferenceResult.annotations_enabled^
+         || InferenceResult.get_annotation_of_id(g.id) == None
            ? [
              EmptyHoleDec.view(
                ~font_metrics, // TODO(d) fix sort

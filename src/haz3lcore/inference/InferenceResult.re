@@ -1,12 +1,10 @@
-open Util.OptUtil.Syntax;
-
 type status =
   | Solved(ITyp.t)
   | Unsolved(EqClass.t);
 
 type t = (ITyp.t, status);
 
-type annotation_map = Hashtbl.t(Id.t, (status, string));
+type annotation_map = Hashtbl.t(Id.t, (status, option(string)));
 
 let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
@@ -21,18 +19,17 @@ let update_annoation_mode = annot_mode => {
 let get_annotations = (inference_results: list(t)): annotation_map => {
   let status_to_string = (status: status): option(string) => {
     switch (status) {
-    | Solved(Unknown(_)) => None // it isn't useful to say something is unknown
+    | Solved(Unknown(_)) => None
     | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
     | Unsolved(eq_class) => Some(EqClass.string_of_eq_class(eq_class))
     };
   };
 
   let id_and_annotation_if_type_hole =
-      (result: t): option((Id.t, (status, string))) => {
+      (result: t): option((Id.t, (status, option(string)))) => {
     switch (result) {
     | (Unknown(TypeHole(id)), status) =>
-      let* annotation = status_to_string(status);
-      Some((id, (status, annotation)));
+      Some((id, (status, status_to_string(status))))
     | _ => None
     };
   };
@@ -48,18 +45,25 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
 
 let get_annotation_of_id = (id: Id.t): option(string) =>
   if (annotations_enabled^) {
-    let+ (_, annotation) = Hashtbl.find_opt(accumulated_annotations, id);
-    annotation;
+    switch (Hashtbl.find_opt(accumulated_annotations, id)) {
+    | Some((_status, annot_opt)) => annot_opt
+    | None => None
+    };
   } else {
     None;
   };
 
 let get_style_of_id = (id: Id.t): option(string) =>
   if (annotations_enabled^) {
-    let+ (status, _) = Hashtbl.find_opt(accumulated_annotations, id);
-    switch (status) {
-    | Solved(_) => "solved-annotation"
-    | Unsolved(_) => "unsolved-annotation"
+    let status_opt = Hashtbl.find_opt(accumulated_annotations, id);
+    switch (status_opt) {
+    | Some((status, _annotation)) =>
+      switch (status) {
+      | Solved(Unknown(_)) => None
+      | Solved(_) => Some("solved-annotation")
+      | Unsolved(_) => Some("unsolved-annotation")
+      }
+    | None => None
     };
   } else {
     None;
