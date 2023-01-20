@@ -45,8 +45,10 @@ let of_secondary =
     } else if (String.equal(Secondary.get_string(content), Secondary.space)) {
       let str = secondary_icons ? "·" : Unicode.nbsp;
       [span_c("secondary", [text(str)])];
+    } else if (Secondary.content_is_comment(content)) {
+      [span_c("comment", [Node.text(Secondary.get_string(content))])];
     } else {
-      [Node.text(Secondary.get_string(content))];
+      [span_c("secondary", [Node.text(Secondary.get_string(content))])];
     }
   );
 
