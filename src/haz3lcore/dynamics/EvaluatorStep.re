@@ -963,121 +963,50 @@ module EvalObj = {
   let get_exp = (obj: t): DHExp.t => obj.exp;
 
   let unwrap = (obj: t, sel: EvalCtx.cls): option(t) =>
-    switch (sel) {
-    | Mark => raise(EvaluatorError.Exception(StepDoesNotMatch))
-    | NonEmptyHole
-    | InconsistentBranches =>
+    switch (sel, obj.ctx) {
+    | (Mark, _) => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | (NonEmptyHole, _)
+    | (InconsistentBranches, _) =>
       raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
-    | Let =>
-      switch (obj.ctx) {
-      | Let(_, c, _) => Some(mk(c, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | (Let, Let(_, c, _))
+    | (Ap1, Ap1(c, _))
+    | (Ap2, Ap2(_, c))
+    | (BinBoolOp1, BinBoolOp1(_, c, _))
+    | (BinBoolOp2, BinBoolOp2(_, _, c))
+    | (BinIntOp1, BinIntOp1(_, c, _))
+    | (BinIntOp2, BinIntOp2(_, _, c))
+    | (BinFloatOp1, BinFloatOp1(_, c, _))
+    | (BinFloatOp2, BinFloatOp2(_, _, c))
+    | (Cons1, Cons1(c, _))
+    | (Cons2, Cons2(_, c))
+    | (Inj, Inj(_, _, c)) => Some(mk(c, obj.exp))
+    | (Tuple(n), Tuple(c, (ld, _))) =>
+      if (List.length(ld) == n) {
+        Some(mk(c, obj.exp));
+      } else {
+        None;
       }
-    | Ap1 =>
-      switch (obj.ctx) {
-      | Ap1(c1, _) => Some(mk(c1, obj.exp))
-      | Ap2(_, _) => None
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Ap2 =>
-      switch (obj.ctx) {
-      | Ap1(_) => None
-      | Ap2(_, c2) => Some(mk(c2, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinBoolOp1 =>
-      switch (obj.ctx) {
-      | BinBoolOp1(_, c1, _) => Some(mk(c1, obj.exp))
-      | BinBoolOp2(_) => None
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinBoolOp2 =>
-      switch (obj.ctx) {
-      | BinBoolOp1(_) => None
-      | BinBoolOp2(_, _, c2) => Some(mk(c2, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinIntOp1 =>
-      switch (obj.ctx) {
-      | BinIntOp1(_, c1, _) => Some(mk(c1, obj.exp))
-      | BinIntOp2(_) => None
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinIntOp2 =>
-      switch (obj.ctx) {
-      | BinIntOp1(_) => None
-      | BinIntOp2(_, _, c2) => Some(mk(c2, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinFloatOp1 =>
-      switch (obj.ctx) {
-      | BinFloatOp1(_, c1, _) => Some(mk(c1, obj.exp))
-      | BinFloatOp2(_) => None
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | BinFloatOp2 =>
-      switch (obj.ctx) {
-      | BinFloatOp1(_) => None
-      | BinFloatOp2(_, _, c2) => Some(mk(c2, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Tuple(n) =>
-      switch (obj.ctx) {
-      | Tuple(c, (ld, _)) =>
-        if (List.length(ld) == n) {
-          Some(mk(c, obj.exp));
-        } else {
-          None;
-        }
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Cons1 =>
-      switch (obj.ctx) {
-      | Cons1(c1, _) => Some(mk(c1, obj.exp))
-      | Cons2(_) => None
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Cons2 =>
-      switch (obj.ctx) {
-      | Cons1(_) => None
-      | Cons2(_, c2) => Some(mk(c2, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Inj =>
-      switch (obj.ctx) {
-      | Inj(_, _, c) => Some(mk(c, obj.exp))
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | ConsistentCase =>
-      switch (obj.ctx) {
-      | ConsistentCase(Case(_, _, _)) // => Substitute exp into rules[index?] I don't know if it should be one step
-      | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
-      }
-    | Cast
-    | FailedCast
-    | InvalidOperation => raise(EvaluatorError.Exception(StepDoesNotMatch))
+    | (Ap1, Ap2(_, _))
+    | (Ap2, Ap1(_, _))
+    | (BinBoolOp1, BinBoolOp2(_))
+    | (BinBoolOp2, BinBoolOp1(_))
+    | (BinIntOp1, BinIntOp2(_))
+    | (BinIntOp2, BinIntOp1(_))
+    | (BinFloatOp1, BinFloatOp2(_))
+    | (BinFloatOp2, BinFloatOp1(_))
+    | (Cons1, Cons2(_))
+    | (Cons2, Cons1(_)) => None
+    | _ => raise(EvaluatorError.Exception(StepDoesNotMatch))
     };
-
-  type slice = (t, t);
-
-  let unwrap_list = (l: list((t, t)), sel: EvalCtx.cls): list('a) => {
-    List.fold_right(
-      ((step, full), lst) =>
-        switch (unwrap(step, sel)) {
-        | Some(obj) => [(obj, full), ...lst]
-        | None => lst
-        },
-      l,
-      [],
-    );
-  };
 };
 
 let rec decompose =
         (env: ClosureEnvironment.t, d: DHExp.t, opt: EvalType.t)
         : m(list(EvalObj.t)) => {
+  let wrap = (fctx: EvalCtx.t => EvalCtx.t, ld: list(EvalObj.t)) =>
+    List.map((obj: EvalObj.t) => EvalObj.mk(fctx(obj.ctx), obj.exp), ld);
+
   let* r = transition(env, d, opt);
-  // print_endline("decompose: " ++ Sexplib.Sexp.to_string_hum(sexp_of_t(r)));
   if (is_final(r)) {
     [] |> return;
   } else {
@@ -1109,17 +1038,7 @@ let rec decompose =
       } else {
         let* ld1 = decompose(env, d1, opt);
         let* ld2 = decompose(env, d2, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(Ap1(obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        @ List.map(
-            (obj: EvalObj.t): EvalObj.t =>
-              EvalObj.mk(Ap2(d1, obj.ctx), obj.exp),
-            ld2,
-          )
-        |> return;
+        wrap(c => Ap1(c, d2), ld1) @ wrap(c => Ap2(d1, c), ld2) |> return;
       };
     | NonEmptyHole(reason, u, i, d1) =>
       let* r1 = transition(env, d1, opt);
@@ -1127,12 +1046,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(NonEmptyHole(reason, u, i, obj.ctx), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => NonEmptyHole(reason, u, i, c), ld1) |> return;
       };
     | BinBoolOp(op, d1, d2) =>
       let* r1 = transition(env, d1, opt);
@@ -1142,16 +1056,8 @@ let rec decompose =
       } else {
         let* ld1 = decompose(env, d1, opt);
         let* ld2 = decompose(env, d2, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(BinBoolOp1(op, obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        @ List.map(
-            (obj: EvalObj.t): EvalObj.t =>
-              EvalObj.mk(BinBoolOp2(op, d1, obj.ctx), obj.exp),
-            ld2,
-          )
+        wrap(c => BinBoolOp1(op, c, d2), ld1)
+        @ wrap(c => BinBoolOp2(op, d1, c), ld2)
         |> return;
       };
     | BinIntOp(op, d1, d2) =>
@@ -1162,19 +1068,9 @@ let rec decompose =
       } else {
         let* ld1 = decompose(env, d1, opt);
         let* ld2 = decompose(env, d2, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(BinIntOp1(op, obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        @ List.map(
-            (obj: EvalObj.t): EvalObj.t =>
-              EvalObj.mk(BinIntOp2(op, d1, obj.ctx), obj.exp),
-            ld2,
-          )
+        wrap(c => BinIntOp1(op, c, d2), ld1)
+        @ wrap(c => BinIntOp2(op, d1, c), ld2)
         |> return;
-        // BinIntOp1(op, (Mark, d1), d2)
-        // BinIntOp2(op, d1, (Mark, d2))
       };
     | BinFloatOp(op, d1, d2) =>
       let* r1 = transition(env, d1, opt);
@@ -1184,16 +1080,8 @@ let rec decompose =
       } else {
         let* ld1 = decompose(env, d1, opt);
         let* ld2 = decompose(env, d2, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(BinFloatOp1(op, obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        @ List.map(
-            (obj: EvalObj.t): EvalObj.t =>
-              EvalObj.mk(BinFloatOp2(op, d1, obj.ctx), obj.exp),
-            ld2,
-          )
+        wrap(c => BinFloatOp1(op, c, d2), ld1)
+        @ wrap(c => BinFloatOp2(op, d1, c), ld2)
         |> return;
       };
     | Cons(d1, d2) =>
@@ -1204,16 +1092,8 @@ let rec decompose =
       } else {
         let* ld1 = decompose(env, d1, opt);
         let* ld2 = decompose(env, d2, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(Cons1(obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        @ List.map(
-            (obj: EvalObj.t): EvalObj.t =>
-              EvalObj.mk(Cons2(d1, obj.ctx), obj.exp),
-            ld2,
-          )
+        wrap(c => Cons1(c, d2), ld1)
+        @ wrap(c => Cons2(d1, c), ld2)
         |> return;
       };
     | Cast(d1, ty1, ty2) =>
@@ -1222,12 +1102,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(Cast(obj.ctx, ty1, ty2), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => Cast(c, ty1, ty2), ld1) |> return;
       };
     | FailedCast(d1, ty1, ty2) =>
       let* r1 = transition(env, d1, opt);
@@ -1235,24 +1110,17 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(FailedCast(obj.ctx, ty1, ty2), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => FailedCast(c, ty1, ty2), ld1) |> return;
       };
     | Tuple(ld) =>
-      let* is_final =
-        List.fold_left(
-          (pr, d) => {
-            let* r = transition(env, d, opt);
-            let* pr = pr;
-            return(pr && is_final(r));
-          },
-          return(false),
-          ld,
-        );
+      let* is_final = {
+        let f = (pr, d) => {
+          let* r = transition(env, d, opt);
+          let* pr = pr;
+          (pr && is_final(r)) |> return;
+        };
+        ld |> List.fold_left(f, false |> return);
+      };
       if (is_final) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
@@ -1261,16 +1129,9 @@ let rec decompose =
           | [] => rc |> return
           | [hd, ...tl] =>
             let* c = decompose(env, hd, opt);
-            walk(
-              ld @ [hd],
-              tl,
-              rc
-              @ List.map(
-                  (obj: EvalObj.t) =>
-                    EvalObj.mk(Tuple(obj.ctx, (ld, tl)), obj.exp),
-                  c,
-                ),
-            );
+            let f = (obj: EvalObj.t) =>
+              EvalObj.mk(Tuple(obj.ctx, (ld, tl)), obj.exp);
+            walk(ld @ [hd], tl, rc @ (c |> List.map(f)));
           };
         let* ret = walk([], ld, []);
         print_endline(
@@ -1279,35 +1140,13 @@ let rec decompose =
         );
         ret |> return;
       };
-    // | Pair(d1, d2) =>
-    //   if (is_final(d1, opt) && is_final(d2, opt)) {
-    //     [EvalObj.mk(Mark, d)];
-    //   } else {
-    //     let ld1 = decompose_all(d1, opt);
-    //     let ld2 = decompose_all(d2, opt);
-    //     List.map(
-    //       (obj: EvalObj.t): EvalObj.t =>
-    //         EvalObj.mk(Pair1(obj.ctx, d2), obj.exp),
-    //       ld1,
-    //     )
-    //     @ List.map(
-    //         (obj: EvalObj.t): EvalObj.t =>
-    //           EvalObj.mk(Pair2(d1, obj.ctx), obj.exp),
-    //         ld2,
-    //       );
-    //   }
     | Let(dp, d1, d2) =>
       let* r1 = transition(env, d1, Pause);
       if (is_final(r1)) {
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(Let(dp, obj.ctx, d2), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => Let(dp, c, d2), ld1) |> return;
       };
     | Inj(ty, side, d1) =>
       let* r1 = transition(env, d1, opt);
@@ -1315,12 +1154,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(Inj(ty, side, obj.ctx), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => Inj(ty, side, c), ld1) |> return;
       };
     | InvalidOperation(d1, err) =>
       let* r1 = transition(env, d1, opt);
@@ -1328,12 +1162,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(InvalidOperation(obj.ctx, err), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => InvalidOperation(c, err), ld1) |> return;
       };
     | ConsistentCase(Case(d1, rule, n)) =>
       let* r1 = transition(env, d1, opt);
@@ -1341,12 +1170,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(ConsistentCase(Case(obj.ctx, rule, n)), obj.exp),
-          ld1,
-        )
-        |> return;
+        wrap(c => ConsistentCase(Case(c, rule, n)), ld1) |> return;
       };
     | InconsistentBranches(u, i, Case(d1, rule, n)) =>
       let* r1 = transition(env, d1, opt);
@@ -1354,14 +1178,7 @@ let rec decompose =
         [EvalObj.mk(Mark, d)] |> return;
       } else {
         let* ld1 = decompose(env, d1, opt);
-        List.map(
-          (obj: EvalObj.t): EvalObj.t =>
-            EvalObj.mk(
-              InconsistentBranches(u, i, Case(obj.ctx, rule, n)),
-              obj.exp,
-            ),
-          ld1,
-        )
+        wrap(c => InconsistentBranches(u, i, Case(c, rule, n)), ld1)
         |> return;
       };
     };
