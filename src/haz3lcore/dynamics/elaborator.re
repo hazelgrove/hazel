@@ -298,14 +298,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         Some(DHExp.InconsistentBranches(u, 0, d))
       | _ => wrap(ConsistentCase(d))
       };
-    | LivelitDef(livelit_record) =>
-      // print_endline(TermBase.UExp.show_livelit_record(livelit_record));
-      let foo = dhexp_of_uexp(m, livelit_record.body); // TODO abandukwala
-      // switch (foo) {
-      // | Some(t) => print_endline(DHExp.show(t))
-      // | None => print_endline("No value")
-      // };
-      foo;
+    // | LivelitDef(livelit_record) =>
+    //   // print_endline(TermBase.UExp.show_livelit_record(livelit_record));
+    //   let foo = dhexp_of_uexp(m, livelit_record.body); // TODO abandukwala
+    //   // switch (foo) {
+    //   // | Some(t) => print_endline(DHExp.show(t))
+    //   // | None => print_endline("No value")
+    //   // };
+    //   foo;
     | LivelitAp({livelit_name}) =>
       switch (livelit_name) {
       | "int" => Some(IntLit(1))

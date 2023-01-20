@@ -360,7 +360,7 @@ module UExp = {
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match
-    | LivelitDef(_) => LivelitDef
+    // | LivelitDef(_) => LivelitDef
     | LivelitAp(_) => LivelitAp;
 
   let show_op_un_int: op_un_int => string =
@@ -438,7 +438,7 @@ module UExp = {
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Match Expression"
-    | LivelitDef => "Livelit Definition"
+    // | LivelitDef => "Livelit Definition"
     | LivelitAp => "Livelit Application";
 
   let rec is_fun = (e: t) => {
@@ -465,7 +465,7 @@ module UExp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
-    | LivelitDef(_)
+    // | LivelitDef(_)
     | LivelitAp(_)
     | Tag(_) => false
     };
@@ -497,7 +497,7 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
-      | LivelitDef(_)
+      // | LivelitDef(_)
       | LivelitAp(_)
       | Tag(_) => false
       }

@@ -97,6 +97,7 @@ type t = {
   whitespace: Id.Map.t(measurement),
   rows: Rows.t,
   linebreaks: Id.Map.t(rel_indent),
+  livelits: Id.Map.t(measurement),
 };
 
 let empty = {
@@ -105,6 +106,7 @@ let empty = {
   whitespace: Id.Map.empty,
   rows: Rows.empty,
   linebreaks: Id.Map.empty,
+  livelits: Id.Map.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -142,6 +144,11 @@ let add_g = (g: Grout.t, m, map) => {
 let add_w = (w: Whitespace.t, m, map) => {
   ...map,
   whitespace: map.whitespace |> Id.Map.add(w.id, m),
+};
+
+let add_l = (l: Livelit.t, m, map) => {
+  ...map,
+  livelits: map.livelits |> Id.Map.add(l.id, m),
 };
 let add_p = (p: Piece.t, m, map) =>
   p
@@ -187,6 +194,9 @@ let find_t = (t: Tile.t, map): measurement => {
   let last = List.assoc(Tile.r_shard(t), shards);
   {origin: first.origin, last: last.last};
 };
+let find_l = (l: Livelit.t, map): measurement =>
+  Id.Map.find(l.id, map.livelits);
+
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
 //   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
 let find_p = (p: Piece.t, map): measurement =>
@@ -235,6 +245,7 @@ let union2 = (map: t, map': t) => {
     ),
   linebreaks:
     Id.Map.union((_, i, _) => Some(i), map.linebreaks, map'.linebreaks),
+  livelits: Id.Map.union((_, m, _) => Some(m), map.livelits, map'.livelits),
 };
 let union = List.fold_left(union2, empty);
 

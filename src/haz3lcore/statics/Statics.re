@@ -440,8 +440,8 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]),
       union_m([m_pat, m_def, m_body]),
     );
-  | LivelitDef(livelit_record) =>
-    atomic(Just(Term.utyp_to_ty(livelit_record.expansion_type))) // TODO: I don't actually know what I'm doing here. I just did something close to list literals.
+  // | LivelitDef(livelit_record) =>
+  //   atomic(Just(Term.utyp_to_ty(livelit_record.expansion_type))) // TODO: I don't actually know what I'm doing here. I just did something close to list literals.
   | LivelitAp({livelit_name}) =>
     print_endline("Statics for livelit: " ++ livelit_name);
     switch (livelit_name) {
