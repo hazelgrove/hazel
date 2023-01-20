@@ -90,20 +90,21 @@ let regrout = ((pre, suf): t) => {
   ((pre, s_l, trim_l), suf);
 };
 
-let neighbors: t => (option(Piece.t), option(Piece.t)) =
-  ((l, r)) => (
-    l == [] ? None : Some(ListUtil.last(l)),
-    r == [] ? None : Some(List.hd(r)),
-  );
+let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
 
-let trim_whitespace = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace(Right, l_sibs),
-  Segment.trim_whitespace(Left, r_sibs),
+let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
+
+let neighbors: t => (option(Piece.t), option(Piece.t)) =
+  n => (left_neighbor(n), right_neighbor(n));
+
+let trim_secondary = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary(Right, l_sibs),
+  Segment.trim_secondary(Left, r_sibs),
 );
 
-let trim_whitespace_and_grout = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace_and_grout(Right, l_sibs),
-  Segment.trim_whitespace_and_grout(Left, r_sibs),
+let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary_and_grout(Right, l_sibs),
+  Segment.trim_secondary_and_grout(Left, r_sibs),
 );
 
 let direction_between = ((l, r): t): option(Direction.t) =>
