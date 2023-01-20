@@ -122,6 +122,38 @@ let code_cell_view =
   );
 };
 
+let text_cell_view = (~attrs, ~selected, ~caption, ~text) =>
+  Node.div(
+    ~attr=attrs,
+    [
+      Node.div(
+        ~attr=Attr.class_("cell-container"),
+        [
+          Node.div(
+            ~attr=
+              Attr.many([
+                Attr.classes(
+                  ["cell-item", "cell"]
+                  @ (selected ? ["selected"] : ["deselected"]),
+                ),
+              ]),
+            [
+              bolded_caption(caption),
+              Node.textarea(
+                ~attr=
+                  Attr.many([
+                    Attr.id("textarea-container"),
+                    Attr.classes(["textarea-container"]),
+                  ]),
+                [Node.text(text)],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+
 let test_status_icon_view =
     (~font_metrics, insts, ms: Measured.Shards.t): option(Node.t) =>
   switch (ms) {

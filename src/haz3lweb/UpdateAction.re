@@ -27,6 +27,8 @@ type t =
   | Save
   | ToggleMode
   | SwitchSlide(int)
+  | UpdateTitle(string)
+  | UpdatePrompt(string)
   | SwitchEditor(int)
   | SetFontMetrics(FontMetrics.t)
   | SetLogoFontMetrics(FontMetrics.t)

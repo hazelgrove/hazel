@@ -1,6 +1,6 @@
-open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Haz3lcore;
+open Editor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
@@ -39,8 +39,7 @@ type p('code) = {
   title: string,
   version: int,
   module_name: string,
-  prompt:
-    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
+  prompt: string,
   point_distribution,
   prelude: 'code,
   correct_impl: 'code,
@@ -63,6 +62,7 @@ let find_key_opt = (key, specs: list(p('code))) => {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
+  | Title
   | Prelude
   | CorrectImpl
   | YourTestsValidation
@@ -125,6 +125,7 @@ type persistent_state = (pos, Id.t, list((pos, PersistentZipper.t)));
 let editor_of_state: state => Editor.t =
   ({pos, eds, _}) =>
     switch (pos) {
+    | Title => eds.prelude
     | Prelude => eds.prelude
     | CorrectImpl => eds.correct_impl
     | YourTestsValidation => eds.your_tests.tests
@@ -141,6 +142,13 @@ let id_of_state = ({eds, _}: state): Id.t => {
 let put_editor_and_id =
     ({pos, eds, _} as state: state, next_id, editor: Editor.t) =>
   switch (pos) {
+  | Title => {
+      ...state,
+      eds: {
+        ...eds,
+        next_id,
+      },
+    }
   | Prelude => {
       ...state,
       eds: {
@@ -224,33 +232,35 @@ let positioned_editors = state =>
 
 let idx_of_pos = (pos, p: p('code)) =>
   switch (pos) {
-  | Prelude => 0
-  | CorrectImpl => 1
-  | YourTestsTesting => 2
-  | YourTestsValidation => 3
-  | YourImpl => 4
+  | Title => 0
+  | Prelude => 1
+  | CorrectImpl => 2
+  | YourTestsTesting => 3
+  | YourTestsValidation => 4
+  | YourImpl => 5
   | HiddenBugs(i) =>
     if (i < List.length(p.hidden_bugs)) {
-      5 + i;
+      6 + i;
     } else {
       failwith("invalid hidden bug index");
     }
-  | HiddenTests => 5 + List.length(p.hidden_bugs)
+  | HiddenTests => 6 + List.length(p.hidden_bugs)
   };
 
 let pos_of_idx = (p: p('code), idx: int) =>
   switch (idx) {
-  | 0 => Prelude
-  | 1 => CorrectImpl
-  | 2 => YourTestsTesting
-  | 3 => YourTestsValidation
-  | 4 => YourImpl
+  | 0 => Title
+  | 1 => Prelude
+  | 2 => CorrectImpl
+  | 3 => YourTestsTesting
+  | 4 => YourTestsValidation
+  | 5 => YourImpl
   | _ =>
     if (idx < 0) {
       failwith("negative idx");
-    } else if (idx < 5 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
-    } else if (idx == 5 + List.length(p.hidden_bugs)) {
+    } else if (idx < 6 + List.length(p.hidden_bugs)) {
+      HiddenBugs(idx - 6);
+    } else if (idx == 6 + List.length(p.hidden_bugs)) {
       HiddenTests;
     } else {
       failwith("element idx");
@@ -260,6 +270,22 @@ let pos_of_idx = (p: p('code), idx: int) =>
 let switch_editor = (idx: int, {eds, _}) => {
   pos: pos_of_idx(eds, idx),
   eds,
+};
+
+let update_title = ({eds, pos}, title) => {
+  pos,
+  eds: {
+    ...eds,
+    title,
+  },
+};
+
+let update_prompt = ({eds, pos}, prompt) => {
+  pos,
+  eds: {
+    ...eds,
+    prompt,
+  },
 };
 
 let zipper_of_code = (id, code) => {
@@ -459,6 +485,7 @@ let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
 
 let visible_in = (pos, ~instructor_mode) => {
   switch (pos) {
+  | Title => instructor_mode
   | Prelude => instructor_mode
   | CorrectImpl => instructor_mode
   | YourTestsValidation => true
@@ -779,6 +806,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
+    | Title => (eds.prelude.state.zipper, instructor.info_map)
     | Prelude => (eds.prelude.state.zipper, instructor.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTestsValidation => (
@@ -868,7 +896,7 @@ let blank_spec =
     title,
     version: 1,
     module_name,
-    prompt: Node.text("TODO: prompt"),
+    prompt: "TODO: prompt",
     point_distribution,
     prelude,
     correct_impl,

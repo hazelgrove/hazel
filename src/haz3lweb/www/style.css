@@ -473,6 +473,12 @@ body {
   z-index: 9999;
 }
 
+.textarea-container {
+  background-color: transparent;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
 .code-container {
   position: relative;
 }

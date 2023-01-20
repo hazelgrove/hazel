@@ -250,6 +250,16 @@ let get_selection = (model: Model.t): string =>
 
 let view = (~inject, ~handlers, model: Model.t) => {
   let main_ui = main_ui_view(~inject, model);
+
+  let additional_attrs = {
+    switch (model.editors) {
+    | School(_, _, exercise) =>
+      let SchoolExercise.{pos, _} = exercise;
+      pos == Title ? [] : handlers(~inject, ~model);
+    | _ => handlers(~inject, ~model)
+    };
+  };
+
   div(
     ~attr=
       Attr.many(
@@ -280,8 +290,8 @@ let view = (~inject, ~handlers, model: Model.t) => {
             Dom.preventDefault(evt);
             inject(UpdateAction.Paste(pasted_text));
           }),
-          ...handlers(~inject, ~model),
-        ],
+        ]
+        @ additional_attrs,
       ),
     [
       FontSpecimen.view("font-specimen"),

@@ -102,13 +102,69 @@ let view =
       ~color_highlighting,
     );
   };
+  let mousedown_handler = (~inject) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, Update.[Mousedown, Update.SwitchEditor(0)]),
+    );
+  };
 
-  let title_view = Cell.title_cell(eds.title);
+  let input_handler = (~inject, title) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, [Update.UpdateTitle(title)]),
+    );
+  };
+
+  let input_handler_prompt = (~inject, title) => {
+    Virtual_dom.Vdom.Effect.Many(
+      List.map(inject, [Update.UpdatePrompt(title)]),
+    );
+  };
+
+  let title_view =
+    settings.instructor_mode
+      ? [
+        Cell.text_cell_view(
+          ~attrs=
+            Attr.many([
+              Attr.on_mousedown(_ => mousedown_handler(~inject)),
+              Attr.on_input(_ => input_handler(~inject)),
+            ]),
+          ~selected=pos == Title,
+          ~caption="Title",
+          ~text=eds.title,
+        ),
+      ]
+      : [Cell.title_cell(eds.title)];
+
+  let mdstring_to_node = s => {
+    [
+      inner_html(
+        ~tag="div",
+        ~attr=Attr.many([]),
+        ~this_html_is_sanitized_and_is_totally_safe_trust_me=
+          Omd.to_html(Omd.of_string(s)),
+      ),
+    ];
+  };
 
   let prompt_view =
-    Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
-    );
+    settings.instructor_mode
+      ? Cell.text_cell_view(
+          ~attrs=
+            Attr.many([
+              Attr.on_mousedown(_ => mousedown_handler(~inject)),
+              Attr.on_input(_ => input_handler_prompt(~inject)),
+            ]),
+          ~selected=pos == Title,
+          ~caption="Prompt",
+          ~text=eds.prompt,
+        )
+      : Cell.narrative_cell(
+          div(
+            ~attr=Attr.class_("cell-prompt"),
+            [div(mdstring_to_node(eds.prompt))],
+          ),
+        );
 
   let prelude_view =
     Always(
@@ -346,7 +402,8 @@ let view =
 
   div(
     ~attr=Attr.classes(["editor", "column"]),
-    [title_view, prompt_view]
+    title_view
+    @ [prompt_view]
     @ render_cells(
         settings,
         [

@@ -1,12 +1,13 @@
-let prompt = Ex_RecursiveFibonacci_prompt.prompt
-
 let exercise : SchoolExercise.spec =
   {
     next_id = 813;
     title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";
-    prompt;
+    prompt =
+      "Write tests cases for, and then implement, a function, that recursively \
+       determines the nth fibonacci number.\n\n\
+       fib(n) ≡ the nth fibonacci number, assuming n >= 0";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
@@ -15,7 +16,7 @@ let exercise : SchoolExercise.spec =
         backpack = [];
         relatives =
           {
-            siblings = ([ Grout { id = 0; shape = Convex } ], []);
+            siblings = ([ Grout { id = 1; shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;

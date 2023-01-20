@@ -1,12 +1,13 @@
-let prompt = Ex_OddlyRecursive_prompt.prompt
-
 let exercise : SchoolExercise.spec =
   {
     next_id = 5134;
     title = "Oddly Recursive";
     version = 1;
     module_name = "Ex_OddlyRecursive";
-    prompt;
+    prompt =
+      "Write a recursive function that determines whether the given integer is \
+       odd.\n\n\
+       odd(n) ≡ true iff n is odd.\n";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =

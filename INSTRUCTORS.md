@@ -10,8 +10,6 @@ Make sure the module_name argument matches your module name. Use the .ml extensi
 4. When satisfied, you can click the Export Exercise Module button in the top bar, which will generate
    a replacement for your .ml file that you can drop in (blowing away the code in the blank template is ok).
 
-5. You will then have to create a prompt file, <module_name>_prompt.re. See examples for what goes there.
-
 Once you're done, you can compile and run again and your exercise should be in the state you exported.
 You can keep doing this cycle to tweak the exercise until it is ready.
 
