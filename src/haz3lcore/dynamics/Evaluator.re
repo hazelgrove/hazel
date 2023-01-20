@@ -1073,8 +1073,32 @@ and evaluate_case =
   switch (rscrut) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
+    eval_rule(env, inconsistent_info, scrut, rules, current_rule_index)
+  };
+}
+and eval_rule =
+    (
+      env: ClosureEnvironment.t,
+      inconsistent_info: option(HoleInstance.t),
+      scrut: DHExp.t,
+      rules: list(DHExp.rule),
+      current_rule_index: int,
+    )
+    : m(EvaluatorResult.t) => {
+  switch (List.nth_opt(rules, current_rule_index)) {
+  | None =>
+    let case = DHExp.Case(scrut, rules, current_rule_index);
+    (
+      switch (inconsistent_info) {
+      | None => Indet(Closure(env, ConsistentCase(case)))
+      | Some((u, i)) =>
+        Indet(Closure(env, InconsistentBranches(u, i, case)))
+      }
+    )
+    |> return;
+  | Some(Rule(dp, d)) =>
+    switch (matches(dp, scrut)) {
+    | IndetMatch =>
       let case = DHExp.Case(scrut, rules, current_rule_index);
       (
         switch (inconsistent_info) {
@@ -1084,32 +1108,13 @@ and evaluate_case =
         }
       )
       |> return;
-    | Some(Rule(dp, d)) =>
-      switch (matches(dp, scrut)) {
-      | IndetMatch =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
-        (
-          switch (inconsistent_info) {
-          | None => Indet(Closure(env, ConsistentCase(case)))
-          | Some((u, i)) =>
-            Indet(Closure(env, InconsistentBranches(u, i, case)))
-          }
-        )
-        |> return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env = evaluate_extend_env(env', env);
-        evaluate(env, d);
-      // by the rule and evaluate the expression.
-      | DoesNotMatch =>
-        evaluate_case(
-          env,
-          inconsistent_info,
-          scrut,
-          rules,
-          current_rule_index + 1,
-        )
-      }
+    | Matches(env') =>
+      // extend environment with new bindings introduced
+      let* env = evaluate_extend_env(env', env);
+      evaluate(env, d);
+    // by the rule and evaluate the expression.
+    | DoesNotMatch =>
+      eval_rule(env, inconsistent_info, scrut, rules, current_rule_index + 1)
     }
   };
 }
