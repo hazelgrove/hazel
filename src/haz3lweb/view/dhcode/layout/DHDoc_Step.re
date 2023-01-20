@@ -212,7 +212,16 @@ let rec mk =
       };
     let unwrap_list =
       if (decompose) {
-        EvaluatorStep.EvalObj.unwrap_list;
+        (l, sel) =>
+          List.fold_right(
+            ((step, full), lst) =>
+              switch (EvaluatorStep.EvalObj.unwrap(step, sel)) {
+              | Some(obj) => [(obj, full), ...lst]
+              | None => lst
+              },
+            l,
+            [],
+          );
       } else {
         (l, _) => l;
       };
