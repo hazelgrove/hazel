@@ -20,7 +20,10 @@ let mk =
     )
     : t => {
   let SchoolExercise.{eds, _} = exercise;
-  let stitched_dynamics = SchoolExercise.stitch_dynamic(exercise, results);
+  let stitched_dynamics =
+    Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
+      SchoolExercise.stitch_dynamic(exercise, results)
+    );
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
@@ -267,6 +270,7 @@ let view =
           Some(
             Cell.eval_result_footer_view(
               ~font_metrics,
+              ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
               user_impl.simple_result,
             ),
           ),
