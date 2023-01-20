@@ -44,6 +44,7 @@ type t = {
   show_backpack_targets: bool,
   double_tap: option(timestamp),
   mousedown: bool,
+  langDocMessages: LangDocMessages.t,
 };
 
 let cutoff = (===);
@@ -58,6 +59,7 @@ let mk = editors => {
   show_backpack_targets: false,
   double_tap: None,
   mousedown: false,
+  langDocMessages: LangDocMessages.init,
 };
 
 let blank = mk(Editors.Scratch(0, []));

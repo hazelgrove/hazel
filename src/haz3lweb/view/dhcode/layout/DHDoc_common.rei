@@ -5,6 +5,7 @@ type formattable_child = (~enforce_inline: bool) => DHDoc.t;
 let precedence_const: int;
 let precedence_Ap: int;
 let precedence_Times: int;
+let precedence_Power: int;
 let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;

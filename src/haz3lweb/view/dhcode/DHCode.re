@@ -59,6 +59,10 @@ let view_of_layout =
                  [with_cls("DivideByZero", txt)],
                  ds,
                )
+             | OperationError(NegativeExponent) => (
+                 [with_cls("NegativeExponent", txt)],
+                 ds,
+               )
              | OperationError(OutOfFuel) => (
                  //TODO: custom class
                  [with_cls("DivideByZero", txt)],
@@ -187,6 +191,10 @@ let view_of_layout_tylr =
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(DivideByZero) => (
                  [with_cls("DivideByZero", txt)],
+                 ds,
+               )
+             | OperationError(NegativeExponent) => (
+                 [with_cls("NegativeExponent", txt)],
                  ds,
                )
              | OperationError(OutOfFuel) => (
