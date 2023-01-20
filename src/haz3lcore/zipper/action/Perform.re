@@ -41,7 +41,10 @@ let go_z =
     open OptUtil.Syntax;
 
     let idx = Indicated.index(z);
-    let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+    let (term, _) =
+      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.go", true, () =>
+        MakeTerm.go(Zipper.unselect_and_zip(z))
+      );
     let statics = Statics.mk_map(term);
 
     (
@@ -93,7 +96,7 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(z)
+      | Outer => Zipper.put_down(Left, z)
       };
     z
     |> Option.map(z => remold_regrout(Left, z, id_gen))
