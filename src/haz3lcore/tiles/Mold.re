@@ -89,7 +89,7 @@ let of_grout: (Grout.t, Sort.t) => t =
     in_: [],
   };
 
-let of_whitespace = (l: Nib.t) => {
+let of_secondary = (l: Nib.t) => {
   nibs: (Nib.flip(l), l),
   out: l.sort,
   in_: [],

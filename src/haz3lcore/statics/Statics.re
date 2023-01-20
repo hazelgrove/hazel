@@ -160,7 +160,7 @@ let error_status = (mode: Typ.mode, self: Typ.self): error_status =>
    are determined by error_status above. */
 let is_error = (ci: t): bool => {
   switch (ci) {
-  | Invalid(Whitespace) => false
+  | Invalid(Secondary) => false
   | Invalid(_) => true
   | InfoExp({mode, self, _})
   | InfoPat({mode, self, _}) =>
