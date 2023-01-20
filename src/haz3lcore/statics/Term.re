@@ -273,6 +273,12 @@ module UTyp = {
         |> List.flatten
         |> (xs => Typ.LabelSum(xs))
       };
+
+  let rec find_utsums: t => list(UTSum.t) =
+    fun
+    | {term: Sum(utsum), _} => [utsum]
+    | {term: Parens(u) | Forall(_, u) | Rec(_, u), _} => find_utsums(u)
+    | _ => [];
 };
 
 module UPat = {

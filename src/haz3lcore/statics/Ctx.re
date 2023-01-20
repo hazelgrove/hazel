@@ -81,6 +81,27 @@ let empty: t = VarMap.empty;
 
 let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
 
+let extend_utsum = (sum: TermBase.UTSum.t, ctx: t): t => {
+  let rec utsum_tags = (term: TermBase.UTSum.term) =>
+    switch (term) {
+    | Invalid(_)
+    | MultiHole(_) => []
+    | EmptyHole => []
+    | Ap(tag, _) => [tag]
+    | Sum(ts) =>
+      List.map((TermBase.UTSum.{term, _}) => utsum_tags(term), ts)
+      |> List.flatten
+    };
+  let tags =
+    List.map(name => {TagEntry({name, id: 0})}, utsum_tags(sum.term));
+  // List.map2(
+  //   (name, id) => {TagEntry({name, id})},
+  //   utsum_tags(sum.term),
+  //   sum.ids,
+  // );
+  tags @ ctx;
+};
+
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     entry =>

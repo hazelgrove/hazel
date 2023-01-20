@@ -19,7 +19,8 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
     | VarEntry({name, typ, _}) => Type.view_entry(name, typ)
     | TVarEntry({name, kind, _}) => Kind.view_entry(name, kind)
     // TODO(adt): remove this case
-    | TagEntry(_) => [text("TagEntry")]
+    | TagEntry(_) => []
+    // | TagEntry({name, _}) => [text("TagEntry"), text(name)]
     },
   );
 

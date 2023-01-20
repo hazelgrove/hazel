@@ -542,6 +542,13 @@ and uexp_to_info_map =
         }),
         ctx,
       );
+    // Extend ctx with tags of data constructors
+    let ctx_def_and_body =
+      Term.UTyp.find_utsums(utyp)
+      |> List.fold_left(
+           (ctx, utsum) => Ctx.extend_utsum(utsum, ctx),
+           ctx_def_and_body,
+         );
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
     let ty_body = Typ.subst(ty_def, ty_body);
