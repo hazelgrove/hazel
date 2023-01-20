@@ -43,6 +43,7 @@ let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
 
 let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
   switch (model.editors) {
+  | DebugLoad => failwith("impossible")
   | Scratch(_) =>
     slide_toggle_view(~inject, ~model, ~caption="Scratch", ~control=None)
   | School(_) =>
@@ -191,6 +192,7 @@ let main_ui_view =
       } as model: Model.t,
     ) => {
   switch (editors) {
+  | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(idx, slides) =>
     let toolbar_buttons =
       ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
