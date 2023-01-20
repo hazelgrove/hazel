@@ -1211,6 +1211,7 @@ svg.tile-selected {
   gap: 1em;
   background-color: var(--top_bar_icon_fill);
   color: #fdf6e3;
+  justify-content: space-between;
   /* padding-left: 0.2em;*/
 }
 
@@ -1222,6 +1223,219 @@ svg.tile-selected {
   padding-left: 0.5em;
   padding-right: 0.5em;
   color: var(--light-page-color);
+}
+
+.lang-doc {
+  z-index: 20;
+  position: fixed;
+  right: 1em;
+  /* top: 3.8em; */
+  /* bottom: 1.8em; */
+  width: 25vw;
+  height: 100vh;
+  overflow: auto;
+  padding: 0.2em;
+  padding-bottom: 1.5em;
+  white-space: nowrap;
+  color: var(--light-text-color);
+  background-color: #f7ebc5;
+  /*#fbebaa;*/
+}
+
+/* TODO slightly hacky way to be able to scroll to all content vertically - can't see scrollbars on the bottom even when there though...*/
+.lang-doc .content {
+  padding-bottom: 8em;
+}
+
+/* TODO seems like should be better way to ignore inconsistentcy colorings...*/
+.lang-doc .code .text-Pat.mono-inconsistent {
+  color: var(--pat-text-color);
+}
+
+.lang-doc .code .text-Exp.mono-inconsistent {
+  color: var(--exp-text-color);
+}
+
+.lang-doc .code .text-Typ.mono-inconsistent {
+  color: var(--typ-text-color);
+}
+
+.lang-doc .code .text-Rul.mono-inconsistent {
+  color: var(--rul-text-color);
+}
+
+.lang-doc .code .token.delim-inconsistent {
+  color: var(--delim-color);
+  font-weight: bold;
+}
+
+.lang-doc .example {
+  border-bottom: 1px dotted #a69461;
+}
+
+.lang-doc .example .code-text {
+  position: relative;
+}
+
+.lang-doc .example .ex-result {
+  display: flex;
+  align-items: center;
+  padding-top: 5px;
+}
+
+.lang-doc .code-container {
+  margin-bottom: 0em;
+}
+
+.lang-doc .explanation {
+  white-space: normal;
+}
+
+.lang-doc .code-text {
+  position: relative;
+}
+
+.specificity-options-menu {
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.07s ease;
+  background-color: var(--top_bar_icon_fill);
+}
+
+.specificity-options-menu .selected {
+  filter: brightness(0.9);
+}
+
+.lang-doc-button {
+  text-transform: none;
+}
+
+.lang-doc .top-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25em;
+}
+
+.lang-doc .top-bar .close {
+  cursor: pointer;
+}
+
+.lang-doc .section {
+  display: flex;
+  flex-direction: column;
+  padding: 1em;
+}
+
+.lang-doc .section .explanation-contents .code {
+  font-family: "Source Code Pro", monospace;
+}
+
+.lang-doc .section .section-title {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.lang-doc .section .explanation-contents {
+  white-space: normal;
+}
+
+.highlight-blue {
+  background-color: rgb(180, 203, 240);
+}
+
+.highlight-code-blue {
+  fill: rgb(180, 203, 240);
+}
+
+.highlight-pink {
+  background-color: rgb(242, 177, 182);
+}
+
+.highlight-code-pink {
+  fill: rgb(242, 177, 182);
+}
+
+.highlight-teal {
+  background-color: rgb(127, 243, 245);
+}
+
+.highlight-code-teal {
+  fill: rgb(127, 243, 245);
+}
+
+.highlight-orange {
+  background-color: rgb(252, 186, 111);
+}
+
+.highlight-code-orange {
+  fill: rgb(252, 186, 111);
+}
+
+.highlight-purple {
+  background-color: rgb(212, 162, 252);
+}
+
+.highlight-code-purple {
+  fill: rgb(212, 162, 252);
+}
+
+.highlight-yellow {
+  background-color: rgb(247, 221, 134);
+}
+
+.highlight-code-yellow {
+  fill: rgb(247, 221, 134);
+}
+
+div.expandable-target {
+  cursor: pointer;
+  z-index: 40;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+/* https://css-tricks.com/snippets/css/css-triangle/ */
+.arrow {
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid var(--light-text-color);
+}
+
+
+svg.expandable {
+  fill: rgba(19, 17, 17, 0.067);
+  stroke-dasharray: 4, 4;
+  stroke: var(--light-text-color);
+  stroke-width: 2px;
+  /* mix-blend-mode: color; */
+  z-index: var(--err-hole-z);
+}
+
+svg.expandable path {
+  vector-effect: non-scaling-stroke;
+}
+
+.feedback {
+  display: flex;
+  padding-top: 10px;
+}
+
+.feedback .message {
+  font-size: smaller;
+  font-style: italic;
+}
+
+.feedback .option {
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+.feedback .option.active {
+  background-color: var(--top_bar_icon_fill);
 }
 
 /* DYNAMICS */
@@ -1315,6 +1529,13 @@ svg.tile-selected {
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration,
 .DHCode .DivideByZero {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+
+.DHCode .NegativeExponent {
   display: inline-block;
   position: relative;
   font-size: 75%;

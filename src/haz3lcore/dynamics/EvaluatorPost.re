@@ -171,9 +171,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       );
     switch (d) {
     /* Non-hole constructs inside closures. */
-    | Fun(dp, ty, d) =>
+    | Fun(dp, ty, d, s) =>
       let* d = pp_uneval(env, d);
-      Fun(dp, ty, d) |> return;
+      Fun(dp, ty, d, s) |> return;
 
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
@@ -208,7 +208,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+      |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -286,9 +287,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     FixF(f, ty, d1') |> return;
 
-  | Fun(dp, ty, d') =>
+  | Fun(dp, ty, d', s) =>
     let* d'' = pp_uneval(env, d');
-    Fun(dp, ty, d'') |> return;
+    Fun(dp, ty, d'', s) |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -445,7 +446,7 @@ let rec track_children_of_hole =
   | StringLit(_)
   | BoundVar(_) => hii
   | FixF(_, _, d)
-  | Fun(_, _, d)
+  | Fun(_, _, d, _)
   | Inj(_, _, d)
   | Prj(d, _)
   | Cast(d, _, _)

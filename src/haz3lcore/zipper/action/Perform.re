@@ -4,8 +4,8 @@ open Zipper;
 let is_write_action = (a: Action.t) => {
   switch (a) {
   | Move(_)
-  | JumpToId(_)
   | Unselect
+  | Jump(_)
   | Select(_) => false
   | Destruct(_)
   | Insert(_)
@@ -37,14 +37,42 @@ let go_z =
     Move.go(d, z)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | JumpToId(id) =>
-    Move.jump_to_id(z, id)
+  | Jump(jump_target) =>
+    open OptUtil.Syntax;
+
+    let idx = Indicated.index(z);
+    let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(z));
+    let statics = Statics.mk_map(term);
+
+    (
+      switch (jump_target) {
+      | BindingSiteOfIndicatedVar =>
+        let* binding_id =
+          Option.bind(idx, Statics.get_binding_site(_, statics));
+        Move.jump_to_id(z, binding_id);
+      | TileId(id) => Move.jump_to_id(z, id)
+      }
+    )
     |> Option.map(IdGen.id(id_gen))
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    |> Result.of_option(~error=Action.Failure.Cant_move);
   | Unselect =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok((z, id_gen));
-  | Select(d) =>
+  | Select(Term(Current)) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.term(id, z)) {
+      | Some(z) => Ok((z, id_gen))
+      | None => Error(Action.Failure.Cant_select)
+      }
+    }
+  | Select(Term(Id(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok((z, id_gen))
+    | None => Error(Action.Failure.Cant_select)
+    }
+  | Select(Resize(d)) =>
     Select.go(d, z)
     |> Option.map(IdGen.id(id_gen))
     |> Result.of_option(~error=Action.Failure.Cant_select)
@@ -65,7 +93,7 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(z)
+      | Outer => Zipper.put_down(Left, z)
       };
     z
     |> Option.map(z => remold_regrout(Left, z, id_gen))

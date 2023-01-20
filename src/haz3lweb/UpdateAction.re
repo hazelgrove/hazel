@@ -32,6 +32,7 @@ type t =
   | SetLogoFontMetrics(FontMetrics.t)
   | PerformAction(Action.t)
   | FailedInput(FailedInput.reason) //TODO(andrew): refactor as failure?
+  | ResetCurrentEditor
   | Cut
   | Copy
   | Paste(string)
@@ -39,7 +40,8 @@ type t =
   | Redo
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
-  | UpdateResult(ModelResults.Key.t, ModelResult.current);
+  | UpdateResult(ModelResults.Key.t, ModelResult.current)
+  | UpdateLangDocMessages(LangDocMessages.update);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,6 +49,7 @@ module Failure = {
     | CantUndo
     | CantRedo
     | CantPaste
+    | CantReset
     | FailedToLoad
     | FailedToSwitch
     | UnrecognizedInput(FailedInput.reason)
