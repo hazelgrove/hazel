@@ -35,6 +35,13 @@ let is_linebreak: t => bool =
     | _ => false
     };
 
+let content_is_comment: secondary_content => bool =
+  content =>
+    switch (content) {
+    | Comment(_) => true
+    | _ => false
+    };
+
 let is_comment: t => bool =
   w =>
     switch (w.content) {
