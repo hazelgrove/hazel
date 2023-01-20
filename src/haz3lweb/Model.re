@@ -28,6 +28,8 @@ let settings_init = {
   mode: Editors.Scratch,
 };
 
+let settings_debug = {...settings_init, mode: Editors.DebugLoad};
+
 let fix_instructor_mode = settings =>
   if (settings.instructor_mode && !SchoolSettings.show_instructor) {
     {...settings, instructor_mode: false};
@@ -63,3 +65,4 @@ let mk = editors => {
 };
 
 let blank = mk(Editors.Scratch(0, []));
+let debug = mk(Editors.DebugLoad);
