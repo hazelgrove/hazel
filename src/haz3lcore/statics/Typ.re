@@ -239,6 +239,106 @@ let rec eq = (t1, t2) => {
   };
 };
 
+/* Lattice join on types. This is a LUB join in the hazel2
+   sense in that any type dominates Unknown. The optional
+   resolve parameter specifies whether, in the case of a type
+   variable and a succesful join, to return the resolved join type,
+   or to return the (first) type variable for readability */
+let rec join = (ty1: t, ty2: t): option(t) => {
+  switch (ty1, ty2) {
+  | (Unknown(p1), Unknown(p2)) =>
+    Some(Unknown(join_type_provenance(p1, p2)))
+  | (Unknown(_), ty)
+  | (ty, Unknown(_)) => Some(ty)
+  | (Rec({item: t1, ann}), Rec({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Rec({item: t, ann}))
+    | None => None
+    }
+  | (Rec(_), _) => None
+  | (Forall({item: t1, ann}), Forall({item: t2, _})) =>
+    switch (join(t1, t2)) {
+    | Some(t) => Some(Forall({item: t, ann}))
+    | None => None
+    }
+  | (Forall(_), _) => None
+  | (Var({item: n1, ann}), Var({item: n2, _})) =>
+    if (n1 == n2) {
+      Some(Var({item: n1, ann}));
+    } else {
+      None;
+    }
+  | (Var(_), _) => None
+  | (Int, Int) => Some(Int)
+  | (Int, _) => None
+  | (Float, Float) => Some(Float)
+  | (Float, _) => None
+  | (Bool, Bool) => Some(Bool)
+  | (Bool, _) => None
+  | (String, String) => Some(String)
+  | (String, _) => None
+  | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+    | _ => None
+    }
+  | (Arrow(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      switch (List.map2(join, tys1, tys2) |> Util.OptUtil.sequence) {
+      | None => None
+      | Some(tys) => Some(Prod(tys))
+      };
+    }
+  | (Prod(_), _) => None
+  | (LabelSum(tys1), LabelSum(tys2)) =>
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
+      switch (
+        List.map2(
+          (t1: tagged, t2: tagged) =>
+            t1.tag == t2.tag ? join(t1.typ, t2.typ) : None,
+          tys1,
+          tys2,
+        )
+        |> Util.OptUtil.sequence
+      ) {
+      | None => None
+      | Some(tys) =>
+        Some(
+          LabelSum(
+            List.map2((t1: tagged, typ) => {tag: t1.tag, typ}, tys1, tys),
+          ),
+        )
+      };
+    }
+  | (LabelSum(_), _) => None
+  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
+    switch (join(ty1_1, ty2_1), join(ty1_2, ty2_2)) {
+    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+    | _ => None
+    }
+  | (Sum(_), _) => None
+  | (List(ty_1), List(ty_2)) =>
+    switch (join(ty_1, ty_2)) {
+    | Some(ty) => Some(List(ty))
+    | None => None
+    }
+  | (List(_), _) => None
+  };
+};
+
+let join_all = (ts: list(t)): option(t) =>
+  List.fold_left(
+    (acc, ty) => Util.OptUtil.and_then(join(ty), acc),
+    Some(Unknown(Internal)),
+    ts,
+  );
+
 // let rec free_vars = (ty: t): list(Token.t) =>
 //   switch (ty) {
 //   | Unknown(_)

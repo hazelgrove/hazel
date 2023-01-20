@@ -131,22 +131,22 @@ let error_status = (_ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =
     /*| (Ana(Unknown(SynSwitch)), Joined(tys_syn))*/
     // Above can be commented out if we actually switch to syn on synswitch
     let tys_syn = Typ.source_tys(tys_syn);
-    switch (Ctx.join_all(tys_syn)) {
+    switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) => NotInHole(SynConsistent(wrap(ty_joined)))
     };
 
   | (Ana(ty_ana), Just(ty_syn)) =>
-    switch (Ctx.join(ty_ana, ty_syn)) {
+    switch (Typ.join(ty_ana, ty_syn)) {
     | None => InHole(TypeInconsistent(ty_syn, ty_ana))
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
   | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
     // TODO: review logic of these cases
-    switch (Ctx.join_all(Typ.source_tys(tys_syn))) {
+    switch (Typ.join_all(Typ.source_tys(tys_syn))) {
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
-      switch (Ctx.join(ty_syn, ty_ana)) {
+      switch (Typ.join(ty_syn, ty_ana)) {
       | None => NotInHole(AnaExternalInconsistent(ty_ana, ty_syn))
       | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
       };
@@ -211,7 +211,7 @@ let t_of_self = (_ctx): (Typ.self => Typ.t) =>
   fun
   | Just(t) => t
   | Joined(wrap, ss) =>
-    switch (ss |> List.map((s: Typ.source) => s.ty) |> Ctx.join_all) {
+    switch (ss |> List.map((s: Typ.source) => s.ty) |> Typ.join_all) {
     | None => Unknown(Internal)
     | Some(t) => wrap(t)
     }
@@ -418,7 +418,7 @@ and uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Ctx.join_all(tys)) {
+      switch (Typ.join_all(tys)) {
       | None =>
         Joined(
           ty => List(ty),
@@ -621,7 +621,7 @@ and upat_to_info_map =
       );
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Ctx.join_all(tys)) {
+      switch (Typ.join_all(tys)) {
       | None =>
         Joined(
           ty => List(ty),
