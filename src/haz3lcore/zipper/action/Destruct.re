@@ -20,17 +20,22 @@ let destruct =
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
-    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some
-  /* Special cases for string literals. When deletion would
-     remove an outer quote, we instead remove the whole string */
-  | (Left, Outer, (Some(t), _)) when Form.is_string(t) => delete_left(z)
-  | (Right, Outer, (_, Some(t))) when Form.is_string(t) => delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
+    z |> Zipper.destruct |> IdGen.id(id_gen) |> Option.some /* Special cases for string literals and comments. When deletion would
+   remove an outer quote, we instead remove the whole string */
+
+  | (Left, Outer, (Some(t), _))
+      when Form.is_string(t) || Form.is_comment(t) =>
+    delete_left(z)
+  | (Right, Outer, (_, Some(t)))
+      when Form.is_string(t) || Form.is_comment(t) =>
+    delete_right(z)
+  | (Left, Inner(_, 0), (_, Some(t)))
+      when Form.is_string(t) || Form.is_comment(t) =>
     delete_right(z)
   | (Right, Inner(_, n), (_, Some(t)))
-      when Form.is_string(t) && n == last_inner_pos(t) =>
-    delete_right(z)
-  /* Remove inner character */
+      when
+        (Form.is_string(t) || Form.is_comment(t)) && n == last_inner_pos(t) =>
+    delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
     Zipper.replace_mono(Right, Token.rm_nth(c_idx, t), (z, id_gen));
@@ -41,8 +46,7 @@ let destruct =
          |> Zipper.set_caret(Outer)
          |> Zipper.move(Right)
          |> Option.map(IdGen.id(id_gen))
-       )
-  /* If not on last inner position */
+       ) /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>
     Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), (z, id_gen))
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
@@ -75,7 +79,7 @@ let merge =
 
 let go = (d: Direction.t, (z, id_gen): state): option(state) => {
   let* (z, id_gen) = destruct(d, (z, id_gen));
-  let z_trimmed = update_siblings(Siblings.trim_whitespace_and_grout, z);
+  let z_trimmed = update_siblings(Siblings.trim_secondary_and_grout, z);
   switch (z.caret, neighbor_monotiles(z_trimmed.relatives.siblings)) {
   | (Outer, (Some(l), Some(r))) when Form.is_valid_token(l ++ r) =>
     merge((l, r), (z_trimmed, id_gen))

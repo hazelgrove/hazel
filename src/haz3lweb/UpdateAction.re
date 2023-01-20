@@ -5,7 +5,7 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
   | Captions
-  | WhitespaceIcons
+  | SecondaryIcons
   | Statics
   | Dynamics
   | Benchmark
