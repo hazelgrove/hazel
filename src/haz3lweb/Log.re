@@ -28,7 +28,8 @@ let is_action_logged: Update.t => bool =
   | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateResult(_) => false
+  | UpdateResult(_)
+  | DebugAction(_) => false
   | ResetCurrentEditor
   | Set(_)
   | FinishImportAll(_)
