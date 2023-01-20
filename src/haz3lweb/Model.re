@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), yojson)]
+[@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
