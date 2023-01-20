@@ -68,15 +68,18 @@ let evaluate = (d: DHExp.t): ProgramResult.t =>
     (Indet(d), es, hii);
   | exception (EvaluatorError.Exception(_reason)) =>
     //HACK(andrew): supress exceptions for release
-    //raise(EvalError(reason))
-    print_endline("Interface.evaluate EXCEPTION");
+    print_endline("Interface.evaluate EXCEPTION:");
+    print_endline(
+      Sexplib.Sexp.to_string_hum(EvaluatorError.sexp_of_t(_reason)),
+    );
     (
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,
       HoleInstanceInfo.empty,
     );
-  | exception _ =>
+  | exception exn =>
     print_endline("Other evaluation exception raised (stack overflow?)");
+    Printexc.to_string(exn) |> print_endline;
     (
       Indet(InvalidText(0, 0, "EXCEPTION")),
       EvaluatorState.init,
