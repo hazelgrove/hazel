@@ -41,7 +41,8 @@ type t =
   | SetShowBackpackTargets(bool)
   | MoveToNextHole(Direction.t)
   | UpdateResult(ModelResults.Key.t, ModelResult.current)
-  | UpdateLangDocMessages(LangDocMessages.update);
+  | UpdateLangDocMessages(LangDocMessages.update)
+  | DebugAction(DebugAction.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
