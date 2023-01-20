@@ -339,28 +339,6 @@ let join_all = (ts: list(t)): option(t) =>
     ts,
   );
 
-// let rec free_vars = (ty: t): list(Token.t) =>
-//   switch (ty) {
-//   | Unknown(_)
-//   | Int
-//   | Float
-//   | Bool
-//   | String => []
-//   | Var({item, ann}) =>
-//     switch (item) {
-//     | Some(_) => []
-//     | None => [ann]
-//     }
-//   // | List(ty) => free_vars(ty)
-//   // | Arrow(t1, t2)
-//   // | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-//   // | LabelSum(tags) =>
-//   //   List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
-//   // | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
-//   // | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
-//   // | Forall(x, ty) => free_vars(~bound=[x] @ bound, ty)
-//   };
-
 // Substitute the type variable with de bruijn index 0
 let rec subst = (s: t, ~x: int=0, ty: t) => {
   let subst_keep = subst(~x, s);

@@ -398,7 +398,7 @@ and uexp_to_info_map =
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
   | Tag(tag) =>
-    switch (Ctx.lookup_tag_tvar_idx(ctx, tag)) {
+    switch (Ctx.lookup_tag_typ(ctx, tag)) {
     | Some(typ) => atomic(Just(typ))
     | None => atomic(Free(Tag))
     }
@@ -640,7 +640,7 @@ and upat_to_info_map =
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(tag) =>
-    switch (Ctx.lookup_tag_tvar_idx(ctx, tag)) {
+    switch (Ctx.lookup_tag_typ(ctx, tag)) {
     | Some(typ) => atomic(Just(typ))
     | None => atomic(Free(Tag))
     }

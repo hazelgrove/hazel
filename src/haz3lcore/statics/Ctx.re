@@ -56,13 +56,13 @@ let rec lookup_tvar_idx = (~i=0, ctx: t, x: Token.t) => {
   };
 };
 
-let rec lookup_tag_tvar_idx = (~i=0, ctx: t, x: Token.t): option(Typ.t) => {
+let rec lookup_tag_typ = (~i=0, ctx: t, x: Token.t): option(Typ.t) => {
   switch (ctx) {
   | [] => None
-  | [TVarEntry(_), ...ctx] => lookup_tag_tvar_idx(ctx, x, ~i=i + 1)
+  | [TVarEntry(_), ...ctx] => lookup_tag_typ(ctx, x, ~i=i + 1)
   | [TagEntry({name, _}), ..._] when Token.compare(name, x) == 0 =>
     Some(Typ.Var(Typ.{item: Some(i), ann: name}))
-  | [_entry, ...ctx] => lookup_tag_tvar_idx(ctx, x, ~i)
+  | [_entry, ...ctx] => lookup_tag_typ(ctx, x, ~i)
   };
 };
 
