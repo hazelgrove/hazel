@@ -142,15 +142,11 @@ let fragment =
 
 let initial_model = {
   // NOTE: load settings first to get last editor mode
-  let model = Update.load_model(Model.blank);
   switch (fragment) {
-  | "dynamics-off" =>
-    print_endline("Turning off dynamics...");
-    let settings = {...model.settings, dynamics: false};
-    LocalStorage.Settings.save(settings);
-    let model = {...model, settings};
+  | "debug" => Model.debug
+  | _ =>
+    let model = Update.load_model(Model.blank);
     model;
-  | _ => model
   };
 };
 
