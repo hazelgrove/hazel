@@ -210,7 +210,7 @@ let rec mk =
         | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
-        | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
+        | _ => DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure")
         }
 
       /* Hole expressions must appear within a closure in
@@ -221,8 +221,7 @@ let rec mk =
       | FreeVar(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
-        raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
-
+        DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
