@@ -160,7 +160,7 @@ let rec mk =
           : (DHDoc.t, option(Typ.t)) => {
     open Doc;
     let go' = go(~enforce_inline);
-    let go_case = (dscrut, drs) =>
+    let go_case = (dscrut, objs, drs) =>
       if (enforce_inline) {
         fail();
       } else {
@@ -188,11 +188,13 @@ let rec mk =
           ]),
         );
       };
-    let mk_left_associative_operands = (precedence_op, d1, objs1, d2, objs2) => (
+    let mk_left_associative_operands =
+        (precedence_op, (d1, objs1), (d2, objs2)) => (
       go'(~parenthesize=precedence(d1) > precedence_op, d1, objs1),
       go'(~parenthesize=precedence(d2) >= precedence_op, d2, objs2),
     );
-    let mk_right_associative_operands = (precedence_op, d1, objs1, d2, objs2) => (
+    let mk_right_associative_operands =
+        (precedence_op, (d1, objs1), (d2, objs2)) => (
       go'(~parenthesize=precedence(d1) >= precedence_op, d1, objs1),
       go'(~parenthesize=precedence(d2) > precedence_op, d2, objs2),
     );
@@ -210,7 +212,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let unwrap_list =
+    let unwrap =
       if (decompose) {
         (l, sel) =>
           List.fold_right(
@@ -253,7 +255,9 @@ let rec mk =
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
+        let objs = unwrap(objs, InconsistentBranches);
+        go_case(dscrut, objs, drs)
+        |> annot(DHAnnot.InconsistentBranches((u, i)));
 
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
@@ -283,10 +287,8 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             DHDoc_common.precedence_Ap,
-            d1,
-            unwrap_list(objs, Ap1),
-            d2,
-            unwrap_list(objs, Ap2),
+            (d1, unwrap(objs, Ap1)),
+            (d2, unwrap(objs, Ap2)),
           );
         DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
       | ApBuiltin(ident, args) =>
@@ -296,10 +298,8 @@ let rec mk =
           let (doc1, doc2) =
             mk_left_associative_operands(
               DHDoc_common.precedence_Ap,
-              BoundVar(ident),
-              [],
-              d',
-              [],
+              (BoundVar(ident), []),
+              (d', []),
             );
           DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | [] => text(ident)
@@ -309,10 +309,8 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_int_op(op),
-            d1,
-            unwrap_list(objs, BinIntOp1),
-            d2,
-            unwrap_list(objs, BinIntOp2),
+            (d1, unwrap(objs, BinIntOp1)),
+            (d2, unwrap(objs, BinIntOp2)),
           );
         hseps([mk_cast(doc1), mk_bin_int_op(op), mk_cast(doc2)]);
       | BinFloatOp(op, d1, d2) =>
@@ -320,10 +318,8 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_float_op(op),
-            d1,
-            unwrap_list(objs, BinFloatOp1),
-            d2,
-            unwrap_list(objs, BinFloatOp2),
+            (d1, unwrap(objs, BinFloatOp1)),
+            (d2, unwrap(objs, BinFloatOp2)),
           );
         hseps([mk_cast(doc1), mk_bin_float_op(op), mk_cast(doc2)]);
       | BinStringOp(op, d1, d2) =>
@@ -331,30 +327,24 @@ let rec mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_string_op(op),
-            d1,
-            [],
-            d2,
-            [],
+            (d1, []),
+            (d2, []),
           );
         hseps([mk_cast(doc1), mk_bin_string_op(op), mk_cast(doc2)]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             DHDoc_common.precedence_Cons,
-            d1,
-            unwrap_list(objs, Cons1),
-            d2,
-            unwrap_list(objs, Cons2),
+            (d1, unwrap(objs, Cons1)),
+            (d2, unwrap(objs, Cons2)),
           );
         DHDoc_common.mk_Cons(mk_cast(doc1), mk_cast(doc2));
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             precedence_bin_bool_op(op),
-            d1,
-            unwrap_list(objs, BinBoolOp1),
-            d2,
-            unwrap_list(objs, BinBoolOp2),
+            (d1, unwrap(objs, BinBoolOp1)),
+            (d2, unwrap(objs, BinBoolOp2)),
           );
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
       | Tuple([]) => DHDoc_common.Delim.triv
@@ -362,17 +352,19 @@ let rec mk =
         DHDoc_common.mk_Tuple(
           ds
           |> List.mapi((i, d) =>
-               mk_cast(go'(d, unwrap_list(objs, Tuple(i))))
+               mk_cast(go'(d, unwrap(objs, Tuple(i))))
              ),
         )
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d, objs)), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs)
+      | ConsistentCase(Case(dscrut, drs, _)) =>
+        let objs = unwrap(objs, ConsistentCase);
+        go_case(dscrut, objs, drs);
       | Cast(d, _, _) =>
         let (doc, _) = go'(d, objs);
         doc;
       | Let(dp, ddef, dbody) =>
         let def_doc = (~enforce_inline) =>
-          mk_cast(go(~enforce_inline, ddef, unwrap_list(objs, Let)));
+          mk_cast(go(~enforce_inline, ddef, unwrap(objs, Let)));
         vseps([
           hcats([
             DHDoc_common.Delim.mk("let"),
