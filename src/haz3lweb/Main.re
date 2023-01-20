@@ -141,7 +141,6 @@ let fragment =
   };
 
 let initial_model = {
-  // NOTE: load settings first to get last editor mode
   switch (fragment) {
   | "debug" => Model.debug
   | _ =>
