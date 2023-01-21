@@ -1,6 +1,7 @@
 open Sexplib.Std;
+open Haz3lcore;
 
-[@deriving (show({with_path: false}), yojson)]
+[@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
