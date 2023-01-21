@@ -102,15 +102,16 @@ let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
   |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
   |> List.flatten;
 
-let builtin_adt_tags = get_tags(BuiltinADTs.adts);
+//let builtin_adt_tags = get_tags(BuiltinADTs.adts);
 
 // Check builtin type names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
+//assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
 // Check builtin tag names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
+//assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
 
+//TODO(andrew): cleanup
 let lookup_tag = (ctx, name) =>
-  switch (List.assoc_opt(name, builtin_adt_tags)) {
+  switch (None /*List.assoc_opt(name, builtin_adt_tags)*/) {
   | Some(typ) => Some(typ)
   | None => List.assoc_opt(name, ctx |> adts |> get_tags)
   };

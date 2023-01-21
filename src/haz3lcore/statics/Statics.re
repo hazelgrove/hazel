@@ -341,10 +341,14 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
-  let add = (~self, ~free, m) => (
+  let add = (~self, ~free, ~extra_ids=[], m) => (
     typ_after_fix(ctx, mode, self),
     free,
-    add_info(ids, InfoExp({cls, self, mode, ctx, free, term: uexp}), m),
+    add_info(
+      ids @ extra_ids,
+      InfoExp({cls, self, mode, ctx, free, term: uexp}),
+      m,
+    ),
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
@@ -380,26 +384,23 @@ and uexp_to_info_map =
       )
     }*/
   | Var(name) =>
+    let name_nullary_cons_in = tgs =>
+      List.find_map(
+        (t: Typ.tagged) =>
+          switch (t) {
+          | {tag, typ: Prod([]) as typ} when tag == name => Some(typ)
+          | _ => None
+          },
+        tgs,
+      );
     switch (mode) {
-    | Ana(LabelSum(tgs)) when Form.is_tag(name) =>
-      switch (
-        List.find_opt(
-          (t: Typ.tagged) =>
-            switch (t) {
-            | {tag, _} when tag == name => true
-            | _ => false
-            },
-          tgs,
-        )
-      ) {
-      | None => atomic(Free(Variable))
-      | Some({typ: _, _}) =>
-        add(
-          ~self=Just(LabelSum(tgs)),
-          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
-          Id.Map.empty,
-        )
-      }
+    | Ana(LabelSum(tgs))
+        when Form.is_tag(name) && name_nullary_cons_in(tgs) != None =>
+      add(
+        ~self=Just(LabelSum(tgs)),
+        ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+        Id.Map.empty,
+      )
     | _ =>
       switch (Ctx.lookup_var(ctx, name)) {
       | None => atomic(Free(Variable))
@@ -410,7 +411,7 @@ and uexp_to_info_map =
           Id.Map.empty,
         )
       }
-    }
+    };
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -494,6 +495,50 @@ and uexp_to_info_map =
       union_m([m1, m2]),
     );
   | Ap(fn, arg) =>
+    let appr_cons_in = (name, tgs) =>
+      List.find_map(
+        (t: Typ.tagged) =>
+          switch (t) {
+          | {tag, typ} when tag == name => Some(typ)
+          | _ => None
+          },
+        tgs,
+      );
+    switch (fn, mode) {
+    | ({term: Var(name), ids}, Ana(LabelSum(tgs)))
+        when Form.is_tag(name) && appr_cons_in(name, tgs) != None =>
+      let typ = appr_cons_in(name, tgs) |> Option.get;
+      /*add(
+          ~self=
+            switch (typ) {
+            | Prod([]) => Just(LabelSum(tgs))
+            | _ => Just(Arrow(typ, LabelSum(tgs)))
+            },
+          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+          Id.Map.empty,
+        )*/
+      let (_, free_arg, m_arg) =
+        uexp_to_info_map(~ctx, ~mode=Ana(typ), arg);
+      add(
+        ~extra_ids=ids,
+        ~self=Just(LabelSum(tgs)),
+        ~free=Ctx.union([free_arg]),
+        union_m([m_arg]),
+      );
+    | _ =>
+      /* Function position mode Ana(Hole->Hole) instead of Syn */
+      let (ty_fn, free_fn, m_fn) =
+        uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+      let (_, free_arg, m_arg) =
+        uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+      add(
+        ~self=Just(ty_out),
+        ~free=Ctx.union([free_fn, free_arg]),
+        union_m([m_fn, m_arg]),
+      );
+    };
+  /*| Ap(fn, arg) =>
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
@@ -504,7 +549,7 @@ and uexp_to_info_map =
       ~self=Just(ty_out),
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
-    );
+    );*/
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
