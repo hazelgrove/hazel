@@ -560,6 +560,7 @@ type stitched('a) = {
   test_validation: 'a, // prelude + correct_impl + your_tests
   user_impl: 'a, // prelude + your_impl
   user_tests: 'a, // prelude + your_impl + your_tests
+  prelude: 'a, // prelude
   instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
   hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
   hidden_tests: 'a,
@@ -600,6 +601,10 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
+  // let prelude_term = EditorUtil.stitch([eds.prelude]);
+  // let prelude_map = Statics.mk_map(prelude_term);
+  // let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
+
   let instructor_term =
     EditorUtil.stitch([
       eds.prelude,
@@ -631,6 +636,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
     test_validation,
     user_impl,
     user_tests,
+    prelude: instructor, // works as long as you don't shadow anything in the prelude
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -650,6 +656,7 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
       test_validation,
       user_impl,
       user_tests,
+      prelude: _,
       instructor,
       hidden_bugs,
       hidden_tests,
@@ -702,6 +709,7 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     test_validation,
     user_impl,
     user_tests,
+    prelude,
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -733,6 +741,12 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
       info_map: user_tests.info_map,
       simple_result: simple_result_of(user_tests_key),
     };
+  let prelude =
+    DynamicsItem.{
+      term: prelude.term,
+      info_map: prelude.info_map,
+      simple_result: None,
+    };
   let instructor =
     DynamicsItem.{
       term: instructor.term,
@@ -761,6 +775,7 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     user_impl,
     user_tests,
     instructor,
+    prelude,
     hidden_bugs,
     hidden_tests,
   };
@@ -772,6 +787,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
     test_validation,
     user_impl,
     user_tests,
+    prelude,
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -779,7 +795,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (eds.prelude.state.zipper, instructor.info_map)
+    | Prelude => (eds.prelude.state.zipper, prelude.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTestsValidation => (
         eds.your_tests.tests.state.zipper,
