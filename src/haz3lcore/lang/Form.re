@@ -103,6 +103,7 @@ let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
+let is_var_or_tag = t => is_var(t) || is_tag(t);
 
 /* Whitelist: A regexp determining any other chars, not occuring in specific forms,
    which we want to let through. right now, this means that we'll be able to use
@@ -120,11 +121,11 @@ let whitespace = [Whitespace.space, Whitespace.linebreak];
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
-  ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("var", (is_var_or_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("ty_sum_cons", (is_typ_var, [mk_op(TSum, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
+  //("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_concrete_typ, [mk_op(Typ, [])])),
   ("unit_lit", (is_triv, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),

@@ -38,7 +38,8 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
       Update.apply(model, action, state, ~schedule_action)
       |> Log.update(action, model)
     ) {
-    | exc => Error(Exception(Printexc.to_string(exc)))
+    | exc => 
+    Error(Exception(Printexc.to_string(exc)))
     }
   ) {
   | Ok(model) => model
