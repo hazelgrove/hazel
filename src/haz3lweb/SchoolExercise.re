@@ -601,9 +601,9 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
-  let prelude_term = EditorUtil.stitch([eds.prelude]);
-  let prelude_map = Statics.mk_map(prelude_term);
-  let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
+  // let prelude_term = EditorUtil.stitch([eds.prelude]);
+  // let prelude_map = Statics.mk_map(prelude_term);
+  // let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
 
   let instructor_term =
     EditorUtil.stitch([
@@ -636,7 +636,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
     test_validation,
     user_impl,
     user_tests,
-    prelude,
+    prelude: instructor, // works as long as you don't shadow anything in the prelude
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -656,6 +656,7 @@ let spliced_elabs: state => list((ModelResults.key, DHExp.t)) =
       test_validation,
       user_impl,
       user_tests,
+      prelude: _,
       instructor,
       hidden_bugs,
       hidden_tests,
@@ -786,6 +787,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
     test_validation,
     user_impl,
     user_tests,
+    prelude,
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -793,7 +795,7 @@ let focus = (state: state, stitched_dynamics: stitched(DynamicsItem.t)) => {
 
   let (focal_zipper, focal_info_map) =
     switch (pos) {
-    | Prelude => (eds.prelude.state.zipper, instructor.info_map)
+    | Prelude => (eds.prelude.state.zipper, prelude.info_map)
     | CorrectImpl => (eds.correct_impl.state.zipper, instructor.info_map)
     | YourTestsValidation => (
         eds.your_tests.tests.state.zipper,
