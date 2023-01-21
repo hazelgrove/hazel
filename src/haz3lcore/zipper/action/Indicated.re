@@ -11,7 +11,7 @@ let piece' =
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
-     We don't indicate whitespace tiles. This function ignores whether
+     We don't indicate secondary tiles. This function ignores whether
      or not there is a selection so this can be used to get the caret
      direction, but the caller shouldn't indicate if there's a selection */
   switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
@@ -19,28 +19,28 @@ let piece' =
   //| _ when z.selection.content != [] => None
   /* Empty syntax => no indication */
   | ((None, None), None) => None
-  /* L not whitespace, R is whitespace => indicate L */
+  /* L not secondary, R is secondary => indicate L */
   | ((Some(l), Some(r)), _) when !ign(l) && ign(r) =>
     Some((l, Left, Sibling))
-  /* L and R are whitespaces => no indication */
+  /* L and R are secondarys => no indication */
   | ((Some(l), Some(r)), _) when ign(l) && ign(r) =>
     no_ws ? None : Some((l, Left, Sibling))
-  /* At right end of syntax and L is whitespace => no indication */
+  /* At right end of syntax and L is secondary => no indication */
   | ((Some(l), None), None) when ign(l) =>
     no_ws ? None : Some((l, Left, Sibling))
-  /* At left end of syntax and R is whitespace => no indication */
+  /* At left end of syntax and R is secondary => no indication */
   | ((None, Some(r)), None) when ign(r) =>
     no_ws ? None : Some((r, Right, Sibling))
-  /* No L and R is a whitespace and there is a P => indicate P */
+  /* No L and R is a secondary and there is a P => indicate P */
   | ((None, Some(r)), Some(parent)) when ign(r) =>
     Some((parent, Left, Parent))
-  /* L is not whitespace and caret is outer => indicate L */
+  /* L is not secondary and caret is outer => indicate L */
   | ((Some(l), _), _) when !ign(l) && z.caret == Outer =>
     Some((l, Left, Sibling))
   /* No L, some P, and caret is outer => indicate R */
   | ((None, _), Some(parent)) when z.caret == Outer =>
     Some((parent, Left, Parent))
-  /* R is not whitespace, either no L or L is whitespace or caret is inner => indicate R */
+  /* R is not secondary, either no L or L is secondary or caret is inner => indicate R */
   | ((_, Some(r)), _) => Some((r, Right, Sibling))
   /* No R and there is a P => indicate P */
   | ((_, None), Some(parent)) => Some((parent, Right, Parent))
@@ -51,7 +51,7 @@ let piece' =
 };
 
 let piece =
-  piece'(~no_ws=true, ~ign=p => Piece.(is_whitespace(p) || is_grout(p)));
+  piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)));
 
 let shard_index = (z: Zipper.t): option(int) =>
   switch (piece(z)) {
@@ -70,7 +70,7 @@ let shard_index = (z: Zipper.t): option(int) =>
       }
     | Sibling =>
       switch (p) {
-      | Whitespace(_)
+      | Secondary(_)
       | Grout(_) => Some(0)
       | Tile(t) =>
         switch (side) {
@@ -82,11 +82,11 @@ let shard_index = (z: Zipper.t): option(int) =>
   };
 
 let index = (z: Zipper.t): option(int) =>
-  switch (piece'(~no_ws=false, ~ign=Piece.is_whitespace, z)) {
+  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | None => None
   | Some((p, _, _)) =>
     switch (p) {
-    | Whitespace({id, _}) => Some(id)
+    | Secondary({id, _}) => Some(id)
     | Grout({id, _}) => Some(id)
     | Tile({id, _}) => Some(id)
     }

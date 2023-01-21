@@ -94,7 +94,7 @@ module Shards = {
 type t = {
   tiles: Id.Map.t(Shards.t),
   grout: Id.Map.t(measurement),
-  whitespace: Id.Map.t(measurement),
+  secondary: Id.Map.t(measurement),
   rows: Rows.t,
   linebreaks: Id.Map.t(rel_indent),
 };
@@ -102,7 +102,7 @@ type t = {
 let empty = {
   tiles: Id.Map.empty,
   grout: Id.Map.empty,
-  whitespace: Id.Map.empty,
+  secondary: Id.Map.empty,
   rows: Rows.empty,
   linebreaks: Id.Map.empty,
 };
@@ -139,9 +139,9 @@ let add_g = (g: Grout.t, m, map) => {
   ...map,
   grout: map.grout |> Id.Map.add(g.id, m),
 };
-let add_w = (w: Whitespace.t, m, map) => {
+let add_w = (w: Secondary.t, m, map) => {
   ...map,
-  whitespace: map.whitespace |> Id.Map.add(w.id, m),
+  secondary: map.secondary |> Id.Map.add(w.id, m),
 };
 let add_p = (p: Piece.t, m, map) =>
   p
@@ -177,8 +177,8 @@ let find_shards' = (id: Id.t, map) =>
   | Some(ss) => ss
   };
 
-let find_w = (w: Whitespace.t, map): measurement =>
-  Id.Map.find(w.id, map.whitespace);
+let find_w = (w: Secondary.t, map): measurement =>
+  Id.Map.find(w.id, map.secondary);
 let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
@@ -198,7 +198,7 @@ let find_p = (p: Piece.t, map): measurement =>
      );
 
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
-  switch (Id.Map.find_opt(id, map.whitespace)) {
+  switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
     switch (Id.Map.find_opt(id, map.grout)) {
@@ -221,8 +221,8 @@ let union2 = (map: t, map': t) => {
   tiles:
     Id.Map.union((_, ms, ms') => Some(ms @ ms'), map.tiles, map'.tiles),
   grout: Id.Map.union((_, m, _) => Some(m), map.grout, map'.grout),
-  whitespace:
-    Id.Map.union((_, m, _) => Some(m), map.whitespace, map'.whitespace),
+  secondary:
+    Id.Map.union((_, m, _) => Some(m), map.secondary, map'.secondary),
   rows:
     Rows.union(
       (_, s: Rows.shape, s': Rows.shape) =>
@@ -260,11 +260,11 @@ let is_indented_map = (seg: Segment.t) => {
     |> List.fold_left(
          ((is_indented, map), p: Piece.t) =>
            switch (p) {
-           | Whitespace(w) when w.content == Whitespace.linebreak => (
+           | Secondary(w) when Secondary.is_linebreak(w) => (
                false,
                Id.Map.add(w.id, is_indented, map),
              )
-           | Whitespace(_)
+           | Secondary(_)
            | Grout(_) => (is_indented, map)
            | Tile(t) =>
              let is_indented = is_indented || post_tile_indent(t);
@@ -336,10 +336,10 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
       | [hd, ...tl] =>
         let (contained_indent, origin, map) =
           switch (hd) {
-          | Whitespace(w) when w.content == Whitespace.linebreak =>
+          | Secondary(w) when Secondary.is_linebreak(w) =>
             let row_indent = container_indent + contained_indent;
             let indent =
-              if (Segment.sameline_whitespace(tl)) {
+              if (Segment.sameline_secondary(tl)) {
                 0;
               } else {
                 switch (
@@ -364,8 +364,10 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
                  )
               |> add_lb(w.id, indent);
             (indent, last, map);
-          | Whitespace(w) =>
-            let last = {...origin, col: origin.col + 1};
+          | Secondary(w) =>
+            let wspace_length =
+              Unicode.length(Secondary.get_string(w.content));
+            let last = {...origin, col: origin.col + wspace_length};
             let map = map |> add_w(w, {origin, last});
             (contained_indent, last, map);
           | Grout(g) =>

@@ -13,7 +13,8 @@ and of_piece: Piece.t => string =
   fun
   | Tile(t) => of_tile(t)
   | Grout(_) => " "
-  | Whitespace(w) => w.content == Whitespace.linebreak ? "\n" : w.content
+  | Secondary(w) =>
+    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
 and of_tile = (t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment)
@@ -115,7 +116,7 @@ let zipper_of_string =
     ((Zipper.t, IdGen.state), string) => (Zipper.t, IdGen.state) =
     ((z, id_gen), c) => {
       switch (
-        Perform.go_z(Insert(c == "\n" ? Whitespace.linebreak : c), z, id_gen)
+        Perform.go_z(Insert(c == "\n" ? Secondary.linebreak : c), z, id_gen)
       ) {
       | Error(err) =>
         print_endline(
