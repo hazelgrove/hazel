@@ -101,7 +101,7 @@ module App = {
       State.evaluator_subscribe(
         state,
         ((key, r)) => {
-          let cr: ModelResult.current =
+          let cr: Haz3lcore.ModelResult.current =
             switch (r) {
             | Some(EvaluationOk(r)) => ResultOk(r)
             | Some(EvaluationFail(reason)) => ResultFail(reason)

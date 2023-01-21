@@ -1,9 +1,6 @@
-open Haz3lcore;
-open Sexplib.Std;
-
 exception DoesNotElaborate;
 let elaborate = (map, term): DHExp.t =>
-  switch (Haz3lcore.Elaborator.uexp_elab(map, term)) {
+  switch (Elaborator.uexp_elab(map, term)) {
   | DoesNotElaborate =>
     print_endline("Interface.elaborate EXCEPTION");
     //HACK(andrew): supress exceptions for release
@@ -99,26 +96,7 @@ let evaluation_result = (map, term): option(DHExp.t) =>
   | (result, _, _) => Some(EvaluatorResult.unbox(result))
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type test_results = {
-  test_map: TestMap.t,
-  statuses: list(TestStatus.t),
-  descriptions: list(string),
-  total: int,
-  passing: int,
-  failing: int,
-  unfinished: int,
-};
-
-let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
-  test_map,
-  statuses: test_map |> List.map(r => r |> snd |> TestMap.joint_status),
-  descriptions,
-  total: TestMap.count(test_map),
-  passing: TestMap.count_status(Pass, test_map),
-  failing: TestMap.count_status(Fail, test_map),
-  unfinished: TestMap.count_status(Indet, test_map),
-};
+include TestResults;
 
 let test_results = (~descriptions=[], map, term): option(test_results) => {
   switch (get_result(map, term)) {

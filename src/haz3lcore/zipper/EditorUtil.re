@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 let editor_of_code = (~read_only=false, init_id, code: CodeString.t) => {
   switch (Printer.zipper_of_string(init_id, code)) {
   | None => None
