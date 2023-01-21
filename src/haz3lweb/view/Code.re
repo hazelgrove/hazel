@@ -17,11 +17,17 @@ let of_delim' =
         | _ when !is_complete => "delim-incomplete"
         | _ => "delim"
         };
+      let livelit_nodes: list(t) =
+        switch (label) {
+        | ["int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
+        | ["str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
+        | _ => []
+        };
       [
         span(
           ~attr=
             Attr.classes(["token", cls, "text-" ++ Sort.to_string(sort)]),
-          [Node.text(List.nth(label, i))],
+          List.append([Node.text(List.nth(label, i))], livelit_nodes),
         ),
       ];
     },
@@ -58,15 +64,16 @@ module Text = (M: {
   let rec of_segment =
           (~no_sorts=false, ~sort=Sort.root, seg: Segment.t): list(Node.t) => {
     //note: no_sorts flag is used for backback
-    let expected_sorts =
+    let expected_sorts: list((int, Sort.t)) =
       no_sorts
         ? List.init(List.length(seg), i => (i, Sort.Any))
         : Segment.expected_sorts(sort, seg);
-    let sort_of_p_idx = idx =>
-      switch (List.assoc_opt(idx, expected_sorts)) {
-      | None => Sort.Any
-      | Some(sort) => sort
-      };
+    let sort_of_p_idx: int => Sort.t =
+      idx =>
+        switch (List.assoc_opt(idx, expected_sorts)) {
+        | None => Sort.Any
+        | Some(sort) => sort
+        };
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) => of_piece(sort_of_p_idx(i), p));
@@ -140,7 +147,7 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let unselected =
+  let unselected: list(t) =
     TimeUtil.measure_time("Code.view/unselected", settings.benchmark, () =>
       Text.of_segment(unselected)
     );
