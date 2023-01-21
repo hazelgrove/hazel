@@ -30,15 +30,17 @@ then go through the export cycle. If that sounds useful, please build it!
 Notably, student and instructor mode have a different serialization format, so it probably won't work to go 
 between the two without clearing your local storage (in browser dev tools).
 
-# Grading
-1. Open the exercise in instructor mode and export a grading version which generates an ocaml version of exercise for grading.
+(This is also a QoL TODO that would be nice to resolve at some point.)
+
+# Generating Grade Reports (for Gradescope, etc.)
+
+1. Open the exercise in instructor mode and export a grading version (button in top bar) which generates an OCaml file.
 
 2. Move the file to `src/haz3lschool/specs`.
 
-3. Update the `src/haz3lschool/Specs` with `<module_name>.exercise`.
+3. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-4. Run `dune exec ./src/haz3lschool/gradescope.exe <path_to_student_json>` under project root.
+4. Run `dune exec ./src/haz3lschool/gradescope.exe <path_to_student_json>` under project root to print the grade report.
 
 To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .
 
-(This is also a QoL TODO that would be nice to resolve at some point.)
