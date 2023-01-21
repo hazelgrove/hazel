@@ -1,5 +1,4 @@
 open Util;
-open Haz3lcore;
 
 [@deriving (show({with_path: false}), yojson)]
 type t = {

@@ -34,10 +34,11 @@ let restart_caret_animation = () =>
 let apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
   switch (
-    try(
-      Update.apply(model, action, state, ~schedule_action)
-      |> Log.update(action, model)
-    ) {
+    try({
+      let new_model = Update.apply(model, action, state, ~schedule_action);
+      Log.update(action);
+      new_model;
+    }) {
     | exc => Error(Exception(Printexc.to_string(exc)))
     }
   ) {
@@ -69,10 +70,7 @@ let do_many = (evts): Virtual_dom.Vdom.Effect.t(unit) => {
 
 let update_handler = (~inject, ~model, ~dir: Key.dir, evt) => {
   let key = Key.mk(dir, evt);
-  Keyboard.handle_key_event(key, ~model)
-  |> Log.keystroke(key)
-  |> List.map(inject)
-  |> do_many;
+  Keyboard.handle_key_event(key, ~model) |> List.map(inject) |> do_many;
 };
 
 let handlers = (~inject, ~model: Model.t) =>
@@ -103,7 +101,7 @@ module App = {
       State.evaluator_subscribe(
         state,
         ((key, r)) => {
-          let cr: ModelResult.current =
+          let cr: Haz3lcore.ModelResult.current =
             switch (r) {
             | Some(EvaluationOk(r)) => ResultOk(r)
             | Some(EvaluationFail(reason)) => ResultFail(reason)

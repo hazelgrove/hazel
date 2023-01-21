@@ -7,7 +7,6 @@ open Widgets;
 
 let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let next_ed = (cur_slide + 1) mod num_slides;
-  Log.append_updates();
   inject(SwitchSlide(next_ed));
 };
 
@@ -18,7 +17,6 @@ let download_editor_state = (~instructor_mode) => {
 
 let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
   let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  Log.append_updates();
   inject(SwitchSlide(prev_ed));
 };
 

@@ -1,6 +1,6 @@
+open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore; // TODO maybe remove this - needed right now for the Indicated.index things
 
 type t = {
   exercise: SchoolExercise.state,
@@ -20,7 +20,10 @@ let mk =
     )
     : t => {
   let SchoolExercise.{eds, _} = exercise;
-  let stitched_dynamics = SchoolExercise.stitch_dynamic(exercise, results);
+  let stitched_dynamics =
+    Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
+      SchoolExercise.stitch_dynamic(exercise, results)
+    );
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   {
@@ -63,6 +66,7 @@ let view =
         test_validation,
         user_impl,
         user_tests,
+        prelude,
         instructor,
         hidden_bugs,
         hidden_tests: _,
@@ -118,9 +122,8 @@ let view =
             ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
           ),
         ~code_id="prelude",
-        ~info_map=user_tests.info_map, // TODO this is wrong for top-level let types
-        ~test_results=
-          ModelResult.unwrap_test_results(user_tests.simple_result),
+        ~info_map=prelude.info_map,
+        ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
         ~footer=None,
         eds.prelude,
       ),
@@ -154,13 +157,10 @@ let view =
               instructor.info_map,
             );
           let prelude_trailing_hole_ctx =
-            Haz3lcore.Editor.trailing_hole_ctx(
-              eds.prelude,
-              instructor.info_map,
-            );
+            Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, prelude.info_map);
           switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-          | (None, _)
-          | (_, None) => Node.div([text("No context available")]) // TODO show exercise configuration error
+          | (None, _) => Node.div([text("No context available (1)")])
+          | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
           | (
               Some(correct_impl_trailing_hole_ctx),
               Some(prelude_trailing_hole_ctx),
@@ -456,7 +456,32 @@ let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Model.settings) =
         )
       : None;
 
+  let instructor_grading_export =
+    settings.instructor_mode
+      ? Some(
+          Widgets.button(
+            Icons.export, // TODO(cyrus) distinct icon
+            _ => {
+              // .ml files because show uses OCaml syntax (dune handles seamlessly)
+              let module_name = eds.module_name;
+              let filename = eds.module_name ++ "_grading.ml";
+              let content_type = "text/plain";
+              let contents =
+                SchoolExercise.export_grading_module(module_name, exercise);
+              JsUtil.download_string_file(
+                ~filename,
+                ~content_type,
+                ~contents,
+              );
+              Virtual_dom.Vdom.Effect.Ignore;
+            },
+            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
+          ),
+        )
+      : None;
+
   [reset_button]
   @ Option.to_list(instructor_export)
-  @ Option.to_list(instructor_transitionary_export);
+  @ Option.to_list(instructor_transitionary_export)
+  @ Option.to_list(instructor_grading_export);
 };
