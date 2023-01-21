@@ -49,11 +49,11 @@ let skel = ((a, (pre, suf)): generation): Skel.t => {
   let pre =
     pre
     |> List.mapi((i, p) => (i, p))
-    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
+    |> List.filter(((_, p)) => !Piece.is_secondary(p));
   let suf =
     suf
     |> List.mapi((i, p) => (n + 1 + i, p))
-    |> List.filter(((_, p)) => !Piece.is_whitespace(p));
+    |> List.filter(((_, p)) => !Piece.is_secondary(p));
   Skel.mk(pre @ [a, ...suf]);
 };
 
