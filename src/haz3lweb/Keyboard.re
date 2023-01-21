@@ -38,6 +38,9 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
       when is_f_key(key) =>
     switch (key) {
     | "F2" => print(Zipper.show(zipper))
+    | "F6" =>
+      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(zipper));
+      print(TermBase.UExp.show(term));
     | _ => []
     }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
