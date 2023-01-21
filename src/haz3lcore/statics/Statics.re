@@ -362,15 +362,54 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
-  | Var(name) =>
-    switch (Ctx.lookup_var(ctx, name)) {
+  /*| Var(tag) when Form.is_tag(tag) =>
+    // TODO(andrew): cleanup
+    switch (Ctx.lookup_var(ctx, tag)) {
     | None => atomic(Free(Variable))
+    | Some({typ: Arrow(Prod([]), guy), _}) =>
+      add(
+        ~self=Just(guy),
+        ~free=[(tag, [{id: Term.UExp.rep_id(uexp), mode}])],
+        Id.Map.empty,
+      )
     | Some(var) =>
       add(
         ~self=Just(var.typ),
-        ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+        ~free=[(tag, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
+    }*/
+  | Var(name) =>
+    switch (mode) {
+    | Ana(LabelSum(tgs)) when Form.is_tag(name) =>
+      switch (
+        List.find_opt(
+          (t: Typ.tagged) =>
+            switch (t) {
+            | {tag, _} when tag == name => true
+            | _ => false
+            },
+          tgs,
+        )
+      ) {
+      | None => atomic(Free(Variable))
+      | Some({typ: _, _}) =>
+        add(
+          ~self=Just(LabelSum(tgs)),
+          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+          Id.Map.empty,
+        )
+      }
+    | _ =>
+      switch (Ctx.lookup_var(ctx, name)) {
+      | None => atomic(Free(Variable))
+      | Some(var) =>
+        add(
+          ~self=Just(var.typ),
+          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
+          Id.Map.empty,
+        )
+      }
     }
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
@@ -492,6 +531,41 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_def, m_body]),
     );
+  | TyAlias({term: Var(name), _} as typat, {term: Sum(_), _} as utyp, body) =>
+    let m_typat = utpat_to_info_map(~ctx, typat);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+    let ctx_def_and_body =
+      Ctx.extend(
+        TVarEntry({
+          name,
+          id: Term.UTPat.rep_id(typat),
+          kind: Singleton(ty),
+        }),
+        ctx,
+      );
+    //TODO(andrew): relax assumption this is DIRECTLY a labelsum as opposed to containing one?
+    //TODO(andrew): 666 below
+    let tag_ctx =
+      switch (ty) {
+      | LabelSum(tgs) =>
+        List.map(
+          ({tag, typ}: Typ.tagged) =>
+            Ctx.VarEntry({
+              name: tag,
+              typ: typ == Prod([]) ? Var(name) : Arrow(typ, Var(name)),
+              id: 666,
+            }),
+          tgs,
+        )
+      | _ => []
+      };
+    let ctx_def_and_body = tag_ctx @ ctx_def_and_body;
+    let (ty_body, free, m_body) =
+      uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
+    let ty_body = Typ.subst(ty, name, ty_body);
+    let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
+    add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.UTyp.to_typ(ctx, utyp);
@@ -605,6 +679,11 @@ and upat_to_info_map =
   | Tag(tag) =>
     switch (Ctx.lookup_tag(ctx, tag)) {
     | Some(typ) => atomic(Just(typ))
+    | None => atomic(Free(Tag))
+    }
+  | Var(tag) when Form.is_tag(tag) =>
+    switch (Ctx.lookup_var(ctx, tag)) {
+    | Some({typ, _}) => atomic(Just(typ))
     | None => atomic(Free(Tag))
     }
   | Var(name) =>
