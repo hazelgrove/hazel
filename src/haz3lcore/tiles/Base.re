@@ -5,7 +5,7 @@ type segment = list(piece)
 and piece =
   | Tile(tile)
   | Grout(Grout.t)
-  | Whitespace(Whitespace.t)
+  | Secondary(Secondary.t)
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -18,3 +18,6 @@ and tile = {
   shards: list(int),
   children: list(segment),
 };
+
+// This is for comment insertion
+let mk_secondary = (id, content) => [Secondary({id, content})];
