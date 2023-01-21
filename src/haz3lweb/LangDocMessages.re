@@ -95,8 +95,8 @@ let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
 let mk_case = Example.mk_tile(Form.get("case"));
 let mk_rule = Example.mk_tile(Form.get("rule"));
-let linebreak = () => Example.mk_whitespace(Whitespace.linebreak);
-let space = () => Example.mk_whitespace(Whitespace.space);
+let linebreak = () => Example.mk_secondary(Secondary.linebreak);
+let space = () => Example.mk_secondary(Secondary.space);
 
 let mk_example = str => {
   switch (Printer.zipper_of_string(0, str)) {
@@ -188,7 +188,7 @@ let float_exp: form = {
 
 let string_exp_group = "string_exp_group";
 let string_exp: form = {
-  let explanation = {message: "Stromg literal.", feedback: Unselected};
+  let explanation = {message: "String literal.", feedback: Unselected};
   {
     id: "string_exp",
     syntactic_form: [exp("StringLit")],

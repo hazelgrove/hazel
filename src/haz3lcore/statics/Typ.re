@@ -49,6 +49,7 @@ type free_errors =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(t)
+  // TODO: make it so that joined applies only to inconsistent types; rename NoJoin
   | Joined(t => t, list(source))
   | Multi
   | Free(free_errors);
@@ -60,6 +61,7 @@ type self =
    Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
+  | SynFun
   | Syn
   | Ana(t);
 
@@ -164,6 +166,7 @@ let matched_arrow: t => (t, t) =
 
 let matched_arrow_mode: mode => (mode, mode) =
   fun
+  | SynFun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
@@ -174,6 +177,7 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
+  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
   | _ => List.init(length, _ => Syn)
   };
 
@@ -185,16 +189,11 @@ let matched_list: t => t =
 
 let matched_list_mode: mode => mode =
   fun
+  | SynFun
   | Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
-let matched_list_lit_mode = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Syn => List.init(length, _ => Syn)
-  | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
-  };
-
-let ap_mode: mode = Syn;
+let ap_mode: mode = SynFun;
 
 /* Legacy code from HTyp */
 

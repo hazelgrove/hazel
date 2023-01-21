@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 /* TODO: Change names. */
 /**
   The type of an evaluation exception, caught from {!Program}.

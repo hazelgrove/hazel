@@ -170,7 +170,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
      use `pp_eval` and `pp_uneval` as necessary.
      */
   | Closure(env, d) =>
-    let* env = pp_eval_env(env);
+    let* env =
+      Util.TimeUtil.measure_time("pp_eval_env/Closure", true, () =>
+        pp_eval_env(env)
+      );
     switch (d) {
     /* Non-hole constructs inside closures. */
     | Fun(dp, ty, d, s) =>
@@ -185,8 +188,14 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
 
     | ConsistentCase(Case(scrut, rules, i)) =>
       /* scrut should already be evaluated, rule bodies are not */
-      let* scrut = pp_eval(scrut);
-      let* rules = pp_uneval_rules(env, rules);
+      let* scrut =
+        Util.TimeUtil.measure_time("pp_eval(scrut)", true, () =>
+          pp_eval(scrut)
+        );
+      let* rules =
+        Util.TimeUtil.measure_time("pp_uneval_rules", true, () =>
+          pp_uneval_rules(env, rules)
+        );
       ConsistentCase(Case(scrut, rules, i)) |> return;
 
     /* Hole constructs inside closures.
@@ -204,7 +213,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      InconsistentBranches(u, i, Case(scrut, rules, case_i)) |> return;
+      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
+      |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -480,8 +490,13 @@ let rec track_children_of_hole =
     )
 
   | ConsistentCase(Case(scrut, rules, _)) =>
-    let hii = track_children_of_hole(hii, parent, scrut);
-    track_children_of_hole_rules(hii, parent, rules);
+    let hii =
+      Util.TimeUtil.measure_time("track_children_of_hole(scrut)", true, () =>
+        track_children_of_hole(hii, parent, scrut)
+      );
+    Util.TimeUtil.measure_time("track_children_of_hole_rules", true, () =>
+      track_children_of_hole_rules(hii, parent, rules)
+    );
 
   | ApBuiltin(_, args) =>
     List.fold_right(
@@ -549,10 +564,15 @@ let postprocess =
     : ((HoleInstanceInfo.t, DHExp.t), EnvironmentIdGen.t) => {
   /* Substitution and hole numbering postprocessing */
   let ((_, hii, eig), d) =
-    pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig));
+    Util.TimeUtil.measure_time("pp_eval", true, () =>
+      pp_eval(d, (EnvironmentIdMap.empty, HoleInstanceInfo_.empty, eig))
+    );
 
   /* Build hole instance info. */
-  let hii = hii |> HoleInstanceInfo_.to_hole_instance_info;
+  let hii =
+    Util.TimeUtil.measure_time("to_hii", true, () =>
+      hii |> HoleInstanceInfo_.to_hole_instance_info
+    );
 
   /* Add special hole acting as top-level expression (to act as parent
      for holes directly in the result) */
@@ -573,7 +593,10 @@ let postprocess =
       hii,
     );
 
-  let hii = hii |> track_children;
+  let hii =
+    Util.TimeUtil.measure_time("track_children", true, () =>
+      hii |> track_children
+    );
 
   /* Perform hole parent tracking. */
   ((hii, d), eig);
