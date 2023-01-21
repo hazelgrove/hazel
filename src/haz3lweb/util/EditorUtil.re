@@ -57,8 +57,8 @@ let info_map = (editor: Editor.t) => {
 
 let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
-  | Invalid(_)
   | EmptyHole
+  | Invalid(_)
   | MultiHole(_)
   | Triv
   | Bool(_)
@@ -72,7 +72,6 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Var(_)
   | Ap(_)
   | If(_)
-  | Seq(_)
   | Test(_)
   | Parens(_)
   | Cons(_)
@@ -85,6 +84,9 @@ let rec append_exp = (id, e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
         term: Seq(e1, e2),
       },
     )
+  | Seq(e11, e12) =>
+    let (id, e12') = append_exp(id, e12, e2);
+    (id, TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')});
   | Let(p, edef, ebody) =>
     let (id, ebody') = append_exp(id, ebody, e2);
     (id, TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')});

@@ -560,6 +560,7 @@ type stitched('a) = {
   test_validation: 'a, // prelude + correct_impl + your_tests
   user_impl: 'a, // prelude + your_impl
   user_tests: 'a, // prelude + your_impl + your_tests
+  prelude: 'a, // prelude
   instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
   hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
   hidden_tests: 'a,
@@ -600,6 +601,10 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
   let user_tests =
     StaticsItem.{term: user_tests_term, info_map: user_tests_map};
 
+  let prelude_term = EditorUtil.stitch([eds.prelude]);
+  let prelude_map = Statics.mk_map(prelude_term);
+  let prelude = StaticsItem.{term: prelude_term, info_map: prelude_map};
+
   let instructor_term =
     EditorUtil.stitch([
       eds.prelude,
@@ -631,6 +636,7 @@ let stitch_static = ({eds, _}: state): stitched_statics => {
     test_validation,
     user_impl,
     user_tests,
+    prelude,
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -702,6 +708,7 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     test_validation,
     user_impl,
     user_tests,
+    prelude,
     instructor,
     hidden_bugs,
     hidden_tests,
@@ -733,6 +740,12 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
       info_map: user_tests.info_map,
       simple_result: simple_result_of(user_tests_key),
     };
+  let prelude =
+    DynamicsItem.{
+      term: prelude.term,
+      info_map: prelude.info_map,
+      simple_result: None,
+    };
   let instructor =
     DynamicsItem.{
       term: instructor.term,
@@ -761,6 +774,7 @@ let stitch_dynamic = (state: state, results: option(ModelResults.t)) => {
     user_impl,
     user_tests,
     instructor,
+    prelude,
     hidden_bugs,
     hidden_tests,
   };
