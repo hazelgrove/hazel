@@ -26,7 +26,7 @@ let set = (seg: Base.segment): unit =>
              lr == [] ? None : Some((t.id, l @ r));
            }
          | Grout(_)
-         | Whitespace(_) => None,
+         | Secondary(_) => None,
        )
     |> List.to_seq
     |> Id.Map.of_seq;
