@@ -29,4 +29,11 @@ let token = op | id_lower | id_upper | int_lit | float_lit
 rule next_lexeme = parse
 | newline { Lexeme.S (Space.[mk_elem(Newline)]) }
 | space   { Lexeme.S (Space.[mk_elem(Space)]) }
-| token   { Lexeme.T (Tile.mk (Lexing.lexeme lexbuf)) }
+| token   {
+    let token = Lexing.lexeme lexbuf in
+    let mold =
+      if Token.Shape.is_operand(Token.shape(token))
+      then Mold.default_operand else Mold.default_infix
+    in
+    Lexeme.T (Tile.mk mold token)
+  }

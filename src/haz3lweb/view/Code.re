@@ -25,9 +25,9 @@ module Txt = {
 
   let of_tile = (t: Tile.t) => {
     let s_cls =
-      switch (t.mold) {
-      | None => "unmolded"
-      | Some(m) => Sort.to_string(m.sort)
+      switch (t.mold.sort) {
+      | None => "unsorted"
+      | Some(s) => Sort.to_string(s)
       };
     span(
       // todo: add back delim vs mono distinction

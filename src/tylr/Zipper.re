@@ -15,9 +15,7 @@ let init =
       Segment.(
         empty,
         of_chain(
-          Chain.of_grout(
-            Grout.mk(~mold={sort: Sort.root, prec: 0, frames: []}, ()),
-          ),
+          Chain.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
         ),
       ),
     anc: [],

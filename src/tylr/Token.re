@@ -13,6 +13,14 @@ module Shape = {
     | Alphanum_lower
     | Alphanum_upper;
 
+  let is_operand =
+    fun
+    | Int_lit
+    | Float_lit
+    | Alphanum_lower
+    | Alphanum_upper => true
+    | Const(_) => false;
+
   // order doesn't matter
   let to_int =
     fun

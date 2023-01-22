@@ -50,16 +50,14 @@ type t = {
 
 let cutoff = (===);
 
-let s = Tylr.Sort.of_string;
+let s = sort => Some(Tylr.Sort.of_string(sort));
 
 let mk = editors => {
   // tylr: Tylr.Segment.empty,
   tylr:
     Tylr.(
       Segment.of_chain(
-        Chain.of_grout(
-          Grout.mk(~mold={sort: s("Exp"), prec: 0, frames: []}, ()),
-        ),
+        Chain.of_grout(Grout.mk(Mold.mk_operand(s("Exp")))),
       )
     ),
   editors,

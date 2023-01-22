@@ -67,10 +67,10 @@ let rec mold =
 
 let push_chain =
     (c: Chain.t, ~kid=Chain.Padded.empty(), seg: t)
-    : (Cmp.Result.t(t, Chain.Padded.t, t, t) as 'r) =>
+    : (Cmp.r(t, Chain.Padded.t, t, t) as 'r) =>
   seg
   |> Aba.fold_left(
-       s => Cmp.Result.Lt(Chain.Padded.pad(~r=s, kid)),
+       s => Cmp.Lt(Chain.Padded.pad(~r=s, kid)),
        (r: 'r, c', s) =>
          switch (r) {
          | In(seg) => In(Aba.snoc(seg, c', s))
@@ -85,13 +85,9 @@ let push_chain =
          | Gt(seg) => Gt(Aba.snoc(seg, c', s))
          },
      );
-// let push_seg =
-//     (seg: t, ~kid=Chain.Padded.empty(), onto: t)
-//     :
-
 let hsup_chain =
     (seg: t, ~kid=Chain.Padded.empty(), c: Chain.t)
-    : (Cmp.Result.t(t, t, t, Chain.Padded.t) as 'r) =>
+    : (Cmp.r(t, t, t, Chain.Padded.t) as 'r) =>
   seg
   |> Aba.fold_right(
        (s, c', r: 'r) =>
@@ -107,7 +103,7 @@ let hsup_chain =
            | Gt(kid) => Gt(kid)
            }
          },
-       s => Cmp.Result.Gt(Chain.Padded.pad(~l=s, kid)),
+       s => Cmp.Gt(Chain.Padded.pad(~l=s, kid)),
      );
 
 let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
@@ -157,14 +153,14 @@ let assemble_l = (~l: option(Chain.t)=?, seg: t): t =>
          | Gt(kid) =>
            let l_cmp_c =
              switch (l) {
-             | None => Cmp.Lt
+             | None => Cmp.Lt()
              | Some(l) => Chain.cmp(l, c)
              };
            switch (l_cmp_c) {
-           | In => raise(Disconnected)
-           | Lt
-           | Eq => of_padded(Chain.(merge(kid, Padded.mk(~r=s, c))))
-           | Gt =>
+           | In () => raise(Disconnected)
+           | Lt ()
+           | Eq () => of_padded(Chain.(merge(kid, Padded.mk(~r=s, c))))
+           | Gt () =>
              concat([of_padded(kid), of_padded(Chain.Padded.mk(~r=s, c))])
            };
          },
@@ -178,21 +174,22 @@ let assemble_r = (~r: option(Chain.t)=?, seg: t): t =>
          | Lt(kid) =>
            let c_cmp_r =
              switch (r) {
-             | None => Cmp.Gt
+             | None => Cmp.Gt()
              | Some(r) => Chain.cmp(c, r)
              };
            switch (c_cmp_r) {
-           | In => raise(Disconnected)
-           | Lt =>
+           | In () => raise(Disconnected)
+           | Lt () =>
              concat([of_padded(Chain.Padded.mk(~l=s, c)), of_padded(kid)])
-           | Eq
-           | Gt => of_padded(Chain.(merge(Padded.mk(~l=s, c), kid)))
+           | Eq ()
+           | Gt () => of_padded(Chain.(merge(Padded.mk(~l=s, c), kid)))
            };
          | Eq(seg)
          | Gt(seg) => cons_space(s, seg)
          },
        s => of_space(s),
      );
+// todo: rename this meld
 let assemble = (~l: option(Chain.t)=?, ~r: option(Chain.t)=?, seg: t): t =>
   seg |> assemble_r(~r?) |> assemble_l(~l?);
 

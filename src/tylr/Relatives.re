@@ -154,19 +154,19 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
     | (_, None) => concat([mk(~sib, ()), rel])
     | (Some((s_l, c_l, tl_l)), Some((tl_r, c_r, s_r))) =>
       switch (Chain.cmp(c_l, c_r)) {
-      | In => raise(Segment.Disconnected)
-      | Lt =>
+      | In () => raise(Segment.Disconnected)
+      | Lt () =>
         rel
         |> cons_space(~onto=L, s_l)
         |> cons_chain(~onto=L, c_l)
         |> go((tl_l, r))
-      | Eq =>
+      | Eq () =>
         rel
         |> cons_space(~onto=L, s_l)
         |> cons_space(~onto=R, s_r)
         |> cons_parent((c_l, c_r))
         |> go((tl_l, tl_r))
-      | Gt =>
+      | Gt () =>
         rel
         |> cons_space(~onto=R, s_r)
         |> cons_chain(~onto=R, c_r)
@@ -262,13 +262,17 @@ let rec insert_chain = (c: Chain.t, rel: t): t => {
   | G(_) => rel |> insert_seg(Segment.(to_suffix(of_chain(rest))))
   | T(t) =>
     switch (mold(t.token, rel)) {
-    | Ok(m) when Some(m) == t.mold =>
+    | Ok(m) when m == t.mold =>
       // todo: need to strengthen this fast check to include completeness check on kids
       push_chain_l(c, rel)
     | m =>
-      let mold = Result.to_option(m);
+      let t =
+        switch (m) {
+        | Error(_) => t
+        | Ok(mold) => {...t, mold}
+        };
       rel
-      |> push_chain_l(Chain.of_tile({...t, mold}))
+      |> push_chain_l(Chain.of_tile(t))
       |> insert_seg(Segment.(to_suffix(of_chain(rest))));
     }
   };

@@ -1,22 +1,25 @@
-type t =
-  | In // incomparable
-  | Lt
-  | Eq
-  | Gt;
+type r('in_, 'lt, 'eq, 'gt) =
+  | In('in_) // incomparable
+  | Lt('lt)
+  | Eq('eq)
+  | Gt('gt);
+type s('a) = r('a, 'a, 'a, 'a);
+type t = s(unit);
 
-module Result = {
-  type t('in_, 'lt, 'eq, 'gt) =
-    | In('in_)
-    | Lt('lt)
-    | Eq('eq)
-    | Gt('gt);
-  type s('a) = t('a, 'a, 'a, 'a);
+type leg('a) = r(unit, 'a, 'a, 'a);
 
-  let get = (r: s('a)): 'a =>
-    switch (r) {
-    | In(a)
-    | Lt(a)
-    | Eq(a)
-    | Gt(a) => a
-    };
-};
+let of_int = (c: int) =>
+  if (c < 0) {
+    Lt();
+  } else if (c > 0) {
+    Gt();
+  } else {
+    Eq();
+  };
+
+let t_of_r: r(_) => t =
+  fun
+  | In(_) => In()
+  | Lt(_) => Lt()
+  | Eq(_) => Eq()
+  | Gt(_) => Gt();

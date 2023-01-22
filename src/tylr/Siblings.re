@@ -37,12 +37,12 @@ let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
 let choose_matching = (c: Chain.t, t: Token.t) =>
   LangUtil.molds(t)
   |> List.filter(m =>
-       Mold.matching(L, m) && Chain.cmp_mold(c, m) == Some(Eq)
+       Mold.matching(L, m) && Chain.cmp_mold(c, m) == Some(Eq())
      )
   |> ListUtil.hd_opt;
 
 // todo: reimplement in terms of precedence bounds
-let choose = (in_l: option(Sort.t), out: Sort.t, t: Token.t) => {
+let choose = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
   let out_consistent =
     LangUtil.molds(t)
     |> List.filter((m: Mold.t) => Sort.compare(m.sort, out) <= 0);
@@ -78,7 +78,7 @@ let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
      );
 
 let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
-  let rec go = (~in_l: option(Sort.t)=?, pre: Segment.t) =>
+  let rec go = (~in_l: option(Sort.o)=?, pre: Segment.t) =>
     Aba.unsnoc(pre)
     |> OptUtil.and_then(((pre, c, _)) => {
          let go_next = () => go(~in_l=Chain.sort(c), pre);

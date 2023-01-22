@@ -7,7 +7,7 @@ module Molds = {
   let union = List.fold_left(union2, Token.Map.empty);
 
   let molds_of_gram = (s: Sort.t, p: Prec.t, g: Gram.t(Sort.t)): t => {
-    let rec go = (m: Mold.t, g: Gram.t(Sort.t)) =>
+    let rec go = (m: Mold.t, g: Gram.t(Sort.o)) =>
       switch (g) {
       | Atom(Kid(_)) => Token.Map.empty
       | Atom(Tok(t)) => Token.Map.singleton(t, [m])
@@ -25,7 +25,14 @@ module Molds = {
            )
         |> union
       };
-    go(Mold.init(s, p), g);
+    let g =
+      g
+      |> Gram.map_atoms(
+           fun
+           | Tok(_) as a => a
+           | Kid(s) => Kid(Some(s)),
+         );
+    go(Mold.init(Some(s), p), g);
   };
   let molds: t =
     List.to_seq(Lang.t)
@@ -47,4 +54,8 @@ module Molds = {
 
 let molds = t => Molds.find(Token.shape(t));
 
-let assoc = (s, p) => snd(List.nth(List.assoc(s, Lang.t), p));
+let assoc = (s, p) =>
+  switch (s) {
+  | None => None
+  | Some(s) => snd(List.nth(List.assoc(s, Lang.t), p))
+  };

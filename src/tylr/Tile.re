@@ -1,14 +1,14 @@
-open Sexplib.Std;
+// open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
-  mold: option(Mold.t),
+  mold: Mold.t,
   token: Token.t,
 };
 
-let mk = (~id=?, ~mold=?, token: Token.t) => {
+let mk = (~id=?, mold, token: Token.t) => {
   let id = id |> OptUtil.get(() => Id.Gen.next());
   {id, mold, token};
 };
