@@ -108,7 +108,8 @@ and Kind: {
     | LabelSum(ts) =>
       LabelSum(
         List.map(
-          (Typ.{typ, tag}) => Typ.{typ: normalize(ctx, typ), tag},
+          (Typ.{typ, tag}) =>
+            Typ.{typ: Option.map(normalize(ctx), typ), tag},
           ts,
         ),
       )

@@ -74,8 +74,10 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   }
 and tagged_view = (t: Haz3lcore.Typ.tagged) =>
-  t.typ == Prod([])
-    ? [text(t.tag)] : [text(t.tag ++ "("), view(t.typ), text(")")];
+  switch (t.typ) {
+  | None => [text(t.tag)]
+  | Some(typ) => [text(t.tag ++ "("), view(typ), text(")")]
+  };
 
 let view_entry = (name, typ) => [
   text(name),

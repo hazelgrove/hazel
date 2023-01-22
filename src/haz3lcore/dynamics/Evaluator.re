@@ -29,7 +29,8 @@ let grounded_LabelSum = labels =>
   NotGroundOrHole(
     LabelSum(
       List.map(
-        (ts: Typ.tagged) => Typ.{tag: ts.tag, typ: Typ.Unknown(Internal)},
+        (ts: Typ.tagged) =>
+          Typ.{tag: ts.tag, typ: Some(Unknown(Internal))},
         labels,
       ),
     ),
@@ -62,7 +63,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | LabelSum(tys) =>
     if (List.for_all(
           fun
-          | Typ.{typ: Typ.Unknown(_), _} => true
+          | Typ.{typ: Some(Unknown(_)), _} => true
           | _ => false,
           tys,
         )) {
