@@ -27,7 +27,6 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
   let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
-
   switch (k) {
   | {key: U(key), _} =>
     switch (key) {

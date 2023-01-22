@@ -400,11 +400,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
       | (["sum", "end"], [TSum({ids, term: _} as ts)]) =>
-        /* Only want to pass ids up to be part of the sum-end
-           form if there are actually +s inside the sum */
         (Sum(ts), ids)
-      //TODO(andrew): cleanup
-      /*| (["sum", "end"], [TSum(ts)]) => (Sum(ts), [])*/
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
