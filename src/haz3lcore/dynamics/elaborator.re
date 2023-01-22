@@ -104,6 +104,8 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
         | _ => Some(d)
         }
       /* Forms with special ana rules but no particular typing requirements */
+      | Ap(Tag(_), _) //TODO(andrew): does this make sense?
+      | Tag(_) //TODO(andrew): does this make sense?
       | ConsistentCase(_)
       | InconsistentBranches(_)
       | Sequence(_)
@@ -122,10 +124,9 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | InvalidOperation(_) => Some(d)
       /* Normal cases: wrap */
       | BoundVar(_)
-      | Ap(_)
       | ApBuiltin(_)
       | Prj(_)
-      | Tag(_)
+      | Ap(_)
       | BoolLit(_)
       | IntLit(_)
       | FloatLit(_)

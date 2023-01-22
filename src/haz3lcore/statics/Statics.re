@@ -81,6 +81,7 @@ type t =
   | InfoTSum(info_tsum);
 
 /* The InfoMap collating all info for a composite term */
+[@deriving (show({with_path: false}), sexp, yojson)]
 type map = Id.Map.t(t);
 
 let terms = (map: map): Id.Map.t(Term.any) =>

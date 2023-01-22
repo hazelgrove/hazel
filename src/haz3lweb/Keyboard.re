@@ -27,6 +27,7 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
   let now_save_u = u => Update.[u, Save] /*UpdateDoubleTap(None)*/;
   let now_save = a => now_save_u(PerformAction(a)); // TODO move saving logic out of keyboard handling code to avoid bugs if we start using other input modalities
   let print = str => str |> print_endline |> (_ => []);
+
   switch (k) {
   | {key: U(key), _} =>
     switch (key) {
@@ -36,13 +37,18 @@ let handle_key_event = (k: Key.t, ~model: Model.t): list(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
+    let get_term = z => z |> Zipper.unselect_and_zip |> MakeTerm.go |> fst;
     switch (key) {
-    | "F2" => print(Zipper.show(zipper))
-    | "F6" =>
-      let (term, _) = MakeTerm.go(Zipper.unselect_and_zip(zipper));
-      print(TermBase.UExp.show(term));
+    | "F1" => zipper |> Zipper.show |> print
+    | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
+    | "F3" => zipper |> get_term |> TermBase.UExp.show |> print
+    | "F4" => zipper |> get_term |> Statics.mk_map |> Statics.show_map |> print
+    | "F5" =>
+      let term = zipper |> get_term;
+      let map = term |> Statics.mk_map;
+      Interface.get_result(map, term) |> ProgramResult.show |> print;
     | _ => []
-    }
+    };
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left(ByChar))))
