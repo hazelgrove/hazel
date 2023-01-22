@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Haz3lcore;
 
 module Key = {
   include String;

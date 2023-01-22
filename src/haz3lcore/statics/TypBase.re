@@ -15,7 +15,8 @@ module rec Ctx: {
         name: Token.t,
         id: Id.t,
         kind: Kind.t,
-      });
+      })
+    | TagEntry(var_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
@@ -49,7 +50,8 @@ module rec Ctx: {
         name: Token.t,
         id: Id.t,
         kind: Kind.t,
-      });
+      })
+    | TagEntry(var_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
@@ -75,13 +77,9 @@ module rec Ctx: {
     );
 
   let is_tvar = (ctx: t, name: Token.t) =>
-    switch (
-      List.assoc_opt(name, BuiltinADTs.adts),
-      Ctx.lookup_tvar(ctx, name),
-    ) {
-    | (Some(_), _)
-    | (_, Some(_)) => true
-    | _ => false
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(_) => true
+    | None => false
     };
 }
 and Kind: {
@@ -110,7 +108,8 @@ and Kind: {
     | LabelSum(ts) =>
       LabelSum(
         List.map(
-          (Typ.{typ, tag}) => Typ.{typ: normalize(ctx, typ), tag},
+          (Typ.{typ, tag}) =>
+            Typ.{typ: Option.map(normalize(ctx), typ), tag},
           ts,
         ),
       )

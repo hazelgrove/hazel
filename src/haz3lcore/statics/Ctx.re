@@ -1,29 +1,46 @@
 open Util.OptUtil.Syntax;
 include TypBase.Ctx;
 
-let get_id = (entry: entry) =>
-  switch (entry) {
-  | VarEntry({id, _}) => id
-  | TVarEntry({id, _}) => id
-  };
+let get_id: entry => int =
+  fun
+  | VarEntry({id, _})
+  | TagEntry({id, _})
+  | TVarEntry({id, _}) => id;
 let empty: t = VarMap.empty;
 
-let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
+let extend: (entry, t) => t = List.cons;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    entry =>
-      switch (entry) {
-      | VarEntry(var) =>
-        if (var.name == name) {
-          Some(var);
-        } else {
-          None;
-        }
-      | TVarEntry(_) => None
-      },
+    fun
+    | VarEntry(v) when v.name == name => Some(v)
+    | _ => None,
     ctx,
   );
+
+let lookup_tag = (ctx: t, name: string): option(var_entry) =>
+  List.find_map(
+    fun
+    | TagEntry(t) when t.name == name => Some(t)
+    | _ => None,
+    ctx,
+  );
+
+let extend_tags = (name: Token.t, tags: list(Typ.tagged), id, ctx) =>
+  List.map(
+    ({tag, typ}: Typ.tagged) =>
+      TagEntry({
+        name: tag,
+        id,
+        typ:
+          switch (typ) {
+          | None => Var(name)
+          | Some(typ) => Arrow(typ, Var(name))
+          },
+      }),
+    tags,
+  )
+  @ ctx;
 
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
@@ -62,7 +79,8 @@ let filter_duplicates = (ctx: t): t =>
   |> List.fold_left(
        ((ctx, term_set, typ_set), entry) => {
          switch (entry) {
-         | VarEntry({name, _}) =>
+         | VarEntry({name, _})
+         | TagEntry({name, _}) =>
            VarSet.mem(name, term_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
@@ -75,45 +93,6 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
-
-let adts: t => list((string, list(Typ.tagged))) =
-  List.filter_map(
-    fun
-    | VarEntry(_) => None
-    | TVarEntry({name, kind, _}) =>
-      switch (kind) {
-      | Singleton(Rec(_, LabelSum(ts))) => Some((name, ts))
-      | Singleton(LabelSum(ts)) => Some((name, ts))
-      | _ => None
-      },
-  );
-
-let adt_tag_and_typ =
-    (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
-  tag,
-  switch (typ) {
-  | Prod([]) => Var(name)
-  | _ => Arrow(typ, Var(name))
-  },
-);
-
-let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
-  adts
-  |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
-  |> List.flatten;
-
-let builtin_adt_tags = get_tags(BuiltinADTs.adts);
-
-// Check builtin type names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
-// Check builtin tag names are unique
-assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
-
-let lookup_tag = (ctx, name) =>
-  switch (List.assoc_opt(name, builtin_adt_tags)) {
-  | Some(typ) => Some(typ)
-  | None => List.assoc_opt(name, ctx |> adts |> get_tags)
-  };
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -172,28 +151,13 @@ let rec join =
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let (tys1, tys2) = (Typ.sort_tagged(tys1), Typ.sort_tagged(tys2));
-      switch (
-        List.map2(
-          (t1: Typ.tagged, t2: Typ.tagged) =>
-            t1.tag == t2.tag ? join'(t1.typ, t2.typ) : None,
-          tys1,
-          tys2,
-        )
-        |> Util.OptUtil.sequence
-      ) {
-      | None => None
-      | Some(tys) =>
-        Some(
-          LabelSum(
-            List.map2(
-              (t1: Typ.tagged, typ) => Typ.{tag: t1.tag, typ},
-              tys1,
-              tys,
-            ),
-          ),
-        )
-      };
+      List.map2(
+        tagged_join(~d, ctx),
+        Typ.sort_tagged(tys1),
+        Typ.sort_tagged(tys2),
+      )
+      |> Util.OptUtil.sequence
+      |> Option.map(tys => Typ.LabelSum(tys));
     }
   | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
@@ -209,7 +173,18 @@ let rec join =
     }
   | (List(_), _) => None
   };
-};
+}
+and tagged_join =
+    (~d, ctx, t1: Typ.tagged, t2: Typ.tagged): option(Typ.tagged) =>
+  t1.tag == t2.tag
+    ? switch (t1.typ, t2.typ) {
+      | (None, None) => Some({tag: t1.tag, typ: None})
+      | (Some(ty1), Some(ty2)) =>
+        let+ ty_join = join(~d, ctx, ty1, ty2);
+        Typ.{tag: t1.tag, typ: Some(ty_join)};
+      | _ => None
+      }
+    : None;
 
 let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
