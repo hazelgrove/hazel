@@ -302,10 +302,11 @@ let extend_let_def_ctx =
   };
 
 //TODO(andrew): document this weird little guy
-let ana_tag_types = (mode: Typ.mode, name: Token.t): option((Typ.t, Typ.t)) =>
+let ana_tag_types =
+    (mode: Typ.mode, name: Token.t): option((option(Typ.t), Typ.t)) =>
   switch (mode) {
   | Ana(LabelSum(tags) as ty_ana) when Form.is_tag(name) =>
-    let+ ty_tag = Typ.tag_type(name, tags);
+    let+ {typ: ty_tag, _} = Typ.tag_type(name, tags);
     (ty_tag, ty_ana);
   | Ana(_)
   | Syn
@@ -436,8 +437,8 @@ and uexp_to_info_map =
     }
   | Tag(name) =>
     switch (ana_tag_types(mode, name)) {
-    | Some((Prod([]), ty_ana)) => atomic(Just(ty_ana))
-    | Some((ty_tag, ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
+    | Some((None, ty_ana)) => atomic(Just(ty_ana))
+    | Some((Some(ty_tag), ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
     | None =>
       switch (Ctx.lookup_tag(ctx, name)) {
       | None => atomic(Self(Free(Tag)))
@@ -494,12 +495,13 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Ap({term: Tag(name), ids: extra_ids}, arg) =>
+  //TODO(andrew): cleanup
+  /*| Ap({term: Tag(name), ids: extra_ids}, arg) =>
     /* Labelled Sum constructor case */
     let (mode: Typ.mode, self: Typ.self) =
       switch (ana_tag_types(mode, name)) {
-      | Some((Prod([]), _)) => (Syn, Self(TagArity))
-      | Some((ty_tag, ty_ana)) => (Ana(ty_tag), Just(ty_ana))
+      | Some((None, _)) => (Syn, Self(TagArity))
+      | Some((Some(ty_tag), ty_ana)) => (Ana(ty_tag), Just(ty_ana))
       | None =>
         switch (Ctx.lookup_tag(ctx, name)) {
         | None => (Syn, Self(Free(Tag)))
@@ -508,7 +510,7 @@ and uexp_to_info_map =
         }
       };
     let (_, free, m) = uexp_to_info_map(~ctx, ~mode, arg);
-    add(~extra_ids, ~self, ~free, m);
+    add(~extra_ids, ~self, ~free, m);*/
   | Ap(fn, arg) =>
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
@@ -696,8 +698,8 @@ and upat_to_info_map =
     add(~self=Just(List(ty1)), ~ctx, union_m([m_hd, m_tl]));
   | Tag(name) =>
     switch (ana_tag_types(mode, name)) {
-    | Some((Prod([]), ty_ana)) => atomic(Just(ty_ana))
-    | Some((ty_tag, ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
+    | Some((None, ty_ana)) => atomic(Just(ty_ana))
+    | Some((Some(ty_tag), ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
     | None =>
       switch (Ctx.lookup_tag(ctx, name)) {
       | None => atomic(Self(Free(Tag)))
@@ -727,12 +729,13 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
-  | Ap({term: Tag(name), ids: extra_ids}, arg) =>
+  //TODO(andrew): cleanup
+  /*| Ap({term: Tag(name), ids: extra_ids}, arg) =>
     /* Labelled Sum constructor case */
     let (mode: Typ.mode, self: Typ.self) =
       switch (ana_tag_types(mode, name)) {
-      | Some((Prod([]), _)) => (Syn, Self(TagArity))
-      | Some((ty_tag, ty_ana)) => (Ana(ty_tag), Just(ty_ana))
+      | Some((None, _)) => (Syn, Self(TagArity))
+      | Some((Some(ty_tag), ty_ana)) => (Ana(ty_tag), Just(ty_ana))
       | None =>
         switch (Ctx.lookup_tag(ctx, name)) {
         | None => (Syn, Self(Free(Tag)))
@@ -741,12 +744,18 @@ and upat_to_info_map =
         }
       };
     let (_, ctx, m) = upat_to_info_map(~ctx, ~mode, arg);
-    add(~extra_ids, ~self, ~ctx, m);
+    add(~extra_ids, ~self, ~ctx, m);*/
   | Ap(fn, arg) =>
-    /* Bad constructor patterns (no tag in fn position) */
-    let (_, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Syn, fn);
-    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Syn, arg);
-    add(~self=Self(MissingTag), ~ctx, union_m([m_fn, m_arg]));
+    /* Constructor Application */
+    let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
+    add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
+  //TODO(andrew): cleanup
+  /*
+   let (_, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
+   let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Syn, arg);
+   add(~self=Self(MissingTag), ~ctx, union_m([m_fn, m_arg]));*/
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
@@ -808,19 +817,22 @@ and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
       m,
     );
   switch (term) {
-  | Invalid(msg) => add_info(ids, Invalid(msg), Id.Map.empty)
   | EmptyHole => just(Id.Map.empty)
   | MultiHole(tms) =>
-    let (_, maps) =
+    let (_, ms) =
       tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
-    just(union_m(maps));
-  | Sum(sum) =>
-    let ms = List.map(utsum_to_info_map(~ctx), sum);
     just(union_m(ms));
-  | Ap(_, utyp) =>
-    let self: Typ.self = Just(Term.UTyp.to_typ(ctx, utyp));
-    let (_, m) = utyp_to_info_map(~ctx, utyp);
-    add_info(ids, InfoTSum({cls, term: utsum, self}), m);
+  | Sum(sum) =>
+    let ms =
+      List.map(
+        (TermBase.UTSum.{tag: _, typ, _}) =>
+          switch (typ) {
+          | None => Id.Map.empty
+          | Some(typ) => utyp_to_info_map(~ctx, typ) |> snd
+          },
+        sum,
+      );
+    just(union_m(ms));
   };
 };
 

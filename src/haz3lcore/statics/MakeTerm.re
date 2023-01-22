@@ -357,21 +357,21 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_, ([tag], []))], []) when Form.is_typ_var(tag) =>
-      ret(Ap(tag, {ids: [], term: Tuple([])}))
+      ret(Sum([{tag, typ: None, id: []}]))
     | _ => ret(hole(tm))
     }
-  | Post(TSum({term: Ap(tag, _), ids: ctr_ids}), tiles) as tm =>
+  | Post(TSum({term: Sum([{tag, typ: None, id: _}]), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ({term: typ, ids})]))], []) => (
-        Ap(tag, {ids, term: typ}),
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
+        Sum([{tag, typ: Some(typ), id: []}]),
         ctr_ids,
       )
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
-  | Bin(TSum(l), tiles, TSum(r)) as tm =>
+  | Bin(TSum({term: Sum(l), ids: _}), tiles, TSum({term: Sum(r), ids: _})) as tm =>
     switch (is_typ_sum(tiles)) {
-    | Some(between_kids) => ret(Sum([l] @ between_kids @ [r]))
+    | Some(_between_kids) => ret(Sum(l @ r))
     | None => ret(hole(tm))
     }
   | tm => ret(hole(tm));

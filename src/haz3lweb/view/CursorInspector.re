@@ -30,7 +30,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | Self(NoFun(typ)) =>
     div(
       ~attr=clss([errorc, "err-not-function"]),
-      [text("Not a function: "), Type.view(typ)],
+      [text("Not a function or applicable constructor: "), Type.view(typ)],
     )
   | Self(Free(TypeVariable)) =>
     div(
@@ -42,16 +42,17 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Constructor is not defined")],
     )
-  | Self(TagArity) =>
-    div(
-      ~attr=clss([errorc, "err-tag-arity"]),
-      [text("This constructor takes no arguments")],
-    )
-  | Self(MissingTag) =>
-    div(
-      ~attr=clss([errorc, "err-not-tag"]),
-      [text("Needs a constructor name")],
-    )
+  //TODO(andrew): cleanup
+  /*| Self(TagArity) =>
+      div(
+        ~attr=clss([errorc, "err-tag-arity"]),
+        [text("This constructor takes no arguments")],
+      )
+    | Self(MissingTag) =>
+      div(
+        ~attr=clss([errorc, "err-not-tag"]),
+        [text("Needs a constructor name")],
+      )*/
   | SynInconsistentBranches(tys) =>
     div(
       ~attr=clss([errorc, "err-inconsistent-branches"]),

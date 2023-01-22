@@ -402,11 +402,14 @@ and UTPat: {
 and UTSum: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Ap(Token.t, UTyp.t)
-    | Sum(list(t))
+    | Sum(list(tagged))
+  and tagged = {
+    id: list(Id.t),
+    tag: Token.t,
+    typ: option(UTyp.t),
+  }
   and t = {
     ids: list(Id.t),
     term,
@@ -414,11 +417,14 @@ and UTSum: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Ap(Token.t, UTyp.t)
-    | Sum(list(t))
+    | Sum(list(tagged))
+  and tagged = {
+    id: list(Id.t),
+    tag: Token.t,
+    typ: option(UTyp.t),
+  }
   and t = {
     ids: list(Id.t),
     term,

@@ -32,7 +32,11 @@ let extend_tags = (name: Token.t, tags: list(Typ.tagged), id, ctx) =>
       TagEntry({
         name: tag,
         id,
-        typ: typ == Prod([]) ? Var(name) : Arrow(typ, Var(name)),
+        typ:
+          switch (typ) {
+          | None => Var(name)
+          | Some(typ) => Arrow(typ, Var(name))
+          },
       }),
     tags,
   )
@@ -147,28 +151,13 @@ let rec join =
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let (tys1, tys2) = (Typ.sort_tagged(tys1), Typ.sort_tagged(tys2));
-      switch (
-        List.map2(
-          (t1: Typ.tagged, t2: Typ.tagged) =>
-            t1.tag == t2.tag ? join'(t1.typ, t2.typ) : None,
-          tys1,
-          tys2,
-        )
-        |> Util.OptUtil.sequence
-      ) {
-      | None => None
-      | Some(tys) =>
-        Some(
-          LabelSum(
-            List.map2(
-              (t1: Typ.tagged, typ) => Typ.{tag: t1.tag, typ},
-              tys1,
-              tys,
-            ),
-          ),
-        )
-      };
+      List.map2(
+        tagged_join(~d, ctx),
+        Typ.sort_tagged(tys1),
+        Typ.sort_tagged(tys2),
+      )
+      |> Util.OptUtil.sequence
+      |> Option.map(tys => Typ.LabelSum(tys));
     }
   | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
@@ -184,7 +173,18 @@ let rec join =
     }
   | (List(_), _) => None
   };
-};
+}
+and tagged_join =
+    (~d, ctx, t1: Typ.tagged, t2: Typ.tagged): option(Typ.tagged) =>
+  t1.tag == t2.tag
+    ? switch (t1.typ, t2.typ) {
+      | (None, None) => Some({tag: t1.tag, typ: None})
+      | (Some(ty1), Some(ty2)) =>
+        let+ ty_join = join(~d, ctx, ty1, ty2);
+        Typ.{tag: t1.tag, typ: Some(ty_join)};
+      | _ => None
+      }
+    : None;
 
 let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
   List.fold_left(
