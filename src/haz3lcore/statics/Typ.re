@@ -30,11 +30,19 @@ and tagged = {
   typ: t,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type adt = (Token.t, list(tagged));
+
 let sort_tagged: list(tagged) => list(tagged) =
   List.sort(({tag: t1, _}, {tag: t2, _}) => compare(t1, t2));
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type adt = (Token.t, list(tagged));
+let tag_type = (name: Token.t, tags: list(tagged)): option(t) =>
+  List.find_map(
+    fun
+    | {tag, typ} when tag == name => Some(typ)
+    | _ => None,
+    tags,
+  );
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -52,6 +60,12 @@ type free_errors =
   | Tag
   | TypeVariable;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type self_error =
+  | TagArity
+  | MissingTag
+  | Free(free_errors);
+
 /* SELF: The (synthetic) type information derivable from a term
    in isolation, using the typing context but not the syntactic
    context. This can either be Free (no type, in the case of
@@ -63,7 +77,7 @@ type self =
   | Just(t)
   | Joined(t => t, list(source))
   | Multi
-  | Free(free_errors);
+  | SelfError(self_error);
 
 /* MODE: The (analytic) type information derived from a term's
    syntactic context. This can either Syn (no type expectation),
@@ -152,7 +166,6 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Rec(_)
-  | Prod([])
   | LabelSum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
