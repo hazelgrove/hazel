@@ -357,13 +357,13 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_, ([tag], []))], []) when Form.is_typ_var(tag) =>
-      ret(Sum([{tag, typ: None, id: []}]))
+      ret(Sum([{tag, typ: None}]))
     | _ => ret(hole(tm))
     }
-  | Post(TSum({term: Sum([{tag, typ: None, id: _}]), ids: ctr_ids}), tiles) as tm =>
+  | Post(TSum({term: Sum([{tag, typ: None}]), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
-        Sum([{tag, typ: Some(typ), id: []}]),
+        Sum([{tag, typ: Some(typ)}]),
         ctr_ids,
       )
     | _ => ret(hole(tm))
@@ -399,13 +399,12 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum({ids, term: Sum(_)} as ts)]) =>
+      | (["sum", "end"], [TSum({ids, term: _} as ts)]) =>
         /* Only want to pass ids up to be part of the sum-end
            form if there are actually +s inside the sum */
         (Sum(ts), ids)
-      | (["sum", "end"], [TSum(ts)]) =>
-        /* Note: See corresponding Sum case in Statics. utyp_to_info_map */
-        (Sum(ts), [])
+      //TODO(andrew): cleanup
+      /*| (["sum", "end"], [TSum(ts)]) => (Sum(ts), [])*/
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
