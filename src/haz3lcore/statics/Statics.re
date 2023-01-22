@@ -1,6 +1,5 @@
 open Sexplib.Std;
 open Util;
-open OptUtil.Syntax;
 
 /* STATICS
 
@@ -301,55 +300,40 @@ let extend_let_def_ctx =
     ctx;
   };
 
-let tag_mode = (mode: Typ.mode, name: Token.t): Typ.mode =>
-  switch (mode) {
-  | Ana(LabelSum(tags) as ty_ana)
-  | Ana(Arrow(_, LabelSum(tags) as ty_ana)) when Form.is_tag(name) =>
-    switch (Typ.tag_type(name, tags)) {
-    | None => Ana(ty_ana)
-    | Some({typ: Some(ty_in), _}) => Ana(Arrow(ty_in, ty_ana))
-    | Some(_) => Ana(ty_ana)
-    }
-  | Ana(_) => SynFun
-  | Syn
-  | SynFun => mode
-  };
-
-let tag_ana_type = (mode: Typ.mode, name: Token.t): option(Typ.t) =>
-  switch (mode) {
-  | Ana(LabelSum(tags) as ty_ana)
-  | Ana(Arrow(_, LabelSum(tags) as ty_ana)) when Form.is_tag(name) =>
-    let+ tagged = Typ.tag_type(name, tags);
-    switch (tagged.typ) {
-    | None => ty_ana
-    | Some(ty_in) => Arrow(ty_in, ty_ana)
-    };
-  | Ana(_)
-  | Syn
-  | SynFun => None
-  };
-
-let tag_self = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.self =>
+let tag_ana_typ = (mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   /* If a tag is being analyzed against (an arrow type returning)
-     a sum type containing that tag, its self type becomes that
-     type rather than checking the context */
-  switch (tag_mode(mode, name)) {
-  | Ana(ana_ty) => Just(ana_ty)
-  | _ =>
-    switch (Ctx.lookup_tag(ctx, name)) {
-    | Some(syn) => Just(syn.typ)
-    | None => Self(Free(Tag))
-    }
+     a sum type having that tag as a variant, we consider the
+     tag's type to be determined by the sum type */
+  switch (mode) {
+  | Ana(LabelSum(tags) as ty_ana)
+  | Ana(Arrow(_, LabelSum(tags) as ty_ana)) =>
+    Typ.ana_sum(tag, tags, ty_ana)
+  | _ => None
   };
 
 let tag_ap_mode = (_ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
-  /* If a tag application is being analyzed against (an arrow type
-     returning) a sum type containing that tag, then we analyze
-     the tag itself instead of the usual SynPos mode */
-  switch (tag_mode(mode, name /*, tag_self(ctx, mode, name)*/)) {
-  | Ana(Arrow(_) as ty_ana) => Ana(ty_ana)
-  | Ana(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
+  /* If a tag application is being analyzed against a sum type for
+     which that tag is a variant, then we consider the tag to be in
+     analytic mode against an arrow returning that sum type; otherwise
+     we use the typical mode for function applications */
+  switch (tag_ana_typ(mode, name)) {
+  | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
+  | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => Typ.ap_mode
+  };
+
+let tag_self = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): Typ.self =>
+  /* If a tag is being analyzed against (an arrow type returning)
+     a sum type having that tag as a variant, its self type is
+     considered to be determined by the sum type; otherwise,
+     check the context for the tag's type */
+  switch (tag_ana_typ(mode, tag)) {
+  | Some(ana_ty) => Just(ana_ty)
+  | _ =>
+    switch (Ctx.lookup_tag(ctx, tag)) {
+    | Some(syn) => Just(syn.typ)
+    | None => Self(Free(Tag))
+    }
   };
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
