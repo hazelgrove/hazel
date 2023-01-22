@@ -5,6 +5,7 @@ let get_id = (entry: entry) =>
   switch (entry) {
   | VarEntry({id, _}) => id
   | TVarEntry({id, _}) => id
+  | TagEntry(_) => 0 //TODO could add ids to these
   };
 let empty: t = VarMap.empty;
 
@@ -20,10 +21,37 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
         } else {
           None;
         }
-      | TVarEntry(_) => None
+      | _ => None
       },
     ctx,
   );
+
+let lookup_tag = (ctx: t, name: string): option(var_entry) =>
+  List.find_map(
+    entry =>
+      switch (entry) {
+      | TagEntry(tag) =>
+        if (tag.name == name) {
+          Some(tag);
+        } else {
+          None;
+        }
+      | _ => None
+      },
+    ctx,
+  );
+
+let extend_tags = (name: Token.t, tags: list(Typ.tagged), id, ctx) =>
+  List.map(
+    ({tag, typ}: Typ.tagged) =>
+      TagEntry({
+        name: tag,
+        id,
+        typ: typ == Prod([]) ? Var(name) : Arrow(typ, Var(name)),
+      }),
+    tags,
+  )
+  @ ctx;
 
 let subtract_typ = (ctx: t, free: co): co =>
   VarMap.filter(
@@ -62,7 +90,8 @@ let filter_duplicates = (ctx: t): t =>
   |> List.fold_left(
        ((ctx, term_set, typ_set), entry) => {
          switch (entry) {
-         | VarEntry({name, _}) =>
+         | VarEntry({name, _})
+         | TagEntry({name, _}) =>
            VarSet.mem(name, term_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
@@ -75,46 +104,6 @@ let filter_duplicates = (ctx: t): t =>
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
-
-let adts: t => list((string, list(Typ.tagged))) =
-  List.filter_map(
-    fun
-    | VarEntry(_) => None
-    | TVarEntry({name, kind, _}) =>
-      switch (kind) {
-      | Singleton(Rec(_, LabelSum(ts))) => Some((name, ts))
-      | Singleton(LabelSum(ts)) => Some((name, ts))
-      | _ => None
-      },
-  );
-
-let adt_tag_and_typ =
-    (name: Token.t, {tag, typ}: Typ.tagged): (Token.t, Typ.t) => (
-  tag,
-  switch (typ) {
-  | Prod([]) => Var(name)
-  | _ => Arrow(typ, Var(name))
-  },
-);
-
-let get_tags = (adts: list(Typ.adt)): list((Token.t, Typ.t)) =>
-  adts
-  |> List.map(((name, adt)) => List.map(adt_tag_and_typ(name), adt))
-  |> List.flatten;
-
-//let builtin_adt_tags = get_tags(BuiltinADTs.adts);
-
-// Check builtin type names are unique
-//assert(Util.ListUtil.are_duplicates(List.map(fst, BuiltinADTs.adts)));
-// Check builtin tag names are unique
-//assert(Util.ListUtil.are_duplicates(List.map(fst, builtin_adt_tags)));
-
-//TODO(andrew): cleanup
-let lookup_tag = (ctx, name) =>
-  switch (None /*List.assoc_opt(name, builtin_adt_tags)*/) {
-  | Some(typ) => Some(typ)
-  | None => List.assoc_opt(name, ctx |> adts |> get_tags)
-  };
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional

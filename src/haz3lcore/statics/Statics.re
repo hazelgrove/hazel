@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Util;
+open OptUtil.Syntax;
 
 /* STATICS
 
@@ -99,7 +100,7 @@ let terms = (map: map): Id.Map.t(Term.any) =>
 /* Static error classes */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
-  | Free(Typ.free_errors)
+  | SelfError(Typ.self_error)
   | Multi
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
@@ -124,7 +125,7 @@ type error_status =
    makeup of the expression / pattern itself. */
 let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
-  | (Syn | Ana(_), Free(free_error)) => InHole(Free(free_error))
+  | (Syn | Ana(_), SelfError(err)) => InHole(SelfError(err))
   | (Syn | Ana(_), Multi) => NotInHole(SynConsistent(Unknown(Internal)))
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
@@ -171,7 +172,7 @@ let is_error = (ci: t): bool => {
     }
   | InfoTyp({self, _}) =>
     switch (self) {
-    | Free(TypeVariable) => true
+    | SelfError(_) => true
     | _ => false
     }
   | InfoRul(_) => false
@@ -216,7 +217,7 @@ let t_of_self = (ctx): (Typ.self => Typ.t) =>
     | Some(t) => wrap(t)
     }
   | Multi
-  | Free(_) => Unknown(Internal);
+  | SelfError(_) => Unknown(Internal);
 
 let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
@@ -279,6 +280,16 @@ let extend_let_def_ctx =
     pat_ctx;
   } else {
     ctx;
+  };
+
+//TODO(andrew): document this weird little guy
+let ana_tag_types = (mode: Typ.mode, name: Token.t): option((Typ.t, Typ.t)) =>
+  switch (mode) {
+  | Ana(LabelSum(tags) as ty_ana) when Form.is_tag(name) =>
+    let+ ty_tag = Typ.tag_type(name, tags);
+    (ty_tag, ty_ana);
+  | Ana(_)
+  | Syn => None
   };
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
@@ -366,52 +377,26 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
-  /*| Var(tag) when Form.is_tag(tag) =>
-    // TODO(andrew): cleanup
-    switch (Ctx.lookup_var(ctx, tag)) {
-    | None => atomic(Free(Variable))
-    | Some({typ: Arrow(Prod([]), guy), _}) =>
-      add(
-        ~self=Just(guy),
-        ~free=[(tag, [{id: Term.UExp.rep_id(uexp), mode}])],
-        Id.Map.empty,
-      )
+  | Var(name) =>
+    switch (Ctx.lookup_var(ctx, name)) {
+    | None => atomic(SelfError(Free(Variable)))
     | Some(var) =>
       add(
         ~self=Just(var.typ),
-        ~free=[(tag, [{id: Term.UExp.rep_id(uexp), mode}])],
-        Id.Map.empty,
-      )
-    }*/
-  | Var(name) =>
-    let name_nullary_cons_in = tgs =>
-      List.find_map(
-        (t: Typ.tagged) =>
-          switch (t) {
-          | {tag, typ: Prod([]) as typ} when tag == name => Some(typ)
-          | _ => None
-          },
-        tgs,
-      );
-    switch (mode) {
-    | Ana(LabelSum(tgs))
-        when Form.is_tag(name) && name_nullary_cons_in(tgs) != None =>
-      add(
-        ~self=Just(LabelSum(tgs)),
         ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
         Id.Map.empty,
       )
-    | _ =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | None => atomic(Free(Variable))
-      | Some(var) =>
-        add(
-          ~self=Just(var.typ),
-          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
-          Id.Map.empty,
-        )
+    }
+  | Tag(name) =>
+    switch (ana_tag_types(mode, name)) {
+    | Some((Prod([]), ty_ana)) => atomic(Just(ty_ana))
+    | Some((ty_tag, ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
+    | None =>
+      switch (Ctx.lookup_tag(ctx, name)) {
+      | None => atomic(SelfError(Free(Tag)))
+      | Some(tag) => atomic(Just(tag.typ))
       }
-    };
+    }
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -435,11 +420,6 @@ and uexp_to_info_map =
     let self = Typ.Just(Prod(List.map(((ty, _, _)) => ty, infos)));
     let m = union_m(List.map(((_, _, m)) => m, infos));
     add(~self, ~free, m);
-  | Tag(tag) =>
-    switch (Ctx.lookup_tag(ctx, tag)) {
-    | Some(typ) => atomic(Just(typ))
-    | None => atomic(Free(Tag))
-    }
   | Cons(e1, e2) =>
     let mode_ele = Typ.matched_list_mode(mode);
     let (ty1, free1, m1) = go(~mode=mode_ele, e1);
@@ -494,51 +474,22 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
+  | Ap({term: Tag(name), ids: extra_ids}, arg) =>
+    /* Labelled Sum constructor case */
+    let (mode: Typ.mode, self: Typ.self) =
+      switch (ana_tag_types(mode, name)) {
+      | Some((Prod([]), _)) => (Syn, SelfError(TagArity))
+      | Some((ty_tag, ty_ana)) => (Ana(ty_tag), Just(ty_ana))
+      | None =>
+        switch (Ctx.lookup_tag(ctx, name)) {
+        | None => (Syn, SelfError(Free(Tag)))
+        | Some({typ: Arrow(i, o), _}) => (Ana(i), Just(o))
+        | Some(_) => (Syn, SelfError(TagArity))
+        }
+      };
+    let (_, free, m) = uexp_to_info_map(~ctx, ~mode, arg);
+    add(~extra_ids, ~self, ~free, m);
   | Ap(fn, arg) =>
-    let appr_cons_in = (name, tgs) =>
-      List.find_map(
-        (t: Typ.tagged) =>
-          switch (t) {
-          | {tag, typ} when tag == name => Some(typ)
-          | _ => None
-          },
-        tgs,
-      );
-    switch (fn, mode) {
-    | ({term: Var(name), ids}, Ana(LabelSum(tgs)))
-        when Form.is_tag(name) && appr_cons_in(name, tgs) != None =>
-      let typ = appr_cons_in(name, tgs) |> Option.get;
-      /*add(
-          ~self=
-            switch (typ) {
-            | Prod([]) => Just(LabelSum(tgs))
-            | _ => Just(Arrow(typ, LabelSum(tgs)))
-            },
-          ~free=[(name, [{id: Term.UExp.rep_id(uexp), mode}])],
-          Id.Map.empty,
-        )*/
-      let (_, free_arg, m_arg) =
-        uexp_to_info_map(~ctx, ~mode=Ana(typ), arg);
-      add(
-        ~extra_ids=ids,
-        ~self=Just(LabelSum(tgs)),
-        ~free=Ctx.union([free_arg]),
-        union_m([m_arg]),
-      );
-    | _ =>
-      /* Function position mode Ana(Hole->Hole) instead of Syn */
-      let (ty_fn, free_fn, m_fn) =
-        uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-      let (_, free_arg, m_arg) =
-        uexp_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
-      add(
-        ~self=Just(ty_out),
-        ~free=Ctx.union([free_fn, free_arg]),
-        union_m([m_fn, m_arg]),
-      );
-    };
-  /*| Ap(fn, arg) =>
     /* Function position mode Ana(Hole->Hole) instead of Syn */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
@@ -549,7 +500,7 @@ and uexp_to_info_map =
       ~self=Just(ty_out),
       ~free=Ctx.union([free_fn, free_arg]),
       union_m([m_fn, m_arg]),
-    );*/
+    );
   | Fun(pat, body) =>
     let (mode_pat, mode_body) = Typ.matched_arrow_mode(mode);
     let (ty_pat, ctx_pat, m_pat) =
@@ -579,36 +530,25 @@ and uexp_to_info_map =
   | TyAlias({term: Var(name), _} as typat, {term: Sum(_), _} as utyp, body) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.UTyp.to_typ(ctx, utyp);
-    let ty = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
+    let ty' = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
     let ctx_def_and_body =
       Ctx.extend(
         TVarEntry({
           name,
           id: Term.UTPat.rep_id(typat),
-          kind: Singleton(ty),
+          kind: Singleton(ty'),
         }),
         ctx,
       );
-    //TODO(andrew): relax assumption this is DIRECTLY a labelsum as opposed to containing one?
-    //TODO(andrew): 666 below
-    let tag_ctx =
+    let ctx_def_and_body =
       switch (ty) {
-      | LabelSum(tgs) =>
-        List.map(
-          ({tag, typ}: Typ.tagged) =>
-            Ctx.VarEntry({
-              name: tag,
-              typ: typ == Prod([]) ? Var(name) : Arrow(typ, Var(name)),
-              id: 666,
-            }),
-          tgs,
-        )
-      | _ => []
+      | LabelSum(tags) =>
+        Ctx.extend_tags(name, tags, Term.UTyp.rep_id(utyp), ctx_def_and_body)
+      | _ => ctx_def_and_body
       };
-    let ctx_def_and_body = tag_ctx @ ctx_def_and_body;
     let (ty_body, free, m_body) =
       uexp_to_info_map(~ctx=ctx_def_and_body, ~mode, body);
-    let ty_body = Typ.subst(ty, name, ty_body);
+    let ty_body = Typ.subst(ty', name, ty_body);
     let (_ty_def, m_typ) = utyp_to_info_map(~ctx=ctx_def_and_body, utyp);
     add(~self=Just(ty_body), ~free, union_m([m_typat, m_body, m_typ]));
   | TyAlias({term: Var(name), _} as typat, utyp, body) =>
@@ -664,10 +604,14 @@ and upat_to_info_map =
     (~ctx, ~mode: Typ.mode=Typ.Syn, {ids, term} as upat: Term.UPat.t)
     : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
-  let add = (~self, ~ctx, m) => (
+  let add = (~self, ~ctx, ~extra_ids=[], m) => (
     typ_after_fix(ctx, mode, self),
     ctx,
-    add_info(ids, InfoPat({cls, self, mode, ctx, term: upat}), m),
+    add_info(
+      ids @ extra_ids,
+      InfoPat({cls, self, mode, ctx, term: upat}),
+      m,
+    ),
   );
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let unknown = Typ.Just(Unknown(SynSwitch));
@@ -721,15 +665,15 @@ and upat_to_info_map =
     let (ty, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_elem, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty)), tl);
     add(~self=Just(List(ty)), ~ctx, union_m([m_hd, m_tl]));
-  | Tag(tag) =>
-    switch (Ctx.lookup_tag(ctx, tag)) {
-    | Some(typ) => atomic(Just(typ))
-    | None => atomic(Free(Tag))
-    }
-  | Var(tag) when Form.is_tag(tag) =>
-    switch (Ctx.lookup_var(ctx, tag)) {
-    | Some({typ, _}) => atomic(Just(typ))
-    | None => atomic(Free(Tag))
+  | Tag(name) =>
+    switch (ana_tag_types(mode, name)) {
+    | Some((Prod([]), ty_ana)) => atomic(Just(ty_ana))
+    | Some((ty_tag, ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
+    | None =>
+      switch (Ctx.lookup_tag(ctx, name)) {
+      | None => atomic(SelfError(Free(Tag)))
+      | Some(tag) => atomic(Just(tag.typ))
+      }
     }
   | Var(name) =>
     let self = unknown;
@@ -758,13 +702,26 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
+  | Ap({term: Tag(name), ids: extra_ids}, arg) =>
+    /* Labelled Sum constructor case */
+    let (mode: Typ.mode, self: Typ.self) =
+      switch (ana_tag_types(mode, name)) {
+      | Some((Prod([]), _)) => (Syn, SelfError(TagArity))
+      | Some((ty_tag, ty_ana)) => (Ana(ty_tag), Just(ty_ana))
+      | None =>
+        switch (Ctx.lookup_tag(ctx, name)) {
+        | None => (Syn, SelfError(Free(Tag)))
+        | Some({typ: Arrow(i, o), _}) => (Ana(i), Just(o))
+        | Some(_) => (Syn, SelfError(TagArity))
+        }
+      };
+    let (_, ctx, m) = upat_to_info_map(~ctx, ~mode, arg);
+    add(~extra_ids, ~self, ~ctx, m);
   | Ap(fn, arg) =>
-    /* Contructor application */
-    /* Function position mode Ana(Hole->Hole) instead of Syn */
-    let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
-    let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Ana(ty_in), arg);
-    add(~self=Just(ty_out), ~ctx, union_m([m_fn, m_arg]));
+    /* Bad constructor patterns (no tag in fn position) */
+    let (_, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=Syn, fn);
+    let (_, ctx, m_arg) = upat_to_info_map(~ctx, ~mode=Syn, arg);
+    add(~self=SelfError(MissingTag), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
     let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
@@ -803,7 +760,10 @@ and utyp_to_info_map =
   | Var(name) =>
     Ctx.is_tvar(ctx, name)
       ? (Var(name), add(Just(Var(name)), Id.Map.empty))
-      : (Unknown(Internal), add(Free(TypeVariable), Id.Map.empty))
+      : (
+        Unknown(Internal),
+        add(SelfError(Free(TypeVariable)), Id.Map.empty),
+      )
   | Sum({term, ids: _}) =>
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
@@ -836,11 +796,7 @@ and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
     let ms = List.map(utsum_to_info_map(~ctx), sum);
     just(union_m(ms));
   | Ap(_, utyp) =>
-    let self: Typ.self =
-      switch (Term.UTyp.to_typ(ctx, utyp)) {
-      | Prod([]) => Just(Var("*self"))
-      | t => Just(Arrow(t, Var("*self")))
-      };
+    let self: Typ.self = Just(Term.UTyp.to_typ(ctx, utyp));
     let (_, m) = utyp_to_info_map(~ctx, utyp);
     add_info(ids, InfoTSum({cls, term: utsum, self}), m);
   };
