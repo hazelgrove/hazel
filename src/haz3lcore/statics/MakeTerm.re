@@ -474,7 +474,7 @@ and rul = (unsorted: unsorted): URul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => []
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
