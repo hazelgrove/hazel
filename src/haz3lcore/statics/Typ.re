@@ -36,13 +36,24 @@ type adt = (Token.t, list(tagged));
 let sort_tagged: list(tagged) => list(tagged) =
   List.sort(({tag: t1, _}, {tag: t2, _}) => compare(t1, t2));
 
-let tag_type = (name: Token.t, tags: list(tagged)): option(tagged) =>
+let find_tag = (t: Token.t, tags: list(tagged)): option(tagged) =>
   List.find_map(
     fun
-    | {tag, typ} when tag == name => Some({tag, typ})
+    | {tag, typ} when tag == t => Some({tag, typ})
     | _ => None,
     tags,
   );
+
+let ana_sum = (tag: Token.t, tags: list(tagged), ty_ana: t): option(t) =>
+  /* Returns the type of a tag if that tag is given a type by the sum
+     type ty_ana having tags as variants. If tag is a nullart constructor,
+     ty_ana itself is returned; otherwise an arrow from tag's parameter
+     type to ty_ana */
+  switch (find_tag(tag, tags)) {
+  | Some({typ: Some(ty_in), _}) => Some(Arrow(ty_in, ty_ana))
+  | Some({typ: None, _}) => Some(ty_ana)
+  | None => None
+  };
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
