@@ -301,39 +301,42 @@ let extend_let_def_ctx =
     ctx;
   };
 
-//TODO(andrew): document this weird little guy
-let ana_tag_types =
-    (mode: Typ.mode, name: Token.t): option((option(Typ.t), Typ.t)) =>
+let tag_ana_type = (mode: Typ.mode, name: Token.t): option(Typ.t) =>
   switch (mode) {
   | Ana(LabelSum(tags) as ty_ana)
   | Ana(Arrow(_, LabelSum(tags) as ty_ana)) when Form.is_tag(name) =>
-    let+ {typ: ty_tag, _} = Typ.tag_type(name, tags);
-    (ty_tag, ty_ana);
+    let+ tagged = Typ.tag_type(name, tags);
+    switch (tagged.typ) {
+    | None => ty_ana
+    | Some(ty_in) => Arrow(ty_in, ty_ana)
+    };
   | Ana(_)
   | Syn
   | SynFun => None
   };
 
-let tag_self = (ctx, mode, name): Typ.self =>
-  switch (ana_tag_types(mode, name)) {
-  | Some((Some(ty_tag), ty_ana)) => Just(Arrow(ty_tag, ty_ana))
-  | Some((None, ty_ana)) => Just(ty_ana)
+let tag_self = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.self =>
+  /* If a tag is being analyzed against (an arrow type returning)
+     a sum type containing that tag, its self type becomes that
+     type rather than checking the context */
+  switch (tag_ana_type(mode, name)) {
+  | Some(ana_ty) => Just(ana_ty)
   | None =>
     switch (Ctx.lookup_tag(ctx, name)) {
-    | Some(tag) => Just(tag.typ)
+    | Some(syn) => Just(syn.typ)
     | None => Self(Free(Tag))
     }
   };
 
-let tag_ap_fn_mode = (ctx, mode, name): Typ.mode => {
-  switch (tag_self(ctx, mode, name)) {
-  | Just(Arrow(_) as a) when ana_tag_types(mode, name) != None => Ana(a)
-  | Just(Arrow(_)) => SynFun
-  | Just(ty_ana) when ana_tag_types(mode, name) != None =>
-    Ana(Arrow(Unknown(Internal), ty_ana))
-  | _ => SynFun
+let tag_ap_mode = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
+  /* If a tag application is being analyzed against (an arrow type
+     returning) a sum type containing that tag, then we analyze
+     the tag itself instead of the usual SynPos mode */
+  switch (tag_ana_type(mode, name), tag_self(ctx, mode, name)) {
+  | (Some(_), Just(Arrow(_) as ty_ana)) => Ana(ty_ana)
+  | (Some(_), Just(ty_ana)) => Ana(Arrow(Unknown(Internal), ty_ana))
+  | _ => Typ.ap_mode
   };
-};
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
@@ -511,7 +514,7 @@ and uexp_to_info_map =
   | Ap(fn, arg) =>
     let fn_mode =
       switch (fn) {
-      | {term: Tag(name), _} => tag_ap_fn_mode(ctx, mode, name)
+      | {term: Tag(name), _} => tag_ap_mode(ctx, mode, name)
       | _ => Typ.ap_mode
       };
     let (ty_fn, free_fn, m_fn) = uexp_to_info_map(~ctx, ~mode=fn_mode, fn);
@@ -724,7 +727,7 @@ and upat_to_info_map =
     /* Constructors */
     let fn_mode =
       switch (fn) {
-      | {term: Tag(name), _} => tag_ap_fn_mode(ctx, mode, name)
+      | {term: Tag(name), _} => tag_ap_mode(ctx, mode, name)
       | _ => Typ.ap_mode
       };
     let (ty_fn, ctx, m_fn) = upat_to_info_map(~ctx, ~mode=fn_mode, fn);
