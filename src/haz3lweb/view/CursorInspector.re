@@ -22,27 +22,32 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
   | Multi =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
-  | SelfError(Free(Variable)) =>
+  | Self(Free(Variable)) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
     )
-  | SelfError(Free(TypeVariable)) =>
+  | Self(NoFun(typ)) =>
+    div(
+      ~attr=clss([errorc, "err-not-function"]),
+      [text("Not a function: "), Type.view(typ)],
+    )
+  | Self(Free(TypeVariable)) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Type Variable is not bound")],
     )
-  | SelfError(Free(Tag)) =>
+  | Self(Free(Tag)) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Constructor is not defined")],
     )
-  | SelfError(TagArity) =>
+  | Self(TagArity) =>
     div(
       ~attr=clss([errorc, "err-tag-arity"]),
       [text("This constructor takes no arguments")],
     )
-  | SelfError(MissingTag) =>
+  | Self(MissingTag) =>
     div(
       ~attr=clss([errorc, "err-not-tag"]),
       [text("Needs a constructor name")],
@@ -167,12 +172,12 @@ let view_of_info =
         status_view(error_status),
       ],
     );
-  | InfoTyp({self: SelfError(err), _}) =>
+  | InfoTyp({self: Self(err), _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        error_view(SelfError(err)),
+        error_view(Self(err)),
       ],
     )
   | InfoTyp({self: Just(ty), _}) =>
