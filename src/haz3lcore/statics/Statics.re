@@ -161,6 +161,90 @@ let is_error = (ci: t): bool => {
   };
 };
 
+type usage_info = (Token.t, list(Id.t));
+let binding_uses = (ci: t, info_map: map): list(usage_info) => {
+  switch (ci) {
+  | InfoPat({term, body_ids, _}) =>
+    let bindings = List.sort_uniq(compare, Term.UPat.get_all_bindings(term));
+    let exps_to_search: list(info_exp) =
+      List.fold_left(
+        (exps, id) => {
+          switch (Id.Map.find_opt(id, info_map)) {
+          | Some(InfoExp(info_body)) => [info_body, ...exps]
+          | _ => exps
+          }
+        },
+        [],
+        body_ids,
+      );
+    let empty_bindings_map: list(usage_info) =
+      List.map(var => (var, []), bindings);
+    let bindings_map =
+      List.fold_left(
+        (binding_map: list(usage_info), info_exp: info_exp) => {
+          let updated_map: list(usage_info) =
+            List.map(
+              (usage_pair: usage_info) => {
+                let (var, ids) = usage_pair;
+                let new_ids: list(Id.t) =
+                  List.map(
+                    (item: Ctx.co_item) => {item.id},
+                    List.flatten(VarMap.lookup_all(info_exp.free, var)),
+                  );
+                print_string("co_ctx | ");
+                let _ =
+                  List.map(
+                    coctx_pair => {
+                      let (var, co_items) = coctx_pair;
+                      print_string(var);
+                      print_string(":[");
+                      let _ =
+                        List.map(
+                          (co_it: Ctx.co_item) => {
+                            print_int(co_it.id);
+                            print_string(",");
+                          },
+                          co_items,
+                        );
+                      print_string("]; ");
+                    },
+                    info_exp.free,
+                  );
+                let all_ids: list(Id.t) =
+                  List.sort_uniq(compare, new_ids @ ids);
+                let pair: (Token.t, list(Id.t)) = (var, all_ids);
+                pair;
+              },
+              binding_map,
+            );
+          updated_map;
+        },
+        empty_bindings_map,
+        exps_to_search,
+      );
+    let _ =
+      List.map(
+        (usage_pair: usage_info) => {
+          let (var, ids) = usage_pair;
+          print_string(var);
+          print_string(": ");
+          let _ =
+            List.map(
+              id => {
+                print_int(id);
+                print_string(", ");
+              },
+              ids,
+            );
+          print_newline();
+        },
+        bindings_map,
+      );
+    bindings_map;
+  | _ => []
+  };
+};
+
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */

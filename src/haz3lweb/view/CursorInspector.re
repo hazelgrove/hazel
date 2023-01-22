@@ -207,140 +207,6 @@ let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   inject(Set(ContextInspector));
 };
 
-type usage_info = (Haz3lcore.Token.t, list(Haz3lcore.Id.t));
-let binding_uses =
-    (
-      ci: Haz3lcore.Statics.t,
-      _zipper: Haz3lcore.Zipper.t,
-      info_map: Haz3lcore.Statics.map,
-    )
-    : Node.t => {
-  switch (ci) {
-  | InfoPat({term, body_ids, _}) =>
-    let bindings =
-      List.sort_uniq(compare, Haz3lcore.Term.UPat.get_all_bindings(term));
-    let exps_to_search: list(Haz3lcore.Statics.info_exp) =
-      List.fold_left(
-        (exps, id) => {
-          switch (Haz3lcore.Id.Map.find_opt(id, info_map)) {
-          | Some(InfoExp(info_body)) => [info_body, ...exps]
-          | _ => exps
-          }
-        },
-        [],
-        body_ids,
-      );
-    let empty_bindings_map: list(usage_info) =
-      List.map(var => (var, []), bindings);
-    let bindings_map =
-      List.fold_left(
-        (binding_map: list(usage_info), info_exp: Haz3lcore.Statics.info_exp) => {
-          let updated_map: list(usage_info) =
-            List.map(
-              (usage_pair: usage_info) => {
-                let (var, ids) = usage_pair;
-                let new_ids: list(Haz3lcore.Id.t) =
-                  List.map(
-                    (item: Haz3lcore.Ctx.co_item) => {item.id},
-                    List.flatten(
-                      Haz3lcore.VarMap.lookup_all(info_exp.free, var),
-                    ),
-                  );
-                print_string("co_ctx | ");
-                let _ =
-                  List.map(
-                    coctx_pair => {
-                      let (var, co_items) = coctx_pair;
-                      print_string(var);
-                      print_string(":[");
-                      let _ =
-                        List.map(
-                          (co_it: Haz3lcore.Ctx.co_item) => {
-                            print_int(co_it.id);
-                            print_string(",");
-                          },
-                          co_items,
-                        );
-                      print_string("]; ");
-                    },
-                    info_exp.free,
-                  );
-                let all_ids: list(Haz3lcore.Id.t) =
-                  List.sort_uniq(compare, new_ids @ ids);
-                let pair: (Haz3lcore.Token.t, list(Haz3lcore.Id.t)) = (
-                  var,
-                  all_ids,
-                );
-                pair;
-              },
-              binding_map,
-            );
-          updated_map;
-        },
-        empty_bindings_map,
-        exps_to_search,
-      );
-    let _ =
-      List.map(
-        (usage_pair: usage_info) => {
-          let (var, ids) = usage_pair;
-          print_string(var);
-          print_string(": ");
-          let _ =
-            List.map(
-              id => {
-                print_int(id);
-                print_string(", ");
-              },
-              ids,
-            );
-          print_newline();
-        },
-        bindings_map,
-      );
-    div([]);
-  // extract the parent index
-  /* let parent_exp_gen = */
-  /*   List.find_opt( */
-  /*     gen => { */
-  /*       let anc: Haz3lcore.Ancestor.t = fst(gen); */
-  /*       switch (Haz3lcore.Ancestor.sort(anc)) { */
-  /*       | Exp => true */
-  /*       | Any => true */
-  /*       | _ => false */
-  /*       }; */
-  /*     }, */
-  /*     zipper.relatives.ancestors, */
-  /*   ); */
-  /* switch (parent_exp_gen) { */
-  /* | Some((anc, _)) => */
-  /*   switch (Haz3lcore.Id.Map.find_opt(anc.id, info_map)) { */
-  /*   | Some(InfoExp(info)) => */
-  /*     print_int(anc.id); */
-  /*     let _ = */
-  /*       List.map((_, co_entry) => print_endline(co_entry), info.free); */
-  /*     (); */
-  /*   | None => print_string("nothing in info_map") */
-  /*   | _ => () */
-  /*   }; */
-  /*   print_newline(); */
-  /*   div(List.map(x => text(string_of_int(x)), [anc.id])); */
-  /* | _ => div([]) */
-  /* }; */
-  // iterate over children of the parent exp
-  // co-context of binding expression will have the uids of variable uses
-  // in the info_map, store the binding uses
-  // make it a list of co-contexts for mutual recursion to work
-  // test recursive and mutually recursive bindings
-  // get mold.out (sort) of Exp
-  // lookup in info_map to find items of cls Var
-  // for each var, check if the token matches
-  // if it does, determine if the id of this is in the Ctx
-  // then how do we get a id from that??
-  | _ => div([])
-  };
-};
-
 let inspector_view =
     (
       ~inject,
@@ -348,8 +214,6 @@ let inspector_view =
       ~show_lang_doc: bool,
       id: int,
       ci: Haz3lcore.Statics.t,
-      zipper: Haz3lcore.Zipper.t,
-      info_map: Haz3lcore.Statics.map,
     )
     : Node.t =>
   div(
@@ -364,7 +228,6 @@ let inspector_view =
     [
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ~show_lang_doc, ci),
-      binding_uses(ci, zipper, info_map),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );
@@ -387,15 +250,7 @@ let view =
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, info_map)) {
       | Some(ci) =>
-        inspector_view(
-          ~inject,
-          ~settings,
-          ~show_lang_doc,
-          index,
-          ci,
-          zipper,
-          info_map,
-        )
+        inspector_view(~inject, ~settings, ~show_lang_doc, index, ci)
       | None =>
         div(
           ~attr=clss(["cursor-inspector"]),
