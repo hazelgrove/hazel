@@ -301,6 +301,20 @@ let extend_let_def_ctx =
     ctx;
   };
 
+let tag_mode = (mode: Typ.mode, name: Token.t): Typ.mode =>
+  switch (mode) {
+  | Ana(LabelSum(tags) as ty_ana)
+  | Ana(Arrow(_, LabelSum(tags) as ty_ana)) when Form.is_tag(name) =>
+    switch (Typ.tag_type(name, tags)) {
+    | None => Ana(ty_ana)
+    | Some({typ: Some(ty_in), _}) => Ana(Arrow(ty_in, ty_ana))
+    | Some(_) => Ana(ty_ana)
+    }
+  | Ana(_) => SynFun
+  | Syn
+  | SynFun => mode
+  };
+
 let tag_ana_type = (mode: Typ.mode, name: Token.t): option(Typ.t) =>
   switch (mode) {
   | Ana(LabelSum(tags) as ty_ana)
@@ -319,22 +333,22 @@ let tag_self = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.self =>
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type containing that tag, its self type becomes that
      type rather than checking the context */
-  switch (tag_ana_type(mode, name)) {
-  | Some(ana_ty) => Just(ana_ty)
-  | None =>
+  switch (tag_mode(mode, name)) {
+  | Ana(ana_ty) => Just(ana_ty)
+  | _ =>
     switch (Ctx.lookup_tag(ctx, name)) {
     | Some(syn) => Just(syn.typ)
     | None => Self(Free(Tag))
     }
   };
 
-let tag_ap_mode = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
+let tag_ap_mode = (_ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
   /* If a tag application is being analyzed against (an arrow type
      returning) a sum type containing that tag, then we analyze
      the tag itself instead of the usual SynPos mode */
-  switch (tag_ana_type(mode, name), tag_self(ctx, mode, name)) {
-  | (Some(_), Just(Arrow(_) as ty_ana)) => Ana(ty_ana)
-  | (Some(_), Just(ty_ana)) => Ana(Arrow(Unknown(Internal), ty_ana))
+  switch (tag_mode(mode, name /*, tag_self(ctx, mode, name)*/)) {
+  | Ana(Arrow(_) as ty_ana) => Ana(ty_ana)
+  | Ana(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => Typ.ap_mode
   };
 
