@@ -406,7 +406,6 @@ and UTSum: {
     | MultiHole(list(Any.t))
     | Sum(list(tagged))
   and tagged = {
-    id: list(Id.t),
     tag: Token.t,
     typ: option(UTyp.t),
   }
@@ -421,7 +420,6 @@ and UTSum: {
     | MultiHole(list(Any.t))
     | Sum(list(tagged))
   and tagged = {
-    id: list(Id.t),
     tag: Token.t,
     typ: option(UTyp.t),
   }
