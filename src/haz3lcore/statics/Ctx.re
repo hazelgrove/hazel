@@ -1,43 +1,28 @@
 open Util.OptUtil.Syntax;
 include TypBase.Ctx;
 
-let get_id = (entry: entry) =>
-  switch (entry) {
-  | VarEntry({id, _}) => id
-  | TVarEntry({id, _}) => id
-  | TagEntry(_) => 0 //TODO could add ids to these
-  };
+let get_id: entry => int =
+  fun
+  | VarEntry({id, _})
+  | TagEntry({id, _})
+  | TVarEntry({id, _}) => id;
 let empty: t = VarMap.empty;
 
-let extend = (entry: entry, ctx: t): t => [entry, ...ctx];
+let extend: (entry, t) => t = List.cons;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    entry =>
-      switch (entry) {
-      | VarEntry(var) =>
-        if (var.name == name) {
-          Some(var);
-        } else {
-          None;
-        }
-      | _ => None
-      },
+    fun
+    | VarEntry(v) when v.name == name => Some(v)
+    | _ => None,
     ctx,
   );
 
 let lookup_tag = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    entry =>
-      switch (entry) {
-      | TagEntry(tag) =>
-        if (tag.name == name) {
-          Some(tag);
-        } else {
-          None;
-        }
-      | _ => None
-      },
+    fun
+    | TagEntry(t) when t.name == name => Some(t)
+    | _ => None,
     ctx,
   );
 
