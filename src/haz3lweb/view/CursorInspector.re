@@ -30,7 +30,7 @@ let error_view = (err: Haz3lcore.Statics.error) =>
   | Self(NoFun(typ)) =>
     div(
       ~attr=clss([errorc, "err-not-function"]),
-      [text("Not a function or applicable constructor: "), Type.view(typ)],
+      [text("Not consistent with arrow type:"), Type.view(typ)],
     )
   | Self(Free(TypeVariable)) =>
     div(

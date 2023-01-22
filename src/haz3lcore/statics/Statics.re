@@ -316,37 +316,125 @@ let ana_tag_types =
   | SynFun => None
   };
 
-//TODO(andrew): cleanup
-let __ap_mode = (fn: TermBase.UExp.t, mode: Typ.mode): Typ.mode =>
-  switch (fn, mode) {
-  | ({term: Tag(name), _}, Ana(LabelSum(tags) as ty_ana))
-      when Form.is_tag(name) =>
-    switch (Typ.tag_type(name, tags)) {
-    | None => Typ.ap_mode
-    | Some({typ, _}) =>
-      switch (typ) {
-      | None => Ana(ty_ana)
-      | Some(ty) => Ana(Arrow(ty, ty_ana))
-      }
+let tag_self = (ctx, mode, name): Typ.self =>
+  switch (ana_tag_types(mode, name)) {
+  | Some((Some(ty_tag), ty_ana)) => Just(Arrow(ty_tag, ty_ana))
+  | Some((None, ty_ana)) => Just(ty_ana)
+  | None =>
+    switch (Ctx.lookup_tag(ctx, name)) {
+    | Some(tag) => Just(tag.typ)
+    | None => Self(Free(Tag))
     }
-  | _ => Typ.ap_mode
   };
 
-//TODO(andrew): cleanup
-let _ap_mode_pat = (fn: TermBase.UPat.t, mode: Typ.mode): Typ.mode =>
-  switch (fn, mode) {
-  | ({term: Tag(name), _}, Ana(LabelSum(tags) as ty_ana))
-      when Form.is_tag(name) =>
-    switch (Typ.tag_type(name, tags)) {
-    | None => Typ.ap_mode
-    | Some({typ, _}) =>
-      switch (typ) {
-      | None => Ana(ty_ana)
-      | Some(ty) => Ana(Arrow(ty, ty_ana))
-      }
-    }
-  | _ => Typ.ap_mode
+let tag_ap_fn' = (ctx, mode, name): (Typ.mode, Typ.self) => {
+  switch (tag_self(ctx, mode, name)) {
+  | Just(Arrow(_) as a) when ana_tag_types(mode, name) != None => (
+      Ana(a),
+      Just(a),
+    )
+  | Just(Arrow(_) as a) => (SynFun, Just(a))
+  | Just(ty_ana) when ana_tag_types(mode, name) != None => (
+      Ana(Arrow(Unknown(Internal), ty_ana)),
+      Self(NoFun(ty_ana)),
+    )
+  | Just(ty_ana) => (SynFun, Self(NoFun(ty_ana)))
+  | x => (SynFun, x)
   };
+};
+
+let tag_ap_fn = (ctx, mode, name): (Typ.mode, Typ.self) => {
+  switch (tag_self(ctx, mode, name)) {
+  | Just(Arrow(_) as a) when ana_tag_types(mode, name) != None => (
+      Ana(a),
+      Just(a),
+    )
+  | Just(Arrow(_) as a) => (SynFun, Just(a))
+  /*| Just(ty_ana) when ana_tag_types(mode, name) != None => (
+      Ana(ty_ana),
+      Self(NoFun(ty_ana)),
+    )*/
+  | Just(ty_ana) => (SynFun, Self(NoFun(ty_ana)))
+  | x => (SynFun, x)
+  };
+};
+
+let tag_ap_arg' = (_mode: Typ.mode, ty_fn): (Typ.mode, Typ.self) => {
+  //let (fn_mode, fn_self) = tag_ap_fn(ctx, mode, name);
+  //let ty_fn = typ_after_fix(ctx, fn_mode, fn_self);
+  let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+  (Ana(ty_in), Just(ty_out));
+};
+
+let tag_ap_arg = (ctx, mode, name): (Typ.mode, Typ.self) => {
+  let (fn_mode, fn_self) = tag_ap_fn(ctx, mode, name);
+  let ty_fn = typ_after_fix(ctx, fn_mode, fn_self);
+  let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+  (Ana(ty_in), Just(ty_out));
+};
+
+/*let tag_ap_fn' = (ctx, mode, name): (Typ.mode, Typ.self) =>
+  switch (ana_tag_types(mode, name)) {
+  | Some((Some(ty_tag), ty_ana)) => (
+      Ana(Arrow(ty_tag, ty_ana)),
+      Just(Arrow(ty_tag, ty_ana)),
+    )
+  | Some((None, ty_ana)) => (SynFun, Self(NoFun(ty_ana)))
+  | None =>
+    switch (Ctx.lookup_tag(ctx, name)) {
+    | Some({typ: Arrow(_) as fn, _}) => (SynFun, Just(fn)) // ****
+    | Some(tag) => (SynFun, Self(NoFun(tag.typ)))
+    | None => (SynFun, Self(Free(Tag)))
+    }
+  };*/
+
+/*let tag_ap_arg = (ctx, mode, name): (Typ.mode, Typ.self) => {
+    let unk = Typ.Unknown(Internal);
+    switch (ana_tag_types(mode, name)) {
+    | Some((Some(ty_tag), ty_ana)) => (Ana(ty_tag), Just(ty_ana))
+    | Some((None, _)) => (Ana(unk), Just(unk))
+    | None =>
+      switch (Ctx.lookup_tag(ctx, name)) {
+      | Some({typ: Arrow(i, o), _}) => (Ana(i), Just(o))
+      | Some(_)
+      | None => (Ana(unk), Just(unk))
+      }
+    };
+  };*/
+
+/*
+ //TODO(andrew): cleanup
+ let __ap_mode = (fn: TermBase.UExp.t, mode: Typ.mode): Typ.mode =>
+   switch (fn, mode) {
+   | ({term: Tag(name), _}, Ana(LabelSum(tags) as ty_ana))
+       when Form.is_tag(name) =>
+     switch (Typ.tag_type(name, tags)) {
+     | None => Typ.ap_mode
+     | Some({typ, _}) =>
+       switch (typ) {
+       | None => Ana(ty_ana)
+       | Some(ty) => Ana(Arrow(ty, ty_ana))
+       }
+     }
+   | _ => Typ.ap_mode
+   };
+
+ //TODO(andrew): cleanup
+ let _ap_mode_pat = (fn: TermBase.UPat.t, mode: Typ.mode): Typ.mode =>
+   switch (fn, mode) {
+   | ({term: Tag(name), _}, Ana(LabelSum(tags) as ty_ana))
+       when Form.is_tag(name) =>
+     switch (Typ.tag_type(name, tags)) {
+     | None => Typ.ap_mode
+     | Some({typ, _}) =>
+       switch (typ) {
+       | None => Ana(ty_ana)
+       | Some(ty) => Ana(Arrow(ty, ty_ana))
+       }
+     }
+   | _ => Typ.ap_mode
+   };
+ */
 
 let typ_exp_binop_bin_int: Term.UExp.op_bin_int => Typ.t =
   fun
@@ -470,16 +558,6 @@ and uexp_to_info_map =
         Id.Map.empty,
       )
     }
-  | Tag(name) =>
-    switch (ana_tag_types(mode, name)) {
-    | Some((None, ty_ana)) => atomic(Just(ty_ana))
-    | Some((Some(ty_tag), ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
-    | None =>
-      switch (Ctx.lookup_tag(ctx, name)) {
-      | None => atomic(Self(Free(Tag)))
-      | Some(tag) => atomic(Just(tag.typ))
-      }
-    }
   | Parens(e) =>
     let (ty, free, m) = go(~mode, e);
     add(~self=Just(ty), ~free, m);
@@ -530,26 +608,34 @@ and uexp_to_info_map =
       ~free=Ctx.union([free1, free2]),
       union_m([m1, m2]),
     );
-  | Ap({term: Tag(name), ids: extra_ids}, arg) =>
+  | Tag(name) => atomic(tag_self(ctx, mode, name))
+  | Ap({term: Tag(name) as _term, ids: _extra_ids} as tt, arg) =>
     /* Labelled Sum constructor case. This can't simply
        be defered to the case of tag in fn position
        because then the analytic case won't work as
        the mode will not be passed to the tag. */
-    let (mode: Typ.mode, self: Typ.self) =
-      switch (ana_tag_types(mode, name)) {
-      | Some((None, ty_ana)) => (Syn, Self(NoFun(ty_ana)))
-      | Some((Some(ty_tag), ty_ana)) => (Ana(ty_tag), Just(ty_ana))
-      | None =>
-        switch (Ctx.lookup_tag(ctx, name)) {
-        | None => (Syn, Self(Free(Tag)))
-        | Some({typ: Arrow(i, o), _}) => (Ana(i), Just(o))
-        | Some({typ, _}) => (Syn, Self(NoFun(typ)))
-        }
-      };
-    let (_, free, m) = uexp_to_info_map(~ctx, ~mode, arg);
-    add(~extra_ids, ~self, ~free, m);
+    /*let (mode_fn, self_fn) = tag_ap_fn(ctx, mode, name);
+      let m_fn =
+        add_info(
+          extra_ids,
+          InfoExp({
+            cls: Term.UExp.cls_of_term(term),
+            self: self_fn,
+            mode: mode_fn,
+            ctx,
+            free: [],
+            term: tt,
+          }),
+          Id.Map.empty,
+        );*/
+    let (fn_mode, _) = tag_ap_fn'(ctx, mode, name);
+    let (ty_fn, _free_fn, m_fn) = uexp_to_info_map(~ctx, ~mode=fn_mode, tt);
+    let (mode_arg, self_ap) = tag_ap_arg'(mode, ty_fn);
+    //let (mode_arg, self_ap) = tag_ap_arg(ctx, mode, name);
+    let (_, free, m_arg) = uexp_to_info_map(~ctx, ~mode=mode_arg, arg);
+    add(~self=self_ap, ~free, union_m([m_fn, m_arg]));
   | Ap(fn, arg) =>
-    /* Function position mode Ana(Hole->Hole) instead of Syn */
+    /* Note: Function position has a seperate mode */
     let (ty_fn, free_fn, m_fn) =
       uexp_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
     let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -733,16 +819,6 @@ and upat_to_info_map =
     let (ty1, ctx, m_hd) = upat_to_info_map(~ctx, ~mode=mode_e, hd);
     let (_, ctx, m_tl) = upat_to_info_map(~ctx, ~mode=Ana(List(ty1)), tl);
     add(~self=Just(List(ty1)), ~ctx, union_m([m_hd, m_tl]));
-  | Tag(name) =>
-    switch (ana_tag_types(mode, name)) {
-    | Some((None, ty_ana)) => atomic(Just(ty_ana))
-    | Some((Some(ty_tag), ty_ana)) => atomic(Just(Arrow(ty_tag, ty_ana)))
-    | None =>
-      switch (Ctx.lookup_tag(ctx, name)) {
-      | None => atomic(Self(Free(Tag)))
-      | Some(tag) => atomic(Just(tag.typ))
-      }
-    }
   | Wild => atomic(Just(unknown))
   | Var(name) =>
     let typ = typ_after_fix(ctx, mode, Just(Unknown(Internal)));
@@ -766,26 +842,17 @@ and upat_to_info_map =
   | Parens(p) =>
     let (ty, ctx, m) = upat_to_info_map(~ctx, ~mode, p);
     add(~self=Just(ty), ~ctx, m);
+  | Tag(name) => atomic(tag_self(ctx, mode, name))
   | Ap({term: Tag(name), ids: extra_ids}, arg) =>
     /* Labelled Sum constructor case. This can't simply
        be defered to the case of tag in fn position
        because then the analytic case won't work as
        the mode will not be passed to the tag. */
-    let (mode: Typ.mode, self: Typ.self) =
-      switch (ana_tag_types(mode, name)) {
-      | Some((None, ty_ana)) => (Syn, Self(NoFun(ty_ana)))
-      | Some((Some(ty_tag), ty_ana)) => (Ana(ty_tag), Just(ty_ana))
-      | None =>
-        switch (Ctx.lookup_tag(ctx, name)) {
-        | None => (Syn, Self(Free(Tag)))
-        | Some({typ: Arrow(i, o), _}) => (Ana(i), Just(o))
-        | Some({typ, _}) => (Syn, Self(NoFun(typ)))
-        }
-      };
+    let (mode, self) = tag_ap_arg(ctx, mode, name);
     let (_, ctx, m) = upat_to_info_map(~ctx, ~mode, arg);
     add(~extra_ids, ~self, ~ctx, m);
   | Ap(fn, arg) =>
-    /* Constructor Application */
+    /* Error case for non-tag applications */
     /*let (ty_fn, ctx, m_fn) =
         upat_to_info_map(~ctx, ~mode=Typ.ap_mode, fn);
       let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
@@ -797,7 +864,7 @@ and upat_to_info_map =
     add(~self=Self(NoFun(ty_fn)), ~ctx, union_m([m_fn, m_arg]));
   | TypeAnn(p, ty) =>
     let (ty_ann, m_typ) = utyp_to_info_map(~ctx, ty);
-    let (_ty, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
+    let (_, ctx, m) = upat_to_info_map(~ctx, ~mode=Ana(ty_ann), p);
     add(~self=Just(ty_ann), ~ctx, union_m([m, m_typ]));
   };
 }
