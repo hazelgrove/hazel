@@ -4,18 +4,18 @@ include Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = piece;
 
-let whitespace = w => Whitespace(w);
+let secondary = w => Secondary(w);
 let grout = g => Grout(g);
 let tile = t => Tile(t);
 
 let get = (f_w, f_g, f_t, p: t) =>
   switch (p) {
-  | Whitespace(w) => f_w(w)
+  | Secondary(w) => f_w(w)
   | Grout(g) => f_g(g)
   | Tile(t) => f_t(t)
   };
 
-let id = get(Whitespace.id, Grout.id, Tile.id);
+let id = get(Secondary.id, Grout.id, Tile.id);
 
 let sort =
   get(
@@ -50,7 +50,7 @@ let children = p => sorted_children(p) |> List.split |> snd;
 // let is_balanced =
 //   fun
 //   | Shard(_) => false
-//   | Whitespace(_)
+//   | Secondary(_)
 //   | Grout(_)
 //   | Tile(_) => true;
 
@@ -58,26 +58,26 @@ let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
   | Grout(_)
-  | Whitespace(_) => (p, [])
+  | Secondary(_) => (p, [])
   };
 let pop_r = (p: t): (segment, t) =>
   switch (p) {
   | Tile(t) => Tile.pop_r(t)
   | Grout(_)
-  | Whitespace(_) => ([], p)
+  | Secondary(_) => ([], p)
   };
 
 let disassemble = (p: t): segment =>
   switch (p) {
   | Grout(_)
-  | Whitespace(_) => [p]
+  | Secondary(_) => [p]
   | Tile(t) => Tile.disassemble(t)
   };
 
 // let remold = (p: t) =>
 //   switch (p) {
 //   | Grout(_)
-//   | Whitespace(_) => [p]
+//   | Secondary(_) => [p]
 //   | Tile(t) => List.map(tile, Tile.remold(t))
 //   };
 
@@ -89,9 +89,9 @@ let is_grout: t => bool =
   | Grout(_) => true
   | _ => false;
 
-let is_whitespace: t => bool =
+let is_secondary: t => bool =
   fun
-  | Whitespace(_) => true
+  | Secondary(_) => true
   | _ => false;
 
 let is_tile: t => option(Tile.t) =
@@ -107,6 +107,8 @@ let label: t => option(Label.t) =
 let monotile: t => option(Token.t) =
   fun
   | Tile({label: [t], _}) => Some(t)
+  | Secondary(w) when Secondary.is_comment(w) =>
+    Some(Secondary.get_string(w.content))
   | _ => None;
 
 let is_length_one_monotile: t => bool =
@@ -126,7 +128,7 @@ let is_complete: t => bool =
 let get_outside_sorts = (~default_sort=Sort.Any, p: t): list(Sort.t) =>
   //TODO: David please review this
   switch (p) {
-  | Whitespace(_) => []
+  | Secondary(_) => []
   | Grout({shape: Convex, _}) => []
   | Grout({shape: Concave, _}) => [default_sort, default_sort]
   | Tile({shards: _, _} as t) when !Tile.is_complete(t) =>

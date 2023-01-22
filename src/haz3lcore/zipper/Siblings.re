@@ -99,14 +99,14 @@ let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
 let neighbors: t => (option(Piece.t), option(Piece.t)) =
   n => (left_neighbor(n), right_neighbor(n));
 
-let trim_whitespace = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace(Right, l_sibs),
-  Segment.trim_whitespace(Left, r_sibs),
+let trim_secondary = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary(Right, l_sibs),
+  Segment.trim_secondary(Left, r_sibs),
 );
 
-let trim_whitespace_and_grout = ((l_sibs, r_sibs): t) => (
-  Segment.trim_whitespace_and_grout(Right, l_sibs),
-  Segment.trim_whitespace_and_grout(Left, r_sibs),
+let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
+  Segment.trim_secondary_and_grout(Right, l_sibs),
+  Segment.trim_secondary_and_grout(Left, r_sibs),
 );
 
 let direction_between = ((l, r): t): option(Direction.t) =>
