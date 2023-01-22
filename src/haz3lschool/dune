@@ -1,0 +1,15 @@
+(include_subdirs unqualified)
+
+(library
+ (name haz3lschool)
+ (modules (:standard) \ Gradescope)
+ (libraries util ppx_yojson_conv.expander haz3lcore pretty lwt lwtutil)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
+
+(executable
+ (name gradescope)
+ (modules Gradescope)
+ (libraries ppx_yojson_conv.expander haz3lcore haz3lschool)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))

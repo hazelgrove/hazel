@@ -1,5 +1,3 @@
-open Haz3lcore;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 

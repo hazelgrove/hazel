@@ -27,14 +27,33 @@ type t =
   | Rec(Token.t, t)
 and tagged = {
   tag: Token.t,
-  typ: t,
+  typ: option(t),
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type adt = (Token.t, list(tagged));
 
 let sort_tagged: list(tagged) => list(tagged) =
   List.sort(({tag: t1, _}, {tag: t2, _}) => compare(t1, t2));
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type adt = (Token.t, list(tagged));
+let find_tag = (t: Token.t, tags: list(tagged)): option(tagged) =>
+  List.find_map(
+    fun
+    | {tag, typ} when tag == t => Some({tag, typ})
+    | _ => None,
+    tags,
+  );
+
+let ana_sum = (tag: Token.t, tags: list(tagged), ty_ana: t): option(t) =>
+  /* Returns the type of a tag if that tag is given a type by the sum
+     type ty_ana having tags as variants. If tag is a nullart constructor,
+     ty_ana itself is returned; otherwise an arrow from tag's parameter
+     type to ty_ana */
+  switch (find_tag(tag, tags)) {
+  | Some({typ: Some(ty_in), _}) => Some(Arrow(ty_in, ty_ana))
+  | Some({typ: None, _}) => Some(ty_ana)
+  | None => None
+  };
 
 /* SOURCE: Hazel type annotated with a relevant source location.
    Currently used to track match branches for inconsistent
@@ -52,6 +71,13 @@ type free_errors =
   | Tag
   | TypeVariable;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type self_error =
+  | NoFun(t)
+  //| TagArity
+  //| MissingTag
+  | Free(free_errors);
+
 /* SELF: The (synthetic) type information derivable from a term
    in isolation, using the typing context but not the syntactic
    context. This can either be Free (no type, in the case of
@@ -61,9 +87,10 @@ type free_errors =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(t)
+  // TODO: make it so that joined applies only to inconsistent types; rename NoJoin
   | Joined(t => t, list(source))
   | Multi
-  | Free(free_errors);
+  | Self(self_error);
 
 /* MODE: The (analytic) type information derived from a term's
    syntactic context. This can either Syn (no type expectation),
@@ -72,6 +99,7 @@ type self =
    Ana(Unknown(SynSwitch)), and that this type is thus vestigial. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
+  | SynFun
   | Syn
   | Ana(t);
 
@@ -105,6 +133,7 @@ let matched_arrow: t => (t, t) =
 
 let matched_arrow_mode: mode => (mode, mode) =
   fun
+  | SynFun
   | Syn => (Syn, Syn)
   | Ana(ty) => {
       let (ty_in, ty_out) = matched_arrow(ty);
@@ -115,6 +144,7 @@ let matched_prod_mode = (mode: mode, length): list(mode) =>
   switch (mode) {
   | Ana(Prod(ana_tys)) when List.length(ana_tys) == length =>
     List.map(ty => Ana(ty), ana_tys)
+  | Ana(Unknown(prod)) => List.init(length, _ => Ana(Unknown(prod)))
   | _ => List.init(length, _ => Syn)
   };
 
@@ -126,16 +156,11 @@ let matched_list: t => t =
 
 let matched_list_mode: mode => mode =
   fun
+  | SynFun
   | Syn => Syn
   | Ana(ty) => Ana(matched_list(ty));
 
-let matched_list_lit_mode = (mode: mode, length): list(mode) =>
-  switch (mode) {
-  | Syn => List.init(length, _ => Syn)
-  | Ana(ty) => List.init(length, _ => Ana(matched_list(ty)))
-  };
-
-let ap_mode: mode = Syn;
+let ap_mode: mode = SynFun;
 
 /* Legacy code from HTyp */
 
@@ -152,7 +177,6 @@ let precedence = (ty: t): int =>
   | Unknown(_)
   | Var(_)
   | Rec(_)
-  | Prod([])
   | LabelSum(_)
   | List(_) => precedence_const
   | Prod(_) => precedence_Prod
@@ -199,18 +223,23 @@ let rec eq = (~d=[], t1, t2) => {
   | (LabelSum(tys1), LabelSum(tys2)) =>
     let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
-    && List.for_all2(
-         (ts1, ts2) => ts1.tag == ts2.tag && eq'(ts1.typ, ts2.typ),
-         tys1,
-         tys2,
-       );
+    && List.for_all2(tagged_eq(~d), tys1, tys2);
   | (LabelSum(_), _) => false
   | (Var(n1), Var(n2)) => type_var_eq(d, n1, n2)
   | (Var(_), _) => false
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
   | (Rec(_), _) => false
   };
-};
+}
+and tagged_eq = (~d, t1: tagged, t2: tagged) =>
+  t1.tag == t2.tag
+  && (
+    switch (t1.typ, t2.typ) {
+    | (None, None) => true
+    | (Some(t1), Some(t2)) => eq(~d, t1, t2)
+    | _ => false
+    }
+  );
 
 let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   switch (ty) {
@@ -224,7 +253,16 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | Arrow(t1, t2)
   | Sum(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | LabelSum(tags) =>
-    List.concat(List.map(tag => free_vars(~bound, tag.typ), tags))
+    List.concat(
+      List.map(
+        tag =>
+          switch (tag.typ) {
+          | None => []
+          | Some(typ) => free_vars(~bound, typ)
+          },
+        tags,
+      ),
+    )
   | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
   | Rec(x, ty) => free_vars(~bound=[x] @ bound, ty)
   };
@@ -239,7 +277,13 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
   | LabelSum(tys) =>
-    LabelSum(List.map(ty => {tag: ty.tag, typ: subst(s, x, ty.typ)}, tys))
+    LabelSum(
+      List.map(
+        ty =>
+          {tag: ty.tag, typ: Option.map(typ => subst(s, x, typ), ty.typ)},
+        tys,
+      ),
+    )
   | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | Sum(ty1, ty2) => Sum(subst(s, x, ty1), subst(s, x, ty2))

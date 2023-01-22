@@ -81,6 +81,12 @@ let get_localstore = (k: string): option(string) =>
   | _ => None
   };
 
+let clear_localstore = () => {
+  let local_store =
+    Js.Optdef.get(Dom_html.window##.localStorage, () => assert(false));
+  local_store##clear;
+};
+
 let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
