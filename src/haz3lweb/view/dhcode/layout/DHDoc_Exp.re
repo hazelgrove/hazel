@@ -1,6 +1,11 @@
 open Haz3lcore;
 module Doc = Pretty.Doc;
 
+let precedence_un_int_op = (op: DHExp.UnIntOp.t) =>
+  switch (op) {
+  | Minus => DHDoc_common.precedence_Neg
+  };
+
 let precedence_bin_bool_op = (op: DHExp.BinBoolOp.t) =>
   switch (op) {
   | And => DHDoc_common.precedence_And
@@ -40,14 +45,10 @@ let precedence_bin_string_op = (bso: DHExp.BinStringOp.t) =>
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d.term) {
-  | Invalid(_)
-  | EmptyHole
-  | If(_)
   | Parens(_)
-  | UnOp(_)
-  | MultiHole(_) => failwith("precedence on UExp")
   | Var(_)
   | Hole(_, FreeVar(_))
+  | Hole(_, Invalid(_))
   | Hole(_, InvalidText(_))
   | Hole(_, ExpandingKeyword(_))
   | Bool(_)
@@ -59,18 +60,21 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ListLit(_)
   | Inj(_)
   | Prj(_)
-  | Hole(_, Empty)
   | Tag(_)
-  | Error(FailedCast(_))
-  | Error(InvalidOperation(_))
+  | Hole(_, EmptyHole)
+  | Hole(_, MultiHole(_))
+  | Hole(_, FailedCast(_))
+  | Hole(_, InvalidOperation(_))
   | Fun(_)
   | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Let(_)
   | FixF(_)
+  | If(_)
   | Match(_)
   | Hole(_, InconsistentBranches(_)) => DHDoc_common.precedence_max
+  | UnOp(Int(op), _) => precedence_un_int_op(op)
   | BinOp(Bool(op), _, _) => precedence_bin_bool_op(op)
   | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
@@ -81,9 +85,16 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Triv
   | Tuple(_) => DHDoc_common.precedence_Comma
 
-  | Hole(_, NonEmpty(_, d)) => precedence'(d)
+  | Hole(_, NonEmptyHole(_, d)) => precedence'(d)
   };
 };
+
+let mk_un_int_op = (op: DHExp.UnIntOp.t): DHDoc.t =>
+  Doc.text(
+    switch (op) {
+    | Minus => "-"
+    },
+  );
 
 let mk_bin_bool_op = (op: DHExp.BinBoolOp.t): DHDoc.t =>
   Doc.text(
@@ -181,6 +192,34 @@ let rec mk =
           ]),
         );
       };
+    let go_if = (c, t, e) =>
+      if (enforce_inline) {
+        fail();
+      } else {
+        let c_doc =
+          choices([
+            hcats([space(), mk_cast(go(~enforce_inline=true, c))]),
+            hcats([
+              linebreak(),
+              indent_and_align(mk_cast(go(~enforce_inline=false, c))),
+            ]),
+          ]);
+        let mk_clause = mk_clause(~settings, ~selected_hole_instance);
+        vseps(
+          List.concat([
+            [
+              hcats([
+                DHDoc_common.Delim.open_If,
+                c_doc,
+                DHDoc_common.Delim.then_If,
+              ]),
+            ],
+            [mk_clause(t)],
+            [DHDoc_common.Delim.else_If],
+            [mk_clause(e)],
+          ]),
+        );
+      };
     let mk_left_associative_operands = (precedence_op, d1, d2) => (
       go'(~parenthesize=precedence(d1) > precedence_op, d1),
       go'(~parenthesize=precedence(d2) >= precedence_op, d2),
@@ -196,44 +235,45 @@ let rec mk =
       };
     let fdoc = (~enforce_inline) =>
       switch (d.term) {
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Triv
-      | If(_)
-      | UnOp(_)
-      | Parens(_) => failwith("DHDoc_Exp.mk on UExp")
+      | Parens(d) =>
+        hcats([
+          DHDoc_common.Delim.open_Parenthesized,
+          mk_cast(go'(~parenthesize=true, d)),
+          DHDoc_common.Delim.close_Parenthesized,
+        ])
       /* A closure may only exist around hole expressions in
          the postprocessed result */
       | Closure(_, d') =>
         switch (d'.term) {
-        | Hole((u, i), Empty) =>
+        | Hole(Some((u, i)), EmptyHole) =>
           let selected =
             switch (selected_hole_instance) {
             | None => false
             | Some((u', i')) => u == u' && i == i'
             };
           DHDoc_common.mk_EmptyHole(~selected, (u, i));
-        | Hole((u, i), NonEmpty(reason, d')) =>
-          go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-        | Hole((u, i), ExpandingKeyword(k)) =>
-          DHDoc_common.mk_ExpandingKeyword((u, i), k)
-        | Hole((u, i), FreeVar(x)) =>
-          text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-        | Hole((u, i), InvalidText(t)) =>
-          DHDoc_common.mk_InvalidText(t, (u, i))
-        | Hole((u, i), InconsistentBranches(dscrut, drs, _)) =>
-          go_case(dscrut, drs)
-          |> annot(DHAnnot.InconsistentBranches((u, i)))
+        | Hole(Some(hi), NonEmptyHole(reason, d')) =>
+          go'(d') |> mk_cast |> annot(DHAnnot.NonEmptyHole(reason, hi))
+        | Hole(Some(hi), ExpandingKeyword(k)) =>
+          DHDoc_common.mk_ExpandingKeyword(hi, k)
+        | Hole(Some(hi), FreeVar(x)) =>
+          text(x) |> annot(DHAnnot.VarHole(Free, hi))
+        | Hole(Some(hi), InvalidText(t)) =>
+          DHDoc_common.mk_InvalidText(t, hi)
+        | Hole(Some(hi), InconsistentBranches(dscrut, drs, _)) =>
+          go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches(hi))
+        | Hole(_, _) => raise(EvaluatorPost.Exception(MalformedHole))
         | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
         }
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */
-      | Hole(_, Empty)
-      | Hole(_, NonEmpty(_))
+      | Hole(_, EmptyHole)
+      | Hole(_, MultiHole(_))
+      | Hole(_, NonEmptyHole(_))
       | Hole(_, ExpandingKeyword(_))
       | Hole(_, FreeVar(_))
+      | Hole(_, Invalid(_))
       | Hole(_, InvalidText(_))
       | Hole(_, InconsistentBranches(_)) =>
         raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
@@ -285,6 +325,9 @@ let rec mk =
           DHDoc_common.mk_Ap(mk_cast(doc1), mk_cast(doc2));
         | [] => text(ident)
         }
+      | UnOp(Int(op), d) =>
+        let doc = go'(~parenthesize=true, d);
+        hseps([mk_un_int_op(op), mk_cast(doc)]);
       | BinOp(Int(op), d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
@@ -308,10 +351,12 @@ let rec mk =
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);
         hseps([mk_cast(doc1), mk_bin_bool_op(op), mk_cast(doc2)]);
+      | Triv => DHDoc_common.Delim.triv
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.map(d => mk_cast(go'(d))))
       | Prj(d, n) => DHDoc_common.mk_Prj(mk_cast(go'(d)), n)
+      | If(c, t, e) => go_if(c, t, e)
       | Match(dscrut, drs, _) => go_case(dscrut, drs)
       | Cast(d, _, _) =>
         let (doc, _) = go'(d);
@@ -337,7 +382,7 @@ let rec mk =
           ]),
           mk_cast(go(~enforce_inline=false, dbody)),
         ]);
-      | Error(FailedCast({term: Cast(d, ty1, ty2), _}, ty2', ty3))
+      | Hole(None, FailedCast({term: Cast(d, ty1, ty2), _}, ty2', ty3))
           when Typ.eq(ty2, ty2') =>
         let (d_doc, _) = go'(d);
         let cast_decoration =
@@ -352,14 +397,18 @@ let rec mk =
           ])
           |> annot(DHAnnot.FailedCastDecoration);
         hcats([d_doc, cast_decoration]);
-      | Error(FailedCast(_d, _ty1, _ty2)) =>
+      | Hole(None, FailedCast(_d, _ty1, _ty2)) =>
         failwith("unexpected FailedCast without inner cast")
-      | Error(InvalidOperation(err, d)) =>
+      | Hole(Some(_), FailedCast(_)) =>
+        raise(EvaluatorPost.Exception(MalformedHole))
+      | Hole(None, InvalidOperation(err, d)) =>
         let (d_doc, _) = go'(d);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
+      | Hole(Some(_), InvalidOperation(_)) =>
+        raise(EvaluatorPost.Exception(MalformedHole))
       /* | InvalidOperation(d, err) => */
       /*   switch (err) { */
       /*   | DivideByZero => */
@@ -445,21 +494,25 @@ let rec mk =
   };
   mk_cast(go(~parenthesize, ~enforce_inline, d));
 }
-and mk_rule =
-    (~settings, ~selected_hole_instance, (dp, dclause): DHExp.rule): DHDoc.t => {
+and mk_clause =
+    (~settings, ~selected_hole_instance, dclause: DHExp.t): DHDoc.t => {
   open Doc;
   let mk' = mk(~settings, ~selected_hole_instance);
   let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
-  let clause_doc =
-    settings.show_case_clauses
-      ? choices([
-          hcats([space(), mk'(~enforce_inline=true, dclause)]),
-          hcats([
-            linebreak(),
-            indent_and_align(mk'(~enforce_inline=false, dclause)),
-          ]),
-        ])
-      : hcat(space(), hidden_clause);
+  settings.show_case_clauses
+    ? choices([
+        hcats([space(), mk'(~enforce_inline=true, dclause)]),
+        hcats([
+          linebreak(),
+          indent_and_align(mk'(~enforce_inline=false, dclause)),
+        ]),
+      ])
+    : hcat(space(), hidden_clause);
+}
+and mk_rule =
+    (~settings, ~selected_hole_instance, (dp, dclause): DHExp.rule): DHDoc.t => {
+  open Doc;
+  let clause_doc = mk_clause(~settings, ~selected_hole_instance, dclause);
   hcats([
     DHDoc_common.Delim.bar_Rule,
     DHDoc_Pat.mk(dp)

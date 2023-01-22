@@ -126,7 +126,7 @@ let view_of_hole_instance =
       ~selected_hole_instance,
       ~settings: Settings.Evaluation.t,
       ~font_metrics: FontMetrics.t,
-      (u, i): HoleInstance.t,
+      hi: HoleInstance.t,
     )
     : Node.t =>
   view(
@@ -136,7 +136,7 @@ let view_of_hole_instance =
     ~font_metrics,
     ~width,
     ~pos,
-    {ids: [], term: DHExp.Hole((u, i), Empty)},
+    {ids: [], term: DHExp.Hole(Some(hi), EmptyHole)},
   );
 
 let view_of_var = x => Node.text(x);

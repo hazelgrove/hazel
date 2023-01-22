@@ -42,7 +42,8 @@ type error =
   | UnevalOutsideClosure
   | InvalidClosureBody
   | PostprocessedNonHoleInClosure
-  | PostprocessedHoleOutsideClosure;
+  | PostprocessedHoleOutsideClosure
+  | MalformedHole;
 
 [@deriving sexp]
 exception Exception(error);
@@ -55,9 +56,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     DHExp.{ids: d.ids, term} |> return;
   };
   switch (d.term) {
-  | Invalid(_) => failwith("pp_eval on Invalid")
-  | EmptyHole => failwith("pp_eval on EmptyHole")
-  | MultiHole(_) => failwith("pp_eval on MultiHole")
   /* Non-hole expressions: recurse through subexpressions */
   | Triv
   | Test(_)
@@ -137,13 +135,13 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
     let* d'' = pp_eval(d');
     Cast(d'', ty1, ty2) |> ret_d_ids;
 
-  | Error(FailedCast(d', ty1, ty2)) =>
+  | Hole(None, FailedCast(d', ty1, ty2)) =>
     let* d'' = pp_eval(d');
-    Error(FailedCast(d'', ty1, ty2)) |> ret_d_ids;
+    Hole(None, FailedCast(d'', ty1, ty2)) |> ret_d_ids;
 
-  | Error(InvalidOperation(reason, d')) =>
+  | Hole(None, InvalidOperation(reason, d')) =>
     let* d'' = pp_eval(d');
-    Error(InvalidOperation(reason, d'')) |> ret_d_ids;
+    Hole(None, InvalidOperation(reason, d'')) |> ret_d_ids;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | Var(_)
@@ -151,13 +149,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
   | If(_)
   | Match(_)
   | Fun(_)
-  | Hole(_, Empty)
-  | Hole(_, NonEmpty(_))
-  | Hole(_, ExpandingKeyword(_))
-  | Hole(_, FreeVar(_))
-  | Hole(_, InvalidText(_))
-  | Hole(_, InconsistentBranches(_)) =>
-    raise(Exception(UnevalOutsideClosure))
+  | Hole(_, _) => raise(Exception(UnevalOutsideClosure))
 
   | FixF(_) => raise(Exception(FixFOutsideClosureEnv))
 
@@ -193,23 +185,29 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
        than in `pp_uneval`. The other hole types don't have any evaluated
        subexpressions and we can use `pp_uneval`.
        */
-    | Hole((u, _), NonEmpty(reason, d)) =>
+    | Hole(Some((u, _)), NonEmptyHole(reason, d)) =>
       let* d = pp_eval(d);
       let* i = hii_add_instance(u, env);
-      Closure(env, {ids: d.ids, term: Hole((u, i), NonEmpty(reason, d))})
+      Closure(
+        env,
+        {ids: d.ids, term: Hole(Some((u, i)), NonEmptyHole(reason, d))},
+      )
       |> ret_d_ids;
 
-    | Hole((u, _), InconsistentBranches(scrut, rules, case_i)) =>
+    | Hole(Some((u, _)), InconsistentBranches(scrut, rules, case_i)) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      Hole((u, i), InconsistentBranches(scrut, rules, case_i)) |> ret_d_ids;
+      Hole(Some((u, i)), InconsistentBranches(scrut, rules, case_i))
+      |> ret_d_ids;
 
-    | Hole(_, Empty)
+    | Hole(_, EmptyHole)
     | Hole(_, ExpandingKeyword(_))
     | Hole(_, FreeVar(_))
+    | Hole(_, Invalid(_))
     | Hole(_, InvalidText(_)) => pp_uneval(env, d)
 
     /* Other expression forms cannot be directly in a closure. */
+    | Hole(_, _) => raise(Exception(MalformedHole))
     | _ => raise(Exception(InvalidClosureBody))
     };
   };
@@ -254,9 +252,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
     DHExp.{ids: d.ids, term} |> return;
   };
   switch (d.term) {
-  | Invalid(_) => failwith("pp_uneval on Invalid")
-  | EmptyHole => failwith("pp_uneval on EmptyHole")
-  | MultiHole(_) => failwith("pp_uneval on MultiHole")
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
   | Var(x) =>
@@ -357,15 +352,19 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
     let* d'' = pp_uneval(env, d');
     Cast(d'', ty1, ty2) |> ret_d_ids;
 
-  | Error(FailedCast(d', ty1, ty2)) =>
+  | Hole(None, FailedCast(d', ty1, ty2)) =>
     let* d'' = pp_uneval(env, d');
-    Error(FailedCast(d'', ty1, ty2)) |> ret_d_ids;
+    Hole(None, FailedCast(d'', ty1, ty2)) |> ret_d_ids;
 
-  | Error(InvalidOperation(reason, d')) =>
+  | Hole(None, InvalidOperation(reason, d')) =>
     let* d'' = pp_uneval(env, d');
-    Error(InvalidOperation(reason, d'')) |> ret_d_ids;
+    Hole(None, InvalidOperation(reason, d'')) |> ret_d_ids;
 
-  | If(_, _, _) => failwith("pp_uneval If, should be Match")
+  | If(c, t, e) =>
+    let* c' = pp_uneval(env, c);
+    let* t' = pp_uneval(env, t);
+    let* e' = pp_uneval(env, e);
+    If(c', t', e') |> ret_d_ids;
 
   | Match(scrut, rules, i) =>
     let* scrut' = pp_uneval(env, scrut);
@@ -380,32 +379,42 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
      - Number the hole instance appropriately.
      - Recurse through inner expression (if any).
      */
-  | Hole((u, _), Empty) =>
+  | Hole(Some((u, _)), EmptyHole) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), Empty)}) |> ret_d_ids;
+    Closure(env, {ids: d.ids, term: Hole(Some((u, i)), EmptyHole)})
+    |> ret_d_ids;
 
-  | Hole((u, _), NonEmpty(reason, d')) =>
+  | Hole(Some((u, _)), NonEmptyHole(reason, d')) =>
     let* d' = pp_uneval(env, d');
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), NonEmpty(reason, d'))})
+    Closure(
+      env,
+      {ids: d.ids, term: Hole(Some((u, i)), NonEmptyHole(reason, d'))},
+    )
     |> ret_d_ids;
 
-  | Hole((u, _), ExpandingKeyword(kw)) =>
+  | Hole(Some((u, _)), ExpandingKeyword(kw)) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), ExpandingKeyword(kw))})
+    Closure(
+      env,
+      {ids: d.ids, term: Hole(Some((u, i)), ExpandingKeyword(kw))},
+    )
     |> ret_d_ids;
 
-  | Hole((u, _), FreeVar(x)) =>
+  | Hole(Some((u, _)), FreeVar(x)) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), FreeVar(x))})
+    Closure(env, {ids: d.ids, term: Hole(Some((u, i)), FreeVar(x))})
     |> ret_d_ids;
 
-  | Hole((u, _), InvalidText(text)) =>
+  | Hole(Some((u, _)), InvalidText(text)) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, {ids: d.ids, term: Hole((u, i), InvalidText(text))})
+    Closure(
+      env,
+      {ids: d.ids, term: Hole(Some((u, i)), InvalidText(text))},
+    )
     |> ret_d_ids;
 
-  | Hole((u, _), InconsistentBranches(scrut, rules, case_i)) =>
+  | Hole(Some((u, _)), InconsistentBranches(scrut, rules, case_i)) =>
     let* scrut = pp_uneval(env, scrut);
     let* rules = pp_uneval_rules(env, rules);
     let* i = hii_add_instance(u, env);
@@ -413,10 +422,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
       env,
       {
         ids: d.ids,
-        term: Hole((u, i), InconsistentBranches(scrut, rules, case_i)),
+        term:
+          Hole(Some((u, i)), InconsistentBranches(scrut, rules, case_i)),
       },
     )
     |> ret_d_ids;
+  | Hole(_, _) => raise(Exception(MalformedHole))
   };
 }
 
@@ -446,9 +457,6 @@ let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
   switch (d.term) {
-  | Invalid(_) => failwith("track_children_of_hole on Invalid")
-  | EmptyHole => failwith("track_children_of_hole on EmptyHole")
-  | MultiHole(_) => failwith("track_children_of_hole on MultiHole")
   | Tag(_)
   | Triv
   | Test(_)
@@ -464,8 +472,9 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | Parens(d)
   | UnOp(_, d)
-  | Error(FailedCast(d, _, _))
-  | Error(InvalidOperation(_, d)) => track_children_of_hole(hii, parent, d)
+  | Hole(None, FailedCast(d, _, _))
+  | Hole(None, InvalidOperation(_, d)) =>
+    track_children_of_hole(hii, parent, d)
   | Seq(d1, d2)
   | Let(_, d1, d2)
   | Ap(d1, d2)
@@ -502,18 +511,26 @@ let rec track_children_of_hole =
     )
 
   /* Hole types */
-  | Hole((u, i), NonEmpty(_, d)) =>
+  | Hole(Some(hi), NonEmptyHole(_, d)) =>
     let hii = track_children_of_hole(hii, parent, d);
-    hii |> HoleInstanceInfo.add_parent((u, i), parent);
-  | Hole((u, i), InconsistentBranches(scrut, rules, _)) =>
+    hii |> HoleInstanceInfo.add_parent(hi, parent);
+  | Hole(Some(hi), InconsistentBranches(scrut, rules, _)) =>
     let hii = track_children_of_hole(hii, parent, scrut);
     let hii = track_children_of_hole_rules(hii, parent, rules);
-    hii |> HoleInstanceInfo.add_parent((u, i), parent);
-  | Hole((u, i), Empty)
-  | Hole((u, i), ExpandingKeyword(_))
-  | Hole((u, i), FreeVar(_))
-  | Hole((u, i), InvalidText(_)) =>
-    hii |> HoleInstanceInfo.add_parent((u, i), parent)
+    hii |> HoleInstanceInfo.add_parent(hi, parent);
+  | Hole(Some(hi), FailedCast(d, _, _)) =>
+    let hii = track_children_of_hole(hii, parent, d);
+    hii |> HoleInstanceInfo.add_parent(hi, parent);
+  | Hole(Some(hi), InvalidOperation(_, d)) =>
+    let hii = track_children_of_hole(hii, parent, d);
+    hii |> HoleInstanceInfo.add_parent(hi, parent);
+  | Hole(Some(hi), EmptyHole)
+  | Hole(Some(hi), ExpandingKeyword(_))
+  | Hole(Some(hi), FreeVar(_))
+  | Hole(Some(hi), InvalidText(_)) =>
+    hii |> HoleInstanceInfo.add_parent(hi, parent)
+
+  | Hole(_, _) => raise(Exception(MalformedHole))
 
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for

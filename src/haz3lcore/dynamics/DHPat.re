@@ -14,9 +14,6 @@ let mk_tuple: list(t) => t =
  */
 let rec binds_var = (x: Var.t, dp: t): bool =>
   switch (dp.term) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
   | Hole(_)
   | Wild
   | Int(_)

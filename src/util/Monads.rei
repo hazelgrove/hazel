@@ -2,6 +2,7 @@
  * https://ocaml.janestreet.com/ocaml-core/v0.13/doc/base/Base__/Monad_intf/index.html */
 
 module type MONAD_BASIC = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
@@ -25,6 +26,8 @@ module type MONAD = {
   include MONAD_ZIP;
 
   let sequence: list(t('a)) => t(list('a));
+
+  let traverse: ('a => t('b), list('a)) => t(list('b));
 
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);

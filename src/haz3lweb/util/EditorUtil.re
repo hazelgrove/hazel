@@ -54,7 +54,7 @@ let info_map = (editor: Editor.t) => {
 
 let stitch = (editors: list(Editor.t)) => {
   let join_tile = (id: int): Tile.t => {
-    id: Id.{base: id + 10_000_000, derived: 0}, // TODO fresh id generation hack
+    id: 10_000_000 + id, // TODO fresh id generation hack
     label: [";"],
     mold: Mold.mk_bin(10, Exp, []),
     shards: [0],

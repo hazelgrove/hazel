@@ -7,6 +7,7 @@
    In any case, that's a good reference. */
 
 module type MONAD_BASIC = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
@@ -38,6 +39,8 @@ module type MONAD = {
 
   let sequence: list(t('a)) => t(list('a));
 
+  let traverse: ('a => t('b), list('a)) => t(list('b));
+
   module Syntax: {
     let ( let* ): (t('a), 'a => t('b)) => t('b);
     let (let+): (t('a), 'a => 'b) => t('b);
@@ -61,6 +64,19 @@ module Make_Monad_Z = (M: MONAD_ZIP) => {
     };
 
     map(sequence'(ms, [] |> return), List.rev);
+  };
+
+  let traverse = (f, xs) => {
+    let rec traverse' = (f, ms, xs) => {
+      switch (xs) {
+      | [] => return([])
+      | [x, ...xs] =>
+        bind(ms, ys =>
+          bind(f(x), y => traverse'(f, return([y, ...ys]), xs))
+        )
+      };
+    };
+    traverse'(f, return([]), xs);
   };
 
   module Syntax = {

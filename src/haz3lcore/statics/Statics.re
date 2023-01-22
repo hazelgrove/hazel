@@ -59,7 +59,7 @@ type info_rul = {
 /* The Info aka Cursorinfo assigned to each subterm. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Invalid(TermBase.parse_flag)
+  | Invalid(ParseFlag.t)
   | InfoExp(info_exp)
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
@@ -289,6 +289,7 @@ and uexp_to_info_map =
     };
   let cls = Term.UExp.cls_of_term(term);
   let go = uexp_to_info_map(~ctx);
+  let ids = fst(List.split(ids));
   let add = (~self, ~free, m) => (
     typ_after_fix(mode, self),
     free,
@@ -296,17 +297,16 @@ and uexp_to_info_map =
   );
   let atomic = self => add(~self, ~free=[], Id.Map.empty);
   switch (term) {
-  | Invalid(msg) => (
+  | Hole(_, Invalid(msg)) => (
       Unknown(Internal),
       [],
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
   | Closure(_) => failwith("uexp_to_info_map Closure")
-  | MultiHole(tms) =>
+  | Hole(_, MultiHole(tms)) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
-  | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Error(_)
+  | Hole(_, EmptyHole) => atomic(Just(Unknown(Internal)))
   | Hole(_) => failwith("uexp_to_info_map Hole")
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
@@ -485,6 +485,7 @@ and upat_to_info_map =
     )
     : (Typ.t, Ctx.t, map) => {
   let cls = Term.UPat.cls_of_term(term);
+  let ids = fst(List.split(ids));
   let add = (~self, ~ctx, m) => (
     typ_after_fix(mode, self),
     ctx,
@@ -493,16 +494,16 @@ and upat_to_info_map =
   let atomic = self => add(~self, ~ctx, Id.Map.empty);
   let unknown = Typ.Just(Unknown(SynSwitch));
   switch (term) {
-  | Invalid(msg) => (
+  | Hole(_, Invalid(msg)) => (
       Unknown(Internal),
       ctx,
       add_info(ids, Invalid(msg), Id.Map.empty),
     )
-  | MultiHole(tms) =>
+  | Hole(_, MultiHole(tms)) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~ctx, union_m(maps));
-  | Hole(_) => failwith("upat_to_info_map on Hole")
-  | EmptyHole
+  | Hole(_, EmptyHole)
+  | Hole(_, _) => failwith("upat_to_info_map DHole")
   | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -594,6 +595,7 @@ and upat_to_info_map =
 and utyp_to_info_map = ({ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.utyp_to_ty(utyp);
+  let ids = fst(List.split(ids));
   let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
   let just = m => (ty, add(Just(ty), m));
   switch (term) {

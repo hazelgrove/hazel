@@ -26,6 +26,12 @@ let get_eig: t => EnvironmentIdGen.t;
  */
 let put_eig: (EnvironmentIdGen.t, t) => t;
 
+let get_id: t => Id.t;
+
+let put_id: (Id.t, t) => t;
+
+let with_id: (Id.t => ('a, Id.t), t) => ('a, t);
+
 /**
   [with_eig f es] calls [f] with the current environment id generator, updating
   [es] afterwards.

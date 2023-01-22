@@ -211,9 +211,8 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
         Some({origin: first.origin, last: last.last});
       | None =>
         Printf.printf(
-          "Measured.WARNING: id (%d, %d not found",
-          id.base,
-          id.derived,
+          "Measured.WARNING: id %s not found",
+          Id.string_of_t(id),
         );
         None;
       }

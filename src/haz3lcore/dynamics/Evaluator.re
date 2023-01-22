@@ -54,138 +54,149 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | List(_) => grounded_List
   };
 
-let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
+let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
+  let f = ((base, _)) => {
+    open IdGen.Syntax;
+    let+ derived = IdGen.fresh;
+    (base, derived);
+  };
+  ListUtil.traverse(f, ids);
+};
+
+let rec matches = (dp: DHPat.t, d: DHExp.t): m(match_result) => {
   switch (dp.term, d.term) {
-  /* Impossible to touch UExp and UPat */
-  | (_, Invalid(_))
-  | (_, EmptyHole)
-  | (_, MultiHole(_))
-  | (_, Triv)
-  | (_, Parens(_))
-  | (_, If(_)) => failwith("matches on UExp")
-
-  | (Invalid(_), _)
-  | (EmptyHole, _)
-  | (MultiHole(_), _)
-  | (Triv, _)
-  | (Parens(_), _)
-  | (TypeAnn(_), _) => failwith("matches on UPat")
-
-  | (_, Var(_)) => DoesNotMatch
-  | (Hole(_, Empty), _)
-  | (Hole(_, NonEmpty(_)), _) => IndetMatch
-  | (Wild, _) => Matches(Environment.empty)
-  | (Hole(_, ExpandingKeyword(_)), _) => DoesNotMatch
-  | (Hole(_, InvalidText(_)), _) => IndetMatch
+  | (TypeAnn(dp', _), _) // TODO: should we care about type here.
+  | (Parens(dp'), _) => matches(dp', d)
+  | (_, Var(_)) => DoesNotMatch |> return
+  | (Hole(_, EmptyHole), _)
+  | (Hole(_, MultiHole(_)), _)
+  | (Hole(_, NonEmptyHole(_)), _) => IndetMatch |> return
+  | (Wild, _) => Matches(Environment.empty) |> return
+  | (Hole(_, ExpandingKeyword(_)), _) => DoesNotMatch |> return
+  | (Hole(_, InvalidText(_)), _) => IndetMatch |> return
+  | (Hole(_, Invalid(_)), _) => IndetMatch |> return
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
-    Matches(env);
-  | (_, Hole(_, Empty)) => IndetMatch
-  | (_, Hole(_, NonEmpty(_))) => IndetMatch
-  | (_, Error(FailedCast(_))) => IndetMatch
-  | (_, Error(InvalidOperation(_))) => IndetMatch
-  | (_, Hole(_, FreeVar(_))) => IndetMatch
-  | (_, Hole(_, InvalidText(_))) => IndetMatch
-  | (_, Let(_)) => IndetMatch
-  | (_, FixF(_)) => DoesNotMatch
-  | (_, Fun(_)) => DoesNotMatch
-  | (_, BinOp(_)) => IndetMatch
-  | (_, UnOp(_)) => IndetMatch
-  | (_, Match(_)) => IndetMatch
+    Matches(env) |> return;
+  | (_, Hole(_, EmptyHole)) => IndetMatch |> return
+  | (_, Hole(_, MultiHole(_))) => IndetMatch |> return
+  | (_, Hole(_, FailedCast(_))) => IndetMatch |> return
+  | (_, Hole(_, InvalidOperation(_))) => IndetMatch |> return
+  | (_, Hole(_, FreeVar(_))) => IndetMatch |> return
+  | (_, Hole(_, InvalidText(_))) => IndetMatch |> return
+  | (_, Hole(_)) => IndetMatch |> return
+  | (_, Let(_)) => IndetMatch |> return
+  | (_, FixF(_)) => DoesNotMatch |> return
+  | (_, Fun(_)) => DoesNotMatch |> return
+  | (_, UnOp(_))
+  | (_, BinOp(_)) => IndetMatch |> return
+  | (_, If(_)) => IndetMatch |> return
+  | (_, Match(_)) => IndetMatch |> return
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d')) => matches(dp, d')
 
   | (Bool(b1), Bool(b2)) =>
     if (b1 == b2) {
-      Matches(Environment.empty);
+      Matches(Environment.empty) |> return;
     } else {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     }
   | (Bool(_), Cast(d, Bool, Unknown(_))) => matches(dp, d)
   | (Bool(_), Cast(d, Unknown(_), Bool)) => matches(dp, d)
-  | (Bool(_), _) => DoesNotMatch
+  | (Bool(_), _) => DoesNotMatch |> return
   | (Int(n1), Int(n2)) =>
     if (n1 == n2) {
-      Matches(Environment.empty);
+      Matches(Environment.empty) |> return;
     } else {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     }
   | (Int(_), Cast(d, Int, Unknown(_))) => matches(dp, d)
   | (Int(_), Cast(d, Unknown(_), Int)) => matches(dp, d)
-  | (Int(_), _) => DoesNotMatch
+  | (Int(_), _) => DoesNotMatch |> return
   | (Float(n1), Float(n2)) =>
     if (n1 == n2) {
-      Matches(Environment.empty);
+      Matches(Environment.empty) |> return;
     } else {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     }
   | (Float(_), Cast(d, Float, Unknown(_))) => matches(dp, d)
   | (Float(_), Cast(d, Unknown(_), Float)) => matches(dp, d)
-  | (Float(_), _) => DoesNotMatch
+  | (Float(_), _) => DoesNotMatch |> return
   | (String(s1), String(s2)) =>
     if (s1 == s2) {
-      Matches(Environment.empty);
+      Matches(Environment.empty) |> return;
     } else {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     }
   | (String(_), Cast(d, String, Unknown(_))) => matches(dp, d)
   | (String(_), Cast(d, Unknown(_), String)) => matches(dp, d)
-  | (String(_), _) => DoesNotMatch
+  | (String(_), _) => DoesNotMatch |> return
   | (Tag(n1), Tag(n2)) =>
     if (n1 == n2) {
-      Matches(Environment.empty);
+      Matches(Environment.empty) |> return;
     } else {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     }
   | (Tag(_), Cast(d, _, Unknown(_))) => matches(dp, d)
   | (Tag(_), Cast(d, Unknown(_), _)) => matches(dp, d)
-  | (Tag(_), _) => DoesNotMatch
+  | (Tag(_), _) => DoesNotMatch |> return
   | (Inj(side1, dp), Inj(_, side2, d)) =>
     switch (side1, side2) {
     | (L, L)
     | (R, R) => matches(dp, d)
-    | _ => DoesNotMatch
+    | _ => DoesNotMatch |> return
     }
   | (Inj(side, dp), Cast(_)) => matches_cast_Inj(side, dp, d, [])
-  | (Inj(_, _), _) => DoesNotMatch
+  | (Inj(_, _), _) => DoesNotMatch |> return
+  | (Triv, Triv)
+  | (Tuple([]), Triv)
+  | (Triv, Tuple([])) => Matches(Environment.empty) |> return
+  | (Triv, _) => matches(DHPat.mk(dp.ids, Tuple([])), d)
   | (Tuple(dps), Tuple(ds)) =>
     if (List.length(dps) != List.length(ds)) {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     } else {
       List.fold_left2(
-        (result, dp, d) =>
+        (r, dp, d) => {
+          let* result = r;
           switch (result) {
-          | DoesNotMatch => DoesNotMatch
-          | IndetMatch => IndetMatch
+          | DoesNotMatch => DoesNotMatch |> return
+          | IndetMatch => IndetMatch |> return
           | Matches(env) =>
-            switch (matches(dp, d)) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
-          },
-        Matches(Environment.empty),
+            let* r = matches(dp, d);
+            switch (r) {
+            | DoesNotMatch => DoesNotMatch |> return
+            | IndetMatch => IndetMatch |> return
+            | Matches(env') =>
+              Matches(Environment.union(env, env')) |> return
+            };
+          };
+        },
+        return(Matches(Environment.empty)),
         dps,
         ds,
       );
     }
   | (Ap(dp1, dp2), Ap(d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
+    let* r1 = matches(dp1, d1);
+    switch (r1) {
+    | DoesNotMatch => DoesNotMatch |> return
     | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
+      let* r2 = matches(dp2, d2);
+      switch (r2) {
+      | DoesNotMatch => DoesNotMatch |> return
       | IndetMatch
-      | Matches(_) => IndetMatch
-      }
+      | Matches(_) => IndetMatch |> return
+      };
     | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
+      let* r2 = matches(dp2, d2);
+      switch (r2) {
+      | DoesNotMatch => DoesNotMatch |> return
+      | IndetMatch => IndetMatch |> return
+      | Matches(env2) => Matches(Environment.union(env1, env2)) |> return
+      };
+    };
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     matches_cast_Tuple(dps, d, [List.combine(tys, tys')])
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
@@ -210,8 +221,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         ),
       ],
     )
-  | (Tuple(_), Cast(_)) => DoesNotMatch
-  | (Tuple(_), _) => DoesNotMatch
+  | (Tuple(_), Cast(_)) => DoesNotMatch |> return
+  | (Tuple(_), _) => DoesNotMatch |> return
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
   | (Cons(_) | ListLit(_), Cast(d, Unknown(_), List(ty2))) =>
@@ -222,9 +233,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ListLit(_, _), Cons(_, _))
   | (Cons(_, _), ListLit(_))
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
-  | (Cons(_) | ListLit(_), _) => DoesNotMatch
-  | (Ap(_, _), _) => DoesNotMatch
-  }
+  | (Cons(_) | ListLit(_), _) => DoesNotMatch |> return
+  | (Ap(_, _), _) => DoesNotMatch |> return
+  };
+}
 and matches_cast_Inj =
     (
       side: InjSide.t,
@@ -232,14 +244,9 @@ and matches_cast_Inj =
       d: DHExp.t,
       casts: list((Typ.t, Typ.t, Typ.t, Typ.t)),
     )
-    : match_result =>
+    : m(match_result) => {
   switch (d.term) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Triv
-  | If(_, _, _)
-  | Parens(_) => failwith("matches_cast_Inj on UExp")
+  | Parens(d) => matches_cast_Inj(side, dp, d, casts)
   | Inj(_, side', d') =>
     switch (side, side') {
     | (L, L)
@@ -256,7 +263,7 @@ and matches_cast_Inj =
           casts,
         );
       matches(dp, DHExp.apply_casts(d', side_casts));
-    | _ => DoesNotMatch
+    | _ => DoesNotMatch |> return
     }
   | Cast(d', Sum(tyL1, tyR1), Sum(tyL2, tyR2)) =>
     matches_cast_Inj(side, dp, d', [(tyL1, tyR1, tyL2, tyR2), ...casts])
@@ -274,76 +281,84 @@ and matches_cast_Inj =
       d',
       [(Unknown(Internal), Unknown(Internal), tyL2, tyR2)],
     )
-  | Cast(_, _, _) => DoesNotMatch
-  | Var(_) => DoesNotMatch
-  | Hole(_, FreeVar(_)) => IndetMatch
-  | Hole(_, InvalidText(_)) => IndetMatch
-  | Hole(_, ExpandingKeyword(_)) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, {term: Fun(_), _}) => DoesNotMatch
-  | Closure(_, _) => IndetMatch
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
+  | Cast(_, _, _) => DoesNotMatch |> return
+  | Var(_) => DoesNotMatch |> return
+  | Hole(_, FreeVar(_)) => IndetMatch |> return
+  | Hole(_, Invalid(_)) => IndetMatch |> return
+  | Hole(_, InvalidText(_)) => IndetMatch |> return
+  | Hole(_, ExpandingKeyword(_)) => IndetMatch |> return
+  | Let(_, _, _) => IndetMatch |> return
+  | FixF(_, _, _) => DoesNotMatch |> return
+  | Fun(_, _, _, _) => DoesNotMatch |> return
+  | Closure(_, {term: Fun(_), _}) => DoesNotMatch |> return
+  | Closure(_, _) => IndetMatch |> return
+  | Ap(_, _) => IndetMatch |> return
+  | ApBuiltin(_, _) => IndetMatch |> return
   | BinOp(_, _, _)
   | UnOp(_, _)
-  | Bool(_) => DoesNotMatch
-  | Int(_) => DoesNotMatch
+  | Bool(_) => DoesNotMatch |> return
+  | Int(_) => DoesNotMatch |> return
   | Seq(_)
-  | Test(_) => DoesNotMatch
-  | Float(_) => DoesNotMatch
-  | String(_) => DoesNotMatch
-  | ListLit(_, _) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Tuple(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
+  | Test(_) => DoesNotMatch |> return
+  | Float(_) => DoesNotMatch |> return
+  | String(_) => DoesNotMatch |> return
+  | ListLit(_, _) => DoesNotMatch |> return
+  | Cons(_, _) => DoesNotMatch |> return
+  | Triv => DoesNotMatch |> return
+  | Tuple(_) => DoesNotMatch |> return
+  | Prj(_) => DoesNotMatch |> return
+  | Tag(_) => DoesNotMatch |> return
+  | If(_)
   | Match(_)
-  | Hole(_, InconsistentBranches(_)) => IndetMatch
-  | Hole(_, Empty) => IndetMatch
-  | Hole(_, NonEmpty(_)) => IndetMatch
-  | Error(FailedCast(_, _, _)) => IndetMatch
-  | Error(InvalidOperation(_)) => IndetMatch
-  }
+  | Hole(_, InconsistentBranches(_)) => IndetMatch |> return
+  | Hole(_, EmptyHole) => IndetMatch |> return
+  | Hole(_, MultiHole(_)) => IndetMatch |> return
+  | Hole(_, NonEmptyHole(_)) => IndetMatch |> return
+  | Hole(_, FailedCast(_, _, _)) => IndetMatch |> return
+  | Hole(_, InvalidOperation(_)) => IndetMatch |> return
+  };
+}
 and matches_cast_Tuple =
     (
       dps: list(DHPat.t),
       d: DHExp.t,
       elt_casts: list(list((Typ.t, Typ.t))),
     )
-    : match_result =>
+    : m(match_result) => {
   switch (d.term) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Triv
-  | If(_, _, _)
-  | Parens(_) => failwith("matches_cast_Tuple on UExp")
+  | Parens(d) => matches_cast_Tuple(dps, d, elt_casts)
+  | Triv =>
+    switch (dps) {
+    | [] => Matches(Environment.empty) |> return
+    | _ => DoesNotMatch |> return
+    }
   | Tuple(ds) =>
     if (List.length(dps) != List.length(ds)) {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     } else {
       List.fold_right(
-        (((dp, d), casts), result) => {
+        (((dp, d), casts), r) => {
+          let* result = r;
           switch (result) {
           | DoesNotMatch
-          | IndetMatch => result
+          | IndetMatch => result |> return
           | Matches(env) =>
-            switch (matches(dp, DHExp.apply_casts(d, casts))) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
-          }
+            let* r = matches(dp, DHExp.apply_casts(d, casts));
+            switch (r) {
+            | DoesNotMatch => DoesNotMatch |> return
+            | IndetMatch => IndetMatch |> return
+            | Matches(env') =>
+              Matches(Environment.union(env, env')) |> return
+            };
+          };
         },
         List.combine(List.combine(dps, ds), elt_casts),
-        Matches(Environment.empty),
+        return(Matches(Environment.empty)),
       );
     }
   | Cast(d', Prod(tys), Prod(tys')) =>
     if (List.length(dps) != List.length(tys)) {
-      DoesNotMatch;
+      DoesNotMatch |> return;
     } else {
       matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
     }
@@ -353,59 +368,60 @@ and matches_cast_Tuple =
   | Cast(d', Unknown(_), Prod(tys')) =>
     let tys = List.init(List.length(tys'), _ => Typ.Unknown(Internal));
     matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
-  | Cast(_, _, _) => DoesNotMatch
-  | Var(_) => DoesNotMatch
-  | Hole(_, FreeVar(_)) => IndetMatch
-  | Hole(_, InvalidText(_)) => IndetMatch
-  | Hole(_, ExpandingKeyword(_)) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, {term: Fun(_), _}) => DoesNotMatch
-  | Closure(_, _) => IndetMatch
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
+  | Cast(_, _, _) => DoesNotMatch |> return
+  | Var(_) => DoesNotMatch |> return
+  | Hole(_, FreeVar(_)) => IndetMatch |> return
+  | Hole(_, Invalid(_)) => IndetMatch |> return
+  | Hole(_, InvalidText(_)) => IndetMatch |> return
+  | Hole(_, ExpandingKeyword(_)) => IndetMatch |> return
+  | Let(_, _, _) => IndetMatch |> return
+  | FixF(_, _, _) => DoesNotMatch |> return
+  | Fun(_, _, _, _) => DoesNotMatch |> return
+  | Closure(_, {term: Fun(_), _}) => DoesNotMatch |> return
+  | Closure(_, _) => IndetMatch |> return
+  | Ap(_, _) => IndetMatch |> return
+  | ApBuiltin(_, _) => IndetMatch |> return
   | BinOp(_, _, _)
   | UnOp(_, _)
-  | Bool(_) => DoesNotMatch
-  | Int(_) => DoesNotMatch
+  | Bool(_) => DoesNotMatch |> return
+  | Int(_) => DoesNotMatch |> return
   | Seq(_)
-  | Test(_) => DoesNotMatch
-  | Float(_) => DoesNotMatch
-  | String(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | ListLit(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
+  | Test(_) => DoesNotMatch |> return
+  | Float(_) => DoesNotMatch |> return
+  | String(_) => DoesNotMatch |> return
+  | Inj(_, _, _) => DoesNotMatch |> return
+  | ListLit(_) => DoesNotMatch |> return
+  | Cons(_, _) => DoesNotMatch |> return
+  | Prj(_) => DoesNotMatch |> return
+  | Tag(_) => DoesNotMatch |> return
+  | If(_)
   | Match(_)
-  | Hole(_, InconsistentBranches(_)) => IndetMatch
-  | Hole(_, Empty) => IndetMatch
-  | Hole(_, NonEmpty(_)) => IndetMatch
-  | Error(FailedCast(_, _, _)) => IndetMatch
-  | Error(InvalidOperation(_)) => IndetMatch
-  }
+  | Hole(_, InconsistentBranches(_)) => IndetMatch |> return
+  | Hole(_, EmptyHole) => IndetMatch |> return
+  | Hole(_, MultiHole(_)) => IndetMatch |> return
+  | Hole(_, NonEmptyHole(_)) => IndetMatch |> return
+  | Hole(_, FailedCast(_, _, _)) => IndetMatch |> return
+  | Hole(_, InvalidOperation(_)) => IndetMatch |> return
+  };
+}
 and matches_cast_Cons =
-    (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
+    (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t)))
+    : m(match_result) => {
   switch (d.term) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Triv
-  | If(_, _, _)
-  | Parens(_) => failwith("matches_cast_Cons on UExp")
+  | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
   | ListLit([], _) =>
     switch (dp.term) {
-    | ListLit([], _) => Matches(Environment.empty)
-    | _ => DoesNotMatch
+    | ListLit([], _) => Matches(Environment.empty) |> return
+    | _ => DoesNotMatch |> return
     }
   | ListLit(_, None) => failwith("matches_cast_Cons on ListLit(_, None)")
   | ListLit([dhd, ...dtl] as ds, Some((u, i, err, ty))) =>
     switch (dp.term) {
     | Cons(dp1, dp2) =>
-      switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
+      let* r = matches(dp1, DHExp.apply_casts(dhd, elt_casts));
+      switch (r) {
+      | DoesNotMatch => DoesNotMatch |> return
+      | IndetMatch => IndetMatch |> return
       | Matches(env1) =>
         let list_casts =
           List.map(
@@ -415,36 +431,37 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 =
-          DHExp.{
-            ids: ids_derive(d.ids),
-            term: ListLit(dtl, Some((u, i, err, ty))),
-          };
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
+        let* ids = with_id(ids_derive(d.ids));
+        let d2 = DHExp.{ids, term: ListLit(dtl, Some((u, i, err, ty)))};
+        let* r = matches(dp2, DHExp.apply_casts(d2, list_casts));
+        switch (r) {
+        | DoesNotMatch => DoesNotMatch |> return
+        | IndetMatch => IndetMatch |> return
+        | Matches(env2) => Matches(Environment.union(env1, env2)) |> return
         };
-      }
+      };
     | ListLit(dps, _) =>
       switch (ListUtil.opt_zip(dps, ds)) {
-      | None => DoesNotMatch
+      | None => DoesNotMatch |> return
       | Some(lst) =>
         lst
         |> List.map(((dp, d)) =>
              matches(dp, DHExp.apply_casts(d, elt_casts))
            )
         |> List.fold_left(
-             (match1, match2) =>
-               switch (match1, match2) {
+             (match1, match2) => {
+               let* r1 = match1;
+               let* r2 = match2;
+               switch (r1, r2) {
                | (DoesNotMatch, _)
-               | (_, DoesNotMatch) => DoesNotMatch
+               | (_, DoesNotMatch) => DoesNotMatch |> return
                | (IndetMatch, _)
-               | (_, IndetMatch) => IndetMatch
+               | (_, IndetMatch) => IndetMatch |> return
                | (Matches(env1), Matches(env2)) =>
-                 Matches(Environment.union(env1, env2))
-               },
-             Matches(Environment.empty),
+                 Matches(Environment.union(env1, env2)) |> return
+               };
+             },
+             return(Matches(Environment.empty)),
            )
       }
     | _ => failwith("called matches_cast_Cons with non-list pattern")
@@ -452,9 +469,10 @@ and matches_cast_Cons =
   | Cons(d1, d2) =>
     switch (dp.term) {
     | Cons(dp1, dp2) =>
-      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
+      let* r1 = matches(dp1, DHExp.apply_casts(d1, elt_casts));
+      switch (r1) {
+      | DoesNotMatch => DoesNotMatch |> return
+      | IndetMatch => IndetMatch |> return
       | Matches(env1) =>
         let list_casts =
           List.map(
@@ -464,17 +482,19 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
+        let* r2 = matches(dp2, DHExp.apply_casts(d2, list_casts));
+        switch (r2) {
+        | DoesNotMatch => DoesNotMatch |> return
+        | IndetMatch => IndetMatch |> return
+        | Matches(env2) => Matches(Environment.union(env1, env2)) |> return
         };
-      }
-    | ListLit([], _) => DoesNotMatch
+      };
+    | ListLit([], _) => DoesNotMatch |> return
     | ListLit([dphd, ...dptl], Some(ty)) =>
-      switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
+      let* r1 = matches(dphd, DHExp.apply_casts(d1, elt_casts));
+      switch (r1) {
+      | DoesNotMatch => DoesNotMatch |> return
+      | IndetMatch => IndetMatch |> return
       | Matches(env1) =>
         let list_casts =
           List.map(
@@ -484,17 +504,15 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 =
-          DHPat.{
-            ids: ids_derive(dp.ids),
-            term: DHPat.ListLit(dptl, Some(ty)),
-          };
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
+        let* ids = with_id(ids_derive(dp.ids));
+        let dp2 = DHPat.{ids, term: DHPat.ListLit(dptl, Some(ty))};
+        let* r2 = matches(dp2, DHExp.apply_casts(d2, list_casts));
+        switch (r2) {
+        | DoesNotMatch => DoesNotMatch |> return
+        | IndetMatch => IndetMatch |> return
+        | Matches(env2) => Matches(Environment.union(env1, env2)) |> return
         };
-      }
+      };
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cast(d', List(ty1), List(ty2)) =>
@@ -503,36 +521,41 @@ and matches_cast_Cons =
     matches_cast_Cons(dp, d', [(ty1, Unknown(Internal)), ...elt_casts])
   | Cast(d', Unknown(_), List(ty2)) =>
     matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
-  | Cast(_, _, _) => DoesNotMatch
-  | Var(_) => DoesNotMatch
-  | Hole(_, FreeVar(_)) => IndetMatch
-  | Hole(_, InvalidText(_)) => IndetMatch
-  | Hole(_, ExpandingKeyword(_)) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
+  | Cast(_, _, _) => DoesNotMatch |> return
+  | Var(_) => DoesNotMatch |> return
+  | Hole(_, FreeVar(_)) => IndetMatch |> return
+  | Hole(_, Invalid(_)) => IndetMatch |> return
+  | Hole(_, InvalidText(_)) => IndetMatch |> return
+  | Hole(_, ExpandingKeyword(_)) => IndetMatch |> return
+  | Let(_, _, _) => IndetMatch |> return
+  | FixF(_, _, _) => DoesNotMatch |> return
+  | Fun(_, _, _, _) => DoesNotMatch |> return
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Ap(_, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
+  | Ap(_, _) => IndetMatch |> return
+  | ApBuiltin(_, _) => IndetMatch |> return
   | BinOp(_, _, _)
   | UnOp(_, _)
-  | Bool(_) => DoesNotMatch
-  | Int(_) => DoesNotMatch
+  | Bool(_) => DoesNotMatch |> return
+  | Int(_) => DoesNotMatch |> return
   | Seq(_)
-  | Test(_) => DoesNotMatch
-  | Float(_) => DoesNotMatch
-  | String(_) => DoesNotMatch
-  | Inj(_, _, _) => DoesNotMatch
-  | Tuple(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
-  | Tag(_) => DoesNotMatch
+  | Test(_) => DoesNotMatch |> return
+  | Float(_) => DoesNotMatch |> return
+  | String(_) => DoesNotMatch |> return
+  | Inj(_, _, _) => DoesNotMatch |> return
+  | Triv
+  | Tuple(_) => DoesNotMatch |> return
+  | Prj(_) => DoesNotMatch |> return
+  | Tag(_) => DoesNotMatch |> return
+  | If(_)
   | Match(_)
-  | Hole(_, InconsistentBranches(_)) => IndetMatch
-  | Hole(_, Empty) => IndetMatch
-  | Hole(_, NonEmpty(_)) => IndetMatch
-  | Error(FailedCast(_, _, _)) => IndetMatch
-  | Error(InvalidOperation(_)) => IndetMatch
+  | Hole(_, InconsistentBranches(_)) => IndetMatch |> return
+  | Hole(_, EmptyHole) => IndetMatch |> return
+  | Hole(_, MultiHole(_)) => IndetMatch |> return
+  | Hole(_, NonEmptyHole(_)) => IndetMatch |> return
+  | Hole(_, FailedCast(_, _, _)) => IndetMatch |> return
+  | Hole(_, InvalidOperation(_)) => IndetMatch |> return
   };
+};
 
 let eval_un_int_op = (op: DHExp.UnIntOp.t, n: int): DHExp.term =>
   switch (op) {
@@ -603,21 +626,15 @@ let eval_bin_string_op =
   | Equals => Bool(s1 == s2)
   };
 
-let ids_derive = DHExp.ids_derive;
-
 let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
   (env, d) => {
+    let ids_derive = ids => with_id(ids_derive(ids));
     /* Increment number of evaluation steps (calls to `evaluate`). */
     let* () = take_step;
-    let ids = d.ids;
 
-    switch (d.term) {
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Triv
-    | If(_, _, _)
-    | Parens(_) => failwith("evaluate on UExp")
+    let {ids, term}: DHExp.t = d;
+    switch (term) {
+    | Parens(d) => evaluate(env, d)
     | Var(x) =>
       let d' =
         x
@@ -628,7 +645,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
            });
       /* We need to call [evaluate] on [d] again since [env] does not store
        * final expressions. */
-      evaluate(env, DHExp.{ids: d.ids, term: d'.term});
+      evaluate(env, d');
 
     | Seq(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -650,18 +667,17 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       switch (r1) {
       | BoxedValue(d1)
       | Indet(d1) =>
-        switch (matches(dp, d1)) {
+        let* r = matches(dp, d1);
+        switch (r) {
         | IndetMatch
         | DoesNotMatch =>
-          Indet({
-            ids: ids_derive(ids),
-            term: Closure(env, {ids, term: Let(dp, d1, d2)}),
-          })
-          |> return
+          let* ids = ids_derive(ids);
+          Indet({ids, term: Closure(env, {ids, term: Let(dp, d1, d2)})})
+          |> return;
         | Matches(env') =>
           let* env = evaluate_extend_env(env', env);
           evaluate(env, d2);
-        }
+        };
       };
 
     | FixF(f, _, d') =>
@@ -669,7 +685,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       evaluate(env', d');
 
     | Fun(_) =>
-      BoxedValue({ids: ids_derive(ids), term: Closure(env, d)}) |> return
+      let* ids = ids_derive(ids);
+      BoxedValue({ids, term: Closure(env, d)}) |> return;
 
     | Ap(d1, d2) =>
       let* r1 = evaluate(env, d1);
@@ -688,7 +705,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r2) {
         | BoxedValue(d2)
         | Indet(d2) =>
-          switch (matches(dp, d2)) {
+          let* r = matches(dp, d2);
+          switch (r) {
           | DoesNotMatch
           | IndetMatch => Indet({ids, term: Ap(d1, d2)}) |> return
           | Matches(env') =>
@@ -696,7 +714,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             // new bindings introduced by the function application.
             let* env = evaluate_extend_env(env', closure_env);
             evaluate(env, d3);
-          }
+          };
         };
       | BoxedValue({
           ids,
@@ -708,18 +726,13 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue(d2')
         | Indet(d2') =>
           /* ap cast rule */
-          evaluate(
-            env,
-            {
-              ids: ids_derive(ids),
-              term:
-                Cast(
-                  {ids, term: Ap(d1', {ids, term: Cast(d2', ty1', ty1)})},
-                  ty2,
-                  ty2',
-                ),
-            },
-          )
+          let* ids_inner_cast = ids_derive(ids);
+          let d_inner_cast = DHExp.mk(ids_inner_cast, Cast(d2', ty1', ty1));
+          let* ids_ap = ids_derive(ids);
+          let d_ap = DHExp.mk(ids_ap, Ap(d1', d_inner_cast));
+          let* ids_outer_cast = ids_derive(ids);
+          let d_outer_cast = DHExp.mk(ids_outer_cast, Cast(d_ap, ty2, ty2'));
+          evaluate(env, d_outer_cast);
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedFun");
@@ -747,8 +760,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue({term: Int(n1), _}) =>
-        BoxedValue({ids: ids_derive(ids), term: eval_un_int_op(op, n1)})
-        |> return
+        let* ids = ids_derive(ids);
+        BoxedValue({ids, term: eval_un_int_op(op, n1)}) |> return;
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit");
         raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')));
@@ -765,11 +778,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           let* r2 = evaluate(env, d2);
           switch (r2) {
           | BoxedValue({term: Bool(b2), _}) =>
-            BoxedValue({
-              ids: ids_derive(ids),
-              term: eval_bin_bool_op(op, b1, b2),
-            })
-            |> return
+            let* ids = ids_derive(ids);
+            BoxedValue(DHExp.mk(ids, eval_bin_bool_op(op, b1, b2)))
+            |> return;
           | BoxedValue(d2') =>
             print_endline("InvalidBoxedBoolLit");
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2')));
@@ -796,26 +807,17 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue({term: Int(n2), _}) =>
+          let* ids = ids_derive(ids);
+          let mk = DHExp.mk(ids);
           switch (op, n1, n2) {
           | (Divide, _, 0) =>
-            Indet({
-              ids: ids_derive(ids),
-              term: Error(InvalidOperation(DivideByZero, d)),
-            })
+            Indet(mk(Hole(None, InvalidOperation(DivideByZero, d))))
             |> return
           | (Power, _, _) when n2 < 0 =>
-            Indet({
-              ids: ids_derive(ids),
-              term: Error(InvalidOperation(NegativeExponent, d)),
-            })
+            Indet(mk(Hole(None, InvalidOperation(NegativeExponent, d))))
             |> return
-          | _ =>
-            BoxedValue({
-              ids: ids_derive(ids),
-              term: eval_bin_int_op(op, n1, n2),
-            })
-            |> return
-          }
+          | _ => BoxedValue(mk(eval_bin_int_op(op, n1, n2))) |> return
+          };
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
           print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
@@ -843,11 +845,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue({term: Float(f2), _}) =>
-          BoxedValue({
-            ids: ids_derive(ids),
-            term: eval_bin_float_op(op, f1, f2),
-          })
-          |> return
+          let* ids = ids_derive(ids);
+          BoxedValue({ids, term: eval_bin_float_op(op, f1, f2)}) |> return;
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedFloatLit");
           raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')));
@@ -873,11 +872,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         let* r2 = evaluate(env, d2);
         switch (r2) {
         | BoxedValue({term: String(f2), _}) =>
-          BoxedValue({
-            ids: ids_derive(ids),
-            term: eval_bin_string_op(op, f1, f2),
-          })
-          |> return
+          let* ids = ids_derive(ids);
+          BoxedValue({ids, term: eval_bin_string_op(op, f1, f2)}) |> return;
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedStringLit");
           raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')));
@@ -904,6 +900,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | Indet(d1') => Indet({ids, term: Inj(ty, side, d1')}) |> return
       };
 
+    | Triv => BoxedValue(d) |> return
     | Tuple(ds) =>
       let+ lst = ds |> List.map(evaluate(env)) |> sequence;
       let (ds', indet) =
@@ -926,9 +923,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     | Prj(targ, n) =>
       if (n < 0) {
+        let* ids = ids_derive(ids);
         Indet({
-          ids: ids_derive(ids),
-          term: Error(InvalidOperation(InvalidProjection, d)),
+          ids,
+          term: Hole(None, InvalidOperation(InvalidProjection, d)),
         })
         |> return;
       } else {
@@ -936,9 +934,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         switch (r) {
         | BoxedValue({term: Tuple(ds), _} as rv) =>
           if (n >= List.length(ds)) {
+            let* ids = ids_derive(ids);
             Indet({
-              ids: ids_derive(rv.ids),
-              term: Error(InvalidOperation(InvalidProjection, rv)),
+              ids,
+              term: Hole(None, InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
           } else {
@@ -946,9 +945,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | Indet({term: Tuple(ds), _} as rv) =>
           if (n >= List.length(ds)) {
+            let* ids = ids_derive(ids);
             Indet({
-              ids: ids_derive(rv.ids),
-              term: Error(InvalidOperation(InvalidProjection, rv)),
+              ids,
+              term: Hole(None, InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
           } else {
@@ -957,26 +957,20 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | BoxedValue({term: Cast(targ', Prod(tys), Prod(tys')), _} as rv)
         | Indet({term: Cast(targ', Prod(tys), Prod(tys')), _} as rv) =>
           if (n >= List.length(tys)) {
+            let* ids = ids_derive(ids);
             Indet({
-              ids: ids_derive(rv.ids),
-              term: Error(InvalidOperation(InvalidProjection, rv)),
+              ids,
+              term: Hole(None, InvalidOperation(InvalidProjection, rv)),
             })
             |> return;
           } else {
             let ty = List.nth(tys, n);
             let ty' = List.nth(tys', n);
-            evaluate(
-              env,
-              {
-                ids: ids_derive(ids),
-                term:
-                  Cast(
-                    {ids: ids_derive(rv.ids), term: Prj(targ', n)},
-                    ty,
-                    ty',
-                  ),
-              },
-            );
+            let* ids_prj = ids_derive(rv.ids);
+            let d_prj = DHExp.mk(ids_prj, Prj(targ', n));
+            let* ids_cast = ids_derive(ids);
+            let d_cast = DHExp.mk(ids_cast, Cast(d_prj, ty, ty'));
+            evaluate(env, d_cast);
           }
         | _ => return(Indet(d))
         };
@@ -992,11 +986,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
         | {term: ListLit(lst, info), ids} =>
-          BoxedValue({
-            ids: ids_derive(ids),
-            term: ListLit([d1, ...lst], info),
-          })
-          |> return
+          let* ids = ids_derive(ids);
+          BoxedValue({ids, term: ListLit([d1, ...lst], info)}) |> return;
         | {
             term:
               Cast(
@@ -1006,17 +997,19 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               ),
             ids: d2ids,
           } =>
+          let* d2ids = ids_derive(d2ids);
+          let* lids = ids_derive(lids);
           BoxedValue({
-            ids: ids_derive(d2ids),
+            ids: d2ids,
             term:
               Cast(
                 // TODO derive?
-                {ids: ids_derive(lids), term: ListLit([d1, ...lst], info)},
+                {ids: lids, term: ListLit([d1, ...lst], info)},
                 List(ty),
                 List(ty'),
               ),
           })
-          |> return
+          |> return;
         | _ =>
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
@@ -1043,6 +1036,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         BoxedValue(d);
       };
 
+    | If(c, e, t) =>
+      let* rc = evaluate(env, c);
+      switch (rc) {
+      | BoxedValue(rc)
+      | Indet(rc) =>
+        switch (rc.term) {
+        | Bool(b) =>
+          if (b) {
+            evaluate(env, t);
+          } else {
+            evaluate(env, e);
+          }
+        | _ =>
+          print_endline("InvalidBoxedBoolLit");
+          raise(EvaluatorError.Exception(InvalidBoxedBoolLit(rc)));
+        }
+      };
     | Match(d1, rules, n) => evaluate_case(ids, env, None, d1, rules, n)
 
     /* Generalized closures evaluate to themselves. Only
@@ -1054,36 +1064,32 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       }
 
     /* Hole expressions */
-    | Hole((u, i), InconsistentBranches(d1, rules, n)) =>
-      evaluate_case(ids, env, Some((u, i)), d1, rules, n)
+    | Hole(hi, InconsistentBranches(d1, rules, n)) =>
+      evaluate_case(ids, env, hi, d1, rules, n)
 
-    | Hole(_, Empty) =>
-      Indet({ids, term: Closure(env, DHExp.derive(d))}) |> return
+    | Hole(_, EmptyHole)
+    | Hole(_, MultiHole(_)) => Indet({ids, term: Closure(env, d)}) |> return
 
-    | Hole((u, i), NonEmpty(reason, d1)) =>
+    | Hole(hi, NonEmptyHole(reason, d1)) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') =>
+        let* ids = ids_derive(ids);
         Indet({
-          ids: ids_derive(ids),
+          ids,
           term:
-            Closure(
-              env,
-              {ids, term: Hole((u, i), NonEmpty(reason, d1'))},
-            ),
+            Closure(env, {ids, term: Hole(hi, NonEmptyHole(reason, d1'))}),
         })
-        |> return
+        |> return;
       };
 
-    | Hole(_, FreeVar(_)) =>
-      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
-
-    | Hole(_, ExpandingKeyword(_)) =>
-      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
-
+    | Hole(_, FreeVar(_))
+    | Hole(_, ExpandingKeyword(_))
+    | Hole(_, Invalid(_))
     | Hole(_, InvalidText(_)) =>
-      Indet({ids: ids_derive(ids), term: Closure(env, d)}) |> return
+      let* ids = ids_derive(ids);
+      Indet({ids, term: Closure(env, d)}) |> return;
 
     /* Cast calculus */
     | Cast(d1, ty, ty') =>
@@ -1105,7 +1111,8 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             if (Typ.eq(ty'', ty')) {
               BoxedValue(d1'') |> return;
             } else {
-              Indet({ids, term: Error(FailedCast(d1', ty, ty'))}) |> return;
+              Indet({ids, term: Hole(None, FailedCast(d1', ty, ty'))})
+              |> return;
             }
           | _ =>
             print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
@@ -1116,48 +1123,40 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
+          let* ids_inner_cast = ids_derive(d1'.ids);
+          let d_inner_cast =
+            DHExp.mk(ids_inner_cast, Cast(d1', ty, ty'_grounded));
+          let* ids_outer_cast = ids_derive(ids);
           let d' =
-            DHExp.{
-              ids,
-              term:
-                DHExp.Cast(
-                  {
-                    ids: ids_derive(d1'.ids),
-                    term: Cast(d1', ty, ty'_grounded),
-                  },
-                  ty'_grounded,
-                  ty',
-                ),
-            };
+            DHExp.mk(
+              ids_outer_cast,
+              DHExp.Cast(d_inner_cast, ty'_grounded, ty'),
+            );
           evaluate(env, d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
+          let* ids_inner_cast = ids_derive(d1'.ids);
+          let d_inner_cast =
+            DHExp.mk(ids_inner_cast, Cast(d1', ty, ty_grounded));
+          let* ids_outer_cast = ids_derive(ids);
           let d' =
-            DHExp.{
-              ids,
-              term:
-                DHExp.Cast(
-                  {
-                    ids: ids_derive(d1'.ids),
-                    term: Cast(d1', ty, ty_grounded),
-                  },
-                  ty_grounded,
-                  ty',
-                ),
-            };
+            DHExp.mk(
+              ids_outer_cast,
+              DHExp.Cast(d_inner_cast, ty_grounded, ty'),
+            );
           evaluate(env, d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
           /* can't do anything when casting between diseq, non-hole types */
-          BoxedValue({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
-          |> return
+          let* ids = ids_derive(d1'.ids);
+          BoxedValue({ids, term: Cast(d1', ty, ty')}) |> return;
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
           if (Typ.eq(ty, ty')) {
             result |> return;
           } else {
-            BoxedValue({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
-            |> return;
+            let* ids = ids_derive(d1'.ids);
+            BoxedValue({ids, term: Cast(d1', ty, ty')}) |> return;
           }
         }
       | Indet(d1') as result =>
@@ -1175,47 +1174,29 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
             if (Typ.eq(ty'', ty')) {
               Indet(d1'') |> return;
             } else {
-              Indet({
-                ids: ids_derive(d1'ids),
-                term: Error(FailedCast(d1', ty, ty')),
-              })
+              let* ids = ids_derive(d1'ids);
+              Indet({ids, term: Hole(None, FailedCast(d1', ty, ty'))})
               |> return;
             }
           | _ =>
-            Indet({ids: ids_derive(d1'.ids), term: Cast(d1', ty, ty')})
-            |> return
+            let* ids = ids_derive(d1'.ids);
+            Indet({ids, term: Cast(d1', ty, ty')}) |> return;
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
+          let* ids_inner = ids_derive(d1'.ids);
+          let d_inner = DHExp.mk(ids_inner, Cast(d1', ty, ty'_grounded));
+          let* ids_outer = ids_derive(ids);
           let d' =
-            DHExp.{
-              ids,
-              term:
-                DHExp.Cast(
-                  {
-                    ids: ids_derive(d1'.ids),
-                    term: Cast(d1', ty, ty'_grounded),
-                  },
-                  ty'_grounded,
-                  ty',
-                ),
-            };
+            DHExp.mk(ids_outer, DHExp.Cast(d_inner, ty'_grounded, ty'));
           evaluate(env, d');
         | (NotGroundOrHole(ty_grounded), Hole) =>
           /* ITGround rule */
+          let* ids_inner = ids_derive(d1'.ids);
+          let d_inner = DHExp.mk(ids_inner, Cast(d1', ty, ty_grounded));
+          let* ids_outer = ids_derive(ids);
           let d' =
-            DHExp.{
-              ids,
-              term:
-                DHExp.Cast(
-                  {
-                    ids: ids_derive(d1'.ids),
-                    term: Cast(d1', ty, ty_grounded),
-                  },
-                  ty_grounded,
-                  ty',
-                ),
-            };
+            DHExp.mk(ids_outer, DHExp.Cast(d_inner, ty_grounded, ty'));
           evaluate(env, d');
         | (Ground, NotGroundOrHole(_))
         | (NotGroundOrHole(_), Ground) =>
@@ -1231,16 +1212,16 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         }
       };
 
-    | Error(FailedCast(d1, ty, ty')) =>
+    | Hole(hi, FailedCast(d1, ty, ty')) =>
       let* r1 = evaluate(env, d1);
       switch (r1) {
       | BoxedValue(d1')
       | Indet(d1') =>
-        Indet({ids: d1'.ids, term: Error(FailedCast(d1', ty, ty'))})
+        Indet({ids: d1'.ids, term: Hole(hi, FailedCast(d1', ty, ty'))})
         |> return
       };
 
-    | Error(InvalidOperation(_)) => Indet(d) |> return
+    | Hole(_, InvalidOperation(_)) => Indet(d) |> return
     };
   }
 
@@ -1250,7 +1231,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
  */
 and evaluate_case =
     (
-      ids: list(Id.t),
+      ids: CH.Ids.t,
       env: ClosureEnvironment.t,
       inconsistent_info: option(HoleInstance.t),
       scrut: DHExp.t,
@@ -1264,79 +1245,36 @@ and evaluate_case =
   | Indet(scrut) =>
     switch (List.nth_opt(rules, current_rule_index)) {
     | None =>
-      (
+      let* ids_match = with_id(ids_derive(ids));
+      let* ids_closure = with_id(ids_derive(ids));
+      let term_match =
         switch (inconsistent_info) {
-        | None =>
-          Indet({
-            ids: ids_derive(ids),
-            term:
-              Closure(
-                env,
-                {
-                  ids: ids_derive(ids),
-                  term: Match(scrut, rules, current_rule_index),
-                },
-              ),
-          })
-        | Some((u, i)) =>
-          Indet({
-            ids: ids_derive(ids),
-            term:
-              Closure(
-                env,
-                {
-                  ids: ids_derive(ids),
-                  term:
-                    Hole(
-                      (u, i),
-                      InconsistentBranches(scrut, rules, current_rule_index),
-                    ),
-                },
-              ),
-          })
-        }
-      )
-      |> return
+        | None => DHExp.Match(scrut, rules, current_rule_index)
+        | Some(hi) =>
+          DHExp.Hole(
+            Some(hi),
+            InconsistentBranches(scrut, rules, current_rule_index),
+          )
+        };
+      let d_match = DHExp.mk(ids_match, term_match);
+      Indet(DHExp.mk(ids_closure, Closure(env, d_match))) |> return;
     | Some((dp, d)) =>
-      switch (matches(dp, scrut)) {
+      let* r = matches(dp, scrut);
+      switch (r) {
       | IndetMatch =>
-        (
+        let* ids_match = with_id(ids_derive(d.ids));
+        let* ids_closure = with_id(ids_derive(d.ids));
+        let term_match =
           switch (inconsistent_info) {
-          | None =>
-            Indet({
-              ids: ids_derive(d.ids),
-              term:
-                Closure(
-                  env,
-                  {
-                    ids: ids_derive(d.ids),
-                    term: Match(scrut, rules, current_rule_index),
-                  },
-                ),
-            })
-          | Some((u, i)) =>
-            Indet({
-              ids: ids_derive(d.ids),
-              term:
-                Closure(
-                  env,
-                  {
-                    ids: ids_derive(d.ids),
-                    term:
-                      Hole(
-                        (u, i),
-                        InconsistentBranches(
-                          scrut,
-                          rules,
-                          current_rule_index,
-                        ),
-                      ),
-                  },
-                ),
-            })
-          }
-        )
-        |> return
+          | None => DHExp.Match(scrut, rules, current_rule_index)
+          | Some(hi) =>
+            DHExp.Hole(
+              Some(hi),
+              InconsistentBranches(scrut, rules, current_rule_index),
+            )
+          };
+        let d_match = DHExp.mk(ids_match, term_match);
+        Indet(DHExp.mk(ids_closure, Closure(env, d_match))) |> return;
       | Matches(env') =>
         // extend environment with new bindings introduced
         let* env = evaluate_extend_env(env', env);
@@ -1351,7 +1289,7 @@ and evaluate_case =
           rules,
           current_rule_index + 1,
         )
-      }
+      };
     }
   };
 }
@@ -1392,7 +1330,8 @@ and evaluate_test =
       let mk_op = (arg_d1, arg_d2) => DHExp.BinOp(Bool(op), arg_d1, arg_d2);
       evaluate_test_eq(scarg.ids, env, mk_op, arg_d1, arg_d2);
     | BinOp(Int(op), arg_d1, arg_d2) =>
-      let mk_op = (arg_d1, arg_d2) => DHExp.BinOp(Int(op), arg_d1, arg_d2);
+      let mk_op = (arg_d1, arg_d2) =>
+        CH.CExp.BinOp(Int(op), arg_d1, arg_d2);
       evaluate_test_eq(scarg.ids, env, mk_op, arg_d1, arg_d2);
 
     | Ap({term: Ap(arg_d1, arg_d2), ids}, arg_d3) =>
@@ -1436,20 +1375,22 @@ and evaluate_test =
     };
 
   let* _ = add_test(n, (arg_show, test_status));
-  let r: EvaluatorResult.t =
+  let r =
     switch (arg_result) {
     | BoxedValue({term: Bool(_), ids}) =>
-      BoxedValue({ids: ids_derive(ids), term: Tuple([])})
+      let* ids = with_id(ids_derive(ids));
+      BoxedValue({ids, term: Tuple([])}) |> return;
     | BoxedValue(arg)
     | Indet(arg) =>
-      Indet({ids: ids_derive(arg.ids), term: Test(arg, Some(n))})
+      let* ids = with_id(ids_derive(arg.ids));
+      Indet({ids, term: Test(arg, Some(n))}) |> return;
     };
-  r |> return;
+  r;
 }
 
 and evaluate_test_eq =
     (
-      ids: list(Id.t),
+      ids: CH.Ids.t,
       env: ClosureEnvironment.t,
       mk_arg_op: (DHExp.t, DHExp.t) => DHExp.term,
       arg_d1: DHExp.t,
@@ -1471,6 +1412,14 @@ and evaluate_test_eq =
   let* arg_result = evaluate(env, arg_show);
 
   (arg_show, arg_result) |> return;
+};
+
+let evaluate = (env: ClosureEnvironment.t, d: DHExp.t): m(EvaluatorResult.t) => {
+  let* r = evaluate(env, d);
+  print_endline(
+    "evaluate: " ++ Sexplib.Sexp.to_string_hum(EvaluatorResult.sexp_of_t(r)),
+  );
+  return(r);
 };
 
 let evaluate = (env, d) => {

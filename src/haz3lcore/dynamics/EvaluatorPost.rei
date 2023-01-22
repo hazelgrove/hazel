@@ -52,7 +52,8 @@ type error =
   | UnevalOutsideClosure
   | InvalidClosureBody
   | PostprocessedNonHoleInClosure
-  | PostprocessedHoleOutsideClosure;
+  | PostprocessedHoleOutsideClosure
+  | MalformedHole;
 
 [@deriving sexp]
 exception Exception(error);

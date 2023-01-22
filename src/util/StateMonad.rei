@@ -15,6 +15,9 @@ module type S = {
 
   include Monads.MONAD with type t('a) = state => (state, 'a);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) = state => (state, 'a);
+
   /**
     [get] fetches the current value of state within the monad.
    */

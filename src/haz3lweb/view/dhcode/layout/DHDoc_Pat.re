@@ -3,10 +3,7 @@ open Haz3lcore;
 
 let precedence = (dp: DHPat.t) =>
   switch (dp.term) {
-  | Invalid(_) => failwith("precedence on Invalid")
-  | Parens(_) => failwith("precedence on Parens")
-  | EmptyHole
-  | MultiHole(_)
+  | Parens(_)
   | Hole(_)
   | Wild
   | Var(_)
@@ -37,17 +34,22 @@ let rec mk =
   );
   let doc =
     switch (dp.term) {
-    | Invalid(_)
-    | EmptyHole
-    | Parens(_)
+    | Parens(dp) =>
+      Doc.hcats([
+        DHDoc_common.Delim.open_Parenthesized,
+        mk(~parenthesize, ~enforce_inline, dp),
+        DHDoc_common.Delim.close_Parenthesized,
+      ])
     | TypeAnn(_)
-    | MultiHole(_) => failwith("mk on UPat")
-    | Hole((u, i), Empty) => DHDoc_common.mk_EmptyHole((u, i))
-    | Hole((u, i), NonEmpty(reason, dp)) =>
+    | Hole(_, Invalid(_))
+    | Hole(None, _)
+    | Hole(Some(_), MultiHole(_)) => failwith("mk on UPat")
+    | Hole(Some((u, i)), EmptyHole) => DHDoc_common.mk_EmptyHole((u, i))
+    | Hole(Some((u, i)), NonEmptyHole(reason, dp)) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | Hole((u, i), ExpandingKeyword(k)) =>
+    | Hole(Some((u, i)), ExpandingKeyword(k)) =>
       DHDoc_common.mk_ExpandingKeyword((u, i), k)
-    | Hole((u, i), InvalidText(t)) =>
+    | Hole(Some((u, i)), InvalidText(t)) =>
       DHDoc_common.mk_InvalidText(t, (u, i))
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild

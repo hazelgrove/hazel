@@ -1,9 +1,6 @@
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2.term) {
-  | Invalid(_) => failwith("subst_var on Invalid")
-  | EmptyHole => failwith("subst_var on EmptyHole")
-  | MultiHole(_) => failwith("subst_var on MultiHole")
   | Var(y) =>
     if (Var.eq(x, y)) {
       d1;
@@ -11,6 +8,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       d2;
     }
   | Hole(_, FreeVar(_)) => d2
+  | Hole(_, Invalid(_)) => d2
   | Hole(_, InvalidText(_)) => d2
   | Hole(_, ExpandingKeyword(_)) => d2
   | Seq(d3, d4) =>
@@ -96,19 +94,20 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
     DHExp.{ids: d2.ids, term: Hole(hi, InconsistentBranches(d3, rules, n))};
-  | Hole(_, Empty) as dterm => DHExp.{ids: d2.ids, term: dterm}
-  | Hole(hi, NonEmpty(reason, d3)) =>
+  | Hole(_, EmptyHole) as dterm => DHExp.{ids: d2.ids, term: dterm}
+  | Hole(_, MultiHole(_)) as dterm => DHExp.{ids: d2.ids, term: dterm}
+  | Hole(hi, NonEmptyHole(reason, d3)) =>
     let d3' = subst_var(d1, x, d3);
-    DHExp.{ids: d2.ids, term: Hole(hi, NonEmpty(reason, d3'))};
+    DHExp.{ids: d2.ids, term: Hole(hi, NonEmptyHole(reason, d3'))};
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
     DHExp.{ids: d2.ids, term: Cast(d', ty1, ty2)};
-  | Error(FailedCast(d, ty1, ty2)) =>
+  | Hole(hi, FailedCast(d, ty1, ty2)) =>
     let d' = subst_var(d1, x, d);
-    DHExp.{ids: d2.ids, term: Error(FailedCast(d', ty1, ty2))};
-  | Error(InvalidOperation(err, d)) =>
+    DHExp.{ids: d2.ids, term: Hole(hi, FailedCast(d', ty1, ty2))};
+  | Hole(hi, InvalidOperation(err, d)) =>
     let d' = subst_var(d1, x, d);
-    DHExp.{ids: d2.ids, term: Error(InvalidOperation(err, d'))};
+    DHExp.{ids: d2.ids, term: Hole(hi, InvalidOperation(err, d'))};
   }
 
 and subst_var_rules =

@@ -6,6 +6,10 @@ let get_eig = get >>| EvaluatorState.get_eig;
 let put_eig = eig => modify(EvaluatorState.put_eig(eig));
 let with_eig = f => modify'(EvaluatorState.with_eig(f));
 
+let get_id = get >>| EvaluatorState.get_id;
+let put_id = ig => modify(EvaluatorState.put_id(ig));
+let with_id = f => modify'(EvaluatorState.with_id(f));
+
 let take_step = get >>= (state => put(EvaluatorState.take_step(state)));
 
 let add_test = (id, report) =>

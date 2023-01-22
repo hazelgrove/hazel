@@ -40,7 +40,7 @@ module UTyp = {
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
-    List.hd(ids);
+    fst(List.hd(ids));
   };
 
   let hole = (tms: list(any)) =>
@@ -100,9 +100,6 @@ module UTyp = {
 module UPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
     | Hole
     | Wild
     | Int
@@ -124,20 +121,17 @@ module UPat = {
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
-    List.hd(ids);
+    fst(List.hd(ids));
   };
 
-  let hole = (tms: list(any)) =>
+  let hole = (tms: list(any)): term =>
     switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
+    | [] => Hole(None, EmptyHole)
+    | [_, ..._] => Hole(None, MultiHole(tms))
     };
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
     | Hole(_) => Hole
     | Wild => Wild
     | Int(_) => Int
@@ -157,10 +151,7 @@ module UPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Pattern"
-    | EmptyHole => "Empty Pattern Hole"
-    | MultiHole => "Multi Pattern Hole"
-    | Hole => "Elaborated Pattern Hole"
+    | Hole => "Pattern Hole"
     | Wild => "Wildcard Pattern"
     | Int => "Integer Literal"
     | Float => "Float Literal"
@@ -182,9 +173,6 @@ module UPat = {
     | Parens(pat) => is_var(pat)
     | Var(_) => true
     | TypeAnn(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
     | Hole(_)
     | Wild
     | Int(_)
@@ -205,23 +193,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Hole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Inj(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Tag(_)
-    | Ap(_) => false
+    | _ => false
     };
   };
 
@@ -231,23 +203,7 @@ module UPat = {
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Hole(_)
-      | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | Triv
-      | ListLit(_)
-      | Cons(_, _)
-      | Inj(_, _)
-      | Var(_)
-      | TypeAnn(_)
-      | Tag(_)
-      | Ap(_) => false
+      | _ => false
       }
     );
 
@@ -255,23 +211,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Hole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Inj(_, _)
-    | Tuple(_)
-    | Tag(_)
-    | Ap(_) => None
+    | _ => None
     };
   };
 
@@ -284,9 +224,6 @@ module UPat = {
       } else {
         None;
       }
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
     | Hole(_)
     | Wild
     | Int(_)
@@ -317,9 +254,6 @@ module UPat = {
         } else {
           Some(List.map(Option.get, fun_vars));
         };
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
       | Hole(_)
       | Wild
       | Int(_)
@@ -342,24 +276,54 @@ module UPat = {
 module UExp = {
   include TermBase.UExp;
 
-  let hole = (tms: list(any)) =>
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Error
+    | Hole
+    | Closure
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Tag
+    | FixF
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | Ap
+    | ApBuiltin
+    | If
+    | Seq
+    | Test
+    | Parens
+    | Cons
+    | Prj
+    | Inj
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match
+    | Cast;
+
+  let hole = (tms: list(any)): term =>
     switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
+    | [] => Hole(None, EmptyHole)
+    | [_, ..._] => Hole(None, MultiHole(tms))
     };
 
   let rep_id = ({ids, _}) => {
     assert(ids != []);
-    List.hd(ids);
+    fst(List.hd(ids));
   };
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
-    | Error(_) => Error
     | Closure(_) => Closure
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
     | Hole(_) => Hole
     | Triv => Triv
     | Bool(_) => Bool
@@ -475,11 +439,7 @@ module UExp = {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Fun(_) => true
-    | Invalid(_)
-    | Error(_)
     | Closure(_)
-    | EmptyHole
-    | MultiHole(_)
     | Hole(_)
     | Triv
     | Bool(_)
@@ -513,11 +473,7 @@ module UExp = {
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
-      | Invalid(_)
-      | Error(_)
       | Closure(_)
-      | EmptyHole
-      | MultiHole(_)
       | Hole(_)
       | Triv
       | Bool(_)
@@ -575,13 +531,13 @@ module URul = {
   // example of awkwardness induced by having forms like rules
   // that may have a different-sorted child with no delimiters
   // (eg scrut with no rules)
-  let ids = (~any_ids, {ids, term}: t) =>
+  let ids = (~any_ids: any => list(Id.t), {ids, term}: t): list(Id.t) =>
     switch (ids) {
-    | [_, ..._] => ids
+    | [_, ..._] => fst(List.split(ids))
     | [] =>
       switch (term) {
       | Hole([tm, ..._]) => any_ids(tm)
-      | Rules(scrut, []) => scrut.ids
+      | Rules(scrut, []) => fst(List.split(scrut.ids))
       | _ => []
       }
     };
@@ -593,11 +549,11 @@ module URul = {
     };
 };
 
-let rec ids =
+let rec ids: any => list(Id.t) =
   fun
-  | Exp(tm) => tm.ids
-  | Pat(tm) => tm.ids
-  | Typ(tm) => tm.ids
+  | Exp(tm) => fst(List.split(tm.ids))
+  | Pat(tm) => fst(List.split(tm.ids))
+  | Typ(tm) => fst(List.split(tm.ids))
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];
@@ -613,15 +569,12 @@ let rec ids =
 // In other instances like n-tuples, where the commas are all siblings,
 // the representative id is one of the comma ids, unspecified which one.
 // (This would change for n-tuples if we decided parentheses are necessary.)
-let rep_id =
-  fun
+let rep_id = (any: TermBase.Any.t) =>
+  switch (any) {
   | Exp(tm) => UExp.rep_id(tm)
   | Pat(tm) => UPat.rep_id(tm)
   | Typ(tm) => UTyp.rep_id(tm)
   | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
   | Nul ()
-  | Any () => raise(Invalid_argument("Term.rep_id"));
-
-module ClosureEnvironment = TermBase.ClosureEnvironment;
-
-module Environment = TermBase.Environment;
+  | Any () => raise(Invalid_argument("Term.rep_id"))
+  };

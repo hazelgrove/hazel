@@ -430,3 +430,14 @@ let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
       );
     (acc, List.rev(rev_xs));
   };
+
+let traverse: (('a, 's) => ('b, 's), list('a), 's) => (list('b), 's) =
+  (f, l, accu) => {
+    let f: ('s, 'a) => ('s, 'b) =
+      (a, b) => {
+        let (s, r) = f(b, a);
+        (r, s);
+      };
+    let (s, r) = fold_left_map(f, accu, l);
+    (r, s);
+  };

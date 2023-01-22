@@ -7,6 +7,8 @@
    See the existing ones for reference.
  */
 
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(Builtin.t);
 
@@ -29,12 +31,20 @@ let forms = (builtins: t): forms =>
 let using = (name: Var.t, impl: Var.t => Builtin.t, builtins: t): t =>
   VarMap.extend(builtins, (name, impl(name)));
 
-let ids_derive = DHExp.ids_derive;
+let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
+  open IdGen.Syntax;
+  let f = ((base: Id.t, _: Id.t)): IdGen.t((Id.t, Id.t)) => {
+    let+ derived = IdGen.fresh;
+    (base, derived);
+  };
+  ListUtil.traverse(f, ids);
+};
 
 module Pervasives = {
   module Impls = {
     open EvaluatorMonad;
     open EvaluatorResult;
+    open EvaluatorMonad.Syntax;
 
     /* int_of_float implementation. */
     let int_of_float = (name, r1) =>
@@ -45,8 +55,8 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
       | Indet(d1) =>
-        Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])})
-        |> return
+        let* ids = with_id(ids_derive(d1.ids));
+        Indet({ids, term: ApBuiltin(name, [d1])}) |> return;
       };
 
     /* float_of_int implementation. */
@@ -58,8 +68,8 @@ module Pervasives = {
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1)))
       | Indet(d1) =>
-        Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])})
-        |> return
+        let* ids = with_id(ids_derive(d1.ids));
+        Indet({ids, term: ApBuiltin(name, [d1])}) |> return;
       };
 
     /* mod implementation */
@@ -68,35 +78,33 @@ module Pervasives = {
       | BoxedValue(
           {ids, term: Tuple([{term: Int(n), _}, {term: Int(m), _}])} as d1,
         ) =>
+        let* ids1 = with_id(ids_derive(ids));
         switch (m) {
         | 0 =>
+          let* ids2 = with_id(ids_derive(d1.ids));
           Indet({
-            ids: ids_derive(ids, ~step=2),
+            ids: ids2,
             term:
-              Error(
+              Hole(
+                None,
                 InvalidOperation(
                   DivideByZero,
-                  {
-                    ids: ids_derive(ids, ~step=1),
-                    term: ApBuiltin(name, [d1]),
-                  },
+                  {ids: ids1, term: ApBuiltin(name, [d1])},
                 ),
               ),
           })
-          |> return
-        | _ =>
-          return(BoxedValue({ids: ids_derive(ids), term: Int(n mod m)}))
-        }
+          |> return;
+        | _ => return(BoxedValue({ids: ids1, term: Int(n mod m)}))
+        };
       | BoxedValue(d1) =>
         raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
       | Indet(d1) =>
-        return(
-          Indet({ids: ids_derive(d1.ids), term: ApBuiltin(name, [d1])}),
-        )
+        let* ids = with_id(ids_derive(d1.ids));
+        return(Indet({ids, term: ApBuiltin(name, [d1])}));
       };
 
     /* PI implementation. */
-    let pi = DHExp.{ids: [Id.invalid], term: Float(Float.pi)};
+    let pi = DHExp.{ids: CH.Ids.invalid, term: Float(Float.pi)};
   };
 
   let pi = name => Builtin.mk_zero(name, Float, Impls.pi);

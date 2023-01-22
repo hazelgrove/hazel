@@ -2,33 +2,16 @@ open Sexplib.Std;
 
 module Id = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    base: int,
-    derived: int,
-  };
-  let compare = (a: t, b: t): int => {
-    let base_compared = Int.compare(a.base, b.base);
-    if (base_compared == 0) {
-      Int.compare(a.derived, b.derived);
-    } else {
-      base_compared;
-    };
-  };
-  let invalid: t = {base: (-1), derived: (-1)};
+  type t = int;
+  let compare = Int.compare;
 
-  let next = (id: t): t => {base: id.base + 1, derived: 0};
+  let invalid: t = (-1);
 
-  let derive = (~step=1, id: t): t => {
-    base: id.base,
-    derived: id.derived + step,
-  };
+  let next = (id: t): t => id + 1;
 
-  let init_base = (base: int): t => {base, derived: 0};
+  let init = 0;
 
-  let init = {base: 0, derived: 0};
-
-  let string_of_t = (id: t): string =>
-    Printf.sprintf("(%d, %d)", id.base, id.derived);
+  let string_of_t = string_of_int;
 };
 
 include Id;

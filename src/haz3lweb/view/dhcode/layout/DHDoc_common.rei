@@ -9,6 +9,7 @@ let precedence_Power: int;
 let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
+let precedence_Neg: int;
 let precedence_Cons: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
@@ -53,6 +54,10 @@ module Delim: {
 
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;
+
+  let open_If: DHDoc.t;
+  let then_If: DHDoc.t;
+  let else_If: DHDoc.t;
 
   let bar_Rule: DHDoc.t;
   let arrow_Rule: DHDoc.t;

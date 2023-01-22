@@ -19,6 +19,12 @@ let put_eig: EnvironmentIdGen.t => t(unit);
  */
 let with_eig: (EnvironmentIdGen.t => ('a, EnvironmentIdGen.t)) => t('a);
 
+let get_id: t(IdGen.state);
+
+let put_id: IdGen.state => t(unit);
+
+let with_id: (IdGen.state => ('a, IdGen.state)) => t('a);
+
 /**
   See {!val:EvaluatorState.take_step}
  */

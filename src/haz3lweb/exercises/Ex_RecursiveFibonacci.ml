@@ -1,9 +1,8 @@
 let prompt = Ex_RecursiveFibonacci_prompt.prompt
-let init_base : int -> Haz3lcore.Id.t = Haz3lcore.Id.init_base
 
 let exercise : SchoolExercise.spec =
   {
-    next_id = init_base 813;
+    next_id = 813;
     title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";
@@ -16,7 +15,7 @@ let exercise : SchoolExercise.spec =
         backpack = [];
         relatives =
           {
-            siblings = ([ Grout { id = init_base 0; shape = Convex } ], []);
+            siblings = ([ Grout { id = 0; shape = Convex } ], []);
             ancestors = [];
           };
         caret = Outer;
@@ -29,11 +28,11 @@ let exercise : SchoolExercise.spec =
           {
             siblings =
               ( [
-                  Whitespace { id = init_base 38; content = " " };
-                  Whitespace { id = init_base 39; content = "\226\143\142" };
+                  Whitespace { id = 38; content = " " };
+                  Whitespace { id = 39; content = "\226\143\142" };
                   Tile
                     {
-                      id = init_base 43;
+                      id = 43;
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -47,10 +46,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = init_base 44; content = " " };
+                            Whitespace { id = 44; content = " " };
                             Tile
                               {
-                                id = init_base 47;
+                                id = 47;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -63,15 +62,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 48; content = " " };
+                            Whitespace { id = 48; content = " " };
                           ];
                         ];
                     };
-                  Whitespace { id = init_base 51; content = " " };
-                  Whitespace { id = init_base 52; content = "\226\143\142" };
+                  Whitespace { id = 51; content = " " };
+                  Whitespace { id = 52; content = "\226\143\142" };
                   Tile
                     {
-                      id = init_base 55;
+                      id = 55;
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -85,10 +84,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = init_base 56; content = " " };
+                            Whitespace { id = 56; content = " " };
                             Tile
                               {
-                                id = init_base 59;
+                                id = 59;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -101,10 +100,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 60; content = " " };
+                            Whitespace { id = 60; content = " " };
                             Tile
                               {
-                                id = init_base 63;
+                                id = 63;
                                 label = [ "<" ];
                                 mold =
                                   {
@@ -117,10 +116,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 64; content = " " };
+                            Whitespace { id = 64; content = " " };
                             Tile
                               {
-                                id = init_base 66;
+                                id = 66;
                                 label = [ "2" ];
                                 mold =
                                   {
@@ -133,13 +132,13 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 69; content = " " };
+                            Whitespace { id = 69; content = " " };
                           ];
                           [
-                            Whitespace { id = init_base 73; content = " " };
+                            Whitespace { id = 73; content = " " };
                             Tile
                               {
-                                id = init_base 77;
+                                id = 77;
                                 label = [ "1" ];
                                 mold =
                                   {
@@ -152,16 +151,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 80; content = " " };
-                            Whitespace
-                              { id = init_base 78; content = "\226\143\142" };
+                            Whitespace { id = 80; content = " " };
+                            Whitespace { id = 78; content = "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = init_base 84; content = " " };
+                  Whitespace { id = 84; content = " " };
                   Tile
                     {
-                      id = init_base 88;
+                      id = 88;
                       label = [ "fib" ];
                       mold =
                         {
@@ -176,7 +174,7 @@ let exercise : SchoolExercise.spec =
                     };
                   Tile
                     {
-                      id = init_base 89;
+                      id = 89;
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -192,7 +190,7 @@ let exercise : SchoolExercise.spec =
                           [
                             Tile
                               {
-                                id = init_base 92;
+                                id = 92;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -205,10 +203,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 93; content = " " };
+                            Whitespace { id = 93; content = " " };
                             Tile
                               {
-                                id = init_base 96;
+                                id = 96;
                                 label = [ "-" ];
                                 mold =
                                   {
@@ -221,10 +219,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 97; content = " " };
+                            Whitespace { id = 97; content = " " };
                             Tile
                               {
-                                id = init_base 99;
+                                id = 99;
                                 label = [ "1" ];
                                 mold =
                                   {
@@ -240,10 +238,10 @@ let exercise : SchoolExercise.spec =
                           ];
                         ];
                     };
-                  Whitespace { id = init_base 100; content = " " };
+                  Whitespace { id = 100; content = " " };
                   Tile
                     {
-                      id = init_base 103;
+                      id = 103;
                       label = [ "+" ];
                       mold =
                         {
@@ -256,10 +254,10 @@ let exercise : SchoolExercise.spec =
                       shards = [ 0 ];
                       children = [];
                     };
-                  Whitespace { id = init_base 104; content = " " };
+                  Whitespace { id = 104; content = " " };
                   Tile
                     {
-                      id = init_base 108;
+                      id = 108;
                       label = [ "fib" ];
                       mold =
                         {
@@ -274,7 +272,7 @@ let exercise : SchoolExercise.spec =
                     };
                   Tile
                     {
-                      id = init_base 109;
+                      id = 109;
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -290,7 +288,7 @@ let exercise : SchoolExercise.spec =
                           [
                             Tile
                               {
-                                id = init_base 112;
+                                id = 112;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -303,10 +301,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 113; content = " " };
+                            Whitespace { id = 113; content = " " };
                             Tile
                               {
-                                id = init_base 116;
+                                id = 116;
                                 label = [ "-" ];
                                 mold =
                                   {
@@ -319,10 +317,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 117; content = " " };
+                            Whitespace { id = 117; content = " " };
                             Tile
                               {
-                                id = init_base 119;
+                                id = 119;
                                 label = [ "2" ];
                                 mold =
                                   {
@@ -338,14 +336,13 @@ let exercise : SchoolExercise.spec =
                           ];
                         ];
                     };
-                  Whitespace { id = init_base 122; content = " " };
+                  Whitespace { id = 122; content = " " };
                 ],
-                [ Whitespace { id = init_base 126; content = "\226\143\142" } ]
-              );
+                [ Whitespace { id = 126; content = "\226\143\142" } ] );
             ancestors =
               [
                 ( {
-                    id = init_base 11;
+                    id = 11;
                     label = [ "let"; "="; "in" ];
                     mold =
                       {
@@ -359,10 +356,10 @@ let exercise : SchoolExercise.spec =
                     children =
                       ( [
                           [
-                            Whitespace { id = init_base 12; content = " " };
+                            Whitespace { id = 12; content = " " };
                             Tile
                               {
-                                id = init_base 17;
+                                id = 17;
                                 label = [ "fib" ];
                                 mold =
                                   {
@@ -377,7 +374,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = init_base 20;
+                                id = 20;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -390,10 +387,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 21; content = " " };
+                            Whitespace { id = 21; content = " " };
                             Tile
                               {
-                                id = init_base 25;
+                                id = 25;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -406,10 +403,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 26; content = " " };
+                            Whitespace { id = 26; content = " " };
                             Tile
                               {
-                                id = init_base 30;
+                                id = 30;
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -422,10 +419,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 31; content = " " };
+                            Whitespace { id = 31; content = " " };
                             Tile
                               {
-                                id = init_base 35;
+                                id = 35;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -438,15 +435,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 36; content = " " };
+                            Whitespace { id = 36; content = " " };
                           ];
                         ],
                         [] );
                   },
                   ( [],
                     [
-                      Whitespace { id = init_base 124; content = " " };
-                      Grout { id = init_base 123; shape = Convex };
+                      Whitespace { id = 124; content = " " };
+                      Grout { id = 123; shape = Convex };
                     ] ) );
               ];
           };
@@ -460,7 +457,7 @@ let exercise : SchoolExercise.spec =
             backpack = [];
             relatives =
               {
-                siblings = ([], [ Grout { id = init_base 2; shape = Convex } ]);
+                siblings = ([], [ Grout { id = 2; shape = Convex } ]);
                 ancestors = [];
               };
             caret = Outer;
@@ -478,7 +475,7 @@ let exercise : SchoolExercise.spec =
               ( [
                   Tile
                     {
-                      id = init_base 472;
+                      id = 472;
                       label = [ "let"; "="; "in" ];
                       mold =
                         {
@@ -492,10 +489,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = init_base 473; content = " " };
+                            Whitespace { id = 473; content = " " };
                             Tile
                               {
-                                id = init_base 478;
+                                id = 478;
                                 label = [ "fib" ];
                                 mold =
                                   {
@@ -508,10 +505,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 479; content = " " };
+                            Whitespace { id = 479; content = " " };
                             Tile
                               {
-                                id = init_base 482;
+                                id = 482;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -524,10 +521,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 483; content = " " };
+                            Whitespace { id = 483; content = " " };
                             Tile
                               {
-                                id = init_base 487;
+                                id = 487;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -540,10 +537,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 488; content = " " };
+                            Whitespace { id = 488; content = " " };
                             Tile
                               {
-                                id = init_base 492;
+                                id = 492;
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -556,10 +553,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 493; content = " " };
+                            Whitespace { id = 493; content = " " };
                             Tile
                               {
-                                id = init_base 497;
+                                id = 497;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -572,15 +569,14 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = init_base 498; content = " " };
+                            Whitespace { id = 498; content = " " };
                           ];
                           [
-                            Whitespace { id = init_base 500; content = " " };
-                            Whitespace
-                              { id = init_base 501; content = "\226\143\142" };
+                            Whitespace { id = 500; content = " " };
+                            Whitespace { id = 501; content = "\226\143\142" };
                             Tile
                               {
-                                id = init_base 505;
+                                id = 505;
                                 label = [ "fun"; "->" ];
                                 mold =
                                   {
@@ -594,11 +590,10 @@ let exercise : SchoolExercise.spec =
                                 children =
                                   [
                                     [
-                                      Whitespace
-                                        { id = init_base 506; content = " " };
+                                      Whitespace { id = 506; content = " " };
                                       Tile
                                         {
-                                          id = init_base 509;
+                                          id = 509;
                                           label = [ "n" ];
                                           mold =
                                             {
@@ -612,20 +607,18 @@ let exercise : SchoolExercise.spec =
                                           shards = [ 0 ];
                                           children = [];
                                         };
-                                      Whitespace
-                                        { id = init_base 510; content = " " };
+                                      Whitespace { id = 510; content = " " };
                                     ];
                                   ];
                               };
-                            Whitespace { id = init_base 521; content = " " };
-                            Grout { id = init_base 518; shape = Convex };
-                            Whitespace
-                              { id = init_base 516; content = "\226\143\142" };
+                            Whitespace { id = 521; content = " " };
+                            Grout { id = 518; shape = Convex };
+                            Whitespace { id = 516; content = "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = init_base 520; content = " " };
-                  Grout { id = init_base 519; shape = Convex };
+                  Whitespace { id = 520; content = " " };
+                  Grout { id = 519; shape = Convex };
                 ],
                 [] );
             ancestors = [];
@@ -645,7 +638,7 @@ let exercise : SchoolExercise.spec =
                     ( [
                         Tile
                           {
-                            id = init_base 131;
+                            id = 131;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -659,11 +652,10 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace
-                                    { id = init_base 132; content = " " };
+                                  Whitespace { id = 132; content = " " };
                                   Tile
                                     {
-                                      id = init_base 137;
+                                      id = 137;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -678,7 +670,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 140;
+                                      id = 140;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -692,11 +684,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 141; content = " " };
+                                  Whitespace { id = 141; content = " " };
                                   Tile
                                     {
-                                      id = init_base 145;
+                                      id = 145;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -709,11 +700,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 146; content = " " };
+                                  Whitespace { id = 146; content = " " };
                                   Tile
                                     {
-                                      id = init_base 150;
+                                      id = 150;
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -727,11 +717,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 151; content = " " };
+                                  Whitespace { id = 151; content = " " };
                                   Tile
                                     {
-                                      id = init_base 155;
+                                      id = 155;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -744,20 +733,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 156; content = " " };
+                                  Whitespace { id = 156; content = " " };
                                 ];
                                 [
+                                  Whitespace { id = 158; content = " " };
                                   Whitespace
-                                    { id = init_base 158; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 159;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 159; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = init_base 163;
+                                      id = 163;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -773,13 +757,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 164;
-                                                content = " ";
-                                              };
+                                              { id = 164; content = " " };
                                             Tile
                                               {
-                                                id = init_base 167;
+                                                id = 167;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -799,23 +780,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 168;
-                                                content = " ";
-                                              };
+                                              { id = 168; content = " " };
                                           ];
                                         ];
                                     };
+                                  Whitespace { id = 173; content = " " };
                                   Whitespace
-                                    { id = init_base 173; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 174;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 174; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = init_base 177;
+                                      id = 177;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -831,13 +805,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 178;
-                                                content = " ";
-                                              };
+                                              { id = 178; content = " " };
                                             Tile
                                               {
-                                                id = init_base 181;
+                                                id = 181;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -857,13 +828,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 182;
-                                                content = " ";
-                                              };
+                                              { id = 182; content = " " };
                                             Tile
                                               {
-                                                id = init_base 185;
+                                                id = 185;
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -883,13 +851,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 186;
-                                                content = " ";
-                                              };
+                                              { id = 186; content = " " };
                                             Tile
                                               {
-                                                id = init_base 188;
+                                                id = 188;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -909,20 +874,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 191;
-                                                content = " ";
-                                              };
+                                              { id = 191; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 195;
-                                                content = " ";
-                                              };
+                                              { id = 195; content = " " };
                                             Tile
                                               {
-                                                id = init_base 197;
+                                                id = 197;
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -942,23 +901,19 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 200;
-                                                content = " ";
-                                              };
+                                              { id = 200; content = " " };
                                             Whitespace
                                               {
-                                                id = init_base 198;
+                                                id = 198;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace
-                                    { id = init_base 204; content = " " };
+                                  Whitespace { id = 204; content = " " };
                                   Tile
                                     {
-                                      id = init_base 219;
+                                      id = 219;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -974,13 +929,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 220;
-                                                content = " ";
-                                              };
+                                              { id = 220; content = " " };
                                             Tile
                                               {
-                                                id = init_base 223;
+                                                id = 223;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1000,13 +952,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 224;
-                                                content = " ";
-                                              };
+                                              { id = 224; content = " " };
                                             Tile
                                               {
-                                                id = init_base 227;
+                                                id = 227;
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1026,13 +975,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 228;
-                                                content = " ";
-                                              };
+                                              { id = 228; content = " " };
                                             Tile
                                               {
-                                                id = init_base 230;
+                                                id = 230;
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1052,20 +998,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 233;
-                                                content = " ";
-                                              };
+                                              { id = 233; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 237;
-                                                content = " ";
-                                              };
+                                              { id = 237; content = " " };
                                             Tile
                                               {
-                                                id = init_base 239;
+                                                id = 239;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1085,23 +1025,19 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 242;
-                                                content = " ";
-                                              };
+                                              { id = 242; content = " " };
                                             Whitespace
                                               {
-                                                id = init_base 240;
+                                                id = 240;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace
-                                    { id = init_base 246; content = " " };
+                                  Whitespace { id = 246; content = " " };
                                   Tile
                                     {
-                                      id = init_base 250;
+                                      id = 250;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1116,7 +1052,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 251;
+                                      id = 251;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1132,7 +1068,7 @@ let exercise : SchoolExercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = init_base 257;
+                                                id = 257;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1152,13 +1088,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 258;
-                                                content = " ";
-                                              };
+                                              { id = 258; content = " " };
                                             Tile
                                               {
-                                                id = init_base 261;
+                                                id = 261;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1178,13 +1111,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 262;
-                                                content = " ";
-                                              };
+                                              { id = 262; content = " " };
                                             Tile
                                               {
-                                                id = init_base 264;
+                                                id = 264;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1206,11 +1136,10 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace
-                                    { id = init_base 265; content = " " };
+                                  Whitespace { id = 265; content = " " };
                                   Tile
                                     {
-                                      id = init_base 268;
+                                      id = 268;
                                       label = [ "+" ];
                                       mold =
                                         {
@@ -1224,11 +1153,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 269; content = " " };
+                                  Whitespace { id = 269; content = " " };
                                   Tile
                                     {
-                                      id = init_base 273;
+                                      id = 273;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1243,7 +1171,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 274;
+                                      id = 274;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1259,7 +1187,7 @@ let exercise : SchoolExercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = init_base 277;
+                                                id = 277;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1279,13 +1207,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 278;
-                                                content = " ";
-                                              };
+                                              { id = 278; content = " " };
                                             Tile
                                               {
-                                                id = init_base 281;
+                                                id = 281;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1305,13 +1230,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 282;
-                                                content = " ";
-                                              };
+                                              { id = 282; content = " " };
                                             Tile
                                               {
-                                                id = init_base 284;
+                                                id = 284;
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1333,21 +1255,16 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
+                                  Whitespace { id = 288; content = " " };
+                                  Whitespace { id = 285; content = " " };
                                   Whitespace
-                                    { id = init_base 288; content = " " };
-                                  Whitespace
-                                    { id = init_base 285; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 286;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 286; content = "\226\143\142" };
                                 ];
                               ];
                           };
-                        Whitespace { id = init_base 290; content = " " };
+                        Whitespace { id = 290; content = " " };
                       ],
-                      [ Grout { id = init_base 289; shape = Convex } ] );
+                      [ Grout { id = 289; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1365,7 +1282,7 @@ let exercise : SchoolExercise.spec =
                     ( [
                         Tile
                           {
-                            id = init_base 295;
+                            id = 295;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1379,11 +1296,10 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace
-                                    { id = init_base 296; content = " " };
+                                  Whitespace { id = 296; content = " " };
                                   Tile
                                     {
-                                      id = init_base 301;
+                                      id = 301;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1398,7 +1314,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 304;
+                                      id = 304;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1412,11 +1328,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 305; content = " " };
+                                  Whitespace { id = 305; content = " " };
                                   Tile
                                     {
-                                      id = init_base 309;
+                                      id = 309;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1429,11 +1344,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 310; content = " " };
+                                  Whitespace { id = 310; content = " " };
                                   Tile
                                     {
-                                      id = init_base 314;
+                                      id = 314;
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1447,11 +1361,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 315; content = " " };
+                                  Whitespace { id = 315; content = " " };
                                   Tile
                                     {
-                                      id = init_base 319;
+                                      id = 319;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1464,20 +1377,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 320; content = " " };
+                                  Whitespace { id = 320; content = " " };
                                 ];
                                 [
+                                  Whitespace { id = 322; content = " " };
                                   Whitespace
-                                    { id = init_base 322; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 323;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 323; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = init_base 327;
+                                      id = 327;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1493,13 +1401,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 328;
-                                                content = " ";
-                                              };
+                                              { id = 328; content = " " };
                                             Tile
                                               {
-                                                id = init_base 331;
+                                                id = 331;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1519,23 +1424,16 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 332;
-                                                content = " ";
-                                              };
+                                              { id = 332; content = " " };
                                           ];
                                         ];
                                     };
+                                  Whitespace { id = 335; content = " " };
                                   Whitespace
-                                    { id = init_base 335; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 336;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 336; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = init_base 339;
+                                      id = 339;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1551,13 +1449,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 340;
-                                                content = " ";
-                                              };
+                                              { id = 340; content = " " };
                                             Tile
                                               {
-                                                id = init_base 343;
+                                                id = 343;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1577,13 +1472,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 344;
-                                                content = " ";
-                                              };
+                                              { id = 344; content = " " };
                                             Tile
                                               {
-                                                id = init_base 347;
+                                                id = 347;
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1603,13 +1495,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 348;
-                                                content = " ";
-                                              };
+                                              { id = 348; content = " " };
                                             Tile
                                               {
-                                                id = init_base 350;
+                                                id = 350;
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1629,20 +1518,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 353;
-                                                content = " ";
-                                              };
+                                              { id = 353; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              {
-                                                id = init_base 357;
-                                                content = " ";
-                                              };
+                                              { id = 357; content = " " };
                                             Tile
                                               {
-                                                id = init_base 359;
+                                                id = 359;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -1662,28 +1545,21 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 363;
-                                                content = " ";
-                                              };
+                                              { id = 363; content = " " };
+                                            Whitespace
+                                              { id = 360; content = " " };
                                             Whitespace
                                               {
-                                                id = init_base 360;
-                                                content = " ";
-                                              };
-                                            Whitespace
-                                              {
-                                                id = init_base 361;
+                                                id = 361;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace
-                                    { id = init_base 409; content = " " };
+                                  Whitespace { id = 409; content = " " };
                                   Tile
                                     {
-                                      id = init_base 415;
+                                      id = 415;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1698,7 +1574,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 416;
+                                      id = 416;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1714,7 +1590,7 @@ let exercise : SchoolExercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = init_base 419;
+                                                id = 419;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1734,13 +1610,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 420;
-                                                content = " ";
-                                              };
+                                              { id = 420; content = " " };
                                             Tile
                                               {
-                                                id = init_base 423;
+                                                id = 423;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1760,13 +1633,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 424;
-                                                content = " ";
-                                              };
+                                              { id = 424; content = " " };
                                             Tile
                                               {
-                                                id = init_base 440;
+                                                id = 440;
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1788,11 +1658,10 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace
-                                    { id = init_base 441; content = " " };
+                                  Whitespace { id = 441; content = " " };
                                   Tile
                                     {
-                                      id = init_base 445;
+                                      id = 445;
                                       label = [ "+" ];
                                       mold =
                                         {
@@ -1806,11 +1675,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace
-                                    { id = init_base 446; content = " " };
+                                  Whitespace { id = 446; content = " " };
                                   Tile
                                     {
-                                      id = init_base 450;
+                                      id = 450;
                                       label = [ "fib" ];
                                       mold =
                                         {
@@ -1825,7 +1693,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = init_base 451;
+                                      id = 451;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -1841,7 +1709,7 @@ let exercise : SchoolExercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = init_base 454;
+                                                id = 454;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1861,13 +1729,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 455;
-                                                content = " ";
-                                              };
+                                              { id = 455; content = " " };
                                             Tile
                                               {
-                                                id = init_base 458;
+                                                id = 458;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -1887,13 +1752,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              {
-                                                id = init_base 459;
-                                                content = " ";
-                                              };
+                                              { id = 459; content = " " };
                                             Tile
                                               {
-                                                id = init_base 461;
+                                                id = 461;
                                                 label = [ "2" ];
                                                 mold =
                                                   {
@@ -1915,19 +1777,15 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
+                                  Whitespace { id = 464; content = " " };
                                   Whitespace
-                                    { id = init_base 464; content = " " };
-                                  Whitespace
-                                    {
-                                      id = init_base 466;
-                                      content = "\226\143\142";
-                                    };
+                                    { id = 466; content = "\226\143\142" };
                                 ];
                               ];
                           };
-                        Whitespace { id = init_base 467; content = " " };
+                        Whitespace { id = 467; content = " " };
                       ],
-                      [ Grout { id = init_base 465; shape = Convex } ] );
+                      [ Grout { id = 465; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1947,7 +1805,7 @@ let exercise : SchoolExercise.spec =
                   ( [
                       Tile
                         {
-                          id = init_base 528;
+                          id = 528;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -1961,10 +1819,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 529; content = " " };
+                                Whitespace { id = 529; content = " " };
                                 Tile
                                   {
-                                    id = init_base 534;
+                                    id = 534;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -1979,7 +1837,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 535;
+                                    id = 535;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -1995,7 +1853,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 538;
+                                              id = 538;
                                               label = [ "0" ];
                                               mold =
                                                 {
@@ -2017,10 +1875,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 539; content = " " };
+                                Whitespace { id = 539; content = " " };
                                 Tile
                                   {
-                                    id = init_base 543;
+                                    id = 543;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2033,10 +1891,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 544; content = " " };
+                                Whitespace { id = 544; content = " " };
                                 Tile
                                   {
-                                    id = init_base 546;
+                                    id = 546;
                                     label = [ "1" ];
                                     mold =
                                       {
@@ -2049,13 +1907,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 549; content = " " };
+                                Whitespace { id = 549; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 553;
+                          id = 553;
                           label = [ ";" ];
                           mold =
                             {
@@ -2068,11 +1926,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 554; content = "\226\143\142" };
+                      Whitespace { id = 554; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 559;
+                          id = 559;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2086,10 +1943,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 560; content = " " };
+                                Whitespace { id = 560; content = " " };
                                 Tile
                                   {
-                                    id = init_base 565;
+                                    id = 565;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2104,7 +1961,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 566;
+                                    id = 566;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2120,7 +1977,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 569;
+                                              id = 569;
                                               label = [ "1" ];
                                               mold =
                                                 {
@@ -2142,10 +1999,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 570; content = " " };
+                                Whitespace { id = 570; content = " " };
                                 Tile
                                   {
-                                    id = init_base 574;
+                                    id = 574;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2158,10 +2015,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 575; content = " " };
+                                Whitespace { id = 575; content = " " };
                                 Tile
                                   {
-                                    id = init_base 577;
+                                    id = 577;
                                     label = [ "1" ];
                                     mold =
                                       {
@@ -2174,13 +2031,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 580; content = " " };
+                                Whitespace { id = 580; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 584;
+                          id = 584;
                           label = [ ";" ];
                           mold =
                             {
@@ -2193,11 +2050,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 585; content = "\226\143\142" };
+                      Whitespace { id = 585; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 590;
+                          id = 590;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2211,10 +2067,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 591; content = " " };
+                                Whitespace { id = 591; content = " " };
                                 Tile
                                   {
-                                    id = init_base 596;
+                                    id = 596;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2229,7 +2085,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 597;
+                                    id = 597;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2245,7 +2101,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 600;
+                                              id = 600;
                                               label = [ "2" ];
                                               mold =
                                                 {
@@ -2267,10 +2123,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 601; content = " " };
+                                Whitespace { id = 601; content = " " };
                                 Tile
                                   {
-                                    id = init_base 605;
+                                    id = 605;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2283,10 +2139,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 606; content = " " };
+                                Whitespace { id = 606; content = " " };
                                 Tile
                                   {
-                                    id = init_base 612;
+                                    id = 612;
                                     label = [ "2" ];
                                     mold =
                                       {
@@ -2299,13 +2155,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 614; content = " " };
+                                Whitespace { id = 614; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 618;
+                          id = 618;
                           label = [ ";" ];
                           mold =
                             {
@@ -2318,11 +2174,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 619; content = "\226\143\142" };
+                      Whitespace { id = 619; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 624;
+                          id = 624;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2336,10 +2191,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 625; content = " " };
+                                Whitespace { id = 625; content = " " };
                                 Tile
                                   {
-                                    id = init_base 630;
+                                    id = 630;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2354,7 +2209,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 631;
+                                    id = 631;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2370,7 +2225,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 634;
+                                              id = 634;
                                               label = [ "3" ];
                                               mold =
                                                 {
@@ -2392,10 +2247,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 635; content = " " };
+                                Whitespace { id = 635; content = " " };
                                 Tile
                                   {
-                                    id = init_base 639;
+                                    id = 639;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2408,10 +2263,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 640; content = " " };
+                                Whitespace { id = 640; content = " " };
                                 Tile
                                   {
-                                    id = init_base 642;
+                                    id = 642;
                                     label = [ "3" ];
                                     mold =
                                       {
@@ -2424,13 +2279,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 645; content = " " };
+                                Whitespace { id = 645; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 649;
+                          id = 649;
                           label = [ ";" ];
                           mold =
                             {
@@ -2443,11 +2298,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 650; content = "\226\143\142" };
+                      Whitespace { id = 650; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 655;
+                          id = 655;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2461,10 +2315,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 656; content = " " };
+                                Whitespace { id = 656; content = " " };
                                 Tile
                                   {
-                                    id = init_base 661;
+                                    id = 661;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2479,7 +2333,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 662;
+                                    id = 662;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2495,7 +2349,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 665;
+                                              id = 665;
                                               label = [ "4" ];
                                               mold =
                                                 {
@@ -2517,10 +2371,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 666; content = " " };
+                                Whitespace { id = 666; content = " " };
                                 Tile
                                   {
-                                    id = init_base 670;
+                                    id = 670;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2533,10 +2387,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 671; content = " " };
+                                Whitespace { id = 671; content = " " };
                                 Tile
                                   {
-                                    id = init_base 683;
+                                    id = 683;
                                     label = [ "5" ];
                                     mold =
                                       {
@@ -2549,13 +2403,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 676; content = " " };
+                                Whitespace { id = 676; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 680;
+                          id = 680;
                           label = [ ";" ];
                           mold =
                             {
@@ -2568,11 +2422,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 681; content = "\226\143\142" };
+                      Whitespace { id = 681; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 688;
+                          id = 688;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2586,10 +2439,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 689; content = " " };
+                                Whitespace { id = 689; content = " " };
                                 Tile
                                   {
-                                    id = init_base 694;
+                                    id = 694;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2604,7 +2457,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 695;
+                                    id = 695;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2620,7 +2473,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 698;
+                                              id = 698;
                                               label = [ "5" ];
                                               mold =
                                                 {
@@ -2642,10 +2495,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 699; content = " " };
+                                Whitespace { id = 699; content = " " };
                                 Tile
                                   {
-                                    id = init_base 703;
+                                    id = 703;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2658,10 +2511,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 704; content = " " };
+                                Whitespace { id = 704; content = " " };
                                 Tile
                                   {
-                                    id = init_base 706;
+                                    id = 706;
                                     label = [ "8" ];
                                     mold =
                                       {
@@ -2674,13 +2527,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 709; content = " " };
+                                Whitespace { id = 709; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 713;
+                          id = 713;
                           label = [ ";" ];
                           mold =
                             {
@@ -2693,11 +2546,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 714; content = "\226\143\142" };
+                      Whitespace { id = 714; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 719;
+                          id = 719;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2711,10 +2563,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 720; content = " " };
+                                Whitespace { id = 720; content = " " };
                                 Tile
                                   {
-                                    id = init_base 725;
+                                    id = 725;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2729,7 +2581,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 726;
+                                    id = 726;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2745,7 +2597,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 729;
+                                              id = 729;
                                               label = [ "6" ];
                                               mold =
                                                 {
@@ -2767,10 +2619,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 730; content = " " };
+                                Whitespace { id = 730; content = " " };
                                 Tile
                                   {
-                                    id = init_base 734;
+                                    id = 734;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2783,10 +2635,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 735; content = " " };
+                                Whitespace { id = 735; content = " " };
                                 Tile
                                   {
-                                    id = init_base 738;
+                                    id = 738;
                                     label = [ "13" ];
                                     mold =
                                       {
@@ -2799,13 +2651,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 741; content = " " };
+                                Whitespace { id = 741; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 745;
+                          id = 745;
                           label = [ ";" ];
                           mold =
                             {
@@ -2818,11 +2670,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 746; content = "\226\143\142" };
+                      Whitespace { id = 746; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 751;
+                          id = 751;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2836,10 +2687,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 752; content = " " };
+                                Whitespace { id = 752; content = " " };
                                 Tile
                                   {
-                                    id = init_base 757;
+                                    id = 757;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2854,7 +2705,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 758;
+                                    id = 758;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2870,7 +2721,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 761;
+                                              id = 761;
                                               label = [ "7" ];
                                               mold =
                                                 {
@@ -2892,10 +2743,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 762; content = " " };
+                                Whitespace { id = 762; content = " " };
                                 Tile
                                   {
-                                    id = init_base 766;
+                                    id = 766;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -2908,10 +2759,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 767; content = " " };
+                                Whitespace { id = 767; content = " " };
                                 Tile
                                   {
-                                    id = init_base 770;
+                                    id = 770;
                                     label = [ "21" ];
                                     mold =
                                       {
@@ -2924,13 +2775,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 773; content = " " };
+                                Whitespace { id = 773; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 777;
+                          id = 777;
                           label = [ ";" ];
                           mold =
                             {
@@ -2943,11 +2794,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 778; content = "\226\143\142" };
+                      Whitespace { id = 778; content = "\226\143\142" };
                       Tile
                         {
-                          id = init_base 783;
+                          id = 783;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2961,10 +2811,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = init_base 784; content = " " };
+                                Whitespace { id = 784; content = " " };
                                 Tile
                                   {
-                                    id = init_base 789;
+                                    id = 789;
                                     label = [ "fib" ];
                                     mold =
                                       {
@@ -2979,7 +2829,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = init_base 790;
+                                    id = 790;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2995,7 +2845,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = init_base 793;
+                                              id = 793;
                                               label = [ "8" ];
                                               mold =
                                                 {
@@ -3017,10 +2867,10 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = init_base 794; content = " " };
+                                Whitespace { id = 794; content = " " };
                                 Tile
                                   {
-                                    id = init_base 798;
+                                    id = 798;
                                     label = [ "==" ];
                                     mold =
                                       {
@@ -3033,10 +2883,10 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 799; content = " " };
+                                Whitespace { id = 799; content = " " };
                                 Tile
                                   {
-                                    id = init_base 802;
+                                    id = 802;
                                     label = [ "34" ];
                                     mold =
                                       {
@@ -3049,13 +2899,13 @@ let exercise : SchoolExercise.spec =
                                     shards = [ 0 ];
                                     children = [];
                                   };
-                                Whitespace { id = init_base 805; content = " " };
+                                Whitespace { id = 805; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = init_base 811;
+                          id = 811;
                           label = [ ";" ];
                           mold =
                             {
@@ -3068,10 +2918,9 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace
-                        { id = init_base 812; content = "\226\143\142" };
+                      Whitespace { id = 812; content = "\226\143\142" };
                     ],
-                    [ Grout { id = init_base 810; shape = Convex } ] );
+                    [ Grout { id = 810; shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;

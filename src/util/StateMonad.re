@@ -5,6 +5,9 @@ module type S = {
 
   include Monads.MONAD with type t('a) = state => (state, 'a);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('a) = state => (state, 'a);
+
   let get: t(state);
   let put: state => t(unit);
   let modify: (state => state) => t(unit);
@@ -15,7 +18,7 @@ module Make = (ST: STATE) => {
   type state = ST.t;
 
   module T = {
-    [@deriving sexp]
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t('a) = state => (state, 'a);
 
     let return = (x, s) => (s, x);

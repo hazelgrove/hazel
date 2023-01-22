@@ -37,3 +37,26 @@ module Syntax = {
   let (let+) = (o, f) => Option.map(f, o);
   let (and+) = zip;
 };
+
+// Monad Transfomer
+module OptionT = {
+  module Make = (M: Monads.MONAD) => {
+    type t('a) = M.t(option('a));
+
+    let return: 'a => t('a) = x => M.return(Some(x));
+
+    let bind: (t('a), 'a => t('b)) => t('b) =
+      (m, f) => {
+        M.bind(m, o =>
+          switch (o) {
+          | Some(x) => f(x)
+          | None => None |> return
+          }
+        );
+      };
+
+    module Syntax = {
+      let ( let* ) = bind;
+    };
+  };
+};

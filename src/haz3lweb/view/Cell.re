@@ -147,7 +147,7 @@ let test_result_layer =
   //print_endline(Interface.show_test_results(test_results));
   List.filter_map(
     ((id: int, insts)) =>
-      switch (Id.Map.find_opt(Id.init_base(id), measured.tiles)) {
+      switch (Id.Map.find_opt(id, measured.tiles)) {
       | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
       | _ => None
       },
@@ -197,7 +197,7 @@ let eval_result_footer_view = (~font_metrics, simple: ModelResult.simple) => {
     switch (simple) {
     | None => [Node.text("No result available.")]
     | Some({
-        eval_result: {term: Hole((0, 0), InvalidText("EXCEPTION")), _},
+        eval_result: {term: Hole(None, InvalidText("EXCEPTION")), _},
         _,
       }) => [
         Node.text("No result available (exception)."),

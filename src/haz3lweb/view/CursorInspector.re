@@ -5,7 +5,7 @@ open Util;
 
 let cls_str = (ci: Haz3lcore.Statics.t): string =>
   switch (ci) {
-  | Invalid(msg) => Haz3lcore.TermBase.show_parse_flag(msg)
+  | Invalid(msg) => Haz3lcore.ParseFlag.show(msg)
   | InfoExp({cls, _}) => Haz3lcore.Term.UExp.show_cls(cls)
   | InfoPat({cls, _}) => Haz3lcore.Term.UPat.show_cls(cls)
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
@@ -135,7 +135,7 @@ let view_of_info =
   | Invalid(msg) =>
     div(
       ~attr=clss([infoc, "unknown"]),
-      [text("🚫 " ++ Haz3lcore.TermBase.show_parse_flag(msg))],
+      [text("🚫 " ++ Haz3lcore.ParseFlag.show(msg))],
     )
   | InfoExp({mode, self, _}) =>
     let error_status = Haz3lcore.Statics.error_status(mode, self);

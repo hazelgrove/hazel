@@ -13,6 +13,7 @@ let precedence_Power = P.power;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
 let precedence_Minus = P.plus;
+let precedence_Neg = P.neg;
 let precedence_Cons = P.cons;
 let precedence_Equals = P.eqs;
 let precedence_LessThan = P.eqs;
@@ -79,6 +80,10 @@ module Delim = {
 
   let open_Case = mk("case");
   let close_Case = mk("end");
+
+  let open_If = mk("If");
+  let then_If = mk("then");
+  let else_If = mk("else");
 
   let bar_Rule = mk("|");
   let arrow_Rule = mk("=>");
