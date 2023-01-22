@@ -25,9 +25,7 @@ let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Chain.Padded.t =>
   |> OptUtil.get_or_raise(Chain.Invalid_prec);
 
 let assemble = ((pre, suf): t) => {
-  let l = Aba.uncons(suf) |> Option.map(((_, c, _)) => c);
-  let r = Aba.unsnoc(pre) |> Option.map(((_, c, _)) => c);
-  Segment.(assemble_r(~r?, pre), assemble_l(~l?, suf));
+  Segment.(assemble_l(pre), assemble_r(suf));
 };
 
 [@warning "-27"]
