@@ -122,7 +122,104 @@ and CExp: {
 
   let mk: (Ids.t, term) => t;
 } = {
-  include CExp;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_int =
+    | Minus;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_bool =
+    | And
+    | Or;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_int =
+    | Plus
+    | Minus
+    | Times
+    | Power
+    | Divide
+    | LessThan
+    | LessThanOrEqual
+    | GreaterThan
+    | GreaterThanOrEqual
+    | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_float =
+    | Plus
+    | Minus
+    | Times
+    | Power
+    | Divide
+    | LessThan
+    | LessThanOrEqual
+    | GreaterThan
+    | GreaterThanOrEqual
+    | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_string =
+    | Equals;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un =
+    | Int(op_un_int);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin =
+    | Int(op_bin_int)
+    | Float(op_bin_float)
+    | Bool(op_bin_bool)
+    | String(op_bin_string);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type list_status = (MetaVar.t, MetaVarInst.t, ListErrStatus.t, Typ.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(option(HoleInstance.t), hole)
+    | Closure(ClosureEnvironment.t, t)
+    | Triv
+    | Bool(bool)
+    | Int(int)
+    | Float(float)
+    | String(string)
+    | ListLit(list(t), option(list_status))
+    | Tag(string)
+    | FixF(Token.t, Typ.t, t)
+    | Fun(CPat.t, option(Typ.t), t, option(Var.t))
+    | Tuple(list(t))
+    | Var(Token.t)
+    | Let(CPat.t, t, t)
+    | Ap(t, t)
+    | ApBuiltin(string, list(t))
+    | If(t, t, t)
+    | Seq(t, t)
+    | Test(t, option(KeywordID.t))
+    | Parens(t)
+    | Cons(t, t)
+    | Prj(t, int)
+    | Inj(Typ.t, InjSide.t, t)
+    | UnOp(op_un, t)
+    | BinOp(op_bin, t, t)
+    | Match(t, list((CPat.t, t)), int)
+    | Cast(t, Typ.t, Typ.t)
+  and hole =
+    | EmptyHole
+    | MultiHole(list(CAny.t))
+    | NonEmptyHole(ErrStatus.HoleReason.t, t)
+    | Invalid(ParseFlag.t)
+    | InvalidText(string)
+    | InvalidOperation(InvalidOperationError.t, t)
+    | ExpandingKeyword(ExpandingKeyword.t)
+    | FreeVar(Token.t)
+    | InconsistentBranches(t, list((CPat.t, t)), int)
+    | FailedCast(t, Typ.t, Typ.t)
+  and t = {
+    // invariant: nonempty
+    ids: Ids.t,
+    term,
+  };
 
   let mk = (ids, term) => {ids, term};
 }
@@ -159,7 +256,35 @@ and CPat: {
 
   let mk: (Ids.t, term) => t;
 } = {
-  include CPat;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Hole(option(HoleInstance.t), hole)
+    | Wild
+    | Int(int)
+    | Float(float)
+    | Bool(bool)
+    | String(string)
+    | Triv
+    | ListLit(list(t), option(Typ.t))
+    | Tag(string)
+    | Cons(t, t)
+    | Inj(InjSide.t, t)
+    | Var(Token.t)
+    | Tuple(list(t))
+    | Parens(t)
+    | Ap(t, t)
+    | TypeAnn(t, CTyp.t)
+  and hole =
+    | EmptyHole
+    | MultiHole(list(CAny.t))
+    | NonEmptyHole(ErrStatus.HoleReason.t, t)
+    | Invalid(ParseFlag.t)
+    | InvalidText(string)
+    | ExpandingKeyword(ExpandingKeyword.t)
+  and t = {
+    ids: Ids.t,
+    term,
+  };
 
   let mk = (ids, term) => {ids, term};
 }

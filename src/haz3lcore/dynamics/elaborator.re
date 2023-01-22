@@ -28,14 +28,16 @@ module ElaborationMonad = {
 
   type t('a) = StateMonad.t(option('a));
 
-  let return = x => StateMonad.return(Some(x));
+  let some = x => StateMonad.return(Some(x));
+
+  let none = StateMonad.return(None);
 
   let bind: (t('a), 'a => t('b)) => t('b) =
     (m, f) =>
       StateMonad.bind(m, o =>
         switch (o) {
         | Some(x) => f(x)
-        | None => None |> StateMonad.return
+        | None => none
         }
       );
 
@@ -57,7 +59,7 @@ module ElaborationMonad = {
 
   let get: t(state) = s => (s, Some(s));
 
-  let put: state => t(unit) = (x, _) => (x, None);
+  let put: state => t(unit) = (x, _) => (x, Some());
 
   let modify: (state => state) => t(unit) = f => bind(get, s => put(f(s)));
 
@@ -66,7 +68,7 @@ module ElaborationMonad = {
       get,
       s => {
         let (x, s) = f(s);
-        bind(put(s), _ => return(x));
+        bind(put(s), _ => some(x));
       },
     );
 
@@ -79,7 +81,7 @@ module ElaborationMonad = {
       };
     };
 
-    map(sequence'(ms, [] |> return), List.rev);
+    map(sequence'(ms, some([])), List.rev);
   };
 
   let get_id = map(get, ElaborationState.get_id);
@@ -175,7 +177,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
     | Hole(_, Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | Hole(_, EmptyHole) =>
       let* ids = ids_derive(ids);
-      DHExp.{ids, term: Hole(Some((u, 0)), EmptyHole)} |> return;
+      some(DHExp.{ids, term: Hole(Some((u, 0)), EmptyHole)});
     | Hole(_, MultiHole(tms)) =>
       // TODO: dhexp, eval for multiholes
       let f = t =>
@@ -183,15 +185,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
         | Term.Exp(e) => dhexp_of_uexp(m, e)
         | _ =>
           let* ids = Term.ids(t) |> List.map(id => (id, (-1))) |> ids_derive;
-          DHExp.mk(ids, Hole(Some((Term.rep_id(t), 0)), EmptyHole))
-          |> return;
+          some(DHExp.mk(ids, Hole(Some((Term.rep_id(t), 0)), EmptyHole)));
         };
       let tms = tms |> List.map(f);
       let* ds = tms |> sequence;
       switch (ds) {
       | [] =>
         let* ids = ids_derive(ids);
-        DHExp.mk(ids, Hole(Some((u, 0)), EmptyHole)) |> return;
+        some(DHExp.mk(ids, Hole(Some((u, 0)), EmptyHole)));
       | [hd, ...tl] =>
         // placeholder logic: sequence
         // About ids assignment: here ids can either be created from
@@ -201,15 +202,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
             (acc, d: DHExp.t) => {
               let* acc = acc;
               let* ids = ids_derive(d.ids);
-              DHExp.mk(ids, Seq(d, acc)) |> return;
+              some(DHExp.mk(ids, Seq(d, acc)));
             },
-            hd |> return,
+            some(hd),
             tl,
           );
         wrap(ds');
       };
-    | Closure(_) => None |> StateMonad.return
-    | Hole(_) => None |> StateMonad.return
+    | Closure(_) => none
+    | Hole(_) => none
     | Triv => wrap({ids, term: Tuple([])})
     | Bool(b) => wrap({ids, term: Bool(b)})
     | Int(n) => wrap({ids, term: Int(n)})
@@ -231,7 +232,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
             let dc = DHExp.cast(d, e_ty, ty);
             acc @ [dc];
           },
-          [] |> return,
+          some([]),
           es,
         );
       DHExp.mk(
@@ -253,13 +254,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
           (e, ds: m(list('a))) => {
             let* ds = ds;
             let* d = dhexp_of_uexp(m, e);
-            [d, ...ds] |> return;
+            some([d, ...ds]);
           },
           es,
-          [] |> return,
+          some([]),
         );
       let* ids = ids_derive(ids);
-      DHExp.mk(ids, Tuple(ds)) |> return;
+      some(DHExp.mk(ids, Tuple(ds)));
     | Tag(name) => wrap({ids, term: Tag(name)})
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
@@ -304,7 +305,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
     | Var(name) =>
       switch (err_status) {
       | InHole(Free(Variable)) =>
-        DHExp.{ids, term: Hole(Some((u, 0)), FreeVar(name))} |> return
+        some(DHExp.{ids, term: Hole(Some((u, 0)), FreeVar(name))})
       | _ => wrap({ids, term: Var(name)})
       }
     | Let(p, def, body) =>
@@ -317,9 +318,10 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
           switch (ddef.term) {
           | Fun(a, b, c, _) =>
             let* ids = ids_derive(ddef.ids);
-            DHExp.{ids, term: DHExp.Fun(a, b, c, Term.UPat.get_var(p))}
-            |> return;
-          | _ => ddef |> return
+            some(
+              DHExp.{ids, term: DHExp.Fun(a, b, c, Term.UPat.get_var(p))},
+            );
+          | _ => some(ddef)
           };
         let* dbody = dhexp_of_uexp(m, body);
         wrap({ids, term: Let(dp, ddef, dbody)});
@@ -331,8 +333,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
           switch (ddef) {
           | {term: Fun(a, b, c, _), ids} =>
             let* ids = ids_derive(ids);
-            DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids} |> return;
-          | _ => ddef |> return
+            some(DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids});
+          | _ => some(ddef)
           };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
@@ -388,9 +390,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
                  let prj =
                    DHExp.{ids: prj_ids, term: DHExp.Prj(self_var, i)};
                  let ddef = Substitution.subst_var(prj, f, ddef);
-                 (i + 1, ddef) |> return;
+                 some((i + 1, ddef));
                },
-               (0, ddef) |> return,
+               some((0, ddef)),
              );
         let* fixpoint_ids = ids_derive(substituted_def.ids);
         let fixpoint =
@@ -412,10 +414,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
     | ApBuiltin(_) => failwith("dhexp_of_uexp on ApBuiltin")
     | If(scrut, e1, e2) =>
       let* d_scrut = dhexp_of_uexp(m, scrut);
+      let print = (p, x) =>
+        print_endline(p ++ Sexplib.Sexp.to_string_hum(x));
+      print("d_scrut: ", DHExp.sexp_of_t(d_scrut));
       let* d1 = dhexp_of_uexp(m, e1);
       let* d2 = dhexp_of_uexp(m, e2);
-      // The two branches introduced by If -> Match transformation are
-      // assigned with ids derived from if-expression.
       let* ids1 = ids_derive(ids);
       let* ids2 = ids_derive(ids);
       let d_rules = [
@@ -424,12 +427,13 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
       ];
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        DHExp.{
-          ids,
-          term:
+        let* ids = ids_derive(ids);
+        some(
+          DHExp.mk(
+            ids,
             Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
-        }
-        |> return
+          ),
+        );
       | _ => wrap({ids, term: Match(d_scrut, d_rules, 0)})
       };
     | Match(scrut, rules, _) =>
@@ -446,12 +450,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
         |> sequence;
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        DHExp.{
-          ids,
-          term:
+        some(
+          DHExp.mk(
+            ids,
             Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
-        }
-        |> return
+          ),
+        )
       | _ => wrap(DHExp.{ids, term: Match(d_scrut, d_rules, 0)})
       };
     | Cast(_) => None |> StateMonad.return
@@ -472,13 +476,14 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
     let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
     let wrap = (d: DHPat.t): m(DHPat.t) =>
       switch (maybe_reason) {
-      | None => d |> return
+      | None => some(d)
       | Some(reason) =>
-        DHPat.{
-          ids: upat.ids,
-          term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
-        }
-        |> return
+        some(
+          DHPat.{
+            ids: upat.ids,
+            term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
+          },
+        )
       };
     let ids = upat.ids;
     let ids_derive = ids => with_id(ids_derive(ids));
@@ -486,10 +491,10 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
     | Hole(_, Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | Hole(_, EmptyHole) =>
       let* ids = ids_derive(ids);
-      DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)} |> return;
+      some(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)});
     | Hole(_, MultiHole(_)) =>
       // TODO: dhexp, eval for multiholes
-      DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)} |> return
+      some(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)})
     | Hole(_) => failwith("dhexp_of_uexp on Hole")
     | Wild => wrap({ids, term: Wild})
     | Bool(b) => wrap({ids, term: Bool(b)})
@@ -506,7 +511,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
             let+ d = dhpat_of_upat(m, p);
             acc @ [d];
           },
-          [] |> return,
+          some([]),
           ps,
         );
       wrap({ids, term: ListLit(ds, Some(ty))});
@@ -523,14 +528,14 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
           (p, dps) => {
             let* dps = dps;
             let* dp = dhpat_of_upat(m, p);
-            [dp, ...dps] |> return;
+            some([dp, ...dps]);
           },
           ps,
-          [] |> return,
+          some([]),
         );
       let* ids = ids_derive(ids);
-      DHPat.mk(ids, Tuple(dps)) |> return;
-    | Var(name) => DHPat.{ids, term: Var(name)} |> return
+      some(DHPat.mk(ids, Tuple(dps)));
+    | Var(name) => some(DHPat.{ids, term: Var(name)})
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>
       let* d_p1 = dhpat_of_upat(m, p1);
@@ -553,7 +558,7 @@ let dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
   print_endline(
     "elaborated: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(ret)),
   );
-  ret |> return;
+  some(ret);
 };
 
 let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
