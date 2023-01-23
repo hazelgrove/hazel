@@ -3,9 +3,9 @@ let digit = ['0'-'9']
 let int_lit = (digit | '_')+
 let float_lit = digit+ '.' digit* | digit* '.' digit+
 
-let alpha = ['a'-'z' 'A'-'Z']
 let alpha_lower = ['a'-'z']
 let alpha_upper = ['A'-'Z']
+let alpha = alpha_lower | alpha_upper
 
 let id_lower = alpha_lower (alpha | digit | '_')*
 let id_upper = alpha_upper (alpha | digit | '_')*

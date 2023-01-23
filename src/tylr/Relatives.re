@@ -208,51 +208,6 @@ let rec push_chain_l =
   };
 };
 
-// [@warning "-27"]
-// let push_chain_r = (~kid=Chain.Padded.empty(), c: Chain.t, rel: t) =>{
-//   let (pre, suf) = rel.sib;
-//   switch (Segment.push_chain(c, ~kid, suf)) {
-//   | In(pre) => {...rel, sib: (pre, suf)}
-//   | Lt(kid) =>
-//     switch (Ancestors.pop(rel.anc)) {
-//     | None =>
-//       let suf = Segment.of_padded(Chain.(merge(Padded.mk(c), kid)));
-//       {...rel, sib: (pre, suf)};
-//     | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
-//       switch (Chain.cmp_merge(c, ~kid, par_r)) {
-//       | In(_) => raise(Parent.Convex_inner_tips)
-//       | Lt(kid_r) =>
-//         {...rel, sib: (Segment.of_padded(kid_r), suf)};
-//       | Gt(kid_l) =>
-//         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-//         push_chain_l(~kid=kid_l, c, {anc, sib: (sib_l, suf)});
-//       | Eq(par_l__c) =>
-//         let pre = Segment.(concat([sib_l, of_padded(par_l__c)]));
-//         let suf = Segment.(concat([suf, of_chain(par_r), sib_r]));
-//         {anc, sib: (pre, suf)};
-//       }
-//     }
-//   | Eq(suf)
-//   | Gt(suf) => {...rel, sib: (pre, suf)}
-//   };
-// };
-
-// let push_seg = (~onto: Dir.t, seg: Segment.t, rel: t): t =>
-//   switch (onto) {
-//   | L =>
-//     Segment.to_suffix(seg)
-//     |> Aba.fold_left(
-//          s => push_space(~onto, s, rel),
-//          (rel, c, s) => rel |> push_chain_l(c) |> push_space(~onto=L, s),
-//        )
-//   | R =>
-//     Segment.to_prefix(seg)
-//     |> Aba.fold_right(
-//          (s, c, rel) => rel |> push_chain_r(c) |> push_space(~onto=R, s),
-//          s => push_space(~onto, s, rel),
-//        )
-//   };
-
 // precond: c is closed left
 let rec insert_chain = (c: Chain.t, rel: t): t => {
   let (kid, p, rest) =
