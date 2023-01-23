@@ -57,12 +57,11 @@ let exp_binop_of: Term.UExp.op_bin => (HTyp.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     )
   | List(op) => (
-      List(Unknown(Internal)),
+      List(Hole),
       ((e1, e2) => BinListOp(list_op_of(op), e1, e2)),
-    );
+    ) /* Wrap: Handles cast insertion and non-empty-hole wrapping
+   for elaborated expressions */;
 
-/* Wrap: Handles cast insertion and non-empty-hole wrapping
-   for elaborated expressions */
 let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
   switch (Statics.error_status(mode, self)) {
   | NotInHole(_) =>
@@ -105,25 +104,21 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
         | Unknown(prov) =>
           Some(DHExp.cast(d, Sum(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
-        }
-      /* Forms with special ana rules but no particular typing requirements */
+        } /* Forms with special ana rules but no particular typing requirements */
       | ConsistentCase(_)
       | InconsistentBranches(_)
       | Sequence(_)
       | Let(_)
-      | FixF(_) => Some(d)
-      /* Hole-like forms: Don't cast */
+      | FixF(_) => Some(d) /* Hole-like forms: Don't cast */
       | InvalidText(_)
       | FreeVar(_)
       | ExpandingKeyword(_)
       | EmptyHole(_)
-      | NonEmptyHole(_) => Some(d)
-      /* DHExp-specific forms: Don't cast */
+      | NonEmptyHole(_) => Some(d) /* DHExp-specific forms: Don't cast */
       | Cast(_)
       | Closure(_)
       | FailedCast(_)
-      | InvalidOperation(_) => Some(d)
-      /* Normal cases: wrap */
+      | InvalidOperation(_) => Some(d) /* Normal cases: wrap */
       | BoundVar(_)
       | Ap(_)
       | ApBuiltin(_)
@@ -137,6 +132,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
+      | BinListOp(_)
       | TestLit(_) => Some(DHExp.cast(d, Typ.t_of_self(self), ana_ty))
       }
     }
@@ -148,7 +144,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, _})) =>
     let err_status = Statics.error_status(mode, self);
-    let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    let id = Term.UExp.rep_id(uexp) /* NOTE: using term uids for hole ids */;
     let* d: DHExp.t =
       switch (uexp.term) {
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
@@ -311,7 +307,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): option(DHPat.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
+    let u = Term.UPat.rep_id(upat) /* NOTE: using term uids for hole ids */;
     let wrap = (d: DHPat.t): option(DHPat.t) =>
       switch (maybe_reason) {
       | None => Some(d)
