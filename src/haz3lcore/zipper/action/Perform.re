@@ -123,7 +123,11 @@ let go =
       | None => tylr
       | Some(a) =>
         switch (Tylr.Zipper.perform(a, tylr)) {
-        | None => tylr
+        | None =>
+          print_endline(
+            "tylr action failed: " ++ Tylr.Zipper.Action.show(a),
+          );
+          tylr;
         | Some(t) => t
         }
       };
