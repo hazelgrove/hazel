@@ -145,22 +145,25 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
       switch (uexp.term) {
       | Invalid(_) /* NOTE: treating invalid as a hole for now */
       | EmptyHole => Some(DHExp.EmptyHole(id, 0))
-      | MultiHole(tms) =>
-        // TODO: dhexp, eval for multiholes
-        let+ ds =
-          tms
-          |> List.map(
-               fun
-               | Term.Exp(e) => dhexp_of_uexp(m, e)
-               | tm => Some(EmptyHole(Term.rep_id(tm), 0)),
-             )
-          |> OptUtil.sequence;
-        switch (ds) {
-        | [] => DHExp.EmptyHole(id, 0)
-        | [hd, ...tl] =>
-          // TODO: placeholder logic: sequence
-          tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd)
-        };
+      | MultiHole(_tms) =>
+        /* TODO: add a dhexp case and eval logic for multiholes.
+           Make sure new dhexp form is properly considered Indet
+           to avoid casting issues. */
+        /*let+ ds =
+            tms
+            |> List.map(
+                 fun
+                 | Term.Exp(e) => dhexp_of_uexp(m, e)
+                 | tm => Some(EmptyHole(Term.rep_id(tm), 0)),
+               )
+            |> OptUtil.sequence;
+          switch (ds) {
+          | [] => DHExp.EmptyHole(id, 0)
+          | [hd, ...tl] =>
+            // TODO: placeholder logic: sequence
+            tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd)
+          };*/
+        Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
