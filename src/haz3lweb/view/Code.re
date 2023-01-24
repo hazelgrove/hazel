@@ -39,16 +39,16 @@ module Txt = {
   // todo
   let of_grout = (_: Grout.t) => span([text("•")]);
 
-  let rec of_chain = (c: Chain.t) =>
+  let rec of_meld = (c: Meld.t) =>
     c
     |> Aba.join(of_kid, of_piece)
     |> List.concat
     // todo: consider setting id-based key
     |> span
-  and of_kid = (k: option(Chain.kid)) =>
+  and of_kid = (k: option(Meld.kid)) =>
     switch (k) {
     | None => []
-    | Some(K(kid)) => [of_chain(kid)]
+    | Some(K(kid)) => [of_meld(kid)]
     }
   and of_piece = (p: Piece.t) => {
     let (l, r) = p.space;
@@ -60,7 +60,7 @@ module Txt = {
     [of_space(l), of_p, of_space(r)];
   };
 
-  let of_segment = (seg: Segment.t) => seg |> Aba.join(of_space, of_chain);
+  let of_segment = (seg: Segment.t) => Chain.to_list(of_space, of_meld, seg);
 };
 //  ) =>
 

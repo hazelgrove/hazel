@@ -54,7 +54,7 @@ let is_grout = p =>
   };
 
 // separate from cmp bc these are only relevant
-// based on surrounding chain kids (see Chain.merge/degrout)
+// based on surrounding meld kids (see Meld.merge/degrout)
 type dg =
   | Degrout
   | Fill(Dir.t)

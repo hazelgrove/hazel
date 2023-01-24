@@ -12,17 +12,17 @@ let cons_space = (~onto: Dir.t, s, (l, r): t) => {
   | R => (l, Segment.concat([s, r]))
   };
 };
-let cons_chain = (~onto: Dir.t, c, (l, r)) =>
+let cons_meld = (~onto: Dir.t, c, (l, r)) =>
   switch (onto) {
-  | L => (Segment.snoc_chain(l, c), r)
-  | R => (l, Segment.cons_chain(c, r))
+  | L => (Segment.snoc_meld(l, c), r)
+  | R => (l, Segment.cons_meld(c, r))
   };
 
-let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Chain.Padded.t =>
+let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t =>
   Segment.concat([pre, sel, suf])
   |> Segment.assemble(~l?, ~r?)
   |> Segment.to_padded
-  |> OptUtil.get_or_raise(Chain.Invalid_prec);
+  |> OptUtil.get_or_raise(Meld.Invalid_prec);
 
 let assemble = ((pre, suf): t) => {
   Segment.(assemble_l(pre), assemble_r(suf));
@@ -32,10 +32,10 @@ let assemble = ((pre, suf): t) => {
 let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
   failwith("todo");
 
-let choose_matching = (c: Chain.t, t: Token.t) =>
+let choose_matching = (c: Meld.t, t: Token.t) =>
   LangUtil.molds(t)
   |> List.filter(m =>
-       Mold.matching(L, m) && Chain.cmp_mold(c, m) == Some(Eq())
+       Mold.matching(L, m) && Meld.cmp_mold(c, m) == Some(Eq())
      )
   |> ListUtil.hd_opt;
 
@@ -67,7 +67,7 @@ let choose = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
 };
 
 let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
-  Aba.unsnoc(pre)
+  Chain.unknil(pre)
   |> OptUtil.and_then(((pre, c, _)) =>
        switch (choose_matching(c, t)) {
        | None => mold_matching(t, (pre, suf))
@@ -77,10 +77,10 @@ let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
 
 let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
   let rec go = (~in_l: option(Sort.o)=?, pre: Segment.t) =>
-    Aba.unsnoc(pre)
+    Chain.unknil(pre)
     |> OptUtil.and_then(((pre, c, _)) => {
-         let go_next = () => go(~in_l=Chain.sort(c), pre);
-         switch (Chain.expected_sort(R, c)) {
+         let go_next = () => go(~in_l=Meld.sort(c), pre);
+         switch (Meld.expected_sort(R, c)) {
          | None => go_next()
          | Some(out) =>
            switch (choose(in_l, out, t)) {

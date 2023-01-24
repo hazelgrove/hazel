@@ -128,19 +128,19 @@ let of_space = (~tile_indent=false, ~state, s: Space.t): state =>
      )
   |> fst;
 
-let rec of_chain = (~state=init, c: Chain.t) =>
+let rec of_meld = (~state=init, c: Meld.t) =>
   c
-  |> Aba.fold_left(
+  |> Chain.fold_left(
        of_kid(~state),
        (state, p, k) => {
          let state = of_piece(~state, p);
          of_kid(~state, k);
        },
      )
-and of_kid = (~state, k: option(Chain.kid)) =>
+and of_kid = (~state, k: option(Meld.kid)) =>
   switch (k) {
   | None => state
-  | Some(K(kid)) => of_chain(~state, kid)
+  | Some(K(kid)) => of_meld(~state, kid)
   }
 and of_piece = (~state: state, p: Piece.t) => {
   let (l, r) = p.space;

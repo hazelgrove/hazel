@@ -14,8 +14,8 @@ let init =
     sib:
       Segment.(
         empty,
-        of_chain(
-          Chain.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
+        of_meld(
+          Meld.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
         ),
       ),
     anc: [],
@@ -31,7 +31,7 @@ let unselect = (d: Dir.t, {sel, rel}: t) => {
   mk(Relatives.assemble({...rel, sib}));
 };
 
-let zip = (z: t): Chain.Padded.t => {
+let zip = (z: t): Meld.Padded.t => {
   let z = unselect(L, z);
   Relatives.zip(z.rel);
 };

@@ -1,1 +1,1 @@
-type t = (Chain.t, Chain.t);
+type t = (Meld.t, Meld.t);

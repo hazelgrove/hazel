@@ -56,9 +56,7 @@ let mk = editors => {
   // tylr: Tylr.Segment.empty,
   tylr:
     Tylr.(
-      Segment.of_chain(
-        Chain.of_grout(Grout.mk(Mold.mk_operand(s("Exp")))),
-      )
+      Segment.of_meld(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp")))))
     ),
   editors,
   results: ModelResults.empty,
