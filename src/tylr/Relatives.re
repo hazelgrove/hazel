@@ -306,3 +306,80 @@ let lex = (s: string, rel: t): (list(Lexeme.t), t) => {
   // todo: insert cursor sentinel
   (List.rev(rev^), rel);
 };
+
+let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
+  let (l, rel) =
+    Option.value(uncons_lexeme(~from=L, rel), ~default=(None, rel));
+  let (r, rel) =
+    Option.value(uncons_lexeme(~from=R, rel), ~default=(None, rel));
+  ((l, r), rel);
+};
+
+let lex__ = (s: string) => {
+  let buf = Lexing.from_string(l ++ s ++ r);
+  let rev = ref([]);
+  while (!buf.lex_eof_reached) {
+    let lx = Lexer.next_lexeme(buf);
+    rev := [lx, ...rev^];
+  };
+  List.rev(rev^);
+};
+
+let delete_relex = (rel: t): (list(Lexeme.t), t) => {
+  let ((l, r), rel') = uncons_opt_lexemes(rel);
+  switch (l, r) {
+  | (None | Some(S(_) | G(_)), _)
+  | (_, None | Some(S(_) | G(_))) => ([], rel)
+  | (Some(T(l)), Some(T(r))) =>
+    switch (lex__(l.token ++ r.token)) {
+    | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
+        [],
+        rel,
+      )
+    | ls => (ls, rel')
+    }
+  };
+};
+
+let fill = (s: string, g: Grout.t): option(Piece.t) =>
+  if (String.equal(s, Grout.suggestion(g))) {
+    Some(Piece.mk(T(Tile.mk(~id=g.id, g.mold, s))));
+  } else if (String.starts_with(~prefix=s, Grout.suggestion(g))) {
+    Some(Piece.mk(G(Grout.mk(~id=g.id, ~fill=s, g.mold))));
+  } else {
+    None;
+  };
+
+let rec insert_relex = (s: string, rel: t): (list(Lexeme.t), t) => {
+  assert(s != "");
+  let ((l, r), rel') = uncons_opt_lexemes(rel);
+  switch (l, r) {
+  | (Some(G(l)), Some(G(r))) when l.id == r.id =>
+    let prefix = l.token ++ s;
+    switch (fill(l.token ++ s, r)) {
+    | None =>
+      insert_relex(prefix, cons_chain(~onto=R, Chain.of_grout(r), rel'))
+    | Some(p) => ([], cons_chain(~onto=L, Chain.of_piece(p), rel'))
+    };
+  | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
+    let p = Option.get(fill(s, r));
+    let rel =
+      switch (p.shape) {
+      | T(_) =>
+        rel'
+        |> cons_opt_lexeme(~onto=L, l)
+        |> cons_chain(~onto=L, Chain.of_tile(t))
+      | G(_) =>
+        rel'
+        |> cons_opt_lexeme(~onto=L, l)
+        |> cons_chain(~onto=L, Chain.of_grout(g))
+        |> cons_chain(~onto=R, Chain.of_grout(r))
+      };
+    ([], rel);
+  | _ =>
+    // todo: recycle ids + avoid remolding if unaffected
+    let tok_l = Option.(l |> map(Lexeme.token) |> value(~default=""));
+    let tok_r = Option.(r |> map(Lexeme.token) |> value(~default=""));
+    (lex__(tok_l ++ s ++ tok_r), rel');
+  };
+};
