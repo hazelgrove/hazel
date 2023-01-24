@@ -315,23 +315,13 @@ let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
   ((l, r), rel);
 };
 
-let lex__ = (s: string) => {
-  let buf = Lexing.from_string(l ++ s ++ r);
-  let rev = ref([]);
-  while (!buf.lex_eof_reached) {
-    let lx = Lexer.next_lexeme(buf);
-    rev := [lx, ...rev^];
-  };
-  List.rev(rev^);
-};
-
 let delete_relex = (rel: t): (list(Lexeme.t), t) => {
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
   | (None | Some(S(_) | G(_)), _)
   | (_, None | Some(S(_) | G(_))) => ([], rel)
   | (Some(T(l)), Some(T(r))) =>
-    switch (lex__(l.token ++ r.token)) {
+    switch (Lexer.lex(l.token ++ r.token)) {
     | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
         [],
         rel,
@@ -380,6 +370,6 @@ let rec insert_relex = (s: string, rel: t): (list(Lexeme.t), t) => {
     // todo: recycle ids + avoid remolding if unaffected
     let tok_l = Option.(l |> map(Lexeme.token) |> value(~default=""));
     let tok_r = Option.(r |> map(Lexeme.token) |> value(~default=""));
-    (lex__(tok_l ++ s ++ tok_r), rel');
+    (Lexer.lex(tok_l ++ s ++ tok_r), rel');
   };
 };

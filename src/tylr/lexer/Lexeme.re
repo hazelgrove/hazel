@@ -1,5 +1,5 @@
 type t =
-  | S(Space.t)
+  | S(Space.t) // todo: Space.elem
   | G(Grout.t)
   | T(Tile.t);
 

@@ -30,6 +30,7 @@ rule next_lexeme = parse
 | newline { Lexeme.S (Space.[mk_elem(Newline)]) }
 | space   { Lexeme.S (Space.[mk_elem(Space)]) }
 | token   {
+    (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
     let mold =
       if Token.Shape.is_operand(Token.shape(token))
@@ -37,3 +38,13 @@ rule next_lexeme = parse
     in
     Lexeme.T (Tile.mk mold token)
   }
+
+{
+  let lex = fun s ->
+    let buf = Lexing.from_string s in
+    let rev = ref [] in
+    while not buf.lex_eof_reached do
+      rev := (Lexer.next_lexeme buf)::!rev;
+    done;
+    List.rev(!rev)
+}
