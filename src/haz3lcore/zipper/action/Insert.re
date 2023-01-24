@@ -44,7 +44,7 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): IdGen.t(t) =>
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
   switch (put_down(Left, z)) {
-  | Some(z') when Molds.is_instant(t) && Backpack.will_barf(t, z.backpack) =>
+  | Some(z') when /*Molds.is_instant(t) &&*/ Backpack.will_barf(t, z.backpack) =>
     IdGen.return(z')
   | _ =>
     let (lbl, backpack) = Molds.instant_expansion(t);
