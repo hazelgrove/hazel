@@ -13,10 +13,10 @@ open Util.Web;
 //    },
 module Txt = {
   open Tylr;
-  let of_space = (s: Space.t) =>
+  let of_space = (s: Space.s) =>
     s
-    |> List.map((elem: Space.elem) =>
-         switch (elem.shape) {
+    |> List.map((s: Space.t) =>
+         switch (s.shape) {
          | Space => text(Unicode.nbsp)
          | Newline => br()
          }

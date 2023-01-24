@@ -1,5 +1,5 @@
 type t =
-  | S(Space.elem)
+  | S(Space.t)
   | G(Grout.t)
   | T(Tile.t);
 type s = list(t);
@@ -22,7 +22,7 @@ let token =
   | T(t) => t.token
   | S(s) => Space.to_string(s);
 
-let s_of_space: Space.t => s = List.map(s => S(s));
+let s_of_space: Space.s => s = List.map(s => S(s));
 
 let s_of_piece = ({shape, space: (l, r)}: Piece.t) => {
   let l_shape =

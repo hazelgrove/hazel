@@ -52,7 +52,7 @@ let match_ = (_, ~kid as _=?, _) => failwith("todo match_");
 module Padded = {
   type c = t;
   // meld with padding (ie single-meld segment)
-  type t = (c, (Space.t, Space.t));
+  type t = (c, (Space.s, Space.s));
   let mk = (~l=Space.empty, ~r=Space.empty, c: c): t => (c, (l, r));
   let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
   let is_empty = ((c, (l, r))) => is_empty(c) ? None : Some(l @ r);
@@ -209,8 +209,8 @@ and merge_kids =
     (
       ~expected: Sort.Ana.t,
       l: option(kid),
-      s_l: Space.t,
-      s_r: Space.t,
+      s_l: Space.s,
+      s_r: Space.s,
       r: option(kid),
     )
     : Padded.t =>

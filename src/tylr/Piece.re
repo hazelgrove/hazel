@@ -8,7 +8,7 @@ type shape =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   shape,
-  space: (Space.t, Space.t),
+  space: (Space.s, Space.s),
 };
 
 let mk = (~l=Space.empty, ~r=Space.empty, shape) => {shape, space: (l, r)};

@@ -107,21 +107,21 @@ let init = {map: empty, indent: 0, origin: Point.zero};
 // todo
 let tile_indent = _ => false;
 
-let of_space = (~tile_indent=false, ~state, s: Space.t): state =>
+let of_space = (~tile_indent=false, ~state, s: Space.s): state =>
   s
   |> List.fold_left(
-       (({map, indent, origin}, indented), elem: Space.elem) =>
-         switch (elem.shape) {
+       (({map, indent, origin}, indented), s: Space.t) =>
+         switch (s.shape) {
          | Space =>
            let last = {...origin, col: origin.col + 1};
-           let map = add_space(elem, {origin, last}, map);
+           let map = add_space(s, {origin, last}, map);
            ({map, indent, origin: last}, indented);
          | Newline =>
            let (indent, indented) =
              tile_indent && !indented
                ? (indent + 2, true) : (indent, indented);
            let last = Point.{row: origin.row + 1, col: indent};
-           let map = add_space(elem, {origin, last}, map);
+           let map = add_space(s, {origin, last}, map);
            ({map, indent, origin: last}, indented);
          },
        (state, false),

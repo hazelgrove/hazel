@@ -1,7 +1,7 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Chain.t(Space.t, Meld.t);
+type t = Chain.t(Space.s, Meld.t);
 
 // when input meld structure (specifically parent-kid relations)
 // must be broken to give proper assembly
@@ -38,7 +38,7 @@ let concat = (segs: list(t)): t =>
     empty,
   );
 
-let of_space = (s: Space.t): t => Chain.singleton(s);
+let of_space = (s: Space.s): t => Chain.singleton(s);
 let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
 let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
   Chain.mk([l, r], [mel]);
@@ -46,7 +46,7 @@ let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
 let of_lexemes = (ls: list(Lexeme.t)): t =>
   List.fold_right(cons_lexeme, ls, empty);
 
-let join = (segs: Chain.t(Space.t, t)): t =>
+let join = (segs: Chain.t(Space.s, t)): t =>
   segs
   |> Chain.fold_right(
        (s, seg, acc) => concat([of_space(s), seg, acc]),

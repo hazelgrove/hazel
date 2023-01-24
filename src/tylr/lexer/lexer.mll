@@ -27,8 +27,8 @@ let op =
 let token = op | id_lower | id_upper | int_lit | float_lit
 
 rule next_lexeme = parse
-| newline { Lexeme.S (Space.mk_elem(Newline)) }
-| space   { Lexeme.S (Space.mk_elem(Space)) }
+| newline { Lexeme.S (Space.mk(Newline)) }
+| space   { Lexeme.S (Space.mk(Space)) }
 | token   {
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
