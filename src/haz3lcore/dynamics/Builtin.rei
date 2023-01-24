@@ -20,12 +20,13 @@ type t = {
 /*
    Create a built-in function.
  */
-let mk: (Var.t, Typ.t, builtin_evaluate) => t;
+let mk: (Var.t, Typ.t, builtin_evaluate) => ElaboratorMonad.t(t);
 
 /*
    Create a built-in constant.
  */
-let mk_zero: (Var.t, Typ.t, DHExp.t) => t;
+let mk_zero:
+  (Var.t, Typ.t, ElaboratorMonad.t(DHExp.t)) => ElaboratorMonad.t(t);
 
 /*
    Create a built-in function that takes a single argument. The given type
@@ -35,9 +36,11 @@ let mk_one:
   (
     Var.t,
     Typ.t,
-    (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t)
+    ElaboratorMonad.t(
+      (Var.t, EvaluatorResult.t) => EvaluatorMonad.t(EvaluatorResult.t),
+    )
   ) =>
-  t;
+  ElaboratorMonad.t(t);
 
 /*
    Create a built-in function that takes two arguments. The given type must be
@@ -47,7 +50,9 @@ let mk_two:
   (
     Var.t,
     Typ.t,
-    (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
-    EvaluatorMonad.t(EvaluatorResult.t)
+    ElaboratorMonad.t(
+      (Var.t, EvaluatorResult.t, EvaluatorResult.t) =>
+      EvaluatorMonad.t(EvaluatorResult.t),
+    )
   ) =>
-  t;
+  ElaboratorMonad.t(t);

@@ -5,9 +5,14 @@ open Sexplib.Std;
 
 module Ids = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list((Id.t, Id.t));
+  type p =
+    | Root(Id.t)
+    | Other(Id.t, Id.t);
 
-  let invalid = [];
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(p);
+
+  let mk: list(Id.t) => t = List.map(id => Root(id));
 };
 
 module rec CAny: {
@@ -19,7 +24,16 @@ module rec CAny: {
     | Rul(CRul.t)
     | Nul(unit)
     | Any(unit);
-} = CAny
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Exp(CExp.t)
+    | Pat(CPat.t)
+    | Typ(CTyp.t)
+    | Rul(CRul.t)
+    | Nul(unit)
+    | Any(unit);
+}
 and CExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
@@ -307,7 +321,30 @@ and CTyp: {
     ids: Ids.t,
     term,
   };
-} = CTyp
+
+  let mk: (Ids.t, term) => t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(ParseFlag.t)
+    | EmptyHole
+    | MultiHole(list(CAny.t))
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(t)
+    | Var(string)
+    | Arrow(t, t)
+    | Tuple(list(t))
+    | Parens(t)
+  and t = {
+    ids: Ids.t,
+    term,
+  };
+
+  let mk = (ids, term) => {ids, term};
+}
 and CRul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -318,7 +355,21 @@ and CRul: {
     ids: Ids.t,
     term,
   };
-} = CRul
+
+  let mk: (Ids.t, term) => t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term =
+    | Invalid(ParseFlag.t)
+    | Hole(list(CAny.t))
+    | Rules(CExp.t, list((CPat.t, CExp.t)))
+  and t = {
+    ids: Ids.t,
+    term,
+  };
+
+  let mk = (ids, term) => {ids, term};
+}
 and Environment: {
   include
      (module type of VarBstMap.Ordered) with

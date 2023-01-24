@@ -1,6 +1,6 @@
 open Haz3lcore;
 
-let id_gen: ref(Id.t) = ref(Id.init);
+let id_gen: ref(Id.t) = ref(Id.init(Default));
 
 let mk_id = (): Id.t => {
   let uid = id_gen^;

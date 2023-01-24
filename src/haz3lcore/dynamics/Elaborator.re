@@ -1,96 +1,32 @@
 open Util;
 
-module ElaborationResult = {
+module ElaboratorError = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Closure
+    | Hole
+    | ElaboratedList
+    | FixF
+    | ElaboratedFun
+    | Prj
+    | Inj
+    | ElaboratedTest
+    | Cast
+    | InvalidInfoMap;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  exception Exception(t);
+};
+
+module ElaboratorResult = {
   [@deriving sexp]
   type t =
     | Elaborates(DHExp.t, Typ.t, Delta.t)
     | DoesNotElaborate;
 };
 
-module ElaborationState = {
-  [@deriving sexp]
-  type t = {id: Id.t};
-
-  let init = {id: 0};
-
-  let get_id = ({id, _}) => id;
-  let put_id = (id, _) => {id: id};
-  let with_id = (f, es) => {
-    let (x, id) = es |> get_id |> f;
-    (x, es |> put_id(id));
-  };
-};
-
-module ElaborationMonad = {
-  module StateMonad = StateMonad.Make(ElaborationState);
-
-  type state = ElaborationState.t;
-
-  type t('a) = StateMonad.t(option('a));
-
-  let some = x => StateMonad.return(Some(x));
-
-  let none = StateMonad.return(None);
-
-  let bind: (t('a), 'a => t('b)) => t('b) =
-    (m, f) =>
-      StateMonad.bind(m, o =>
-        switch (o) {
-        | Some(x) => f(x)
-        | None => none
-        }
-      );
-
-  let map = (m, f) =>
-    StateMonad.map(m, o =>
-      switch (o) {
-      | Some(x) => Some(f(x))
-      | None => None
-      }
-    );
-
-  module Syntax = {
-    let ( let* ) = bind;
-    let (let+) = map;
-
-    let (>>=) = bind;
-    let (>>|) = map;
-  };
-
-  let get: t(state) = s => (s, Some(s));
-
-  let put: state => t(unit) = (x, _) => (x, Some());
-
-  let modify: (state => state) => t(unit) = f => bind(get, s => put(f(s)));
-
-  let modify' = f =>
-    bind(
-      get,
-      s => {
-        let (x, s) = f(s);
-        bind(put(s), _ => some(x));
-      },
-    );
-
-  let sequence = ms => {
-    let rec sequence' = (ms, acc) => {
-      switch (ms) {
-      | [] => acc
-      | [m, ...ms] =>
-        bind(m, x => sequence'(ms, map(acc, acc => [x, ...acc])))
-      };
-    };
-
-    map(sequence'(ms, some([])), List.rev);
-  };
-
-  let get_id = map(get, ElaborationState.get_id);
-  let put_id = id => modify(ElaborationState.put_id(id));
-  let with_id = f => modify'(ElaborationState.with_id(f));
-};
-
-open ElaborationMonad;
-open ElaborationMonad.Syntax;
+open ElaboratorMonad;
+open ElaboratorMonad.Syntax;
 
 let int_op_of: Term.UExp.op_bin_int => DHExp.BinIntOp.t =
   fun
@@ -144,7 +80,7 @@ let ids_derive = (ids: CH.Ids.t): IdGen.t(CH.Ids.t) => {
   ListUtil.traverse(f, ids);
 };
 
-type m('a) = ElaborationMonad.t('a);
+type m('a) = ElaboratorMonad.t('a);
 
 let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
   /* NOTE: Left out delta for now */
@@ -156,20 +92,18 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    let u = Term.UExp.rep_id(uexp).id; /* NOTE: using term uids for hole ids */
     let wrap = (d: DHExp.t): m(DHExp.t) =>
       switch (maybe_reason) {
-      | None => Some(d) |> StateMonad.return
+      | None => d |> return
       | Some(reason) =>
         // We don't assign derived ids here since they should be done
         // outside of wrap.
-        Some(
-          DHExp.{
-            ids: d.ids,
-            term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
-          },
-        )
-        |> StateMonad.return
+        DHExp.{
+          ids: d.ids,
+          term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
+        }
+        |> return
       };
     let ids = uexp.ids;
     let ids_derive = ids => with_id(ids_derive(ids));
@@ -177,22 +111,23 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
     | Hole(_, Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | Hole(_, EmptyHole) =>
       let* ids = ids_derive(ids);
-      some(DHExp.{ids, term: Hole(Some((u, 0)), EmptyHole)});
+      DHExp.{ids, term: Hole(Some((u, 0)), EmptyHole)} |> return;
     | Hole(_, MultiHole(tms)) =>
       // TODO: dhexp, eval for multiholes
       let f = t =>
         switch (t) {
         | Term.Exp(e) => dhexp_of_uexp(m, e)
         | _ =>
-          let* ids = Term.ids(t) |> List.map(id => (id, (-1))) |> ids_derive;
-          some(DHExp.mk(ids, Hole(Some((Term.rep_id(t), 0)), EmptyHole)));
+          let* ids = ids_derive(CH.Ids.mk(Term.ids(t)));
+          let rep_id = Term.rep_id(t).id;
+          DHExp.mk(ids, Hole(Some((rep_id, 0)), EmptyHole)) |> return;
         };
       let tms = tms |> List.map(f);
       let* ds = tms |> sequence;
       switch (ds) {
       | [] =>
         let* ids = ids_derive(ids);
-        some(DHExp.mk(ids, Hole(Some((u, 0)), EmptyHole)));
+        DHExp.mk(ids, Hole(Some((u, 0)), EmptyHole)) |> return;
       | [hd, ...tl] =>
         // placeholder logic: sequence
         // About ids assignment: here ids can either be created from
@@ -202,15 +137,15 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
             (acc, d: DHExp.t) => {
               let* acc = acc;
               let* ids = ids_derive(d.ids);
-              some(DHExp.mk(ids, Seq(d, acc)));
+              DHExp.mk(ids, Seq(d, acc)) |> return;
             },
-            some(hd),
+            hd |> return,
             tl,
           );
         wrap(ds');
       };
-    | Closure(_) => none
-    | Hole(_) => none
+    | Closure(_) => raise(ElaboratorError.Exception(Closure))
+    | Hole(_) => raise(ElaboratorError.Exception(Hole))
     | Triv => wrap({ids, term: Tuple([])})
     | Bool(b) => wrap({ids, term: Bool(b)})
     | Int(n) => wrap({ids, term: Int(n)})
@@ -232,7 +167,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
             let dc = DHExp.cast(d, e_ty, ty);
             acc @ [dc];
           },
-          some([]),
+          [] |> return,
           es,
         );
       DHExp.mk(
@@ -240,27 +175,28 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
         ListLit(ds, Some((u, 0, StandardErrStatus(NotInHole), Int))),
       )
       |> wrap;
-    | ListLit(_, Some(_)) => None |> StateMonad.return
-    | FixF(_) => None |> StateMonad.return
+    | ListLit(_, Some(_)) =>
+      raise(ElaboratorError.Exception(ElaboratedList))
+    | FixF(_) => raise(ElaboratorError.Exception(FixF))
     | Fun(p, None, body, None) =>
       let* dp = dhpat_of_upat(m, p);
       let* d1 = dhexp_of_uexp(m, body);
       let ty1 = Statics.pat_typ(m, p);
       wrap(DHExp.mk(ids, DHExp.Fun(dp, Some(ty1), d1, None)));
-    | Fun(_) => None |> StateMonad.return
+    | Fun(_) => raise(ElaboratorError.Exception(ElaboratedFun))
     | Tuple(es) =>
       let* ds =
         List.fold_right(
           (e, ds: m(list('a))) => {
             let* ds = ds;
             let* d = dhexp_of_uexp(m, e);
-            some([d, ...ds]);
+            return([d, ...ds]);
           },
           es,
-          some([]),
+          return([]),
         );
       let* ids = ids_derive(ids);
-      some(DHExp.mk(ids, Tuple(ds)));
+      return(DHExp.mk(ids, Tuple(ds)));
     | Tag(name) => wrap({ids, term: Tag(name)})
     | Cons(e1, e2) =>
       let* d1 = dhexp_of_uexp(m, e1);
@@ -277,8 +213,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
       let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
       wrap({ids, term: Cons(dc1, dc2)});
-    | Prj(_) => None |> StateMonad.return
-    | Inj(_) => None |> StateMonad.return
+    | Prj(_) => raise(ElaboratorError.Exception(Prj))
+    | Inj(_) => raise(ElaboratorError.Exception(Inj))
     | UnOp(op, e) =>
       let* d = dhexp_of_uexp(m, e);
       let ty = Statics.exp_self_typ(m, e);
@@ -301,11 +237,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
     | Test(test, None) =>
       let* dtest = dhexp_of_uexp(m, test);
       wrap({ids, term: Test(dtest, Some(u))});
-    | Test(_, Some(_)) => failwith("dhexp_of_uexp Test(_, Some(_))")
+    | Test(_, Some(_)) => raise(ElaboratorError.Exception(ElaboratedTest))
     | Var(name) =>
       switch (err_status) {
       | InHole(Free(Variable)) =>
-        some(DHExp.{ids, term: Hole(Some((u, 0)), FreeVar(name))})
+        DHExp.{ids, term: Hole(Some((u, 0)), FreeVar(name))} |> return
       | _ => wrap({ids, term: Var(name)})
       }
     | Let(p, def, body) =>
@@ -318,10 +254,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
           switch (ddef.term) {
           | Fun(a, b, c, _) =>
             let* ids = ids_derive(ddef.ids);
-            some(
-              DHExp.{ids, term: DHExp.Fun(a, b, c, Term.UPat.get_var(p))},
-            );
-          | _ => some(ddef)
+            DHExp.{ids, term: DHExp.Fun(a, b, c, Term.UPat.get_var(p))}
+            |> return;
+          | _ => return(ddef)
           };
         let* dbody = dhexp_of_uexp(m, body);
         wrap({ids, term: Let(dp, ddef, dbody)});
@@ -333,8 +268,8 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
           switch (ddef) {
           | {term: Fun(a, b, c, _), ids} =>
             let* ids = ids_derive(ids);
-            some(DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids});
-          | _ => some(ddef)
+            return(DHExp.{term: DHExp.Fun(a, b, c, Some(f)), ids});
+          | _ => return(ddef)
           };
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
@@ -373,12 +308,12 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
 
         let* dbody = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
-        let (uniq_id_base, uniq_id_derived) = List.nth(def.ids, 0);
+        let (base, derived) = List.nth(def.ids, 0);
         let self_id =
           "__mutual__"
-          ++ string_of_int(uniq_id_base)
+          ++ Id.token_of_t(base)
           ++ "_"
-          ++ string_of_int(uniq_id_derived);
+          ++ Id.token_of_t(derived);
         let* self_var_ids = ids_derive(def.ids);
         let self_var = DHExp.{ids: self_var_ids, term: DHExp.Var(self_id)};
         let* (_, substituted_def) =
@@ -390,9 +325,9 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
                  let prj =
                    DHExp.{ids: prj_ids, term: DHExp.Prj(self_var, i)};
                  let ddef = Substitution.subst_var(prj, f, ddef);
-                 some((i + 1, ddef));
+                 return((i + 1, ddef));
                },
-               some((0, ddef)),
+               return((0, ddef)),
              );
         let* fixpoint_ids = ids_derive(substituted_def.ids);
         let fixpoint =
@@ -428,12 +363,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
         let* ids = ids_derive(ids);
-        some(
-          DHExp.mk(
-            ids,
-            Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
-          ),
-        );
+        DHExp.mk(
+          ids,
+          Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
+        )
+        |> return;
       | _ => wrap({ids, term: Match(d_scrut, d_rules, 0)})
       };
     | Match(scrut, rules, _) =>
@@ -450,18 +384,17 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
         |> sequence;
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        some(
-          DHExp.mk(
-            ids,
-            Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
-          ),
+        DHExp.mk(
+          ids,
+          Hole(Some((u, 0)), InconsistentBranches(d_scrut, d_rules, 0)),
         )
+        |> return
       | _ => wrap(DHExp.{ids, term: Match(d_scrut, d_rules, 0)})
       };
-    | Cast(_) => None |> StateMonad.return
+    | Cast(_) => raise(ElaboratorError.Exception(Cast))
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
-  | None => None |> StateMonad.return
+  | None => raise(ElaboratorError.Exception(InvalidInfoMap))
   };
 }
 and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
@@ -473,17 +406,16 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
       | NotInHole(_) => None
       | InHole(_) => Some(TypeInconsistent)
       };
-    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
+    let u = Term.UPat.rep_id(upat).id; /* NOTE: using term uids for hole ids */
     let wrap = (d: DHPat.t): m(DHPat.t) =>
       switch (maybe_reason) {
-      | None => some(d)
+      | None => return(d)
       | Some(reason) =>
-        some(
-          DHPat.{
-            ids: upat.ids,
-            term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
-          },
-        )
+        DHPat.{
+          ids: upat.ids,
+          term: Hole(Some((u, 0)), NonEmptyHole(reason, d)),
+        }
+        |> return
       };
     let ids = upat.ids;
     let ids_derive = ids => with_id(ids_derive(ids));
@@ -491,10 +423,10 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
     | Hole(_, Invalid(_)) /* NOTE: treating invalid as a hole for now */
     | Hole(_, EmptyHole) =>
       let* ids = ids_derive(ids);
-      some(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)});
+      return(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)});
     | Hole(_, MultiHole(_)) =>
       // TODO: dhexp, eval for multiholes
-      some(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)})
+      return(DHPat.{ids, term: Hole(Some((u, 0)), EmptyHole)})
     | Hole(_) => failwith("dhexp_of_uexp on Hole")
     | Wild => wrap({ids, term: Wild})
     | Bool(b) => wrap({ids, term: Bool(b)})
@@ -511,7 +443,7 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
             let+ d = dhpat_of_upat(m, p);
             acc @ [d];
           },
-          some([]),
+          return([]),
           ps,
         );
       wrap({ids, term: ListLit(ds, Some(ty))});
@@ -521,21 +453,21 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap({ids, term: Cons(d_hd, d_tl)});
-    | Inj(_) => None |> StateMonad.return
+    | Inj(_) => raise(ElaboratorError.Exception(Inj))
     | Tuple(ps) =>
       let* dps =
         List.fold_right(
           (p, dps) => {
             let* dps = dps;
             let* dp = dhpat_of_upat(m, p);
-            some([dp, ...dps]);
+            return([dp, ...dps]);
           },
           ps,
-          some([]),
+          return([]),
         );
       let* ids = ids_derive(ids);
-      some(DHPat.mk(ids, Tuple(dps)));
-    | Var(name) => some(DHPat.{ids, term: Var(name)})
+      DHPat.mk(ids, Tuple(dps)) |> return;
+    | Var(name) => DHPat.{ids, term: Var(name)} |> return
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>
       let* d_p1 = dhpat_of_upat(m, p1);
@@ -546,39 +478,48 @@ and dhpat_of_upat = (m: Statics.map, upat: Term.UPat.t): m(DHPat.t) => {
       wrap(dp);
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
-  | None => None |> StateMonad.return
+  | None => raise(ElaboratorError.Exception(InvalidInfoMap))
   };
 };
 
-let dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): m(DHExp.t) => {
-  print_endline(
-    "elaborating: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(uexp)),
+let uexp_elab_wrap_builtins = (d: DHExp.t): m(DHExp.t) => {
+  let* builtins = Builtins.elabs(Builtins.Pervasives.builtins);
+  List.fold_left(
+    (d', (ident, (elab, _))) => {
+      let* d' = d';
+      let* var_id = with_id(IdGen.fresh);
+      let var_ids = [(var_id, var_id)];
+      let* let_id = with_id(IdGen.fresh);
+      let let_ids = [(let_id, let_id)];
+      DHExp.{
+        ids: var_ids,
+        term: Let({ids: let_ids, term: Var(ident)}, elab, d'),
+      }
+      |> return;
+    },
+    return(d),
+    builtins,
   );
-  let* ret = dhexp_of_uexp(m, uexp);
-  print_endline(
-    "elaborated: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(ret)),
-  );
-  some(ret);
 };
 
-let uexp_elab_wrap_builtins = (d: DHExp.t): DHExp.t =>
-  List.fold_left(
-    (d', (ident, (elab, _))) =>
-      DHExp.{
-        ids: [((-1), (-1))],
-        term: Let({ids: [((-1), (-1))], term: Var(ident)}, elab, d'),
-      },
-    d,
-    Builtins.forms(Builtins.Pervasives.builtins),
+let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaboratorResult.t => {
+  print_endline(
+    "elaborating: " ++ Sexplib.Sexp.to_string_hum(Term.UExp.sexp_of_t(uexp)),
   );
-
-let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t => {
-  let es = ElaborationState.init;
-  let (_, r) = dhexp_of_uexp(m, uexp, es);
+  let es = ElaboratorState.init;
+  let (es, r) = dhexp_of_uexp(m, uexp, es);
   switch (r) {
-  | None => DoesNotElaborate
-  | Some(d) =>
-    let d = uexp_elab_wrap_builtins(d);
+  | exception (ElaboratorError.Exception(error)) =>
+    print_endline(
+      "does not elaborated: "
+      ++ Sexplib.Sexp.to_string_hum(ElaboratorError.sexp_of_t(error)),
+    );
+    DoesNotElaborate;
+  | d =>
+    print_endline(
+      "elaborated: " ++ Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d)),
+    );
+    let (_, d) = uexp_elab_wrap_builtins(d, es);
     Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci
   };
 };

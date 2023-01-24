@@ -79,7 +79,7 @@ let view =
   let (index, ci) =
     switch (index') {
     | Some(index) => (index, Haz3lcore.Id.Map.find_opt(index, info_map))
-    | None => (Haz3lcore.Id.invalid, None)
+    | None => (Haz3lcore.Id.mk(Dark, -1), None)
     };
   switch (ci) {
   | None =>

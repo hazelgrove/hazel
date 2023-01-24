@@ -35,7 +35,7 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type dark_id = Id.t;
-let dark_gen = ref(Id.invalid);
+let dark_gen = ref(Id.init(Dark));
 let dark_id = () => {
   let id = dark_gen^;
   dark_gen := Id.next(id);
@@ -43,10 +43,10 @@ let dark_id = () => {
 };
 let dark_hole = (~ids=[], s: Sort.t): t => {
   let id = dark_id();
-  let ids = ids @ [id] |> List.map(id => (id, (-1)));
+  let ids = ids @ [id];
   switch (s) {
   // put dark id last to avoid messing with rep id
-  | Exp => Exp({ids, term: Hole(None, EmptyHole)})
+  | Exp => Exp(UExp.mk(ids, Hole(None, EmptyHole)))
   | _ => failwith("dark_hole todo")
   };
 };
@@ -204,8 +204,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let exp_ids = ids |> List.map(id => (id, (-1)));
-  return(e => Exp(e), ids, {ids: exp_ids, term});
+  return(e => Exp(e), ids, UExp.mk(ids, term));
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
@@ -315,8 +314,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let pat_ids = List.map(id => (id, (-1)), ids);
-  return(p => Pat(p), ids, {ids: pat_ids, term});
+  return(p => Pat(p), ids, UPat.mk(ids, term));
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
@@ -381,8 +379,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and typ = unsorted => {
   let term = typ_term(unsorted);
   let ids = ids(unsorted);
-  let typ_ids = List.map(id => (id, (-1)), ids);
-  return(ty => Typ(ty), ids, {ids: typ_ids, term});
+  return(ty => Typ(ty), ids, UTyp.mk(ids, term));
 }
 and typ_term: unsorted => UTyp.term = {
   let _unrecog = UTyp.Invalid(UnrecognizedTerm);
@@ -426,20 +423,20 @@ and rul = (unsorted: unsorted): URul.t => {
   let hole = Term.URul.Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: Hole(_, MultiHole(_)), _} =>
-    let ids = List.map(id => (id, (-1)), ids(unsorted));
+    let ids = ids(unsorted);
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) => {
+      | Some((ps, leading_clauses)) =>
+        URul.mk(
           ids,
-          term:
-            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-        }
-      | None => {ids, term: hole}
+          Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+        )
+      | None => URul.mk(ids, hole)
       }
-    | _ => {ids, term: hole}
+    | _ => URul.mk(ids, hole)
     };
-  | e => {ids: [], term: Rules(e, [])}
+  | e => URul.mk([], Rules(e, []))
   };
 }
 

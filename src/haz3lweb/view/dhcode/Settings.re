@@ -1,8 +1,11 @@
+open Sexplib.Std;
+
 /**
  * Flags for enabling/disabling live results
  * and configuring the result view
  */
 module Evaluation = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     evaluate: bool,
     show_case_clauses: bool,
@@ -19,7 +22,7 @@ module Evaluation = {
     show_unevaluated_elaboration: false,
   };
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type update =
     | Toggle_evaluate
     | Toggle_show_case_clauses
@@ -51,6 +54,7 @@ module Evaluation = {
  * the render cycle
  */
 module Performance = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     measure: bool,
     model_perform_edit_action: bool,
@@ -74,7 +78,7 @@ module Performance = {
     update_apply_action: true,
   };
 
-  [@deriving sexp]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type update =
     | Toggle_measure
     | Toggle_model_perform_edit_action
@@ -115,6 +119,7 @@ module Performance = {
     };
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   evaluation: Evaluation.t,
   performance: Performance.t,
@@ -127,7 +132,7 @@ let init: t = {
   memoize_doc: true,
 };
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type update =
   | Toggle_memoize_doc
   | Evaluation(Evaluation.update)

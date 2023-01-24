@@ -2,16 +2,77 @@ open Sexplib.Std;
 
 module Id = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = int;
-  let compare = Int.compare;
+  type ns =
+    | Dark
+    | Default
+    | Elaborator
+    | Evaluator
+    | BuiltinElab
+    | BuiltinEval
+    | NextGeneration;
 
-  let invalid: t = (-1);
+  let int_of_ns = (ns: ns) =>
+    switch (ns) {
+    | Dark => (-1)
+    | Default => 0
+    | Elaborator => 1
+    | Evaluator => 2
+    | BuiltinElab => 3
+    | BuiltinEval => 4
+    | NextGeneration => 10_000_000
+    };
 
-  let next = (id: t): t => id + 1;
+  let token_of_ns = ns =>
+    switch (ns) {
+    | Dark => "dark"
+    | Default => "default"
+    | Elaborator => "elaborator"
+    | Evaluator => "evaluator"
+    | BuiltinElab => "builtin_elab"
+    | BuiltinEval => "builtin_eval"
+    | NextGeneration => "next_generation"
+    };
 
-  let init = 0;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    ns,
+    id: int,
+  };
 
-  let string_of_t = string_of_int;
+  let compare: (t, t) => int =
+    (id1, id2) => {
+      let ns1 = int_of_ns(id1.ns);
+      let ns2 = int_of_ns(id2.ns);
+      let id1 = id1.id;
+      let id2 = id2.id;
+      let ns_cmp = Int.compare(ns1, ns2);
+      if (ns_cmp == 0) {
+        Int.compare(id1, id2);
+      } else {
+        ns_cmp;
+      };
+    };
+
+  let mk: (ns, int) => t = (ns, id) => {ns, id};
+
+  let map: (int => int, t) => t =
+    (f, {ns, id}) => {
+      {ns, id: f(id)};
+    };
+
+  let next: t => t = map(id => id + 1);
+
+  let init: ns => t =
+    ns => {
+      {ns, id: 0};
+    };
+
+  let is_bright: t => bool = t => int_of_ns(t.ns) >= 0;
+
+  let string_of_t: t => string = id => Sexplib.Sexp.to_string(sexp_of_t(id));
+
+  let token_of_t: t => string =
+    ({ns, id}) => Printf.sprintf("%s_%d", token_of_ns(ns), id);
 };
 
 include Id;

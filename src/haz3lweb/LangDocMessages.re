@@ -98,7 +98,7 @@ let linebreak = () => Example.mk_whitespace(Whitespace.linebreak);
 let space = () => Example.mk_whitespace(Whitespace.space);
 
 let mk_example = str => {
-  switch (Printer.zipper_of_string(Id.init, str)) {
+  switch (Printer.zipper_of_string(Id.init(Default), str)) {
   | None => []
   | Some((z, _)) => Zipper.zip(z)
   };

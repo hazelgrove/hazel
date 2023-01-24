@@ -7,7 +7,7 @@ type t = {
 };
 
 let init = {
-  id: 0,
+  id: Id.init(Evaluator),
   eig: EnvironmentIdGen.init,
   stats: EvaluatorStats.initial,
   tests: TestMap.empty,

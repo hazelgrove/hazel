@@ -21,12 +21,13 @@ module Make = (ST: STATE) => {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t('a) = state => (state, 'a);
 
-    let return = (x, s) => (s, x);
+    let return: ('a, state) => (state, 'a) = (x, s) => (s, x);
 
-    let bind = (xf, f, s) => {
-      let (s', x) = xf(s);
-      f(x, s');
-    };
+    let bind: (t('a), 'a => t('b)) => t('b) =
+      (xf, f, s) => {
+        let (s', x) = xf(s);
+        f(x, s');
+      };
 
     let get = s => (s, s);
 

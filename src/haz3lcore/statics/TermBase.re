@@ -3,12 +3,33 @@
 
 module Ids = CH.Ids;
 
-module UExp = CH.CExp;
+module UExp = {
+  include CH.CExp;
 
-module UPat = CH.CPat;
+  let mk = (ids: list(Id.t), term): t => {
+    mk(Ids.mk(ids), term);
+  };
+};
 
-module UTyp = CH.CTyp;
+module UPat = {
+  include CH.CPat;
+  let mk = (ids: list(Id.t), term): t => {
+    mk(Ids.mk(ids), term);
+  };
+};
 
-module URul = CH.CRul;
+module UTyp = {
+  include CH.CTyp;
+  let mk = (ids: list(Id.t), term): t => {
+    mk(Ids.mk(ids), term);
+  };
+};
+
+module URul = {
+  include CH.CRul;
+  let mk = (ids: list(Id.t), term): t => {
+    mk(Ids.mk(ids), term);
+  };
+};
 
 module Any = CH.CAny;

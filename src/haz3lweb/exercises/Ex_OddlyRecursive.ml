@@ -1,8 +1,9 @@
 let prompt = Ex_OddlyRecursive_prompt.prompt
+let id : int -> Haz3lcore.Id.t = Haz3lcore.Id.mk Default
 
 let exercise : SchoolExercise.spec =
   {
-    next_id = 5134;
+    next_id = id 5134;
     title = "Oddly Recursive";
     version = 1;
     module_name = "Ex_OddlyRecursive";
@@ -17,10 +18,10 @@ let exercise : SchoolExercise.spec =
           {
             siblings =
               ( [
-                  Whitespace { id = 4466; content = "\226\143\142" };
+                  Whitespace { id = id 4466; content = "\226\143\142" };
                   Tile
                     {
-                      id = 4470;
+                      id = id 4470;
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -34,10 +35,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 4471; content = " " };
+                            Whitespace { id = id 4471; content = " " };
                             Tile
                               {
-                                id = 4474;
+                                id = id 4474;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -50,14 +51,14 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4475; content = " " };
+                            Whitespace { id = id 4475; content = " " };
                           ];
                         ];
                     };
-                  Whitespace { id = 4478; content = "\226\143\142" };
+                  Whitespace { id = id 4478; content = "\226\143\142" };
                   Tile
                     {
-                      id = 4481;
+                      id = id 4481;
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -71,10 +72,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 4482; content = " " };
+                            Whitespace { id = id 4482; content = " " };
                             Tile
                               {
-                                id = 4485;
+                                id = id 4485;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -87,13 +88,13 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4488; content = " " };
+                            Whitespace { id = id 4488; content = " " };
                           ];
                           [
-                            Whitespace { id = 4492; content = " " };
+                            Whitespace { id = id 4492; content = " " };
                             Tile
                               {
-                                id = 4498;
+                                id = id 4498;
                                 label = [ "false" ];
                                 mold =
                                   {
@@ -106,14 +107,14 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4501; content = " " };
+                            Whitespace { id = id 4501; content = " " };
                           ];
                         ];
                     };
-                  Whitespace { id = 4505; content = " " };
+                  Whitespace { id = id 4505; content = " " };
                   Tile
                     {
-                      id = 4510;
+                      id = id 4510;
                       label = [ "true" ];
                       mold =
                         {
@@ -126,14 +127,14 @@ let exercise : SchoolExercise.spec =
                       shards = [ 0 ];
                       children = [];
                     };
-                  Whitespace { id = 4513; content = " " };
-                  Whitespace { id = 5062; content = "\226\143\142" };
+                  Whitespace { id = id 4513; content = " " };
+                  Whitespace { id = id 5062; content = "\226\143\142" };
                 ],
                 [] );
             ancestors =
               [
                 ( {
-                    id = 4436;
+                    id = id 4436;
                     label = [ "let"; "="; "in" ];
                     mold =
                       {
@@ -147,10 +148,10 @@ let exercise : SchoolExercise.spec =
                     children =
                       ( [
                           [
-                            Whitespace { id = 4437; content = " " };
+                            Whitespace { id = id 4437; content = " " };
                             Tile
                               {
-                                id = 4442;
+                                id = id 4442;
                                 label = [ "not" ];
                                 mold =
                                   {
@@ -163,10 +164,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4443; content = " " };
+                            Whitespace { id = id 4443; content = " " };
                             Tile
                               {
-                                id = 4446;
+                                id = id 4446;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -179,10 +180,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4447; content = " " };
+                            Whitespace { id = id 4447; content = " " };
                             Tile
                               {
-                                id = 4452;
+                                id = id 4452;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -195,10 +196,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4453; content = " " };
+                            Whitespace { id = id 4453; content = " " };
                             Tile
                               {
-                                id = 4457;
+                                id = id 4457;
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -211,10 +212,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4458; content = " " };
+                            Whitespace { id = id 4458; content = " " };
                             Tile
                               {
-                                id = 4463;
+                                id = id 4463;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -227,15 +228,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4464; content = " " };
+                            Whitespace { id = id 4464; content = " " };
                           ];
                         ],
                         [] );
                   },
                   ( [],
                     [
-                      Whitespace { id = 4515; content = " " };
-                      Grout { id = 4514; shape = Convex };
+                      Whitespace { id = id 4515; content = " " };
+                      Grout { id = id 4514; shape = Convex };
                     ] ) );
               ];
           };
@@ -249,10 +250,10 @@ let exercise : SchoolExercise.spec =
           {
             siblings =
               ( [
-                  Whitespace { id = 4544; content = "\226\143\142" };
+                  Whitespace { id = id 4544; content = "\226\143\142" };
                   Tile
                     {
-                      id = 4548;
+                      id = id 4548;
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -266,10 +267,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 4549; content = " " };
+                            Whitespace { id = id 4549; content = " " };
                             Tile
                               {
-                                id = 4552;
+                                id = id 4552;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -282,14 +283,14 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4553; content = " " };
+                            Whitespace { id = id 4553; content = " " };
                           ];
                         ];
                     };
-                  Whitespace { id = 4556; content = "\226\143\142" };
+                  Whitespace { id = id 4556; content = "\226\143\142" };
                   Tile
                     {
-                      id = 4559;
+                      id = id 4559;
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -303,10 +304,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 4560; content = " " };
+                            Whitespace { id = id 4560; content = " " };
                             Tile
                               {
-                                id = 4563;
+                                id = id 4563;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -319,10 +320,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4564; content = " " };
+                            Whitespace { id = id 4564; content = " " };
                             Tile
                               {
-                                id = 4567;
+                                id = id 4567;
                                 label = [ "<" ];
                                 mold =
                                   {
@@ -335,10 +336,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4568; content = " " };
+                            Whitespace { id = id 4568; content = " " };
                             Tile
                               {
-                                id = 4570;
+                                id = id 4570;
                                 label = [ "0" ];
                                 mold =
                                   {
@@ -351,14 +352,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4573; content = " " };
-                            Whitespace { id = 4571; content = "\226\143\142" };
+                            Whitespace { id = id 4573; content = " " };
+                            Whitespace
+                              { id = id 4571; content = "\226\143\142" };
                           ];
                           [
-                            Whitespace { id = 4577; content = " " };
+                            Whitespace { id = id 4577; content = " " };
                             Tile
                               {
-                                id = 4581;
+                                id = id 4581;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -373,7 +375,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4582;
+                                id = id 4582;
                                 label = [ "("; ")" ];
                                 mold =
                                   {
@@ -389,7 +391,7 @@ let exercise : SchoolExercise.spec =
                                     [
                                       Tile
                                         {
-                                          id = 4585;
+                                          id = id 4585;
                                           label = [ "-" ];
                                           mold =
                                             {
@@ -407,7 +409,7 @@ let exercise : SchoolExercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = 4587;
+                                          id = id 4587;
                                           label = [ "x" ];
                                           mold =
                                             {
@@ -424,15 +426,16 @@ let exercise : SchoolExercise.spec =
                                     ];
                                   ];
                               };
-                            Whitespace { id = 4590; content = " " };
-                            Whitespace { id = 4588; content = "\226\143\142" };
+                            Whitespace { id = id 4590; content = " " };
+                            Whitespace
+                              { id = id 4588; content = "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = 4594; content = " " };
+                  Whitespace { id = id 4594; content = " " };
                   Tile
                     {
-                      id = 4597;
+                      id = id 4597;
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -446,10 +449,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 4598; content = " " };
+                            Whitespace { id = id 4598; content = " " };
                             Tile
                               {
-                                id = 4601;
+                                id = id 4601;
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -462,10 +465,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4602; content = " " };
+                            Whitespace { id = id 4602; content = " " };
                             Tile
                               {
-                                id = 4606;
+                                id = id 4606;
                                 label = [ "==" ];
                                 mold =
                                   {
@@ -478,10 +481,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4607; content = " " };
+                            Whitespace { id = id 4607; content = " " };
                             Tile
                               {
-                                id = 4609;
+                                id = id 4609;
                                 label = [ "0" ];
                                 mold =
                                   {
@@ -494,13 +497,13 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4612; content = " " };
+                            Whitespace { id = id 4612; content = " " };
                           ];
                           [
-                            Whitespace { id = 4616; content = " " };
+                            Whitespace { id = id 4616; content = " " };
                             Tile
                               {
-                                id = 4622;
+                                id = id 4622;
                                 label = [ "false" ];
                                 mold =
                                   {
@@ -513,15 +516,16 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4625; content = " " };
-                            Whitespace { id = 4623; content = "\226\143\142" };
+                            Whitespace { id = id 4625; content = " " };
+                            Whitespace
+                              { id = id 4623; content = "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = 4629; content = " " };
+                  Whitespace { id = id 4629; content = " " };
                   Tile
                     {
-                      id = 4633;
+                      id = id 4633;
                       label = [ "not" ];
                       mold =
                         {
@@ -536,7 +540,7 @@ let exercise : SchoolExercise.spec =
                     };
                   Tile
                     {
-                      id = 4634;
+                      id = id 4634;
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -552,7 +556,7 @@ let exercise : SchoolExercise.spec =
                           [
                             Tile
                               {
-                                id = 4639;
+                                id = id 4639;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -567,7 +571,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4640;
+                                id = id 4640;
                                 label = [ "("; ")" ];
                                 mold =
                                   {
@@ -583,7 +587,7 @@ let exercise : SchoolExercise.spec =
                                     [
                                       Tile
                                         {
-                                          id = 4643;
+                                          id = id 4643;
                                           label = [ "x" ];
                                           mold =
                                             {
@@ -599,7 +603,7 @@ let exercise : SchoolExercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = 4646;
+                                          id = id 4646;
                                           label = [ "-" ];
                                           mold =
                                             {
@@ -620,7 +624,7 @@ let exercise : SchoolExercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = 4648;
+                                          id = id 4648;
                                           label = [ "1" ];
                                           mold =
                                             {
@@ -640,14 +644,14 @@ let exercise : SchoolExercise.spec =
                           ];
                         ];
                     };
-                  Whitespace { id = 4651; content = " " };
-                  Whitespace { id = 5063; content = "\226\143\142" };
+                  Whitespace { id = id 4651; content = " " };
+                  Whitespace { id = id 5063; content = "\226\143\142" };
                 ],
                 [] );
             ancestors =
               [
                 ( {
-                    id = 4519;
+                    id = id 4519;
                     label = [ "let"; "="; "in" ];
                     mold =
                       {
@@ -661,10 +665,10 @@ let exercise : SchoolExercise.spec =
                     children =
                       ( [
                           [
-                            Whitespace { id = 4520; content = " " };
+                            Whitespace { id = id 4520; content = " " };
                             Tile
                               {
-                                id = 4525;
+                                id = id 4525;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -679,7 +683,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4528;
+                                id = id 4528;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -694,7 +698,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4532;
+                                id = id 4532;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -709,7 +713,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4536;
+                                id = id 4536;
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -724,7 +728,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 4541;
+                                id = id 4541;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -737,15 +741,15 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 4542; content = " " };
+                            Whitespace { id = id 4542; content = " " };
                           ];
                         ],
                         [] );
                   },
                   ( [],
                     [
-                      Whitespace { id = 4653; content = " " };
-                      Grout { id = 4652; shape = Convex };
+                      Whitespace { id = id 4653; content = " " };
+                      Grout { id = id 4652; shape = Convex };
                     ] ) );
               ];
           };
@@ -763,7 +767,7 @@ let exercise : SchoolExercise.spec =
                   ( [
                       Tile
                         {
-                          id = 225;
+                          id = id 225;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -777,10 +781,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 226; content = " " };
+                                Whitespace { id = id 226; content = " " };
                                 Tile
                                   {
-                                    id = 231;
+                                    id = id 231;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -795,7 +799,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 232;
+                                    id = id 232;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -811,7 +815,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 239;
+                                              id = id 239;
                                               label = [ "false" ];
                                               mold =
                                                 {
@@ -833,13 +837,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 242; content = " " };
+                                Whitespace { id = id 242; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 246;
+                          id = id 246;
                           label = [ ";" ];
                           mold =
                             {
@@ -852,10 +856,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 247; content = "\226\143\142" };
+                      Whitespace { id = id 247; content = "\226\143\142" };
                       Tile
                         {
-                          id = 252;
+                          id = id 252;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -869,10 +873,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 253; content = " " };
+                                Whitespace { id = id 253; content = " " };
                                 Tile
                                   {
-                                    id = 258;
+                                    id = id 258;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -887,7 +891,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 259;
+                                    id = id 259;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -903,7 +907,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 264;
+                                              id = id 264;
                                               label = [ "not" ];
                                               mold =
                                                 {
@@ -924,7 +928,7 @@ let exercise : SchoolExercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 265;
+                                              id = id 265;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -946,7 +950,7 @@ let exercise : SchoolExercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 271;
+                                                        id = id 271;
                                                         label = [ "true" ];
                                                         mold =
                                                           {
@@ -971,13 +975,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 274; content = " " };
+                                Whitespace { id = id 274; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 278;
+                          id = id 278;
                           label = [ ";" ];
                           mold =
                             {
@@ -990,10 +994,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 279; content = " " };
-                      Whitespace { id = 5065; content = "\226\143\142" };
+                      Whitespace { id = id 279; content = " " };
+                      Whitespace { id = id 5065; content = "\226\143\142" };
                     ],
-                    [ Grout { id = 5064; shape = Convex } ] );
+                    [ Grout { id = id 5064; shape = Convex } ] );
                 ancestors = [];
               };
             caret = Outer;
@@ -1011,7 +1015,7 @@ let exercise : SchoolExercise.spec =
               ( [
                   Tile
                     {
-                      id = 283;
+                      id = id 283;
                       label = [ "let"; "="; "in" ];
                       mold =
                         {
@@ -1025,10 +1029,10 @@ let exercise : SchoolExercise.spec =
                       children =
                         [
                           [
-                            Whitespace { id = 284; content = " " };
+                            Whitespace { id = id 284; content = " " };
                             Tile
                               {
-                                id = 289;
+                                id = id 289;
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -1043,7 +1047,7 @@ let exercise : SchoolExercise.spec =
                               };
                             Tile
                               {
-                                id = 292;
+                                id = id 292;
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -1056,10 +1060,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 293; content = " " };
+                            Whitespace { id = id 293; content = " " };
                             Tile
                               {
-                                id = 297;
+                                id = id 297;
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -1072,10 +1076,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 298; content = " " };
+                            Whitespace { id = id 298; content = " " };
                             Tile
                               {
-                                id = 302;
+                                id = id 302;
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -1088,10 +1092,10 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 303; content = " " };
+                            Whitespace { id = id 303; content = " " };
                             Tile
                               {
-                                id = 308;
+                                id = id 308;
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -1104,13 +1108,13 @@ let exercise : SchoolExercise.spec =
                                 shards = [ 0 ];
                                 children = [];
                               };
-                            Whitespace { id = 309; content = " " };
+                            Whitespace { id = id 309; content = " " };
                           ];
                           [
-                            Whitespace { id = 311; content = "\226\143\142" };
+                            Whitespace { id = id 311; content = "\226\143\142" };
                             Tile
                               {
-                                id = 315;
+                                id = id 315;
                                 label = [ "fun"; "->" ];
                                 mold =
                                   {
@@ -1124,10 +1128,10 @@ let exercise : SchoolExercise.spec =
                                 children =
                                   [
                                     [
-                                      Whitespace { id = 316; content = " " };
+                                      Whitespace { id = id 316; content = " " };
                                       Tile
                                         {
-                                          id = 319;
+                                          id = id 319;
                                           label = [ "n" ];
                                           mold =
                                             {
@@ -1141,20 +1145,21 @@ let exercise : SchoolExercise.spec =
                                           shards = [ 0 ];
                                           children = [];
                                         };
-                                      Whitespace { id = 320; content = " " };
+                                      Whitespace { id = id 320; content = " " };
                                     ];
                                   ];
                               };
-                            Whitespace { id = 5067; content = " " };
-                            Grout { id = 325; shape = Convex };
-                            Whitespace { id = 323; content = " " };
-                            Whitespace { id = 5068; content = "\226\143\142" };
+                            Whitespace { id = id 5067; content = " " };
+                            Grout { id = id 325; shape = Convex };
+                            Whitespace { id = id 323; content = " " };
+                            Whitespace
+                              { id = id 5068; content = "\226\143\142" };
                           ];
                         ];
                     };
-                  Whitespace { id = 5069; content = " " };
+                  Whitespace { id = id 5069; content = " " };
                 ],
-                [ Grout { id = 326; shape = Convex } ] );
+                [ Grout { id = id 326; shape = Convex } ] );
             ancestors = [];
           };
         caret = Outer;
@@ -1172,7 +1177,7 @@ let exercise : SchoolExercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4657;
+                            id = id 4657;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1186,10 +1191,10 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace { id = 4658; content = " " };
+                                  Whitespace { id = id 4658; content = " " };
                                   Tile
                                     {
-                                      id = 4663;
+                                      id = id 4663;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1204,7 +1209,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4666;
+                                      id = id 4666;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1218,10 +1223,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4667; content = " " };
+                                  Whitespace { id = id 4667; content = " " };
                                   Tile
                                     {
-                                      id = 4671;
+                                      id = id 4671;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1234,10 +1239,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4672; content = " " };
+                                  Whitespace { id = id 4672; content = " " };
                                   Tile
                                     {
-                                      id = 4676;
+                                      id = id 4676;
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1251,10 +1256,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4677; content = " " };
+                                  Whitespace { id = id 4677; content = " " };
                                   Tile
                                     {
-                                      id = 4682;
+                                      id = id 4682;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1267,14 +1272,14 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4683; content = " " };
+                                  Whitespace { id = id 4683; content = " " };
                                 ];
                                 [
                                   Whitespace
-                                    { id = 4685; content = "\226\143\142" };
+                                    { id = id 4685; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = 4689;
+                                      id = id 4689;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1290,10 +1295,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4690; content = " " };
+                                              { id = id 4690; content = " " };
                                             Tile
                                               {
-                                                id = 4693;
+                                                id = id 4693;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1313,14 +1318,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4694; content = " " };
+                                              { id = id 4694; content = " " };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4697; content = " " };
+                                  Whitespace { id = id 4697; content = " " };
                                   Tile
                                     {
-                                      id = 4703;
+                                      id = id 4703;
                                       label = [ "false" ];
                                       mold =
                                         {
@@ -1333,15 +1338,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4706; content = " " };
+                                  Whitespace { id = id 4706; content = " " };
                                   Whitespace
-                                    { id = 4704; content = "\226\143\142" };
+                                    { id = id 4704; content = "\226\143\142" };
                                 ];
                               ];
                           };
-                        Whitespace { id = 4708; content = " " };
+                        Whitespace { id = id 4708; content = " " };
                       ],
-                      [ Grout { id = 4707; shape = Convex } ] );
+                      [ Grout { id = id 4707; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1359,7 +1364,7 @@ let exercise : SchoolExercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4712;
+                            id = id 4712;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1373,10 +1378,10 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace { id = 4713; content = " " };
+                                  Whitespace { id = id 4713; content = " " };
                                   Tile
                                     {
-                                      id = 4718;
+                                      id = id 4718;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1391,7 +1396,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4721;
+                                      id = id 4721;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1405,10 +1410,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4722; content = " " };
+                                  Whitespace { id = id 4722; content = " " };
                                   Tile
                                     {
-                                      id = 4726;
+                                      id = id 4726;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1421,10 +1426,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4727; content = " " };
+                                  Whitespace { id = id 4727; content = " " };
                                   Tile
                                     {
-                                      id = 4731;
+                                      id = id 4731;
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1438,10 +1443,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4732; content = " " };
+                                  Whitespace { id = id 4732; content = " " };
                                   Tile
                                     {
-                                      id = 4737;
+                                      id = id 4737;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1454,14 +1459,14 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4738; content = " " };
+                                  Whitespace { id = id 4738; content = " " };
                                 ];
                                 [
                                   Whitespace
-                                    { id = 4740; content = "\226\143\142" };
+                                    { id = id 4740; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = 4744;
+                                      id = id 4744;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1477,10 +1482,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4745; content = " " };
+                                              { id = id 4745; content = " " };
                                             Tile
                                               {
-                                                id = 4748;
+                                                id = id 4748;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1500,14 +1505,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4749; content = " " };
+                                              { id = id 4749; content = " " };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4752; content = " " };
+                                  Whitespace { id = id 4752; content = " " };
                                   Tile
                                     {
-                                      id = 4757;
+                                      id = id 4757;
                                       label = [ "true" ];
                                       mold =
                                         {
@@ -1520,15 +1525,15 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4760; content = " " };
+                                  Whitespace { id = id 4760; content = " " };
                                   Whitespace
-                                    { id = 4758; content = "\226\143\142" };
+                                    { id = id 4758; content = "\226\143\142" };
                                 ];
                               ];
                           };
-                        Whitespace { id = 5066; content = " " };
+                        Whitespace { id = id 5066; content = " " };
                       ],
-                      [ Grout { id = 4761; shape = Convex } ] );
+                      [ Grout { id = id 4761; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -1546,7 +1551,7 @@ let exercise : SchoolExercise.spec =
                     ( [
                         Tile
                           {
-                            id = 4765;
+                            id = id 4765;
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1560,10 +1565,10 @@ let exercise : SchoolExercise.spec =
                             children =
                               [
                                 [
-                                  Whitespace { id = 4766; content = " " };
+                                  Whitespace { id = id 4766; content = " " };
                                   Tile
                                     {
-                                      id = 4771;
+                                      id = id 4771;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1578,7 +1583,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4774;
+                                      id = id 4774;
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1592,10 +1597,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4775; content = " " };
+                                  Whitespace { id = id 4775; content = " " };
                                   Tile
                                     {
-                                      id = 4779;
+                                      id = id 4779;
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1608,10 +1613,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4780; content = " " };
+                                  Whitespace { id = id 4780; content = " " };
                                   Tile
                                     {
-                                      id = 4784;
+                                      id = id 4784;
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1625,10 +1630,10 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4785; content = " " };
+                                  Whitespace { id = id 4785; content = " " };
                                   Tile
                                     {
-                                      id = 4790;
+                                      id = id 4790;
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1641,14 +1646,14 @@ let exercise : SchoolExercise.spec =
                                       shards = [ 0 ];
                                       children = [];
                                     };
-                                  Whitespace { id = 4791; content = " " };
+                                  Whitespace { id = id 4791; content = " " };
                                 ];
                                 [
                                   Whitespace
-                                    { id = 4793; content = "\226\143\142" };
+                                    { id = id 4793; content = "\226\143\142" };
                                   Tile
                                     {
-                                      id = 4797;
+                                      id = id 4797;
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1664,10 +1669,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4798; content = " " };
+                                              { id = id 4798; content = " " };
                                             Tile
                                               {
-                                                id = 4801;
+                                                id = id 4801;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1687,14 +1692,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4802; content = " " };
+                                              { id = id 4802; content = " " };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4805; content = " " };
+                                  Whitespace { id = id 4805; content = " " };
                                   Tile
                                     {
-                                      id = 4808;
+                                      id = id 4808;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1710,10 +1715,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4809; content = " " };
+                                              { id = id 4809; content = " " };
                                             Tile
                                               {
-                                                id = 4812;
+                                                id = id 4812;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1733,10 +1738,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4813; content = " " };
+                                              { id = id 4813; content = " " };
                                             Tile
                                               {
-                                                id = 4816;
+                                                id = id 4816;
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1756,10 +1761,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4817; content = " " };
+                                              { id = id 4817; content = " " };
                                             Tile
                                               {
-                                                id = 4819;
+                                                id = id 4819;
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -1779,14 +1784,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4822; content = " " };
+                                              { id = id 4822; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 4826; content = " " };
+                                              { id = id 4826; content = " " };
                                             Tile
                                               {
-                                                id = 4830;
+                                                id = id 4830;
                                                 label = [ "odd" ];
                                                 mold =
                                                   {
@@ -1807,7 +1812,7 @@ let exercise : SchoolExercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = 4831;
+                                                id = id 4831;
                                                 label = [ "("; ")" ];
                                                 mold =
                                                   {
@@ -1829,7 +1834,7 @@ let exercise : SchoolExercise.spec =
                                                     [
                                                       Tile
                                                         {
-                                                          id = 4834;
+                                                          id = id 4834;
                                                           label = [ "-" ];
                                                           mold =
                                                             {
@@ -1852,7 +1857,7 @@ let exercise : SchoolExercise.spec =
                                                         };
                                                       Tile
                                                         {
-                                                          id = 4836;
+                                                          id = id 4836;
                                                           label = [ "x" ];
                                                           mold =
                                                             {
@@ -1877,19 +1882,19 @@ let exercise : SchoolExercise.spec =
                                                   ];
                                               };
                                             Whitespace
-                                              { id = 4839; content = " " };
+                                              { id = id 4839; content = " " };
                                             Whitespace
                                               {
-                                                id = 4837;
+                                                id = id 4837;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4843; content = " " };
+                                  Whitespace { id = id 4843; content = " " };
                                   Tile
                                     {
-                                      id = 4846;
+                                      id = id 4846;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1905,10 +1910,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4847; content = " " };
+                                              { id = id 4847; content = " " };
                                             Tile
                                               {
-                                                id = 4850;
+                                                id = id 4850;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1928,10 +1933,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4851; content = " " };
+                                              { id = id 4851; content = " " };
                                             Tile
                                               {
-                                                id = 4855;
+                                                id = id 4855;
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -1951,10 +1956,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4856; content = " " };
+                                              { id = id 4856; content = " " };
                                             Tile
                                               {
-                                                id = 4858;
+                                                id = id 4858;
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -1974,14 +1979,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4861; content = " " };
+                                              { id = id 4861; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 4865; content = " " };
+                                              { id = id 4865; content = " " };
                                             Tile
                                               {
-                                                id = 4870;
+                                                id = id 4870;
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2001,19 +2006,19 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4873; content = " " };
+                                              { id = id 4873; content = " " };
                                             Whitespace
                                               {
-                                                id = 4871;
+                                                id = id 4871;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4877; content = " " };
+                                  Whitespace { id = id 4877; content = " " };
                                   Tile
                                     {
-                                      id = 4880;
+                                      id = id 4880;
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -2029,10 +2034,10 @@ let exercise : SchoolExercise.spec =
                                         [
                                           [
                                             Whitespace
-                                              { id = 4881; content = " " };
+                                              { id = id 4881; content = " " };
                                             Tile
                                               {
-                                                id = 4884;
+                                                id = id 4884;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2052,10 +2057,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4885; content = " " };
+                                              { id = id 4885; content = " " };
                                             Tile
                                               {
-                                                id = 4889;
+                                                id = id 4889;
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -2075,10 +2080,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4890; content = " " };
+                                              { id = id 4890; content = " " };
                                             Tile
                                               {
-                                                id = 4892;
+                                                id = id 4892;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2098,14 +2103,14 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4895; content = " " };
+                                              { id = id 4895; content = " " };
                                           ];
                                           [
                                             Whitespace
-                                              { id = 4899; content = " " };
+                                              { id = id 4899; content = " " };
                                             Tile
                                               {
-                                                id = 4904;
+                                                id = id 4904;
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2125,19 +2130,19 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4907; content = " " };
+                                              { id = id 4907; content = " " };
                                             Whitespace
                                               {
-                                                id = 4905;
+                                                id = id 4905;
                                                 content = "\226\143\142";
                                               };
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4911; content = " " };
+                                  Whitespace { id = id 4911; content = " " };
                                   Tile
                                     {
-                                      id = 4915;
+                                      id = id 4915;
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -2152,7 +2157,7 @@ let exercise : SchoolExercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = 4916;
+                                      id = id 4916;
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -2168,7 +2173,7 @@ let exercise : SchoolExercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = 4919;
+                                                id = id 4919;
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2188,10 +2193,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4920; content = " " };
+                                              { id = id 4920; content = " " };
                                             Tile
                                               {
-                                                id = 4923;
+                                                id = id 4923;
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -2211,10 +2216,10 @@ let exercise : SchoolExercise.spec =
                                                 children = [];
                                               };
                                             Whitespace
-                                              { id = 4924; content = " " };
+                                              { id = id 4924; content = " " };
                                             Tile
                                               {
-                                                id = 4926;
+                                                id = id 4926;
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2236,13 +2241,13 @@ let exercise : SchoolExercise.spec =
                                           ];
                                         ];
                                     };
-                                  Whitespace { id = 4929; content = " " };
+                                  Whitespace { id = id 4929; content = " " };
                                 ];
                               ];
                           };
-                        Whitespace { id = 4931; content = "\226\143\142" };
+                        Whitespace { id = id 4931; content = "\226\143\142" };
                       ],
-                      [ Grout { id = 4930; shape = Convex } ] );
+                      [ Grout { id = id 4930; shape = Convex } ] );
                   ancestors = [];
                 };
               caret = Outer;
@@ -2262,7 +2267,7 @@ let exercise : SchoolExercise.spec =
                   ( [
                       Tile
                         {
-                          id = 4936;
+                          id = id 4936;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2276,10 +2281,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 4937; content = " " };
+                                Whitespace { id = id 4937; content = " " };
                                 Tile
                                   {
-                                    id = 4942;
+                                    id = id 4942;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2294,7 +2299,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4943;
+                                    id = id 4943;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2310,7 +2315,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 4948;
+                                              id = id 4948;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2331,7 +2336,7 @@ let exercise : SchoolExercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 4949;
+                                              id = id 4949;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2353,7 +2358,7 @@ let exercise : SchoolExercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 4952;
+                                                        id = id 4952;
                                                         label = [ "0" ];
                                                         mold =
                                                           {
@@ -2378,13 +2383,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 4955; content = " " };
+                                Whitespace { id = id 4955; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 4959;
+                          id = id 4959;
                           label = [ ";" ];
                           mold =
                             {
@@ -2397,10 +2402,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 4960; content = "\226\143\142" };
+                      Whitespace { id = id 4960; content = "\226\143\142" };
                       Tile
                         {
-                          id = 4965;
+                          id = id 4965;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2414,10 +2419,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 4966; content = " " };
+                                Whitespace { id = id 4966; content = " " };
                                 Tile
                                   {
-                                    id = 4971;
+                                    id = id 4971;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2432,7 +2437,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4972;
+                                    id = id 4972;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2448,7 +2453,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 4975;
+                                              id = id 4975;
                                               label = [ "1" ];
                                               mold =
                                                 {
@@ -2470,13 +2475,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 4978; content = " " };
+                                Whitespace { id = id 4978; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 4982;
+                          id = id 4982;
                           label = [ ";" ];
                           mold =
                             {
@@ -2489,10 +2494,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 4983; content = "\226\143\142" };
+                      Whitespace { id = id 4983; content = "\226\143\142" };
                       Tile
                         {
-                          id = 4988;
+                          id = id 4988;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2506,10 +2511,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 4989; content = " " };
+                                Whitespace { id = id 4989; content = " " };
                                 Tile
                                   {
-                                    id = 4994;
+                                    id = id 4994;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2524,7 +2529,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 4995;
+                                    id = id 4995;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2540,7 +2545,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5000;
+                                              id = id 5000;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2561,7 +2566,7 @@ let exercise : SchoolExercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 5001;
+                                              id = id 5001;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2583,7 +2588,7 @@ let exercise : SchoolExercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 5004;
+                                                        id = id 5004;
                                                         label = [ "2" ];
                                                         mold =
                                                           {
@@ -2608,13 +2613,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 5007; content = " " };
+                                Whitespace { id = id 5007; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5070;
+                          id = id 5070;
                           label = [ ";" ];
                           mold =
                             {
@@ -2627,10 +2632,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 5071; content = "\226\143\142" };
+                      Whitespace { id = id 5071; content = "\226\143\142" };
                       Tile
                         {
-                          id = 5077;
+                          id = id 5077;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2644,10 +2649,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 5078; content = " " };
+                                Whitespace { id = id 5078; content = " " };
                                 Tile
                                   {
-                                    id = 5083;
+                                    id = id 5083;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2662,7 +2667,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5084;
+                                    id = id 5084;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2678,7 +2683,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5087;
+                                              id = id 5087;
                                               label = [ "3" ];
                                               mold =
                                                 {
@@ -2700,13 +2705,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 5090; content = " " };
+                                Whitespace { id = id 5090; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5092;
+                          id = id 5092;
                           label = [ ";" ];
                           mold =
                             {
@@ -2719,10 +2724,10 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 5012; content = "\226\143\142" };
+                      Whitespace { id = id 5012; content = "\226\143\142" };
                       Tile
                         {
-                          id = 5017;
+                          id = id 5017;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2736,10 +2741,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 5018; content = " " };
+                                Whitespace { id = id 5018; content = " " };
                                 Tile
                                   {
-                                    id = 5023;
+                                    id = id 5023;
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2754,7 +2759,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5024;
+                                    id = id 5024;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2770,7 +2775,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5029;
+                                              id = id 5029;
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2791,7 +2796,7 @@ let exercise : SchoolExercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = 5030;
+                                              id = id 5030;
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2813,7 +2818,7 @@ let exercise : SchoolExercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = 5034;
+                                                        id = id 5034;
                                                         label = [ "42" ];
                                                         mold =
                                                           {
@@ -2838,13 +2843,13 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 5037; content = " " };
+                                Whitespace { id = id 5037; content = " " };
                               ];
                             ];
                         };
                       Tile
                         {
-                          id = 5095;
+                          id = id 5095;
                           label = [ ";" ];
                           mold =
                             {
@@ -2857,11 +2862,11 @@ let exercise : SchoolExercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Whitespace { id = 5096; content = " " };
-                      Whitespace { id = 5097; content = "\226\143\142" };
+                      Whitespace { id = id 5096; content = " " };
+                      Whitespace { id = id 5097; content = "\226\143\142" };
                       Tile
                         {
-                          id = 5102;
+                          id = id 5102;
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2875,10 +2880,10 @@ let exercise : SchoolExercise.spec =
                           children =
                             [
                               [
-                                Whitespace { id = 5103; content = " " };
+                                Whitespace { id = id 5103; content = " " };
                                 Tile
                                   {
-                                    id = 5133;
+                                    id = id 5133;
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2893,7 +2898,7 @@ let exercise : SchoolExercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = 5115;
+                                    id = id 5115;
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2909,7 +2914,7 @@ let exercise : SchoolExercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = 5129;
+                                              id = id 5129;
                                               label = [ "27" ];
                                               mold =
                                                 {
@@ -2931,7 +2936,7 @@ let exercise : SchoolExercise.spec =
                                         ];
                                       ];
                                   };
-                                Whitespace { id = 5121; content = " " };
+                                Whitespace { id = id 5121; content = " " };
                               ];
                             ];
                         };

@@ -16,13 +16,16 @@ let editors_for =
         switch (f(a)) {
         | Some(str) =>
           switch (Printer.zipper_of_string(acc_id, str)) {
-          | None => (acc_id, acc_zs @ [(a, Some(Zipper.init(Id.init)))])
+          | None => (
+              acc_id,
+              acc_zs @ [(a, Some(Zipper.init(Id.init(Default))))],
+            )
           | Some((z, new_id)) => (new_id, acc_zs @ [(a, Some(z))])
           }
         | None => (acc_id, acc_zs @ [(a, None)])
         }
       },
-      (Id.init, []),
+      (Id.init(Default), []),
       xs,
     );
   (
@@ -53,8 +56,9 @@ let info_map = (editor: Editor.t) => {
 };
 
 let stitch = (editors: list(Editor.t)) => {
+  print_endline("stitch");
   let join_tile = (id: int): Tile.t => {
-    id: 10_000_000 + id, // TODO fresh id generation hack
+    id: Id.mk(NextGeneration, id), // TODO fresh id generation hack
     label: [";"],
     mold: Mold.mk_bin(10, Exp, []),
     shards: [0],

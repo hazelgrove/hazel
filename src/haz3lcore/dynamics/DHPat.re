@@ -1,4 +1,4 @@
-include Term.UPat;
+include CH.CPat;
 
 let mk_tuple: list(t) => t =
   fun

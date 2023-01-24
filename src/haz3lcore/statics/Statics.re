@@ -502,7 +502,7 @@ and upat_to_info_map =
   | Hole(_, MultiHole(tms)) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     add(~self=Multi, ~ctx, union_m(maps));
-  | Hole(_, EmptyHole)
+  | Hole(_, EmptyHole) => atomic(Just(Unknown(Internal)))
   | Hole(_, _) => failwith("upat_to_info_map DHole")
   | Wild => atomic(unknown)
   | Int(_) => atomic(Just(Int))
