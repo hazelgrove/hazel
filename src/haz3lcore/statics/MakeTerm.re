@@ -224,6 +224,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
+      | ([t], []) when Form.is_livelit(t) =>
+        ret(LivelitAp({livelit_name: t}))
       | ([t], []) when Form.is_string(t) => ret(String(t))
       | ([t], []) when Form.is_tag(t) => ret(Tag(t))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -262,31 +264,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Pre(tiles, Pat(r)) as tm => {
-      print_endline("tiles: " ++ show_tiles(tiles));
-      print_endline("r: " ++ UPat.show(r));
-
-      switch (tiles) {
-      | ([(_id, t)], []) =>
-        let (foo, bar) = t;
-        List.iter(a => print_endline("a: " ++ a), foo);
-        List.iter(b => print_endline("b: " ++ show(b)), bar);
-        ret(
-          switch (t) {
-          | (["$"], []) =>
-            switch (r.term) {
-            | Var(var_name) =>
-              print_endline("Made livelit" ++ var_name);
-              LivelitAp({livelit_name: var_name});
-            | _ => hole(tm)
-            }
-          | _ => hole(tm)
-          },
-        );
-      | _ => ret(hole(tm))
-      };
-    }
-
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>

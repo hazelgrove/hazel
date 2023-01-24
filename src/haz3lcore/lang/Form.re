@@ -101,6 +101,9 @@ let is_bad_lit = str =>
    there are at most two quotes, in order to prevent merges */
 let is_string = t =>
   regexp("^\".*\"$", t) && List.length(String.split_on_char('"', t)) < 4;
+
+let is_livelit = t => regexp("^\\$[a-z][A-Za-z0-9_]*$", t);
+
 let string_delim = "\"";
 let is_string_delim = str => str == string_delim;
 
@@ -131,6 +134,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("wild", (is_wild, [mk_op(Pat, [])])),
   ("listnil", (is_listnil, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("livelit", (is_livelit, [mk_op(Pat, [])])),
 ];
 
 /* C. Compound Forms:
@@ -187,7 +191,6 @@ let forms: list((string, t)) = [
     "livelit_def",
     mk(ds, ["livelit", "at", "in"], mk_pre(P.let_, Exp, [Pat, Typ])) // TODO: How do we syntactically want to handle the rest of the information in haz3l
   ),
-  ("livelit_ap", mk(ss, ["$"], mk_pre(P.ap, Exp, [Pat]))),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   (

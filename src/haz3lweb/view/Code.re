@@ -17,10 +17,11 @@ let of_delim' =
         | _ when !is_complete => "delim-incomplete"
         | _ => "delim"
         };
+
       let livelit_nodes: list(t) =
         switch (label) {
-        | ["int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
-        | ["str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
+        | ["$int"] => [Node.input(~attr=Attr.create("type", "range"), ())]
+        | ["$str"] => [Node.input(~attr=Attr.create("type", "text"), ())]
         | _ => []
         };
       [
@@ -87,6 +88,7 @@ module Text = (M: {
     };
   }
   and of_tile = (expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+    // print_endline("Tile:" ++ Tile.show(t));
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>

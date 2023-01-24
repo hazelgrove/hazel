@@ -445,8 +445,8 @@ and uexp_to_info_map =
   | LivelitAp({livelit_name}) =>
     print_endline("Statics for livelit: " ++ livelit_name);
     switch (livelit_name) {
-    | "int" => atomic(Just(Int))
-    | "str" => atomic(Just(String))
+    | "$int" => atomic(Just(Int))
+    | "$str" => atomic(Just(String))
     | _ => atomic(Just(Unknown(TypeHole)))
     };
   | Match(scrut, rules) =>
