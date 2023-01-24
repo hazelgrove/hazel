@@ -1,5 +1,7 @@
 open Util;
-include Base.Segment;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = Aba.t(Space.t, Chain.t);
 
 // when input chain structure (specifically parent-kid relations)
 // must be broken to give proper assembly
