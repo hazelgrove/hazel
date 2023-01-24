@@ -7,6 +7,16 @@ exception Convex_inner_tips;
 
 // let root = failwith("todo parent root");
 
+let uncons_char = (~from: Dir.t, (l, r): t): option((Lexeme.t, Siblings.t)) =>
+  switch (from) {
+  | L =>
+    Meld.unsnoc_char(l)
+    |> Option.map(((pre, c)) => (c, (pre, Segment.of_meld(r))))
+  | R =>
+    Meld.uncons_char(r)
+    |> Option.map(((c, suf)) => (c, (Segment.of_meld(l), suf)))
+  };
+
 [@warning "-27"]
 let mold = (~match, ~kid=?, t, par) => failwith("todo mold");
 

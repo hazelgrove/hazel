@@ -243,6 +243,18 @@ let cmp_merge = (l: t, ~kid=Padded.empty(), r: t): Cmp.s(Padded.t) =>
   | Gt () => Gt(merge(Padded.mk(l), kid))
   };
 
+// precond: c is left-closed
+// postcond: returned segment is left-closed
+// let uncons_char = (c: t): option((Lexeme.t, Base.Segment.t)) => {
+//   open OptUtil.Syntax;
+//   let* (kid, p, c_tl) = Aba.uncons(c);
+//   if (kid != None) {
+//     raise(Invalid_argument("uncons_char expects a left-closed chain"));
+//   };
+//   let+ (l, p_tl) = Piece.uncons_char(p);
+//   l;
+// };
+
 [@warning "-27"]
 let pop_lexeme = (~from: Dir.t, _) => failwith("todo pop_lexeme");
 

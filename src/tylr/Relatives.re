@@ -38,14 +38,16 @@ let append = (rel: t, rel': t) =>
 let concat = (rels: list(t)) => List.fold_right(append, rels, empty);
 
 [@warning "-27"]
-let pop_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");
+let cons_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
+  failwith("todo push_lexeme");
+
 [@warning "-27"]
-let push_char = (~onto: Dir.t, mel, rel: t) => failwith("todo push_char");
+let uncons_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");
 
 let shift_char = (~from: Dir.t, rel) => {
   open OptUtil.Syntax;
-  let+ (c, rel) = pop_char(~from, rel);
-  push_char(~onto=Dir.toggle(from), c, rel);
+  let+ (c, rel) = uncons_char(~from, rel);
+  cons_lexeme(~onto=Dir.toggle(from), c, rel);
 };
 
 let uncons_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
@@ -65,10 +67,6 @@ let uncons_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
     (l, {anc, sib});
   };
 };
-
-[@warning "-27"]
-let cons_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
-  failwith("todo push_lexeme");
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
