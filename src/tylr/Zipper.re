@@ -74,19 +74,14 @@ let select = (d: Dir.t, z: t): option(t) => {
 let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
-  let rel = Relatives.remold_suffix(z.rel);
+  let (lexed, rel) = Relatives.relex(rel);
+  let rel = Relatives.insert(lexed, rel);
   {rel, sel: Selection.empty};
 };
 
 let insert = (s: string, z: t): t => {
-  let (lexed, rel) = Relatives.lex(s, z.rel);
-  let unmolded = Segment.of_lexemes(lexed);
-  let rel =
-    rel
-    |> Relatives.insert(unmolded)
-    // restore chars popped off of R-side of relatives when lexing
-    // |> FunUtil.(repeat(n, force_opt(Relatives.shift_char(~from=R))));
-    |> Relatives.unzip;
+  let (lexed, rel) = Relatives.relex(~insert=s, z.rel);
+  let rel = Relatives.insert(lexed);
   {rel, sel: Selection.empty};
 };
 

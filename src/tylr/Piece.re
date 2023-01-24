@@ -53,7 +53,7 @@ let shape_to_lexeme: shape => Lexeme.t =
   | G(g) => G(g);
 
 let to_lexemes = ({shape, space: (l, r)}: t) =>
-  Lexeme.[S(l), shape_to_lexeme(shape), S(r)];
+  Space.to_lexemes(l) @ [shape_to_lexeme(shape), ...Space.to_lexemes(r)];
 
 let is_grout = p =>
   switch (p.shape) {

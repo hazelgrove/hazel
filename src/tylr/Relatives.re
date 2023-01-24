@@ -254,9 +254,6 @@ let rec remold_suffix = (rel: t): t => {
   };
 };
 
-let insert = (seg: Segment.t, rel: t): t =>
-  rel |> insert_seg(seg) |> remold_suffix;
-
 // postcond: returned token empty if nothing to pop
 let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   OptUtil.Syntax.(
@@ -291,44 +288,12 @@ let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   );
 };
 
-// postcond: output lexemes
-let lex = (s: string, rel: t): (list(Lexeme.t), t) => {
-  let (l, rel) = pop_adj_token(L, rel) |> OptUtil.get(() => ("", rel));
-  let (r, rel) = pop_adj_token(R, rel) |> OptUtil.get(() => ("", rel));
-
-  let buf = Lexing.from_string(l ++ s ++ r);
-  let rev = ref([]);
-  while (!buf.lex_eof_reached) {
-    let lx = Lexer.next_lexeme(buf);
-    rev := [lx, ...rev^];
-  };
-
-  // todo: insert cursor sentinel
-  (List.rev(rev^), rel);
-};
-
 let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
   let (l, rel) =
     Option.value(uncons_lexeme(~from=L, rel), ~default=(None, rel));
   let (r, rel) =
     Option.value(uncons_lexeme(~from=R, rel), ~default=(None, rel));
   ((l, r), rel);
-};
-
-let delete_relex = (rel: t): (list(Lexeme.t), t) => {
-  let ((l, r), rel') = uncons_opt_lexemes(rel);
-  switch (l, r) {
-  | (None | Some(S(_) | G(_)), _)
-  | (_, None | Some(S(_) | G(_))) => ([], rel)
-  | (Some(T(l)), Some(T(r))) =>
-    switch (Lexer.lex(l.token ++ r.token)) {
-    | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
-        [],
-        rel,
-      )
-    | ls => (ls, rel')
-    }
-  };
 };
 
 let fill = (s: string, g: Grout.t): option(Piece.t) =>
@@ -340,7 +305,7 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
     None;
   };
 
-let rec insert_relex = (s: string, rel: t): (list(Lexeme.t), t) => {
+let rec relex_insert = (s: string, rel: t): (list(Lexeme.t), t) => {
   assert(s != "");
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
@@ -348,7 +313,7 @@ let rec insert_relex = (s: string, rel: t): (list(Lexeme.t), t) => {
     let prefix = l.token ++ s;
     switch (fill(l.token ++ s, r)) {
     | None =>
-      insert_relex(prefix, cons_chain(~onto=R, Chain.of_grout(r), rel'))
+      relex_insert(prefix, cons_chain(~onto=R, Chain.of_grout(r), rel'))
     | Some(p) => ([], cons_chain(~onto=L, Chain.of_piece(p), rel'))
     };
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
@@ -373,3 +338,29 @@ let rec insert_relex = (s: string, rel: t): (list(Lexeme.t), t) => {
     (Lexer.lex(tok_l ++ s ++ tok_r), rel');
   };
 };
+let relex = (~insert="", rel: t): (list(Lexeme.t), t) =>
+  switch (insert) {
+  | "" =>
+    let ((l, r), rel') = uncons_opt_lexemes(rel);
+    switch (l, r) {
+    | (None | Some(S(_) | G(_)), _)
+    | (_, None | Some(S(_) | G(_))) => ([], rel)
+    | (Some(T(l)), Some(T(r))) =>
+      switch (Lexer.lex(l.token ++ r.token)) {
+      | [T(l'), T(r')] when l'.token == l.token && r'.token == r.token => (
+          [],
+          rel,
+        )
+      | ls => (ls, rel')
+      }
+    };
+  | _ => relex_insert(insert, rel)
+  };
+
+let insert = (ls: list(Lexeme.t), rel: t): t =>
+  switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
+  | Some(s) => Relatives.cons_space(~onto=L, s, rel)
+  | None =>
+    let seg = Segment.of_lexemes(ls);
+    rel |> insert_seg(seg) |> remold_suffix |> unzip;
+  };
