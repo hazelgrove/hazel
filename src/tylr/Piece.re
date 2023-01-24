@@ -47,14 +47,6 @@ let length = (~with_space as _=false, p: t) => {
   };
 };
 
-let shape_to_lexeme: shape => Lexeme.t =
-  fun
-  | T(t) => T(t)
-  | G(g) => G(g);
-
-let to_lexemes = ({shape, space: (l, r)}: t) =>
-  Space.to_lexemes(l) @ [shape_to_lexeme(shape), ...Space.to_lexemes(r)];
-
 let is_grout = p =>
   switch (p.shape) {
   | G(_) => true

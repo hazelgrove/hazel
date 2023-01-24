@@ -20,4 +20,10 @@ let mk_elem = shape => {
   {id, shape};
 };
 
-let split_cursor = (_: t) => failwith("todo split_cursor");
+let is_cursor = (_: elem) => failwith("todo split_cursor");
+
+let to_string = s =>
+  switch (s.shape) {
+  | Space => " "
+  | Newline => "\n"
+  };

@@ -32,7 +32,7 @@ let root: t => list(Piece.t) = Aba.get_bs;
 let kids: t => list(option(kid)) = Aba.get_as;
 
 let rec to_lexemes = c =>
-  c |> Aba.join(kid_to_lexemes, Piece.to_lexemes) |> List.concat
+  c |> Aba.join(kid_to_lexemes, Lexeme.s_of_piece) |> List.concat
 and kid_to_lexemes =
   fun
   | None => []

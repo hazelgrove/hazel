@@ -22,7 +22,7 @@ let cons_space = (s, seg) => Aba.map_first((@)(s), seg);
 let cons_chain = (c, seg) => Aba.cons(Space.empty, c, seg);
 let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   switch (l) {
-  | S(s) => cons_space(s, seg)
+  | S(s) => cons_space([s], seg)
   | T(t) => Aba.cons(Space.empty, Chain.of_tile(t), seg)
   | G(g) => Aba.cons(Space.empty, Chain.of_grout(g), seg)
   };

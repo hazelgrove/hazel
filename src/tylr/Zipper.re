@@ -74,14 +74,14 @@ let select = (d: Dir.t, z: t): option(t) => {
 let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
-  let (lexed, rel) = Relatives.relex(rel);
+  let (lexed, rel) = Relatives.relex(z.rel);
   let rel = Relatives.insert(lexed, rel);
   {rel, sel: Selection.empty};
 };
 
 let insert = (s: string, z: t): t => {
   let (lexed, rel) = Relatives.relex(~insert=s, z.rel);
-  let rel = Relatives.insert(lexed);
+  let rel = Relatives.insert(lexed, rel);
   {rel, sel: Selection.empty};
 };
 

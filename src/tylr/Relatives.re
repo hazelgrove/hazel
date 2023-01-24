@@ -48,7 +48,7 @@ let shift_char = (~from: Dir.t, rel) => {
   push_char(~onto=Dir.toggle(from), c, rel);
 };
 
-let pop_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
+let uncons_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
   let b = Dir.toggle(d);
   let (sib_d, sib_b) = Dir.order(d, rel.sib);
   switch (Segment.pop_lexeme(~from=b, sib_d)) {
@@ -71,7 +71,7 @@ let pop_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
 };
 
 [@warning "-27"]
-let push_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
+let cons_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
   failwith("todo push_lexeme");
 
 // if until is None, attempt to shift a single spiece.
@@ -81,14 +81,14 @@ let rec shift_lexeme =
         (~until: option((Lexeme.t, t) => option(t))=?, ~from: Dir.t, rel: t)
         : option(t) => {
   let onto = Dir.toggle(from);
-  switch (until, pop_lexeme(~from, rel)) {
+  switch (until, uncons_lexeme(~from, rel)) {
   | (None, None) => None
   | (Some(_), None) => Some(rel)
-  | (None, Some((l, rel))) => push_lexeme(~onto, l, rel)
+  | (None, Some((l, rel))) => cons_lexeme(~onto, l, rel)
   | (Some(f), Some((l, rel))) =>
     switch (f(l, rel)) {
     | Some(rel) => Some(rel)
-    | None => rel |> push_lexeme(~onto, l) |> shift_lexeme(~from, ~until?)
+    | None => rel |> cons_lexeme(~onto, l) |> shift_lexeme(~from, ~until?)
     }
   };
 };
@@ -113,10 +113,8 @@ let unzip = (rel: t): t =>
          | G(_) => None
          | T(t) =>
            let+ (l, r) = Tile.split_cursor(t);
-           rel |> push_lexeme(~onto=L, T(l)) |> push_lexeme(~onto=R, T(r));
-         | S(s) =>
-           let+ (l, r) = Space.split_cursor(s);
-           rel |> push_lexeme(~onto=L, S(l)) |> push_lexeme(~onto=R, S(r));
+           rel |> cons_lexeme(~onto=L, T(l)) |> cons_lexeme(~onto=R, T(r));
+         | S(s) => Space.is_cursor(s) ? Some(rel) : None
          }
        )
      )
@@ -288,11 +286,23 @@ let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
   );
 };
 
+let cons_opt_lexeme = (~onto: Dir.t, l, rel) =>
+  switch (l) {
+  | None => rel
+  | Some(l) => cons_lexeme(~onto, l, rel)
+  };
+
 let uncons_opt_lexemes = (rel: t): ((option(Lexeme.t) as 'l, 'l), t) => {
   let (l, rel) =
-    Option.value(uncons_lexeme(~from=L, rel), ~default=(None, rel));
+    switch (uncons_lexeme(~from=L, rel)) {
+    | None => (None, rel)
+    | Some((l, rel)) => (Some(l), rel)
+    };
   let (r, rel) =
-    Option.value(uncons_lexeme(~from=R, rel), ~default=(None, rel));
+    switch (uncons_lexeme(~from=R, rel)) {
+    | None => (None, rel)
+    | Some((r, rel)) => (Some(r), rel)
+    };
   ((l, r), rel);
 };
 
@@ -300,7 +310,7 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
   if (String.equal(s, Grout.suggestion(g))) {
     Some(Piece.mk(T(Tile.mk(~id=g.id, g.mold, s))));
   } else if (String.starts_with(~prefix=s, Grout.suggestion(g))) {
-    Some(Piece.mk(G(Grout.mk(~id=g.id, ~fill=s, g.mold))));
+    Some(Piece.mk(G(Grout.mk(~id=g.id, ~prefix=s, g.mold))));
   } else {
     None;
   };
@@ -310,8 +320,8 @@ let rec relex_insert = (s: string, rel: t): (list(Lexeme.t), t) => {
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
   | (Some(G(l)), Some(G(r))) when l.id == r.id =>
-    let prefix = l.token ++ s;
-    switch (fill(l.token ++ s, r)) {
+    let prefix = l.prefix ++ s;
+    switch (fill(prefix, r)) {
     | None =>
       relex_insert(prefix, cons_chain(~onto=R, Chain.of_grout(r), rel'))
     | Some(p) => ([], cons_chain(~onto=L, Chain.of_piece(p), rel'))
@@ -319,17 +329,12 @@ let rec relex_insert = (s: string, rel: t): (list(Lexeme.t), t) => {
   | (_, Some(G(r))) when Option.is_some(fill(s, r)) =>
     let p = Option.get(fill(s, r));
     let rel =
-      switch (p.shape) {
-      | T(_) =>
-        rel'
-        |> cons_opt_lexeme(~onto=L, l)
-        |> cons_chain(~onto=L, Chain.of_tile(t))
-      | G(_) =>
-        rel'
-        |> cons_opt_lexeme(~onto=L, l)
-        |> cons_chain(~onto=L, Chain.of_grout(g))
-        |> cons_chain(~onto=R, Chain.of_grout(r))
-      };
+      rel'
+      |> cons_opt_lexeme(~onto=L, l)
+      |> cons_chain(~onto=L, Chain.of_piece(p))
+      |> (
+        Piece.is_grout(p) ? cons_chain(~onto=R, Chain.of_grout(r)) : Fun.id
+      );
     ([], rel);
   | _ =>
     // todo: recycle ids + avoid remolding if unaffected
@@ -359,7 +364,7 @@ let relex = (~insert="", rel: t): (list(Lexeme.t), t) =>
 
 let insert = (ls: list(Lexeme.t), rel: t): t =>
   switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
-  | Some(s) => Relatives.cons_space(~onto=L, s, rel)
+  | Some(s) => cons_space(~onto=L, s, rel)
   | None =>
     let seg = Segment.of_lexemes(ls);
     rel |> insert_seg(seg) |> remold_suffix |> unzip;
