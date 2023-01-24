@@ -1,15 +1,5 @@
+include Base.Piece;
 // open Util;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | T(Tile.t)
-  | G(Grout.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  shape,
-  space: (Space.t, Space.t),
-};
 
 let mk = (~l=Space.empty, ~r=Space.empty, shape) => {shape, space: (l, r)};
 

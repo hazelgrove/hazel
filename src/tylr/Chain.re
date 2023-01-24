@@ -1,12 +1,7 @@
 open Sexplib.Std;
 open Util;
-
-// todo: rename as Meld
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Aba.t(option(kid), Piece.t)
-[@deriving (show({with_path: false}), sexp, yojson)]
-and kid =
-  | K(t);
+include Base.Meld;
+// todo: rename file as Meld
 
 // we expect a kid to be constructed only when there is
 // a concrete parent piece inducing kidhood, hence we should
