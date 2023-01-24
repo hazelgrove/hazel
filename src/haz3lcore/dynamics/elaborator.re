@@ -105,6 +105,7 @@ let wrap = (u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | Let(_)
       | FixF(_) => Some(d)
       /* Hole-like forms: Don't cast */
+      | Undefined
       | InvalidText(_)
       | FreeVar(_)
       | ExpandingKeyword(_)
