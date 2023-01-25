@@ -10,45 +10,37 @@ let get_sib: t => Siblings.t = Chain.fst;
 let map_sib: (_, t) => t = Chain.map_fst;
 let put_sib = sib => map_sib(_ => sib);
 
-// let mk = (~sib=Siblings.empty, ~anc=Ancestors.empty, ()) => {sib, anc};
-
 let empty = of_sib(Siblings.empty);
-
-// let cons = (~onto: Dir.t, s, mel, rel) => {
-//   ...rel,
-//   sib: Siblings.cons(~onto, s, mel, get_sib(rel)),
-// };
-let cons_space = (~onto: Dir.t, s) =>
-  map_sib(Siblings.cons_space(~onto, s));
-let cons_meld = (~onto: Dir.t, mel) =>
-  map_sib(Siblings.cons_meld(~onto, mel));
-let cons_parent = (par, rel) => Chain.link(Siblings.empty, par, rel);
 
 let cat: (t, t) => t = Chain.cat(Siblings.cat);
 let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
-[@warning "-27"]
-let cons_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
-  failwith("todo push_lexeme");
+let cons = (~onto_sib, ~onto: Dir.t, a, rel) =>
+  map_sib(onto_sib(~onto, a), rel);
+let cons_space = cons(~onto_sib=Siblings.cons_space);
+let cons_meld = cons(~onto_sib=Siblings.cons_meld);
+let cons_lexeme = cons(~onto_sib=Siblings.cons_lexeme);
+let cons_parent = (par, rel) => Chain.link(Siblings.empty, par, rel);
 
-[@warning "-27"]
-let uncons_char = (~from: Dir.t, rel: t) => failwith("todo pop_char");
+let uncons = (~from_sib, ~from_par, ~from: Dir.t, rel: t) =>
+  switch (from_sib(~from, get_sib(rel))) {
+  | Some((a, sib)) => Some((a, put_sib(sib, rel)))
+  | None =>
+    open OptUtil.Syntax;
+    let* (sib, par, rel) = Chain.unlink(rel);
+    let+ (a, par) = from_par(~from, par);
+    (a, map_sib(Siblings.(cat(cat(sib, par))), rel));
+  };
+let uncons_lexeme =
+  uncons(~from_sib=Siblings.uncons_lexeme, ~from_par=Parent.uncons_lexeme);
+let uncons_char =
+  uncons(~from_sib=Siblings.uncons_char, ~from_par=Parent.uncons_char);
 
 let shift_char = (~from: Dir.t, rel) => {
   open OptUtil.Syntax;
   let+ (c, rel) = uncons_char(~from, rel);
   cons_lexeme(~onto=Dir.toggle(from), c, rel);
 };
-
-let uncons_lexeme = (~from: Dir.t, rel: t): option((Lexeme.t, t)) =>
-  switch (Siblings.uncons_lexeme(~from, get_sib(rel))) {
-  | Some((lx, sib)) => Some((lx, put_sib(sib, rel)))
-  | None =>
-    open OptUtil.Syntax;
-    let* (sib, par, rel) = Chain.unlink(rel);
-    let+ (lx, par) = Parent.uncons_lexeme(~from, par);
-    (lx, map_sib(Siblings.(cat(cat(sib, par))), rel));
-  };
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
@@ -60,7 +52,7 @@ let rec shift_lexeme =
   switch (until, uncons_lexeme(~from, rel)) {
   | (None, None) => None
   | (Some(_), None) => Some(rel)
-  | (None, Some((l, rel))) => cons_lexeme(~onto, l, rel)
+  | (None, Some((l, rel))) => Some(cons_lexeme(~onto, l, rel))
   | (Some(f), Some((l, rel))) =>
     switch (f(l, rel)) {
     | Some(rel) => Some(rel)
@@ -266,7 +258,7 @@ let fill = (s: string, g: Grout.t): option(Piece.t) =>
     None;
   };
 
-let rec relex_insert = (s: string, rel: t): (list(Lexeme.t), t) => {
+let rec relex_insert = (s: string, rel: t): (Lexeme.s, t) => {
   assert(s != "");
   let ((l, r), rel') = uncons_opt_lexemes(rel);
   switch (l, r) {
@@ -292,7 +284,7 @@ let rec relex_insert = (s: string, rel: t): (list(Lexeme.t), t) => {
     (Lexer.lex(tok_l ++ s ++ tok_r), rel');
   };
 };
-let relex = (~insert="", rel: t): (list(Lexeme.t), t) =>
+let relex = (~insert="", rel: t): (Lexeme.s, t) =>
   switch (insert) {
   | "" =>
     let ((l, r), rel') = uncons_opt_lexemes(rel);
@@ -311,7 +303,7 @@ let relex = (~insert="", rel: t): (list(Lexeme.t), t) =>
   | _ => relex_insert(insert, rel)
   };
 
-let insert = (ls: list(Lexeme.t), rel: t): t =>
+let insert = (ls: Lexeme.s, rel: t): t =>
   switch (ls |> List.map(Lexeme.is_space) |> OptUtil.sequence) {
   | Some(s) => cons_space(~onto=L, s, rel)
   | None =>

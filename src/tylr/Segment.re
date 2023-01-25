@@ -15,13 +15,13 @@ let is_empty: t => bool = (==)(empty);
 
 let has_meld = seg => Option.is_some(Chain.unlink(seg));
 
-let cons = Chain.link;
-let snoc = Chain.knil;
+let cat: (t, t) => t = Chain.cat((@));
+let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
 
 let cons_space = (s, seg) => Chain.map_fst((@)(s), seg);
 let cons_meld = (mel, seg) => Chain.link(Space.empty, mel, seg);
-let cons_lexeme = (l: Lexeme.t, seg: t): t =>
-  switch (l) {
+let cons_lexeme = (lx: Lexeme.t, seg: t): t =>
+  switch (lx) {
   | S(s) => cons_space([s], seg)
   | T(t) => Chain.link(Space.empty, Meld.of_tile(t), seg)
   | G(g) => Chain.link(Space.empty, Meld.of_grout(g), seg)
@@ -29,27 +29,39 @@ let cons_lexeme = (l: Lexeme.t, seg: t): t =>
 
 let snoc_space = (seg, s) => Chain.map_lst(s' => s' @ s, seg);
 let snoc_meld = (seg, mel) => Chain.knil(seg, mel, Space.empty);
+let snoc_lexeme = (seg, lx: Lexeme.t) =>
+  switch (lx) {
+  | S(s) => snoc_space(seg, [s])
+  | T(t) => Chain.knil(seg, Meld.of_tile(t), Space.empty)
+  | G(g) => Chain.knil(seg, Meld.of_grout(g), Space.empty)
+  };
 
-let cat: (t, t) => t = Chain.cat((@));
-let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
+let uncons_lexeme = (seg: t) =>
+  switch (Chain.fst(seg)) {
+  | [s, ...ss] => Some((Lexeme.S(s), Chain.put_fst(ss, seg)))
+  | [] =>
+    open OptUtil.Syntax;
+    let* (_, mel, seg) = Chain.unlink(seg);
+    // todo: may need to convert to prefix form here
+    let+ (lx, tl) = Meld.uncons_lexeme(mel);
+    (lx, cat(tl, seg));
+  };
+let unsnoc_lexeme = (seg: t) =>
+  switch (ListUtil.split_last_opt(Chain.lst(seg))) {
+  | Some((ss, s)) => Some((Chain.put_lst(ss, seg), Lexeme.S(s)))
+  | None =>
+    open OptUtil.Syntax;
+    let* (seg, mel, _) = Chain.unknil(seg);
+    let+ (tl, lx) = Meld.unsnoc_lexeme(mel);
+    (cat(seg, tl), lx);
+  };
 
 let of_space = (s: Space.s): t => Chain.of_loop(s);
 let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
 let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
   Chain.mk([l, r], [mel]);
-
-let of_lexemes = (ls: list(Lexeme.t)): t =>
+let of_lexemes = (ls: Lexeme.s): t =>
   List.fold_right(cons_lexeme, ls, empty);
-
-let join = (segs: Chain.t(Space.s, t)): t =>
-  segs
-  |> Chain.fold_right(
-       (s, seg, acc) => concat([of_space(s), seg, acc]),
-       s => of_space(s),
-     );
-
-[@warning "-27"]
-let pop_lexeme = (~from: Dir.t, seg: t) => failwith("todo pop_lexeme");
 
 let rec mold =
         (~match: bool, pre: t, ~kid: option(Sort.t)=?, t: Token.t)
@@ -112,9 +124,9 @@ let split_lt = (pre: t, sel: t): (t as '_lt, t as '_geq) =>
          } else {
            switch (push_meld(mel, sel)) {
            | In(_) => raise(Disconnected)
-           | Lt(_) => ((cons(s, mel, lt), geq), sel)
+           | Lt(_) => ((Chain.link(s, mel, lt), geq), sel)
            | Eq(sel)
-           | Gt(sel) => ((lt, cons(s, mel, geq)), sel)
+           | Gt(sel) => ((lt, Chain.link(s, mel, geq)), sel)
            };
          },
        s => ((empty, of_space(s)), cons_space(s, sel)),
@@ -131,8 +143,8 @@ let split_gt = (sel: t, suf: t): (t as '_leq, t as '_gt) =>
            switch (hsup_meld(sel, mel)) {
            | In(_) => raise(Disconnected)
            | Lt(sel)
-           | Eq(sel) => ((snoc(leq, mel, s), gt), sel)
-           | Gt(_) => ((leq, snoc(gt, mel, s)), sel)
+           | Eq(sel) => ((Chain.knil(leq, mel, s), gt), sel)
+           | Gt(_) => ((leq, Chain.knil(gt, mel, s)), sel)
            };
          },
      )

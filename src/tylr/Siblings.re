@@ -5,18 +5,15 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
-let cons_space = (~onto: Dir.t, s, (l, r): t) => {
-  let s = Segment.of_space(s);
+let cons = (~onto_l, ~onto_r, ~onto: Dir.t, a, (l, r): t) =>
   switch (onto) {
-  | L => (Segment.concat([l, s]), r)
-  | R => (l, Segment.concat([s, r]))
+  | L => (onto_l(l, a), r)
+  | R => (l, onto_r(a, r))
   };
-};
-let cons_meld = (~onto: Dir.t, c, (l, r)) =>
-  switch (onto) {
-  | L => (Segment.snoc_meld(l, c), r)
-  | R => (l, Segment.cons_meld(c, r))
-  };
+let cons_space = cons(~onto_l=Segment.snoc_space, ~onto_r=Segment.cons_space);
+let cons_meld = cons(~onto_l=Segment.snoc_meld, ~onto_r=Segment.cons_meld);
+let cons_lexeme =
+  cons(~onto_l=Segment.snoc_lexeme, ~onto_r=Segment.cons_lexeme);
 
 let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   switch (from) {
@@ -24,7 +21,9 @@ let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   | R => from_r(r) |> Option.map(((a, r)) => (a, (l, r)))
   };
 let uncons_lexeme =
-  uncons(~from_l=Meld.unsnoc_lexeme, ~from_r=Meld.uncons_lexeme);
+  uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
+let uncons_char =
+  uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
 
 let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
   Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));

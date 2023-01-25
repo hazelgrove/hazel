@@ -25,6 +25,7 @@ let map_fst = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
   let (a, (links, loops)) = split_fst(c);
   ([f(a), ...loops], links);
 };
+let put_fst = lp => map_fst(_ => lp);
 
 let split_lst = ((lps, lks)) => {
   assert(lps != []);
@@ -39,6 +40,7 @@ let map_lst = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
   let ((lps, lks), a) = split_lst(c);
   (lps @ [f(a)], lks);
 };
+let put_lst = lp => map_lst(_ => lp);
 
 let rev = (rev_a, rev_b, (lps, lks): t('loop, 'link)): t('loop, 'link) => (
   List.rev_map(rev_a, lps),
