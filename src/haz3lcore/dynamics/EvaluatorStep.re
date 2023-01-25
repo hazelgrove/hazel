@@ -986,6 +986,8 @@ module EvalObj = {
       } else {
         None;
       }
+    | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) =>
+      Some(mk(scrut, obj.exp))
     | (Ap1, Ap2(_, _))
     | (Ap2, Ap1(_, _))
     | (BinBoolOp1, BinBoolOp2(_))
