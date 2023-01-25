@@ -199,6 +199,25 @@ let extra_view = (visible: bool, id: int, ci: Haz3lcore.Statics.t): Node.t =>
     [id_view(id), cls_view(ci)],
   );
 
+let view_of_global_inference_info = (id: int) => {
+  switch (Haz3lcore.InferenceResult.get_cursor_inspect_result(id)) {
+  | Some((true, solution)) =>
+    div(
+      ~attr=clss([infoc, "typ"]),
+      [text("and has inferred type "), text(solution)],
+    )
+  | Some((false, error_message)) =>
+    div(
+      ~attr=clss(["infoc", "typ"]),
+      [
+        text("and has inferred type "),
+        span_c("unsolved-cursor-inspect", [text(error_message)]),
+      ],
+    )
+  | None => div([])
+  };
+};
+
 let toggle_context_and_print_ci = (~inject: Update.t => 'a, ci, _) => {
   print_endline(Haz3lcore.Statics.show(ci));
   switch (ci) {
@@ -233,6 +252,7 @@ let inspector_view =
     [
       extra_view(settings.context_inspector, id, ci),
       view_of_info(~inject, ~show_lang_doc, ci),
+      view_of_global_inference_info(id),
       CtxInspector.inspector_view(~inject, ~settings, id, ci),
     ],
   );

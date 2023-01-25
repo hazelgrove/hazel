@@ -1,3 +1,5 @@
+open Util.OptUtil.Syntax;
+
 type status =
   | Solved(ITyp.t)
   | Unsolved(EqClass.t);
@@ -21,7 +23,7 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
     switch (status) {
     | Solved(Unknown(_)) => None
     | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
-    | Unsolved(eq_class) => Some(EqClass.string_of_eq_class(eq_class))
+    | Unsolved(_eq_class) => None
     };
   };
 
@@ -45,25 +47,34 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
 
 let get_annotation_of_id = (id: Id.t): option(string) =>
   if (annotations_enabled^) {
-    switch (Hashtbl.find_opt(accumulated_annotations, id)) {
-    | Some((_status, annot_opt)) => annot_opt
-    | None => None
-    };
+    let* (_status, annot_opt) =
+      Hashtbl.find_opt(accumulated_annotations, id);
+    annot_opt;
   } else {
     None;
   };
 
-let get_style_of_id = (id: Id.t): option(string) =>
+let svg_display_settings = (id: Id.t): (bool, bool) => {
+  switch (Hashtbl.find_opt(accumulated_annotations, id)) {
+  | Some((status, _)) =>
+    switch (status) {
+    | Solved(Unknown(_)) => (true, false)
+    | Solved(_) => (false, false)
+    | Unsolved(_) => (true, true)
+    }
+  | None => (true, false)
+  };
+};
+
+let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
   if (annotations_enabled^) {
-    let status_opt = Hashtbl.find_opt(accumulated_annotations, id);
-    switch (status_opt) {
-    | Some((status, _annotation)) =>
-      switch (status) {
-      | Solved(Unknown(_)) => None
-      | Solved(_) => Some("solved-annotation")
-      | Unsolved(_) => Some("unsolved-annotation")
-      }
-    | None => None
+    let* (status, annot_opt) = Hashtbl.find_opt(accumulated_annotations, id);
+    switch (status) {
+    | Unsolved(eq_class) =>
+      Some((false, EqClass.string_of_eq_class(eq_class)))
+    | Solved(_) =>
+      let* annot = annot_opt;
+      Some((true, annot));
     };
   } else {
     None;

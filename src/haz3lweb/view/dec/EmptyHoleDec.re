@@ -25,7 +25,7 @@ let path = (tip_l, tip_r, offset, s: float) => {
 };
 
 let view =
-    (~font_metrics, {measurement: {origin, _}, mold}: Profile.t): Node.t => {
+    (~font_metrics, id, {measurement: {origin, _}, mold}: Profile.t): Node.t => {
   let sort = mold.out;
   let c_cls = Sort.to_string(sort);
   let (tip_l, tip_r): (Haz3lcore.Nib.Shape.t, Haz3lcore.Nib.Shape.t) =
@@ -34,11 +34,17 @@ let view =
     {sort, shape: tip_l},
     {sort, shape: tip_r},
   );
-  DecUtil.code_svg(
-    ~font_metrics,
-    ~origin,
-    ~base_cls=["empty-hole"],
-    ~path_cls=["empty-hole-path", c_cls],
-    path(tip_l, tip_r, 0., 0.28),
-  );
+  let (svg_enabled, unsolved_path_class) =
+    InferenceResult.annotations_enabled^
+      ? InferenceResult.svg_display_settings(id) : (true, None);
+  let svg_path_class = unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
+  svg_enabled
+    ? DecUtil.code_svg(
+        ~font_metrics,
+        ~origin,
+        ~base_cls=["empty-hole"],
+        ~path_cls=[svg_path_class, c_cls],
+        path(tip_l, tip_r, 0., 0.28),
+      )
+    : Node.none;
 };

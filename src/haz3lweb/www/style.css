@@ -573,6 +573,13 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
+.unsolved-empty-hole-path {
+  fill: #f0d1d1;
+  stroke: #dba7a7;
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+}
+
 .selection {
   position: relative;
 }
@@ -699,9 +706,8 @@ body {
   color: grey;
 }
 
-.unsolved-annotation {
-  color: grey;
-  background-color:rgb(233, 172, 164);
+.unsolved-cursor-inspect {
+  color: red;
 }
 
 /* TOKEN COLORS */
