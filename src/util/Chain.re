@@ -9,37 +9,40 @@ let mk = (loops: list('loop), links: list('link)): t('loop, 'link) => {
   (loops, links);
 };
 
-let split_first_a =
+let of_loop = (lp: 'loop): t('loop, _) => ([lp], []);
+
+let loops: t('loop, _) => list('loop) = fst;
+let links: t(_, 'link) => list('link) = snd;
+
+let split_fst =
     ((loops, links): t('loop, 'link))
     : ('loop, (list('link), list('loop))) => {
   assert(loops != []);
   (List.hd(loops), (links, List.tl(loops)));
 };
-let first_a = (c: t('loop, _)): 'loop => fst(split_first_a(c));
-
-let map_first = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
-  let (a, (links, loops)) = split_first_a(c);
+let fst = (c: t('loop, _)): 'loop => fst(split_fst(c));
+let map_fst = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
+  let (a, (links, loops)) = split_fst(c);
   ([f(a), ...loops], links);
 };
 
-let split_last_a = ((loops, links)) => {
-  assert(loops != []);
-  let (loops, a) = ListUtil.split_last(loops);
-  ((loops, links), a);
+let split_lst = ((lps, lks)) => {
+  assert(lps != []);
+  let (lps, a) = ListUtil.split_last(lps);
+  ((lps, lks), a);
 };
-let last_a = ((loops, _): t('loop, _)): 'loop => {
-  assert(loops != []);
-  ListUtil.last(loops);
+let lst = ((lps, _): t('loop, _)): 'loop => {
+  assert(lps != []);
+  ListUtil.last(lps);
+};
+let map_lst = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
+  let ((lps, lks), a) = split_lst(c);
+  (lps @ [f(a)], lks);
 };
 
-let map_last = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
-  let ((loops, links), a) = split_last_a(c);
-  (loops @ [f(a)], links);
-};
-
-let rev = (rev_a, rev_b, (loops, links): t('loop, 'link)): t('loop, 'link) => (
-  List.rev_map(rev_a, loops),
-  List.rev_map(rev_b, links),
+let rev = (rev_a, rev_b, (lps, lks): t('loop, 'link)): t('loop, 'link) => (
+  List.rev_map(rev_a, lps),
+  List.rev_map(rev_b, lks),
 );
 
 let link =
@@ -68,13 +71,6 @@ let unknil =
        let (loops, a) = ListUtil.split_last(loops);
        ((loops, links), b, a);
      });
-
-let singleton = (a: 'loop): t('loop, _) => ([a], []);
-
-let loops: t('loop, _) => list('loop) = fst;
-let links: t(_, 'link) => list('link) = snd;
-
-let hd = ((loops, _): t('loop, 'link)): 'loop => List.hd(loops);
 
 // let rec aba_triples = (c: t('loop, 'link)): list(('loop, 'link, 'loop)) =>
 //   switch (c) {
@@ -128,7 +124,7 @@ let fold_left_map =
   |> fold_left(
        lp1 => {
          let (acc, lp2) = f_loop(lp1);
-         (acc, singleton(lp2));
+         (acc, of_loop(lp2));
        },
        ((acc, mapped), lk1, lp1) => {
          let (acc, lk2, lp2) = f_link(acc, lk1, lp1);
@@ -145,6 +141,11 @@ let fold_right =
   let (lps, lp) = ListUtil.split_last(lps);
   List.fold_right2(f_link, lps, lks, f_loop(lp));
 };
+
+let cat =
+    (cat: ('loop, 'loop) => 'loop, l: t('loop, 'link), r: t('loop, 'link))
+    : t('loop, 'link) =>
+  l |> fold_right(link, lp => map_fst(cat(lp), r));
 
 let append =
     (l: t('loop, 'link), lk: 'link, r: t('loop, 'link)): t('loop, 'link) =>

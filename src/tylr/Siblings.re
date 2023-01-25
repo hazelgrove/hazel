@@ -18,6 +18,18 @@ let cons_meld = (~onto: Dir.t, c, (l, r)) =>
   | R => (l, Segment.cons_meld(c, r))
   };
 
+let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
+  switch (from) {
+  | L => from_l(l) |> Option.map(((l, a)) => (a, (l, r)))
+  | R => from_r(r) |> Option.map(((a, r)) => (a, (l, r)))
+  };
+let uncons_lexeme =
+  uncons(~from_l=Meld.unsnoc_lexeme, ~from_r=Meld.uncons_lexeme);
+
+let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
+  Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));
+// let concat = _ => failwith("todo concat");
+
 let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t =>
   Segment.concat([pre, sel, suf])
   |> Segment.assemble(~l?, ~r?)
@@ -27,10 +39,6 @@ let zip = (~l=?, ~r=?, ~sel=Segment.empty, (pre, suf): t): Meld.Padded.t =>
 let assemble = ((pre, suf): t) => {
   Segment.(assemble_l(pre), assemble_r(suf));
 };
-
-[@warning "-27"]
-let pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) =>
-  failwith("todo");
 
 let choose_matching = (c: Meld.t, t: Token.t) =>
   LangUtil.molds(t)
@@ -91,5 +99,3 @@ let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
        });
   go(pre);
 };
-
-let concat = _ => failwith("todo concat");

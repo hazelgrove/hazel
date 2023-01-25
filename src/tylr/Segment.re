@@ -18,7 +18,7 @@ let has_meld = seg => Option.is_some(Chain.unlink(seg));
 let cons = Chain.link;
 let snoc = Chain.knil;
 
-let cons_space = (s, seg) => Chain.map_first((@)(s), seg);
+let cons_space = (s, seg) => Chain.map_fst((@)(s), seg);
 let cons_meld = (mel, seg) => Chain.link(Space.empty, mel, seg);
 let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   switch (l) {
@@ -27,18 +27,13 @@ let cons_lexeme = (l: Lexeme.t, seg: t): t =>
   | G(g) => Chain.link(Space.empty, Meld.of_grout(g), seg)
   };
 
-let snoc_space = (seg, s) => Chain.map_last(s' => s' @ s, seg);
+let snoc_space = (seg, s) => Chain.map_lst(s' => s' @ s, seg);
 let snoc_meld = (seg, mel) => Chain.knil(seg, mel, Space.empty);
 
-let concat = (segs: list(t)): t =>
-  List.fold_right(
-    (seg, acc) =>
-      seg |> Chain.fold_right(Chain.link, s => cons_space(s, acc)),
-    segs,
-    empty,
-  );
+let cat: (t, t) => t = Chain.cat((@));
+let concat = (segs: list(t)): t => List.fold_right(cat, segs, empty);
 
-let of_space = (s: Space.s): t => Chain.singleton(s);
+let of_space = (s: Space.s): t => Chain.of_loop(s);
 let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
 let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
   Chain.mk([l, r], [mel]);

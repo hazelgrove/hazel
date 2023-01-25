@@ -10,26 +10,27 @@ type t = {
 let mk = (~sel=Selection.empty, rel) => {sel, rel};
 
 let init =
-  mk({
-    sib:
+  mk(
+    Relatives.of_sib(
       Segment.(
         empty,
         of_meld(
           Meld.of_grout(Grout.mk(Mold.mk_operand(Some(Sort.root)))),
         ),
       ),
-    anc: [],
-  });
+    ),
+  );
 
-let unselect = (d: Dir.t, {sel, rel}: t) => {
-  let (pre, suf) = rel.sib;
-  let sib =
-    switch (d) {
-    | L => (pre, Segment.(concat([to_suffix(sel.seg), suf])))
-    | R => (Segment.(concat([pre, to_prefix(sel.seg)])), suf)
-    };
-  mk(Relatives.assemble({...rel, sib}));
-};
+let unselect = (d: Dir.t, {sel, rel}: t) =>
+  rel
+  |> Relatives.map_sib(((pre, suf)) =>
+       switch (d) {
+       | L => (pre, Segment.(concat([to_suffix(sel.seg), suf])))
+       | R => (Segment.(concat([pre, to_prefix(sel.seg)])), suf)
+       }
+     )
+  |> Relatives.assemble
+  |> mk;
 
 let zip = (z: t): Meld.Padded.t => {
   let z = unselect(L, z);
@@ -60,13 +61,13 @@ let select = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
   if (d == z.sel.foc || Selection.is_empty(z.sel)) {
-    let+ (c, rel) = Relatives.pop_char(~from=d, z.rel);
+    let+ (c, rel) = Relatives.uncons_char(~from=d, z.rel);
     let sel = Selection.push_char(c, {...z.sel, foc: d});
     {rel, sel};
   } else {
     // checked for selection empty above
     let (c, sel) = Option.get(Selection.pop_char(z.sel));
-    let rel = Relatives.push_char(~onto=b, c, z.rel);
+    let rel = Relatives.cons_lexeme(~onto=b, c, z.rel);
     return({rel, sel});
   };
 };

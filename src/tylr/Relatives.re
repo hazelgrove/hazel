@@ -2,40 +2,30 @@ open Util;
 
 // todo: change this to Chain.t(Siblings.t, Parent.t)
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  sib: Siblings.t,
-  anc: Ancestors.t,
-};
+type t = Chain.t(Siblings.t, Parent.t);
 
-let mk = (~sib=Siblings.empty, ~anc=Ancestors.empty, ()) => {sib, anc};
+// immediate siblings
+let of_sib: Siblings.t => t = Chain.of_loop;
+let get_sib: t => Siblings.t = Chain.fst;
+let map_sib: (_, t) => t = Chain.map_fst;
+let put_sib = sib => map_sib(_ => sib);
 
-let empty = mk();
+// let mk = (~sib=Siblings.empty, ~anc=Ancestors.empty, ()) => {sib, anc};
+
+let empty = of_sib(Siblings.empty);
 
 // let cons = (~onto: Dir.t, s, mel, rel) => {
 //   ...rel,
-//   sib: Siblings.cons(~onto, s, mel, rel.sib),
+//   sib: Siblings.cons(~onto, s, mel, get_sib(rel)),
 // };
-let cons_space = (~onto: Dir.t, s, rel) => {
-  ...rel,
-  sib: Siblings.cons_space(~onto, s, rel.sib),
-};
-let cons_meld = (~onto: Dir.t, mel, rel) => {
-  ...rel,
-  sib: Siblings.cons_meld(~onto, mel, rel.sib),
-};
-let cons_parent = (par, rel) => mk(~anc=[(par, rel.sib), ...rel.anc], ());
+let cons_space = (~onto: Dir.t, s) =>
+  map_sib(Siblings.cons_space(~onto, s));
+let cons_meld = (~onto: Dir.t, mel) =>
+  map_sib(Siblings.cons_meld(~onto, mel));
+let cons_parent = (par, rel) => Chain.link(Siblings.empty, par, rel);
 
-let append = (rel: t, rel': t) =>
-  List.fold_right(
-    ((par, sib), rel') => {
-      let sib = Siblings.concat([sib, rel'.sib]);
-      let anc = [(par, sib), ...rel'.anc];
-      mk(~anc, ());
-    },
-    rel.anc,
-    rel',
-  );
-let concat = (rels: list(t)) => List.fold_right(append, rels, empty);
+let cat: (t, t) => t = Chain.cat(Siblings.cat);
+let concat = (rels: list(t)) => List.fold_right(cat, rels, empty);
 
 [@warning "-27"]
 let cons_lexeme = (~onto: Dir.t, l: Lexeme.t, rel: t) =>
@@ -50,23 +40,15 @@ let shift_char = (~from: Dir.t, rel) => {
   cons_lexeme(~onto=Dir.toggle(from), c, rel);
 };
 
-let uncons_lexeme = (~from as d: Dir.t, rel: t): option((Lexeme.t, t)) => {
-  let b = Dir.toggle(d);
-  let (sib_d, sib_b) = Dir.order(d, rel.sib);
-  switch (Segment.pop_lexeme(~from=b, sib_d)) {
-  | Some((l, sib_d)) =>
-    let sib = Dir.unorder(d, (sib_d, sib_b));
-    Some((l, {...rel, sib}));
+let uncons_lexeme = (~from: Dir.t, rel: t): option((Lexeme.t, t)) =>
+  switch (Siblings.uncons_lexeme(~from, get_sib(rel))) {
+  | Some((lx, sib)) => Some((lx, put_sib(sib, rel)))
   | None =>
     open OptUtil.Syntax;
-    let* (par, sib, anc) = Ancestors.pop(rel.anc);
-    let (par_d, par_b) = Dir.order(d, par);
-    let+ (l, par_d_rest) = Meld.pop_lexeme(~from=b, par_d);
-    let sib =
-      Siblings.concat([rel.sib, (par_d_rest, Segment.of_meld(par_b)), sib]);
-    (l, {anc, sib});
+    let* (sib, par, rel) = Chain.unlink(rel);
+    let+ (lx, par) = Parent.uncons_lexeme(~from, par);
+    (lx, map_sib(Siblings.(cat(cat(sib, par))), rel));
   };
-};
 
 // if until is None, attempt to shift a single spiece.
 // if until is Some(f), shift spieces until f succeeds or until no spieces left to shift.
@@ -87,16 +69,16 @@ let rec shift_lexeme =
   };
 };
 
-let parent = (rel: t): option(Parent.t) =>
-  Ancestors.pop(rel.anc) |> Option.map(((par, _, _)) => par);
+// let parent = (rel: t): option(Parent.t) =>
+//   Chain.unlink(rel) |> Option.map(((par, _, _)) => par);
 
 let rec zip = (~sel=Segment.empty, rel: t): Meld.Padded.t =>
-  switch (Ancestors.pop(rel.anc)) {
-  | None => Siblings.zip(~sel, rel.sib)
-  | Some(((l, r) as par, sib, anc)) =>
-    let kid = Siblings.zip(~l, ~r, ~sel, rel.sib);
+  switch (Chain.unlink(rel)) {
+  | None => Siblings.zip(~sel, get_sib(rel))
+  | Some((sib, par, rel)) =>
+    let kid = Siblings.zip(~sel, sib);
     let par = Parent.zip(kid, par);
-    zip(~sel=Segment.of_padded(par), {sib, anc});
+    zip(~sel=Segment.of_padded(par), rel);
   };
 
 let unzip = (rel: t): t =>
@@ -118,13 +100,13 @@ let mold_ =
     (~match, ~kid: option(Sort.t)=?, t: Token.t, rel: t): Mold.Result.t => {
   let rec go = (~kid: option(Sort.t)=?, rel: t): Mold.Result.t => {
     open Result.Syntax;
-    let (pre, _) = rel.sib;
+    let (pre, _) = get_sib(rel);
     let/ kid = Segment.mold(~match, pre, ~kid?, t);
-    switch (Ancestors.pop(rel.anc)) {
+    switch (Chain.unlink(rel)) {
     | None => Error(kid)
-    | Some((par, sib, anc)) =>
+    | Some((_sib, par, rel)) =>
       let/ kid = Parent.mold(~match, ~kid?, t, par);
-      match ? go(~kid?, {sib, anc}) : Error(kid);
+      match ? go(~kid?, rel) : Error(kid);
     };
   };
   go(~kid?, unzip(rel));
@@ -136,14 +118,10 @@ let mold = (~kid=?, t: Token.t, rel: t): Mold.Result.t => {
 };
 
 let assemble = (~sel=Segment.empty, rel: t): t => {
-  let (pre, suf) = Siblings.assemble(rel.sib);
-  let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
-  let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
-
   let rec go = ((l, r) as sib, rel) =>
     switch (Chain.unlink(l), Chain.unknil(r)) {
     | (None, _)
-    | (_, None) => concat([mk(~sib, ()), rel])
+    | (_, None) => map_sib(Siblings.cat(sib), rel)
     | (Some((s_l, c_l, tl_l)), Some((tl_r, c_r, s_r))) =>
       switch (Meld.cmp(c_l, c_r)) {
       | In () => raise(Segment.Disconnected)
@@ -166,35 +144,47 @@ let assemble = (~sel=Segment.empty, rel: t): t => {
       }
     };
 
-  let rel = go((pre_lt_sel, sel_gt_suf), mk(~anc=rel.anc, ()));
-  concat([mk(~sib=(pre_geq_sel, sel_leq_suf), ()), rel]);
+  let (pre, suf) = Siblings.assemble(get_sib(rel));
+  // separate siblings that belong to the selection
+  let (pre_lt_sel, pre_geq_sel) = Segment.split_lt(pre, sel);
+  let (sel_leq_suf, sel_gt_suf) = Segment.split_gt(sel, suf);
+  rel
+  |> put_sib(Siblings.empty)
+  |> go((pre_lt_sel, sel_gt_suf))
+  |> map_sib(Siblings.cat((pre_geq_sel, sel_leq_suf)));
 };
 
 // todo: not remolded case
 let rec push_meld_l =
         (~remolded as _=true, ~kid=Meld.Padded.empty(), mel: Meld.t, rel: t)
         : t => {
-  let (pre, suf) = rel.sib;
+  let (pre, suf) = get_sib(rel);
   switch (Segment.hsup_meld(pre, ~kid, mel)) {
   | In(pre)
   | Lt(pre)
-  | Eq(pre) => {...rel, sib: (pre, suf)}
+  | Eq(pre) => put_sib((pre, suf), rel)
   | Gt(kid) =>
-    switch (Ancestors.pop(rel.anc)) {
+    switch (Chain.unlink(rel)) {
     | None =>
       let pre = Segment.of_padded(Meld.(merge(kid, Padded.mk(mel))));
-      {...rel, sib: (pre, suf)};
-    | Some(((par_l, par_r), (sib_l, sib_r), anc)) =>
+      put_sib((pre, suf), rel);
+    | Some((_sib, (par_l, par_r), rel)) =>
       switch (Meld.cmp_merge(par_l, ~kid, mel)) {
       | In(_) => raise(Parent.Convex_inner_tips)
-      | Lt(kid_r) => {...rel, sib: (Segment.of_padded(kid_r), suf)}
-      | Gt(kid_l) =>
-        let suf = Segment.(concat([suf, of_meld(par_r), sib_r]));
-        push_meld_l(~kid=kid_l, mel, {anc, sib: (sib_l, suf)});
+      | Lt(kid) => put_sib((Segment.of_padded(kid), suf), rel)
+      | Gt(kid) =>
+        rel
+        |> map_sib(
+             Siblings.cat(Segment.(empty, cat(suf, of_meld(par_r)))),
+           )
+        |> push_meld_l(~kid, mel)
       | Eq(par_l__c) =>
-        let pre = Segment.(concat([sib_l, of_padded(par_l__c)]));
-        let suf = Segment.(concat([suf, of_meld(par_r), sib_r]));
-        {anc, sib: (pre, suf)};
+        rel
+        |> map_sib(
+             Siblings.cat(
+               Segment.(of_padded(par_l__c), cat(suf, of_meld(par_r))),
+             ),
+           )
       }
     }
   };
@@ -233,51 +223,18 @@ and insert_seg = (seg: Segment.t, rel: t): t =>
 
 // precond: rel contains Cursor token in prefix
 let rec remold_suffix = (rel: t): t => {
-  let (pre, suf) = rel.sib;
+  let (pre, suf) = get_sib(rel);
   switch (Chain.unlink(suf)) {
   | None => rel
   | Some((s, mel, suf)) =>
-    {...rel, sib: (pre, suf)}
+    rel
+    |> put_sib((pre, suf))
     |> cons_space(~onto=L, s)
     // note: insertion may flatten ancestors into siblings, in which
     // case additional elements may be added to suffix to be remolded
     |> insert_meld(mel)
     |> remold_suffix
   };
-};
-
-// postcond: returned token empty if nothing to pop
-let rec pop_adj_token = (d: Dir.t, rel: t): option((Token.t, t)) => {
-  OptUtil.Syntax.(
-    if (Segment.is_empty(Dir.choose(d, rel.sib))) {
-      let* ((par_l, par_r), (sib_l, sib_r), anc) = Ancestors.pop(rel.anc);
-      let pre = Segment.(concat([sib_l, of_meld(par_l)]));
-      let suf = Segment.(concat([of_meld(par_r), sib_r]));
-      pop_adj_token(d, {anc, sib: (pre, suf)});
-    } else {
-      let (pre, suf) = rel.sib;
-      switch (d) {
-      | L =>
-        let* (pre, mel, s) = Chain.unknil(pre);
-        !Space.is_empty(s)
-          ? None
-          : {
-            let+ (t, c_rest) = Meld.pop_token(~from=R, mel);
-            let pre = Segment.concat([pre, c_rest]);
-            (t, {...rel, sib: (pre, suf)});
-          };
-      | R =>
-        let* (s, mel, suf) = Chain.unlink(suf);
-        !Space.is_empty(s)
-          ? None
-          : {
-            let+ (t, c_rest) = Meld.pop_token(~from=L, mel);
-            let suf = Segment.concat([c_rest, suf]);
-            (t, {...rel, sib: (pre, suf)});
-          };
-      };
-    }
-  );
 };
 
 let cons_opt_lexeme = (~onto: Dir.t, l, rel) =>

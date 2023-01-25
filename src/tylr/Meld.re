@@ -19,7 +19,7 @@ exception Invalid_prec;
 
 exception Missing_root;
 
-let empty = Chain.singleton(None);
+let empty = Chain.of_loop(None);
 let is_empty: t => bool = (==)(empty);
 
 let of_piece = (~l=?, ~r=?, p: Piece.t) => Chain.mk([l, r], [p]);
@@ -61,6 +61,11 @@ module Padded = {
     (l @ l', r' @ r),
   );
 };
+
+let unsnoc_char = _ => failwith("todo");
+let uncons_char = _ => failwith("todo");
+let unsnoc_lexeme = _ => failwith("todo");
+let uncons_lexeme = _ => failwith("todo");
 
 // todo: consider generalizing to return expected sort
 let cmp = (l: t, r: t): Cmp.t =>
