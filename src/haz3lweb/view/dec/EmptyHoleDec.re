@@ -36,8 +36,9 @@ let view =
   );
   let (svg_enabled, unsolved_path_class) =
     InferenceResult.annotations_enabled^
-      ? InferenceResult.svg_display_settings(id) : (true, None);
-  let svg_path_class = unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
+      ? InferenceResult.svg_display_settings(id) : (true, false);
+  let svg_path_class =
+    unsolved_path_class ? "unsolved-empty-hole-path" : "empty-hole-path";
   svg_enabled
     ? DecUtil.code_svg(
         ~font_metrics,
