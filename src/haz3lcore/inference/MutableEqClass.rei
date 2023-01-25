@@ -8,9 +8,7 @@ and mut_eq_typ =
   | Mapped(EqClass.unary_ctor, t)
   | Compound(EqClass.binary_ctor, t, t);
 
-let snapshot_class: t => (EqClass.t, option(error_status));
-let snapshot_typs: mut_eq_typs => (EqClass.t, option(error_status));
-let snapshot_typ: mut_eq_typ => (EqClass.eq_typ, option(error_status));
+let snapshot_class: (t, ITyp.t) => (EqClass.t, option(error_status));
 
 let eq_class_to_mut_eq_class: EqClass.t => t;
 let eq_typ_to_mut_eq_typ: EqClass.eq_typ => mut_eq_typ;

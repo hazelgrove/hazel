@@ -52,8 +52,8 @@ let fail_occurs_check = (eq_graph: t, t1: ITyp.t, t2: ITyp.t): bool => {
   let c1 = Hashtbl.find(eq_graph, t1);
   let c2 = Hashtbl.find(eq_graph, t2);
 
-  let (snapshot1, err1) = MutableEqClass.snapshot_class(c1);
-  let (snapshot2, err2) = MutableEqClass.snapshot_class(c2);
+  let (snapshot1, err1) = MutableEqClass.snapshot_class(c1, t1);
+  let (snapshot2, err2) = MutableEqClass.snapshot_class(c2, t2);
 
   switch (err1, err2) {
   | (Some(MutableEqClass.Occurs), _)

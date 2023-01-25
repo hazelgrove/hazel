@@ -51,7 +51,7 @@ let unify_and_report_status =
         acc: list(InferenceResult.t),
       )
       : list(InferenceResult.t) => {
-    [(key, InferenceResult.condense(mut_eq_class)), ...acc];
+    [(key, InferenceResult.condense(mut_eq_class, key)), ...acc];
   };
 
   let unsorted_results = Hashtbl.fold(acc_results, inference_eq_graph, []);

@@ -36,34 +36,47 @@ let get_combined_error_status_of_classes =
 };
 
 let rec snapshot_class =
-        (mut_eq_class: t): (EqClass.t, option(error_status)) => {
+        (mut_eq_class: t, occurs_rep: ITyp.t)
+        : (EqClass.t, option(error_status)) => {
   let (typs, err1) = UnionFind.get(mut_eq_class);
-  let (eq_class, err2) = snapshot_typs(typs);
+  let (eq_class, err2) = snapshot_typs(typs, mut_eq_class, occurs_rep);
   (eq_class, combine_error_status(err1, err2));
 }
+and snapshot_class_from_child =
+    (mut_eq_class: t, parent: t, occurs_rep: ITyp.t)
+    : (EqClass.t, option(error_status)) => {
+  UnionFind.eq(mut_eq_class, parent)
+    ? ([occurs_rep |> EqClass.ityp_to_eq_typ], Some(Occurs))
+    : snapshot_class(mut_eq_class, occurs_rep);
+}
 and snapshot_typs =
-    (mut_eq_typs: mut_eq_typs): (EqClass.t, option(error_status)) => {
+    (mut_eq_typs: mut_eq_typs, parent: t, occurs_rep: ITyp.t)
+    : (EqClass.t, option(error_status)) => {
   switch (mut_eq_typs) {
   | [] => ([], None)
   | [hd, ...tl] =>
-    let (eq_typ_hd, err_hd) = snapshot_typ(hd);
-    let (eq_class_tl, err_tl) = snapshot_typs(tl);
+    let (eq_typ_hd, err_hd) = snapshot_typ(hd, parent, occurs_rep);
+    let (eq_class_tl, err_tl) = snapshot_typs(tl, parent, occurs_rep);
     ([eq_typ_hd, ...eq_class_tl], combine_error_status(err_hd, err_tl));
   };
 }
 and snapshot_typ =
-    (mut_eq_typ: mut_eq_typ): (EqClass.eq_typ, option(error_status)) => {
+    (mut_eq_typ: mut_eq_typ, parent: t, occurs_rep: ITyp.t)
+    : (EqClass.eq_typ, option(error_status)) => {
   switch (mut_eq_typ) {
   | Base(b) => (EqClass.Base(b), None)
   | Compound(ctor, mut_eq_class_lhs, mut_eq_class_rhs) =>
-    let (eq_class_lhs, err_lhs) = snapshot_class(mut_eq_class_lhs);
-    let (eq_class_rhs, err_rhs) = snapshot_class(mut_eq_class_rhs);
+    let (eq_class_lhs, err_lhs) =
+      snapshot_class_from_child(mut_eq_class_lhs, parent, occurs_rep);
+    let (eq_class_rhs, err_rhs) =
+      snapshot_class_from_child(mut_eq_class_rhs, parent, occurs_rep);
     (
       EqClass.Compound(ctor, eq_class_lhs, eq_class_rhs),
       combine_error_status(err_lhs, err_rhs),
     );
   | Mapped(ctor, mut_eq_class) =>
-    let (eq_class, err) = snapshot_class(mut_eq_class);
+    let (eq_class, err) =
+      snapshot_class_from_child(mut_eq_class, parent, occurs_rep);
     (EqClass.Mapped(ctor, eq_class), err);
   };
 };
@@ -197,10 +210,13 @@ and extend_typs_with_typ =
   };
 };
 
-let union = (t1: t, t2: t): unit => {
-  let _ = extend_class_with_class(t1, t2);
-  ();
-};
+let union = (t1: t, t2: t): unit =>
+  if (UnionFind.eq(t1, t2)) {
+    ();
+  } else {
+    let _ = extend_class_with_class(t1, t2);
+    ();
+  };
 
 let mark_failed_occurs = (mut_eq_class: t): unit => {
   let (curr_typs, _) = UnionFind.get(mut_eq_class);

@@ -76,8 +76,12 @@ let add_on_new_annotations = (new_map): unit => {
   Hashtbl.iter(add_new_elt, new_map);
 };
 
-let condense = (eq_class: MutableEqClass.t): status => {
-  let (eq_class, err) = MutableEqClass.snapshot_class(eq_class);
+let clear_annotations = () => {
+  Hashtbl.reset(accumulated_annotations);
+};
+
+let condense = (eq_class: MutableEqClass.t, key: ITyp.t): status => {
+  let (eq_class, err) = MutableEqClass.snapshot_class(eq_class, key);
   let sorted_eq_class = EqClass.sort_eq_class(eq_class);
 
   let filtered_eq_class =
