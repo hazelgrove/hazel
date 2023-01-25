@@ -1,6 +1,5 @@
 open Util;
 
-// todo: change this to Chain.t(Siblings.t, Parent.t)
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(Siblings.t, Parent.t);
 

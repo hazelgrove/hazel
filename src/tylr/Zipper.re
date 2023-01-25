@@ -1,6 +1,8 @@
 open Sexplib.Std;
 open Util;
 
+// todo: document potential same-id token on either side of caret
+// l|et x = 1 in x + 1
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   sel: Selection.t,
@@ -63,12 +65,12 @@ let select = (d: Dir.t, z: t): option(t) => {
   if (d == z.sel.foc || Selection.is_empty(z.sel)) {
     let+ (c, rel) = Relatives.uncons_char(~from=d, z.rel);
     let sel = Selection.push_char(c, {...z.sel, foc: d});
-    {rel, sel};
+    mk(~sel, rel);
   } else {
     // checked for selection empty above
     let (c, sel) = Option.get(Selection.pop_char(z.sel));
     let rel = Relatives.cons_lexeme(~onto=b, c, z.rel);
-    return({rel, sel});
+    return(mk(~sel, rel));
   };
 };
 
@@ -76,14 +78,12 @@ let delete = (d: Dir.t, z: t): option(t) => {
   open OptUtil.Syntax;
   let+ z = Selection.is_empty(z.sel) ? select(d, z) : return(z);
   let (lexed, rel) = Relatives.relex(z.rel);
-  let rel = Relatives.insert(lexed, rel);
-  {rel, sel: Selection.empty};
+  mk(Relatives.insert(lexed, rel));
 };
 
 let insert = (s: string, z: t): t => {
   let (lexed, rel) = Relatives.relex(~insert=s, z.rel);
-  let rel = Relatives.insert(lexed, rel);
-  {rel, sel: Selection.empty};
+  mk(Relatives.insert(lexed, rel));
 };
 
 let perform = (a: Action.t, z: t): option(t) =>

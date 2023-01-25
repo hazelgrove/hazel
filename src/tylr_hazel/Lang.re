@@ -68,8 +68,9 @@ module Exp = {
   let neg_op = tok_alt(["-", "-."]);
 
   let t = [
-    p(seq([e, add_op, e])),
-    p(seq([e, mult_op, e])),
+    p(seq([e, Star(seq([tok(","), e]))])),
+    p(~a=L, seq([e, add_op, e])),
+    p(~a=L, seq([e, mult_op, e])),
     p(seq([neg_op, e])),
     p(operand),
   ];

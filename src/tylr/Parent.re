@@ -2,6 +2,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (Meld.t, Meld.t);
+// <let< x >=< _kid_ >in< 1
+// -----------       ------
 
 exception Convex_inner_tips;
 

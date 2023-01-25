@@ -1,7 +1,6 @@
 open Sexplib.Std;
 open Util;
 
-// todo: rename as Meld
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Chain.t(option(kid), Piece.t)
 [@deriving (show({with_path: false}), sexp, yojson)]

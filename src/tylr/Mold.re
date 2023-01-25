@@ -8,13 +8,6 @@ type t = {
   // range: (int, int),
 };
 
-// derived
-// let plus: t = {
-//   sort: Exp,
-//   prec: 0,
-//   frames: [Seq_([Kid(Exp)], [Kid(Exp)])],
-// };
-
 let sort_ = m => m.sort;
 let prec_ = m => m.prec;
 
