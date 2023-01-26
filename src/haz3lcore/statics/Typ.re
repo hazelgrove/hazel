@@ -76,6 +76,7 @@ type self_error =
   | NoFun(t)
   //| TagArity
   //| MissingTag
+  | NotTag
   | Free(free_errors);
 
 /* SELF: The (synthetic) type information derivable from a term

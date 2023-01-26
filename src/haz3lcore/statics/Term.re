@@ -152,12 +152,13 @@ module UTyp = {
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(ts) => utsum_to_ty(ctx, ts)
-      | BSum(ts) =>
+      | BSum(tgs, _bads) =>
+        //TODO(andrew): deal with bads
         LabelSum(
           List.map(
             (TermBase.UTyp.{tag, typ, _}) =>
               Typ.{tag, typ: Option.map(to_typ(ctx), typ)},
-            ts,
+            tgs,
           ),
         )
       | List(u) => List(to_typ(ctx, u))

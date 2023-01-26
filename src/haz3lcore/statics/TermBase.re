@@ -343,7 +343,7 @@ and UTyp: {
     | Tuple(list(t))
     | Sum(UTSum.t)
     | Parens(t)
-    | BSum(list(tagged))
+    | BSum(list(tagged), list(t))
   and tagged = {
     tag: Token.t,
     typ: option(UTyp.t),
@@ -368,7 +368,7 @@ and UTyp: {
     | Tuple(list(t))
     | Sum(UTSum.t)
     | Parens(t)
-    | BSum(list(tagged))
+    | BSum(list(tagged), list(t))
   and tagged = {
     tag: Token.t,
     typ: option(UTyp.t),

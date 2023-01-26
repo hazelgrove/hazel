@@ -783,7 +783,8 @@ and utyp_to_info_map =
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
     just(m);
-  | BSum(sum) =>
+  | BSum(sum, bads) =>
+    //TODO(andrew): deal with bads
     let ms =
       List.map(
         (TermBase.UTyp.{tag: _, typ, _}) =>
@@ -793,7 +794,19 @@ and utyp_to_info_map =
           },
         sum,
       );
-    just(union_m(ms));
+    let ms_bads =
+      List.map(
+        (typ: TermBase.UTyp.t) =>
+          //TODO(andrew): cls?
+          add_info(
+            typ.ids,
+            InfoTyp({cls: Invalid, self: Self(NotTag), term: utyp}),
+            Id.Map.empty,
+          ),
+        //utyp_to_info_map(~ctx, typ) |> snd,
+        bads,
+      );
+    just(union_m(ms @ ms_bads));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     just(union_m(maps));
