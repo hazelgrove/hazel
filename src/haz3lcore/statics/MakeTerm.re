@@ -393,13 +393,13 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   let get_tagged = (ut: UTyp.t): list(UTyp.tagged) =>
     switch (ut.term) {
-    | BSum(xs) => xs
+    | BSum(xs, _bads) => xs //TODO(andrew): deal with bads
     | Var(tag) => [{tag, typ: None}]
     | _ => []
     };
   let get_tagged' = (ut: UTyp.t): typ_res =>
     switch (ut.term) {
-    | BSum(xs) => IsTagged(xs)
+    | BSum(xs, _bads) => IsTagged(xs) //TODO(andrew): deal with bads
     | Var(tag) => IsTagged([{tag, typ: None}])
     | _ => IsNotTagged(ut)
     };
@@ -423,15 +423,19 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Post(Typ({term: Var(tag), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
-        BSum([{tag, typ: Some(typ)}]),
-        ctr_ids,
-      )
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) =>
+      //TODO(andrew): deal with bads
+      let bads = [];
+      (BSum([{tag, typ: Some(typ)}], bads), ctr_ids);
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => (BSum(get_tagged(t)), t.ids)
+    | ([(_, (["+"], []))], []) =>
+      //TODO(andrew): update to get_tagged'
+      //TODO(andrew): deal with bads
+      let bads = [];
+      (BSum(get_tagged(t), bads), t.ids);
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm
@@ -445,17 +449,26 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         List.map2(
           (tr, id) =>
             switch (tr) {
-            | IsTagged(ts) => Some((ts, id))
+            | IsTagged(tgs) => Some((tgs, id))
             | IsNotTagged(_) => None
             },
           List.map(get_tagged', all_guys),
           List.map((term: UTyp.t) => term.ids, all_guys),
         );
       let ids = fin |> List.filter_map(Option.map(snd)) |> List.flatten;
-      //TODO(andrew): collect bad guys; add to BSum as seperate field
+      //TODO(andrew): cleanup
+      let bad_guys =
+        List.filter_map(
+          tr =>
+            switch (tr) {
+            | IsTagged(_) => None
+            | IsNotTagged(t) => Some(t)
+            },
+          List.map(get_tagged', all_guys),
+        );
       let good_guys =
         fin |> List.filter_map(Option.map(fst)) |> List.flatten;
-      (BSum(good_guys), ids);
+      (BSum(good_guys, bad_guys), ids);
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

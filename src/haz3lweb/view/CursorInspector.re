@@ -42,6 +42,11 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Constructor is not defined")],
     )
+  | Self(NotTag) =>
+    div(
+      ~attr=clss([errorc, "err-not-tag"]),
+      [text("Not a valid sum type variant")],
+    )
   | SynInconsistentBranches(tys) =>
     div(
       ~attr=clss([errorc, "err-inconsistent-branches"]),
