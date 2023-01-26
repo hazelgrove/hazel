@@ -33,7 +33,7 @@ rule next_lexeme = parse
     (* todo: use dummy id and have client handle regen *)
     let token = Lexing.lexeme lexbuf in
     let mold =
-      if Token.Shape.is_operand(Token.shape(token))
+      if Util.CharUtil.is_alphanum (String.get token 0)
       then Mold.default_operand else Mold.default_infix
     in
     Lexeme.T (Tile.mk mold token)

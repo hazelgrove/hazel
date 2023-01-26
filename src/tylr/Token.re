@@ -5,36 +5,13 @@ include String;
 type t = string;
 
 module Shape = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t =
     | Const(string)
+    | Id_lower
+    | Id_upper
     | Int_lit
-    | Float_lit
-    | Alphanum_lower
-    | Alphanum_upper;
-
-  let is_operand =
-    fun
-    | Int_lit
-    | Float_lit
-    | Alphanum_lower
-    | Alphanum_upper => true
-    | Const(_) => false;
-
-  // order doesn't matter
-  let to_int =
-    fun
-    | Const(_) => 0
-    | Int_lit => 1
-    | Float_lit => 2
-    | Alphanum_lower => 3
-    | Alphanum_upper => 4;
-
-  let compare = (s1, s2) =>
-    switch (s1, s2) {
-    | (Const(s1), Const(s2)) => String.compare(s1, s2)
-    | _ => Int.compare(to_int(s1), to_int(s2))
-    };
+    | Float_lit;
 };
 
 // NOTE: keys are shapes, not the token strings
@@ -55,13 +32,3 @@ let is_float_lit = str =>
 let is_alphanum_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
 
 let shape = (_: t): Shape.t => failwith("todo Token.shape");
-
-// type t = {
-//   id: Id.t,
-//   text: string,
-// };
-
-// // effectful
-// let mk = text => {
-//   let id = Id.Gen.next();
-//   {id, text};

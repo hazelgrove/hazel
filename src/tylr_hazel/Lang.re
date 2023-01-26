@@ -54,7 +54,7 @@ module Exp = {
     alt([
       tok_shape(Int_lit),
       tok_shape(Float_lit),
-      tok_shape(Alphanum_lower),
+      tok_shape(Id_lower),
       seq([tok("("), opt(e), tok(")")]),
       seq([tok("["), opt(e), tok("]")]),
     ]);

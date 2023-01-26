@@ -139,8 +139,6 @@ module Frame = {
       }
     );
 
-  // let eq = (l: s(_), r: s(_)) =>
-
   let rec must_match = (d: Dir.t, fs: s(_)): bool =>
     switch (fs) {
     | [] => false
