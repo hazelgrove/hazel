@@ -2794,13 +2794,12 @@ let get_doc =
     }
   | Some(InfoTSum(info)) =>
     switch (info.term.term) {
-    | Invalid(_) => default
     | EmptyHole => basic_info(LangDocMessages.empty_hole_tsum_group)
     | MultiHole(_) => basic_info(LangDocMessages.multi_hole_tsum_group)
     | Sum(_) =>
       /* Ids for this redirects to parent sum form atm */
       default
-    | Ap(_) => basic_info(LangDocMessages.labelled_typ_group)
+    //| Ap(_) => basic_info(LangDocMessages.labelled_typ_group)
     }
   | Some(InfoRul(_)) // Can't have cursor on just a rule atm
   | None

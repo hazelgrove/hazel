@@ -189,7 +189,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
-    let fdoc = (~enforce_inline) =>
+    let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
       /* A closure may only exist around hole expressions in
          the postprocessed result */
@@ -212,7 +212,8 @@ let rec mk =
         | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
           go_case(dscrut, drs)
           |> annot(DHAnnot.InconsistentBranches((u, i)))
-        | _ => raise(EvaluatorPost.Exception(PostprocessedNonHoleInClosure))
+        | _ => fdoc(~enforce_inline, ~d=d')
+        // DHDoc_common.mk_StringLit("Help:PostprocessedNonHoleInClosure")
         }
 
       /* Hole expressions must appear within a closure in
@@ -223,8 +224,7 @@ let rec mk =
       | FreeVar(_)
       | InvalidText(_)
       | InconsistentBranches(_) =>
-        raise(EvaluatorPost.Exception(PostprocessedHoleOutsideClosure))
-
+        DHDoc_common.mk_StringLit("Help:PostprocessedHoleOutsideClosure")
       | BoundVar(x) => text(x)
       | Tag(name) => DHDoc_common.mk_TagLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
@@ -422,10 +422,10 @@ let rec mk =
       parenthesize
         ? hcats([
             DHDoc_common.Delim.open_Parenthesized,
-            fdoc |> DHDoc_common.pad_child(~enforce_inline),
+            fdoc(~d) |> DHDoc_common.pad_child(~enforce_inline),
             DHDoc_common.Delim.close_Parenthesized,
           ])
-        : fdoc(~enforce_inline);
+        : fdoc(~enforce_inline, ~d);
     (doc, cast);
   };
   mk_cast(go(~parenthesize, ~enforce_inline, d));

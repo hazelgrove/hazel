@@ -34,7 +34,8 @@ let grounded_LabelSum = labels =>
   NotGroundOrHole(
     LabelSum(
       List.map(
-        (ts: Typ.tagged) => Typ.{tag: ts.tag, typ: Typ.Unknown(Internal)},
+        (ts: Typ.tagged) =>
+          Typ.{tag: ts.tag, typ: Some(Unknown(Internal))},
         labels,
       ),
     ),
@@ -67,7 +68,7 @@ let ground_cases_of = (ty: Typ.t): ground_cases =>
   | LabelSum(tys) =>
     if (List.for_all(
           fun
-          | Typ.{typ: Typ.Unknown(_), _} => true
+          | Typ.{typ: Some(Unknown(_)), _} => true
           | _ => false,
           tys,
         )) {
@@ -200,28 +201,35 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
-    matches_cast_Tuple(dps, d, [List.combine(tys, tys')])
+    assert(List.length(tys) == List.length(tys'));
+    matches_cast_Tuple(
+      dps,
+      d,
+      List.map(p => [p], List.combine(tys, tys')),
+    );
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           tys,
           List.init(List.length(tys), _ => Typ.Unknown(Internal)),
         ),
-      ],
+      ),
     )
   | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
     matches_cast_Tuple(
       dps,
       d,
-      [
+      List.map(
+        p => [p],
         List.combine(
           List.init(List.length(tys'), _ => Typ.Unknown(Internal)),
           tys',
         ),
-      ],
+      ),
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
   | (Tuple(_), _) => DoesNotMatch
@@ -329,6 +337,7 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
+      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
       List.fold_right(
         (((dp, d), casts), result) => {
           switch (result) {
@@ -350,14 +359,27 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
     } else {
-      matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+      assert(List.length(tys) == List.length(tys'));
+      matches_cast_Tuple(
+        dps,
+        d',
+        List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+      );
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
     let tys' = List.init(List.length(tys), _ => Typ.Unknown(Internal));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(d', Unknown(_), Prod(tys')) =>
     let tys = List.init(List.length(tys'), _ => Typ.Unknown(Internal));
-    matches_cast_Tuple(dps, d', [List.combine(tys, tys'), ...elt_casts]);
+    matches_cast_Tuple(
+      dps,
+      d',
+      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+    );
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -767,13 +789,11 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           }
         | BoxedValue(d2') =>
           print_endline("InvalidBoxedIntLit1");
-          print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d2')));
           raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
         | Indet(d2') => Indet(BinIntOp(op, d1', d2')) |> return
         };
       | BoxedValue(d1') =>
         print_endline("InvalidBoxedIntLit2");
-        print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1')));
         raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
       | Indet(d1') =>
         let* r2 = evaluate(env, d2);
@@ -904,6 +924,7 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
         | _ => return(Indet(d))
         };
       }
+
     | Cons(d1, d2) =>
       let* d1 = evaluate(env, d1);
       let* d2 = evaluate(env, d2);
@@ -913,17 +934,10 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       | (BoxedValue(d1), Indet(d2)) => Indet(Cons(d1, d2)) |> return
       | (BoxedValue(d1), BoxedValue(d2)) =>
         switch (d2) {
-        | ListLit(x1, x2, x3, x4, lst) =>
-          BoxedValue(ListLit(x1, x2, x3, x4, [d1, ...lst])) |> return
-        | Cast(ListLit(x1, x2, x3, x4, lst), List(ty), List(ty')) =>
-          BoxedValue(
-            Cast(
-              ListLit(x1, x2, x3, x4, [d1, ...lst]),
-              List(ty),
-              List(ty'),
-            ),
-          )
-          |> return
+        | ListLit(u, i, err, ty, ds) =>
+          BoxedValue(ListLit(u, i, err, ty, [d1, ...ds])) |> return
+        | Cons(_)
+        | Cast(_, List(_), List(_)) => BoxedValue(Cons(d1, d2)) |> return
         | _ =>
           print_endline("InvalidBoxedListLit");
           raise(EvaluatorError.Exception(InvalidBoxedListLit(d2)));
@@ -942,7 +956,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
           lst,
           ([], false),
         );
-
       let d = DHExp.ListLit(u, i, err, ty, lst);
       if (indet) {
         Indet(d);
@@ -964,7 +977,9 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
 
     /* Hole expressions */
     | InconsistentBranches(u, i, Case(d1, rules, n)) =>
-      evaluate_case(env, Some((u, i)), d1, rules, n)
+      //TODO: revisit this, consider some kind of dynamic casting
+      Indet(Closure(env, InconsistentBranches(u, i, Case(d1, rules, n))))
+      |> return
 
     | EmptyHole(u, i) => Indet(Closure(env, EmptyHole(u, i))) |> return
 
@@ -1007,9 +1022,6 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
               Indet(FailedCast(d1', ty, ty')) |> return;
             }
           | _ =>
-            print_endline(Sexplib.Sexp.to_string_hum(DHExp.sexp_of_t(d1)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty)));
-            print_endline(Sexplib.Sexp.to_string_hum(Typ.sexp_of_t(ty')));
             print_endline("CastBVHoleGround");
             raise(EvaluatorError.Exception(CastBVHoleGround(d1')));
           }
@@ -1104,8 +1116,32 @@ and evaluate_case =
   switch (rscrut) {
   | BoxedValue(scrut)
   | Indet(scrut) =>
-    switch (List.nth_opt(rules, current_rule_index)) {
-    | None =>
+    eval_rule(env, inconsistent_info, scrut, rules, current_rule_index)
+  };
+}
+and eval_rule =
+    (
+      env: ClosureEnvironment.t,
+      inconsistent_info: option(HoleInstance.t),
+      scrut: DHExp.t,
+      rules: list(DHExp.rule),
+      current_rule_index: int,
+    )
+    : m(EvaluatorResult.t) => {
+  switch (List.nth_opt(rules, current_rule_index)) {
+  | None =>
+    let case = DHExp.Case(scrut, rules, current_rule_index);
+    (
+      switch (inconsistent_info) {
+      | None => Indet(Closure(env, ConsistentCase(case)))
+      | Some((u, i)) =>
+        Indet(Closure(env, InconsistentBranches(u, i, case)))
+      }
+    )
+    |> return;
+  | Some(Rule(dp, d)) =>
+    switch (matches(dp, scrut)) {
+    | IndetMatch =>
       let case = DHExp.Case(scrut, rules, current_rule_index);
       (
         switch (inconsistent_info) {
@@ -1115,32 +1151,13 @@ and evaluate_case =
         }
       )
       |> return;
-    | Some(Rule(dp, d)) =>
-      switch (matches(dp, scrut)) {
-      | IndetMatch =>
-        let case = DHExp.Case(scrut, rules, current_rule_index);
-        (
-          switch (inconsistent_info) {
-          | None => Indet(Closure(env, ConsistentCase(case)))
-          | Some((u, i)) =>
-            Indet(Closure(env, InconsistentBranches(u, i, case)))
-          }
-        )
-        |> return;
-      | Matches(env') =>
-        // extend environment with new bindings introduced
-        let* env = evaluate_extend_env(env', env);
-        evaluate(env, d);
-      // by the rule and evaluate the expression.
-      | DoesNotMatch =>
-        evaluate_case(
-          env,
-          inconsistent_info,
-          scrut,
-          rules,
-          current_rule_index + 1,
-        )
-      }
+    | Matches(env') =>
+      // extend environment with new bindings introduced
+      let* env = evaluate_extend_env(env', env);
+      evaluate(env, d);
+    // by the rule and evaluate the expression.
+    | DoesNotMatch =>
+      eval_rule(env, inconsistent_info, scrut, rules, current_rule_index + 1)
     }
   };
 }

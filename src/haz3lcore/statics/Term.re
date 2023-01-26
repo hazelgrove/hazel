@@ -59,10 +59,8 @@ module UTPat = {
 module UTSum = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Invalid
     | EmptyHole
     | MultiHole
-    | Ap
     | Sum;
 
   include TermBase.UTSum;
@@ -80,18 +78,14 @@ module UTSum = {
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Ap(_) => Ap
     | Sum(_) => Sum;
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Labelled Sum Type"
     | EmptyHole => "Empty Labelled Sum Type Hole"
     | MultiHole => "Multi Labelled Sum Type Hole"
-    | Ap => "Labelled Sum Type Constructor"
     | Sum => "Labelled Sum Type";
 };
 
@@ -259,19 +253,16 @@ module UTyp = {
   and utsum_to_ty: (Ctx.t, UTSum.t) => Typ.t =
     (ctx, utsum) =>
       switch (utsum.term) {
-      | Invalid(_)
       | MultiHole(_) => Unknown(Internal)
       | EmptyHole => Unknown(Internal)
-      | Ap(tag, typ) => LabelSum([{tag, typ: to_typ(ctx, typ)}])
       | Sum(ts) =>
-        List.map(utsum_to_ty(ctx), ts)
-        |> List.map(
-             fun
-             | Typ.LabelSum(ts) => ts
-             | _ => [],
-           )
-        |> List.flatten
-        |> (xs => Typ.LabelSum(xs))
+        LabelSum(
+          List.map(
+            (TermBase.UTSum.{tag, typ, _}) =>
+              Typ.{tag, typ: Option.map(to_typ(ctx), typ)},
+            ts,
+          ),
+        )
       };
 
   let rec find_utsums: t => list(UTSum.t) =

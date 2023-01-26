@@ -359,21 +359,21 @@ and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_, ([tag], []))], []) when Form.is_typ_var(tag) =>
-      ret(Ap(tag, {ids: [], term: Tuple([])}))
+      ret(Sum([{tag, typ: None}]))
     | _ => ret(hole(tm))
     }
-  | Post(TSum({term: Ap(tag, _), ids: ctr_ids}), tiles) as tm =>
+  | Post(TSum({term: Sum([{tag, typ: None}]), ids: ctr_ids}), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ({term: typ, ids})]))], []) => (
-        Ap(tag, {ids, term: typ}),
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
+        Sum([{tag, typ: Some(typ)}]),
         ctr_ids,
       )
     | _ => ret(hole(tm))
     }
   | Pre(_) as tm => ret(hole(tm))
-  | Bin(TSum(l), tiles, TSum(r)) as tm =>
+  | Bin(TSum({term: Sum(l), ids: _}), tiles, TSum({term: Sum(r), ids: _})) as tm =>
     switch (is_typ_sum(tiles)) {
-    | Some(between_kids) => ret(Sum([l] @ between_kids @ [r]))
+    | Some(_between_kids) => ret(Sum(l @ r))
     | None => ret(hole(tm))
     }
   | tm => ret(hole(tm));
@@ -401,13 +401,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum({ids, term: Sum(_)} as ts)]) =>
-        /* Only want to pass ids up to be part of the sum-end
-           form if there are actually +s inside the sum */
+      | (["sum", "end"], [TSum({ids, term: _} as ts)]) =>
         (Sum(ts), ids)
-      | (["sum", "end"], [TSum(ts)]) =>
-        /* Note: See corresponding Sum case in Statics. utyp_to_info_map */
-        (Sum(ts), [])
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -488,7 +483,7 @@ and rul = (unsorted: unsorted): URul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
-    | Whitespace(_)
+    | Secondary(_)
     | Grout(_) => []
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))

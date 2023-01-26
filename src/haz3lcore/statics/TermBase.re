@@ -2,14 +2,14 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type parse_flag =
-  | Whitespace // Not really an error
+  | Secondary // Not really an error
   | MalformedGrout // Should never happen
   | UnrecognizedTerm // Reminder to add term to MakeTerm
   | IncompleteTile; // Remove in future
 
 let show_parse_flag: parse_flag => string =
   fun
-  | Whitespace => "Whitespace"
+  | Secondary => "Secondary"
   | MalformedGrout => "Malformed Grout"
   | UnrecognizedTerm => "Unrecognized Term"
   | IncompleteTile => "Incomplete Tile";
@@ -414,11 +414,13 @@ and UTPat: {
 and UTSum: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Ap(Token.t, UTyp.t)
-    | Sum(list(t))
+    | Sum(list(tagged))
+  and tagged = {
+    tag: Token.t,
+    typ: option(UTyp.t),
+  }
   and t = {
     ids: list(Id.t),
     term,
@@ -426,11 +428,13 @@ and UTSum: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Ap(Token.t, UTyp.t)
-    | Sum(list(t))
+    | Sum(list(tagged))
+  and tagged = {
+    tag: Token.t,
+    typ: option(UTyp.t),
+  }
   and t = {
     ids: list(Id.t),
     term,

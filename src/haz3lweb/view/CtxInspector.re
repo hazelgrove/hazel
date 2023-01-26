@@ -17,6 +17,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t =>
       ]),
     switch (entry) {
     | VarEntry({name, typ, _}) => Type.view_entry(name, typ)
+    | TagEntry(_) => [] //TODO: add
     | TVarEntry({name, kind, _}) => Kind.view_entry(name, kind)
     // TODO(adt): remove this case
     | TagEntry(_) => []

@@ -91,7 +91,8 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     switch (neighbor_monotiles(siblings)) {
     | (Some(t), _) when Form.is_valid_token(t ++ char) =>
       AppendLeft(t ++ char)
-    | (_, Some(t)) when Form.is_valid_token(char ++ t) =>
+    | (_, Some(t))
+        when Form.is_valid_token(char ++ t) && !Form.is_comment_delim(char) =>
       AppendRight(char ++ t)
     | _ => MakeNew
     };
@@ -117,13 +118,13 @@ let split =
 let opt_regrold = d =>
   Option.map(((z, id_gen)) => remold_regrout(d, z, id_gen));
 
-let move_into_if_stringlit = (char, z) =>
+let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
      in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
      and ideally this logic would be located there as well, but both regrouting and
      subsequent caret position logic at this function's callsites dicate that this
      be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char)
+  Form.is_string_delim(char) || Form.is_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
       | Some(z) => z |> set_caret(Inner(0, 0))
@@ -140,15 +141,24 @@ let go =
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
   /* Special cases for insertion of quotes when the caret is
-     in or is adjacent to a string. This is necessary to
+     in or is adjacent to a string/comment. This is necessary to
      avoid breaking paste. */
-  | (_, (_, Some(t))) when Form.is_string(t) && Form.is_string_delim(char) =>
+  | (_, (_, Some(t)))
+      when
+        Form.is_string(t)
+        && Form.is_string_delim(char)
+        || Form.is_comment(t)
+        && Form.is_comment_delim(char) =>
     z
     |> Zipper.set_caret(Outer)
     |> Zipper.move(Right)
     |> Option.map(z => (z, id_gen))
   | (Outer, (Some(t), _))
-      when Form.is_string(t) && Form.is_string_delim(char) =>
+      when
+        Form.is_string(t)
+        && Form.is_string_delim(char)
+        || Form.is_comment(t)
+        && Form.is_comment_delim(char) =>
     Some((z, id_gen))
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
@@ -175,13 +185,13 @@ let go =
     |> Option.map(((z, id_gen)) => (Zipper.set_caret(caret, z), id_gen))
     |> opt_regrold(Left)
     |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit(char, z), id_gen)
+         (move_into_if_stringlit_or_comment(char, z), id_gen)
        );
   | (Outer, (_, None)) =>
     insert_outer(char, (z, id_gen))
     |> opt_regrold(Left)
     |> Option.map(((z, id_gen)) =>
-         (move_into_if_stringlit(char, z), id_gen)
+         (move_into_if_stringlit_or_comment(char, z), id_gen)
        )
   };
 };
