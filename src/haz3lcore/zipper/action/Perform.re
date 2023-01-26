@@ -128,7 +128,11 @@ let go =
             "tylr action failed: " ++ Tylr.Zipper.Action.show(a),
           );
           tylr;
-        | Some(t) => t
+        | Some(t) =>
+          print_endline("tylr action succeeded");
+          print_endline("a = " ++ Tylr.Zipper.Action.show(a));
+          print_endline("z = " ++ Tylr.Zipper.show(t));
+          t;
         }
       };
     let ed = Editor.new_state(~effects=Effect.s^, ~tylr, a, z, ed);
