@@ -149,6 +149,8 @@ let forms: list((string, t)) = [
     mk(ii, ["(", ")"], mk_post'(P.ap, TSum, TSum, [Typ], TSum)),
   ),
   ("typ_sum", mk_infix("+", TSum, P.or_)),
+  ("typ_plus", mk_infix("+", Typ, P.or_)),
+  ("typ_sum_single", mk(ss, ["+"], mk_pre(5, Typ, []))), //TODO(andrew): prec?
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
@@ -194,6 +196,7 @@ let forms: list((string, t)) = [
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
+  ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
     "type_alias",

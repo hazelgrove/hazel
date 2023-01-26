@@ -68,7 +68,8 @@ module UTyp = {
     | Sum
     | List
     | Var
-    | Parens;
+    | Parens
+    | BSum;
 
   include TermBase.UTyp;
 
@@ -97,7 +98,8 @@ module UTyp = {
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Sum(_) => Sum
-    | Parens(_) => Parens;
+    | Parens(_) => Parens
+    | BSum(_) => BSum;
 
   let show_cls: cls => string =
     fun
@@ -113,7 +115,8 @@ module UTyp = {
     | Arrow => "Function Type"
     | Tuple => "Product Type"
     | Sum => "Labelled Sum Type"
-    | Parens => "Parenthesized Type Term";
+    | Parens => "Parenthesized Type Term"
+    | BSum => "Labelled Sum Type";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -129,7 +132,8 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Sum(_)
-    | Var(_) => false
+    | Var(_)
+    | BSum(_) => false
     };
   };
 
@@ -148,6 +152,14 @@ module UTyp = {
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(ts) => utsum_to_ty(ctx, ts)
+      | BSum(ts) =>
+        LabelSum(
+          List.map(
+            (TermBase.UTyp.{tag, typ, _}) =>
+              Typ.{tag, typ: Option.map(to_typ(ctx), typ)},
+            ts,
+          ),
+        )
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       }

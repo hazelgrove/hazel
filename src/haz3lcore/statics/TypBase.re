@@ -35,6 +35,7 @@ module rec Ctx: {
 
   let lookup_tvar: (t, Token.t) => option(Kind.t);
   let is_tvar: (t, Token.t) => bool;
+  let resolve_typ: (t, Typ.t) => option(Typ.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -75,6 +76,16 @@ module rec Ctx: {
       | _ => None,
       ctx,
     );
+
+  let rec resolve_typ = (ctx: t, ty: Typ.t): option(Typ.t) =>
+    switch (ty) {
+    | Var(x) =>
+      switch (Ctx.lookup_tvar(ctx, x)) {
+      | Some(Singleton(ty)) => resolve_typ(ctx, ty)
+      | _ => Some(ty)
+      }
+    | _ => Some(ty)
+    };
 
   let is_tvar = (ctx: t, name: Token.t) =>
     switch (Ctx.lookup_tvar(ctx, name)) {
