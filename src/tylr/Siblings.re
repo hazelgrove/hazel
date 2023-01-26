@@ -23,7 +23,7 @@ let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
 let uncons_lexeme =
   uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
 let uncons_char =
-  uncons(~from_l=Segment.unsnoc_lexeme, ~from_r=Segment.uncons_lexeme);
+  uncons(~from_l=Segment.unsnoc_char, ~from_r=Segment.uncons_char);
 
 let cat = ((l_inner, r_inner), (l_outer, r_outer)) =>
   Segment.(cat(l_outer, l_inner), cat(r_inner, r_outer));
@@ -85,11 +85,12 @@ let rec mold_matching = (t: Token.t, (pre, suf): t): option(Mold.t) =>
 let mold = (t: Token.t, (pre, _): t): option(Mold.t) => {
   let rec go = (~in_l: option(Sort.o)=?, pre: Segment.t) =>
     Chain.unknil(pre)
-    |> OptUtil.and_then(((pre, c, _)) => {
-         let go_next = () => go(~in_l=Meld.sort(c), pre);
-         switch (Meld.expected_sort(R, c)) {
-         | None => go_next()
-         | Some(out) =>
+    |> OptUtil.and_then(((pre, mel, _)) => {
+         let go_next = () => go(~in_l=Meld.sort(mel), pre);
+         switch (Meld.tip(R, mel)) {
+         | None
+         | Some(Convex) => go_next()
+         | Some(Concave(out, _)) =>
            switch (choose(in_l, out, t)) {
            | None => go_next()
            | Some(m) => Some(m)

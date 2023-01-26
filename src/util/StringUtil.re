@@ -1,3 +1,15 @@
+let uncons =
+  fun
+  | "" => None
+  | s => Some(String.(sub(s, 0, 1), sub(s, 1, length(s) - 1)));
+let unsnoc =
+  fun
+  | "" => None
+  | s => {
+      let n = String.length(s);
+      Some(String.(sub(s, 0, n - 1), sub(s, n - 1, 1)));
+    };
+
 let cat = String.concat("");
 
 let remove_nth = (n, t) => {

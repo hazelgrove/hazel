@@ -11,11 +11,9 @@ and kid =
 // a concrete parent piece inducing kidhood, hence we should
 // never encounter a meld consisting solely of Some(kid).
 exception Orphaned_kid;
-
 // we expect kids to have higher precedence than their
 // parent tips (which may be min prec in bidelim containers)
 exception Invalid_prec;
-
 exception Missing_root;
 
 let empty = Chain.of_loop(None);
@@ -44,10 +42,6 @@ let sort = _ => failwith("todo sort");
 // precond: root(c) != []
 let prec = _ => failwith("todo prec");
 
-let expected_sort = (_side: Dir.t, _) => failwith("todo Meld.expected_sort");
-
-let match_ = (_, ~kid as _=?, _) => failwith("todo match_");
-
 module Padded = {
   type c = t;
   // meld with padding (ie single-meld segment)
@@ -61,10 +55,25 @@ module Padded = {
   );
 };
 
-let unsnoc_char = _ => failwith("todo");
-let uncons_char = _ => failwith("todo");
-let unsnoc_lexeme = _ => failwith("todo");
-let uncons_lexeme = _ => failwith("todo");
+let tip = (side: Dir.t, mel: t): option(Tip.t) =>
+  switch (side) {
+  | L =>
+    Chain.unlink(mel)
+    |> Option.map(((kid, p, _)) =>
+         switch (kid) {
+         | None => Piece.tip(side, p)
+         | Some(_) => Tip.Convex
+         }
+       )
+  | R =>
+    Chain.unknil(mel)
+    |> Option.map(((_, p, kid)) =>
+         switch (kid) {
+         | None => Piece.tip(side, p)
+         | Some(_) => Tip.Convex
+         }
+       )
+  };
 
 // todo: consider generalizing to return expected sort
 let cmp = (l: t, r: t): Cmp.t =>

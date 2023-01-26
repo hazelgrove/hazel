@@ -36,32 +36,119 @@ let snoc_lexeme = (seg, lx: Lexeme.t) =>
   | G(g) => Chain.knil(seg, Meld.of_grout(g), Space.empty)
   };
 
-let uncons_lexeme = (seg: t) =>
-  switch (Chain.fst(seg)) {
-  | [s, ...ss] => Some((Lexeme.S(s), Chain.put_fst(ss, seg)))
-  | [] =>
-    open OptUtil.Syntax;
-    let* (_, mel, seg) = Chain.unlink(seg);
-    // todo: may need to convert to prefix form here
-    let+ (lx, tl) = Meld.uncons_lexeme(mel);
-    (lx, cat(tl, seg));
-  };
-let unsnoc_lexeme = (seg: t) =>
-  switch (ListUtil.split_last_opt(Chain.lst(seg))) {
-  | Some((ss, s)) => Some((Chain.put_lst(ss, seg), Lexeme.S(s)))
-  | None =>
-    open OptUtil.Syntax;
-    let* (seg, mel, _) = Chain.unknil(seg);
-    let+ (tl, lx) = Meld.unsnoc_lexeme(mel);
-    (cat(seg, tl), lx);
-  };
-
 let of_space = (s: Space.s): t => Chain.of_loop(s);
 let of_meld = (mel: Meld.t): t => Chain.mk(Space.[empty, empty], [mel]);
 let of_padded = ((mel, (l, r)): Meld.Padded.t): t =>
   Chain.mk([l, r], [mel]);
 let of_lexemes = (ls: Lexeme.s): t =>
   List.fold_right(cons_lexeme, ls, empty);
+
+let rec meld_to_prefix = (mel: Meld.t): t =>
+  switch (Chain.unknil(mel)) {
+  | None => empty
+  | Some((tl, p, kid)) =>
+    let (p, s) = Piece.pop_space_r(p);
+    let kid_pre =
+      switch (kid) {
+      | None => empty
+      | Some(K(kid)) => meld_to_prefix(kid)
+      };
+    cons_meld(Chain.knil(tl, p, None), cons_space(s, kid_pre));
+  };
+let to_prefix: t => t =
+  Chain.fold_right(
+    (s, mel, pre) => concat([of_space(s), meld_to_prefix(mel), pre]),
+    of_space,
+  );
+
+let rec meld_to_suffix = (mel: Meld.t): t =>
+  switch (Chain.unlink(mel)) {
+  | None => empty
+  | Some((kid, p, tl)) =>
+    let (s, p) = Piece.pop_space_l(p);
+    let kid_suf =
+      switch (kid) {
+      | None => empty
+      | Some(K(kid)) => meld_to_suffix(kid)
+      };
+    snoc_meld(snoc_space(kid_suf, s), Chain.link(None, p, tl));
+  };
+let to_suffix: t => t =
+  Chain.fold_left(of_space, (suf, mel, s) =>
+    concat([suf, meld_to_suffix(mel), of_space(s)])
+  );
+
+// operations on melds that produce segments
+module Meld_ = {
+  // precond: mel is left-closed
+  let uncons = (~from_piece, mel) => {
+    open OptUtil.Syntax;
+    let+ (_none, p, mel_tl) = Chain.unlink(mel);
+    let (lx, p_tl) = from_piece(p);
+    (lx, to_suffix(cat(of_lexemes(p_tl), of_meld(mel_tl))));
+  };
+  let uncons_lexeme =
+    uncons(~from_piece=p => ListUtil.split_first(Lexeme.s_of_piece(p)));
+  let uncons_char =
+    uncons(~from_piece=p =>
+      Lexeme.(uncons_char_s(s_of_piece(p)))
+      |> OptUtil.get_or_fail("Lexeme.s_of_piece returns nonempty")
+    );
+
+  // precond: mel is right-closed
+  let unsnoc = (~from_piece, mel) => {
+    open OptUtil.Syntax;
+    let+ (mel_tl, p, _none) = Chain.unknil(mel);
+    let (p_tl, c) = from_piece(p);
+    (to_prefix(cat(of_meld(mel_tl), of_lexemes(p_tl))), c);
+  };
+  let unsnoc_lexeme =
+    unsnoc(~from_piece=p => ListUtil.split_last(Lexeme.s_of_piece(p)));
+  let unsnoc_char =
+    unsnoc(~from_piece=p =>
+      Lexeme.(unsnoc_char_s(s_of_piece(p)))
+      |> OptUtil.get_or_fail("Lexeme.s_of_piece returns nonempty")
+    );
+};
+
+let uncons = (~from_space, ~from_meld, seg) =>
+  switch (from_space(Chain.fst(seg))) {
+  | Some((a, s)) => Some((a, Chain.put_fst(s, seg)))
+  | None =>
+    open OptUtil.Syntax;
+    let* (_, mel, seg) = Chain.unlink(seg);
+    // todo: may need to convert to prefix form here
+    let+ (a, tl) = from_meld(mel);
+    (a, cat(tl, seg));
+  };
+let uncons_from_space =
+  fun
+  | [] => None
+  | [s, ...ss] => Some((Lexeme.S(s), ss));
+
+let uncons_lexeme =
+  uncons(~from_space=uncons_from_space, ~from_meld=Meld_.uncons_lexeme);
+let uncons_char =
+  uncons(~from_space=uncons_from_space, ~from_meld=Meld_.uncons_char);
+
+// precond: input seg is prefix
+// postcond: output seg is prefix
+let unsnoc = (~from_space, ~from_meld, seg: t) =>
+  switch (from_space(Chain.lst(seg))) {
+  | Some((s, a)) => Some((Chain.put_lst(s, seg), a))
+  | None =>
+    open OptUtil.Syntax;
+    let* (seg, mel, _) = Chain.unknil(seg);
+    let+ (tl, a) = from_meld(mel);
+    (cat(seg, tl), a);
+  };
+let unsnoc_from_space = ss =>
+  ListUtil.split_last_opt(ss)
+  |> Option.map(((ss, s)) => (ss, Lexeme.S(s)));
+let unsnoc_lexeme =
+  unsnoc(~from_space=unsnoc_from_space, ~from_meld=Meld_.unsnoc_lexeme);
+let unsnoc_char =
+  unsnoc(~from_space=unsnoc_from_space, ~from_meld=Meld_.unsnoc_char);
 
 let rec mold =
         (~match: bool, pre: t, ~kid: option(Sort.t)=?, t: Token.t)
@@ -217,38 +304,3 @@ let finish_prefix = (pre: t): Meld.Padded.t =>
        (s, mel, kid) => Meld.(merge(Padded.mk(~l=s, mel), kid)),
        s => Meld.(Padded.mk(~l=s, Meld.empty)),
      );
-
-let rec meld_to_prefix = (mel: Meld.t): t =>
-  switch (Chain.unknil(mel)) {
-  | None => empty
-  | Some((tl, p, kid)) =>
-    let (p, s) = Piece.pop_space_r(p);
-    let kid_pre =
-      switch (kid) {
-      | None => empty
-      | Some(K(kid)) => meld_to_prefix(kid)
-      };
-    kid_pre |> cons_space(s) |> cons_meld(Chain.knil(tl, p, None));
-  };
-let to_prefix: t => t =
-  Chain.fold_right(
-    (s, mel, pre) => concat([of_space(s), meld_to_prefix(mel), pre]),
-    of_space,
-  );
-
-let rec meld_to_suffix = (mel: Meld.t): t =>
-  switch (Chain.unlink(mel)) {
-  | None => empty
-  | Some((kid, p, tl)) =>
-    let (s, p) = Piece.pop_space_l(p);
-    let kid_suf =
-      switch (kid) {
-      | None => empty
-      | Some(K(kid)) => meld_to_suffix(kid)
-      };
-    snoc_meld(snoc_space(kid_suf, s), Chain.link(None, p, tl));
-  };
-let to_suffix: t => t =
-  Chain.fold_left(of_space, (suf, mel, s) =>
-    concat([suf, meld_to_suffix(mel), of_space(s)])
-  );

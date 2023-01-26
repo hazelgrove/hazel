@@ -1,3 +1,5 @@
+open Util;
+
 type t =
   | S(Space.t)
   | G(Grout.t)
@@ -24,11 +26,44 @@ let token =
 
 let s_of_space: Space.s => s = List.map(s => S(s));
 
+// postcond: output is nonempty
 let s_of_piece = ({shape, space: (l, r)}: Piece.t) => {
-  let l_shape =
+  let of_shape =
     switch (shape) {
     | T(t) => T(t)
     | G(g) => G(g)
     };
-  s_of_space(l) @ [l_shape, ...s_of_space(r)];
+  s_of_space(l) @ [of_shape, ...s_of_space(r)];
+};
+
+let uncons_char = (lx: t): option((t, t)) =>
+  switch (lx) {
+  | S(_)
+  | G(_) => None
+  | T(t) =>
+    Tile.uncons_char(t) |> Option.map(((hd, tl)) => (T(hd), T(tl)))
+  };
+let uncons_char_s = (ls: s): option((t, s)) => {
+  open OptUtil.Syntax;
+  let+ (tl, hd) = ListUtil.split_last_opt(ls);
+  switch (uncons_char(hd)) {
+  | None => (hd, tl)
+  | Some((c, hd)) => (c, [hd, ...tl])
+  };
+};
+
+let unsnoc_char = (lx: t): option((t, t)) =>
+  switch (lx) {
+  | S(_)
+  | G(_) => None
+  | T(t) =>
+    Tile.unsnoc_char(t) |> Option.map(((tl, hd)) => (T(tl), T(hd)))
+  };
+let unsnoc_char_s = (ls: s): option((s, t)) => {
+  open OptUtil.Syntax;
+  let+ (tl, hd) = ListUtil.split_last_opt(ls);
+  switch (unsnoc_char(hd)) {
+  | None => (tl, hd)
+  | Some((hd, c)) => (tl @ [hd], c)
+  };
 };

@@ -16,9 +16,16 @@ let uncons = (~from_l, ~from_r, ~from: Dir.t, (l, r): t) =>
   | R =>
     from_r(r) |> Option.map(((a, r)) => (a, (Segment.of_meld(l), r)))
   };
-let uncons_char = uncons(~from_l=Meld.unsnoc_char, ~from_r=Meld.uncons_char);
+let uncons_char =
+  uncons(
+    ~from_l=Segment.Meld_.unsnoc_char,
+    ~from_r=Segment.Meld_.uncons_char,
+  );
 let uncons_lexeme =
-  uncons(~from_l=Meld.unsnoc_lexeme, ~from_r=Meld.uncons_lexeme);
+  uncons(
+    ~from_l=Segment.Meld_.unsnoc_lexeme,
+    ~from_r=Segment.Meld_.uncons_lexeme,
+  );
 
 [@warning "-27"]
 let mold = (~match, ~kid=?, t, par) => failwith("todo mold");

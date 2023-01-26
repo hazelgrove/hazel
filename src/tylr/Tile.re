@@ -16,3 +16,11 @@ let mk = (~id=?, mold, token: Token.t) => {
 let length = t => Token.length(t.token);
 
 let split_cursor = (_: t) => failwith("todo split_cursor");
+
+let uncons_char = (t: t): option((t, t)) =>
+  StringUtil.uncons(t.token)
+  |> Option.map(((hd, tl)) => ({...t, token: hd}, {...t, token: tl}));
+
+let unsnoc_char = (t: t): option((t, t)) =>
+  StringUtil.unsnoc(t.token)
+  |> Option.map(((tl, hd)) => ({...t, token: tl}, {...t, token: hd}));
