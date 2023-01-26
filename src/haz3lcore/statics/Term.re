@@ -19,40 +19,6 @@
 include TermBase.Any;
 
 type any = t;
-
-module UTSum = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | EmptyHole
-    | MultiHole
-    | Sum;
-
-  include TermBase.UTSum;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Sum(_) => Sum;
-
-  let show_cls: cls => string =
-    fun
-    | EmptyHole => "Empty Labelled Sum Type Hole"
-    | MultiHole => "Multi Labelled Sum Type Hole"
-    | Sum => "Labelled Sum Type";
-};
-
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -97,7 +63,6 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Tuple(_) => Tuple
-    | Sum(_) => Sum
     | Parens(_) => Parens
     | BSum(_) => BSum;
 
@@ -131,7 +96,6 @@ module UTyp = {
     | String
     | List(_)
     | Tuple(_)
-    | Sum(_)
     | Var(_)
     | BSum(_) => false
     };
@@ -151,7 +115,6 @@ module UTyp = {
       | Var(name) => Var(name)
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(ts) => utsum_to_ty(ctx, ts)
       | BSum(tgs, _bads) =>
         //TODO(andrew): deal with bads
         LabelSum(
@@ -163,23 +126,8 @@ module UTyp = {
         )
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
-      }
-  and utsum_to_ty: (Ctx.t, UTSum.t) => Typ.t =
-    (ctx, utsum) =>
-      switch (utsum.term) {
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(Internal)
-      | Sum(ts) =>
-        LabelSum(
-          List.map(
-            (TermBase.UTSum.{tag, typ, _}) =>
-              Typ.{tag, typ: Option.map(to_typ(ctx), typ)},
-            ts,
-          ),
-        )
       };
 };
-
 module UTPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -654,7 +602,6 @@ let rec ids =
   | Pat(tm) => tm.ids
   | Typ(tm) => tm.ids
   | TPat(tm) => tm.ids
-  | TSum(tm) => tm.ids
   | Rul(tm) => URul.ids(~any_ids=ids, tm)
   | Nul ()
   | Any () => [];
@@ -676,7 +623,6 @@ let rep_id =
   | Pat(tm) => UPat.rep_id(tm)
   | Typ(tm) => UTyp.rep_id(tm)
   | TPat(tm) => UTPat.rep_id(tm)
-  | TSum(tm) => UTSum.rep_id(tm)
   | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
   | Nul ()
   | Any () => raise(Invalid_argument("Term.rep_id"));

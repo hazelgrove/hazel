@@ -21,7 +21,6 @@ module rec Any: {
     | Pat(UPat.t)
     | Typ(UTyp.t)
     | TPat(UTPat.t)
-    | TSum(UTSum.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -29,7 +28,6 @@ module rec Any: {
   let is_exp: t => option(UExp.t);
   let is_pat: t => option(UPat.t);
   let is_typ: t => option(UTyp.t);
-  let is_tsum: t => option(UTSum.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -37,7 +35,6 @@ module rec Any: {
     | Pat(UPat.t)
     | Typ(UTyp.t)
     | TPat(UTPat.t)
-    | TSum(UTSum.t)
     | Rul(URul.t)
     | Nul(unit)
     | Any(unit);
@@ -53,10 +50,6 @@ module rec Any: {
   let is_typ: t => option(UTyp.t) =
     fun
     | Typ(t) => Some(t)
-    | _ => None;
-  let is_tsum: t => option(UTSum.t) =
-    fun
-    | TSum(ts) => Some(ts)
     | _ => None;
 }
 and UExp: {
@@ -341,7 +334,6 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(UTSum.t)
     | Parens(t)
     | BSum(list(tagged), list(t))
   and tagged = {
@@ -366,7 +358,6 @@ and UTyp: {
     | Var(string)
     | Arrow(t, t)
     | Tuple(list(t))
-    | Sum(UTSum.t)
     | Parens(t)
     | BSum(list(tagged), list(t))
   and tagged = {
@@ -396,35 +387,6 @@ and UTPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(Token.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
-}
-and UTSum: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | EmptyHole
-    | MultiHole(list(Any.t))
-    | Sum(list(tagged))
-  and tagged = {
-    tag: Token.t,
-    typ: option(UTyp.t),
-  }
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | EmptyHole
-    | MultiHole(list(Any.t))
-    | Sum(list(tagged))
-  and tagged = {
-    tag: Token.t,
-    typ: option(UTyp.t),
-  }
   and t = {
     ids: list(Id.t),
     term,

@@ -124,7 +124,6 @@ let secondary_without_comments = [Secondary.space, Secondary.linebreak];
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("bad_lit", (is_bad_lit, [mk_op(Any, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
-  ("ty_sum_cons", (is_typ_var, [mk_op(TSum, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_tag, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -143,12 +142,6 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
    priority for forms which share the same labels */
 
 let forms: list((string, t)) = [
-  ("typ-sum", mk(ds, ["sum", "end"], mk_op(Typ, [TSum]))),
-  (
-    "ap_typ_sum_cons",
-    mk(ii, ["(", ")"], mk_post'(P.ap, TSum, TSum, [Typ], TSum)),
-  ),
-  ("typ_sum", mk_infix("+", TSum, P.or_)),
   ("typ_plus", mk_infix("+", Typ, P.or_)),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(5, Typ, []))), //TODO(andrew): prec?
   ("cell-join", mk_infix(";", Exp, 10)),

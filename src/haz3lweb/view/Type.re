@@ -60,11 +60,11 @@ let rec view = (ty: Haz3lcore.Typ.t): Node.t =>
       ~attr=clss(["typ-view", "LabelSum"]),
       switch (ts) {
       | [] => [text("Nullary Sum")]
-      | [t0] => [text("sum ")] @ tagged_view(t0) @ [text(" end")]
+      | [t0] => [text("+(")] @ tagged_view(t0) @ [text(")")]
       | [t0, ...ts] =>
         let ts_views =
           List.map(t => [text(" + ")] @ tagged_view(t), ts) |> List.flatten;
-        [text("sum ")] @ tagged_view(t0) @ ts_views @ [text(" end")];
+        tagged_view(t0) @ ts_views;
       },
     )
   | Sum(t1, t2) =>

@@ -57,16 +57,14 @@ type info_rul = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type error_tpat =
+  | NotAName;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type info_tpat = {
   cls: Term.UTPat.cls,
   term: Term.UTPat.t,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info_tsum = {
-  cls: Term.UTSum.cls,
-  term: Term.UTSum.t,
-  self: Typ.self,
+  error: option(error_tpat),
 };
 
 /* The Info aka Cursorinfo assigned to each subterm. */
@@ -77,8 +75,7 @@ type t =
   | InfoPat(info_pat)
   | InfoTyp(info_typ)
   | InfoRul(info_rul)
-  | InfoTPat(info_tpat)
-  | InfoTSum(info_tsum);
+  | InfoTPat(info_tpat);
 
 /* The InfoMap collating all info for a composite term */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,10 +91,16 @@ let terms = (map: map): Id.Map.t(Term.any) =>
        | InfoTyp({term, _}) => Some(Term.Typ(term))
        | InfoRul({term, _}) => Some(Term.Exp(term))
        | InfoTPat({term, _}) => Some(Term.TPat(term))
-       | InfoTSum({term, _}) => Some(Term.TSum(term))
      );
 
 /* Static error classes */
+
+let error_tpat = (utpat: Term.UTPat.t) =>
+  switch (utpat.term) {
+  | Var(_) => None
+  | _ => Some(NotAName)
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | Self(Typ.self_error)
@@ -195,8 +198,7 @@ let is_error = (ci: t): bool => {
     | _ => false
     }
   | InfoRul(_) => false
-  | InfoTSum(_) => false //TODO(andrew): TSum errors?
-  | InfoTPat(_) => false //TODO(andrew): TPat errors?
+  | InfoTPat({error, _}) => error != None
   };
 };
 /* TODO(andrew): more sum/rec errors
@@ -220,10 +222,7 @@ let typ_after_fix = (ctx, mode: Typ.mode, self: Typ.self): Typ.t =>
 let exp_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
   | Some(InfoExp({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(
-      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
-      Invalid(_),
-    )
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -241,10 +240,7 @@ let t_of_self = (ctx): (Typ.self => Typ.t) =>
 let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({self, _})) => t_of_self(ctx, self)
-  | Some(
-      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
-      Invalid(_),
-    )
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -254,10 +250,7 @@ let exp_self_typ = (ctx, m: map, e: Term.UExp.t): Typ.t =>
 let exp_mode_id = (m: map, id): Typ.mode =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, _})) => mode
-  | Some(
-      InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
-      Invalid(_),
-    )
+  | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -268,19 +261,13 @@ let exp_mode = (m: map, e: Term.UExp.t): Typ.mode =>
 let pat_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({mode, self, _})) => typ_after_fix(ctx, mode, self)
-  | Some(
-      InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
-      Invalid(_),
-    )
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 let pat_self_typ = (ctx, m: map, p: Term.UPat.t): Typ.t =>
   switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
   | Some(InfoPat({self, _})) => t_of_self(ctx, self)
-  | Some(
-      InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | InfoTSum(_) |
-      Invalid(_),
-    )
+  | Some(InfoExp(_) | InfoTyp(_) | InfoRul(_) | InfoTPat(_) | Invalid(_))
   | None => failwith(__LOC__ ++ ": XXX")
   };
 
@@ -374,9 +361,6 @@ let rec any_to_info_map = (~ctx: Ctx.t, any: Term.any): (Ctx.co, map) =>
     (co, map);
   | Pat(p) =>
     let (_, _, map) = upat_to_info_map(~is_synswitch=false, ~ctx, p);
-    (VarMap.empty, map);
-  | TSum(ts) =>
-    let map = utsum_to_info_map(~ctx, ts);
     (VarMap.empty, map);
   | TPat(tp) =>
     let map = utpat_to_info_map(~ctx, tp);
@@ -557,9 +541,10 @@ and uexp_to_info_map =
     );
   | TyAlias(
       {term: Var(name), _} as typat,
-      {term: Sum(_) | BSum(_), _} as utyp,
+      {term: BSum(_), _} as utyp,
       body,
     ) =>
+    //TODO(andrew): cleanup (with lower variant)
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.UTyp.to_typ(ctx, utyp);
     let ty' = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
@@ -779,12 +764,8 @@ and utyp_to_info_map =
     Ctx.is_tvar(ctx, name)
       ? (Var(name), add(Just(Var(name)), Id.Map.empty))
       : (Unknown(Internal), add(Self(Free(TypeVariable)), Id.Map.empty))
-  | Sum({term, ids: _}) =>
-    /* Note: See corresponding TSum case in MakeTerm.typ_term */
-    let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
-    just(m);
   | BSum(sum, bads) =>
-    //TODO(andrew): deal with bads
+    //TODO(andrew): check for duplicate variants
     let ms =
       List.map(
         (TermBase.UTyp.{tag: _, typ, _}) =>
@@ -814,34 +795,8 @@ and utyp_to_info_map =
 }
 and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
-  add_info(ids, InfoTPat({cls, term: utpat}), Id.Map.empty);
-}
-and utsum_to_info_map = (~ctx, {ids, term} as utsum: Term.UTSum.t): map => {
-  let cls = Term.UTSum.cls_of_term(term);
-  let just = m =>
-    add_info(
-      ids,
-      InfoTSum({cls, term: utsum, self: Just(Unknown(Internal))}),
-      m,
-    );
-  switch (term) {
-  | EmptyHole => just(Id.Map.empty)
-  | MultiHole(tms) =>
-    let (_, ms) =
-      tms |> List.map(any_to_info_map(~ctx=Ctx.empty)) |> List.split;
-    just(union_m(ms));
-  | Sum(sum) =>
-    let ms =
-      List.map(
-        (TermBase.UTSum.{tag: _, typ, _}) =>
-          switch (typ) {
-          | None => Id.Map.empty
-          | Some(typ) => utyp_to_info_map(~ctx, typ) |> snd
-          },
-        sum,
-      );
-    just(union_m(ms));
-  };
+  let error = error_tpat(utpat);
+  add_info(ids, InfoTPat({cls, error, term: utpat}), Id.Map.empty);
 };
 
 let mk_map =
