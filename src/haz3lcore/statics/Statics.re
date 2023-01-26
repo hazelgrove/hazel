@@ -47,12 +47,19 @@ type status_typ =
   | FreeTypeVar
   //| TagArity
   //| DuplicateTag // TODO(andrew)
+  | ApOutsideSum
   | TagExpected(Typ.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typ_mode =
+  | Normal
+  | VariantExpected;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
   cls: Term.UTyp.cls,
   term: Term.UTyp.t,
+  mode: typ_mode,
   ctx: Ctx.t,
   status: status_typ,
 };
@@ -734,64 +741,54 @@ and upat_to_info_map =
   };
 }
 and utyp_to_info_map =
-    (~ctx, ~parent_err=None, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+    (~ctx, ~mode=Normal, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.UTyp.to_typ(ctx, utyp);
-  let add = status => add_info(ids, InfoTyp({cls, ctx, status, term: utyp}));
-  let ok = m =>
-    switch (parent_err) {
-    | None => (ty, add(Ok(ty), m))
-    | Some(err) => (Typ.Unknown(Internal), add(err, m))
-    };
-  let error = (err, m) =>
-    switch (parent_err) {
-    | None => (Typ.Unknown(Internal), add(err, m))
-    | Some(err) => (Typ.Unknown(Internal), add(err, m))
-    };
-  let go = utyp_to_info_map(~ctx, ~parent_err);
+  let add = status =>
+    add_info(ids, InfoTyp({cls, ctx, mode, status, term: utyp}));
+  let ok = (m: map): (Typ.t, map) => (ty, add(Ok(ty), m));
+  let error = (err, m) => (Typ.Unknown(Internal), add(err, m));
+  let normal = m =>
+    mode == VariantExpected ? error(TagExpected(ty), m) : ok(m);
+  let go = utyp_to_info_map(~ctx, ~mode=Normal);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
-  | EmptyHole
+  | EmptyHole => ok(Id.Map.empty)
   | Int
   | Float
   | Bool
-  | String => ok(Id.Map.empty)
+  | String =>
+    let m = Id.Map.empty;
+    normal(m);
   | List(t)
   | Parens(t) =>
-    let (_, m) = go(t);
-    ok(m);
+    let m = go(t) |> snd;
+    normal(m);
   | Arrow(t1, t2) =>
-    let (_, m_1) = go(t1);
-    let (_, m_2) = go(t2);
-    ok(union_m([m_1, m_2]));
+    let m = union_m([go(t1) |> snd, go(t2) |> snd]);
+    normal(m);
   | Tuple(ts) =>
     let m = ts |> List.map(go) |> List.map(snd) |> union_m;
-    ok(m);
+    normal(m);
   | Var(name) =>
-    Ctx.is_tvar(ctx, name)
-      ? ok(Id.Map.empty) : error(FreeTypeVar, Id.Map.empty)
-  | TSum(sum, bads) =>
+    //TODO(andrew): change cls for tag case?
+    let m = Id.Map.empty;
+    mode == VariantExpected
+      ? ok(m) : Ctx.is_tvar(ctx, name) ? ok(m) : error(FreeTypeVar, m);
+  | Ap(t1, t2) =>
+    let m =
+      union_m([
+        utyp_to_info_map(~ctx, ~mode=VariantExpected, t1) |> snd,
+        utyp_to_info_map(~ctx, ~mode=Normal, t2) |> snd,
+      ]);
+    mode == VariantExpected ? ok(m) : error(ApOutsideSum, m);
+  | TSum(ts) =>
     //TODO(andrew): check for duplicate variants
-    let ms_good =
-      List.map(
-        (TermBase.UTyp.{tag: _, typ, _}) =>
-          switch (typ) {
-          | None => Id.Map.empty
-          | Some(typ) => go(typ) |> snd
-          },
-        sum,
-      );
-    let ms_bad =
-      List.map(
-        utyp =>
-          {
-            let ty = Term.UTyp.to_typ(ctx, utyp);
-            utyp_to_info_map(~ctx, ~parent_err=Some(TagExpected(ty)), utyp);
-          }
-          |> snd,
-        bads,
-      );
-    ok(union_m(ms_good @ ms_bad));
+    let m =
+      List.map(utyp_to_info_map(~ctx, ~mode=VariantExpected), ts)
+      |> List.map(snd)
+      |> union_m;
+    ok(m);
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     ok(union_m(maps));

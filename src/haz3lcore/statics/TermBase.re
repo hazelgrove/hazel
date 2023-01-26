@@ -334,11 +334,8 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
-    | TSum(list(tagged), list(t))
-  and tagged = {
-    tag: Token.t,
-    typ: option(UTyp.t),
-  }
+    | Ap(t, t)
+    | TSum(list(t))
   and t = {
     ids: list(Id.t),
     term,
@@ -357,11 +354,8 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
-    | TSum(list(tagged), list(t))
-  and tagged = {
-    tag: Token.t,
-    typ: option(UTyp.t),
-  }
+    | Ap(t, t)
+    | TSum(list(t))
   and t = {
     ids: list(Id.t),
     term,

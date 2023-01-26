@@ -146,10 +146,6 @@ let return_dark_hole = (~ids=[], s) => {
   hole;
 };
 
-type typ_res =
-  | IsTagged(list(TermBase.UTyp.tagged))
-  | IsNotTagged(UTyp.t);
-
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -355,22 +351,6 @@ and typ = unsorted => {
 and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let ret = (term: UTyp.term) => (term, []);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
-  let get_tagged = (ut: UTyp.t): typ_res =>
-    switch (ut.term) {
-    | TSum(xs, _) => IsTagged(xs)
-    | Var(tag) => IsTagged([{tag, typ: None}])
-    | _ => IsNotTagged(ut)
-    };
-  let get_tagged_and_ids = kids =>
-    List.map2(
-      (tr, id) =>
-        switch (tr) {
-        | IsTagged(tgs) => Some((tgs, id))
-        | IsNotTagged(_) => None
-        },
-      List.map(get_tagged, kids),
-      List.map((term: UTyp.t) => term.ids, kids),
-    );
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -388,40 +368,30 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
-  | Post(Typ({term: Var(tag), ids: ctr_ids}), tiles) as tm =>
+  | Post(Typ(t), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
-        TSum([{tag, typ: Some(typ)}], []),
-        ctr_ids,
-      )
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
+  /*| Pre(tiles, Typ({term: TSum(t0), _})) as tm =>
+    switch (tiles) {
+    | ([(_, (["+"], []))], []) => ret(TSum(t0))
+    | _ => ret(hole(tm))
+    }*/
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
-      switch (get_tagged(t)) {
-      | IsTagged(tgs) => (TSum(tgs, []), t.ids)
-      | IsNotTagged(ty) => (TSum([], [ty]), t.ids)
-      }
+    | ([(_, (["+"], []))], []) => ret(TSum([t]))
     | _ => ret(hole(tm))
+    }
+  | Bin(Typ({term: TSum(t0), ids}), tiles, Typ(t2)) as tm
+      when is_typ_bsum(tiles) != None =>
+    switch (is_typ_bsum(tiles)) {
+    | Some(between_kids) => (TSum(t0 @ between_kids @ [t2]), ids)
+    | None => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
-    | Some(between_kids) =>
-      let all_kids = [t1] @ between_kids @ [t2];
-      let all_kids_tagged = get_tagged_and_ids(all_kids);
-      let good_kids_ids =
-        all_kids_tagged |> List.filter_map(Option.map(snd)) |> List.flatten;
-      let good_kids =
-        all_kids_tagged |> List.filter_map(Option.map(fst)) |> List.flatten;
-      let bad_kids =
-        List.filter_map(
-          fun
-          | IsTagged(_) => None
-          | IsNotTagged(t) => Some(t),
-          List.map(get_tagged, all_kids),
-        );
-      (TSum(good_kids, bad_kids), good_kids_ids);
+    | Some(between_kids) => ret(TSum([t1] @ between_kids @ [t2]))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

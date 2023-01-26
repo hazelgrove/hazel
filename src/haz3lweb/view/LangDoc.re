@@ -2736,6 +2736,7 @@ let get_doc =
         [],
       );
     | TSum(_) => basic_info(LangDocMessages.labelled_sum_typ_group)
+    | Ap(_) => default //TODO(andrew): Add this ADTs
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

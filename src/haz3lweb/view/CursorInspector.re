@@ -156,26 +156,40 @@ let view_of_info =
         status_view(error_status),
       ],
     );
-  | InfoTyp({status, ctx, _}) =>
+  | InfoTyp({status, ctx, mode, cls, _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "typ"),
         switch (status) {
+        | Ok(_) when cls == Var && mode == VariantExpected =>
+          //TODO(andrew): this is a mild hack
+          div(
+            ~attr=clss([happyc]),
+            [text("Sum type constuctor definition")],
+          )
+        | Ok(_) when cls == Ap && mode == VariantExpected =>
+          //TODO(andrew): this is a mild hack
+          div(
+            ~attr=clss([happyc]),
+            [text("Sum type constuctor definition")],
+          )
         | Ok(ty) =>
           switch (Haz3lcore.Ctx.resolve_typ(ctx, ty)) {
           | Some(ty) => Type.view(ty)
           | None => Type.view(ty)
           }
         | FreeTypeVar =>
-          div(
-            ~attr=clss([errorc, "err-free-variable"]),
-            [text("Type Variable is not bound")],
-          )
+          div(~attr=clss([errorc]), [text("Type Variable is not bound")])
         | TagExpected(typ) =>
           div(
-            ~attr=clss([errorc, "err-tag-expected"]),
+            ~attr=clss([errorc]),
             [text("Expected a constructor, found"), Type.view(typ)],
+          )
+        | ApOutsideSum =>
+          div(
+            ~attr=clss([errorc]),
+            [text("Constructor application must be in sum")],
           )
         },
       ],
