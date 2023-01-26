@@ -27,7 +27,6 @@ type info_exp = {
   self: Typ.self,
   ctx: Ctx.t,
   free: Ctx.co,
-  // TODO: add derived attributes like error_status and typ_after_fix?
 };
 
 /* Patterns are assigned a mode (reflecting the static expectations
@@ -42,12 +41,20 @@ type info_pat = {
   ctx: Ctx.t // TODO: detect in-pattern shadowing
 };
 
-/* (Syntactic) Types are assigned their corresponding semantic type. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_typ =
+  | Ok(Typ.t)
+  | FreeTypeVar
+  //| TagArity
+  //| DuplicateTag // TODO(andrew)
+  | TagExpected(Typ.t);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_typ = {
   cls: Term.UTyp.cls,
   term: Term.UTyp.t,
-  self: Typ.self,
+  ctx: Ctx.t,
+  status: status_typ,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,14 +64,15 @@ type info_rul = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type error_tpat =
+type status_tpat =
+  | Ok
   | NotAName;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info_tpat = {
   cls: Term.UTPat.cls,
   term: Term.UTPat.t,
-  error: option(error_tpat),
+  status: status_tpat,
 };
 
 /* The Info aka Cursorinfo assigned to each subterm. */
@@ -95,16 +103,15 @@ let terms = (map: map): Id.Map.t(Term.any) =>
 
 /* Static error classes */
 
-let error_tpat = (utpat: Term.UTPat.t) =>
+let status_tpat = (utpat: Term.UTPat.t): status_tpat =>
   switch (utpat.term) {
-  | Var(_) => None
-  | _ => Some(NotAName)
+  | Var(_) => Ok
+  | _ => NotAName
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | Self(Typ.self_error)
-  | Multi
   | SynInconsistentBranches(list(Typ.t))
   | TypeInconsistent(Typ.t, Typ.t);
 
@@ -149,9 +156,10 @@ let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
       | Some(_) => NotInHole(SynConsistent(ty_joined))
       }
     };
-  | (Syn | SynFun | Ana(_), Self(err)) => InHole(Self(err))
-  | (Syn | SynFun | Ana(_), Multi) =>
+  | (Syn | SynFun | Ana(_), Self(Multi)) =>
     NotInHole(SynConsistent(Unknown(Internal)))
+  | (Syn | SynFun | Ana(_), Self(err)) => InHole(Self(err))
+
   | (Syn, Just(ty)) => NotInHole(SynConsistent(ty))
   | (Syn, Joined(wrap, tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
@@ -165,7 +173,6 @@ let error_status = (ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
     | Some(ty_join) => NotInHole(AnaConsistent(ty_ana, ty_syn, ty_join))
     }
   | (Ana(ty_ana), Joined(wrap, tys_syn)) =>
-    // TODO: review logic of these cases
     switch (Ctx.join_all(ctx, Typ.source_tys(tys_syn))) {
     | Some(ty_syn) =>
       let ty_syn = wrap(ty_syn);
@@ -192,19 +199,15 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({self, _}) =>
-    switch (self) {
-    | Self(_) => true
-    | _ => false
+  | InfoTyp({status, _}) =>
+    switch (status) {
+    | Ok(_) => false
+    | _ => true
     }
+  | InfoTPat({status, _}) => status != Ok
   | InfoRul(_) => false
-  | InfoTPat({error, _}) => error != None
   };
 };
-/* TODO(andrew): more sum/rec errors
-   incomplete type (holes)?
-   empty / singleton sum?
-   duplicate constructor? */
 
 /* Determined the type of an expression or pattern 'after hole wrapping';
    that is, all ill-typed terms are considered to be 'wrapped in
@@ -234,7 +237,6 @@ let t_of_self = (ctx): (Typ.self => Typ.t) =>
     | None => Unknown(Internal)
     | Some(t) => wrap(t)
     }
-  | Multi
   | Self(_) => Unknown(Internal);
 
 let exp_self_typ_id = (ctx, m: map, id): Typ.t =>
@@ -323,7 +325,7 @@ let tag_self = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): Typ.self =>
   | _ =>
     switch (Ctx.lookup_tag(ctx, tag)) {
     | Some(syn) => Just(syn.typ)
-    | None => Self(Free(Tag))
+    | None => Self(FreeTag)
     }
   };
 
@@ -402,7 +404,7 @@ and uexp_to_info_map =
     )
   | MultiHole(tms) =>
     let (free, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add(~self=Multi, ~free=Ctx.union(free), union_m(maps));
+    add(~self=Self(Multi), ~free=Ctx.union(free), union_m(maps));
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
@@ -438,7 +440,7 @@ and uexp_to_info_map =
     );
   | Var(name) =>
     switch (Ctx.lookup_var(ctx, name)) {
-    | None => atomic(Self(Free(Variable)))
+    | None => atomic(Self(Free))
     | Some(var) =>
       add(
         ~self=Just(var.typ),
@@ -541,7 +543,7 @@ and uexp_to_info_map =
     );
   | TyAlias(
       {term: Var(name), _} as typat,
-      {term: BSum(_), _} as utyp,
+      {term: TSum(_), _} as utyp,
       body,
     ) =>
     //TODO(andrew): cleanup (with lower variant)
@@ -649,7 +651,7 @@ and upat_to_info_map =
     )
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    add(~self=Multi, ~ctx, union_m(maps));
+    add(~self=Self(Multi), ~ctx, union_m(maps));
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -735,8 +737,8 @@ and utyp_to_info_map =
     (~ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.UTyp.to_typ(ctx, utyp);
-  let add = self => add_info(ids, InfoTyp({cls, self, term: utyp}));
-  let just = m => (ty, add(Just(ty), m));
+  let add = status => add_info(ids, InfoTyp({cls, ctx, status, term: utyp}));
+  let just = m => (ty, add(Ok(ty), m));
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
   | Invalid(msg) => (
@@ -762,9 +764,9 @@ and utyp_to_info_map =
     just(m);
   | Var(name) =>
     Ctx.is_tvar(ctx, name)
-      ? (Var(name), add(Just(Var(name)), Id.Map.empty))
-      : (Unknown(Internal), add(Self(Free(TypeVariable)), Id.Map.empty))
-  | BSum(sum, bads) =>
+      ? (Var(name), add(Ok(Var(name)), Id.Map.empty))
+      : (Unknown(Internal), add(FreeTypeVar, Id.Map.empty))
+  | TSum(sum, bads) =>
     //TODO(andrew): check for duplicate variants
     let ms =
       List.map(
@@ -777,11 +779,16 @@ and utyp_to_info_map =
       );
     let ms_bads =
       List.map(
-        (typ: TermBase.UTyp.t) =>
+        (utyp: TermBase.UTyp.t) =>
           //TODO(andrew): cls?
           add_info(
-            typ.ids,
-            InfoTyp({cls: Invalid, self: Self(NotTag), term: utyp}),
+            utyp.ids,
+            InfoTyp({
+              cls: Invalid,
+              status: TagExpected(Term.UTyp.to_typ(ctx, utyp)),
+              term: utyp,
+              ctx,
+            }),
             Id.Map.empty,
           ),
         //utyp_to_info_map(~ctx, typ) |> snd,
@@ -795,8 +802,8 @@ and utyp_to_info_map =
 }
 and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {
   let cls = Term.UTPat.cls_of_term(term);
-  let error = error_tpat(utpat);
-  add_info(ids, InfoTPat({cls, error, term: utpat}), Id.Map.empty);
+  let status = status_tpat(utpat);
+  add_info(ids, InfoTPat({cls, status, term: utpat}), Id.Map.empty);
 };
 
 let mk_map =

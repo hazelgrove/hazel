@@ -66,18 +66,11 @@ type source = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type free_errors =
-  | Variable
-  | Tag
-  | TypeVariable;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type self_error =
+  | Multi
   | NoFun(t)
-  //| TagArity
-  //| MissingTag
-  | NotTag
-  | Free(free_errors);
+  | Free
+  | FreeTag;
 
 /* SELF: The (synthetic) type information derivable from a term
    in isolation, using the typing context but not the syntactic
@@ -88,9 +81,8 @@ type self_error =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type self =
   | Just(t)
-  // TODO: make it so that joined applies only to inconsistent types; rename NoJoin
+  // TODO: make joined apply only to inconsistent types; rename NoJoin, move to Self
   | Joined(t => t, list(source))
-  | Multi
   | Self(self_error);
 
 /* MODE: The (analytic) type information derived from a term's
