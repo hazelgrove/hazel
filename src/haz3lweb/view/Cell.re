@@ -272,7 +272,9 @@ let editor_view =
   let zipper = editor.state.zipper;
   let segment = Zipper.zip(zipper);
   let unselected = Zipper.unselect_and_zip(zipper);
-  let measured = editor.state.meta.measured;
+  // Recalculate measured after inference is run, since type hole suggestions shift cursor.
+  // let measured = editor.state.meta.measured;
+  let measured = Editor.Meta.init(zipper).measured;
   let code_base_view =
     Code.view(~font_metrics, ~segment, ~unselected, ~measured, ~settings);
   let deco_view =
