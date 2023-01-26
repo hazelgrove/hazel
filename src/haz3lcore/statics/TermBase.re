@@ -323,7 +323,6 @@ and UPat: {
 and UTyp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int
@@ -347,7 +346,6 @@ and UTyp: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(parse_flag)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Int

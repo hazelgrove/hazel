@@ -354,7 +354,6 @@ and typ = unsorted => {
 }
 and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let ret = (term: UTyp.term) => (term, []);
-  let _unrecog = UTyp.Invalid(UnrecognizedTerm);
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   let get_tagged = (ut: UTyp.t): typ_res =>
     switch (ut.term) {
