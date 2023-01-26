@@ -734,70 +734,67 @@ and upat_to_info_map =
   };
 }
 and utyp_to_info_map =
-    (~ctx, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
+    (~ctx, ~parent_err=None, {ids, term} as utyp: Term.UTyp.t): (Typ.t, map) => {
   let cls = Term.UTyp.cls_of_term(term);
   let ty = Term.UTyp.to_typ(ctx, utyp);
   let add = status => add_info(ids, InfoTyp({cls, ctx, status, term: utyp}));
-  let just = m => (ty, add(Ok(ty), m));
+  let ok = m =>
+    switch (parent_err) {
+    | None => (ty, add(Ok(ty), m))
+    | Some(err) => (Typ.Unknown(Internal), add(err, m))
+    };
+  let error = (err, m) =>
+    switch (parent_err) {
+    | None => (Typ.Unknown(Internal), add(err, m))
+    | Some(err) => (Typ.Unknown(Internal), add(err, m))
+    };
+  let go = utyp_to_info_map(~ctx, ~parent_err);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
-  | Invalid(msg) => (
-      Unknown(Internal),
-      add_info(ids, Invalid(msg), Id.Map.empty),
-    )
   | EmptyHole
   | Int
   | Float
   | Bool
-  | String => just(Id.Map.empty)
+  | String => ok(Id.Map.empty)
   | List(t)
   | Parens(t) =>
-    let (_, m) = utyp_to_info_map(~ctx, t);
-    just(m);
+    let (_, m) = go(t);
+    ok(m);
   | Arrow(t1, t2) =>
-    let (_, m_t1) = utyp_to_info_map(~ctx, t1);
-    let (_, m_t2) = utyp_to_info_map(~ctx, t2);
-    just(union_m([m_t1, m_t2]));
+    let (_, m_1) = go(t1);
+    let (_, m_2) = go(t2);
+    ok(union_m([m_1, m_2]));
   | Tuple(ts) =>
-    let m =
-      ts |> List.map(utyp_to_info_map(~ctx)) |> List.map(snd) |> union_m;
-    just(m);
+    let m = ts |> List.map(go) |> List.map(snd) |> union_m;
+    ok(m);
   | Var(name) =>
     Ctx.is_tvar(ctx, name)
-      ? (Var(name), add(Ok(Var(name)), Id.Map.empty))
-      : (Unknown(Internal), add(FreeTypeVar, Id.Map.empty))
+      ? ok(Id.Map.empty) : error(FreeTypeVar, Id.Map.empty)
   | TSum(sum, bads) =>
     //TODO(andrew): check for duplicate variants
-    let ms =
+    let ms_good =
       List.map(
         (TermBase.UTyp.{tag: _, typ, _}) =>
           switch (typ) {
           | None => Id.Map.empty
-          | Some(typ) => utyp_to_info_map(~ctx, typ) |> snd
+          | Some(typ) => go(typ) |> snd
           },
         sum,
       );
-    let ms_bads =
+    let ms_bad =
       List.map(
-        (utyp: TermBase.UTyp.t) =>
-          //TODO(andrew): cls?
-          add_info(
-            utyp.ids,
-            InfoTyp({
-              cls: Invalid,
-              status: TagExpected(Term.UTyp.to_typ(ctx, utyp)),
-              term: utyp,
-              ctx,
-            }),
-            Id.Map.empty,
-          ),
-        //utyp_to_info_map(~ctx, typ) |> snd,
+        utyp =>
+          {
+            let ty = Term.UTyp.to_typ(ctx, utyp);
+            utyp_to_info_map(~ctx, ~parent_err=Some(TagExpected(ty)), utyp);
+          }
+          |> snd,
         bads,
       );
-    just(union_m(ms @ ms_bads));
+    ok(union_m(ms_good @ ms_bad));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
-    just(union_m(maps));
+    ok(union_m(maps));
   };
 }
 and utpat_to_info_map = (~ctx as _, {ids, term} as utpat: Term.UTPat.t): map => {

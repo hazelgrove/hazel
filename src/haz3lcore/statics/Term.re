@@ -22,7 +22,6 @@ type any = t;
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
-    | Invalid
     | EmptyHole
     | MultiHole
     | Int
@@ -52,7 +51,6 @@ module UTyp = {
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Int => Int
@@ -68,7 +66,6 @@ module UTyp = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid Type"
     | EmptyHole => "Empty Type Hole"
     | MultiHole => "Multi Type Hole"
     | Int
@@ -87,7 +84,6 @@ module UTyp = {
     switch (typ.term) {
     | Parens(typ) => is_arrow(typ)
     | Arrow(_) => true
-    | Invalid(_)
     | EmptyHole
     | MultiHole(_)
     | Int
@@ -105,7 +101,6 @@ module UTyp = {
   let rec to_typ: (Ctx.t, t) => Typ.t =
     (ctx, utyp) =>
       switch (utyp.term) {
-      | Invalid(_)
       | MultiHole(_) => Unknown(Internal)
       | EmptyHole => Unknown(TypeHole)
       | Bool => Bool
