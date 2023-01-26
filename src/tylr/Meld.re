@@ -43,12 +43,14 @@ let sort = _ => failwith("todo sort");
 let prec = _ => failwith("todo prec");
 
 module Padded = {
-  type c = t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type meld = t;
   // meld with padding (ie single-meld segment)
-  type t = (c, (Space.s, Space.s));
-  let mk = (~l=Space.empty, ~r=Space.empty, c: c): t => (c, (l, r));
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (meld, (Space.s, Space.s));
+  let mk = (~l=Space.empty, ~r=Space.empty, mel): t => (mel, (l, r));
   let empty = (~l=Space.empty, ~r=Space.empty, ()) => mk(~l, ~r, empty);
-  let is_empty = ((c, (l, r))) => is_empty(c) ? None : Some(l @ r);
+  let is_empty = ((mel, (l, r))) => is_empty(mel) ? Some(l @ r) : None;
   let pad = (~l=Space.empty, ~r=Space.empty, (c, (l', r')): t) => (
     c,
     (l @ l', r' @ r),
@@ -138,13 +140,11 @@ and kid_is_porous =
 
 // precond: l and r are nonempty
 let rec degrout = (l: Padded.t, r: Padded.t): option(Padded.t) => {
-  let (c_l, (s_ll, s_lr)) = l;
-  let (c_r, (s_rl, s_rr)) = r;
-  let (tl_l, p_l, kid_l) =
-    Chain.unknil(c_l) |> OptUtil.get_or_raise(Orphaned_kid);
-  let (kid_r, p_r, tl_r) =
-    Chain.unlink(c_r) |> OptUtil.get_or_raise(Orphaned_kid);
+  let (mel_l, (s_ll, s_lr)) = l;
+  let (mel_r, (s_rl, s_rr)) = r;
   open OptUtil.Syntax;
+  let* (tl_l, p_l, kid_l) = Chain.unknil(mel_l);
+  let* (kid_r, p_r, tl_r) = Chain.unlink(mel_r);
   let* dg = Piece.degrout(p_l, p_r);
   switch (dg) {
   | Degrout =>
