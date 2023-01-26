@@ -30,4 +30,4 @@ let mk_concave = (~id=?, l: Mold.t, r: Mold.t) => {
 // todo: incorporate unique filling
 let length = _ => 1;
 
-let suggestion = _ => failwith("todo");
+let suggestion = _ => failwith("todo suggestion");

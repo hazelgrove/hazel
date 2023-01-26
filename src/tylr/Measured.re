@@ -94,8 +94,8 @@ let union2 = (map: t, map': t) => {
 };
 let union = List.fold_left(union2, empty);
 
-let add_p = (_, _, _) => failwith("todo");
-let add_space = (_, _, _) => failwith("todo");
+let add_p = (_, _, _) => failwith("todo add_p");
+let add_space = (_, _, _) => failwith("todo add_space");
 
 type state = {
   map: t,

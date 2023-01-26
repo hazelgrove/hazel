@@ -226,5 +226,5 @@ module Zipper = {
     found_now @ List.concat(found_later);
   };
 
-  let consistent = (_, _) => failwith("todo");
+  let consistent = (_, _) => failwith("todo consistent");
 };

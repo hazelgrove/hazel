@@ -18,7 +18,7 @@ let pad = (~l=Space.empty, ~r=Space.empty, {shape, space: (l', r')}) => {
   space: (l @ l', r' @ r),
 };
 
-let is_porous = _ => failwith("todo");
+let is_porous = _ => failwith("todo is_porous");
 
 let space = ({space: (l, r), _}) => l @ r;
 
@@ -61,7 +61,7 @@ type dg =
   | Pass(Dir.t);
 
 [@warning "-27"]
-let degrout = (l: t, r: t): option(dg) => failwith("todo");
+let degrout = (l: t, r: t): option(dg) => failwith("todo degrout");
 // switch (l.shape, r.shape) {
 // | (T(_), T(_)) => None
 // | (T(t), G({mold: None, _})) =>
@@ -83,7 +83,7 @@ let degrout = (l: t, r: t): option(dg) => failwith("todo");
 // | _ => failwith("todo")
 // };
 
-let is_strict = _ => failwith("todo");
+let is_strict = _ => failwith("todo is_strict");
 
 let zipper = (p: t): Gram.Zipper.t(_) => {
   let t =
