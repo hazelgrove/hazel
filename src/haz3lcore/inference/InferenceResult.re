@@ -6,7 +6,7 @@ type status =
 
 type t = (ITyp.t, status);
 
-type annotation_map = Hashtbl.t(Id.t, (status, option(string)));
+type annotation_map = Hashtbl.t(Id.t, status);
 
 let empty_annotations = (): annotation_map => Hashtbl.create(20);
 
@@ -19,25 +19,14 @@ let update_annoation_mode = annot_mode => {
 };
 
 let get_annotations = (inference_results: list(t)): annotation_map => {
-  let status_to_string = (status: status): option(string) => {
-    switch (status) {
-    | Solved(Unknown(_)) => None
-    | Solved(ityp) => Some(ITyp.string_of_ityp(ityp))
-    | Unsolved(_eq_class) => None
-    };
-  };
-
-  let id_and_annotation_if_type_hole =
-      (result: t): option((Id.t, (status, option(string)))) => {
+  let id_and_status_if_type_hole = (result: t): option((Id.t, status)) => {
     switch (result) {
-    | (Unknown(TypeHole(id)), status) =>
-      Some((id, (status, status_to_string(status))))
+    | (Unknown(TypeHole(id)), status) => Some((id, status))
     | _ => None
     };
   };
 
-  let elts =
-    List.filter_map(id_and_annotation_if_type_hole, inference_results);
+  let elts = List.filter_map(id_and_status_if_type_hole, inference_results);
   let new_map = Hashtbl.create(List.length(elts));
 
   List.iter(((id, annot)) => Hashtbl.add(new_map, id, annot), elts);
@@ -45,18 +34,21 @@ let get_annotations = (inference_results: list(t)): annotation_map => {
   new_map;
 };
 
-let get_annotation_of_id = (id: Id.t): option(string) =>
+let get_solution_of_id = (id: Id.t): option(ITyp.t) =>
   if (annotations_enabled^) {
-    let* (_status, annot_opt) =
-      Hashtbl.find_opt(accumulated_annotations, id);
-    annot_opt;
+    let* status = Hashtbl.find_opt(accumulated_annotations, id);
+    switch (status) {
+    | Solved(Unknown(_)) => None
+    | Solved(ityp) => Some(ityp)
+    | Unsolved(_) => None
+    };
   } else {
     None;
   };
 
 let svg_display_settings = (id: Id.t): (bool, bool) => {
   switch (Hashtbl.find_opt(accumulated_annotations, id)) {
-  | Some((status, _)) =>
+  | Some(status) =>
     switch (status) {
     | Solved(Unknown(_)) => (true, false)
     | Solved(_) => (false, false)
@@ -68,13 +60,12 @@ let svg_display_settings = (id: Id.t): (bool, bool) => {
 
 let get_cursor_inspect_result = (id: Id.t): option((bool, string)) =>
   if (annotations_enabled^) {
-    let* (status, annot_opt) = Hashtbl.find_opt(accumulated_annotations, id);
+    let* status = Hashtbl.find_opt(accumulated_annotations, id);
     switch (status) {
     | Unsolved(eq_class) =>
       Some((false, EqClass.string_of_eq_class(eq_class)))
-    | Solved(_) =>
-      let* annot = annot_opt;
-      Some((true, annot));
+    | Solved(ityp) =>
+      Some((true, ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string))
     };
   } else {
     None;

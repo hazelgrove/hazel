@@ -378,7 +378,7 @@ and sort_eq_class_explore = (eq_class: t): t => {
 };
 
 let string_of_btyp = (btyp: base_typ): string => {
-  btyp |> base_typ_to_ityp |> ITyp.string_of_ityp;
+  btyp |> base_typ_to_ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string;
 };
 
 let rec string_of_eq_class = (eq_class: t): string =>
@@ -393,21 +393,23 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
   switch (eq_typ) {
   | Base(btyp) => string_of_btyp(btyp)
   | Compound(ctor, eq_class_lt, eq_class_rt) =>
-    let ctor_string =
+    let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => " -> "
-      | CProd => " * "
-      | CSum => " + "
+      | CArrow => ("", " -> ", "")
+      | CProd => ("(", ", ", ")")
+      | CSum => ("", " + ", "")
       };
 
     String.concat(
       "",
       [
+        ctor_start,
         string_of_eq_class(eq_class_lt),
         ctor_string,
         "(",
         string_of_eq_class(eq_class_rt),
         ")",
+        ctor_end,
       ],
     );
   | Mapped(ctor, eq_class) =>

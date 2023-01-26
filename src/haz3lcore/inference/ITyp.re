@@ -70,18 +70,3 @@ let rec contains_hole = (ty: t): bool =>
   | List(l_ty) => contains_hole(l_ty)
   | _ => false
   };
-
-let rec string_of_ityp = (ityp: t): string => {
-  switch (ityp) {
-  | Unknown(_) => "?"
-  | Unit => "Unit"
-  | Int => "Int"
-  | Float => "Float"
-  | Bool => "Bool"
-  | String => "String"
-  | List(t) => "[" ++ string_of_ityp(t) ++ "]"
-  | Arrow(t1, t2) => string_of_ityp(t1) ++ " -> " ++ string_of_ityp(t2)
-  | Sum(t1, t2) => string_of_ityp(t1) ++ " + " ++ string_of_ityp(t2)
-  | Prod(t1, t2) => string_of_ityp(t1) ++ " x " ++ string_of_ityp(t2)
-  };
-};

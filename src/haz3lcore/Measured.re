@@ -370,10 +370,11 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             (contained_indent, last, map);
           | Grout(g) =>
             let annotation_offset =
-              g.id
-              |> InferenceResult.get_annotation_of_id
-              |> OptUtil.get(() => " ")
-              |> String.length;
+              switch (InferenceResult.get_solution_of_id(g.id)) {
+              | Some(ityp) =>
+                ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> String.length
+              | None => 1
+              };
 
             let last = {...origin, col: origin.col + annotation_offset};
             let map = map |> add_g(g, {origin, last});

@@ -348,3 +348,35 @@ let rec eq = (t1, t2) =>
   | (Var(n1), Var(n2)) => n1 == n2
   | (Var(_), _) => false
   };
+
+let prov_to_string: type_provenance => string =
+  fun
+  | Inference(_)
+  | Internal(_)
+  | Anonymous => ""
+  | TypeHole(_) => "𝜏"
+  | SynSwitch(_) => "⇒";
+
+let rec typ_to_string = (ty: t): string =>
+  //TODO: parens on ops when ambiguous
+  switch (ty) {
+  | Unknown(prov) => "?" ++ prov_to_string(prov)
+  | Int => "Int"
+  | Float => "Float"
+  | String => "String"
+  | Bool => "Bool"
+  | Var(name) => name
+  | List(t) => "[" ++ typ_to_string(t) ++ "]"
+  | Arrow(t1, t2) => typ_to_string(t1) ++ " -> " ++ typ_to_string(t2)
+  | Prod([]) => "Unit"
+  | Prod([_]) => "BadProduct"
+  | Prod([t0, ...ts]) =>
+    "("
+    ++ List.fold_left(
+         (acc, t) => acc ++ ", " ++ typ_to_string(t),
+         typ_to_string(t0),
+         ts,
+       )
+    ++ ")"
+  | Sum(t1, t2) => typ_to_string(t1) ++ " + " ++ typ_to_string(t2)
+  };

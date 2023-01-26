@@ -30,12 +30,23 @@ let of_delim =
     (sort: Sort.t, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((sort, is_consistent, Tile.is_complete(t), t.label, i));
 
-let of_grout = (id: Id.t) => [
-  id
-  |> InferenceResult.get_annotation_of_id
-  |> OptUtil.get(() => Unicode.nbsp)
-  |> Node.text,
-];
+// let of_grout = (id: Id.t) => [
+//   id
+//   |> InferenceResult.get_annotation_of_id
+//   |> OptUtil.get(() => Unicode.nbsp)
+//   |> Node.text,
+// ];
+
+let of_grout = (id: Id.t) => {
+  let solution_opt = InferenceResult.get_solution_of_id(id);
+  switch (solution_opt) {
+  | Some(ityp) => [
+      [ityp |> ITyp.ityp_to_typ |> Typ.typ_to_string |> Node.text]
+      |> span_c("solved-annotation"),
+    ]
+  | None => [Node.text(Unicode.nbsp)]
+  };
+};
 
 let of_whitespace =
   Core.Memo.general(
