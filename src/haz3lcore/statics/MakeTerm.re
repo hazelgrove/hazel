@@ -401,8 +401,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum({ids, term: _} as ts)]) =>
-        (Sum(ts), ids)
+      | (["sum", "end"], [TSum({ids, term: _} as ts)]) => (Sum(ts), ids)
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))

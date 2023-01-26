@@ -18,10 +18,7 @@ type entry =
   /* TagEntries are listed right at the position of TVar;
      the relative order doesn't matter, but the idx to the Tag is the same as
      the index to the TVarEntry, which is the type of a tag of a data ctor. */
-  | TagEntry({
-      name: Token.t,
-      id: Id.t,
-    });
+  | TagEntry(var_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
@@ -105,8 +102,8 @@ let extend_tags = (name: Token.t, tags: list(Typ.tagged), id, ctx) =>
         id,
         typ:
           switch (typ) {
-          | None => Var(name)
-          | Some(typ) => Arrow(typ, Var(name))
+          | None => Var({ann: name, item: Some(0)})
+          | Some(typ) => Arrow(typ, Var({ann: name, item: Some(0)}))
           },
       }),
     tags,
@@ -159,108 +156,8 @@ let filter_duplicates = (ctx: t): t =>
            VarSet.mem(name, typ_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
-         | TagEntry(_) => ([entry, ...ctx], term_set, typ_set)
          }
        },
        ([], VarSet.empty, VarSet.empty),
      )
   |> (((ctx, _, _)) => List.rev(ctx));
-
-/* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown. The optional
-   resolve parameter specifies whether, in the case of a type
-   variable and a succesful join, to return the resolved join type,
-   or to return the (first) type variable for readability */
-let rec join =
-        (~d=[], ~resolve=false, ctx, ty1: Typ.t, ty2: Typ.t): option(Typ.t) => {
-  let join' = join(~d, ctx);
-  switch (ty1, ty2) {
-  | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(Typ.join_type_provenance(p1, p2)))
-  | (Unknown(_), ty)
-  | (ty, Unknown(_)) => Some(ty)
-  | (Rec(x1, t1), Rec(x2, t2)) => join(~d=[(x1, x2), ...d], ctx, t1, t2)
-  | (Rec(_), _) => None
-  | (Var(n1), Var(n2)) =>
-    if (Typ.type_var_eq(d, n1, n2)) {
-      Some(Var(n1));
-    } else {
-      let* Singleton(ty1) = lookup_tvar(ctx, n1);
-      let* Singleton(ty2) = lookup_tvar(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      resolve ? ty_join : Var(n1);
-    }
-  | (Var(name), ty)
-  | (ty, Var(name)) =>
-    let* Singleton(ty_name) = lookup_tvar(ctx, name);
-    let+ ty_join = join'(ty_name, ty);
-    resolve ? ty_join : Var(name);
-  | (Int, Int) => Some(Int)
-  | (Int, _) => None
-  | (Float, Float) => Some(Float)
-  | (Float, _) => None
-  | (Bool, Bool) => Some(Bool)
-  | (Bool, _) => None
-  | (String, String) => Some(String)
-  | (String, _) => None
-  | (Arrow(ty1_1, ty1_2), Arrow(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
-    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
-    | _ => None
-    }
-  | (Arrow(_), _) => None
-  | (Prod(tys1), Prod(tys2)) =>
-    if (List.length(tys1) != List.length(tys2)) {
-      None;
-    } else {
-      switch (List.map2(join', tys1, tys2) |> Util.OptUtil.sequence) {
-      | None => None
-      | Some(tys) => Some(Prod(tys))
-      };
-    }
-  | (Prod(_), _) => None
-  | (LabelSum(tys1), LabelSum(tys2)) =>
-    if (List.length(tys1) != List.length(tys2)) {
-      None;
-    } else {
-      List.map2(
-        tagged_join(~d, ctx),
-        Typ.sort_tagged(tys1),
-        Typ.sort_tagged(tys2),
-      )
-      |> Util.OptUtil.sequence
-      |> Option.map(tys => Typ.LabelSum(tys));
-    }
-  | (LabelSum(_), _) => None
-  | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
-    switch (join'(ty1_1, ty2_1), join'(ty1_2, ty2_2)) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
-  | (Sum(_), _) => None
-  | (List(ty_1), List(ty_2)) =>
-    switch (join'(ty_1, ty_2)) {
-    | Some(ty) => Some(List(ty))
-    | None => None
-    }
-  | (List(_), _) => None
-  };
-}
-and tagged_join =
-    (~d, ctx, t1: Typ.tagged, t2: Typ.tagged): option(Typ.tagged) =>
-  t1.tag == t2.tag
-    ? switch (t1.typ, t2.typ) {
-      | (None, None) => Some({tag: t1.tag, typ: None})
-      | (Some(ty1), Some(ty2)) =>
-        let+ ty_join = join(~d, ctx, ty1, ty2);
-        Typ.{tag: t1.tag, typ: Some(ty_join)};
-      | _ => None
-      }
-    : None;
-
-let join_all = (ctx: t, ts: list(Typ.t)): option(Typ.t) =>
-  List.fold_left(
-    (acc, ty) => Util.OptUtil.and_then(join(ctx, ty), acc),
-    Some(Unknown(Internal)),
-    ts,
-  );

@@ -126,21 +126,17 @@ type error_status =
 let error_status = (_ctx: Ctx.t, mode: Typ.mode, self: Typ.self): error_status =>
   switch (mode, self) {
   | (SynFun, Just(ty)) =>
-    switch (Ctx.join(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
+    switch (Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty)) {
     | None => InHole(Self(NoFun(ty)))
     | Some(_) => NotInHole(SynConsistent(ty))
     }
   | (SynFun, Joined(_wrap, tys_syn)) =>
     let tys_syn = Typ.source_tys(tys_syn);
-    switch (Ctx.join_all(ctx, tys_syn)) {
+    switch (Typ.join_all(tys_syn)) {
     | None => InHole(SynInconsistentBranches(tys_syn))
     | Some(ty_joined) =>
       switch (
-        Ctx.join(
-          ctx,
-          Arrow(Unknown(Internal), Unknown(Internal)),
-          ty_joined,
-        )
+        Typ.join(Arrow(Unknown(Internal), Unknown(Internal)), ty_joined)
       ) {
       | None => InHole(Self(NoFun(ty_joined)))
       | Some(_) => NotInHole(SynConsistent(ty_joined))
@@ -431,7 +427,7 @@ and uexp_to_info_map =
     let infos = List.map2((e, mode) => go(~mode, e), es, modes);
     let tys = List.map(((ty, _, _)) => ty, infos);
     let self: Typ.self =
-      switch (Ctx.join_all(ctx, tys)) {
+      switch (Typ.join_all(tys)) {
       | None =>
         Joined(
           ty => List(ty),
@@ -631,6 +627,7 @@ and uexp_to_info_map =
         ctx,
       );
     // Extend ctx with tags of data constructors
+    // TODO (typfun): Replace Ctx.extend_utsum with Andrew's version
     let ctx_def_and_body =
       Term.UTyp.find_utsums(utyp)
       |> List.fold_left(

@@ -303,48 +303,48 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
              );
         let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
         wrap(Let(dp, fixpoint, dbody));
-      }
-    | Ap(fn, arg) =>
-      let* d_fn = dhexp_of_uexp(m, fn);
-      let* d_arg = dhexp_of_uexp(m, arg);
-      let ty_fn = self_typ(fn);
-      let ty_arg = self_typ(arg);
-      let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
-      let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
-      let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
-      wrap(Ap(c_fn, c_arg));
-    | TypAp(fn, uty_arg) =>
-      let* d_fn = dhexp_of_uexp(m, fn);
-      wrap(DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg)));
-    | If(scrut, e1, e2) =>
-      let* d_scrut = dhexp_of_uexp(m, scrut);
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      let d_rules =
-        DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
-      let d = DHExp.Case(d_scrut, d_rules, 0);
-      switch (err_status) {
-      | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, d))
-      | _ => wrap(ConsistentCase(d))
-      };
-    | Match(scrut, rules) =>
-      let* d_scrut = dhexp_of_uexp(m, scrut);
-      let* d_rules =
-        List.map(
-          ((p, e)) => {
-            let* d_p = dhpat_of_upat(m, p);
-            let+ d_e = dhexp_of_uexp(m, e);
-            DHExp.Rule(d_p, d_e);
-          },
-          rules,
-        )
-        |> OptUtil.sequence;
-      let d = DHExp.Case(d_scrut, d_rules, 0);
-      switch (err_status) {
-      | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, d))
-      | _ => wrap(ConsistentCase(d))
+      | Ap(fn, arg) =>
+        let* d_fn = dhexp_of_uexp(m, fn);
+        let* d_arg = dhexp_of_uexp(m, arg);
+        let ty_fn = self_typ(fn);
+        let ty_arg = self_typ(arg);
+        let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
+        let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
+        let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
+        wrap(Ap(c_fn, c_arg));
+      | TypAp(fn, uty_arg) =>
+        let* d_fn = dhexp_of_uexp(m, fn);
+        wrap(DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg)));
+      | If(scrut, e1, e2) =>
+        let* d_scrut = dhexp_of_uexp(m, scrut);
+        let* d1 = dhexp_of_uexp(m, e1);
+        let* d2 = dhexp_of_uexp(m, e2);
+        let d_rules =
+          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
+        let d = DHExp.Case(d_scrut, d_rules, 0);
+        switch (err_status) {
+        | InHole(SynInconsistentBranches(_)) =>
+          Some(DHExp.InconsistentBranches(u, 0, d))
+        | _ => wrap(ConsistentCase(d))
+        };
+      | Match(scrut, rules) =>
+        let* d_scrut = dhexp_of_uexp(m, scrut);
+        let* d_rules =
+          List.map(
+            ((p, e)) => {
+              let* d_p = dhpat_of_upat(m, p);
+              let+ d_e = dhexp_of_uexp(m, e);
+              DHExp.Rule(d_p, d_e);
+            },
+            rules,
+          )
+          |> OptUtil.sequence;
+        let d = DHExp.Case(d_scrut, d_rules, 0);
+        switch (err_status) {
+        | InHole(SynInconsistentBranches(_)) =>
+          Some(DHExp.InconsistentBranches(u, 0, d))
+        | _ => wrap(ConsistentCase(d))
+        };
       };
     wrap(ctx, id, mode, self, d);
   | Some(

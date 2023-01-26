@@ -161,6 +161,7 @@ let matched_arrow_mode: mode => (mode, mode) =
 
 let matched_forall_mode: mode => mode =
   fun
+  | SynFun
   | Syn => Syn
   | Ana(ty) => {
       let ann = matched_forall(ty);
@@ -169,6 +170,7 @@ let matched_forall_mode: mode => mode =
 
 let matched_rec_mode: mode => mode =
   fun
+  | SynFun
   | Syn => Syn
   | Ana(ty) => {
       let ann = matched_rec(ty);
@@ -248,7 +250,7 @@ let rec eq = (t1, t2) => {
   | (LabelSum(tys1), LabelSum(tys2)) =>
     let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
     List.length(tys1) == List.length(tys2)
-    && List.for_all2(tagged_eq(~d), tys1, tys2);
+    && List.for_all2(tagged_eq, tys1, tys2);
   | (LabelSum(_), _) => false
   | (Var({item: x1, _}), Var({item: x2, _})) => x1 == x2
   | (Var(_), _) => false
@@ -257,12 +259,13 @@ let rec eq = (t1, t2) => {
   | (Forall({item: t1, _}), Forall({item: t2, _})) => eq(t1, t2)
   | (Forall(_), _) => false
   };
-and tagged_eq = (~d, t1: tagged, t2: tagged) =>
+}
+and tagged_eq = (t1: tagged, t2: tagged) =>
   t1.tag == t2.tag
   && (
     switch (t1.typ, t2.typ) {
     | (None, None) => true
-    | (Some(t1), Some(t2)) => eq(~d, t1, t2)
+    | (Some(t1), Some(t2)) => eq(t1, t2)
     | _ => false
     }
   );
@@ -325,24 +328,9 @@ let rec join = (ty1: t, ty2: t): option(t) => {
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
-      switch (
-        List.map2(
-          (t1: tagged, t2: tagged) =>
-            t1.tag == t2.tag ? join(t1.typ, t2.typ) : None,
-          tys1,
-          tys2,
-        )
-        |> Util.OptUtil.sequence
-      ) {
-      | None => None
-      | Some(tys) =>
-        Some(
-          LabelSum(
-            List.map2((t1: tagged, typ) => {tag: t1.tag, typ}, tys1, tys),
-          ),
-        )
-      };
+      List.map2(tagged_join, sort_tagged(tys1), sort_tagged(tys2))
+      |> Util.OptUtil.sequence
+      |> Option.map(tys => LabelSum(tys));
     }
   | (LabelSum(_), _) => None
   | (Sum(ty1_1, ty1_2), Sum(ty2_1, ty2_2)) =>
@@ -358,7 +346,18 @@ let rec join = (ty1: t, ty2: t): option(t) => {
     }
   | (List(_), _) => None
   };
-};
+}
+and tagged_join = (t1: tagged, t2: tagged): option(tagged) =>
+  t1.tag == t2.tag
+    ? switch (t1.typ, t2.typ) {
+      | (None, None) => Some({tag: t1.tag, typ: None})
+      | (Some(ty1), Some(ty2)) =>
+        open Util.OptUtil.Syntax;
+        let+ ty_join = join(ty1, ty2);
+        {tag: t1.tag, typ: Some(ty_join)};
+      | _ => None
+      }
+    : None;
 
 let join_all = (ts: list(t)): option(t) =>
   List.fold_left(
@@ -380,7 +379,12 @@ let rec subst = (s: t, ~x: int=0, ty: t) => {
   | Arrow(ty1, ty2) => Arrow(subst_keep(ty1), subst_keep(ty2))
   | Prod(tys) => Prod(List.map(ty => subst_keep(ty), tys))
   | LabelSum(tys) =>
-    LabelSum(List.map(ty => {tag: ty.tag, typ: subst_keep(ty.typ)}, tys))
+    LabelSum(
+      List.map(
+        ty => {tag: ty.tag, typ: Option.map(subst_keep, ty.typ)},
+        tys,
+      ),
+    )
   | Sum(ty1, ty2) => Sum(subst_keep(ty1), subst_keep(ty2))
   | List(ty) => List(subst_keep(ty))
   | Rec({item, ann}) => Rec({item: subst_incr(item), ann})
@@ -401,7 +405,15 @@ let rec lookup_surface = (~x: int=0, ty: t) => {
   | Unknown(_) => false
   | Arrow(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
   | Prod(tys) => List.exists(lookup_keep, tys)
-  | LabelSum(tys) => List.exists(ty => lookup_keep(ty.typ), tys)
+  | LabelSum(tys) =>
+    List.exists(
+      ty =>
+        switch (ty.typ) {
+        | Some(ty) => lookup_keep(ty)
+        | None => false
+        },
+      tys,
+    )
   | Sum(ty1, ty2) => lookup_keep(ty1) || lookup_keep(ty2)
   | List(ty) => lookup_keep(ty)
   | Rec({item, _}) => lookup_incr(item)
