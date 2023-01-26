@@ -49,7 +49,6 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.t): Node.t => {
   | InfoTyp(_) => div(~attr=clss([ctxc, "typ"]), [])
   | InfoRul(_) => div(~attr=clss([ctxc, "rul"]), [])
   | InfoTPat(_) => div(~attr=clss([ctxc, "tpat"]), [])
-  | InfoTSum(_) => div(~attr=clss([ctxc, "sum"]), [])
   };
 };
 

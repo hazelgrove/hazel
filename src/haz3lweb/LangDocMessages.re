@@ -49,8 +49,6 @@ let pat = v =>
 let typ = t =>
   Example.mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
 let tpat = v =>
-  Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TSum, []))));
-let tsum = v =>
   Example.mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
 let typ_pat_var = t => Example.mk_monotile(Form.mk_atomic(TPat, t));
 let int = n => Example.mk_monotile(Form.mk_atomic(Exp, n));
@@ -96,7 +94,6 @@ let mk_ap_exp = Example.mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = Example.mk_tile(Form.get("ap_pat"));
 let mk_let = Example.mk_tile(Form.get("let_"));
 let mk_tyalias = Example.mk_tile(Form.get("type_alias"));
-let mk_sum_typ = Example.mk_tile(Form.get("typ-sum"));
 
 let mk_if = Example.mk_tile(Form.get("if_"));
 let mk_test = Example.mk_tile(Form.get("test"));
@@ -114,7 +111,6 @@ let mk_example = str => {
 
 let empty_hole_exp_group = "empty_hole_exp_group";
 let empty_hole_tpat_group = "empty_hole_tpat_group";
-let empty_hole_tsum_group = "empty_hole_tsum_group";
 let empty_hole_template = (sort, str, id): form => {
   let explanation = {
     message:
@@ -136,12 +132,9 @@ let empty_hole_exp: form =
   empty_hole_template(exp, "an expression", "empty_hole_exp");
 let empty_hole_tpat: form =
   empty_hole_template(tpat, "a type pattern", "empty_hole_tpat");
-let empty_hole_tsum: form =
-  empty_hole_template(tsum, "a type sum", "empty_hole_tsum");
 
 let multi_hole_exp_group = "multi_hole_exp_group";
 let multi_hole_tpat_group = "multi_hole_tpat_group";
-let multi_hole_tsum_group = "multi_hole_tsum_group";
 
 let multi_hole_template = (sort, id: string): form => {
   let explanation = {
@@ -158,7 +151,6 @@ let multi_hole_template = (sort, id: string): form => {
 };
 let multi_hole_exp: form = multi_hole_template(exp, "multi_hole_exp");
 let multi_hole_tpat: form = multi_hole_template(tpat, "multi_hole_tpat");
-let multi_hole_tsum: form = multi_hole_template(tsum, "multi_hole_tsum");
 
 let triv_exp_group = "triv_exp_group";
 let triv_exp: form = {
@@ -884,10 +876,8 @@ let tag_exp: form = {
 let let_base_exp_group = "let_base_exp_group";
 let let_empty_hole_exp_group = "let_empty_hole_exp_group";
 let let_empty_hole_tpat_group = "let_empty_hole_tpat_group";
-let let_empty_hole_tsum_group = "let_empty_hole_tsum_group";
 let let_multi_hole_exp_group = "let_multi_hole_exp_group";
 let let_multi_hole_tpat_group = "let_multi_hole_tpat_group";
-let let_multi_hole_tsum_group = "let_multi_hole_tsum_group";
 let let_wild_exp_group = "let_wild_hole_exp_group";
 let let_int_exp_group = "let_int_exp_group";
 let let_float_exp_group = "let_float_exp_group";
@@ -3154,21 +3144,17 @@ let labelled_sum_typ: form = {
     message: "Labelled Sum type. This type combines one or more labelled types, each consisting of a constructor name and (optionally) a type parameter, into a single type of alternatives.",
     feedback: Unselected,
   };
-  let divider = Example.mk_monotile(Form.get("typ_sum"));
+  let divider = Example.mk_monotile(Form.get("typ_plus"));
   {
     id: "labelled_sum_typ",
     syntactic_form: [
-      mk_sum_typ([
-        [
-          space(),
-          typ("Cons(ty1)"),
-          space(),
-          divider,
-          space(),
-          typ("..."),
-          space(),
-        ],
-      ]),
+      space(),
+      typ("Cons(ty)"),
+      space(),
+      divider,
+      space(),
+      typ("..."),
+      space(),
     ],
     expandable_id: Some(Piece.id(divider)),
     explanation,
@@ -3387,10 +3373,8 @@ let init = {
     // Expressions
     empty_hole_exp,
     empty_hole_tpat,
-    empty_hole_tsum,
     multi_hole_exp,
     multi_hole_tpat,
-    multi_hole_tsum,
     triv_exp,
     bool_exp,
     int_exp,
@@ -3513,10 +3497,8 @@ let init = {
     // Expressions
     (empty_hole_exp_group, init_options([(empty_hole_exp.id, [])])),
     (empty_hole_tpat_group, init_options([(empty_hole_tpat.id, [])])),
-    (empty_hole_tsum_group, init_options([(empty_hole_tsum.id, [])])),
     (multi_hole_exp_group, init_options([(multi_hole_exp.id, [])])),
     (multi_hole_tpat_group, init_options([(multi_hole_tpat.id, [])])),
-    (multi_hole_tsum_group, init_options([(multi_hole_tsum.id, [])])),
     (triv_exp_group, init_options([(triv_exp.id, [])])),
     (bool_exp_group, init_options([(bool_exp.id, [])])),
     (int_exp_group, init_options([(int_exp.id, [])])),

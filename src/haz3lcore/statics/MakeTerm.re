@@ -85,7 +85,6 @@ let is_nary =
 let is_tuple_exp = is_nary(TermBase.Any.is_exp, ",");
 let is_tuple_pat = is_nary(TermBase.Any.is_pat, ",");
 let is_tuple_typ = is_nary(TermBase.Any.is_typ, ",");
-let is_typ_sum = is_nary(TermBase.Any.is_tsum, "+");
 let is_typ_bsum = is_nary(TermBase.Any.is_typ, "+");
 
 let is_grout = tiles =>
@@ -155,7 +154,6 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
-  | TSum => TSum(tsum(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
@@ -349,39 +347,6 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-
-and tsum = unsorted => {
-  let (term, inner_ids) = tsum_term(unsorted);
-  let ids = ids(unsorted) @ inner_ids;
-  return(p => TSum(p), ids, {ids, term});
-}
-and tsum_term: unsorted => (UTSum.term, list(Id.t)) = {
-  let ret = (term: UTSum.term) => (term, []);
-  let hole = unsorted => Term.UTSum.hole(kids_of_unsorted(unsorted));
-  fun
-  | Op(tiles) as tm =>
-    switch (tiles) {
-    | ([(_, ([tag], []))], []) when Form.is_typ_var(tag) =>
-      ret(Sum([{tag, typ: None}]))
-    | _ => ret(hole(tm))
-    }
-  | Post(TSum({term: Sum([{tag, typ: None}]), ids: ctr_ids}), tiles) as tm =>
-    switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => (
-        Sum([{tag, typ: Some(typ)}]),
-        ctr_ids,
-      )
-    | _ => ret(hole(tm))
-    }
-  | Pre(_) as tm => ret(hole(tm))
-  | Bin(TSum({term: Sum(l), ids: _}), tiles, TSum({term: Sum(r), ids: _})) as tm =>
-    switch (is_typ_sum(tiles)) {
-    | Some(_between_kids) => ret(Sum(l @ r))
-    | None => ret(hole(tm))
-    }
-  | tm => ret(hole(tm));
-}
-
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -416,7 +381,6 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       | ([t], []) when Form.is_typ_var(t) => ret(Var(t))
       | (["(", ")"], [Typ(body)]) => ret(Parens(body))
       | (["[", "]"], [Typ(body)]) => ret(List(body))
-      | (["sum", "end"], [TSum({ids, term: _} as ts)]) => (Sum(ts), ids)
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))

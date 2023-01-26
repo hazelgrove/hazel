@@ -11,7 +11,6 @@ let cls_str = (ci: Haz3lcore.Statics.t): string =>
   | InfoTyp({cls, _}) => Haz3lcore.Term.UTyp.show_cls(cls)
   | InfoRul({cls, _}) => Haz3lcore.Term.URul.show_cls(cls)
   | InfoTPat({cls, _}) => Haz3lcore.Term.UTPat.show_cls(cls)
-  | InfoTSum({cls, _}) => Haz3lcore.Term.UTSum.show_cls(cls)
   };
 
 let errorc = "error";
@@ -191,25 +190,18 @@ let view_of_info =
       ~attr=clss([infoc, "rul"]),
       [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
     )
-  | InfoTPat(_) =>
+  | InfoTPat({error, _}) =>
     div(
       ~attr=clss([infoc, "tpat"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "tpat"),
-        div(~attr=clss([happyc]), [text("New type alias")]),
+        switch (error) {
+        | None => div(~attr=clss([happyc]), [text("New type alias")])
+        | Some(NotAName) =>
+          div(~attr=clss([errorc]), [text("Not a valid type name")])
+        },
       ],
     )
-  | InfoTSum({self: Just(ty), _}) =>
-    div(
-      ~attr=clss([infoc, "tsum"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "tsum"),
-        text("is"),
-        Type.view(ty),
-      ],
-    )
-  | InfoTSum(_) =>
-    failwith("CursorInspector: TSum Error cases not implemented")
   };
 };
 
