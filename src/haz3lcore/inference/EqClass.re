@@ -395,9 +395,9 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
   | Compound(ctor, eq_class_lt, eq_class_rt) =>
     let (ctor_start, ctor_string, ctor_end) =
       switch (ctor) {
-      | CArrow => ("", " -> ", "")
+      | CArrow => ("", " -> (", ")")
       | CProd => ("(", ", ", ")")
-      | CSum => ("", " + ", "")
+      | CSum => ("", " + (", ")")
       };
 
     String.concat(
@@ -406,9 +406,7 @@ and string_of_eq_typ = (eq_typ: eq_typ) =>
         ctor_start,
         string_of_eq_class(eq_class_lt),
         ctor_string,
-        "(",
         string_of_eq_class(eq_class_rt),
-        ")",
         ctor_end,
       ],
     );
