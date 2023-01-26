@@ -301,23 +301,26 @@ let extend_let_def_ctx =
     ctx;
   };
 
-let tag_ana_typ = (mode: Typ.mode, tag: Token.t): option(Typ.t) =>
+let tag_ana_typ = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): option(Typ.t) =>
   /* If a tag is being analyzed against (an arrow type returning)
      a sum type having that tag as a variant, we consider the
      tag's type to be determined by the sum type */
   switch (mode) {
-  | Ana(LabelSum(tags) as ty_ana)
-  | Ana(Arrow(_, LabelSum(tags) as ty_ana)) =>
-    Typ.ana_sum(tag, tags, ty_ana)
+  | Ana(Arrow(_, ty_ana))
+  | Ana(ty_ana) =>
+    switch (Ctx.resolve_typ(ctx, ty_ana)) {
+    | Some(LabelSum(tags)) => Typ.ana_sum(tag, tags, ty_ana)
+    | _ => None
+    }
   | _ => None
   };
 
-let tag_ap_mode = (_ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
+let tag_ap_mode = (ctx: Ctx.t, mode: Typ.mode, name: Token.t): Typ.mode =>
   /* If a tag application is being analyzed against a sum type for
      which that tag is a variant, then we consider the tag to be in
      analytic mode against an arrow returning that sum type; otherwise
      we use the typical mode for function applications */
-  switch (tag_ana_typ(mode, name)) {
+  switch (tag_ana_typ(ctx, mode, name)) {
   | Some(Arrow(_) as ty_ana) => Ana(ty_ana)
   | Some(ty_ana) => Ana(Arrow(Unknown(Internal), ty_ana))
   | _ => Typ.ap_mode
@@ -328,7 +331,7 @@ let tag_self = (ctx: Ctx.t, mode: Typ.mode, tag: Token.t): Typ.self =>
      a sum type having that tag as a variant, its self type is
      considered to be determined by the sum type; otherwise,
      check the context for the tag's type */
-  switch (tag_ana_typ(mode, tag)) {
+  switch (tag_ana_typ(ctx, mode, tag)) {
   | Some(ana_ty) => Just(ana_ty)
   | _ =>
     switch (Ctx.lookup_tag(ctx, tag)) {
@@ -552,7 +555,11 @@ and uexp_to_info_map =
       ~free=Ctx.union([free_def, Ctx.subtract_typ(ctx_pat_ana, free_body)]), // TODO: free may not be accurate since ctx now threaded through pat
       union_m([m_pat, m_def, m_body]),
     );
-  | TyAlias({term: Var(name), _} as typat, {term: Sum(_), _} as utyp, body) =>
+  | TyAlias(
+      {term: Var(name), _} as typat,
+      {term: Sum(_) | BSum(_), _} as utyp,
+      body,
+    ) =>
     let m_typat = utpat_to_info_map(~ctx, typat);
     let ty = Term.UTyp.to_typ(ctx, utyp);
     let ty' = List.mem(name, Typ.free_vars(ty)) ? Typ.Rec(name, ty) : ty;
@@ -776,6 +783,17 @@ and utyp_to_info_map =
     /* Note: See corresponding TSum case in MakeTerm.typ_term */
     let m = utsum_to_info_map(~ctx, TermBase.UTSum.{term, ids: []});
     just(m);
+  | BSum(sum) =>
+    let ms =
+      List.map(
+        (TermBase.UTyp.{tag: _, typ, _}) =>
+          switch (typ) {
+          | None => Id.Map.empty
+          | Some(typ) => utyp_to_info_map(~ctx, typ) |> snd
+          },
+        sum,
+      );
+    just(union_m(ms));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     just(union_m(maps));
