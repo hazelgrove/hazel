@@ -2,22 +2,22 @@ open Sexplib.Std;
 open Util;
 
 module Atom = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('sort) =
     | Tok(Token.Shape.t)
     | Kid('sort);
 };
 
 module Extremity = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('sort) = option(Atom.t('sort));
   // across alternatives
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type s('sort) = list(t('sort));
 };
 
 // maybe want to generalize over atoms
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t('sort) =
   | Atom(Atom.t('sort))
   | Star(t('sort))
@@ -87,14 +87,14 @@ let rec exterior = (d: Dir.t, g: t(_)): Extremity.s(_) =>
   };
 
 module Frame = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type g('sort) = t('sort);
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t('sort) =
     | Star_
     | Seq_(list(g('sort)), list(g('sort)))
     | Alt_(list(g('sort)), list(g('sort)));
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type s('sort) = list(t('sort));
 
   let empty = [];

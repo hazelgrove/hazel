@@ -1,16 +1,17 @@
 open Util;
 
 module Molds = {
+  include Token.Map;
   type t = Token.Map.t(list(Mold.t));
 
-  let union2 = Token.Map.union((_, ms_l, ms_r) => Some(ms_l @ ms_r));
-  let union = List.fold_left(union2, Token.Map.empty);
+  let union2 = union((_, ms_l, ms_r) => Some(ms_l @ ms_r));
+  let union = List.fold_left(union2, empty);
 
   let molds_of_gram = (s: Sort.t, p: Prec.t, g: Gram.t(Sort.t)): t => {
     let rec go = (m: Mold.t, g: Gram.t(Sort.o)) =>
       switch (g) {
-      | Atom(Kid(_)) => Token.Map.empty
-      | Atom(Tok(t)) => Token.Map.singleton(t, [m])
+      | Atom(Kid(_)) => empty
+      | Atom(Tok(t)) => singleton(t, [m])
       | Star(g) => go(Mold.push(Star_, m), g)
       | Alt(gs) =>
         ListUtil.elem_splits(gs)
@@ -25,34 +26,55 @@ module Molds = {
            )
         |> union
       };
-    let g =
-      g
-      |> Gram.map_atoms(
-           fun
-           | Tok(_) as a => a
-           | Kid(s) => Kid(Some(s)),
-         );
-    go(Mold.init(Some(s), p), g);
+    g
+    |> Gram.map_atoms(
+         fun
+         | Tok(_) as a => a
+         | Kid(s) => Kid(Some(s)),
+       )
+    |> go(Mold.init(Some(s), p));
   };
-  let molds: t =
+  let t: t =
     List.to_seq(Lang.t)
     |> Seq.concat_map(((s, prec_lvls)) =>
          List.to_seq(prec_lvls)
          |> Seq.mapi((p, lvl) => (p, lvl))
          |> Seq.concat_map(((p, (g, _))) =>
-              Token.Map.to_seq(molds_of_gram(s, p, g))
+              to_seq(molds_of_gram(s, p, g))
             )
        )
     |> Token.Map.of_seq;
 
-  let find = token =>
-    switch (Token.Map.find_opt(token, molds)) {
+  let of_token = token =>
+    switch (find_opt(token, t)) {
     | None => []
     | Some(ms) => ms
     };
 };
 
-let molds = t => Molds.find(Token.shape(t));
+module Tokens = {
+  include Mold.Map;
+  type t = Mold.Map.t(list(Token.Shape.t));
+
+  let union2 = union((_, ts_l, ts_r) => Some(ts_l @ ts_r));
+  let union = List.fold_left(union2, empty);
+
+  let t =
+    Molds.bindings(Molds.t)
+    |> List.concat_map(((t, ms)) =>
+         ms |> List.map(m => singleton(m, [t]))
+       )
+    |> union;
+
+  let of_mold = m =>
+    switch (find_opt(m, t)) {
+    | None => []
+    | Some(ts) => ts
+    };
+};
+
+let molds_of_token = t => Molds.of_token(Token.shape(t));
+let tokens_of_mold = Tokens.of_mold;
 
 let assoc = (s, p) =>
   switch (s) {

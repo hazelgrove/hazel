@@ -2,22 +2,14 @@ open Sexplib.Std;
 
 include Lang.Sort;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type sort = t;
 // None represents "unsorted" sort used for unrecognized tokens
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type o = option(sort);
 
-let compare = (l: o, r: o): int =>
-  switch (l, r) {
-  | (None, None) => 0
-  | (None, Some(_)) => 1
-  | (Some(_), None) => (-1)
-  | (Some(l), Some(r)) => compare(l, r) // user-specified
-  };
-
 let lca = (l: o, r: o): o =>
-  switch (compare(l, r)) {
+  switch (compare_o(l, r)) {
   | c when c < 0 => l
   | c when c > 0 => r
   | _ => l

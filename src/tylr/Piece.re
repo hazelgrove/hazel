@@ -119,16 +119,16 @@ let cmp = (l: t, r: t): (Cmp.leg(Sort.Ana.t) as 'r) => {
       Cmp.Eq(Sort.Ana.mk(~strict, ~sort?, ()));
     };
     let try_lt = (~else_=Cmp.In(), sort_l): 'r =>
-      Sort.compare(sort_l, sort(r)) <= 0 ? lt(sort_l) : else_;
+      Sort.compare_o(sort_l, sort(r)) <= 0 ? lt(sort_l) : else_;
     let try_gt = (~else_=Cmp.In(), sort_r): 'r =>
-      Sort.compare(sort(l), sort_r) >= 0 ? gt(sort_r) : else_;
+      Sort.compare_o(sort(l), sort_r) >= 0 ? gt(sort_r) : else_;
     switch (Mold.tip(R, m_l), Mold.tip(L, m_r)) {
     | (Convex, Convex) => In()
     | (Convex, Concave(sort_r, _)) => try_gt(sort_r)
     | (Concave(sort_l, _), Convex) => try_lt(sort_l)
     | (Concave(sort_l, prec_l), Concave(sort_r, prec_r)) =>
       // todo: revise when generalizing to sort partial order
-      switch (Sort.compare(sort(l), sort(r))) {
+      switch (Sort.compare_o(sort(l), sort(r))) {
       | c when c < 0 => lt(sort_l)
       | c when c > 0 => gt(sort_r)
       | _ =>

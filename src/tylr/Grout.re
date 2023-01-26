@@ -1,12 +1,6 @@
 open Sexplib.Std;
 open Util;
 
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type shape =
-//   | Convex
-//   | Concave(Prec.t)
-//   | Molded(Mold.t);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
@@ -30,4 +24,8 @@ let mk_concave = (~id=?, l: Mold.t, r: Mold.t) => {
 // todo: incorporate unique filling
 let length = _ => 1;
 
-let suggestion = _ => failwith("todo suggestion");
+let suggestion = g =>
+  switch (LangUtil.tokens_of_mold(g.mold)) {
+  | [Const(t)] when Mold.must_match(L, g.mold) || Mold.must_match(R, g.mold) => t
+  | _ => ""
+  };

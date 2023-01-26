@@ -1,12 +1,18 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
   sort: Sort.o,
   prec: Prec.t,
   frames: Gram.Frame.s(Sort.o),
   // range: (int, int),
 };
+
+module Map =
+  Map.Make({
+    type nonrec t = t;
+    let compare = compare;
+  });
 
 let sort_ = m => m.sort;
 let prec_ = m => m.prec;

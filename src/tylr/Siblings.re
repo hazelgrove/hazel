@@ -40,7 +40,7 @@ let assemble = ((pre, suf): t) => {
 };
 
 let choose_matching = (c: Meld.t, t: Token.t) =>
-  LangUtil.molds(t)
+  LangUtil.molds_of_token(t)
   |> List.filter(m =>
        Mold.matching(L, m) && Meld.cmp_mold(c, m) == Some(Eq())
      )
@@ -49,8 +49,8 @@ let choose_matching = (c: Meld.t, t: Token.t) =>
 // todo: reimplement in terms of precedence bounds
 let choose = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
   let out_consistent =
-    LangUtil.molds(t)
-    |> List.filter((m: Mold.t) => Sort.compare(m.sort, out) <= 0);
+    LangUtil.molds_of_token(t)
+    |> List.filter((m: Mold.t) => Sort.compare_o(m.sort, out) <= 0);
   switch (out_consistent) {
   | [] => None
   | [m] => Some(m)
@@ -63,7 +63,7 @@ let choose = (in_l: option(Sort.o), out: Sort.o, t: Token.t) => {
            | (Some(_), None) => false
            | (None, None) => true
            | (Some(actual), Some(expected)) =>
-             Sort.compare(actual, expected) <= 0
+             Sort.compare_o(actual, expected) <= 0
            }
          );
     switch (in_l_consistent) {
