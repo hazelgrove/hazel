@@ -34,6 +34,7 @@ module UTyp = {
     | List
     | Var
     | Parens
+    | Ap
     | TSum;
 
   include TermBase.UTyp;
@@ -62,6 +63,7 @@ module UTyp = {
     | Var(_) => Var
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Ap(_) => Ap
     | TSum(_) => TSum;
 
   let show_cls: cls => string =
@@ -78,6 +80,7 @@ module UTyp = {
     | Tuple => "Product Type"
     | Sum => "Labelled Sum Type"
     | Parens => "Parenthesized Type Term"
+    | Ap => "Type Application"
     | TSum => "Labelled Sum Type";
 
   let rec is_arrow = (typ: t) => {
@@ -93,6 +96,7 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
+    | Ap(_)
     | TSum(_) => false
     };
   };
@@ -102,6 +106,9 @@ module UTyp = {
     (ctx, utyp) =>
       switch (utyp.term) {
       | MultiHole(_) => Unknown(Internal)
+      | Ap(_t1, _t2) =>
+        /* Should occur only inside sums */
+        Unknown(Internal)
       | EmptyHole => Unknown(TypeHole)
       | Bool => Bool
       | Int => Int
@@ -110,19 +117,19 @@ module UTyp = {
       | Var(name) => Var(name)
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | TSum(tgs, _bads) =>
-        //TODO(andrew): deal with bads
-        LabelSum(
-          List.map(
-            (TermBase.UTyp.{tag, typ, _}) =>
-              Typ.{tag, typ: Option.map(to_typ(ctx), typ)},
-            tgs,
-          ),
-        )
+      | TSum(us) => LabelSum(Util.ListUtil.flat_map(to_variant(ctx), us))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
-      };
+      }
+  and to_variant = ctx =>
+    fun
+    | {term: Var(tag), _} => [Typ.{tag, typ: None}]
+    | {term: Ap({term: Var(tag), _}, u), _} => [
+        Typ.{tag, typ: Some(to_typ(ctx, u))},
+      ]
+    | _ => [];
 };
+
 module UTPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
