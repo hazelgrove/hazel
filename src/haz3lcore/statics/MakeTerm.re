@@ -358,13 +358,13 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let hole = unsorted => Term.UTyp.hole(kids_of_unsorted(unsorted));
   let get_tagged = (ut: UTyp.t): list(UTyp.tagged) =>
     switch (ut.term) {
-    | BSum(xs, _bads) => xs //TODO(andrew): deal with bads
+    | TSum(xs, _bads) => xs //TODO(andrew): deal with bads
     | Var(tag) => [{tag, typ: None}]
     | _ => []
     };
   let get_tagged' = (ut: UTyp.t): typ_res =>
     switch (ut.term) {
-    | BSum(xs, _bads) => IsTagged(xs) //TODO(andrew): deal with bads
+    | TSum(xs, _bads) => IsTagged(xs) //TODO(andrew): deal with bads
     | Var(tag) => IsTagged([{tag, typ: None}])
     | _ => IsNotTagged(ut)
     };
@@ -390,7 +390,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) =>
       //TODO(andrew): deal with bads
       let bads = [];
-      (BSum([{tag, typ: Some(typ)}], bads), ctr_ids);
+      (TSum([{tag, typ: Some(typ)}], bads), ctr_ids);
     | _ => ret(hole(tm))
     }
   | Pre(tiles, Typ(t)) as tm =>
@@ -399,7 +399,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       //TODO(andrew): update to get_tagged'
       //TODO(andrew): deal with bads
       let bads = [];
-      (BSum(get_tagged(t), bads), t.ids);
+      (TSum(get_tagged(t), bads), t.ids);
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm
@@ -432,7 +432,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         );
       let good_guys =
         fin |> List.filter_map(Option.map(fst)) |> List.flatten;
-      (BSum(good_guys, bad_guys), ids);
+      (TSum(good_guys, bad_guys), ids);
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

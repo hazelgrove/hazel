@@ -229,7 +229,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t): option(DHExp.t) => 
         DHExp.Ap(TestLit(id), dtest);
       | Var(name) =>
         switch (err_status) {
-        | InHole(Self(Free(Variable))) => Some(FreeVar(id, 0, name))
+        | InHole(Self(Free)) => Some(FreeVar(id, 0, name))
         | _ => Some(BoundVar(name))
         }
       | Let(p, def, body) =>

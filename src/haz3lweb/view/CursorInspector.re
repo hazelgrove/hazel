@@ -19,9 +19,9 @@ let infoc = "info";
 
 let error_view = (err: Haz3lcore.Statics.error) =>
   switch (err) {
-  | Multi =>
+  | Self(Multi) =>
     div(~attr=clss([errorc, "err-multi"]), [text("⑂ Multi Hole")])
-  | Self(Free(Variable)) =>
+  | Self(Free) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Variable is not bound")],
@@ -31,20 +31,10 @@ let error_view = (err: Haz3lcore.Statics.error) =>
       ~attr=clss([errorc, "err-not-function"]),
       [text("Not consistent with arrow type:"), Type.view(typ)],
     )
-  | Self(Free(TypeVariable)) =>
-    div(
-      ~attr=clss([errorc, "err-free-variable"]),
-      [text("Type Variable is not bound")],
-    )
-  | Self(Free(Tag)) =>
+  | Self(FreeTag) =>
     div(
       ~attr=clss([errorc, "err-free-variable"]),
       [text("Constructor is not defined")],
-    )
-  | Self(NotTag) =>
-    div(
-      ~attr=clss([errorc, "err-not-tag"]),
-      [text("Not a valid sum type variant")],
     )
   | SynInconsistentBranches(tys) =>
     div(
@@ -166,38 +156,43 @@ let view_of_info =
         status_view(error_status),
       ],
     );
-  | InfoTyp({self: Self(err), _}) =>
+  | InfoTyp({status, ctx, _}) =>
     div(
       ~attr=clss([infoc, "typ"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        error_view(Self(err)),
+        switch (status) {
+        | Ok(ty) =>
+          switch (Haz3lcore.Ctx.resolve_typ(ctx, ty)) {
+          | Some(ty) => Type.view(ty)
+          | None => Type.view(ty)
+          }
+        | FreeTypeVar =>
+          div(
+            ~attr=clss([errorc, "err-free-variable"]),
+            [text("Type Variable is not bound")],
+          )
+        | TagExpected(typ) =>
+          div(
+            ~attr=clss([errorc, "err-tag-expected"]),
+            [text("Expected a constructor, found"), Type.view(typ)],
+          )
+        },
       ],
     )
-  | InfoTyp({self: Just(ty), _}) =>
-    div(
-      ~attr=clss([infoc, "typ"]),
-      [
-        term_tag(~inject, ~show_lang_doc, is_err, "typ"),
-        text("is"),
-        Type.view(ty),
-      ],
-    )
-  | InfoTyp({self: _, _}) =>
-    failwith("CursorInspector: Impossible type error")
   | InfoRul(_) =>
     div(
       ~attr=clss([infoc, "rul"]),
       [term_tag(~inject, ~show_lang_doc, is_err, "rul"), text("Rule")],
     )
-  | InfoTPat({error, _}) =>
+  | InfoTPat({status, _}) =>
     div(
       ~attr=clss([infoc, "tpat"]),
       [
         term_tag(~inject, ~show_lang_doc, is_err, "tpat"),
-        switch (error) {
-        | None => div(~attr=clss([happyc]), [text("New type alias")])
-        | Some(NotAName) =>
+        switch (status) {
+        | Ok => div(~attr=clss([happyc]), [text("New type alias")])
+        | NotAName =>
           div(~attr=clss([errorc]), [text("Not a valid type name")])
         },
       ],
