@@ -53,7 +53,8 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
       ((e1, e2) => BinStringOp(string_op_of(op), e1, e2)),
     );
 
-let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): option((DHExp.t, Delta.t)) => {
+let rec dhexp_of_uexp =
+        (m: Statics.map, uexp: Term.UExp.t): option((DHExp.t, Delta.t)) => {
   /* NOTE: Left out delta for now */
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
@@ -64,29 +65,64 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let wrap = (d: DHExp.t, dl: Delta.t): option(DHExp.t, Delta.t) =>
+    let delta_ty: Typ.t =
+      switch (Statics.exp_mode(m, uexp)) {
+      | Syn => Unknown(TypeHole)
+      | Ana(ana_ty) => Typ.matched_list(ana_ty)
+      };
+    let wrap = ((d: DHExp.t, dl: Delta.t)): option((DHExp.t, Delta.t)) =>
       switch (maybe_reason) {
       | None => Some((d, dl))
-      | Some(reason) => Some((NonEmptyHole(reason, u, 0, d), dl))
+      | Some(reason) =>
+        Some((
+          NonEmptyHole(reason, u, 0, d),
+          Delta.add(u, (ExpressionHole, delta_ty, ctx), dl),
+        ))
       };
     switch (uexp.term) {
     | Invalid(_) /* NOTE: treating invalid as a hole for now */
-    | EmptyHole => Some((EmptyHole(u, 0), Delta.add(u, (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))
+    | EmptyHole =>
+      Some((
+        EmptyHole(u, 0),
+        Delta.add(u, (ExpressionHole, Unknown(TypeHole), ctx), Delta.empty),
+      ))
     | MultiHole(tms) =>
       // TODO: dhexp, eval for multiholes
       let* ds =
         tms
         |> List.map(
              fun
-             | Term.Exp(e) => dhexp_of_uexp(m, e, delta) /*Remove u::()\gamma*/
-             | tm => Some((EmptyHole(Term.rep_id(tm), 0), Delta.add(Term.rep_id(tm), (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))),
+             | Term.Exp(e) => dhexp_of_uexp(m, e)
+             | tm =>
+               Some((
+                 EmptyHole(Term.rep_id(tm), 0),
+                 Delta.add(
+                   Term.rep_id(tm),
+                   (ExpressionHole, Unknown(TypeHole), ctx),
+                   Delta.empty,
+                 ),
+               )),
            )
         |> OptUtil.sequence;
       switch (ds) {
-      | [] => Some((DHExp.EmptyHole(u, 0), Delta.add(u, (ExpressionHole,Unknown(TypeHole),ctx), Delta.empty)))
+      | [] =>
+        Some((
+          DHExp.EmptyHole(u, 0),
+          Delta.add(
+            u,
+            (ExpressionHole, Unknown(TypeHole), ctx),
+            Delta.empty,
+          ),
+        ))
       | [hd, ...tl] =>
         // placeholder logic: sequence
-        delta |> (tl |> List.fold_left((acc, d) => DHExp.Sequence(d, acc), hd) |> wrap)
+        tl
+        |> List.fold_left(
+             ((acc, dl_acc), (d, dl)) =>
+               (DHExp.Sequence(d, acc), Delta.union(dl_acc, dl)),
+             hd,
+           )
+        |> wrap
       };
     | Triv => wrap((Tuple([]), Delta.empty))
     | Bool(b) => wrap((BoolLit(b), Delta.empty))
@@ -103,15 +139,17 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
             (acc, e) => {
               let* acc = acc;
               let e_ty = Statics.exp_self_typ(m, e);
-              let+ (d,dl) = dhexp_of_uexp(m, e, delta);
-		//Is this correct?
+              let+ (d, dl) = dhexp_of_uexp(m, e);
               let dc = DHExp.cast(d, e_ty, ty);
               acc @ [dc];
             },
             Some([]),
             es,
           );
-        wrap((DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds), Delta.empty));
+        wrap((
+          DHExp.ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds),
+          dl,
+        ));
       | Ana(ana_ty) =>
         let ty = Typ.matched_list(ana_ty);
         let* ds =
@@ -119,14 +157,14 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
             (acc, e) => {
               let* acc = acc;
               let e_ty = Statics.exp_self_typ(m, e);
-              let+ d = dhexp_of_uexp(m, e);
+              let+ (d, dl) = dhexp_of_uexp(m, e);
               let dc = DHExp.cast(d, e_ty, ty);
               acc @ [dc];
             },
             Some([]),
             es,
           );
-        wrap((ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds), Delta.empty));
+        wrap((ListLit(u, 0, StandardErrStatus(NotInHole), Int, ds), dl));
       }
     | Fun(p, body) =>
       let* dp = dhpat_of_upat(m, p);
@@ -149,11 +187,11 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
           es,
           Some([]),
         );
-      ds |> Option.map(ds => DHExp.Tuple(ds));
-    | Tag(name) => wrap(Tag(name))
+      ds |> Option.map((ds, dl) => (DHExp.Tuple(ds), dl));
+    | Tag(name) => wrap(Tag(name), Delta.empty)
     | Cons(e1, e2) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
+      let* (d1, dl1) = dhexp_of_uexp(m, e1);
+      let* (d2, dl2) = dhexp_of_uexp(m, e2);
       let ty1 = Statics.exp_self_typ(m, e1);
       let ty2 = Statics.exp_self_typ(m, e2);
       let dc1 =
@@ -165,63 +203,66 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
         };
       let ty_hd = Typ.matched_list(Statics.exp_self_typ(m, uexp));
       let dc2 = DHExp.cast(d2, ty2, List(ty_hd));
-      wrap(Cons(dc1, dc2));
+      wrap(Cons(dc1, dc2), Delta.union(dl1, dl2));
     | UnOp(Int(Minus), e) =>
-      let* d = dhexp_of_uexp(m, e);
+      let* (d, dl) = dhexp_of_uexp(m, e);
       let ty = Statics.exp_self_typ(m, e);
       let dc = DHExp.cast(d, ty, Int);
-      wrap(BinIntOp(Minus, IntLit(0), dc));
+      wrap(BinIntOp(Minus, IntLit(0), dc), dl);
     | BinOp(op, e1, e2) =>
       let (ty, cons) = exp_binop_of(op);
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
+      let* (d1, dl1) = dhexp_of_uexp(m, e1);
+      let* (d2, d12) = dhexp_of_uexp(m, e2);
       let ty1 = Statics.exp_self_typ(m, e1);
       let ty2 = Statics.exp_self_typ(m, e2);
       let dc1 = DHExp.cast(d1, ty1, ty);
       let dc2 = DHExp.cast(d2, ty2, ty);
-      wrap(cons(dc1, dc2));
+      wrap(cons(dc1, dc2), Delta.union(dl1, dl2));
     | Parens(e) => dhexp_of_uexp(m, e)
     | Seq(e1, e2) =>
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
-      wrap(Sequence(d1, d2));
+      let* (d1, dl1) = dhexp_of_uexp(m, e1);
+      let* (d2, dl2) = dhexp_of_uexp(m, e2);
+      wrap(Sequence(d1, d2), Delta.union(dl1, dl2));
     | Test(test) =>
-      let* dtest = dhexp_of_uexp(m, test);
-      wrap(Ap(TestLit(u), dtest));
+      let* (dtest, dl) = dhexp_of_uexp(m, test);
+      wrap(Ap(TestLit(u), dtest), dl);
     | Var(name) =>
       switch (err_status) {
-      | InHole(Free(Variable)) => Some(FreeVar(u, 0, name))
-      | _ => wrap(BoundVar(name))
+      | InHole(Free(Variable)) => Some((FreeVar(u, 0, name), Delta.empty))
+      | _ => wrap(BoundVar(name), Delta.empty)
       }
     | Let(p, def, body) =>
       switch (Term.UPat.get_recursive_bindings(p)) {
       | None =>
         /* not recursive */
         let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
+        let* (ddef, dldef) = dhexp_of_uexp(m, def);
         let ddef =
           switch (ddef) {
           | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Term.UPat.get_var(p))
           | _ => ddef
           };
-        let* dbody = dhexp_of_uexp(m, body);
-        wrap(Let(dp, ddef, dbody));
+        let* (dbody, dlbody) = dhexp_of_uexp(m, body);
+        wrap(Let(dp, ddef, dbody), Delta.union(dldef, dlbody));
       | Some([f]) =>
         /* simple recursion */
         let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
+        let* (ddef, dldef) = dhexp_of_uexp(m, def);
         let ddef =
           switch (ddef) {
           | Fun(a, b, c, _) => DHExp.Fun(a, b, c, Some(f))
           | _ => ddef
           };
-        let* dbody = dhexp_of_uexp(m, body);
+        let* (dbody, dlbody) = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
-        wrap(Let(dp, FixF(f, ty, ddef), dbody));
+        wrap(
+          Let(dp, FixF(f, ty, ddef), dbody),
+          Delta.union(dldef, dlbody),
+        );
       | Some(fs) =>
         /* mutual recursion */
         let* dp = dhpat_of_upat(m, p);
-        let* ddef = dhexp_of_uexp(m, def);
+        let* (ddef, dldef) = dhexp_of_uexp(m, def);
         let ddef =
           switch (ddef) {
           | Tuple(a) =>
@@ -240,7 +281,7 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
           | _ => ddef
           };
 
-        let* dbody = dhexp_of_uexp(m, body);
+        let* (dbody, dlbody) = dhexp_of_uexp(m, body);
         let ty = Statics.pat_self_typ(m, p);
         let uniq_id = List.nth(def.ids, 0);
         let self_id = "__mutual__" ++ string_of_int(uniq_id);
@@ -256,46 +297,63 @@ let rec dhexp_of_uexp = (m: Statics.map, uexp: Term.UExp.t, delta: Delta.t): opt
                (0, ddef),
              );
         let fixpoint = DHExp.FixF(self_id, ty, substituted_def);
-        wrap(Let(dp, fixpoint, dbody));
+        wrap(Let(dp, fixpoint, dbody), Delta.union(dldef, dlbody));
       }
     | Ap(fn, arg) =>
-      let* d_fn = dhexp_of_uexp(m, fn);
-      let* d_arg = dhexp_of_uexp(m, arg);
+      let* (d_fn, dl_fn) = dhexp_of_uexp(m, fn);
+      let* (d_arg, dl_arg) = dhexp_of_uexp(m, arg);
       let ty_fn = Statics.exp_self_typ(m, fn);
       let ty_arg = Statics.exp_self_typ(m, arg);
       let (ty_in, ty_out) = Typ.matched_arrow(ty_fn);
       let c_fn = DHExp.cast(d_fn, ty_fn, Typ.Arrow(ty_in, ty_out));
       let c_arg = DHExp.cast(d_arg, ty_arg, ty_in);
-      wrap(Ap(c_fn, c_arg));
+      wrap(Ap(c_fn, c_arg), Delta.union(dl_fn, dl_arg));
     | If(scrut, e1, e2) =>
-      let* d_scrut = dhexp_of_uexp(m, scrut);
-      let* d1 = dhexp_of_uexp(m, e1);
-      let* d2 = dhexp_of_uexp(m, e2);
+      let* (d_scrut, dl_scrut) = dhexp_of_uexp(m, scrut);
+      let* (d1, dl1) = dhexp_of_uexp(m, e1);
+      let* (d2, dl2) = dhexp_of_uexp(m, e2);
       let d_rules =
         DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, d))
-      | _ => wrap(ConsistentCase(d))
+        Some(
+          DHExp.InconsistentBranches(u, 0, d),
+          Delta.union(dl_srut, Delta.union(dl1, dl2)),
+        )
+      | _ =>
+        wrap(
+          ConsistentCase(d),
+          Delta.union(dl_srut, Delta.union(dl1, dl2)),
+        )
       };
     | Match(scrut, rules) =>
-      let* d_scrut = dhexp_of_uexp(m, scrut);
-      let* d_rules =
+      let* (d_scrut, dl_scrut) = dhexp_of_uexp(m, scrut);
+      let* ddl_rules =
         List.map(
           ((p, e)) => {
             let* d_p = dhpat_of_upat(m, p);
-            let+ d_e = dhexp_of_uexp(m, e);
-            DHExp.Rule(d_p, d_e);
+            let+ (d_e, dl_e) = dhexp_of_uexp(m, e);
+            (DHExp.Rule(d_p, d_e), dl_e);
           },
           rules,
         )
         |> OptUtil.sequence;
+      let d_rules = List.map(((dh, dl)) => {dh}, ddl_rules);
+      let dl_case =
+        List.fold_left(
+          ((acc, (dh, dl))) => {Delta.union(acc, dl)},
+          ddl_rules,
+          Delta.empty,
+        );
       let d = DHExp.Case(d_scrut, d_rules, 0);
       switch (err_status) {
       | InHole(SynInconsistentBranches(_)) =>
-        Some(DHExp.InconsistentBranches(u, 0, d))
-      | _ => wrap(ConsistentCase(d))
+        Some(
+          DHExp.InconsistentBranches(u, 0, d),
+          Delta.union(dl_scrut, dl_case),
+        )
+      | _ => wrap(ConsistentCase(d), Delta.union(dl_scrut, dl_case))
       };
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoRul(_) | Invalid(_))
@@ -391,5 +449,5 @@ let uexp_elab = (m: Statics.map, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some((d, delta)) =>
     let d = uexp_elab_wrap_builtins(d);
-    Elaborates(d, Typ.Unknown(Internal), delta); //TODO: get type from ci
+    Elaborates(d, Typ.Unknown(Internal), Delta.empty); //TODO: get type from ci, left delta empty
   };
