@@ -386,12 +386,20 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
+            let livelit_padding =
+              switch (t.label) {
+              | ["%int"] => 15 // TODO Pull off of livelit
+              | _ => 0
+              };
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
               let last =
                 Point.{
                   ...origin,
-                  col: origin.col + String.length(token(shard)),
+                  col:
+                    origin.col
+                    + String.length(token(shard))
+                    + livelit_padding,
                 };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
