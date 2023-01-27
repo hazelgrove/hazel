@@ -21,15 +21,18 @@ type t =
   | Var(string)
   | List(t)
   | Arrow(t, t)
-  | Sum(typ_map)
+  | Sum(sum_map)
   | Prod(list(t))
   | Rec(Token.t, t)
-and typ_map = VarMap.t_(option(t));
+and sum_map = VarMap.t_(option(t));
 
-let sort_tagged: typ_map => typ_map =
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sum_entry = (Token.t, option(t));
+
+let sort_sum: sum_map => sum_map =
   List.sort(((t1, _), (t2, _)) => compare(t1, t2));
 
-let find_tag = (t: Token.t, tags: typ_map): option((Token.t, option(t))) =>
+let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
     | (tag, typ) when tag == t => Some((tag, typ))
@@ -37,12 +40,12 @@ let find_tag = (t: Token.t, tags: typ_map): option((Token.t, option(t))) =>
     tags,
   );
 
-let ana_sum = (tag: Token.t, tags: typ_map, ty_ana: t): option(t) =>
+let ana_sum = (tag: Token.t, sm: sum_map, ty_ana: t): option(t) =>
   /* Returns the type of a tag if that tag is given a type by the sum
      type ty_ana having tags as variants. If tag is a nullart constructor,
      ty_ana itself is returned; otherwise an arrow from tag's parameter
      type to ty_ana */
-  switch (find_tag(tag, tags)) {
+  switch (sum_entry(tag, sm)) {
   | Some((_, Some(ty_in))) => Some(Arrow(ty_in, ty_ana))
   | Some((_, None)) => Some(ty_ana)
   | None => None
@@ -169,7 +172,7 @@ let precedence = (ty: t): int =>
   | Arrow(_, _) => precedence_Arrow
   };
 
-let type_var_eq = (d, n1, n2) =>
+let var_eq = (d, n1, n2) =>
   //TODO: shadowing?
   switch (List.assoc_opt(n1, d), List.assoc_opt(n2, d)) {
   | _ when n1 == n2 => true //TODO: get rid of this?
@@ -181,7 +184,7 @@ let type_var_eq = (d, n1, n2) =>
 /* equality
    At the moment, this coincides with default equality,
    but this will change when polymorphic types are implemented */
-let rec eq = (~d=[], t1, t2) => {
+let rec eq = (~d=[], t1: t, t2: t): bool => {
   let eq' = eq(~d);
   switch (t1, t2) {
   | (Int, Int) => true
@@ -197,31 +200,24 @@ let rec eq = (~d=[], t1, t2) => {
   | (Arrow(t1_1, t1_2), Arrow(t2_1, t2_2)) =>
     eq'(t1_1, t2_1) && eq'(t1_2, t2_2)
   | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) =>
-    List.length(tys1) == List.length(tys2) && List.for_all2(eq', tys1, tys2)
+  | (Prod(tys1), Prod(tys2)) => List.equal(eq', tys1, tys2)
   | (Prod(_), _) => false
   | (List(t1), List(t2)) => eq'(t1, t2)
   | (List(_), _) => false
-  | (Sum(tys1), Sum(tys2)) =>
-    let (tys1, tys2) = (sort_tagged(tys1), sort_tagged(tys2));
-    List.length(tys1) == List.length(tys2)
-    && List.for_all2(tagged_eq(~d), tys1, tys2);
+  | (Sum(sm1), Sum(sm2)) => Util.TagMap.equal(opt_eq(~d), sm1, sm2)
   | (Sum(_), _) => false
-  | (Var(n1), Var(n2)) => type_var_eq(d, n1, n2)
+  | (Var(n1), Var(n2)) => var_eq(d, n1, n2)
   | (Var(_), _) => false
   | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, t2, ~d=[(x1, x2), ...d])
   | (Rec(_), _) => false
   };
 }
-and tagged_eq = (~d, (tag1, t1), (tag2, t2)) =>
-  tag1 == tag2
-  && (
-    switch (t1, t2) {
-    | (None, None) => true
-    | (Some(t1), Some(t2)) => eq(~d, t1, t2)
-    | _ => false
-    }
-  );
+and opt_eq = (~d, t1: option(t), t2: option(t)): bool =>
+  switch (t1, t2) {
+  | (None, None) => true
+  | (Some(t1), Some(t2)) => eq(~d, t1, t2)
+  | _ => false
+  };
 
 let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   switch (ty) {
@@ -233,7 +229,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | Sum(tags) =>
+  | Sum(sm) =>
     List.concat(
       List.map(
         ((_, typ)) =>
@@ -241,7 +237,7 @@ let rec free_vars = (~bound=[], ty: t): list(Token.t) =>
           | None => []
           | Some(typ) => free_vars(~bound, typ)
           },
-        tags,
+        sm,
       ),
     )
   | Prod(tys) => List.concat(List.map(free_vars(~bound), tys))
@@ -257,13 +253,7 @@ let rec subst = (s: t, x: Token.t, ty: t) => {
   | Unknown(prov) => Unknown(prov)
   | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
   | Prod(tys) => Prod(List.map(ty => subst(s, x, ty), tys))
-  | Sum(tys) =>
-    Sum(
-      List.map(
-        ((tag, typ)) => (tag, Option.map(typ => subst(s, x, typ), typ)),
-        tys,
-      ),
-    )
+  | Sum(sm) => Sum(Util.TagMap.map(Option.map(subst(s, x)), sm))
   | Rec(y, ty) when Token.compare(x, y) == 0 => Rec(y, ty)
   | Rec(y, ty) => Rec(y, subst(s, x, ty))
   | List(ty) => List(subst(s, x, ty))

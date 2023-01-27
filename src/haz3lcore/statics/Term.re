@@ -138,7 +138,7 @@ module UTyp = {
     | [(tag, _)] => Some(tag)
     | _ => None
     }
-  and to_tag_map = (ctx, uts: list(t)): Typ.typ_map => {
+  and to_tag_map = (ctx, uts: list(t)): Typ.sum_map => {
     List.fold_left(
       (acc, ut) =>
         List.find_opt(((tag, _)) => tag == fst(ut), acc) == None
