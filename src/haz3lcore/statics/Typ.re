@@ -29,9 +29,6 @@ and sum_map = VarMap.t_(option(t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type sum_entry = (Token.t, option(t));
 
-let sort_sum: sum_map => sum_map =
-  List.sort(((t1, _), (t2, _)) => compare(t1, t2));
-
 let sum_entry = (t: Token.t, tags: sum_map): option(sum_entry) =>
   List.find_map(
     fun
