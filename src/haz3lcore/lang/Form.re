@@ -143,7 +143,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("typ_sum_single", mk(ss, ["+"], mk_pre(5, Typ, []))), //TODO(andrew): prec?
+  ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))), //TODO(andrew): prec?
   ("cell-join", mk_infix(";", Exp, 10)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),

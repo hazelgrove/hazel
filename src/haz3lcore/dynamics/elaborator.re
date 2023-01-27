@@ -75,6 +75,20 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
       }
     | Ana(ana_ty) =>
+      let ana_ty =
+        switch (Ctx.resolve_typ(ctx, ana_ty)) {
+        | Some(ty) => ty
+        | None => ana_ty
+        };
+      let self_ty =
+        switch (self) {
+        | Just(ty) =>
+          switch (Ctx.resolve_typ(ctx, ty)) {
+          | Some(ty) => ty
+          | None => ty
+          }
+        | _ => Unknown(Internal)
+        };
       /* Forms with special ana rules get cast from their appropriate Matched types */
       switch (d) {
       | ListLit(_)
@@ -103,9 +117,16 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
           Some(DHExp.cast(d, Sum(Unknown(prov), Unknown(prov)), ana_ty))
         | _ => Some(d)
         }
+      | Ap(_, _)
+      | Tag(_) =>
+        switch (ana_ty, self_ty) {
+        | (Unknown(prov), TSum(tymap)) =>
+          let tymap' =
+            tymap |> TagMap.map(Option.map(_ => Typ.Unknown(prov)));
+          Some(DHExp.cast(d, TSum(tymap'), ana_ty));
+        | _ => Some(d)
+        }
       /* Forms with special ana rules but no particular typing requirements */
-      | Ap(Tag(_), _) //TODO(andrew): does this make sense?
-      | Tag(_) //TODO(andrew): does this make sense?
       | ConsistentCase(_)
       | InconsistentBranches(_)
       | Sequence(_)
@@ -126,7 +147,7 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BoundVar(_)
       | ApBuiltin(_)
       | Prj(_)
-      | Ap(_)
+      //| Ap(_)
       | BoolLit(_)
       | IntLit(_)
       | FloatLit(_)
@@ -135,18 +156,8 @@ let wrap = (ctx, u, mode, self, d: DHExp.t): option(DHExp.t) =>
       | BinIntOp(_)
       | BinFloatOp(_)
       | BinStringOp(_)
-      | TestLit(_) =>
-        Some(
-          DHExp.cast(
-            d,
-            switch (self) {
-            | Just(ty) => ty
-            | _ => Unknown(Internal)
-            },
-            ana_ty,
-          ),
-        )
-      }
+      | TestLit(_) => Some(DHExp.cast(d, self_ty, ana_ty))
+      };
     }
   | InHole(_) => Some(NonEmptyHole(TypeInconsistent, u, 0, d))
   };

@@ -732,6 +732,7 @@ and utyp_to_info_map =
   let normal = m => mode != Normal ? error(TagExpected(ty), m) : ok(m);
   let go = utyp_to_info_map(~ctx, ~mode=Normal);
   //TODO(andrew): make this return free, replacing Typ.free_vars
+  //TODO: refactor this along status+mode=>fix lines
   switch (term) {
   | EmptyHole => ok(Id.Map.empty)
   | Int
@@ -790,7 +791,7 @@ and utyp_to_info_map =
         ([], []),
         ts,
       );
-    ok(union_m(ms));
+    normal(union_m(ms));
   | MultiHole(tms) =>
     let (_, maps) = tms |> List.map(any_to_info_map(~ctx)) |> List.split;
     ok(union_m(maps));
